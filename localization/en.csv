@@ -1,0 +1,35 @@
+key,en
+menu_story_mode,Story Mode
+menu_fighter_mode,Fighter Mode
+menu_settings,Settings
+menu_quit,Quit Game
+menu_resume,Resume
+menu_save,Save Game
+menu_restart,Restart Level
+menu_exit,Exit
+hud_hp,HP
+hud_ultimate,Ultimate
+hud_block_charges,Block
+hud_stocks,Stocks
+hud_timer,Time
+match_player_wins,Player {0} Wins!
+match_draw,DRAW
+match_ko,K.O.!
+settings_master_volume,Master Volume
+settings_music_volume,Music Volume
+settings_sfx_volume,SFX Volume
+settings_ui_volume,UI Volume
+settings_fullscreen,Fullscreen
+settings_vsync,VSync
+settings_resolution,Resolution
+settings_haptics,Controller Haptics
+settings_haptic_intensity,Haptic Intensity
+settings_difficulty,Default Difficulty
+difficulty_easy,Easy
+difficulty_normal,Normal
+difficulty_hard,Hard
+dialogue_continue,Press [E] to continue
+save_new_game,New Game
+save_load_game,Load Game
+save_delete,Delete Save
+save_confirm_delete,This action cannot be undone

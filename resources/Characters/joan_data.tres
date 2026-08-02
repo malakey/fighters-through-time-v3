@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="CharacterData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Characters/CharacterData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+CharacterID = "joan"
+DisplayName = "Joan of Arc"
+Style = 0
+MaxHP = 110
+Weight = 1.1
+MaxBlockCharges = 3
+MaxMoveSpeed = 9.0
+Acceleration = 50.0
+GroundFriction = 22.0
+MaxJumpForce = 13.5
+MaxJumpCount = 1
+AirControlMultiplier = 0.5
+BasicAttackDamage = 12.0
+BasicAttackKnockback = 3.5

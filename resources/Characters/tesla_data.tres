@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="CharacterData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Characters/CharacterData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+CharacterID = "tesla"
+DisplayName = "Nikola Tesla"
+Style = 1
+MaxHP = 90
+Weight = 0.85
+MaxBlockCharges = 3
+MaxMoveSpeed = 7.0
+Acceleration = 38.0
+GroundFriction = 20.0
+MaxJumpForce = 13.0
+MaxJumpCount = 1
+AirControlMultiplier = 0.55
+BasicAttackDamage = 9.0
+BasicAttackKnockback = 2.5

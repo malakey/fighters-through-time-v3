@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="CharacterData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Characters/CharacterData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+CharacterID = "mozart"
+DisplayName = "Wolfgang Amadeus Mozart"
+Style = 1
+MaxHP = 85
+Weight = 0.75
+MaxBlockCharges = 3
+MaxMoveSpeed = 8.0
+Acceleration = 42.0
+GroundFriction = 22.0
+MaxJumpForce = 14.0
+MaxJumpCount = 2
+AirControlMultiplier = 0.65
+BasicAttackDamage = 8.0
+BasicAttackKnockback = 2.5

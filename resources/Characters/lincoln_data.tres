@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="CharacterData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Characters/CharacterData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+CharacterID = "lincoln"
+DisplayName = "Abraham Lincoln"
+Style = 0
+MaxHP = 130
+Weight = 1.6
+MaxBlockCharges = 3
+MaxMoveSpeed = 5.5
+Acceleration = 25.0
+GroundFriction = 15.0
+MaxJumpForce = 11.0
+MaxJumpCount = 1
+AirControlMultiplier = 0.4
+BasicAttackDamage = 15.0
+BasicAttackKnockback = 5.0

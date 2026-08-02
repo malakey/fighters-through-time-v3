@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="CharacterData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Characters/CharacterData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+CharacterID = "leonardo"
+DisplayName = "Leonardo da Vinci"
+Style = 2
+MaxHP = 95
+Weight = 0.9
+MaxBlockCharges = 3
+MaxMoveSpeed = 7.5
+Acceleration = 35.0
+GroundFriction = 18.0
+MaxJumpForce = 13.0
+MaxJumpCount = 1
+AirControlMultiplier = 0.7
+BasicAttackDamage = 9.0
+BasicAttackKnockback = 2.5
