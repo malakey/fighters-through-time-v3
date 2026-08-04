@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="BossData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+BossID = "borgia_inquisitor"
+DisplayName = "The Borgia Inquisitor"
+DisplayNameKey = "boss_borgia_inquisitor_name"
+MaxHP = 500
+IsKnockbackImmune = true
+MoveSpeed = 5.0
+AttackRange = 3.0
+RestCooldown = 1.2
+MeleeRangeThreshold = 3.0
+RangedRangeThreshold = 7.0
+ReactionDelayMinFrames = 4
+ReactionDelayMaxFrames = 8
+PhaseThresholds = Array[float]([0.5])
+PhaseTransitionInvincibilityDuration = 2.0

@@ -219,9 +219,7 @@ namespace FTT.Characters.Abilities {
 
             if (_isGliding) {
                 _glideTimer -= dt;
-                float hInput = 0f;
-                if (Input.IsActionPressed(FTT.Core.InputManager.Actions.MoveRight)) hInput += 1f;
-                if (Input.IsActionPressed(FTT.Core.InputManager.Actions.MoveLeft)) hInput -= 1f;
+                float hInput = Owner.CurrentInputFrame.Horizontal;
 
                 var vel = Owner.Velocity;
                 vel.X = hInput * GlideSpeed;

@@ -1,28 +1,35 @@
 using Godot;
 using FTT.Characters;
+using FTT.Core;
+using FTT.FighterSim;
 
 namespace FTT.Environment {
 
     public partial class TestArenaController : Node2D {
+        public FighterSimulationDriver FighterDriver { get; private set; }
 
         public override void _Ready() {
-            string characterID = FTT.Core.GameManager.Instance?.CurrentSession.SelectedCharacterID ?? "einstein";
+            string characterID = GameManager.Instance?.CurrentSession.SelectedCharacterID ?? "einstein";
             if (string.IsNullOrEmpty(characterID)) characterID = "einstein";
+            string opponentID = GameManager.Instance?.CurrentSession.OpponentCharacterID ?? "joan";
+            if (string.IsNullOrEmpty(opponentID)) opponentID = "joan";
 
             var player = CharacterFactory.CreateCharacter(characterID, 0);
-            player.Name = "Player";
+            player.Name = "Player1";
             player.Position = new Vector2(700, 600);
             AddChild(player);
 
-            var dummy = new TrainingDummy();
-            dummy.Name = "TrainingDummy";
-            dummy.Position = new Vector2(1200, 600);
-            AddChild(dummy);
+            var opponent = CharacterFactory.CreateCharacter(opponentID, 1);
+            opponent.Name = "Player2";
+            opponent.Position = new Vector2(1200, 600);
+            opponent.IsFacingRight = false;
+            AddChild(opponent);
 
-            var dummy2 = new TrainingDummy();
-            dummy2.Name = "TrainingDummy2";
-            dummy2.Position = new Vector2(500, 400);
-            AddChild(dummy2);
+            MatchSettings settings = GameManager.Instance?.CurrentSession.MatchSettings
+                ?? MatchSettings.GetDefault();
+            FighterDriver = new FighterSimulationDriver { Name = "FighterSimulationDriver" };
+            AddChild(FighterDriver);
+            FighterDriver.Initialize(player, opponent, settings);
         }
     }
 }

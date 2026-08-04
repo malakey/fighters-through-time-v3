@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "tech_enforcer"
+DisplayName = "Tech-Enforcer"
+DisplayNameKey = "enemy_tech_enforcer_name"
+Tier = 1
+MaxHP = 150
+Weight = 1.3
+MoveSpeed = 4.0
+JumpForce = 8.0
+AggroRadius = 600.0
+DeAggroRadius = 900.0
+AttackRange = 8.0
+AttackDamage = 18.0
+AttackKnockback = 3.5
+AttackCooldown = 3.0
+StunResistance = 0.5
+ReactionDelayMinFrames = 15
+ReactionDelayMaxFrames = 25
+ChronalDustDrop = 20

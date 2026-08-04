@@ -100,7 +100,7 @@ namespace FTT.Characters.Abilities {
             if (body is PlayerController pc && pc.PlayerIndex != _ownerIndex) {
                 pc.ApplyDamage((int)_biteDamage);
                 pc.GetNodeOrNull<StatusController>("StatusController")
-                    ?.ApplyStatus(FTT.Core.StatusType.Stunned, RootDuration);
+                    ?.ApplyStatus(FTT.Core.StatusType.Root, RootDuration);
                 pc.GetNodeOrNull<StatusController>("StatusController")
                     ?.ApplyStatus(_venomStatus, _statusDuration > 0 ? _statusDuration : VenomDuration);
                 FTT.Core.EventBus.Instance?.RaiseStatusEffectApplied(new FTT.Core.StatusEffectPayload {
@@ -284,12 +284,8 @@ namespace FTT.Characters.Abilities {
         }
 
         private Vector2 ResolveDirection() {
-            float hInput = 0f;
-            if (Input.IsActionPressed(FTT.Core.InputManager.Actions.MoveRight)) hInput += 1f;
-            if (Input.IsActionPressed(FTT.Core.InputManager.Actions.MoveLeft)) hInput -= 1f;
-            float vInput = 0f;
-            if (Input.IsActionPressed(FTT.Core.InputManager.Actions.Jump)) vInput -= 1f;
-            if (Input.IsActionPressed(FTT.Core.InputManager.Actions.Down)) vInput += 1f;
+            float hInput = Owner.CurrentInputFrame.Horizontal;
+            float vInput = Owner.CurrentInputFrame.Vertical;
 
             var dir = new Vector2(hInput, vInput);
             if (dir == Vector2.Zero) {
@@ -377,10 +373,10 @@ namespace FTT.Characters.Abilities {
                 if (area is Hurtbox hurtbox && hurtbox.OwnerPlayerIndex != Owner.PlayerIndex) {
                     var target = hurtbox.GetParent<PlayerController>();
                     target?.GetNodeOrNull<StatusController>("StatusController")
-                        ?.ApplyStatus(FTT.Core.StatusType.Burning, PoisonDuration);
+                        ?.ApplyStatus(FTT.Core.StatusType.Venom, PoisonDuration);
                     FTT.Core.EventBus.Instance?.RaiseStatusEffectApplied(new FTT.Core.StatusEffectPayload {
                         TargetIndex = hurtbox.OwnerPlayerIndex,
-                        Type = FTT.Core.StatusType.Burning,
+                        Type = FTT.Core.StatusType.Venom,
                         Duration = PoisonDuration
                     });
                 }

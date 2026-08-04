@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="MovementAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/MovementAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "mozart_sonata_drift"
+CharacterID = "mozart"
+Slot = 2
+ExecutionType = 4
+AbilityName = "Sonata Drift"
+DisplayNameKey = "ability_mozart_sonata_drift_name"
+DescriptionKey = "ability_mozart_sonata_drift_description"
+BaseDamage = 0.0
+IsMultiHit = false
+HitCount = 1
+DamageTickIntervalFrames = 0
+KnockbackForce = Vector2(0, 0)
+ProjectileSpeed = 0.0
+GrantsHyperArmor = false
+HitboxSize = Vector2(60, 50)
+HitboxOffset = Vector2(30, 0)
+StartupFrames = 12
+ActiveFrames = 6
+RecoveryFrames = 18
+CooldownDuration = 5.0
+Lifetime = 3.0
+ProjectileLifetime = 5.0
+PersistentObjectID = "sonata_platform"
+MaxActiveObjects = 1
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+AnimationName = "movement"
+ScreenShakeIntensity = 0.2
+ScreenShakeDuration = 0.15
+MovementType = 5
+MovementDuration = 3.0
+DistanceMoved = 0.0
+MovementSpeed = 0.0
+ResetsDoubleJump = false

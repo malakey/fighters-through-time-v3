@@ -22,8 +22,8 @@ namespace FTT.Enemies {
             if (Data != null) CurrentHP = Data.MaxHP;
             _sprite = GetNodeOrNull<AnimatedSprite2D>("AnimatedSprite2D");
 
-            CollisionLayer = 2;
-            CollisionMask = 1 | 2;
+            CollisionLayer = FTT.Core.CollisionLayers.Enemy;
+            CollisionMask = FTT.Core.CollisionLayers.EnemyBodyMask;
         }
 
         public override void _PhysicsProcess(double delta) {

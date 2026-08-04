@@ -197,6 +197,7 @@ namespace FTT.UI {
 
             var session = FTT.Core.GameManager.Instance.CurrentSession;
             session.SelectedCharacterID = _characterIDs[_selectedIndex];
+            if (string.IsNullOrEmpty(session.OpponentCharacterID)) session.OpponentCharacterID = "joan";
             FTT.Core.GameManager.Instance.CurrentSession = session;
             FTT.Core.GameManager.Instance.LoadScene("res://scenes/arenas/TestArena.tscn");
         }

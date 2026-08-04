@@ -19,8 +19,8 @@ namespace FTT.Characters {
             MotionMode = MotionModeEnum.Grounded;
             UpDirection = Vector2.Up;
             FloorStopOnSlope = true;
-			CollisionLayer = 2;
-			CollisionMask = 1 | 2;
+			CollisionLayer = FTT.Core.CollisionLayers.Enemy;
+			CollisionMask = FTT.Core.CollisionLayers.EnemyBodyMask;
 
             var col = new CollisionShape2D();
             var colRect = new RectangleShape2D();
@@ -78,8 +78,8 @@ namespace FTT.Characters {
             var hurtbox = new FTT.Combat.Hurtbox();
             hurtbox.Name = "Hurtbox";
             hurtbox.OwnerPlayerIndex = 99;
-            hurtbox.CollisionLayer = 8;
-            hurtbox.CollisionMask = 4;
+            hurtbox.CollisionLayer = FTT.Core.CollisionLayers.EnemyHurtbox;
+            hurtbox.CollisionMask = FTT.Core.CollisionLayers.PlayerHitbox | FTT.Core.CollisionLayers.Projectile;
             hurtbox.Monitorable = true;
             hurtbox.Monitoring = true;
             var hbShape = new CollisionShape2D();
@@ -92,11 +92,13 @@ namespace FTT.Characters {
             hurtbox.OnHit += OnHit;
         }
 
-        private void OnHit(float damage, Vector2 knockback, float hitstun, Vector2 hitPosition) {
-            if (_dead) return;
-            int dmg = (int)damage;
-            CurrentHP -= dmg;
-            SpawnDamageNumber(dmg, hitPosition);
+        private float OnHit(FTT.Combat.HitPayload hit) {
+            if (_dead) return 0f;
+            int previousHP = CurrentHP;
+            int dmg = Mathf.Max(0, (int)Mathf.Round(hit.Damage));
+            CurrentHP = Mathf.Max(0, CurrentHP - dmg);
+            int damageApplied = previousHP - CurrentHP;
+            SpawnDamageNumber(damageApplied, hit.HitOrigin);
 
             if (CurrentHP <= 0) {
                 CurrentHP = 0;
@@ -104,20 +106,11 @@ namespace FTT.Characters {
                 _respawnTimer = 2.5f;
             }
             UpdateHPDisplay();
+            return damageApplied;
         }
 
         private void SpawnDamageNumber(int damage, Vector2 position) {
-            var num = new Label();
-            num.Text = $"-{damage}";
-            num.GlobalPosition = position + new Vector2(-15, -30);
-            num.AddThemeColorOverride("font_color", damage >= 15 ? new Color(1, 0.3f, 0.1f) : new Color(1, 0.9f, 0.3f));
-            num.AddThemeFontSizeOverride("font_size", damage >= 15 ? 22 : 16);
-            GetParent()?.AddChild(num);
-
-            var tween = num.CreateTween();
-            tween.TweenProperty(num, "position:y", num.Position.Y - 50, 0.7f);
-            tween.Parallel().TweenProperty(num, "modulate:a", 0f, 0.7f);
-            tween.TweenCallback(Callable.From(() => num.QueueFree()));
+            FTT.UI.FloatingDamageNumber.Show(damage, position + new Vector2(-15, -30), GetParent());
         }
 
         private void UpdateHPDisplay() {

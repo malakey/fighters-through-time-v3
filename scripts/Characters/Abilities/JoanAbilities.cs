@@ -207,7 +207,7 @@ namespace FTT.Characters.Abilities {
 
             if (CurrentPhase == AbilityPhase.Recovery || CurrentPhase == AbilityPhase.Cleanup) {
                 if (!_isGliding && !Owner.IsOnFloor() &&
-                    Input.IsActionPressed(FTT.Core.InputManager.Actions.Jump)) {
+                    Owner.CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Jump)) {
                     _isGliding = true;
                     _glideTimer = MaxGlideDuration;
                 }
@@ -219,7 +219,7 @@ namespace FTT.Characters.Abilities {
                     Owner.Velocity = vel;
 
                     if (_glideTimer <= 0 || Owner.IsOnFloor() ||
-                        !Input.IsActionPressed(FTT.Core.InputManager.Actions.Jump)) {
+                        !Owner.CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Jump)) {
                         _isGliding = false;
                         AdvanceToCleanup();
                     }

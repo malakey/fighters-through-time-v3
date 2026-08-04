@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/AbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "cleopatra_serpent_nest"
+CharacterID = "cleopatra"
+Slot = 0
+ExecutionType = 3
+AbilityName = "Serpent Nest"
+DisplayNameKey = "ability_cleopatra_serpent_nest_name"
+DescriptionKey = "ability_cleopatra_serpent_nest_description"
+BaseDamage = 10.0
+IsMultiHit = false
+HitCount = 1
+DamageTickIntervalFrames = 0
+KnockbackForce = Vector2(2, -1)
+ProjectileSpeed = 0.0
+GrantsHyperArmor = false
+HitboxSize = Vector2(60, 50)
+HitboxOffset = Vector2(30, 0)
+StartupFrames = 12
+ActiveFrames = 6
+RecoveryFrames = 18
+CooldownDuration = 10.0
+Lifetime = 12.0
+ProjectileLifetime = 5.0
+PersistentObjectID = "serpent_nest"
+MaxActiveObjects = 2
+AppliedStatus = 2
+StatusDuration = 4.0
+StatusIntensity = 1.0
+AnimationName = "special_1"
+ScreenShakeIntensity = 0.2
+ScreenShakeDuration = 0.15

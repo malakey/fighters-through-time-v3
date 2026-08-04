@@ -53,6 +53,7 @@ namespace FTT.Core {
 
     public struct SessionData {
         public string SelectedCharacterID;
+        public string OpponentCharacterID;
         public string SelectedStageID;
         public int ActiveSaveSlot;
         public Difficulty Difficulty;
@@ -75,6 +76,7 @@ namespace FTT.Core {
         public override void _Ready() {
             Instance = this;
             CurrentSession = new SessionData {
+                OpponentCharacterID = "joan",
                 Difficulty = Difficulty.Normal,
                 MatchSettings = MatchSettings.GetDefault()
             };

@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "chrono_slasher"
+DisplayName = "Chrono-Slasher"
+DisplayNameKey = "enemy_chrono_slasher_name"
+Tier = 0
+MaxHP = 40
+Weight = 0.8
+MoveSpeed = 5.0
+JumpForce = 10.0
+AggroRadius = 480.0
+DeAggroRadius = 720.0
+AttackRange = 1.5
+AttackDamage = 10.0
+AttackKnockback = 2.0
+AttackCooldown = 2.0
+StunResistance = 0.0
+ReactionDelayMinFrames = 30
+ReactionDelayMaxFrames = 45
+ChronalDustDrop = 2

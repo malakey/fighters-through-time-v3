@@ -36,7 +36,13 @@ namespace FTT.Combat {
                     player.CurrentHP = Mathf.Min(player.CurrentHP + (int)Data.Value, player.Data?.MaxHP ?? 100);
                     break;
                 case OrbEffect.MeterBoost:
-                    player.CurrentUltimateMeter = Mathf.Min(player.CurrentUltimateMeter + Data.Value, 100f);
+                    var meter = player.GetNodeOrNull<UltimateMeter>("UltimateMeter");
+                    if (meter != null) {
+                        meter.AddFlat(Data.Value);
+                        player.CurrentUltimateMeter = meter.CurrentValue;
+                    } else {
+                        player.CurrentUltimateMeter = Mathf.Min(player.CurrentUltimateMeter + Data.Value, 100f);
+                    }
                     break;
                 case OrbEffect.ShieldRestore:
                     player.CurrentBlockCharges = player.Data?.MaxBlockCharges ?? 3;

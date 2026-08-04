@@ -54,15 +54,23 @@ namespace FTT.Core {
         public int TargetIndex;
         public StatusType Type;
         public float Duration;
+        public float Intensity;
+    }
+
+    public struct UltimateMeterPayload {
+        public int PlayerIndex;
+        public float CurrentValue;
+        public float NormalizedValue;
+        public bool IsFull;
     }
 
     public enum StatusType {
         None,
         TimeDilation,
-        Energized,
-        Weakened,
-        Burning,
-        Stunned
+        Venom,
+        StaticCharge,
+        RadiantBurn,
+        Root
     }
 
     public enum MatchState {
@@ -105,8 +113,8 @@ namespace FTT.Core {
         public event Action<MovementAbilityPayload> OnMovementAbilityUsed;
         public void RaiseMovementAbilityUsed(MovementAbilityPayload payload) => OnMovementAbilityUsed?.Invoke(payload);
 
-        public event Action<float> OnUltimateMeterChanged;
-        public void RaiseUltimateMeterChanged(float normalizedValue) => OnUltimateMeterChanged?.Invoke(normalizedValue);
+        public event Action<UltimateMeterPayload> OnUltimateMeterChanged;
+        public void RaiseUltimateMeterChanged(UltimateMeterPayload payload) => OnUltimateMeterChanged?.Invoke(payload);
 
         // === Status Effect Events ===
         public event Action<StatusEffectPayload> OnStatusEffectApplied;

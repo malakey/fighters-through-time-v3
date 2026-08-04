@@ -1,0 +1,21 @@
+<!-- Import from the consumer game .csproj: <Import Project="addons/klotho/Klotho.props" /> -->
+<Project>
+  <PropertyGroup>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion Condition="'$(LangVersion)' == ''">latest</LangVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- core = prebuilt DLL -->
+    <Reference Include="xpTURN.Klotho.Runtime">
+      <HintPath>$(MSBuildThisFileDirectory)lib/xpTURN.Klotho.Runtime.dll</HintPath>
+    </Reference>
+    <!-- adapter = source: Adapters/**/*.cs is auto-compiled by the consumer's Godot.NET.Sdk default glob
+         (addons/ is under the project tree). Do NOT add an explicit <Compile Include> here — it would
+         double-compile (CS0579/CS2002). Only the generator analyzer needs declaring. -->
+    <Analyzer Include="$(MSBuildThisFileDirectory)Analyzers/KlothoGenerator.dll" />
+    <!-- a DLL <Reference> carries no transitive NuGet deps -> declare the core's runtime deps -->
+    <!-- FTT MODIFICATION: GdUnit4.api requires >=13.0.4; runtime-compatible patch update. -->
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="LiteNetLib" Version="2.1.4" />
+  </ItemGroup>
+</Project>

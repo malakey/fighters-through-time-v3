@@ -33,3 +33,113 @@ save_new_game,New Game
 save_load_game,Load Game
 save_delete,Delete Save
 save_confirm_delete,This action cannot be undone
+character_einstein_name,Albert Einstein
+character_joan_name,Joan of Arc
+character_leonardo_name,Leonardo da Vinci
+character_lincoln_name,Abraham Lincoln
+character_cleopatra_name,Cleopatra
+character_tesla_name,Nikola Tesla
+character_shakespeare_name,William Shakespeare
+character_mozart_name,Wolfgang Amadeus Mozart
+character_pocahontas_name,Pocahontas
+ability_einstein_mass_energy_conversion_name,Mass-Energy Conversion
+ability_einstein_mass_energy_conversion_description,Throw an object that detonates in a burst of radiant energy.
+ability_einstein_relativity_rift_name,Relativity Rift
+ability_einstein_relativity_rift_description,Create a damaging field that slows opponents.
+ability_einstein_relativity_warp_name,Relativity Warp
+ability_einstein_relativity_warp_description,Warp a short distance in the input direction.
+ability_einstein_cosmological_constant_name,The Cosmological Constant
+ability_einstein_cosmological_constant_description,Collapse a miniature black hole into a final launch.
+ability_joan_righteous_smite_name,Righteous Smite
+ability_joan_righteous_smite_description,Send a radiant ground shockwave that inflicts Radiant Burn.
+ability_joan_divine_piercing_name,Divine Piercing
+ability_joan_divine_piercing_description,Unleash rapid thrusts that shred shields.
+ability_joan_ascendant_wings_name,Ascendant Wings
+ability_joan_ascendant_wings_description,Leap upward and glide on ethereal wings.
+ability_joan_grand_crusade_name,The Grand Crusade
+ability_joan_grand_crusade_description,Summon a spectral cavalry charge.
+ability_leonardo_golden_ratio_name,Golden Ratio
+ability_leonardo_golden_ratio_description,Draw a multi-hit expanding Fibonacci spiral.
+ability_leonardo_clockwork_turret_name,Clockwork Turret
+ability_leonardo_clockwork_turret_description,Deploy a turret that fires three bolts.
+ability_leonardo_ornithopter_flight_name,Ornithopter Flight
+ability_leonardo_ornithopter_flight_description,Gain a vertical boost and controlled glide.
+ability_leonardo_vitruvian_matrix_name,The Vitruvian Matrix
+ability_leonardo_vitruvian_matrix_description,Trap foes in a blueprint dimension and bombard them.
+ability_lincoln_emancipator_name,The Emancipator
+ability_lincoln_emancipator_description,Launch a heavy ground-traveling rail shockwave.
+ability_lincoln_splitting_strike_name,Splitting Strike
+ability_lincoln_splitting_strike_description,Deliver an overhead strike that shatters shields.
+ability_lincoln_rail_charge_name,Rail Charge
+ability_lincoln_rail_charge_description,Charge forward with hyper-armor.
+ability_lincoln_union_indestructible_name,Union Indestructible
+ability_lincoln_union_indestructible_description,Trap opponents behind rails before a crushing smash.
+ability_cleopatra_serpent_nest_name,Serpent Nest
+ability_cleopatra_serpent_nest_description,Deploy spectral asps that root and poison trespassers.
+ability_cleopatra_sandstorm_vortex_name,Sandstorm Vortex
+ability_cleopatra_sandstorm_vortex_description,Pull foes into a damaging time-slowing vortex.
+ability_cleopatra_desert_mirage_name,Desert Mirage
+ability_cleopatra_desert_mirage_description,Dissolve into sand and rush in the input direction.
+ability_cleopatra_wrath_of_the_nile_name,Wrath of the Nile
+ability_cleopatra_wrath_of_the_nile_description,Engulf the stage in venomous spectral cobras.
+ability_tesla_tesla_coil_name,Tesla Coil
+ability_tesla_tesla_coil_description,Deploy a coil that arcs electricity at nearby enemies.
+ability_tesla_lorentz_pulse_name,Lorentz Pulse
+ability_tesla_lorentz_pulse_description,Release a magnetic pulse that roots enemies.
+ability_tesla_lightning_blink_name,Lightning Blink
+ability_tesla_lightning_blink_description,Become current and blink in the input direction.
+ability_tesla_wardenclyffe_cataclysm_name,Wardenclyffe Cataclysm
+ability_tesla_wardenclyffe_cataclysm_description,Call down a stage-wide electromagnetic strike.
+ability_shakespeare_yoricks_lament_name,Yorick's Lament
+ability_shakespeare_yoricks_lament_description,Throw a wailing skull that slows its target.
+ability_shakespeare_the_tempest_name,The Tempest
+ability_shakespeare_the_tempest_description,Summon a wind storm that lifts and repels.
+ability_shakespeare_prosperos_flight_name,Prospero's Flight
+ability_shakespeare_prosperos_flight_description,Ride a magical gust into a horizontal glide.
+ability_shakespeare_all_the_worlds_a_stage_name,All the World's a Stage
+ability_shakespeare_all_the_worlds_a_stage_description,Summon tragic phantoms for sequential strikes.
+ability_mozart_requiem_chord_name,Requiem Chord
+ability_mozart_requiem_chord_description,Fire a chord that bursts into a sonic shockwave.
+ability_mozart_fortissimo_wave_name,Fortissimo Wave
+ability_mozart_fortissimo_wave_description,Conduct a sweeping wave of heavy sound.
+ability_mozart_sonata_drift_name,Sonata Drift
+ability_mozart_sonata_drift_description,Create a temporary floating musical staff platform.
+ability_mozart_symphony_of_sorrow_name,Symphony of Sorrow
+ability_mozart_symphony_of_sorrow_description,Conduct a rain of glowing piano-key meteors.
+ability_pocahontas_spirit_strike_name,Spirit Strike
+ability_pocahontas_spirit_strike_description,Call a spectral eagle into a staggering dive.
+ability_pocahontas_vine_snare_name,Vine Snare
+ability_pocahontas_vine_snare_description,Grow thorny vines that damage and root enemies.
+ability_pocahontas_breeze_glide_name,Breeze Glide
+ability_pocahontas_breeze_glide_description,Ride a wind current and refresh the extra jump.
+ability_pocahontas_tidewater_tempest_name,Tidewater Tempest
+ability_pocahontas_tidewater_tempest_description,Channel forest spirits through a lifting storm.
+enemy_chrono_slasher_name,Chrono-Slasher
+enemy_tech_enforcer_name,Tech-Enforcer
+enemy_cyber_guard_name,Cyber-Guard
+enemy_steam_automaton_name,Steam Automaton v2
+enemy_hologram_drone_name,Hologram Drone
+boss_borgia_inquisitor_name,The Borgia Inquisitor
+common_unknown,Unknown
+common_unavailable,Unavailable
+common_ready,Ready
+common_seconds_short,{0:F1}s
+direction_left,Left
+direction_right,Right
+fighter_state_knocked_out,Knocked Out
+fighter_state_respawning,Respawning
+fighter_state_dazed,Dazed
+fighter_state_stunned,Stunned
+fighter_state_blocking,Blocking
+fighter_state_grounded,Grounded
+fighter_state_airborne,Airborne
+status_none,None
+status_timedilation,Time Dilation
+status_venom,Venom
+status_staticcharge,Static Charge
+status_radiantburn,Radiant Burn
+status_root,Root
+test_arena_state,{0} | State: {1} | Facing: {2} | Jumps: {3} | Tick: {4} | Hash: {5}
+test_arena_vitals,P1 HP: {0}/{1} | Stocks: {2} | Influence: {3:F0}/100 | Block: {4} || P2 HP: {5}/{6} | Stocks: {7} | Influence: {8:F0}/100 | Block: {9}
+test_arena_cooldowns,Special 1: {0} | Special 2: {1} | Status: {2}
+test_arena_controls,A/D Move | Space/W Jump | J Attack | K Special 1 | L Special 2 | Shift Movement | I Block | U Ultimate | ESC Menu

@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/AbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "einstein_relativity_rift"
+CharacterID = "einstein"
+Slot = 1
+ExecutionType = 2
+AbilityName = "Relativity Rift"
+DisplayNameKey = "ability_einstein_relativity_rift_name"
+DescriptionKey = "ability_einstein_relativity_rift_description"
+BaseDamage = 1.5
+IsMultiHit = true
+HitCount = 6
+DamageTickIntervalFrames = 30
+KnockbackForce = Vector2(2, -1)
+ProjectileSpeed = 0.0
+GrantsHyperArmor = false
+HitboxSize = Vector2(60, 50)
+HitboxOffset = Vector2(30, 0)
+StartupFrames = 12
+ActiveFrames = 18
+RecoveryFrames = 18
+CooldownDuration = 10.0
+Lifetime = 3.0
+ProjectileLifetime = 5.0
+PersistentObjectID = ""
+MaxActiveObjects = 0
+AppliedStatus = 1
+StatusDuration = 3.0
+StatusIntensity = 1.0
+AnimationName = "special_2"
+ScreenShakeIntensity = 0.2
+ScreenShakeDuration = 0.15

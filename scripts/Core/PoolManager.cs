@@ -58,13 +58,20 @@ namespace FTT.Core {
             AddChild(_poolRoot);
         }
 
+        public override void _ExitTree() {
+            if (Instance == this) Instance = null;
+        }
+
         public void RegisterPool(PackedScene template, int warmUpCount, int maxCapacity, PoolOverflowPolicy overflowPolicy) {
+            if (template == null) throw new ArgumentNullException(nameof(template));
             string key = template.ResourcePath;
             if (_pools.ContainsKey(key)) return;
 
+            int capacity = Math.Max(1, maxCapacity);
+
             var pool = new Pool {
                 Template = template,
-                MaxCapacity = maxCapacity,
+                MaxCapacity = capacity,
                 OverflowPolicy = overflowPolicy
             };
 
@@ -72,7 +79,8 @@ namespace FTT.Core {
             pool.InactiveContainer.Name = $"Pool_{System.IO.Path.GetFileNameWithoutExtension(key)}";
             _poolRoot.AddChild(pool.InactiveContainer);
 
-            for (int i = 0; i < warmUpCount; i++) {
+            int initialCount = Math.Clamp(warmUpCount, 0, capacity);
+            for (int i = 0; i < initialCount; i++) {
                 var node = CreateInstance(template);
                 node.ProcessMode = ProcessModeEnum.Disabled;
                 pool.InactiveContainer.AddChild(node);
@@ -92,6 +100,7 @@ namespace FTT.Core {
         }
 
         public Node Spawn(PackedScene template, Vector2 position, Node parent = null) {
+            if (template == null) throw new ArgumentNullException(nameof(template));
             string key = template.ResourcePath;
             if (!_pools.TryGetValue(key, out var pool)) {
                 RegisterPool(template, 1, 50, PoolOverflowPolicy.Grow);
@@ -126,6 +135,7 @@ namespace FTT.Core {
             }
 
             var targetParent = parent ?? GetTree().CurrentScene;
+            if (targetParent == null) throw new InvalidOperationException("A pool spawn requires a parent or current scene.");
             targetParent.AddChild(node);
 
             if (node is Node2D node2d) {
@@ -142,7 +152,7 @@ namespace FTT.Core {
         }
 
         public void Release(Node node) {
-            if (node == null) return;
+            if (node == null || !IsInstanceValid(node)) return;
 
             string key = null;
             if (node is PooledNode pooledNode && pooledNode.SceneOrigin != null) {
@@ -160,6 +170,7 @@ namespace FTT.Core {
                 node.QueueFree();
                 return;
             }
+            if (!pool.Active.Contains(node)) return;
 
             if (node is IPoolable poolable) poolable.OnDespawn();
 
@@ -178,6 +189,7 @@ namespace FTT.Core {
         }
 
         public void ClearPool(PackedScene template) {
+            if (template == null) return;
             string key = template.ResourcePath;
             if (!_pools.TryGetValue(key, out var pool)) return;
 
@@ -187,6 +199,8 @@ namespace FTT.Core {
             while (pool.Inactive.Count > 0) {
                 pool.Inactive.Dequeue().QueueFree();
             }
+            pool.InactiveContainer.QueueFree();
+            _pools.Remove(key);
         }
 
         public void ClearAllPools() {
@@ -196,6 +210,7 @@ namespace FTT.Core {
                 while (kvp.Value.Inactive.Count > 0) {
                     kvp.Value.Inactive.Dequeue().QueueFree();
                 }
+                kvp.Value.InactiveContainer.QueueFree();
             }
             _pools.Clear();
         }

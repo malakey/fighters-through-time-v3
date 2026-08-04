@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="MovementAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/MovementAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "cleopatra_desert_mirage"
+CharacterID = "cleopatra"
+Slot = 2
+ExecutionType = 4
+AbilityName = "Desert Mirage"
+DisplayNameKey = "ability_cleopatra_desert_mirage_name"
+DescriptionKey = "ability_cleopatra_desert_mirage_description"
+BaseDamage = 0.0
+IsMultiHit = false
+HitCount = 1
+DamageTickIntervalFrames = 0
+KnockbackForce = Vector2(0, 0)
+ProjectileSpeed = 0.0
+GrantsHyperArmor = false
+HitboxSize = Vector2(60, 50)
+HitboxOffset = Vector2(30, 0)
+StartupFrames = 12
+ActiveFrames = 6
+RecoveryFrames = 18
+CooldownDuration = 5.0
+Lifetime = 0.0
+ProjectileLifetime = 5.0
+PersistentObjectID = ""
+MaxActiveObjects = 0
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+AnimationName = "movement"
+ScreenShakeIntensity = 0.2
+ScreenShakeDuration = 0.15
+MovementType = 3
+MovementDuration = 0.3
+DistanceMoved = 180.0
+MovementSpeed = 600.0
+ResetsDoubleJump = false

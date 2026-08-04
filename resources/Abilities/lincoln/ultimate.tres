@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/AbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "lincoln_union_indestructible"
+CharacterID = "lincoln"
+Slot = 3
+ExecutionType = 5
+AbilityName = "Union Indestructible"
+DisplayNameKey = "ability_lincoln_union_indestructible_name"
+DescriptionKey = "ability_lincoln_union_indestructible_description"
+BaseDamage = 25.0
+IsMultiHit = true
+HitCount = 5
+DamageTickIntervalFrames = 0
+KnockbackForce = Vector2(8, -5)
+ProjectileSpeed = 0.0
+GrantsHyperArmor = false
+HitboxSize = Vector2(60, 50)
+HitboxOffset = Vector2(30, 0)
+StartupFrames = 30
+ActiveFrames = 15
+RecoveryFrames = 30
+CooldownDuration = 0.0
+Lifetime = 0.0
+ProjectileLifetime = 5.0
+PersistentObjectID = ""
+MaxActiveObjects = 0
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+AnimationName = "ultimate"
+ScreenShakeIntensity = 0.6
+ScreenShakeDuration = 0.3

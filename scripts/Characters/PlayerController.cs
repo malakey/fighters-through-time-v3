@@ -26,6 +26,7 @@ namespace FTT.Characters {
 
 		[Export] public CharacterData Data;
 		[Export] public int PlayerIndex = 0;
+		public FTT.Core.PlayerInputFrame CurrentInputFrame { get; private set; }
 
 		// Runtime state
 		public CharacterState CurrentState { get; private set; } = CharacterState.Idle;
@@ -39,6 +40,11 @@ namespace FTT.Characters {
 		public float MovementAbilityCooldownTimer;
 		public List<Node2D> ActivePersistentObjects = new();
 		public int ComboCounter;
+		public float StatusMovementMultiplier { get; set; } = 1.0f;
+		public float StatusJumpMultiplier { get; set; } = 1.0f;
+		public float StatusAnimationMultiplier { get; set; } = 1.0f;
+		public float StatusDamageTakenMultiplier { get; set; } = 1.0f;
+		public bool IsMovementRooted { get; set; }
 
 		// Physics constants
 		private const float BaseGravity = 18.0f;
@@ -97,12 +103,31 @@ namespace FTT.Characters {
 		private ColorRect _meleeHitVisual;
 
 		// Basic attack timing
-		private float _attackTimer;
-		private const float BasicAttackDuration = 0.4f;
-		private const float BasicAttackWindup = 0.08f;
-		private const float BasicAttackHitWindow = 0.15f;
+		private int _attackFramesRemaining;
+		private const int ComboBufferFrames = 48;
+		private int _comboBufferFramesRemaining;
+		private bool _comboBufferActive;
+		private bool _nextAttackBuffered;
 		private bool _attackHitActive;
+		private bool _inRecoveryHold;
 		private int _pendingSpecialSlot;
+
+		private static readonly FTT.Combat.CombatFrameTimeline[] ComboTimelines = {
+			new(6, 6, 15),
+			new(7, 7, 16),
+			new(15, 9, 21)
+		};
+		private static readonly float[] ComboDamageMultipliers = { 0.8f, 1.0f, 1.5f };
+		private static readonly Vector2[] ComboHitboxSizes = {
+			new(72f, 60f),
+			new(84f, 72f),
+			new(108f, 84f)
+		};
+		private static readonly Vector2[] ComboHitboxOffsets = {
+			new(60f, -32f),
+			new(60f, -20f),
+			new(72f, -32f)
+		};
 
 		public override void _Ready() {
 			if (Data != null) {
@@ -147,49 +172,54 @@ namespace FTT.Characters {
 			}
 		}
 
-		private void OnHurtboxHit(float damage, Vector2 knockback, float hitstun, Vector2 hitPosition) {
-			if (CurrentState == CharacterState.Dead || CurrentState == CharacterState.Respawning) return;
+		private float OnHurtboxHit(FTT.Combat.HitPayload hit) {
+			if (CurrentState == CharacterState.Dead || CurrentState == CharacterState.Respawning) return 0f;
 
 			if (CurrentState == CharacterState.Blocking && _blockSystem != null) {
-				if (_blockSystem.AbsorbHit()) {
+				FTT.Combat.BlockResult blockResult = _blockSystem.ResolveHit(hit);
+				if (blockResult != FTT.Combat.BlockResult.NotBlocked) {
 					FTT.Core.CameraShake.Instance?.Shake(3f, 0.08f);
-					return;
+					return 0f;
 				}
 			}
 
-			int dmg = (int)damage;
-			ApplyDamage(dmg);
+			int damageApplied = ApplyDamage(Math.Max(0, (int)MathF.Round(hit.Damage)));
+			if (damageApplied <= 0) return 0f;
 
-			float direction = hitPosition.X < GlobalPosition.X ? 1f : -1f;
-			var vel = Velocity;
-			vel += new Vector2(Mathf.Abs(knockback.X) * direction * 60f, knockback.Y * 60f);
-			Velocity = vel;
+			bool hasHyperArmor = HasActiveHyperArmor;
+			if (!hasHyperArmor) {
+				Vector2 knockback = FTT.Combat.DamageCalculator.CalculateKnockback(
+					hit.Knockback,
+					Data?.Weight ?? 1f,
+					hit.AttackerFacingRight);
+				Velocity += knockback * 60f;
 
-			if (hitstun > 0 && CurrentState != CharacterState.Dead) {
-				ApplyStun(hitstun);
+				if (hit.HitstunDuration > 0f && CurrentState != CharacterState.Dead) {
+					ApplyStun(hit.HitstunDuration);
+				}
 			}
 
-			_ultimateMeter?.AddFromDamageTaken(damage);
-			FTT.Core.CameraShake.Instance?.Shake(damage * 0.5f, 0.1f);
-			SpawnDamageNumber(dmg, hitPosition);
+			if (hit.AppliedStatus != FTT.Core.StatusType.None && CurrentState != CharacterState.Dead) {
+				_statusController?.ApplyStatus(hit.AppliedStatus, hit.StatusDuration, hit.StatusIntensity);
+			}
+
+			_ultimateMeter?.AddFromDamageTaken(damageApplied);
+			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
+			float shakeIntensity = hit.ScreenShakeIntensity > 0f
+				? hit.ScreenShakeIntensity * 12f
+				: damageApplied * 0.25f;
+			FTT.Core.CameraShake.Instance?.Shake(shakeIntensity, hit.ScreenShakeDuration);
+			SpawnDamageNumber(damageApplied, hit.HitOrigin);
+			return damageApplied;
 		}
 
 		private void SpawnDamageNumber(int damage, Vector2 position) {
-			var num = new Label();
-			num.Text = damage.ToString();
-			num.GlobalPosition = position + new Vector2(-10, -30);
-			num.AddThemeColorOverride("font_color", damage >= 15 ? new Color(1, 0.3f, 0.1f) : new Color(1, 0.9f, 0.3f));
-			num.AddThemeFontSizeOverride("font_size", damage >= 15 ? 22 : 16);
-			GetParent()?.AddChild(num);
-
-			var tween = num.CreateTween();
-			tween.TweenProperty(num, "position:y", num.Position.Y - 50, 0.7f);
-			tween.Parallel().TweenProperty(num, "modulate:a", 0f, 0.7f);
-			tween.TweenCallback(Callable.From(() => num.QueueFree()));
+			FTT.UI.FloatingDamageNumber.Show(damage, position + new Vector2(-10, -30), GetParent());
 		}
 
 		public override void _PhysicsProcess(double delta) {
 			float dt = (float)delta;
+			CurrentInputFrame = FTT.Core.InputManager.Instance?.GetFrame(PlayerIndex) ?? default;
 
 			UpdateCooldowns(dt);
 			UpdateDropThrough(dt);
@@ -253,7 +283,7 @@ namespace FTT.Characters {
 
 		private void ProcessIdle(float dt) {
 			ApplyGravity(dt);
-			float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * 60f;
+			float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * StatusMovementMultiplier * 60f;
 			float step = maxSpeed / GroundRampFrames * dt * 60f;
 			var idleVel = Velocity;
 			idleVel.X = Mathf.MoveToward(idleVel.X, 0, step);
@@ -284,7 +314,7 @@ namespace FTT.Characters {
 				return;
 			}
 
-			if (Input.IsActionPressed(FTT.Core.InputManager.Actions.Down)) {
+			if (CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down)) {
 				TransitionTo(CharacterState.Crouching);
 				return;
 			}
@@ -318,7 +348,7 @@ namespace FTT.Characters {
 				return;
 			}
 
-			if (Input.IsActionPressed(FTT.Core.InputManager.Actions.Down)) {
+			if (CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down)) {
 				TransitionTo(CharacterState.Crouching);
 				return;
 			}
@@ -337,7 +367,7 @@ namespace FTT.Characters {
 
 		private void ProcessSkidding(float dt) {
 			ApplyGravity(dt);
-			float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * 60f;
+			float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * StatusMovementMultiplier * 60f;
 			float step = maxSpeed / GroundRampFrames * dt * 60f;
 			var skidVel = Velocity;
 			skidVel.X = Mathf.MoveToward(skidVel.X, 0, step);
@@ -355,13 +385,13 @@ namespace FTT.Characters {
 
 		private void ProcessCrouching(float dt) {
 			ApplyGravity(dt);
-			float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * 60f;
+			float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * StatusMovementMultiplier * 60f;
 			float step = maxSpeed / GroundRampFrames * dt * 60f;
 			var crouchVel = Velocity;
 			crouchVel.X = Mathf.MoveToward(crouchVel.X, 0, step);
 			Velocity = crouchVel;
 
-			if (!Input.IsActionPressed(FTT.Core.InputManager.Actions.Down)) {
+			if (!CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down)) {
 				RestoreHurtboxHeight();
 				TransitionTo(CharacterState.Idle);
 				return;
@@ -376,12 +406,11 @@ namespace FTT.Characters {
 			ApplyGravity(dt);
 
 			float hAxis = GetHorizontalInput();
-			float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * 60f;
-			float airFactor = Data?.AirControlMultiplier ?? 0.9f;
-			float targetSpeed = hAxis * maxSpeed * airFactor;
+			float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * StatusMovementMultiplier * 60f;
+			float targetSpeed = hAxis * maxSpeed;
 			bool isAccelerating = Mathf.Abs(targetSpeed) >= Mathf.Abs(Velocity.X)
 				|| (targetSpeed > 0 && Velocity.X < 0) || (targetSpeed < 0 && Velocity.X > 0);
-			float rampFrames = isAccelerating ? AirAccelRampFrames : AirDecelRampFrames;
+			float rampFrames = isAccelerating ? GroundRampFrames : AirDecelRampFrames;
 			float step = maxSpeed / rampFrames * dt * 60f;
 			var vel = Velocity;
 			vel.X = Mathf.MoveToward(vel.X, targetSpeed, step);
@@ -411,48 +440,112 @@ namespace FTT.Characters {
 		private void ProcessAttacking(float dt) {
 			ApplyGravity(dt);
 			if (IsOnFloor()) {
-				float hAxis = GetHorizontalInput();
-				if (Mathf.Abs(hAxis) > 0.1f) {
-					ApplyHorizontalMovement(hAxis, dt);
-				} else {
-					float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * 60f;
-					float step = maxSpeed / GroundRampFrames * dt * 60f;
-					var vel = Velocity;
-					vel.X = Mathf.MoveToward(vel.X, 0, step);
-					Velocity = vel;
-				}
+				float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * StatusMovementMultiplier * 60f;
+				float step = maxSpeed / GroundRampFrames * dt * 60f;
+				var vel = Velocity;
+				vel.X = Mathf.MoveToward(vel.X, 0, step);
+				Velocity = vel;
 			} else {
 				ApplyAirControl(dt);
 			}
 
-			_attackTimer -= dt;
+			if (_inRecoveryHold) {
+				ProcessRecoveryHold(dt);
+				return;
+			}
 
-			if (_attackTimer <= BasicAttackDuration - BasicAttackWindup && !_attackHitActive) {
+			int comboIdx = Mathf.Clamp(ComboCounter, 0, 2);
+			FTT.Combat.CombatFrameTimeline timeline = ComboTimelines[comboIdx];
+			int elapsedFrame = timeline.TotalFrames - _attackFramesRemaining;
+			bool shouldBeActive = timeline.IsActive(elapsedFrame);
+
+			if (shouldBeActive && !_attackHitActive) {
 				_attackHitActive = true;
 				if (_meleeHitbox != null) {
 					float facingMul = IsFacingRight ? 1f : -1f;
-					if (_meleeHitbox.GetChildCount() > 0 && _meleeHitbox.GetChild(0) is CollisionShape2D hitShape)
-						hitShape.Position = new Vector2(30 * facingMul, -32);
+					var hitboxSize = ComboHitboxSizes[comboIdx];
+					var hitboxOffset = ComboHitboxOffsets[comboIdx];
+
+					if (_meleeHitbox.GetChildCount() > 0 && _meleeHitbox.GetChild(0) is CollisionShape2D hitShape) {
+						if (hitShape.Shape is RectangleShape2D rectShape) {
+							rectShape.Size = hitboxSize;
+						}
+						hitShape.Position = new Vector2(hitboxOffset.X * facingMul, hitboxOffset.Y);
+					}
 					_meleeHitbox.Activate();
 				}
 				if (_meleeHitVisual != null) {
-					float vx = IsFacingRight ? 5 : -55;
+					var visSize = ComboHitboxSizes[comboIdx];
+					_meleeHitVisual.Size = visSize;
+					float vx = IsFacingRight ? 5 : -(visSize.X - 35);
 					_meleeHitVisual.Position = new Vector2(vx, -55);
 					_meleeHitVisual.Color = new Color(1, 1, 0.3f, 0.5f);
 				}
 			}
 
-			if (_attackHitActive && _attackTimer <= BasicAttackDuration - BasicAttackWindup - BasicAttackHitWindow) {
+			if (_attackHitActive && !shouldBeActive) {
 				_attackHitActive = false;
 				_meleeHitbox?.Deactivate();
 				if (_meleeHitVisual != null) _meleeHitVisual.Color = new Color(1, 1, 0.3f, 0f);
 			}
 
-			if (_attackTimer <= 0) {
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack) && !_attackHitActive) {
+				_nextAttackBuffered = true;
+			}
+
+			_attackFramesRemaining--;
+			if (_attackFramesRemaining <= 0) {
 				_meleeHitbox?.Deactivate();
 				if (_meleeHitVisual != null) _meleeHitVisual.Color = new Color(1, 1, 0.3f, 0f);
 				_attackHitActive = false;
-				ComboCounter = (ComboCounter + 1) % 3;
+
+				if (ComboCounter < 2 && _nextAttackBuffered) {
+					ComboCounter++;
+					StartComboHit();
+				} else if (ComboCounter >= 2) {
+					ComboCounter = 0;
+					_nextAttackBuffered = false;
+					_inRecoveryHold = false;
+					TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
+				} else {
+					_inRecoveryHold = true;
+					_comboBufferFramesRemaining = ComboBufferFrames;
+					_nextAttackBuffered = false;
+				}
+			}
+		}
+
+		private void ProcessRecoveryHold(float dt) {
+			_comboBufferFramesRemaining--;
+
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)) {
+				_inRecoveryHold = false;
+				ComboCounter++;
+				StartComboHit();
+				return;
+			}
+
+			if (CheckJumpInput()) {
+				_inRecoveryHold = false;
+				ComboCounter = 0;
+				return;
+			}
+
+			if (CheckSpecialInput()) {
+				_inRecoveryHold = false;
+				ComboCounter = 0;
+				return;
+			}
+
+			if (CheckBlockInput()) {
+				_inRecoveryHold = false;
+				ComboCounter = 0;
+				return;
+			}
+
+			if (_comboBufferFramesRemaining <= 0) {
+				_inRecoveryHold = false;
+				ComboCounter = 0;
 				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
 			}
 		}
@@ -473,7 +566,7 @@ namespace FTT.Characters {
 
 		private void ProcessBlocking(float dt) {
 			ApplyGravity(dt);
-			float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * 60f;
+			float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * StatusMovementMultiplier * 60f;
 			float step = maxSpeed / GroundRampFrames * dt * 60f;
 			var blockVel = Velocity;
 			blockVel.X = Mathf.MoveToward(blockVel.X, 0, step);
@@ -481,7 +574,7 @@ namespace FTT.Characters {
 
 			_blockSystem?.StartBlock();
 
-			if (!Input.IsActionPressed(FTT.Core.InputManager.Actions.Block)) {
+			if (!CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)) {
 				_blockSystem?.EndBlock();
 				TransitionTo(CharacterState.Idle);
 				return;
@@ -514,22 +607,22 @@ namespace FTT.Characters {
 				return;
 			}
 
-			if (Input.IsActionJustPressed(FTT.Core.InputManager.Actions.Jump)) {
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Jump)) {
 				TransitionTo(CharacterState.Airborne);
 				var vel = Velocity;
-				vel.Y = -(Data?.MaxJumpForce ?? 14f) * 45f;
+				vel.Y = -(Data?.MaxJumpForce ?? 14f) * StatusJumpMultiplier * 45f;
 				Velocity = vel;
 				return;
 			}
 
-			if (Input.IsActionJustPressed(FTT.Core.InputManager.Actions.Down)) {
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Down)) {
 				TransitionTo(CharacterState.Airborne);
 				return;
 			}
 
 			float hAxis = GetHorizontalInput();
 			bool towardStage = (IsFacingRight && hAxis > 0.1f) || (!IsFacingRight && hAxis < -0.1f);
-			if (Input.IsActionJustPressed(FTT.Core.InputManager.Actions.Jump) || towardStage) {
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Jump) || towardStage) {
 				PlayAnimation("ledge_pull_up");
 				TransitionTo(CharacterState.Idle);
 				return;
@@ -598,21 +691,44 @@ namespace FTT.Characters {
 			TransitionTo(CharacterState.Stunned);
 		}
 
-		public void ApplyDamage(int damage) {
-			CurrentHP -= damage;
+		public int ApplyDamage(int damage) {
+			if (CurrentState == CharacterState.Dead || CurrentState == CharacterState.Respawning) return 0;
+			damage = Math.Max(0, (int)MathF.Round(damage * StatusDamageTakenMultiplier));
+			int previousHP = CurrentHP;
+			CurrentHP = Math.Max(0, CurrentHP - damage);
+			int damageApplied = previousHP - CurrentHP;
 			FTT.Core.EventBus.Instance?.RaisePlayerHPChanged(new FTT.Core.PlayerHPPayload {
 				PlayerIndex = PlayerIndex,
 				CurrentHP = CurrentHP,
 				MaxHP = Data?.MaxHP ?? 100,
-				DamageAmount = damage
+				DamageAmount = damageApplied
 			});
 
 			if (CurrentHP <= 0) {
-				CurrentHP = 0;
 				TransitionTo(CharacterState.Dead);
 				FTT.Core.EventBus.Instance?.RaisePlayerDied(PlayerIndex);
 			}
+			return damageApplied;
 		}
+
+		public void AddInfluenceFromDamageDealt(float damageApplied) {
+			_ultimateMeter?.AddFromDamageDealt(damageApplied);
+			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
+		}
+
+		public void ApplyStockLossMeterRetention() {
+			_ultimateMeter?.ApplyStockLossRetention();
+			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter * 0.75f;
+		}
+
+		public bool HasActiveHyperArmor =>
+			AbilityHasActiveHyperArmor(_special1) ||
+			AbilityHasActiveHyperArmor(_special2) ||
+			AbilityHasActiveHyperArmor(_movementAbility) ||
+			AbilityHasActiveHyperArmor(_ultimate);
+
+		private static bool AbilityHasActiveHyperArmor(FTT.Combat.BaseSpecial ability) =>
+			ability != null && ability.IsExecuting && ability.Data?.GrantsHyperArmor == true;
 
 		// === Movement Helpers ===
 
@@ -635,7 +751,7 @@ namespace FTT.Characters {
 		}
 
 		private void ApplyHorizontalMovement(float hAxis, float dt) {
-			float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * 60f;
+			float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * StatusMovementMultiplier * 60f;
 			float targetSpeed = hAxis * maxSpeed;
 			float step = maxSpeed / GroundRampFrames * dt * 60f;
 			var vel = Velocity;
@@ -652,31 +768,28 @@ namespace FTT.Characters {
 
 		private void ApplyAirControl(float dt) {
 			float hAxis = GetHorizontalInput();
-			float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * 60f;
-			float airFactor = Data?.AirControlMultiplier ?? 0.9f;
-			float targetSpeed = hAxis * maxSpeed * airFactor;
+			float maxSpeed = (Data?.MaxMoveSpeed ?? 8f) * StatusMovementMultiplier * 60f;
+			float targetSpeed = hAxis * maxSpeed;
 			bool isAccelerating = Mathf.Abs(targetSpeed) >= Mathf.Abs(Velocity.X)
 				|| (targetSpeed > 0 && Velocity.X < 0) || (targetSpeed < 0 && Velocity.X > 0);
-			float rampFrames = isAccelerating ? AirAccelRampFrames : AirDecelRampFrames;
+			float rampFrames = isAccelerating ? GroundRampFrames : AirDecelRampFrames;
 			float step = maxSpeed / rampFrames * dt * 60f;
 			var vel = Velocity;
 			vel.X = Mathf.MoveToward(vel.X, targetSpeed, step);
 			Velocity = vel;
 		}
 
-		// === Input Helpers ===
+			// === Input Helpers ===
 
 		private float GetHorizontalInput() {
-			float axis = 0f;
-			if (Input.IsActionPressed(FTT.Core.InputManager.Actions.MoveRight)) axis += 1f;
-			if (Input.IsActionPressed(FTT.Core.InputManager.Actions.MoveLeft)) axis -= 1f;
-			return axis;
+			return IsMovementRooted ? 0.0f : CurrentInputFrame.Horizontal;
 		}
 
 		private bool CheckJumpInput() {
-			_jumpHeld = Input.IsActionPressed(FTT.Core.InputManager.Actions.Jump);
+			if (IsMovementRooted) return false;
+			_jumpHeld = CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Jump);
 
-			if (Input.IsActionJustPressed(FTT.Core.InputManager.Actions.Jump)) {
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Jump)) {
 				_jumpBufferTimer = JumpBufferTime;
 			}
 			_jumpBufferTimer -= (float)GetPhysicsProcessDeltaTime();
@@ -693,7 +806,7 @@ namespace FTT.Characters {
 
 		private void PerformJump() {
 			var vel = Velocity;
-			vel.Y = -(Data?.MaxJumpForce ?? 14f) * 45f;
+			vel.Y = -(Data?.MaxJumpForce ?? 14f) * StatusJumpMultiplier * 54f;
 			Velocity = vel;
 			RemainingJumps--;
 			_coyoteTimer = 0;
@@ -701,33 +814,53 @@ namespace FTT.Characters {
 		}
 
 		private bool CheckAttackInput() {
-			if (Input.IsActionJustPressed(FTT.Core.InputManager.Actions.BasicAttack)) {
-				_attackTimer = BasicAttackDuration;
-				_attackHitActive = false;
-				if (_meleeHitbox != null) {
-					float dmg = Data?.BasicAttackDamage ?? 10f;
-					if (ComboCounter == 2) dmg = FTT.Combat.DamageCalculator.CalculateComboFinisherDamage(dmg);
-					_meleeHitbox.Damage = dmg;
-					_meleeHitbox.KnockbackForce = ComboCounter == 2
-						? new Vector2(5f, -3f)
-						: new Vector2(Data?.BasicAttackKnockback ?? 3f, -1.5f);
-				}
-				TransitionTo(CharacterState.Attacking);
-				_ultimateMeter?.AddFromDamageDealt(Data?.BasicAttackDamage ?? 10f);
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)) {
+				ComboCounter = 0;
+				StartComboHit();
 				return true;
 			}
 			return false;
 		}
 
+		private void StartComboHit() {
+			int comboIdx = Mathf.Clamp(ComboCounter, 0, 2);
+			_attackFramesRemaining = ComboTimelines[comboIdx].TotalFrames;
+			_attackHitActive = false;
+			_nextAttackBuffered = false;
+			_inRecoveryHold = false;
+
+			if (_meleeHitbox != null) {
+				float baseDmg = Data?.BasicAttackDamage ?? 10f;
+				_meleeHitbox.Damage = baseDmg * ComboDamageMultipliers[comboIdx];
+				_meleeHitbox.AttackID = $"{Data?.CharacterID ?? "fighter"}.basic";
+				_meleeHitbox.HitboxID = $"combo_{comboIdx + 1}";
+				_meleeHitbox.AttackClass = FTT.Combat.AttackClass.Basic;
+
+				float baseKB = Data?.BasicAttackKnockback ?? 3f;
+				if (comboIdx == 2) {
+					_meleeHitbox.KnockbackForce = new Vector2(baseKB * 2f, -4f);
+					_meleeHitbox.HitstunDuration = 0.3f;
+				} else if (comboIdx == 1) {
+					_meleeHitbox.KnockbackForce = new Vector2(baseKB * 1.2f, -1.5f);
+					_meleeHitbox.HitstunDuration = 0.2f;
+				} else {
+					_meleeHitbox.KnockbackForce = new Vector2(baseKB, -1f);
+					_meleeHitbox.HitstunDuration = 0.15f;
+				}
+			}
+
+			TransitionTo(CharacterState.Attacking);
+		}
+
 		private bool CheckSpecialInput() {
-			if (Input.IsActionJustPressed(FTT.Core.InputManager.Actions.Special1) && SpecialOneCooldownTimer <= 0) {
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special1) && SpecialOneCooldownTimer <= 0) {
 				if (_special1 != null && _special1.TryExecute()) {
 					_pendingSpecialSlot = 1;
 					TransitionTo(CharacterState.UsingSpecial);
 					return true;
 				}
 			}
-			if (Input.IsActionJustPressed(FTT.Core.InputManager.Actions.Special2) && SpecialTwoCooldownTimer <= 0) {
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special2) && SpecialTwoCooldownTimer <= 0) {
 				if (_special2 != null && _special2.TryExecute()) {
 					_pendingSpecialSlot = 2;
 					TransitionTo(CharacterState.UsingSpecial);
@@ -738,7 +871,7 @@ namespace FTT.Characters {
 		}
 
 		private bool CheckUltimateInput() {
-			if (Input.IsActionJustPressed(FTT.Core.InputManager.Actions.Ultimate)) {
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Ultimate)) {
 				bool meterReady = _ultimateMeter != null ? _ultimateMeter.IsFull : CurrentUltimateMeter >= 100f;
 				if (meterReady && _ultimate != null && _ultimate.TryExecute()) {
 					TransitionTo(CharacterState.UsingUltimate);
@@ -749,7 +882,7 @@ namespace FTT.Characters {
 		}
 
 		private bool CheckBlockInput() {
-			if (Input.IsActionPressed(FTT.Core.InputManager.Actions.Block)) {
+			if (CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)) {
 				TransitionTo(CharacterState.Blocking);
 				return true;
 			}
@@ -757,7 +890,8 @@ namespace FTT.Characters {
 		}
 
 		private bool CheckMovementAbilityInput() {
-			if (Input.IsActionJustPressed(FTT.Core.InputManager.Actions.MovementAbility) && MovementAbilityCooldownTimer <= 0) {
+			if (IsMovementRooted) return false;
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.MovementAbility) && MovementAbilityCooldownTimer <= 0) {
 				if (_movementAbility != null && _movementAbility.TryExecute()) {
 					TransitionTo(CharacterState.UsingMovementAbility);
 					return true;
@@ -771,7 +905,7 @@ namespace FTT.Characters {
 		}
 
 		private void CheckDropThrough() {
-			if (Input.IsActionJustPressed(FTT.Core.InputManager.Actions.Down)) {
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Down)) {
 				double now = Time.GetTicksMsec() / 1000.0;
 				if (now - _lastDownTapTime <= DoubleTapWindow) {
 					TryDropThrough();
@@ -844,9 +978,19 @@ namespace FTT.Characters {
 		}
 
 		private void PlayAnimation(string animName) {
+			if (_animatedSprite != null) _animatedSprite.SpeedScale = StatusAnimationMultiplier;
 			if (_animatedSprite != null && _animatedSprite.Animation != animName) {
 				_animatedSprite.Play(animName);
 			}
+		}
+
+		public void ResetStatusModifiers() {
+			StatusMovementMultiplier = 1.0f;
+			StatusJumpMultiplier = 1.0f;
+			StatusAnimationMultiplier = 1.0f;
+			StatusDamageTakenMultiplier = 1.0f;
+			IsMovementRooted = false;
+			if (_animatedSprite != null) _animatedSprite.SpeedScale = 1.0f;
 		}
 
 		// === Cooldowns ===

@@ -232,7 +232,7 @@ namespace FTT.Characters.Abilities {
                 if (node is PlayerController pc && pc.PlayerIndex != Owner.PlayerIndex) {
                     if (Owner.GlobalPosition.DistanceTo(pc.GlobalPosition) <= PulseRadius) {
                         pc.GetNodeOrNull<StatusController>("StatusController")
-                            ?.ApplyStatus(FTT.Core.StatusType.Stunned, RootDuration);
+                            ?.ApplyStatus(FTT.Core.StatusType.Root, RootDuration);
                         ChainLightningToCoils(pc);
                     }
                 }
@@ -266,12 +266,8 @@ namespace FTT.Characters.Abilities {
         protected override void OnStartup() {
             PhaseTimer = StartupDuration;
 
-            float hInput = 0f;
-            if (Input.IsActionPressed(FTT.Core.InputManager.Actions.MoveRight)) hInput += 1f;
-            if (Input.IsActionPressed(FTT.Core.InputManager.Actions.MoveLeft)) hInput -= 1f;
-            float vInput = 0f;
-            if (Input.IsActionPressed(FTT.Core.InputManager.Actions.Jump)) vInput -= 1f;
-            if (Input.IsActionPressed(FTT.Core.InputManager.Actions.Down)) vInput += 1f;
+            float hInput = Owner.CurrentInputFrame.Horizontal;
+            float vInput = Owner.CurrentInputFrame.Vertical;
 
             _blinkDirection = new Vector2(hInput, vInput);
             if (_blinkDirection == Vector2.Zero) {

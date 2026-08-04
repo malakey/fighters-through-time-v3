@@ -1,10 +1,15 @@
-[gd_resource type="Resource" script_class="CharacterData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="CharacterData" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/Characters/CharacterData.cs" id="1"]
+[ext_resource type="Resource" path="res://resources/Abilities/einstein/special_1.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/Abilities/einstein/special_2.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/Abilities/einstein/movement.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/Abilities/einstein/ultimate.tres" id="5"]
 
 [resource]
 script = ExtResource("1")
 CharacterID = "einstein"
+DisplayNameKey = "character_einstein_name"
 DisplayName = "Albert Einstein"
 Style = 2
 MaxHP = 100
@@ -18,3 +23,7 @@ MaxJumpCount = 2
 AirControlMultiplier = 0.6
 BasicAttackDamage = 10.0
 BasicAttackKnockback = 3.0
+SpecialAttackOne = ExtResource("2")
+SpecialAttackTwo = ExtResource("3")
+MovementAbility = ExtResource("4")
+UltimateAttack = ExtResource("5")

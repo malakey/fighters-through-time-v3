@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "hologram_drone"
+DisplayName = "Hologram Drone"
+DisplayNameKey = "enemy_hologram_drone_name"
+Tier = 0
+MaxHP = 30
+Weight = 0.7
+MoveSpeed = 4.0
+JumpForce = 9.0
+AggroRadius = 400.0
+DeAggroRadius = 600.0
+AttackRange = 1.5
+AttackDamage = 8.0
+AttackKnockback = 1.5
+AttackCooldown = 2.5
+StunResistance = 0.0
+ReactionDelayMinFrames = 30
+ReactionDelayMaxFrames = 45
+ChronalDustDrop = 1

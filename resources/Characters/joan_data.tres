@@ -1,10 +1,15 @@
-[gd_resource type="Resource" script_class="CharacterData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="CharacterData" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/Characters/CharacterData.cs" id="1"]
+[ext_resource type="Resource" path="res://resources/Abilities/joan/special_1.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/Abilities/joan/special_2.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/Abilities/joan/movement.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/Abilities/joan/ultimate.tres" id="5"]
 
 [resource]
 script = ExtResource("1")
 CharacterID = "joan"
+DisplayNameKey = "character_joan_name"
 DisplayName = "Joan of Arc"
 Style = 0
 MaxHP = 110
@@ -18,3 +23,7 @@ MaxJumpCount = 1
 AirControlMultiplier = 0.5
 BasicAttackDamage = 12.0
 BasicAttackKnockback = 3.5
+SpecialAttackOne = ExtResource("2")
+SpecialAttackTwo = ExtResource("3")
+MovementAbility = ExtResource("4")
+UltimateAttack = ExtResource("5")

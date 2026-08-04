@@ -1,10 +1,15 @@
-[gd_resource type="Resource" script_class="CharacterData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="CharacterData" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/Characters/CharacterData.cs" id="1"]
+[ext_resource type="Resource" path="res://resources/Abilities/cleopatra/special_1.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/Abilities/cleopatra/special_2.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/Abilities/cleopatra/movement.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/Abilities/cleopatra/ultimate.tres" id="5"]
 
 [resource]
 script = ExtResource("1")
 CharacterID = "cleopatra"
+DisplayNameKey = "character_cleopatra_name"
 DisplayName = "Cleopatra"
 Style = 1
 MaxHP = 80
@@ -18,3 +23,7 @@ MaxJumpCount = 2
 AirControlMultiplier = 0.7
 BasicAttackDamage = 8.0
 BasicAttackKnockback = 2.0
+SpecialAttackOne = ExtResource("2")
+SpecialAttackTwo = ExtResource("3")
+MovementAbility = ExtResource("4")
+UltimateAttack = ExtResource("5")

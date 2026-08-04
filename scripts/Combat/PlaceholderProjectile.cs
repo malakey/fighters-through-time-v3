@@ -9,7 +9,8 @@ namespace FTT.Combat {
         private Hitbox _hitbox;
 
         public void Setup(float damage, Vector2 knockback, float speed, bool movingRight,
-                          int ownerIndex, Color color, Vector2 size = default, float lifetime = 3f) {
+                          int ownerIndex, Color color, Vector2 size = default, float lifetime = 3f,
+                          FTT.Characters.PlayerController sourcePlayer = null, AbilityData data = null) {
             if (size == default) size = new Vector2(24, 12);
             _speed = speed;
             _movingRight = movingRight;
@@ -28,11 +29,23 @@ namespace FTT.Combat {
             AddChild(trail);
 
             _hitbox = new Hitbox();
+            _hitbox.AttackID = data?.AbilityID ?? "placeholder_projectile";
+            _hitbox.HitboxID = "projectile";
+            _hitbox.AttackClass = data?.Slot == FTT.Core.AbilitySlot.Ultimate
+                ? AttackClass.Ultimate
+                : AttackClass.Special;
             _hitbox.Damage = damage;
             _hitbox.KnockbackForce = knockback;
+            _hitbox.HitstunDuration = data?.HitstunDuration ?? 0.2f;
+            _hitbox.AppliedStatus = data?.AppliedStatus ?? FTT.Core.StatusType.None;
+            _hitbox.StatusDuration = data?.StatusDuration ?? 0f;
+            _hitbox.StatusIntensity = data?.StatusIntensity ?? 1f;
+            _hitbox.ScreenShakeIntensity = data?.ScreenShakeIntensity ?? 0.2f;
+            _hitbox.ScreenShakeDuration = data?.ScreenShakeDuration ?? 0.1f;
             _hitbox.OwnerPlayerIndex = ownerIndex;
-            _hitbox.CollisionLayer = 4;
-            _hitbox.CollisionMask = 8;
+            _hitbox.SourcePlayer = sourcePlayer;
+            _hitbox.CollisionLayer = FTT.Core.CollisionLayers.Projectile;
+            _hitbox.CollisionMask = FTT.Core.CollisionLayers.ProjectileMask;
             _hitbox.Monitorable = true;
             var shape = new CollisionShape2D();
             var rect = new RectangleShape2D();
@@ -84,8 +97,8 @@ namespace FTT.Combat {
             AddChild(border);
 
             _area = new Area2D();
-            _area.CollisionLayer = 4;
-            _area.CollisionMask = 8;
+            _area.CollisionLayer = FTT.Core.CollisionLayers.PlayerHitbox;
+            _area.CollisionMask = FTT.Core.CollisionLayers.PlayerHitboxMask;
             _area.Monitoring = true;
             _area.Monitorable = true;
             var shape = new CollisionShape2D();
@@ -109,7 +122,20 @@ namespace FTT.Combat {
                         pc.ApplyDamage((int)_damage);
                     } else if (body is FTT.Characters.TrainingDummy) {
                         var hurtbox = body.GetNodeOrNull<Hurtbox>("Hurtbox");
-                        hurtbox?.TakeHit(_damage, new Vector2(1, -1), 0.1f, GlobalPosition);
+                        hurtbox?.TakeHit(new HitPayload {
+                            AttackerIndex = _ownerIndex,
+                            AttackID = "placeholder_zone",
+                            HitboxID = "tick",
+                            AttackClass = AttackClass.Special,
+                            Damage = _damage,
+                            Knockback = new Vector2(1, -1),
+                            HitstunDuration = 0.1f,
+                            HitOrigin = GlobalPosition,
+                            AttackerFacingRight = true,
+                            StatusIntensity = 1f,
+                            ScreenShakeIntensity = 0.1f,
+                            ScreenShakeDuration = 0.08f
+                        });
                     }
                 }
             }

@@ -142,7 +142,7 @@ namespace FTT.Characters.Abilities {
             if (body is PlayerController pc && pc.PlayerIndex != _ownerIndex) {
                 pc.ApplyDamage((int)_damage);
                 pc.GetNodeOrNull<StatusController>("StatusController")
-                    ?.ApplyStatus(FTT.Core.StatusType.Stunned, _rootDuration);
+                    ?.ApplyStatus(FTT.Core.StatusType.Root, _rootDuration);
             }
         }
 
@@ -199,9 +199,7 @@ namespace FTT.Characters.Abilities {
 
             if (_isGliding) {
                 _glideTimer -= dt;
-                float hInput = 0f;
-                if (Input.IsActionPressed(FTT.Core.InputManager.Actions.MoveRight)) hInput += 1f;
-                if (Input.IsActionPressed(FTT.Core.InputManager.Actions.MoveLeft)) hInput -= 1f;
+                float hInput = Owner.CurrentInputFrame.Horizontal;
 
                 var vel = Owner.Velocity;
                 vel.X = hInput * GlideSpeed;

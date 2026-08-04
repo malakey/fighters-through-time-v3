@@ -5,6 +5,7 @@ namespace FTT.UI {
         private ProgressBar _p1HPBar;
         private ProgressBar _p2HPBar;
         private ProgressBar _p1UltBar;
+        private ProgressBar _p2UltBar;
         private Label _timerLabel;
         private HBoxContainer _p1StockIcons;
         private HBoxContainer _p2StockIcons;
@@ -58,6 +59,14 @@ namespace FTT.UI {
             _p1UltBar.MaxValue = 100;
             _p1UltBar.Value = 0;
             AddChild(_p1UltBar);
+
+            _p2UltBar = new ProgressBar();
+            _p2UltBar.CustomMinimumSize = new Vector2(200, 15);
+            _p2UltBar.MaxValue = 100;
+            _p2UltBar.Value = 0;
+            _p2UltBar.SetAnchorsPreset(Control.LayoutPreset.TopRight);
+            _p2UltBar.FillMode = (int)ProgressBar.FillModeEnum.EndToBegin;
+            AddChild(_p2UltBar);
         }
 
         private void OnPlayerHPChanged(FTT.Core.PlayerHPPayload payload) {
@@ -70,8 +79,12 @@ namespace FTT.UI {
             }
         }
 
-        private void OnUltimateMeterChanged(float normalized) {
-            if (_p1UltBar != null) _p1UltBar.Value = normalized * 100f;
+        private void OnUltimateMeterChanged(FTT.Core.UltimateMeterPayload payload) {
+            if (payload.PlayerIndex == 0 && _p1UltBar != null) {
+                _p1UltBar.Value = payload.CurrentValue;
+            } else if (payload.PlayerIndex == 1 && _p2UltBar != null) {
+                _p2UltBar.Value = payload.CurrentValue;
+            }
         }
 
         public void UpdateTimer(float seconds) {

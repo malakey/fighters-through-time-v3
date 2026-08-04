@@ -16,8 +16,10 @@ namespace FTT.Characters {
 	[GlobalClass]
 	public partial class CharacterData : Resource {
 		[ExportGroup("Identity")]
+		[Export] public int SchemaVersion = 1;
 		[Export] public string CharacterID = "";
 		[Export] public string DisplayName = "";
+		[Export] public string DisplayNameKey = "";
 		[Export] public Texture2D CharacterPortrait;
 		[Export] public CombatStyle Style = CombatStyle.Hybrid;
 
@@ -39,10 +41,10 @@ namespace FTT.Characters {
 		[Export] public float BasicAttackKnockback = 3.0f;
 
 		[ExportGroup("Abilities")]
-		[Export] public Resource SpecialAttackOne;
-		[Export] public Resource SpecialAttackTwo;
-		[Export] public Resource MovementAbility;
-		[Export] public Resource UltimateAttack;
+		[Export] public FTT.Combat.AbilityData SpecialAttackOne;
+		[Export] public FTT.Combat.AbilityData SpecialAttackTwo;
+		[Export] public FTT.Combat.MovementAbilityData MovementAbility;
+		[Export] public FTT.Combat.AbilityData UltimateAttack;
 
 		[ExportGroup("Animation")]
 		[Export] public SpriteFrames SpriteFramesResource;

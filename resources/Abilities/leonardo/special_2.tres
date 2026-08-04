@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/AbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "leonardo_clockwork_turret"
+CharacterID = "leonardo"
+Slot = 1
+ExecutionType = 3
+AbilityName = "Clockwork Turret"
+DisplayNameKey = "ability_leonardo_clockwork_turret_name"
+DescriptionKey = "ability_leonardo_clockwork_turret_description"
+BaseDamage = 5.0
+IsMultiHit = true
+HitCount = 3
+DamageTickIntervalFrames = 0
+KnockbackForce = Vector2(2, -1)
+ProjectileSpeed = 300.0
+GrantsHyperArmor = false
+HitboxSize = Vector2(60, 50)
+HitboxOffset = Vector2(30, 0)
+StartupFrames = 12
+ActiveFrames = 9
+RecoveryFrames = 18
+CooldownDuration = 10.0
+Lifetime = 6.0
+ProjectileLifetime = 5.0
+PersistentObjectID = "clockwork_turret"
+MaxActiveObjects = 1
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+AnimationName = "special_2"
+ScreenShakeIntensity = 0.2
+ScreenShakeDuration = 0.15

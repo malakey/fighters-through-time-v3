@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "steam_automaton"
+DisplayName = "Steam Automaton v2"
+DisplayNameKey = "enemy_steam_automaton_name"
+Tier = 1
+MaxHP = 180
+Weight = 1.5
+MoveSpeed = 3.5
+JumpForce = 7.0
+AggroRadius = 540.0
+DeAggroRadius = 840.0
+AttackRange = 3.0
+AttackDamage = 22.0
+AttackKnockback = 4.0
+AttackCooldown = 3.0
+StunResistance = 0.5
+ReactionDelayMinFrames = 15
+ReactionDelayMaxFrames = 25
+ChronalDustDrop = 20

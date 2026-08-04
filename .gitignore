@@ -1,0 +1,43 @@
+# Godot editor/import/build cache
+/.godot/
+/.mono/
+
+# .NET build and test output
+**/bin/
+**/obj/
+/TestResults/
+/coverage/
+**/gdunit4_testadapter_v*/
+*.trx
+*.coverage
+*.coveragexml
+
+# IDE and local user state
+/.vs/
+/.vscode/
+/.idea/
+*.suo
+*.user
+*.userprefs
+
+# Exported builds and local packaging
+/build/
+/builds/
+/dist/
+/exports/
+
+# Logs, crash dumps, and temporary files
+*.log
+*.tmp
+*.dmp
+*.bak
+*~
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# NuGet local cache
+*.nupkg
+packages/
