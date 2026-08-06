@@ -4,6 +4,7 @@ namespace FTT.UI {
     public partial class PauseMenu : CanvasLayer {
         private bool _isPaused;
         private Control _panel;
+        private SettingsMenu _settingsMenu;
 
         public override void _Ready() {
             Layer = 99;
@@ -17,23 +18,32 @@ namespace FTT.UI {
             _panel.AddChild(vbox);
 
             var title = new Label();
-            title.Text = "PAUSED";
+            title.Text = Tr("menu_paused");
             title.HorizontalAlignment = HorizontalAlignment.Center;
             vbox.AddChild(title);
 
-            var resumeBtn = new Button { Text = "Resume" };
+            var resumeBtn = new Button { Text = Tr("menu_resume") };
             resumeBtn.Pressed += TogglePause;
             vbox.AddChild(resumeBtn);
 
-            var settingsBtn = new Button { Text = "Settings" };
+            var settingsBtn = new Button { Text = Tr("menu_settings") };
+            settingsBtn.Pressed += OpenSettings;
             vbox.AddChild(settingsBtn);
 
-            var quitBtn = new Button { Text = "Quit to Main Menu" };
+            var quitBtn = new Button { Text = Tr("pause_quit_to_menu") };
             quitBtn.Pressed += () => {
                 GetTree().Paused = false;
                 FTT.Core.GameManager.Instance?.LoadScene("res://scenes/menus/MainMenu.tscn");
             };
             vbox.AddChild(quitBtn);
+        }
+
+        private void OpenSettings() {
+            if (_settingsMenu == null || !IsInstanceValid(_settingsMenu)) {
+                _settingsMenu = new SettingsMenu { Name = "SettingsMenu" };
+                AddChild(_settingsMenu);
+            }
+            _settingsMenu.Show();
         }
 
         public override void _UnhandledInput(InputEvent @event) {

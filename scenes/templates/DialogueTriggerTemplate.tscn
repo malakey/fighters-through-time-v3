@@ -1,0 +1,20 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="1_marker"]
+[ext_resource type="Resource" path="res://resources/Contracts/dialogue_trigger_contract.tres" id="2_contract"]
+
+[sub_resource type="RectangleShape2D" id="Collision"]
+size = Vector2(192, 160)
+
+[node name="DialogueTriggerTemplate" type="Area2D" groups=["dialogue_trigger"]]
+collision_layer = 256
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Collision")
+
+[node name="ContentContract" type="Node" parent="."]
+script = ExtResource("1_marker")
+ContentID = "dialogue_trigger_template"
+Contract = ExtResource("2_contract")
+

@@ -1,0 +1,26 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/PooledPlaceholder.cs" id="1_pool"]
+[ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="2_marker"]
+[ext_resource type="Resource" path="res://resources/Contracts/pooled_vfx_contract.tres" id="3_contract"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/orb.svg" id="4_visual"]
+
+[sub_resource type="CanvasItemMaterial" id="Material"]
+blend_mode = 1
+
+[node name="PooledVfxTemplate" type="Node2D" groups=["pooled_vfx"]]
+script = ExtResource("1_pool")
+ContentID = "pooled_vfx_template"
+Category = 1
+LifetimeFrames = 30
+
+[node name="Visual" type="Sprite2D" parent="."]
+texture = ExtResource("4_visual")
+scale = Vector2(0.4, 0.4)
+material = SubResource("Material")
+
+[node name="ContentContract" type="Node" parent="."]
+script = ExtResource("2_marker")
+ContentID = "pooled_vfx_template"
+Contract = ExtResource("3_contract")
+

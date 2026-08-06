@@ -1,0 +1,60 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="1_marker"]
+[ext_resource type="Resource" path="res://resources/Contracts/player_presentation_contract.tres" id="2_contract"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/placeholder_character_frames.tres" id="3_frames"]
+
+[sub_resource type="RectangleShape2D" id="BodyShape"]
+size = Vector2(40, 72)
+[sub_resource type="RectangleShape2D" id="HurtboxShape"]
+size = Vector2(44, 76)
+[sub_resource type="RectangleShape2D" id="PushboxShape"]
+size = Vector2(28, 38)
+[sub_resource type="RectangleShape2D" id="HitboxShape"]
+size = Vector2(48, 40)
+
+[node name="PlayerPresentationTemplate" type="Node2D" groups=["player"]]
+
+[node name="Presentation" type="Node2D" parent="."]
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Presentation"]
+sprite_frames = ExtResource("3_frames")
+animation = &"idle"
+position = Vector2(0, -64)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+
+[node name="Body" type="CharacterBody2D" parent="."]
+collision_layer = 1
+collision_mask = 704
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Body"]
+shape = SubResource("BodyShape")
+position = Vector2(0, -36)
+
+[node name="Hurtbox" type="Area2D" parent="."]
+collision_layer = 16
+collision_mask = 8
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+shape = SubResource("HurtboxShape")
+position = Vector2(0, -38)
+
+[node name="Pushbox" type="Area2D" parent="."]
+collision_layer = 1
+collision_mask = 2
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Pushbox"]
+shape = SubResource("PushboxShape")
+position = Vector2(0, -19)
+
+[node name="Hitboxes" type="Node2D" parent="."]
+[node name="Basic" type="Area2D" parent="Hitboxes"]
+collision_layer = 4
+collision_mask = 32
+monitoring = false
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitboxes/Basic"]
+shape = SubResource("HitboxShape")
+position = Vector2(36, -42)
+
+[node name="ContentContract" type="Node" parent="."]
+script = ExtResource("1_marker")
+ContentID = "player_presentation_template"
+Contract = ExtResource("2_contract")
+

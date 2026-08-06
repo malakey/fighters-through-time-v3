@@ -18,12 +18,13 @@ namespace FTT.Combat {
 
         public static int ChargeCost(AttackClass attackClass, int currentCharges) => attackClass switch {
             AttackClass.Basic => 1,
+            AttackClass.Hazard => 1,
             AttackClass.Special => currentCharges,
             _ => 0
         };
 
         public static bool BypassesBlock(AttackClass attackClass) =>
-            attackClass == AttackClass.Ultimate || attackClass == AttackClass.Hazard;
+            attackClass == AttackClass.Ultimate;
     }
 
     public partial class BlockSystem : Node {

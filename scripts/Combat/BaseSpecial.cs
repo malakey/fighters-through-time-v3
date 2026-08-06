@@ -12,6 +12,10 @@ namespace FTT.Combat {
     }
 
     public abstract partial class BaseSpecial : Node {
+        private const string PlaceholderProjectilePoolID = "story_projectile";
+        private const string PlaceholderProjectileScenePath = "res://scenes/templates/StoryProjectileTemplate.tscn";
+        private const string PlaceholderZonePoolID = "story_zone";
+        private const string PlaceholderZoneScenePath = "res://scenes/templates/StoryZoneTemplate.tscn";
         [Export] public AbilityData Data;
 
         public AbilityPhase CurrentPhase { get; protected set; } = AbilityPhase.Inactive;
@@ -89,21 +93,43 @@ namespace FTT.Combat {
 
         protected PlaceholderProjectile SpawnPlaceholderProjectile(Vector2 position, float speed,
             bool movingRight, Color color, Vector2 size = default, float lifetime = 3f) {
-            var proj = new PlaceholderProjectile();
+            var proj = SpawnPooledPlaceholder<PlaceholderProjectile>(
+                PlaceholderProjectilePoolID,
+                PlaceholderProjectileScenePath,
+                position,
+                50);
+            if (proj == null) return null;
             proj.Setup(Data?.BaseDamage ?? 10f, Data?.KnockbackForce ?? new Vector2(3, -2),
                 speed, movingRight, Owner?.PlayerIndex ?? 0, color, size, lifetime, Owner, Data);
-            proj.GlobalPosition = position;
-            Owner?.GetParent()?.AddChild(proj);
             return proj;
         }
 
         protected PlaceholderZone SpawnPlaceholderZone(Vector2 position, float damage,
             float lifetime, float tickInterval, Color color, float radius = 60f) {
-            var zone = new PlaceholderZone();
+            var zone = SpawnPooledPlaceholder<PlaceholderZone>(
+                PlaceholderZonePoolID,
+                PlaceholderZoneScenePath,
+                position,
+                24);
+            if (zone == null) return null;
             zone.Setup(damage, lifetime, tickInterval, Owner?.PlayerIndex ?? 0, color, radius);
-            zone.GlobalPosition = position;
-            Owner?.GetParent()?.AddChild(zone);
             return zone;
+        }
+
+        private T SpawnPooledPlaceholder<T>(string poolID, string scenePath, Vector2 position, int capacity)
+            where T : FTT.Core.PooledNode {
+            FTT.Core.PoolManager pools = FTT.Core.PoolManager.Instance;
+            Node parent = Owner?.GetParent() ?? GetTree().CurrentScene;
+            if (pools == null || parent == null) return null;
+            if (!pools.IsRegistered(poolID)) {
+                PackedScene scene = GD.Load<PackedScene>(scenePath);
+                if (scene == null) {
+                    GD.PushError($"Missing pooled placeholder scene: {scenePath}");
+                    return null;
+                }
+                pools.RegisterPool(poolID, scene, 1, capacity, FTT.Core.PoolOverflowPolicy.Grow);
+            }
+            return pools.Spawn(poolID, position, parent) as T;
         }
 
         protected Hitbox GetOrCreateChildHitbox(string name) {

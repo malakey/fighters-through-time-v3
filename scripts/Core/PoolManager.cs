@@ -15,24 +15,15 @@ namespace FTT.Core {
         Reject
     }
 
-    [GlobalClass]
-    public partial class PoolDefinition : Resource {
-        [Export] public PackedScene SceneTemplate;
-        [Export] public int WarmUpCount = 10;
-        [Export] public int MaxCapacity = 50;
-        [Export] public PoolOverflowPolicy OverflowPolicy = PoolOverflowPolicy.Grow;
-    }
-
-    [GlobalClass]
-    public partial class ScenePoolConfig : Resource {
-        [Export] public PoolDefinition[] PoolDefinitions;
-    }
+    public readonly record struct PoolStats(int Active, int Inactive, int MaxCapacity, PoolOverflowPolicy OverflowPolicy);
 
     public partial class PooledNode : Node2D {
         public PackedScene SceneOrigin { get; internal set; }
+        public string PoolID { get; internal set; } = "";
 
         public void ReturnToPool() {
-            PoolManager.Instance.Release(this);
+            if (PoolManager.Instance != null) PoolManager.Instance.Release(this);
+            else QueueFree();
         }
     }
 
@@ -40,6 +31,8 @@ namespace FTT.Core {
         public static PoolManager Instance { get; private set; }
 
         private class Pool {
+            public string PoolID;
+            public string TemplateKey;
             public PackedScene Template;
             public Queue<Node> Inactive = new();
             public List<Node> Active = new();
@@ -49,6 +42,7 @@ namespace FTT.Core {
         }
 
         private readonly Dictionary<string, Pool> _pools = new();
+        private readonly Dictionary<string, Pool> _poolsByID = new(StringComparer.Ordinal);
         private Node _poolRoot;
 
         public override void _Ready() {
@@ -64,12 +58,30 @@ namespace FTT.Core {
 
         public void RegisterPool(PackedScene template, int warmUpCount, int maxCapacity, PoolOverflowPolicy overflowPolicy) {
             if (template == null) throw new ArgumentNullException(nameof(template));
-            string key = template.ResourcePath;
-            if (_pools.ContainsKey(key)) return;
+            RegisterPool(GetTemplateKey(template), template, warmUpCount, maxCapacity, overflowPolicy);
+        }
+
+        public void RegisterPool(string poolID, PackedScene template, int warmUpCount, int maxCapacity, PoolOverflowPolicy overflowPolicy) {
+            if (template == null) throw new ArgumentNullException(nameof(template));
+            if (string.IsNullOrWhiteSpace(poolID)) throw new ArgumentException("Pool ID cannot be empty.", nameof(poolID));
+            poolID = poolID.Trim();
+            string key = GetTemplateKey(template);
+            if (_poolsByID.TryGetValue(poolID, out Pool existingByID)) {
+                if (!string.Equals(existingByID.TemplateKey, key, StringComparison.Ordinal)) {
+                    throw new ArgumentException($"Pool ID '{poolID}' is already registered to a different template.", nameof(poolID));
+                }
+                return;
+            }
+            if (_pools.TryGetValue(key, out Pool existingByTemplate)) {
+                _poolsByID[poolID] = existingByTemplate;
+                return;
+            }
 
             int capacity = Math.Max(1, maxCapacity);
 
             var pool = new Pool {
+                PoolID = poolID,
+                TemplateKey = key,
                 Template = template,
                 MaxCapacity = capacity,
                 OverflowPolicy = overflowPolicy
@@ -89,23 +101,37 @@ namespace FTT.Core {
             }
 
             _pools[key] = pool;
+            _poolsByID[poolID] = pool;
         }
 
         public void WarmFromConfig(ScenePoolConfig config) {
             if (config?.PoolDefinitions == null) return;
+            IReadOnlyList<string> errors = config.ValidateBudget();
+            if (errors.Count > 0) throw new ArgumentException(string.Join(" ", errors), nameof(config));
             foreach (var def in config.PoolDefinitions) {
                 if (def?.SceneTemplate == null) continue;
-                RegisterPool(def.SceneTemplate, def.WarmUpCount, def.MaxCapacity, def.OverflowPolicy);
+                RegisterPool(def.PoolID, def.SceneTemplate, def.WarmUpCount, def.MaxCapacity, def.OverflowPolicy);
             }
         }
 
         public Node Spawn(PackedScene template, Vector2 position, Node parent = null) {
             if (template == null) throw new ArgumentNullException(nameof(template));
-            string key = template.ResourcePath;
+            string key = GetTemplateKey(template);
             if (!_pools.TryGetValue(key, out var pool)) {
                 RegisterPool(template, 1, 50, PoolOverflowPolicy.Grow);
                 pool = _pools[key];
             }
+
+            return SpawnFromPool(pool, position, parent);
+        }
+
+        public Node Spawn(string poolID, Vector2 position, Node parent = null) {
+            if (string.IsNullOrWhiteSpace(poolID) || !_poolsByID.TryGetValue(poolID.Trim(), out Pool pool)) return null;
+            return SpawnFromPool(pool, position, parent);
+        }
+
+        private Node SpawnFromPool(Pool pool, Vector2 position, Node parent) {
+            PackedScene template = pool.Template;
 
             Node node;
             if (pool.Inactive.Count > 0) {
@@ -129,6 +155,7 @@ namespace FTT.Core {
                         }
                         break;
                     default: // Grow
+                        if (totalCount >= pool.MaxCapacity) return null;
                         node = CreateInstance(template);
                         break;
                 }
@@ -145,7 +172,10 @@ namespace FTT.Core {
             node.ProcessMode = ProcessModeEnum.Inherit;
 
             if (node is IPoolable poolable) poolable.OnSpawn();
-            if (node is PooledNode pooledNode) pooledNode.SceneOrigin = template;
+            if (node is PooledNode pooledNode) {
+                pooledNode.SceneOrigin = template;
+                pooledNode.PoolID = pool.PoolID;
+            }
 
             pool.Active.Add(node);
             return node;
@@ -155,8 +185,12 @@ namespace FTT.Core {
             if (node == null || !IsInstanceValid(node)) return;
 
             string key = null;
-            if (node is PooledNode pooledNode && pooledNode.SceneOrigin != null) {
-                key = pooledNode.SceneOrigin.ResourcePath;
+            if (node is PooledNode pooledNode &&
+                !string.IsNullOrWhiteSpace(pooledNode.PoolID) &&
+                _poolsByID.TryGetValue(pooledNode.PoolID, out Pool identifiedPool)) {
+                key = identifiedPool.TemplateKey;
+            } else if (node is PooledNode originNode && originNode.SceneOrigin != null) {
+                key = GetTemplateKey(originNode.SceneOrigin);
             } else {
                 foreach (var kvp in _pools) {
                     if (kvp.Value.Active.Contains(node)) {
@@ -184,13 +218,32 @@ namespace FTT.Core {
             pool.Inactive.Enqueue(node);
         }
 
+        public int ReleaseActiveInGroup(string groupName) {
+            if (string.IsNullOrWhiteSpace(groupName)) return 0;
+            var matches = new List<Node>();
+            foreach (Pool pool in _pools.Values) {
+                foreach (Node node in pool.Active) {
+                    if (node.IsInGroup(groupName)) matches.Add(node);
+                }
+            }
+            foreach (Node node in matches) Release(node);
+            return matches.Count;
+        }
+
+        public IReadOnlyList<Node> GetActiveNodes(string poolID) {
+            if (string.IsNullOrWhiteSpace(poolID) || !_poolsByID.TryGetValue(poolID.Trim(), out Pool pool)) {
+                return Array.Empty<Node>();
+            }
+            return pool.Active.ToArray();
+        }
+
         private static Node CreateInstance(PackedScene template) {
             return template.Instantiate();
         }
 
         public void ClearPool(PackedScene template) {
             if (template == null) return;
-            string key = template.ResourcePath;
+            string key = GetTemplateKey(template);
             if (!_pools.TryGetValue(key, out var pool)) return;
 
             foreach (var node in pool.Active) node.QueueFree();
@@ -201,6 +254,7 @@ namespace FTT.Core {
             }
             pool.InactiveContainer.QueueFree();
             _pools.Remove(key);
+            RemovePoolAliases(pool);
         }
 
         public void ClearAllPools() {
@@ -213,6 +267,36 @@ namespace FTT.Core {
                 kvp.Value.InactiveContainer.QueueFree();
             }
             _pools.Clear();
+            _poolsByID.Clear();
         }
+
+        public bool IsRegistered(PackedScene template) =>
+            template != null && _pools.ContainsKey(GetTemplateKey(template));
+
+        public bool IsRegistered(string poolID) =>
+            !string.IsNullOrWhiteSpace(poolID) && _poolsByID.ContainsKey(poolID.Trim());
+
+        public PoolStats? GetStats(PackedScene template) {
+            if (template == null || !_pools.TryGetValue(GetTemplateKey(template), out Pool pool)) return null;
+            return new PoolStats(pool.Active.Count, pool.Inactive.Count, pool.MaxCapacity, pool.OverflowPolicy);
+        }
+
+        public PoolStats? GetStats(string poolID) {
+            if (string.IsNullOrWhiteSpace(poolID) || !_poolsByID.TryGetValue(poolID.Trim(), out Pool pool)) return null;
+            return new PoolStats(pool.Active.Count, pool.Inactive.Count, pool.MaxCapacity, pool.OverflowPolicy);
+        }
+
+        private void RemovePoolAliases(Pool pool) {
+            var aliases = new List<string>();
+            foreach ((string id, Pool candidate) in _poolsByID) {
+                if (ReferenceEquals(candidate, pool)) aliases.Add(id);
+            }
+            foreach (string id in aliases) _poolsByID.Remove(id);
+        }
+
+        private static string GetTemplateKey(PackedScene template) =>
+            string.IsNullOrWhiteSpace(template.ResourcePath)
+                ? $"instance:{template.GetInstanceId()}"
+                : template.ResourcePath;
     }
 }

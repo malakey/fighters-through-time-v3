@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ContentSceneContract" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/ContentSceneContract.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+ContractID = "story_level_v1"
+TemplateKind = 0
+RequiredNodePaths = PackedStringArray("Presentation", "World/Geometry", "World/Entities", "World/Pickups", "World/Hazards", "World/Puzzles", "World/Checkpoints", "World/Triggers", "SpawnPoints/PlayerSpawn", "Camera/Camera2D", "ContentContract")
+RequiredRootGroups = PackedStringArray("story_level")
+RequiredCollisionLayerNames = PackedStringArray("Environment", "Trigger")

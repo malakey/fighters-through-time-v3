@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/PlaceholderZone.cs" id="1_zone"]
+
+[node name="StoryZoneTemplate" type="Node2D" groups=["story_zone"]]
+script = ExtResource("1_zone")

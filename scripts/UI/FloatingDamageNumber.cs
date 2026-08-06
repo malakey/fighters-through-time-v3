@@ -26,6 +26,7 @@ namespace FTT.UI {
         }
 
         public static FloatingDamageNumber Show(int damage, Vector2 position, Node parent = null) {
+            if (FTT.Core.SaveManager.Instance?.GlobalData?.DamageNumbersVisible == false) return null;
             if (FTT.Core.PoolManager.Instance == null) return null;
             _scene ??= GD.Load<PackedScene>(ScenePath);
             if (_scene == null) return null;

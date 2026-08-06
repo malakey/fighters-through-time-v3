@@ -1,6 +1,45 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/Level01Controller.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/PuzzleManager.cs" id="2_puzzle"]
+[ext_resource type="PackedScene" path="res://scenes/templates/PuzzleLeverTemplate.tscn" id="3_lever"]
+[ext_resource type="PackedScene" path="res://scenes/templates/RotatingPlatformTemplate.tscn" id="4_platform"]
+[ext_resource type="PackedScene" path="res://scenes/templates/CrumblingPlatformTemplate.tscn" id="5_crumble"]
+[ext_resource type="PackedScene" path="res://scenes/templates/CyclicHazardTemplate.tscn" id="6_hazard"]
+[ext_resource type="Script" path="res://scripts/Environment/StoryDropSystem.cs" id="7_drops"]
 
 [node name="Level_01_Florence" type="Node2D"]
 script = ExtResource("1")
+
+[node name="StoryDropSystem" type="Node" parent="."]
+script = ExtResource("7_drops")
+
+[node name="FlorenceGearPuzzle" type="Node" parent="."]
+script = ExtResource("2_puzzle")
+PuzzleID = "level_01.florence_gear_rotation"
+RequiredConditionIDs = PackedStringArray("lever_on")
+
+[node name="Lever" parent="FlorenceGearPuzzle" instance=ExtResource("3_lever")]
+position = Vector2(5960, 840)
+LeverID = "level_01.gear_lever"
+PuzzleManagerPath = NodePath("..")
+ConditionID = "lever_on"
+RotationTargetPaths = Array[NodePath]([NodePath("../GearPlatformA"), NodePath("../GearPlatformB")])
+
+[node name="GearPlatformA" parent="FlorenceGearPuzzle" instance=ExtResource("4_platform")]
+position = Vector2(6420, 650)
+
+[node name="GearPlatformB" parent="FlorenceGearPuzzle" instance=ExtResource("4_platform")]
+position = Vector2(7040, 510)
+
+[node name="CrumblingPlatformA" parent="." instance=ExtResource("5_crumble")]
+position = Vector2(9080, 690)
+PlatformID = "level_01.crumble_a"
+
+[node name="CrumblingPlatformB" parent="." instance=ExtResource("5_crumble")]
+position = Vector2(9500, 560)
+PlatformID = "level_01.crumble_b"
+
+[node name="SteamGeyser" parent="." instance=ExtResource("6_hazard")]
+position = Vector2(9920, 890)
+HazardID = "level_01.steam_geyser"

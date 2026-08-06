@@ -11,6 +11,7 @@ namespace FTT.Core {
         private float _shakeDuration;
         private float _shakeTimer;
         private float _noiseOffset;
+        private float _intensityScale = 1f;
 
         public override void _Ready() {
             Instance = this;
@@ -18,10 +19,13 @@ namespace FTT.Core {
             _noise.Seed = (int)GD.Randi();
             _noise.NoiseType = FastNoiseLite.NoiseTypeEnum.Simplex;
             _noise.Frequency = 4.0f;
+            _intensityScale = SaveManager.Instance?.GlobalData?.ScreenShakeScale ?? 1f;
         }
 
+        public void SetIntensityScale(float scale) => _intensityScale = Mathf.Clamp(scale, 0f, 1f);
+
         public void Shake(float intensity, float duration) {
-            _shakeIntensity = Mathf.Max(_shakeIntensity, intensity);
+            _shakeIntensity = Mathf.Max(_shakeIntensity, intensity * _intensityScale);
             _shakeDuration = Mathf.Max(_shakeDuration, duration);
             _shakeTimer = _shakeDuration;
         }

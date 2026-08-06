@@ -1,0 +1,38 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/ConductiveCoil.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/InteractionArea.cs" id="2"]
+
+[sub_resource type="CircleShape2D" id="Shape"]
+radius = 52.0
+
+[node name="ConductiveCoil" type="Node2D" groups=["power_routing_node", "puzzle_object"]]
+script = ExtResource("1")
+CoilID = "placeholder_coil"
+
+[node name="Visual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-36, -8, 18, -8, 18, -22, 48, 0, 18, 22, 18, 8, -36, 8)
+color = Color(0.74, 0.42, 0.16, 1)
+
+[node name="PoweredVisual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-40, -12, 22, -12, 22, -28, 56, 0, 22, 28, 22, 12, -40, 12)
+color = Color(0.2, 0.9, 1, 0.4)
+visible = false
+
+[node name="InteractionArea" type="Area2D" parent="."]
+collision_layer = 256
+collision_mask = 1
+script = ExtResource("2")
+PromptLabelPath = NodePath("Prompt")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InteractionArea"]
+shape = SubResource("Shape")
+
+[node name="Prompt" type="Label" parent="InteractionArea"]
+offset_left = -90.0
+offset_top = -90.0
+offset_right = 90.0
+offset_bottom = -58.0
+text = "interaction_rotate_coil"
+horizontal_alignment = 1
+visible = false

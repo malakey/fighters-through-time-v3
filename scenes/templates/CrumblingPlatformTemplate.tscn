@@ -1,0 +1,33 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/CrumblingPlatform.cs" id="1"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/graybox_tile.svg" id="2"]
+
+[sub_resource type="RectangleShape2D" id="Shape"]
+size = Vector2(220, 24)
+
+[node name="CrumblingPlatform" type="AnimatableBody2D" groups=["story_hazard"]]
+collision_layer = 64
+collision_mask = 0
+script = ExtResource("1")
+PlatformID = "placeholder_crumbling_platform"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Shape")
+
+[node name="Visual" type="NinePatchRect" parent="."]
+offset_left = -110.0
+offset_top = -12.0
+offset_right = 110.0
+offset_bottom = 12.0
+texture = ExtResource("2")
+modulate = Color(0.64, 0.4, 0.2, 1)
+mouse_filter = 2
+
+[node name="LandingSensor" type="Area2D" parent="."]
+collision_layer = 256
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="LandingSensor"]
+position = Vector2(0, -18)
+shape = SubResource("Shape")

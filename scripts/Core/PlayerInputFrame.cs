@@ -15,7 +15,9 @@ namespace FTT.Core {
         Block = 1 << 6,
         Ultimate = 1 << 7,
         Interact = 1 << 8,
-        Pause = 1 << 9
+        Pause = 1 << 9,
+        Roll = 1 << 10,
+        Dash = 1 << 11
     }
 
     /// <summary>

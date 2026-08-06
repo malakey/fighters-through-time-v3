@@ -16,11 +16,13 @@ namespace FTT.Enemies {
         private int _currentAbilityIndex = -1;
         private AnimatedSprite2D _sprite;
         private FTT.Characters.PlayerController _target;
+        private FTT.Combat.CombatantPushbox _pushbox;
         private Random _rng = new();
 
         public override void _Ready() {
             if (Data != null) CurrentHP = Data.MaxHP;
             _sprite = GetNodeOrNull<AnimatedSprite2D>("AnimatedSprite2D");
+            _pushbox = GetNodeOrNull<FTT.Combat.CombatantPushbox>("Pushbox");
 
             CollisionLayer = FTT.Core.CollisionLayers.Enemy;
             CollisionMask = FTT.Core.CollisionLayers.EnemyBodyMask;
@@ -52,7 +54,10 @@ namespace FTT.Enemies {
                 case BossState.Dead: break;
             }
 
-            if (CurrentState != BossState.Dead) MoveAndSlide();
+            if (CurrentState != BossState.Dead) {
+                MoveAndSlide();
+                _pushbox?.ResolveStoryOverlaps();
+            }
         }
 
         private void ProcessChase(float dt) {

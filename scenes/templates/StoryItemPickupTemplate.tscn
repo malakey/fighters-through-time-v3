@@ -1,0 +1,16 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/StoryPickup.cs" id="1_pickup"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/orb.svg" id="2_visual"]
+
+[node name="StoryItemPickupTemplate" type="Node2D" groups=["pickup", "story_loot"]]
+script = ExtResource("1_pickup")
+
+[node name="Glow" type="PointLight2D" parent="."]
+energy = 0.75
+texture_scale = 0.5
+
+[node name="Visual" type="Sprite2D" parent="."]
+texture = ExtResource("2_visual")
+scale = Vector2(0.55, 0.55)
+

@@ -1,0 +1,18 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/BeamEmitter.cs" id="1"]
+
+[sub_resource type="RectangleShape2D" id="Shape"]
+size = Vector2(56, 56)
+
+[node name="BeamEmitter" type="Node2D" groups=["power_routing_node", "puzzle_object"]]
+script = ExtResource("1")
+PowerNodeID = "placeholder_emitter"
+
+[node name="Visual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-28, -28, 28, -28, 28, 28, -28, 28)
+color = Color(0.12, 0.3, 0.36, 1)
+
+[node name="BeamVisual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(28, -4, 220, -4, 220, 4, 28, 4)
+color = Color(0.2, 0.9, 1, 0.75)

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="DustVisualTierSet" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/DustVisualTierSet.cs" id="1_tiers"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/dust_small.svg" id="2_small"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/dust_medium.svg" id="3_medium"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/dust_large.svg" id="4_large"]
+
+[resource]
+script = ExtResource("1_tiers")
+MediumThreshold = 6
+LargeThreshold = 25
+SmallTexture = ExtResource("2_small")
+MediumTexture = ExtResource("3_medium")
+LargeTexture = ExtResource("4_large")

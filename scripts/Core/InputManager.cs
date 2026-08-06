@@ -17,6 +17,7 @@ namespace FTT.Core {
             public const string Special2 = "gameplay_special2";
             public const string MovementAbility = "gameplay_movement_ability";
             public const string Block = "gameplay_block";
+            public const string Roll = "gameplay_roll";
             public const string Ultimate = "gameplay_ultimate";
             public const string Interact = "gameplay_interact";
             public const string Pause = "ui_pause";
@@ -29,6 +30,7 @@ namespace FTT.Core {
         private readonly Dictionary<int, int> _playerToDevice = new();
         private readonly Dictionary<int, IPlayerInputSource> _overrides = new();
         private readonly Dictionary<int, PlayerInputFrame> _frames = new();
+        private readonly Dictionary<int, DashInputDetector> _dashDetectors = new();
         private readonly List<int> _connectedJoypads = new();
 
         [Export(PropertyHint.Range, "1,2,1")]
@@ -73,7 +75,7 @@ namespace FTT.Core {
                 frame = source.Sample(tick, previous);
             } else {
                 int deviceId = GetDeviceForPlayer(playerIndex);
-                frame = SampleGodotDevice(tick, deviceId, previous.Held);
+                frame = SampleGodotDevice(playerIndex, tick, deviceId, previous.Held);
             }
 
             frame.Tick = tick;
@@ -105,6 +107,7 @@ namespace FTT.Core {
             _deviceToPlayer.Clear();
             _playerToDevice.Clear();
             _frames.Clear();
+            _dashDetectors.Clear();
 
             // Keyboard is a complete first-player device. Connected joypads fill the
             // remaining local slots, enabling keyboard-versus-controller with one pad.
@@ -167,10 +170,11 @@ namespace FTT.Core {
             _deviceToPlayer[deviceId] = playerIndex;
             _playerToDevice[playerIndex] = deviceId;
             _frames.Remove(playerIndex);
+            _dashDetectors.Remove(playerIndex);
             DeviceAssigned?.Invoke(playerIndex, deviceId);
         }
 
-        private static PlayerInputFrame SampleGodotDevice(uint tick, int deviceId, GameplayButtons previousHeld) {
+        private PlayerInputFrame SampleGodotDevice(int playerIndex, uint tick, int deviceId, GameplayButtons previousHeld) {
             if (deviceId == UnassignedDevice) return PlayerInputFrame.Create(tick, 0, 0, GameplayButtons.None, previousHeld);
             float horizontal = ReadActionStrength(Actions.MoveRight, deviceId)
                 - ReadActionStrength(Actions.MoveLeft, deviceId);
@@ -186,9 +190,20 @@ namespace FTT.Core {
             AddIfHeld(ref held, GameplayButtons.Special2, ReadActionPressed(Actions.Special2, deviceId));
             AddIfHeld(ref held, GameplayButtons.MovementAbility, ReadActionPressed(Actions.MovementAbility, deviceId));
             AddIfHeld(ref held, GameplayButtons.Block, ReadActionPressed(Actions.Block, deviceId));
+            AddIfHeld(ref held, GameplayButtons.Roll, ReadActionPressed(Actions.Roll, deviceId));
             AddIfHeld(ref held, GameplayButtons.Ultimate, ReadUltimatePressed(deviceId));
             AddIfHeld(ref held, GameplayButtons.Interact, ReadActionPressed(Actions.Interact, deviceId));
             AddIfHeld(ref held, GameplayButtons.Pause, ReadActionPressed(Actions.Pause, deviceId));
+
+            if (!_dashDetectors.TryGetValue(playerIndex, out DashInputDetector dashDetector)) {
+                dashDetector = new DashInputDetector();
+                _dashDetectors[playerIndex] = dashDetector;
+            }
+            float analogHorizontal = deviceId >= 0 ? Input.GetJoyAxis(deviceId, JoyAxis.LeftX) : 0f;
+            AddIfHeld(
+                ref held,
+                GameplayButtons.Dash,
+                dashDetector.Update(tick, horizontal, analogHorizontal, deviceId >= 0));
 
             return PlayerInputFrame.Create(tick, horizontal, vertical, held, previousHeld);
         }
@@ -242,6 +257,7 @@ namespace FTT.Core {
             Actions.Special2 => GameplayButtons.Special2,
             Actions.MovementAbility => GameplayButtons.MovementAbility,
             Actions.Block => GameplayButtons.Block,
+            Actions.Roll => GameplayButtons.Roll,
             Actions.Ultimate => GameplayButtons.Ultimate,
             Actions.Interact => GameplayButtons.Interact,
             Actions.Pause => GameplayButtons.Pause,

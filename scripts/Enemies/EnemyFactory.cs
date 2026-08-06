@@ -1,11 +1,14 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 using FTT.Combat;
 using FTT.Core;
 
 namespace FTT.Enemies {
 
     public static class EnemyFactory {
+        private static readonly Dictionary<string, PackedScene> Templates = new(StringComparer.Ordinal);
+
         public static EnemyController CreateChronoSlasher(Vector2 position, Vector2? waypointA = null, Vector2? waypointB = null) {
             return Create("chrono_slasher", position, new Vector2(30, 50), new Color(0.4f, 0.1f, 0.6f), waypointA, waypointB);
         }
@@ -24,6 +27,61 @@ namespace FTT.Enemies {
 
         public static EnemyController CreateHologramDrone(Vector2 position, Vector2? waypointA = null, Vector2? waypointB = null) {
             return Create("hologram_drone", position, new Vector2(28, 44), new Color(0.0f, 0.8f, 0.9f, 0.7f), waypointA, waypointB);
+        }
+
+        public static EnemyController SpawnChronoSlasher(Node parent, Vector2 position, Vector2? waypointA = null, Vector2? waypointB = null) =>
+            Spawn("chrono_slasher", parent, position, new Vector2(30, 50), new Color(0.4f, 0.1f, 0.6f), waypointA, waypointB);
+
+        public static EnemyController SpawnCyberGuard(Node parent, Vector2 position, Vector2? waypointA = null, Vector2? waypointB = null) =>
+            Spawn("cyber_guard", parent, position, new Vector2(34, 54), new Color(0.6f, 0.5f, 0.1f), waypointA, waypointB);
+
+        public static EnemyController SpawnSteamAutomaton(Node parent, Vector2 position) =>
+            Spawn("steam_automaton", parent, position, new Vector2(50, 68), new Color(0.5f, 0.35f, 0.15f));
+
+        public static EnemyController SpawnHologramDrone(Node parent, Vector2 position, Vector2? waypointA = null, Vector2? waypointB = null) =>
+            Spawn("hologram_drone", parent, position, new Vector2(28, 44), new Color(0.0f, 0.8f, 0.9f, 0.7f), waypointA, waypointB);
+
+        private static EnemyController Spawn(
+            string enemyID,
+            Node parent,
+            Vector2 position,
+            Vector2 bodySize,
+            Color placeholderColor,
+            Vector2? waypointA = null,
+            Vector2? waypointB = null) {
+            if (parent == null || PoolManager.Instance == null) {
+                EnemyController fallback = Create(enemyID, position, bodySize, placeholderColor, waypointA, waypointB);
+                parent?.AddChild(fallback);
+                return fallback;
+            }
+
+            string poolID = $"story_enemy.{enemyID}";
+            if (!PoolManager.Instance.IsRegistered(poolID)) {
+                PackedScene template = GetOrCreateTemplate(enemyID, bodySize, placeholderColor);
+                PoolManager.Instance.RegisterPool(poolID, template, 4, 25, PoolOverflowPolicy.Grow);
+            }
+            EnemyController enemy = PoolManager.Instance.Spawn(poolID, position, parent) as EnemyController;
+            enemy?.ConfigureSpawn(position, waypointA, waypointB);
+            return enemy;
+        }
+
+        private static PackedScene GetOrCreateTemplate(string enemyID, Vector2 bodySize, Color placeholderColor) {
+            if (Templates.TryGetValue(enemyID, out PackedScene existing)) return existing;
+            EnemyController source = Create(enemyID, Vector2.Zero, bodySize, placeholderColor);
+            AssignOwnerRecursive(source, source);
+            var template = new PackedScene();
+            Error error = template.Pack(source);
+            source.Free();
+            if (error != Error.Ok) throw new InvalidOperationException($"Could not pack pooled enemy template '{enemyID}': {error}.");
+            Templates[enemyID] = template;
+            return template;
+        }
+
+        private static void AssignOwnerRecursive(Node root, Node current) {
+            foreach (Node child in current.GetChildren()) {
+                child.Owner = root;
+                AssignOwnerRecursive(root, child);
+            }
         }
 
         private static EnemyController Create(
@@ -48,6 +106,7 @@ namespace FTT.Enemies {
             };
 
             SetupEnemyBody(enemy, bodySize, placeholderColor);
+            SetupEnemyPushbox(enemy, bodySize);
             SetupEnemyHitboxes(enemy, bodySize);
             SetupPatrolWaypoints(enemy, position, waypointA, waypointB);
             enemy.AddToGroup("Enemies");
@@ -98,12 +157,6 @@ namespace FTT.Enemies {
             hurtShape.Shape = new RectangleShape2D { Size = bodySize };
             hurtbox.AddChild(hurtShape);
             enemy.AddChild(hurtbox);
-            hurtbox.OnHit += hit => {
-                int damageApplied = enemy.TakeDamage(Mathf.Max(0, (int)Mathf.Round(hit.Damage)));
-                enemy.ApplyKnockback(hit.Knockback, hit.AttackerFacingRight);
-                if (hit.HitstunDuration > 0f) enemy.ApplyStun(hit.HitstunDuration);
-                return damageApplied;
-            };
 
             var hitbox = new Hitbox {
                 Name = "AttackHitbox",
@@ -123,6 +176,22 @@ namespace FTT.Enemies {
             attackShape.Shape = new RectangleShape2D { Size = new Vector2(40, 40) };
             hitbox.AddChild(attackShape);
             enemy.AddChild(hitbox);
+        }
+
+        private static void SetupEnemyPushbox(EnemyController enemy, Vector2 bodySize) {
+            var pushbox = new CombatantPushbox {
+                Name = "Pushbox",
+                BoxSize = new Vector2(Mathf.Max(20f, bodySize.X - 8f), Mathf.Max(32f, bodySize.Y - 10f)),
+                Position = new Vector2(0f, -bodySize.Y * 0.45f),
+                CollisionLayer = CollisionLayers.Enemy,
+                CollisionMask = CollisionLayers.Player,
+                Monitoring = false,
+                Monitorable = false
+            };
+            pushbox.AddChild(new CollisionShape2D {
+                Shape = new RectangleShape2D { Size = pushbox.BoxSize }
+            });
+            enemy.AddChild(pushbox);
         }
 
         private static void SetupPatrolWaypoints(

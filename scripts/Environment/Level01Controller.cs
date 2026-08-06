@@ -35,17 +35,37 @@ namespace FTT.Environment {
         }
 
         private void BuildLevel() {
+            BuildFarBackground();
             BuildRoom1();
             BuildRoom2();
             BuildRoom3();
             BuildRoom4BossArena();
         }
 
+        private void BuildFarBackground() {
+            Texture2D texture = ResourceLoader.Load<Texture2D>(
+                "res://assets/environments/florence/florence_far_background.png");
+            if (texture == null) return;
+            Vector2 textureSize = texture.GetSize();
+            Vector2 scale = new(1920f / textureSize.X, LevelHeight / textureSize.Y);
+            for (int index = 0; index < 6; index++) {
+                var background = new Sprite2D {
+                    Name = $"FlorenceFarBackground_{index}",
+                    Texture = texture,
+                    Position = new Vector2(index * 1920f + 960f, LevelHeight / 2f),
+                    Scale = scale,
+                    ZIndex = -20,
+                    TextureFilter = CanvasItem.TextureFilterEnum.Linear
+                };
+                AddChild(background);
+            }
+        }
+
         private void BuildRoom1() {
             var bg1 = new ColorRect();
             bg1.Name = "BG_Room1";
             bg1.Size = new Vector2(5760, LevelHeight);
-            bg1.Color = new Color(0.12f, 0.08f, 0.05f);
+            bg1.Color = new Color(0.12f, 0.08f, 0.05f, 0.35f);
             AddChild(bg1);
 
             BuildFloor(0, 900, 5760);
@@ -65,7 +85,7 @@ namespace FTT.Environment {
 
             BuildCheckpoint(2800, 850, "florence_checkpoint_0");
 
-            BuildRoomDecoration(0, "ENTRY COURTYARD", new Color(0.7f, 0.5f, 0.2f));
+            BuildRoomDecoration(0, "florence_room_entry", new Color(0.7f, 0.5f, 0.2f));
         }
 
         private void BuildRoom2() {
@@ -75,7 +95,7 @@ namespace FTT.Environment {
             bg2.Name = "BG_Room2";
             bg2.Size = new Vector2(2880, LevelHeight);
             bg2.Position = new Vector2(offsetX, 0);
-            bg2.Color = new Color(0.09f, 0.06f, 0.04f);
+            bg2.Color = new Color(0.09f, 0.06f, 0.04f, 0.4f);
             AddChild(bg2);
 
             BuildFloor(offsetX, 900, 2880);
@@ -87,7 +107,7 @@ namespace FTT.Environment {
             BuildPlatform(offsetX + 2400, 550, 200);
 
             BuildCheckpoint(offsetX + 1400, 850, "florence_checkpoint_1");
-            BuildRoomDecoration(offsetX, "PRINT SHOP BASEMENT", new Color(0.6f, 0.4f, 0.2f));
+            BuildRoomDecoration(offsetX, "florence_room_print_shop", new Color(0.6f, 0.4f, 0.2f));
         }
 
         private void BuildRoom3() {
@@ -97,7 +117,7 @@ namespace FTT.Environment {
             bg3.Name = "BG_Room3";
             bg3.Size = new Vector2(1920, LevelHeight);
             bg3.Position = new Vector2(offsetX, 0);
-            bg3.Color = new Color(0.1f, 0.07f, 0.05f);
+            bg3.Color = new Color(0.1f, 0.07f, 0.05f, 0.4f);
             AddChild(bg3);
 
             BuildFloor(offsetX, 900, 1920);
@@ -109,7 +129,7 @@ namespace FTT.Environment {
             BuildHazardSpikes(offsetX + 400, 890, 100);
             BuildHazardSpikes(offsetX + 900, 890, 80);
 
-            BuildRoomDecoration(offsetX, "WORKSHOP PASSAGE", new Color(0.5f, 0.3f, 0.15f));
+            BuildRoomDecoration(offsetX, "florence_room_workshop", new Color(0.5f, 0.3f, 0.15f));
         }
 
         private void BuildRoom4BossArena() {
@@ -119,7 +139,7 @@ namespace FTT.Environment {
             bg4.Name = "BG_Room4_Boss";
             bg4.Size = new Vector2(960, LevelHeight);
             bg4.Position = new Vector2(offsetX, 0);
-            bg4.Color = new Color(0.15f, 0.05f, 0.05f);
+            bg4.Color = new Color(0.15f, 0.05f, 0.05f, 0.45f);
             AddChild(bg4);
 
             BuildFloor(offsetX, 900, 960);
@@ -130,7 +150,7 @@ namespace FTT.Environment {
             BuildWall(offsetX + 940, 0, LevelHeight);
 
             BuildCheckpoint(offsetX + 100, 850, "florence_checkpoint_2");
-            BuildRoomDecoration(offsetX, "BOSS: THE BORGIA INQUISITOR", new Color(0.9f, 0.2f, 0.2f));
+            BuildRoomDecoration(offsetX, "florence_room_boss", new Color(0.9f, 0.2f, 0.2f));
 
             SpawnBoss(offsetX + 700, 850);
         }
@@ -242,6 +262,7 @@ namespace FTT.Environment {
             checkpoint.CheckpointID = id;
             checkpoint.Position = new Vector2(x, y);
             checkpoint.RespawnOffset = new Vector2(0, -50);
+            _levelManager.RegisterCheckpoint(id, checkpoint.Position + checkpoint.RespawnOffset);
 
             checkpoint.CollisionLayer = CollisionLayers.Trigger;
             checkpoint.CollisionMask = CollisionLayers.Player;
@@ -261,7 +282,7 @@ namespace FTT.Environment {
             checkpoint.AddChild(visual);
 
             var label = new Label();
-            label.Text = "CHECKPOINT";
+            label.Text = Tr("checkpoint");
             label.Position = new Vector2(-40, -100);
             label.CustomMinimumSize = new Vector2(80, 16);
             label.HorizontalAlignment = HorizontalAlignment.Center;
@@ -272,9 +293,9 @@ namespace FTT.Environment {
             AddChild(checkpoint);
         }
 
-        private void BuildRoomDecoration(float offsetX, string roomName, Color color) {
+        private void BuildRoomDecoration(float offsetX, string roomNameKey, Color color) {
             var label = new Label();
-            label.Text = roomName;
+            label.Text = Tr(roomNameKey);
             label.Position = new Vector2(offsetX + 50, 30);
             label.CustomMinimumSize = new Vector2(300, 25);
             label.AddThemeFontSizeOverride("font_size", 14);
@@ -290,6 +311,7 @@ namespace FTT.Environment {
             _player.Name = "Player";
             _player.Position = new Vector2(200, 850);
             AddChild(_player);
+            RestoreSavedCheckpoint();
 
             var camera = new Camera2D();
             camera.Name = "PlayerCamera";
@@ -303,33 +325,44 @@ namespace FTT.Environment {
             _player.AddChild(camera);
         }
 
+        private void RestoreSavedCheckpoint() {
+            if (SaveManager.Instance == null || GameManager.Instance == null) return;
+            int slot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+            if (slot < 0 || slot >= SaveManager.Instance.SaveSlots.Length) return;
+            StorySaveData save = SaveManager.Instance.SaveSlots[slot];
+            if (save == null || save.CurrentLevelID != StoryManager.GetLevelScenePath(CampaignLevel.Florence)) return;
+            Vector2 position = _player.Position;
+            if (_levelManager.TryGetCheckpointPosition(save.LastCheckpointID, out Vector2 checkpoint)) position = checkpoint;
+            _player.RestoreStoryCheckpoint(position, save.CurrentHP, save.CurrentUltimateMeter);
+        }
+
         private void SpawnEnemies() {
-            AddChild(EnemyFactory.CreateChronoSlasher(new Vector2(800, 850),
-                waypointA: new Vector2(600, 850), waypointB: new Vector2(1000, 850)));
-            AddChild(EnemyFactory.CreateChronoSlasher(new Vector2(1800, 850),
-                waypointA: new Vector2(1600, 850), waypointB: new Vector2(2000, 850)));
-            AddChild(EnemyFactory.CreateCyberGuard(new Vector2(2200, 850),
-                waypointA: new Vector2(2000, 850), waypointB: new Vector2(2400, 850)));
-            AddChild(EnemyFactory.CreateCyberGuard(new Vector2(3000, 850),
-                waypointA: new Vector2(2800, 850), waypointB: new Vector2(3200, 850)));
-            AddChild(EnemyFactory.CreateSteamAutomaton(new Vector2(4000, 850)));
+            EnemyFactory.SpawnChronoSlasher(this, new Vector2(800, 850),
+                waypointA: new Vector2(600, 850), waypointB: new Vector2(1000, 850));
+            EnemyFactory.SpawnChronoSlasher(this, new Vector2(1800, 850),
+                waypointA: new Vector2(1600, 850), waypointB: new Vector2(2000, 850));
+            EnemyFactory.SpawnCyberGuard(this, new Vector2(2200, 850),
+                waypointA: new Vector2(2000, 850), waypointB: new Vector2(2400, 850));
+            EnemyFactory.SpawnCyberGuard(this, new Vector2(3000, 850),
+                waypointA: new Vector2(2800, 850), waypointB: new Vector2(3200, 850));
+            EnemyFactory.SpawnSteamAutomaton(this, new Vector2(4000, 850));
 
             float r2Offset = 5760;
-            AddChild(EnemyFactory.CreateCyberGuard(new Vector2(r2Offset + 500, 850),
-                waypointA: new Vector2(r2Offset + 300, 850), waypointB: new Vector2(r2Offset + 700, 850)));
-            AddChild(EnemyFactory.CreateCyberGuard(new Vector2(r2Offset + 1200, 850)));
-            AddChild(EnemyFactory.CreateChronoSlasher(new Vector2(r2Offset + 2000, 850),
-                waypointA: new Vector2(r2Offset + 1800, 850), waypointB: new Vector2(r2Offset + 2200, 850)));
+            EnemyFactory.SpawnCyberGuard(this, new Vector2(r2Offset + 500, 850),
+                waypointA: new Vector2(r2Offset + 300, 850), waypointB: new Vector2(r2Offset + 700, 850));
+            EnemyFactory.SpawnCyberGuard(this, new Vector2(r2Offset + 1200, 850));
+            EnemyFactory.SpawnChronoSlasher(this, new Vector2(r2Offset + 2000, 850),
+                waypointA: new Vector2(r2Offset + 1800, 850), waypointB: new Vector2(r2Offset + 2200, 850));
 
             float r3Offset = 8640;
-            AddChild(EnemyFactory.CreateChronoSlasher(new Vector2(r3Offset + 400, 850)));
-            AddChild(EnemyFactory.CreateChronoSlasher(new Vector2(r3Offset + 800, 850)));
-            AddChild(EnemyFactory.CreateChronoSlasher(new Vector2(r3Offset + 1200, 850)));
-            AddChild(EnemyFactory.CreateCyberGuard(new Vector2(r3Offset + 600, 850),
-                waypointA: new Vector2(r3Offset + 400, 850), waypointB: new Vector2(r3Offset + 900, 850)));
-            AddChild(EnemyFactory.CreateCyberGuard(new Vector2(r3Offset + 1400, 850)));
-            AddChild(EnemyFactory.CreateSteamAutomaton(new Vector2(r3Offset + 1000, 850)));
-            AddChild(EnemyFactory.CreateSteamAutomaton(new Vector2(r3Offset + 1600, 850)));
+            EnemyFactory.SpawnChronoSlasher(this, new Vector2(r3Offset + 400, 850));
+            EnemyFactory.SpawnChronoSlasher(this, new Vector2(r3Offset + 800, 850));
+            EnemyFactory.SpawnChronoSlasher(this, new Vector2(r3Offset + 1200, 850));
+            EnemyFactory.SpawnCyberGuard(this, new Vector2(r3Offset + 600, 850),
+                waypointA: new Vector2(r3Offset + 400, 850), waypointB: new Vector2(r3Offset + 900, 850));
+            EnemyFactory.SpawnCyberGuard(this, new Vector2(r3Offset + 1400, 850));
+            EnemyFactory.SpawnSteamAutomaton(this, new Vector2(r3Offset + 1000, 850));
+            EnemyFactory.SpawnSteamAutomaton(this, new Vector2(r3Offset + 1600, 850));
         }
 
         private void SpawnBoss(float x, float y) {
@@ -353,6 +386,21 @@ namespace FTT.Environment {
             col.Position = new Vector2(0, -35);
             _boss.AddChild(col);
 
+            var pushbox = new FTT.Combat.CombatantPushbox {
+                Name = "Pushbox",
+                BoxSize = new Vector2(44f, 60f),
+                Position = new Vector2(0f, -35f),
+                BlocksRollThrough = true,
+                CollisionLayer = CollisionLayers.Enemy,
+                CollisionMask = CollisionLayers.Player,
+                Monitoring = false,
+                Monitorable = false
+            };
+            pushbox.AddChild(new CollisionShape2D {
+                Shape = new RectangleShape2D { Size = pushbox.BoxSize }
+            });
+            _boss.AddChild(pushbox);
+
             var body = new ColorRect();
             body.Name = "BossBody";
             body.Size = new Vector2(50, 70);
@@ -367,7 +415,7 @@ namespace FTT.Environment {
             _boss.AddChild(headRect);
 
             var bossLabel = new Label();
-            bossLabel.Text = "THE BORGIA INQUISITOR";
+            bossLabel.Text = Tr("boss_borgia_inquisitor_name").ToUpperInvariant();
             bossLabel.Position = new Vector2(-80, -110);
             bossLabel.CustomMinimumSize = new Vector2(160, 20);
             bossLabel.HorizontalAlignment = HorizontalAlignment.Center;
@@ -398,14 +446,14 @@ namespace FTT.Environment {
             AddChild(canvas);
 
             var levelLabel = new Label();
-            levelLabel.Text = "LEVEL 1: THE STEAMPUNK RENAISSANCE - FLORENCE, 1503";
+            levelLabel.Text = Tr("florence_level_title");
             levelLabel.Position = new Vector2(20, 15);
             levelLabel.AddThemeFontSizeOverride("font_size", 14);
             levelLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.7f, 0.2f));
             canvas.AddChild(levelLabel);
 
             _objectiveLabel = new Label();
-            _objectiveLabel.Text = "Clear the enemies and reach the boss!";
+            _objectiveLabel.Text = Tr("florence_objective_reach_boss");
             _objectiveLabel.Position = new Vector2(20, 40);
             _objectiveLabel.AddThemeFontSizeOverride("font_size", 12);
             _objectiveLabel.AddThemeColorOverride("font_color", new Color(0.8f, 0.8f, 0.6f));
@@ -430,7 +478,11 @@ namespace FTT.Environment {
                     float dist = _player.GlobalPosition.DistanceTo(_boss.GlobalPosition);
                     if (dist < 800) {
                         _bossHPLabel.Visible = true;
-                        _bossHPLabel.Text = $"THE BORGIA INQUISITOR - HP: {_boss.CurrentHP}/{_boss.Data.MaxHP}";
+                        _bossHPLabel.Text = string.Format(
+                            Tr("boss_hp"),
+                            Tr("boss_borgia_inquisitor_name"),
+                            _boss.CurrentHP,
+                            _boss.Data.MaxHP);
                     }
                 }
             }
@@ -442,11 +494,13 @@ namespace FTT.Environment {
 
         private void OnBossDefeated() {
             _bossDefeated = true;
-            _bossHPLabel.Text = "THE BORGIA INQUISITOR - DEFEATED!";
+            _bossHPLabel.Text = string.Format(
+                Tr("boss_defeated"),
+                Tr("boss_borgia_inquisitor_name"));
 
             EventBus.Instance?.RaiseChronalDustCollected(50);
 
-            _objectiveLabel.Text = "LEVEL COMPLETE! Returning to Time-Ship...";
+            _objectiveLabel.Text = Tr("florence_objective_complete");
 
             var timer = GetTree().CreateTimer(4.0);
             timer.Timeout += () => {

@@ -1,0 +1,6 @@
+[gd_resource type="SpriteFrames" load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/placeholders/enemy_silhouette.svg" id="1_enemy"]
+
+[resource]
+animations = [{"frames": [{"duration": 1.0, "texture": ExtResource("1_enemy")}], "loop": true, "name": &"idle", "speed": 4.0}, {"frames": [{"duration": 1.0, "texture": ExtResource("1_enemy")}], "loop": true, "name": &"patrol", "speed": 6.0}, {"frames": [{"duration": 1.0, "texture": ExtResource("1_enemy")}], "loop": false, "name": &"attack", "speed": 8.0}, {"frames": [{"duration": 1.0, "texture": ExtResource("1_enemy")}], "loop": false, "name": &"elite_attack", "speed": 8.0}, {"frames": [{"duration": 1.0, "texture": ExtResource("1_enemy")}], "loop": false, "name": &"hitstun", "speed": 8.0}, {"frames": [{"duration": 1.0, "texture": ExtResource("1_enemy")}], "loop": false, "name": &"death", "speed": 6.0}]

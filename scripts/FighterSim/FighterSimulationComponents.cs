@@ -16,6 +16,118 @@ namespace FTT.FighterSim {
         Pocahontas = 8
     }
 
+    public readonly struct FighterAbilityLoadout {
+        public readonly int SpecialOneExecutionType;
+        public readonly int SpecialTwoExecutionType;
+        public readonly int SpecialOneProjectileLifetimeFrames;
+        public readonly int SpecialTwoProjectileLifetimeFrames;
+        public readonly int SpecialOnePersistentTypeID;
+        public readonly int SpecialOneMaxActiveObjects;
+        public readonly int SpecialOnePersistentLifetimeFrames;
+        public readonly int SpecialTwoPersistentTypeID;
+        public readonly int SpecialTwoMaxActiveObjects;
+        public readonly int SpecialTwoPersistentLifetimeFrames;
+        public readonly int MovementType;
+        public readonly int MovementCooldownFrames;
+        public readonly int MovementDurationFrames;
+        public readonly int MovementResetsJump;
+        public readonly int MovementGrantsHyperArmor;
+        public readonly int MovementPersistentTypeID;
+        public readonly int MovementMaxActiveObjects;
+        public readonly int MovementPersistentLifetimeFrames;
+        public readonly FP64 SpecialOneProjectileSpeed;
+        public readonly FP64 SpecialTwoProjectileSpeed;
+        public readonly FP64 MovementDistance;
+        public readonly FP64 MovementSpeed;
+
+        public FighterAbilityLoadout(
+            int specialOneExecutionType,
+            int specialTwoExecutionType,
+            int specialOneProjectileLifetimeFrames,
+            int specialTwoProjectileLifetimeFrames,
+            int specialOnePersistentTypeID,
+            int specialOneMaxActiveObjects,
+            int specialOnePersistentLifetimeFrames,
+            int specialTwoPersistentTypeID,
+            int specialTwoMaxActiveObjects,
+            int specialTwoPersistentLifetimeFrames,
+            int movementType,
+            int movementCooldownFrames,
+            int movementDurationFrames,
+            int movementResetsJump,
+            int movementGrantsHyperArmor,
+            int movementPersistentTypeID,
+            int movementMaxActiveObjects,
+            int movementPersistentLifetimeFrames,
+            FP64 specialOneProjectileSpeed,
+            FP64 specialTwoProjectileSpeed,
+            FP64 movementDistance,
+            FP64 movementSpeed) {
+            SpecialOneExecutionType = specialOneExecutionType;
+            SpecialTwoExecutionType = specialTwoExecutionType;
+            SpecialOneProjectileLifetimeFrames = specialOneProjectileLifetimeFrames;
+            SpecialTwoProjectileLifetimeFrames = specialTwoProjectileLifetimeFrames;
+            SpecialOnePersistentTypeID = specialOnePersistentTypeID;
+            SpecialOneMaxActiveObjects = specialOneMaxActiveObjects;
+            SpecialOnePersistentLifetimeFrames = specialOnePersistentLifetimeFrames;
+            SpecialTwoPersistentTypeID = specialTwoPersistentTypeID;
+            SpecialTwoMaxActiveObjects = specialTwoMaxActiveObjects;
+            SpecialTwoPersistentLifetimeFrames = specialTwoPersistentLifetimeFrames;
+            MovementType = movementType;
+            MovementCooldownFrames = movementCooldownFrames;
+            MovementDurationFrames = movementDurationFrames;
+            MovementResetsJump = movementResetsJump;
+            MovementGrantsHyperArmor = movementGrantsHyperArmor;
+            MovementPersistentTypeID = movementPersistentTypeID;
+            MovementMaxActiveObjects = movementMaxActiveObjects;
+            MovementPersistentLifetimeFrames = movementPersistentLifetimeFrames;
+            SpecialOneProjectileSpeed = specialOneProjectileSpeed;
+            SpecialTwoProjectileSpeed = specialTwoProjectileSpeed;
+            MovementDistance = movementDistance;
+            MovementSpeed = movementSpeed;
+        }
+
+        public static FighterAbilityLoadout Default => new(
+            2, 2, 300, 300,
+            0, 0, 0,
+            0, 0, 0,
+            2, 300, 12, 0, 0,
+            0, 0, 0,
+            FP64.Zero, FP64.Zero, FP64.FromInt(2), FP64.FromInt(10));
+    }
+
+    public readonly struct FighterMatchRules {
+        public readonly int MatchMode;
+        public readonly bool ItemsEnabled;
+        public readonly int ItemFrequency;
+        public readonly bool HazardsEnabled;
+        public readonly int HazardFrequency;
+        public readonly int StageHazardTypeID;
+
+        public FighterMatchRules(bool itemsEnabled, int itemFrequency, bool hazardsEnabled, int hazardFrequency)
+            : this(2, itemsEnabled, itemFrequency, hazardsEnabled, hazardFrequency, 1) { }
+
+        public FighterMatchRules(int matchMode, bool itemsEnabled, int itemFrequency, bool hazardsEnabled, int hazardFrequency)
+            : this(matchMode, itemsEnabled, itemFrequency, hazardsEnabled, hazardFrequency, 1) { }
+
+        public FighterMatchRules(
+            int matchMode,
+            bool itemsEnabled,
+            int itemFrequency,
+            bool hazardsEnabled,
+            int hazardFrequency,
+            int stageHazardTypeID) {
+            MatchMode = matchMode;
+            ItemsEnabled = itemsEnabled;
+            ItemFrequency = itemFrequency;
+            HazardsEnabled = hazardsEnabled;
+            HazardFrequency = hazardFrequency;
+            StageHazardTypeID = System.Math.Clamp(stageHazardTypeID, 1, 10);
+        }
+
+        public static FighterMatchRules Disabled => new(2, false, 0, false, 0);
+    }
+
     public readonly struct FighterLoadout {
         public readonly int CharacterID;
         public readonly int MaxHP;
@@ -43,6 +155,7 @@ namespace FTT.FighterSim {
         public readonly FP64 SpecialOneStatusIntensity;
         public readonly FP64 SpecialTwoStatusIntensity;
         public readonly FP64 UltimateStatusIntensity;
+        public readonly FighterAbilityLoadout AbilityModes;
 
         public FighterLoadout(
             int characterID,
@@ -70,7 +183,8 @@ namespace FTT.FighterSim {
             FP64 ultimateKnockback,
             FP64 specialOneStatusIntensity,
             FP64 specialTwoStatusIntensity,
-            FP64 ultimateStatusIntensity) {
+            FP64 ultimateStatusIntensity,
+            FighterAbilityLoadout abilityModes) {
             CharacterID = characterID;
             MaxHP = maxHP;
             MaxBlockCharges = maxBlockCharges;
@@ -97,6 +211,7 @@ namespace FTT.FighterSim {
             SpecialOneStatusIntensity = specialOneStatusIntensity;
             SpecialTwoStatusIntensity = specialTwoStatusIntensity;
             UltimateStatusIntensity = ultimateStatusIntensity;
+            AbilityModes = abilityModes;
         }
 
         public static FighterLoadout Default(FighterCharacterID characterID) => new(
@@ -125,7 +240,8 @@ namespace FTT.FighterSim {
             FP64.FromInt(5),
             FP64.One,
             FP64.One,
-            FP64.One);
+            FP64.One,
+            FighterAbilityLoadout.Default);
     }
 
     [KlothoComponent(300, MaxCount = 2)]
@@ -169,6 +285,14 @@ namespace FTT.FighterSim {
         public int HeldButtons;
         public int PressedButtons;
         public int ReleasedButtons;
+        public int SpeedBuffFrames;
+        public int JumpBuffFrames;
+        public int AegisHits;
+        public int UsesStocks;
+        public int KnockoutsSuffered;
+        public int UniversalMovementState;
+        public int UniversalMovementFramesRemaining;
+        public int UniversalMovementDirection;
         public FP64 StatusIntensity;
     }
 
@@ -200,14 +324,55 @@ namespace FTT.FighterSim {
         public FP64 UltimateStatusIntensity;
     }
 
+    [KlothoComponent(307, MaxCount = 2)]
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public partial struct FighterAbilityModeComponent : IComponent {
+        public int SpecialOneExecutionType;
+        public int SpecialTwoExecutionType;
+        public int SpecialOneProjectileLifetimeFrames;
+        public int SpecialTwoProjectileLifetimeFrames;
+        public int SpecialOnePersistentTypeID;
+        public int SpecialOneMaxActiveObjects;
+        public int SpecialOnePersistentLifetimeFrames;
+        public int SpecialTwoPersistentTypeID;
+        public int SpecialTwoMaxActiveObjects;
+        public int SpecialTwoPersistentLifetimeFrames;
+        public int MovementType;
+        public int MovementCooldownFrames;
+        public int MovementDurationFrames;
+        public int MovementResetsJump;
+        public int MovementGrantsHyperArmor;
+        public int MovementPersistentTypeID;
+        public int MovementMaxActiveObjects;
+        public int MovementPersistentLifetimeFrames;
+        public FP64 SpecialOneProjectileSpeed;
+        public FP64 SpecialTwoProjectileSpeed;
+        public FP64 MovementDistance;
+        public FP64 MovementSpeed;
+    }
+
     [KlothoComponent(301)]
     [KlothoSingletonComponent]
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public partial struct FighterMatchComponent : IComponent {
         public int RemainingFrames;
         public int MatchState;
+        public int MatchMode;
         public int WinnerPlayerID;
         public int IsTrueTie;
+        public int WorldSeed;
+        public int NextEntityID;
+        public int ItemsEnabled;
+        public int ItemFrequency;
+        public int HazardsEnabled;
+        public int HazardFrequency;
+        public int StageHazardTypeID;
+        public int NextOrbSpawnFrames;
+        public int NextHazardSpawnFrames;
+        public int PlayerOneKOs;
+        public int PlayerTwoKOs;
+        public int LastPlayerOneKnockoutsSuffered;
+        public int LastPlayerTwoKnockoutsSuffered;
         public ulong RandomState0;
         public ulong RandomState1;
     }
@@ -223,6 +388,8 @@ namespace FTT.FighterSim {
         public int AttackClass;
         public int StatusType;
         public int StatusFrames;
+        public int HitstunFrames;
+        public FP64 StatusIntensity;
         public FPVector2 Position;
         public FPVector2 Velocity;
         public FPVector2 HalfExtents;
@@ -240,6 +407,13 @@ namespace FTT.FighterSim {
         public int LifetimeFrames;
         public int ActionCooldownFrames;
         public int MaxDeployLimit;
+        public int Damage;
+        public int BaseActionCooldownFrames;
+        public int RemainingAttacks;
+        public int StatusType;
+        public int StatusFrames;
+        public FP64 AttackRange;
+        public FP64 Knockback;
         public FPVector2 Position;
         public FPVector2 HalfExtents;
     }
@@ -252,8 +426,22 @@ namespace FTT.FighterSim {
         public int Phase;
         public int PhaseFramesRemaining;
         public int Damage;
+        public int TickFramesRemaining;
+        public int WarningFrames;
+        public int ActiveFrames;
+        public int CooldownFrames;
         public FPVector2 Position;
         public FPVector2 HalfExtents;
         public FPVector2 Knockback;
+    }
+
+    [KlothoComponent(308, MaxCount = 16)]
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public partial struct FighterOrbComponent : IComponent {
+        public int EntityID;
+        public int EffectType;
+        public int LifetimeFrames;
+        public FPVector2 Position;
+        public FPVector2 HalfExtents;
     }
 }

@@ -10,8 +10,13 @@ namespace FTT.UI {
         private Label _controlsLabel;
         private PlayerController _player;
         private FighterSimulationDriver _driver;
+        private bool _resultShown;
 
         public override void _Ready() {
+            float hudOpacity = FTT.Core.SaveManager.Instance?.GlobalData?.HudOpacity ?? 1f;
+            foreach (Node child in GetChildren()) {
+                if (child is CanvasItem item) item.Modulate = new Color(1f, 1f, 1f, hudOpacity);
+            }
             _stateLabel = GetNodeOrNull<Label>("StateLabel");
             _hpLabel = GetNodeOrNull<Label>("HPLabel");
             _cooldownLabel = GetNodeOrNull<Label>("CooldownLabel");
@@ -26,6 +31,7 @@ namespace FTT.UI {
                     foreach (Node simulationNode in GetTree().GetNodesInGroup("FighterSimulation")) {
                         if (simulationNode is FighterSimulationDriver driver) {
                             _driver = driver;
+                            _driver.MatchCompleted += ShowResults;
                             break;
                         }
                     }
@@ -89,6 +95,59 @@ namespace FTT.UI {
             }
         }
 
+        public override void _ExitTree() {
+            if (_driver != null && IsInstanceValid(_driver)) _driver.MatchCompleted -= ShowResults;
+        }
+
+        private void ShowResults(FighterMatchResult result) {
+            if (_resultShown) return;
+            _resultShown = true;
+            var shade = new ColorRect {
+                Color = new Color(0.02f, 0.03f, 0.08f, 0.88f),
+                MouseFilter = Control.MouseFilterEnum.Stop
+            };
+            shade.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            AddChild(shade);
+
+            var center = new CenterContainer();
+            center.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            shade.AddChild(center);
+            var panel = new PanelContainer { CustomMinimumSize = new Vector2(520, 300) };
+            center.AddChild(panel);
+            var layout = new VBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+            layout.AddThemeConstantOverride("separation", 18);
+            panel.AddChild(layout);
+            var title = new Label {
+                Text = Tr("fighter_results_title"),
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            title.AddThemeFontSizeOverride("font_size", 30);
+            title.AddThemeColorOverride("font_color", new Color(0f, 0.9f, 0.9f));
+            layout.AddChild(title);
+            var outcome = new Label {
+                Text = result.IsTrueTie
+                    ? Tr("fighter_results_draw")
+                    : string.Format(Tr("fighter_results_winner"), result.WinnerPlayerID + 1),
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            outcome.AddThemeFontSizeOverride("font_size", 24);
+            layout.AddChild(outcome);
+            var rematch = MakeResultButton(Tr("fighter_rematch"));
+            rematch.Pressed += () => Core.GameManager.Instance?.LoadScene("res://scenes/arenas/TestArena.tscn");
+            layout.AddChild(rematch);
+            var fighters = MakeResultButton(Tr("fighter_change_fighters"));
+            fighters.Pressed += () => Core.GameManager.Instance?.LoadScene("res://scenes/menus/CharacterSelect.tscn");
+            layout.AddChild(fighters);
+            var menu = MakeResultButton(Tr("fighter_main_menu"));
+            menu.Pressed += () => Core.GameManager.Instance?.LoadScene("res://scenes/menus/MainMenu.tscn");
+            layout.AddChild(menu);
+        }
+
+        private static Button MakeResultButton(string text) => new() {
+            Text = text,
+            CustomMinimumSize = new Vector2(320, 46)
+        };
+
         private string CooldownText(int frames) => frames <= 0
             ? Tr("common_ready")
             : string.Format(Tr("common_seconds_short"), frames / (float)FighterSimulation.TickRate);
@@ -99,6 +158,8 @@ namespace FTT.UI {
             "Dazed" => "fighter_state_dazed",
             "Stunned" => "fighter_state_stunned",
             "Blocking" => "fighter_state_blocking",
+            "Dashing" => "fighter_state_dashing",
+            "Rolling" => "fighter_state_rolling",
             "Grounded" => "fighter_state_grounded",
             "Airborne" => "fighter_state_airborne",
             _ => "common_unavailable"

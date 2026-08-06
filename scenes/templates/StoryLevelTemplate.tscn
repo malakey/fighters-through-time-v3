@@ -1,0 +1,49 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="1_marker"]
+[ext_resource type="Resource" path="res://resources/Contracts/story_level_contract.tres" id="2_contract"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/parallax_far.svg" id="3_background"]
+
+[sub_resource type="RectangleShape2D" id="GroundShape"]
+size = Vector2(1280, 64)
+
+[node name="StoryLevelTemplate" type="Node2D" groups=["story_level"]]
+
+[node name="Presentation" type="Node2D" parent="."]
+
+[node name="Background" type="Sprite2D" parent="Presentation"]
+texture = ExtResource("3_background")
+position = Vector2(960, 540)
+
+[node name="World" type="Node2D" parent="."]
+
+[node name="Geometry" type="Node2D" parent="World"]
+
+[node name="Ground" type="StaticBody2D" parent="World/Geometry"]
+position = Vector2(960, 900)
+collision_layer = 64
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="World/Geometry/Ground"]
+shape = SubResource("GroundShape")
+
+[node name="Entities" type="Node2D" parent="World"]
+[node name="Pickups" type="Node2D" parent="World"]
+[node name="Hazards" type="Node2D" parent="World"]
+[node name="Puzzles" type="Node2D" parent="World"]
+[node name="Checkpoints" type="Node2D" parent="World"]
+[node name="Triggers" type="Node2D" parent="World"]
+
+[node name="SpawnPoints" type="Node2D" parent="."]
+[node name="PlayerSpawn" type="Marker2D" parent="SpawnPoints"]
+position = Vector2(320, 820)
+
+[node name="Camera" type="Node2D" parent="."]
+[node name="Camera2D" type="Camera2D" parent="Camera"]
+position = Vector2(960, 540)
+
+[node name="ContentContract" type="Node" parent="."]
+script = ExtResource("1_marker")
+ContentID = "story_level_template"
+Contract = ExtResource("2_contract")
+

@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ContentSceneContract" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/ContentSceneContract.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+ContractID = "boss_v1"
+TemplateKind = 5
+RequiredNodePaths = PackedStringArray("Presentation/AnimatedSprite2D", "Hurtbox", "Hitbox", "Pushbox", "AbilityOrigin", "ContentContract")
+RequiredRootGroups = PackedStringArray("enemy", "boss")
+AnimatedSpritePath = "Presentation/AnimatedSprite2D"
+RequiredAnimationNames = PackedStringArray("idle", "move", "melee_attack", "ranged_attack", "phase_transition", "death")
+RequiredEventCallbacks = PackedStringArray("ActivateHitbox", "DeactivateHitbox", "EmitPresentationEvent")
+RequiredCollisionLayerNames = PackedStringArray("Enemy", "EnemyHitbox", "EnemyHurtbox")
+RequiredInterfaceNames = PackedStringArray("IPoolable")

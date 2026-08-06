@@ -1,0 +1,27 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="1_marker"]
+[ext_resource type="Resource" path="res://resources/Contracts/puzzle_object_contract.tres" id="2_contract"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/graybox_tile.svg" id="3_visual"]
+
+[sub_resource type="CircleShape2D" id="Collision"]
+radius = 56.0
+
+[node name="PuzzleObjectTemplate" type="Node2D" groups=["puzzle_object"]]
+
+[node name="Visual" type="Sprite2D" parent="."]
+texture = ExtResource("3_visual")
+
+[node name="InteractionArea" type="Area2D" parent="."]
+collision_layer = 256
+collision_mask = 1
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InteractionArea"]
+shape = SubResource("Collision")
+
+[node name="StateAnchor" type="Marker2D" parent="."]
+
+[node name="ContentContract" type="Node" parent="."]
+script = ExtResource("1_marker")
+ContentID = "puzzle_object_template"
+Contract = ExtResource("2_contract")
+

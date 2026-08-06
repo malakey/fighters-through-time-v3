@@ -8,8 +8,10 @@ namespace FTT.Environment {
         [Export] public string LevelDisplayName = "";
 
         private string _lastCheckpointID;
+        public string LastCheckpointID => _lastCheckpointID ?? "";
         private Vector2 _lastCheckpointPosition;
         private List<string> _activatedCheckpoints = new();
+        private readonly Dictionary<string, Vector2> _checkpointPositions = new();
 
         public override void _Ready() {
             FTT.Core.EventBus.Instance.OnCheckpointReached += OnCheckpointActivated;
@@ -28,8 +30,18 @@ namespace FTT.Environment {
         }
 
         public void SetCheckpointPosition(string id, Vector2 pos) {
+            RegisterCheckpoint(id, pos);
             _lastCheckpointID = id;
             _lastCheckpointPosition = pos;
+        }
+
+        public void RegisterCheckpoint(string id, Vector2 position) {
+            if (!string.IsNullOrWhiteSpace(id)) _checkpointPositions[id] = position;
+        }
+
+        public bool TryGetCheckpointPosition(string id, out Vector2 position) {
+            position = default;
+            return !string.IsNullOrWhiteSpace(id) && _checkpointPositions.TryGetValue(id, out position);
         }
 
         public Vector2 GetRespawnPosition() {

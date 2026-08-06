@@ -1,0 +1,33 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/DestructibleBlock.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/EnvironmentHurtboxAdapter.cs" id="2"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/graybox_tile.svg" id="3"]
+
+[sub_resource type="RectangleShape2D" id="Shape"]
+size = Vector2(96, 96)
+
+[node name="DestructibleBlock" type="StaticBody2D" groups=["damageable_environment", "puzzle_object"]]
+collision_layer = 64
+collision_mask = 0
+script = ExtResource("1")
+ObjectID = "placeholder_destructible"
+MaxHP = 30
+HitsToBreak = 3
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Shape")
+
+[node name="Visual" type="Sprite2D" parent="."]
+scale = Vector2(0.75, 0.75)
+texture = ExtResource("3")
+modulate = Color(0.62, 0.35, 0.18, 1)
+
+[node name="Hurtbox" type="Area2D" parent="."]
+collision_layer = 32
+collision_mask = 4
+script = ExtResource("2")
+OwnerPlayerIndex = -1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+shape = SubResource("Shape")

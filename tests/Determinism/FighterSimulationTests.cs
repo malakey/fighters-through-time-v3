@@ -133,6 +133,260 @@ public class FighterSimulationTests {
         AssertThat(replacement.StatusTickFrames).IsEqual(0);
     }
 
+    [TestCase]
+    public void ProjectileAbilityUsesAuthoritativeEntityLifecycle() {
+        CharacterData character = BuildProjectileTestCharacter();
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(character),
+            FighterLoadout.Default(FighterCharacterID.Joan),
+            seed: 31,
+            spawnDistance: 3);
+
+        simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        AssertThat(simulation.ProjectileCount).IsEqual(1);
+        AssertThat(simulation.TryGetFirstProjectile(out FighterProjectileComponent projectile)).IsTrue();
+        AssertThat(projectile.Damage).IsEqual(13);
+
+        int initialHP = 100;
+        for (int tick = 1; tick < 90; tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            if (simulation.TryGetFighter(1, out FighterStateComponent target) && target.CurrentHP < initialHP) break;
+        }
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent hitTarget)).IsTrue();
+        AssertThat(hitTarget.CurrentHP).IsEqual(87);
+        AssertThat(simulation.ProjectileCount).IsEqual(0);
+    }
+
+    [TestCase]
+    public void SnapshotRestoreConvergesAcrossProjectileFlight() {
+        FighterLoadout projectileLoadout = FighterLoadoutFactory.FromCharacterData(BuildProjectileTestCharacter());
+        var uninterrupted = new FighterSimulation(projectileLoadout, FighterLoadout.Default(FighterCharacterID.Joan), seed: 82, spawnDistance: 4);
+        uninterrupted.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        for (int tick = 1; tick < 12; tick++) {
+            uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
+        byte[] snapshot = uninterrupted.CaptureFullState();
+        AssertThat(uninterrupted.ProjectileCount).IsEqual(1);
+
+        var restored = new FighterSimulation(projectileLoadout, FighterLoadout.Default(FighterCharacterID.Joan), seed: 82, spawnDistance: 4);
+        restored.RestoreFullState(snapshot);
+        for (int tick = 12; tick < 100; tick++) {
+            long expected = uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            long actual = restored.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            AssertThat(actual).IsEqual(expected);
+        }
+    }
+
+    [TestCase]
+    public void PersistentDeployLimitReplacesOldestStableEntity() {
+        FighterLoadout persistentLoadout = FighterLoadoutFactory.FromCharacterData(BuildPersistentTestCharacter());
+        var simulation = new FighterSimulation(persistentLoadout, FighterLoadout.Default(FighterCharacterID.Joan), seed: 46, spawnDistance: 4);
+
+        simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent first)).IsTrue();
+        AssertThat(simulation.PersistentObjectCount).IsEqual(1);
+
+        simulation.Advance(Frame(1, 0, GameplayButtons.Special1), Frame(1, 0, GameplayButtons.None));
+        AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent replacement)).IsTrue();
+        AssertThat(simulation.PersistentObjectCount).IsEqual(1);
+        AssertThat(replacement.EntityID > first.EntityID).IsTrue();
+        AssertThat(replacement.CurrentHP).IsEqual(25);
+        AssertThat(replacement.LifetimeFrames > 1700).IsTrue();
+    }
+
+    [TestCase]
+    public void HazardAndOrbSpawnsAreDeterministicAndSnapshotSafe() {
+        FighterMatchRules rules = new(true, 3, true, 3);
+        var first = new FighterSimulation(seed: 104, rules: rules);
+        var second = new FighterSimulation(seed: 104, rules: rules);
+        for (int tick = 0; tick < 1805; tick++) {
+            PlayerInputFrame empty = Frame(tick, 0, GameplayButtons.None);
+            AssertThat(first.Advance(empty, empty)).IsEqual(second.Advance(empty, empty));
+        }
+        AssertThat(first.HazardCount).IsEqual(1);
+        AssertThat(first.OrbCount >= 1).IsTrue();
+        AssertThat(first.TryGetFirstHazard(out FighterHazardComponent hazard)).IsTrue();
+        AssertThat(hazard.Phase).IsEqual(0);
+
+        byte[] snapshot = first.CaptureFullState();
+        var restored = new FighterSimulation(seed: 104, rules: rules);
+        restored.RestoreFullState(snapshot);
+        for (int tick = 1805; tick < 1920; tick++) {
+            PlayerInputFrame empty = Frame(tick, 0, GameplayButtons.None);
+            AssertThat(restored.Advance(empty, empty)).IsEqual(first.Advance(empty, empty));
+        }
+    }
+
+    [TestCase]
+    public void SelectedStageHazardTypeIsPartOfDeterministicState() {
+        FighterMatchRules rules = new(
+            (int)MatchMode.Hybrid,
+            itemsEnabled: false,
+            itemFrequency: 0,
+            hazardsEnabled: true,
+            hazardFrequency: (int)HazardTriggerFrequency.High,
+            stageHazardTypeID: 7);
+        var simulation = new FighterSimulation(rules: rules);
+
+        for (int tick = 0; tick < 1805; tick++) simulation.Advance(default, default);
+
+        AssertThat(simulation.TryGetFirstHazard(out FighterHazardComponent hazard)).IsTrue();
+        AssertThat(hazard.HazardTypeID).IsEqual(7);
+        AssertThat(simulation.GetMatchState().StageHazardTypeID).IsEqual(7);
+    }
+
+    [TestCase]
+    public void MatchModesApplyTheirDistinctEndConditions() {
+        var stock = new FighterSimulation(matchSeconds: 1, rules: new FighterMatchRules(
+            (int)MatchMode.Stock, false, 0, false, 0));
+        var timed = new FighterSimulation(matchSeconds: 1, rules: new FighterMatchRules(
+            (int)MatchMode.TimeLimit, false, 0, false, 0));
+        var hybrid = new FighterSimulation(matchSeconds: 1, rules: new FighterMatchRules(
+            (int)MatchMode.Hybrid, false, 0, false, 0));
+        for (int tick = 0; tick < 60; tick++) {
+            PlayerInputFrame empty = Frame(tick, 0, GameplayButtons.None);
+            stock.Advance(empty, empty);
+            timed.Advance(empty, empty);
+            hybrid.Advance(empty, empty);
+        }
+
+        AssertThat(stock.GetMatchState().MatchState).IsEqual(1);
+        AssertThat(timed.GetMatchState().MatchState).IsEqual(2);
+        AssertThat(timed.GetMatchState().IsTrueTie).IsEqual(1);
+        AssertThat(hybrid.GetMatchState().MatchState).IsEqual(2);
+    }
+
+    [TestCase]
+    public void GroundRunAcceleratesOverEightFrames() {
+        var simulation = new FighterSimulation(spawnDistance: 8, rules: FighterMatchRules.Disabled);
+
+        simulation.Advance(Frame(0, 127, GameplayButtons.None), Frame(0, 0, GameplayButtons.None));
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent firstFrame)).IsTrue();
+        AssertThat(firstFrame.Velocity.x > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
+        AssertThat(firstFrame.Velocity.x < xpTURN.Klotho.Deterministic.Math.FP64.FromInt(8)).IsTrue();
+
+        for (int tick = 1; tick < UniversalMovementRules.RunAccelerationFrames; tick++) {
+            simulation.Advance(Frame(tick, 127, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent accelerated)).IsTrue();
+        AssertThat(accelerated.Velocity.x.RawValue).IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.FromInt(8).RawValue);
+    }
+
+    [TestCase]
+    public void FighterHyperArmorKeepsDamageSuppressesBasicInterruptionAndAllowsUltimateInterruption() {
+        FighterStateComponent attacker = new() {
+            CurrentHP = 100,
+            MaxHP = 100,
+            Stocks = 3,
+            Weight = xpTURN.Klotho.Deterministic.Math.FP64.One,
+            Position = new xpTURN.Klotho.Deterministic.Math.FPVector2(
+                xpTURN.Klotho.Deterministic.Math.FP64.FromInt(-2),
+                xpTURN.Klotho.Deterministic.Math.FP64.Zero)
+        };
+        FighterRuntimeComponent attackerRuntime = default;
+        FighterStateComponent target = new() {
+            CurrentHP = 100,
+            MaxHP = 100,
+            Stocks = 3,
+            Weight = xpTURN.Klotho.Deterministic.Math.FP64.One,
+            HyperArmorFrames = 30,
+            IsGrounded = 1,
+            Position = xpTURN.Klotho.Deterministic.Math.FPVector2.Zero,
+            Velocity = xpTURN.Klotho.Deterministic.Math.FPVector2.Zero
+        };
+        FighterRuntimeComponent targetRuntime = default;
+        FighterTuningComponent tuning = new() { MaxBlockCharges = 3, MaxJumpCount = 1 };
+
+        bool basicHit = FighterDamageRules.ApplyFighterHit(
+            ref attacker, ref attackerRuntime, ref target, ref targetRuntime, in tuning,
+            FighterDamageRules.BasicAttackClass, 10,
+            xpTURN.Klotho.Deterministic.Math.FP64.FromInt(4), 15,
+            0, 0, xpTURN.Klotho.Deterministic.Math.FP64.One,
+            attacker.Position.x);
+        AssertThat(basicHit).IsTrue();
+        AssertThat(target.CurrentHP).IsEqual(90);
+        AssertThat(target.Velocity.x.RawValue).IsEqual(0L);
+        AssertThat(target.Velocity.y.RawValue).IsEqual(0L);
+        AssertThat(target.HitstunFrames).IsEqual(0);
+
+        bool ultimateHit = FighterDamageRules.ApplyFighterHit(
+            ref attacker, ref attackerRuntime, ref target, ref targetRuntime, in tuning,
+            FighterDamageRules.UltimateAttackClass, 10,
+            xpTURN.Klotho.Deterministic.Math.FP64.FromInt(4), 15,
+            0, 0, xpTURN.Klotho.Deterministic.Math.FP64.One,
+            attacker.Position.x);
+        AssertThat(ultimateHit).IsTrue();
+        AssertThat(target.CurrentHP).IsEqual(80);
+        AssertThat(target.Velocity.x.RawValue != 0L).IsTrue();
+        AssertThat(target.HitstunFrames).IsEqual(15);
+    }
+
+    [TestCase]
+    public void DashIsFasterThanRunningButStopsAtAnOpponentPushbox() {
+        var runner = new FighterSimulation(spawnDistance: 8, rules: FighterMatchRules.Disabled);
+        var dasher = new FighterSimulation(spawnDistance: 8, rules: FighterMatchRules.Disabled);
+        for (int tick = 0; tick < UniversalMovementRules.DashDurationFrames; tick++) {
+            runner.Advance(Frame(tick, 127, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            dasher.Advance(
+                Frame(tick, 127, tick == 0 ? GameplayButtons.Dash : GameplayButtons.None),
+                Frame(tick, 0, GameplayButtons.None));
+        }
+        AssertThat(runner.TryGetFighter(0, out FighterStateComponent runningState)).IsTrue();
+        AssertThat(dasher.TryGetFighter(0, out FighterStateComponent dashState)).IsTrue();
+        AssertThat(dashState.Position.x > runningState.Position.x).IsTrue();
+
+        var blocked = new FighterSimulation(spawnDistance: 1, rules: FighterMatchRules.Disabled);
+        for (int tick = 0; tick < 20; tick++) {
+            blocked.Advance(
+                Frame(tick, 127, tick == 0 ? GameplayButtons.Dash : GameplayButtons.None),
+                Frame(tick, 0, GameplayButtons.None));
+        }
+        AssertThat(blocked.TryGetFighter(0, out FighterStateComponent blockedDasher)).IsTrue();
+        AssertThat(blocked.TryGetFighter(1, out FighterStateComponent blocker)).IsTrue();
+        AssertThat(blockedDasher.Position.x < blocker.Position.x).IsTrue();
+        AssertThat(blocked.TryGetFighterRuntime(0, out FighterRuntimeComponent blockedRuntime)).IsTrue();
+        AssertThat(blockedRuntime.UniversalMovementState).IsEqual((int)UniversalMovementPhase.None);
+    }
+
+    [TestCase]
+    public void FighterPushboxesPreventNormalMovementOverlap() {
+        var simulation = new FighterSimulation(spawnDistance: 1, rules: FighterMatchRules.Disabled);
+        for (int tick = 0; tick < 90; tick++) {
+            simulation.Advance(Frame(tick, 127, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
+        }
+
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent first)).IsTrue();
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent second)).IsTrue();
+        var distance = xpTURN.Klotho.Deterministic.Math.FP64.Abs(second.Position.x - first.Position.x);
+        AssertThat(distance >= FighterPushboxSystem.MinimumHorizontalDistance).IsTrue();
+    }
+
+    [TestCase]
+    public void RollPassesThroughOpponentAndIgnoresHitsOnlyDuringInvulnerableFrames() {
+        var simulation = new FighterSimulation(spawnDistance: 1, rules: FighterMatchRules.Disabled);
+        for (int tick = 0; tick < UniversalMovementRules.RollTotalFrames; tick++) {
+            GameplayButtons playerOne = tick == 0 ? GameplayButtons.Roll : GameplayButtons.None;
+            GameplayButtons playerTwo = tick == UniversalMovementRules.RollStartupFrames
+                ? GameplayButtons.BasicAttack
+                : GameplayButtons.None;
+            simulation.Advance(Frame(tick, 127, playerOne), Frame(tick, 0, playerTwo));
+        }
+
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent roller)).IsTrue();
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent opponent)).IsTrue();
+        AssertThat(roller.CurrentHP).IsEqual(roller.MaxHP);
+        AssertThat(roller.Position.x > opponent.Position.x).IsTrue();
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(runtime.UniversalMovementState).IsEqual((int)UniversalMovementPhase.None);
+
+        int recoveryCompleteTick = UniversalMovementRules.RollTotalFrames;
+        simulation.Advance(
+            Frame(recoveryCompleteTick, 0, GameplayButtons.None),
+            Frame(recoveryCompleteTick, 0, GameplayButtons.BasicAttack));
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent vulnerableAfterRoll)).IsTrue();
+        AssertThat(vulnerableAfterRoll.CurrentHP < vulnerableAfterRoll.MaxHP).IsTrue();
+    }
+
     private static CharacterData BuildStatusTestCharacter() => new() {
         CharacterID = "joan",
         MaxHP = 100,
@@ -163,6 +417,52 @@ public class FighterSimulationTests {
             BaseDamage = 20f,
             KnockbackForce = new Vector2(5f, -3f)
         }
+    };
+
+    private static CharacterData BuildProjectileTestCharacter() => new() {
+        CharacterID = "einstein",
+        MaxHP = 100,
+        Weight = 1f,
+        MaxBlockCharges = 3,
+        MaxJumpCount = 1,
+        MaxMoveSpeed = 8f,
+        MaxJumpForce = 13f,
+        BasicAttackDamage = 10f,
+        BasicAttackKnockback = 3f,
+        SpecialAttackOne = new AbilityData {
+            ExecutionType = AbilityExecutionType.Projectile,
+            BaseDamage = 13f,
+            KnockbackForce = new Vector2(3f, 0f),
+            ProjectileSpeed = 360f,
+            ProjectileLifetime = 3f,
+            CooldownDuration = 1f
+        },
+        SpecialAttackTwo = new AbilityData(),
+        MovementAbility = new MovementAbilityData(),
+        UltimateAttack = new AbilityData { BaseDamage = 20f }
+    };
+
+    private static CharacterData BuildPersistentTestCharacter() => new() {
+        CharacterID = "tesla",
+        MaxHP = 100,
+        Weight = 1f,
+        MaxBlockCharges = 3,
+        MaxJumpCount = 1,
+        MaxMoveSpeed = 8f,
+        MaxJumpForce = 13f,
+        BasicAttackDamage = 10f,
+        BasicAttackKnockback = 3f,
+        SpecialAttackOne = new AbilityData {
+            ExecutionType = AbilityExecutionType.PersistentObject,
+            BaseDamage = 5f,
+            PersistentObjectID = "tesla_coil",
+            MaxActiveObjects = 1,
+            Lifetime = 30f,
+            CooldownDuration = 0f
+        },
+        SpecialAttackTwo = new AbilityData(),
+        MovementAbility = new MovementAbilityData(),
+        UltimateAttack = new AbilityData { BaseDamage = 20f }
     };
 
     private static PlayerInputFrame InputFor(int playerID, int tick) {

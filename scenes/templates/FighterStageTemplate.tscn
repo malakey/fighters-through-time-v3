@@ -1,0 +1,46 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="1_marker"]
+[ext_resource type="Resource" path="res://resources/Contracts/fighter_stage_contract.tres" id="2_contract"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/parallax_far.svg" id="3_background"]
+
+[sub_resource type="RectangleShape2D" id="GroundShape"]
+size = Vector2(1200, 48)
+
+[node name="FighterStageTemplate" type="Node2D" groups=["fighter_stage"]]
+
+[node name="Presentation" type="Node2D" parent="."]
+[node name="Background" type="Sprite2D" parent="Presentation"]
+texture = ExtResource("3_background")
+position = Vector2(960, 540)
+
+[node name="Geometry" type="Node2D" parent="."]
+[node name="Ground" type="StaticBody2D" parent="Geometry"]
+position = Vector2(960, 760)
+collision_layer = 64
+collision_mask = 0
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/Ground"]
+shape = SubResource("GroundShape")
+
+[node name="Spawns" type="Node2D" parent="."]
+[node name="Player1" type="Marker2D" parent="Spawns"]
+position = Vector2(600, 680)
+[node name="Player2" type="Marker2D" parent="Spawns"]
+position = Vector2(1320, 680)
+
+[node name="OrbSpawnPoints" type="Node2D" parent="."]
+[node name="Center" type="Marker2D" parent="OrbSpawnPoints"]
+position = Vector2(960, 500)
+
+[node name="HazardAnchors" type="Node2D" parent="."]
+[node name="Center" type="Marker2D" parent="HazardAnchors"]
+position = Vector2(960, 720)
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(960, 500)
+
+[node name="ContentContract" type="Node" parent="."]
+script = ExtResource("1_marker")
+ContentID = "fighter_stage_template"
+Contract = ExtResource("2_contract")
+

@@ -56,6 +56,7 @@ namespace FTT.Combat {
         [Export] public bool IsActive;
 
         public PlayerController SourcePlayer { get; set; }
+        private bool _areaEnteredConnected;
 
         public void Activate() {
             IsActive = true;
@@ -71,10 +72,14 @@ namespace FTT.Combat {
             SourcePlayer ??= FindOwningPlayer();
             Deactivate();
             AreaEntered += OnAreaEntered;
+            _areaEnteredConnected = true;
         }
 
         public override void _ExitTree() {
-            AreaEntered -= OnAreaEntered;
+            if (_areaEnteredConnected) {
+                AreaEntered -= OnAreaEntered;
+                _areaEnteredConnected = false;
+            }
         }
 
         public HitPayload CreatePayload(int targetIndex) {
@@ -85,7 +90,7 @@ namespace FTT.Combat {
                 AttackID = AttackID ?? "",
                 HitboxID = HitboxID ?? "primary",
                 AttackClass = AttackClass,
-                Damage = Mathf.Max(0f, Damage),
+                Damage = Mathf.Max(0f, Damage) * (SourcePlayer?.StoryTemporaryDamageMultiplier ?? 1f),
                 Knockback = KnockbackForce,
                 HitstunDuration = Mathf.Max(0f, HitstunDuration),
                 HitOrigin = GlobalPosition,

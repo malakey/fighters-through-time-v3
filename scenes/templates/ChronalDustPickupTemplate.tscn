@@ -1,0 +1,13 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/ChronalDustPickup.cs" id="1_pickup"]
+[ext_resource type="Resource" path="res://resources/Drops/dust_visual_tiers.tres" id="2_tiers"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/dust_small.svg" id="3_visual"]
+
+[node name="ChronalDustPickupTemplate" type="Node2D" groups=["pickup", "story_loot", "chronal_dust"]]
+script = ExtResource("1_pickup")
+VisualTiers = ExtResource("2_tiers")
+
+[node name="Visual" type="Sprite2D" parent="."]
+texture = ExtResource("3_visual")
+

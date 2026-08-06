@@ -1,0 +1,43 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/TreasureChest.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/InteractionArea.cs" id="2"]
+
+[sub_resource type="RectangleShape2D" id="Shape"]
+size = Vector2(96, 64)
+
+[node name="TreasureChest" type="StaticBody2D" groups=["puzzle_object"]]
+collision_layer = 64
+collision_mask = 0
+script = ExtResource("1")
+ChestID = "placeholder_chest"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Shape")
+
+[node name="Base" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-48, -12, 48, -12, 48, 32, -48, 32)
+color = Color(0.42, 0.22, 0.08, 1)
+
+[node name="Lid" type="Polygon2D" parent="."]
+position = Vector2(-48, -12)
+polygon = PackedVector2Array(0, 0, 96, 0, 90, -28, 6, -28)
+color = Color(0.7, 0.42, 0.12, 1)
+
+[node name="InteractionArea" type="Area2D" parent="."]
+collision_layer = 256
+collision_mask = 1
+script = ExtResource("2")
+PromptLabelPath = NodePath("Prompt")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InteractionArea"]
+shape = SubResource("Shape")
+
+[node name="Prompt" type="Label" parent="InteractionArea"]
+offset_left = -100.0
+offset_top = -100.0
+offset_right = 100.0
+offset_bottom = -68.0
+text = "interaction_open_chest"
+horizontal_alignment = 1
+visible = false

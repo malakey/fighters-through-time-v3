@@ -64,6 +64,47 @@ namespace FTT.Core {
         public bool IsFull;
     }
 
+    public struct HyperArmorPayload {
+        public int PlayerIndex;
+        public bool IsActive;
+    }
+
+    public struct PuzzleStatePayload {
+        public string PuzzleID;
+        public bool IsCompleted;
+        public string Reason;
+    }
+
+    public struct RoomTransitionPayload {
+        public string RoomID;
+        public Rect2 CameraBounds;
+    }
+
+    public struct ExtractorStatePayload {
+        public string ExtractorID;
+        public int CurrentHP;
+        public int MaxHP;
+        public bool IsDestroyed;
+    }
+
+    public enum RewindPresentationPhase {
+        Started,
+        Playback,
+        Landed,
+        TimelineCollapse
+    }
+
+    public struct RewindPresentationPayload {
+        public RewindPresentationPhase Phase;
+        public Vector2 TargetPosition;
+        public bool GhostTrailEnabled;
+        public bool ScreenTintEnabled;
+        public bool ScanlinesEnabled;
+        public float MusicDuckDecibels;
+        public bool ReverseSweepEnabled;
+        public bool ClockTickEnabled;
+    }
+
     public enum StatusType {
         None,
         TimeDilation,
@@ -116,6 +157,12 @@ namespace FTT.Core {
         public event Action<UltimateMeterPayload> OnUltimateMeterChanged;
         public void RaiseUltimateMeterChanged(UltimateMeterPayload payload) => OnUltimateMeterChanged?.Invoke(payload);
 
+        public event Action<HyperArmorPayload> OnHyperArmorChanged;
+        public void RaiseHyperArmorChanged(HyperArmorPayload payload) => OnHyperArmorChanged?.Invoke(payload);
+
+        public event Action<PuzzleStatePayload> OnPuzzleStateChanged;
+        public void RaisePuzzleStateChanged(PuzzleStatePayload payload) => OnPuzzleStateChanged?.Invoke(payload);
+
         // === Status Effect Events ===
         public event Action<StatusEffectPayload> OnStatusEffectApplied;
         public void RaiseStatusEffectApplied(StatusEffectPayload payload) => OnStatusEffectApplied?.Invoke(payload);
@@ -123,6 +170,9 @@ namespace FTT.Core {
         // === Chronal / Rewind Events ===
         public event Action<Vector2> OnRewindTriggered;
         public void RaiseRewindTriggered(Vector2 targetPosition) => OnRewindTriggered?.Invoke(targetPosition);
+
+        public event Action<RewindPresentationPayload> OnRewindPresentation;
+        public void RaiseRewindPresentation(RewindPresentationPayload payload) => OnRewindPresentation?.Invoke(payload);
 
         // === Dialogue Events ===
         public event Action<string> OnDialogueTriggered;
@@ -134,6 +184,12 @@ namespace FTT.Core {
         // === Environment & Hazard Events ===
         public event Action<HazardStatePayload> OnHazardStateChanged;
         public void RaiseHazardStateChanged(HazardStatePayload payload) => OnHazardStateChanged?.Invoke(payload);
+
+        public event Action<RoomTransitionPayload> OnRoomTransitioned;
+        public void RaiseRoomTransitioned(RoomTransitionPayload payload) => OnRoomTransitioned?.Invoke(payload);
+
+        public event Action<ExtractorStatePayload> OnExtractorStateChanged;
+        public void RaiseExtractorStateChanged(ExtractorStatePayload payload) => OnExtractorStateChanged?.Invoke(payload);
 
         // === Progression Events ===
         public event Action<string> OnTalentNodeUnlocked;

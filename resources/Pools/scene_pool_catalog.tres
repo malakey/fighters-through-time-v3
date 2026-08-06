@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ScenePoolCatalog" load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/ScenePoolCatalog.cs" id="1_catalog"]
+[ext_resource type="Script" path="res://scripts/Core/ScenePoolCatalogEntry.cs" id="2_entry"]
+[ext_resource type="Resource" path="res://resources/Pools/tutorial_pool_config.tres" id="3_tutorial"]
+[ext_resource type="Resource" path="res://resources/Pools/florence_pool_config.tres" id="4_florence"]
+[ext_resource type="Resource" path="res://resources/Pools/test_arena_pool_config.tres" id="5_arena"]
+
+[sub_resource type="Resource" id="Tutorial"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_00_Tutorial.tscn"
+PoolConfig = ExtResource("3_tutorial")
+[sub_resource type="Resource" id="Florence"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_01_Florence.tscn"
+PoolConfig = ExtResource("4_florence")
+[sub_resource type="Resource" id="Arena"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/arenas/TestArena.tscn"
+PoolConfig = ExtResource("5_arena")
+
+[resource]
+script = ExtResource("1_catalog")
+Scenes = Array[ExtResource("2_entry")]([SubResource("Tutorial"), SubResource("Florence"), SubResource("Arena")])

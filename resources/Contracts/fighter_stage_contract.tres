@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ContentSceneContract" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/ContentSceneContract.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+ContractID = "fighter_stage_v1"
+TemplateKind = 1
+RequiredNodePaths = PackedStringArray("Presentation", "Geometry", "Spawns/Player1", "Spawns/Player2", "OrbSpawnPoints", "HazardAnchors", "Camera2D", "ContentContract")
+RequiredRootGroups = PackedStringArray("fighter_stage")
+RequiredCollisionLayerNames = PackedStringArray("Environment", "OneWayPlatform", "Trigger")

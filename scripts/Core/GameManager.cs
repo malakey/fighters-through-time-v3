@@ -29,6 +29,17 @@ namespace FTT.Core {
         High
     }
 
+    public enum FighterOpponentType {
+        Cpu,
+        LocalHuman
+    }
+
+    public enum CpuDifficulty {
+        Easy,
+        Normal,
+        Hard
+    }
+
     public struct MatchSettings {
         public MatchMode Mode;
         public int StockCount;
@@ -58,6 +69,8 @@ namespace FTT.Core {
         public int ActiveSaveSlot;
         public Difficulty Difficulty;
         public MatchSettings MatchSettings;
+        public FighterOpponentType FighterOpponentType;
+        public CpuDifficulty CpuDifficulty;
     }
 
     public partial class GameManager : Node {
@@ -71,15 +84,20 @@ namespace FTT.Core {
         private string _pendingScenePath;
         private bool _isLoading;
         private double _loadingDisplayTimer;
+        private ScenePoolCatalog _scenePoolCatalog;
         private const double MinLoadingDisplayTime = 2.0;
 
         public override void _Ready() {
             Instance = this;
             CurrentSession = new SessionData {
                 OpponentCharacterID = "joan",
+                SelectedStageID = "florence_workshop",
                 Difficulty = Difficulty.Normal,
+                FighterOpponentType = FighterOpponentType.Cpu,
+                CpuDifficulty = CpuDifficulty.Normal,
                 MatchSettings = MatchSettings.GetDefault()
             };
+            _scenePoolCatalog = ScenePoolCatalog.LoadDefault();
             SetupLoadingScreen();
         }
 
@@ -95,7 +113,7 @@ namespace FTT.Core {
             _loadingScreen.AddChild(_loadingBackground);
 
             _loadingLabel = new Label();
-            _loadingLabel.Text = "LOADING...";
+            _loadingLabel.Text = Tr("loading");
             _loadingLabel.HorizontalAlignment = HorizontalAlignment.Center;
             _loadingLabel.VerticalAlignment = VerticalAlignment.Center;
             _loadingLabel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
@@ -123,11 +141,23 @@ namespace FTT.Core {
             if (status == ResourceLoader.ThreadLoadStatus.Loaded && _loadingDisplayTimer >= MinLoadingDisplayTime) {
                 var packedScene = ResourceLoader.LoadThreadedGet(_pendingScenePath) as PackedScene;
                 if (packedScene != null) {
+                    WarmPoolsForScene(_pendingScenePath);
                     GetTree().ChangeSceneToPacked(packedScene);
                 }
                 _loadingScreen.Visible = false;
                 _isLoading = false;
                 _pendingScenePath = null;
+            }
+        }
+
+        private void WarmPoolsForScene(string scenePath) {
+            ScenePoolConfig config = _scenePoolCatalog?.Find(scenePath);
+            if (config == null || PoolManager.Instance == null) return;
+
+            try {
+                PoolManager.Instance.WarmFromConfig(config);
+            } catch (ArgumentException exception) {
+                GD.PushError($"Pool warm-up rejected for '{scenePath}': {exception.Message}");
             }
         }
     }

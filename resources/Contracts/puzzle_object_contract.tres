@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ContentSceneContract" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/ContentSceneContract.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+ContractID = "puzzle_object_v1"
+TemplateKind = 11
+RequiredNodePaths = PackedStringArray("Visual", "InteractionArea", "StateAnchor", "ContentContract")
+RequiredRootGroups = PackedStringArray("puzzle_object")
+RequiredCollisionLayerNames = PackedStringArray("Trigger")

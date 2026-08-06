@@ -1,18 +1,16 @@
 using Godot;
 using FTT.Characters;
+using FTT.Environment;
+using System.Collections.Generic;
 
 namespace FTT.UI {
     public partial class CharacterSelectScreen : Control {
         private int _selectedIndex;
+        private int _opponentIndex = 1;
 
         private readonly string[] _characterIDs = {
             "einstein", "joan", "leonardo", "lincoln", "cleopatra",
             "tesla", "shakespeare", "mozart", "pocahontas"
-        };
-
-        private readonly string[] _characterNames = {
-            "Einstein", "Joan of Arc", "Da Vinci", "Lincoln", "Cleopatra",
-            "Tesla", "Shakespeare", "Mozart", "Pocahontas"
         };
 
         private readonly Color[] _characterColors = {
@@ -30,6 +28,17 @@ namespace FTT.UI {
         private PanelContainer[] _characterPanels;
         private Label _statsLabel;
         private Label _selectedNameLabel;
+        private Label _opponentLabel;
+        private CheckButton _localHumanToggle;
+        private OptionButton _cpuDifficulty;
+        private SpinBox _stockCount;
+        private SpinBox _timeLimit;
+        private CheckButton _itemsToggle;
+        private CheckButton _hazardsToggle;
+        private OptionButton _matchMode;
+        private OptionButton _stageSelect;
+        private FighterStageCatalog _stageCatalog;
+        private readonly List<string> _stageIDs = new();
 
         public override void _Ready() {
             var bg = new ColorRect();
@@ -46,7 +55,7 @@ namespace FTT.UI {
             center.AddChild(root);
 
             var title = new Label();
-            title.Text = "SELECT YOUR FIGHTER";
+            title.Text = Tr("fighter_select_title");
             title.HorizontalAlignment = HorizontalAlignment.Center;
             title.AddThemeColorOverride("font_color", new Color(0, 0.9f, 0.9f));
             title.AddThemeFontSizeOverride("font_size", 32);
@@ -84,16 +93,18 @@ namespace FTT.UI {
             _statsLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.75f, 0.85f));
             root.AddChild(_statsLabel);
 
+            BuildOpponentAndRules(root);
+
             var buttonRow = new HBoxContainer();
             buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
             buttonRow.AddThemeConstantOverride("separation", 24);
             root.AddChild(buttonRow);
 
-            var backBtn = CreateActionButton("Back");
+            var backBtn = CreateActionButton(Tr("common_back"));
             backBtn.Pressed += OnBack;
             buttonRow.AddChild(backBtn);
 
-            var fightBtn = CreateActionButton("FIGHT!");
+            var fightBtn = CreateActionButton(Tr("fighter_start_match"));
             fightBtn.AddThemeColorOverride("font_color", new Color(1, 0.85f, 0.2f));
             fightBtn.Pressed += OnFight;
             buttonRow.AddChild(fightBtn);
@@ -129,7 +140,7 @@ namespace FTT.UI {
             panel.AddChild(margin);
 
             var label = new Label();
-            label.Text = _characterNames[index];
+            label.Text = GetCharacterName(index);
             label.HorizontalAlignment = HorizontalAlignment.Center;
             label.VerticalAlignment = VerticalAlignment.Center;
             label.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -175,21 +186,120 @@ namespace FTT.UI {
                     : Colors.Transparent;
             }
 
-            _selectedNameLabel.Text = _characterNames[index];
+            _selectedNameLabel.Text = string.Format(Tr("fighter_player_selection"), 1, GetCharacterName(index));
             UpdateStatsDisplay(_characterIDs[index]);
+        }
+
+        private void BuildOpponentAndRules(VBoxContainer root) {
+            var opponentRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+            opponentRow.AddThemeConstantOverride("separation", 12);
+            root.AddChild(opponentRow);
+            var previous = CreateActionButton("<");
+            previous.CustomMinimumSize = new Vector2(48, 40);
+            previous.Pressed += () => CycleOpponent(-1);
+            opponentRow.AddChild(previous);
+            _opponentLabel = new Label {
+                CustomMinimumSize = new Vector2(300, 40),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            opponentRow.AddChild(_opponentLabel);
+            var next = CreateActionButton(">");
+            next.CustomMinimumSize = new Vector2(48, 40);
+            next.Pressed += () => CycleOpponent(1);
+            opponentRow.AddChild(next);
+
+            var modeRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+            modeRow.AddThemeConstantOverride("separation", 18);
+            root.AddChild(modeRow);
+            _localHumanToggle = new CheckButton { Text = Tr("fighter_local_human") };
+            _localHumanToggle.Toggled += enabled => _cpuDifficulty.Disabled = enabled;
+            modeRow.AddChild(_localHumanToggle);
+            _cpuDifficulty = new OptionButton();
+            _cpuDifficulty.AddItem(Tr("difficulty_easy"), (int)FTT.Core.CpuDifficulty.Easy);
+            _cpuDifficulty.AddItem(Tr("difficulty_normal"), (int)FTT.Core.CpuDifficulty.Normal);
+            _cpuDifficulty.AddItem(Tr("difficulty_hard"), (int)FTT.Core.CpuDifficulty.Hard);
+            _cpuDifficulty.Select(1);
+            modeRow.AddChild(_cpuDifficulty);
+
+            var stageRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+            stageRow.AddThemeConstantOverride("separation", 12);
+            root.AddChild(stageRow);
+            stageRow.AddChild(new Label { Text = Tr("fighter_stage") });
+            _stageSelect = new OptionButton { CustomMinimumSize = new Vector2(420, 38) };
+            stageRow.AddChild(_stageSelect);
+            PopulateStages();
+
+            var rulesRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
+            rulesRow.AddThemeConstantOverride("separation", 14);
+            root.AddChild(rulesRow);
+            _matchMode = new OptionButton { CustomMinimumSize = new Vector2(145, 36) };
+            _matchMode.AddItem(Tr("fighter_mode_stock"), (int)FTT.Core.MatchMode.Stock);
+            _matchMode.AddItem(Tr("fighter_mode_time"), (int)FTT.Core.MatchMode.TimeLimit);
+            _matchMode.AddItem(Tr("fighter_mode_hybrid"), (int)FTT.Core.MatchMode.Hybrid);
+            rulesRow.AddChild(_matchMode);
+            rulesRow.AddChild(new Label { Text = Tr("hud_stocks") });
+            _stockCount = new SpinBox { MinValue = 1, MaxValue = 5, Step = 1, Value = 3, CustomMinimumSize = new Vector2(80, 36) };
+            rulesRow.AddChild(_stockCount);
+            rulesRow.AddChild(new Label { Text = Tr("hud_timer") });
+            _timeLimit = new SpinBox { MinValue = 60, MaxValue = 480, Step = 30, Value = 480, CustomMinimumSize = new Vector2(100, 36) };
+            rulesRow.AddChild(_timeLimit);
+            _itemsToggle = new CheckButton { Text = Tr("fighter_items"), ButtonPressed = true };
+            rulesRow.AddChild(_itemsToggle);
+            _hazardsToggle = new CheckButton { Text = Tr("fighter_hazards"), ButtonPressed = true };
+            rulesRow.AddChild(_hazardsToggle);
+            UpdateOpponentLabel();
+        }
+
+        private void PopulateStages() {
+            _stageCatalog = FighterStageCatalog.LoadDefault();
+            _stageIDs.Clear();
+            _stageSelect.Clear();
+            if (_stageCatalog == null) return;
+            List<string> unlocked = FTT.Core.SaveManager.Instance?.GlobalData?.UnlockedStages
+                ?? new List<string>(FTT.Core.GlobalSaveData.InitialStageIDs);
+            foreach (FighterStageData stage in _stageCatalog.Stages) {
+                if (stage == null || !stage.IsPlayable || !unlocked.Contains(stage.StageID)) continue;
+                int itemID = _stageIDs.Count;
+                _stageIDs.Add(stage.StageID);
+                _stageSelect.AddItem(Tr(stage.DisplayNameKey), itemID);
+                int itemIndex = _stageSelect.ItemCount - 1;
+                _stageSelect.SetItemTooltip(
+                    itemIndex,
+                    $"{Tr(stage.LayoutDescriptionKey)}\n{Tr(stage.HazardNameKey)}: {Tr(stage.HazardDescriptionKey)}\n{Tr("fighter_stage_prototype")}");
+            }
+            _stageSelect.Disabled = _stageIDs.Count == 0;
+        }
+
+        private void CycleOpponent(int direction) {
+            _opponentIndex = (_opponentIndex + direction + _characterIDs.Length) % _characterIDs.Length;
+            UpdateOpponentLabel();
+        }
+
+        private void UpdateOpponentLabel() {
+            if (_opponentLabel != null) {
+                _opponentLabel.Text = string.Format(Tr("fighter_player_selection"), 2, GetCharacterName(_opponentIndex));
+            }
+        }
+
+        private string GetCharacterName(int index) {
+            CharacterData data = GD.Load<CharacterData>($"res://resources/Characters/{_characterIDs[index]}_data.tres");
+            return data == null || string.IsNullOrWhiteSpace(data.DisplayNameKey)
+                ? Tr("common_unknown")
+                : Tr(data.DisplayNameKey);
         }
 
         private void UpdateStatsDisplay(string characterID) {
             var data = GD.Load<CharacterData>($"res://resources/Characters/{characterID}_data.tres");
             if (data == null) {
-                _statsLabel.Text = "Stats unavailable.";
+                _statsLabel.Text = Tr("fighter_stats_unavailable");
                 return;
             }
 
-            _statsLabel.Text =
-                $"Max HP: {data.MaxHP}    Speed: {data.MaxMoveSpeed:0.#}    Attack Damage: {data.BasicAttackDamage:0.#}\n" +
-                $"Knockback: {data.BasicAttackKnockback:0.#}    Weight: {data.Weight:0.#}    Block Charges: {data.MaxBlockCharges}\n" +
-                $"Style: {data.Style}    Jump Force: {data.MaxJumpForce:0.#}    Jumps: {data.MaxJumpCount}";
+            _statsLabel.Text = string.Format(
+                Tr("fighter_stats_summary"),
+                data.MaxHP, data.MaxMoveSpeed, data.BasicAttackDamage, data.BasicAttackKnockback,
+                data.Weight, data.MaxBlockCharges, data.Style, data.MaxJumpForce, data.MaxJumpCount);
         }
 
         private void OnFight() {
@@ -197,9 +307,27 @@ namespace FTT.UI {
 
             var session = FTT.Core.GameManager.Instance.CurrentSession;
             session.SelectedCharacterID = _characterIDs[_selectedIndex];
-            if (string.IsNullOrEmpty(session.OpponentCharacterID)) session.OpponentCharacterID = "joan";
+            session.OpponentCharacterID = _characterIDs[_opponentIndex];
+            int selectedStageIndex = (int)_stageSelect.GetSelectedId();
+            if (selectedStageIndex < 0 || selectedStageIndex >= _stageIDs.Count) return;
+            session.SelectedStageID = _stageIDs[selectedStageIndex];
+            session.FighterOpponentType = _localHumanToggle.ButtonPressed
+                ? FTT.Core.FighterOpponentType.LocalHuman
+                : FTT.Core.FighterOpponentType.Cpu;
+            session.CpuDifficulty = (FTT.Core.CpuDifficulty)_cpuDifficulty.GetSelectedId();
+            FTT.Core.MatchSettings settings = session.MatchSettings;
+            settings.Mode = (FTT.Core.MatchMode)_matchMode.GetSelectedId();
+            settings.StockCount = (int)_stockCount.Value;
+            settings.TimeLimit = (float)_timeLimit.Value;
+            settings.ItemsEnabled = _itemsToggle.ButtonPressed;
+            settings.ItemSpawnRate = _itemsToggle.ButtonPressed ? FTT.Core.ChronalOrbFrequency.High : FTT.Core.ChronalOrbFrequency.Off;
+            settings.StageHazardsEnabled = _hazardsToggle.ButtonPressed;
+            settings.HazardRate = _hazardsToggle.ButtonPressed ? FTT.Core.HazardTriggerFrequency.High : FTT.Core.HazardTriggerFrequency.Off;
+            session.MatchSettings = settings;
             FTT.Core.GameManager.Instance.CurrentSession = session;
-            FTT.Core.GameManager.Instance.LoadScene("res://scenes/arenas/TestArena.tscn");
+            FighterStageData stage = _stageCatalog?.Find(session.SelectedStageID);
+            if (stage == null || !ResourceLoader.Exists(stage.ScenePath)) return;
+            FTT.Core.GameManager.Instance.LoadScene(stage.ScenePath);
         }
 
         private void OnBack() {

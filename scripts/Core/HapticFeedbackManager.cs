@@ -10,6 +10,10 @@ namespace FTT.Core {
 
         public override void _Ready() {
             Instance = this;
+            if (SaveManager.Instance?.GlobalData != null) {
+                _enabled = SaveManager.Instance.GlobalData.HapticsEnabled;
+                _intensityMultiplier = SaveManager.Instance.GlobalData.HapticIntensity;
+            }
             EventBus.Instance.OnPlayerHPChanged += OnDamageDealt;
             EventBus.Instance.OnBlockBroken += OnGuardBroken;
         }

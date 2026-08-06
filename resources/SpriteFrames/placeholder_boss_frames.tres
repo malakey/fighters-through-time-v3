@@ -1,0 +1,6 @@
+[gd_resource type="SpriteFrames" load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/placeholders/boss_silhouette.svg" id="1_boss"]
+
+[resource]
+animations = [{"frames": [{"duration": 1.0, "texture": ExtResource("1_boss")}], "loop": true, "name": &"idle", "speed": 6.0}, {"frames": [{"duration": 1.0, "texture": ExtResource("1_boss")}], "loop": true, "name": &"move", "speed": 6.0}, {"frames": [{"duration": 1.0, "texture": ExtResource("1_boss")}], "loop": false, "name": &"melee_attack", "speed": 8.0}, {"frames": [{"duration": 1.0, "texture": ExtResource("1_boss")}], "loop": false, "name": &"ranged_attack", "speed": 8.0}, {"frames": [{"duration": 1.0, "texture": ExtResource("1_boss")}], "loop": false, "name": &"phase_transition", "speed": 8.0}, {"frames": [{"duration": 1.0, "texture": ExtResource("1_boss")}], "loop": false, "name": &"death", "speed": 6.0}]

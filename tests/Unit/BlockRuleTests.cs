@@ -31,10 +31,11 @@ public class BlockRuleTests {
     }
 
     [TestCase]
-    public void UltimatesAndHazardsBypassBlock() {
+    public void OnlyUltimatesBypassBlock() {
         AssertThat(BlockRules.BypassesBlock(AttackClass.Ultimate)).IsTrue();
-        AssertThat(BlockRules.BypassesBlock(AttackClass.Hazard)).IsTrue();
+        AssertThat(BlockRules.BypassesBlock(AttackClass.Hazard)).IsFalse();
         AssertThat(BlockRules.BypassesBlock(AttackClass.Basic)).IsFalse();
         AssertThat(BlockRules.BypassesBlock(AttackClass.Special)).IsFalse();
+        AssertThat(BlockRules.ChargeCost(AttackClass.Hazard, 3)).IsEqual(1);
     }
 }

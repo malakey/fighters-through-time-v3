@@ -13,7 +13,7 @@ public class PlayerInputFrameTests {
             42,
             -0.75f,
             0.5f,
-            GameplayButtons.Jump | GameplayButtons.Block | GameplayButtons.Special2,
+            GameplayButtons.Jump | GameplayButtons.Block | GameplayButtons.Special2 | GameplayButtons.Roll | GameplayButtons.Dash,
             GameplayButtons.Block | GameplayButtons.BasicAttack);
 
         PlayerInputFrame restored = PlayerInputFrame.Deserialize(original.Serialize());
@@ -21,6 +21,8 @@ public class PlayerInputFrameTests {
         AssertThat(restored.Equals(original)).IsTrue();
         AssertThat(restored.IsPressed(GameplayButtons.Jump)).IsTrue();
         AssertThat(restored.IsReleased(GameplayButtons.BasicAttack)).IsTrue();
+        AssertThat(restored.IsHeld(GameplayButtons.Roll)).IsTrue();
+        AssertThat(restored.IsHeld(GameplayButtons.Dash)).IsTrue();
     }
 
     [TestCase]
@@ -43,6 +45,42 @@ public class PlayerInputFrameTests {
 
         AssertThat(restored.MoveX).IsEqual((sbyte)127);
         AssertThat(restored.MoveY).IsEqual((sbyte)-127);
+    }
+
+    [TestCase]
+    public void DigitalDoubleTapProducesOneDashCommand() {
+        var detector = new DashInputDetector();
+
+        AssertThat(detector.Update(0, 1f, 0f, false)).IsFalse();
+        AssertThat(detector.Update(1, 0f, 0f, false)).IsFalse();
+        AssertThat(detector.Update(8, 1f, 0f, false)).IsTrue();
+        AssertThat(detector.Update(9, 1f, 0f, false)).IsFalse();
+    }
+
+    [TestCase]
+    public void AnalogNeutralToFullFlickProducesImmediateDashCommand() {
+        var detector = new DashInputDetector();
+
+        AssertThat(detector.Update(0, 0f, 0f, true)).IsFalse();
+        AssertThat(detector.Update(1, 0.9f, 0.9f, true)).IsTrue();
+        AssertThat(detector.Update(2, 0.95f, 0.95f, true)).IsFalse();
+    }
+
+    [TestCase]
+    [RequireGodotRuntime]
+    public void RollHasKeyboardAndRightTriggerDefaults() {
+        AssertThat(InputMap.HasAction(InputManager.Actions.Roll)).IsTrue();
+        bool hasKeyboardO = false;
+        bool hasRightTrigger = false;
+        foreach (InputEvent inputEvent in InputMap.ActionGetEvents(InputManager.Actions.Roll)) {
+            if (inputEvent is InputEventKey key
+                && (key.PhysicalKeycode == Key.O || key.Keycode == Key.O)) hasKeyboardO = true;
+            if (inputEvent is InputEventJoypadMotion motion
+                && motion.Axis == JoyAxis.TriggerRight
+                && motion.AxisValue > 0f) hasRightTrigger = true;
+        }
+        AssertThat(hasKeyboardO).IsTrue();
+        AssertThat(hasRightTrigger).IsTrue();
     }
 
     [TestCase]

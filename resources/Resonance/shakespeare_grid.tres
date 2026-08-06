@@ -1,0 +1,105 @@
+[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceGridData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceNodeData.cs" id="2"]
+
+[sub_resource type="Resource" id="T1"]
+script = ExtResource("2")
+NodeID = "shakespeare_t1"
+DisplayNameKey = "resonance_shakespeare_t1_name"
+DescriptionKey = "resonance_shakespeare_t1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "AttackRange"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="T2"]
+script = ExtResource("2")
+NodeID = "shakespeare_t2"
+DisplayNameKey = "resonance_shakespeare_t2_name"
+DescriptionKey = "resonance_shakespeare_t2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("shakespeare_t1")
+StatModifierKey = "SpecialDamage"
+StatModifierValue = 0.12
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="T3"]
+script = ExtResource("2")
+NodeID = "shakespeare_t3"
+DisplayNameKey = "resonance_shakespeare_t3_name"
+DescriptionKey = "resonance_shakespeare_t3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("shakespeare_t2")
+AbilityModifierKey = "macbeths_curse"
+
+[sub_resource type="Resource" id="C1"]
+script = ExtResource("2")
+NodeID = "shakespeare_c1"
+DisplayNameKey = "resonance_shakespeare_c1_name"
+DescriptionKey = "resonance_shakespeare_c1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "KnockbackForce"
+StatModifierValue = 0.15
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="C2"]
+script = ExtResource("2")
+NodeID = "shakespeare_c2"
+DisplayNameKey = "resonance_shakespeare_c2_name"
+DescriptionKey = "resonance_shakespeare_c2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("shakespeare_c1")
+StatModifierKey = "MoveSpeed"
+StatModifierValue = 0.03
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="C3"]
+script = ExtResource("2")
+NodeID = "shakespeare_c3"
+DisplayNameKey = "resonance_shakespeare_c3_name"
+DescriptionKey = "resonance_shakespeare_c3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("shakespeare_c2")
+AbilityModifierKey = "midsummer_glide"
+
+[sub_resource type="Resource" id="H1"]
+script = ExtResource("2")
+NodeID = "shakespeare_h1"
+DisplayNameKey = "resonance_shakespeare_h1_name"
+DescriptionKey = "resonance_shakespeare_h1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "BlockDurability"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="H2"]
+script = ExtResource("2")
+NodeID = "shakespeare_h2"
+DisplayNameKey = "resonance_shakespeare_h2_name"
+DescriptionKey = "resonance_shakespeare_h2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("shakespeare_h1")
+StatModifierKey = "MaxHP"
+StatModifierValue = 15.0
+
+[sub_resource type="Resource" id="H3"]
+script = ExtResource("2")
+NodeID = "shakespeare_h3"
+DisplayNameKey = "resonance_shakespeare_h3_name"
+DescriptionKey = "resonance_shakespeare_h3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("shakespeare_h2")
+AbilityModifierKey = "henrys_bastion"
+
+[resource]
+script = ExtResource("1")
+GridID = "shakespeare_resonance_grid"
+CharacterID = "shakespeare"
+Nodes = Array[ExtResource("2")]([SubResource("T1"), SubResource("T2"), SubResource("T3"), SubResource("C1"), SubResource("C2"), SubResource("C3"), SubResource("H1"), SubResource("H2"), SubResource("H3")])

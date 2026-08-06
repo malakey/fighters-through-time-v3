@@ -1,0 +1,43 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/PuzzleLever.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/InteractionArea.cs" id="2"]
+[ext_resource type="Script" path="res://scripts/Environment/EnvironmentHurtboxAdapter.cs" id="3"]
+
+[sub_resource type="CircleShape2D" id="Shape"]
+radius = 48.0
+
+[node name="PuzzleLever" type="Node2D" groups=["puzzle_object"]]
+script = ExtResource("1")
+LeverID = "placeholder_lever"
+
+[node name="Visual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-8, 30, 8, 30, 8, -30, -8, -30)
+color = Color(0.95, 0.62, 0.16, 1)
+
+[node name="Hurtbox" type="Area2D" parent="."]
+collision_layer = 32
+collision_mask = 4
+script = ExtResource("3")
+OwnerPlayerIndex = -1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+shape = SubResource("Shape")
+
+[node name="InteractionArea" type="Area2D" parent="."]
+collision_layer = 256
+collision_mask = 1
+script = ExtResource("2")
+PromptLabelPath = NodePath("Prompt")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InteractionArea"]
+shape = SubResource("Shape")
+
+[node name="Prompt" type="Label" parent="InteractionArea"]
+offset_left = -90.0
+offset_top = -82.0
+offset_right = 90.0
+offset_bottom = -50.0
+text = "interaction_use_lever"
+horizontal_alignment = 1
+visible = false

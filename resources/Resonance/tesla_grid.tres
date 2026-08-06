@@ -1,0 +1,106 @@
+[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceGridData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceNodeData.cs" id="2"]
+
+[sub_resource type="Resource" id="C1"]
+script = ExtResource("2")
+NodeID = "tesla_c1"
+DisplayNameKey = "resonance_tesla_c1_name"
+DescriptionKey = "resonance_tesla_c1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "PersistentDuration"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="C2"]
+script = ExtResource("2")
+NodeID = "tesla_c2"
+DisplayNameKey = "resonance_tesla_c2_name"
+DescriptionKey = "resonance_tesla_c2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("tesla_c1")
+StatModifierKey = "PersistentRange"
+StatModifierValue = 0.15
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="C3"]
+script = ExtResource("2")
+NodeID = "tesla_c3"
+DisplayNameKey = "resonance_tesla_c3_name"
+DescriptionKey = "resonance_tesla_c3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("tesla_c2")
+AbilityModifierKey = "resonant_overdrive"
+
+[sub_resource type="Resource" id="P1"]
+script = ExtResource("2")
+NodeID = "tesla_p1"
+DisplayNameKey = "resonance_tesla_p1_name"
+DescriptionKey = "resonance_tesla_p1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "SpecialDamage"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="P2"]
+script = ExtResource("2")
+NodeID = "tesla_p2"
+DisplayNameKey = "resonance_tesla_p2_name"
+DescriptionKey = "resonance_tesla_p2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("tesla_p1")
+StatModifierKey = "StatusDuration"
+StatModifierValue = 0.15
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="P3"]
+script = ExtResource("2")
+NodeID = "tesla_p3"
+DisplayNameKey = "resonance_tesla_p3_name"
+DescriptionKey = "resonance_tesla_p3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("tesla_p2")
+AbilityModifierKey = "lorentz_attraction"
+
+[sub_resource type="Resource" id="W1"]
+script = ExtResource("2")
+NodeID = "tesla_w1"
+DisplayNameKey = "resonance_tesla_w1_name"
+DescriptionKey = "resonance_tesla_w1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "MoveSpeed"
+StatModifierValue = 0.03
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="W2"]
+script = ExtResource("2")
+NodeID = "tesla_w2"
+DisplayNameKey = "resonance_tesla_w2_name"
+DescriptionKey = "resonance_tesla_w2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("tesla_w1")
+StatModifierKey = "CooldownReduction"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="W3"]
+script = ExtResource("2")
+NodeID = "tesla_w3"
+DisplayNameKey = "resonance_tesla_w3_name"
+DescriptionKey = "resonance_tesla_w3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("tesla_w2")
+AbilityModifierKey = "wardenclyffe_shield"
+
+[resource]
+script = ExtResource("1")
+GridID = "tesla_resonance_grid"
+CharacterID = "tesla"
+Nodes = Array[ExtResource("2")]([SubResource("C1"), SubResource("C2"), SubResource("C3"), SubResource("P1"), SubResource("P2"), SubResource("P3"), SubResource("W1"), SubResource("W2"), SubResource("W3")])

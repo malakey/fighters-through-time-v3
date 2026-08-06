@@ -1,0 +1,105 @@
+[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceGridData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceNodeData.cs" id="2"]
+
+[sub_resource type="Resource" id="FS1"]
+script = ExtResource("2")
+NodeID = "pocahontas_fs1"
+DisplayNameKey = "resonance_pocahontas_fs1_name"
+DescriptionKey = "resonance_pocahontas_fs1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "BasicAttackDamage"
+StatModifierValue = 0.08
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="FS2"]
+script = ExtResource("2")
+NodeID = "pocahontas_fs2"
+DisplayNameKey = "resonance_pocahontas_fs2_name"
+DescriptionKey = "resonance_pocahontas_fs2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("pocahontas_fs1")
+StatModifierKey = "SpecialDamage"
+StatModifierValue = 0.15
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="FS3"]
+script = ExtResource("2")
+NodeID = "pocahontas_fs3"
+DisplayNameKey = "resonance_pocahontas_fs3_name"
+DescriptionKey = "resonance_pocahontas_fs3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("pocahontas_fs2")
+AbilityModifierKey = "thorn_snare"
+
+[sub_resource type="Resource" id="WR1"]
+script = ExtResource("2")
+NodeID = "pocahontas_wr1"
+DisplayNameKey = "resonance_pocahontas_wr1_name"
+DescriptionKey = "resonance_pocahontas_wr1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "JumpForce"
+StatModifierValue = 0.15
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="WR2"]
+script = ExtResource("2")
+NodeID = "pocahontas_wr2"
+DisplayNameKey = "resonance_pocahontas_wr2_name"
+DescriptionKey = "resonance_pocahontas_wr2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("pocahontas_wr1")
+StatModifierKey = "PersistentDuration"
+StatModifierValue = 0.2
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="WR3"]
+script = ExtResource("2")
+NodeID = "pocahontas_wr3"
+DisplayNameKey = "resonance_pocahontas_wr3_name"
+DescriptionKey = "resonance_pocahontas_wr3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("pocahontas_wr2")
+AbilityModifierKey = "tornado_lift"
+
+[sub_resource type="Resource" id="PW1"]
+script = ExtResource("2")
+NodeID = "pocahontas_pw1"
+DisplayNameKey = "resonance_pocahontas_pw1_name"
+DescriptionKey = "resonance_pocahontas_pw1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "MaxHP"
+StatModifierValue = 15.0
+
+[sub_resource type="Resource" id="PW2"]
+script = ExtResource("2")
+NodeID = "pocahontas_pw2"
+DisplayNameKey = "resonance_pocahontas_pw2_name"
+DescriptionKey = "resonance_pocahontas_pw2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("pocahontas_pw1")
+StatModifierKey = "BlockRecovery"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="PW3"]
+script = ExtResource("2")
+NodeID = "pocahontas_pw3"
+DisplayNameKey = "resonance_pocahontas_pw3_name"
+DescriptionKey = "resonance_pocahontas_pw3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("pocahontas_pw2")
+AbilityModifierKey = "leaf_barrier"
+
+[resource]
+script = ExtResource("1")
+GridID = "pocahontas_resonance_grid"
+CharacterID = "pocahontas"
+Nodes = Array[ExtResource("2")]([SubResource("FS1"), SubResource("FS2"), SubResource("FS3"), SubResource("WR1"), SubResource("WR2"), SubResource("WR3"), SubResource("PW1"), SubResource("PW2"), SubResource("PW3")])

@@ -1,0 +1,128 @@
+[gd_resource type="Resource" script_class="FighterStageCatalog" load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/FighterStageCatalog.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/FighterStageData.cs" id="2"]
+
+[sub_resource type="Resource" id="Florence"]
+script = ExtResource("2")
+StageID = "florence_workshop"
+DisplayNameKey = "stage_florence_name"
+LayoutDescriptionKey = "stage_florence_layout"
+HazardNameKey = "stage_florence_hazard_name"
+HazardDescriptionKey = "stage_florence_hazard_description"
+HazardTypeID = 1
+BackgroundColor = Color(0.15, 0.09, 0.05, 1)
+GroundColor = Color(0.29, 0.18, 0.08, 1)
+AccentColor = Color(0.94, 0.58, 0.16, 1)
+
+[sub_resource type="Resource" id="Orleans"]
+script = ExtResource("2")
+StageID = "orleans_vanguard"
+DisplayNameKey = "stage_orleans_name"
+LayoutDescriptionKey = "stage_orleans_layout"
+HazardNameKey = "stage_orleans_hazard_name"
+HazardDescriptionKey = "stage_orleans_hazard_description"
+HazardTypeID = 2
+BackgroundColor = Color(0.06, 0.08, 0.15, 1)
+GroundColor = Color(0.22, 0.24, 0.29, 1)
+AccentColor = Color(0.85, 0.67, 0.18, 1)
+
+[sub_resource type="Resource" id="Chicago"]
+script = ExtResource("2")
+StageID = "chicago_exposition"
+DisplayNameKey = "stage_chicago_name"
+LayoutDescriptionKey = "stage_chicago_layout"
+HazardNameKey = "stage_chicago_hazard_name"
+HazardDescriptionKey = "stage_chicago_hazard_description"
+HazardTypeID = 3
+BackgroundColor = Color(0.04, 0.09, 0.13, 1)
+GroundColor = Color(0.12, 0.22, 0.28, 1)
+AccentColor = Color(0.2, 0.9, 1, 1)
+
+[sub_resource type="Resource" id="Paris"]
+script = ExtResource("2")
+StageID = "paris_bastille"
+DisplayNameKey = "stage_paris_name"
+LayoutDescriptionKey = "stage_paris_layout"
+HazardNameKey = "stage_paris_hazard_name"
+HazardDescriptionKey = "stage_paris_hazard_description"
+HazardTypeID = 4
+BackgroundColor = Color(0.12, 0.04, 0.07, 1)
+GroundColor = Color(0.24, 0.12, 0.12, 1)
+AccentColor = Color(0.85, 0.18, 0.2, 1)
+
+[sub_resource type="Resource" id="Vesuvius"]
+script = ExtResource("2")
+StageID = "vesuvius_caldera"
+DisplayNameKey = "stage_vesuvius_name"
+LayoutDescriptionKey = "stage_vesuvius_layout"
+HazardNameKey = "stage_vesuvius_hazard_name"
+HazardDescriptionKey = "stage_vesuvius_hazard_description"
+HazardTypeID = 5
+BackgroundColor = Color(0.12, 0.035, 0.02, 1)
+GroundColor = Color(0.24, 0.09, 0.04, 1)
+AccentColor = Color(1, 0.25, 0.04, 1)
+
+[sub_resource type="Resource" id="Nassau"]
+script = ExtResource("2")
+StageID = "nassau_flagship"
+DisplayNameKey = "stage_nassau_name"
+LayoutDescriptionKey = "stage_nassau_layout"
+HazardNameKey = "stage_nassau_hazard_name"
+HazardDescriptionKey = "stage_nassau_hazard_description"
+HazardTypeID = 6
+BackgroundColor = Color(0.025, 0.08, 0.12, 1)
+GroundColor = Color(0.22, 0.12, 0.055, 1)
+AccentColor = Color(0.12, 0.72, 0.86, 1)
+
+[sub_resource type="Resource" id="Alexandria"]
+script = ExtResource("2")
+StageID = "alexandria_chambers"
+DisplayNameKey = "stage_alexandria_name"
+LayoutDescriptionKey = "stage_alexandria_layout"
+HazardNameKey = "stage_alexandria_hazard_name"
+HazardDescriptionKey = "stage_alexandria_hazard_description"
+HazardTypeID = 7
+BackgroundColor = Color(0.15, 0.09, 0.025, 1)
+GroundColor = Color(0.38, 0.27, 0.1, 1)
+AccentColor = Color(0.86, 0.69, 0.18, 1)
+
+[sub_resource type="Resource" id="Berlin"]
+script = ExtResource("2")
+StageID = "berlin_wall"
+DisplayNameKey = "stage_berlin_name"
+LayoutDescriptionKey = "stage_berlin_layout"
+HazardNameKey = "stage_berlin_hazard_name"
+HazardDescriptionKey = "stage_berlin_hazard_description"
+HazardTypeID = 8
+BackgroundColor = Color(0.055, 0.07, 0.1, 1)
+GroundColor = Color(0.2, 0.22, 0.25, 1)
+AccentColor = Color(0.75, 0.12, 0.12, 1)
+
+[sub_resource type="Resource" id="Globe"]
+script = ExtResource("2")
+StageID = "globe_theatre"
+DisplayNameKey = "stage_globe_name"
+LayoutDescriptionKey = "stage_globe_layout"
+HazardNameKey = "stage_globe_hazard_name"
+HazardDescriptionKey = "stage_globe_hazard_description"
+HazardTypeID = 9
+BackgroundColor = Color(0.08, 0.035, 0.09, 1)
+GroundColor = Color(0.28, 0.14, 0.07, 1)
+AccentColor = Color(0.72, 0.38, 0.78, 1)
+
+[sub_resource type="Resource" id="Gettysburg"]
+script = ExtResource("2")
+StageID = "gettysburg_ridge"
+DisplayNameKey = "stage_gettysburg_name"
+LayoutDescriptionKey = "stage_gettysburg_layout"
+HazardNameKey = "stage_gettysburg_hazard_name"
+HazardDescriptionKey = "stage_gettysburg_hazard_description"
+HazardTypeID = 10
+BackgroundColor = Color(0.07, 0.08, 0.045, 1)
+GroundColor = Color(0.24, 0.17, 0.08, 1)
+AccentColor = Color(0.75, 0.12, 0.08, 1)
+
+[resource]
+script = ExtResource("1")
+Stages = Array[ExtResource("2")]([SubResource("Florence"), SubResource("Orleans"), SubResource("Chicago"), SubResource("Paris"), SubResource("Vesuvius"), SubResource("Nassau"), SubResource("Alexandria"), SubResource("Berlin"), SubResource("Globe"), SubResource("Gettysburg")])

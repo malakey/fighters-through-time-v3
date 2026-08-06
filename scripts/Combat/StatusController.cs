@@ -43,7 +43,7 @@ namespace FTT.Combat {
             _tickTimer -= delta;
             if (_tickTimer <= 0.0f) {
                 _tickTimer += TickInterval;
-                target.ApplyDamage(Math.Max(1, (int)MathF.Round(_damagePerTick)));
+                target.ApplyPersistentDamage(Math.Max(1, (int)MathF.Round(_damagePerTick)));
             }
         }
         public void OnRemove(FTT.Characters.PlayerController target) => target.ResetStatusModifiers();

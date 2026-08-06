@@ -1,0 +1,60 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/PooledPlaceholder.cs" id="1_pool"]
+[ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="2_marker"]
+[ext_resource type="Resource" path="res://resources/Contracts/boss_contract.tres" id="3_contract"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/placeholder_boss_frames.tres" id="4_frames"]
+
+[sub_resource type="RectangleShape2D" id="BodyShape"]
+size = Vector2(96, 128)
+[sub_resource type="RectangleShape2D" id="AreaShape"]
+size = Vector2(104, 136)
+
+[node name="BossTemplate" type="Node2D" groups=["enemy", "boss"]]
+script = ExtResource("1_pool")
+ContentID = "boss_template"
+Category = 3
+
+[node name="Presentation" type="Node2D" parent="."]
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Presentation"]
+sprite_frames = ExtResource("4_frames")
+animation = &"idle"
+position = Vector2(0, -96)
+
+[node name="Body" type="CharacterBody2D" parent="."]
+collision_layer = 2
+collision_mask = 704
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Body"]
+shape = SubResource("BodyShape")
+position = Vector2(0, -64)
+
+[node name="Hurtbox" type="Area2D" parent="."]
+collision_layer = 32
+collision_mask = 4
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+shape = SubResource("AreaShape")
+position = Vector2(0, -68)
+
+[node name="Hitbox" type="Area2D" parent="."]
+collision_layer = 8
+collision_mask = 16
+monitoring = false
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
+shape = SubResource("AreaShape")
+position = Vector2(76, -68)
+
+[node name="Pushbox" type="Area2D" parent="."]
+collision_layer = 2
+collision_mask = 1
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Pushbox"]
+shape = SubResource("BodyShape")
+position = Vector2(0, -48)
+
+[node name="AbilityOrigin" type="Marker2D" parent="."]
+position = Vector2(72, -88)
+
+[node name="ContentContract" type="Node" parent="."]
+script = ExtResource("2_marker")
+ContentID = "boss_template"
+Contract = ExtResource("3_contract")
+

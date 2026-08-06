@@ -1,0 +1,105 @@
+[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceGridData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceNodeData.cs" id="2"]
+
+[sub_resource type="Resource" id="A1"]
+script = ExtResource("2")
+NodeID = "mozart_a1"
+DisplayNameKey = "resonance_mozart_a1_name"
+DescriptionKey = "resonance_mozart_a1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "MoveSpeed"
+StatModifierValue = 0.03
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="A2"]
+script = ExtResource("2")
+NodeID = "mozart_a2"
+DisplayNameKey = "resonance_mozart_a2_name"
+DescriptionKey = "resonance_mozart_a2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("mozart_a1")
+StatModifierKey = "PersistentDuration"
+StatModifierValue = 0.15
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="A3"]
+script = ExtResource("2")
+NodeID = "mozart_a3"
+DisplayNameKey = "resonance_mozart_a3_name"
+DescriptionKey = "resonance_mozart_a3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("mozart_a2")
+AbilityModifierKey = "virtuoso_dash"
+
+[sub_resource type="Resource" id="F1"]
+script = ExtResource("2")
+NodeID = "mozart_f1"
+DisplayNameKey = "resonance_mozart_f1_name"
+DescriptionKey = "resonance_mozart_f1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "ProjectileSpeed"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="F2"]
+script = ExtResource("2")
+NodeID = "mozart_f2"
+DisplayNameKey = "resonance_mozart_f2_name"
+DescriptionKey = "resonance_mozart_f2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("mozart_f1")
+StatModifierKey = "SpecialDamage"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="F3"]
+script = ExtResource("2")
+NodeID = "mozart_f3"
+DisplayNameKey = "resonance_mozart_f3_name"
+DescriptionKey = "resonance_mozart_f3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("mozart_f2")
+AbilityModifierKey = "requiem_crescendo"
+
+[sub_resource type="Resource" id="P1"]
+script = ExtResource("2")
+NodeID = "mozart_p1"
+DisplayNameKey = "resonance_mozart_p1_name"
+DescriptionKey = "resonance_mozart_p1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "MaxHP"
+StatModifierValue = 15.0
+
+[sub_resource type="Resource" id="P2"]
+script = ExtResource("2")
+NodeID = "mozart_p2"
+DisplayNameKey = "resonance_mozart_p2_name"
+DescriptionKey = "resonance_mozart_p2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("mozart_p1")
+StatModifierKey = "CooldownReduction"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="P3"]
+script = ExtResource("2")
+NodeID = "mozart_p3"
+DisplayNameKey = "resonance_mozart_p3_name"
+DescriptionKey = "resonance_mozart_p3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("mozart_p2")
+AbilityModifierKey = "rest_shield"
+
+[resource]
+script = ExtResource("1")
+GridID = "mozart_resonance_grid"
+CharacterID = "mozart"
+Nodes = Array[ExtResource("2")]([SubResource("A1"), SubResource("A2"), SubResource("A3"), SubResource("F1"), SubResource("F2"), SubResource("F3"), SubResource("P1"), SubResource("P2"), SubResource("P3")])

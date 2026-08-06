@@ -1,0 +1,16 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/BeamReceiver.cs" id="1"]
+
+[node name="BeamReceiver" type="Node2D" groups=["power_routing_node", "puzzle_object"]]
+script = ExtResource("1")
+PowerNodeID = "placeholder_receiver"
+
+[node name="Visual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-36, -36, 36, -36, 36, 36, -36, 36)
+color = Color(0.18, 0.2, 0.24, 1)
+
+[node name="PoweredVisual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-28, -28, 28, -28, 28, 28, -28, 28)
+color = Color(0.2, 1, 0.48, 0.8)
+visible = false

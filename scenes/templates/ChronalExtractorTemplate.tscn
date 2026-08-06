@@ -1,0 +1,45 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/ChronalExtractor.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/EnvironmentHurtboxAdapter.cs" id="2"]
+
+[sub_resource type="RectangleShape2D" id="BodyShape"]
+size = Vector2(112, 144)
+
+[sub_resource type="CircleShape2D" id="HazardShape"]
+radius = 190.0
+
+[node name="ChronalExtractor" type="StaticBody2D" groups=["chronal_extractor", "damageable_environment"]]
+collision_layer = 64
+collision_mask = 0
+script = ExtResource("1")
+ObjectID = "placeholder_extractor"
+MaxHP = 100
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("BodyShape")
+
+[node name="Visual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-56, -72, 56, -72, 56, 72, -56, 72)
+color = Color(0.14, 0.22, 0.3, 1)
+
+[node name="DamagedVisual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-50, -66, 50, -66, 50, 66, -50, 66)
+color = Color(0.9, 0.2, 0.12, 0.6)
+visible = false
+
+[node name="Hurtbox" type="Area2D" parent="."]
+collision_layer = 32
+collision_mask = 4
+script = ExtResource("2")
+OwnerPlayerIndex = -1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+shape = SubResource("BodyShape")
+
+[node name="HazardArea" type="Area2D" parent="."]
+collision_layer = 256
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HazardArea"]
+shape = SubResource("HazardShape")

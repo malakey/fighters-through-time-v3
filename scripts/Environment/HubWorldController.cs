@@ -1,6 +1,7 @@
 using Godot;
 using FTT.Characters;
 using FTT.Core;
+using FTT.UI;
 
 namespace FTT.Environment {
 
@@ -11,6 +12,9 @@ namespace FTT.Environment {
         private Label _hudLabel;
         private Label _dustLabel;
         private bool _portalReady = true;
+        private bool _playerInRepository;
+        private ResonanceGridPanel _resonancePanel;
+        private TimelineRestartPanel _timelineRestartPanel;
 
         public override void _Ready() {
             BuildHubEnvironment();
@@ -149,7 +153,7 @@ namespace FTT.Environment {
             portalVisual.ZIndex = 1;
 
             var portalLabel = new Label();
-            portalLabel.Text = "TEMPORAL PORTAL\n[E] Enter";
+            portalLabel.Text = Tr("hub_portal_prompt");
             portalLabel.Position = new Vector2(-60, -170);
             portalLabel.CustomMinimumSize = new Vector2(120, 30);
             portalLabel.HorizontalAlignment = HorizontalAlignment.Center;
@@ -190,7 +194,7 @@ namespace FTT.Environment {
             _repositoryArea.AddChild(screen);
 
             var repoLabel = new Label();
-            repoLabel.Text = "CHRONAL REPOSITORY";
+            repoLabel.Text = Tr("hub_repository");
             repoLabel.Position = new Vector2(-70, -100);
             repoLabel.CustomMinimumSize = new Vector2(140, 20);
             repoLabel.HorizontalAlignment = HorizontalAlignment.Center;
@@ -198,13 +202,20 @@ namespace FTT.Environment {
             repoLabel.AddThemeColorOverride("font_color", new Color(0.0f, 0.8f, 0.5f));
             _repositoryArea.AddChild(repoLabel);
 
+            _repositoryArea.BodyEntered += body => {
+                if (body is PlayerController) _playerInRepository = true;
+            };
+            _repositoryArea.BodyExited += body => {
+                if (body is PlayerController) _playerInRepository = false;
+            };
+
             AddChild(_repositoryArea);
         }
 
         private void BuildDecorations() {
             var shipTitle = new Label();
             shipTitle.Name = "ShipTitle";
-            shipTitle.Text = "THE ARCHIVE TIME-SHIP";
+            shipTitle.Text = Tr("hub_ship_title");
             shipTitle.Position = new Vector2(1700, 50);
             shipTitle.CustomMinimumSize = new Vector2(440, 40);
             shipTitle.HorizontalAlignment = HorizontalAlignment.Center;
@@ -249,7 +260,7 @@ namespace FTT.Environment {
             AddChild(canvas);
 
             _hudLabel = new Label();
-            _hudLabel.Text = "Archive Time-Ship | [E] Interact with Portal/Terminal";
+            _hudLabel.Text = Tr("hub_interaction_help");
             _hudLabel.Position = new Vector2(20, 20);
             _hudLabel.AddThemeFontSizeOverride("font_size", 14);
             _hudLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.8f, 0.9f));
@@ -265,8 +276,11 @@ namespace FTT.Environment {
             var nextLevelLabel = new Label();
             nextLevelLabel.Name = "NextLevelLabel";
             var storyMgr = StoryManager.Instance;
-            string nextLevel = storyMgr != null ? storyMgr.CurrentLevel.ToString() : "Tutorial";
-            nextLevelLabel.Text = $"Next Mission: {nextLevel}";
+            string nextLevelKey = storyMgr?.CurrentLevel switch {
+                CampaignLevel.Florence => "campaign_level_florence",
+                _ => "campaign_level_tutorial"
+            };
+            nextLevelLabel.Text = string.Format(Tr("hub_next_mission"), Tr(nextLevelKey));
             nextLevelLabel.Position = new Vector2(20, 80);
             nextLevelLabel.AddThemeFontSizeOverride("font_size", 12);
             nextLevelLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.7f, 0.2f));
@@ -275,7 +289,7 @@ namespace FTT.Environment {
 
         private void UpdateDustDisplay() {
             int dust = StoryManager.Instance?.ChronalDustCollected ?? 0;
-            _dustLabel.Text = $"Chronal Dust: {dust}";
+            _dustLabel.Text = string.Format(Tr("hub_carried_dust"), dust);
         }
 
         private bool _playerInPortal;
@@ -290,10 +304,42 @@ namespace FTT.Environment {
 
         public override void _Input(InputEvent @event) {
             if (@event.IsActionPressed("gameplay_interact")) {
+                if (_resonancePanel != null && IsInstanceValid(_resonancePanel)) return;
+                if (_timelineRestartPanel != null && IsInstanceValid(_timelineRestartPanel)) return;
+                if (_playerInRepository) {
+                    StoryManager.Instance?.DepositDustToActiveSave();
+                    UpdateDustDisplay();
+                    _resonancePanel = new ResonanceGridPanel { Name = "ResonanceGridPanel" };
+                    _resonancePanel.Closed += () => {
+                        _player.ProcessMode = ProcessModeEnum.Inherit;
+                        _resonancePanel = null;
+                    };
+                    _player.ProcessMode = ProcessModeEnum.Disabled;
+                    GetNode<CanvasLayer>("HubHUD").AddChild(_resonancePanel);
+                    return;
+                }
                 if (_playerInPortal && _portalReady) {
-                    StoryManager.Instance?.LoadCurrentLevel();
+                    if (StoryManager.Instance?.HasPendingTimelineRestart == true) ShowTimelineRestartChoice();
+                    else StoryManager.Instance?.LoadCurrentLevel();
                 }
             }
+        }
+
+        private void ShowTimelineRestartChoice() {
+            _timelineRestartPanel = new TimelineRestartPanel { Name = "TimelineRestartPanel" };
+            _timelineRestartPanel.RestartChosen += resumeFromAnchor => {
+                _player.ProcessMode = ProcessModeEnum.Inherit;
+                StoryManager.Instance?.RestartCollapsedLevel(resumeFromAnchor);
+            };
+            _timelineRestartPanel.Cancelled += CloseTimelineRestartChoice;
+            _player.ProcessMode = ProcessModeEnum.Disabled;
+            GetNode<CanvasLayer>("HubHUD").AddChild(_timelineRestartPanel);
+        }
+
+        private void CloseTimelineRestartChoice() {
+            _player.ProcessMode = ProcessModeEnum.Inherit;
+            _timelineRestartPanel?.QueueFree();
+            _timelineRestartPanel = null;
         }
     }
 }

@@ -1,424 +1,499 @@
-# Fighters Through Time implementation gap-closure plan
+# Fighters Through Time: remaining-gap implementation plan
 
-Status: active roadmap based on the repository and `design-godot.md`. Implementation status last audited 2026-08-03; see `docs/IMPLEMENTATION_STATUS.md` for completed work and remaining acceptance criteria.
+Status: Packages 0-1 (all P0 items) completed and verified on 2026-08-05. The next implementation gate is Package 2 (P1 production vertical slice with placeholders).
 
-## Current milestone status
+P0 validation record: `dotnet build` passed with only the existing vendored GdUnit4 nullable-context warning; 118 GdUnit4 tests passed; Godot 4.7.1 headless import and Tutorial, Florence, and Hub smoke runs completed without runtime diagnostics.
 
-| Milestone | Status | Current boundary |
-|---|---|---|
-| 0 — Baseline and decisions | Complete | Reproducible toolchain, GdUnit4, smoke tests, ADRs, and repository ignore rules are present. Tracked legacy `.godot/` files still require a separately approved index cleanup. |
-| 1 — Data, collision, input | Substantially complete | Character/ability/enemy/boss resources, canonical statuses, collision settings, 60 Hz/fixed aspect, and serializable per-player inputs are implemented. Resonance content remains placeholder-only. |
-| 2 — Shared combat/movement | In progress | Typed hits, formulas, block/meter rules, frame timelines, status overwrite, and input-frame consumption are implemented and tested. Full authored animation callbacks, every FSM edge, and pooling conversion remain. |
-| 3 — Deterministic Fighter foundation | In progress | Klotho v0.6.1 is pinned; fixed-point 1v1 state, snapshots, hashes, prediction/correction rollback, and the local Test Arena presentation bridge are working. Full kit/projectile/persistent-object/hazard systems and production rollback performance proof remain. |
-| 4–10 | Pending | Vertical-slice production, secure saves/meta-game, complete local/online modes, full content, presentation, and release hardening remain future work. |
+This plan closes every incomplete initial-release item in the gap analysis without redoing foundations that are already implemented. Functional placeholders are the default for art, animation, audio, UI decoration, and level dressing until replacement assets are available.
 
-This plan covers the differences between the current prototype and the initial-release design. It intentionally excludes post-launch features such as four-player free-for-all, 2v2 teams, alternate costumes, cosmetics, full-match replays, detailed post-match stat sheets, online profiles, additional languages, and Training Mode.
+## Goal and completion states
 
-## Executive assessment
+The work has three meaningful completion states:
 
-The repository currently proves several important concepts:
+1. **Feature complete with placeholders** - The complete Story and 1v1 Fighter experiences work end to end with graybox levels, simple authored animations, geometric VFX, temporary portraits, and temporary audio. No gameplay system is waiting for production art.
+2. **Content and platform complete** - Levels 0-15, all nine kits, the enemy/boss roster, ten Fighter stages, LAN/online flows, saves, settings, tests, performance gates, and target-platform exports are complete.
+3. **Asset complete** - Approved production art and audio replace placeholders through stable resource contracts without changing gameplay code or deterministic data.
 
-- Godot 4.7.1/.NET 8 project setup and autoload lifecycle.
-- Main menu, Story character selection, Fighter character selection, a hub prototype, tutorial prototype, Florence prototype, and a combat test arena.
-- All nine `CharacterData` resources and character-specific ability class scaffolding.
-- A `PlayerController` FSM with movement, combo, block, special, ultimate, ledge, death, and respawn states.
-- Prototype enemies, boss state handling, pooling, events, settings, save slots, localization, dialogue, audio, haptics, camera shake, match state, rewind, and network snapshot classes.
+The first two states can be completed before final assets arrive. The third depends on the later asset replacement pass.
 
-It is not yet a production vertical slice. Only eight scenes and nine `.tres` resources exist; most content is generated in code with placeholder geometry; there is no automated test/addon infrastructure; local input is globally polled; Story rewind and saves do not meet the design; and networking is not deterministic rollback.
+## Scope
 
-The highest-risk mistake would be scaling to fifteen more campaign scenes and ten fighter arenas before correcting the shared data, input, combat, pooling, save, and deterministic-simulation contracts. The plan therefore establishes those contracts first, proves them in one complete vertical slice, and only then scales content.
+### Required for the initial release
 
-## Priority definitions
+- Story Mode with a character-locked campaign, hub, levels 0-15, puzzles, enemies, bosses, dialogue, progression, rewind, completion, credits, and save/resume.
+- Fighter Mode as normalized 1v1 human-vs-human and human-vs-CPU locally, plus LAN and online rollback play.
+- All nine characters available from the start with coherent Story and Fighter implementations of their canonical kits.
+- Ten independently authored Fighter stage scenes with deterministic hazards and Chronal Orbs.
+- English-only but fully key-localized UI and dialogue.
+- Complete initial settings, input remapping, controller support, feedback controls, performance gates, exports, and release QA.
+
+### Explicitly deferred and not an initial-release blocker
+
+The following incomplete entries remain tracked but are not pulled into the initial release unless explicitly reprioritized:
+
+- NPC-gated portal activation; the current automatic sequential activation remains the initial target.
+- Character-specific home-era dialogue variations.
+- Additional languages, language selection, and CJK font fallback.
+- Colorblind filters, screen-reader support, tap-to-hold, toggle sprint, and deadzone sliders.
+- Four-player free-for-all, 2v2, Training Mode, alternate costumes, cosmetics, full-match replays, detailed post-match statistics, and online accounts/profiles.
+
+Deferral is the disposition for these gaps; they must not be silently mixed into initial-release work.
+
+## Placeholder-first production rules
+
+Placeholders are deliverables, not ad hoc debug objects. They must exercise the final integration points.
+
+- Use reusable `.tscn`, `.tres`, `AnimationLibrary`, `SpriteFrames`, shader, audio, and theme resources instead of adding more one-off controller-drawn content.
+- Give every placeholder the stable resource ID, node contract, animation name, event track, dimensions, origin, collision shape, and import slot expected by its final replacement.
+- Character and enemy placeholders may be colored silhouettes or simple sprite sheets, but must include every required animation and exact hitbox callback timing.
+- Level placeholders should be authored grayboxes with final room graphs, platforms, checkpoints, interaction points, camera bounds, hazards, encounters, and completion paths.
+- Fighter stage placeholders must be separate scenes with distinct geometry; catalog entries may not continue aliasing `TestArena.tscn`.
+- Temporary portraits, icons, particles, outlines, normal-map stand-ins, and backgrounds should be visually distinct and accessible enough to test UI and gameplay feedback.
+- Temporary audio may use short tones, noise, and simple loopable stems, but must prove synchronized layers, crossfades, snapshots, routing, pooling, ducking, and reverb behavior.
+- Keep placeholder tuning out of factories. Canonical gameplay values remain in resources and deterministic loadouts.
+- Track every placeholder in an asset manifest with `placeholder`, `ready_for_replacement`, `final`, or `not_required` status.
+- Replacing a placeholder must not change gameplay scripts, save IDs, deterministic state, collision geometry, or translation keys unless a separately reviewed design change requires it.
+
+## Priority and sequencing model
 
 | Priority | Meaning |
 |---|---|
-| P0 | Architectural or release blocker; later work would be rewritten without it |
-| P1 | Required to prove the production vertical slice |
-| P2 | Required initial-release feature/content after the slice is stable |
-| P3 | Polish, optimization, and release hardening |
+| P0 | Shared contract or correctness blocker that would cause downstream rework |
+| P1 | Required to make the complete game playable with placeholders |
+| P2 | Required for LAN/online, content completion, and full presentation behavior |
+| P3 | Production asset replacement, optimization, balance, and release hardening |
 
-## Gap inventory
+The ordered work packages below are dependency gates, not date estimates. Work may run in parallel only where the dependency column permits it.
 
-| Area | Current implementation | Design target | Priority |
+| Package | Priority | Depends on | Primary result |
 |---|---|---|---|
-| Repository baseline | No `.gitignore`; generated `.godot/` files appear in Git status; no documented clean-build baseline | Reproducible checkout/build with generated output excluded | P0 |
-| Automated tests | No test project or GdUnit addon | Headless FSM, combat, status, rewind, save migration, snapshot, and integration coverage | P0 |
-| Data ownership | Nine character `.tres` files; ability/enemy/boss/resonance tuning largely constructed in factories | Canonical `.tres` data for characters, abilities, enemies, bosses, movement abilities, and resonance grids | P0 |
-| Input | Actions are named, but gameplay directly polls global `Input`; player index does not isolate devices | Per-player input frames usable by keyboard/controllers, CPU, replayable tests, and network prediction | P0 |
-| Fighter simulation | Godot float/`CharacterBody2D` state and a short float snapshot queue | Klotho fixed-point deterministic world, complete snapshots, hashes, rollback, and resimulation | P0 |
-| Project configuration | 1920×1080 but `stretch/aspect="expand"`; layer names and explicit physics tick target absent | Fixed 16:9 presentation, named collision matrix, explicit 60 Hz configuration | P0 |
-| Combat correctness | Core FSM/combo exists, but timing is timer-based; hit context cannot distinguish attack class; weight/block/ultimate rules are incomplete | Animation-frame hit timing, canonical formulas, directional block, special shatter, unblockable ultimate, meter carryover, hyper-armor and cancel rules | P0 |
-| Status system | One-status strategy prototype with enum names different from the GDD | Canonical TimeDilation/Venom/StaticCharge/RadiantBurn/Root rules and visuals | P0 |
-| Pooling/performance | `PoolManager` exists, but enemies, damage numbers, SFX players, placeholders, and some persistent objects still allocate/free during play | Warmed pools and reset-safe lifecycle for all high-frequency objects | P1 |
-| Story rewind | Teleports to checkpoint and resets all difficulties at checkpoints; no frame buffer or HP restore | Five-second safe-frame rewind, difficulty-specific refresh/HP rules, entity/projectile rewind policy | P1 |
-| Saves | Three in-memory slots; story data is Base64 JSON, global data is plaintext; no version/migration/corruption handling | Versioned, atomic, migrated, AES-encrypted and HMAC-verified saves with robust recovery | P1 |
-| Story progression | Level enum 0–15, but only paths for levels 0 and 1; no complete save-slot or Resonance Grid loop | Locked-character campaign, full routing, Chronal Dust deposit, Story-only grid, autosave, resume/checkpoints | P1/P2 |
-| Local Fighter Mode | One selected character enters a test arena; match manager is not a complete playable 1v1 loop | Two-player/CPU character and stage select, rules config, stocks, bottom KO, respawn, timer/draw, results/rematch, stats | P1 |
-| Online/LAN | Room flags/code and snapshots only; no transport or matchmaking | LAN plus Steam P2P/relay, private rooms, public queue, rollback session, errors and forfeit flow | P2 |
-| Enemy/boss AI | Patrol/chase/attack scaffolding; CPU decision body empty; bosses select but do not execute authored abilities | Standard/elite era behaviors, weighted boss kits/phases, difficulty scaling, functional CPU levels | P1/P2 |
-| Scenes/content | Hub, tutorial, Florence, and test arena prototypes | Hub, levels 0–15, ten production Fighter stages, encounters, puzzles, hazards, checkpoints, bosses, dialogue | P2 |
-| UI flow | Code-generated prototype screens; settings button disabled; HUD/dialogue/post-match incomplete | Complete boot/menu/save/story/fighter/settings/pause/error/results flow with production scene components | P1/P2 |
-| Localization | English CSV exists, but prototype UI is mostly hardcoded | All user-visible strings key-based; English table complete | P1 |
-| Audio/feedback | Basic buses and players; no synchronized stem assets; SFX allocates players; partial feedback hooks | Ambient/combat/boss stems, pooled SFX, surface footsteps, complete haptic/shake settings and triggers | P2/P3 |
-| Art/animation | Placeholder rectangles/labels and minimal player scene | Production sprites, frame callbacks, VFX, shaders, portraits, tilesets, UI, and animation sets | P2/P3 |
-| Performance/export | Budgets documented but not measured; no release export validation | 60 FPS budgets met on target PCs/Steam Deck; Windows/macOS/Linux exports and soak tests | P3 |
+| 0 - Production contracts and validators | P0 | Current baseline | Repeatable templates and replaceable placeholder pipeline |
+| 1 - Remaining shared gameplay systems | P0 | Package 0 | Complete combat edges, puzzles, pools, items, and rewind contracts |
+| 2 - Production vertical slice | P1 | Packages 0-1 | Tutorial, hub, Florence, and one Fighter stage complete with placeholders |
+| 3 - Nine character kits and Resonance perks | P1 | Packages 0-2 contracts | Canonical cross-mode roster behavior |
+| 4 - Enemy and boss roster | P1 | Packages 0-2 contracts | Data-driven, pooled Story opposition |
+| 5 - Campaign levels 2-15 | P1/P2 | Packages 2 and 4; Package 3 interfaces stable | Complete placeholder campaign |
+| 6 - Ten-stage local Fighter completion | P1/P2 | Packages 2-3 | Complete local 1v1 experience |
+| 7 - LAN and online rollback completion | P2 | Packages 3 and 6; Package 6 rollback-readiness gate | Production networking and user flow |
+| 8 - Product-wide UI, audio, visuals, controls | P2 | Continuous; final pass after Packages 5-7 | Feature-complete presentation with placeholders |
+| 9 - QA, performance, balance, and exports | P3 | Packages 5-8 | Content/platform-complete candidate |
+| 10 - Production asset replacement | P3 | Approved final assets and Package 9 contracts | Asset-complete release candidate |
 
-## Sequencing principles
+## Definition of done for every package
 
-1. Establish a clean, testable baseline before changing runtime architecture.
-2. Make `.tres` resources the source of truth before tuning or producing content.
-3. Replace direct input polling with serializable per-player input frames before implementing local 1v1 or rollback.
-4. Define Fighter Mode's deterministic boundary before polishing Fighter gameplay. Offline local Fighter Mode should run the same deterministic simulation used online.
-5. Share ability definitions and expected outcomes across modes, while using separate execution adapters where required: Godot `CharacterBody2D` for Story and fixed-point Klotho simulation for Fighter.
-6. Turn the existing hub → tutorial/Florence → hub and test-arena paths into one production vertical slice before adding more levels.
-7. Scale campaign and Fighter content through templates and validators, not one-off scene-controller code.
-8. Treat UI, localization, accessibility, pooling, tests, and performance as acceptance criteria in every milestone rather than end-of-project cleanup.
+Every package must satisfy the applicable checks below before dependent work starts:
 
-## Milestone 0 — Reproducible baseline and architecture decisions
+- `dotnet build FightersThroughTime.csproj` passes without new project warnings.
+- Relevant GdUnit4 tests and headless scene smoke runs pass.
+- New gameplay behavior is driven from `_PhysicsProcess()` at 60 Hz where authoritative.
+- New Fighter behavior is fixed-point, snapshot-complete, hash-visible, rollback-safe, and isolated from Godot physics authority.
+- Story progression modifiers do not enter normalized Fighter values.
+- New high-frequency objects use `PoolManager` and fully reset mutable state on spawn/despawn.
+- New visible copy uses translation keys and has an English entry.
+- Keyboard and two-controller assignment are tested for affected flows.
+- Pause, death/respawn or rewind, checkpoint/save, and scene-transition behavior are tested when relevant.
+- Placeholder resources conform to final replacement contracts and are recorded in the asset manifest.
+- The status ledger, relevant tests, and `AGENTS.md` are updated when the repository's implemented boundary materially changes.
 
-Priority: P0. Dependency: none.
+## Package 0 - Production contracts, templates, and validation
+
+Priority: P0. This package prevents content work from becoming another set of code-generated one-offs.
 
 ### Deliverables
 
-- Record a baseline build and Godot smoke-run result without altering gameplay behavior.
-- Add repository hygiene for `.godot/`, build output, editor caches, OS files, and local IDE state. Removing already tracked generated files must be handled as a deliberate repository cleanup, preserving user work.
-- Pin/document the supported Godot .NET and .NET SDK versions.
-- Select and pin the test stack. Prefer GdUnit4 for scene/integration coverage; add NUnit only if a separate pure C# simulation assembly makes it useful.
-- Add a headless smoke test for project startup and loading the menu, test arena, hub, tutorial, and Florence scenes.
-- Add architecture decision records for:
-  - shared ability data with Story and Fighter execution adapters;
-  - Klotho integration and fixed-point Fighter ownership;
-  - per-player input-frame format;
-  - save key/integrity strategy that does not embed a recoverable secret in source;
-  - resource IDs, versioning, and canonical tuning ownership.
-- Create a gap-tracking board or issue list using the work packages in this document.
+- [x] Create one authoritative content manifest covering 16 Story levels, 10 Fighter stages, 9 characters, 36 abilities, 9 Resonance grids, the complete enemy roster, 15 bosses, dialogue sequences, UI screens, pools, audio sets, and visual assets.
+- [x] Give every manifest entry a stable ID, source design section, resource path, owner system, placeholder/final status, and validation state.
+- [x] Create reusable authored templates for Story levels, Fighter stages, player presentation, standard enemies, elites, bosses, projectiles, persistent constructs, pickups, checkpoints, dialogue triggers, puzzle objects, hazards, and pool configurations.
+- [x] Define required node paths, groups, signals/events, animation names, event-track callbacks, collision layers, camera anchors, and spawn/rewind/snapshot interfaces for each template.
+- [x] Build a placeholder kit: character/enemy silhouettes, portrait/icon set, graybox tile palette, parallax layers, basic particles/materials, and test audio stems/SFX.
+- [x] Add validators for missing IDs/resources, duplicate tuning, invalid paths, translation keys, animation callbacks, collision masks, pool registrations, level checkpoints, stage bounds, hazard IDs, audio layers, and unresolved placeholder manifest entries.
+- [x] Add per-scene `ScenePoolConfig` resources and warm-up budgeting support before scaling Story content.
+- [x] Record current frame time, allocations, memory, draw batches, vertices, active sprites, and particles in Tutorial, Florence, and Test Arena as the comparison baseline.
 
 ### Exit criteria
 
-- A clean checkout restores/builds reproducibly.
-- Generated `.godot/` output is not part of ordinary feature diffs.
-- Automated smoke tests detect missing scripts/resources and scene load failures.
-- The five architecture decisions above are explicit enough that implementation agents do not create competing approaches.
+- A new level, enemy, boss, character presentation, or Fighter stage can be created from a template without adding canonical tuning to a controller.
+- Validators fail clearly when a required content contract is missing.
+- Placeholder assets can be swapped by resource reassignment while node paths and gameplay behavior remain unchanged.
 
-## Milestone 1 — Canonical data, collision, and input foundations
+## Package 1 - Remaining shared gameplay systems
 
-Priority: P0. Dependency: Milestone 0.
+Priority: P0. Complete these shared systems before multiplying levels and encounters.
+
+### Combat and movement completion
+
+- [x] Move Story hitbox activation/deactivation to authored animation event tracks; placeholder animations use the final frame timings.
+- [x] Finish ledge trigger geometry, single-occupancy rules, five-second timeout, pull-up/drop/jump choices, ledge damage response, and recovery tests.
+- [x] Finish one-way platform authoring and double-tap-down collision behavior in representative scenes.
+- [x] Complete independent aerial combo state, landing cancel, aerial frame data, crouched combo behavior, and the 30 percent crouched hurtbox-height reduction.
+- [x] Verify hyper-armor suppresses hitstun/knockback but not HP damage in both modes; add the temporary shell/outline presentation hook.
+- [x] Add FSM tests for every newly completed transition, interruption, death, respawn, pause, and scene-exit path.
+
+### Puzzle and environment toolkit
+
+- [x] Implement an event-driven `PuzzleManager` with stable puzzle IDs, prerequisite state, completion/reset events, checkpoint integration, and save/rewind policy.
+- [x] Implement reusable levers and 90-degree rotating platforms for Florence.
+- [x] Implement pressure plates, counterweights, movable weights, and weight-comparison objectives.
+- [x] Implement signal/beam routing nodes and conductive-coil routing for Chicago-style puzzles.
+- [x] Implement 100 HP Chronal Extractors with hazard emission, damaged/destroyed states, 25-dust reward, and rewind/reset behavior.
+- [x] Implement destructible blocks, chests, floating interaction prompts, and a common `IInteractable` contract.
+- [x] Implement room-transition triggers that update camera confiners and encounter activation.
+- [x] Implement crumbling platforms, configurable cyclic hazards, and Temporal/Chronal Rift zones with Time-Loop Snap reset behavior.
+
+### Pooling, drops, and rewind integration
+
+- [x] Pool Story projectiles/zones, VFX, enemy instances, loot, Chronal Dust, healing items, buffs, and persistent constructs with the designed overflow policies.
+- [x] Exercise capacity, recycle, reject, and repeated spawn-release behavior in automated tests.
+- [x] Implement Story healing pickups at Easy 50 HP, Normal 25 HP, and Hard 10 HP.
+- [x] Implement temporary damage/speed buffs with difficulty-scaled magnitude and duration, data-driven drop tables, auto-collect radius, and magnetization.
+- [x] Implement small/medium/large drop visual tiers as replaceable placeholder resources.
+- [x] During rewind, freeze enemy simulation, clear enemy projectiles, and rewind or reset enemies/constructs according to explicit type policies.
+- [x] Complete two-second post-rewind invincibility and Timeline Collapse: hub return, 20 percent carried-dust penalty, and level restart choice.
+- [x] Add presentation events for rewind ghosting, tint/scanline effects, music ducking, reverse sweep, and clock tick; Package 8 supplies the product-wide presentation.
+
+### Exit criteria
+
+- The shared systems can support every planned level without level-specific forks of core behavior.
+- Rewind cannot duplicate loot, leave live projectiles, corrupt encounter state, or bypass puzzle/checkpoint progression.
+- Representative gameplay loops have no routine instantiate/free churn for projectiles, enemies, VFX, or loot.
+
+## Package 2 - Production vertical slice with placeholders
+
+Priority: P1. Scope: New Story slot -> Tutorial -> Hub -> Florence -> Hub, plus one independently authored Florence Fighter stage.
+
+### Tutorial, hub, and Florence
+
+- [ ] Convert Tutorial and Florence from controller-built layouts to authored scenes using the level template and graybox tile resources.
+- [ ] Complete all three Tutorial parts: fracture presentation, calibration movement/combat/rewind instruction, and advanced mobility gates.
+- [ ] Complete Florence's four-room progression, rotating-gear puzzle, enemy waves, checkpoints, hazards, Borgia Inquisitor boss, entrance/exit dialogue, completion results, autosave, and hub return.
+- [ ] Author the hub's placeholder spatial layout, walking paths, Calibration Bay return anchor, Chronal Repository terminal, Holodeck console, Resistance NPC interaction points, and sequential Temporal Portal.
+- [ ] Wire the Holodeck to configured human-vs-CPU practice matches and return cleanly to the hub.
+- [ ] Author Commander Sarah, Tutorial, Florence, hub, and boss dialogue as `DialogueSequenceData` resources using the documented typewriter and confirm behavior.
+- [ ] Add placeholder portraits/emotions and make dialogue suspend gameplay while leaving UI navigation responsive.
+- [ ] Complete Story HUD information, boss bar, enemy overhead bars, checkpoint feedback, level-completion overlay, dust auto-deposit, and loading treatment.
+- [ ] Implement full Story difficulty effects on enemies, drops, and rewind without changing Fighter balance.
+- [ ] Verify save/resume from every Tutorial/Florence checkpoint and the hub return anchor.
+
+### First production-contract Fighter stage
+
+- [ ] Create a Florence Fighter scene with unique platform geometry, bounds, camera anchors, spawn points, Orb points, and a deterministic era-specific hazard.
+- [ ] Complete dynamic midpoint tracking and bounded zoom for the stage.
+- [ ] Use the stage as the acceptance template for the nine remaining stage scenes.
+
+### Placeholder presentation
+
+- [ ] Supply complete temporary player/enemy animation libraries, Florence/hub backgrounds, tiles, VFX, dialogue UI treatment, ambient/combat/boss music stems, footsteps, attacks, hazards, and UI sounds.
+- [ ] Prove synchronized music transitions, pause/low-health/ultimate ducking, haptics, shake, status feedback, and accessibility settings in the slice.
+
+### Exit criteria
+
+- A new slot can complete Tutorial and Florence at all three difficulties, spend deposited Dust, return to the hub, quit, and resume accurately.
+- The same flow survives death, rewind exhaustion, pause, controller reconnect, checkpoint reload, and scene transitions.
+- A local human-vs-human or human-vs-CPU Florence match completes from selection through results/rematch.
+- The slice meets the documented frame budgets on the agreed baseline machine with placeholders enabled.
+
+## Package 3 - Complete nine-character kits and Resonance behavior
+
+Priority: P1. Use the stable data and presentation contracts from Packages 0-2.
+
+### Cross-mode kit implementation
+
+- [ ] Audit all 36 ability slots against Section 5 of `design-godot.md`; convert every generic projectile/zone approximation into the character's canonical mechanics.
+- [ ] Complete Einstein's spacetime/gravity setup, Joan's radiant rushdown/hyper-armor, Leonardo's inventions/turret, Lincoln's rail strikes/shockwaves, Cleopatra's sand/serpents, Tesla's linked coils/electricity, Shakespeare's barriers/spectral actors, Mozart's sonic waves/platforms, and Pocahontas's glide/roots/nature spirits.
+- [ ] Complete all nine movement abilities with character-specific rules, animation events, recovery, cooldowns, VFX/SFX hooks, and state interruption.
+- [ ] Give persistent constructs stable owner/type/state IDs, deploy limits, pool reset behavior, Story rewind behavior, Fighter snapshot/hash fields, and rollback lifecycle tests.
+- [ ] Maintain shared definitions and expected outcomes while keeping Story physics and Fighter fixed-point execution behind explicit adapters.
+- [ ] Add placeholder sprite/portrait/animation/VFX/SFX resources for every character and every required state so none remains a colored controller-drawn rectangle.
+
+### Resonance Grid completion
+
+- [ ] Wire all 27 bespoke major perks, three per character, into the relevant Story abilities and systems.
+- [ ] Keep perk queries character-scoped and Story-only; add tests proving normalized Fighter loadouts and hashes are unchanged by Story progression.
+- [ ] Complete controller/D-pad grid navigation, prerequisites, tooltips, purchase confirmation, disabled-state explanations, unlock animation, and save/autosave behavior.
+- [ ] Balance Chronal Dust level budgets, enemy/elite/boss/extractor rewards, and all node costs across a full placeholder campaign progression model.
+
+### Exit criteria
+
+- Every character can complete representative traversal, combat, boss, and puzzle scenarios in Story and a deterministic match in Fighter Mode.
+- Every ability and perk has automated outcome coverage, and rollback across every entity lifecycle converges to identical hashes.
+- No Story upgrade changes Fighter damage, movement, cooldown, entity limits, or deterministic state.
+
+## Package 4 - Complete enemy and boss roster
+
+Priority: P1. This package may run in parallel with Package 3 after Package 2's encounter contracts are stable.
 
 ### Deliverables
 
-- Add the planned resource folders for abilities, movement abilities, enemies, bosses, resonance grids, sprite frames, and pool configuration.
-- Expand `AbilityData` to the final shared definition required by the GDD: stable ID, slot, damage/hit count, knockback, startup/active/recovery timing, cooldown, hitbox geometry, projectile/persistent-object definition, hyper-armor, status, SFX, VFX, animation, shake, and lifetime fields.
-- Introduce `MovementAbilityData` if movement-only fields cannot remain type-safe in `AbilityData`.
-- Create canonical resources for all 36 initial character slots: Special 1, Special 2, Movement Ability, and Ultimate for each of nine characters.
-- Migrate factory tuning into resources. Factories should instantiate configured scenes/resources, not author a second copy of stats.
-- Create enemy, elite, boss, and Resonance Grid resource schemas with stable string IDs and version-safe fields.
-- Reconcile the status enum with the target design across strategies, events, ability resources, HUD icons, and snapshot/save schemas.
-- Add centralized collision-layer constants and configure the named project layers/masks from the GDD matrix.
-- Explicitly configure 60 Hz physics and fixed 16:9 presentation. Replace or correct `ViewportEnforcer` so it actually renders letterbox/pillarbox bars rather than only resetting content scale.
-- Define a serializable `PlayerInputFrame`/`FighterInputCommand` containing directional values and edge/held bits for every gameplay action.
-- Refactor `InputManager` to map keyboard/controller devices to a player index and produce one input frame per player. Replace direct global action polling in controllers and abilities.
-
-### Tests
-
-- Resource validation: unique IDs, complete required fields, valid `res://` paths, and all nine characters owning four valid abilities.
-- Collision mask matrix validation.
-- Two-device input isolation, keyboard fallback, disconnect/reconnect, and deterministic input-frame serialization.
-- Translation/resource key validation for display names and descriptions.
+- [ ] Create canonical resources for the complete Section 6 standard/elite roster, including all 26+ required era-specific types; do not substitute one resource with visual recolors and duplicate IDs.
+- [ ] Finish patrol, chase, attack, stunned, and dead states with difficulty-scaled reaction delays, attack cadence, navigation pacing, and consistent typed-hit behavior.
+- [ ] Implement elite secondary abilities, cooldowns, stun resistance, telegraphs, and drop rules.
+- [ ] Create resources and encounter controllers for all 15 bosses with weighted attack selection, distance filtering, phase thresholds, telegraphs, invincibility windows, interruption rules, and checkpoint/rewind behavior.
+- [ ] Implement Mirror Paradox through the deterministic Fighter CPU/simulation boundary rather than standard boss AI.
+- [ ] Pool every mob, elite, boss projectile, summon, hazard, and reward; define per-level warm-up configurations.
+- [ ] Add temporary silhouettes, animation libraries, health-bar names, telegraphs, impact VFX, and audio hooks for every roster entry.
+- [ ] Add AI, phase-transition, no-valid-attack, death, rewind, and repeated pool-cycle tests.
 
 ### Exit criteria
 
-- No canonical ability or enemy number is duplicated between a factory and a resource.
-- Two local fighters can receive independent commands in the test arena.
-- Status names, collision layers, physics tick, and aspect behavior match one documented contract.
+- The manifest contains every designed enemy and boss with valid data, scene, animation, pool, localization, and encounter references.
+- Bosses select and execute valid attacks at melee/ranged distances and cannot deadlock between phases.
+- Worst-case encounter budgets fit the AI, physics, allocation, sprite, and particle budgets before level production scales.
 
-## Milestone 2 — Shared combat and movement correctness
+## Package 5 - Campaign levels 2-15
 
-Priority: P0/P1. Dependency: Milestone 1.
+Priority: P1/P2. Build content in waves after the vertical slice and enemy templates pass.
 
-### Deliverables
+### Per-level required gate
 
-- Convert `PlayerController` input consumption to input frames rather than direct `Input` calls.
-- Formalize the FSM transition table and interrupt priorities, including stun, death, hyper-armor, recovery-only block cancels, special cancels, ledge damage, and respawn invulnerability.
-- Replace timer-approximate attack activation with animation-frame callbacks or frame-indexed simulation events.
-- Introduce a typed hit payload containing attacker/target IDs, attack class (basic/special/ultimate/hazard), hitbox ID, damage, knockback, status, hitstun, facing/origin, and feedback values.
-- Implement the canonical damage and knockback formulas. Remove the unused defense reduction path and ensure player/enemy code uses the same tested calculator.
-- Complete directional blocking, basic-charge consumption, immediate special shatter, ultimate bypass, guard-break daze, charge regeneration, and HUD events.
-- Complete Influence meter gain for both damage dealt and taken, consumption, stock-loss 25% penalty, and player-indexed events.
-- Implement one-status overwrite behavior using the canonical five effects, including movement/damage changes, duration, visuals, and snapshot safety.
-- Make aerial/crouching combo behavior, coyote time, buffering, skid, ledge, drop-through, and character jump counts conform to the GDD.
-- Replace frequently created damage labels, projectiles, zones, SFX players, enemies, pickups, and persistent constructs with warmed pools.
-- Define reset contracts for every `IPoolable` type and stable snapshot data for persistent objects.
+Every level must have:
 
-### Tests
+- A separate authored scene, final room graph, graybox geometry, camera bounds, spawn/return anchors, and clear completion path.
+- Two or three tested checkpoints, pools/warm-up data, encounter budgets, standard/elite placements, a boss arena where designed, drops, difficulty behavior, and safe rewind behavior.
+- At least one era-specific traversal, puzzle, hazard, or encounter identity implemented mechanically rather than only described by a label.
+- Entrance, critical-path, boss, exit, and hub-return dialogue resources where called for by the design.
+- Level completion overlay, earned Dust accounting, auto-deposit, save/autosave, sequential unlock, pause, failure, and reload behavior.
+- Placeholder background layers, tile palette, props, enemy/boss presentation, VFX, SFX, and synchronized music stems registered in the asset manifest.
+- Content-validation, scene-smoke, completion-path, failure/rewind, localization, pool, and performance passes.
 
-- Every FSM transition and forbidden transition.
-- Combo damage multipliers and frame windows.
-- Weight-adjusted knockback and facing.
-- Block behavior for all attack classes and directions.
-- Ultimate gain, use, death penalty, and player isolation.
-- Status overwrite, tick, expiration, and no-stacking rules.
-- Pool overflow/recycle/reject behavior and repeated reset cycles.
+### Wave A - Complete Act I
 
-### Exit criteria
+- [ ] Level 2: Orleans - siege battles, shield towers, and trebuchet identity.
+- [ ] Level 3: Chicago - World's Fair logic and energy-routing puzzles.
+- [ ] Level 4: Paris - Bastille combat with stealth/searchlight zones.
+- [ ] Level 5: Titanic - flooding/sinking systems and Act I finale flow.
 
-- Einstein and Joan can complete representative ranged and melee combat scenarios in both Story and local Fighter contexts using the same definition data.
-- Combat outcomes are reproducible from an input-frame sequence.
-- The active gameplay loop produces no routine instantiate/free spikes for the covered vertical-slice objects.
+### Wave B - Complete Act II
 
-## Milestone 3 — Deterministic Fighter simulation foundation
+- [ ] Level 6: Pompeii - volcanic hazards and high-speed escape.
+- [ ] Level 7: Nassau - ship-to-ship traversal, rope swinging, and pirate encounters.
+- [ ] Level 8: Alexandria/Egypt - sand traversal, hieroglyph puzzles, and authored narrative reveal.
+- [ ] Level 9: Berlin - snow/urban combat and stealth elements.
+- [ ] Level 10: Globe Theatre - staged encounters, trapdoors, and theatrical hazards.
+- [ ] Level 11: Gettysburg - linear battlefield assault and encounter pacing.
+- [ ] Level 12: Lunar Landing - low-gravity traversal and Act II finale flow.
 
-Priority: P0. Dependency: Milestones 1–2 contracts. Start a Klotho feasibility spike during Milestone 0.
+### Wave C - Complete Act III
 
-### Deliverables
-
-- Pin and integrate the approved Klotho version after a small proof verifies Godot 4.7/.NET 8 compatibility, fixed-point collision behavior, license, and target-platform support.
-- Create a Fighter simulation assembly/module with no authoritative dependency on Godot floats, `CharacterBody2D`, wall-clock time, scene-tree order, or `System.Random`.
-- Represent movement, hitboxes, hurtboxes, projectiles, persistent objects, hazards, cooldowns, status, stocks, match timer, and RNG in fixed-point deterministic state.
-- Make local offline Fighter Mode run this simulation. Godot nodes become presentation/input adapters.
-- Implement complete save/load snapshots with stable entity IDs and no missing transient state.
-- Implement deterministic seeded RNG, state hashing, input prediction, rollback, resimulation, and bounded history.
-- Add a presentation bridge that interpolates/animates Godot nodes from authoritative simulation state without feeding presentation state back into gameplay.
-- Delete or quarantine the current float snapshot queue once its replacement is verified; do not evolve it in parallel.
-
-### Tests
-
-- Run identical input streams for thousands of ticks and compare hashes across repeated runs.
-- Save/load a snapshot mid-ability and confirm the resumed hash sequence matches uninterrupted play.
-- Roll back across hit confirmation, projectile spawn, persistent-object spawn/despawn, KO, and hazard activation.
-- Simulate delayed, missing, and corrected inputs and assert convergence.
-- Measure snapshot, hash, rollback, and resimulation budgets against the GDD.
+- [ ] Level 13: Chronal Void - shifting gravity, transition flow, and Mirror Paradox encounter.
+- [ ] Level 14: Neo-Earth - future laboratory assault and Apex Archive escalation.
+- [ ] Level 15: Library of Alexandria - restoration sequence, final multi-phase boss, ending, credits, completion save flag, and post-credits return behavior.
 
 ### Exit criteria
 
-- A headless local 1v1 match can be replayed from inputs with identical hashes.
-- Godot rendering can be disabled without changing Fighter outcomes.
-- No authoritative Fighter state uses Godot floating-point physics or unseeded randomness.
+- One locked character can complete levels 0-15 in order at each difficulty and resume at every checkpoint/hub boundary.
+- All nine characters can traverse every required critical path; character abilities may offer alternate solutions but cannot be mandatory unless all nine have an equivalent route.
+- Campaign completion, credits, statistics, and completed-slot state survive restart and save migration.
 
-## Milestone 4 — Production vertical slice
+## Package 6 - Ten-stage local Fighter Mode completion
 
-Priority: P1. Dependency: Milestones 1–3, except transport networking.
+Priority: P1/P2. The Florence stage from Package 2 is the template, not the shared runtime scene for all entries.
 
-Scope: Main Menu → save/character selection → Tutorial → Hub → Florence → Hub, plus one complete Florence Fighter arena.
+### Stage production
 
-### Deliverables
+- [ ] Create nine additional independently authored stage scenes so all ten catalog entries have distinct scene paths, platform layouts, spawn points, camera bounds, Orb points, and hazard anchors.
+- [ ] Replace generic hazard behavior with ten era-specific deterministic implementations, each with Off/Low/Medium/High frequency, warning/active/recovery phases, snapshots, hashes, and rollback tests.
+- [ ] Give every stage distinct placeholder parallax layers, tile/prop palette, lighting treatment, preview image, music set, hazard VFX/SFX, and pool configuration.
+- [ ] Validate solid side/top boundaries, bottom blast zone, ledges, one-way platforms, spawn safety, camera framing, and worst-case performance for every stage.
 
-- Replace code-generated placeholder player/enemy geometry with reusable scenes, resources, initial sprites/animations, authored hitbox callback tracks, and production-ready node contracts.
-- Convert hub, tutorial, Florence, and test/Fighter arena from monolithic code-built layouts toward authored scenes and reusable components.
-- Implement one standard mob, one elite, and the Florence boss through data-driven scenes and complete encounter behavior.
-- Complete checkpoints, a safe-frame Chronal Rewind, Chronal Dust drops/collection/deposit, one usable Resonance Grid branch, and Story difficulty scaling.
-- Complete the tutorial's required movement, combat, rewind, dialogue, and calibration gates.
-- Complete Florence's rooms, hazards, cog/platform puzzle, enemy waves, boss, exit dialogue, completion, autosave, and hub return.
-- Build the production Story HUD and Fighter HUD for two players: HP, ultimate, block charges, cooldowns, statuses, stocks, and timer.
-- Implement typewriter dialogue with portraits/emotions, confirm-to-complete/advance behavior, data lookup by dialogue ID, pause/non-pause strategy, and no full-sequence skip.
-- Add production loading treatments for Story portal travel and Fighter matchup cards.
-- Add English translation keys for every vertical-slice string and remove hardcoded user-visible copy in this flow.
-- Add representative ambient/combat/boss music stems, pooled SFX, surface footsteps, shake, haptics, VFX, and accessibility settings.
+### Match and CPU completion
 
-### Exit criteria
-
-- A new Story slot can finish Tutorial and Florence, return to the hub, quit, and resume without losing progress.
-- Rewind, dust, upgrades, combat, dialogue, settings, and checkpoint resume work at all three difficulties.
-- Two players or one player plus CPU can finish a complete local Florence Fighter match.
-- The slice meets the 60 FPS/frame-budget targets on the agreed minimum test machine and has automated smoke/integration coverage.
-
-## Milestone 5 — Story meta-game, secure saves, and hub completion
-
-Priority: P1. Dependency: Milestone 4 save/progression slice.
-
-### Deliverables
-
-- Implement versioned save envelopes, migrations, atomic write/replace, corruption handling, backups, AES encryption, and HMAC verification using an approved platform-safe key strategy.
-- Complete three-slot New/Load/Delete UI, confirmation, timestamps, character lock, difficulty selection, completion state, and checkpoint resume.
-- Store all required campaign fields: current level, selected character, difficulty, collected/deposited dust, unlocked Resonance nodes, checkpoint, rewind state where appropriate, playtime, and completion.
-- Complete exact autosave triggers for checkpoint, level completion, upgrades/unlocks, and global versus statistics.
-- Implement the Chronal Repository and full per-character Resonance Grid data/UI with prerequisites, costs, minor/major nodes, and Story-only modifier application.
-- Implement hub portal selection/progression gates and all initial-release interactive stations described by the GDD.
-- Make `StoryManager` data-driven rather than a two-entry static path array; validate all campaign level IDs and paths at startup/build time.
-- Complete Chronal Dust risk/deposit behavior and make save/UI totals consistent.
-- Implement difficulty-specific rewind checkpoint refresh correctly: Easy full refill, Normal +1 capped, Hard no refill.
-- Rewind or reset enemies/projectiles/persistent objects according to the Story rewind rules.
+- [ ] Complete respawn-platform presentation, five-second dissolve behavior, input lock, drop, and invulnerability.
+- [ ] Complete KO hit-freeze, slow motion, spotlight, KO stamp, winner pose, audio/fanfare, and results transitions without altering deterministic match state.
+- [ ] Complete local controller-disconnect forced pause, reconnect assignment, and safe menu-exit behavior.
+- [ ] Finish CPU Orb pursuit, hazard avoidance, off-stage recovery, jumps, movement ability, and Special 2 behavior at all difficulty bands.
+- [ ] Verify every rule setting persists correctly through rematch and every match can end by HP KO, stock exhaustion, bottom fall, timer decision, or true draw.
+- [ ] Pass a rollback-readiness gate across all kits/stages: complete snapshots and hashes, delayed-input convergence, bounded history, and worst-case seven-frame resimulation within the baseline frame budget.
 
 ### Exit criteria
 
-- All save operations round-trip, migrate from prior test versions, recover from a corrupt primary file, and reject tampering without crashing.
-- Upgrades affect Story values only; starting a Fighter match always uses normalized base definitions.
-- The hub exposes the complete campaign meta loop without placeholder buttons or hidden debug shortcuts.
+- All ten stage choices produce a visibly and mechanically distinct local 1v1 match.
+- Human-vs-human and human-vs-CPU flows pass character/stage/rules selection, countdown, pause/disconnect, match, results, rematch, and return paths.
+- Local Fighter Mode remains the same deterministic authority later used by online play.
+- The rollback-readiness gate passes before production transport integration starts.
 
-## Milestone 6 — Complete local Fighter Mode
+## Package 7 - LAN and online rollback completion
 
-Priority: P1/P2. Dependency: Milestones 3–4.
+Priority: P2 release blocker. Do not begin production transport integration until the Package 6 rollback-readiness gate passes.
 
-### Deliverables
+### Transport and session protocol
 
-- Implement mode selection for local human vs human and human vs CPU, with two-player device assignment.
-- Implement two-sided character selection, stage selection, and the full match-settings UI: mode, stocks, timer, items/frequency, hazards/frequency.
-- Complete pre-match load/cards, countdown, input lock, match start, bounded stage camera, and fixed competitive viewport.
-- Implement HP KO, bottom-blast-zone stock loss, stock decrement, respawn portal, invulnerability, meter carryover, and return to active play.
-- Complete match timer resolution by stocks then HP percentage; implement true draw behavior.
-- Implement KO freeze/slow-motion/audio/fanfare, winner/defeat presentation, global/character statistics, rematch consensus, and return-to-character-select flow.
-- Implement Story/local/online-specific pause rules and controller disconnect prompts.
-- Implement Chronal Orb spawning/effects and hazard timing/rules using deterministic state.
-- Complete CPU decision making, reaction models, recovery, attack/block/special choices, and GDD difficulty bands without exposing post-launch Training Mode.
-- Produce and validate the ten initial Fighter stages from the campaign-equivalent eras. Stage-specific art/content can continue in Milestone 8, but the reusable arena/hazard contracts must be complete here.
+- [ ] Keep protocol-v2 compatibility tests while extending the protocol for handshake, build/protocol gates, peer identity, fighter/stage/rules agreement, deterministic seed, ready/load state, synchronized start, pause/forfeit, snapshot resync, disconnect, and rematch.
+- [ ] Add LAN discovery and direct join around the existing UDP transport.
+- [ ] Implement bounded full-state transfer and authoritative resync after confirmed desync, including integrity/version checks and diagnostic capture.
+- [ ] Integrate Steam Networking Sockets through a transport adapter for encrypted P2P, NAT traversal, and relay fallback; keep simulation code transport-agnostic.
+- [ ] Implement private six-digit rooms and a regional public casual 1v1 queue without adding account/profile scope.
 
-### Exit criteria
+### User flow and failure handling
 
-- Every match setting changes the authoritative match behavior and survives rematches.
-- Human-vs-human and human-vs-CPU matches can finish by HP, stock depletion, bottom fall, timer decision, and draw.
-- Results and global statistics follow the design exactly; draws do not change wins/losses.
-- Local Fighter Mode uses the same deterministic simulation and content definitions intended for online play.
+- [ ] Build online lobby character selection, ready state, stage/rules agreement, synchronized loading, match start, results, rematch consensus, and correct queue/menu return behavior.
+- [ ] Implement hold-Pause-for-three-seconds online forfeit.
+- [ ] Add the Chronal Jitter warning above 150 ms latency or 5 percent loss.
+- [ ] Add a 15-second reconnection/timeout presentation and deterministic match resolution for peer departure, relay failure, host loss, and incompatible builds.
+- [ ] Ensure statistics are written exactly once and only after an agreed match result; do not count a true draw as a win/loss.
 
-## Milestone 7 — LAN, online rollback, and matchmaking
+### Verification
 
-Priority: P2 release blocker. Dependency: Milestones 3 and 6 core loop.
-
-### Deliverables
-
-- Integrate Steam Networking Sockets for encrypted P2P, NAT traversal, and relay fallback; add direct LAN discovery/join for LAN play.
-- Define compact input packets, acknowledgements, confirmed-frame tracking, connection state, pause/forfeit messages, and protocol version compatibility.
-- Wire transport input into the deterministic prediction/rollback/resimulation loop.
-- Implement private rooms/codes and public 1v1 queue. Keep account/profile systems deferred.
-- Implement online pre-match character selection, stage/rules agreement, synchronized load/start, rematch/return flow, and public-queue return behavior.
-- Implement desync hash exchange, diagnostic capture, mismatch handling, peer timeout, host/peer departure, latency/jitter warnings, and clean disconnect/forfeit UX.
-- Add network simulation tests for latency, jitter, reordering, duplication, packet loss, disconnects, and reconnect-to-menu behavior.
-- Add protocol/build version gates so incompatible builds cannot start a match.
+- [ ] Expand deterministic transport tests for latency, jitter, reordering, duplication, loss, delayed corrections, disconnect, reconnection, resync, and timeout.
+- [ ] Run long LAN/direct, Steam P2P, and relay soak matches across all characters, stages, hazards, Orbs, and entity lifecycles.
+- [ ] Measure snapshot size, rollback depth, prediction correction, resimulation time, bandwidth, and frame pacing against the seven-frame rollback budget.
 
 ### Exit criteria
 
-- LAN and Steam-relayed private matches complete without divergent hashes under the approved network test matrix.
-- Public queue creates only 1v1 matches and returns players to the correct flow after completion/failure.
-- Network interruption produces the specified warning/forfeit/error behavior without corrupting saves or match statistics.
-- No delay-based fallback is used for gameplay.
+- LAN, private online, and public-queue 1v1 matches finish without divergent hashes under the approved network matrix.
+- Desync, timeout, incompatible build, forfeit, and relay failure produce recoverable localized UX and unambiguous statistics.
+- Gameplay never falls back to delay-based authority.
 
-## Milestone 8 — Full campaign, roster, arena, and asset production
+## Package 8 - Product-wide UI, audio, visuals, controls, and localization
 
-Priority: P2. Dependency: Milestone 4 templates. Can run in parallel with Milestones 5–7 once contracts are stable.
+Priority: P2. Build the reusable systems early, then perform this completion pass after campaign, Fighter, and online flows exist.
 
-### Deliverables
+### UI and narrative presentation
 
-- Produce Story levels 2–15 in act order using the validated level template: room graph, tile layers, checkpoints, encounter budgets, puzzles, hazards, boss, dialogue, completion, pool warm-up, audio stems, and performance metadata.
-- Implement the full enemy/elite era roster and all fifteen boss encounters with authored phase behavior.
-- Finish production kits for all nine characters, including sprites, portraits, animations, hit callbacks, projectiles/persistent objects, VFX, SFX, ultimates, and Resonance Grids.
-- Finish the ten Fighter stages and their deterministic hazards/Chronal Orb spawn points.
-- Implement all required Story pickups, Chronal Extractors, Chronal Dust visuals, and drop tables.
-- Author the complete campaign dialogue/cinematics that are in initial scope. Keep character-specific home-era variants deferred unless reprioritized.
-- Build reusable validation tools that report missing IDs, resources, animation names, dialogue keys, pool definitions, collision masks, stage bounds, checkpoints, and audio stems.
-- Track every Section 17 asset requirement in an asset manifest with owner/status/import settings.
+- [ ] Replace remaining controller-built production UI with reusable scenes and shared theme resources.
+- [ ] Complete Story/Fighter HUD polish, boss phase notches, conditional enemy bars, cooldown/status indicators, level results, portal and VS loading treatments, network warnings, credits, and campaign-completion screens.
+- [ ] Complete dialogue glass treatment, portraits/emotions, text chirps, gameplay suspension, and all initial-scope campaign/hub dialogue resources.
+- [ ] Verify controller focus, keyboard focus, back/cancel behavior, modal ownership, pause variants, safe-area layout, HUD opacity, and supported resolutions/aspect ratios on every screen.
 
-### Content gates per level/character/stage
+### Controls and accessibility
 
-- Design/data review complete.
-- Scene opens with no missing dependencies.
-- Gameplay completion path and failure/rewind path pass.
-- Localization keys and dialogue pass.
-- Pool/memory/performance pass.
-- Controller, pause, save, and accessibility pass.
-- Story/Fighter cross-mode ability behavior remains coherent.
+- [ ] Serialize complete InputMap binding overrides in global save data and restore them before gameplay input begins.
+- [ ] Implement binding conflict UX and reset-to-default controls.
+- [ ] Verify haptics, shake scale, damage-number visibility, HUD opacity, audio levels, screen mode, resolution, and VSync across all Story, Fighter, boss, hazard, rewind, and online flows.
 
-### Exit criteria
+### Audio implementation
 
-- Levels 0–15 are reachable, completable, saved, and restored in sequence.
-- All nine characters are playable from the start in Story and Fighter Mode.
-- Ten Fighter stages, all required campaign bosses, and the complete initial-release enemy roster pass their content gates.
+- [ ] Finalize the Master/Music/SFX/UI hierarchy and Environmental/Combat/Movement sub-buses.
+- [ ] Implement synchronized ambient/combat/boss stems per level/stage, intensity transitions, last-stock transition, KO stinger/silence, pause/low-health/ultimate/rewind/underwater snapshots, and crossfades.
+- [ ] Implement surface-specific footsteps, character ability cast/impact hooks, environmental/destruction/hazard sounds, dialogue chirps, reverb zones, and low-pass filtering.
+- [ ] Keep all short-lived playback in the existing pool and validate voice-stealing/overflow behavior.
 
-## Milestone 9 — UI, audio, accessibility, and presentation completion
+### Visual implementation
 
-Priority: P2/P3. Dependency: continuous; final gate after Milestone 8.
+- [ ] Implement the shared alpha-outline/glow shader, per-instance parameters, PointLight2D accompaniment, status indicators, hyper-armor shell, hit feedback, and rewind treatment.
+- [ ] Add normal-map support, era VFX emitters, Chronal Orb visuals, Chronal Extractor states, environment lighting, and particle emission caps through reusable resources.
+- [ ] Make off-screen sprite animation and expensive visual processing suspend safely without changing authoritative gameplay.
 
-### Deliverables
+### Localization completion
 
-- Replace remaining code-generated prototype UI with reusable `.tscn` components and theme resources.
-- Complete boot sequence, main menu, save flow, Story flow, Fighter flow, settings, pause variants, network errors, post-match results, credits, and campaign-completion return behavior.
-- Remove all remaining hardcoded user-visible strings and complete the English translation table.
-- Complete settings persistence for Master/Music/SFX/UI, resolution, fullscreen/borderless/windowed, VSync, input remapping, damage numbers, HUD opacity, screen shake, haptics, and default difficulty.
-- Serialize/restore remapped InputMap actions and provide reset-to-default behavior.
-- Complete dynamic three-stem music, crossfades, bus effects, surface audio, environmental SFX, combat SFX, and UI/dialogue SFX.
-- Complete haptic trigger coverage and ensure haptics/shake/damage-number/HUD-opacity accessibility controls apply everywhere.
-- Implement final outline/glow shaders, `PointLight2D` support, visual status indicators, hit feedback, and animation priority/interrupt presentation.
-- Verify fixed 16:9 output and readable UI at every supported window resolution/aspect ratio.
+- [ ] Audit every visible string, error path, tooltip, dialogue line, item/enemy/boss/stage name, settings label, and credits entry for translation keys.
+- [ ] Complete the English CSV and generated translation resource; add validation for missing/unused keys and raw user-visible English in C# and scenes.
 
 ### Exit criteria
 
-- Every initial-release screen is controller-navigable and key-localized.
-- Settings survive restart and affect all relevant systems.
-- No prototype/debug/placeholder copy, geometry, or disabled production button remains in a release flow.
+- Every initial-release screen and flow is localized, controller-navigable, settings-aware, and functional with placeholder presentation.
+- All audio and visual behavior is driven through stable hooks so production assets can replace temporary resources without code changes.
+- Deferred accessibility and language options do not appear as broken or disabled release UI.
 
-## Milestone 10 — QA, optimization, balance, and release hardening
+## Package 9 - QA, performance, balance, and platform completion
 
-Priority: P3. Dependency: all release features/content integrated.
+Priority: P3. Measurement is continuous; this package is the final content/platform gate.
 
-### Deliverables
+### Automated and manual coverage
 
-- Complete automated unit, integration, content-validation, determinism, rollback, save migration, and scene smoke suites.
-- Add long-running combat, pool, save, scene-transition, and network soak tests.
-- Profile against the GDD budgets: physics, AI, rendering, scripts, allocations, RAM, draw calls, vertices, sprites, and particles.
-- Eliminate gameplay-frame allocations and ensure off-screen animation/AI pacing rules work.
-- Validate Windows, macOS, Linux/SteamOS, and Steam Deck exports, input devices, display modes, filesystem permissions, save paths, and network transport.
-- Run structured playtests, then tune frame data, damage, cooldowns, AI, drops, difficulty, hazards, and bosses. Detailed balance work starts here, after systems/content are stable.
-- Validate all campaign branches, dialogue, completion/credits, match outcomes, disconnects, and corrupted-save behavior.
-- Produce release checklists, known-issues documentation, crash/desync diagnostics, and a rollback plan for save/protocol incompatibilities.
+- [ ] Expand FSM tests to complete state/interrupt coverage for players, enemies, bosses, rewind, and dialogue suspension.
+- [ ] Add campaign route/completion tests, all-level content validation, pool soak tests, save/resume across all checkpoints, and campaign-completion migration tests.
+- [ ] Add long deterministic simulation, network matrix, scene-transition, pause/resume, controller reconnect, save corruption, and repeated rematch soak tests.
+- [ ] Maintain regression coverage for the substantially complete save, combat, input, collision, Resonance isolation, match, and localization foundations.
+
+### Performance and allocation gates
+
+- [ ] Profile representative quiet, combat, boss, hazard-heavy, and worst-case rollback scenes against 16.67 ms total, 2.5 ms physics, 3.5 ms AI, and 8 ms rendering budgets.
+- [ ] Verify at most roughly 150 draw batches, 150,000 visible vertices, 60 active AnimatedSprite2D nodes, 500 active particles, and 4 GB runtime RAM.
+- [ ] Eliminate gameplay-time GC spikes and unpooled high-frequency allocation.
+- [ ] Add VisibilityNotifier2D/off-screen animation control, paced AI updates, particle caps, and pool-size tuning where measurements require them.
+- [ ] Record per-level/stage budgets in the content manifest and prevent regressions in representative automated benchmarks where practical.
+
+### Balance and platform gates
+
+- [ ] Run structured playtests for all nine characters, all difficulties, all bosses, Dust economy, Resonance progression, drops, hazards, CPU levels, match modes, and network conditions.
+- [ ] Tune only canonical resources; keep Story difficulty and Resonance changes out of Fighter normalization.
+- [ ] Create and validate Windows, macOS, Linux/SteamOS, and Steam Deck exports, including input devices, aspect modes, save permissions, Steam transport, and suspend/resume where supported.
+- [ ] Complete crash/desync diagnostics, legal/third-party notices, credits, release checklists, known issues, save/protocol compatibility policy, and recovery procedures.
 
 ### Exit criteria
 
-- No P0/P1/P2 initial-release gap remains open.
-- Target platforms hold 60 FPS within the documented budgets in representative worst-case scenes.
-- Determinism and migration suites are stable; network soak tests do not desync.
-- The full campaign and all 1v1 local/LAN/online flows pass release acceptance.
+- The full placeholder campaign and all local/LAN/online 1v1 flows pass release acceptance on target platforms.
+- Worst-case representative scenes hold 60 FPS within the documented budgets with no gameplay GC spikes.
+- No P0/P1/P2 non-deferred functional gap in `IMPLEMENTATION_STATUS.md` remains open.
 
-## Recommended first implementation batch
+## Package 10 - Production asset replacement
 
-The first implementation batch should stop before large content production and complete these items in order:
+Priority: P3. This package can proceed asset family by asset family whenever approved replacements arrive.
 
-1. Establish repository hygiene and a clean build/smoke-test baseline.
-2. Write the Klotho/input/save/data architecture decisions.
-3. Add test infrastructure and the first FSM/damage/resource validation tests.
-4. Introduce per-player serializable input frames and convert the test arena/player controller.
-5. Configure collision layers, explicit 60 Hz physics, and fixed-aspect rendering.
-6. Reconcile status types and add a typed attack/hit payload.
-7. Move Einstein and Joan's four abilities each into canonical resources as the ranged/melee migration pilots.
-8. Correct combat formulas, block rules, meter rules, and animation-frame hit timing for those two characters.
-9. Pool the vertical-slice projectiles, zones, enemies, damage numbers, pickups, and SFX players.
-10. Complete the Klotho deterministic proof using Einstein vs Joan inputs and snapshot/hash tests.
-11. Promote hub/tutorial/Florence and one Florence Fighter arena into the production vertical slice.
-12. Only after the slice passes, migrate the remaining seven characters and begin level/stage production.
+### Replacement waves
 
-## Parallel work after the vertical slice
+- [ ] Characters: nine production sprite/animation sets, portraits/emotions, ability VFX, persistent constructs, ultimates, normal maps, and status/hyper-armor presentation.
+- [ ] Enemies and bosses: complete sprite/animation/telegraph/VFX sets for the full roster.
+- [ ] Environments: final tile palettes, parallax backgrounds, props, lighting, normal maps, hazards, destructibles, extractors, and puzzle art for hub, levels 0-15, and ten stages.
+- [ ] UI: final theme, frames, buttons, icons, HUD art, portraits, stage previews, loading treatments, dialogue treatment, credits, and network indicators.
+- [ ] Audio: approved level/stage stem sets, character attacks, movement surfaces, bosses, hazards, rewind, UI, dialogue chirps, and cinematics.
 
-Once Milestone 4 exits, work can split safely into these parallel tracks:
+### Replacement workflow
 
-- Story systems: secure saves, hub, Resonance Grid, progression, rewind.
-- Fighter systems: local match flow, CPU AI, deterministic stages/items/hazards.
-- Networking: transport, rollback session, lobby/matchmaking, failure handling.
-- Content: campaign levels, enemies, bosses, arenas, dialogue.
-- Presentation: character/environment art, animation, VFX, UI, audio, localization.
-- QA/tooling: validators, automated tests, profiling, exports, soak infrastructure.
+- [ ] Replace resources one manifest entry at a time while preserving IDs, animation/event names, dimensions/origins, collision contracts, loop lengths, and audio sync points.
+- [ ] Visually inspect every imported asset in its real scene; verify filtering, compression, mipmaps, normal maps, outlines, lights, clipping, layering, and color readability.
+- [ ] Re-run gameplay, rollback, localization, pool, memory, draw-call, particle, and platform checks after each asset family.
+- [ ] Keep placeholders available as recoverable development fallbacks until the full replacement family passes; remove them from release paths only after verification.
 
-All tracks must share versioned resource schemas, stable IDs, input frames, event/hit payloads, save migrations, and deterministic snapshot definitions. Schema changes require coordinated updates rather than local workarounds.
+### Exit criteria
 
-## Major risks and mitigations
+- The asset manifest contains no unresolved initial-release placeholder entry.
+- Production replacements do not change deterministic hashes, hit timing, collision outcomes, save IDs, or translation keys.
+- All target platforms remain within memory, rendering, and frame-time budgets.
 
-| Risk | Consequence | Mitigation |
-|---|---|---|
-| Klotho is integrated late or proves incompatible | Fighter gameplay must be rewritten for rollback | Run the compatibility spike in Milestone 0 and make the deterministic local match a P0 gate |
-| Story and Fighter implementations drift | Abilities feel inconsistent and balancing duplicates | Share definition data and expected-outcome tests; keep mode-specific execution behind explicit adapters |
-| Code-generated prototype content becomes permanent | Tuning duplication, fragile node names, difficult art integration | Migrate the vertical slice to reusable scenes/resources before scaling content |
-| Global input polling survives into 1v1 | Both fighters respond to one device; network inputs cannot be injected | Make input frames a Milestone 1 exit criterion |
-| Save security is implemented with a hardcoded key | Encryption is cosmetic and migrations can destroy progress | Decide key strategy first; use versioned envelopes, atomic backups, migration and tamper tests |
-| Content volume overwhelms engineering | Sixteen levels, fifteen bosses, nine full kits, and ten arenas stall integration | Use one validated template, asset manifests, automated validators, and act-based production gates |
-| Generated `.godot/` changes obscure source diffs | User work is overwritten or reviews become unreliable | Clean repository hygiene deliberately and preserve unrelated existing changes |
-| Performance is deferred | Pooling/determinism/content require late redesign | Include allocation and frame-budget checks in every content gate |
+## Gap-analysis coverage matrix
 
-## Definition of initial-release completion
+Every numbered section in `IMPLEMENTATION_STATUS.md` has an implementation package or a documented deferred disposition.
 
-The gap-closure program is complete when:
+| Status section | Resolution package(s) |
+|---|---|
+| 1. Campaign levels | 2, 5, 8, 10 |
+| 2. Fighter arenas | 2, 6, 8, 10 |
+| 3. Character kits and abilities | 1, 3, 8, 10 |
+| 4. Enemies and bosses | 4, 5, 8, 10 |
+| 5. Online networking and multiplayer | 7, 9 |
+| 6. Temporal Resonance Grid | 3, 8, 9 |
+| 7. Save system | Regression and campaign-integration gates in 2, 5, and 9; no crypto rewrite planned |
+| 8. Hub world | 2, 5, 8, 10; NPC-gated portal remains deferred |
+| 9. Combat systems | 1, 3, 8, 9 |
+| 10. Chronal Rewind | 1, 2, 8, 9 |
+| 11. UI and menus | 2, 6, 7, 8, 10 |
+| 12. Audio and music | 2, 8, 10 |
+| 13. Visual art and shaders | 0, 2, 3, 4, 8, 10 |
+| 14. Dialogue and narrative | 2, 5, 8, 10; home-era variations remain deferred |
+| 15. Puzzles and interaction | 1, 2, 5 |
+| 16. Object pooling | 0, 1, 4, 5, 9 |
+| 17. Input and controls | 6, 7, 8, 9 |
+| 18. Accessibility and settings | 8, 9; future expansion options remain deferred |
+| 19. Localization | 8, 9; additional languages remain deferred |
+| 20. Testing and QA | Every package, with final gates in 9 |
+| 21. CPU Fighter AI | 3, 6, 9 |
+| 22. Fighter match flow | 6, 7, 8, 9 |
+| 23. Story campaign flow | 2, 5, 8, 9 |
+| 24. Items and power-ups | 1, 2, 5, 8 |
+| 25. Performance and targets | Baseline in 0, package-level checks throughout, final gates in 9-10 |
 
-- All nine characters are available immediately and have production-complete, cross-mode-coherent kits.
-- Story Mode supports a locked-character campaign through levels 0–15, hub progression, Chronal Dust, Resonance Grids, checkpoints, difficulty-specific rewinds, save/resume, bosses, ending, and credits.
-- Fighter Mode supports complete 1v1 human/local CPU/LAN/online rollback matches, ten stages, settings, hazards/items, stocks/HP/bottom KO, timer/draw, results, rematch, and statistics.
-- Fighter simulation is deterministic and passes rollback/desync tests; no delay-based gameplay fallback exists.
-- All initial UI is English-key-localized, controller accessible, settings-complete, and visually authored rather than debug scaffolding.
-- Save versioning, migration, encryption, integrity, corruption recovery, and autosave behavior pass automated tests.
-- Runtime allocation and rendering/physics/AI budgets meet the 60 FPS target on supported platforms.
-- Every non-deferred requirement in `design-godot.md` is either implemented and verified or explicitly accepted as a documented design change.
+## Recommended next implementation batch
 
-After each milestone, update `AGENTS.md` to move completed systems from prototype/planned to implemented and remove resolved gap warnings.
+Start with this bounded batch before producing levels 2-15:
+
+1. Build the manifest, validators, authored templates, placeholder kit, and performance baseline from Package 0.
+2. Complete Story animation callbacks, ledges, one-way platforms, aerial/crouch combat, hyper-armor behavior, and their tests.
+3. Implement the puzzle/environment toolkit and finish pooling for Story projectiles, enemies, VFX, and loot.
+4. Complete non-player rewind/reset policy, Story pickups, and Timeline Collapse.
+5. Promote Tutorial, hub, Florence, and one Florence Fighter stage to the placeholder production contracts.
+6. Do not start bulk level, roster, or stage duplication until the vertical-slice exit criteria pass.
+
+After the vertical slice, Packages 3 and 4 can run in parallel. Campaign waves can begin once the relevant enemies, bosses, puzzles, and character interfaces are stable. Package 6 can proceed alongside campaign production. Package 7 starts after the local deterministic match and rollback performance gates pass. Package 8 is continuous and closes after all user flows exist.
+
+## Initial-release completion definition
+
+The remaining-gap program is complete when:
+
+- All non-deferred rows in `IMPLEMENTATION_STATUS.md` are implemented, verified, or replaced by an explicitly approved design change.
+- Story Mode supports a locked-character campaign through levels 0-15 with hub progression, puzzles, enemies, bosses, dialogue, rewind, Dust, all nine Resonance grids/perks, save/resume, ending, and credits.
+- All nine characters are immediately available and have cross-mode-coherent canonical kits.
+- Fighter Mode supports complete 1v1 human/local CPU/LAN/online rollback matches on ten distinct stages with normalized values, hazards/items, results, rematch, errors, and statistics.
+- English UI/dialogue is fully key-localized; controls/settings/accessibility behavior works everywhere in initial scope.
+- Save security/recovery, deterministic rollback, networking, pools, content manifests, performance, and platform exports pass their automated and manual gates.
+- The game is feature- and platform-complete with placeholders; final shipping status is reached after the Package 10 asset manifest is fully replaced and revalidated.

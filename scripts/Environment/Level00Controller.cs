@@ -128,7 +128,7 @@ namespace FTT.Environment {
         private void BuildDecoration() {
             var title = new Label();
             title.Name = "LevelTitle";
-            title.Text = "CALIBRATION BAY - TRAINING SIMULATION";
+            title.Text = Tr("tutorial_environment_title");
             title.Position = new Vector2(1800, 30);
             title.CustomMinimumSize = new Vector2(500, 30);
             title.HorizontalAlignment = HorizontalAlignment.Center;
@@ -179,47 +179,38 @@ namespace FTT.Environment {
             _totalEnemies = 5;
             _enemiesKilled = 0;
 
-            var drone1 = EnemyFactory.CreateHologramDrone(new Vector2(1200, 850));
-            AddChild(drone1);
+            EnemyFactory.SpawnHologramDrone(this, new Vector2(1200, 850));
 
-            var drone2 = EnemyFactory.CreateHologramDrone(new Vector2(1800, 850));
-            AddChild(drone2);
+            EnemyFactory.SpawnHologramDrone(this, new Vector2(1800, 850));
 
-            var drone3 = EnemyFactory.CreateHologramDrone(new Vector2(2400, 850),
+            EnemyFactory.SpawnHologramDrone(this, new Vector2(2400, 850),
                 waypointA: new Vector2(2200, 850), waypointB: new Vector2(2600, 850));
-            AddChild(drone3);
 
-            var drone4 = EnemyFactory.CreateHologramDrone(new Vector2(3000, 700));
-            AddChild(drone4);
+            EnemyFactory.SpawnHologramDrone(this, new Vector2(3000, 700));
 
-            var drone5 = EnemyFactory.CreateHologramDrone(new Vector2(3600, 850),
+            EnemyFactory.SpawnHologramDrone(this, new Vector2(3600, 850),
                 waypointA: new Vector2(3400, 850), waypointB: new Vector2(3800, 850));
-            AddChild(drone5);
         }
 
         private void SpawnWave2() {
             _totalEnemies = 4;
             _enemiesKilled = 0;
 
-            var drone1 = EnemyFactory.CreateHologramDrone(new Vector2(1500, 850));
-            AddChild(drone1);
+            EnemyFactory.SpawnHologramDrone(this, new Vector2(1500, 850));
 
-            var drone2 = EnemyFactory.CreateHologramDrone(new Vector2(2000, 550));
-            AddChild(drone2);
+            EnemyFactory.SpawnHologramDrone(this, new Vector2(2000, 550));
 
-            var drone3 = EnemyFactory.CreateHologramDrone(new Vector2(2800, 850));
-            AddChild(drone3);
+            EnemyFactory.SpawnHologramDrone(this, new Vector2(2800, 850));
 
-            var slasher = EnemyFactory.CreateChronoSlasher(new Vector2(3200, 850),
+            EnemyFactory.SpawnChronoSlasher(this, new Vector2(3200, 850),
                 waypointA: new Vector2(3000, 850), waypointB: new Vector2(3400, 850));
-            AddChild(slasher);
 
-            UpdateObjective("Defeat remaining holograms! (Wave 2)");
+            UpdateObjective("tutorial_objective_wave_two");
         }
 
         private void OnEnemyKilled(EnemyKilledPayload payload) {
             _enemiesKilled++;
-            UpdateObjective($"Enemies defeated: {_enemiesKilled}/{_totalEnemies}");
+            UpdateObjective("tutorial_objective_progress", _enemiesKilled, _totalEnemies);
 
             if (_enemiesKilled >= _totalEnemies && !_levelComplete) {
                 if (_totalEnemies == 5) {
@@ -239,7 +230,7 @@ namespace FTT.Environment {
                 StoryManager.Instance.AdvanceToNextLevel();
             }
 
-            UpdateObjective("CALIBRATION COMPLETE! Returning to Time-Ship...");
+            UpdateObjective("tutorial_objective_complete");
 
             var timer = GetTree().CreateTimer(3.0);
             timer.Timeout += () => StoryManager.Instance?.ReturnToHub();
@@ -252,29 +243,31 @@ namespace FTT.Environment {
             AddChild(canvas);
 
             var levelLabel = new Label();
-            levelLabel.Text = "LEVEL 0: CHRONAL INTEGRATION";
+            levelLabel.Text = Tr("tutorial_level_title");
             levelLabel.Position = new Vector2(20, 15);
             levelLabel.AddThemeFontSizeOverride("font_size", 16);
             levelLabel.AddThemeColorOverride("font_color", new Color(0.0f, 0.9f, 0.9f));
             canvas.AddChild(levelLabel);
 
             _objectiveLabel = new Label();
-            _objectiveLabel.Text = "Defeat the hologram drones! (Wave 1)";
+            _objectiveLabel.Text = Tr("tutorial_objective_wave_one");
             _objectiveLabel.Position = new Vector2(20, 45);
             _objectiveLabel.AddThemeFontSizeOverride("font_size", 13);
             _objectiveLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.8f, 0.2f));
             canvas.AddChild(_objectiveLabel);
 
             var controlsLabel = new Label();
-            controlsLabel.Text = "Move: A/D | Jump: Space | Attack: J | Special1: K | Special2: L | Block: I";
+            controlsLabel.Text = Tr("tutorial_controls");
             controlsLabel.Position = new Vector2(20, 1040);
             controlsLabel.AddThemeFontSizeOverride("font_size", 12);
             controlsLabel.AddThemeColorOverride("font_color", new Color(0.6f, 0.6f, 0.7f));
             canvas.AddChild(controlsLabel);
         }
 
-        private void UpdateObjective(string text) {
-            if (_objectiveLabel != null) _objectiveLabel.Text = text;
+        private void UpdateObjective(string key, params object[] arguments) {
+            if (_objectiveLabel == null) return;
+            string text = Tr(key);
+            _objectiveLabel.Text = arguments.Length > 0 ? string.Format(text, arguments) : text;
         }
 
         public override void _ExitTree() {

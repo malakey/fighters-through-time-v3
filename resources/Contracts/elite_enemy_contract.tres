@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ContentSceneContract" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/ContentSceneContract.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+ContractID = "elite_enemy_v1"
+TemplateKind = 4
+RequiredNodePaths = PackedStringArray("Presentation/AnimatedSprite2D", "Hurtbox", "Hitbox", "Pushbox", "Waypoints/Left", "Waypoints/Right", "AbilityOrigin", "ContentContract")
+RequiredRootGroups = PackedStringArray("enemy", "elite_enemy")
+AnimatedSpritePath = "Presentation/AnimatedSprite2D"
+RequiredAnimationNames = PackedStringArray("idle", "patrol", "attack", "elite_attack", "hitstun", "death")
+RequiredEventCallbacks = PackedStringArray("ActivateHitbox", "DeactivateHitbox", "EmitPresentationEvent")
+RequiredCollisionLayerNames = PackedStringArray("Enemy", "EnemyHitbox", "EnemyHurtbox")
+RequiredInterfaceNames = PackedStringArray("IPoolable")

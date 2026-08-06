@@ -1,134 +1,111 @@
+using System;
+using System.Security.Cryptography;
+using FTT.Core;
+using FTT.FighterSim;
 using Godot;
-using System.Collections.Generic;
 
 namespace FTT.Networking {
 
-    public struct PlayerSnapshot {
-        public Vector2 Position;
-        public Vector2 Velocity;
-        public int CurrentHP;
-        public float UltimateMeter;
-        public int CurrentBlockCharges;
-        public int RemainingJumps;
-        public FTT.Characters.CharacterState State;
-        public bool IsFacingRight;
-        public int Frame;
-    }
-
-    public struct ProjectileSnapshot {
-        public string ObjectTypeID;
-        public Vector2 Position;
-        public Vector2 Velocity;
-        public float Lifetime;
-        public int OwnerIndex;
-    }
-
-    public struct GameStateSnapshot {
-        public int Frame;
-        public PlayerSnapshot[] Players;
-        public ProjectileSnapshot[] Projectiles;
-        public uint Checksum;
+    public enum NetworkConnectionState {
+        Offline,
+        HostingLan,
+        JoiningLan,
+        Connected,
+        Faulted
     }
 
     public partial class NetworkManager : Node {
         public static NetworkManager Instance { get; private set; }
-
-        public bool IsOnline { get; private set; }
-        public bool IsHost { get; private set; }
+        public NetworkConnectionState State { get; private set; } = NetworkConnectionState.Offline;
         public int LocalPlayerIndex { get; private set; }
+        public string LastError { get; private set; } = "";
+        public OnlineRollbackSession Session { get; private set; }
+        private IRollbackTransport _transport;
 
-        private const int MaxRollbackFrames = 7;
-        private const int TickRate = 60;
-        private Queue<GameStateSnapshot> _snapshotHistory = new();
-        private int _currentFrame;
+        public override void _Ready() => Instance = this;
 
-        public override void _Ready() {
-            Instance = this;
+        public override void _ExitTree() {
+            Disconnect();
+            if (Instance == this) Instance = null;
         }
 
-        public void StartHosting(string roomCode) {
-            IsOnline = true;
-            IsHost = true;
-            LocalPlayerIndex = 0;
+        public bool HostLan(int port = 27850) {
+            Disconnect();
+            try {
+                _transport = UdpRollbackTransport.Host(port);
+                LocalPlayerIndex = 0;
+                State = NetworkConnectionState.HostingLan;
+                return true;
+            } catch (Exception exception) when (exception is System.Net.Sockets.SocketException || exception is ArgumentException) {
+                Fail(exception.Message);
+                return false;
+            }
         }
 
-        public void JoinRoom(string roomCode) {
-            IsOnline = true;
-            IsHost = false;
-            LocalPlayerIndex = 1;
+        public bool JoinLan(string host, int port = 27850) {
+            Disconnect();
+            try {
+                _transport = UdpRollbackTransport.Join(host, port);
+                LocalPlayerIndex = 1;
+                State = NetworkConnectionState.JoiningLan;
+                return true;
+            } catch (Exception exception) when (exception is System.Net.Sockets.SocketException || exception is ArgumentException) {
+                Fail(exception.Message);
+                return false;
+            }
+        }
+
+        public OnlineRollbackSession BeginRollback(FighterSimulation simulation, uint sessionID) {
+            if (_transport == null) throw new InvalidOperationException("A LAN or platform transport must be connected first.");
+            if (Session != null) throw new InvalidOperationException("A rollback session is already active. Disconnect before starting another session.");
+            Session = new OnlineRollbackSession(simulation, _transport, sessionID, LocalPlayerIndex);
+            State = NetworkConnectionState.Connected;
+            return Session;
         }
 
         public void Disconnect() {
-            IsOnline = false;
-        }
-
-        public void SaveSnapshot(GameStateSnapshot snapshot) {
-            snapshot.Frame = _currentFrame;
-            _snapshotHistory.Enqueue(snapshot);
-            while (_snapshotHistory.Count > MaxRollbackFrames * 2) {
-                _snapshotHistory.Dequeue();
+            if (Session != null) {
+                Session.Dispose();
+            } else {
+                _transport?.Dispose();
             }
+            Session = null;
+            _transport = null;
+            State = NetworkConnectionState.Offline;
+            LastError = "";
         }
 
-        public GameStateSnapshot? GetSnapshot(int frame) {
-            foreach (var snap in _snapshotHistory) {
-                if (snap.Frame == frame) return snap;
-            }
-            return null;
+        private void Fail(string error) {
+            LastError = error ?? "Unknown network error.";
+            State = NetworkConnectionState.Faulted;
         }
-
-        public uint CalculateChecksum(GameStateSnapshot snapshot) {
-            uint hash = 0;
-            if (snapshot.Players != null) {
-                foreach (var p in snapshot.Players) {
-                    hash ^= (uint)(p.Position.X * 1000) ^ (uint)(p.Position.Y * 1000) ^ (uint)p.CurrentHP;
-                }
-            }
-            return hash;
-        }
-
-        public void AdvanceFrame() {
-            _currentFrame++;
-        }
-
-        public int CurrentFrame => _currentFrame;
     }
 
     public partial class MatchmakingManager : Node {
         public static MatchmakingManager Instance { get; private set; }
+        public string CurrentRoomCode { get; private set; } = "";
+        public bool SteamTransportAvailable => false;
 
-        public string CurrentRoomCode { get; private set; }
+        public override void _Ready() => Instance = this;
 
-        public override void _Ready() {
-            Instance = this;
-        }
-
-        public string CreatePrivateRoom() {
-            CurrentRoomCode = GenerateRoomCode();
-            NetworkManager.Instance?.StartHosting(CurrentRoomCode);
+        public string CreatePrivateRoomCode() {
+            const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+            Span<byte> random = stackalloc byte[6];
+            System.Security.Cryptography.RandomNumberGenerator.Fill(random);
+            Span<char> code = stackalloc char[6];
+            for (int index = 0; index < code.Length; index++) code[index] = alphabet[random[index] % alphabet.Length];
+            CurrentRoomCode = new string(code);
             return CurrentRoomCode;
         }
 
-        public void JoinPrivateRoom(string code) {
-            CurrentRoomCode = code;
-            NetworkManager.Instance?.JoinRoom(code);
-        }
-
-        public void JoinPublicQueue() {
-            // Matchmaking queue - placeholder
+        public bool JoinPublicQueue() {
+            GD.PushWarning("Steam Networking Sockets transport is not installed; public matchmaking is unavailable.");
+            return false;
         }
 
         public void LeaveQueue() {
             NetworkManager.Instance?.Disconnect();
-            CurrentRoomCode = null;
-        }
-
-        private string GenerateRoomCode() {
-            const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-            char[] code = new char[6];
-            var rng = new System.Random();
-            for (int i = 0; i < 6; i++) code[i] = chars[rng.Next(chars.Length)];
-            return new string(code);
+            CurrentRoomCode = "";
         }
     }
 }

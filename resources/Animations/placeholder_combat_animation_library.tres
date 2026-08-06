@@ -1,0 +1,76 @@
+[gd_resource type="AnimationLibrary" load_steps=7 format=3]
+
+[sub_resource type="Animation" id="Ground1"]
+resource_name = "basic_ground_1"
+length = 0.45
+step = 0.0166667
+tracks/0/type = "method"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {"times": PackedFloat32Array(0.1, 0.2), "transitions": PackedFloat32Array(1, 1), "values": [{"args": [], "method": &"OnAttackActiveStarted"}, {"args": [], "method": &"OnAttackActiveEnded"}]}
+
+[sub_resource type="Animation" id="Ground2"]
+resource_name = "basic_ground_2"
+length = 0.5
+step = 0.0166667
+tracks/0/type = "method"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {"times": PackedFloat32Array(0.1166667, 0.2333333), "transitions": PackedFloat32Array(1, 1), "values": [{"args": [], "method": &"OnAttackActiveStarted"}, {"args": [], "method": &"OnAttackActiveEnded"}]}
+
+[sub_resource type="Animation" id="Ground3"]
+resource_name = "basic_ground_3"
+length = 0.75
+step = 0.0166667
+tracks/0/type = "method"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {"times": PackedFloat32Array(0.25, 0.4), "transitions": PackedFloat32Array(1, 1), "values": [{"args": [], "method": &"OnAttackActiveStarted"}, {"args": [], "method": &"OnAttackActiveEnded"}]}
+
+[sub_resource type="Animation" id="Air1"]
+resource_name = "basic_air_1"
+length = 0.4166667
+step = 0.0166667
+tracks/0/type = "method"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {"times": PackedFloat32Array(0.0833333, 0.2), "transitions": PackedFloat32Array(1, 1), "values": [{"args": [], "method": &"OnAttackActiveStarted"}, {"args": [], "method": &"OnAttackActiveEnded"}]}
+
+[sub_resource type="Animation" id="Air2"]
+resource_name = "basic_air_2"
+length = 0.4666667
+step = 0.0166667
+tracks/0/type = "method"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {"times": PackedFloat32Array(0.1, 0.2333333), "transitions": PackedFloat32Array(1, 1), "values": [{"args": [], "method": &"OnAttackActiveStarted"}, {"args": [], "method": &"OnAttackActiveEnded"}]}
+
+[sub_resource type="Animation" id="Air3"]
+resource_name = "basic_air_3"
+length = 0.6666667
+step = 0.0166667
+tracks/0/type = "method"
+tracks/0/imported = false
+tracks/0/enabled = true
+tracks/0/path = NodePath(".")
+tracks/0/interp = 1
+tracks/0/loop_wrap = true
+tracks/0/keys = {"times": PackedFloat32Array(0.2, 0.3666667), "transitions": PackedFloat32Array(1, 1), "values": [{"args": [], "method": &"OnAttackActiveStarted"}, {"args": [], "method": &"OnAttackActiveEnded"}]}
+
+[resource]
+_data = {&"basic_air_1": SubResource("Air1"), &"basic_air_2": SubResource("Air2"), &"basic_air_3": SubResource("Air3"), &"basic_ground_1": SubResource("Ground1"), &"basic_ground_2": SubResource("Ground2"), &"basic_ground_3": SubResource("Ground3")}

@@ -4,12 +4,27 @@ namespace FTT.Environment {
 
     public partial class ChronalDustPickup : FTT.Core.PooledNode, FTT.Core.IPoolable {
         [Export] public int DustAmount = 10;
+        [Export] public DustVisualTierSet VisualTiers;
 
         private const float MagnetRadius = 150f;
         private const float MagnetSpeed = 900f;
         private const float ExpirationTime = 10f;
         private float _lifetime;
         private FTT.Characters.PlayerController _magnetTarget;
+        private Sprite2D _visual;
+
+        public override void _Ready() {
+            AddToGroup("story_loot");
+            AddToGroup("chronal_dust");
+            _visual = GetNodeOrNull<Sprite2D>("Visual");
+            VisualTiers ??= GD.Load<DustVisualTierSet>("res://resources/Drops/dust_visual_tiers.tres");
+            ApplyVisualTier();
+        }
+
+        public void Setup(int dustAmount) {
+            DustAmount = Mathf.Max(1, dustAmount);
+            ApplyVisualTier();
+        }
 
         public void OnSpawn() {
             _lifetime = ExpirationTime;
@@ -18,6 +33,8 @@ namespace FTT.Environment {
 
         public void OnDespawn() {
             _magnetTarget = null;
+            DustAmount = 1;
+            Rotation = 0f;
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -42,6 +59,12 @@ namespace FTT.Environment {
                     ReturnToPool();
                 }
             }
+            Rotation += dt * 1.5f;
+        }
+
+        private void ApplyVisualTier() {
+            if (_visual == null || VisualTiers == null) return;
+            _visual.Texture = VisualTiers.GetTexture(DustAmount);
         }
     }
 }

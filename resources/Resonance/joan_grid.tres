@@ -1,0 +1,105 @@
+[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceGridData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceNodeData.cs" id="2"]
+
+[sub_resource type="Resource" id="R1"]
+script = ExtResource("2")
+NodeID = "joan_r1"
+DisplayNameKey = "resonance_joan_r1_name"
+DescriptionKey = "resonance_joan_r1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "MoveSpeed"
+StatModifierValue = 0.05
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="R2"]
+script = ExtResource("2")
+NodeID = "joan_r2"
+DisplayNameKey = "resonance_joan_r2_name"
+DescriptionKey = "resonance_joan_r2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("joan_r1")
+StatModifierKey = "JumpForce"
+StatModifierValue = 0.05
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="R3"]
+script = ExtResource("2")
+NodeID = "joan_r3"
+DisplayNameKey = "resonance_joan_r3_name"
+DescriptionKey = "resonance_joan_r3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("joan_r2")
+AbilityModifierKey = "unstoppable_crusade"
+
+[sub_resource type="Resource" id="M1"]
+script = ExtResource("2")
+NodeID = "joan_m1"
+DisplayNameKey = "resonance_joan_m1_name"
+DescriptionKey = "resonance_joan_m1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "BasicAttackDamage"
+StatModifierValue = 0.05
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="M2"]
+script = ExtResource("2")
+NodeID = "joan_m2"
+DisplayNameKey = "resonance_joan_m2_name"
+DescriptionKey = "resonance_joan_m2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("joan_m1")
+StatModifierKey = "ComboSpeed"
+StatModifierValue = 0.05
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="M3"]
+script = ExtResource("2")
+NodeID = "joan_m3"
+DisplayNameKey = "resonance_joan_m3_name"
+DescriptionKey = "resonance_joan_m3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("joan_m2")
+AbilityModifierKey = "zealous_vigor"
+
+[sub_resource type="Resource" id="D1"]
+script = ExtResource("2")
+NodeID = "joan_d1"
+DisplayNameKey = "resonance_joan_d1_name"
+DescriptionKey = "resonance_joan_d1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "Armor"
+StatModifierValue = 0.05
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="D2"]
+script = ExtResource("2")
+NodeID = "joan_d2"
+DisplayNameKey = "resonance_joan_d2_name"
+DescriptionKey = "resonance_joan_d2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("joan_d1")
+StatModifierKey = "MaxHP"
+StatModifierValue = 20.0
+
+[sub_resource type="Resource" id="D3"]
+script = ExtResource("2")
+NodeID = "joan_d3"
+DisplayNameKey = "resonance_joan_d3_name"
+DescriptionKey = "resonance_joan_d3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("joan_d2")
+AbilityModifierKey = "shield_of_orleans"
+
+[resource]
+script = ExtResource("1")
+GridID = "joan_resonance_grid"
+CharacterID = "joan"
+Nodes = Array[ExtResource("2")]([SubResource("R1"), SubResource("R2"), SubResource("R3"), SubResource("M1"), SubResource("M2"), SubResource("M3"), SubResource("D1"), SubResource("D2"), SubResource("D3")])

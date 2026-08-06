@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 namespace FTT.Core {
 
@@ -8,6 +9,10 @@ namespace FTT.Core {
         private AudioStreamPlayer _musicPlayer;
         private AudioStreamPlayer _ambientPlayer;
         private AudioStreamPlayer _combatPlayer;
+        private const int SfxPoolCapacity = 24;
+        private readonly Queue<AudioStreamPlayer> _inactiveSfx = new();
+        private readonly List<AudioStreamPlayer> _activeSfxOrder = new();
+        private readonly HashSet<AudioStreamPlayer> _activeSfx = new();
 
         private int _masterBus;
         private int _musicBus;
@@ -35,6 +40,14 @@ namespace FTT.Core {
             _combatPlayer = new AudioStreamPlayer();
             _combatPlayer.Bus = "Music";
             AddChild(_combatPlayer);
+
+            for (int index = 0; index < SfxPoolCapacity; index++) {
+                var player = new AudioStreamPlayer { Name = $"PooledSFX_{index}", Bus = "SFX" };
+                AudioStreamPlayer captured = player;
+                player.Finished += () => ReleaseSfx(captured);
+                AddChild(player);
+                _inactiveSfx.Enqueue(player);
+            }
         }
 
         private int GetOrCreateBus(string busName) {
@@ -69,12 +82,30 @@ namespace FTT.Core {
         }
 
         public void PlaySFX(AudioStream stream, Vector2 position = default) {
-            var player = new AudioStreamPlayer();
+            if (stream == null) return;
+            AudioStreamPlayer player;
+            if (_inactiveSfx.Count > 0) {
+                player = _inactiveSfx.Dequeue();
+            } else {
+                player = _activeSfxOrder[0];
+                _activeSfxOrder.RemoveAt(0);
+                _activeSfx.Remove(player);
+                player.Stop();
+            }
             player.Stream = stream;
-            player.Bus = "SFX";
-            AddChild(player);
+            player.VolumeDb = 0f;
+            player.PitchScale = 1f;
+            _activeSfx.Add(player);
+            _activeSfxOrder.Add(player);
             player.Play();
-            player.Finished += () => player.QueueFree();
+        }
+
+        private void ReleaseSfx(AudioStreamPlayer player) {
+            if (player == null || !_activeSfx.Remove(player)) return;
+            _activeSfxOrder.Remove(player);
+            player.Stop();
+            player.Stream = null;
+            _inactiveSfx.Enqueue(player);
         }
 
         public void TransitionToCombatStem() {

@@ -1,0 +1,28 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="1_marker"]
+[ext_resource type="Resource" path="res://resources/Contracts/checkpoint_contract.tres" id="2_contract"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/orb.svg" id="3_visual"]
+
+[sub_resource type="CircleShape2D" id="Collision"]
+radius = 64.0
+
+[node name="CheckpointTemplate" type="Node2D" groups=["checkpoint"]]
+
+[node name="Visual" type="Sprite2D" parent="."]
+texture = ExtResource("3_visual")
+
+[node name="ActivationArea" type="Area2D" parent="."]
+collision_layer = 256
+collision_mask = 1
+[node name="CollisionShape2D" type="CollisionShape2D" parent="ActivationArea"]
+shape = SubResource("Collision")
+
+[node name="SpawnAnchor" type="Marker2D" parent="."]
+position = Vector2(0, 48)
+
+[node name="ContentContract" type="Node" parent="."]
+script = ExtResource("1_marker")
+ContentID = "checkpoint_template"
+Contract = ExtResource("2_contract")
+

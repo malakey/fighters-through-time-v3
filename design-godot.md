@@ -476,6 +476,8 @@ The following singleton managers are registered as Godot **autoload** entries (P
 public enum CharacterState {
     Idle,                 // Default grounded state, accepting all inputs
     Running,              // Horizontal movement on ground
+    Dashing,              // Universal fast grounded burst; keeps combatant pushbox and has no invulnerability
+    Rolling,              // Universal evasive roll with startup, pass-through travel, and punishable recovery
     Skidding,             // Direction reversal skid on ground (3-frame turn lag)
     Crouching,            // Low-profile ducking on ground (-30% hurtbox height)
     Airborne,             // Jumping, falling, double-jumping, or any aerial state
@@ -496,6 +498,8 @@ public enum CharacterState {
 | From State | To State | Trigger |
 |---|---|---|
 | `Idle` | `Running` | Horizontal input detected |
+| `Idle` | `Dashing` | Double-tap digital direction or flick analog direction on ground |
+| `Idle` | `Rolling` | Roll input on ground; held direction selects travel direction |
 | `Idle` | `Crouching` | Down input held on ground |
 | `Idle` | `Airborne` | Jump input (or walk off edge) |
 | `Idle` | `Attacking` | Basic Attack input |
@@ -504,6 +508,13 @@ public enum CharacterState {
 | `Idle` | `Blocking` | Block input held |
 | `Idle` | `UsingMovementAbility` | Movement Ability input (if off cooldown) |
 | `Running` | `Idle` | Horizontal input released |
+| `Running` | `Dashing` | Double-tap digital direction or flick analog direction |
+| `Running` | `Rolling` | Roll input on ground |
+| `Dashing` | `Idle` | 12-frame dash completes or meets an opposing pushbox/wall |
+| `Dashing` | `Airborne` | Jump cancel after the 4-frame commitment window |
+| `Dashing` | `Attacking` | Basic attack cancel after the 4-frame commitment window |
+| `Rolling` | `Idle` | Startup, travel, and recovery sequence completes while grounded |
+| `Rolling` | `Airborne` | Roll sequence completes after leaving a platform edge |
 | `Running` | `Skidding` | Reverse horizontal input detected on ground |
 | `Skidding` | `Running` | Turnaround skid animation completes (3 frames / 0.05s) |
 | `Running` | `Crouching` | Down input held while running |
@@ -543,6 +554,9 @@ public enum CharacterState {
 | **Any State** | `Dead` | `currentHP` reaches 0 |
 
 #### **Player Movement & Feedback Defaults**
+*   **Run Acceleration:** Grounded movement reaches the character's normal maximum speed over 8 simulation frames. Air control retains its faster 4-frame acceleration response.
+*   **Universal Dash:** Digital controls double-tap Left/Right within 15 frames; analog controls flick from neutral past 85% magnitude. A dash lasts 12 frames at `1.35x` normal run speed, retains the combatant pushbox, grants no invulnerability, and may cancel into Jump or Basic Attack after a 4-frame commitment.
+*   **Universal Evasive Roll:** The dedicated Roll action defaults to `O` on keyboard and Right Trigger on controller. Direction comes from horizontal input or falls back to facing direction. The roll uses 4 startup frames, 12 travel frames at `1.5x` run speed, and 10 recovery frames. Only the first 8 travel frames are invulnerable. The combatant pushbox is disabled during travel so the roller can cross ordinary enemies/fighters; terrain remains solid and explicitly immovable bosses can block crossing.
 *   **Coyote Time Window:** `0.1s` (6 frames at 60Hz). Allows a grounded jump up to 6 frames after walking off a platform edge.
 *   **Jump Buffer Window:** `0.1s` (6 frames at 60Hz). Buffers jump inputs pressed up to 6 frames prior to landing on ground.
 *   **Double Jump Audio/Visual Feedback:** Executing a double jump instantiates an expanding cyan shockwave ring particle burst (`FX_DoubleJump_Ring`) at the character's feet and plays a pitch-shifted secondary jump SFX (`SFX_Jump_Secondary`).
@@ -943,6 +957,14 @@ All hitbox and hurtbox dimensions use world units (1 unit = 1 meter). Offsets ar
 *   **Ranged Projectile Colliders:** Default `Area2D` with `CollisionShape2D` (using `CircleShape2D`, radius `0.2 units`). Travel speed defined per-ability in `AbilityData.ProjectileSpeed` (typical range: 10–15 units/second). Projectiles auto-destroy after `ProjectileLifetime` seconds (default `5.0s`) if they have not collided with a target or gone out of bounds.
 *   **Special Ability Hitboxes:** Defined individually in each character's `AbilityData` Resource via `HitboxSize` and `HitboxOffset` fields.
 
+#### **Combatant Pushboxes / Jostling**
+Attack hitboxes and damage-receiving hurtboxes never block movement. Players, enemies, bosses, and Fighter combatants instead use a dedicated lower-torso pushbox for character-to-character spacing.
+
+*   Story Mode uses opposing `Area2D` pushbox volumes on the existing `Player` and `Enemy` body layers. A bounded soft solver separates overlaps horizontally, cancels only velocity moving farther into the opponent, and never treats another combatant as a floor.
+*   Fighter Mode applies the same rule in Klotho fixed-point state after authoritative movement. Stable Player IDs break exact-position ties, and the pushbox result is included in snapshots/hashes.
+*   Normal running and dashing cannot cross an opposing pushbox. Roll travel temporarily opts out of jostling, then restores separation for recovery.
+*   Ordinary Story enemies are roll-through. Large or immovable bosses may set `BlocksRollThrough`; a roll stops on the original side when it reaches one.
+
 #### **Hitbox Activation Timing**
 *   **Single-Frame Overlap Checks (Melee Attacks):** Basic melee attacks and single-hit special abilities use instantaneous `PhysicsServer2D` shape queries triggered by a single `AnimatedSprite2D` frame callback at the precise impact frame. The check executes once, collects all overlapping hurtboxes in that frame, and applies damage/knockback to each. No persistent collider is spawned.
 *   **Repeated Scheduled Checks (Multi-Hit & DoT Zones):** Multi-hit abilities, persistent damage zones (e.g., Tesla Coil arcs, Cleopatra's Sandstorm Vortex, Einstein's Relativity Rift), and deployed objects use **repeated overlap checks** executed at their specified `damageTickInterval`. A `SceneTreeTimer` or `_PhysicsProcess`-based scheduler fires the overlap query every tick interval for the ability's active duration.
@@ -974,6 +996,7 @@ Godot 2D physics collision layers (1–32) are configured to enforce clean colli
 *   `PlayerHitbox` does NOT collide with: `PlayerHurtbox` (no friendly fire)
 *   `EnemyHitbox` does NOT collide with: `EnemyHurtbox` (no enemy self-damage)
 *   `Trigger` does NOT collide with any physics layer (overlay triggers only, detected via `Area2D.BodyEntered` signal)
+*   `Player` and `Enemy` body colliders remain excluded from one another's physical masks. Their child pushbox Areas detect the opposing body layer and resolve horizontal jostling explicitly, avoiding vertical standing, wall-surfing, and `MoveAndSlide()` order jitter.
 
 ### **Defense Mechanics: Blocking**
 *   **Front-Facing Energy Barrier:** Holding the block button spawns a glowing, semi-transparent chronal energy barrier in front of the character. 
@@ -1655,6 +1678,7 @@ Online account management, authentication, player display names, friend lists, a
 | Action Name | Keyboard/Mouse Default | Gamepad (Xbox / PlayStation) Default | Description & Behavior |
 |---|---|---|---|
 | `Move` | `A` / `D` (or `Left` / `Right Arrow`) | `Left Stick` / `D-Pad Left/Right` | Horizontal character movement |
+| `Dash` | Double-tap `A` / `D` | Flick `Left Stick`; double-tap D-Pad Left/Right | Universal fast grounded approach; derived into a serialized one-tick action |
 | `Jump` | `Space` / `W` | `Button South` (`A` / `Cross`) | Jump, double jump |
 | `Down` | `S` / `Down Arrow` | `Left Stick Down` / `D-Pad Down` | Crouch; double-tap to drop through one-way platforms |
 | `BasicAttack` | `J` / `Left Mouse Button` | `Button West` (`X` / `Square`) | Execute 3-hit basic attack combo string |
@@ -1662,6 +1686,7 @@ Online account management, authentication, player display names, friend lists, a
 | `Special2` | `L` / `Middle Mouse Button` | `Right Bumper` (`RB` / `R1`) | Execute secondary special ability (10s cooldown) |
 | `MovementAbility` | `Left Shift` | `Left Bumper` (`LB` / `L1`) | Execute unique mobility move (dash, blink, glide; 5s cooldown) |
 | `Block` | `I` | `Left Trigger` (`LT` / `L2`) | Hold to project energy block barrier (3 block charges) |
+| `Roll` | `O` + horizontal direction | `Right Trigger` (`RT` / `R2`) + Left Stick/D-Pad | Universal evasive roll; neutral input uses facing direction |
 | `Ultimate` | `U` | `LB + RB` (`L1 + R1`) | Activate Ultimate attack when Influence Meter = 100% |
 | `Interact` | `E` | `Button East` (`B` / `Circle`) | Interact with portals, NPCs, levers, chests, and Time-Ship consoles |
 | `Pause` | `Escape` | `Start` / `Menu` | Toggle in-game pause menu |
@@ -3265,7 +3290,7 @@ The Settings Menu is accessible from the Main Menu and the Story Mode Pause Menu
     *   *Screen Mode:* Fullscreen, Borderless Window, or Windowed toggle.
     *   *V-Sync Toggle:* Enables/disables vertical synchronization via `DisplayServer.WindowSetVsyncMode()` to prevent screen tearing (locked at 60 FPS).
 *   **Controls & Keybindings:**
-    *   *Input Remapping:* Allows keyboard and controller button rebindings for all basic moves (Left, Right, Jump, Block, Basic Attack, Special 1, Special 2, Ultimate) via Godot's `InputMap` API. Remapped `InputMap` actions are serialized to JSON.
+    *   *Input Remapping:* Allows keyboard and controller button rebindings for all basic moves (Left, Right, Jump, Roll, Block, Basic Attack, Special 1, Special 2, Movement Ability, Ultimate) via Godot's `InputMap` API. Remapped `InputMap` actions are serialized to JSON. Dash remains a gesture derived from the remapped horizontal actions.
 *   **Gameplay Settings:**
     *   *Damage Numbers Toggle:* Toggles the floating combat text display on/off.
     *   *HUD Transparency Slider:* Adjusts alpha opacity of on-screen bars.

@@ -18,6 +18,7 @@ namespace FTT.FighterSim {
 
             AbilityData specialOne = data.SpecialAttackOne;
             AbilityData specialTwo = data.SpecialAttackTwo;
+            MovementAbilityData movement = data.MovementAbility;
             AbilityData ultimate = data.UltimateAttack;
             return new FighterLoadout(
                 (int)characterID,
@@ -45,7 +46,30 @@ namespace FTT.FighterSim {
                 KnockbackMagnitude(ultimate),
                 StatusIntensity(specialOne),
                 StatusIntensity(specialTwo),
-                StatusIntensity(ultimate));
+                StatusIntensity(ultimate),
+                new FighterAbilityLoadout(
+                    (int)(specialOne?.ExecutionType ?? AbilityExecutionType.Melee),
+                    (int)(specialTwo?.ExecutionType ?? AbilityExecutionType.Melee),
+                    DurationFrames(specialOne?.ProjectileLifetime ?? 0f),
+                    DurationFrames(specialTwo?.ProjectileLifetime ?? 0f),
+                    PersistentObjectTypeID(specialOne?.PersistentObjectID),
+                    specialOne?.MaxActiveObjects ?? 0,
+                    DurationFrames(specialOne?.Lifetime ?? 0f),
+                    PersistentObjectTypeID(specialTwo?.PersistentObjectID),
+                    specialTwo?.MaxActiveObjects ?? 0,
+                    DurationFrames(specialTwo?.Lifetime ?? 0f),
+                    (int)(movement?.MovementType ?? MovementType.Dash),
+                    CooldownFrames(movement),
+                    DurationFrames(movement?.MovementDuration ?? 0f),
+                    movement?.ResetsDoubleJump == true ? 1 : 0,
+                    movement?.GrantsHyperArmor == true ? 1 : 0,
+                    PersistentObjectTypeID(movement?.PersistentObjectID),
+                    movement?.MaxActiveObjects ?? 0,
+                    DurationFrames(movement?.Lifetime ?? 0f),
+                    WorldSpeed(specialOne?.ProjectileSpeed ?? 0f),
+                    WorldSpeed(specialTwo?.ProjectileSpeed ?? 0f),
+                    WorldDistance(movement?.DistanceMoved ?? 0f),
+                    WorldSpeed(movement?.MovementSpeed ?? 0f)));
         }
 
         public static bool TryGetCharacterID(string characterID, out FighterCharacterID value) {
@@ -75,5 +99,20 @@ namespace FTT.FighterSim {
 
         private static FP64 StatusIntensity(AbilityData ability) =>
             FP64.FromFloat(Math.Max(0f, ability?.StatusIntensity ?? 1f));
+
+        private static FP64 WorldSpeed(float pixelsPerSecond) =>
+            FP64.FromFloat(Math.Max(0f, pixelsPerSecond) / 60f);
+
+        private static FP64 WorldDistance(float pixels) =>
+            FP64.FromFloat(Math.Max(0f, pixels) / 60f);
+
+        public static int PersistentObjectTypeID(string objectTypeID) => objectTypeID switch {
+            "tesla_coil" => 1,
+            "clockwork_turret" => 2,
+            "serpent_nest" => 3,
+            "vine_snare" => 4,
+            "sonata_platform" => 5,
+            _ => 0
+        };
     }
 }

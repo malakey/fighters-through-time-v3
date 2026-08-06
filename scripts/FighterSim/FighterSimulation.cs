@@ -28,8 +28,9 @@ namespace FTT.FighterSim {
             int stocks = 3,
             int matchSeconds = 480,
             int seed = 2026,
-            int spawnDistance = 4)
-            : this(FighterLoadout.Default(playerOne), FighterLoadout.Default(playerTwo), stocks, matchSeconds, seed, spawnDistance) {
+            int spawnDistance = 4,
+            FighterMatchRules rules = default)
+            : this(FighterLoadout.Default(playerOne), FighterLoadout.Default(playerTwo), stocks, matchSeconds, seed, spawnDistance, rules) {
         }
 
         public FighterSimulation(
@@ -38,15 +39,22 @@ namespace FTT.FighterSim {
             int stocks = 3,
             int matchSeconds = 480,
             int seed = 2026,
-            int spawnDistance = 4) {
+            int spawnDistance = 4,
+            FighterMatchRules rules = default) {
             WarmupRegistry.RunAll();
             _simulation = new EcsSimulation(MaxEntities, RollbackHistoryTicks, deltaTimeMs: 16);
             _simulation.AddSystem(
-                new FighterWorldSystem(playerOne, playerTwo, stocks, matchSeconds * TickRate, seed, spawnDistance),
+                new FighterWorldSystem(playerOne, playerTwo, stocks, matchSeconds * TickRate, seed, spawnDistance, rules),
                 SystemPhase.PreUpdate);
             _simulation.AddSystem(new FighterInputSystem(), SystemPhase.PreUpdate);
             _simulation.AddSystem(new FighterMovementSystem(), SystemPhase.Update);
+            _simulation.AddSystem(new FighterAbilityEntitySystem(), SystemPhase.Update);
+            _simulation.AddSystem(new FighterPushboxSystem(), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterCombatSystem(), SystemPhase.PostUpdate);
+            _simulation.AddSystem(new FighterProjectileSystem(), SystemPhase.PostUpdate);
+            _simulation.AddSystem(new FighterPersistentObjectSystem(), SystemPhase.PostUpdate);
+            _simulation.AddSystem(new FighterHazardSystem(), SystemPhase.PostUpdate);
+            _simulation.AddSystem(new FighterOrbSystem(), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterMatchSystem(), SystemPhase.LateUpdate);
             _simulation.Initialize();
         }
@@ -70,15 +78,41 @@ namespace FTT.FighterSim {
             return StepStoredTick(tick);
         }
 
+        public long AdvanceWithPredictedRemote(int localPlayerID, PlayerInputFrame localInput) {
+            int tick = CurrentTick;
+            localInput.Tick = (uint)tick;
+            if (localPlayerID == 0) {
+                PlayerInputFrame predicted = PredictPlayerTwo(tick);
+                StoreInput(tick, localInput, predicted, true, false);
+            } else if (localPlayerID == 1) {
+                PlayerInputFrame predicted = PredictPlayerOne(tick);
+                StoreInput(tick, predicted, localInput, false, true);
+            } else {
+                throw new ArgumentOutOfRangeException(nameof(localPlayerID));
+            }
+            return StepStoredTick(tick);
+        }
+
         public bool CorrectPlayerTwoInput(int tick, PlayerInputFrame corrected) {
+            return CorrectRemoteInput(1, tick, corrected);
+        }
+
+        public bool CorrectRemoteInput(int remotePlayerID, int tick, PlayerInputFrame corrected) {
             int currentTick = CurrentTick;
             if (tick < 0 || tick >= currentTick || currentTick - tick > RollbackHistoryTicks) return false;
             int slot = tick % RollbackHistoryTicks;
             if (_history[slot].Tick != tick || !_simulation.HasSnapshot(tick)) return false;
 
             corrected.Tick = (uint)tick;
-            _history[slot].PlayerTwo = corrected;
-            _history[slot].PlayerTwoKnown = true;
+            if (remotePlayerID == 0) {
+                _history[slot].PlayerOne = corrected;
+                _history[slot].PlayerOneKnown = true;
+            } else if (remotePlayerID == 1) {
+                _history[slot].PlayerTwo = corrected;
+                _history[slot].PlayerTwoKnown = true;
+            } else {
+                return false;
+            }
             _simulation.Rollback(tick);
             for (int replayTick = tick; replayTick < currentTick; replayTick++) StepStoredTick(replayTick);
             return true;
@@ -112,6 +146,35 @@ namespace FTT.FighterSim {
 
         public FighterMatchComponent GetMatchState() =>
             _simulation.Frame.GetReadOnlySingleton<FighterMatchComponent>();
+
+        public int ProjectileCount => CountComponents<FighterProjectileComponent>();
+        public int PersistentObjectCount => CountComponents<FighterPersistentObjectComponent>();
+        public int HazardCount => CountComponents<FighterHazardComponent>();
+        public int OrbCount => CountComponents<FighterOrbComponent>();
+
+        public bool TryGetFirstProjectile(out FighterProjectileComponent projectile) =>
+            TryGetFirstComponent(out projectile);
+
+        public bool TryGetFirstPersistentObject(out FighterPersistentObjectComponent persistent) =>
+            TryGetFirstComponent(out persistent);
+
+        public bool TryGetFirstHazard(out FighterHazardComponent hazard) =>
+            TryGetFirstComponent(out hazard);
+
+        public bool TryGetFirstOrb(out FighterOrbComponent orb) =>
+            TryGetFirstComponent(out orb);
+
+        public void CopyProjectilesTo(List<FighterProjectileComponent> destination) =>
+            CopyComponentsTo(destination);
+
+        public void CopyPersistentObjectsTo(List<FighterPersistentObjectComponent> destination) =>
+            CopyComponentsTo(destination);
+
+        public void CopyHazardsTo(List<FighterHazardComponent> destination) =>
+            CopyComponentsTo(destination);
+
+        public void CopyOrbsTo(List<FighterOrbComponent> destination) =>
+            CopyComponentsTo(destination);
 
         public byte[] CaptureFullState() => _simulation.SerializeFullState();
 
@@ -163,6 +226,17 @@ namespace FTT.FighterSim {
             return predicted;
         }
 
+        private PlayerInputFrame PredictPlayerOne(int tick) {
+            if (tick <= 0) return new PlayerInputFrame { Tick = (uint)tick };
+            int priorSlot = PositiveModulo(tick - 1, RollbackHistoryTicks);
+            if (_history[priorSlot].Tick != tick - 1) return new PlayerInputFrame { Tick = (uint)tick };
+            PlayerInputFrame predicted = _history[priorSlot].PlayerOne;
+            predicted.Tick = (uint)tick;
+            predicted.Pressed = GameplayButtons.None;
+            predicted.Released = GameplayButtons.None;
+            return predicted;
+        }
+
         private static void SetCommand(FighterInputCommand command, int playerID, int tick, PlayerInputFrame input) {
             command.PlayerId = playerID;
             command.Tick = tick;
@@ -176,6 +250,30 @@ namespace FTT.FighterSim {
         private static int PositiveModulo(int value, int divisor) {
             int result = value % divisor;
             return result < 0 ? result + divisor : result;
+        }
+
+        private int CountComponents<T>() where T : unmanaged, IComponent {
+            int count = 0;
+            var filter = _simulation.Frame.Filter<T>();
+            while (filter.Next(out _)) count++;
+            return count;
+        }
+
+        private bool TryGetFirstComponent<T>(out T component) where T : unmanaged, IComponent {
+            var filter = _simulation.Frame.Filter<T>();
+            if (filter.Next(out EntityRef entity)) {
+                component = _simulation.Frame.GetReadOnly<T>(entity);
+                return true;
+            }
+            component = default;
+            return false;
+        }
+
+        private void CopyComponentsTo<T>(List<T> destination) where T : unmanaged, IComponent {
+            if (destination == null) throw new ArgumentNullException(nameof(destination));
+            destination.Clear();
+            var filter = _simulation.Frame.Filter<T>();
+            while (filter.Next(out EntityRef entity)) destination.Add(_simulation.Frame.GetReadOnly<T>(entity));
         }
 
         private struct InputRecord {

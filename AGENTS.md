@@ -98,6 +98,8 @@ localization/en.csv              English translation keys
 resources/Characters/            Nine CharacterData .tres resources
 resources/Abilities/             Thirty-six canonical character ability resources
 resources/Enemies/, Bosses/      Canonical prototype enemy and boss resources
+resources/Resonance/             Nine authored 3x3 Story Resonance Grids
+resources/FighterStages/         Ten-stage Fighter catalog and prototype presentation data
 scenes/menus/                    Main menu and character select
 scenes/campaign/                 Hub, tutorial, and Florence prototype scenes
 scenes/arenas/TestArena.tscn     Current combat test arena
@@ -108,8 +110,8 @@ scripts/Combat/                  Ability, hitbox, block, status, meter, match sy
 scripts/Enemies/                 Enemy/boss controllers, AI, and prototype factory
 scripts/Environment/             Hub, levels, rewind, hazards, dust, level flow
 scripts/UI/                      Menus, HUD, dialogue, settings, pause UI
-scripts/Networking/              Snapshot/room-code prototype only
-scripts/FighterSim/               Klotho fixed-point 1v1 simulation and Godot bridge
+scripts/Networking/              LAN UDP transport, packets, rollback session, room-code foundation
+scripts/FighterSim/              Klotho fixed-point 1v1 simulation and Godot bridge
 tests/                            GdUnit4 C# content/unit/integration/determinism tests
 addons/gdUnit4/                  Pinned test framework
 addons/klotho/                   Pinned experimental deterministic runtime
@@ -127,8 +129,8 @@ Do not edit or commit generated `.godot/` cache/output files as part of feature 
 - `GameManager` owns the persistent loading overlay and currently enforces a two-second minimum display time.
 - Cross-scene selections live in `GameManager.CurrentSession` (`SessionData`): selected character, selected stage, active save slot, difficulty, and `MatchSettings`.
 - Default match settings are Stock mode, 3 stocks, 480 seconds, items on/high, and hazards on/high.
-- `StoryManager` defines the complete level 0–15 enum, but its current scene-path table contains only Tutorial and Florence. Hub/tutorial/Florence and the test arena are implemented as prototype scenes; the rest of the campaign and production fighter stages are planned.
-- `TestArena` now uses `FighterSimulationDriver`: Klotho state is authoritative and the two `PlayerController` nodes are collision-free presentation adapters. This is an offline deterministic foundation, not a complete local or online match flow.
+- `StoryManager` defines target paths for levels 0–15, but only Tutorial and Florence scene resources exist. It validates a route before loading and reports missing production levels instead of changing to a broken scene. Hub/tutorial/Florence and the test arena remain prototype scenes; the rest of the campaign and production fighter stages are planned.
+- `TestArena` uses `FighterSimulationDriver`: Klotho state is authoritative and the two `PlayerController` nodes are collision-free presentation adapters. The local human/CPU match core, rules, results, rematch flow, stage select, and ten distinct deterministic hazard identities are functional. All ten catalog entries currently reuse the shared Test Arena template; production stage geometry, art, and presentation remain incomplete.
 - Several current scenes build placeholder visuals, geometry, actors, and UI programmatically in their controller scripts. This is valid prototyping state, not the intended final asset/scene-authoring pipeline.
 
 ## Autoloads and system ownership
@@ -139,7 +141,7 @@ Do not edit or commit generated `.godot/` cache/output files as part of feature 
 - `GameManager`: session data, defaults, and async scene transitions.
 - `StoryManager`: campaign level, dust, rewind count, and hub/level flow.
 - `PoolManager`: scene-pool registration, warm-up, spawn/release, and overflow policies.
-- `InputManager`: action names and local controller assignment.
+- `InputManager`: action names, local controller assignment, dedicated Roll capture, and deterministic Dash gesture conversion (digital double-tap or analog flick).
 - `SaveManager`: three story slots and global settings/statistics.
 - `AudioManager`: AudioServer bus control and music/SFX entry points.
 - `HapticFeedbackManager`: controller vibration settings and triggers.
@@ -157,8 +159,9 @@ Use the existing static `Instance` pattern for these services. Non-adjacent syst
 
 - Static identity and baseline tuning are Godot `Resource` objects (`CharacterData`) stored as `.tres` files.
 - Story runtime behavior is owned by `PlayerController : CharacterBody2D`. Fighter runtime behavior in the Test Arena is owned by `FighterSimulation`; `PlayerController` is presentation-only there.
-- The canonical state set is `Idle`, `Running`, `Skidding`, `Crouching`, `Airborne`, `Attacking`, `UsingSpecial`, `UsingUltimate`, `Blocking`, `Stunned`, `Dazed`, `LedgeHanging`, `Dead`, `Respawning`, and `UsingMovementAbility`.
-- Movement includes acceleration/deceleration, direction-reversal skid, coyote time, jump buffering, short-hop behavior, character-specific jump counts, air control, crouching, one-way platform drop-through, ledge hanging, and recovery.
+- The canonical state set is `Idle`, `Running`, `Dashing`, `Rolling`, `Skidding`, `Crouching`, `Airborne`, `Attacking`, `UsingSpecial`, `UsingUltimate`, `Blocking`, `Stunned`, `Dazed`, `LedgeHanging`, `Dead`, `Respawning`, and `UsingMovementAbility`.
+- Universal movement uses an eight-frame grounded run ramp, a 12-frame non-invulnerable `1.35x` dash, and a 4-startup/12-travel/10-recovery evasive roll. The first eight roll-travel frames are invulnerable. Dash keeps the combatant pushbox; roll travel disables it. These timings live in `UniversalMovementRules` and must remain aligned between Story and Fighter simulation.
+- Movement also includes direction-reversal skid, coyote time, jump buffering, short-hop behavior, character-specific jump counts, air control, crouching, one-way platform drop-through, ledge hanging, and recovery.
 - Story Mode may use native Godot `CharacterBody2D` physics. Local Test Arena Fighter Mode already uses Klotho fixed-point authority and must remain on that boundary; online work must not move authority back into `PhysicsServer2D`.
 
 ### Combat
@@ -190,24 +193,24 @@ The enum, strategies, ability data, events, and deterministic runtime use the ca
 
 ### Collision layers
 
-Layers 1–11 are named Player, Enemy, PlayerHitbox, EnemyHitbox, PlayerHurtbox, EnemyHurtbox, Environment, OneWayPlatform, Trigger, PersistentObject, and Projectile. `CollisionLayers` centralizes constants and masks, and tests validate the matrix. Update project settings, constants, scene masks, and tests together.
+Layers 1–11 are named Player, Enemy, PlayerHitbox, EnemyHitbox, PlayerHurtbox, EnemyHurtbox, Environment, OneWayPlatform, Trigger, PersistentObject, and Projectile. `CollisionLayers` centralizes constants and masks, and tests validate the matrix. Player/Enemy body masks deliberately remain physically separate; child `CombatantPushbox` Areas use those body layers for explicit soft horizontal jostling without making hurtboxes solid or allowing combatants to become floors. Ordinary enemies are roll-through, while large bosses can set `BlocksRollThrough`. Update project settings, constants, scene masks, pushboxes, and tests together.
 
 ## Story progression, rewind, and saves
 
 - Story difficulty scales enemy HP/damage/spawn pressure/drop rates and Chronal Rewind behavior; it must not alter Fighter Mode balance.
 - Rewind pools: Easy 5 with 100% HP restore and checkpoint refill; Normal 3 with 50% HP restore and +1 per new checkpoint; Hard 1 with 30% HP restore and no checkpoint refill during the level.
 - Rewind state records at 60 Hz and searches backward for a safe grounded frame, retaining a last-known grounded fallback beyond the normal five-second/300-frame buffer. If none exists, use the physical checkpoint.
-- Chronal Dust funds the selected character's Story-only Resonance Grid. Progress and unlocked node IDs belong to the story save slot.
-- There are three story slots plus global settings/statistics. Autosave at checkpoints, level completion, and unlock events.
-- The final save design requires schema versioning/migration, AES encryption, and HMAC integrity protection. The current story save implementation only Base64-encodes JSON, and global data is plain JSON. Treat that as prototype persistence, not security. Never add secrets as hardcoded source constants when implementing the secure design.
+- Chronal Dust funds the selected character's Story-only Resonance Grid. Progress and unlocked node IDs belong to the story save slot. All nine baseline 3x3 grids are authored; the generic Story stat resolver and character-scoped modifier queries exist, while bespoke character perk behavior still needs to be wired into the relevant abilities.
+- There are three story slots plus global settings/statistics. Autosave occurs at checkpoints, level completion, and unlock events. The main menu supports localized slot summaries plus confirmed deletion of the exact primary/backup/temp/corrupt candidates for a slot.
+- Save schema version 3 uses AES-256-CBC, encrypt-then-HMAC-SHA-256, distinct derived encryption/authentication keys, and a random per-install key stored at `user://saves/.savekey`. Writes are atomic and verified, backups can recover a bad primary, corrupt candidates are preserved, legacy Base64/plain JSON is migrated, completed puzzle IDs persist per slot, and newer schemas are rejected without rewriting them. Never replace the per-install strategy with a hardcoded source secret.
 
 ## Fighter networking and determinism
 
 `scripts/FighterSim/` implements a Klotho fixed-point (`FP64`/`FPVector2`) 1v1 foundation with quantized inputs, stable state IDs, full snapshots, deterministic hashes, a 120-tick history, prediction, corrected-input rollback, and resimulation. `FighterLoadoutFactory` accepts normalized base resources only, preserving Story/Fighter isolation. The Test Arena renders synchronized results without feeding Godot state back into gameplay.
 
-The current deterministic systems cover core ground/air movement, jump counts, solid side/top bounds, bottom-zone stocks, generic basics/specials/ultimates, block, meter, status, timer, and match resolution. Projectile/persistent-object/hazard components exist, but their full character-specific systems and lifecycle rollback tests remain incomplete. Klotho v0.6.1 is experimental and this is not production online netcode.
+The deterministic systems cover accelerated ground/air movement, universal dash/roll phases, fixed-point fighter jostling, jump counts, solid side/top bounds, bottom-zone stocks, generic basics/specials/ultimates, block, meter, status, Stock/Time/Hybrid resolution, projectiles, movement abilities, deploy-limited persistent constructs, stage hazards, and Chronal Orbs. Character-specific production behavior and rollback performance/platform gates remain incomplete. Klotho v0.6.1 is experimental and this is not production online netcode.
 
-The current `scripts/Networking/NetworkManager.cs` is only a placeholder: it toggles host/join flags, stores a short queue of float-based Godot snapshots, calculates a simple checksum, generates room codes, and has no transport, input prediction, resimulation, matchmaking service, Klotho world, or Steam integration. Do not extend this float snapshot queue as if it were the final rollback core. Networking changes should begin from the GDD's deterministic state schema and explicitly introduce the missing dependency/runtime boundary.
+`scripts/Networking/` now defines a versioned fixed-size input/hash protocol (currently protocol v2, including Roll/Dash button bits), acknowledgements, confirmed-frame hash exchange, direct-IP UDP LAN transport, deterministic in-memory test transport, remote prediction/correction, bounded rollback/resimulation, desync events, rollback-budget diagnostics, and cryptographically generated room codes. It does not yet have LAN discovery, handshake/rules negotiation, full-state resync, matchmaking UI, Steam Networking Sockets/relay, public queue, or production failure/forfeit flows.
 
 Initial online/local Fighter Mode is 1v1. Even if code contains generalized player-count fields, do not build four-player behavior in this phase.
 
@@ -215,6 +218,7 @@ Initial online/local Fighter Mode is 1v1. Even if code contains generalized play
 
 - UI is authored for a 1920×1080 reference canvas with Godot `Control` anchors and layout containers.
 - Use `Tr("translation_key")` / `TranslationServer.Translate(...)` or the localization manager for all visible copy. Add English entries to `localization/en.csv`. Do not add localized JSON payloads or language selectors until localization production is scheduled.
+- `project.godot` registers `res://localization/en.en.translation` with English fallback. Keep that resource registration intact: Godot `Node.Tr()` bypasses the custom `LocalizationManager` and otherwise displays raw translation keys as placeholder text.
 - Dialogue uses a 30-characters-per-second typewriter reveal. Confirm completes the active line, then advances on the next confirm. Full dialogue-sequence skipping is not supported.
 - Dynamic level music is designed as synchronized ambient, combat, and boss/climax stems routed through `AudioServer` buses.
 - Settings include audio buses, resolution/window mode/VSync, input remapping, damage-number visibility, HUD opacity, screen-shake scaling, and haptics. Persist settings in global save data.
@@ -256,18 +260,21 @@ $env:GODOT_BIN = "C:\path\to\Godot_v4.7.1-stable_mono_win64_console.exe"
 dotnet test FightersThroughTime.csproj --settings .runsettings
 ```
 
-The current baseline is 38 passing tests. Rewind safe-frame and save migration tests remain absent because those target systems are not implemented yet.
+The current baseline is 118 passing tests, including Roll default bindings, dash gesture/input serialization, Story pushbox geometry/resolution, authored combat timelines, ledge/one-way/aerial/crouch/hyper-armor rules, puzzle/environment toolkit behavior, stable-ID pool capacity/recycle/reject/reuse, difficulty drop contracts, Dust visual tiers, post-rewind immunity/presentation contracts, deterministic Fighter run acceleration/dash/roll/jostling, entity lifecycles, match modes, CPU decisions, delayed-input convergence, packet validation, safe-frame rewind behavior, all nine Resonance grid manifests/prerequisites/isolation, Fighter stage catalog/hazard identity, localization registration, schema-v3 save envelopes, deletion, tamper rejection, migration, and atomic backup recovery.
 
 ## Known prototype gaps to remember
 
 - Only the menu, character select, test arena, hub, tutorial, and Florence scenes exist.
-- Campaign scene routing only knows levels 0 and 1 even though the enum covers 0–15.
+- Campaign target routing names levels 0–15, but scene resources only exist for levels 0 and 1.
 - Much of the environment, character, enemy, and ability presentation is code-generated placeholder geometry.
-- The deterministic Fighter foundation is working offline, but character-specific constructs/projectiles/hazards, production rollback performance validation, transport, and matchmaking remain incomplete.
-- Steam Networking Sockets is not installed; `NetworkManager` remains legacy float snapshot/room-code scaffolding and is not authoritative.
-- Save encryption/integrity and version migration are not implemented.
-- Several UI strings in prototype scripts are still hardcoded despite the localization target.
-- Pool conversion, authored animation callbacks, and full FSM coverage are incomplete.
+- The deterministic Fighter and local match foundations work, and stage select exposes ten playable shared-template variants with distinct deterministic hazard identities. Character-specific production kits, ten independently authored production stages, rollback performance validation, and presentation polish remain incomplete.
+- Direct-IP LAN packets/rollback are implemented as a foundation. Steam Networking Sockets, relay, public matchmaking, connection negotiation, state resync, and production online UI are absent.
+- Secure schema-v3 saves, confirmed slot deletion, localized slot summaries, puzzle completion persistence, and all nine baseline Resonance Grid resources are implemented. Bespoke perk execution and complete hub stations/gates remain.
+- The shared puzzle/environment toolkit, Story drop tables/pickups, world-aware rewind freeze/projectile clearing, 120-frame landing immunity, and Timeline Collapse restart choice are implemented with replaceable placeholders. Full level authoring and final rewind/drop presentation remain later-package work.
+- The implemented menu, save, hub, tutorial, Florence, and Fighter stage-selection flows use translation keys. Continue auditing new and less-traveled prototype UI for hardcoded visible copy.
+- Stable-ID Story pools now cover placeholder projectiles/zones, current enemy instances, Dust/helper loot, placeholder VFX, and persistent constructs; production kit/boss/hazard scenes added later must enter these pools and preserve reset contracts. Placeholder authored animation callbacks cover the P0 combat path, while production animation libraries and broader FSM/content coverage remain incomplete.
+- Settings persist for implemented audio/display/accessibility options, but complete input-remapping persistence and reset-to-default behavior remain.
+- Levels 2–15, ten independently authored production Fighter stages, production character/environment art, complete music/VFX, performance profiling, exports, and platform validation remain.
 - `.gitignore` excludes generated output, but legacy `.godot/` files are already tracked and still appear in Git status. Do not remove them from the index without explicit repository-cleanup authorization.
 
 When a task closes one of these gaps, update this file so later agents inherit the new reality.

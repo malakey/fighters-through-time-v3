@@ -1,0 +1,41 @@
+[gd_resource type="Resource" script_class="StoryDropTable" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/StoryDropTable.cs" id="1_table"]
+[ext_resource type="Script" path="res://scripts/Environment/StoryDropProfile.cs" id="2_profile"]
+
+[sub_resource type="Resource" id="Easy"]
+script = ExtResource("2_profile")
+Difficulty = 0
+RandomItemChance = 0.3
+HealingAmount = 50
+BuffMultiplier = 1.5
+BuffDurationSeconds = 15.0
+HealingWeight = 2
+DamageBuffWeight = 1
+SpeedBuffWeight = 1
+
+[sub_resource type="Resource" id="Normal"]
+script = ExtResource("2_profile")
+Difficulty = 1
+RandomItemChance = 0.15
+HealingAmount = 25
+BuffMultiplier = 1.25
+BuffDurationSeconds = 10.0
+HealingWeight = 2
+DamageBuffWeight = 1
+SpeedBuffWeight = 1
+
+[sub_resource type="Resource" id="Hard"]
+script = ExtResource("2_profile")
+Difficulty = 2
+RandomItemChance = 0.05
+HealingAmount = 10
+BuffMultiplier = 1.0
+BuffDurationSeconds = 0.0
+HealingWeight = 1
+DamageBuffWeight = 0
+SpeedBuffWeight = 0
+
+[resource]
+script = ExtResource("1_table")
+Profiles = Array[ExtResource("2_profile")]([SubResource("Easy"), SubResource("Normal"), SubResource("Hard")])

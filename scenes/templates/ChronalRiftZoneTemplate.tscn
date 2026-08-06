@@ -1,0 +1,19 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/ChronalRiftZone.cs" id="1"]
+
+[sub_resource type="CircleShape2D" id="Shape"]
+radius = 120.0
+
+[node name="ChronalRiftZone" type="Area2D" groups=["story_hazard"]]
+collision_layer = 256
+collision_mask = 1
+script = ExtResource("1")
+RiftID = "placeholder_chronal_rift"
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Shape")
+
+[node name="Visual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(0, -120, 56, -82, 112, -30, 94, 42, 48, 104, -24, 116, -86, 62, -112, -12, -70, -88)
+color = Color(0.2, 0.86, 1, 0.32)

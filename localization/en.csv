@@ -7,6 +7,8 @@ menu_resume,Resume
 menu_save,Save Game
 menu_restart,Restart Level
 menu_exit,Exit
+menu_paused,PAUSED
+pause_quit_to_menu,Quit to Main Menu
 hud_hp,HP
 hud_ultimate,Ultimate
 hud_block_charges,Block
@@ -25,6 +27,9 @@ settings_resolution,Resolution
 settings_haptics,Controller Haptics
 settings_haptic_intensity,Haptic Intensity
 settings_difficulty,Default Difficulty
+settings_damage_numbers,Show Damage Numbers
+settings_hud_opacity,HUD Opacity
+settings_screen_shake,Screen Shake
 difficulty_easy,Easy
 difficulty_normal,Normal
 difficulty_hard,Hard
@@ -32,7 +37,8 @@ dialogue_continue,Press [E] to continue
 save_new_game,New Game
 save_load_game,Load Game
 save_delete,Delete Save
-save_confirm_delete,This action cannot be undone
+save_delete_title,Delete Story Save
+save_confirm_delete,Delete Slot {0} ({1})? This action cannot be undone.
 character_einstein_name,Albert Einstein
 character_joan_name,Joan of Arc
 character_leonardo_name,Leonardo da Vinci
@@ -131,6 +137,8 @@ fighter_state_respawning,Respawning
 fighter_state_dazed,Dazed
 fighter_state_stunned,Stunned
 fighter_state_blocking,Blocking
+fighter_state_dashing,Dashing
+fighter_state_rolling,Rolling
 fighter_state_grounded,Grounded
 fighter_state_airborne,Airborne
 status_none,None
@@ -142,4 +150,283 @@ status_root,Root
 test_arena_state,{0} | State: {1} | Facing: {2} | Jumps: {3} | Tick: {4} | Hash: {5}
 test_arena_vitals,P1 HP: {0}/{1} | Stocks: {2} | Influence: {3:F0}/100 | Block: {4} || P2 HP: {5}/{6} | Stocks: {7} | Influence: {8:F0}/100 | Block: {9}
 test_arena_cooldowns,Special 1: {0} | Special 2: {1} | Status: {2}
-test_arena_controls,A/D Move | Space/W Jump | J Attack | K Special 1 | L Special 2 | Shift Movement | I Block | U Ultimate | ESC Menu
+test_arena_controls,A/D Move | Double-tap A/D Dash | Space/W Jump | O Roll | J Attack | K/L Specials | Shift Movement | I Block | U Ultimate | ESC Menu
+common_back,Back
+fighter_select_title,SELECT YOUR FIGHTER
+fighter_start_match,FIGHT!
+fighter_player_selection,P{0}: {1}
+fighter_local_human,Local Human P2
+fighter_items,Chronal Orbs
+fighter_hazards,Stage Hazards
+fighter_mode_stock,Stock
+fighter_mode_time,Time
+fighter_mode_hybrid,Stock + Time
+fighter_stats_unavailable,Stats unavailable.
+fighter_stats_summary,"Max HP: {0}    Speed: {1:0.#}    Attack Damage: {2:0.#}\nKnockback: {3:0.#}    Weight: {4:0.#}    Block Charges: {5}\nStyle: {6}    Jump Force: {7:0.#}    Jumps: {8}"
+fighter_results_title,MATCH COMPLETE
+fighter_results_winner,Player {0} wins!
+fighter_results_draw,Draw
+fighter_rematch,Rematch
+fighter_change_fighters,Change Fighters
+fighter_main_menu,Main Menu
+resonance_einstein_u1_name,Minor Speed +2%
+resonance_einstein_u1_description,Increase Story Mode movement speed by 2%.
+resonance_einstein_u2_name,Minor Rift Range +10%
+resonance_einstein_u2_description,Increase Relativity Rift range by 10% in Story Mode.
+resonance_einstein_u3_name,Event Horizon
+resonance_einstein_u3_description,Relativity Rift gains the Event Horizon major perk.
+resonance_einstein_o1_name,Minor Damage +5%
+resonance_einstein_o1_description,Increase special damage by 5% in Story Mode.
+resonance_einstein_o2_name,Minor Projectile Speed +10%
+resonance_einstein_o2_description,Increase projectile speed by 10% in Story Mode.
+resonance_einstein_o3_name,Critical Mass
+resonance_einstein_o3_description,Mass-Energy Conversion gains the Critical Mass major perk.
+resonance_einstein_d1_name,Minor HP +15
+resonance_einstein_d1_description,Increase maximum HP by 15 in Story Mode.
+resonance_einstein_d2_name,Minor Block Health +10%
+resonance_einstein_d2_description,Increase block durability by 10% in Story Mode.
+resonance_einstein_d3_name,Quantum Entanglement
+resonance_einstein_d3_description,Gain the Quantum Entanglement major defensive perk.
+resonance_title,TEMPORAL RESONANCE GRID
+resonance_balance,Deposited Chronal Dust: {0}
+resonance_cost,Cost: {0}
+resonance_unlocked,UNLOCKED
+resonance_confirm_title,Confirm Resonance Unlock
+resonance_confirm_unlock,Unlock {0} for {1} Chronal Dust?
+resonance_grid_unavailable,This character's Resonance Grid is not authored yet.
+resonance_result_unlocked,Resonance node unlocked.
+resonance_result_already,That node is already unlocked.
+resonance_result_prerequisite,Unlock the prerequisite node first.
+resonance_result_dust,Not enough deposited Chronal Dust.
+resonance_result_unavailable,That node cannot be unlocked.
+game_title,FIGHTERS THROUGH TIME
+menu_subtitle,Temporal Resonance Prototype
+menu_quick_play,Quick Play (Einstein vs CPU)
+save_select_title,SELECT STORY SAVE
+save_slot_empty,Slot {0}: New Game
+save_slot_summary,"Slot {0}: {1} — {2}\n{3} | Last saved: {4}"
+save_completed,Campaign Complete
+save_timestamp_unknown,Unknown
+story_select_character,STORY MODE — SELECT CHARACTER
+story_select_difficulty,SELECT DIFFICULTY
+difficulty_easy_description,5 rewinds; full HP restoration; checkpoints refill the pool.
+difficulty_normal_description,3 rewinds; 50% HP restoration; checkpoints restore one rewind.
+difficulty_hard_description,1 rewind; 30% HP restoration; no checkpoint refill.
+resonance_joan_r1_name,Minor Dash Speed +5%
+resonance_joan_r1_description,Increase Story Mode movement speed by 5%.
+resonance_joan_r2_name,Minor Jump Height +5%
+resonance_joan_r2_description,Increase Story Mode jump force by 5%.
+resonance_joan_r3_name,Unstoppable Crusade
+resonance_joan_r3_description,Righteous Smite gains active-frame hyper-armor and Joan ignores knockback and hitstun for 1.5 seconds after casting.
+resonance_joan_m1_name,Minor Melee Damage +5%
+resonance_joan_m1_description,Increase Story Mode basic attack damage by 5%.
+resonance_joan_m2_name,Minor Combo Speed +5%
+resonance_joan_m2_description,Increase Martyr's Flurry combo speed by 5%.
+resonance_joan_m3_name,Zealous Vigor
+resonance_joan_m3_description,The final Martyr's Flurry cleave heals 5% of Joan's missing HP when it connects.
+resonance_joan_d1_name,Minor Armor +5%
+resonance_joan_d1_description,Improve Joan's Story Mode armor behavior by 5%.
+resonance_joan_d2_name,Minor HP +20
+resonance_joan_d2_description,Increase Story Mode maximum HP by 20.
+resonance_joan_d3_name,Shield of Orleans
+resonance_joan_d3_description,Damage taken while blocking builds Influence 25% faster.
+resonance_leonardo_a1_name,Minor Spiral Damage +8%
+resonance_leonardo_a1_description,Increase Golden Ratio damage by 8% in Story Mode.
+resonance_leonardo_a2_name,Minor Spiral Range +10%
+resonance_leonardo_a2_description,Increase Golden Ratio range by 10% in Story Mode.
+resonance_leonardo_a3_name,Master Stroke
+resonance_leonardo_a3_description,Golden Ratio deals 15% more damage and pulls enemies toward its center on each tick.
+resonance_leonardo_e1_name,Minor Turret HP +15%
+resonance_leonardo_e1_description,Increase Clockwork Turret health by 15% in Story Mode.
+resonance_leonardo_e2_name,Minor Bolt Damage +5%
+resonance_leonardo_e2_description,Increase Clockwork Turret bolt damage by 5% in Story Mode.
+resonance_leonardo_e3_name,Clockwork Overdrive
+resonance_leonardo_e3_description,Clockwork Turret fires five rapid bolts instead of three before self-destructing.
+resonance_leonardo_m1_name,Minor Glide Speed +10%
+resonance_leonardo_m1_description,Increase Ornithopter glide speed by 10% in Story Mode.
+resonance_leonardo_m2_name,Minor Jump Force +5%
+resonance_leonardo_m2_description,Increase Story Mode jump force by 5%.
+resonance_leonardo_m3_name,Daedalus Wings
+resonance_leonardo_m3_description,Ornithopter Flight leaves damaging steam and can cancel directly into a downward melee attack.
+resonance_tesla_c1_name,Minor Coil Duration +10%
+resonance_tesla_c1_description,Increase Tesla Coil duration by 10% in Story Mode.
+resonance_tesla_c2_name,Minor Coil Range +15%
+resonance_tesla_c2_description,Increase Tesla Coil range by 15% in Story Mode.
+resonance_tesla_c3_name,Resonant Overdrive
+resonance_tesla_c3_description,Tesla Coils last five seconds longer and fire electrical arcs 25% faster.
+resonance_tesla_p1_name,Minor Pulse Damage +10%
+resonance_tesla_p1_description,Increase Lorentz Pulse damage by 10% in Story Mode.
+resonance_tesla_p2_name,Minor Stun Duration +15%
+resonance_tesla_p2_description,Increase Lorentz Pulse status duration by 15% in Story Mode.
+resonance_tesla_p3_name,Lorentz Attraction
+resonance_tesla_p3_description,Lorentz Pulse pulls enemies inward before rooting them and increases root duration by one second.
+resonance_tesla_w1_name,Minor Move Speed +3%
+resonance_tesla_w1_description,Increase Story Mode movement speed by 3%.
+resonance_tesla_w2_name,Minor Cooldown Reduction +10%
+resonance_tesla_w2_description,Reduce Story Mode ability cooldowns by 10%.
+resonance_tesla_w3_name,Wardenclyffe Shield
+resonance_tesla_w3_description,Standing near an active Tesla Coil charges a shield worth 15% of Tesla's maximum HP.
+resonance_shakespeare_t1_name,Minor Quill Range +10%
+resonance_shakespeare_t1_description,Increase quill attack range by 10% in Story Mode.
+resonance_shakespeare_t2_name,Minor Ink Damage +12%
+resonance_shakespeare_t2_description,Increase Story Mode special damage by 12%.
+resonance_shakespeare_t3_name,Macbeth's Curse
+resonance_shakespeare_t3_description,Yorick's Lament also applies Venom damage once per second for three seconds.
+resonance_shakespeare_c1_name,Minor Wind Pushback +15%
+resonance_shakespeare_c1_description,Increase The Tempest knockback by 15% in Story Mode.
+resonance_shakespeare_c2_name,Minor Move Speed +3%
+resonance_shakespeare_c2_description,Increase Story Mode movement speed by 3%.
+resonance_shakespeare_c3_name,Midsummer Glide
+resonance_shakespeare_c3_description,Prospero's Flight deals 8 damage to crossed enemies and gains 20% maximum glide speed.
+resonance_shakespeare_h1_name,Minor Block Health +10%
+resonance_shakespeare_h1_description,Improve Story Mode block durability by 10%.
+resonance_shakespeare_h2_name,Minor Max HP +15
+resonance_shakespeare_h2_description,Increase Story Mode maximum HP by 15.
+resonance_shakespeare_h3_name,Henry's Bastion
+resonance_shakespeare_h3_description,A successful block summons a phantom guard shield worth 10% of maximum HP.
+resonance_mozart_a1_name,Minor Move Speed +3%
+resonance_mozart_a1_description,Increase Story Mode movement speed by 3%.
+resonance_mozart_a2_name,Minor Drift Duration +15%
+resonance_mozart_a2_description,Increase Sonata Drift duration by 15% in Story Mode.
+resonance_mozart_a3_name,Virtuoso Dash
+resonance_mozart_a3_description,Sonata Drift grants 20% movement speed and immunity to ranged projectiles.
+resonance_mozart_f1_name,Minor Projectile Speed +10%
+resonance_mozart_f1_description,Increase Requiem Chord projectile speed by 10% in Story Mode.
+resonance_mozart_f2_name,Minor Chord Damage +10%
+resonance_mozart_f2_description,Increase Requiem Chord damage by 10% in Story Mode.
+resonance_mozart_f3_name,Requiem Crescendo
+resonance_mozart_f3_description,Requiem Chord detonates twice with a wider secondary shockwave at 50% damage.
+resonance_mozart_p1_name,Minor Max HP +15
+resonance_mozart_p1_description,Increase Story Mode maximum HP by 15.
+resonance_mozart_p2_name,Minor Cooldown Reduction +10%
+resonance_mozart_p2_description,Reduce Story Mode ability cooldowns by 10%.
+resonance_mozart_p3_name,Rest Shield
+resonance_mozart_p3_description,Standing still or blocking for 1.5 seconds creates a shield against physical projectiles.
+resonance_cleopatra_al1_name,Minor Scepter Damage +8%
+resonance_cleopatra_al1_description,Increase Story Mode basic attack damage by 8%.
+resonance_cleopatra_al2_name,Minor Venom Damage +15%
+resonance_cleopatra_al2_description,Increase Venom damage by 15% in Story Mode.
+resonance_cleopatra_al3_name,Asp's Bite
+resonance_cleopatra_al3_description,Venom deals double damage to airborne enemies.
+resonance_cleopatra_dm1_name,Minor Sand Radius +15%
+resonance_cleopatra_dm1_description,Increase Sandstorm Vortex radius by 15% in Story Mode.
+resonance_cleopatra_dm2_name,Minor Sand Duration +20%
+resonance_cleopatra_dm2_description,Increase Sandstorm Vortex duration by 20% in Story Mode.
+resonance_cleopatra_dm3_name,Quicksand Grip
+resonance_cleopatra_dm3_description,Desert Mirage roots enemies standing in Sandstorm Vortex for one second.
+resonance_cleopatra_pw1_name,Minor Max HP +15
+resonance_cleopatra_pw1_description,Increase Story Mode maximum HP by 15.
+resonance_cleopatra_pw2_name,Minor Block Health +10%
+resonance_cleopatra_pw2_description,Improve Story Mode block durability by 10%.
+resonance_cleopatra_pw3_name,Royal Aegis
+resonance_cleopatra_pw3_description,Desert Mirage grants a shield worth 10% of Cleopatra's maximum HP.
+resonance_lincoln_l1_name,Minor Rail Range +10%
+resonance_lincoln_l1_description,Increase Lincoln's rail attack range by 10% in Story Mode.
+resonance_lincoln_l2_name,Minor Shockwave Damage +15%
+resonance_lincoln_l2_description,Increase The Emancipator damage by 15% in Story Mode.
+resonance_lincoln_l3_name,Executive Order
+resonance_lincoln_l3_description,The Emancipator travels 50% farther and deals 20% bonus damage.
+resonance_lincoln_s1_name,Minor Max HP +25
+resonance_lincoln_s1_description,Increase Story Mode maximum HP by 25.
+resonance_lincoln_s2_name,Minor Block Health +15%
+resonance_lincoln_s2_description,Improve Story Mode block durability by 15%.
+resonance_lincoln_s3_name,Homestead Bulwark
+resonance_lincoln_s3_description,Hitting an enemy with Rail Charge grants three seconds of hyper-armor.
+resonance_lincoln_r1_name,Minor Move Speed +4%
+resonance_lincoln_r1_description,Increase Story Mode movement speed by 4%.
+resonance_lincoln_r2_name,Minor Cooldown Reduction +10%
+resonance_lincoln_r2_description,Reduce Story Mode ability cooldowns by 10%.
+resonance_lincoln_r3_name,Kinetic Splitting
+resonance_lincoln_r3_description,Lincoln's downward crush shatters shields instantly.
+resonance_pocahontas_fs1_name,Minor Staff Damage +8%
+resonance_pocahontas_fs1_description,Increase Story Mode basic attack damage by 8%.
+resonance_pocahontas_fs2_name,Minor Snare Damage +15%
+resonance_pocahontas_fs2_description,Increase Vine Snare damage by 15% in Story Mode.
+resonance_pocahontas_fs3_name,Thorn Snare
+resonance_pocahontas_fs3_description,Rooted enemies take continuous physical damage.
+resonance_pocahontas_wr1_name,Minor Jump Height +15%
+resonance_pocahontas_wr1_description,Increase Story Mode jump force by 15%.
+resonance_pocahontas_wr2_name,Minor Glide Duration +20%
+resonance_pocahontas_wr2_description,Increase Breeze Glide duration by 20% in Story Mode.
+resonance_pocahontas_wr3_name,Tornado Lift
+resonance_pocahontas_wr3_description,Starting Breeze Glide creates an updraft that launches nearby enemies.
+resonance_pocahontas_pw1_name,Minor Max HP +15
+resonance_pocahontas_pw1_description,Increase Story Mode maximum HP by 15.
+resonance_pocahontas_pw2_name,Minor Block Recovery +10%
+resonance_pocahontas_pw2_description,Improve Story Mode block recovery by 10%.
+resonance_pocahontas_pw3_name,Leaf Barrier
+resonance_pocahontas_pw3_description,Breeze Glide grants a shield worth 10% of Pocahontas's maximum HP.
+fighter_stage,Stage
+fighter_stage_prototype,Functional prototype arena
+loading,LOADING...
+stage_florence_name,Florence Workshop
+stage_florence_layout,Central floor with two wooden gear platforms.
+stage_florence_hazard_name,Siege Mech Steam Pipe
+stage_florence_hazard_description,Steam vents deal minor damage and launch fighters upward.
+stage_orleans_name,Orléans Vanguard
+stage_orleans_layout,Symmetrical battlements with triangular stone platforms.
+stage_orleans_hazard_name,English Trebuchet Fire
+stage_orleans_hazard_description,Burning debris rolls through the threatened arena zone.
+stage_chicago_name,Chicago Exposition
+stage_chicago_layout,Metallic floor framed by two conductor-coil platforms.
+stage_chicago_hazard_name,Tesla Coil Induction
+stage_chicago_hazard_description,Electrical grids damage and Static Charge caught fighters.
+stage_paris_name,Paris Bastille
+stage_paris_layout,Drawbridge walkways frame a lower central fighting space.
+stage_paris_hazard_name,Neural-Dampening Beam
+stage_paris_hazard_description,A sweeping beam drains Influence while a fighter remains exposed.
+stage_vesuvius_name,Vesuvius Caldera
+stage_vesuvius_layout,Rocky slopes and two narrow stone ledges.
+stage_vesuvius_hazard_name,Volcanic Rockfall
+stage_vesuvius_hazard_description,Falling temporal rocks damage and slow caught fighters.
+stage_nassau_name,Nassau Flagship
+stage_nassau_layout,A burning ship deck with raised wooden yards.
+stage_nassau_hazard_name,British Navy Mortar
+stage_nassau_hazard_description,Warning zones precede high-launching mortar explosions.
+stage_alexandria_name,Alexandria Chambers
+stage_alexandria_layout,A sandy floor with two raised stone sarcophagi.
+stage_alexandria_hazard_name,Shifting Sand Sinkhole
+stage_alexandria_hazard_description,Quicksand slows fighters inside the active zone.
+stage_berlin_name,Berlin Wall
+stage_berlin_layout,A snowy street beneath two guard-tower balconies.
+stage_berlin_hazard_name,Surveillance Searchlight
+stage_berlin_hazard_description,Searchlights mark a zone before automated lasers fire.
+stage_globe_name,Globe Theatre Stage
+stage_globe_layout,An open wooden stage with tiered side galleries.
+stage_globe_hazard_name,Audience Heckle
+stage_globe_hazard_description,Thrown audience props strike fighters in the targeted zone.
+stage_gettysburg_name,Gettysburg Ridge
+stage_gettysburg_layout,A dirt ridge crossed by two broken rail platforms.
+stage_gettysburg_hazard_name,Laser Artillery Strike
+stage_gettysburg_hazard_description,A long warning line precedes a powerful artillery blast.
+hub_portal_prompt,"TEMPORAL PORTAL\n[E] Enter"
+hub_repository,CHRONAL REPOSITORY
+hub_ship_title,THE ARCHIVE TIME-SHIP
+hub_interaction_help,Archive Time-Ship | [E] Interact with Portal or Repository
+hub_next_mission,Next Mission: {0}
+hub_carried_dust,Chronal Dust: {0}
+campaign_level_tutorial,Chronal Integration
+campaign_level_florence,"Florence 1503 — Steampunk Renaissance"
+tutorial_environment_title,CALIBRATION BAY - TRAINING SIMULATION
+tutorial_level_title,LEVEL 0: CHRONAL INTEGRATION
+tutorial_objective_wave_one,Defeat the hologram drones! (Wave 1)
+tutorial_objective_wave_two,Defeat the remaining holograms! (Wave 2)
+tutorial_objective_progress,Enemies defeated: {0}/{1}
+tutorial_objective_complete,CALIBRATION COMPLETE! Returning to Time-Ship...
+tutorial_controls,Move: A/D | Dash: Double-tap A/D | Roll: O + Direction | Jump: Space | Attack: J | Specials: K/L | Block: I
+checkpoint,CHECKPOINT
+florence_room_entry,ENTRY COURTYARD
+florence_room_print_shop,PRINT SHOP BASEMENT
+florence_room_workshop,WORKSHOP PASSAGE
+florence_room_boss,BOSS: THE BORGIA INQUISITOR
+florence_level_title,"LEVEL 1: THE STEAMPUNK RENAISSANCE — FLORENCE 1503"
+florence_objective_reach_boss,Clear the enemies and reach the boss!
+florence_objective_complete,LEVEL COMPLETE! Returning to Time-Ship...
+boss_hp,{0} - HP: {1}/{2}
+boss_defeated,{0} - DEFEATED!
+interaction_use_lever,Press Interact to use lever
+interaction_rotate_coil,Press Interact to rotate coil
+interaction_open_chest,Press Interact to open chest
+timeline_collapse_title,Timeline Collapsed
+timeline_restart_anchor,Restart from Timeline Anchor
+timeline_restart_level,Restart Level from Beginning

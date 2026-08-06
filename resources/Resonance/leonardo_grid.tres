@@ -1,0 +1,106 @@
+[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceGridData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceNodeData.cs" id="2"]
+
+[sub_resource type="Resource" id="A1"]
+script = ExtResource("2")
+NodeID = "leonardo_a1"
+DisplayNameKey = "resonance_leonardo_a1_name"
+DescriptionKey = "resonance_leonardo_a1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "SpecialDamage"
+StatModifierValue = 0.08
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="A2"]
+script = ExtResource("2")
+NodeID = "leonardo_a2"
+DisplayNameKey = "resonance_leonardo_a2_name"
+DescriptionKey = "resonance_leonardo_a2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("leonardo_a1")
+StatModifierKey = "AttackRange"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="A3"]
+script = ExtResource("2")
+NodeID = "leonardo_a3"
+DisplayNameKey = "resonance_leonardo_a3_name"
+DescriptionKey = "resonance_leonardo_a3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("leonardo_a2")
+AbilityModifierKey = "master_stroke"
+
+[sub_resource type="Resource" id="E1"]
+script = ExtResource("2")
+NodeID = "leonardo_e1"
+DisplayNameKey = "resonance_leonardo_e1_name"
+DescriptionKey = "resonance_leonardo_e1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "PersistentHealth"
+StatModifierValue = 0.15
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="E2"]
+script = ExtResource("2")
+NodeID = "leonardo_e2"
+DisplayNameKey = "resonance_leonardo_e2_name"
+DescriptionKey = "resonance_leonardo_e2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("leonardo_e1")
+StatModifierKey = "ProjectileDamage"
+StatModifierValue = 0.05
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="E3"]
+script = ExtResource("2")
+NodeID = "leonardo_e3"
+DisplayNameKey = "resonance_leonardo_e3_name"
+DescriptionKey = "resonance_leonardo_e3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("leonardo_e2")
+AbilityModifierKey = "clockwork_overdrive"
+
+[sub_resource type="Resource" id="M1"]
+script = ExtResource("2")
+NodeID = "leonardo_m1"
+DisplayNameKey = "resonance_leonardo_m1_name"
+DescriptionKey = "resonance_leonardo_m1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "GlideSpeed"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="M2"]
+script = ExtResource("2")
+NodeID = "leonardo_m2"
+DisplayNameKey = "resonance_leonardo_m2_name"
+DescriptionKey = "resonance_leonardo_m2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("leonardo_m1")
+StatModifierKey = "JumpForce"
+StatModifierValue = 0.05
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="M3"]
+script = ExtResource("2")
+NodeID = "leonardo_m3"
+DisplayNameKey = "resonance_leonardo_m3_name"
+DescriptionKey = "resonance_leonardo_m3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("leonardo_m2")
+AbilityModifierKey = "daedalus_wings"
+
+[resource]
+script = ExtResource("1")
+GridID = "leonardo_resonance_grid"
+CharacterID = "leonardo"
+Nodes = Array[ExtResource("2")]([SubResource("A1"), SubResource("A2"), SubResource("A3"), SubResource("E1"), SubResource("E2"), SubResource("E3"), SubResource("M1"), SubResource("M2"), SubResource("M3")])

@@ -1,0 +1,161 @@
+using System.Collections.Generic;
+using FTT.Core;
+using FTT.Environment;
+using GdUnit4;
+using Godot;
+using static GdUnit4.Assertions;
+
+namespace FTT.Tests.Unit;
+
+[TestSuite]
+[RequireGodotRuntime]
+public class ResonanceProgressionTests {
+    private static readonly string[] CharacterIDs = {
+        "einstein", "joan", "leonardo", "lincoln", "cleopatra",
+        "tesla", "shakespeare", "mozart", "pocahontas"
+    };
+
+    [TestCase]
+    public void UnlockRequiresDustAndAllPrerequisites() {
+        ResonanceGridData grid = BuildGrid();
+        StorySaveData save = BuildSave(125);
+
+        AssertThat(ResonanceProgression.TryUnlock(grid, save, "einstein_d2"))
+            .IsEqual(ResonanceUnlockResult.MissingPrerequisite);
+        AssertThat(ResonanceProgression.TryUnlock(grid, save, "einstein_d1"))
+            .IsEqual(ResonanceUnlockResult.Unlocked);
+        AssertThat(save.DepositedChronalDust["einstein"]).IsEqual(75);
+        AssertThat(ResonanceProgression.TryUnlock(grid, save, "einstein_d2"))
+            .IsEqual(ResonanceUnlockResult.Unlocked);
+        AssertThat(save.DepositedChronalDust["einstein"]).IsEqual(0);
+    }
+
+    [TestCase]
+    public void ResolvedModifiersAreStoryOnlyValues() {
+        ResonanceGridData grid = BuildGrid();
+        StorySaveData save = BuildSave(500);
+        save.GridProgress["einstein"] = new List<string> { "einstein_d1", "einstein_u1" };
+
+        StoryStatProfile profile = ResonanceProgression.Resolve(grid, save);
+        AssertThat(profile.MaxHPBonus).IsEqual(15);
+        AssertThat(profile.MoveSpeedMultiplier).IsEqual(1.02f);
+        AssertThat(profile.BasicDamageMultiplier).IsEqual(1f);
+    }
+
+    [TestCase]
+    public void GridCannotSpendAnotherCampaignCharactersDust() {
+        ResonanceGridData grid = BuildGrid();
+        StorySaveData save = BuildSave(500);
+        save.SelectedCharacterID = "joan";
+
+        AssertThat(ResonanceProgression.TryUnlock(grid, save, "einstein_d1"))
+            .IsEqual(ResonanceUnlockResult.WrongCharacter);
+        AssertThat(save.DepositedChronalDust["einstein"]).IsEqual(500);
+    }
+
+    [TestCase]
+    public void AllCharacterGridsHaveThreeValidThreeNodeBranchesAndLocalizedCopy() {
+        TranslationServer.SetLocale("en");
+        var allNodeIDs = new HashSet<string>();
+        foreach (string characterID in CharacterIDs) {
+            ResonanceGridData grid = ResourceLoader.Load<ResonanceGridData>(
+                $"res://resources/Resonance/{characterID}_grid.tres");
+            AssertObject(grid).IsNotNull();
+            AssertString(grid.CharacterID).IsEqual(characterID);
+            AssertThat(grid.Nodes.Length).IsEqual(9);
+
+            int tierOne = 0;
+            int tierTwo = 0;
+            int majors = 0;
+            var gridIDs = new HashSet<string>();
+            foreach (ResonanceNodeData node in grid.Nodes) {
+                AssertObject(node).IsNotNull();
+                AssertThat(gridIDs.Add(node.NodeID)).IsTrue();
+                AssertThat(allNodeIDs.Add(node.NodeID)).IsTrue();
+                AssertThat(string.IsNullOrWhiteSpace(node.DisplayNameKey)).IsFalse();
+                AssertThat(string.IsNullOrWhiteSpace(node.DescriptionKey)).IsFalse();
+                AssertThat(TranslationServer.Translate(node.DisplayNameKey) != node.DisplayNameKey).IsTrue();
+                AssertThat(TranslationServer.Translate(node.DescriptionKey) != node.DescriptionKey).IsTrue();
+                if (node.Type == ResonanceNodeType.Major) {
+                    majors++;
+                    AssertThat(node.UnlockCost).IsEqual(200);
+                    AssertThat(node.PrerequisiteNodeIDs.Length).IsEqual(1);
+                    AssertThat(string.IsNullOrWhiteSpace(node.AbilityModifierKey)).IsFalse();
+                } else if (node.PrerequisiteNodeIDs.Length == 0) {
+                    tierOne++;
+                    AssertThat(node.UnlockCost).IsEqual(50);
+                } else {
+                    tierTwo++;
+                    AssertThat(node.UnlockCost).IsEqual(75);
+                    AssertThat(node.PrerequisiteNodeIDs.Length).IsEqual(1);
+                }
+            }
+            AssertThat(tierOne).IsEqual(3);
+            AssertThat(tierTwo).IsEqual(3);
+            AssertThat(majors).IsEqual(3);
+            foreach (ResonanceNodeData node in grid.Nodes) {
+                foreach (string prerequisite in node.PrerequisiteNodeIDs) {
+                    AssertThat(gridIDs.Contains(prerequisite)).IsTrue();
+                }
+            }
+        }
+    }
+
+    [TestCase]
+    public void UnlockedGenericAndMajorModifiersRemainCharacterScoped() {
+        ResonanceGridData grid = ResourceLoader.Load<ResonanceGridData>(
+            "res://resources/Resonance/tesla_grid.tres");
+        StorySaveData save = new() {
+            SelectedCharacterID = "tesla",
+            DepositedChronalDust = new Dictionary<string, int>(),
+            GridProgress = new Dictionary<string, List<string>> {
+                ["tesla"] = new() { "tesla_c1", "tesla_c2", "tesla_c3" }
+            }
+        };
+
+        AssertThat(ResonanceProgression.GetUnlockedStatTotal(grid, save, "PersistentDuration"))
+            .IsEqual(0.1f);
+        AssertThat(ResonanceProgression.GetUnlockedStatTotal(grid, save, "PersistentRange"))
+            .IsEqual(0.15f);
+        AssertThat(ResonanceProgression.HasUnlockedAbilityModifier(grid, save, "resonant_overdrive"))
+            .IsTrue();
+        save.SelectedCharacterID = "einstein";
+        AssertThat(ResonanceProgression.HasUnlockedAbilityModifier(grid, save, "resonant_overdrive"))
+            .IsFalse();
+    }
+
+    private static StorySaveData BuildSave(int dust) => new() {
+        SelectedCharacterID = "einstein",
+        DepositedChronalDust = new Dictionary<string, int> { ["einstein"] = dust },
+        GridProgress = new Dictionary<string, List<string>>()
+    };
+
+    private static ResonanceGridData BuildGrid() => new() {
+        CharacterID = "einstein",
+        Nodes = new[] {
+            new ResonanceNodeData {
+                NodeID = "einstein_d1",
+                UnlockCost = 50,
+                PrerequisiteNodeIDs = System.Array.Empty<string>(),
+                StatModifierKey = "MaxHP",
+                StatModifierValue = 15
+            },
+            new ResonanceNodeData {
+                NodeID = "einstein_d2",
+                UnlockCost = 75,
+                PrerequisiteNodeIDs = new[] { "einstein_d1" },
+                StatModifierKey = "BlockDurability",
+                StatModifierValue = 0.1f,
+                StatModifierIsPercent = true
+            },
+            new ResonanceNodeData {
+                NodeID = "einstein_u1",
+                UnlockCost = 50,
+                PrerequisiteNodeIDs = System.Array.Empty<string>(),
+                StatModifierKey = "MoveSpeed",
+                StatModifierValue = 0.02f,
+                StatModifierIsPercent = true
+            }
+        }
+    };
+}

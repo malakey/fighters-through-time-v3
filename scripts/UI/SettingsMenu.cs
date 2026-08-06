@@ -23,6 +23,9 @@ namespace FTT.UI {
         private HSlider _hapticSlider;
         private CheckButton _hapticToggle;
         private OptionButton _difficultyDropdown;
+        private CheckButton _damageNumbersToggle;
+        private HSlider _hudOpacitySlider;
+        private HSlider _screenShakeSlider;
 
         public override void _Ready() {
             ProcessMode = ProcessModeEnum.Always;
@@ -52,7 +55,7 @@ namespace FTT.UI {
             panel.AddChild(_container);
 
             var title = new Label();
-            title.Text = "SETTINGS";
+            title.Text = Tr("menu_settings").ToUpperInvariant();
             title.HorizontalAlignment = HorizontalAlignment.Center;
             title.AddThemeFontSizeOverride("font_size", 32);
             _container.AddChild(title);
@@ -66,7 +69,7 @@ namespace FTT.UI {
             BuildGameplayTab();
 
             var closeBtn = new Button();
-            closeBtn.Text = "Back";
+            closeBtn.Text = Tr("common_back");
             closeBtn.Pressed += OnClosePressed;
             _container.AddChild(closeBtn);
         }
@@ -76,16 +79,16 @@ namespace FTT.UI {
             vbox.Name = "Audio";
             _tabs.AddChild(vbox);
 
-            _masterSlider = CreateSlider(vbox, "Master Volume", 0, 1, 0.05f, 1.0f);
+            _masterSlider = CreateSlider(vbox, Tr("settings_master_volume"), 0, 1, 0.05f, 1.0f);
             _masterSlider.ValueChanged += v => AudioManager.Instance?.SetMasterVolume((float)v);
 
-            _musicSlider = CreateSlider(vbox, "Music Volume", 0, 1, 0.05f, 0.8f);
+            _musicSlider = CreateSlider(vbox, Tr("settings_music_volume"), 0, 1, 0.05f, 0.8f);
             _musicSlider.ValueChanged += v => AudioManager.Instance?.SetMusicVolume((float)v);
 
-            _sfxSlider = CreateSlider(vbox, "SFX Volume", 0, 1, 0.05f, 1.0f);
+            _sfxSlider = CreateSlider(vbox, Tr("settings_sfx_volume"), 0, 1, 0.05f, 1.0f);
             _sfxSlider.ValueChanged += v => AudioManager.Instance?.SetSFXVolume((float)v);
 
-            _uiSlider = CreateSlider(vbox, "UI Volume", 0, 1, 0.05f, 1.0f);
+            _uiSlider = CreateSlider(vbox, Tr("settings_ui_volume"), 0, 1, 0.05f, 1.0f);
             _uiSlider.ValueChanged += v => AudioManager.Instance?.SetUIVolume((float)v);
         }
 
@@ -94,7 +97,7 @@ namespace FTT.UI {
             vbox.Name = "Display";
             _tabs.AddChild(vbox);
 
-            var resLabel = new Label { Text = "Resolution" };
+            var resLabel = new Label { Text = Tr("settings_resolution") };
             vbox.AddChild(resLabel);
             _resolutionDropdown = new OptionButton();
             _resolutionDropdown.AddItem("1920x1080");
@@ -105,12 +108,12 @@ namespace FTT.UI {
             vbox.AddChild(_resolutionDropdown);
 
             _fullscreenToggle = new CheckButton();
-            _fullscreenToggle.Text = "Fullscreen";
+            _fullscreenToggle.Text = Tr("settings_fullscreen");
             _fullscreenToggle.Toggled += OnFullscreenToggled;
             vbox.AddChild(_fullscreenToggle);
 
             _vsyncToggle = new CheckButton();
-            _vsyncToggle.Text = "VSync";
+            _vsyncToggle.Text = Tr("settings_vsync");
             _vsyncToggle.ButtonPressed = true;
             _vsyncToggle.Toggled += OnVsyncToggled;
             vbox.AddChild(_vsyncToggle);
@@ -122,22 +125,28 @@ namespace FTT.UI {
             _tabs.AddChild(vbox);
 
             _hapticToggle = new CheckButton();
-            _hapticToggle.Text = "Controller Haptics";
+            _hapticToggle.Text = Tr("settings_haptics");
             _hapticToggle.ButtonPressed = true;
             _hapticToggle.Toggled += on => HapticFeedbackManager.Instance?.SetEnabled(on);
             vbox.AddChild(_hapticToggle);
 
-            _hapticSlider = CreateSlider(vbox, "Haptic Intensity", 0, 1, 0.05f, 0.7f);
+            _hapticSlider = CreateSlider(vbox, Tr("settings_haptic_intensity"), 0, 1, 0.05f, 0.7f);
             _hapticSlider.ValueChanged += v => HapticFeedbackManager.Instance?.SetIntensity((float)v);
 
-            var diffLabel = new Label { Text = "Default Difficulty" };
+            var diffLabel = new Label { Text = Tr("settings_difficulty") };
             vbox.AddChild(diffLabel);
             _difficultyDropdown = new OptionButton();
-            _difficultyDropdown.AddItem("Easy");
-            _difficultyDropdown.AddItem("Normal");
-            _difficultyDropdown.AddItem("Hard");
+            _difficultyDropdown.AddItem(Tr("difficulty_easy"));
+            _difficultyDropdown.AddItem(Tr("difficulty_normal"));
+            _difficultyDropdown.AddItem(Tr("difficulty_hard"));
             _difficultyDropdown.Selected = 1;
             vbox.AddChild(_difficultyDropdown);
+
+            _damageNumbersToggle = new CheckButton { Text = Tr("settings_damage_numbers"), ButtonPressed = true };
+            vbox.AddChild(_damageNumbersToggle);
+            _hudOpacitySlider = CreateSlider(vbox, Tr("settings_hud_opacity"), 0.2f, 1f, 0.05f, 1f);
+            _screenShakeSlider = CreateSlider(vbox, Tr("settings_screen_shake"), 0f, 1f, 0.05f, 1f);
+            _screenShakeSlider.ValueChanged += value => CameraShake.Instance?.SetIntensityScale((float)value);
         }
 
         private HSlider CreateSlider(Control parent, string label, float min, float max, float step, float defaultVal) {
@@ -189,6 +198,9 @@ namespace FTT.UI {
             _uiSlider.Value = data.UIVolume;
             _hapticSlider.Value = data.HapticIntensity;
             _hapticToggle.ButtonPressed = data.HapticsEnabled;
+            _damageNumbersToggle.ButtonPressed = data.DamageNumbersVisible;
+            _hudOpacitySlider.Value = data.HudOpacity;
+            _screenShakeSlider.Value = data.ScreenShakeScale;
         }
 
         private void SaveSettings() {
@@ -200,6 +212,9 @@ namespace FTT.UI {
             data.UIVolume = (float)_uiSlider.Value;
             data.HapticIntensity = (float)_hapticSlider.Value;
             data.HapticsEnabled = _hapticToggle.ButtonPressed;
+            data.DamageNumbersVisible = _damageNumbersToggle.ButtonPressed;
+            data.HudOpacity = (float)_hudOpacitySlider.Value;
+            data.ScreenShakeScale = (float)_screenShakeSlider.Value;
             SaveManager.Instance?.SaveGlobalData();
         }
     }

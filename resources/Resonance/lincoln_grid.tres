@@ -1,0 +1,105 @@
+[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceGridData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceNodeData.cs" id="2"]
+
+[sub_resource type="Resource" id="L1"]
+script = ExtResource("2")
+NodeID = "lincoln_l1"
+DisplayNameKey = "resonance_lincoln_l1_name"
+DescriptionKey = "resonance_lincoln_l1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "AttackRange"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="L2"]
+script = ExtResource("2")
+NodeID = "lincoln_l2"
+DisplayNameKey = "resonance_lincoln_l2_name"
+DescriptionKey = "resonance_lincoln_l2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("lincoln_l1")
+StatModifierKey = "SpecialDamage"
+StatModifierValue = 0.15
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="L3"]
+script = ExtResource("2")
+NodeID = "lincoln_l3"
+DisplayNameKey = "resonance_lincoln_l3_name"
+DescriptionKey = "resonance_lincoln_l3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("lincoln_l2")
+AbilityModifierKey = "executive_order"
+
+[sub_resource type="Resource" id="S1"]
+script = ExtResource("2")
+NodeID = "lincoln_s1"
+DisplayNameKey = "resonance_lincoln_s1_name"
+DescriptionKey = "resonance_lincoln_s1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "MaxHP"
+StatModifierValue = 25.0
+
+[sub_resource type="Resource" id="S2"]
+script = ExtResource("2")
+NodeID = "lincoln_s2"
+DisplayNameKey = "resonance_lincoln_s2_name"
+DescriptionKey = "resonance_lincoln_s2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("lincoln_s1")
+StatModifierKey = "BlockDurability"
+StatModifierValue = 0.15
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="S3"]
+script = ExtResource("2")
+NodeID = "lincoln_s3"
+DisplayNameKey = "resonance_lincoln_s3_name"
+DescriptionKey = "resonance_lincoln_s3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("lincoln_s2")
+AbilityModifierKey = "homestead_bulwark"
+
+[sub_resource type="Resource" id="R1"]
+script = ExtResource("2")
+NodeID = "lincoln_r1"
+DisplayNameKey = "resonance_lincoln_r1_name"
+DescriptionKey = "resonance_lincoln_r1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "MoveSpeed"
+StatModifierValue = 0.04
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="R2"]
+script = ExtResource("2")
+NodeID = "lincoln_r2"
+DisplayNameKey = "resonance_lincoln_r2_name"
+DescriptionKey = "resonance_lincoln_r2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("lincoln_r1")
+StatModifierKey = "CooldownReduction"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="R3"]
+script = ExtResource("2")
+NodeID = "lincoln_r3"
+DisplayNameKey = "resonance_lincoln_r3_name"
+DescriptionKey = "resonance_lincoln_r3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("lincoln_r2")
+AbilityModifierKey = "kinetic_splitting"
+
+[resource]
+script = ExtResource("1")
+GridID = "lincoln_resonance_grid"
+CharacterID = "lincoln"
+Nodes = Array[ExtResource("2")]([SubResource("L1"), SubResource("L2"), SubResource("L3"), SubResource("S1"), SubResource("S2"), SubResource("S3"), SubResource("R1"), SubResource("R2"), SubResource("R3")])

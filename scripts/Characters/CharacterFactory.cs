@@ -30,7 +30,7 @@ namespace FTT.Characters {
 			return Visuals.TryGetValue(characterID, out CharacterVisual visual) ? visual.Body : Colors.Gray;
 		}
 
-		public static PlayerController CreateCharacter(string characterID, int playerIndex = 0) {
+		public static PlayerController CreateCharacter(string characterID, int playerIndex = 0, bool applyStoryProgression = true) {
 			CharacterData data = GD.Load<CharacterData>($"res://resources/Characters/{characterID}_data.tres");
 			if (data == null) throw new InvalidOperationException($"Character data not found for '{characterID}'.");
 
@@ -43,6 +43,15 @@ namespace FTT.Characters {
 				UpDirection = Vector2.Up,
 				FloorStopOnSlope = true
 			};
+			if (applyStoryProgression
+				&& FTT.Environment.ResonanceProgression.TryResolveActive(characterID, out FTT.Environment.StoryStatProfile storyStats)) {
+				player.StoryMaxHPBonus = storyStats.MaxHPBonus;
+				player.StoryBlockChargeBonus = storyStats.BlockChargeBonus;
+				player.StoryMoveSpeedMultiplier = storyStats.MoveSpeedMultiplier;
+				player.StoryJumpForceMultiplier = storyStats.JumpForceMultiplier;
+				player.StoryBasicDamageMultiplier = storyStats.BasicDamageMultiplier;
+				player.StorySpecialDamageMultiplier = storyStats.SpecialDamageMultiplier;
+			}
 
 			var bodyShape = new CollisionShape2D { Name = "CollisionShape2D", Position = new Vector2(0, -32) };
 			bodyShape.Shape = new RectangleShape2D { Size = new Vector2(40, 64) };
@@ -51,11 +60,15 @@ namespace FTT.Characters {
 			CharacterVisual visual = Visuals.GetValueOrDefault(characterID,
 				new CharacterVisual { Body = Colors.Gray, Accent = Colors.White, Detail = Colors.LightGray });
 			BuildVisual(player, visual, data.DisplayName);
+			BuildMovementSensors(player);
 			BuildHurtbox(player, playerIndex);
+			BuildPushbox(player, playerIndex);
 			BuildMeleeHitbox(player, playerIndex, data);
+			BuildCombatAnimationPlayer(player);
+			player.AddChild(new FTT.Environment.TemporalPositionHistory { Name = "TemporalPositionHistory" });
 
 			player.AddChild(new UltimateMeter { Name = "UltimateMeter" });
-			player.AddChild(new BlockSystem { Name = "BlockSystem", MaxCharges = data.MaxBlockCharges });
+			player.AddChild(new BlockSystem { Name = "BlockSystem", MaxCharges = player.MaximumBlockCharges });
 			player.AddChild(new StatusController { Name = "StatusController" });
 			SetupAbilities(player, characterID);
 			player.AddToGroup("Players");
@@ -75,6 +88,14 @@ namespace FTT.Characters {
 			player.AddChild(new ColorRect {
 				Size = new Vector2(14, 4), Position = new Vector2(-4, -78), Color = new Color(0.1f, 0.1f, 0.1f)
 			});
+			player.AddChild(new ColorRect {
+				Name = "ChronalArmorOverlay",
+				Size = new Vector2(60, 92),
+				Position = new Vector2(-30, -88),
+				Color = new Color(0.83f, 0.69f, 0.22f, 0.28f),
+				MouseFilter = Control.MouseFilterEnum.Ignore,
+				Visible = false
+			});
 
 			var label = new Label {
 				Name = "NameLabel",
@@ -88,6 +109,22 @@ namespace FTT.Characters {
 			player.AddChild(label);
 		}
 
+		private static void BuildMovementSensors(PlayerController player) {
+			var ledgeDetector = new Area2D {
+				Name = "LedgeDetector",
+				CollisionLayer = 0,
+				CollisionMask = CollisionLayers.Trigger,
+				Monitoring = true,
+				Monitorable = false
+			};
+			ledgeDetector.AddChild(new CollisionShape2D {
+				Position = new Vector2(0, -52),
+				Shape = new RectangleShape2D { Size = new Vector2(56, 36) }
+			});
+			player.AddChild(ledgeDetector);
+			player.AddChild(new Marker2D { Name = "AerialHitboxMarker", Position = new Vector2(56, -42) });
+		}
+
 		private static void BuildHurtbox(PlayerController player, int playerIndex) {
 			var hurtbox = new Hurtbox {
 				Name = "Hurtbox",
@@ -97,10 +134,27 @@ namespace FTT.Characters {
 				Monitorable = true,
 				Monitoring = true
 			};
-			var shape = new CollisionShape2D { Position = new Vector2(0, -32) };
+			var shape = new CollisionShape2D { Name = "CollisionShape2D", Position = new Vector2(0, -32) };
 			shape.Shape = new RectangleShape2D { Size = new Vector2(40, 64) };
 			hurtbox.AddChild(shape);
 			player.AddChild(hurtbox);
+		}
+
+		private static void BuildPushbox(PlayerController player, int playerIndex) {
+			var pushbox = new CombatantPushbox {
+				Name = "Pushbox",
+				BoxSize = new Vector2(30f, 48f),
+				Position = new Vector2(0f, -28f),
+				CollisionLayer = CollisionLayers.BodyLayerForFighterSlot(playerIndex),
+				CollisionMask = playerIndex == 0 ? CollisionLayers.Enemy : CollisionLayers.Player,
+				Monitoring = false,
+				Monitorable = false
+			};
+			var shape = new CollisionShape2D {
+				Shape = new RectangleShape2D { Size = pushbox.BoxSize }
+			};
+			pushbox.AddChild(shape);
+			player.AddChild(pushbox);
 		}
 
 		private static void BuildMeleeHitbox(PlayerController player, int playerIndex, CharacterData data) {
@@ -109,7 +163,7 @@ namespace FTT.Characters {
 				AttackID = $"{data.CharacterID}.basic",
 				HitboxID = "combo_1",
 				AttackClass = AttackClass.Basic,
-				Damage = data.BasicAttackDamage,
+				Damage = data.BasicAttackDamage * player.StoryBasicDamageMultiplier,
 				KnockbackForce = new Vector2(data.BasicAttackKnockback, -1.5f),
 				HitstunDuration = 0.15f,
 				OwnerPlayerIndex = playerIndex,
@@ -118,7 +172,7 @@ namespace FTT.Characters {
 				Monitorable = true,
 				SourcePlayer = player
 			};
-			var shape = new CollisionShape2D { Position = new Vector2(30, -32) };
+			var shape = new CollisionShape2D { Name = "CollisionShape2D", Position = new Vector2(30, -32) };
 			shape.Shape = new RectangleShape2D { Size = new Vector2(50, 45) };
 			hitbox.AddChild(shape);
 			player.AddChild(hitbox);
@@ -128,6 +182,17 @@ namespace FTT.Characters {
 				Position = new Vector2(5, -55),
 				Color = new Color(1, 1, 0.3f, 0.0f)
 			});
+		}
+
+		private static void BuildCombatAnimationPlayer(PlayerController player) {
+			var animationPlayer = new AnimationPlayer {
+				Name = "CombatAnimationPlayer",
+				CallbackModeMethod = AnimationMixer.AnimationCallbackModeMethod.Immediate
+			};
+			AnimationLibrary library = GD.Load<AnimationLibrary>(
+				"res://resources/Animations/placeholder_combat_animation_library.tres");
+			if (library != null) animationPlayer.AddAnimationLibrary("", library);
+			player.AddChild(animationPlayer);
 		}
 
 		private static void SetupAbilities(PlayerController player, string characterID) {
@@ -159,7 +224,8 @@ namespace FTT.Characters {
 				implementation.Name = nodeNames[slot];
 				implementation.Data = definition;
 				foreach (string hitboxName in GetRequiredHitboxes(characterID, slot)) {
-					implementation.AddChild(MakeHitbox(hitboxName, definition, player.PlayerIndex));
+					implementation.AddChild(MakeHitbox(
+						hitboxName, definition, player.PlayerIndex, player.StorySpecialDamageMultiplier));
 				}
 				player.AddChild(implementation);
 			}
@@ -181,13 +247,13 @@ namespace FTT.Characters {
 			_ => Array.Empty<string>()
 		};
 
-		private static Hitbox MakeHitbox(string name, AbilityData data, int ownerIndex) {
+		private static Hitbox MakeHitbox(string name, AbilityData data, int ownerIndex, float damageMultiplier) {
 			var hitbox = new Hitbox {
 				Name = name,
 				AttackID = data.AbilityID,
 				HitboxID = name,
 				AttackClass = data.Slot == AbilitySlot.Ultimate ? AttackClass.Ultimate : AttackClass.Special,
-				Damage = data.BaseDamage,
+				Damage = data.BaseDamage * damageMultiplier,
 				KnockbackForce = data.KnockbackForce,
 				HitstunDuration = data.HitstunDuration,
 				AppliedStatus = data.AppliedStatus,

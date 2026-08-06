@@ -1,0 +1,105 @@
+[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceGridData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceNodeData.cs" id="2"]
+
+[sub_resource type="Resource" id="AL1"]
+script = ExtResource("2")
+NodeID = "cleopatra_al1"
+DisplayNameKey = "resonance_cleopatra_al1_name"
+DescriptionKey = "resonance_cleopatra_al1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "BasicAttackDamage"
+StatModifierValue = 0.08
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="AL2"]
+script = ExtResource("2")
+NodeID = "cleopatra_al2"
+DisplayNameKey = "resonance_cleopatra_al2_name"
+DescriptionKey = "resonance_cleopatra_al2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("cleopatra_al1")
+StatModifierKey = "StatusDamage"
+StatModifierValue = 0.15
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="AL3"]
+script = ExtResource("2")
+NodeID = "cleopatra_al3"
+DisplayNameKey = "resonance_cleopatra_al3_name"
+DescriptionKey = "resonance_cleopatra_al3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("cleopatra_al2")
+AbilityModifierKey = "asps_bite"
+
+[sub_resource type="Resource" id="DM1"]
+script = ExtResource("2")
+NodeID = "cleopatra_dm1"
+DisplayNameKey = "resonance_cleopatra_dm1_name"
+DescriptionKey = "resonance_cleopatra_dm1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "AttackRange"
+StatModifierValue = 0.15
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="DM2"]
+script = ExtResource("2")
+NodeID = "cleopatra_dm2"
+DisplayNameKey = "resonance_cleopatra_dm2_name"
+DescriptionKey = "resonance_cleopatra_dm2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("cleopatra_dm1")
+StatModifierKey = "PersistentDuration"
+StatModifierValue = 0.2
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="DM3"]
+script = ExtResource("2")
+NodeID = "cleopatra_dm3"
+DisplayNameKey = "resonance_cleopatra_dm3_name"
+DescriptionKey = "resonance_cleopatra_dm3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("cleopatra_dm2")
+AbilityModifierKey = "quicksand_grip"
+
+[sub_resource type="Resource" id="PW1"]
+script = ExtResource("2")
+NodeID = "cleopatra_pw1"
+DisplayNameKey = "resonance_cleopatra_pw1_name"
+DescriptionKey = "resonance_cleopatra_pw1_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "MaxHP"
+StatModifierValue = 15.0
+
+[sub_resource type="Resource" id="PW2"]
+script = ExtResource("2")
+NodeID = "cleopatra_pw2"
+DisplayNameKey = "resonance_cleopatra_pw2_name"
+DescriptionKey = "resonance_cleopatra_pw2_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("cleopatra_pw1")
+StatModifierKey = "BlockDurability"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+
+[sub_resource type="Resource" id="PW3"]
+script = ExtResource("2")
+NodeID = "cleopatra_pw3"
+DisplayNameKey = "resonance_cleopatra_pw3_name"
+DescriptionKey = "resonance_cleopatra_pw3_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("cleopatra_pw2")
+AbilityModifierKey = "royal_aegis"
+
+[resource]
+script = ExtResource("1")
+GridID = "cleopatra_resonance_grid"
+CharacterID = "cleopatra"
+Nodes = Array[ExtResource("2")]([SubResource("AL1"), SubResource("AL2"), SubResource("AL3"), SubResource("DM1"), SubResource("DM2"), SubResource("DM3"), SubResource("PW1"), SubResource("PW2"), SubResource("PW3")])
