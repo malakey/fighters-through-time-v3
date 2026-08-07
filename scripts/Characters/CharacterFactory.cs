@@ -235,7 +235,6 @@ namespace FTT.Characters {
 
 		private static string[] GetRequiredHitboxes(string characterID, int slot) => (characterID, slot) switch {
 			("einstein", 3) => new[] { "UltHitbox" },
-			("joan", 1) => new[] { "ThrustHitbox" },
 			("joan", 3) => new[] { "CavalryHitbox" },
 			("leonardo", 0) => new[] { "SpiralHitbox" },
 			("leonardo", 3) => new[] { "MatrixHitbox" },

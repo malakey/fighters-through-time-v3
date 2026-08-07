@@ -65,7 +65,8 @@ namespace FTT.FighterSim {
             int statusFrames,
             FP64 statusIntensity,
             FP64 hitOriginX,
-            bool creditInfluence = true) {
+            bool creditInfluence = true,
+            int blockChargeCost = 0) {
             if (target.InvulnerabilityFrames > 0 || target.Stocks <= 0) return false;
 
             if (targetRuntime.AegisHits > 0) {
@@ -84,7 +85,12 @@ namespace FTT.FighterSim {
                 ? hitOriginX >= target.Position.x
                 : hitOriginX <= target.Position.x;
             if (targetBlocking && hitInFront && attackClass != UltimateAttackClass && target.BlockCharges > 0) {
-                int cost = attackClass == SpecialAttackClass ? target.BlockCharges : 1;
+                // blockChargeCost > 0 overrides the class default (shield-shredding
+                // specials like Joan's Divine Piercing deplete exactly 2 charges
+                // instead of the special-class full shatter).
+                int cost = blockChargeCost > 0
+                    ? blockChargeCost
+                    : attackClass == SpecialAttackClass ? target.BlockCharges : 1;
                 target.BlockCharges -= cost;
                 if (target.BlockCharges <= 0) {
                     target.BlockCharges = 0;
@@ -500,6 +506,9 @@ namespace FTT.FighterSim {
             if (modes.MovementType == 1 || modes.MovementType == 5) {
                 fighter.Velocity.y = speed / FP64.FromInt(2);
                 fighter.IsGrounded = 0;
+                // Glide/Float (Joan's Ascendant Wings): a reduced-gravity float
+                // window sized from the authored movement duration follows the boost.
+                runtime.FloatFrames = modes.MovementDurationFrames > 0 ? modes.MovementDurationFrames : 60;
             } else if (modes.MovementType == 2) {
                 fighter.Velocity.x = speed * FP64.FromInt(facing);
             } else {

@@ -26,8 +26,8 @@ namespace FTT.FighterSim {
                 Math.Max(0, data.MaxBlockCharges),
                 Math.Max(1, data.MaxJumpCount),
                 RoundDamage(data.BasicAttackDamage),
-                RoundDamage(specialOne?.BaseDamage ?? 0f),
-                RoundDamage(specialTwo?.BaseDamage ?? 0f),
+                RoundDamage(SpecialTotalDamage(specialOne)),
+                RoundDamage(SpecialTotalDamage(specialTwo)),
                 RoundDamage(ultimate?.BaseDamage ?? 0f),
                 CooldownFrames(specialOne),
                 CooldownFrames(specialTwo),
@@ -91,6 +91,21 @@ namespace FTT.FighterSim {
         }
 
         private static int RoundDamage(float damage) => Math.Max(0, (int)MathF.Round(damage, MidpointRounding.AwayFromZero));
+
+        /// <summary>
+        /// Melee-execution multi-hit specials (Joan's Divine Piercing) resolve as a
+        /// single deterministic application of their full multi-hit total. Area and
+        /// persistent executions keep per-hit damage because their systems apply it
+        /// repeatedly per tick/attack.
+        /// </summary>
+        private static float SpecialTotalDamage(AbilityData ability) {
+            if (ability == null) return 0f;
+            float damage = ability.BaseDamage;
+            if (ability.IsMultiHit && ability.ExecutionType == AbilityExecutionType.Melee) {
+                damage *= Math.Max(1, ability.HitCount);
+            }
+            return damage;
+        }
         private static int DurationFrames(float seconds) => Math.Max(0, (int)MathF.Round(seconds * FighterSimulation.TickRate, MidpointRounding.AwayFromZero));
         private static int CooldownFrames(AbilityData ability) => Math.Max(1, DurationFrames(ability?.CooldownDuration ?? 0f));
 

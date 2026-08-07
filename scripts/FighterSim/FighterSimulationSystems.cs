@@ -571,6 +571,10 @@ namespace FTT.FighterSim {
         private const int SpecialOneButton = 1 << 3;
         private const int SpecialTwoButton = 1 << 4;
         private const int UltimateButton = 1 << 7;
+        // Joan's Divine Piercing (design Section 5): the rapid thrusts shred
+        // exactly 2 block charges on block instead of the special-class full
+        // shatter. The multi-hit damage total is baked by FighterLoadoutFactory.
+        private const int DivinePiercingBlockChargeCost = 2;
         private static readonly FP64 AttackRange = FP64.FromInt(2);
         private static readonly FP64 MaxInfluence = FP64.FromInt(100);
 
@@ -640,7 +644,10 @@ namespace FTT.FighterSim {
                     tuning.SpecialTwoStatusType,
                     tuning.SpecialTwoStatusFrames,
                     tuning.SpecialTwoStatusIntensity,
-                    tuning.SpecialTwoCooldownFrames);
+                    tuning.SpecialTwoCooldownFrames,
+                    attacker.CharacterID == (int)FighterCharacterID.Joan
+                        ? DivinePiercingBlockChargeCost
+                        : 0);
             }
             if ((attackerRuntime.PressedButtons & BasicButton) != 0 && attackerRuntime.BasicCooldownFrames <= 0) {
                 int damage = attackerRuntime.ComboIndex == 0
@@ -696,7 +703,9 @@ namespace FTT.FighterSim {
                 intent.StatusType,
                 intent.StatusFrames,
                 intent.StatusIntensity,
-                attacker.Position.x);
+                attacker.Position.x,
+                true,
+                intent.BlockChargeCost);
         }
 
         private readonly struct AttackIntent {
@@ -708,6 +717,7 @@ namespace FTT.FighterSim {
             public readonly int StatusFrames;
             public readonly FP64 StatusIntensity;
             public readonly int CooldownFrames;
+            public readonly int BlockChargeCost;
 
             public AttackIntent(
                 int kind,
@@ -717,7 +727,8 @@ namespace FTT.FighterSim {
                 int statusType = (int)FTT.Core.StatusType.None,
                 int statusFrames = 0,
                 FP64 statusIntensity = default,
-                int cooldownFrames = 600) {
+                int cooldownFrames = 600,
+                int blockChargeCost = 0) {
                 Kind = kind;
                 Damage = damage;
                 Knockback = knockback;
@@ -726,6 +737,7 @@ namespace FTT.FighterSim {
                 StatusFrames = statusFrames;
                 StatusIntensity = statusIntensity;
                 CooldownFrames = cooldownFrames;
+                BlockChargeCost = blockChargeCost;
             }
         }
     }

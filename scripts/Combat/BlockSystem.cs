@@ -76,6 +76,19 @@ namespace FTT.Combat {
             _isBlocking = false;
         }
 
+        /// <summary>
+        /// Shield-shredding attacks (Joan's Divine Piercing depletes exactly 2
+        /// charges on block) remove charges directly instead of using the
+        /// per-class cost table. Breaks the guard when the last charge is shred
+        /// while blocking.
+        /// </summary>
+        public void DepleteCharges(int count) {
+            if (count <= 0 || CurrentCharges <= 0) return;
+            CurrentCharges = Mathf.Max(0, CurrentCharges - count);
+            _regenTimer = 0f;
+            if (CurrentCharges <= 0 && _isBlocking) BreakGuard();
+        }
+
         /// <summary>Story-only Resonance perk key: teleport backward on guard break.</summary>
         public const string QuantumEntanglementPerkKey = "quantum_entanglement";
         private const float QuantumEntanglementDistance = 150f;
