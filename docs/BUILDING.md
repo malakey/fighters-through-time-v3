@@ -6,7 +6,7 @@
 - .NET SDK 10.0.302, pinned by `global.json`.
 - A restored NuGet cache for `Godot.NET.Sdk`, Klotho's runtime dependencies, GdUnit4's test dependencies, and `K4os.Compression.LZ4`.
 
-The game targets `net10.0`, built with the pinned SDK. Verified on 2026-08-06: Godot 4.7.1 .NET loads the `net10.0` assembly, headless import and scene runs are clean, and all 149 GdUnit4 tests pass.
+The game targets `net10.0`, built with the pinned SDK. Verified on 2026-08-06: Godot 4.7.1 .NET loads the `net10.0` assembly, headless import and scene runs are clean, and all 202 GdUnit4 tests pass.
 
 ## Build
 
@@ -37,7 +37,7 @@ dotnet test FightersThroughTime.csproj --settings .runsettings
 ```
 
 The shared `.runsettings` file forces serial, headless execution and provides sufficient compile and engine-connect timeouts for a cold Godot import.
-The audited baseline is 149 passing tests (verified 2026-08-06). See `docs/IMPLEMENTATION_STATUS.md` for the current coverage and remaining gaps.
+The audited baseline is 202 passing tests (verified 2026-08-06). See `docs/IMPLEMENTATION_STATUS.md` for the current coverage and remaining gaps.
 
 Two known false signals:
 
