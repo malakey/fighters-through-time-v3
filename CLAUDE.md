@@ -45,29 +45,13 @@ This is memory corruption, not a flaky test. Found in Package 4 B6: an **empty**
 | 2 | large partial | negative (`-1073741819` / `-1073741795`) | Native crash / heap corruption mid-suite |
 | Cold cache | partial, 1 spurious failure | timeout abort | Import timeout artifact; see below |
 
-### Failure signature 3: a headless scene smoke run exits -1073741819 at shutdown
-
-**Known open issue as of 2026-08-07 (Package 4 close).** `Level_01_Florence.tscn` and `HubWorld.tscn`
-run to completion with no script errors and then die on the way out:
-
-```text
-0xC0000005
-   at Godot.NativeInterop.NativeFuncs.godotsharp_array_destroy(...)
-   at Godot.Collections.Array.Dispose(Boolean)
-   at Godot.Collections.Array.Finalize()
-   at System.GC.RunFinalizers()
-```
-
-Unlike signature 2 this is a **teardown race, not data corruption**. A `Godot.Collections.Array` reaches
-the .NET finalizer after Godot's native side has been torn down. The suite is unaffected (417/417 green),
-`--headless --quit` import is clean, and `MainMenu`/`TestArena`/`Level_00_Tutorial` smoke runs are clean.
-Evidence and the bisect are in `docs/PACKAGE4_ROSTER_PLAN.md` §8 C1 item 11. Two things to know when you hit it:
-
-- It is environment- and timing-sensitive, not content-dependent. The identical commit with the identical
-  `.godot` cache and identical binaries is 0/20 in a git worktree at another path, and `DOTNET_gcServer=1`
-  makes it 0/3 in the failing directory. Do not go hunting for a bad resource.
-- It is **not** the empty-Script-typed-array bug. Check the stack: signature 2 truncates a test run
-  mid-flight, this one fires only after the scene has finished and produces no script diagnostics at all.
+A third signature — a headless scene smoke run exiting `-1073741819` inside
+`Godot.Collections.Array.Finalize()` **after** the scene finished with no script errors — was a
+finalizer/teardown race fixed on 2026-08-07: `GameManager._ExitTree` now drains the finalizer queue at
+quit and gameplay call sites dispose engine-returned Godot collections deterministically
+(`GodotCollectionExtensions.AsDisposable`). If that stack ever reappears, see
+`docs/PACKAGE4_ROSTER_PLAN.md` §8 C1 item 10 for the diagnosis and fix history before bisecting —
+and note it only ever reproduced in the repository checkout, never in a git worktree.
 
 ## Verified commands
 
