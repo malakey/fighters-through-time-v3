@@ -434,10 +434,13 @@ namespace FTT.FighterSim {
             }
             if (activeCount >= deployLimit && foundOldest) frame.DestroyEntity(oldest);
 
-            ResolveZoneSpec(zoneTypeID, out FPVector2 halfExtents, out int grantsOwnerSpeedBonus);
+            ResolveZoneSpec(zoneTypeID, out FPVector2 halfExtents, out int grantsOwnerSpeedBonus, out bool centersOnOwner);
             int resolvedTick = tickIntervalFrames > 0 ? tickIntervalFrames : 30;
             ref FighterMatchComponent match = ref frame.GetSingleton<FighterMatchComponent>();
             int facing = owner.FacingRight != 0 ? 1 : -1;
+            FPVector2 zonePosition = centersOnOwner
+                ? owner.Position
+                : owner.Position + new FPVector2(FP64.FromInt(facing * 2), FP64.Zero);
             EntityRef created = frame.CreateEntity();
             frame.Add(created, new FighterZoneComponent {
                 EntityID = match.NextEntityID++,
@@ -451,7 +454,7 @@ namespace FTT.FighterSim {
                 StatusFrames = statusFrames,
                 GrantsOwnerSpeedBonus = grantsOwnerSpeedBonus,
                 StatusIntensity = statusIntensity,
-                Position = owner.Position + new FPVector2(FP64.FromInt(facing * 2), FP64.Zero),
+                Position = zonePosition,
                 HalfExtents = halfExtents
             });
         }
@@ -459,18 +462,28 @@ namespace FTT.FighterSim {
         /// <summary>
         /// Per-zone-identity deterministic tuning. Einstein's Relativity Rift
         /// (zone type 2) is wide and buffs the owner's movement while inside.
+        /// Tesla's Lorentz Pulse is a radial burst centered on Tesla himself.
         /// </summary>
         private static void ResolveZoneSpec(
             int zoneTypeID,
             out FPVector2 halfExtents,
-            out int grantsOwnerSpeedBonus) {
+            out int grantsOwnerSpeedBonus,
+            out bool centersOnOwner) {
             if (zoneTypeID == (int)FighterCharacterID.Einstein * 10 + 2) {
                 halfExtents = new FPVector2(FP64.FromDouble(2.0), FP64.FromDouble(1.5));
                 grantsOwnerSpeedBonus = 1;
+                centersOnOwner = false;
+                return;
+            }
+            if (zoneTypeID == (int)FighterCharacterID.Tesla * 10 + 2) {
+                halfExtents = new FPVector2(FP64.FromDouble(2.0), FP64.FromDouble(1.5));
+                grantsOwnerSpeedBonus = 0;
+                centersOnOwner = true;
                 return;
             }
             halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
             grantsOwnerSpeedBonus = 0;
+            centersOnOwner = false;
         }
 
         private static void ApplyMovement(
@@ -558,7 +571,20 @@ namespace FTT.FighterSim {
     }
 
     public sealed class FighterPersistentObjectSystem : ISystem {
+        // Tesla Coil alternating-current link (design Section 4): two active coils
+        // within 8 units connect into a fence dealing 8 basic damage per 0.5 s
+        // tick and applying a brief StaticCharge to the fighter caught between
+        // them. The lower-EntityID coil of the pair drives the tick.
+        private const int CoilObjectTypeID = 1;
+        private const int FenceTickFrames = 30;
+        private const int FenceDamage = 8;
+        private const int FenceHitstunFrames = 8;
+        private const int FenceStaticChargeFrames = 30;
+        private static readonly FP64 CoilLinkRangeSquared = FP64.FromInt(64);
+        private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
+
         public void Update(ref Frame frame) {
+            UpdateCoilLinks(ref frame);
             var filter = frame.Filter<FighterPersistentObjectComponent>();
             while (filter.Next(out EntityRef persistentEntity)) {
                 ref FighterPersistentObjectComponent persistent =
@@ -590,6 +616,71 @@ namespace FTT.FighterSim {
                     persistent.StatusType, persistent.StatusFrames, FP64.One, persistent.Position.x);
                 persistent.ActionCooldownFrames = persistent.BaseActionCooldownFrames;
                 if (persistent.RemainingAttacks > 0) persistent.RemainingAttacks--;
+            }
+        }
+
+        private static void UpdateCoilLinks(ref Frame frame) {
+            for (int ownerID = 0; ownerID <= 1; ownerID++) {
+                // Deploy limit for coils is 2, so tracking the two lowest-ID live
+                // coils fully describes the possible link.
+                EntityRef firstCoil = default, secondCoil = default;
+                int firstID = int.MaxValue, secondID = int.MaxValue;
+                int found = 0;
+                var filter = frame.Filter<FighterPersistentObjectComponent>();
+                while (filter.Next(out EntityRef entity)) {
+                    ref readonly FighterPersistentObjectComponent coil =
+                        ref frame.GetReadOnly<FighterPersistentObjectComponent>(entity);
+                    if (coil.OwnerPlayerID != ownerID
+                        || coil.ObjectTypeID != CoilObjectTypeID
+                        || coil.CurrentHP <= 0
+                        || coil.LifetimeFrames <= 0) continue;
+                    found++;
+                    if (coil.EntityID < firstID) {
+                        secondID = firstID; secondCoil = firstCoil;
+                        firstID = coil.EntityID; firstCoil = entity;
+                    } else if (coil.EntityID < secondID) {
+                        secondID = coil.EntityID; secondCoil = entity;
+                    }
+                }
+                if (found < 2) continue;
+
+                FPVector2 firstPosition = frame.GetReadOnly<FighterPersistentObjectComponent>(firstCoil).Position;
+                FPVector2 secondPosition = frame.GetReadOnly<FighterPersistentObjectComponent>(secondCoil).Position;
+                FP64 dx = firstPosition.x - secondPosition.x;
+                FP64 dy = firstPosition.y - secondPosition.y;
+                if (dx * dx + dy * dy > CoilLinkRangeSquared) continue;
+
+                ref FighterPersistentObjectComponent driver = ref frame.Get<FighterPersistentObjectComponent>(firstCoil);
+                if (driver.LinkTickFramesRemaining > 0) {
+                    driver.LinkTickFramesRemaining--;
+                    continue;
+                }
+                driver.LinkTickFramesRemaining = FenceTickFrames;
+
+                FPVector2 fenceCenter = new(
+                    (firstPosition.x + secondPosition.x) / FP64.FromInt(2),
+                    (firstPosition.y + secondPosition.y) / FP64.FromInt(2));
+                FPVector2 fenceHalfExtents = new(
+                    FP64.Abs(dx) / FP64.FromInt(2) + FP64.FromDouble(0.3),
+                    FP64.Max(FP64.Abs(dy) / FP64.FromInt(2), FP64.One));
+
+                int targetPlayerID = ownerID == 0 ? 1 : 0;
+                if (!FighterEntityQueries.TryFindFighter(ref frame, ownerID, out EntityRef ownerEntity)
+                    || !FighterEntityQueries.TryFindFighter(ref frame, targetPlayerID, out EntityRef targetEntity)) continue;
+                ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
+                if (!FighterEntityQueries.Overlaps(
+                        in fenceCenter, in fenceHalfExtents,
+                        in target.Position, in FighterHalfExtents)) continue;
+
+                ref FighterStateComponent owner = ref frame.Get<FighterStateComponent>(ownerEntity);
+                ref FighterRuntimeComponent ownerRuntime = ref frame.Get<FighterRuntimeComponent>(ownerEntity);
+                ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
+                ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
+                FighterDamageRules.ApplyFighterHit(
+                    ref owner, ref ownerRuntime, ref target, ref targetRuntime, in targetTuning,
+                    FighterDamageRules.BasicAttackClass, FenceDamage, FP64.One, FenceHitstunFrames,
+                    (int)StatusType.StaticCharge, FenceStaticChargeFrames, FP64.FromDouble(0.5),
+                    fenceCenter.x);
             }
         }
     }
@@ -869,11 +960,38 @@ namespace FTT.FighterSim {
                 ref FighterRuntimeComponent attackerRuntime = ref frame.Get<FighterRuntimeComponent>(attackerEntity);
                 ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
+
+                // Tesla's Lorentz Pulse chains lightning through active coils when
+                // the target is primed with StaticCharge; the check runs before the
+                // pulse applies its own status (newest status replaces previous).
+                int pulseDamage = zone.Damage;
+                if (zone.ZoneTypeID == (int)FighterCharacterID.Tesla * 10 + 2
+                    && targetRuntime.StatusType == (int)StatusType.StaticCharge) {
+                    pulseDamage += CoilArcDamage * CountLiveCoils(ref frame, zone.OwnerPlayerID);
+                }
+
                 FighterDamageRules.ApplyFighterHit(
                     ref attacker, ref attackerRuntime, ref target, ref targetRuntime, in targetTuning,
-                    FighterDamageRules.SpecialAttackClass, zone.Damage, FP64.Zero, 0,
+                    FighterDamageRules.SpecialAttackClass, pulseDamage, FP64.Zero, 0,
                     zone.StatusType, zone.StatusFrames, zone.StatusIntensity, zone.Position.x);
             }
+        }
+
+        private const int CoilArcDamage = 5;
+        private const int CoilObjectTypeID = 1;
+
+        private static int CountLiveCoils(ref Frame frame, int ownerPlayerID) {
+            int count = 0;
+            var filter = frame.Filter<FighterPersistentObjectComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterPersistentObjectComponent persistent =
+                    ref frame.GetReadOnly<FighterPersistentObjectComponent>(entity);
+                if (persistent.OwnerPlayerID == ownerPlayerID
+                    && persistent.ObjectTypeID == CoilObjectTypeID
+                    && persistent.CurrentHP > 0
+                    && persistent.LifetimeFrames > 0) count++;
+            }
+            return count;
         }
     }
 }

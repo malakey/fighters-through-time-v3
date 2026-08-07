@@ -65,6 +65,23 @@ namespace FTT.Characters {
 		public HashSet<string> StoryAbilityPerks { get; } = new(StringComparer.Ordinal);
 		public bool HasStoryPerk(string abilityModifierKey) =>
 			!string.IsNullOrWhiteSpace(abilityModifierKey) && StoryAbilityPerks.Contains(abilityModifierKey);
+
+		// Story-only perk shield (Wardenclyffe Shield, Royal Aegis, Leaf Barrier,
+		// ...): absorbs damage before HP. Capacity is configured by the owning
+		// perk's ability code; Fighter Mode never reads these fields because the
+		// deterministic simulation is authoritative there.
+		public float StoryShieldPoints { get; private set; }
+		public float StoryShieldCapacity { get; private set; }
+
+		public void ConfigureStoryShield(float capacity) {
+			StoryShieldCapacity = MathF.Max(0f, capacity);
+			StoryShieldPoints = MathF.Min(StoryShieldPoints, StoryShieldCapacity);
+		}
+
+		public void RechargeStoryShield(float amount) {
+			if (StoryShieldCapacity <= 0f || amount <= 0f) return;
+			StoryShieldPoints = MathF.Min(StoryShieldCapacity, StoryShieldPoints + amount);
+		}
 		/// <summary>
 		/// Remaining float-glide time granted by movement abilities (Einstein's
 		/// Relativity Warp cancel). While positive, gravity is heavily reduced.
@@ -934,6 +951,13 @@ namespace FTT.Characters {
 			if (_postRewindInvulnerabilityFrames > 0) return 0;
 			if (_rollInvulnerable && !ignoreRollInvulnerability) return 0;
 			damage = Math.Max(0, (int)MathF.Round(damage * StatusDamageTakenMultiplier));
+			if (StoryShieldPoints > 0f && damage > 0) {
+				int absorbed = Math.Min(damage, (int)MathF.Floor(StoryShieldPoints));
+				if (absorbed > 0) {
+					StoryShieldPoints -= absorbed;
+					damage -= absorbed;
+				}
+			}
 			int previousHP = CurrentHP;
 			CurrentHP = Math.Max(0, CurrentHP - damage);
 			int damageApplied = previousHP - CurrentHP;

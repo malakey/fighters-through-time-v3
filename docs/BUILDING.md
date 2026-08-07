@@ -6,7 +6,7 @@
 - .NET SDK 10.0.302, pinned by `global.json`.
 - A restored NuGet cache for `Godot.NET.Sdk`, Klotho's runtime dependencies, GdUnit4's test dependencies, and `K4os.Compression.LZ4`.
 
-The game targets `net8.0`; the newer pinned SDK is the reproducible compiler/toolchain currently used by the project.
+The game targets `net10.0`, built with the pinned SDK. Verified on 2026-08-06: Godot 4.7.1 .NET loads the `net10.0` assembly, headless import and scene runs are clean, and all 149 GdUnit4 tests pass.
 
 ## Build
 
@@ -37,7 +37,12 @@ dotnet test FightersThroughTime.csproj --settings .runsettings
 ```
 
 The shared `.runsettings` file forces serial, headless execution and provides sufficient compile and engine-connect timeouts for a cold Godot import.
-The audited baseline is 38 passing tests. See `docs/IMPLEMENTATION_STATUS.md` for the current coverage and remaining gaps.
+The audited baseline is 149 passing tests (verified 2026-08-06). See `docs/IMPLEMENTATION_STATUS.md` for the current coverage and remaining gaps.
+
+Two known false signals:
+
+- If the run reports roughly 21 tests and still exits 0, GdUnit4 could not launch Godot — check that `GodotSharp\` sits beside the Godot executable. Read the `Total:` count, not the exit code.
+- After `.godot/mono/temp/` is cleared, the first run can exceed the 300 s `TestSessionTimeout` while Godot re-imports and abort mid-test, reporting a spurious failure and a partial total. Re-run with a warm cache before treating it as a regression.
 
 ## Known environment warning
 

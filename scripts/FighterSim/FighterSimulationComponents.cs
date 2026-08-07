@@ -382,6 +382,8 @@ namespace FTT.FighterSim {
         public int RemainingAttacks;
         public int StatusType;
         public int StatusFrames;
+        /// <summary>Coil-link fence tick countdown; driven by the lower-EntityID coil of a linked pair.</summary>
+        public int LinkTickFramesRemaining;
         public FP64 AttackRange;
         public FP64 Knockback;
         public FPVector2 Position;

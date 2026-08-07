@@ -1,0 +1,40 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/Characters/Abilities/TeslaCoilNode.cs" id="1_coil"]
+[ext_resource type="Script" path="res://scripts/Environment/EnvironmentHurtboxAdapter.cs" id="2_hurtbox"]
+[ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="3_marker"]
+[ext_resource type="Resource" path="res://resources/Contracts/persistent_construct_contract.tres" id="4_contract"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/graybox_tile.svg" id="5_visual"]
+
+[sub_resource type="RectangleShape2D" id="Collision"]
+size = Vector2(36, 72)
+
+[node name="TeslaCoil" type="Node2D" groups=["persistent_construct"]]
+script = ExtResource("1_coil")
+
+[node name="Visual" type="Sprite2D" parent="."]
+texture = ExtResource("5_visual")
+position = Vector2(0, -36)
+scale = Vector2(0.6, 1.2)
+modulate = Color(0.35, 0.75, 1, 1)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Collision")
+position = Vector2(0, -36)
+
+[node name="Hurtbox" type="Area2D" parent="." groups=["construct_hurtbox"]]
+script = ExtResource("2_hurtbox")
+collision_layer = 512
+collision_mask = 12
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+shape = SubResource("Collision")
+position = Vector2(0, -36)
+
+[node name="ActionOrigin" type="Marker2D" parent="."]
+position = Vector2(0, -72)
+
+[node name="ContentContract" type="Node" parent="."]
+script = ExtResource("3_marker")
+ContentID = "tesla_coil"
+Contract = ExtResource("4_contract")

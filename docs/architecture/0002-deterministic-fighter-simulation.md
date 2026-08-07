@@ -25,7 +25,7 @@ Primary references:
 
 ## Spike exit criteria
 
-- Builds under Godot 4.7.1/.NET 8 target on the supported toolchain.
+- Builds under Godot 4.7.1/.NET 10 target on the supported toolchain.
 - Runs a headless two-body movement/collision scenario with identical hashes across repeated runs.
 - Saves/loads a snapshot and resumes the same hash sequence.
 - Rolls back across a collision and projectile spawn.

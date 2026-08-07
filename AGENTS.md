@@ -2,6 +2,8 @@
 
 This file applies to the entire repository. It is the durable orientation document for AI agents working on this project. Keep it synchronized with material architecture or scope changes.
 
+`CLAUDE.md` imports this file and adds the local toolchain (Godot executable locations, verified commands), the `docs/` authority map, and Claude Code configuration. Tool-specific setup belongs there; durable project truth belongs here.
+
 ## How to use this context
 
 1. Read this file before changing the project.
@@ -71,12 +73,14 @@ The initial roster is fixed at nine characters:
 | `mozart` | Wolfgang Amadeus Mozart | Ranged/tempo; sonic waves and musical platforms |
 | `pocahontas` | Pocahontas | Mobile scout; glide, roots, and nature spirits |
 
-Canonical kits, talent grids, and tuning live in Section 5 of `design-godot.md`. Current baseline character stats live in `resources/Characters/*_data.tres`. The design document mentions `character_base_stats.md` and `ability_numeric_data.md`, but those files are not currently present; do not invent them or assume they are authoritative.
+Canonical kits, talent grids, and tuning live in Section 5 of `design-godot.md`. Current baseline character stats live in `resources/Characters/*_data.tres`.
+
+The design document mentions `character_base_stats.md` and `ability_numeric_data.md`. Those were Unity-era numeric proposals and were removed from `docs/` on 2026-08-06 along with the rest of the pre-Godot archive; copies survive outside the repository in `D:\Projects\fighters-through-time-docs-2\`. Do not treat them as authority or reintroduce them: they assume Unity `ScriptableObject` fields and a ten-character roster including Stephen Hawking, who is not in the current nine. `design-godot.md` Section 5 and the `resources/` `.tres` files are canonical.
 
 ## Technology and runtime targets
 
 - Engine in the current repository: Godot .NET 4.7.1 (`Godot.NET.Sdk/4.7.1`). The GDD's minimum is Godot 4.4+.
-- Language/runtime: C# on .NET 8. Root namespace: `FTT`.
+- Language/runtime: C# on .NET 10 (`net10.0`, SDK 10.0.302 pinned by `global.json`). Root namespace: `FTT`. Migrated from .NET 8 on 2026-08-06; Godot 4.7.1 loads the `net10.0` assembly and the full suite passes. `design-godot.md` Section 12 still says .NET 8 — the project file is authoritative.
 - Current package/runtime dependencies: `K4os.Compression.LZ4` 1.3.8, Klotho's `Newtonsoft.Json` 13.0.4 and `LiteNetLib` 2.1.4 runtime dependencies, plus Debug-only GdUnit4 test packages.
 - Current renderer setting: `gl_compatibility`, using Godot's 2D `CanvasItem` stack. The intended art pipeline uses `Light2D`, `CanvasModulate`, `LightOccluder2D`, normal maps, and custom `CanvasItem` shaders.
 - Target platforms: Windows, macOS, Linux/SteamOS, with Steam Deck performance in mind.
@@ -93,6 +97,10 @@ Klotho v0.6.1 and GdUnit4 v6.2.0 are pinned under `addons/`. Klotho is experimen
 ```text
 project.godot                    Godot settings, InputMap, autoloads, main scene
 FightersThroughTime.csproj       Godot .NET project and NuGet dependencies
+AGENTS.md                        This file: durable agent orientation
+CLAUDE.md                        Claude Code entry point; imports AGENTS.md, adds toolchain and docs authority map
+.claude/settings.json            Committed Claude Code project settings (GODOT_BIN, permissions)
+.claude/commands/                Project slash commands (/validate, /godot-run)
 design-godot.md                  Full game design and technical specification
 localization/en.csv              English translation keys
 resources/Characters/            Nine CharacterData .tres resources
@@ -118,7 +126,14 @@ scripts/FighterSim/              Klotho fixed-point 1v1 simulation and Godot bri
 tests/                            GdUnit4 C# content/unit/integration/determinism tests
 addons/gdUnit4/                  Pinned test framework
 addons/klotho/                   Pinned experimental deterministic runtime
-docs/IMPLEMENTATION_STATUS.md    Current roadmap execution ledger
+IMPLEMENTATION_PLAN.md           Ordered delivery plan and package sequencing
+IMPLEMENTATION_STATUS.md         Long-form implemented-vs-designed gap analysis
+docs/IMPLEMENTATION_STATUS.md    Concise roadmap execution ledger (a different document from the root file of the same name)
+docs/PACKAGE3_KIT_AUDIT.md       36-slot character kit audit and conversion order
+docs/architecture/               Accepted ADRs 0001-0006
+docs/BUILDING.md                 Build and validation procedure
+docs/PERFORMANCE_BASELINE.md     Package 0 performance baseline
+docs/development-plan.md         Earlier 12-stage Godot plan; superseded by IMPLEMENTATION_PLAN.md
 assets/                          Intended visual assets; currently sparse
 audio/                           Intended music/SFX assets; currently sparse
 ```
@@ -258,21 +273,23 @@ For ordinary C# changes:
 8. For save changes, test empty slots, round-trip serialization, corrupt/old data handling, and migration.
 9. For future deterministic networking work, add headless repeatability/desync tests before treating the system as usable online.
 
-GdUnit4 v6.2.0 is installed. Run the headless suite with a valid console Godot path:
+GdUnit4 v6.2.0 is installed. Run the headless suite with a valid console Godot path. On the current development machine both Godot 4.7.1 .NET executables live in `D:\Projects\`, one directory above the repository:
 
 ```powershell
-$env:GODOT_BIN = "C:\path\to\Godot_v4.7.1-stable_mono_win64_console.exe"
+$env:GODOT_BIN = "D:\Projects\Godot_v4.7.1-stable_mono_win64_console.exe"
 dotnet test FightersThroughTime.csproj --settings .runsettings
 ```
 
-The current baseline is 138 passing tests, including Fighter zone spawn/status/owner-buff determinism and rollback convergence, Warp float behavior, Resonance perk collection/isolation, minimal enemy status semantics, Story difficulty scaling, Fighter stage geometry/platform/anchor determinism, Roll default bindings, dash gesture/input serialization, Story pushbox geometry/resolution, authored combat timelines, ledge/one-way/aerial/crouch/hyper-armor rules, puzzle/environment toolkit behavior, stable-ID pool capacity/recycle/reject/reuse, difficulty drop contracts, Dust visual tiers, post-rewind immunity/presentation contracts, deterministic Fighter run acceleration/dash/roll/jostling, entity lifecycles, match modes, CPU decisions, delayed-input convergence, packet validation, safe-frame rewind behavior, all nine Resonance grid manifests/prerequisites/isolation, Fighter stage catalog/hazard identity, localization registration, schema-v3 save envelopes, deletion, tamper rejection, migration, and atomic backup recovery.
+Verify the reported `Total:` count against the baseline below. If GdUnit4 cannot launch Godot it logs `Rebuilding Godot Project ends with exit code: -1073741819`, runs only the ~21 pure-C# tests, and still exits 0 — a green exit code alone does not mean the suite passed. That happens when `D:\Projects\GodotSharp\` is missing or the Godot binary is separated from it; Godot then aborts with `.NET: Assemblies not found`. The full suite was last verified green on 2026-08-06 at 149/149.
+
+The current baseline is 149 passing tests, including canonical Tesla kit determinism (coil fence linking, Lorentz Root zone with StaticCharge coil chains, data-driven blink, coil-link rollback convergence) and content contracts, placeholder audio kit contracts (synchronized loopable stems, non-looping SFX), Fighter zone spawn/status/owner-buff determinism and rollback convergence, Warp float behavior, Resonance perk collection/isolation, minimal enemy status semantics, Story difficulty scaling, Fighter stage geometry/platform/anchor determinism, Roll default bindings, dash gesture/input serialization, Story pushbox geometry/resolution, authored combat timelines, ledge/one-way/aerial/crouch/hyper-armor rules, puzzle/environment toolkit behavior, stable-ID pool capacity/recycle/reject/reuse, difficulty drop contracts, Dust visual tiers, post-rewind immunity/presentation contracts, deterministic Fighter run acceleration/dash/roll/jostling, entity lifecycles, match modes, CPU decisions, delayed-input convergence, packet validation, safe-frame rewind behavior, all nine Resonance grid manifests/prerequisites/isolation, Fighter stage catalog/hazard identity, localization registration, schema-v3 save envelopes, deletion, tamper rejection, migration, and atomic backup recovery.
 
 ## Known prototype gaps to remember
 
 - Only the menu, character select, test arena, hub, tutorial, and Florence scenes exist.
 - Campaign target routing names levels 0–15, but scene resources only exist for levels 0 and 1.
 - Much of the environment, character, enemy, and ability presentation is code-generated placeholder geometry.
-- The deterministic Fighter and local match foundations work, and stage select exposes ten playable variants with distinct deterministic hazard identities. Florence Workshop is the first production-contract stage with authored geometry, scene, and camera wiring; the remaining nine stages still share the Test Arena template. Einstein's kit is the first character converted to canonical mechanics in both modes (Package 3 vertical slice; the 36-slot gap audit lives in `docs/PACKAGE3_KIT_AUDIT.md`); the other eight production kits, rollback performance validation, and presentation polish remain incomplete. `BaseSpecial` abilities should use `UseAuthoredPhaseFrames()` so `.tres` startup/active/recovery frames are authoritative rather than hardcoded `PhaseTimer` constants.
+- The deterministic Fighter and local match foundations work, and stage select exposes ten playable variants with distinct deterministic hazard identities. Florence Workshop is the first production-contract stage with authored geometry, scene, and camera wiring; the remaining nine stages still share the Test Arena template. Einstein (Package 3 vertical slice) and Tesla (construct-pattern slice: authored `scenes/constructs/TeslaCoil.tscn`, deterministic coil fence linking, Lorentz chain reads, Story-shield perk support) are converted to canonical mechanics in both modes; the 36-slot gap audit lives in `docs/PACKAGE3_KIT_AUDIT.md`. The other seven production kits, rollback performance validation, and presentation polish remain incomplete. `BaseSpecial` abilities should use `UseAuthoredPhaseFrames()` so `.tres` startup/active/recovery frames are authoritative rather than hardcoded `PhaseTimer` constants.
 - Direct-IP LAN packets/rollback are implemented as a foundation. Steam Networking Sockets, relay, public matchmaking, connection negotiation, state resync, and production online UI are absent.
 - Secure schema-v3 saves, confirmed slot deletion, localized slot summaries, puzzle completion persistence, and all nine baseline Resonance Grid resources are implemented. Bespoke perk execution is wired for Einstein (Story-only via `StoryAbilityPerks`); the other eight characters' perks and complete hub stations/gates remain.
 - The shared puzzle/environment toolkit, Story drop tables/pickups, world-aware rewind freeze/projectile clearing, 120-frame landing immunity, and Timeline Collapse restart choice are implemented with replaceable placeholders. Full level authoring and final rewind/drop presentation remain later-package work.

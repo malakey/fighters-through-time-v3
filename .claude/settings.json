@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "GODOT_BIN": "D:\\Projects\\Godot_v4.7.1-stable_mono_win64_console.exe",
+    "DOTNET_CLI_TELEMETRY_OPTOUT": "1",
+    "DOTNET_NOLOGO": "1"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build:*)",
+      "Bash(dotnet test:*)",
+      "Bash(dotnet restore:*)",
+      "Bash(dotnet --version)",
+      "Bash(dotnet --info)",
+      "Bash(dotnet --list-sdks)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git stash list:*)"
+    ],
+    "ask": [
+      "Edit(addons/**)",
+      "Edit(project.godot)",
+      "Edit(global.json)",
+      "Edit(FightersThroughTime.csproj)"
+    ],
+    "deny": [
+      "Edit(.godot/**)",
+      "Edit(**/bin/**)",
+      "Edit(**/obj/**)",
+      "Edit(TestResults/**)"
+    ]
+  }
+}

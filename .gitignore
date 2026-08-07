@@ -16,6 +16,7 @@
 /.vs/
 /.vscode/
 /.idea/
+/.claude/settings.local.json
 *.suo
 *.user
 *.userprefs

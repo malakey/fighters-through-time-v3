@@ -78,16 +78,18 @@ Perks: Executive Order (shockwave +50% travel, +20% dmg), Homestead Bulwark (cha
 
 Perks: Asp's Bite (Venom x2 vs airborne), Quicksand Grip (vortex targets rooted 1 s on Mirage cast), Royal Aegis (10% max-HP shield on Mirage). Not wired.
 
-### Tesla (`tesla`)
+### Tesla (`tesla`) - converted 2026-08-06
 
-| Slot | Canonical design | Current state | Status |
+| Slot | Canonical design | Pre-conversion state | Status |
 |---|---|---|---|
-| S1 Tesla Coil | 25 HP, 30 s, max 2; arcs 5 dmg / 2 s; linked fence 8 dmg / 0.5 s within 8 units + StaticCharge | Story: NO-OPs without scene (X3). Fighter: persistent type 1, no linking. | sketch |
-| S2 Lorentz Pulse | Radial Root 2 s; chains lightning to coils if target has StaticCharge | Story: bespoke. Fighter: melee-range (X4). | story-canonical |
-| Move Lightning Blink | Blink, <= 1 s, air recovery | Story: velocity blink. Fighter: crude. | sketch |
-| Ult Wardenclyffe Cataclysm | Pull + column + all coils explode | Sketch both modes (coil explosion Story-only sketch). | sketch |
+| S1 Tesla Coil | 25 HP, 30 s, max 2; arcs 5 dmg / 2 s; linked fence 8 dmg / 0.5 s within 8 units + StaticCharge | Story: NO-OPed without scene (X3). Fighter: persistent type 1, no linking. | canonical (authored `scenes/constructs/TeslaCoil.tscn` construct: damageable 25 HP, instant-strike arcs, fence link at 480 px; Fighter: deterministic fence pass in `FighterPersistentObjectSystem`, 8 dmg/0.5 s + StaticCharge, snapshot/rollback-safe via `LinkTickFramesRemaining`) |
+| S2 Lorentz Pulse | Radial Root 2 s; chains lightning to coils if target has StaticCharge | Story: bespoke, players-only status loop. Fighter: melee-range (X4). | canonical (Story: hurtbox-query radial pulse hitting enemies, StaticCharge read before Root replaces it, per-coil chain strikes; Fighter: owner-centered one-pulse zone type 52 with +5/coil chain damage vs primed targets) |
+| Move Lightning Blink | Blink, <= 1 s, air recovery | Story: hardcoded velocity blink. Fighter: crude. | canonical (Story consumes authored MovementAbilityData with 1 s cap; Fighter input-directional blink already data-driven, covered by tests) |
+| Ult Wardenclyffe Cataclysm | Pull + column + all coils explode | Sketch both modes. | sketch (see X7; coil chain-explosion works against the authored construct) |
 
-Perks: Resonant Overdrive (coils +5 s, arcs 25% faster), Lorentz Attraction (pull before root, +1 s root), Wardenclyffe Shield (15% max-HP shield near coil). Not wired.
+Perks: Resonant Overdrive (+5 s coil lifetime, 25% faster arcs), Lorentz Attraction (pull-then-root, +1 s), Wardenclyffe Shield (recharging 15% max-HP shield near a live coil, via the new `PlayerController` Story-shield support). All three wired Story-only 2026-08-06 through `HasStoryPerk`.
+
+Note: design Section 5 lists the coil arc `damageTickInterval` as 0.5 s while the dedicated Section 4 coil specification says 5 HP every 2.0 s; the conversion follows the Section 4 spec (the 0.5 s interval applies to the linked fence), consistent with this audit's original reading.
 
 ### Shakespeare (`shakespeare`)
 
@@ -124,9 +126,9 @@ Perks: Thorn Snare (rooted enemies take continuous damage), Tornado Lift (glide 
 
 ## Conversion order
 
-Einstein is the pattern-setting slice (complete). Remaining passes, one character each, Story + Fighter + 3 perks + tests per pass:
+Einstein is the pattern-setting slice (complete). Tesla is the construct-pattern slice (complete 2026-08-06): `TeslaCoilNode` + `scenes/constructs/TeslaCoil.tscn` set the authored-construct pattern (contract-conformant scene, damageable HP, instant-strike attacks via hurtbox queries, pooled reset, rewind freeze), and the deterministic fence/chain passes set the Fighter-side pattern for construct interactions. Remaining passes, one character each, Story + Fighter + 3 perks + tests per pass:
 
-1. Tesla (exercises persistent constructs, linking, StaticCharge synergies; unblocks X3 for coils)
+1. ~~Tesla~~ (complete: persistent constructs, linking, StaticCharge synergies; X3 unblocked for coils)
 2. Leonardo (turret construct, spiral zone)
 3. Cleopatra (nest construct, vortex pull zone)
 4. Pocahontas (snare construct, glide rules)

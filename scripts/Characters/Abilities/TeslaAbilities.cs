@@ -4,18 +4,28 @@ using FTT.Characters;
 
 namespace FTT.Characters.Abilities {
 
+    /// <summary>
+    /// Special 1 — Tesla Coil: deploys a persistent coil construct (25 HP, 30 s,
+    /// max 2 active). Coils arc at nearby enemies and link into an
+    /// alternating-current fence when placed within 8 world units of each other.
+    /// Story-only Resonance perks: Resonant Overdrive (+5 s lifetime, 25% faster
+    /// arcs) and Wardenclyffe Shield (recharging shield worth 15% of max HP while
+    /// standing near an active coil).
+    /// </summary>
     public partial class TeslaTeslaCoil : BaseSpecial {
-        private const float StartupDuration = 0.35f;
-        private const float ActiveDuration = 0.1f;
-        private const float RecoveryDuration = 0.3f;
-        private const int MaxActiveCoils = 2;
+
+        public const string ResonantOverdrivePerkKey = "resonant_overdrive";
+        public const string WardenclyffeShieldPerkKey = "wardenclyffe_shield";
+
+        private const float ShieldNearCoilRangePixels = 240f;
+        private const float ShieldRechargePerSecond = 2f;
 
         protected override void OnStartup() {
-            PhaseTimer = StartupDuration;
+            UseAuthoredPhaseFrames();
         }
 
         protected override void OnActive() {
-            PhaseTimer = ActiveDuration;
+            UseAuthoredPhaseFrames();
             DeployCoil();
             Owner.SpecialOneCooldownTimer = Data?.CooldownDuration ?? 10f;
             FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
@@ -26,184 +36,109 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = RecoveryDuration;
+            UseAuthoredPhaseFrames();
         }
 
         private void DeployCoil() {
             if (Owner == null) return;
-            if (Data?.ProjectileScene == null) return;
-
-            while (Owner.ActivePersistentObjects.Count >= MaxActiveCoils) {
-                var oldest = Owner.ActivePersistentObjects[0];
-                Owner.ActivePersistentObjects.RemoveAt(0);
-                if (oldest is FTT.Core.PooledNode pooled) pooled.ReturnToPool();
-                else oldest.QueueFree();
-            }
-
-            var coil = FTT.Core.PoolManager.Instance?.Spawn(
-                Data.ProjectileScene,
-                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 70f : -70f, 0f)
-            );
-
-            if (coil is TeslaCoilNode node) {
-                node.Initialize(Data.BaseDamage, Owner.PlayerIndex);
-                Owner.ActivePersistentObjects.Add(node);
-                TryLinkCoils();
-            }
-        }
-
-        private void TryLinkCoils() {
-            if (Owner.ActivePersistentObjects.Count < 2) return;
-            if (Owner.ActivePersistentObjects[^1] is TeslaCoilNode coilA &&
-                Owner.ActivePersistentObjects[^2] is TeslaCoilNode coilB) {
-                coilA.LinkPartner(coilB);
-                coilB.LinkPartner(coilA);
-            }
-        }
-    }
-
-    public partial class TeslaCoilNode : FTT.Core.PooledNode, FTT.Core.IPoolable {
-        private const float Lifespan = 30f;
-        private const float ArcInterval = 0.5f;
-        private const float ArcRange = 200f;
-        private const float ArcDamage = 4f;
-
-        private float _damage;
-        private int _ownerIndex;
-        private float _lifetime;
-        private float _arcTimer;
-        private TeslaCoilNode _partner;
-        private Hitbox _barrierHitbox;
-
-        public void Initialize(float damage, int ownerIndex) {
-            _damage = damage;
-            _ownerIndex = ownerIndex;
-            _lifetime = Lifespan;
-            _arcTimer = ArcInterval;
-            _partner = null;
-        }
-
-        public void LinkPartner(TeslaCoilNode partner) {
-            _partner = partner;
-            _barrierHitbox = GetNodeOrNull<Hitbox>("BarrierHitbox");
-            _barrierHitbox?.Activate();
-        }
-
-        public void OnSpawn() { }
-        public void OnDespawn() {
-            _barrierHitbox?.Deactivate();
-            if (_partner != null) {
-                _partner._partner = null;
-                _partner._barrierHitbox?.Deactivate();
-            }
-        }
-
-        public void Explode() {
-            var hitbox = GetNodeOrNull<Hitbox>("ExplosionHitbox");
-            if (hitbox != null) {
-                hitbox.Damage = _damage * 2f;
-                hitbox.KnockbackForce = new Vector2(0, -5f);
-                hitbox.OwnerPlayerIndex = _ownerIndex;
-                hitbox.Activate();
-                GetTree().CreateTimer(0.15f).Timeout += () => hitbox.Deactivate();
-            }
-            ReturnToPool();
-        }
-
-        public override void _PhysicsProcess(double delta) {
-            float dt = (float)delta;
-            _lifetime -= dt;
-            if (_lifetime <= 0) {
-                ReturnToPool();
+            if (Data?.PersistentObjectScene == null) {
+                GD.PushWarning("Tesla Coil has no PersistentObjectScene authored; deploy skipped.");
                 return;
             }
 
-            _arcTimer -= dt;
-            if (_arcTimer <= 0) {
-                _arcTimer = ArcInterval;
-                FireArc();
+            int maxActive = Data.MaxActiveObjects > 0 ? Data.MaxActiveObjects : 2;
+            while (CountActiveCoils() >= maxActive) {
+                TeslaCoilNode oldest = FindOldestCoil();
+                if (oldest == null) break;
+                Owner.ActivePersistentObjects.Remove(oldest);
+                oldest.ReturnToPool();
             }
+
+            Node spawned = FTT.Core.PoolManager.Instance?.Spawn(
+                Data.PersistentObjectScene,
+                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 70f : -70f, 0f),
+                Owner.GetParent());
+            if (spawned is not TeslaCoilNode coil) return;
+
+            coil.Initialize(Data, Owner, Owner.HasStoryPerk(ResonantOverdrivePerkKey));
+            Owner.ActivePersistentObjects.Add(coil);
+            TryLinkCoils(coil);
         }
 
-        private void FireArc() {
-            var target = FindNearestEnemy();
-            if (target == null) return;
-
-            var arcScene = GetNodeOrNull<PackedScene>("ArcScene");
-            if (arcScene == null) return;
-
-            var arc = FTT.Core.PoolManager.Instance?.Spawn(arcScene, GlobalPosition);
-            if (arc is TeslaCoilArc projectile) {
-                projectile.Initialize(ArcDamage, target.GlobalPosition, _ownerIndex);
-            }
-        }
-
-        private Node2D FindNearestEnemy() {
-            Node2D nearest = null;
-            float nearestDist = ArcRange;
-            foreach (var node in GetTree().GetNodesInGroup("players")) {
-                if (node is PlayerController pc && pc.PlayerIndex != _ownerIndex) {
-                    float dist = GlobalPosition.DistanceTo(pc.GlobalPosition);
-                    if (dist < nearestDist) {
-                        nearestDist = dist;
-                        nearest = pc;
-                    }
+        private void TryLinkCoils(TeslaCoilNode newest) {
+            foreach (Node2D node in Owner.ActivePersistentObjects) {
+                if (node is TeslaCoilNode other && other != newest && !other.IsCoilDestroyed
+                    && newest.GlobalPosition.DistanceTo(other.GlobalPosition) <= TeslaCoilNode.LinkRangePixels) {
+                    // The newest coil drives the fence tick so exactly one member
+                    // of the pair applies fence damage.
+                    newest.LinkPartner(other, drivesFence: true);
+                    other.LinkPartner(newest, drivesFence: false);
+                    return;
                 }
             }
-            return nearest;
         }
-    }
 
-    public partial class TeslaCoilArc : FTT.Core.PooledNode, FTT.Core.IPoolable {
-        private float _speed = 360f;
-        private float _damage;
-        private Vector2 _direction;
-        private int _ownerIndex;
-        private float _lifetime = 0.4f;
-        private Hitbox _hitbox;
-
-        public void Initialize(float damage, Vector2 targetPos, int ownerIndex) {
-            _damage = damage;
-            _direction = (targetPos - GlobalPosition).Normalized();
-            _ownerIndex = ownerIndex;
-            _lifetime = 0.4f;
-
-            _hitbox = GetNodeOrNull<Hitbox>("Hitbox");
-            if (_hitbox != null) {
-                _hitbox.Damage = _damage;
-                _hitbox.KnockbackForce = _direction * 2f;
-                _hitbox.OwnerPlayerIndex = _ownerIndex;
-                _hitbox.Activate();
+        private int CountActiveCoils() {
+            int count = 0;
+            foreach (Node2D node in Owner.ActivePersistentObjects) {
+                if (node is TeslaCoilNode coil && IsInstanceValid(coil) && !coil.IsCoilDestroyed) count++;
             }
+            return count;
         }
 
-        public void OnSpawn() { }
-        public void OnDespawn() => _hitbox?.Deactivate();
+        private TeslaCoilNode FindOldestCoil() {
+            foreach (Node2D node in Owner.ActivePersistentObjects) {
+                if (node is TeslaCoilNode coil && IsInstanceValid(coil) && !coil.IsCoilDestroyed) return coil;
+            }
+            return null;
+        }
 
         public override void _PhysicsProcess(double delta) {
-            float dt = (float)delta;
-            _lifetime -= dt;
-            if (_lifetime <= 0) {
-                ReturnToPool();
-                return;
+            base._PhysicsProcess(delta);
+            UpdateWardenclyffeShield((float)delta);
+        }
+
+        /// <summary>
+        /// Wardenclyffe Shield (Story-only): while Tesla stands near an active
+        /// coil, a slow-recharging electromagnetic shield absorbs up to 15% of his
+        /// max HP in damage. Recharge rate is a placeholder-tuning choice; the
+        /// design specifies "slow-recharging" without a number.
+        /// </summary>
+        private void UpdateWardenclyffeShield(float dt) {
+            if (Owner == null || !Owner.HasStoryPerk(WardenclyffeShieldPerkKey)) return;
+            Owner.ConfigureStoryShield(0.15f * Owner.MaximumHP);
+            foreach (Node2D node in Owner.ActivePersistentObjects) {
+                if (node is TeslaCoilNode coil && IsInstanceValid(coil) && !coil.IsCoilDestroyed
+                    && Owner.GlobalPosition.DistanceTo(coil.GlobalPosition) <= ShieldNearCoilRangePixels) {
+                    Owner.RechargeStoryShield(ShieldRechargePerSecond * dt);
+                    return;
+                }
             }
-            GlobalPosition += _direction * _speed * dt;
         }
     }
 
+    /// <summary>
+    /// Special 2 — Lorentz Pulse: a radial electromagnetic burst around Tesla that
+    /// damages and Roots enemies for the authored duration. Targets primed with
+    /// StaticCharge (checked before the Root replaces it) take an additional chain
+    /// lightning strike per active Tesla Coil. Story-only Resonance perk Lorentz
+    /// Attraction pulls enemies toward Tesla before rooting them and extends the
+    /// root by one second.
+    /// </summary>
     public partial class TeslaLorentzPulse : BaseSpecial {
-        private const float StartupDuration = 0.25f;
-        private const float ActiveDuration = 0.15f;
-        private const float RecoveryDuration = 0.35f;
-        private const float RootDuration = 2.0f;
-        private const float PulseRadius = 140f;
+
+        public const string LorentzAttractionPerkKey = "lorentz_attraction";
+
+        private const float PulseRadiusPixels = 140f;
+        private const float AttractionStopDistancePixels = 70f;
+        private const float AttractionRootBonusSeconds = 1f;
 
         protected override void OnStartup() {
-            PhaseTimer = StartupDuration;
+            UseAuthoredPhaseFrames();
         }
 
         protected override void OnActive() {
-            PhaseTimer = ActiveDuration;
+            UseAuthoredPhaseFrames();
             EmitPulse();
             Owner.SpecialTwoCooldownTimer = Data?.CooldownDuration ?? 10f;
             FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
@@ -214,61 +149,142 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = RecoveryDuration;
+            UseAuthoredPhaseFrames();
         }
 
         private void EmitPulse() {
-            var hitbox = GetNodeOrNull<Hitbox>("PulseHitbox");
-            if (hitbox != null) {
-                hitbox.Damage = Data?.BaseDamage ?? 8f;
-                hitbox.KnockbackForce = Data?.KnockbackForce ?? new Vector2(0, -2f);
-                hitbox.OwnerPlayerIndex = Owner.PlayerIndex;
-                hitbox.GlobalPosition = Owner.GlobalPosition;
-                hitbox.Activate();
-                GetTree().CreateTimer(ActiveDuration).Timeout += () => hitbox.Deactivate();
-            }
+            if (Owner == null) return;
+            var space = Owner.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return;
 
-            foreach (var node in GetTree().GetNodesInGroup("players")) {
-                if (node is PlayerController pc && pc.PlayerIndex != Owner.PlayerIndex) {
-                    if (Owner.GlobalPosition.DistanceTo(pc.GlobalPosition) <= PulseRadius) {
-                        pc.GetNodeOrNull<StatusController>("StatusController")
-                            ?.ApplyStatus(FTT.Core.StatusType.Root, RootDuration);
-                        ChainLightningToCoils(pc);
-                    }
-                }
+            uint targetHurtboxLayer = Owner.PlayerIndex == 0
+                ? FTT.Core.CollisionLayers.EnemyHurtbox
+                : FTT.Core.CollisionLayers.PlayerHurtbox;
+            var query = new PhysicsShapeQueryParameters2D {
+                Shape = new CircleShape2D { Radius = PulseRadiusPixels },
+                Transform = new Transform2D(0f, Owner.GlobalPosition),
+                CollideWithAreas = true,
+                CollideWithBodies = false,
+                CollisionMask = targetHurtboxLayer
+            };
+
+            bool attraction = Owner.HasStoryPerk(LorentzAttractionPerkKey);
+            float rootDuration = (Data?.StatusDuration > 0f ? Data.StatusDuration : 2f)
+                + (attraction ? AttractionRootBonusSeconds : 0f);
+
+            foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
+                if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
+                if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
+
+                // Chain priming must be read before the pulse applies Root: the
+                // newest status completely replaces the previous one.
+                bool primed = TargetHasStaticCharge(hurtbox);
+                if (attraction) PullTargetTowardOwner(hurtbox);
+
+                float dealt = hurtbox.TakeHit(new HitPayload {
+                    AttackerIndex = Owner.PlayerIndex,
+                    AttackID = Data?.AbilityID ?? "tesla_lorentz_pulse",
+                    HitboxID = "pulse",
+                    AttackClass = AttackClass.Special,
+                    Damage = (Data?.BaseDamage ?? 12f) * Owner.StorySpecialDamageMultiplier,
+                    Knockback = Vector2.Zero,
+                    HitstunDuration = Data?.HitstunDuration ?? 0.2f,
+                    HitOrigin = Owner.GlobalPosition,
+                    AttackerFacingRight = Owner.IsFacingRight,
+                    AppliedStatus = FTT.Core.StatusType.Root,
+                    StatusDuration = rootDuration,
+                    StatusIntensity = Data?.StatusIntensity ?? 1f,
+                    ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
+                    ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
+                });
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+
+                if (primed) ChainLightningToCoils(hurtbox);
             }
         }
 
-        private void ChainLightningToCoils(PlayerController target) {
-            foreach (var obj in Owner.ActivePersistentObjects) {
-                if (obj is TeslaCoilNode coil) {
-                    var arcScene = coil.GetNodeOrNull<PackedScene>("ArcScene");
-                    if (arcScene == null) continue;
-                    var arc = FTT.Core.PoolManager.Instance?.Spawn(arcScene, target.GlobalPosition);
-                    if (arc is TeslaCoilArc projectile) {
-                        projectile.Initialize(Data?.BaseDamage ?? 6f, coil.GlobalPosition, Owner.PlayerIndex);
-                    }
-                }
+        private void ChainLightningToCoils(Hurtbox target) {
+            foreach (Node2D node in Owner.ActivePersistentObjects) {
+                if (node is not TeslaCoilNode coil || !IsInstanceValid(coil) || coil.IsCoilDestroyed) continue;
+                float dealt = target.TakeHit(new HitPayload {
+                    AttackerIndex = Owner.PlayerIndex,
+                    AttackID = Data?.AbilityID ?? "tesla_lorentz_pulse",
+                    HitboxID = "chain_lightning",
+                    AttackClass = AttackClass.Special,
+                    Damage = coil.ArcDamage * Owner.StorySpecialDamageMultiplier,
+                    Knockback = Vector2.Zero,
+                    HitstunDuration = 0.1f,
+                    HitOrigin = coil.GlobalPosition,
+                    AttackerFacingRight = Owner.IsFacingRight,
+                    AppliedStatus = FTT.Core.StatusType.None,
+                    StatusDuration = 0f,
+                    StatusIntensity = 1f,
+                    ScreenShakeIntensity = 0.1f,
+                    ScreenShakeDuration = 0.05f
+                });
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
             }
+        }
+
+        private void PullTargetTowardOwner(Hurtbox hurtbox) {
+            Node current = hurtbox.GetParent();
+            while (current != null) {
+                if (current is CharacterBody2D body) {
+                    Vector2 toOwner = Owner.GlobalPosition - body.GlobalPosition;
+                    float distance = toOwner.Length();
+                    if (distance > AttractionStopDistancePixels) {
+                        Vector2 pulled = Owner.GlobalPosition
+                            - toOwner.Normalized() * AttractionStopDistancePixels;
+                        body.GlobalPosition = pulled;
+                    }
+                    return;
+                }
+                current = current.GetParent();
+            }
+        }
+
+        private static bool TargetHasStaticCharge(Hurtbox hurtbox) {
+            Node current = hurtbox.GetParent();
+            while (current != null) {
+                if (current is PlayerController player) {
+                    var status = player.GetNodeOrNull<StatusController>("StatusController");
+                    return status?.ActiveType == FTT.Core.StatusType.StaticCharge;
+                }
+                if (current is FTT.Enemies.EnemyController enemy) {
+                    return enemy.ActiveStatusType == FTT.Core.StatusType.StaticCharge;
+                }
+                current = current.GetParent();
+            }
+            return false;
         }
     }
 
+    /// <summary>
+    /// Movement — Lightning Blink: Tesla becomes pure current and blinks a short
+    /// distance in the held input direction, usable in the air for recovery.
+    /// Distance, duration (capped at the design's 1 s limit), and cooldown come
+    /// from the authored MovementAbilityData resource.
+    /// </summary>
     public partial class TeslaLightningBlink : BaseSpecial {
-        private const float StartupDuration = 0.05f;
-        private const float ActiveDuration = 0.2f;
-        private const float RecoveryDuration = 0.1f;
-        private const float CooldownTime = 5.0f;
-        private const float BlinkDistance = 160f;
+
+        private const float MaxBlinkDuration = 1.0f;
 
         private Vector2 _blinkDirection;
         private Vector2 _startPosition;
+        private float _blinkDuration = 0.2f;
+        private float _blinkDistance = 160f;
+
+        private MovementAbilityData MovementData => Data as MovementAbilityData;
 
         protected override void OnStartup() {
-            PhaseTimer = StartupDuration;
+            UseAuthoredPhaseFrames();
+            _blinkDuration = Mathf.Min(
+                MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : 0.2f,
+                MaxBlinkDuration);
+            _blinkDistance = MovementData?.DistanceMoved > 0f ? MovementData.DistanceMoved : 160f;
 
             float hInput = Owner.CurrentInputFrame.Horizontal;
             float vInput = Owner.CurrentInputFrame.Vertical;
-
             _blinkDirection = new Vector2(hInput, vInput);
             if (_blinkDirection == Vector2.Zero) {
                 _blinkDirection = Owner.IsFacingRight ? Vector2.Right : Vector2.Left;
@@ -278,34 +294,40 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override void OnActive() {
-            PhaseTimer = ActiveDuration;
+            PhaseTimer = _blinkDuration;
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = RecoveryDuration;
-            Owner.MovementAbilityCooldownTimer = CooldownTime;
+            UseAuthoredPhaseFrames();
+            float cooldown = Data?.CooldownDuration ?? 5f;
+            Owner.MovementAbilityCooldownTimer = cooldown;
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
-                AbilityName = "Lightning Blink",
+                AbilityName = Data?.AbilityName ?? "Lightning Blink",
                 StartPosition = _startPosition,
                 EndPosition = Owner.GlobalPosition
             });
             FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 Slot = FTT.Core.AbilitySlot.MovementAbility,
-                Duration = CooldownTime
+                Duration = cooldown
             });
         }
 
         public override void _PhysicsProcess(double delta) {
             if (CurrentPhase == AbilityPhase.Active) {
-                float speed = BlinkDistance / ActiveDuration * 60f;
+                float speed = _blinkDistance / _blinkDuration;
                 Owner.Velocity = _blinkDirection * speed;
             }
             base._PhysicsProcess(delta);
         }
     }
 
+    /// <summary>
+    /// Ultimate — Wardenclyffe Cataclysm. Structured sketch pending the dedicated
+    /// ultimates pass (audit gap X7): stage-wide multi-hit column plus a
+    /// chain-reaction detonation of every active coil.
+    /// </summary>
     public partial class TeslaWardenclyffeCataclysm : BaseSpecial {
         private const float CinematicDuration = 2.5f;
         private const float ShockwaveDamage = 18f;
@@ -356,19 +378,16 @@ namespace FTT.Characters.Abilities {
         }
 
         private void ExplodeAllCoils() {
-            var coils = new System.Collections.Generic.List<Node2D>(Owner.ActivePersistentObjects);
-            foreach (var obj in coils) {
-                if (obj is TeslaCoilNode coil) {
+            var constructs = new System.Collections.Generic.List<Node2D>(Owner.ActivePersistentObjects);
+            foreach (Node2D node in constructs) {
+                if (node is TeslaCoilNode coil && IsInstanceValid(coil) && !coil.IsCoilDestroyed) {
                     coil.Explode();
-                    Owner.ActivePersistentObjects.Remove(obj);
                 }
             }
         }
 
         private void DealShockwaveHit() {
-            var hitbox = GetNodeOrNull<Hitbox>("ShockwaveHitbox");
-            if (hitbox == null) return;
-
+            var hitbox = GetOrCreateChildHitbox("ShockwaveHitbox");
             hitbox.Damage = ShockwaveDamage;
             hitbox.KnockbackForce = new Vector2(0, -6f);
             hitbox.OwnerPlayerIndex = Owner.PlayerIndex;

@@ -18,7 +18,7 @@ This is the concise execution ledger for the gap-closure roadmap. `AGENTS.md` is
 | 7 - LAN/online rollback | Foundation only | Protocol-v2 compact input/hash packets include Roll/Dash commands, acknowledgements, confirmed hashes, direct-IP UDP LAN transport, deterministic in-memory latency transport, rollback/resimulation, desync/budget diagnostics, and cryptographic room codes. Steam transport/relay, discovery, negotiation, online UI, state resync, public queue, and failure UX remain. |
 | 8 - Full content/assets | Contracts complete; production pending | The asset/content manifest and placeholder replacement contracts exist. Levels 2-15, the full enemy/boss roster, nine production character presentations, ten authored arenas, campaign dialogue, and final assets remain. |
 | 9 - UI/audio/accessibility | In progress | Settings are reachable and persisted; audio, resolution, fullscreen, VSync, haptics, damage numbers, HUD opacity, and shake apply to implemented flows. SFX uses a fixed pool and key screens are localized. Production UI components, input remapping persistence, full copy cleanup, stems, and final visual/audio assets remain. |
-| 10 - QA/release | Foundation only | The suite has 132 passing tests plus successful Godot import and clean Tutorial, Florence, Hub, Main Menu, and Test Arena smoke runs. Profiling, soak testing, balancing, exports, platform/Steam Deck validation, and release checklists remain. |
+| 10 - QA/release | Foundation only | The suite has 140 passing tests plus successful Godot import and clean Tutorial, Florence, Hub, Main Menu, and Test Arena smoke runs. Profiling, soak testing, balancing, exports, platform/Steam Deck validation, and release checklists remain. |
 
 ## Implemented systems
 
