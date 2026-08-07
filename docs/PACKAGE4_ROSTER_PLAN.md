@@ -421,3 +421,38 @@ Phase C (serial closeout, one agent or orchestrator):
     `EnemyController.ResolveBodyMask(...)`, `BossController.SelectAbilityIndex(distance)`,
     `BossController.BeginAbility(...)`, and `BossController.TickAbility(...)` are public so the state
     machine is testable headlessly without driving a full scene with a live player.
+
+### B2 — Era enemies, Act II west (2026-08-07)
+
+1. **B2: Melee elites omit `PrimaryAttack`.** `cyber_centurion`, `chrono_chariot_raider`, and
+   `neural_mech_walker` author only their elite ability and let `EnemyController` synthesize the
+   MeleeStrike primary from the scalar `AttackDamage`/`AttackKnockback`/`Attack*Frames` fields —
+   the same shape A1 used for `steam_automaton`. Only the four ranged/lobbed primaries
+   (`laser_pistol_deckhand`, `overcharged_cannon_master`, `plasma_spear_ward`,
+   `infrared_border_sentry`) are authored as `EnemyAbilityData`, so the subset ships 8 ability
+   resources, not 12.
+2. **B2: `infrared_border_sentry` is a glass sniper at the band floor.** 40 HP (bottom of the
+   40–60 Act II standard band) paired with the subset's highest standard damage (24) and longest
+   telegraph (46 frames). `shock_shield_legionnaire` takes the band ceiling (55 HP) to pay for its
+   `FrontalDamageReduction = 0.5`.
+3. **B2: Range unit split is deliberate, not an inconsistency.** `EnemyData.AttackRange` and
+   `MoveSpeed` are world units (`EnemyController.PixelsPerUnit = 60`) while
+   `AggroRadius`/`DeAggroRadius` and every `EnemyAbilityData` distance (`HitboxSize`, `PulseRadius`,
+   `DashSpeed`, `TeleportRange*`) are raw pixels. `EnemyController.AttackRangePixels` additionally
+   clamps projectile-primary range up to `AggroRadius * 0.9`, so the sentry's authored
+   `AttackRange = 13.0` / `AggroRadius = 900` both matter: the aggro radius is what actually gates
+   the shot.
+4. **B2: `shell_burst` is authored `RangeClass = Melee`.** Elite cycling ignores `RangeClass`
+   (only boss selection filters on it), but the close radial burst is tagged honestly so the
+   resource stays correct if a boss ever reuses it.
+5. **B2: en.csv additions are one contiguous 16-row block** (8 enemy names then 8 ability names,
+   in plan table order) appended directly after `boss_ability_cross_slash_dash_name`, rather than
+   split into the existing separate enemy-name and ability-name groups. One block per workstream
+   keeps B1/B2/B3 merges to a clean union.
+6. **B2: the worktree branched before A1 landed.** It was merged up from `main` (836d5c7) before
+   authoring. Unrelated to content, but it means B2's branch carries the A1 merge commit.
+7. **B2: worktrees need an explicit `--import` pass.** `.godot/imported/` is gitignored, so a fresh
+   worktree fails the headless import check with `Unable to open file:
+   res://.godot/imported/*.ctex` for every SVG — and `--headless --quit` does **not** rebuild it.
+   Run `--headless --path <worktree> --import` once first; the import check then exits 0. Same
+   class of cold-cache artifact as the `dotnet test` timeout in CLAUDE.md.

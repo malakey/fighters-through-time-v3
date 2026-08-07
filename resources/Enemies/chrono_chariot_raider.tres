@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/chrono_chariot_raider/repulsor_charge.tres" id="3"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "chrono_chariot_raider"
+DisplayName = "Chrono-Chariot Raider"
+DisplayNameKey = "enemy_chrono_chariot_raider_name"
+Tier = 1
+MaxHP = 165
+Weight = 1.3
+MoveSpeed = 6.5
+JumpForce = 8.0
+AggroRadius = 640.0
+DeAggroRadius = 960.0
+AttackRange = 2.0
+AttackDamage = 17.0
+AttackKnockback = 3.2
+AttackCooldown = 2.6
+StunResistance = 0.45
+ReactionDelayMinFrames = 12
+ReactionDelayMaxFrames = 22
+EliteAbilityCooldown = 6.0
+Behavior = 0
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+AttackTelegraphFrames = 16
+AttackActiveFrames = 10
+AttackRecoveryFrames = 18
+EliteAbilities = Array[ExtResource("2")]([ExtResource("3")])
+ChronalDustDrop = 10
+ItemDropChance = 1.0
+PlaceholderTint = Color(0.9, 0.35, 0.75, 1)

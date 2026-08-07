@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/overcharged_cannon_master/chronal_mortar.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/overcharged_cannon_master/shell_burst.tres" id="4"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "overcharged_cannon_master"
+DisplayName = "Overcharged Cannon Master"
+DisplayNameKey = "enemy_overcharged_cannon_master_name"
+Tier = 1
+MaxHP = 195
+Weight = 1.6
+MoveSpeed = 2.9
+JumpForce = 6.5
+AggroRadius = 620.0
+DeAggroRadius = 900.0
+AttackRange = 9.0
+AttackDamage = 22.0
+AttackKnockback = 4.5
+AttackCooldown = 3.6
+StunResistance = 0.55
+ReactionDelayMinFrames = 16
+ReactionDelayMaxFrames = 26
+EliteAbilityCooldown = 8.0
+Behavior = 0
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+PrimaryAttack = ExtResource("3")
+AttackTelegraphFrames = 30
+AttackActiveFrames = 8
+AttackRecoveryFrames = 32
+EliteAbilities = Array[ExtResource("2")]([ExtResource("4")])
+ChronalDustDrop = 10
+ItemDropChance = 1.0
+PlaceholderTint = Color(0.95, 0.42, 0.12, 1)

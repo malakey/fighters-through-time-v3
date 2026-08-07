@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "enemy.plasma_spear_ward.energy_javelin"
+DisplayNameKey = "enemy_ability_energy_javelin_name"
+Archetype = 1
+RangeClass = 1
+TelegraphFrames = 18
+ActiveFrames = 6
+RecoveryFrames = 20
+CooldownSeconds = 2.2
+SelectionWeight = 1.0
+Damage = 11.0
+KnockbackForce = Vector2(2.8, -1.2)
+HitstunDuration = 0.18
+HitboxSize = Vector2(30, 10)
+HitboxOffset = Vector2(32, -32)
+ProjectileSpeed = 620.0
+ProjectileCount = 1
+ProjectileSpreadDegrees = 0.0
+ProjectileLifetime = 2.4
+ProjectileGravity = 60.0
+PiercesTargets = false
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.55, 0.9, 0.8, 1)
+PresentationEventID = "enemy.plasma_spear_ward.energy_javelin"

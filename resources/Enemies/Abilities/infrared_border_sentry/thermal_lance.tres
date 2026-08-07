@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "enemy.infrared_border_sentry.thermal_lance"
+DisplayNameKey = "enemy_ability_thermal_lance_name"
+Archetype = 1
+RangeClass = 1
+TelegraphFrames = 46
+ActiveFrames = 4
+RecoveryFrames = 30
+CooldownSeconds = 4.0
+SelectionWeight = 1.0
+Damage = 24.0
+KnockbackForce = Vector2(3.5, -1.0)
+HitstunDuration = 0.25
+HitboxSize = Vector2(36, 6)
+HitboxOffset = Vector2(34, -34)
+ProjectileSpeed = 1100.0
+ProjectileCount = 1
+ProjectileSpreadDegrees = 0.0
+ProjectileLifetime = 2.0
+ProjectileGravity = 0.0
+PiercesTargets = true
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+TelegraphTint = Color(1, 0.2, 0.2, 1)
+PresentationEventID = "enemy.infrared_border_sentry.thermal_lance"

@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/infrared_border_sentry/thermal_lance.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "infrared_border_sentry"
+DisplayName = "Infrared Border Sentry"
+DisplayNameKey = "enemy_infrared_border_sentry_name"
+Tier = 0
+MaxHP = 40
+Weight = 0.9
+MoveSpeed = 3.0
+JumpForce = 8.0
+AggroRadius = 900.0
+DeAggroRadius = 1200.0
+AttackRange = 13.0
+AttackDamage = 24.0
+AttackKnockback = 3.0
+AttackCooldown = 4.0
+StunResistance = 0.0
+ReactionDelayMinFrames = 34
+ReactionDelayMaxFrames = 50
+EliteAbilityCooldown = 5.0
+Behavior = 0
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+PrimaryAttack = ExtResource("2")
+AttackTelegraphFrames = 46
+AttackActiveFrames = 4
+AttackRecoveryFrames = 30
+ChronalDustDrop = 2
+ItemDropChance = 1.0
+PlaceholderTint = Color(0.5, 0.62, 0.72, 1)

@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/plasma_spear_ward/energy_javelin.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "plasma_spear_ward"
+DisplayName = "Plasma-Spear Ward"
+DisplayNameKey = "enemy_plasma_spear_ward_name"
+Tier = 0
+MaxHP = 48
+Weight = 1.0
+MoveSpeed = 4.0
+JumpForce = 9.0
+AggroRadius = 540.0
+DeAggroRadius = 800.0
+AttackRange = 7.5
+AttackDamage = 11.0
+AttackKnockback = 2.2
+AttackCooldown = 2.2
+StunResistance = 0.0
+ReactionDelayMinFrames = 28
+ReactionDelayMaxFrames = 40
+EliteAbilityCooldown = 5.0
+Behavior = 0
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+PrimaryAttack = ExtResource("2")
+AttackTelegraphFrames = 18
+AttackActiveFrames = 6
+AttackRecoveryFrames = 20
+ChronalDustDrop = 2
+ItemDropChance = 1.0
+PlaceholderTint = Color(0.55, 0.95, 0.45, 1)

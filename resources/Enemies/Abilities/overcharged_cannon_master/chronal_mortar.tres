@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "enemy.overcharged_cannon_master.chronal_mortar"
+DisplayNameKey = "enemy_ability_chronal_mortar_name"
+Archetype = 1
+RangeClass = 1
+TelegraphFrames = 30
+ActiveFrames = 8
+RecoveryFrames = 32
+CooldownSeconds = 3.6
+SelectionWeight = 1.0
+Damage = 22.0
+KnockbackForce = Vector2(5.0, -3.5)
+HitstunDuration = 0.35
+HitboxSize = Vector2(28, 28)
+HitboxOffset = Vector2(34, -42)
+ProjectileSpeed = 420.0
+ProjectileCount = 1
+ProjectileSpreadDegrees = 0.0
+ProjectileLifetime = 3.2
+ProjectileGravity = 620.0
+PiercesTargets = false
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+TelegraphTint = Color(1, 0.65, 0.25, 1)
+PresentationEventID = "enemy.overcharged_cannon_master.chronal_mortar"

@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "enemy.cyber_centurion.mortar_flare_volley"
+DisplayNameKey = "enemy_ability_mortar_flare_volley_name"
+Archetype = 1
+RangeClass = 1
+TelegraphFrames = 30
+ActiveFrames = 8
+RecoveryFrames = 30
+CooldownSeconds = 7.5
+SelectionWeight = 1.0
+Damage = 16.0
+KnockbackForce = Vector2(4.0, -3.0)
+HitstunDuration = 0.3
+HitboxSize = Vector2(22, 22)
+HitboxOffset = Vector2(30, -46)
+ProjectileSpeed = 380.0
+ProjectileCount = 3
+ProjectileSpreadDegrees = 18.0
+ProjectileLifetime = 3.0
+ProjectileGravity = 520.0
+PiercesTargets = false
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+TelegraphTint = Color(1, 0.5, 0.2, 1)
+PresentationEventID = "enemy.cyber_centurion.mortar_flare_volley"

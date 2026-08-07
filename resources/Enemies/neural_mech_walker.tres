@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/neural_mech_walker/autocannon_volley.tres" id="3"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "neural_mech_walker"
+DisplayName = "Neural Mech-Walker"
+DisplayNameKey = "enemy_neural_mech_walker_name"
+Tier = 1
+MaxHP = 215
+Weight = 1.8
+MoveSpeed = 2.6
+JumpForce = 6.0
+AggroRadius = 580.0
+DeAggroRadius = 880.0
+AttackRange = 2.6
+AttackDamage = 24.0
+AttackKnockback = 5.0
+AttackCooldown = 3.4
+StunResistance = 0.6
+ReactionDelayMinFrames = 18
+ReactionDelayMaxFrames = 28
+EliteAbilityCooldown = 8.5
+Behavior = 0
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+AttackTelegraphFrames = 26
+AttackActiveFrames = 12
+AttackRecoveryFrames = 28
+EliteAbilities = Array[ExtResource("2")]([ExtResource("3")])
+ChronalDustDrop = 10
+ItemDropChance = 1.0
+PlaceholderTint = Color(0.38, 0.48, 0.3, 1)
