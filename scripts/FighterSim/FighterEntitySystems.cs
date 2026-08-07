@@ -244,7 +244,7 @@ namespace FTT.FighterSim {
                         runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
                     } else if (modes.SpecialOneExecutionType == AreaExecutionType) {
                         SpawnZone(
-                            ref frame, in fighter, 1,
+                            ref frame, ref fighter, 1,
                             modes.SpecialOneMaxActiveObjects, modes.SpecialOnePersistentLifetimeFrames,
                             modes.SpecialOneTickIntervalFrames, tuning.SpecialOneDamage,
                             tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames,
@@ -270,7 +270,7 @@ namespace FTT.FighterSim {
                         runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
                     } else if (modes.SpecialTwoExecutionType == AreaExecutionType) {
                         SpawnZone(
-                            ref frame, in fighter, 2,
+                            ref frame, ref fighter, 2,
                             modes.SpecialTwoMaxActiveObjects, modes.SpecialTwoPersistentLifetimeFrames,
                             modes.SpecialTwoTickIntervalFrames, tuning.SpecialTwoDamage,
                             tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames,
@@ -404,9 +404,11 @@ namespace FTT.FighterSim {
             knockback = requestedKnockback > FP64.Zero ? requestedKnockback : FP64.FromInt(2);
         }
 
+        private static readonly FP64 TempestLiftSpeed = FP64.FromInt(10);
+
         private static void SpawnZone(
             ref Frame frame,
-            in FighterStateComponent owner,
+            ref FighterStateComponent owner,
             int specialSlot,
             int maxActive,
             int lifetimeFrames,
@@ -435,6 +437,13 @@ namespace FTT.FighterSim {
             if (activeCount >= deployLimit && foundOldest) frame.DestroyEntity(oldest);
 
             ResolveZoneSpec(zoneTypeID, out FPVector2 halfExtents, out int grantsOwnerSpeedBonus, out bool centersOnOwner);
+            // Shakespeare's Tempest (design Section 5) lifts the caster into the
+            // air as the storm spawns; the storm itself only shoves the opponent
+            // (see FighterZoneSystem's per-type pulse impulse).
+            if (zoneTypeID == (int)FighterCharacterID.Shakespeare * 10 + 2) {
+                owner.Velocity.y = TempestLiftSpeed;
+                owner.IsGrounded = 0;
+            }
             int resolvedTick = tickIntervalFrames > 0 ? tickIntervalFrames : 30;
             ref FighterMatchComponent match = ref frame.GetSingleton<FighterMatchComponent>();
             int facing = owner.FacingRight != 0 ? 1 : -1;
@@ -463,6 +472,7 @@ namespace FTT.FighterSim {
         /// Per-zone-identity deterministic tuning. Einstein's Relativity Rift
         /// (zone type 2) is wide and buffs the owner's movement while inside.
         /// Tesla's Lorentz Pulse is a radial burst centered on Tesla himself.
+        /// Shakespeare's Tempest is a wind storm centered on the caster.
         /// </summary>
         private static void ResolveZoneSpec(
             int zoneTypeID,
@@ -476,6 +486,12 @@ namespace FTT.FighterSim {
                 return;
             }
             if (zoneTypeID == (int)FighterCharacterID.Tesla * 10 + 2) {
+                halfExtents = new FPVector2(FP64.FromDouble(2.0), FP64.FromDouble(1.5));
+                grantsOwnerSpeedBonus = 0;
+                centersOnOwner = true;
+                return;
+            }
+            if (zoneTypeID == (int)FighterCharacterID.Shakespeare * 10 + 2) {
                 halfExtents = new FPVector2(FP64.FromDouble(2.0), FP64.FromDouble(1.5));
                 grantsOwnerSpeedBonus = 0;
                 centersOnOwner = true;
@@ -500,6 +516,12 @@ namespace FTT.FighterSim {
             if (modes.MovementType == 1 || modes.MovementType == 5) {
                 fighter.Velocity.y = speed / FP64.FromInt(2);
                 fighter.IsGrounded = 0;
+                // Glide (Prospero's Flight, Ascendant Wings, ...) holds a
+                // reduced-gravity float window for the authored movement duration
+                // after the boost.
+                if (modes.MovementType == 1) {
+                    runtime.FloatFrames = modes.MovementDurationFrames > 0 ? modes.MovementDurationFrames : 180;
+                }
             } else if (modes.MovementType == 2) {
                 fighter.Velocity.x = speed * FP64.FromInt(facing);
             } else {
@@ -915,7 +937,9 @@ namespace FTT.FighterSim {
     /// Deterministic Area-execution effects. Zones periodically pulse damage and/or
     /// status onto the opponent standing inside them and can grant the owner a
     /// movement-speed bonus while the owner overlaps (Einstein's Relativity Rift).
-    /// Pulses carry no knockback or hitstun, so they never interrupt movement.
+    /// Pulses carry no knockback or hitstun, so they never interrupt movement —
+    /// with one per-type exception: Shakespeare's Tempest pulses shove the
+    /// opponent away from the storm center with real knockback and zero damage.
     /// </summary>
     public sealed class FighterZoneSystem : ISystem {
         // Refreshed every frame the owner overlaps; decays one frame at a time in
@@ -970,9 +994,23 @@ namespace FTT.FighterSim {
                     pulseDamage += CoilArcDamage * CountLiveCoils(ref frame, zone.OwnerPlayerID);
                 }
 
+                // Shakespeare's Tempest (zone type 62) is the one zone whose
+                // pulses carry an impulse: each pulse shoves the opponent away
+                // from the storm center (hitOriginX at the zone center yields the
+                // outward knockback direction) using the authored Special 2
+                // knockback with zero-or-low damage.
+                FP64 pulseKnockback = FP64.Zero;
+                int pulseHitstunFrames = 0;
+                if (zone.ZoneTypeID == (int)FighterCharacterID.Shakespeare * 10 + 2) {
+                    ref readonly FighterTuningComponent attackerTuning =
+                        ref frame.GetReadOnly<FighterTuningComponent>(attackerEntity);
+                    pulseKnockback = attackerTuning.SpecialTwoKnockback;
+                    pulseHitstunFrames = 10;
+                }
+
                 FighterDamageRules.ApplyFighterHit(
                     ref attacker, ref attackerRuntime, ref target, ref targetRuntime, in targetTuning,
-                    FighterDamageRules.SpecialAttackClass, pulseDamage, FP64.Zero, 0,
+                    FighterDamageRules.SpecialAttackClass, pulseDamage, pulseKnockback, pulseHitstunFrames,
                     zone.StatusType, zone.StatusFrames, zone.StatusIntensity, zone.Position.x);
             }
         }

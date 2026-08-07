@@ -64,10 +64,31 @@ namespace FTT.Combat {
 
             CurrentCharges = Mathf.Max(0, CurrentCharges - cost);
             _regenTimer = 0f;
-            if (CurrentCharges > 0) return BlockResult.Blocked;
+            if (CurrentCharges > 0) {
+                GrantHenrysBastion();
+                return BlockResult.Blocked;
+            }
 
             BreakGuard();
             return BlockResult.GuardBroken;
+        }
+
+        /// <summary>Story-only Resonance perk key: a successful block summons a phantom shield guard.</summary>
+        public const string HenrysBastionPerkKey = "henrys_bastion";
+        private const float HenrysBastionCapacityShare = 0.10f;
+
+        /// <summary>
+        /// Henry's Bastion (Story-only): successfully blocking an attack summons a
+        /// phantom royal shield guard absorbing up to 10% of Shakespeare's maximum
+        /// HP. The guard is granted fully charged on each successful block; the
+        /// design's "temporary" guard lapses by absorbing damage rather than on a
+        /// timer (approximation noted in docs/PACKAGE3_KIT_AUDIT.md).
+        /// </summary>
+        private void GrantHenrysBastion() {
+            if (_owner == null || !_owner.HasStoryPerk(HenrysBastionPerkKey)) return;
+            float capacity = HenrysBastionCapacityShare * _owner.MaximumHP;
+            _owner.ConfigureStoryShield(capacity);
+            _owner.RechargeStoryShield(capacity);
         }
 
         public void ApplyStockReset() {
