@@ -45,16 +45,16 @@ Perks: Event Horizon (+20% E=mc2 burst damage vs TimeDilation-afflicted targets;
 
 Perks: Unstoppable Crusade (hyper-armor on Smite active + 1.5 s), Zealous Vigor (final cleave heals 5% missing HP), Shield of Orleans (blocked damage builds meter 25% faster). Not wired.
 
-### Leonardo (`leonardo`)
+### Leonardo (`leonardo`) - converted 2026-08-06
 
-| Slot | Canonical design | Current state | Status |
+| Slot | Canonical design | Pre-conversion state | Status |
 |---|---|---|---|
-| S1 Golden Ratio | Expanding spiral, 10 dmg x 3 ticks, radial knockback | Story: placeholder zone. Fighter: melee-range (X4). | sketch |
-| S2 Clockwork Turret | 20 HP, 15 s or 3 bolts, max 1, bolts 5 dmg / 2 s, range 30 | Story: NO-OPs without scene (X3). Fighter: persistent type 2 works. | sketch |
-| Move Ornithopter Flight | Boost + 3 s glide | Story bespoke; Fighter crude (X5). | story-canonical |
-| Ult Vitruvian Matrix | Trap + bombardment multi-hit | Sketch both modes. | sketch |
+| S1 Golden Ratio | Expanding spiral, 10 dmg x 3 ticks, radial knockback | Story: placeholder zone. Fighter: melee-range (X4). | canonical (Story: hurtbox-query spiral expanding 40->120 px across 3 authored 0.5 s ticks, final tick carries the radial knockback away from the spiral center; Fighter: owner-centered zone type 21 through `FighterZoneSystem`, 3 impulse-free 10-damage ticks over the 1.5 s lifetime plus a damage-free radial knockback pulse on expiry. Approximations: the design gives no tick interval, so 0.5 s/1.5 s were authored into the .tres; the Fighter zone uses the spiral's final 2x1.5-unit footprint for its whole lifetime because zones are fixed-size AABBs, and its expiry knockback is a constant magnitude-3 horizontal shove resolved away from the zone center) |
+| S2 Clockwork Turret | 20 HP, 15 s or 3 bolts, max 1, bolts 5 dmg / 2 s, range 30 | Story: NO-OPs without scene (X3). Fighter: persistent type 2 works. | canonical (authored `scenes/constructs/ClockworkTurret.tscn` + `LeonardoTurretNode`: damageable 20 HP, instant-strike 5-damage bolts every authored 2 s at the nearest enemy within 1800 px, self-destruct after bolt 3, bolts only consumed when a target exists; .tres Lifetime fixed 6 s -> 15 s per design and the scene wired into `PersistentObjectScene`. Fighter: verified hp 20 / lifetime 900 / damage 5 / 3 attacks; corrected type-2 attack range 5 -> 10 units, the design's 30-unit range bounded by the visible arena half-width) |
+| Move Ornithopter Flight | Boost + 3 s glide | Story bespoke; Fighter crude (X5). | canonical (Story consumes authored MovementAbilityData: 380 px/s wing speed for boost/glide, 3 s glide cap, 5 s cooldown — .tres MovementSpeed raised 160 -> 380 to own the previously hardcoded boost number; Fighter: Glide (MovementType 1) now grants the boost plus a reduced-gravity float via the snapshotted `FloatFrames` field sized from `MovementDurationFrames` (180), closing X5 for glides) |
+| Ult Vitruvian Matrix | Trap + bombardment multi-hit | Sketch both modes. | sketch (see X7; restructured to the Tesla-style `GetOrCreateChildHitbox` sketch so the multi-hit actually lands) |
 
-Perks: Master Stroke (+15% spiral dmg, pull toward center), Clockwork Overdrive (5 bolts), Daedalus Wings (steam trail + glide-cancel dive). Not wired.
+Perks: Master Stroke (+15% spiral damage, per-tick pull toward the spiral center), Clockwork Overdrive (5 bolts in a rapid burst — interval halved), Daedalus Wings (glide cancels into a downward melee dive; the damaging steam trail is presentation and has a VFX comment hook). All three wired Story-only 2026-08-06 via `HasStoryPerk`.
 
 ### Lincoln (`lincoln`) - converted 2026-08-06
 
@@ -138,7 +138,7 @@ Perks: Thorn Snare (rooted enemies take continuous damage), Tornado Lift (glide 
 Einstein is the pattern-setting slice (complete). Tesla is the construct-pattern slice (complete 2026-08-06): `TeslaCoilNode` + `scenes/constructs/TeslaCoil.tscn` set the authored-construct pattern (contract-conformant scene, damageable HP, instant-strike attacks via hurtbox queries, pooled reset, rewind freeze), and the deterministic fence/chain passes set the Fighter-side pattern for construct interactions. Remaining passes, one character each, Story + Fighter + 3 perks + tests per pass:
 
 1. ~~Tesla~~ (complete: persistent constructs, linking, StaticCharge synergies; X3 unblocked for coils)
-2. Leonardo (turret construct, spiral zone)
+2. ~~Leonardo~~ (complete 2026-08-06: turret construct, spiral zone, glide float closing X5 for glides)
 3. ~~Cleopatra~~ (complete: nest construct, vortex pull zone in both modes, three perks)
 4. Pocahontas (snare construct, glide rules)
 5. Joan (melee/hyper-armor perks)

@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="AbilityData" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/Combat/AbilityData.cs" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/constructs/ClockworkTurret.tscn" id="2"]
 
 [resource]
 script = ExtResource("1")
@@ -15,7 +16,7 @@ DescriptionKey = "ability_leonardo_clockwork_turret_description"
 BaseDamage = 5.0
 IsMultiHit = true
 HitCount = 3
-DamageTickIntervalFrames = 0
+DamageTickIntervalFrames = 120
 KnockbackForce = Vector2(2, -1)
 ProjectileSpeed = 300.0
 GrantsHyperArmor = false
@@ -25,8 +26,9 @@ StartupFrames = 12
 ActiveFrames = 9
 RecoveryFrames = 18
 CooldownDuration = 10.0
-Lifetime = 6.0
+Lifetime = 15.0
 ProjectileLifetime = 5.0
+PersistentObjectScene = ExtResource("2")
 PersistentObjectID = "clockwork_turret"
 MaxActiveObjects = 1
 AppliedStatus = 0

@@ -38,5 +38,5 @@ ScreenShakeDuration = 0.15
 MovementType = 1
 MovementDuration = 3.0
 DistanceMoved = 0.0
-MovementSpeed = 160.0
+MovementSpeed = 380.0
 ResetsDoubleJump = false

@@ -400,7 +400,11 @@ namespace FTT.FighterSim {
                 : requestedDamage > 0 ? requestedDamage : 4;
             actionCooldown = objectTypeID == 4 ? 30 : 120;
             remainingAttacks = objectTypeID == 2 ? 3 : -1;
-            attackRange = objectTypeID == 4 ? FP64.FromInt(2) : FP64.FromInt(5);
+            // Clockwork Turret (type 2) targets at the design's 30-unit range,
+            // bounded by the visible arena (half-width 10 units).
+            attackRange = objectTypeID == 4 ? FP64.FromInt(2)
+                : objectTypeID == 2 ? FP64.FromInt(10)
+                : FP64.FromInt(5);
             knockback = requestedKnockback > FP64.Zero ? requestedKnockback : FP64.FromInt(2);
         }
 
@@ -496,6 +500,16 @@ namespace FTT.FighterSim {
                 centersOnOwner = false;
                 return;
             }
+            // Leonardo's Golden Ratio (zone type 21): the expanding spiral is
+            // approximated by its final footprint (Story max radius 120 px =
+            // 2 units), centered on the cast point; the zone system applies a
+            // radial knockback pulse when it expires.
+            if (zoneTypeID == (int)FighterCharacterID.Leonardo * 10 + 1) {
+                halfExtents = new FPVector2(FP64.FromDouble(2.0), FP64.FromDouble(1.5));
+                grantsOwnerSpeedBonus = 0;
+                centersOnOwner = true;
+                return;
+            }
             halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
             grantsOwnerSpeedBonus = 0;
             centersOnOwner = false;
@@ -515,6 +529,14 @@ namespace FTT.FighterSim {
             if (modes.MovementType == 1 || modes.MovementType == 5) {
                 fighter.Velocity.y = speed / FP64.FromInt(2);
                 fighter.IsGrounded = 0;
+                // Glide (MovementType 1, e.g. Leonardo's Ornithopter Flight): the
+                // boost cancels into a reduced-gravity float for the authored
+                // duration (design: up to 3 s = 180 frames). FloatFrames is already
+                // a snapshotted FighterRuntimeComponent field, so this stays
+                // rollback-safe.
+                if (modes.MovementType == 1) {
+                    runtime.FloatFrames = modes.MovementDurationFrames > 0 ? modes.MovementDurationFrames : 180;
+                }
             } else if (modes.MovementType == 2) {
                 fighter.Velocity.x = speed * FP64.FromInt(facing);
             } else {
@@ -950,6 +972,12 @@ namespace FTT.FighterSim {
                 ref FighterZoneComponent zone = ref frame.Get<FighterZoneComponent>(zoneEntity);
                 zone.LifetimeFrames--;
                 if (zone.LifetimeFrames <= 0) {
+                    // Leonardo's Golden Ratio (zone type 21) ends with a radial
+                    // knockback pulse shoving the fighter away from the spiral
+                    // center (damage-free; the 3 damage ticks land beforehand).
+                    if (zone.ZoneTypeID == (int)FighterCharacterID.Leonardo * 10 + 1) {
+                        ApplySpiralExpiryKnockback(ref frame, in zone);
+                    }
                     frame.DestroyEntity(zoneEntity);
                     continue;
                 }
@@ -1037,6 +1065,33 @@ namespace FTT.FighterSim {
             if (dx > VortexPullPerFrame) target.Position.x += VortexPullPerFrame;
             else if (dx < -VortexPullPerFrame) target.Position.x -= VortexPullPerFrame;
             else target.Position.x = zone.Position.x;
+        }
+
+        private const int SpiralExpiryHitstunFrames = 12;
+        private static readonly FP64 SpiralExpiryKnockback = FP64.FromInt(3);
+
+        /// <summary>
+        /// Golden Ratio expiry pulse: a zero-damage knockback hit pushing the
+        /// opponent away from the spiral center (ApplyFighterHit resolves the push
+        /// direction from the hit origin, giving the design's radial shove).
+        /// </summary>
+        private static void ApplySpiralExpiryKnockback(ref Frame frame, in FighterZoneComponent zone) {
+            int targetPlayerID = zone.OwnerPlayerID == 0 ? 1 : 0;
+            if (!FighterEntityQueries.TryFindFighter(ref frame, zone.OwnerPlayerID, out EntityRef attackerEntity)
+                || !FighterEntityQueries.TryFindFighter(ref frame, targetPlayerID, out EntityRef targetEntity)) return;
+            ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
+            if (!FighterEntityQueries.Overlaps(
+                    in zone.Position, in zone.HalfExtents,
+                    in target.Position, in FighterHalfExtents)) return;
+
+            ref FighterStateComponent attacker = ref frame.Get<FighterStateComponent>(attackerEntity);
+            ref FighterRuntimeComponent attackerRuntime = ref frame.Get<FighterRuntimeComponent>(attackerEntity);
+            ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
+            ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
+            FighterDamageRules.ApplyFighterHit(
+                ref attacker, ref attackerRuntime, ref target, ref targetRuntime, in targetTuning,
+                FighterDamageRules.SpecialAttackClass, 0, SpiralExpiryKnockback, SpiralExpiryHitstunFrames,
+                (int)StatusType.None, 0, FP64.One, zone.Position.x);
         }
 
         private static int CountLiveCoils(ref Frame frame, int ownerPlayerID) {
