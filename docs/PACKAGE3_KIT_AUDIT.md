@@ -102,16 +102,18 @@ Note: design Section 5 lists the coil arc `damageTickInterval` as 0.5 s while th
 
 Perks: Macbeth's Curse (Lament also applies Venom 1 s tick / 3 s), Midsummer Glide (8 dmg glide-through, +20% glide speed), Henry's Bastion (block summons 10% max-HP phantom shield). Not wired.
 
-### Mozart (`mozart`)
+### Mozart (`mozart`) - converted 2026-08-06
 
-| Slot | Canonical design | Current state | Status |
+| Slot | Canonical design | Pre-conversion state | Status |
 |---|---|---|---|
-| S1 Requiem Chord | Note projectile bursting into multi-hit shockwave | Story: projectile + impact shockwave sketch. Fighter: generic projectile. | sketch |
-| S2 Fortissimo Wave | 12 dmg full-screen forward wave, heavy pushback | Story: placeholder projectile. Fighter: generic projectile. | sketch |
-| Move Sonata Drift | Deploys 3 s staff platform to run on | Story: NO-OPs without scene (X3). Fighter: persistent type 5 spawn. | sketch |
-| Ult Symphony of Sorrow | Hover + piano-key meteors | Sketch both modes. | sketch |
+| S1 Requiem Chord | Note projectile bursting into multi-hit shockwave | Story: projectile + impact shockwave sketch. Fighter: generic projectile. | canonical (Story: detonating projectile (Einstein pattern) whose burst delivers the authored 3x4 multi-hit total as staged expanding pulses, plus a one-note contact hit; Fighter: single deterministic projectile folding the 12-damage burst total into one hit — same 1v1 equivalence trade as Einstein's E=mc², where the Story contact tick is the only asymmetry) |
+| S2 Fortissimo Wave | 12 dmg full-screen forward wave, heavy pushback | Story: placeholder projectile with hardcoded 12 dmg, light knockback, 0.8 s life. | canonical (authored 12 dmg, heavy KnockbackForce (8,-2), 6 s ProjectileLifetime so the 250 px/s wave crosses the full 24-unit arena in both modes; Story wave is a tall piercing projectile) |
+| Move Sonata Drift | Deploys 3 s staff platform to run on | Story: NO-OPed without scene (X3). Fighter: persistent type 5 spawn with an unintended 4-damage attack. | canonical-Story / harmless-marker-Fighter (authored `scenes/constructs/SonataPlatform.tscn`: contract-conformant construct whose body is a real one-way platform (OneWayPlatform layer + one-way collision, drop-through works), 3 s lifetime, pooled reset disables collision, rewind freeze; Fighter: type 5 verified to expire at 180 frames and now deals 0 damage — a walkable platform in the deterministic sim is out of scope for this pass and remains an explicit gap) |
+| Ult Symphony of Sorrow | Hover + piano-key meteors | Sketch both modes. | sketch (see X7) |
 
-Perks: Virtuoso Dash (+20% speed on staff, ranged-projectile immunity), Requiem Crescendo (second 50% shockwave), Rest Shield (1.5 s still/block bubble absorbs physical projectiles). Not wired.
+Perks: Virtuoso Dash (+20% speed while standing on a staff via the temporary speed-buff mechanism plus ranged-projectile immunity), Requiem Crescendo (secondary wider shockwave at 50% of the burst total after the burst), Rest Shield (1.5 s of standing still/blocking charges a bubble; implemented as the new Story projectile-immunity flag on `PlayerController`, absorbing placeholder-projectile hits while the rest continues). All three wired Story-only 2026-08-06 through `HasStoryPerk`.
+
+Note: the Fighter loadout factory now folds multi-hit *projectile* specials into a single-hit total (`BaseDamage x HitCount`); melee/area/persistent multi-hit specials are unaffected, and no other current character authors a multi-hit projectile special. The Fighter Sonata platform stays a harmless deterministic marker (Float-type upward pop plus construct spawn); true walkable platform collision in the fixed-point sim is deferred.
 
 ### Pocahontas (`pocahontas`)
 
@@ -135,6 +137,6 @@ Einstein is the pattern-setting slice (complete). Tesla is the construct-pattern
 5. Joan (melee/hyper-armor perks)
 6. Lincoln (armored charge, shield-shatter rules)
 7. Shakespeare (skull projectile, tempest zone, block perk)
-8. Mozart (platform construct, projectile shockwaves, projectile-immunity perk)
+8. ~~Mozart~~ (complete 2026-08-06: SonataPlatform one-way construct, Requiem burst + Fortissimo wave projectiles, projectile-immunity perks; Fighter walkable platform explicitly deferred)
 
 Ultimates stay as structured sketches until all specials are canonical (X7), then get a dedicated pass.

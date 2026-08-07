@@ -82,6 +82,21 @@ namespace FTT.Characters {
 			if (StoryShieldCapacity <= 0f || amount <= 0f) return;
 			StoryShieldPoints = MathF.Min(StoryShieldCapacity, StoryShieldPoints + amount);
 		}
+
+		// Story-only projectile immunity (Virtuoso Dash, Rest Shield, ...): while
+		// active, hits whose HitboxID is "projectile" (the placeholder-projectile
+		// hit path) are absorbed outright. Granting perks refresh the window each
+		// frame; Fighter Mode never reads this because the deterministic
+		// simulation is authoritative there.
+		public bool HasStoryProjectileImmunity => _storyProjectileImmunityFrames > 0;
+
+		public void GrantStoryProjectileImmunity(float durationSeconds) {
+			_storyProjectileImmunityFrames = Math.Max(
+				_storyProjectileImmunityFrames,
+				Mathf.RoundToInt(durationSeconds * 60f));
+		}
+
+		private int _storyProjectileImmunityFrames;
 		/// <summary>
 		/// Remaining float-glide time granted by movement abilities (Einstein's
 		/// Relativity Warp cancel). While positive, gravity is heavily reduced.
@@ -287,6 +302,7 @@ namespace FTT.Characters {
 		private float OnHurtboxHit(FTT.Combat.HitPayload hit) {
 			if (CurrentState == CharacterState.Dead || CurrentState == CharacterState.Respawning) return 0f;
 			if (_rollInvulnerable) return 0f;
+			if (HasStoryProjectileImmunity && hit.HitboxID == "projectile") return 0f;
 			bool wasLedgeHanging = CurrentState == CharacterState.LedgeHanging;
 
 			if (CurrentState == CharacterState.Blocking && _blockSystem != null) {
@@ -1024,6 +1040,7 @@ namespace FTT.Characters {
 			if (_temporarySpeedBuffFrames > 0 && --_temporarySpeedBuffFrames == 0) {
 				StoryTemporarySpeedMultiplier = 1f;
 			}
+			if (_storyProjectileImmunityFrames > 0) _storyProjectileImmunityFrames--;
 			if (_postRewindInvulnerabilityFrames > 0) _postRewindInvulnerabilityFrames--;
 		}
 

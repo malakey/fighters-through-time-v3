@@ -395,8 +395,12 @@ namespace FTT.FighterSim {
             lifetime = requestedLifetime > 0
                 ? requestedLifetime
                 : objectTypeID == 1 ? 1800 : objectTypeID == 2 ? 900 : 600;
+            // Type 5 (Mozart's Sonata staff platform) is a harmless marker in the
+            // deterministic sim: walkable platform collision is deferred, so it
+            // must never attack.
             damage = objectTypeID == 1 || objectTypeID == 2
                 ? 5
+                : objectTypeID == 5 ? 0
                 : requestedDamage > 0 ? requestedDamage : 4;
             actionCooldown = objectTypeID == 4 ? 30 : 120;
             remainingAttacks = objectTypeID == 2 ? 3 : -1;
