@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.borgia_inquisitor.cross_slash_dash"
+DisplayNameKey = "boss_ability_cross_slash_dash_name"
+Archetype = 3
+RangeClass = 1
+TelegraphFrames = 28
+ActiveFrames = 20
+RecoveryFrames = 26
+CooldownSeconds = 4.0
+SelectionWeight = 2.0
+Damage = 22.0
+KnockbackForce = Vector2(6.0, -2.5)
+HitstunDuration = 0.3
+HitboxSize = Vector2(104, 104)
+HitboxOffset = Vector2(56, -64)
+DashSpeed = 820.0
+DashDurationFrames = 20
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(1, 0.65, 0.2, 1)
+PresentationEventID = "boss.borgia_inquisitor.cross_slash_dash"

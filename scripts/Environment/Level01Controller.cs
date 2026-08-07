@@ -14,7 +14,7 @@ namespace FTT.Environment {
     /// </summary>
     public partial class Level01Controller : Node2D {
         private PlayerController _player;
-        private BossController _boss;
+        private BossEncounterController _bossEncounter;
         private LevelManager _levelManager;
         private StorySceneServices _services;
 
@@ -49,6 +49,7 @@ namespace FTT.Environment {
                 this, "res://resources/Dialogue/level_01_dialogue.tres");
             _services.HUD?.SetLevelTitle("florence_level_title");
             _services.HUD?.SetObjective("florence_objective_reach_boss");
+            if (_bossEncounter != null) _bossEncounter.HUD = _services.HUD;
 
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnEnemyKilled += OnEnemyKilled;
@@ -611,101 +612,30 @@ namespace FTT.Environment {
             for (int index = 0; index < count && index < spawns.Length; index++) spawns[index]();
         }
 
+        /// <summary>
+        /// Room four uses the reusable <see cref="BossEncounterController"/> with the
+        /// authored boss scene: real Hurtbox wiring, authored abilities, and HUD/dust
+        /// flow driven by the boss events instead of per-frame polling.
+        /// </summary>
         private void SpawnBoss(float x, float y) {
-            _boss = new BossController();
-            _boss.Name = "BorgiaInquisitor";
-            _boss.Position = new Vector2(x, y);
-
-            _boss.Data = GD.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
-
-            _boss.CollisionLayer = CollisionLayers.Enemy;
-            _boss.CollisionMask = CollisionLayers.EnemyBodyMask;
-            _boss.MotionMode = CharacterBody2D.MotionModeEnum.Grounded;
-            _boss.UpDirection = Vector2.Up;
-            _boss.FloorStopOnSlope = true;
-
-            var col = new CollisionShape2D();
-            col.Name = "CollisionShape2D";
-            var colRect = new RectangleShape2D();
-            colRect.Size = new Vector2(50, 70);
-            col.Shape = colRect;
-            col.Position = new Vector2(0, -35);
-            _boss.AddChild(col);
-
-            var pushbox = new FTT.Combat.CombatantPushbox {
-                Name = "Pushbox",
-                BoxSize = new Vector2(44f, 60f),
-                Position = new Vector2(0f, -35f),
-                BlocksRollThrough = true,
-                CollisionLayer = CollisionLayers.Enemy,
-                CollisionMask = CollisionLayers.Player,
-                Monitoring = false,
-                Monitorable = false
+            _bossEncounter = new BossEncounterController {
+                Name = "BorgiaInquisitorEncounter",
+                Position = new Vector2(x, y),
+                Data = GD.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres"),
+                RevealDistance = 800f
             };
-            pushbox.AddChild(new CollisionShape2D {
-                Shape = new RectangleShape2D { Size = pushbox.BoxSize }
-            });
-            _boss.AddChild(pushbox);
-
-            var body = new ColorRect();
-            body.Name = "BossBody";
-            body.Size = new Vector2(50, 70);
-            body.Position = new Vector2(-25, -70);
-            body.Color = new Color(0.7f, 0.1f, 0.1f);
-            _boss.AddChild(body);
-
-            var headRect = new ColorRect();
-            headRect.Size = new Vector2(30, 20);
-            headRect.Position = new Vector2(-15, -90);
-            headRect.Color = new Color(0.5f, 0.05f, 0.05f);
-            _boss.AddChild(headRect);
-
-            var bossLabel = new Label();
-            bossLabel.Text = Tr("boss_borgia_inquisitor_name").ToUpperInvariant();
-            bossLabel.Position = new Vector2(-80, -110);
-            bossLabel.CustomMinimumSize = new Vector2(160, 20);
-            bossLabel.HorizontalAlignment = HorizontalAlignment.Center;
-            bossLabel.AddThemeFontSizeOverride("font_size", 10);
-            bossLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.2f, 0.2f));
-            _boss.AddChild(bossLabel);
-
-            var hurtbox = new Area2D();
-            hurtbox.Name = "Hurtbox";
-            hurtbox.CollisionLayer = CollisionLayers.EnemyHurtbox;
-            hurtbox.CollisionMask = CollisionLayers.PlayerHitbox | CollisionLayers.Projectile;
-            var hurtShape = new CollisionShape2D();
-            var hurtRect = new RectangleShape2D();
-            hurtRect.Size = new Vector2(50, 70);
-            hurtShape.Shape = hurtRect;
-            hurtShape.Position = new Vector2(0, -35);
-            hurtbox.AddChild(hurtShape);
-            _boss.AddChild(hurtbox);
-
-            _boss.AddToGroup("Enemies");
-            AddChild(_boss);
+            _bossEncounter.BossRevealed += OnBossRevealed;
+            _bossEncounter.BossDefeated += OnBossDefeated;
+            AddChild(_bossEncounter);
         }
 
         // === Boss and completion flow ===
 
-        public override void _Process(double delta) {
-            if (_boss == null || _bossDefeated) return;
-
-            if (_boss.CurrentState == BossState.Dead) {
-                OnBossDefeated();
-                return;
-            }
-            if (_player == null) return;
-
-            float dist = _player.GlobalPosition.DistanceTo(_boss.GlobalPosition);
-            if (dist < 800) {
-                if (!_bossIntroShown) {
-                    _bossIntroShown = true;
-                    _services?.HUD?.ShowBossBar("boss_borgia_inquisitor_name", _boss.CurrentHP, _boss.ScaledMaxHP);
-                    _services?.HUD?.SetObjective("florence_objective_defeat_boss");
-                    _services?.Dialogue?.StartSequence("level_01.boss_intro");
-                }
-                _services?.HUD?.UpdateBossHP(_boss.CurrentHP);
-            }
+        private void OnBossRevealed() {
+            if (_bossIntroShown) return;
+            _bossIntroShown = true;
+            _services?.HUD?.SetObjective("florence_objective_defeat_boss");
+            _services?.Dialogue?.StartSequence("level_01.boss_intro");
         }
 
         private void OnEnemyKilled(EnemyKilledPayload payload) {
@@ -713,15 +643,12 @@ namespace FTT.Environment {
             EventBus.Instance?.RaiseChronalDustCollected(payload.ChronalDustDrop);
         }
 
-        private void OnBossDefeated() {
+        private void OnBossDefeated(BossDefeatedPayload payload) {
+            if (_bossDefeated) return;
             _bossDefeated = true;
-            _services?.HUD?.HideBossBar();
             _services?.HUD?.SetObjective("florence_objective_complete");
-
-            // Boss dust reward is resource-authored (docs/DUST_ECONOMY.md Section 1).
-            int bossDustReward = _boss?.Data?.ChronalDustDrop ?? 50;
-            _dustEarnedThisLevel += bossDustReward;
-            EventBus.Instance?.RaiseChronalDustCollected(bossDustReward);
+            // Dust is raised once by the encounter controller; the level only tallies.
+            _dustEarnedThisLevel += payload.ChronalDustDrop;
 
             var timer = GetTree().CreateTimer(1.5);
             timer.Timeout += () => _services?.Dialogue?.StartSequence("level_01.exit");

@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "enemy.cyber_guard.shock_pike"
+DisplayNameKey = "enemy_ability_shock_pike_name"
+Archetype = 0
+RangeClass = 0
+TelegraphFrames = 18
+ActiveFrames = 10
+RecoveryFrames = 20
+CooldownSeconds = 2.2
+SelectionWeight = 1.0
+Damage = 12.0
+KnockbackForce = Vector2(2.5, -1.5)
+HitstunDuration = 0.18
+HitboxSize = Vector2(52, 44)
+HitboxOffset = Vector2(34, -30)
+AppliedStatus = 3
+StatusDuration = 0.6
+StatusIntensity = 1.0
+TelegraphTint = Color(1, 0.9, 0.35, 1)
+PresentationEventID = "enemy.cyber_guard.shock_pike"

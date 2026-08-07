@@ -33,7 +33,10 @@ namespace FTT.Environment {
 
             Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
             StoryDropProfile profile = DropTable?.GetProfile(difficulty);
-            if (profile == null || !profile.ShouldDrop(_random.Randf())) return;
+            // Per-enemy multiplier scales the profile chance; 0 (unset payload) is
+            // treated as the neutral 1.0 so older raisers keep their behavior.
+            float multiplier = payload.ItemDropChanceMultiplier <= 0f ? 1f : payload.ItemDropChanceMultiplier;
+            if (profile == null || !profile.ShouldDrop(_random.Randf(), multiplier)) return;
             StoryPickup pickup = PoolManager.Instance.Spawn(ItemPoolID, payload.Position + new Vector2(24f, -12f), GetParent()) as StoryPickup;
             pickup?.Setup(profile.ChooseItem(_random.Randf()), profile);
         }

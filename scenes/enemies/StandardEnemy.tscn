@@ -1,0 +1,93 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyController.cs" id="1_controller"]
+[ext_resource type="Script" path="res://scripts/Combat/Hurtbox.cs" id="2_hurtbox"]
+[ext_resource type="Script" path="res://scripts/Combat/Hitbox.cs" id="3_hitbox"]
+[ext_resource type="Script" path="res://scripts/Combat/CombatantPushbox.cs" id="4_pushbox"]
+[ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="5_marker"]
+[ext_resource type="Resource" path="res://resources/Contracts/standard_enemy_contract.tres" id="6_contract"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/placeholder_enemy_frames.tres" id="7_frames"]
+
+[sub_resource type="RectangleShape2D" id="BodyShape"]
+resource_local_to_scene = true
+size = Vector2(46, 72)
+
+[sub_resource type="RectangleShape2D" id="AttackShape"]
+resource_local_to_scene = true
+size = Vector2(40, 40)
+
+[node name="StandardEnemy" type="CharacterBody2D" groups=["Enemies", "enemy", "standard_enemy"]]
+collision_layer = 2
+collision_mask = 704
+script = ExtResource("1_controller")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -36)
+shape = SubResource("BodyShape")
+
+[node name="Presentation" type="Node2D" parent="."]
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Presentation"]
+position = Vector2(0, -64)
+sprite_frames = ExtResource("7_frames")
+animation = &"idle"
+
+[node name="Hurtbox" type="Area2D" parent="."]
+collision_layer = 32
+collision_mask = 1028
+script = ExtResource("2_hurtbox")
+OwnerPlayerIndex = -1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+position = Vector2(0, -36)
+shape = SubResource("BodyShape")
+
+[node name="Hitbox" type="Area2D" parent="."]
+collision_layer = 8
+collision_mask = 528
+monitoring = false
+script = ExtResource("3_hitbox")
+HitboxID = "primary"
+OwnerPlayerIndex = -1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
+shape = SubResource("AttackShape")
+
+[node name="Pushbox" type="Area2D" parent="."]
+position = Vector2(0, -32)
+collision_layer = 2
+collision_mask = 1
+monitoring = false
+monitorable = false
+script = ExtResource("4_pushbox")
+BoxSize = Vector2(38, 62)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Pushbox"]
+shape = SubResource("BodyShape")
+
+[node name="Waypoints" type="Node2D" parent="."]
+
+[node name="Left" type="Marker2D" parent="Waypoints"]
+position = Vector2(-150, 0)
+
+[node name="Right" type="Marker2D" parent="Waypoints"]
+position = Vector2(150, 0)
+
+[node name="HPBar" type="ProgressBar" parent="."]
+offset_left = -28.0
+offset_top = -96.0
+offset_right = 28.0
+offset_bottom = -90.0
+show_percentage = false
+
+[node name="NameLabel" type="Label" parent="."]
+offset_left = -50.0
+offset_top = -116.0
+offset_right = 50.0
+offset_bottom = -100.0
+horizontal_alignment = 1
+
+[node name="ContentContract" type="Node" parent="."]
+script = ExtResource("5_marker")
+ContentID = "standard_enemy"
+Contract = ExtResource("6_contract")

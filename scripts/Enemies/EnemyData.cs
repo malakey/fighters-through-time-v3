@@ -28,16 +28,40 @@ namespace FTT.Enemies {
         [Export] public float StunResistance = 0f;
         [Export] public int ReactionDelayMinFrames = 30;
         [Export] public int ReactionDelayMaxFrames = 45;
-        [Export] public FTT.Combat.AbilityData[] EliteAbilities;
         [Export] public float EliteAbilityCooldown = 5.0f;
         [Export] public DefaultBehavior Behavior = DefaultBehavior.Ground;
+        /// <summary>Rift Phantom: drops the Environment bit from the body mask while chasing.</summary>
+        [Export] public bool PhasesThroughWalls;
+        /// <summary>Shield-carrier damage reduction for hits landing on the facing side.</summary>
+        [Export(PropertyHint.Range, "0,0.95,0.01")] public float FrontalDamageReduction;
+
+        [ExportGroup("Attacks")]
+        /// <summary>
+        /// Authored primary attack. When null the controller falls back to a
+        /// MeleeStrike synthesized from the legacy scalar fields below, so older
+        /// resources keep working unchanged.
+        /// </summary>
+        [Export] public EnemyAbilityData PrimaryAttack;
+        [Export(PropertyHint.Range, "0,240,1")] public int AttackTelegraphFrames = 14;
+        [Export(PropertyHint.Range, "1,240,1")] public int AttackActiveFrames = 12;
+        [Export(PropertyHint.Range, "0,240,1")] public int AttackRecoveryFrames = 16;
+        /// <summary>Elite secondary abilities, cycled sequentially per design Section 6.</summary>
+        [Export] public EnemyAbilityData[] EliteAbilities;
 
         [ExportGroup("Loot")]
         [Export] public int ChronalDustDrop = 10;
-        [Export] public float ItemDropChance = 0.15f;
+        /// <summary>
+        /// Multiplier on the difficulty profile's random-item chance (1.0 neutral),
+        /// NOT an absolute probability. Dust remains the flat authored value.
+        /// </summary>
+        [Export(PropertyHint.Range, "0,4,0.05")] public float ItemDropChance = 1.0f;
 
         [ExportGroup("Animation")]
         [Export] public SpriteFrames SpriteFramesResource;
+        /// <summary>Placeholder silhouette tint so each roster entry reads distinctly.</summary>
+        [Export] public Color PlaceholderTint = Colors.White;
+
+        public bool HasEliteAbilities => Tier == EnemyTier.Elite && EliteAbilities is { Length: > 0 };
     }
 
 }

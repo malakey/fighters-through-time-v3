@@ -126,6 +126,13 @@ enemy_cyber_guard_name,Cyber-Guard
 enemy_steam_automaton_name,Steam Automaton v2
 enemy_hologram_drone_name,Hologram Drone
 boss_borgia_inquisitor_name,The Borgia Inquisitor
+enemy_ability_shock_pike_name,Shock-Pike Thrust
+enemy_ability_holo_bolt_name,Holographic Bolt
+enemy_ability_plasma_rifle_name,Plasma Rifle Shot
+enemy_ability_bubble_shield_name,Energy Bubble Shield
+enemy_ability_piston_shockwave_name,Piston Shockwave
+boss_ability_combo_slash_name,Dual-Blade Combo Slash
+boss_ability_cross_slash_dash_name,Cross-Slash Charge
 common_unknown,Unknown
 common_unavailable,Unavailable
 common_ready,Ready

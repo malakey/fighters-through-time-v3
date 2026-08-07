@@ -31,6 +31,24 @@ namespace FTT.Core {
             _ => 1.0f
         };
 
+        /// <summary>
+        /// Reaction-delay pacing: Easy gives the player longer to read a windup,
+        /// Hard shortens it. Applied to authored ReactionDelayMin/MaxFrames.
+        /// </summary>
+        public static float GetReactionDelayMultiplier(Difficulty difficulty) => difficulty switch {
+            Difficulty.Easy => 1.5f,
+            Difficulty.Normal => 1.0f,
+            Difficulty.Hard => 0.6f,
+            _ => 1.0f
+        };
+
+        /// <summary>
+        /// Scales an authored reaction delay. Never returns less than one frame so
+        /// an enemy always spends at least a tick reacting.
+        /// </summary>
+        public static int ScaleReactionDelayFrames(int baseFrames, Difficulty difficulty) =>
+            Math.Max(1, (int)MathF.Round(Math.Max(0, baseFrames) * GetReactionDelayMultiplier(difficulty)));
+
         public static int ScaleEnemyHP(int baseHP, Difficulty difficulty) =>
             Math.Max(1, (int)MathF.Round(Math.Max(0, baseHP) * GetEnemyHPMultiplier(difficulty)));
 

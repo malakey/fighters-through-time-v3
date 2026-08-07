@@ -48,6 +48,48 @@ namespace FTT.Core {
         public Vector2 Position;
         public int ChronalDustDrop;
         public bool IsElite;
+        /// <summary>
+        /// Per-enemy multiplier applied on top of the difficulty drop profile's
+        /// random-item chance. 1.0 is the neutral default.
+        /// </summary>
+        public float ItemDropChanceMultiplier;
+    }
+
+    public struct BossSpawnedPayload {
+        public string BossID;
+        public string DisplayNameKey;
+        public int CurrentHP;
+        public int MaxHP;
+        public Vector2 Position;
+    }
+
+    public struct BossHPPayload {
+        public string BossID;
+        public int CurrentHP;
+        public int MaxHP;
+    }
+
+    public struct BossDefeatedPayload {
+        public string BossID;
+        public Vector2 Position;
+        public int ChronalDustDrop;
+    }
+
+    /// <summary>Phase of an enemy/boss ability the presentation layer can bind to.</summary>
+    public enum EnemyPresentationPhase {
+        Telegraph,
+        Active,
+        Recovery,
+        Death
+    }
+
+    public struct EnemyPresentationPayload {
+        public string SourceID;
+        public string AbilityID;
+        /// <summary>Authored hook string; Package 8 binds real VFX/SFX to it.</summary>
+        public string PresentationEventID;
+        public EnemyPresentationPhase Phase;
+        public Vector2 Position;
     }
 
     public struct StatusEffectPayload {
@@ -215,9 +257,21 @@ namespace FTT.Core {
         public event Action<EnemyKilledPayload> OnEnemyKilled;
         public void RaiseEnemyKilled(EnemyKilledPayload payload) => OnEnemyKilled?.Invoke(payload);
 
+        public event Action<EnemyPresentationPayload> OnEnemyPresentation;
+        public void RaiseEnemyPresentation(EnemyPresentationPayload payload) => OnEnemyPresentation?.Invoke(payload);
+
         // === Boss Events ===
         public event Action<int> OnBossPhaseChanged;
         public void RaiseBossPhaseChanged(int phaseIndex) => OnBossPhaseChanged?.Invoke(phaseIndex);
+
+        public event Action<BossSpawnedPayload> OnBossSpawned;
+        public void RaiseBossSpawned(BossSpawnedPayload payload) => OnBossSpawned?.Invoke(payload);
+
+        public event Action<BossHPPayload> OnBossHPChanged;
+        public void RaiseBossHPChanged(BossHPPayload payload) => OnBossHPChanged?.Invoke(payload);
+
+        public event Action<BossDefeatedPayload> OnBossDefeated;
+        public void RaiseBossDefeated(BossDefeatedPayload payload) => OnBossDefeated?.Invoke(payload);
 
         // === Match Reset ===
         public event Action OnMatchReset;

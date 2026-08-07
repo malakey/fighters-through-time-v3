@@ -24,8 +24,16 @@ namespace FTT.Environment {
         public bool AllowsBuffs => BuffMultiplier > 1f && BuffDurationSeconds > 0f &&
             (DamageBuffWeight > 0 || SpeedBuffWeight > 0);
 
-        public bool ShouldDrop(float zeroToOneRoll) =>
-            Mathf.Clamp(zeroToOneRoll, 0f, 1f) < Mathf.Clamp(RandomItemChance, 0f, 1f);
+        public bool ShouldDrop(float zeroToOneRoll) => ShouldDrop(zeroToOneRoll, 1f);
+
+        /// <summary>
+        /// Difficulty profile chance scaled by a per-enemy multiplier
+        /// (EnemyData.ItemDropChance); 1.0 reproduces the profile exactly.
+        /// </summary>
+        public bool ShouldDrop(float zeroToOneRoll, float perEnemyMultiplier) {
+            float chance = Mathf.Clamp(RandomItemChance, 0f, 1f) * Mathf.Max(0f, perEnemyMultiplier);
+            return Mathf.Clamp(zeroToOneRoll, 0f, 1f) < Mathf.Clamp(chance, 0f, 1f);
+        }
 
         public StoryPickupKind ChooseItem(float zeroToOneRoll) {
             int healing = Math.Max(0, HealingWeight);
