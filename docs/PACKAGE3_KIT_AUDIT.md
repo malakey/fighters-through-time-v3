@@ -67,16 +67,18 @@ Perks: Master Stroke (+15% spiral dmg, pull toward center), Clockwork Overdrive 
 
 Perks: Executive Order (shockwave +50% travel, +20% dmg), Homestead Bulwark (charge hit grants 3 s hyper-armor), Kinetic Splitting (combo hit 3 shatters shields). Not wired.
 
-### Cleopatra (`cleopatra`)
+### Cleopatra (`cleopatra`) - converted 2026-08-06
 
-| Slot | Canonical design | Current state | Status |
+| Slot | Canonical design | Pre-conversion state | Status |
 |---|---|---|---|
-| S1 Serpent Nest | 12 s / 15 HP / max 1 nest; bite = Root 1 s + Venom 4 s | Story: placeholder zone. Fighter: persistent type 3 generic spec. | sketch |
-| S2 Sandstorm Vortex | Pull to center, 2 dmg x 5 ticks / 0.4 s, TimeDilation -40% 2 s | Story: bespoke pull+ticks. Fighter: melee-range (X4). | story-canonical |
-| Move Desert Mirage | Sand rush/teleport, air ok, 3 s cap | Story: instant teleport. Fighter: position shift. | sketch |
-| Ult Wrath of the Nile | Sandstorm multi-hit + heavy Venom | Sketch both modes. | sketch |
+| S1 Serpent Nest | 12 s / 15 HP / max 1 nest; bite = Root 1 s + Venom 4 s | Story: placeholder zone. Fighter: persistent type 3 generic spec. | canonical (authored `scenes/constructs/SerpentNest.tscn` construct: damageable 15 HP, 12 s, max 1, bites every enemy over the nest each 2 s tick; Fighter: persistent type 3 with 720-frame lifetime and a 60-frame bite hitstun) |
+| S2 Sandstorm Vortex | Pull to center, 2 dmg x 5 ticks / 0.4 s, TimeDilation -40% 2 s | Story: bespoke pull+ticks (players only, dead scene path). Fighter: melee-range (X4). | canonical (Story: authored-frame ability with hurtbox-query ticks hitting enemies and fighters plus a 180 px/s positional drag; Fighter: zone type 42 with an impulse-free 0.05 units/frame pull toward center in `FighterZoneSystem`, snapshot-safe with no new state) |
+| Move Desert Mirage | Sand rush/teleport, air ok, 3 s cap | Story: instant teleport, hardcoded numbers. Fighter: position shift. | canonical (Story consumes authored MovementAbilityData with the 3 s cap; Fighter input-directional Teleport already data-driven, covered by tests) |
+| Ult Wrath of the Nile | Sandstorm multi-hit + heavy Venom | Sketch both modes. | sketch (see X7; hits now carry the heavy Venom debuff via the shared child hitbox) |
 
-Perks: Asp's Bite (Venom x2 vs airborne), Quicksand Grip (vortex targets rooted 1 s on Mirage cast), Royal Aegis (10% max-HP shield on Mirage). Not wired.
+Perks: Asp's Bite (Venom potency doubled at bite time vs airborne targets), Quicksand Grip (vortex-caught targets rooted 1 s when Mirage is cast, applied directly to status handlers because zero-damage hits do not carry status through the player damage gate), Royal Aegis (10% max-HP Story shield configured and fully recharged on each Mirage cast via the `PlayerController` Story-shield support). All three wired Story-only 2026-08-06 through `HasStoryPerk`.
+
+Note: the design's "Root 1.0 s then Venom 4.0 s" bite conflicts with the single-status rule (the newest status completely replaces the previous, so Venom would instantly erase the Root). The conversion keeps Venom 4 s as the applied status and delivers the brief root as one second of bite hitstun in both modes (Story `HitstunDuration = 1.0`, Fighter 60-frame persistent-object hitstun for object type 3). Sandstorm Vortex's -40% slow is expressed as TimeDilation intensity 0.8 (both modes scale speed by `1 - 0.5 x intensity`); the pull is horizontal-only toward the vortex center in both modes (180 px/s Story, 0.05 units/frame Fighter).
 
 ### Tesla (`tesla`) - converted 2026-08-06
 
@@ -130,7 +132,7 @@ Einstein is the pattern-setting slice (complete). Tesla is the construct-pattern
 
 1. ~~Tesla~~ (complete: persistent constructs, linking, StaticCharge synergies; X3 unblocked for coils)
 2. Leonardo (turret construct, spiral zone)
-3. Cleopatra (nest construct, vortex pull zone)
+3. ~~Cleopatra~~ (complete: nest construct, vortex pull zone in both modes, three perks)
 4. Pocahontas (snare construct, glide rules)
 5. Joan (melee/hyper-armor perks)
 6. Lincoln (armored charge, shield-shatter rules)
