@@ -4,23 +4,26 @@ using FTT.Characters;
 
 namespace FTT.Characters.Abilities {
 
+    /// <summary>
+    /// Special 1 — Spirit Strike: a spectral eagle swoops down in a diagonal arc,
+    /// dealing the authored 14 damage and staggering the target. Damage,
+    /// knockback, hitstun, and phase frames come from the authored AbilityData
+    /// resource via the factory-built EagleHitbox; only the swoop travel speed is
+    /// presentation tuning.
+    /// </summary>
     public partial class PocahontasSpiritStrike : BaseSpecial {
-        private const float StartupDuration = 0.2f;
-        private const float ActiveDuration = 0.35f;
-        private const float RecoveryDuration = 0.3f;
-        private const float SwoopDamage = 14f;
         private const float SwoopSpeed = 420f;
 
         private Vector2 _swoopDirection;
 
         protected override void OnStartup() {
-            PhaseTimer = StartupDuration;
+            UseAuthoredPhaseFrames();
             float hDir = Owner.IsFacingRight ? 1f : -1f;
             _swoopDirection = new Vector2(hDir, -0.6f).Normalized();
         }
 
         protected override void OnActive() {
-            PhaseTimer = ActiveDuration;
+            UseAuthoredPhaseFrames();
             Owner.SpecialOneCooldownTimer = Data?.CooldownDuration ?? 10f;
             FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
                 PlayerIndex = Owner.PlayerIndex,
@@ -30,18 +33,18 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = RecoveryDuration;
+            UseAuthoredPhaseFrames();
         }
 
         public override void _PhysicsProcess(double delta) {
             if (CurrentPhase == AbilityPhase.Active) {
                 Owner.Velocity = _swoopDirection * SwoopSpeed;
 
+                // The factory-built hitbox already carries the authored damage
+                // (scaled by the Story special multiplier), knockback, and
+                // hitstun; the swoop only drags it along the dive path.
                 var hitbox = GetNodeOrNull<Hitbox>("EagleHitbox");
                 if (hitbox != null) {
-                    hitbox.Damage = SwoopDamage;
-                    hitbox.KnockbackForce = _swoopDirection * 4f;
-                    hitbox.OwnerPlayerIndex = Owner.PlayerIndex;
                     hitbox.GlobalPosition = Owner.GlobalPosition;
                     hitbox.Activate();
                 }
@@ -52,20 +55,24 @@ namespace FTT.Characters.Abilities {
         }
     }
 
+    /// <summary>
+    /// Special 2 — Vine Snare: throws a seed pod that grows into a persistent
+    /// thorny-vine construct (15 HP, 10 s, max 2 active). Enemies stepping into
+    /// the vines take light damage and are Rooted for 1.5 s. Story-only Resonance
+    /// perk Thorn Snare makes rooted targets take continuous thorn damage while
+    /// held. All tuning comes from the authored AbilityData resource.
+    /// </summary>
     public partial class PocahontasVineSnare : BaseSpecial {
-        private const float StartupDuration = 0.25f;
-        private const float ActiveDuration = 0.1f;
-        private const float RecoveryDuration = 0.3f;
-        private const int MaxActiveSnares = 2;
-        private const float RootDuration = 1.5f;
+
+        public const string ThornSnarePerkKey = "thorn_snare";
 
         protected override void OnStartup() {
-            PhaseTimer = StartupDuration;
+            UseAuthoredPhaseFrames();
         }
 
         protected override void OnActive() {
-            PhaseTimer = ActiveDuration;
-            DeploySeedPod();
+            UseAuthoredPhaseFrames();
+            DeploySnare();
             Owner.SpecialTwoCooldownTimer = Data?.CooldownDuration ?? 10f;
             FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
                 PlayerIndex = Owner.PlayerIndex,
@@ -75,122 +82,110 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = RecoveryDuration;
+            UseAuthoredPhaseFrames();
         }
 
-        private void DeploySeedPod() {
+        private void DeploySnare() {
             if (Owner == null) return;
-            if (Data?.ProjectileScene == null) {
-                SpawnPlaceholderZone(
-                    Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 60f : -60f, 0f),
-                    Data.BaseDamage,
-                    10f,
-                    2f,
-                    new Color(0.3f, 0.6f, 0.2f),
-                    40f);
+            if (Data?.PersistentObjectScene == null) {
+                GD.PushWarning("Vine Snare has no PersistentObjectScene authored; deploy skipped.");
                 return;
             }
 
-            while (Owner.ActivePersistentObjects.Count >= MaxActiveSnares) {
-                var oldest = Owner.ActivePersistentObjects[0];
-                Owner.ActivePersistentObjects.RemoveAt(0);
-                if (oldest is FTT.Core.PooledNode pooled) pooled.ReturnToPool();
-                else oldest.QueueFree();
+            int maxActive = Data.MaxActiveObjects > 0 ? Data.MaxActiveObjects : 2;
+            while (CountActiveSnares() >= maxActive) {
+                VineSnareNode oldest = FindOldestSnare();
+                if (oldest == null) break;
+                Owner.ActivePersistentObjects.Remove(oldest);
+                oldest.ReturnToPool();
             }
 
-            var pod = FTT.Core.PoolManager.Instance?.Spawn(
-                Data.ProjectileScene,
-                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 60f : -60f, 0f)
-            );
+            Node spawned = FTT.Core.PoolManager.Instance?.Spawn(
+                Data.PersistentObjectScene,
+                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 60f : -60f, 0f),
+                Owner.GetParent());
+            if (spawned is not VineSnareNode snare) return;
 
-            if (pod is PocahontasVineSnareZone zone) {
-                zone.Initialize(
-                    Data.BaseDamage,
-                    RootDuration,
-                    Data.StatusDuration > 0 ? Data.StatusDuration : 10f,
-                    Owner.PlayerIndex
-                );
-                Owner.ActivePersistentObjects.Add(zone);
+            snare.Initialize(Data, Owner, Owner.HasStoryPerk(ThornSnarePerkKey));
+            Owner.ActivePersistentObjects.Add(snare);
+        }
+
+        private int CountActiveSnares() {
+            int count = 0;
+            foreach (Node2D node in Owner.ActivePersistentObjects) {
+                if (node is VineSnareNode snare && IsInstanceValid(snare) && !snare.IsSnareDestroyed) count++;
             }
+            return count;
+        }
+
+        private VineSnareNode FindOldestSnare() {
+            foreach (Node2D node in Owner.ActivePersistentObjects) {
+                if (node is VineSnareNode snare && IsInstanceValid(snare) && !snare.IsSnareDestroyed) return snare;
+            }
+            return null;
         }
     }
 
-    public partial class PocahontasVineSnareZone : FTT.Core.PooledNode, FTT.Core.IPoolable {
-        private float _damage;
-        private float _rootDuration;
-        private int _ownerIndex;
-        private float _lifetime;
-        private Area2D _triggerArea;
-
-        public void Initialize(float damage, float rootDuration, float lifespan, int ownerIndex) {
-            _damage = damage;
-            _rootDuration = rootDuration;
-            _ownerIndex = ownerIndex;
-            _lifetime = lifespan;
-        }
-
-        public void OnSpawn() {
-            _triggerArea = GetNodeOrNull<Area2D>("Area2D");
-            if (_triggerArea != null) _triggerArea.BodyEntered += OnBodyEntered;
-        }
-
-        public void OnDespawn() {
-            if (_triggerArea != null) _triggerArea.BodyEntered -= OnBodyEntered;
-        }
-
-        private void OnBodyEntered(Node2D body) {
-            if (body is PlayerController pc && pc.PlayerIndex != _ownerIndex) {
-                pc.ApplyDamage((int)_damage);
-                pc.GetNodeOrNull<StatusController>("StatusController")
-                    ?.ApplyStatus(FTT.Core.StatusType.Root, _rootDuration);
-            }
-        }
-
-        public override void _PhysicsProcess(double delta) {
-            _lifetime -= (float)delta;
-            if (_lifetime <= 0) ReturnToPool();
-        }
-    }
-
+    /// <summary>
+    /// Movement — Breeze Glide: Pocahontas dashes forward on a wind current,
+    /// resets her double jump, and can glide horizontally for up to the authored
+    /// 3 seconds. Dash speed, glide duration, jump reset, and cooldown come from
+    /// the authored MovementAbilityData resource. Story-only Resonance perks:
+    /// Tornado Lift (glide start launches nearby enemies upward) and Leaf Barrier
+    /// (glide start grants a shield worth 10% of max HP).
+    /// </summary>
     public partial class PocahontasBreezeGlide : BaseSpecial {
-        private const float StartupDuration = 0.1f;
-        private const float ActiveDuration = 0.15f;
-        private const float RecoveryDuration = 0.1f;
-        private const float CooldownTime = 5.0f;
-        private const float DashForce = 350f;
-        private const float MaxGlideDuration = 3.0f;
-        private const float GlideSpeed = 140f;
+
+        public const string TornadoLiftPerkKey = "tornado_lift";
+        public const string LeafBarrierPerkKey = "leaf_barrier";
+
+        private const float GlideHorizontalSpeed = 140f;
+        private const float GlideMaxFallSpeed = 30f;
+        private const float TornadoLiftRadiusPixels = 150f;
+        private static readonly Vector2 TornadoLiftKnockback = new(0f, -6f);
 
         private bool _isGliding;
         private float _glideTimer;
+        private float _dashSpeed = 350f;
+        private float _maxGlideDuration = 3f;
+
+        private MovementAbilityData MovementData => Data as MovementAbilityData;
 
         protected override void OnStartup() {
-            PhaseTimer = StartupDuration;
+            UseAuthoredPhaseFrames();
             _isGliding = false;
+            _dashSpeed = MovementData?.MovementSpeed > 0f ? MovementData.MovementSpeed : 350f;
+            _maxGlideDuration = MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : 3f;
+
             float hDir = Owner.IsFacingRight ? 1f : -1f;
-            Owner.Velocity = new Vector2(hDir * DashForce, Owner.Velocity.Y);
-            Owner.RemainingJumps = Owner.Data?.MaxJumpCount ?? 2;
+            Owner.Velocity = new Vector2(hDir * _dashSpeed, Owner.Velocity.Y);
+            if (MovementData?.ResetsDoubleJump == true) {
+                Owner.RemainingJumps = Owner.Data?.MaxJumpCount ?? 2;
+            }
+            ApplyTornadoLift();
+            ApplyLeafBarrier();
         }
 
         protected override void OnActive() {
-            PhaseTimer = ActiveDuration;
+            UseAuthoredPhaseFrames();
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = RecoveryDuration;
+            UseAuthoredPhaseFrames();
             _isGliding = true;
-            _glideTimer = MaxGlideDuration;
-            Owner.MovementAbilityCooldownTimer = CooldownTime;
+            _glideTimer = _maxGlideDuration;
+            float cooldown = Data?.CooldownDuration ?? 5f;
+            Owner.MovementAbilityCooldownTimer = cooldown;
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
-                AbilityName = "Breeze Glide",
+                AbilityName = Data?.AbilityName ?? "Breeze Glide",
                 StartPosition = Owner.GlobalPosition,
                 EndPosition = Owner.GlobalPosition
             });
             FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 Slot = FTT.Core.AbilitySlot.MovementAbility,
-                Duration = CooldownTime
+                Duration = cooldown
             });
         }
 
@@ -202,8 +197,8 @@ namespace FTT.Characters.Abilities {
                 float hInput = Owner.CurrentInputFrame.Horizontal;
 
                 var vel = Owner.Velocity;
-                vel.X = hInput * GlideSpeed;
-                vel.Y = Mathf.Min(vel.Y, 30f);
+                vel.X = hInput * GlideHorizontalSpeed;
+                vel.Y = Mathf.Min(vel.Y, GlideMaxFallSpeed);
                 Owner.Velocity = vel;
 
                 if (_glideTimer <= 0 || Owner.IsOnFloor()) {
@@ -215,8 +210,67 @@ namespace FTT.Characters.Abilities {
 
             base._PhysicsProcess(delta);
         }
+
+        /// <summary>
+        /// Tornado Lift (Story-only): starting a Breeze Glide creates a vertical
+        /// updraft that launches nearby enemies upward. The design specifies no
+        /// damage, so the updraft is a pure knockback hit.
+        /// </summary>
+        private void ApplyTornadoLift() {
+            if (Owner == null || !Owner.HasStoryPerk(TornadoLiftPerkKey)) return;
+            var space = Owner.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return;
+
+            uint targetHurtboxLayer = Owner.PlayerIndex == 0
+                ? FTT.Core.CollisionLayers.EnemyHurtbox
+                : FTT.Core.CollisionLayers.PlayerHurtbox;
+            var query = new PhysicsShapeQueryParameters2D {
+                Shape = new CircleShape2D { Radius = TornadoLiftRadiusPixels },
+                Transform = new Transform2D(0f, Owner.GlobalPosition),
+                CollideWithAreas = true,
+                CollideWithBodies = false,
+                CollisionMask = targetHurtboxLayer
+            };
+
+            foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
+                if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
+                if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
+                hurtbox.TakeHit(new HitPayload {
+                    AttackerIndex = Owner.PlayerIndex,
+                    AttackID = Data?.AbilityID ?? "pocahontas_breeze_glide",
+                    HitboxID = "tornado_lift",
+                    AttackClass = AttackClass.Special,
+                    Damage = 0f,
+                    Knockback = TornadoLiftKnockback,
+                    HitstunDuration = 0.1f,
+                    HitOrigin = Owner.GlobalPosition,
+                    AttackerFacingRight = Owner.IsFacingRight,
+                    AppliedStatus = FTT.Core.StatusType.None,
+                    StatusDuration = 0f,
+                    StatusIntensity = 1f,
+                    ScreenShakeIntensity = 0.1f,
+                    ScreenShakeDuration = 0.05f
+                });
+            }
+        }
+
+        /// <summary>
+        /// Leaf Barrier (Story-only): entering a Breeze Glide grants a shield
+        /// that absorbs 10% of maximum health before HP is touched.
+        /// </summary>
+        private void ApplyLeafBarrier() {
+            if (Owner == null || !Owner.HasStoryPerk(LeafBarrierPerkKey)) return;
+            float capacity = 0.10f * Owner.MaximumHP;
+            Owner.ConfigureStoryShield(capacity);
+            Owner.RechargeStoryShield(capacity);
+        }
     }
 
+    /// <summary>
+    /// Ultimate — Tidewater Tempest. Structured sketch pending the dedicated
+    /// ultimates pass (audit gap X7): a screen-wide spirit storm dealing
+    /// repeated multi-hit damage.
+    /// </summary>
     public partial class PocahontasTidewaterTempest : BaseSpecial {
         private const float CinematicDuration = 2.8f;
         private const int HitCount = 8;
