@@ -47,6 +47,19 @@ namespace FTT.Environment {
             float jumpForce = 1f;
             float basicDamage = 1f;
             float specialDamage = 1f;
+            float cooldownReduction = 0f;
+            float attackRange = 1f;
+            float comboSpeed = 1f;
+            float blockRecovery = 1f;
+            float knockback = 1f;
+            float projectileSpeed = 1f;
+            float projectileDamage = 1f;
+            float glideSpeed = 1f;
+            float persistentDuration = 1f;
+            float persistentRange = 1f;
+            float persistentHealth = 1f;
+            float statusDuration = 1f;
+            float statusIntensity = 1f;
             foreach (ResonanceNodeData node in grid.Nodes ?? Array.Empty<ResonanceNodeData>()) {
                 if (node == null || !unlocked.Contains(node.NodeID)) continue;
                 switch (node.StatModifierKey) {
@@ -56,9 +69,40 @@ namespace FTT.Environment {
                     case "JumpForce": jumpForce += PercentValue(node); break;
                     case "BasicAttackDamage": basicDamage += PercentValue(node); break;
                     case "SpecialDamage": specialDamage += PercentValue(node); break;
+                    case "CooldownReduction": cooldownReduction += PercentValue(node); break;
+                    case "AttackRange": attackRange += PercentValue(node); break;
+                    case "ComboSpeed": comboSpeed += PercentValue(node); break;
+                    case "BlockRecovery": blockRecovery += PercentValue(node); break;
+                    case "KnockbackForce": knockback += PercentValue(node); break;
+                    case "ProjectileSpeed": projectileSpeed += PercentValue(node); break;
+                    case "ProjectileDamage": projectileDamage += PercentValue(node); break;
+                    case "GlideSpeed": glideSpeed += PercentValue(node); break;
+                    case "PersistentDuration": persistentDuration += PercentValue(node); break;
+                    case "PersistentRange": persistentRange += PercentValue(node); break;
+                    case "PersistentHealth": persistentHealth += PercentValue(node); break;
+                    case "StatusDuration": statusDuration += PercentValue(node); break;
+                    case "StatusDamage": statusIntensity += PercentValue(node); break;
+                    // "BlockDurability" (percent shield durability against discrete
+                    // integer block charges) and "Armor" (the design's combat rules
+                    // explicitly forbid a damage-reducing armor stat) have no
+                    // existing behavior to hook and intentionally resolve neutral.
                 }
             }
-            return new StoryStatProfile(maxHP, blockCharges, moveSpeed, jumpForce, basicDamage, specialDamage);
+            return new StoryStatProfile(
+                maxHP, blockCharges, moveSpeed, jumpForce, basicDamage, specialDamage,
+                cooldownMultiplier: Mathf.Max(0.05f, 1f - cooldownReduction),
+                attackRangeMultiplier: attackRange,
+                comboSpeedMultiplier: comboSpeed,
+                blockRecoveryMultiplier: blockRecovery,
+                knockbackMultiplier: knockback,
+                projectileSpeedMultiplier: projectileSpeed,
+                projectileDamageMultiplier: projectileDamage,
+                glideSpeedMultiplier: glideSpeed,
+                persistentDurationMultiplier: persistentDuration,
+                persistentRangeMultiplier: persistentRange,
+                persistentHealthMultiplier: persistentHealth,
+                statusDurationMultiplier: statusDuration,
+                statusIntensityMultiplier: statusIntensity);
         }
 
         public static float GetUnlockedStatTotal(

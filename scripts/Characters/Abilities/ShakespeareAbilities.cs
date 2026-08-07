@@ -95,7 +95,8 @@ namespace FTT.Characters.Abilities {
                     HitboxID = "sonic_wave",
                     AttackClass = AttackClass.Special,
                     Damage = (Data?.BaseDamage ?? 14f) * Owner.StorySpecialDamageMultiplier,
-                    Knockback = Data?.KnockbackForce ?? new Vector2(3, -2),
+                    // Story-only KnockbackForce minors strengthen the wave's shove.
+                    Knockback = (Data?.KnockbackForce ?? new Vector2(3, -2)) * Owner.StoryKnockbackMultiplier,
                     HitstunDuration = Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = impactPosition,
                     AttackerFacingRight = Owner.IsFacingRight,
@@ -206,7 +207,8 @@ namespace FTT.Characters.Abilities {
                     Vector2 pushDir = away == Vector2.Zero
                         ? (Owner.IsFacingRight ? Vector2.Right : Vector2.Left)
                         : away.Normalized();
-                    body.Velocity += pushDir * PushAcceleration * dt;
+                    // Story-only KnockbackForce minors strengthen the storm's push.
+                    body.Velocity += pushDir * PushAcceleration * Owner.StoryKnockbackMultiplier * dt;
                     return;
                 }
                 current = current.GetParent();
@@ -440,7 +442,9 @@ namespace FTT.Characters.Abilities {
                     HitboxID = $"phantom_strike_{_strikesDone}",
                     AttackClass = AttackClass.Ultimate,
                     Damage = (Data?.BaseDamage ?? 14f) * Owner.StorySpecialDamageMultiplier,
-                    Knockback = finale ? Data?.KnockbackForce ?? new Vector2(5f, -3f) : Vector2.Zero,
+                    Knockback = finale
+                        ? (Data?.KnockbackForce ?? new Vector2(5f, -3f)) * Owner.StoryKnockbackMultiplier
+                        : Vector2.Zero,
                     HitstunDuration = finale ? FinaleHitstunDuration : Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = stageCenter,
                     AttackerFacingRight = Owner.IsFacingRight,

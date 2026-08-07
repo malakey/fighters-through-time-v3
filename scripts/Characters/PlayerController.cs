@@ -63,6 +63,25 @@ namespace FTT.Characters {
 		public float StoryJumpForceMultiplier { get; set; } = 1f;
 		public float StoryBasicDamageMultiplier { get; set; } = 1f;
 		public float StorySpecialDamageMultiplier { get; set; } = 1f;
+		// Story-only Resonance minor stat multipliers (all neutral at 1f; populated
+		// by CharacterFactory from the resolved StoryStatProfile of the active
+		// save's grid). Fighter Mode never sets these — the deterministic
+		// simulation is authoritative there and its loadouts never read them.
+		/// <summary>Cooldown time multiplier: 0.9 means cooldowns run 10% shorter.</summary>
+		public float StoryCooldownMultiplier { get; set; } = 1f;
+		public float StoryAttackRangeMultiplier { get; set; } = 1f;
+		public float StoryComboSpeedMultiplier { get; set; } = 1f;
+		public float StoryBlockRecoveryMultiplier { get; set; } = 1f;
+		public float StoryKnockbackMultiplier { get; set; } = 1f;
+		public float StoryProjectileSpeedMultiplier { get; set; } = 1f;
+		public float StoryProjectileDamageMultiplier { get; set; } = 1f;
+		public float StoryGlideSpeedMultiplier { get; set; } = 1f;
+		public float StoryPersistentDurationMultiplier { get; set; } = 1f;
+		public float StoryPersistentRangeMultiplier { get; set; } = 1f;
+		public float StoryPersistentHealthMultiplier { get; set; } = 1f;
+		public float StoryStatusDurationMultiplier { get; set; } = 1f;
+		/// <summary>Damaging-status (Venom/RadiantBurn) potency multiplier.</summary>
+		public float StoryStatusIntensityMultiplier { get; set; } = 1f;
 		public float StoryTemporaryDamageMultiplier { get; private set; } = 1f;
 		public float StoryTemporarySpeedMultiplier { get; private set; } = 1f;
 		/// <summary>
@@ -207,6 +226,7 @@ namespace FTT.Characters {
 
 		// Basic attack timing
 		private int _attackFramesRemaining;
+		private float _attackFrameProgress;
 		private const int ComboBufferFrames = FTT.Combat.StoryCombatRules.ComboBufferFrames;
 		private int _comboBufferFramesRemaining;
 		private bool _comboBufferActive;
@@ -769,7 +789,13 @@ namespace FTT.Characters {
 				OnAttackActiveEnded();
 			}
 
-			_attackFramesRemaining--;
+			// Story-only ComboSpeed minors advance the authored attack clock
+			// faster than real time (a 1f multiplier steps exactly one frame).
+			_attackFrameProgress += StoryComboSpeedMultiplier;
+			while (_attackFrameProgress >= 1f && _attackFramesRemaining > 0) {
+				_attackFrameProgress -= 1f;
+				_attackFramesRemaining--;
+			}
 			if (_attackFramesRemaining <= 0) {
 				CompleteCurrentComboHit();
 			}
@@ -1363,16 +1389,23 @@ namespace FTT.Characters {
 			TransitionTo(CharacterState.Attacking);
 			string animationName = $"basic_{(_attackStartedAerial ? "air" : "ground")}_{comboIdx + 1}";
 			_attackAnimationDriven = _combatAnimationPlayer?.HasAnimation(animationName) == true;
-			if (_attackAnimationDriven) _combatAnimationPlayer.Play(animationName);
+			if (_attackAnimationDriven) {
+				// Story-only ComboSpeed minors run the basic string faster; the
+				// animation clock carries the hit-activation callbacks with it.
+				_combatAnimationPlayer.SpeedScale = StoryComboSpeedMultiplier;
+				_combatAnimationPlayer.Play(animationName);
+			}
+			_attackFrameProgress = 0f;
 		}
 
 		public void OnAttackActiveStarted() {
 			if (CurrentState != CharacterState.Attacking || _attackHitActive) return;
 			_attackHitActive = true;
 			int comboIdx = GetActiveComboIndex();
-			Vector2 hitboxSize = _attackStartedAerial
+			// Story-only AttackRange minors extend basic-attack melee reach.
+			Vector2 hitboxSize = (_attackStartedAerial
 				? AerialComboHitboxSizes[comboIdx]
-				: ComboHitboxSizes[comboIdx];
+				: ComboHitboxSizes[comboIdx]) * StoryAttackRangeMultiplier;
 			Vector2 hitboxOffset = _attackStartedAerial
 				? (_aerialHitboxMarker?.Position ?? AerialComboHitboxOffsets[comboIdx])
 				: ComboHitboxOffsets[comboIdx];
@@ -1630,9 +1663,13 @@ namespace FTT.Characters {
 		// === Cooldowns ===
 
 		private void UpdateCooldowns(float dt) {
-			if (SpecialOneCooldownTimer > 0) SpecialOneCooldownTimer -= dt;
-			if (SpecialTwoCooldownTimer > 0) SpecialTwoCooldownTimer -= dt;
-			if (MovementAbilityCooldownTimer > 0) MovementAbilityCooldownTimer -= dt;
+			// Story-only CooldownReduction minors shorten every ability cooldown by
+			// ticking the shared timers faster; abilities keep assigning the
+			// authored CooldownDuration so the .tres numbers stay canonical.
+			float cooldownDt = dt / Mathf.Max(0.05f, StoryCooldownMultiplier);
+			if (SpecialOneCooldownTimer > 0) SpecialOneCooldownTimer -= cooldownDt;
+			if (SpecialTwoCooldownTimer > 0) SpecialTwoCooldownTimer -= cooldownDt;
+			if (MovementAbilityCooldownTimer > 0) MovementAbilityCooldownTimer -= cooldownDt;
 		}
 
 		// === Ledge Detection ===

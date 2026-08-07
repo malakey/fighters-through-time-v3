@@ -51,7 +51,9 @@ namespace FTT.Characters.Abilities {
             OwnerIndex = owner?.PlayerIndex ?? 0;
             _currentHP = MaxSnareHP;
             IsSnareDestroyed = false;
-            _lifetime = data?.Lifetime > 0f ? data.Lifetime : 10f;
+            // Story-only PersistentDuration minors extend the snare's lifespan.
+            _lifetime = (data?.Lifetime > 0f ? data.Lifetime : 10f)
+                * (owner?.StoryPersistentDurationMultiplier ?? 1f);
             _biteInterval = (data?.DamageTickIntervalFrames ?? 30) / 60f;
             if (_biteInterval <= 0f) _biteInterval = 0.5f;
             _biteTimer = 0f;

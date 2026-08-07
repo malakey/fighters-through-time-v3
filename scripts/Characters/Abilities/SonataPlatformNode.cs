@@ -34,7 +34,9 @@ namespace FTT.Characters.Abilities {
         public void Initialize(AbilityData data, PlayerController owner) {
             _ownerPlayer = owner;
             OwnerIndex = owner?.PlayerIndex ?? 0;
-            _lifetime = data?.Lifetime > 0f ? data.Lifetime : 3f;
+            // Story-only PersistentDuration minors extend the staff's lifespan.
+            _lifetime = (data?.Lifetime > 0f ? data.Lifetime : 3f)
+                * (owner?.StoryPersistentDurationMultiplier ?? 1f);
             _rewindFrozen = false;
             SetBodyCollisionEnabled(true);
         }

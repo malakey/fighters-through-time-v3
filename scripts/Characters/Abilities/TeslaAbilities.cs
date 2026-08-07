@@ -68,7 +68,8 @@ namespace FTT.Characters.Abilities {
         private void TryLinkCoils(TeslaCoilNode newest) {
             foreach (Node2D node in Owner.ActivePersistentObjects) {
                 if (node is TeslaCoilNode other && other != newest && !other.IsCoilDestroyed
-                    && newest.GlobalPosition.DistanceTo(other.GlobalPosition) <= TeslaCoilNode.LinkRangePixels) {
+                    && newest.GlobalPosition.DistanceTo(other.GlobalPosition)
+                        <= TeslaCoilNode.LinkRangePixels * Owner.StoryPersistentRangeMultiplier) {
                     // The newest coil drives the fence tick so exactly one member
                     // of the pair applies fence damage.
                     newest.LinkPartner(other, drivesFence: true);
@@ -169,8 +170,10 @@ namespace FTT.Characters.Abilities {
             };
 
             bool attraction = Owner.HasStoryPerk(LorentzAttractionPerkKey);
-            float rootDuration = (Data?.StatusDuration > 0f ? Data.StatusDuration : 2f)
-                + (attraction ? AttractionRootBonusSeconds : 0f);
+            // Story-only StatusDuration minors lengthen the pulse's Root.
+            float rootDuration = ((Data?.StatusDuration > 0f ? Data.StatusDuration : 2f)
+                + (attraction ? AttractionRootBonusSeconds : 0f))
+                * Owner.StoryStatusDurationMultiplier;
 
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;

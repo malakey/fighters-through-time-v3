@@ -48,8 +48,10 @@ namespace FTT.Characters.Abilities {
             _data = data;
             _ownerPlayer = owner;
             OwnerIndex = owner?.PlayerIndex ?? 0;
-            BoltDamage = data?.BaseDamage ?? 5f;
-            _currentHP = MaxTurretHP;
+            // Story-only Resonance minors: ProjectileDamage raises bolt damage and
+            // PersistentHealth reinforces the chassis. Both 1f outside Story Mode.
+            BoltDamage = (data?.BaseDamage ?? 5f) * (owner?.StoryProjectileDamageMultiplier ?? 1f);
+            _currentHP = Mathf.RoundToInt(MaxTurretHP * (owner?.StoryPersistentHealthMultiplier ?? 1f));
             IsTurretDestroyed = false;
             _lifetime = data?.Lifetime > 0f ? data.Lifetime : 15f;
             _fireInterval = (data?.DamageTickIntervalFrames ?? 120) / 60f;

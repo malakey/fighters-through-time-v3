@@ -159,6 +159,134 @@ public class ResonanceProgressionTests {
         player.Free();
     }
 
+    [TestCase]
+    public void MinorCooldownPersistentAndStatusKeysResolveFromAuthoredGrid() {
+        ResonanceGridData grid = ResourceLoader.Load<ResonanceGridData>(
+            "res://resources/Resonance/tesla_grid.tres");
+        StorySaveData save = new() {
+            SelectedCharacterID = "tesla",
+            DepositedChronalDust = new Dictionary<string, int>(),
+            GridProgress = new Dictionary<string, List<string>> {
+                ["tesla"] = new() { "tesla_c1", "tesla_c2", "tesla_p2", "tesla_w2" }
+            }
+        };
+
+        StoryStatProfile profile = ResonanceProgression.Resolve(grid, save);
+        AssertThat(profile.PersistentDurationMultiplier).IsEqual(1.1f);
+        AssertThat(profile.PersistentRangeMultiplier).IsEqual(1.15f);
+        AssertThat(profile.StatusDurationMultiplier).IsEqual(1.15f);
+        AssertThat(profile.CooldownMultiplier).IsEqual(0.9f);
+        // Untouched lanes stay neutral.
+        AssertThat(profile.MaxHPBonus).IsEqual(0);
+        AssertThat(profile.SpecialDamageMultiplier).IsEqual(1f);
+        AssertThat(profile.KnockbackMultiplier).IsEqual(1f);
+    }
+
+    [TestCase]
+    public void MinorRangeComboKnockbackProjectileGlideAndRecoveryKeysResolve() {
+        ResonanceGridData grid = new() {
+            CharacterID = "einstein",
+            Nodes = new[] {
+                MinorNode("n1", "AttackRange", 0.1f),
+                MinorNode("n2", "ComboSpeed", 0.05f),
+                MinorNode("n3", "KnockbackForce", 0.15f),
+                MinorNode("n4", "ProjectileSpeed", 0.1f),
+                MinorNode("n5", "ProjectileDamage", 0.05f),
+                MinorNode("n6", "PersistentHealth", 0.15f),
+                MinorNode("n7", "GlideSpeed", 0.1f),
+                MinorNode("n8", "BlockRecovery", 0.1f),
+                MinorNode("n9", "StatusDamage", 0.15f)
+            }
+        };
+        StorySaveData save = BuildSave(0);
+        save.GridProgress["einstein"] = new List<string> {
+            "n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8", "n9"
+        };
+
+        StoryStatProfile profile = ResonanceProgression.Resolve(grid, save);
+        AssertThat(profile.AttackRangeMultiplier).IsEqual(1.1f);
+        AssertThat(profile.ComboSpeedMultiplier).IsEqual(1.05f);
+        AssertThat(profile.KnockbackMultiplier).IsEqual(1.15f);
+        AssertThat(profile.ProjectileSpeedMultiplier).IsEqual(1.1f);
+        AssertThat(profile.ProjectileDamageMultiplier).IsEqual(1.05f);
+        AssertThat(profile.PersistentHealthMultiplier).IsEqual(1.15f);
+        AssertThat(profile.GlideSpeedMultiplier).IsEqual(1.1f);
+        AssertThat(profile.BlockRecoveryMultiplier).IsEqual(1.1f);
+        AssertThat(profile.StatusIntensityMultiplier).IsEqual(1.15f);
+    }
+
+    [TestCase]
+    public void UnresolvedMinorKeysAndLockedNodesResolveNeutral() {
+        ResonanceGridData grid = new() {
+            CharacterID = "einstein",
+            Nodes = new[] {
+                // No behavior exists for these two keys yet: percent shield
+                // durability against discrete charges, and the design's
+                // no-armor-stat combat rule. They must resolve neutral.
+                MinorNode("n1", "BlockDurability", 0.1f),
+                MinorNode("n2", "Armor", 0.05f),
+                // Resolvable key that stays locked: it must contribute nothing.
+                MinorNode("n3", "CooldownReduction", 0.1f)
+            }
+        };
+        StorySaveData save = BuildSave(0);
+        save.GridProgress["einstein"] = new List<string> { "n1", "n2" };
+
+        StoryStatProfile profile = ResonanceProgression.Resolve(grid, save);
+        StoryStatProfile neutral = StoryStatProfile.Default;
+        AssertThat(profile.MaxHPBonus).IsEqual(neutral.MaxHPBonus);
+        AssertThat(profile.BlockChargeBonus).IsEqual(neutral.BlockChargeBonus);
+        AssertThat(profile.MoveSpeedMultiplier).IsEqual(neutral.MoveSpeedMultiplier);
+        AssertThat(profile.CooldownMultiplier).IsEqual(neutral.CooldownMultiplier);
+        AssertThat(profile.AttackRangeMultiplier).IsEqual(neutral.AttackRangeMultiplier);
+        AssertThat(profile.ComboSpeedMultiplier).IsEqual(neutral.ComboSpeedMultiplier);
+        AssertThat(profile.BlockRecoveryMultiplier).IsEqual(neutral.BlockRecoveryMultiplier);
+        AssertThat(profile.KnockbackMultiplier).IsEqual(neutral.KnockbackMultiplier);
+        AssertThat(profile.ProjectileSpeedMultiplier).IsEqual(neutral.ProjectileSpeedMultiplier);
+        AssertThat(profile.ProjectileDamageMultiplier).IsEqual(neutral.ProjectileDamageMultiplier);
+        AssertThat(profile.GlideSpeedMultiplier).IsEqual(neutral.GlideSpeedMultiplier);
+        AssertThat(profile.PersistentDurationMultiplier).IsEqual(neutral.PersistentDurationMultiplier);
+        AssertThat(profile.PersistentRangeMultiplier).IsEqual(neutral.PersistentRangeMultiplier);
+        AssertThat(profile.PersistentHealthMultiplier).IsEqual(neutral.PersistentHealthMultiplier);
+        AssertThat(profile.StatusDurationMultiplier).IsEqual(neutral.StatusDurationMultiplier);
+        AssertThat(profile.StatusIntensityMultiplier).IsEqual(neutral.StatusIntensityMultiplier);
+    }
+
+    [TestCase]
+    public void EveryAuthoredMinorNodeKeyEitherResolvesOrIsDocumentedUnresolved() {
+        // Keys the resolver hooks into existing Story behavior, plus the two
+        // intentionally unresolved keys documented in Resolve(); no authored
+        // minor may carry any other key, so nothing silently no-ops.
+        var resolvedKeys = new HashSet<string> {
+            "MaxHP", "BlockCharges", "MoveSpeed", "JumpForce",
+            "BasicAttackDamage", "SpecialDamage",
+            "CooldownReduction", "AttackRange", "ComboSpeed", "BlockRecovery",
+            "KnockbackForce", "ProjectileSpeed", "ProjectileDamage", "GlideSpeed",
+            "PersistentDuration", "PersistentRange", "PersistentHealth",
+            "StatusDuration", "StatusDamage"
+        };
+        var documentedUnresolvedKeys = new HashSet<string> { "BlockDurability", "Armor" };
+        foreach (string characterID in CharacterIDs) {
+            ResonanceGridData grid = ResourceLoader.Load<ResonanceGridData>(
+                $"res://resources/Resonance/{characterID}_grid.tres");
+            foreach (ResonanceNodeData node in grid.Nodes) {
+                if (node.Type != ResonanceNodeType.Minor) continue;
+                AssertThat(string.IsNullOrWhiteSpace(node.StatModifierKey)).IsFalse();
+                AssertThat(resolvedKeys.Contains(node.StatModifierKey)
+                    || documentedUnresolvedKeys.Contains(node.StatModifierKey)).IsTrue();
+            }
+        }
+    }
+
+    private static ResonanceNodeData MinorNode(string nodeID, string statKey, float value) => new() {
+        NodeID = nodeID,
+        UnlockCost = 50,
+        PrerequisiteNodeIDs = System.Array.Empty<string>(),
+        StatModifierKey = statKey,
+        StatModifierValue = value,
+        StatModifierIsPercent = true
+    };
+
     private static StorySaveData BuildSave(int dust) => new() {
         SelectedCharacterID = "einstein",
         DepositedChronalDust = new Dictionary<string, int> { ["einstein"] = dust },
