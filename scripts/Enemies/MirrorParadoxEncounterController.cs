@@ -51,6 +51,14 @@ namespace FTT.Enemies {
             if (SpawnOnReady) SpawnMirror();
         }
 
+        /// <summary>
+        /// Only global registrations are released here. Godot is already destroying
+        /// the encounter subtree, and <see cref="MirrorParadoxController._ExitTree"/>
+        /// releases the CPU input slot on its own — doing tree surgery from inside a
+        /// parent's <c>_ExitTree</c> would fight that teardown. Levels that end the
+        /// encounter while the scene stays loaded call
+        /// <see cref="MirrorParadoxController.DespawnMirror"/> explicitly instead.
+        /// </summary>
         public override void _ExitTree() => UnbindEvents();
 
         private void BindEvents() {
@@ -81,7 +89,9 @@ namespace FTT.Enemies {
                 SpawnOffset = SpawnOffset,
                 DecisionSeed = DecisionSeed,
                 RewindPolicy = MirrorRewindPolicy,
-                SpawnOnReady = true
+                SpawnOnReady = true,
+                // The clone stands inert until Reveal() starts the fight.
+                ActivateOnSpawn = false
             };
             AddChild(Mirror);
             return Mirror;
@@ -104,6 +114,7 @@ namespace FTT.Enemies {
         public void Reveal() {
             if (IsRevealed) return;
             IsRevealed = true;
+            Mirror?.BeginEncounter();
             HUD?.ShowBossBar(
                 string.IsNullOrWhiteSpace(Data?.DisplayNameKey) ? "boss_mirror_paradox_name" : Data.DisplayNameKey,
                 Mirror?.CurrentHP ?? 0,

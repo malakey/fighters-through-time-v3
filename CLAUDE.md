@@ -39,7 +39,7 @@ Build (verified: succeeds with 1 pre-existing vendored warning — `CS8632` in `
 dotnet build FightersThroughTime.csproj --nologo
 ```
 
-Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-07 on `net10.0`: **348 passed, 0 failed, Total 348** in a few seconds after a warm build. Read the `Total:` count in the summary, not just the exit code — see the failure signature above:
+Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-07 on `net10.0`: **352 passed, 0 failed, Total 352** in a few seconds after a warm build. Read the `Total:` count in the summary, not just the exit code — see the failure signature above:
 
 ```bash
 dotnet test FightersThroughTime.csproj --settings .runsettings

@@ -161,7 +161,7 @@ public class MirrorParadoxTests {
             AssertThat(mirror.Clone.StoryCooldownMultiplier).IsEqualApprox(1f, 0.0001f);
         } finally {
             if (mirror != null) FreeMirror(mirror);
-            progressed?.Free();
+            DetachAndFree(progressed);
             SaveManager.Instance.SaveSlots[0] = originalSave;
             GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
             GameManager.Instance.CurrentSession.SelectedCharacterID = originalCharacter;
@@ -313,7 +313,7 @@ public class MirrorParadoxTests {
             AssertString(captured.BossID).IsEqual("mirror_paradox");
         } finally {
             EventBus.Instance.OnChronalDustCollected -= OnDust;
-            encounter.Free();
+            DetachAndFree(encounter);
         }
     }
 
@@ -321,6 +321,10 @@ public class MirrorParadoxTests {
     public void RewindFreezeStopsTheCloneLikeAnyOtherStoryEnemy() {
         MirrorParadoxController mirror = CreateMirror();
         try {
+            mirror.BeginEncounter();
+            AssertThat(mirror.IsEncounterActive).IsTrue();
+            AssertThat(mirror.Clone.IsPhysicsProcessing()).IsTrue();
+
             mirror.Clone.Velocity = new Vector2(300f, 0f);
             mirror.SetStoryRewindFrozen(true);
             AssertThat(mirror.IsStoryRewindFrozen).IsTrue();
@@ -335,6 +339,49 @@ public class MirrorParadoxTests {
         }
     }
 
+    [TestCase]
+    public void AnUnrevealedMirrorStandsInertAndNeverConsumesTheInputSlot() {
+        MirrorParadoxController mirror = CreateMirror();
+        try {
+            // Spawned but not revealed: no simulation, no CPU input source. A boss
+            // must not be fighting before the encounter starts.
+            AssertThat(mirror.IsEncounterActive).IsFalse();
+            AssertThat(mirror.Clone.IsPhysicsProcessing()).IsFalse();
+
+            mirror.BeginEncounter();
+            AssertThat(mirror.IsEncounterActive).IsTrue();
+            AssertThat(mirror.Clone.IsPhysicsProcessing()).IsTrue();
+
+            // Idempotent, and defeat stands the clone back down.
+            mirror.BeginEncounter();
+            AssertThat(mirror.IsEncounterActive).IsTrue();
+            mirror.Clone.ApplyDamage(mirror.ScaledMaxHP);
+            AssertThat(mirror.IsDefeated).IsTrue();
+            AssertThat(mirror.IsEncounterActive).IsFalse();
+            AssertThat(mirror.Clone.IsPhysicsProcessing()).IsFalse();
+        } finally {
+            FreeMirror(mirror);
+        }
+    }
+
+    [TestCase]
+    public void DespawnDetachesTheCloneAndReleasesTheInputSlot() {
+        MirrorParadoxController mirror = CreateMirror();
+        try {
+            mirror.BeginEncounter();
+            PlayerController clone = mirror.Clone;
+            AssertObject(clone).IsNotNull();
+
+            mirror.DespawnMirror();
+            AssertObject(mirror.Clone).IsNull();
+            AssertThat(mirror.IsEncounterActive).IsFalse();
+            // Detached from the tree and fully disposed, not left as an orphan.
+            AssertThat(GodotObject.IsInstanceValid(clone)).IsFalse();
+        } finally {
+            FreeMirror(mirror);
+        }
+    }
+
     // === Helpers ===
 
     private static MirrorParadoxController CreateMirror(ulong seed = 4242) {
@@ -342,11 +389,29 @@ public class MirrorParadoxTests {
             Name = "MirrorParadoxUnderTest",
             Data = ResourceLoader.Load<BossData>(MirrorResourcePath),
             CharacterIDOverride = MirroredCharacter,
-            DecisionSeed = seed
+            DecisionSeed = seed,
+            // These tests assert construction and contract, not the fight. An
+            // active clone would simulate on every frame the runner yields between
+            // tests, spraying AI-driven attacks, VFX, and pooled objects into the
+            // shared test tree.
+            ActivateOnSpawn = false
         };
         ((SceneTree)Engine.GetMainLoop()).Root.AddChild(mirror);
         return mirror;
     }
 
-    private static void FreeMirror(MirrorParadoxController mirror) => mirror.Free();
+    /// <summary>
+    /// Detach, then free. Calling <c>Free()</c> on a node still inside the tree is
+    /// undefined behaviour in Godot, and the clone hierarchy carries eight
+    /// monitoring Area2Ds registered with PhysicsServer2D. Removing it first fires
+    /// <c>_ExitTree</c> while everything is still alive, so the controller can make
+    /// the subtree inert and every area deregisters cleanly.
+    /// </summary>
+    private static void DetachAndFree(Node node) {
+        if (node == null || !GodotObject.IsInstanceValid(node)) return;
+        node.GetParent()?.RemoveChild(node);
+        node.Free();
+    }
+
+    private static void FreeMirror(MirrorParadoxController mirror) => DetachAndFree(mirror);
 }
