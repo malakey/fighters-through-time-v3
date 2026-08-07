@@ -102,16 +102,18 @@ Perks: Resonant Overdrive (+5 s coil lifetime, 25% faster arcs), Lorentz Attract
 
 Note: design Section 5 lists the coil arc `damageTickInterval` as 0.5 s while the dedicated Section 4 coil specification says 5 HP every 2.0 s; the conversion follows the Section 4 spec (the 0.5 s interval applies to the linked fence), consistent with this audit's original reading.
 
-### Shakespeare (`shakespeare`)
+### Shakespeare (`shakespeare`) - converted 2026-08-06
 
-| Slot | Canonical design | Current state | Status |
+| Slot | Canonical design | Pre-conversion state | Status |
 |---|---|---|---|
-| S1 Yorick's Lament | Rolling skull, sonic wave, TimeDilation 30% 2.5 s | Story: placeholder projectile + impact AoE. Fighter: generic projectile. | sketch |
-| S2 The Tempest | Wind push away + self-lift | Story: bespoke push/lift. Fighter: melee-range zero-damage (X4). | story-canonical |
-| Move Prospero's Flight | Gust forward+up, 3 s glide | Story bespoke; Fighter crude (X5). | story-canonical |
-| Ult All the World's a Stage | Sequential phantom strikes | Sketch both modes. | sketch |
+| S1 Yorick's Lament | Rolling skull, sonic wave, TimeDilation 30% 2.5 s, flat 10 s cooldown | Story: placeholder projectile + impact AoE. Fighter: generic projectile. | canonical (Story: Einstein-pattern detonating skull, 1/3 contact + full-damage sonic-wave hurtbox query applying TimeDilation; Fighter: deterministic projectile whose hit carries the status — the impact AoE nuance is the projectile hit itself in 1v1) |
+| S2 The Tempest | Wind push away + self-lift, flat 10 s cooldown | Story: bespoke push/lift via player group. Fighter: melee-range zero-damage (X4). | canonical (Story: authored-frame 1.2 s storm pushing via the shared hurtbox contract + constant lift; Fighter: owner-centered zone type 62 whose pulses shove the opponent away from center with the authored knockback and zero damage — the one impulse-carrying zone — plus a caster lift on spawn in `SpawnZone`) |
+| Move Prospero's Flight | Gust forward+up, 3 s glide | Story bespoke hardcoded; Fighter crude (X5). | canonical (Story: glide speed/duration/cooldown from authored MovementAbilityData + authored frames; Fighter: Glide (MovementType 1) boost now grants `FloatFrames` = authored 180-frame reduced-gravity window) |
+| Ult All the World's a Stage | Sequential phantom strikes | Sketch both modes. | sketch (see X7) |
 
-Perks: Macbeth's Curse (Lament also applies Venom 1 s tick / 3 s), Midsummer Glide (8 dmg glide-through, +20% glide speed), Henry's Bastion (block summons 10% max-HP phantom shield). Not wired.
+Perks (wired Story-only 2026-08-06 via `HasStoryPerk`): Macbeth's Curse (the wave also applies Venom at intensity 0.5 = 1 dmg/s for 3 s; single-status rule means only one effect survives — Venom is applied after TimeDilation so the poison, the perk's explicit promise, is the status that sticks, sacrificing the slow), Midsummer Glide (+20% glide speed, 8 dmg once per target per glide via hurtbox query), Henry's Bastion (successful block grants a fully-charged 10% max-HP Story shield via `ConfigureStoryShield`/`RechargeStoryShield` in `BlockSystem`; "temporary" is approximated as lapsing by absorption, not a timer).
+
+Note: the design's 30% slow maps to authored `StatusIntensity = 0.6` because both the Story `TimeDilationStrategy` and the Fighter sim compute the multiplier as `1 - 0.5 x intensity` (0.6 gives 0.7, i.e. -30%); a `1.0` intensity would be the standard -50%.
 
 ### Mozart (`mozart`) - converted 2026-08-06
 
@@ -147,7 +149,7 @@ Einstein is the pattern-setting slice (complete). Tesla is the construct-pattern
 4. Pocahontas (snare construct, glide rules)
 5. ~~Joan~~ (complete: shockwave projectile, 2-charge shield shred, data-driven glide, hyper-armor/heal/block-meter perks)
 6. ~~Lincoln~~ (complete 2026-08-06: impulse-carrying Emancipator zone, armored charge, shield-shatter rules, 3 perks)
-7. Shakespeare (skull projectile, tempest zone, block perk)
+7. ~~Shakespeare~~ (complete: detonating skull projectile, impulse-carrying tempest zone with caster lift, data-driven glide with Fighter float window, block-perk shield)
 8. ~~Mozart~~ (complete 2026-08-06: SonataPlatform one-way construct, Requiem burst + Fortissimo wave projectiles, projectile-immunity perks; Fighter walkable platform explicitly deferred)
 
 Ultimates stay as structured sketches until all specials are canonical (X7), then get a dedicated pass.
