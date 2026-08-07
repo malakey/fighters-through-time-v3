@@ -254,16 +254,24 @@ namespace FTT.Characters.Abilities {
     }
 
     /// <summary>
-    /// Ultimate — The Grand Crusade. Structured sketch pending the dedicated
-    /// ultimates pass (audit gap X7): directional spectral cavalry multi-hit.
+    /// Ultimate — The Grand Crusade: a directional cavalry charge. Joan travels
+    /// forward at the authored charge speed for the whole active window,
+    /// delivering the authored HitCount trample hits via hurtbox shape queries
+    /// along the path (once per authored tick interval). The final hit carries
+    /// the authored KnockbackForce, carrying the opponent toward the blast zone;
+    /// intermediate hits are knockback-free so the full multi-hit total lands.
+    /// Ultimate-class hits bypass block. All numbers (per-hit BaseDamage,
+    /// HitCount, tick interval, charge speed, hitbox shape, knockback, phase
+    /// frames) come from the authored AbilityData; cinematic presentation
+    /// (banner plant, spectral knights) is Package 8.
     /// </summary>
     public partial class JoanGrandCrusade : BaseSpecial {
-        private const float CinematicDuration = 2.5f;
-        private const int HitCount = 6;
-        private const float DamagePerHit = 12f;
 
-        private float _hitTimer;
+        private const float DefaultChargeSpeed = 900f;
+        private const int MaxQueryResults = 16;
+
         private int _hitsDone;
+        private int _activeFramesElapsed;
         private UltimateMeter _meter;
 
         public override void _Ready() {
@@ -276,46 +284,84 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override void OnStartup() {
-            PhaseTimer = 0.5f;
+            UseAuthoredPhaseFrames();
             _hitsDone = 0;
-            _hitTimer = 0;
+            _activeFramesElapsed = 0;
             Owner.Velocity = Vector2.Zero;
             _meter?.Consume();
         }
 
         protected override void OnActive() {
-            PhaseTimer = CinematicDuration;
+            UseAuthoredPhaseFrames();
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = 0.4f;
+            UseAuthoredPhaseFrames();
+            Owner.Velocity = new Vector2(0f, Owner.Velocity.Y);
         }
 
         public override void _PhysicsProcess(double delta) {
             if (CurrentPhase == AbilityPhase.Active) {
-                float dt = (float)delta;
-                _hitTimer += dt;
-                float hitInterval = CinematicDuration / HitCount;
-                while (_hitTimer >= hitInterval && _hitsDone < HitCount) {
-                    _hitTimer -= hitInterval;
+                float chargeSpeed = Data?.ProjectileSpeed > 0f ? Data.ProjectileSpeed : DefaultChargeSpeed;
+                Owner.Velocity = new Vector2(
+                    Owner.IsFacingRight ? chargeSpeed : -chargeSpeed,
+                    Owner.Velocity.Y);
+
+                _activeFramesElapsed++;
+                int hitCount = Mathf.Max(1, Data?.HitCount ?? 1);
+                int interval = Data?.DamageTickIntervalFrames > 0
+                    ? Data.DamageTickIntervalFrames
+                    : Mathf.Max(1, (Data?.ActiveFrames ?? hitCount) / hitCount);
+                while (_hitsDone < hitCount && _activeFramesElapsed >= interval * (_hitsDone + 1)) {
                     _hitsDone++;
-                    DealCavalryHit();
+                    ExecuteTrampleHit();
                 }
             }
             base._PhysicsProcess(delta);
         }
 
-        private void DealCavalryHit() {
-            var chargeDir = Owner.IsFacingRight ? Vector2.Right : Vector2.Left;
-            var hitbox = GetNodeOrNull<Hitbox>("CavalryHitbox");
-            if (hitbox == null) return;
+        private void ExecuteTrampleHit() {
+            if (Owner == null) return;
+            var space = Owner.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return;
 
-            hitbox.Damage = DamagePerHit;
-            hitbox.KnockbackForce = chargeDir * 8f + new Vector2(0, -2f);
-            hitbox.OwnerPlayerIndex = Owner.PlayerIndex;
-            hitbox.GlobalPosition = Owner.GlobalPosition + chargeDir * (40f + _hitsDone * 60f);
-            hitbox.Activate();
-            GetTree().CreateTimer(0.08f).Timeout += () => hitbox.Deactivate();
+            Vector2 size = Data?.HitboxSize ?? new Vector2(90f, 70f);
+            Vector2 offset = Data?.HitboxOffset ?? new Vector2(40f, 0f);
+            if (!Owner.IsFacingRight) offset.X = -offset.X;
+            uint targetHurtboxLayer = Owner.PlayerIndex == 0
+                ? FTT.Core.CollisionLayers.EnemyHurtbox
+                : FTT.Core.CollisionLayers.PlayerHurtbox;
+            var query = new PhysicsShapeQueryParameters2D {
+                Shape = new RectangleShape2D { Size = size },
+                Transform = new Transform2D(0f, Owner.GlobalPosition + offset),
+                CollideWithAreas = true,
+                CollideWithBodies = false,
+                CollisionMask = targetHurtboxLayer
+            };
+
+            bool finalHit = _hitsDone >= (Data?.HitCount ?? 1);
+            foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, MaxQueryResults)) {
+                if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
+                if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
+
+                float dealt = hurtbox.TakeHit(new HitPayload {
+                    AttackerIndex = Owner.PlayerIndex,
+                    AttackID = Data?.AbilityID ?? "joan_grand_crusade",
+                    HitboxID = $"trample_{_hitsDone}",
+                    AttackClass = AttackClass.Ultimate,
+                    Damage = (Data?.BaseDamage ?? 12f) * Owner.StorySpecialDamageMultiplier,
+                    Knockback = finalHit ? Data?.KnockbackForce ?? new Vector2(8f, -2f) : Vector2.Zero,
+                    HitstunDuration = Data?.HitstunDuration ?? 0.2f,
+                    HitOrigin = Owner.GlobalPosition,
+                    AttackerFacingRight = Owner.IsFacingRight,
+                    AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.None,
+                    StatusDuration = Data?.StatusDuration ?? 0f,
+                    StatusIntensity = Data?.StatusIntensity ?? 1f,
+                    ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
+                    ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
+                });
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+            }
         }
     }
 }

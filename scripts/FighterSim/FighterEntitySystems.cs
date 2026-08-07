@@ -536,6 +536,15 @@ namespace FTT.FighterSim {
                 centersOnOwner = true;
                 return;
             }
+            // Joan's Grand Crusade (ultimate-slot zone type 13): the cavalry
+            // charge lane — wide and forward-offset so the stampede tramples
+            // everything ahead of Joan, well beyond melee range.
+            if (zoneTypeID == (int)FighterCharacterID.Joan * 10 + FighterUltimateRules.UltimateSlot) {
+                halfExtents = new FPVector2(FP64.FromDouble(3.5), FP64.One);
+                grantsOwnerSpeedBonus = 0;
+                centersOnOwner = false;
+                return;
+            }
             halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
             grantsOwnerSpeedBonus = 0;
             centersOnOwner = false;
@@ -1074,6 +1083,14 @@ namespace FTT.FighterSim {
                 } else if (zone.ZoneTypeID == (int)FighterCharacterID.Shakespeare * 10 + 2) {
                     pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).SpecialTwoKnockback;
                     pulseHitstunFrames = TempestHitstunFrames;
+                } else if (zone.ZoneTypeID == (int)FighterCharacterID.Joan * 10 + FighterUltimateRules.UltimateSlot
+                    && zone.LifetimeFrames <= zone.TickIntervalFrames) {
+                    // Grand Crusade: only the FINAL trample pulse carries the
+                    // authored ultimate knockback (carrying the opponent toward
+                    // the blast zone); earlier pulses stay impulse-free so the
+                    // full multi-hit total lands.
+                    pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
+                    pulseHitstunFrames = GrandCrusadeFinalHitstunFrames;
                 }
 
                 // Ultimate-slot zones (ZoneTypeID % 10 == FighterUltimateRules
@@ -1093,6 +1110,7 @@ namespace FTT.FighterSim {
         private const int CoilObjectTypeID = 1;
         private const int EmancipatorHitstunFrames = 18;
         private const int TempestHitstunFrames = 10;
+        private const int GrandCrusadeFinalHitstunFrames = 24;
 
         // 0.05 world units per frame (3 px at 60 px/unit), mirrored by the Story
         // vortex's 180 px/s positional drag.
