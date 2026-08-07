@@ -159,6 +159,57 @@ public class ResonanceProgressionTests {
         player.Free();
     }
 
+    [TestCase]
+    public void EvaluateUnlockReportsBlockingReasonWithoutMutatingSave() {
+        ResonanceGridData grid = BuildGrid();
+        StorySaveData save = BuildSave(60);
+
+        AssertThat(ResonanceProgression.EvaluateUnlock(grid, save, "einstein_d2"))
+            .IsEqual(ResonanceUnlockResult.MissingPrerequisite);
+        AssertThat(ResonanceProgression.EvaluateUnlock(grid, save, "einstein_d1"))
+            .IsEqual(ResonanceUnlockResult.Unlocked);
+        AssertThat(ResonanceProgression.EvaluateUnlock(grid, save, "missing_node"))
+            .IsEqual(ResonanceUnlockResult.MissingNode);
+
+        // Evaluation is a pure read: nothing was purchased or deducted.
+        AssertThat(save.DepositedChronalDust["einstein"]).IsEqual(60);
+        AssertThat(save.GridProgress["einstein"].Count).IsEqual(0);
+
+        AssertThat(ResonanceProgression.TryUnlock(grid, save, "einstein_d1"))
+            .IsEqual(ResonanceUnlockResult.Unlocked);
+        AssertThat(ResonanceProgression.EvaluateUnlock(grid, save, "einstein_d1"))
+            .IsEqual(ResonanceUnlockResult.AlreadyUnlocked);
+        AssertThat(ResonanceProgression.EvaluateUnlock(grid, save, "einstein_d2"))
+            .IsEqual(ResonanceUnlockResult.InsufficientDust);
+        AssertThat(save.DepositedChronalDust["einstein"]).IsEqual(10);
+    }
+
+    [TestCase]
+    public void UnlockedProgressSurvivesSaveEnvelopeRoundTrip() {
+        ResonanceGridData grid = BuildGrid();
+        StorySaveData save = BuildSave(125);
+        AssertThat(ResonanceProgression.TryUnlock(grid, save, "einstein_d1"))
+            .IsEqual(ResonanceUnlockResult.Unlocked);
+
+        // Same persistence path as SaveManager.SaveStorySlot: normalized JSON
+        // through the authenticated schema-v3 envelope and back.
+        save.Normalize();
+        byte[] key = new byte[32];
+        for (int i = 0; i < key.Length; i++) key[i] = (byte)(i + 1);
+        byte[] envelope = SaveEnvelopeCodec.Encode(
+            "story", save.SaveVersion, Newtonsoft.Json.JsonConvert.SerializeObject(save), key, 1L);
+        AssertThat(SaveEnvelopeCodec.TryDecode(envelope, key, out DecodedSaveEnvelope decoded, out _))
+            .IsTrue();
+        StorySaveData restored = SaveSchemaMigrator.DeserializeStory(decoded.Json);
+
+        AssertThat(restored.DepositedChronalDust["einstein"]).IsEqual(75);
+        AssertThat(restored.GridProgress["einstein"].Contains("einstein_d1")).IsTrue();
+        AssertThat(ResonanceProgression.EvaluateUnlock(grid, restored, "einstein_d1"))
+            .IsEqual(ResonanceUnlockResult.AlreadyUnlocked);
+        AssertThat(ResonanceProgression.EvaluateUnlock(grid, restored, "einstein_d2"))
+            .IsEqual(ResonanceUnlockResult.Unlocked);
+    }
+
     private static StorySaveData BuildSave(int dust) => new() {
         SelectedCharacterID = "einstein",
         DepositedChronalDust = new Dictionary<string, int> { ["einstein"] = dust },

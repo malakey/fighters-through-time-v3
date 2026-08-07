@@ -115,6 +115,7 @@ namespace FTT.Core {
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnCheckpointReached += SaveCheckpoint;
                 EventBus.Instance.OnLevelComplete += SaveLevelCompletion;
+                EventBus.Instance.OnTalentNodeUnlocked += SaveTalentUnlock;
             }
         }
 
@@ -122,6 +123,7 @@ namespace FTT.Core {
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnCheckpointReached -= SaveCheckpoint;
                 EventBus.Instance.OnLevelComplete -= SaveLevelCompletion;
+                EventBus.Instance.OnTalentNodeUnlocked -= SaveTalentUnlock;
             }
             if (_masterKey != null) System.Security.Cryptography.CryptographicOperations.ZeroMemory(_masterKey);
             if (Instance == this) Instance = null;
@@ -270,6 +272,18 @@ namespace FTT.Core {
                 SaveSlots[slot].CurrentHP = player.CurrentHP;
                 SaveSlots[slot].CurrentUltimateMeter = player.CurrentUltimateMeter;
             }
+            SaveStorySlot(slot);
+        }
+
+        /// <summary>
+        /// Designed autosave trigger: Resonance Grid unlocks persist to the
+        /// active story slot immediately (AGENTS.md: "Autosave occurs at
+        /// checkpoints, level completion, and unlock events").
+        /// </summary>
+        public void SaveTalentUnlock(string nodeID) {
+            if (GameManager.Instance == null) return;
+            int slot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+            if (slot < 0 || slot >= SaveSlots.Length || SaveSlots[slot] == null) return;
             SaveStorySlot(slot);
         }
 

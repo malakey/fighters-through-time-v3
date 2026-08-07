@@ -483,3 +483,10 @@ florence_objective_defeat_boss,Defeat the Borgia Inquisitor!
 florence_objective_gears,Align both print-press gears to open the workshop door
 florence_door_locked,WORKSHOP SEALED — ALIGN THE GEARS
 interaction_rotate_gear,Press Interact to rotate gear
+resonance_confirm_ok,Unlock
+resonance_confirm_cancel,Cancel
+resonance_locked_label,LOCKED
+resonance_state_available,Available to unlock
+resonance_state_locked_prerequisite,Locked — requires {0}
+resonance_state_locked_dust,Locked — deposit {0} more Chronal Dust
+resonance_hint_controls,Move: D-Pad / Arrow Keys    Select: Confirm    Back: Cancel
