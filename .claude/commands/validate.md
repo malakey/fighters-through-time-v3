@@ -27,7 +27,7 @@ Run the standard validation gate for this repository, in order, and stop at the 
    dotnet test FightersThroughTime.csproj --settings .runsettings
    ```
 
-   Read the `Total:` count, not just the exit code. The baseline is 270 passing (verified 2026-08-06 on `net10.0`). Two false signals to recognize before reporting:
+   Read the `Total:` count, not just the exit code. The baseline is 287 passing (verified 2026-08-07 on `net10.0`). Two false signals to recognize before reporting:
 
    - ~21 tests and exit 0 — GdUnit4 could not launch Godot and silently skipped every engine-dependent test. Failed validation, not a pass.
    - `Aborting test run: test run timeout of 300000 milliseconds exceeded` with a partial total — a cold-cache timeout, not a regression. Re-run warm, and confirm the named test class in isolation with `--filter` before reporting a failure.

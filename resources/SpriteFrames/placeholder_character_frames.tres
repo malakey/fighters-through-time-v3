@@ -10,6 +10,26 @@ animations = [{
 "speed": 6.0
 }, {
 "frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"dash",
+"speed": 10.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"roll_startup",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"roll",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"roll_recovery",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
 "loop": true,
 "name": &"run",
 "speed": 8.0
