@@ -526,3 +526,31 @@ London, Gettysburg, Lunar Landing, and Alexandria: 8 `EnemyData` + 9 `EnemyAbili
 6. **B4: 19 abilities across 6 bosses** (3 each except `revolutionary_tribunal`'s 4, which carries
    the phase-gated summon). All follow the `boss.{boss_id}.{ability}` ID convention with
    `PresentationEventID` equal to `AbilityID`, and all telegraph >= 16 frames.
+
+### B1 — Era enemies, Act I: Orleans, Chicago, Paris (2026-08-07)
+
+1. **B1: Ability `DisplayNameKey`s use the Phase A short-name convention**, `enemy_ability_{move}_name`
+   (`enemy_ability_energy_arrow_name`, `_lance_lunge_`, `_arc_bolt_`, `_electric_nova_`, `_sabre_rush_`),
+   not a per-enemy namespaced key. That matches the five migrated abilities. `AbilityID` and
+   `PresentationEventID` *are* enemy-namespaced and are authored identically to each other
+   (`enemy.{enemy_id}.{move}`), also following Phase A.
+2. **B1: Elite abilities are authored `RangeClass = Any`** rather than Melee/Ranged. Only
+   `BossController` filters by `RangeClass`; `EnemyController` cycles elite abilities sequentially with
+   no distance filter, so a narrower class would be dead data that later reads could misinterpret.
+3. **B1: Four of the six omit `PrimaryAttack`** (`neural_linked_knight`, `tesla_exo_baron`,
+   `chrono_rioter`, `plasma_sabre_captain`) and rely on the controller's synthesized legacy MeleeStrike.
+   For the two that do author one (`laser_archer`, `voltaic_shock_drone`), the legacy scalar fields
+   (`AttackDamage`/`AttackKnockback`/`AttackCooldown` and the three frame counts) mirror the ability
+   exactly, continuing the Phase A convention. `EnemyRosterActITests` pins that mirror.
+4. **B1: New roster-wide invariant — placeholder tints must stay visually separated.**
+   `EnemyRosterActITests.PlaceholderTintsStayDistinctAcrossTheAuthoredRoster` asserts a manhattan RGB
+   distance > 0.25 between every authored `EnemyData.PlaceholderTint` (Phase A five + B1 six). B2/B3
+   must pick tints that clear the same margin against all eleven; the Act I values are
+   `laser_archer (0.90,0.25,0.25)`, `neural_linked_knight (0.55,0.62,0.80)`,
+   `voltaic_shock_drone (0.75,0.95,1.00)`, `tesla_exo_baron (0.35,0.25,0.85)`,
+   `chrono_rioter (0.90,0.20,0.60)`, `plasma_sabre_captain (0.35,0.90,0.50)`.
+5. **B1: Tests live in `tests/ContentValidation/EnemyRosterActITests.cs`**, not the plan's single
+   `EnemyRosterContentTests.cs`, to keep the three parallel Phase B roster workstreams off one shared
+   file. Phase C owns the roster-wide manifest cross-check file.
+6. **B1: No manifest rows, pool configs, or `scripts/` changes.** Manifest flips and per-level pool
+   warm-ups for these six IDs remain Phase C work as scoped.

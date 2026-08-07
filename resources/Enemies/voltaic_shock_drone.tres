@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/voltaic_shock_drone/arc_bolt.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "voltaic_shock_drone"
+DisplayName = "Voltaic Shock Drone"
+DisplayNameKey = "enemy_voltaic_shock_drone_name"
+Tier = 0
+MaxHP = 32
+Weight = 0.7
+MoveSpeed = 4.2
+JumpForce = 9.0
+AggroRadius = 460.0
+DeAggroRadius = 700.0
+AttackRange = 1.5
+AttackDamage = 9.0
+AttackKnockback = 1.6
+AttackCooldown = 2.6
+StunResistance = 0.0
+ReactionDelayMinFrames = 30
+ReactionDelayMaxFrames = 45
+EliteAbilityCooldown = 5.0
+Behavior = 1
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+PrimaryAttack = ExtResource("2")
+AttackTelegraphFrames = 20
+AttackActiveFrames = 5
+AttackRecoveryFrames = 24
+ChronalDustDrop = 1
+ItemDropChance = 1.0
+PlaceholderTint = Color(0.75, 0.95, 1, 1)

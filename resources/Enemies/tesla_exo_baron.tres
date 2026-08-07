@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/tesla_exo_baron/electric_nova.tres" id="3"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "tesla_exo_baron"
+DisplayName = "Tesla Exo-Baron"
+DisplayNameKey = "enemy_tesla_exo_baron_name"
+Tier = 1
+MaxHP = 190
+Weight = 1.55
+MoveSpeed = 3.4
+JumpForce = 7.5
+AggroRadius = 580.0
+DeAggroRadius = 880.0
+AttackRange = 2.6
+AttackDamage = 21.0
+AttackKnockback = 4.0
+AttackCooldown = 3.0
+StunResistance = 0.55
+ReactionDelayMinFrames = 15
+ReactionDelayMaxFrames = 25
+EliteAbilityCooldown = 8.0
+Behavior = 0
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+AttackTelegraphFrames = 24
+AttackActiveFrames = 12
+AttackRecoveryFrames = 26
+EliteAbilities = Array[ExtResource("2")]([ExtResource("3")])
+ChronalDustDrop = 10
+ItemDropChance = 1.0
+PlaceholderTint = Color(0.35, 0.25, 0.85, 1)
