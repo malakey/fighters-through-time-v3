@@ -463,6 +463,7 @@ namespace FTT.FighterSim {
         /// Per-zone-identity deterministic tuning. Einstein's Relativity Rift
         /// (zone type 2) is wide and buffs the owner's movement while inside.
         /// Tesla's Lorentz Pulse is a radial burst centered on Tesla himself.
+        /// Lincoln's Emancipator (zone type 31) is a wide, low forward ground wave.
         /// </summary>
         private static void ResolveZoneSpec(
             int zoneTypeID,
@@ -479,6 +480,12 @@ namespace FTT.FighterSim {
                 halfExtents = new FPVector2(FP64.FromDouble(2.0), FP64.FromDouble(1.5));
                 grantsOwnerSpeedBonus = 0;
                 centersOnOwner = true;
+                return;
+            }
+            if (zoneTypeID == (int)FighterCharacterID.Lincoln * 10 + 1) {
+                halfExtents = new FPVector2(FP64.FromDouble(2.5), FP64.FromDouble(0.75));
+                grantsOwnerSpeedBonus = 0;
+                centersOnOwner = false;
                 return;
             }
             halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
@@ -970,15 +977,27 @@ namespace FTT.FighterSim {
                     pulseDamage += CoilArcDamage * CountLiveCoils(ref frame, zone.OwnerPlayerID);
                 }
 
+                // Lincoln's Emancipator (zone type 31) is the one zone whose pulse
+                // carries real impulse: the ground wave knocks the target up using
+                // the attacker's authored Special 1 knockback plus hitstun. Every
+                // other zone stays an impulse-free tick by design.
+                FP64 pulseKnockback = FP64.Zero;
+                int pulseHitstunFrames = 0;
+                if (zone.ZoneTypeID == (int)FighterCharacterID.Lincoln * 10 + 1) {
+                    pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).SpecialOneKnockback;
+                    pulseHitstunFrames = EmancipatorHitstunFrames;
+                }
+
                 FighterDamageRules.ApplyFighterHit(
                     ref attacker, ref attackerRuntime, ref target, ref targetRuntime, in targetTuning,
-                    FighterDamageRules.SpecialAttackClass, pulseDamage, FP64.Zero, 0,
+                    FighterDamageRules.SpecialAttackClass, pulseDamage, pulseKnockback, pulseHitstunFrames,
                     zone.StatusType, zone.StatusFrames, zone.StatusIntensity, zone.Position.x);
             }
         }
 
         private const int CoilArcDamage = 5;
         private const int CoilObjectTypeID = 1;
+        private const int EmancipatorHitstunFrames = 18;
 
         private static int CountLiveCoils(ref Frame frame, int ownerPlayerID) {
             int count = 0;

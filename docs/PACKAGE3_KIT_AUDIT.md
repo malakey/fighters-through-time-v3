@@ -56,16 +56,23 @@ Perks: Unstoppable Crusade (hyper-armor on Smite active + 1.5 s), Zealous Vigor 
 
 Perks: Master Stroke (+15% spiral dmg, pull toward center), Clockwork Overdrive (5 bolts), Daedalus Wings (steam trail + glide-cancel dive). Not wired.
 
-### Lincoln (`lincoln`)
+### Lincoln (`lincoln`) - converted 2026-08-06
 
-| Slot | Canonical design | Current state | Status |
+| Slot | Canonical design | Pre-conversion state | Status |
 |---|---|---|---|
-| S1 The Emancipator | Forward floor shockwave, knock up, depletes 2 block charges | Story: placeholder area. Fighter: melee-range (X4). | sketch |
-| S2 Splitting Strike | 18 dmg overhead, spikes airborne down, shatters shields instantly | Story: bespoke. Fighter: generic. | story-canonical |
-| Move Rail Charge | 3 s armored forward charge (damage yes, hitstun no) | Story: bespoke w/ hyper-armor stub. Fighter: crude (X5). | sketch |
-| Ult Union Indestructible | Fence trap + smash | Sketch both modes. | sketch |
+| S1 The Emancipator | Forward floor shockwave, knock up, depletes 2 block charges | Story: placeholder area. Fighter: melee-range (X4). | canonical (Story: bespoke traveling ground wave from authored speed/travel numbers, once-per-target Hurtbox.TakeHit with upward knockback, blocked hits deplete exactly 2 charges via `BlockSystem.DepleteCharges`; Fighter: forward-offset zone type 31, the one impulse-carrying zone — its single pulse routes knockback/hitstun from Special 1 tuning through `ApplyFighterHit`) |
+| S2 Splitting Strike | 18 dmg overhead, spikes airborne down, shatters shields instantly | Story: bespoke. Fighter: generic. | canonical (Story: authored frames + data-driven 18 dmg through the shared hitbox; instant shield shatter is the canonical special-block rule; per-active-frame airborne spike straight down. Fighter: melee special path — 18 dmg from the tres, blocked specials drain all charges = instant shatter) |
+| Move Rail Charge | 3 s armored forward charge (damage yes, hitstun no) | Story: bespoke w/ hyper-armor stub. Fighter: crude (X5). | canonical (Story: data-driven duration [3 s cap]/speed/cooldown, `GrantsHyperArmor` phase armor for the whole charge, once-per-charge contact damage with zero hitstun; Fighter: Dash-type movement with `HyperArmorFrames = MovementDurationFrames` [180] already wired via `MovementGrantsHyperArmor`) |
+| Ult Union Indestructible | Fence trap + smash | Sketch both modes. | sketch (see X7) |
 
-Perks: Executive Order (shockwave +50% travel, +20% dmg), Homestead Bulwark (charge hit grants 3 s hyper-armor), Kinetic Splitting (combo hit 3 shatters shields). Not wired.
+Perks: Executive Order (ground wave +50% travel distance, +20% damage), Homestead Bulwark (landing a Rail Charge hit grants 3 s timed hyper-armor via the new `PlayerController.ApplyStoryHyperArmor`), Kinetic Splitting (basic-combo hit 3 becomes special-class, so it shatters shields instantly; wired in `PlayerController.StartComboHit`). All three wired Story-only 2026-08-06 through `HasStoryPerk`.
+
+Known deviations (accepted, minimal-implementation rulings):
+
+- Fighter-mode Emancipator versus a blocking target drains ALL block charges (the shared special-block rule in `ApplyFighterHit`), not the design's exactly-2. A per-ability charge cost would require restructuring `ApplyFighterHit`'s block branch; Story implements the true 2-charge depletion. Revisit if a second Fighter-side 2-charge special lands (Joan S2 shares this rule).
+- Fighter-mode Emancipator is a short-lived static forward zone rather than a traveling wave; Story carries the authentic travel.
+- Fighter-mode Splitting Strike does not spike airborne targets downward (`ApplyFighterHit` launches are always upward); Story-only nuance.
+- Fighter-mode Rail Charge deals no contact damage (Dash movement is velocity-only); Story carries the contact damage. Hyper-armor parity is exact in both modes.
 
 ### Cleopatra (`cleopatra`)
 
@@ -133,7 +140,7 @@ Einstein is the pattern-setting slice (complete). Tesla is the construct-pattern
 3. Cleopatra (nest construct, vortex pull zone)
 4. Pocahontas (snare construct, glide rules)
 5. Joan (melee/hyper-armor perks)
-6. Lincoln (armored charge, shield-shatter rules)
+6. ~~Lincoln~~ (complete 2026-08-06: impulse-carrying Emancipator zone, armored charge, shield-shatter rules, 3 perks)
 7. Shakespeare (skull projectile, tempest zone, block perk)
 8. Mozart (platform construct, projectile shockwaves, projectile-immunity perk)
 

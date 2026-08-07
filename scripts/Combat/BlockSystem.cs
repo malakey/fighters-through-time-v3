@@ -76,6 +76,22 @@ namespace FTT.Combat {
             _isBlocking = false;
         }
 
+        /// <summary>
+        /// Depletes a fixed number of charges outside the per-class cost table.
+        /// Design-specified "shield-stutter" specials (Lincoln's Emancipator,
+        /// Joan's Divine Piercing) drain exactly 2 charges instead of the generic
+        /// special full shatter. Breaks the guard when the last charge is spent.
+        /// </summary>
+        public BlockResult DepleteCharges(int count) {
+            if (CurrentCharges <= 0 || count <= 0) return BlockResult.NotBlocked;
+            CurrentCharges = Mathf.Max(0, CurrentCharges - count);
+            _regenTimer = 0f;
+            if (CurrentCharges > 0) return BlockResult.Blocked;
+
+            BreakGuard();
+            return BlockResult.GuardBroken;
+        }
+
         /// <summary>Story-only Resonance perk key: teleport backward on guard break.</summary>
         public const string QuantumEntanglementPerkKey = "quantum_entanglement";
         private const float QuantumEntanglementDistance = 150f;

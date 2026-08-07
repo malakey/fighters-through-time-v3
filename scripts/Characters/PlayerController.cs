@@ -83,6 +83,19 @@ namespace FTT.Characters {
 			StoryShieldPoints = MathF.Min(StoryShieldCapacity, StoryShieldPoints + amount);
 		}
 		/// <summary>
+		/// Story-only timed hyper-armor granted by perks (Homestead Bulwark, Joan's
+		/// Unstoppable Crusade window). While active the player takes damage but
+		/// ignores hitstun/knockback from non-ultimate hits, matching the
+		/// phase-based ability hyper-armor rules. Fighter Mode never reads this.
+		/// </summary>
+		public bool StoryHyperArmorActive => _storyHyperArmorFrames > 0;
+
+		public void ApplyStoryHyperArmor(float durationSeconds) {
+			_storyHyperArmorFrames = Math.Max(
+				_storyHyperArmorFrames,
+				Mathf.RoundToInt(durationSeconds * 60f));
+		}
+		/// <summary>
 		/// Remaining float-glide time granted by movement abilities (Einstein's
 		/// Relativity Warp cancel). While positive, gravity is heavily reduced.
 		/// </summary>
@@ -123,6 +136,7 @@ namespace FTT.Characters {
 		private int _temporaryDamageBuffFrames;
 		private int _temporarySpeedBuffFrames;
 		private int _postRewindInvulnerabilityFrames;
+		private int _storyHyperArmorFrames;
 
 		// Jump tracking
 		private bool _jumpHeld;
@@ -1025,6 +1039,7 @@ namespace FTT.Characters {
 				StoryTemporarySpeedMultiplier = 1f;
 			}
 			if (_postRewindInvulnerabilityFrames > 0) _postRewindInvulnerabilityFrames--;
+			if (_storyHyperArmorFrames > 0) _storyHyperArmorFrames--;
 		}
 
 		public void ApplyStockLossMeterRetention() {
@@ -1033,12 +1048,14 @@ namespace FTT.Characters {
 		}
 
 		public bool HasActiveHyperArmor =>
+			StoryHyperArmorActive ||
 			AbilityHasActiveHyperArmor(_special1) ||
 			AbilityHasActiveHyperArmor(_special2) ||
 			AbilityHasActiveHyperArmor(_movementAbility) ||
 			AbilityHasActiveHyperArmor(_ultimate);
 
 		public bool HasActiveHyperArmorAgainst(FTT.Combat.AttackClass attackClass) =>
+			(StoryHyperArmorActive && attackClass != FTT.Combat.AttackClass.Ultimate) ||
 			AbilityHasActiveHyperArmor(_special1, attackClass) ||
 			AbilityHasActiveHyperArmor(_special2, attackClass) ||
 			AbilityHasActiveHyperArmor(_movementAbility, attackClass) ||
@@ -1264,7 +1281,13 @@ namespace FTT.Characters {
 				_meleeHitbox.Damage = baseDmg * ComboDamageMultipliers[comboIdx];
 				_meleeHitbox.AttackID = $"{Data?.CharacterID ?? "fighter"}.basic";
 				_meleeHitbox.HitboxID = $"combo_{comboIdx + 1}";
-				_meleeHitbox.AttackClass = FTT.Combat.AttackClass.Basic;
+				// Kinetic Splitting (Story-only Resonance perk): Lincoln's third-hit
+				// downward crush shatters shields instantly, which is exactly the
+				// special-class block interaction.
+				_meleeHitbox.AttackClass = comboIdx == 2
+					&& HasStoryPerk(Abilities.LincolnSplittingStrike.KineticSplittingPerkKey)
+					? FTT.Combat.AttackClass.Special
+					: FTT.Combat.AttackClass.Basic;
 
 				float baseKB = Data?.BasicAttackKnockback ?? 3f;
 				if (comboIdx == 2) {
