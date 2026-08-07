@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="BossData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+BossID = "mirror_paradox"
+DisplayName = "The Mirror Paradox"
+DisplayNameKey = "boss_mirror_paradox_name"
+MaxHP = 1000
+IsKnockbackImmune = false
+MoveSpeed = 0.0
+AttackDamage = 0.0
+AttackKnockback = 0.0
+AttackRange = 0.0
+RestCooldown = 0.0
+MeleeRangeThreshold = 2.0
+RangedRangeThreshold = 5.0
+ReactionDelayMinFrames = 4
+ReactionDelayMaxFrames = 8
+PhaseThresholds = Array[float]([])
+PhaseTransitionInvincibilityDuration = 0.0
+PhaseSpeedMultipliers = Array[float]([])
+ChronalDustDrop = 50
+AttackPattern = 0
+BossAbilities = Array[ExtResource("2")]([])
+AbilityMinPhase = Array[int]([])
+InterruptibleDuringTelegraph = false
+InterruptDamageThreshold = 0.0
+PlaceholderTint = Color(0.55, 0.75, 1, 1)

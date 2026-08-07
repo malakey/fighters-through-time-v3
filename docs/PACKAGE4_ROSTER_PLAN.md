@@ -591,3 +591,62 @@ London, Gettysburg, Lunar Landing, and Alexandria: 8 `EnemyData` + 9 `EnemyAbili
    That is a missing import cache in a fresh worktree, not a content fault: `--headless --import`
    warms it, after which `--quit` exits 0 cleanly. The import pass rewrites every `.import` file
    with line-ending-only churn; those were reverted rather than committed.
+### B6 — Mirror Paradox (2026-08-07)
+
+1. **B6: Reuse, not port — the decision table was made mode-neutral in place.** The plan offered
+   "extract the utility core behind an interface" or "faithful Story-side port". Neither was needed
+   as written: `FighterCpuController` was already Godot-free, and its only Fighter-specific coupling
+   was the `FighterStateComponent`/`FighterRuntimeComponent` parameter shape. A new
+   `scripts/FighterSim/CpuDecisionObservation.cs` (plain struct, raw `FP64` X positions in world
+   units, no Godot) now sits between the components and `Decide(...)`, plus a
+   `Sample(tick, in CpuDecisionObservation, in previousFrame)` overload and a static
+   `FighterCpuController.Observe(components...)` projection. The original
+   `Sample(tick, components..., previousFrame)` is a one-line delegation, so the RNG stream, the
+   three-tick decision interval, the 128-slot schedule ring, and every branch of the decision table
+   are byte-identical — the whole Determinism suite passes unchanged. **The Story side therefore
+   drives the real engine, not a copy: there is no duplicated decision table anywhere.**
+   `MirrorParadoxDecisionAdapter` (in `MirrorParadoxController.cs`) is the only Story-side code, and
+   it is a one-way projection from Godot state into the observation. Nothing flows back into
+   `scripts/FighterSim/`.
+2. **B6: Intents reach the clone through `InputManager.SetInputSource`.** The adapter implements the
+   existing `IPlayerInputSource`, so the quantized `PlayerInputFrame` the CPU emits is consumed by
+   the clone's `PlayerController` exactly like a gamepad. No new intent enum, no bespoke action
+   dispatch, and no changes to the `PlayerController` state machine. The mirror occupies local slot
+   1, which already maps to the Enemy body/hitbox/hurtbox collision layers via
+   `CollisionLayers.*ForFighterSlot(1)`, so player-versus-mirror damage works in both directions
+   with no collision changes.
+3. **B6: `PlayerController.EncounterMaxHPOverride` added** (outside Phase A code). The clone needs
+   the authored 1000-HP `BossData` pool, and `MaximumHP` was `CharacterData.MaxHP + StoryMaxHPBonus`.
+   Overloading `StoryMaxHPBonus` would have smuggled a Resonance-shaped value into a boss pool, so
+   `MaximumHP` now prefers a positive `EncounterMaxHPOverride` and falls back to the old expression.
+   Default 0 keeps every existing caller identical; `MirrorParadoxTests` asserts `StoryMaxHPBonus`
+   stays 0 on the clone.
+4. **B6: The clone leaves the `StoryPlayer` group and joins `MirrorParadox`.**
+   `CharacterFactory.CreateCharacter` puts every `PlayerController` in `Players` and `_Ready` adds
+   `StoryPlayer`. Level flow, the Story camera, rewind, and the HUD all resolve `StoryPlayer`, so
+   `MirrorParadoxController` removes the clone from it immediately after `AddChild` and tags it
+   `MirrorParadoxController.MirrorGroup` instead. It stays in `Players` so the adapter can find the
+   campaign avatar by exclusion.
+5. **B6: Reaction delay is not Story-difficulty scaled.** `BossController` runs authored
+   `ReactionDelayMin/MaxFrames` through `StoryDifficultyTuning.ScaleReactionDelayFrames`. The mirror
+   does not: design pins it to the Hard CPU engine's 4–8 frame window regardless of campaign
+   difficulty, and the engine owns that window. `mirror_paradox.tres` still authors 4/8, and a
+   parity test asserts the resource matches `FighterCpuController.GetReactionDelayBounds(Hard)` so
+   the two can never drift. HP *is* difficulty-scaled through `StoryDifficultyTuning.ScaleEnemyHP`,
+   consistent with every other boss.
+6. **B6: Boss HP/defeat events are republished, not duplicated.** The mirror has no
+   `BossController`, so `MirrorParadoxController` listens to the clone's `OnPlayerHPChanged` /
+   `OnPlayerDied` (filtered to slot 1) and re-raises the Phase A `OnBossSpawned` /
+   `OnBossHPChanged` / `OnBossDefeated` payloads under `BossID = "mirror_paradox"`. No new EventBus
+   payloads or events were added.
+7. **B6: No test harness scene.** `MirrorParadoxController` and `MirrorParadoxEncounterController`
+   build their own children in code, so `tests/Unit/MirrorParadoxTests.cs` instantiates them
+   directly against the headless scene tree. Nothing under `scenes/` was added; Level 13 authoring
+   stays Package 5. `mirror_paradox.tres` is also not registered in
+   `resources/Content/content_manifest.csv` — that flip belongs to Phase C1.
+8. **B6: Unused `BossData` fields are authored as zero.** The mirror ignores `MoveSpeed`,
+   `AttackDamage`, `AttackKnockback`, `AttackRange`, `RestCooldown`,
+   `PhaseTransitionInvincibilityDuration`, and `InterruptDamageThreshold` — the clone's own
+   `CharacterData` supplies all of that. They are authored as 0 to make "not used by this boss"
+   explicit. `MeleeRangeThreshold`/`RangedRangeThreshold` are authored as 2.0/5.0 to document the
+   CPU decision table's close/far world-unit thresholds.
