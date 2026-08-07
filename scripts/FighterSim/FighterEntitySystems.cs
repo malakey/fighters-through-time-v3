@@ -552,7 +552,13 @@ namespace FTT.FighterSim {
             FP64 distance = modes.MovementDistance > FP64.Zero ? modes.MovementDistance : FP64.FromInt(2);
             FP64 speed = modes.MovementSpeed > FP64.Zero ? modes.MovementSpeed : FP64.FromInt(8);
 
-            if (modes.MovementType == 1 || modes.MovementType == 5) {
+            if (modes.MovementType == 1) {
+                // Glide: forward wind boost plus a reduced-gravity float window
+                // sized from the authored movement duration (3 s glide = 180).
+                fighter.Velocity.x = speed * FP64.FromInt(facing);
+                fighter.IsGrounded = 0;
+                runtime.FloatFrames = modes.MovementDurationFrames > 0 ? modes.MovementDurationFrames : 60;
+            } else if (modes.MovementType == 5) {
                 fighter.Velocity.y = speed / FP64.FromInt(2);
                 fighter.IsGrounded = 0;
                 // Glide (MovementType 1: Leonardo's Ornithopter, Joan's Ascendant

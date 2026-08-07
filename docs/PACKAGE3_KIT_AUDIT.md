@@ -128,16 +128,18 @@ Perks: Virtuoso Dash (+20% speed while standing on a staff via the temporary spe
 
 Note: the Fighter loadout factory now folds multi-hit *projectile* specials into a single-hit total (`BaseDamage x HitCount`); melee/area/persistent multi-hit specials are unaffected, and no other current character authors a multi-hit projectile special. The Fighter Sonata platform stays a harmless deterministic marker (Float-type upward pop plus construct spawn); true walkable platform collision in the fixed-point sim is deferred.
 
-### Pocahontas (`pocahontas`)
+### Pocahontas (`pocahontas`) - converted 2026-08-06
 
-| Slot | Canonical design | Current state | Status |
+| Slot | Canonical design | Pre-conversion state | Status |
 |---|---|---|---|
-| S1 Spirit Strike | 14 dmg spectral eagle diagonal swoop, stagger | Story: bespoke melee swoop. Fighter: generic. | story-canonical |
-| S2 Vine Snare | Pod -> vines; 10 s / 15 HP / max 2; Root 1.5 s + light dmg | Story: placeholder zone. Fighter: persistent type 4. | sketch |
-| Move Breeze Glide | Dash + 3 s glide, resets double jump | Story bespoke incl. jump reset; Fighter crude (X5). | story-canonical |
-| Ult Tidewater Tempest | Spirit storm multi-hit | Sketch both modes. | sketch |
+| S1 Spirit Strike | 14 dmg spectral eagle diagonal swoop, stagger | Story: bespoke melee swoop w/ hardcoded numbers. Fighter: generic. | canonical (Story: authored phase frames, damage/knockback/hitstun/stagger from the .tres via the factory-built EagleHitbox; Fighter: Melee execution type is deliberate — a melee-range diagonal swoop maps to the generic melee special with the S1 .tres damage 14 / knockback 4 / cooldown flowing through `FighterLoadoutFactory`, judged acceptable canonical behavior for a contact swoop) |
+| S2 Vine Snare | Pod -> vines; 10 s / 15 HP / max 2; Root 1.5 s + light dmg | Story: placeholder zone. Fighter: persistent type 4. | canonical (authored `scenes/constructs/VineSnare.tscn` construct: damageable 15 HP, 10 s, max 2, proximity bite = light damage + Root 1.5 s with re-bite once the Root wears off, newest-status replacement respected; Fighter: persistent type 4 verified — 600-frame lifetime, deploy limit 2, and Root wiring all flow from the S2 .tres, snapshot/rollback covered) |
+| Move Breeze Glide | Dash + 3 s glide, resets double jump | Story bespoke incl. jump reset; Fighter crude (X5). | canonical (Story consumes authored MovementAbilityData — dash speed, 3 s glide cap, `ResetsDoubleJump`, cooldown — with authored phase frames; Fighter: Glide (MovementType 1) now grants a forward wind boost plus a reduced-gravity `FloatFrames` window sized from `MovementDurationFrames` (180) and honors `MovementResetsJump`) |
+| Ult Tidewater Tempest | Spirit storm multi-hit | Sketch both modes. | sketch (see X7) |
 
-Perks: Thorn Snare (rooted enemies take continuous damage), Tornado Lift (glide start launches nearby enemies), Leaf Barrier (10% max-HP shield on glide start). Not wired.
+Perks: Thorn Snare (rooted targets inside the vines take periodic thorn damage while the Root holds; tick value is placeholder tuning — design gives no number), Tornado Lift (glide start emits a damage-free upward-knockback updraft against nearby enemies), Leaf Barrier (glide start grants a 10% max-HP shield via the `PlayerController` Story-shield support). All three wired Story-only 2026-08-06 through `HasStoryPerk`.
+
+Note: the design gives no bite re-trigger interval for the snare; the conversion authors `DamageTickIntervalFrames = 30` (0.5 s proximity re-arm, matching the Fighter sim's type-4 action cooldown) and re-bites a target only after its Root expires so the base snare is not a continuous damage source (that behavior is Thorn Snare's).
 
 ## Conversion order
 
@@ -146,7 +148,7 @@ Einstein is the pattern-setting slice (complete). Tesla is the construct-pattern
 1. ~~Tesla~~ (complete: persistent constructs, linking, StaticCharge synergies; X3 unblocked for coils)
 2. ~~Leonardo~~ (complete 2026-08-06: turret construct, spiral zone, glide float closing X5 for glides)
 3. ~~Cleopatra~~ (complete: nest construct, vortex pull zone in both modes, three perks)
-4. Pocahontas (snare construct, glide rules)
+4. ~~Pocahontas~~ (complete 2026-08-06: snare construct, deterministic Glide float/jump-reset rules)
 5. ~~Joan~~ (complete: shockwave projectile, 2-charge shield shred, data-driven glide, hyper-armor/heal/block-meter perks)
 6. ~~Lincoln~~ (complete 2026-08-06: impulse-carrying Emancipator zone, armored charge, shield-shatter rules, 3 perks)
 7. ~~Shakespeare~~ (complete: detonating skull projectile, impulse-carrying tempest zone with caster lift, data-driven glide with Fighter float window, block-perk shield)

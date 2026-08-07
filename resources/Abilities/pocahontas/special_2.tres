@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="AbilityData" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/Combat/AbilityData.cs" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/constructs/VineSnare.tscn" id="2"]
 
 [resource]
 script = ExtResource("1")
@@ -15,18 +16,19 @@ DescriptionKey = "ability_pocahontas_vine_snare_description"
 BaseDamage = 8.0
 IsMultiHit = false
 HitCount = 1
-DamageTickIntervalFrames = 0
+DamageTickIntervalFrames = 30
 KnockbackForce = Vector2(1, -1)
 ProjectileSpeed = 0.0
 GrantsHyperArmor = false
 HitboxSize = Vector2(60, 50)
 HitboxOffset = Vector2(30, 0)
-StartupFrames = 12
+StartupFrames = 15
 ActiveFrames = 6
 RecoveryFrames = 18
 CooldownDuration = 10.0
 Lifetime = 10.0
 ProjectileLifetime = 5.0
+PersistentObjectScene = ExtResource("2")
 PersistentObjectID = "vine_snare"
 MaxActiveObjects = 2
 AppliedStatus = 5
