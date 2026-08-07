@@ -349,17 +349,24 @@ namespace FTT.Characters.Abilities {
     }
 
     /// <summary>
-    /// Ultimate — All the World's a Stage. Structured sketch pending the
-    /// dedicated ultimates pass (audit gap X7): sequential phantom strikes from
-    /// the summoned Globe Theatre set.
+    /// Ultimate — All the World's a Stage (design Section 5): a Globe Theatre
+    /// set rises around Shakespeare and tragic phantoms — the three Witches,
+    /// Romeo &amp; Juliet, and Hamlet — deliver the authored HitCount sequential
+    /// strikes across the active window at the authored
+    /// DamageTickIntervalFrames cadence. Every strike deals the authored
+    /// per-hit BaseDamage across the authored HitboxSize stage footprint via
+    /// hurtbox queries; only the closing strike (Hamlet) carries the authored
+    /// KnockbackForce launch — earlier phantoms are impulse-free, mirroring the
+    /// Fighter zone's pulse rules. Requires and consumes a full Ultimate Meter;
+    /// ultimates bypass block by attack class.
     /// </summary>
     public partial class ShakespeareAllTheWorldsAStage : BaseSpecial {
-        private const float CinematicDuration = 3.0f;
-        private const int HitCount = 7;
-        private const float DamagePerHit = 11f;
 
-        private float _hitTimer;
-        private int _hitsDone;
+        private const int MaxQueryResults = 16;
+        private const float FinaleHitstunDuration = 0.5f;
+
+        private int _strikesDone;
+        private int _activeFramesElapsed;
         private UltimateMeter _meter;
 
         public override void _Ready() {
@@ -372,29 +379,30 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override void OnStartup() {
-            PhaseTimer = 0.5f;
-            _hitsDone = 0;
-            _hitTimer = 0;
+            UseAuthoredPhaseFrames();
+            _strikesDone = 0;
+            _activeFramesElapsed = 0;
             Owner.Velocity = Vector2.Zero;
             _meter?.Consume();
         }
 
         protected override void OnActive() {
-            PhaseTimer = CinematicDuration;
+            UseAuthoredPhaseFrames();
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = 0.4f;
+            UseAuthoredPhaseFrames();
         }
 
         public override void _PhysicsProcess(double delta) {
             if (CurrentPhase == AbilityPhase.Active) {
-                float dt = (float)delta;
-                _hitTimer += dt;
-                float hitInterval = CinematicDuration / HitCount;
-                while (_hitTimer >= hitInterval && _hitsDone < HitCount) {
-                    _hitTimer -= hitInterval;
-                    _hitsDone++;
+                _activeFramesElapsed++;
+                int hitCount = Mathf.Max(1, Data?.HitCount ?? 1);
+                int interval = Data?.DamageTickIntervalFrames > 0
+                    ? Data.DamageTickIntervalFrames
+                    : Mathf.Max(1, (Data?.ActiveFrames ?? hitCount) / hitCount);
+                while (_strikesDone < hitCount && _activeFramesElapsed >= interval * (_strikesDone + 1)) {
+                    _strikesDone++;
                     DealPhantomStrike();
                 }
             }
@@ -402,16 +410,48 @@ namespace FTT.Characters.Abilities {
         }
 
         private void DealPhantomStrike() {
-            var hitbox = GetNodeOrNull<Hitbox>("PhantomHitbox");
-            if (hitbox == null) return;
+            if (Owner == null || !IsInstanceValid(Owner)) return;
+            var space = Owner.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return;
 
-            var strikeDir = Owner.IsFacingRight ? Vector2.Right : Vector2.Left;
-            hitbox.Damage = DamagePerHit;
-            hitbox.KnockbackForce = strikeDir * 5f + new Vector2(0, -2f);
-            hitbox.OwnerPlayerIndex = Owner.PlayerIndex;
-            hitbox.GlobalPosition = Owner.GlobalPosition + strikeDir * (30f + _hitsDone * 50f);
-            hitbox.Activate();
-            GetTree().CreateTimer(0.08f).Timeout += () => hitbox.Deactivate();
+            uint targetHurtboxLayer = Owner.PlayerIndex == 0
+                ? FTT.Core.CollisionLayers.EnemyHurtbox
+                : FTT.Core.CollisionLayers.PlayerHurtbox;
+            Vector2 stageSize = Data?.HitboxSize ?? new Vector2(720f, 240f);
+            Vector2 authoredOffset = Data?.HitboxOffset ?? Vector2.Zero;
+            Vector2 stageCenter = Owner.GlobalPosition + new Vector2(
+                Owner.IsFacingRight ? authoredOffset.X : -authoredOffset.X, authoredOffset.Y);
+            var query = new PhysicsShapeQueryParameters2D {
+                Shape = new RectangleShape2D { Size = stageSize },
+                Transform = new Transform2D(0f, stageCenter),
+                CollideWithAreas = true,
+                CollideWithBodies = false,
+                CollisionMask = targetHurtboxLayer
+            };
+
+            bool finale = _strikesDone >= (Data?.HitCount ?? 1);
+            foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, MaxQueryResults)) {
+                if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
+                if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
+
+                float dealt = hurtbox.TakeHit(new HitPayload {
+                    AttackerIndex = Owner.PlayerIndex,
+                    AttackID = Data?.AbilityID ?? "shakespeare_all_the_worlds_a_stage",
+                    HitboxID = $"phantom_strike_{_strikesDone}",
+                    AttackClass = AttackClass.Ultimate,
+                    Damage = (Data?.BaseDamage ?? 14f) * Owner.StorySpecialDamageMultiplier,
+                    Knockback = finale ? Data?.KnockbackForce ?? new Vector2(5f, -3f) : Vector2.Zero,
+                    HitstunDuration = finale ? FinaleHitstunDuration : Data?.HitstunDuration ?? 0.2f,
+                    HitOrigin = stageCenter,
+                    AttackerFacingRight = Owner.IsFacingRight,
+                    AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.None,
+                    StatusDuration = Data?.StatusDuration ?? 0f,
+                    StatusIntensity = Data?.StatusIntensity ?? 1f,
+                    ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
+                    ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
+                });
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+            }
         }
     }
 }
