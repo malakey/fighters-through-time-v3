@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.jackal_priest.sand_bolt"
+DisplayNameKey = "boss_ability_sand_bolt_name"
+Archetype = 1
+RangeClass = 1
+TelegraphFrames = 22
+ActiveFrames = 5
+RecoveryFrames = 20
+CooldownSeconds = 2.6
+SelectionWeight = 3.0
+Damage = 16.0
+KnockbackForce = Vector2(2.5, -1.0)
+HitstunDuration = 0.18
+HitboxSize = Vector2(22, 22)
+HitboxOffset = Vector2(40, -48)
+ProjectileSpeed = 460.0
+ProjectileCount = 2
+ProjectileSpreadDegrees = 8.0
+ProjectileLifetime = 2.4
+ProjectileGravity = 0.0
+PiercesTargets = false
+AppliedStatus = 5
+StatusDuration = 1.0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.9, 0.7, 0.4, 1)
+PresentationEventID = "boss.jackal_priest.sand_bolt"

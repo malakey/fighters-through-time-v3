@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.gravity_overseer.gravity_well"
+DisplayNameKey = "boss_ability_gravity_well_name"
+Archetype = 5
+RangeClass = 2
+TelegraphFrames = 36
+ActiveFrames = 20
+RecoveryFrames = 32
+CooldownSeconds = 9.0
+SelectionWeight = 2.5
+Damage = 16.0
+KnockbackForce = Vector2(-6.0, -1.0)
+HitstunDuration = 0.2
+HitboxSize = Vector2(240, 160)
+HitboxOffset = Vector2(0, -70)
+PulseRadius = 240.0
+AppliedStatus = 1
+StatusDuration = 2.0
+StatusIntensity = 0.8
+TelegraphTint = Color(0.3, 0.25, 0.7, 1)
+PresentationEventID = "boss.gravity_overseer.gravity_well"

@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.jackal_priest.khopesh_sweep"
+DisplayNameKey = "boss_ability_khopesh_sweep_name"
+Archetype = 0
+RangeClass = 0
+TelegraphFrames = 18
+ActiveFrames = 10
+RecoveryFrames = 20
+CooldownSeconds = 1.8
+SelectionWeight = 2.5
+Damage = 20.0
+KnockbackForce = Vector2(4.0, -2.0)
+HitstunDuration = 0.24
+HitboxSize = Vector2(92, 88)
+HitboxOffset = Vector2(66, -60)
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.95, 0.78, 0.35, 1)
+PresentationEventID = "boss.jackal_priest.khopesh_sweep"

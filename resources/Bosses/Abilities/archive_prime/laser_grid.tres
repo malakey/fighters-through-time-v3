@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.archive_prime.laser_grid"
+DisplayNameKey = "boss_ability_laser_grid_name"
+Archetype = 1
+RangeClass = 1
+TelegraphFrames = 34
+ActiveFrames = 14
+RecoveryFrames = 30
+CooldownSeconds = 5.0
+SelectionWeight = 3.0
+Damage = 14.0
+KnockbackForce = Vector2(2.0, -1.0)
+HitstunDuration = 0.16
+HitboxSize = Vector2(22, 22)
+HitboxOffset = Vector2(50, -64)
+ProjectileSpeed = 560.0
+ProjectileCount = 6
+ProjectileSpreadDegrees = 42.0
+ProjectileLifetime = 3.0
+ProjectileGravity = 0.0
+PiercesTargets = true
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.3, 0.95, 0.85, 1)
+PresentationEventID = "boss.archive_prime.laser_grid"

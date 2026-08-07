@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.apex_eraser.blink_erasure"
+DisplayNameKey = "boss_ability_blink_erasure_name"
+Archetype = 7
+RangeClass = 2
+TelegraphFrames = 12
+ActiveFrames = 6
+RecoveryFrames = 10
+CooldownSeconds = 4.0
+SelectionWeight = 1.5
+Damage = 0.0
+KnockbackForce = Vector2(0.0, 0.0)
+HitstunDuration = 0.0
+HitboxSize = Vector2(24, 24)
+HitboxOffset = Vector2(0, -48)
+TeleportRangeMin = 200.0
+TeleportRangeMax = 420.0
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.6, 0.3, 0.95, 1)
+PresentationEventID = "boss.apex_eraser.blink_erasure"

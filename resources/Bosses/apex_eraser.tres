@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="BossData" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/apex_eraser/erasure_blade.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/apex_eraser/unwriting_lance.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/apex_eraser/chronal_collapse.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/apex_eraser/blink_erasure.tres" id="6"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/apex_eraser/archive_remnants.tres" id="7"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+BossID = "apex_eraser"
+DisplayName = "The Apex Eraser"
+DisplayNameKey = "boss_apex_eraser_name"
+MaxHP = 1200
+IsKnockbackImmune = true
+MoveSpeed = 5.5
+AttackDamage = 26.0
+AttackKnockback = 5.0
+AttackRange = 3.0
+RestCooldown = 1.2
+MeleeRangeThreshold = 3.0
+RangedRangeThreshold = 10.0
+ReactionDelayMinFrames = 3
+ReactionDelayMaxFrames = 6
+PhaseThresholds = Array[float]([0.66, 0.33])
+PhaseTransitionInvincibilityDuration = 2.5
+PhaseSpeedMultipliers = Array[float]([1.0, 1.25, 1.5])
+ChronalDustDrop = 50
+AttackPattern = 1
+BossAbilities = Array[ExtResource("2")]([ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6"), ExtResource("7")])
+AbilityMinPhase = Array[int]([0, 0, 1, 0, 2])
+InterruptibleDuringTelegraph = false
+InterruptDamageThreshold = 35.0
+PlaceholderTint = Color(0.88, 0.28, 0.62, 1)

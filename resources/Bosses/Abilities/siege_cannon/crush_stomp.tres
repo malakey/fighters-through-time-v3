@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.siege_cannon.crush_stomp"
+DisplayNameKey = "boss_ability_crush_stomp_name"
+Archetype = 0
+RangeClass = 0
+TelegraphFrames = 24
+ActiveFrames = 10
+RecoveryFrames = 28
+CooldownSeconds = 2.4
+SelectionWeight = 2.0
+Damage = 24.0
+KnockbackForce = Vector2(6.0, -3.0)
+HitstunDuration = 0.34
+HitboxSize = Vector2(120, 70)
+HitboxOffset = Vector2(58, -30)
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.55, 0.5, 0.45, 1)
+PresentationEventID = "boss.siege_cannon.crush_stomp"

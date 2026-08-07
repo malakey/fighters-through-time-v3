@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.gravity_overseer.singularity_bolt"
+DisplayNameKey = "boss_ability_singularity_bolt_name"
+Archetype = 1
+RangeClass = 1
+TelegraphFrames = 24
+ActiveFrames = 6
+RecoveryFrames = 22
+CooldownSeconds = 3.0
+SelectionWeight = 3.0
+Damage = 18.0
+KnockbackForce = Vector2(3.0, -1.5)
+HitstunDuration = 0.2
+HitboxSize = Vector2(26, 26)
+HitboxOffset = Vector2(46, -56)
+ProjectileSpeed = 480.0
+ProjectileCount = 2
+ProjectileSpreadDegrees = 10.0
+ProjectileLifetime = 2.8
+ProjectileGravity = 0.0
+PiercesTargets = false
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.4, 0.35, 0.85, 1)
+PresentationEventID = "boss.gravity_overseer.singularity_bolt"

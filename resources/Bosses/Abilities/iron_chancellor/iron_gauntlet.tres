@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.iron_chancellor.iron_gauntlet"
+DisplayNameKey = "boss_ability_iron_gauntlet_name"
+Archetype = 0
+RangeClass = 0
+TelegraphFrames = 26
+ActiveFrames = 12
+RecoveryFrames = 30
+CooldownSeconds = 2.5
+SelectionWeight = 2.5
+Damage = 26.0
+KnockbackForce = Vector2(6.0, -2.5)
+HitstunDuration = 0.35
+HitboxSize = Vector2(110, 100)
+HitboxOffset = Vector2(74, -64)
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.7, 0.72, 0.78, 1)
+PresentationEventID = "boss.iron_chancellor.iron_gauntlet"

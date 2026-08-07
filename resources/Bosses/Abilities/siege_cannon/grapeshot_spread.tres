@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.siege_cannon.grapeshot_spread"
+DisplayNameKey = "boss_ability_grapeshot_spread_name"
+Archetype = 1
+RangeClass = 1
+TelegraphFrames = 26
+ActiveFrames = 8
+RecoveryFrames = 24
+CooldownSeconds = 3.5
+SelectionWeight = 2.0
+Damage = 12.0
+KnockbackForce = Vector2(2.5, -1.5)
+HitstunDuration = 0.16
+HitboxSize = Vector2(20, 20)
+HitboxOffset = Vector2(58, -60)
+ProjectileSpeed = 500.0
+ProjectileCount = 5
+ProjectileSpreadDegrees = 34.0
+ProjectileLifetime = 1.8
+ProjectileGravity = 0.0
+PiercesTargets = false
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(1, 0.75, 0.35, 1)
+PresentationEventID = "boss.siege_cannon.grapeshot_spread"

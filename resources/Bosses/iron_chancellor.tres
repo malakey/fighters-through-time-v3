@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="BossData" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/iron_chancellor/iron_gauntlet.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/iron_chancellor/mortar_volley.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/iron_chancellor/bulwark_shockwave.tres" id="5"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+BossID = "iron_chancellor"
+DisplayName = "The Iron Chancellor"
+DisplayNameKey = "boss_iron_chancellor_name"
+MaxHP = 780
+IsKnockbackImmune = true
+MoveSpeed = 2.5
+AttackDamage = 26.0
+AttackKnockback = 6.0
+AttackRange = 3.5
+RestCooldown = 1.5
+MeleeRangeThreshold = 3.5
+RangedRangeThreshold = 9.0
+ReactionDelayMinFrames = 8
+ReactionDelayMaxFrames = 14
+PhaseThresholds = Array[float]([0.5])
+PhaseTransitionInvincibilityDuration = 2.0
+PhaseSpeedMultipliers = Array[float]([1.0, 1.2])
+ChronalDustDrop = 50
+AttackPattern = 1
+BossAbilities = Array[ExtResource("2")]([ExtResource("3"), ExtResource("4"), ExtResource("5")])
+AbilityMinPhase = Array[int]([0, 0, 0])
+InterruptibleDuringTelegraph = false
+InterruptDamageThreshold = 25.0
+PlaceholderTint = Color(0.62, 0.66, 0.72, 1)

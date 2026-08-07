@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.tragedy_king.sceptre_strike"
+DisplayNameKey = "boss_ability_sceptre_strike_name"
+Archetype = 0
+RangeClass = 0
+TelegraphFrames = 18
+ActiveFrames = 10
+RecoveryFrames = 22
+CooldownSeconds = 2.0
+SelectionWeight = 2.5
+Damage = 21.0
+KnockbackForce = Vector2(4.5, -2.0)
+HitstunDuration = 0.26
+HitboxSize = Vector2(94, 90)
+HitboxOffset = Vector2(68, -62)
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.85, 0.3, 0.45, 1)
+PresentationEventID = "boss.tragedy_king.sceptre_strike"
