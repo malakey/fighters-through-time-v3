@@ -27,6 +27,9 @@ namespace FTT.Enemies {
         [Export] public float[] PhaseThresholds = { 0.75f, 0.5f, 0.25f };
         [Export] public float PhaseTransitionInvincibilityDuration = 2.0f;
 
+        [ExportGroup("Loot")]
+        [Export] public int ChronalDustDrop = 50;
+
         [ExportGroup("Abilities")]
         [Export] public FTT.Combat.AbilityData[] BossAbilities;
         [Export] public float[] AbilityWeights;

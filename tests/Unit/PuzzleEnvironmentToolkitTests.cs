@@ -140,7 +140,7 @@ public class PuzzleEnvironmentToolkitTests {
     }
 
     [TestCase]
-    public void ExtractorUsesHundredHPHazardDrainDamagedStateAndTwentyFiveDustReward() {
+    public void ExtractorUsesHundredHPHazardDrainDamagedStateAndBalancedDustReward() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
         PackedScene extractorScene = ResourceLoader.Load<PackedScene>("res://scenes/templates/ChronalExtractorTemplate.tscn");
         var extractor = extractorScene.Instantiate<ChronalExtractor>();
@@ -163,7 +163,8 @@ public class PuzzleEnvironmentToolkitTests {
             extractor.TakeEnvironmentDamage(40f);
             AssertThat(extractor.IsDestroyed).IsTrue();
             AssertThat(extractor.VisualState).IsEqual(ChronalExtractorVisualState.Destroyed);
-            AssertThat(dustAwarded).IsEqual(25);
+            // 15 dust per the Package 3 economy balance pass (docs/DUST_ECONOMY.md Section 1).
+            AssertThat(dustAwarded).IsEqual(15);
         } finally {
             EventBus.Instance.OnChronalDustCollected -= OnDust;
             extractor.Free();

@@ -20,4 +20,5 @@ RangedRangeThreshold = 7.0
 ReactionDelayMinFrames = 4
 ReactionDelayMaxFrames = 8
 PhaseThresholds = Array[float]([0.5])
+ChronalDustDrop = 50
 PhaseTransitionInvincibilityDuration = 2.0

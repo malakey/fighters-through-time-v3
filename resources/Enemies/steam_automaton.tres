@@ -22,4 +22,4 @@ AttackCooldown = 3.0
 StunResistance = 0.5
 ReactionDelayMinFrames = 15
 ReactionDelayMaxFrames = 25
-ChronalDustDrop = 20
+ChronalDustDrop = 10
