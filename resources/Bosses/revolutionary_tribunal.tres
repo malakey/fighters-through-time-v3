@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="BossData" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/revolutionary_tribunal/mob_call.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/revolutionary_tribunal/verdict_bolt.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/revolutionary_tribunal/guillotine_drop.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/revolutionary_tribunal/tribunal_levy.tres" id="6"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+BossID = "revolutionary_tribunal"
+DisplayName = "The Revolutionary Tribunal"
+DisplayNameKey = "boss_revolutionary_tribunal_name"
+MaxHP = 590
+IsKnockbackImmune = true
+MoveSpeed = 4.2
+AttackDamage = 18.0
+AttackKnockback = 4.0
+AttackRange = 3.0
+RestCooldown = 1.35
+MeleeRangeThreshold = 3.0
+RangedRangeThreshold = 9.0
+ReactionDelayMinFrames = 5
+ReactionDelayMaxFrames = 10
+PhaseThresholds = Array[float]([0.5])
+PhaseTransitionInvincibilityDuration = 2.0
+PhaseSpeedMultipliers = Array[float]([1.0, 1.15])
+ChronalDustDrop = 50
+AttackPattern = 1
+BossAbilities = Array[ExtResource("2")]([ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6")])
+AbilityMinPhase = Array[int]([0, 0, 0, 1])
+InterruptibleDuringTelegraph = true
+InterruptDamageThreshold = 22.0
+PlaceholderTint = Color(0.85, 0.15, 0.25, 1)

@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.siegemaster_duke.siege_smash"
+DisplayNameKey = "boss_ability_siege_smash_name"
+Archetype = 0
+RangeClass = 0
+TelegraphFrames = 26
+ActiveFrames = 10
+RecoveryFrames = 26
+CooldownSeconds = 2.0
+SelectionWeight = 3.0
+Damage = 22.0
+KnockbackForce = Vector2(5.0, -2.5)
+HitstunDuration = 0.3
+HitboxSize = Vector2(112, 96)
+HitboxOffset = Vector2(76, -60)
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.65, 0.7, 0.85, 1)
+PresentationEventID = "boss.siegemaster_duke.siege_smash"

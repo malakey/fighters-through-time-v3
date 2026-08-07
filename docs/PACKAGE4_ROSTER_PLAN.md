@@ -421,3 +421,37 @@ Phase C (serial closeout, one agent or orchestrator):
     `EnemyController.ResolveBodyMask(...)`, `BossController.SelectAbilityIndex(distance)`,
     `BossController.BeginAbility(...)`, and `BossController.TickAbility(...)` are public so the state
     machine is testable headlessly without driving a full scene with a live player.
+
+### B4 — Bosses, Act I, levels 2-7 (2026-08-07)
+
+1. **B4: the worktree branched before A1 landed.** The assigned worktree was cut from `4f2e3b3`
+   (Package 3 close), one commit behind `main`'s `836d5c7` (Package 4 A1). A1 is the stated
+   foundation for this workstream, so `main` was merged into the B4 branch before authoring. The
+   merge was clean and touched no B4 deliverable. Later Phase B agents cut from the same base should
+   check for this.
+2. **B4: `revolutionary_tribunal`'s phase-2 summon is `plasma_sabre_captain`, not a bigger
+   `chrono_rioter` wave.** The brief pinned the base summon (`mob_call`: `chrono_rioter` x2) but left
+   "a stronger summon" open. Section 4.1 lists `plasma_sabre_captain` as the Paris elite, so
+   `tribunal_levy` (`AbilityMinPhase = 1`) summons one of those instead of more rioters — a genuine
+   escalation rather than a count bump, and era-correct. **Both** `chrono_rioter` and
+   `plasma_sabre_captain` are B1 deliverables and did not exist in the B4 worktree;
+   `BossRosterActITests` therefore asserts only the ID strings, never resource existence. Phase C
+   must validate both cross-references after B1 merges.
+3. **B4: every Act I boss is `IsKnockbackImmune = true`.** The kit table flagged immunity only for
+   `vulcan_decimator`, but `BossData` defaults to `true`, `borgia_inquisitor` authors `true`, and
+   Section 3.4's hyper-armor rule (damage yes, stun no) is the boss norm. Making the lighter bosses
+   knockback-able would have been the deviation. Weight class is expressed through
+   `InterruptibleDuringTelegraph` instead: `chronal_inventor` (20), `revolutionary_tribunal` (22),
+   and `dread_admiral` (28) are interruptible; `siegemaster_duke`, `tidal_eraser`, and
+   `vulcan_decimator` ride out their telegraphs.
+4. **B4: `tidal_eraser`'s melee coverage is its `AreaPulse`, not a melee swing.** The kit sketch lists
+   no melee attack, which would deadlock the no-melee-class rule. `undertow_pulse` is authored
+   `RangeClass = Melee` (radial, centred on the caster) with pull knockback
+   (`KnockbackForce.X = -4`), satisfying the rule in-fiction. The arena flooding stays a Package 5
+   level hook as instructed; nothing level-side was built.
+5. **B4: Act I HP band is 540/560/590/640/660/700** for levels 2-7, ascending, above the
+   `borgia_inquisitor` 500 anchor and inside the 500-700 band. `BossRosterActITests` pins the
+   ascent and the band.
+6. **B4: 19 abilities across 6 bosses** (3 each except `revolutionary_tribunal`'s 4, which carries
+   the phase-gated summon). All follow the `boss.{boss_id}.{ability}` ID convention with
+   `PresentationEventID` equal to `AbilityID`, and all telegraph >= 16 frames.

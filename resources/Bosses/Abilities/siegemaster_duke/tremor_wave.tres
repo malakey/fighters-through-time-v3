@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.siegemaster_duke.tremor_wave"
+DisplayNameKey = "boss_ability_tremor_wave_name"
+Archetype = 2
+RangeClass = 1
+TelegraphFrames = 32
+ActiveFrames = 10
+RecoveryFrames = 30
+CooldownSeconds = 5.5
+SelectionWeight = 2.0
+Damage = 18.0
+KnockbackForce = Vector2(6.0, -2.0)
+HitstunDuration = 0.35
+HitboxSize = Vector2(72, 46)
+HitboxOffset = Vector2(56, -28)
+ProjectileSpeed = 320.0
+ProjectileCount = 1
+ProjectileSpreadDegrees = 0.0
+ProjectileLifetime = 2.4
+ProjectileGravity = 0.0
+PiercesTargets = true
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.8, 0.65, 0.4, 1)
+PresentationEventID = "boss.siegemaster_duke.tremor_wave"

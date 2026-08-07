@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.chronal_inventor.arc_volley"
+DisplayNameKey = "boss_ability_arc_volley_name"
+Archetype = 1
+RangeClass = 1
+TelegraphFrames = 24
+ActiveFrames = 8
+RecoveryFrames = 24
+CooldownSeconds = 3.0
+SelectionWeight = 4.0
+Damage = 14.0
+KnockbackForce = Vector2(2.5, -1.0)
+HitstunDuration = 0.18
+HitboxSize = Vector2(22, 14)
+HitboxOffset = Vector2(30, -40)
+ProjectileSpeed = 460.0
+ProjectileCount = 3
+ProjectileSpreadDegrees = 12.0
+ProjectileLifetime = 2.6
+ProjectileGravity = 0.0
+PiercesTargets = false
+AppliedStatus = 3
+StatusDuration = 1.2
+StatusIntensity = 1.0
+TelegraphTint = Color(0.95, 0.85, 0.35, 1)
+PresentationEventID = "boss.chronal_inventor.arc_volley"

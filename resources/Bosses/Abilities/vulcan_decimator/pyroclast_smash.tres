@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.vulcan_decimator.pyroclast_smash"
+DisplayNameKey = "boss_ability_pyroclast_smash_name"
+Archetype = 0
+RangeClass = 0
+TelegraphFrames = 32
+ActiveFrames = 12
+RecoveryFrames = 30
+CooldownSeconds = 2.6
+SelectionWeight = 2.5
+Damage = 26.0
+KnockbackForce = Vector2(6.0, -3.0)
+HitstunDuration = 0.4
+HitboxSize = Vector2(124, 104)
+HitboxOffset = Vector2(80, -62)
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(1, 0.6, 0.2, 1)
+PresentationEventID = "boss.vulcan_decimator.pyroclast_smash"

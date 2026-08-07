@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.revolutionary_tribunal.verdict_bolt"
+DisplayNameKey = "boss_ability_verdict_bolt_name"
+Archetype = 1
+RangeClass = 1
+TelegraphFrames = 26
+ActiveFrames = 6
+RecoveryFrames = 24
+CooldownSeconds = 3.2
+SelectionWeight = 3.0
+Damage = 15.0
+KnockbackForce = Vector2(3.0, -1.2)
+HitstunDuration = 0.2
+HitboxSize = Vector2(24, 16)
+HitboxOffset = Vector2(32, -44)
+ProjectileSpeed = 440.0
+ProjectileCount = 2
+ProjectileSpreadDegrees = 8.0
+ProjectileLifetime = 2.4
+ProjectileGravity = 0.0
+PiercesTargets = false
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.95, 0.4, 0.35, 1)
+PresentationEventID = "boss.revolutionary_tribunal.verdict_bolt"
