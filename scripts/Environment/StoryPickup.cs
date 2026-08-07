@@ -85,7 +85,9 @@ namespace FTT.Environment {
         private void ResolveMagnetTarget() {
             if (_magnetTarget != null && IsInstanceValid(_magnetTarget)) return;
             _magnetTarget = null;
-            foreach (Node node in GetTree().GetNodesInGroup("StoryPlayer")) {
+            Godot.Collections.Array<Node> players = GetTree().GetNodesInGroup("StoryPlayer");
+            using var playersLifetime = players.AsDisposable();
+            foreach (Node node in players) {
                 if (node is PlayerController player && GlobalPosition.DistanceTo(player.GlobalPosition) <= MagnetRadius) {
                     _magnetTarget = player;
                     return;

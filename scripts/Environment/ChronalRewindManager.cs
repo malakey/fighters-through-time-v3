@@ -152,13 +152,17 @@ namespace FTT.Environment {
 
         private void FreezeWorldForRewind() {
             _frozenSimulations.Clear();
-            foreach (Node node in GetTree().GetNodesInGroup("Enemies")) {
+            Godot.Collections.Array<Node> enemies = GetTree().GetNodesInGroup("Enemies");
+            using var enemiesLifetime = enemies.AsDisposable();
+            foreach (Node node in enemies) {
                 if (node is IStoryRewindSimulation simulation) {
                     simulation.SetStoryRewindFrozen(true);
                     _frozenSimulations.Add(simulation);
                 }
             }
-            foreach (Node node in GetTree().GetNodesInGroup("persistent_construct")) {
+            Godot.Collections.Array<Node> constructs = GetTree().GetNodesInGroup("persistent_construct");
+            using var constructsLifetime = constructs.AsDisposable();
+            foreach (Node node in constructs) {
                 if (node is IStoryRewindSimulation simulation && !_frozenSimulations.Contains(simulation)) {
                     simulation.SetStoryRewindFrozen(true);
                     _frozenSimulations.Add(simulation);
@@ -178,6 +182,7 @@ namespace FTT.Environment {
 
         private void ClearEnemyProjectiles() {
             Godot.Collections.Array<Node> projectiles = GetTree().GetNodesInGroup("enemy_projectile");
+            using var projectilesLifetime = projectiles.AsDisposable();
             foreach (Node projectile in projectiles) {
                 if (!IsInstanceValid(projectile)) continue;
                 if (PoolManager.Instance != null) PoolManager.Instance.Release(projectile);

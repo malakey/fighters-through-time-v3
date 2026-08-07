@@ -106,7 +106,9 @@ namespace FTT.Environment {
                 if (string.IsNullOrWhiteSpace(prerequisiteID)) continue;
                 bool complete = SaveManager.Instance?.IsPuzzleCompleted(prerequisiteID) == true;
                 if (!complete && GetTree() != null) {
-                    foreach (Node node in GetTree().GetNodesInGroup("puzzle_manager")) {
+                    Godot.Collections.Array<Node> managers = GetTree().GetNodesInGroup("puzzle_manager");
+                    using var managersLifetime = managers.AsDisposable();
+                    foreach (Node node in managers) {
                         if (node is PuzzleManager manager && manager.PuzzleID == prerequisiteID) {
                             complete = manager.IsCompleted;
                             break;

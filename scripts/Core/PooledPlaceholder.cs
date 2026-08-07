@@ -90,7 +90,9 @@ namespace FTT.Core {
         private void OnRewindTriggered(Vector2 targetPosition) => ApplyStoryRewind();
 
         private void ResetParticles(bool emitting) {
-            foreach (Node child in GetChildren()) {
+            Godot.Collections.Array<Node> children = GetChildren();
+            using var childrenLifetime = children.AsDisposable();
+            foreach (Node child in children) {
                 if (child is GpuParticles2D gpuParticles) {
                     gpuParticles.Emitting = emitting;
                     if (emitting) gpuParticles.Restart();

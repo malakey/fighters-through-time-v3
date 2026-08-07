@@ -1,4 +1,5 @@
 using Godot;
+using FTT.Core;
 
 namespace FTT.Environment {
     public partial class StageHazard : Node2D {
@@ -43,7 +44,9 @@ namespace FTT.Environment {
             }
 
             if (_phase == FTT.Core.HazardPhase.Active && _damageZone != null) {
-                foreach (var body in _damageZone.GetOverlappingBodies()) {
+                Godot.Collections.Array<Node2D> bodies = _damageZone.GetOverlappingBodies();
+                using var bodiesLifetime = bodies.AsDisposable();
+                foreach (var body in bodies) {
                     if (body is FTT.Characters.PlayerController pc) {
                         pc.ApplyDamage((int)(Damage * dt));
                     }

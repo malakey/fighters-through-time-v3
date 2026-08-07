@@ -103,6 +103,20 @@ namespace FTT.Core {
             SetupLoadingScreen();
         }
 
+        public override void _ExitTree() {
+            // Godot collection wrappers that reach the finalizer queue crash the
+            // process if their finalizers run during engine teardown: the
+            // finalizer thread faults inside godotsharp_array_destroy
+            // (0xC0000005) once the native side is gone. As an autoload,
+            // GameManager leaves the tree only at quit, after the current scene
+            // has been torn down but while the engine is still alive — the last
+            // safe moment to drain the queue. See GodotCollectionExtensions for
+            // the deterministic-disposal half of this contract.
+            System.GC.Collect();
+            System.GC.WaitForPendingFinalizers();
+            System.GC.Collect();
+        }
+
         private void SetupLoadingScreen() {
             _loadingScreen = new CanvasLayer();
             _loadingScreen.Layer = 100;

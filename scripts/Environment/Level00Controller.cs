@@ -224,14 +224,18 @@ namespace FTT.Environment {
 
         private bool ZoneContainsPlayer(Area2D zone) {
             if (zone == null || !IsInstanceValid(zone)) return false;
-            foreach (Node2D body in zone.GetOverlappingBodies()) {
+            Godot.Collections.Array<Node2D> bodies = zone.GetOverlappingBodies();
+            using var bodiesLifetime = bodies.AsDisposable();
+            foreach (Node2D body in bodies) {
                 if (body == _player) return true;
             }
             return false;
         }
 
         private static void MarkGateCleared(Area2D zone) {
-            foreach (Node child in zone.GetChildren()) {
+            Godot.Collections.Array<Node> children = zone.GetChildren();
+            using var childrenLifetime = children.AsDisposable();
+            foreach (Node child in children) {
                 if (child is ColorRect visual) visual.Color = new Color(0.2f, 0.9f, 0.4f, 0.45f);
             }
         }

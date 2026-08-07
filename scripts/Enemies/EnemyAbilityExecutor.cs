@@ -72,7 +72,9 @@ namespace FTT.Enemies {
             _spriteBaseModulate = sprite?.Modulate ?? Colors.White;
             _hitboxShape = hitbox?.GetNodeOrNull<CollisionShape2D>("CollisionShape2D");
             if (_hitboxShape == null && hitbox != null) {
-                foreach (Node child in hitbox.GetChildren()) {
+                Godot.Collections.Array<Node> children = hitbox.GetChildren();
+                using var childrenLifetime = children.AsDisposable();
+                foreach (Node child in children) {
                     if (child is CollisionShape2D found) { _hitboxShape = found; break; }
                 }
             }

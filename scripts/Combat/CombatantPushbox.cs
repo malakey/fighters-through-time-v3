@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using FTT.Core;
 
 namespace FTT.Combat {
 
@@ -31,7 +32,9 @@ namespace FTT.Combat {
             bool resolvedAny = false;
 
             var candidates = new List<CombatantPushbox>();
-            foreach (Node node in GetTree().GetNodesInGroup(GroupName)) {
+            Godot.Collections.Array<Node> members = GetTree().GetNodesInGroup(GroupName);
+            using var membersLifetime = members.AsDisposable();
+            foreach (Node node in members) {
                 if (node is CombatantPushbox other
                     && other != this
                     && other.PushEnabled
@@ -73,7 +76,9 @@ namespace FTT.Combat {
             CharacterBody2D body = Body;
             if (body == null || GetTree() == null || rollDirection == 0) return false;
             bool blocked = false;
-            foreach (Node node in GetTree().GetNodesInGroup(GroupName)) {
+            Godot.Collections.Array<Node> members = GetTree().GetNodesInGroup(GroupName);
+            using var membersLifetime = members.AsDisposable();
+            foreach (Node node in members) {
                 if (node is not CombatantPushbox other
                     || other == this
                     || !other.PushEnabled

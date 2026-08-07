@@ -1,4 +1,5 @@
 using Godot;
+using FTT.Core;
 
 namespace FTT.Enemies {
     public enum CpuDifficulty { Easy, Normal, Hard }
@@ -41,7 +42,9 @@ namespace FTT.Enemies {
         }
 
         private FTT.Characters.PlayerController FindOpponent() {
-            foreach (var node in GetTree().GetNodesInGroup("Players")) {
+            Godot.Collections.Array<Node> players = GetTree().GetNodesInGroup("Players");
+            using var playersLifetime = players.AsDisposable();
+            foreach (var node in players) {
                 if (node is FTT.Characters.PlayerController pc && pc != _self) return pc;
             }
             return null;

@@ -205,7 +205,9 @@ namespace FTT.Enemies {
 
         private PlayerController FindCampaignPlayer() {
             if (!IsInsideTree()) return null;
-            foreach (Node node in GetTree().GetNodesInGroup("Players")) {
+            Godot.Collections.Array<Node> players = GetTree().GetNodesInGroup("Players");
+            using var playersLifetime = players.AsDisposable();
+            foreach (Node node in players) {
                 if (node is PlayerController player && player != Clone) return player;
             }
             return GetTree().GetFirstNodeInGroup("StoryPlayer") as PlayerController;
