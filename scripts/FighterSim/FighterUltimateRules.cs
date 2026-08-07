@@ -34,9 +34,34 @@ namespace FTT.FighterSim {
                 // Ultimate kit passes add one case per character here, e.g.:
                 // case FighterCharacterID.Einstein:
                 //     return SpawnCosmologicalConstant(ref frame, ref attacker, in tuning);
+                case FighterCharacterID.Shakespeare:
+                    return SpawnAllTheWorldsAStage(ref frame, ref attacker, in tuning);
                 default:
                     return false; // Fall back to the generic melee-range ultimate.
             }
+        }
+
+        // All the World's a Stage (design Section 5): a Globe Theatre set rises
+        // around Shakespeare and tragic phantoms — the three Witches, Romeo &
+        // Juliet, and Hamlet — deliver six sequential strikes. The constants
+        // mirror resources/Abilities/shakespeare/ultimate.tres (HitCount 6 at a
+        // 20-frame cadence, 2.0 s Lifetime spanning the sequence): the zone's
+        // first pulse lands on spawn and the 120-frame lifetime yields exactly
+        // six pulses, the last of which FighterZoneSystem upgrades to the
+        // impulse-carrying finale using tuning.UltimateKnockback. The wide
+        // owner-centered stage footprint lives in ResolveZoneSpec (zone type 63).
+        private const int StageStrikeIntervalFrames = 20;
+        private const int StageLifetimeFrames = 120;
+
+        private static bool SpawnAllTheWorldsAStage(
+            ref Frame frame,
+            ref FighterStateComponent attacker,
+            in FighterTuningComponent tuning) {
+            FighterAbilityEntitySystem.SpawnZone(
+                ref frame, ref attacker, UltimateSlot, 1,
+                StageLifetimeFrames, StageStrikeIntervalFrames, tuning.UltimateDamage,
+                tuning.UltimateStatusType, tuning.UltimateStatusFrames, tuning.UltimateStatusIntensity);
+            return true;
         }
     }
 }

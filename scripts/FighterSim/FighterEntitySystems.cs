@@ -536,6 +536,17 @@ namespace FTT.FighterSim {
                 centersOnOwner = true;
                 return;
             }
+            // Shakespeare's All the World's a Stage ultimate (zone type 63): the
+            // summoned Globe Theatre set is a wide owner-centered stage (12 x 4
+            // units, mirroring the authored 720 x 240 px HitboxSize) on which the
+            // tragic phantoms strike; the strike cadence/count come from
+            // FighterUltimateRules.
+            if (zoneTypeID == (int)FighterCharacterID.Shakespeare * 10 + FighterUltimateRules.UltimateSlot) {
+                halfExtents = new FPVector2(FP64.FromDouble(6.0), FP64.FromDouble(2.0));
+                grantsOwnerSpeedBonus = 0;
+                centersOnOwner = true;
+                return;
+            }
             halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
             grantsOwnerSpeedBonus = 0;
             centersOnOwner = false;
@@ -1074,6 +1085,15 @@ namespace FTT.FighterSim {
                 } else if (zone.ZoneTypeID == (int)FighterCharacterID.Shakespeare * 10 + 2) {
                     pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).SpecialTwoKnockback;
                     pulseHitstunFrames = TempestHitstunFrames;
+                } else if (zone.ZoneTypeID == (int)FighterCharacterID.Shakespeare * 10 + FighterUltimateRules.UltimateSlot
+                    && zone.LifetimeFrames <= zone.TickIntervalFrames) {
+                    // All the World's a Stage (zone type 63): only the closing
+                    // phantom strike carries impulse — when no further pulse fits
+                    // in the remaining lifetime, this pulse is Hamlet's finale and
+                    // launches with the authored ultimate knockback. Earlier
+                    // phantom strikes stay impulse-free ultimate-class ticks.
+                    pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
+                    pulseHitstunFrames = StageFinaleHitstunFrames;
                 }
 
                 // Ultimate-slot zones (ZoneTypeID % 10 == FighterUltimateRules
@@ -1093,6 +1113,8 @@ namespace FTT.FighterSim {
         private const int CoilObjectTypeID = 1;
         private const int EmancipatorHitstunFrames = 18;
         private const int TempestHitstunFrames = 10;
+        // Matches the generic melee ultimate's 30-frame hitstun.
+        private const int StageFinaleHitstunFrames = 30;
 
         // 0.05 world units per frame (3 px at 60 px/unit), mirrored by the Story
         // vortex's 180 px/s positional drag.
