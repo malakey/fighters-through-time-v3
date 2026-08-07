@@ -139,12 +139,27 @@ namespace FTT.UI {
             margin.AddThemeConstantOverride("margin_bottom", 8);
             panel.AddChild(margin);
 
+            var layout = new VBoxContainer();
+            layout.Alignment = BoxContainer.AlignmentMode.Center;
+            layout.MouseFilter = MouseFilterEnum.Ignore;
+            margin.AddChild(layout);
+
+            var portrait = new TextureRect {
+                Texture = GetCharacterPortrait(index),
+                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+                CustomMinimumSize = new Vector2(160, 64),
+                MouseFilter = MouseFilterEnum.Ignore
+            };
+            layout.AddChild(portrait);
+
             var label = new Label();
             label.Text = GetCharacterName(index);
             label.HorizontalAlignment = HorizontalAlignment.Center;
             label.VerticalAlignment = VerticalAlignment.Center;
             label.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-            label.CustomMinimumSize = new Vector2(160, 100);
+            label.CustomMinimumSize = new Vector2(160, 36);
+            label.MouseFilter = MouseFilterEnum.Ignore;
 
             var c = _characterColors[index];
             float luminance = 0.299f * c.R + 0.587f * c.G + 0.114f * c.B;
@@ -153,7 +168,7 @@ namespace FTT.UI {
                 : new Color(0.95f, 0.95f, 0.98f);
             label.AddThemeColorOverride("font_color", textColor);
             label.AddThemeFontSizeOverride("font_size", 16);
-            margin.AddChild(label);
+            layout.AddChild(label);
 
             return panel;
         }
@@ -280,6 +295,11 @@ namespace FTT.UI {
             if (_opponentLabel != null) {
                 _opponentLabel.Text = string.Format(Tr("fighter_player_selection"), 2, GetCharacterName(_opponentIndex));
             }
+        }
+
+        private Texture2D GetCharacterPortrait(int index) {
+            CharacterData data = GD.Load<CharacterData>($"res://resources/Characters/{_characterIDs[index]}_data.tres");
+            return data?.CharacterPortrait;
         }
 
         private string GetCharacterName(int index) {

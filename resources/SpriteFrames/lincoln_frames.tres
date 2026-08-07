@@ -1,0 +1,141 @@
+[gd_resource type="SpriteFrames" load_steps=2 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/placeholders/characters/lincoln_silhouette.svg" id="1_character"]
+
+[resource]
+animations = [{
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": true,
+"name": &"idle",
+"speed": 6.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": true,
+"name": &"run",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"dash",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"roll_startup",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"roll",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"roll_recovery",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"jump",
+"speed": 6.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": true,
+"name": &"fall",
+"speed": 6.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"basic_attack_1",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"basic_attack_2",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"basic_attack_3",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"special_1",
+"speed": 10.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"special_2",
+"speed": 10.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"movement_ability",
+"speed": 10.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"ultimate",
+"speed": 10.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": true,
+"name": &"block",
+"speed": 3.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": true,
+"name": &"dazed",
+"speed": 4.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"hitstun",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"death",
+"speed": 6.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"skid",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": true,
+"name": &"crouch",
+"speed": 4.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": true,
+"name": &"ledge_hang",
+"speed": 3.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"ledge_pull_up",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"ledge_drop",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"respawn",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": true,
+"name": &"victory",
+"speed": 6.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": true,
+"name": &"defeat",
+"speed": 4.0
+}]

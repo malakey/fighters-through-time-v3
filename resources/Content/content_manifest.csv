@@ -207,15 +207,15 @@ AudioSet,audio_stage_berlin,8|10,res://resources/Audio/stage_berlin_audio.tres,A
 AudioSet,audio_stage_globe,8|10,res://resources/Audio/stage_globe_audio.tres,AudioManager,Planned,Placeholder,Pending,true
 AudioSet,audio_stage_gettysburg,8|10,res://resources/Audio/stage_gettysburg_audio.tres,AudioManager,Planned,Placeholder,Pending,true
 # Visual asset families: nine characters; aggregate enemies/bosses; levels/hub; stages; UI/items/shaders
-VisualSet,visual_character_einstein,9|17,res://assets/placeholders/character_silhouette.svg,CharacterFactory,Prototype,Placeholder,Valid,true
-VisualSet,visual_character_joan,9|17,res://assets/placeholders/character_silhouette.svg,CharacterFactory,Prototype,Placeholder,Valid,true
-VisualSet,visual_character_leonardo,9|17,res://assets/placeholders/character_silhouette.svg,CharacterFactory,Prototype,Placeholder,Valid,true
-VisualSet,visual_character_lincoln,9|17,res://assets/placeholders/character_silhouette.svg,CharacterFactory,Prototype,Placeholder,Valid,true
-VisualSet,visual_character_cleopatra,9|17,res://assets/placeholders/character_silhouette.svg,CharacterFactory,Prototype,Placeholder,Valid,true
-VisualSet,visual_character_tesla,9|17,res://assets/placeholders/character_silhouette.svg,CharacterFactory,Prototype,Placeholder,Valid,true
-VisualSet,visual_character_shakespeare,9|17,res://assets/placeholders/character_silhouette.svg,CharacterFactory,Prototype,Placeholder,Valid,true
-VisualSet,visual_character_mozart,9|17,res://assets/placeholders/character_silhouette.svg,CharacterFactory,Prototype,Placeholder,Valid,true
-VisualSet,visual_character_pocahontas,9|17,res://assets/placeholders/character_silhouette.svg,CharacterFactory,Prototype,Placeholder,Valid,true
+VisualSet,visual_character_einstein,9|17,res://resources/SpriteFrames/einstein_frames.tres,CharacterFactory,Prototype,Placeholder,Valid,true
+VisualSet,visual_character_joan,9|17,res://resources/SpriteFrames/joan_frames.tres,CharacterFactory,Prototype,Placeholder,Valid,true
+VisualSet,visual_character_leonardo,9|17,res://resources/SpriteFrames/leonardo_frames.tres,CharacterFactory,Prototype,Placeholder,Valid,true
+VisualSet,visual_character_lincoln,9|17,res://resources/SpriteFrames/lincoln_frames.tres,CharacterFactory,Prototype,Placeholder,Valid,true
+VisualSet,visual_character_cleopatra,9|17,res://resources/SpriteFrames/cleopatra_frames.tres,CharacterFactory,Prototype,Placeholder,Valid,true
+VisualSet,visual_character_tesla,9|17,res://resources/SpriteFrames/tesla_frames.tres,CharacterFactory,Prototype,Placeholder,Valid,true
+VisualSet,visual_character_shakespeare,9|17,res://resources/SpriteFrames/shakespeare_frames.tres,CharacterFactory,Prototype,Placeholder,Valid,true
+VisualSet,visual_character_mozart,9|17,res://resources/SpriteFrames/mozart_frames.tres,CharacterFactory,Prototype,Placeholder,Valid,true
+VisualSet,visual_character_pocahontas,9|17,res://resources/SpriteFrames/pocahontas_frames.tres,CharacterFactory,Prototype,Placeholder,Valid,true
 VisualSet,visual_enemy_roster,9|17,res://assets/placeholders/enemy_silhouette.svg,EnemyFactory,Prototype,Placeholder,Valid,true
 VisualSet,visual_boss_roster,9|17,res://assets/placeholders/boss_silhouette.svg,BossController,Prototype,Placeholder,Valid,true
 VisualSet,visual_level_00,9|17,res://assets/placeholders/parallax_far.svg,LevelManager,Prototype,Placeholder,Valid,true

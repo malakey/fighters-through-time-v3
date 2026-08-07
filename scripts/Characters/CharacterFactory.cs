@@ -61,7 +61,7 @@ namespace FTT.Characters {
 
 			CharacterVisual visual = Visuals.GetValueOrDefault(characterID,
 				new CharacterVisual { Body = Colors.Gray, Accent = Colors.White, Detail = Colors.LightGray });
-			BuildVisual(player, visual, data.DisplayName);
+			BuildVisual(player, visual, data);
 			BuildMovementSensors(player);
 			BuildHurtbox(player, playerIndex);
 			BuildPushbox(player, playerIndex);
@@ -77,19 +77,17 @@ namespace FTT.Characters {
 			return player;
 		}
 
-		private static void BuildVisual(PlayerController player, CharacterVisual visual, string displayName) {
-			player.AddChild(new ColorRect {
-				Name = "PlaceholderBody", Size = new Vector2(40, 64), Position = new Vector2(-20, -64), Color = visual.Body
-			});
-			player.AddChild(new ColorRect {
-				Size = new Vector2(40, 6), Position = new Vector2(-20, -38), Color = visual.Detail
-			});
-			player.AddChild(new ColorRect {
-				Name = "HeadRect", Size = new Vector2(24, 18), Position = new Vector2(-12, -82), Color = visual.Accent
-			});
-			player.AddChild(new ColorRect {
-				Size = new Vector2(14, 4), Position = new Vector2(-4, -78), Color = new Color(0.1f, 0.1f, 0.1f)
-			});
+		private static void BuildVisual(PlayerController player, CharacterVisual visual, CharacterData data) {
+			SpriteFrames frames = data.SpriteFramesResource
+				?? GD.Load<SpriteFrames>("res://resources/SpriteFrames/placeholder_character_frames.tres");
+			var sprite = new AnimatedSprite2D {
+				Name = "AnimatedSprite2D",
+				SpriteFrames = frames,
+				Position = new Vector2(0, -64),
+				Scale = new Vector2(0.5f, 0.5f)
+			};
+			player.AddChild(sprite);
+			if (frames != null && frames.HasAnimation("idle")) sprite.Play("idle");
 			player.AddChild(new ColorRect {
 				Name = "ChronalArmorOverlay",
 				Size = new Vector2(60, 92),
@@ -101,7 +99,7 @@ namespace FTT.Characters {
 
 			var label = new Label {
 				Name = "NameLabel",
-				Text = displayName,
+				Text = data.DisplayName,
 				Position = new Vector2(-55, -102),
 				CustomMinimumSize = new Vector2(110, 18),
 				HorizontalAlignment = HorizontalAlignment.Center

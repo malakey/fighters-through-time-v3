@@ -1612,8 +1612,10 @@ namespace FTT.Characters {
 		}
 
 		private void PlayAnimation(string animName) {
-			if (_animatedSprite != null) _animatedSprite.SpeedScale = StatusAnimationMultiplier;
-			if (_animatedSprite != null && _animatedSprite.Animation != animName) {
+			if (_animatedSprite == null) return;
+			_animatedSprite.SpeedScale = StatusAnimationMultiplier;
+			if (_animatedSprite.Animation != animName
+				&& _animatedSprite.SpriteFrames?.HasAnimation(animName) == true) {
 				_animatedSprite.Play(animName);
 			}
 		}
