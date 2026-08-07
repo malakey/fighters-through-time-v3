@@ -574,6 +574,15 @@ namespace FTT.FighterSim {
                 centersOnOwner = false;
                 return;
             }
+            // Lincoln's Union Indestructible (ultimate-slot zone type 33): the
+            // split-rail fence pen raised in front of Lincoln — wide and tall
+            // enough to hold the trapped opponent through the smash sequence.
+            if (zoneTypeID == (int)FighterCharacterID.Lincoln * 10 + FighterUltimateRules.UltimateSlot) {
+                halfExtents = new FPVector2(FP64.FromDouble(2.5), FP64.FromDouble(1.25));
+                grantsOwnerSpeedBonus = 0;
+                centersOnOwner = false;
+                return;
+            }
             halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
             grantsOwnerSpeedBonus = 0;
             centersOnOwner = false;
@@ -1146,6 +1155,14 @@ namespace FTT.FighterSim {
                     // full multi-hit total lands.
                     pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
                     pulseHitstunFrames = GrandCrusadeFinalHitstunFrames;
+                } else if (zone.ZoneTypeID == (int)FighterCharacterID.Lincoln * 10 + FighterUltimateRules.UltimateSlot
+                    && zone.LifetimeFrames <= zone.TickIntervalFrames) {
+                    // Union Indestructible's final smash shatters the fence pen:
+                    // only the last tick of the ultimate zone carries the massive
+                    // authored finisher knockback (earlier smashes stay
+                    // impulse-free so the Root pen keeps holding).
+                    pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
+                    pulseHitstunFrames = UnionFinisherHitstunFrames;
                 }
 
                 // Ultimate-slot zones (ZoneTypeID % 10 == FighterUltimateRules
@@ -1165,6 +1182,9 @@ namespace FTT.FighterSim {
         private const int CoilObjectTypeID = 1;
         private const int EmancipatorHitstunFrames = 18;
         private const int TempestHitstunFrames = 10;
+        // Union Indestructible finisher: 0.5 s, matching the authored
+        // HitstunDuration on lincoln/ultimate.tres.
+        private const int UnionFinisherHitstunFrames = 30;
         private const int GrandCrusadeFinalHitstunFrames = 24;
 
         // 0.05 world units per frame (3 px at 60 px/unit), mirrored by the Story

@@ -353,16 +353,28 @@ namespace FTT.Characters.Abilities {
         }
     }
 
+    /// <summary>
+    /// Ultimate — Union Indestructible: Lincoln slams his rail into the ground,
+    /// raising a line of split-rail fence barriers that pens enemies in front of
+    /// him (Root held through the trap window), then delivers the authored
+    /// HitCount rail smashes spread across the active window; the final smash
+    /// shatters the fence with the authored heavy finisher knockback. Requires
+    /// and consumes a full Ultimate Meter. Every number is data-driven from the
+    /// authored AbilityData: per-hit BaseDamage, HitCount, DamageTickInterval,
+    /// phase frames, pen size/offset, Root duration, HitstunDuration, and the
+    /// finisher KnockbackForce. Smashes hit with the ultimate attack class, so
+    /// they bypass shields and hyper-armor per the canonical block rules. The
+    /// cinematic leap/camera presentation is Package 8.
+    /// </summary>
     public partial class LincolnUnionIndestructible : BaseSpecial {
-        private const float CinematicDuration = 3.0f;
-        private const int HitCount = 5;
-        private const float BarrierDuration = 1.5f;
-        private const float SmashDamage = 25f;
 
-        private float _hitTimer;
-        private int _hitsDone;
-        private bool _barriersRaised;
+        private const int MaxQueryResults = 16;
+
         private UltimateMeter _meter;
+        private int _smashesDone;
+        private int _activeFramesElapsed;
+        private Vector2 _penCenter;
+        private bool _penFacingRight;
 
         public override void _Ready() {
             base._Ready();
@@ -374,67 +386,120 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override void OnStartup() {
-            PhaseTimer = 0.5f;
-            _hitsDone = 0;
-            _hitTimer = 0;
-            _barriersRaised = false;
+            UseAuthoredPhaseFrames();
+            _smashesDone = 0;
+            _activeFramesElapsed = 0;
             Owner.Velocity = Vector2.Zero;
             _meter?.Consume();
         }
 
         protected override void OnActive() {
-            PhaseTimer = CinematicDuration;
-            if (!_barriersRaised) {
-                RaiseBarriers();
-                _barriersRaised = true;
-            }
+            UseAuthoredPhaseFrames();
+            _penFacingRight = Owner.IsFacingRight;
+            var offset = Data?.HitboxOffset ?? new Vector2(110f, 0f);
+            if (!_penFacingRight) offset.X = -offset.X;
+            _penCenter = Owner.GlobalPosition + offset;
+            RootPennedTargets();
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = 0.6f;
-            DeliverGroundSmash();
+            UseAuthoredPhaseFrames();
         }
 
         public override void _PhysicsProcess(double delta) {
             if (CurrentPhase == AbilityPhase.Active) {
-                float dt = (float)delta;
-                _hitTimer += dt;
-                float hitInterval = CinematicDuration / HitCount;
-                while (_hitTimer >= hitInterval && _hitsDone < HitCount) {
-                    _hitTimer -= hitInterval;
-                    _hitsDone++;
-                    DealBarrierTrapHit();
+                _activeFramesElapsed++;
+                int hitCount = Mathf.Max(1, Data?.HitCount ?? 1);
+                int interval = Data?.DamageTickIntervalFrames > 0
+                    ? Data.DamageTickIntervalFrames
+                    : Mathf.Max(1, (Data?.ActiveFrames ?? hitCount) / hitCount);
+                // Smash n lands on active frame (n - 1) * interval + 1, mirroring
+                // the Fighter zone whose first pulse fires on the cast frame.
+                while (_smashesDone < hitCount
+                    && _activeFramesElapsed >= interval * _smashesDone + 1) {
+                    _smashesDone++;
+                    ExecuteSmash(_smashesDone >= hitCount);
                 }
             }
             base._PhysicsProcess(delta);
         }
 
-        private void RaiseBarriers() {
-            if (Data?.ProjectileScene == null) return;
-            var barrierPos = Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 80f : -80f, 0f);
-            FTT.Core.PoolManager.Instance?.Spawn(Data.ProjectileScene, barrierPos);
+        /// <summary>
+        /// The fence raise: every target already inside the pen is rooted for the
+        /// whole trap window. Applied directly to the status handlers (Quicksand
+        /// Grip pattern) because zero-damage hits do not carry status through the
+        /// player damage gate; each subsequent smash payload refreshes a shorter
+        /// authored Root, so the pen holds even for targets entering late.
+        /// </summary>
+        private void RootPennedTargets() {
+            float trapWindow = Data?.ActiveDuration ?? 2.5f;
+            foreach (Hurtbox hurtbox in QueryPennedHurtboxes()) {
+                Node current = hurtbox.GetParent();
+                while (current != null) {
+                    if (current is PlayerController player) {
+                        player.GetNodeOrNull<StatusController>("StatusController")
+                            ?.ApplyStatus(FTT.Core.StatusType.Root, trapWindow);
+                        break;
+                    }
+                    if (current is FTT.Enemies.EnemyController enemy) {
+                        enemy.ApplyStatusEffect(FTT.Core.StatusType.Root, trapWindow);
+                        break;
+                    }
+                    current = current.GetParent();
+                }
+            }
         }
 
-        private void DealBarrierTrapHit() {
-            var hitbox = GetNodeOrNull<Hitbox>("TrapHitbox");
-            if (hitbox == null) return;
-
-            hitbox.Damage = 8f;
-            hitbox.KnockbackForce = new Vector2(Owner.IsFacingRight ? 4f : -4f, -1f);
-            hitbox.OwnerPlayerIndex = Owner.PlayerIndex;
-            hitbox.Activate();
-            GetTree().CreateTimer(0.08f).Timeout += () => hitbox.Deactivate();
+        /// <summary>
+        /// One rail smash across the pen. Non-final smashes deal damage without
+        /// knockback so the pen keeps holding; the final smash shatters the fence
+        /// and carries the authored massive KnockbackForce. Each smash re-applies
+        /// the authored Root, keeping trapped targets penned between hits.
+        /// </summary>
+        private void ExecuteSmash(bool finalSmash) {
+            if (Owner == null) return;
+            foreach (Hurtbox hurtbox in QueryPennedHurtboxes()) {
+                float dealt = hurtbox.TakeHit(new HitPayload {
+                    AttackerIndex = Owner.PlayerIndex,
+                    AttackID = Data?.AbilityID ?? "lincoln_union_indestructible",
+                    HitboxID = finalSmash ? "fence_shatter_smash" : $"rail_smash_{_smashesDone}",
+                    AttackClass = AttackClass.Ultimate,
+                    Damage = (Data?.BaseDamage ?? 8f) * Owner.StorySpecialDamageMultiplier,
+                    Knockback = finalSmash ? Data?.KnockbackForce ?? new Vector2(12f, -8f) : Vector2.Zero,
+                    HitstunDuration = Data?.HitstunDuration ?? 0.5f,
+                    HitOrigin = _penCenter,
+                    AttackerFacingRight = _penFacingRight,
+                    AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.Root,
+                    StatusDuration = Data?.StatusDuration ?? 0.6f,
+                    StatusIntensity = Data?.StatusIntensity ?? 1f,
+                    ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
+                    ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
+                });
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+            }
         }
 
-        private void DeliverGroundSmash() {
-            var hitbox = GetNodeOrNull<Hitbox>("SmashHitbox");
-            if (hitbox == null) return;
+        private System.Collections.Generic.List<Hurtbox> QueryPennedHurtboxes() {
+            var results = new System.Collections.Generic.List<Hurtbox>();
+            var space = Owner?.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return results;
 
-            hitbox.Damage = SmashDamage;
-            hitbox.KnockbackForce = new Vector2(Owner.IsFacingRight ? 10f : -10f, -6f);
-            hitbox.OwnerPlayerIndex = Owner.PlayerIndex;
-            hitbox.Activate();
-            GetTree().CreateTimer(0.15f).Timeout += () => hitbox.Deactivate();
+            uint targetHurtboxLayer = Owner.PlayerIndex == 0
+                ? FTT.Core.CollisionLayers.EnemyHurtbox
+                : FTT.Core.CollisionLayers.PlayerHurtbox;
+            var query = new PhysicsShapeQueryParameters2D {
+                Shape = new RectangleShape2D { Size = Data?.HitboxSize ?? new Vector2(220f, 100f) },
+                Transform = new Transform2D(0f, _penCenter),
+                CollideWithAreas = true,
+                CollideWithBodies = false,
+                CollisionMask = targetHurtboxLayer
+            };
+            foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, MaxQueryResults)) {
+                if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
+                if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
+                results.Add(hurtbox);
+            }
+            return results;
         }
     }
 }
