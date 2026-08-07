@@ -142,7 +142,17 @@ namespace FTT.Characters {
 		/// </summary>
 		public float StoryFloatTimer { get; set; }
 		public bool IsPostRewindInvulnerable => _postRewindInvulnerabilityFrames > 0;
-		public int MaximumHP => (Data?.MaxHP ?? 100) + StoryMaxHPBonus;
+		/// <summary>
+		/// Encounter-scoped HP pool that replaces the character baseline entirely.
+		/// Set only by boss encounters that reuse a character body — the Level 13
+		/// Mirror Paradox and its 1000-HP <c>BossData</c> pool. Zero (the default)
+		/// keeps the normal <c>CharacterData</c> + Resonance baseline. This is not a
+		/// Resonance bonus and never participates in Story stat resolution.
+		/// </summary>
+		public int EncounterMaxHPOverride { get; set; }
+		public int MaximumHP => EncounterMaxHPOverride > 0
+			? EncounterMaxHPOverride
+			: (Data?.MaxHP ?? 100) + StoryMaxHPBonus;
 		public int MaximumBlockCharges => (Data?.MaxBlockCharges ?? 3) + StoryBlockChargeBonus;
 		private float EffectiveMoveSpeed => (Data?.MaxMoveSpeed ?? 8f) * StoryMoveSpeedMultiplier * StoryTemporarySpeedMultiplier;
 		private float EffectiveJumpForce => (Data?.MaxJumpForce ?? 14f) * StoryJumpForceMultiplier;

@@ -1,0 +1,330 @@
+using Godot;
+using System;
+using FTT.Characters;
+using FTT.Core;
+using FTT.Environment;
+using FTT.FighterSim;
+using xpTURN.Klotho.Deterministic.Math;
+
+namespace FTT.Enemies {
+
+    /// <summary>
+    /// Level 13 Mirror Paradox (design-godot.md Section 6): a clone of the player's
+    /// locked campaign character driven by the Hard-difficulty Fighter CPU decision
+    /// engine. It deliberately bypasses <see cref="BossController"/> entirely — there
+    /// is no <see cref="BossData.BossAbilities"/> pattern, no phase threshold, and no
+    /// telegraph/rest cadence. The clone fights with the player's own basic string,
+    /// specials, movement ability, and ultimate.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The clone is built from <b>normalized base resources only</b>:
+    /// <c>CharacterFactory.CreateCharacter(..., applyStoryProgression: false)</c>.
+    /// No Resonance stat profile and no <see cref="PlayerController.StoryAbilityPerks"/>
+    /// are copied — the mirror reflects the character, not the player's build.
+    /// </para>
+    /// <para>
+    /// Decisions come from <see cref="FighterCpuController"/> itself, driven through
+    /// the mode-neutral <see cref="CpuDecisionObservation"/>. Story state never flows
+    /// back into <c>scripts/FighterSim/</c>; the adapter below is a one-way projection
+    /// from Godot state into the shared decision table, and the quantized intents come
+    /// back as a <see cref="PlayerInputFrame"/> the clone consumes like any input device.
+    /// </para>
+    /// </remarks>
+    public partial class MirrorParadoxController : Node2D, IStoryRewindSimulation {
+        /// <summary>Scene-tree group the clone joins so level logic can tell it from the player.</summary>
+        public const string MirrorGroup = "MirrorParadox";
+
+        /// <summary>Local slot the mirror occupies; slot 1 maps to the Enemy collision layers.</summary>
+        public const int DefaultMirrorPlayerIndex = 1;
+
+        private static int _spawnCounter;
+
+        [ExportGroup("Encounter")]
+        [Export] public BossData Data;
+        /// <summary>Overrides the session's locked character; encounters leave this empty.</summary>
+        [Export] public string CharacterIDOverride = "";
+        [Export] public int MirrorPlayerIndex = DefaultMirrorPlayerIndex;
+        [Export] public Vector2 SpawnOffset;
+        [Export] public bool SpawnOnReady = true;
+        /// <summary>Non-zero pins the CPU decision stream for tests and replays.</summary>
+        [Export] public ulong DecisionSeed;
+        [Export] public StoryRewindPolicy RewindPolicy { get; set; } = StoryRewindPolicy.PreserveCurrentState;
+
+        public PlayerController Clone { get; private set; }
+        public MirrorParadoxDecisionAdapter Decisions { get; private set; }
+        public string MirroredCharacterID { get; private set; } = "";
+        public bool IsDefeated { get; private set; }
+        public bool IsStoryRewindFrozen { get; private set; }
+
+        /// <summary>Story difficulty-scaled HP pool; the canonical 1000 stays in BossData.</summary>
+        public int ScaledMaxHP { get; private set; }
+
+        public int CurrentHP => Clone != null && IsInstanceValid(Clone) ? Clone.CurrentHP : 0;
+
+        /// <summary>Single phase, always. The Mirror Paradox has no phase transitions.</summary>
+        public int PhaseCount => 1;
+
+        private bool _eventsBound;
+        private bool _spawnAnnounced;
+        private bool _inputSourceRegistered;
+        private Vector2 _spawnPosition;
+        private Vector2 _checkpointPosition;
+        private int _checkpointHP;
+        private bool _checkpointCaptured;
+
+        public override void _Ready() {
+            _spawnPosition = GlobalPosition + SpawnOffset;
+            BindEvents();
+            if (SpawnOnReady) SpawnMirror();
+        }
+
+        public override void _ExitTree() {
+            UnbindEvents();
+            ReleaseInputSource();
+        }
+
+        // === Spawn ===
+
+        /// <summary>
+        /// Builds the clone from the locked character and wires it to the Hard CPU
+        /// decision engine. Safe to call twice; the second call is a no-op.
+        /// </summary>
+        public PlayerController SpawnMirror() {
+            if (Clone != null && IsInstanceValid(Clone)) return Clone;
+
+            MirroredCharacterID = ResolveCharacterID();
+            if (string.IsNullOrWhiteSpace(MirroredCharacterID)) {
+                GD.PushWarning("Mirror Paradox has no locked character to mirror.");
+                return null;
+            }
+
+            ScaledMaxHP = StoryDifficultyTuning.ScaleEnemyHP(
+                Data?.MaxHP ?? 1000, StoryDifficultyTuning.CurrentStoryDifficulty);
+
+            // Normalized base resources only: no Resonance stats, no Story perks.
+            Clone = CharacterFactory.CreateCharacter(
+                MirroredCharacterID, MirrorPlayerIndex, applyStoryProgression: false);
+            Clone.Name = "MirrorParadox";
+            Clone.EncounterMaxHPOverride = ScaledMaxHP;
+            Clone.Position = SpawnOffset;
+            AddChild(Clone);
+
+            // The mirror is an opponent, not the campaign avatar: level flow, the
+            // Story camera, rewind, and the HUD all resolve "StoryPlayer".
+            Clone.RemoveFromGroup("StoryPlayer");
+            Clone.AddToGroup(MirrorGroup);
+
+            Decisions = new MirrorParadoxDecisionAdapter(ResolveDecisionSeed());
+            Decisions.Bind(Clone, FindCampaignPlayer());
+            InputManager.Instance?.SetInputSource(MirrorPlayerIndex, Decisions);
+            _inputSourceRegistered = InputManager.Instance != null;
+
+            AnnounceSpawn();
+            return Clone;
+        }
+
+        private string ResolveCharacterID() {
+            if (!string.IsNullOrWhiteSpace(CharacterIDOverride)) return CharacterIDOverride.Trim();
+            return GameManager.Instance?.CurrentSession.SelectedCharacterID ?? "";
+        }
+
+        private int ResolveDecisionSeed() => DecisionSeed != 0
+            ? unchecked((int)DecisionSeed)
+            : unchecked(1301_13 + System.Threading.Interlocked.Increment(ref _spawnCounter));
+
+        private PlayerController FindCampaignPlayer() {
+            if (!IsInsideTree()) return null;
+            foreach (Node node in GetTree().GetNodesInGroup("Players")) {
+                if (node is PlayerController player && player != Clone) return player;
+            }
+            return GetTree().GetFirstNodeInGroup("StoryPlayer") as PlayerController;
+        }
+
+        public override void _PhysicsProcess(double delta) {
+            if (IsDefeated || IsStoryRewindFrozen || Decisions == null) return;
+            if (Decisions.Target == null || !IsInstanceValid(Decisions.Target)) {
+                Decisions.Bind(Clone, FindCampaignPlayer());
+            }
+        }
+
+        // === Boss events ===
+
+        private void BindEvents() {
+            if (_eventsBound || EventBus.Instance == null) return;
+            _eventsBound = true;
+            EventBus.Instance.OnPlayerHPChanged += OnMirrorHPChanged;
+            EventBus.Instance.OnPlayerDied += OnMirrorDied;
+            EventBus.Instance.OnCheckpointReached += CaptureCheckpointState;
+            EventBus.Instance.OnRewindTriggered += OnRewindTriggered;
+        }
+
+        private void UnbindEvents() {
+            if (!_eventsBound) return;
+            _eventsBound = false;
+            if (EventBus.Instance == null) return;
+            EventBus.Instance.OnPlayerHPChanged -= OnMirrorHPChanged;
+            EventBus.Instance.OnPlayerDied -= OnMirrorDied;
+            EventBus.Instance.OnCheckpointReached -= CaptureCheckpointState;
+            EventBus.Instance.OnRewindTriggered -= OnRewindTriggered;
+        }
+
+        private void AnnounceSpawn() {
+            if (_spawnAnnounced) return;
+            _spawnAnnounced = true;
+            EventBus.Instance?.RaiseBossSpawned(new BossSpawnedPayload {
+                BossID = Data?.BossID ?? "mirror_paradox",
+                DisplayNameKey = Data?.DisplayNameKey ?? "",
+                CurrentHP = CurrentHP,
+                MaxHP = ScaledMaxHP,
+                Position = Clone?.GlobalPosition ?? GlobalPosition
+            });
+            RaiseHPChanged();
+        }
+
+        private void OnMirrorHPChanged(PlayerHPPayload payload) {
+            if (IsDefeated || payload.PlayerIndex != MirrorPlayerIndex) return;
+            RaiseHPChanged();
+        }
+
+        private void OnMirrorDied(int playerIndex) {
+            if (playerIndex != MirrorPlayerIndex) return;
+            Die();
+        }
+
+        private void RaiseHPChanged() {
+            EventBus.Instance?.RaiseBossHPChanged(new BossHPPayload {
+                BossID = Data?.BossID ?? "mirror_paradox",
+                CurrentHP = CurrentHP,
+                MaxHP = ScaledMaxHP
+            });
+        }
+
+        /// <summary>
+        /// Ends the encounter: the clone stops taking decisions and the shared boss
+        /// defeat event carries the authored dust drop.
+        /// </summary>
+        public void Die() {
+            if (IsDefeated) return;
+            IsDefeated = true;
+            ReleaseInputSource();
+            RaiseHPChanged();
+            EventBus.Instance?.RaiseBossDefeated(new BossDefeatedPayload {
+                BossID = Data?.BossID ?? "mirror_paradox",
+                Position = Clone != null && IsInstanceValid(Clone) ? Clone.GlobalPosition : GlobalPosition,
+                ChronalDustDrop = Data?.ChronalDustDrop ?? 50
+            });
+        }
+
+        private void ReleaseInputSource() {
+            if (!_inputSourceRegistered) return;
+            _inputSourceRegistered = false;
+            InputManager.Instance?.ClearInputSource(MirrorPlayerIndex);
+        }
+
+        // === Rewind ===
+
+        /// <summary>Freezes like an enemy: the clone stops simulating during a rewind.</summary>
+        public void SetStoryRewindFrozen(bool frozen) {
+            IsStoryRewindFrozen = frozen;
+            if (Clone == null || !IsInstanceValid(Clone)) return;
+            Clone.SetRewindSuspended(frozen);
+            Clone.SetPhysicsProcess(!frozen);
+            if (frozen) Clone.Velocity = Vector2.Zero;
+        }
+
+        public void CaptureCheckpointState(string checkpointID) {
+            if (IsDefeated || Clone == null || !IsInstanceValid(Clone)) return;
+            _checkpointPosition = Clone.GlobalPosition;
+            _checkpointHP = Clone.CurrentHP;
+            _checkpointCaptured = true;
+        }
+
+        public void ApplyStoryRewind() {
+            if (RewindPolicy == StoryRewindPolicy.PreserveCurrentState) return;
+            if (Clone == null || !IsInstanceValid(Clone)) return;
+            bool useCheckpoint = RewindPolicy == StoryRewindPolicy.RestoreCheckpointState && _checkpointCaptured;
+            Vector2 position = useCheckpoint ? _checkpointPosition : _spawnPosition;
+            int hp = useCheckpoint && _checkpointHP > 0 ? _checkpointHP : ScaledMaxHP;
+            Clone.RestoreStoryCheckpoint(position, hp, 0f);
+            Clone.Velocity = Vector2.Zero;
+            RaiseHPChanged();
+        }
+
+        private void OnRewindTriggered(Vector2 targetPosition) => ApplyStoryRewind();
+    }
+
+    /// <summary>
+    /// Story-side adapter that drives the deterministic <see cref="FighterCpuController"/>
+    /// from Godot state. It projects the clone and the campaign player into a
+    /// <see cref="CpuDecisionObservation"/>, then hands the quantized intents back to
+    /// the clone as an ordinary <see cref="PlayerInputFrame"/> through
+    /// <see cref="InputManager.SetInputSource"/>. Nothing flows the other way, so the
+    /// deterministic simulation stays free of Godot and Story dependencies.
+    /// </summary>
+    public sealed class MirrorParadoxDecisionAdapter : IPlayerInputSource {
+        /// <summary>Story world scale: <c>PlayerController</c> works in pixels, the CPU table in units.</summary>
+        public const float StoryPixelsPerUnit = 60f;
+
+        private readonly FighterCpuController _cpu;
+        private PlayerController _self;
+
+        public MirrorParadoxDecisionAdapter(int seed) {
+            // FTT.Enemies also declares a CpuDifficulty (the legacy CpuFighterAI stub),
+            // so the Fighter engine's enum has to be named explicitly here.
+            _cpu = new FighterCpuController(FTT.Core.CpuDifficulty.Hard, seed);
+        }
+
+        public PlayerController Target { get; private set; }
+
+        /// <summary>Hard-difficulty reaction window; design pins this at 4–8 frames.</summary>
+        public int ReactionDelayMinFrames => _cpu.GetReactionDelayBounds(out _);
+
+        public int ReactionDelayMaxFrames {
+            get {
+                _cpu.GetReactionDelayBounds(out int maximum);
+                return maximum;
+            }
+        }
+
+        public void Bind(PlayerController self, PlayerController target) {
+            _self = self;
+            Target = target;
+        }
+
+        public PlayerInputFrame Sample(uint tick, in PlayerInputFrame previousFrame) {
+            if (_self == null || !GodotObject.IsInstanceValid(_self)) {
+                return PlayerInputFrame.Create(tick, 0f, 0f, GameplayButtons.None, previousFrame.Held);
+            }
+            CpuDecisionObservation observation = Observe();
+            return _cpu.Sample(tick, in observation, in previousFrame);
+        }
+
+        /// <summary>Projects the current Story frame onto the shared decision observation.</summary>
+        public CpuDecisionObservation Observe() {
+            if (_self == null || !GodotObject.IsInstanceValid(_self)) return default;
+            bool targetValid = Target != null && GodotObject.IsInstanceValid(Target);
+            float selfUnits = _self.GlobalPosition.X / StoryPixelsPerUnit;
+            float targetUnits = targetValid ? Target.GlobalPosition.X / StoryPixelsPerUnit : selfUnits;
+            bool alive = _self.CurrentState != CharacterState.Dead
+                && _self.CurrentState != CharacterState.Respawning;
+
+            return new CpuDecisionObservation {
+                SelfPositionXRaw = FP64.FromFloat(selfUnits).RawValue,
+                TargetPositionXRaw = FP64.FromFloat(targetUnits).RawValue,
+                Stocks = alive ? 1 : 0,
+                HitstunFrames = _self.CurrentState == CharacterState.Stunned ? 1 : 0,
+                DazeFrames = _self.CurrentState == CharacterState.Dazed ? 1 : 0,
+                IsGrounded = _self.IsOnFloor() ? 1 : 0,
+                InfluenceRaw = FP64.FromFloat(Math.Max(0f, _self.CurrentUltimateMeter)).RawValue,
+                SpecialOneCooldownFrames = ToFrames(_self.SpecialOneCooldownTimer),
+                SpecialTwoCooldownFrames = ToFrames(_self.SpecialTwoCooldownTimer),
+                MovementCooldownFrames = ToFrames(_self.MovementAbilityCooldownTimer),
+                TargetPressedButtons = targetValid ? (int)Target.CurrentInputFrame.Pressed : 0
+            };
+        }
+
+        private static int ToFrames(float seconds) =>
+            seconds <= 0f ? 0 : Mathf.Max(1, Mathf.CeilToInt(seconds * 60f));
+    }
+}
