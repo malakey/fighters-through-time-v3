@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "enemy.chrono_guard_elite.temporal_blades"
+DisplayNameKey = "enemy_ability_temporal_blades_name"
+Archetype = 0
+RangeClass = 0
+TelegraphFrames = 20
+ActiveFrames = 12
+RecoveryFrames = 22
+CooldownSeconds = 2.6
+SelectionWeight = 1.0
+Damage = 26.0
+KnockbackForce = Vector2(3.5, -1.5)
+HitstunDuration = 0.22
+HitboxSize = Vector2(56, 48)
+HitboxOffset = Vector2(36, -30)
+AppliedStatus = 1
+StatusDuration = 2.5
+StatusIntensity = 1.5
+TelegraphTint = Color(0.2, 0.9, 0.85, 1)
+PresentationEventID = "enemy.chrono_guard_elite.temporal_blades"

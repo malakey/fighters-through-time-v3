@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "enemy.kinetic_royal_guard.kinetic_shockwave"
+DisplayNameKey = "enemy_ability_kinetic_shockwave_name"
+Archetype = 2
+RangeClass = 2
+TelegraphFrames = 28
+ActiveFrames = 8
+RecoveryFrames = 30
+CooldownSeconds = 7.5
+SelectionWeight = 1.0
+Damage = 22.0
+KnockbackForce = Vector2(6.5, -2.5)
+HitstunDuration = 0.35
+HitboxSize = Vector2(68, 46)
+HitboxOffset = Vector2(50, -30)
+ProjectileSpeed = 360.0
+ProjectileCount = 1
+ProjectileSpreadDegrees = 0.0
+ProjectileLifetime = 1.8
+ProjectileGravity = 0.0
+PiercesTargets = true
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.9, 0.3, 0.45, 1)
+PresentationEventID = "enemy.kinetic_royal_guard.kinetic_shockwave"
