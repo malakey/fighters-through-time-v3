@@ -267,16 +267,20 @@ namespace FTT.Characters.Abilities {
     }
 
     /// <summary>
-    /// Ultimate — Tidewater Tempest. Structured sketch pending the dedicated
-    /// ultimates pass (audit gap X7): a screen-wide spirit storm dealing
-    /// repeated multi-hit damage.
+    /// Ultimate — Tidewater Tempest (canonical, X7 pass): Pocahontas plants her
+    /// staff and channels a surging storm of water and wind spirits centered on
+    /// her. The storm sweeps the authored HitCount ticks (8 x 10 damage) across
+    /// the authored active window at the authored cadence via hurtbox shape
+    /// queries; the final surge throws every caught enemy outward with the
+    /// authored KnockbackForce. Phase frames, per-hit damage, hit count, tick
+    /// interval, storm footprint, and surge knockback all come from
+    /// `ultimate.tres`. The spectral wolf/eagle/deer dashes are presentation
+    /// (Package 8).
     /// </summary>
     public partial class PocahontasTidewaterTempest : BaseSpecial {
-        private const float CinematicDuration = 2.8f;
-        private const int HitCount = 8;
-        private const float DamagePerHit = 10f;
+        private const int MaxQueryResults = 16;
 
-        private float _hitTimer;
+        private int _activeFramesElapsed;
         private int _hitsDone;
         private UltimateMeter _meter;
 
@@ -290,48 +294,88 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override void OnStartup() {
-            PhaseTimer = 0.5f;
+            UseAuthoredPhaseFrames();
+            _activeFramesElapsed = 0;
             _hitsDone = 0;
-            _hitTimer = 0;
+            // The staff is planted for the whole channel.
             Owner.Velocity = Vector2.Zero;
             _meter?.Consume();
         }
 
         protected override void OnActive() {
-            PhaseTimer = CinematicDuration;
+            UseAuthoredPhaseFrames();
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = 0.4f;
+            UseAuthoredPhaseFrames();
         }
 
         public override void _PhysicsProcess(double delta) {
             if (CurrentPhase == AbilityPhase.Active) {
-                float dt = (float)delta;
-                _hitTimer += dt;
-                float hitInterval = CinematicDuration / HitCount;
-                while (_hitTimer >= hitInterval && _hitsDone < HitCount) {
-                    _hitTimer -= hitInterval;
+                Owner.Velocity = new Vector2(0f, Owner.Velocity.Y);
+                _activeFramesElapsed++;
+                int hitCount = Mathf.Max(1, Data?.HitCount ?? 1);
+                int interval = Data?.DamageTickIntervalFrames > 0
+                    ? Data.DamageTickIntervalFrames
+                    : Mathf.Max(1, (Data?.ActiveFrames ?? hitCount) / hitCount);
+                while (_hitsDone < hitCount && _activeFramesElapsed >= interval * (_hitsDone + 1)) {
                     _hitsDone++;
-                    DealSpiritHit();
+                    DealStormTick(_hitsDone >= hitCount);
                 }
             }
             base._PhysicsProcess(delta);
         }
 
-        private void DealSpiritHit() {
-            var hitbox = GetNodeOrNull<Hitbox>("StormHitbox");
-            if (hitbox == null) return;
+        /// <summary>
+        /// One storm sweep: an owner-centered hurtbox query over the authored
+        /// footprint. Intermediate ticks carry no knockback (the spirits churn
+        /// through the target); the final surge throws each caught enemy outward
+        /// from the storm center with the authored KnockbackForce.
+        /// </summary>
+        private void DealStormTick(bool finalSurge) {
+            if (Owner == null) return;
+            var space = Owner.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return;
 
-            hitbox.Damage = DamagePerHit;
-            hitbox.KnockbackForce = new Vector2(0, -5f);
-            hitbox.OwnerPlayerIndex = Owner.PlayerIndex;
-            hitbox.GlobalPosition = Owner.GlobalPosition + new Vector2(
-                (float)GD.RandRange(-80f, 80f),
-                (float)GD.RandRange(-40f, 40f)
-            );
-            hitbox.Activate();
-            GetTree().CreateTimer(0.1f).Timeout += () => hitbox.Deactivate();
+            Vector2 size = Data?.HitboxSize ?? new Vector2(480f, 300f);
+            Vector2 offset = Data?.HitboxOffset ?? Vector2.Zero;
+            if (!Owner.IsFacingRight) offset.X = -offset.X;
+            uint targetHurtboxLayer = Owner.PlayerIndex == 0
+                ? FTT.Core.CollisionLayers.EnemyHurtbox
+                : FTT.Core.CollisionLayers.PlayerHurtbox;
+            var query = new PhysicsShapeQueryParameters2D {
+                Shape = new RectangleShape2D { Size = size },
+                Transform = new Transform2D(0f, Owner.GlobalPosition + offset),
+                CollideWithAreas = true,
+                CollideWithBodies = false,
+                CollisionMask = targetHurtboxLayer
+            };
+
+            foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, MaxQueryResults)) {
+                if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
+                if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
+
+                // The surge throws outward from the storm center, mirroring the
+                // Fighter zone's hit-origin knockback resolution.
+                bool outwardIsRight = hurtbox.GlobalPosition.X >= Owner.GlobalPosition.X;
+                float dealt = hurtbox.TakeHit(new HitPayload {
+                    AttackerIndex = Owner.PlayerIndex,
+                    AttackID = Data?.AbilityID ?? "pocahontas_tidewater_tempest",
+                    HitboxID = $"storm_tick_{_hitsDone}",
+                    AttackClass = AttackClass.Ultimate,
+                    Damage = (Data?.BaseDamage ?? 10f) * Owner.StorySpecialDamageMultiplier,
+                    Knockback = finalSurge ? Data?.KnockbackForce ?? new Vector2(5f, -3f) : Vector2.Zero,
+                    HitstunDuration = Data?.HitstunDuration ?? 0.2f,
+                    HitOrigin = Owner.GlobalPosition,
+                    AttackerFacingRight = finalSurge ? outwardIsRight : Owner.IsFacingRight,
+                    AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.None,
+                    StatusDuration = Data?.StatusDuration ?? 0f,
+                    StatusIntensity = Data?.StatusIntensity ?? 1f,
+                    ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
+                    ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
+                });
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+            }
         }
     }
 }
