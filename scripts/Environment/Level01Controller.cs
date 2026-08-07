@@ -718,7 +718,8 @@ namespace FTT.Environment {
             _services?.HUD?.HideBossBar();
             _services?.HUD?.SetObjective("florence_objective_complete");
 
-            const int bossDustReward = 50;
+            // Boss dust reward is resource-authored (docs/DUST_ECONOMY.md Section 1).
+            int bossDustReward = _boss?.Data?.ChronalDustDrop ?? 50;
             _dustEarnedThisLevel += bossDustReward;
             EventBus.Instance?.RaiseChronalDustCollected(bossDustReward);
 

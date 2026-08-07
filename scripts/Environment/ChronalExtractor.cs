@@ -10,7 +10,7 @@ namespace FTT.Environment {
         [Export(PropertyHint.Range, "0,100,1")] public int HazardDamage = 20;
         [Export] public Vector2 HazardKnockback = new(420f, -260f);
         [Export(PropertyHint.Range, "0,100,1")] public float UltimateDrain = 20f;
-        [Export(PropertyHint.Range, "1,100,1")] public int DustReward = 25;
+        [Export(PropertyHint.Range, "1,100,1")] public int DustReward = 15;
 
         private Area2D _hazardArea;
         public ChronalExtractorVisualState VisualState { get; private set; }
