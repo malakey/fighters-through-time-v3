@@ -464,6 +464,8 @@ namespace FTT.FighterSim {
         /// (zone type 2) is wide and buffs the owner's movement while inside.
         /// Tesla's Lorentz Pulse is a radial burst centered on Tesla himself.
         /// Lincoln's Emancipator (zone type 31) is a wide, low forward ground wave.
+        /// Cleopatra's Sandstorm Vortex is a forward zone whose pull runs in
+        /// FighterZoneSystem.
         /// </summary>
         private static void ResolveZoneSpec(
             int zoneTypeID,
@@ -484,6 +486,12 @@ namespace FTT.FighterSim {
             }
             if (zoneTypeID == (int)FighterCharacterID.Lincoln * 10 + 1) {
                 halfExtents = new FPVector2(FP64.FromDouble(2.5), FP64.FromDouble(0.75));
+                grantsOwnerSpeedBonus = 0;
+                centersOnOwner = false;
+                return;
+            }
+            if (zoneTypeID == (int)FighterCharacterID.Cleopatra * 10 + 2) {
+                halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
                 grantsOwnerSpeedBonus = 0;
                 centersOnOwner = false;
                 return;
@@ -587,6 +595,11 @@ namespace FTT.FighterSim {
         private const int FenceDamage = 8;
         private const int FenceHitstunFrames = 8;
         private const int FenceStaticChargeFrames = 30;
+        // Cleopatra's Serpent Nest bite delivers the design's brief Root (1 s) as
+        // hitstun so the Venom status carried on the bite is not immediately
+        // replaced (single-status rule: the newest status replaces the previous).
+        private const int NestObjectTypeID = 3;
+        private const int NestBiteHitstunFrames = 60;
         private static readonly FP64 CoilLinkRangeSquared = FP64.FromInt(64);
         private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
@@ -619,7 +632,8 @@ namespace FTT.FighterSim {
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
                 FighterDamageRules.ApplyFighterHit(
                     ref owner, ref ownerRuntime, ref target, ref targetRuntime, in targetTuning,
-                    FighterDamageRules.BasicAttackClass, persistent.Damage, persistent.Knockback, 10,
+                    FighterDamageRules.BasicAttackClass, persistent.Damage, persistent.Knockback,
+                    persistent.ObjectTypeID == NestObjectTypeID ? NestBiteHitstunFrames : 10,
                     persistent.StatusType, persistent.StatusFrames, FP64.One, persistent.Position.x);
                 persistent.ActionCooldownFrames = persistent.BaseActionCooldownFrames;
                 if (persistent.RemainingAttacks > 0) persistent.RemainingAttacks--;
@@ -951,6 +965,14 @@ namespace FTT.FighterSim {
                     }
                 }
 
+                // Cleopatra's Sandstorm Vortex drags the opponent toward its
+                // center every frame: a small positional shift that never touches
+                // velocity, so the pull stays impulse-free and snapshot-safe with
+                // no extra state.
+                if (zone.ZoneTypeID == (int)FighterCharacterID.Cleopatra * 10 + 2) {
+                    ApplyVortexPull(ref frame, in zone);
+                }
+
                 if (zone.TickFramesRemaining > 0) zone.TickFramesRemaining--;
                 if (zone.TickFramesRemaining > 0) continue;
                 zone.TickFramesRemaining = zone.TickIntervalFrames;
@@ -998,6 +1020,24 @@ namespace FTT.FighterSim {
         private const int CoilArcDamage = 5;
         private const int CoilObjectTypeID = 1;
         private const int EmancipatorHitstunFrames = 18;
+
+        // 0.05 world units per frame (3 px at 60 px/unit), mirrored by the Story
+        // vortex's 180 px/s positional drag.
+        private static readonly FP64 VortexPullPerFrame = FP64.FromDouble(0.05);
+
+        private static void ApplyVortexPull(ref Frame frame, in FighterZoneComponent zone) {
+            int targetPlayerID = zone.OwnerPlayerID == 0 ? 1 : 0;
+            if (!FighterEntityQueries.TryFindFighter(ref frame, targetPlayerID, out EntityRef targetEntity)) return;
+            ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
+            if (target.Stocks <= 0 || target.InvulnerabilityFrames > 0) return;
+            if (!FighterEntityQueries.Overlaps(
+                    in zone.Position, in zone.HalfExtents,
+                    in target.Position, in FighterHalfExtents)) return;
+            FP64 dx = zone.Position.x - target.Position.x;
+            if (dx > VortexPullPerFrame) target.Position.x += VortexPullPerFrame;
+            else if (dx < -VortexPullPerFrame) target.Position.x -= VortexPullPerFrame;
+            else target.Position.x = zone.Position.x;
+        }
 
         private static int CountLiveCoils(ref Frame frame, int ownerPlayerID) {
             int count = 0;

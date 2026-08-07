@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="AbilityData" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/Combat/AbilityData.cs" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/constructs/SerpentNest.tscn" id="2"]
 
 [resource]
 script = ExtResource("1")
@@ -15,7 +16,7 @@ DescriptionKey = "ability_cleopatra_serpent_nest_description"
 BaseDamage = 10.0
 IsMultiHit = false
 HitCount = 1
-DamageTickIntervalFrames = 0
+DamageTickIntervalFrames = 120
 KnockbackForce = Vector2(2, -1)
 ProjectileSpeed = 0.0
 GrantsHyperArmor = false
@@ -27,8 +28,9 @@ RecoveryFrames = 18
 CooldownDuration = 10.0
 Lifetime = 12.0
 ProjectileLifetime = 5.0
+PersistentObjectScene = ExtResource("2")
 PersistentObjectID = "serpent_nest"
-MaxActiveObjects = 2
+MaxActiveObjects = 1
 AppliedStatus = 2
 StatusDuration = 4.0
 StatusIntensity = 1.0
