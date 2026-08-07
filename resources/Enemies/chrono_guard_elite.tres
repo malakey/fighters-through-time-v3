@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/chrono_guard_elite/temporal_blades.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/chrono_guard_elite/blink_rush.tres" id="4"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "chrono_guard_elite"
+DisplayName = "Chrono-Guard Elite"
+DisplayNameKey = "enemy_chrono_guard_elite_name"
+Tier = 1
+MaxHP = 220
+Weight = 1.8
+MoveSpeed = 4.2
+JumpForce = 8.0
+AggroRadius = 600.0
+DeAggroRadius = 900.0
+AttackRange = 2.6
+AttackDamage = 26.0
+AttackKnockback = 3.5
+AttackCooldown = 2.6
+StunResistance = 0.65
+ReactionDelayMinFrames = 12
+ReactionDelayMaxFrames = 22
+EliteAbilityCooldown = 6.5
+Behavior = 0
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+PrimaryAttack = ExtResource("3")
+AttackTelegraphFrames = 20
+AttackActiveFrames = 12
+AttackRecoveryFrames = 22
+EliteAbilities = Array[ExtResource("2")]([ExtResource("4")])
+ChronalDustDrop = 10
+ItemDropChance = 1.0
+PlaceholderTint = Color(0.15, 0.8, 0.75, 1)

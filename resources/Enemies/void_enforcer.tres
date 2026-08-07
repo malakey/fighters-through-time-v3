@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/void_enforcer/pressure_rocket.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/void_enforcer/cold_gas_vent.tres" id="4"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "void_enforcer"
+DisplayName = "Void Enforcer"
+DisplayNameKey = "enemy_void_enforcer_name"
+Tier = 1
+MaxHP = 205
+Weight = 1.8
+MoveSpeed = 3.0
+JumpForce = 6.5
+AggroRadius = 640.0
+DeAggroRadius = 940.0
+AttackRange = 8.0
+AttackDamage = 22.0
+AttackKnockback = 5.0
+AttackCooldown = 3.4
+StunResistance = 0.6
+ReactionDelayMinFrames = 16
+ReactionDelayMaxFrames = 26
+EliteAbilityCooldown = 8.0
+Behavior = 0
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+PrimaryAttack = ExtResource("3")
+AttackTelegraphFrames = 26
+AttackActiveFrames = 6
+AttackRecoveryFrames = 28
+EliteAbilities = Array[ExtResource("2")]([ExtResource("4")])
+ChronalDustDrop = 10
+ItemDropChance = 1.0
+PlaceholderTint = Color(0.25, 0.3, 0.5, 1)

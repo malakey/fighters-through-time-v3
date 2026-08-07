@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/holo_page/holo_dagger.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "holo_page"
+DisplayName = "Holo-Page"
+DisplayNameKey = "enemy_holo_page_name"
+Tier = 0
+MaxHP = 46
+Weight = 0.7
+MoveSpeed = 4.5
+JumpForce = 9.0
+AggroRadius = 500.0
+DeAggroRadius = 760.0
+AttackRange = 5.0
+AttackDamage = 9.0
+AttackKnockback = 1.5
+AttackCooldown = 2.4
+StunResistance = 0.0
+ReactionDelayMinFrames = 28
+ReactionDelayMaxFrames = 42
+EliteAbilityCooldown = 5.0
+Behavior = 0
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+PrimaryAttack = ExtResource("2")
+AttackTelegraphFrames = 22
+AttackActiveFrames = 4
+AttackRecoveryFrames = 24
+ChronalDustDrop = 1
+ItemDropChance = 1.0
+PlaceholderTint = Color(0.95, 0.9, 0.6, 1)

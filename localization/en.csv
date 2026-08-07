@@ -149,6 +149,23 @@ enemy_ability_energy_javelin_name,Repeating Energy Javelin
 enemy_ability_repulsor_charge_name,Repulsor Chariot Charge
 enemy_ability_thermal_lance_name,Thermal Lance Shot
 enemy_ability_autocannon_volley_name,Autocannon Volley
+enemy_holo_page_name,Holo-Page
+enemy_kinetic_royal_guard_name,Kinetic Royal Guard
+enemy_laser_rifle_infantry_name,Laser-Rifle Infantry
+enemy_cyber_cavalry_commander_name,Cyber-Cavalry Commander
+enemy_vacuum_digger_name,Vacuum Digger
+enemy_void_enforcer_name,Void Enforcer
+enemy_rift_phantom_name,Rift Phantom
+enemy_chrono_guard_elite_name,Chrono-Guard Elite
+enemy_ability_holo_dagger_name,Holographic Dagger
+enemy_ability_kinetic_shockwave_name,Kinetic Shockwave
+enemy_ability_beam_bolt_name,Heat-Beam Bolt
+enemy_ability_steam_horse_charge_name,Steam-Horse Charge
+enemy_ability_grav_beam_name,Grav-Beam Pull
+enemy_ability_pressure_rocket_name,Pressurized Rocket
+enemy_ability_cold_gas_vent_name,Cold Gas Vent
+enemy_ability_temporal_blades_name,Dual Temporal Blades
+enemy_ability_blink_rush_name,Blink Rush
 common_unknown,Unknown
 common_unavailable,Unavailable
 common_ready,Ready

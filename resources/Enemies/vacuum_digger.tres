@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/vacuum_digger/grav_beam.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "vacuum_digger"
+DisplayName = "Vacuum Digger"
+DisplayNameKey = "enemy_vacuum_digger_name"
+Tier = 0
+MaxHP = 50
+Weight = 1.0
+MoveSpeed = 3.8
+JumpForce = 8.5
+AggroRadius = 540.0
+DeAggroRadius = 820.0
+AttackRange = 6.0
+AttackDamage = 8.0
+AttackKnockback = 2.0
+AttackCooldown = 3.0
+StunResistance = 0.0
+ReactionDelayMinFrames = 30
+ReactionDelayMaxFrames = 44
+EliteAbilityCooldown = 5.0
+Behavior = 0
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+PrimaryAttack = ExtResource("2")
+AttackTelegraphFrames = 24
+AttackActiveFrames = 6
+AttackRecoveryFrames = 26
+ChronalDustDrop = 2
+ItemDropChance = 1.0
+PlaceholderTint = Color(0.8, 0.92, 1, 1)

@@ -456,3 +456,39 @@ Phase C (serial closeout, one agent or orchestrator):
    res://.godot/imported/*.ctex` for every SVG — and `--headless --quit` does **not** rebuild it.
    Run `--headless --path <worktree> --import` once first; the import check then exits 0. Same
    class of cold-cache artifact as the `dotnet test` timeout in CLAUDE.md.
+
+### B3 — Era enemies, Act II east + Alexandria (2026-08-07)
+
+London, Gettysburg, Lunar Landing, and Alexandria: 8 `EnemyData` + 9 `EnemyAbilityData` resources.
+
+1. **B3: `StatusIntensity` is not a slow percentage.** `TimeDilationStrategy` computes
+   `StatusMovementMultiplier = max(0.1, 1 - 0.5 * intensity)`, so intensity `1.0` is a 50% slow and
+   the design's "Chrono-Guard Elite ... slow speed by 75%" needs `StatusIntensity = 1.5`
+   (`1 - 0.5 * 1.5 = 0.25`). Authored as 1.5, not 0.75, and pinned by
+   `EnemyRosterActIIEastTests.TimeDilationCarriersApplyTheirAuthoredSlow`. The milder carriers use
+   `holo_page` 0.6 (30% slow) and `void_enforcer` 0.8 (40% slow). Section 4.1's "(0.75 intensity)"
+   parenthetical is the design's slow *percentage*, not the resource field value.
+2. **B3: `void_enforcer`'s rocket is a plain `Projectile` with heavy knockback.** Section 4.1 asks
+   for a "small AoE feel via knockback"; there is no AoE-projectile archetype, and adding one is a
+   runtime change (out of B3's scope), so the feel comes from `KnockbackForce = (7.0, -3.0)` on a
+   single non-piercing shot. The elite `AreaPulse` cold-gas vent supplies the actual radial hit.
+3. **B3: melee entries without a status omit `PrimaryAttack`.** `rift_phantom`,
+   `kinetic_royal_guard`, and `cyber_cavalry_commander` use the scalar
+   `AttackDamage`/`AttackKnockback`/`AttackTelegraphFrames`/`AttackActiveFrames`/
+   `AttackRecoveryFrames` fallback per Section 3.2. Only `chrono_guard_elite` authors an explicit
+   `MeleeStrike` primary, because its status fields have nowhere else to live.
+4. **B3: `AttackRange` on ranged entries is documentary.** `EnemyController.AttackRangePixels`
+   overrides any projectile-primary range with `max(AttackRange * 60, AggroRadius * 0.9)`, so the
+   authored `5.0`–`8.0` unit values on `holo_page`/`laser_rifle_infantry`/`vacuum_digger`/
+   `void_enforcer` record intent rather than drive behavior. This matches `tech_enforcer`'s existing
+   `8.0`; the prototype `hologram_drone`'s `1.5` is the inconsistent one. Unit reminder:
+   `AggroRadius`/`DeAggroRadius` and every ability `HitboxSize`/`HitboxOffset`/`PulseRadius` are
+   **pixels**; `AttackRange`/`MoveSpeed`/`JumpForce` are **units** (`PixelsPerUnit = 60`).
+5. **B3: elite HP floor raised to the workstream brief's 160.** Section 4.1 says elites are
+   ~140–220; the B3 assignment narrowed that to 160–220 and Alexandria sits at the top. Authored
+   195/200/205/220 with `StunResistance` 0.55–0.65 (the brief's floor is 0.4). Standards are 46/48/
+   50/54 inside the 40–60 band. All dust values conform to `docs/DUST_ECONOMY.md` unchanged
+   (standards 1–2, elites exactly 10).
+6. **B3: no manifest, pool-config, or script edits.** `resources/Content/content_manifest.csv` and
+   the per-level pool configs stay untouched for Phase C, so these eight IDs are on disk and tested
+   but not yet manifest-registered or pool-warmed.
