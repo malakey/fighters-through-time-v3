@@ -1,7 +1,6 @@
-[gd_resource type="Resource" script_class="BossData" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="BossData" load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
-[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
 
 [resource]
 script = ExtResource("1")
@@ -25,8 +24,14 @@ PhaseTransitionInvincibilityDuration = 0.0
 PhaseSpeedMultipliers = Array[float]([])
 ChronalDustDrop = 50
 AttackPattern = 0
-BossAbilities = Array[ExtResource("2")]([])
 AbilityMinPhase = Array[int]([])
+; BossAbilities is deliberately absent, leaving it null. Do NOT reintroduce it as
+; BossAbilities = Array[ExtResource("<EnemyAbilityData.cs>")]([]) -- an EMPTY typed
+; array whose element type is a C# Script corrupts the Godot 4.7.1 .NET heap when
+; the resource is marshalled to the EnemyAbilityData[] export, and the process dies
+; later at an unrelated site. Empty arrays of builtin types (the Array[float] and
+; Array[int] entries above) are safe; only Script-typed empties are fatal.
+; MirrorParadoxResourceSafetyTests guards this for every enemy/boss resource.
 InterruptibleDuringTelegraph = false
 InterruptDamageThreshold = 0.0
 PlaceholderTint = Color(0.55, 0.75, 1, 1)

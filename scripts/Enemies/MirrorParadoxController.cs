@@ -47,6 +47,12 @@ namespace FTT.Enemies {
         [Export] public int MirrorPlayerIndex = DefaultMirrorPlayerIndex;
         [Export] public Vector2 SpawnOffset;
         [Export] public bool SpawnOnReady = true;
+        /// <summary>
+        /// When false the clone spawns inert and waits for <see cref="BeginEncounter"/>.
+        /// <see cref="MirrorParadoxEncounterController"/> sets this false so the fight
+        /// starts on reveal; a level dropping the controller in bare keeps the default.
+        /// </summary>
+        [Export] public bool ActivateOnSpawn = true;
         /// <summary>Non-zero pins the CPU decision stream for tests and replays.</summary>
         [Export] public ulong DecisionSeed;
         [Export] public StoryRewindPolicy RewindPolicy { get; set; } = StoryRewindPolicy.PreserveCurrentState;
@@ -56,6 +62,9 @@ namespace FTT.Enemies {
         public string MirroredCharacterID { get; private set; } = "";
         public bool IsDefeated { get; private set; }
         public bool IsStoryRewindFrozen { get; private set; }
+
+        /// <summary>True once <see cref="BeginEncounter"/> has handed the clone to the CPU.</summary>
+        public bool IsEncounterActive { get; private set; }
 
         /// <summary>Story difficulty-scaled HP pool; the canonical 1000 stays in BossData.</summary>
         public int ScaledMaxHP { get; private set; }
@@ -82,6 +91,50 @@ namespace FTT.Enemies {
         public override void _ExitTree() {
             UnbindEvents();
             ReleaseInputSource();
+        }
+
+        /// <summary>
+        /// Stops a subtree simulating and unhooks it from the physics broadphase.
+        /// Used by <see cref="DespawnMirror"/> while the clone is still safely in the
+        /// tree; never from <c>_ExitTree</c>, where mutating physics state during
+        /// tree removal is itself unsupported.
+        /// </summary>
+        private static void MakeSubtreeInert(Node node) {
+            if (node == null || !IsInstanceValid(node)) return;
+            node.SetPhysicsProcess(false);
+            node.SetProcess(false);
+            if (node is Area2D area) {
+                area.Monitoring = false;
+                area.Monitorable = false;
+            }
+            if (node is CollisionObject2D collision) {
+                collision.CollisionLayer = 0;
+                collision.CollisionMask = 0;
+            }
+            foreach (Node child in node.GetChildren()) MakeSubtreeInert(child);
+        }
+
+        /// <summary>
+        /// Explicit safe teardown for a level that ends the encounter without
+        /// unloading the whole scene. Detaches the clone before freeing it so the
+        /// destruction never happens while the node is still inside the tree.
+        /// </summary>
+        public void DespawnMirror() {
+            ReleaseInputSource();
+            IsEncounterActive = false;
+            if (Clone == null || !IsInstanceValid(Clone)) {
+                Clone = null;
+                return;
+            }
+            MakeSubtreeInert(Clone);
+            Clone.RemoveFromGroup(MirrorGroup);
+            Clone.RemoveFromGroup("Players");
+            // Detach first, then free. Out of the tree the destruction is immediate
+            // and deterministic, with no orphan left sitting in the deletion queue.
+            RemoveChild(Clone);
+            Clone.Free();
+            Clone = null;
+            Decisions = null;
         }
 
         // === Spawn ===
@@ -117,11 +170,28 @@ namespace FTT.Enemies {
 
             Decisions = new MirrorParadoxDecisionAdapter(ResolveDecisionSeed());
             Decisions.Bind(Clone, FindCampaignPlayer());
+
+            // The clone stands inert until the encounter actually begins. Before
+            // that it must not consume input, simulate, or spawn attack VFX and
+            // pooled objects into the level (BossEncounterController has the same
+            // reveal-gated semantics).
+            Clone.SetPhysicsProcess(false);
+            AnnounceSpawn();
+            if (ActivateOnSpawn) BeginEncounter();
+            return Clone;
+        }
+
+        /// <summary>
+        /// Starts the fight: the clone begins simulating and the Hard CPU engine
+        /// takes over its input slot. Idempotent.
+        /// </summary>
+        public void BeginEncounter() {
+            if (IsEncounterActive || IsDefeated) return;
+            if (Clone == null || !IsInstanceValid(Clone)) return;
+            IsEncounterActive = true;
             InputManager.Instance?.SetInputSource(MirrorPlayerIndex, Decisions);
             _inputSourceRegistered = InputManager.Instance != null;
-
-            AnnounceSpawn();
-            return Clone;
+            Clone.SetPhysicsProcess(true);
         }
 
         private string ResolveCharacterID() {
@@ -207,7 +277,11 @@ namespace FTT.Enemies {
         public void Die() {
             if (IsDefeated) return;
             IsDefeated = true;
+            IsEncounterActive = false;
             ReleaseInputSource();
+            // A dead mirror stops simulating immediately; the corpse stays in the
+            // scene for the level's outro to dispose of.
+            if (Clone != null && IsInstanceValid(Clone)) Clone.SetPhysicsProcess(false);
             RaiseHPChanged();
             EventBus.Instance?.RaiseBossDefeated(new BossDefeatedPayload {
                 BossID = Data?.BossID ?? "mirror_paradox",
@@ -229,7 +303,9 @@ namespace FTT.Enemies {
             IsStoryRewindFrozen = frozen;
             if (Clone == null || !IsInstanceValid(Clone)) return;
             Clone.SetRewindSuspended(frozen);
-            Clone.SetPhysicsProcess(!frozen);
+            // Unfreezing restores the encounter's own activation state; it must not
+            // start an unrevealed or already-defeated mirror simulating.
+            Clone.SetPhysicsProcess(!frozen && IsEncounterActive && !IsDefeated);
             if (frozen) Clone.Velocity = Vector2.Zero;
         }
 

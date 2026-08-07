@@ -481,3 +481,60 @@ Phase C (serial closeout, one agent or orchestrator):
    `CharacterData` supplies all of that. They are authored as 0 to make "not used by this boss"
    explicit. `MeleeRangeThreshold`/`RangedRangeThreshold` are authored as 2.0/5.0 to document the
    CPU decision table's close/far world-unit thresholds.
+
+9. **B6 (fix): an empty Script-typed Godot array in `mirror_paradox.tres` was corrupting
+   the .NET heap.** After B6 merged, the full suite began truncating nondeterministically —
+   the GdUnit Godot child died silently (exit `-1073741819` / `-1073741795`) or hung, reporting a
+   partial `Total:` with everything that ran passing, and `ResourceLoader.Load` intermittently
+   returning null in unrelated content suites. Root cause: the line
+
+   ```
+   BossAbilities = Array[ExtResource("2")]([])
+   ```
+
+   where ext_resource 2 is `EnemyAbilityData.cs`. An **empty** typed array whose element type is
+   declared by a C# Script corrupts memory in Godot 4.7.1 .NET when the resource is marshalled to
+   its `EnemyAbilityData[]` export. The corruption is silent; the process dies later at an
+   unrelated allocation, which is why the crash site never pointed at the cause.
+
+   Isolation was by subtractive bisection against a harness that reproduced the crash 4/4
+   (five inert `MirrorParadoxController` create/free cycles). Constructing the controller with
+   `Data = null` was 4/4 clean; with the resource, 4/4 crash. Deleting just that one line made it
+   4/4 clean. Non-empty Script-typed arrays (`borgia_inquisitor.tres`) and empty arrays of builtin
+   types (`Array[float]([])`, `Array[int]([])`) are unaffected — both are still present in
+   `mirror_paradox.tres` and were proven safe. The fix omits the property entirely so the C# field
+   default (null) applies; `BossController.SelectAbilityIndex` and the B6 tests already treat null
+   and empty identically. A comment in the `.tres` warns against reintroducing it.
+
+   **This is a repository-wide landmine, not a B6 quirk** — any workstream authoring a boss or
+   enemy resource with no abilities could hit it. `tests/ContentValidation/ScriptTypedEmptyArrayTests.cs`
+   now scans every `.tres` under the content directories for the pattern and fails with the
+   offending file and line. It also asserts it reached more than 50 files so a broken directory
+   walk cannot pass vacuously. A repo-wide grep (`.tres` and `.tscn`) confirms no other instance
+   exists today.
+
+10. **B6 (fix): hypotheses that were tested and rejected.** Recorded so nobody re-litigates them.
+    Synchronous `Free()` of the in-tree clone hierarchy, `QueueFree()` instead, detach-then-free,
+    the eight monitoring `Area2D` children, the `InputManager` input-source registration, EventBus
+    subscription lifetime, group churn, nesting the clone under a parent, and `CharacterFactory`
+    itself were each isolated and each proved clean (3–9 runs apiece). The input source is
+    correctly released on `_ExitTree`; `CharacterFactory` survives create/free/leak cycles with no
+    crash at all.
+
+11. **B6 (fix): teardown hardening kept, but it is hygiene, not the cure.** `ActivateOnSpawn` /
+    `BeginEncounter` gating means the clone no longer simulates before the encounter is revealed
+    (matching `BossEncounterController`'s reveal semantics) and stops on defeat, so an unrevealed
+    boss cannot spray AI-driven attacks, VFX, and pooled objects into the level or the shared test
+    tree. `DespawnMirror()` gives levels an explicit teardown that makes the clone inert, drops its
+    groups, detaches it, then frees it out of tree. `MirrorParadoxEncounterController._ExitTree`
+    calls it. Tests detach before freeing. None of this changed the crash rate on its own —
+    `MakeSubtreeInert` was deliberately *not* left in `_ExitTree`, because mutating physics state
+    during tree removal is itself unsupported and it fixed nothing.
+
+12. **B6 (fix): note on the ~24-test total.** While looping the suite, one run reported
+    `Total: 24` with no crash. That is the separate, pre-existing "GdUnit could not launch Godot"
+    signature already documented in `CLAUDE.md` (only the pure-C# tests run, exit code still 0) and
+    is unrelated to this fix. Distinguish it from a corruption truncation by the runner exit code:
+    corruption gives a large partial total plus a negative exit code, a launch failure gives ~24
+    and `exit=none`.
+
