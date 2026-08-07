@@ -27,6 +27,13 @@ namespace FTT.Characters {
 	public partial class PlayerController : CharacterBody2D {
 		public const int StoryRewindInvulnerabilityFrames = 120;
 
+		/// <summary>Story-only Resonance perk key (Joan): landing the final combo cleave heals 5% of missing HP.</summary>
+		public const string ZealousVigorPerkKey = "zealous_vigor";
+		/// <summary>Story-only Resonance perk key (Joan): blocked damage builds the Ultimate Meter 25% faster.</summary>
+		public const string ShieldOfOrleansPerkKey = "shield_of_orleans";
+		private const float ZealousVigorMissingHPFraction = 0.05f;
+		private const float ShieldOfOrleansMeterMultiplier = 1.25f;
+
 		[Export] public CharacterData Data;
 		[Export] public int PlayerIndex = 0;
 		public FTT.Core.PlayerInputFrame CurrentInputFrame { get; private set; }
@@ -283,6 +290,7 @@ namespace FTT.Characters {
 			if (_ledgeDetector != null) _ledgeDetector.AreaEntered -= OnLedgeAreaEntered;
 			if (_combatAnimationPlayer != null) _combatAnimationPlayer.AnimationFinished -= OnCombatAnimationFinished;
 			if (_hurtbox != null) _hurtbox.OnHit -= OnHurtboxHit;
+			if (_meleeHitbox != null) _meleeHitbox.HitConfirmed -= OnMeleeHitConfirmed;
 			ReleaseActiveLedge();
 			if (_dropThroughPlatform != null && IsInstanceValid(_dropThroughPlatform)) {
 				RemoveCollisionExceptionWith(_dropThroughPlatform);
@@ -301,6 +309,13 @@ namespace FTT.Characters {
 			_pushbox = GetNodeOrNull<FTT.Combat.CombatantPushbox>("Pushbox");
 			_meleeHitbox = GetNodeOrNull<FTT.Combat.Hitbox>("MeleeHitbox");
 			_meleeHitVisual = GetNodeOrNull<ColorRect>("MeleeHitVisual");
+
+			if (_meleeHitbox != null) {
+				// Guard against double subscription: InitializeCombatNodes can run
+				// again after CharacterFactory adds combat children.
+				_meleeHitbox.HitConfirmed -= OnMeleeHitConfirmed;
+				_meleeHitbox.HitConfirmed += OnMeleeHitConfirmed;
+			}
 
 			if (_hurtbox != null) {
 				_hurtbox.OnHit += OnHurtboxHit;
@@ -322,6 +337,15 @@ namespace FTT.Characters {
 			if (CurrentState == CharacterState.Blocking && _blockSystem != null) {
 				FTT.Combat.BlockResult blockResult = _blockSystem.ResolveHit(hit);
 				if (blockResult != FTT.Combat.BlockResult.NotBlocked) {
+					// Shield of Orleans (Story-only, Joan): damage absorbed while
+					// blocking still builds the Ultimate Meter, 25% faster than the
+					// standard damage-taken rate.
+					if (HasStoryPerk(ShieldOfOrleansPerkKey)) {
+						_ultimateMeter?.AddFlat(Mathf.Max(0f, hit.Damage)
+							* FTT.Combat.UltimateMeter.PointsPerDamageTaken
+							* ShieldOfOrleansMeterMultiplier);
+						CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
+					}
 					FTT.Core.CameraShake.Instance?.Shake(3f, 0.08f);
 					return 0f;
 				}
@@ -364,6 +388,18 @@ namespace FTT.Characters {
 
 		private void SpawnDamageNumber(int damage, Vector2 position) {
 			FTT.UI.FloatingDamageNumber.Show(damage, position + new Vector2(-10, -30), GetParent());
+		}
+
+		/// <summary>
+		/// Zealous Vigor (Story-only, Joan): landing the final cleave of the basic
+		/// three-hit string heals 5% of missing HP.
+		/// </summary>
+		private void OnMeleeHitConfirmed(FTT.Combat.HitPayload payload, float damageApplied) {
+			if (damageApplied <= 0f || !HasStoryPerk(ZealousVigorPerkKey)) return;
+			if (payload.HitboxID != "combo_3") return;
+			int missingHP = MaximumHP - CurrentHP;
+			int heal = (int)MathF.Round(missingHP * ZealousVigorMissingHPFraction);
+			if (heal > 0) HealStory(heal);
 		}
 
 		public override void _PhysicsProcess(double delta) {

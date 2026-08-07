@@ -34,16 +34,18 @@ Status legend per slot:
 
 Perks: Event Horizon (+20% E=mc2 burst damage vs TimeDilation-afflicted targets; the enemy-projectile-slow clause is deferred until zones interact with projectiles), Critical Mass (E=mc2 burst applies RadiantBurn 3 s), Quantum Entanglement (teleport backward on block break, replaces the shove). Wired Story-only 2026-08-06 via `PlayerController.HasStoryPerk`.
 
-### Joan (`joan`)
+### Joan (`joan`) - converted 2026-08-06
 
-| Slot | Canonical design | Current state | Status |
+| Slot | Canonical design | Pre-conversion state | Status |
 |---|---|---|---|
-| S1 Righteous Smite | 14 dmg ground shockwave, RadiantBurn 3 s | Story: placeholder projectile w/ status. Fighter: generic. | sketch |
-| S2 Divine Piercing | 12 total rapid thrusts, depletes 2 block charges | Story: bespoke melee + block depletion. Fighter: generic special. | story-canonical |
-| Move Ascendant Wings | Rising leap, hold for 3 s glide | Story: bespoke leap+glide. Fighter: crude. | story-canonical (X5) |
-| Ult Grand Crusade | Directional cavalry multi-hit | Sketch both modes. | sketch |
+| S1 Righteous Smite | 14 dmg ground shockwave, RadiantBurn 3 s | Story: placeholder projectile w/ status. Fighter: generic. | canonical (Story: ground-hugging placeholder projectile reading damage/speed/status/authored frames from `special_1.tres`; Fighter: deterministic Projectile execution carrying RadiantBurn 180 frames from the loadout; RadiantBurn's +25% damage-taken amplification already lives in `FighterDamageRules.ApplyFighterHit`) |
+| S2 Divine Piercing | 12 total rapid thrusts, depletes 2 block charges | Story: bespoke melee + block depletion. Fighter: generic special. | canonical (Story: HitCount thrusts spread across the authored active frames via hurtbox shape queries, 3 x 4 = 12 total, blocked casts shred exactly 2 charges once via `BlockSystem.DepleteCharges`; Fighter: melee-execution multi-hit totals baked by `FighterLoadoutFactory`, and a Joan identity rule in `FighterCombatSystem` passes a 2-charge block cost through `ApplyFighterHit`'s additive `blockChargeCost` override instead of the special-class full shatter. The Fighter total resolves as one deterministic 12-damage application, not four discrete thrusts) |
+| Move Ascendant Wings | Rising leap, hold for 3 s glide | Story: bespoke leap+glide. Fighter: crude. | canonical (Story: leap speed/glide duration/cooldown/frames from `movement.tres` MovementAbilityData; Fighter: Glide MovementType now grants `FloatFrames` sized from `MovementDurationFrames` (180) after the upward boost. Fighter approximation: the float window is not hold-gated — releasing Jump does not end it early) |
+| Ult Grand Crusade | Directional cavalry multi-hit | Sketch both modes. | sketch (see X7) |
 
-Perks: Unstoppable Crusade (hyper-armor on Smite active + 1.5 s), Zealous Vigor (final cleave heals 5% missing HP), Shield of Orleans (blocked damage builds meter 25% faster). Not wired.
+Perks: Unstoppable Crusade (Story hyper-armor timer through Smite's active frames + 1.5 s after casting; damage still applies, knockback/hitstun ignored except vs ultimates), Zealous Vigor (final `combo_3` cleave heals 5% of missing HP via the melee `HitConfirmed` hook — applies to the aerial string's third hit as well, as both share the final-hit identity), Shield of Orleans (blocked damage grants Ultimate Meter at the damage-taken rate x1.25 in the block path). All three wired Story-only 2026-08-06 through `HasStoryPerk`; Fighter loadouts untouched.
+
+Note: design gives no shockwave travel speed/range; the authored 250 px/s and 5 s projectile lifetime carry over from the prior resource. The Story leap speed was moved from a hardcoded 420 px/s constant into `movement.tres` `MovementSpeed`.
 
 ### Leonardo (`leonardo`) - converted 2026-08-06
 
@@ -143,7 +145,7 @@ Einstein is the pattern-setting slice (complete). Tesla is the construct-pattern
 2. ~~Leonardo~~ (complete 2026-08-06: turret construct, spiral zone, glide float closing X5 for glides)
 3. ~~Cleopatra~~ (complete: nest construct, vortex pull zone in both modes, three perks)
 4. Pocahontas (snare construct, glide rules)
-5. Joan (melee/hyper-armor perks)
+5. ~~Joan~~ (complete: shockwave projectile, 2-charge shield shred, data-driven glide, hyper-armor/heal/block-meter perks)
 6. ~~Lincoln~~ (complete 2026-08-06: impulse-carrying Emancipator zone, armored charge, shield-shatter rules, 3 perks)
 7. Shakespeare (skull projectile, tempest zone, block perk)
 8. ~~Mozart~~ (complete 2026-08-06: SonataPlatform one-way construct, Requiem burst + Fortissimo wave projectiles, projectile-immunity perks; Fighter walkable platform explicitly deferred)

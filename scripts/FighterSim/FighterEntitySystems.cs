@@ -65,7 +65,8 @@ namespace FTT.FighterSim {
             int statusFrames,
             FP64 statusIntensity,
             FP64 hitOriginX,
-            bool creditInfluence = true) {
+            bool creditInfluence = true,
+            int blockChargeCost = 0) {
             if (target.InvulnerabilityFrames > 0 || target.Stocks <= 0) return false;
 
             if (targetRuntime.AegisHits > 0) {
@@ -84,7 +85,12 @@ namespace FTT.FighterSim {
                 ? hitOriginX >= target.Position.x
                 : hitOriginX <= target.Position.x;
             if (targetBlocking && hitInFront && attackClass != UltimateAttackClass && target.BlockCharges > 0) {
-                int cost = attackClass == SpecialAttackClass ? target.BlockCharges : 1;
+                // blockChargeCost > 0 overrides the class default (shield-shredding
+                // specials like Joan's Divine Piercing deplete exactly 2 charges
+                // instead of the special-class full shatter).
+                int cost = blockChargeCost > 0
+                    ? blockChargeCost
+                    : attackClass == SpecialAttackClass ? target.BlockCharges : 1;
                 target.BlockCharges -= cost;
                 if (target.BlockCharges <= 0) {
                     target.BlockCharges = 0;
@@ -533,11 +539,12 @@ namespace FTT.FighterSim {
             if (modes.MovementType == 1 || modes.MovementType == 5) {
                 fighter.Velocity.y = speed / FP64.FromInt(2);
                 fighter.IsGrounded = 0;
-                // Glide (MovementType 1, e.g. Leonardo's Ornithopter Flight): the
-                // boost cancels into a reduced-gravity float for the authored
-                // duration (design: up to 3 s = 180 frames). FloatFrames is already
-                // a snapshotted FighterRuntimeComponent field, so this stays
-                // rollback-safe.
+                // Glide (MovementType 1: Leonardo's Ornithopter, Joan's Ascendant
+                // Wings, Shakespeare's Prospero's Flight, Pocahontas's Breeze
+                // Glide): the boost cancels into a reduced-gravity float for the
+                // authored duration (design: up to 3 s = 180 frames). FloatFrames
+                // is already a snapshotted FighterRuntimeComponent field, so this
+                // stays rollback-safe.
                 if (modes.MovementType == 1) {
                     runtime.FloatFrames = modes.MovementDurationFrames > 0 ? modes.MovementDurationFrames : 180;
                 }

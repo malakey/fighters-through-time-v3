@@ -93,16 +93,19 @@ namespace FTT.FighterSim {
         private static int RoundDamage(float damage) => Math.Max(0, (int)MathF.Round(damage, MidpointRounding.AwayFromZero));
 
         /// <summary>
-        /// Deterministic projectiles land as one hit, so a multi-hit projectile
-        /// special folds its per-hit damage x hit count total into that single hit
-        /// (Mozart's Requiem Chord burst). Other execution types keep per-hit
-        /// damage because their systems apply each hit/tick themselves.
+        /// Multi-hit specials whose systems land a single deterministic
+        /// application fold per-hit damage x hit count into that one hit:
+        /// projectiles (Mozart's Requiem Chord burst) and melee flurries (Joan's
+        /// Divine Piercing). Area and persistent executions keep per-hit damage
+        /// because their systems apply each tick/attack themselves.
         /// </summary>
         private static float SpecialDamage(AbilityData ability) {
             if (ability == null) return 0f;
-            bool foldsMultiHitTotal = ability.ExecutionType == AbilityExecutionType.Projectile && ability.IsMultiHit;
+            bool foldsMultiHitTotal = ability.IsMultiHit
+                && ability.ExecutionType is AbilityExecutionType.Projectile or AbilityExecutionType.Melee;
             return foldsMultiHitTotal ? ability.BaseDamage * Math.Max(1, ability.HitCount) : ability.BaseDamage;
         }
+
         private static int DurationFrames(float seconds) => Math.Max(0, (int)MathF.Round(seconds * FighterSimulation.TickRate, MidpointRounding.AwayFromZero));
         private static int CooldownFrames(AbilityData ability) => Math.Max(1, DurationFrames(ability?.CooldownDuration ?? 0f));
 
