@@ -1,0 +1,47 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/Characters/Abilities/SonataPlatformNode.cs" id="1_platform"]
+[ext_resource type="Script" path="res://scripts/Environment/EnvironmentHurtboxAdapter.cs" id="2_hurtbox"]
+[ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="3_marker"]
+[ext_resource type="Resource" path="res://resources/Contracts/persistent_construct_contract.tres" id="4_contract"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/graybox_tile.svg" id="5_visual"]
+[ext_resource type="Script" path="res://scripts/Environment/OneWayPlatform.cs" id="6_oneway"]
+
+[sub_resource type="RectangleShape2D" id="Collision"]
+size = Vector2(200, 12)
+
+[node name="SonataPlatform" type="Node2D" groups=["persistent_construct"]]
+script = ExtResource("1_platform")
+
+[node name="Visual" type="Sprite2D" parent="."]
+texture = ExtResource("5_visual")
+scale = Vector2(3.34, 0.2)
+modulate = Color(0.85, 0.72, 0.35, 0.9)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Collision")
+
+[node name="Body" type="StaticBody2D" parent="."]
+script = ExtResource("6_oneway")
+collision_layer = 128
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Body"]
+shape = SubResource("Collision")
+one_way_collision = true
+
+[node name="Hurtbox" type="Area2D" parent="." groups=["construct_hurtbox"]]
+script = ExtResource("2_hurtbox")
+collision_layer = 512
+collision_mask = 12
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+shape = SubResource("Collision")
+
+[node name="ActionOrigin" type="Marker2D" parent="."]
+position = Vector2(0, -6)
+
+[node name="ContentContract" type="Node" parent="."]
+script = ExtResource("3_marker")
+ContentID = "sonata_platform"
+Contract = ExtResource("4_contract")

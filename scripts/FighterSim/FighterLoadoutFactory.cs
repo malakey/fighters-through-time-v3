@@ -26,8 +26,8 @@ namespace FTT.FighterSim {
                 Math.Max(0, data.MaxBlockCharges),
                 Math.Max(1, data.MaxJumpCount),
                 RoundDamage(data.BasicAttackDamage),
-                RoundDamage(specialOne?.BaseDamage ?? 0f),
-                RoundDamage(specialTwo?.BaseDamage ?? 0f),
+                RoundDamage(SpecialDamage(specialOne)),
+                RoundDamage(SpecialDamage(specialTwo)),
                 RoundDamage(ultimate?.BaseDamage ?? 0f),
                 CooldownFrames(specialOne),
                 CooldownFrames(specialTwo),
@@ -91,6 +91,18 @@ namespace FTT.FighterSim {
         }
 
         private static int RoundDamage(float damage) => Math.Max(0, (int)MathF.Round(damage, MidpointRounding.AwayFromZero));
+
+        /// <summary>
+        /// Deterministic projectiles land as one hit, so a multi-hit projectile
+        /// special folds its per-hit damage x hit count total into that single hit
+        /// (Mozart's Requiem Chord burst). Other execution types keep per-hit
+        /// damage because their systems apply each hit/tick themselves.
+        /// </summary>
+        private static float SpecialDamage(AbilityData ability) {
+            if (ability == null) return 0f;
+            bool foldsMultiHitTotal = ability.ExecutionType == AbilityExecutionType.Projectile && ability.IsMultiHit;
+            return foldsMultiHitTotal ? ability.BaseDamage * Math.Max(1, ability.HitCount) : ability.BaseDamage;
+        }
         private static int DurationFrames(float seconds) => Math.Max(0, (int)MathF.Round(seconds * FighterSimulation.TickRate, MidpointRounding.AwayFromZero));
         private static int CooldownFrames(AbilityData ability) => Math.Max(1, DurationFrames(ability?.CooldownDuration ?? 0f));
 

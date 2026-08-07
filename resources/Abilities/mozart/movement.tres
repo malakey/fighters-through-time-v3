@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="MovementAbilityData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="MovementAbilityData" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/Combat/MovementAbilityData.cs" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/constructs/SonataPlatform.tscn" id="2"]
 
 [resource]
 script = ExtResource("1")
@@ -27,6 +28,7 @@ RecoveryFrames = 18
 CooldownDuration = 5.0
 Lifetime = 3.0
 ProjectileLifetime = 5.0
+PersistentObjectScene = ExtResource("2")
 PersistentObjectID = "sonata_platform"
 MaxActiveObjects = 1
 AppliedStatus = 0

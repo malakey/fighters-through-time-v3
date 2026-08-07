@@ -4,17 +4,43 @@ using FTT.Characters;
 
 namespace FTT.Characters.Abilities {
 
+    /// <summary>
+    /// Special 1 — Requiem Chord: a projectile chord of musical notes that bursts
+    /// into a multi-hit sonic shockwave on impact. The contact note deals one
+    /// per-hit tick; the burst then delivers the authored multi-hit total
+    /// (BaseDamage x HitCount) as staged expanding pulses, mirroring the
+    /// EinsteinEmc2Blast detonation pattern. Timing/damage come from the authored
+    /// AbilityData. Story-only Resonance perks: Requiem Crescendo (a secondary,
+    /// wider shockwave at 50% of the burst total) and Rest Shield (standing
+    /// still or blocking for 1.5 s grants a bubble that absorbs incoming
+    /// physical projectiles, implemented as the Story projectile-immunity flag).
+    /// </summary>
     public partial class MozartRequiemChord : BaseSpecial {
-        private const float StartupDuration = 0.25f;
-        private const float ActiveDuration = 0.1f;
-        private const float RecoveryDuration = 0.3f;
+
+        public const string RequiemCrescendoPerkKey = "requiem_crescendo";
+        public const string RestShieldPerkKey = "rest_shield";
+
+        private const float BasePulseRadius = 90f;
+        private const float PulseRadiusGrowth = 30f;
+        private const int PulseIntervalFrames = 6;
+        private const float CrescendoRadiusMultiplier = 1.5f;
+        private const float CrescendoDamageShare = 0.5f;
+        private const float RestShieldChargeSeconds = 1.5f;
+        private const float PerkRefreshSeconds = 0.1f;
+
+        private Vector2 _burstPosition;
+        private int _pulsesRemaining;
+        private int _pulseIndex;
+        private int _pulseCountdownFrames;
+        private bool _crescendoPending;
+        private float _restShieldTimer;
 
         protected override void OnStartup() {
-            PhaseTimer = StartupDuration;
+            UseAuthoredPhaseFrames();
         }
 
         protected override void OnActive() {
-            PhaseTimer = ActiveDuration;
+            UseAuthoredPhaseFrames();
             LaunchChord();
             Owner.SpecialOneCooldownTimer = Data?.CooldownDuration ?? 10f;
             FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
@@ -25,119 +51,151 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = RecoveryDuration;
+            UseAuthoredPhaseFrames();
         }
 
         private void LaunchChord() {
-            if (Data?.ProjectileScene == null && Owner != null) {
-                SpawnPlaceholderProjectile(
-                    Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 45f : -45f, -5f),
-                    Data?.ProjectileSpeed ?? 280f, Owner.IsFacingRight, new Color(0.6f, 0.4f, 0.8f),
-                    new Vector2(22, 16));
-                return;
-            }
             if (Owner == null) return;
-
-            var chord = FTT.Core.PoolManager.Instance?.Spawn(
-                Data.ProjectileScene,
-                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 45f : -45f, -5f)
-            );
-
-            if (chord is MozartRequiemChordProjectile projectile) {
-                projectile.Initialize(
-                    Data.BaseDamage,
-                    Data.KnockbackForce,
-                    Data.IsMultiHit ? Data.HitCount : 3,
-                    Data.ProjectileSpeed,
-                    Owner.IsFacingRight,
-                    Owner.PlayerIndex
-                );
-            }
-        }
-    }
-
-    public partial class MozartRequiemChordProjectile : FTT.Core.PooledNode, FTT.Core.IPoolable {
-        private float _damage;
-        private Vector2 _knockback;
-        private int _hitCount;
-        private bool _movingRight;
-        private int _ownerIndex;
-        private float _speed;
-        private float _lifetime = 3f;
-        private Hitbox _hitbox;
-        private bool _hasImpacted;
-
-        public void Initialize(float damage, Vector2 knockback, int hitCount,
-            float speed, bool facingRight, int ownerIndex) {
-            _damage = damage;
-            _knockback = knockback;
-            _hitCount = hitCount;
-            _movingRight = facingRight;
-            _ownerIndex = ownerIndex;
-            _speed = speed * 60f;
-            _lifetime = 3f;
-            _hasImpacted = false;
-
-            _hitbox = GetNodeOrNull<Hitbox>("Hitbox");
-            if (_hitbox != null) {
-                _hitbox.Damage = _damage;
-                _hitbox.KnockbackForce = _knockback;
-                _hitbox.OwnerPlayerIndex = _ownerIndex;
-                _hitbox.Activate();
+            float contactDamage = Mathf.Round(Data?.BaseDamage ?? 4f);
+            var chord = SpawnPlaceholderProjectile(
+                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 45f : -45f, -5f),
+                Data?.ProjectileSpeed ?? 280f, Owner.IsFacingRight, new Color(0.6f, 0.4f, 0.8f),
+                new Vector2(22, 16), Data?.ProjectileLifetime ?? 5f, contactDamage);
+            if (chord != null) {
+                chord.DetonateOnImpact = true;
+                chord.Impacted += OnChordImpacted;
             }
         }
 
-        public void OnSpawn() { }
-        public void OnDespawn() => _hitbox?.Deactivate();
+        private void OnChordImpacted(Vector2 impactPosition) {
+            // Area signals fire while the physics space is locked; defer the burst
+            // setup one step so the first pulse's shape cast is legal.
+            CallDeferred(nameof(BeginBurst), impactPosition);
+        }
+
+        private void BeginBurst(Vector2 impactPosition) {
+            if (Owner == null || !IsInstanceValid(Owner)) return;
+            _burstPosition = impactPosition;
+            _pulsesRemaining = Data?.IsMultiHit == true ? Mathf.Max(1, Data.HitCount) : 1;
+            _pulseIndex = 0;
+            _pulseCountdownFrames = 0;
+            _crescendoPending = Owner.HasStoryPerk(RequiemCrescendoPerkKey);
+        }
 
         public override void _PhysicsProcess(double delta) {
-            float dt = (float)delta;
-            _lifetime -= dt;
-            if (_lifetime <= 0) {
-                ReturnToPool();
+            base._PhysicsProcess(delta);
+            UpdateShockwavePulses();
+            UpdateRestShield((float)delta);
+        }
+
+        private void UpdateShockwavePulses() {
+            if (_pulsesRemaining <= 0 && !_crescendoPending) return;
+            if (_pulseCountdownFrames > 0) {
+                _pulseCountdownFrames--;
                 return;
             }
 
-            if (!_hasImpacted) {
-                var pos = GlobalPosition;
-                pos.X += (_movingRight ? _speed : -_speed) * dt;
-                GlobalPosition = pos;
+            if (_pulsesRemaining > 0) {
+                float radius = BasePulseRadius + _pulseIndex * PulseRadiusGrowth;
+                EmitShockwavePulse(radius, Data?.BaseDamage ?? 4f, "shockwave");
+                _pulseIndex++;
+                _pulsesRemaining--;
+                _pulseCountdownFrames = PulseIntervalFrames;
+                return;
+            }
+
+            // Requiem Crescendo (Story-only): the chord detonates a second time
+            // with a wider shockwave dealing 50% of the burst total.
+            float finalRadius = BasePulseRadius + Mathf.Max(0, _pulseIndex - 1) * PulseRadiusGrowth;
+            float burstTotal = (Data?.BaseDamage ?? 4f)
+                * (Data?.IsMultiHit == true ? Mathf.Max(1, Data.HitCount) : 1);
+            EmitShockwavePulse(
+                finalRadius * CrescendoRadiusMultiplier,
+                Mathf.Round(burstTotal * CrescendoDamageShare),
+                "crescendo");
+            _crescendoPending = false;
+        }
+
+        private void EmitShockwavePulse(float radius, float damage, string hitboxID) {
+            if (Owner == null || !IsInstanceValid(Owner)) return;
+
+            // Pulse flash visual only; damage is applied through the shape query.
+            SpawnPlaceholderZone(_burstPosition, 0f, 0.15f, 1f, new Color(0.75f, 0.55f, 0.95f), radius);
+
+            var space = Owner.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return;
+            uint targetHurtboxLayer = Owner.PlayerIndex == 0
+                ? FTT.Core.CollisionLayers.EnemyHurtbox
+                : FTT.Core.CollisionLayers.PlayerHurtbox;
+            var query = new PhysicsShapeQueryParameters2D {
+                Shape = new CircleShape2D { Radius = radius },
+                Transform = new Transform2D(0f, _burstPosition),
+                CollideWithAreas = true,
+                CollideWithBodies = false,
+                CollisionMask = targetHurtboxLayer
+            };
+
+            foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
+                if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
+                if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
+
+                float dealt = hurtbox.TakeHit(new HitPayload {
+                    AttackerIndex = Owner.PlayerIndex,
+                    AttackID = Data?.AbilityID ?? "mozart_requiem_chord",
+                    HitboxID = hitboxID,
+                    AttackClass = AttackClass.Special,
+                    Damage = damage * Owner.StorySpecialDamageMultiplier,
+                    Knockback = Data?.KnockbackForce ?? new Vector2(3, -2),
+                    HitstunDuration = Data?.HitstunDuration ?? 0.2f,
+                    HitOrigin = _burstPosition,
+                    AttackerFacingRight = Owner.IsFacingRight,
+                    AppliedStatus = FTT.Core.StatusType.None,
+                    StatusDuration = 0f,
+                    StatusIntensity = 1f,
+                    ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
+                    ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
+                });
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
             }
         }
 
-        public void TriggerShockwave() {
-            if (_hasImpacted) return;
-            _hasImpacted = true;
-
-            for (int i = 0; i < _hitCount; i++) {
-                float delay = i * 0.12f;
-                GetTree().CreateTimer(delay).Timeout += () => {
-                    var shockbox = GetNodeOrNull<Hitbox>("ShockwaveHitbox");
-                    if (shockbox == null) return;
-                    shockbox.Damage = _damage * 0.6f;
-                    shockbox.KnockbackForce = _knockback;
-                    shockbox.OwnerPlayerIndex = _ownerIndex;
-                    shockbox.Activate();
-                    GetTree().CreateTimer(0.08f).Timeout += () => shockbox.Deactivate();
-                };
+        /// <summary>
+        /// Rest Shield (Story-only): standing still or blocking for 1.5 s wraps
+        /// Mozart in a silent bubble that absorbs incoming physical projectiles.
+        /// The bubble is the Story projectile-immunity flag, refreshed each frame
+        /// while the rest continues; moving drops the bubble and resets the charge.
+        /// </summary>
+        private void UpdateRestShield(float dt) {
+            if (Owner == null || !Owner.HasStoryPerk(RestShieldPerkKey)) return;
+            bool resting = (Owner.CurrentState == CharacterState.Idle
+                    || Owner.CurrentState == CharacterState.Blocking
+                    || Owner.CurrentState == CharacterState.Crouching)
+                && Owner.Velocity.Length() < 1f;
+            if (!resting) {
+                _restShieldTimer = 0f;
+                return;
             }
-
-            GetTree().CreateTimer(_hitCount * 0.12f + 0.1f).Timeout += ReturnToPool;
+            _restShieldTimer += dt;
+            if (_restShieldTimer >= RestShieldChargeSeconds) {
+                Owner.GrantStoryProjectileImmunity(PerkRefreshSeconds);
+            }
         }
     }
 
+    /// <summary>
+    /// Special 2 — Fortissimo Wave: a massive wave of sound energy that sweeps
+    /// forward across the screen, dealing the authored 12 damage and pushing
+    /// enemies back with heavy knockback. The wave is a tall piercing projectile
+    /// whose long authored lifetime lets it cross the full arena.
+    /// </summary>
     public partial class MozartFortissimoWave : BaseSpecial {
-        private const float StartupDuration = 0.2f;
-        private const float ActiveDuration = 0.25f;
-        private const float RecoveryDuration = 0.35f;
-        private const float WaveDamage = 12f;
 
         protected override void OnStartup() {
-            PhaseTimer = StartupDuration;
+            UseAuthoredPhaseFrames();
         }
 
         protected override void OnActive() {
-            PhaseTimer = ActiveDuration;
+            UseAuthoredPhaseFrames();
             EmitWave();
             Owner.SpecialTwoCooldownTimer = Data?.CooldownDuration ?? 10f;
             FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
@@ -148,139 +206,132 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = RecoveryDuration;
+            UseAuthoredPhaseFrames();
         }
 
         private void EmitWave() {
-            if (Data?.ProjectileScene == null && Owner != null) {
-                SpawnPlaceholderProjectile(
-                    Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 50f : -50f, 0f),
-                    Data?.ProjectileSpeed ?? 250f, Owner.IsFacingRight, new Color(0.8f, 0.6f, 0.9f),
-                    new Vector2(28, 20));
-                return;
-            }
             if (Owner == null) return;
-
-            var wave = FTT.Core.PoolManager.Instance?.Spawn(
-                Data.ProjectileScene,
-                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 50f : -50f, 0f)
-            );
-
-            if (wave is MozartFortissimoWaveNode node) {
-                node.Initialize(
-                    WaveDamage,
-                    Data.KnockbackForce,
-                    Owner.IsFacingRight,
-                    Owner.PlayerIndex
-                );
-            }
+            float damage = Mathf.Round((Data?.BaseDamage ?? 12f) * Owner.StorySpecialDamageMultiplier);
+            SpawnPlaceholderProjectile(
+                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 50f : -50f, -40f),
+                Data?.ProjectileSpeed ?? 250f, Owner.IsFacingRight, new Color(0.8f, 0.6f, 0.9f),
+                new Vector2(30, 110), Data?.ProjectileLifetime ?? 6f, damage);
         }
     }
 
-    public partial class MozartFortissimoWaveNode : FTT.Core.PooledNode, FTT.Core.IPoolable {
-        private float _damage;
-        private Vector2 _knockback;
-        private bool _movingRight;
-        private int _ownerIndex;
-        private float _speed = 200f;
-        private float _lifetime = 0.8f;
-        private Hitbox _hitbox;
-
-        public void Initialize(float damage, Vector2 knockback, bool facingRight, int ownerIndex) {
-            _damage = damage;
-            _knockback = knockback;
-            _movingRight = facingRight;
-            _ownerIndex = ownerIndex;
-            _lifetime = 0.8f;
-
-            _hitbox = GetNodeOrNull<Hitbox>("Hitbox");
-            if (_hitbox != null) {
-                _hitbox.Damage = _damage;
-                _hitbox.KnockbackForce = _knockback;
-                _hitbox.OwnerPlayerIndex = _ownerIndex;
-                _hitbox.Activate();
-            }
-        }
-
-        public void OnSpawn() { }
-        public void OnDespawn() => _hitbox?.Deactivate();
-
-        public override void _PhysicsProcess(double delta) {
-            float dt = (float)delta;
-            _lifetime -= dt;
-            if (_lifetime <= 0) {
-                ReturnToPool();
-                return;
-            }
-
-            var pos = GlobalPosition;
-            pos.X += (_movingRight ? _speed : -_speed) * dt;
-            GlobalPosition = pos;
-        }
-    }
-
+    /// <summary>
+    /// Movement — Sonata Drift: deploys a floating musical staff platform under
+    /// Mozart's feet that he can run on to recover or escape. Usable in the air;
+    /// the authored construct persists for the design's strict 3-second limit.
+    /// Story-only Resonance perk Virtuoso Dash grants +20% move speed and
+    /// complete immunity to ranged projectiles while he stands on a staff.
+    /// </summary>
     public partial class MozartSonataDrift : BaseSpecial {
-        private const float StartupDuration = 0.15f;
-        private const float ActiveDuration = 0.1f;
-        private const float RecoveryDuration = 0.15f;
-        private const float CooldownTime = 5.0f;
-        private const float PlatformDuration = 3.0f;
+
+        public const string VirtuosoDashPerkKey = "virtuoso_dash";
+
+        private const float PlatformDropPixels = 10f;
+        private const float VirtuosoSpeedMultiplier = 1.2f;
+        private const float PerkRefreshSeconds = 0.1f;
 
         protected override void OnStartup() {
-            PhaseTimer = StartupDuration;
+            UseAuthoredPhaseFrames();
         }
 
         protected override void OnActive() {
-            PhaseTimer = ActiveDuration;
+            UseAuthoredPhaseFrames();
             DeployPlatform();
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = RecoveryDuration;
-            Owner.MovementAbilityCooldownTimer = CooldownTime;
+            UseAuthoredPhaseFrames();
+            float cooldown = Data?.CooldownDuration ?? 5f;
+            Owner.MovementAbilityCooldownTimer = cooldown;
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
-                AbilityName = "Sonata Drift",
+                AbilityName = Data?.AbilityName ?? "Sonata Drift",
                 StartPosition = Owner.GlobalPosition,
                 EndPosition = Owner.GlobalPosition
             });
             FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 Slot = FTT.Core.AbilitySlot.MovementAbility,
-                Duration = CooldownTime
+                Duration = cooldown
             });
         }
 
         private void DeployPlatform() {
-            if (Data?.ProjectileScene == null || Owner == null) return;
-
-            var platform = FTT.Core.PoolManager.Instance?.Spawn(
-                Data.ProjectileScene,
-                Owner.GlobalPosition + new Vector2(0, 40f)
-            );
-
-            if (platform is MozartSonataPlatform node) {
-                node.Initialize(PlatformDuration);
+            if (Owner == null) return;
+            if (Data?.PersistentObjectScene == null) {
+                GD.PushWarning("Sonata Drift has no PersistentObjectScene authored; deploy skipped.");
+                return;
             }
+
+            int maxActive = Data.MaxActiveObjects > 0 ? Data.MaxActiveObjects : 1;
+            while (CountActivePlatforms() >= maxActive) {
+                SonataPlatformNode oldest = FindOldestPlatform();
+                if (oldest == null) break;
+                Owner.ActivePersistentObjects.Remove(oldest);
+                oldest.ReturnToPool();
+            }
+
+            Node spawned = FTT.Core.PoolManager.Instance?.Spawn(
+                Data.PersistentObjectScene,
+                Owner.GlobalPosition + new Vector2(0f, PlatformDropPixels),
+                Owner.GetParent());
+            if (spawned is not SonataPlatformNode platform) return;
+
+            platform.Initialize(Data, Owner);
+            Owner.ActivePersistentObjects.Add(platform);
         }
-    }
 
-    public partial class MozartSonataPlatform : FTT.Core.PooledNode, FTT.Core.IPoolable {
-        private float _lifetime;
-
-        public void Initialize(float duration) {
-            _lifetime = duration;
+        private int CountActivePlatforms() {
+            int count = 0;
+            foreach (Node2D node in Owner.ActivePersistentObjects) {
+                if (node is SonataPlatformNode platform && IsInstanceValid(platform)) count++;
+            }
+            return count;
         }
 
-        public void OnSpawn() { }
-        public void OnDespawn() { }
+        private SonataPlatformNode FindOldestPlatform() {
+            foreach (Node2D node in Owner.ActivePersistentObjects) {
+                if (node is SonataPlatformNode platform && IsInstanceValid(platform)) return platform;
+            }
+            return null;
+        }
 
         public override void _PhysicsProcess(double delta) {
-            _lifetime -= (float)delta;
-            if (_lifetime <= 0) ReturnToPool();
+            base._PhysicsProcess(delta);
+            UpdateVirtuosoDash();
+        }
+
+        /// <summary>
+        /// Virtuoso Dash (Story-only): while Mozart stands on one of his staff
+        /// platforms he gains a 20% speed boost (via the shared temporary
+        /// speed-buff mechanism, refreshed each frame) and complete immunity to
+        /// ranged projectiles (the Story projectile-immunity flag).
+        /// </summary>
+        private void UpdateVirtuosoDash() {
+            if (Owner == null || !Owner.HasStoryPerk(VirtuosoDashPerkKey)) return;
+            if (!IsStandingOnStaffPlatform()) return;
+            Owner.ApplyStorySpeedBuff(VirtuosoSpeedMultiplier, PerkRefreshSeconds);
+            Owner.GrantStoryProjectileImmunity(PerkRefreshSeconds);
+        }
+
+        private bool IsStandingOnStaffPlatform() {
+            foreach (Node2D node in Owner.ActivePersistentObjects) {
+                if (node is SonataPlatformNode platform && IsInstanceValid(platform)
+                    && platform.IsStandingOn(Owner)) return true;
+            }
+            return false;
         }
     }
 
+    /// <summary>
+    /// Ultimate — Symphony of Sorrow. Structured sketch pending the dedicated
+    /// ultimates pass (audit gap X7): Mozart hovers and conducts a downpour of
+    /// glowing piano keys that rain like meteors.
+    /// </summary>
     public partial class MozartSymphonyOfSorrow : BaseSpecial {
         private const float CinematicDuration = 3.0f;
         private const int MeteorCount = 10;
