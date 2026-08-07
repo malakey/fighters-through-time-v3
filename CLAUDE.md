@@ -19,7 +19,7 @@ Both Godot executables live one directory above the repository, in `D:\Projects\
 
 `D:\Projects\GodotSharp\` must stay next to the executables — it is the .NET API assembly directory that ships with the Godot Mono build, and Godot resolves it relative to the binary, not the project.
 
-### Failure signature: a silently partial test run
+### Failure signature 1: a silently partial test run (Godot never launched)
 
 If `GodotSharp\` goes missing or the Godot binary is moved away from it, every Godot launch aborts with:
 
@@ -31,6 +31,44 @@ CrashHandlerException: Program crashed with signal 11
 
 The dangerous part is what `dotnet test` does next: GdUnit4 logs `Rebuilding Godot Project ends with exit code: -1073741819`, silently skips every engine-dependent test, runs only the ~20 pure-C# ones, and **still exits 0 reporting `Passed!`**. Always read the `Total:` count against the baseline below — a green exit code alone is not evidence the suite ran.
 
+Tell: the total collapses to roughly **24** and the runner exit is `none`. Everything that ran passed, because only the pure-C# tests ran.
+
+### Failure signature 2: a large partial total plus a negative exit code (native crash)
+
+A *different* truncation looks like a real run that stopped partway: a **large** partial `Total:` (say 250 of 417), 0 failures among what ran, and a **negative runner exit code** — `-1073741819` (`0xC0000005`, access violation) or `-1073741795` (`0xC000001D`, illegal instruction). The GdUnit Godot child died or hung mid-suite. Unrelated suites may also start seeing `ResourceLoader.Load` return null.
+
+This is memory corruption, not a flaky test. Found in Package 4 B6: an **empty** Script-typed Godot array in a resource (`Prop = Array[ExtResource("N")]([])` where `N` is a `.cs` script) corrupts the .NET heap when marshalled to its C# array export, and the process then dies at an unrelated allocation, so the crash site never points at the cause. `tests/ContentValidation/ScriptTypedEmptyArrayTests.cs` guards that specific pattern; see `docs/PACKAGE4_ROSTER_PLAN.md` §8 B6 for the isolation method (subtractive bisection against a repro harness) if a new corruption class appears. Never shrug this signature off as a flake — re-running may mask it, because the truncation point is nondeterministic.
+
+| Signature | `Total:` | Exit code | Meaning |
+|---|---|---|---|
+| 1 | ~24 | `none` (0) | GdUnit could not launch Godot; only pure-C# tests ran |
+| 2 | large partial | negative (`-1073741819` / `-1073741795`) | Native crash / heap corruption mid-suite |
+| Cold cache | partial, 1 spurious failure | timeout abort | Import timeout artifact; see below |
+
+### Failure signature 3: a headless scene smoke run exits -1073741819 at shutdown
+
+**Known open issue as of 2026-08-07 (Package 4 close).** `Level_01_Florence.tscn` and `HubWorld.tscn`
+run to completion with no script errors and then die on the way out:
+
+```text
+0xC0000005
+   at Godot.NativeInterop.NativeFuncs.godotsharp_array_destroy(...)
+   at Godot.Collections.Array.Dispose(Boolean)
+   at Godot.Collections.Array.Finalize()
+   at System.GC.RunFinalizers()
+```
+
+Unlike signature 2 this is a **teardown race, not data corruption**. A `Godot.Collections.Array` reaches
+the .NET finalizer after Godot's native side has been torn down. The suite is unaffected (417/417 green),
+`--headless --quit` import is clean, and `MainMenu`/`TestArena`/`Level_00_Tutorial` smoke runs are clean.
+Evidence and the bisect are in `docs/PACKAGE4_ROSTER_PLAN.md` §8 C1 item 11. Two things to know when you hit it:
+
+- It is environment- and timing-sensitive, not content-dependent. The identical commit with the identical
+  `.godot` cache and identical binaries is 0/20 in a git worktree at another path, and `DOTNET_gcServer=1`
+  makes it 0/3 in the failing directory. Do not go hunting for a bad resource.
+- It is **not** the empty-Script-typed-array bug. Check the stack: signature 2 truncates a test run
+  mid-flight, this one fires only after the scene has finished and produces no script diagnostics at all.
+
 ## Verified commands
 
 Build (verified: succeeds with 1 pre-existing vendored warning — `CS8632` in `addons/gdunit4/src/dotnet/GdUnit4CSharpApi.cs`, not caused by your change. The old `CS9057` analyzer-version warning disappeared with the move to SDK 10):
@@ -39,7 +77,7 @@ Build (verified: succeeds with 1 pre-existing vendored warning — `CS8632` in `
 dotnet build FightersThroughTime.csproj --nologo
 ```
 
-Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-07 on `net10.0`: **352 passed, 0 failed, Total 352** in a few seconds after a warm build. Read the `Total:` count in the summary, not just the exit code — see the failure signature above:
+Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-07 on `net10.0` (Package 4 close): **417 passed, 0 failed, Total 417** across three consecutive runs, in about 12 seconds after a warm build. Read the `Total:` count in the summary, not just the exit code — see the two failure signatures above:
 
 ```bash
 dotnet test FightersThroughTime.csproj --settings .runsettings
@@ -94,6 +132,8 @@ Useful scene targets: `res://scenes/menus/MainMenu.tscn` (main scene), `res://sc
 | `IMPLEMENTATION_STATUS.md` (root) | Long-form implemented-vs-designed gap analysis. |
 | `docs/IMPLEMENTATION_STATUS.md` | Concise milestone execution ledger. Different document from the root file despite the shared name — both are current, neither supersedes the other. |
 | `docs/PACKAGE3_KIT_AUDIT.md` | The 36-slot character-kit audit and conversion order. |
+| `docs/PACKAGE4_ROSTER_PLAN.md` | The enemy/boss roster plan: archetype system, per-era roster IDs, boss kits, and the per-workstream deviation log. |
+| `docs/DUST_ECONOMY.md` | The Chronal Dust reward/cost model. Locked by `tests/ContentValidation/DustEconomyTests.cs`. |
 | `docs/architecture/000*.md` | Accepted ADRs. Supersede rather than silently rewrite one. |
 | `docs/BUILDING.md`, `docs/PERFORMANCE_BASELINE.md` | Build/validation procedure and the Package 0 performance baseline. |
 | `resources/**/*.tres` | Canonical runtime tuning. Numbers in code or docs never override a resource. |
@@ -127,4 +167,5 @@ If a document and a `.tres` resource disagree, the resource wins. If two documen
 | Story level or hub content | `design-godot.md` Sections 2–3, 6–10 → `scripts/Environment/` → `scenes/campaign/` |
 | Saves | `docs/architecture/0004-*.md` → `scripts/Core/SaveManager*` |
 | UI / dialogue | `scenes/ui/`, `scripts/UI/`, `resources/Dialogue/`, `localization/en.csv` |
+| Enemy or boss content | `docs/PACKAGE4_ROSTER_PLAN.md` → `resources/Enemies/`, `resources/Bosses/` → `scripts/Enemies/` → `resources/Content/content_manifest.csv` + `localization/en.csv` |
 | Collision changes | `project.godot` layer names + `CollisionLayers` constants + scene masks + tests, all together |

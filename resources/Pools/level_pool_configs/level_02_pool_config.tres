@@ -1,0 +1,105 @@
+[gd_resource type="Resource" script_class="ScenePoolConfig" load_steps=24 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/ScenePoolConfig.cs" id="1_config"]
+[ext_resource type="Script" path="res://scripts/Core/PoolDefinition.cs" id="2_definition"]
+[ext_resource type="PackedScene" path="res://scenes/templates/StoryProjectileTemplate.tscn" id="3_projectile"]
+[ext_resource type="PackedScene" path="res://scenes/templates/PooledVfxTemplate.tscn" id="4_combat_vfx"]
+[ext_resource type="PackedScene" path="res://scenes/templates/EnvironmentalVfxTemplate.tscn" id="5_environment_vfx"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/StandardEnemy.tscn" id="6_enemy"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/EliteEnemy.tscn" id="7_elite"]
+[ext_resource type="PackedScene" path="res://scenes/ui/FloatingDamageNumber.tscn" id="8_damage"]
+[ext_resource type="PackedScene" path="res://scenes/templates/PersistentConstructTemplate.tscn" id="9_construct"]
+[ext_resource type="PackedScene" path="res://scenes/templates/StoryZoneTemplate.tscn" id="10_zone"]
+[ext_resource type="PackedScene" path="res://scenes/templates/ChronalDustPickupTemplate.tscn" id="11_dust"]
+[ext_resource type="PackedScene" path="res://scenes/templates/StoryItemPickupTemplate.tscn" id="12_item"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/EnemyProjectile.tscn" id="13_enemy_projectile"]
+
+[sub_resource type="Resource" id="Projectile"]
+script = ExtResource("2_definition")
+PoolID = "story_projectile"
+SceneTemplate = ExtResource("3_projectile")
+WarmUpCount = 20
+MaxCapacity = 50
+
+[sub_resource type="Resource" id="Zone"]
+script = ExtResource("2_definition")
+PoolID = "story_zone"
+SceneTemplate = ExtResource("10_zone")
+WarmUpCount = 10
+MaxCapacity = 24
+
+[sub_resource type="Resource" id="CombatVfx"]
+script = ExtResource("2_definition")
+PoolID = "combat_vfx"
+SceneTemplate = ExtResource("4_combat_vfx")
+WarmUpCount = 30
+MaxCapacity = 100
+OverflowPolicy = 1
+
+[sub_resource type="Resource" id="EnvironmentVfx"]
+script = ExtResource("2_definition")
+PoolID = "environment_vfx"
+SceneTemplate = ExtResource("5_environment_vfx")
+WarmUpCount = 24
+MaxCapacity = 80
+OverflowPolicy = 1
+
+[sub_resource type="Resource" id="Enemy"]
+script = ExtResource("2_definition")
+PoolID = "standard_enemy"
+SceneTemplate = ExtResource("6_enemy")
+WarmUpCount = 10
+MaxCapacity = 40
+OverflowPolicy = 1
+
+[sub_resource type="Resource" id="EliteEnemy"]
+script = ExtResource("2_definition")
+PoolID = "elite_enemy"
+SceneTemplate = ExtResource("7_elite")
+WarmUpCount = 3
+MaxCapacity = 16
+OverflowPolicy = 1
+
+[sub_resource type="Resource" id="EnemyProjectile"]
+script = ExtResource("2_definition")
+PoolID = "enemy_projectile"
+SceneTemplate = ExtResource("13_enemy_projectile")
+WarmUpCount = 18
+MaxCapacity = 40
+OverflowPolicy = 1
+
+[sub_resource type="Resource" id="Dust"]
+script = ExtResource("2_definition")
+PoolID = "chronal_dust"
+SceneTemplate = ExtResource("11_dust")
+WarmUpCount = 14
+MaxCapacity = 50
+OverflowPolicy = 2
+
+[sub_resource type="Resource" id="Item"]
+script = ExtResource("2_definition")
+PoolID = "story_item"
+SceneTemplate = ExtResource("12_item")
+WarmUpCount = 10
+MaxCapacity = 30
+OverflowPolicy = 2
+
+[sub_resource type="Resource" id="Damage"]
+script = ExtResource("2_definition")
+PoolID = "damage_numbers"
+SceneTemplate = ExtResource("8_damage")
+WarmUpCount = 36
+MaxCapacity = 100
+
+[sub_resource type="Resource" id="Construct"]
+script = ExtResource("2_definition")
+PoolID = "persistent_construct"
+SceneTemplate = ExtResource("9_construct")
+WarmUpCount = 10
+MaxCapacity = 24
+
+[resource]
+script = ExtResource("1_config")
+ConfigID = "level_02_orleans_pools"
+MaxWarmUpInstances = 220
+PoolDefinitions = Array[ExtResource("2_definition")]([SubResource("Projectile"), SubResource("Zone"), SubResource("CombatVfx"), SubResource("EnvironmentVfx"), SubResource("Enemy"), SubResource("EliteEnemy"), SubResource("EnemyProjectile"), SubResource("Dust"), SubResource("Item"), SubResource("Damage"), SubResource("Construct")])

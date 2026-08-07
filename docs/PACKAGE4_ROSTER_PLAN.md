@@ -1,6 +1,16 @@
 # Package 4 — Complete enemy and boss roster: implementation plan
 
-Status: authored 2026-08-07. This is the working plan for `IMPLEMENTATION_PLAN.md` Package 4. It is the
+Status: authored 2026-08-07. **Package 4 completed 2026-08-07** — Phase A1, Phase B1–B6, and the
+Phase C1 closeout all landed on `main`. All 27 enemy and 15 boss resources are authored,
+manifest-registered as `Implemented/ReadyForReplacement/Valid`, localized, pooled, and covered by
+tests; per-level warm-up configs exist for levels 2–15. Final gate: 417 passing tests across three
+consecutive full runs, clean headless import, clean TestArena/Tutorial/MainMenu smoke runs, and Florence
+running with no script errors — but the Florence and Hub smoke runs fault at .NET shutdown
+(`-1073741819`), a pre-existing teardown race that Package 4's content volume pushed over its threshold.
+It is diagnosed but deliberately **not fixed** in §8 C1 item 10; that is the one open item. Read §8 before
+changing anything here: several deliberate deviations from this plan are load-bearing.
+
+This is the working plan for `IMPLEMENTATION_PLAN.md` Package 4. It is the
 shared reference for the parallel implementation passes; agents implementing a workstream follow the
 contracts here and record deviations in this file's "Deviations" section at the bottom.
 
@@ -706,4 +716,135 @@ London, Gettysburg, Lunar Landing, and Alexandria: 8 `EnemyData` + 9 `EnemyAbili
     is unrelated to this fix. Distinguish it from a corruption truncation by the runner exit code:
     corruption gives a large partial total plus a negative exit code, a launch failure gives ~24
     and `exit=none`.
+
+### C1 — Closeout: manifest, pool configs, roster sweep, docs (2026-08-07)
+
+Serial closeout in the main tree. No `scripts/` and no gameplay-runtime changes: the deliverables are
+content registration, pool configuration, tests, and documentation.
+
+1. **C1: the four deferred cross-references all resolved clean.** B4 §2 and B5 §4 could only assert
+   summon ID *strings* because the summoned enemies lived in other worktrees. With everything merged,
+   `revolutionary_tribunal → chrono_rioter` / `plasma_sabre_captain`, `tragedy_king → holo_page`,
+   `archive_prime → hologram_drone`, and `apex_eraser → chrono_slasher` all resolve to existing
+   resources whose internal `EnemyID` matches. `EnemyRosterContentTests.EverySummonAbilityNamesAnEnemyResourceThatExists`
+   now enforces this repo-wide (and pins the count at exactly 5 summon abilities, so a new one cannot
+   be added without being validated). It also rejects summoning a `Tier == Boss` enemy, which would
+   have no pool and no controller.
+2. **C1: no manifest row needed correcting.** All 27 enemy and 15 boss resources already existed with
+   internal IDs matching their filenames and manifest IDs, dust conforming to
+   `docs/DUST_ECONOMY.md`, and every `DisplayNameKey` present in `localization/en.csv`. The closeout
+   was a pure state flip: 23 Enemy rows and 15 Boss rows changed to
+   `Implemented,ReadyForReplacement,Valid` (4 enemy rows were already there from A1). Counts are
+   unchanged at Enemy 27 / Boss 15 / Template 14, and `mirror_paradox` keeps
+   `OwnerSystem = FighterCpuController`.
+3. **C1: the localization audit checks the compiled table, not just the CSV.** The per-workstream
+   suites assert `DisplayNameKey ∈ en.csv`. That is necessary but not sufficient: `Node.Tr()` reads
+   `localization/en.en.translation`, and a CSV edit that was never re-imported would show raw keys at
+   runtime. `EveryRosterDisplayNameKeyIsAuthoredAndResolvesInEnglish` asserts both — CSV membership
+   *and* `TranslationServer.Translate(key) != key` — across all 118 roster resources.
+   `EnglishTranslationTableHasNoDuplicateKeys` covers the other direction (a duplicate silently
+   shadows one entry after import). Both were green on first run.
+4. **C1: per-level pool configs live in `resources/Pools/level_pool_configs/`** as
+   `level_{02..15}_pool_config.tres`, matching the plan's §3.6 path. Each warms the same eleven pools
+   as `florence_pool_config.tres` with a per-level enemy/projectile/dust profile and a fixed
+   remainder (`story_projectile` 20, `story_zone` 10, `combat_vfx` 30, `environment_vfx` 24,
+   `story_item` 10, `damage_numbers` 36, `persistent_construct` 10 = 140). `MaxWarmUpInstances` is
+   220 on every level; authored totals run 177–210.
+
+   | Level | standard | elite | enemy_projectile | chronal_dust | total |
+   |---|---|---|---|---|---|
+   | 02 Orléans | 10 | 3 | 18 | 14 | 185 |
+   | 03 Chicago | 10 | 3 | 24 | 14 | 191 |
+   | 04 Paris | 12 | 3 | 16 | 16 | 187 |
+   | 05 Titanic | 14 | 4 | 20 | 18 | 196 |
+   | 06 Pompeii | 12 | 3 | 20 | 16 | 191 |
+   | 07 Nassau | 12 | 4 | 26 | 16 | 198 |
+   | 08 Egypt | 12 | 3 | 20 | 16 | 191 |
+   | 09 Berlin | 14 | 4 | 26 | 18 | 202 |
+   | 10 London | 12 | 3 | 20 | 16 | 191 |
+   | 11 Gettysburg | 14 | 4 | 28 | 18 | 204 |
+   | 12 Lunar | 16 | 5 | 22 | 20 | 203 |
+   | 13 Chronal Void | 10 | 3 | 12 | 12 | 177 |
+   | 14 Neo-Earth | 18 | 5 | 24 | 20 | 207 |
+   | 15 Alexandria | 18 | 6 | 26 | 20 | 210 |
+
+   Worst case is level 15 at 24 warm combatants (cap 30) and level 11 at 28 warm enemy projectiles
+   (cap 40). Projectile counts track how ranged the era's roster and boss kit actually are, not the
+   level's enemy total.
+5. **C1: warm-up counts are concurrency budgets, not level totals.** `standard_enemy` and
+   `elite_enemy` are single shared scene pools; the `EnemyData` is assigned per spawn. Roster breadth
+   per era therefore does not affect pool sizing at all — only how many bodies can be alive at once
+   does. The per-level numbers are anchored on the `docs/DUST_ECONOMY.md` §2 placeholder encounter
+   counts with headroom for boss summons (levels 4, 10, 14, 15 each carry a `SummonMinions` boss).
+   Levels whose dust model lists zero elites still warm 3, because every era in §4.1 has an authored
+   elite and Package 5 will place them.
+6. **C1: no `ScenePoolCatalog` entries were added**, as instructed — the catalog maps scene paths to
+   configs, and `scenes/campaign/Level_0{2..9}*.tscn` etc. do not exist until Package 5.
+   `ScenePoolConfigTests` therefore loads the level configs by path rather than through the catalog.
+   Package 5 must add the catalog rows when it authors each scene.
+7. **C1: the repo-wide sweep deliberately avoids re-asserting per-subset tuning.**
+   `EnemyRosterContentTests` makes no HP/damage/tint/archetype-choice assertions — those belong to
+   `EnemyRosterActI/ActIIWest/ActIIEast` and `BossRosterActI/ActIIandIII`. It asserts only what no
+   single workstream could: manifest↔resource agreement in both directions (including a "resource on
+   disk but not in the manifest" check), cross-workstream summon references, repo-wide dust tier
+   conformance, translation coverage, and both distance bands on every scripted boss. Every walk
+   guards against a vacuous pass with a minimum-count assertion.
+8. **C1: `ScenePoolConfigTests` was extended rather than forked.** Two new cases
+   (`EveryCampaignLevelPoolConfigIsAuthoredValidAndUniquelyIdentified`,
+   `WorstCaseLevelEncounterStaysInsideThePerformanceBudget`) sit next to the existing three-config
+   case, so all pool budget validation stays in one file.
+9. **C1: ten new tests, 407 → 417.** Eight in `EnemyRosterContentTests`, two in
+   `ScenePoolConfigTests`. No existing test needed changing, and no runtime code was touched.
+10. **C1 (open issue): the Florence and Hub headless smoke runs exit `-1073741819` at .NET shutdown.**
+    Found by the Phase C validation gate and **not fixed** — it is a runtime-code problem and C1's runtime
+    was frozen. Recorded here in full so the next agent does not repeat the four-hour bisect.
+
+    Symptom: `--headless --path <repo> res://scenes/campaign/Level_01_Florence.tscn --quit-after N` runs
+    the scene with **zero** script errors, then dies:
+
+    ```text
+    0xC0000005
+       at Godot.NativeInterop.NativeFuncs.godotsharp_array_destroy(godot_array ByRef)
+       at Godot.Collections.Array.Dispose(Boolean)
+       at Godot.Collections.Array.Finalize()
+       at System.GC.RunFinalizers()
+    ```
+
+    Rates in the repository checkout at the Package 4 close commit: `Level_01_Florence` 10/10,
+    `HubWorld` 4/5, `MainMenu` 0/5, `TestArena` 0/5, `Level_00_Tutorial` 0/5. Frame count is irrelevant
+    (`--quit-after 1` fails the same way). `--headless --quit` import is clean and the 417-test suite is
+    green across three consecutive runs, so this affects only direct scene smoke runs.
+
+    **It is a teardown race, not corruption, and not a bad resource.** Evidence:
+    - `--verbose` logs from a crashing run and a clean run were compared: the set of loaded `res://`
+      resources is **byte-identical**, and both reach the same last line before diverging. The clean run
+      then prints `Unloading: Disposing tracked instances...`; the crashing one faults there.
+    - A `git worktree` of the *same commit*, given a copy of the same `.godot` cache and the same built
+      assemblies (identical `bin/Debug` listing, `.deps.json`, and `runtimeconfig.json`), is **0/20** on
+      Florence while the repository checkout is 10/10. Directory contents differ only by C1's own 16 new
+      files, and the crash reproduces with those stashed.
+    - `DOTNET_gcServer=1` takes the failing directory to **0/3**; `DOTNET_gcConcurrent=0` leaves it at 2/3.
+      The fault therefore depends on GC/finalizer scheduling.
+
+    **Bisect (run in the repository checkout — worktrees never reproduce it, so bisecting in one is
+    worthless):** `4f2e3b3` (Package 3 close) 0/5, `836d5c7` (Package 4 A1) 0/4, `71c8d9d` (B2 tip) 0/4,
+    `8ad3549` (B3 tip) 0/4, **`3d09e4b` (the B2+B3 merge) 4/4**, and every commit after it 4/4. Both
+    parents of the first failing commit are clean, so no single resource or code change is responsible —
+    the merged *volume* of content (roster resources plus a larger compiled translation table) pushed a
+    pre-existing race over its threshold.
+
+    **Most likely mechanism, unverified:** `foreach (Node n in GetTree().GetNodesInGroup(...))` allocates a
+    `Godot.Collections.Array<Node>` per call that is never disposed, so it lands on the finalizer queue.
+    `scripts/Combat/CombatantPushbox.cs` (lines 34 and 76) does this every physics frame per pushbox, and
+    `ChronalRewindManager`/`EnemyController`/`BossController` each add more. A large finalizer backlog at
+    process exit is exactly what produces this stack. The fix direction is deterministic disposal
+    (`using`) or caching at those call sites — a Package 2/3 runtime change, out of C1's scope.
+
+    Documented as failure signature 3 in `CLAUDE.md` and as a known gap in `AGENTS.md`.
+
+11. **C1: stale ledger numbers were corrected in passing.** `docs/IMPLEMENTATION_STATUS.md` still
+    claimed a 132-test validation record and `AGENTS.md`/`CLAUDE.md` were at 352 (B6's number); all
+    are now 417. `CLAUDE.md` also gained the second failure signature B6 identified — a large partial
+    `Total:` with a negative runner exit code is a native crash/corruption class, distinct from the
+    ~24-total "Godot never launched" case — as a labelled section plus a three-row comparison table.
 

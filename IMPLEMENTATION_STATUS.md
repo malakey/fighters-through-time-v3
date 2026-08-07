@@ -4,6 +4,8 @@ Last audited: 2026-08-05 against `design-godot.md` and the current codebase.
 
 P0 remediation update: Packages 0 and 1 in `IMPLEMENTATION_PLAN.md` are implemented and verified. Shared content contracts, the placeholder pipeline, combat/movement edges, the puzzle/environment toolkit, Story pools/drops, and rewind/timeline-collapse contracts now exist; production content and final presentation remain later packages.
 
+Package 4 update (2026-08-07): Section 4 below is superseded for the enemy and boss roster. All 27 `EnemyData` and 15 `BossData` resources are authored, manifest-registered, localized, pooled, and covered by tests; `EnemyController`, `BossController`, `EnemyAbilityExecutor`, `BossEncounterController`, and `MirrorParadoxController` are implemented. What remains for those systems is production art/animation (Package 8), placement inside campaign levels 2-15 (Package 5), and cinematic boss presentation (Package 8).
+
 This document provides a detailed comparison of what has been implemented versus what is documented in the design specification. It covers every major system, feature, and content area.
 
 ---
@@ -21,7 +23,7 @@ This document provides a detailed comparison of what has been implemented versus
 | Online Networking | ~20-25% |
 | Narrative & Dialogue | ~5-10% |
 | Puzzles & Environmental Interaction | ~55-60% (shared toolkit complete; campaign authoring remains) |
-| Enemy/Boss Roster | ~15-20% |
+| Enemy/Boss Roster | ~85-90% (all 27 enemies and 15 bosses authored and wired; production art, level placement, and cinematic boss presentation remain) |
 
 ---
 
@@ -81,14 +83,15 @@ This document provides a detailed comparison of what has been implemented versus
 
 | Feature | Design Spec | Implementation Status |
 |---------|-------------|----------------------|
-| 26+ enemy types | 2 standard + 2 elite per era × 10+ eras | **Partially implemented** - 5 enemy data resources exist (`chrono_slasher`, `tech_enforcer`, `cyber_guard`, `steam_automaton`, `hologram_drone`) |
-| Era-specific altered mobs | Unique enemies per historical period (Cyber-Guard, Laser Archer, Voltaic Shock Drone, etc.) | **Not implemented** - Only generic future cultist mobs exist |
-| Enemy AI states | Patrol → Chase → Attack → Stunned → Dead with reaction delays | **Partially implemented** - `EnemyController` exists with basic state machine |
-| Elite mob abilities | Secondary abilities with cooldowns and stun resistance | **Not implemented** |
-| 15 boss encounters | Multi-phase bosses with attack patterns, weighted random selection, phase transitions | **Partially implemented** - 1 boss data resource (`borgia_inquisitor.tres`); `BossController` script exists but only 1 boss is authored |
-| Boss attack animations/phases | Scripted phase transitions, telegraphed attacks, invincibility windows | **Not implemented** |
-| Mirror Paradox boss (Level 13) | Uses CPU Fighter AI instead of standard boss logic | **Not implemented** |
-| Distance-based attack selection | Melee vs ranged ability filtering by player distance | **Not implemented** for bosses beyond basic scaffolding |
+| 26+ enemy types | 2 standard + 2 elite per era × 10+ eras | **Implemented** (Package 4, 2026-08-07) - 27 `EnemyData` resources with unique IDs, distinct placeholder tints, and manifest rows; production art/animation remain |
+| Era-specific altered mobs | Unique enemies per historical period (Cyber-Guard, Laser Archer, Voltaic Shock Drone, etc.) | **Implemented** - Every era in the plan's Section 4.1 mapping has an authored standard and elite; Titanic and Act III reuse the cultist roster by design |
+| Enemy AI states | Patrol → Chase → Attack → Stunned → Dead with reaction delays | **Implemented** - `EnemyController` runs the full state set with seeded, difficulty-scaled reaction delays, telegraph windows, flying and wall-phasing behavior, frontal damage reduction, a death animation window, and checkpoint/rewind capture |
+| Elite mob abilities | Secondary abilities with cooldowns and stun resistance | **Implemented** - `EnemyData.EliteAbilities : EnemyAbilityData[]` cycles standard ↔ elite against `EliteAbilityCooldown`; every elite carries `StunResistance > 0` |
+| 15 boss encounters | Multi-phase bosses with attack patterns, weighted random selection, phase transitions | **Implemented** - 14 scripted `BossData` kits (49 abilities) plus Mirror Paradox; seeded weighted/distance selection, `AbilityMinPhase` gating, phase invincibility, interruption rules, and `BossEncounterController` wiring proven on Florence. Cinematic presentation is Package 8 |
+| Boss attack animations/phases | Scripted phase transitions, telegraphed attacks, invincibility windows | **Implemented with placeholder presentation** - `EnemyAbilityExecutor` runs telegraph → active → recovery for every archetype and raises `EventBus.OnEnemyPresentation`; real VFX/SFX bind in Package 8 |
+| Mirror Paradox boss (Level 13) | Uses CPU Fighter AI instead of standard boss logic | **Implemented** - `MirrorParadoxController` drives the real `FighterCpuController` Hard decision table through a Story-side `CpuDecisionObservation` adapter; the clone uses normalized character data with no Resonance perks. Level 13 itself is Package 5 |
+| Distance-based attack selection | Melee vs ranged ability filtering by player distance | **Implemented** - `BossController` filters `BossAbilities` by `RangeClass` against `MeleeRangeThreshold`/`RangedRangeThreshold` and falls back to the full set rather than deadlocking; every scripted boss authors both bands |
+| Per-level enemy pool warm-up | Warm every mob/elite/projectile/reward pool before a level loads | **Implemented as data** - `resources/Pools/level_pool_configs/level_02..15_pool_config.tres`; catalog wiring lands with the Package 5 scenes |
 
 ---
 
@@ -311,9 +314,9 @@ This document provides a detailed comparison of what has been implemented versus
 | Fighter presentation proxies | Entity render nodes | **Implemented** - 112 prewarmed |
 | Projectile pools | 20 per character / 50 max / Grow | **Implemented for current Story/Fighter paths** - Story projectile and zone templates use stable pool IDs and reset contracts |
 | VFX/particle pools | 30 per character / 100 max / RecycleOldest | **Implemented as replaceable placeholder pools** |
-| Enemy mob pools | 10 per type / 25 max / Grow | **Implemented for the current prototype roster** - Runtime-built enemy templates reuse reset controllers with per-type stable IDs |
+| Enemy mob pools | 10 per type / 25 max / Grow | **Implemented** - Shared `standard_enemy`/`elite_enemy`/`enemy_projectile` pools over authored scenes; `EnemyFactory` is generic over any roster ID and reuses reset controllers |
 | Loot/currency drop pools | 30 warm / 50 max / Reject | **Implemented** - Separate Dust and helper-item pools use Reject overflow |
-| ScenePoolConfig per level | Data-driven warm-up definitions per scene | **Implemented** - Tutorial, Florence, and Test Arena configurations are cataloged and budget-validated |
+| ScenePoolConfig per level | Data-driven warm-up definitions per scene | **Implemented** - Tutorial, Florence, and Test Arena configurations are cataloged and budget-validated; `resources/Pools/level_pool_configs/level_02..15_pool_config.tres` are authored and budget-tested, and get cataloged when the Package 5 scenes exist |
 
 ---
 
@@ -457,7 +460,7 @@ This document provides a detailed comparison of what has been implemented versus
 | RAM budget (4GB max) | No GC spikes during gameplay | **Not measured** |
 | Active sprite limit (60) | Off-screen animation disabled via VisibilityNotifier2D | **Not implemented** |
 | Active particle limit (500) | Emission caps per emitter | **Not implemented** |
-| Object pooling coverage | All high-frequency objects pooled | **Partially implemented** - Core pools exist; enemies, VFX, story projectiles, loot not pooled |
+| Object pooling coverage | All high-frequency objects pooled | **Partially implemented** - Core, enemy, elite, enemy-projectile, VFX, story-projectile, and loot pools all exist with reset contracts; boss/hazard scenes added during level production must still be brought into them |
 
 ---
 
@@ -470,8 +473,8 @@ This document provides a detailed comparison of what has been implemented versus
 5. **No bespoke Resonance perk behavior** - 27 major perks are data-only; not wired to gameplay
 6. **No dialogue content authored** - Scripts documented in design but no resources in project
 7. **No puzzle system** - Core Story Mode gameplay mechanic doesn't exist
-8. **14 of 15 bosses unimplemented** - Only the Borgia Inquisitor has a data resource
-9. **20+ enemy types unimplemented** - Only 5 of 26+ designed enemies have resources
+8. **No enemy or boss production art** - All 42 roster entries render as tinted placeholder silhouettes; the data, AI, abilities, and encounter flow are complete (Package 4)
+9. **No roster placement in campaign content** - The 27 enemies and 15 bosses exist as resources but only Florence instantiates any of them; levels 2-15 are Package 5
 10. **No online multiplayer UI or infrastructure** - Transport layer exists but no user-facing flow
 
 ---
