@@ -126,6 +126,12 @@ enemy_cyber_guard_name,Cyber-Guard
 enemy_steam_automaton_name,Steam Automaton v2
 enemy_hologram_drone_name,Hologram Drone
 boss_borgia_inquisitor_name,The Borgia Inquisitor
+boss_siegemaster_duke_name,The Siegemaster Duke
+boss_chronal_inventor_name,The Chronal Inventor
+boss_revolutionary_tribunal_name,The Revolutionary Tribunal
+boss_tidal_eraser_name,The Tidal Eraser
+boss_vulcan_decimator_name,The Vulcan Decimator
+boss_dread_admiral_name,The Dread Admiral
 enemy_ability_shock_pike_name,Shock-Pike Thrust
 enemy_ability_holo_bolt_name,Holographic Bolt
 enemy_ability_plasma_rifle_name,Plasma Rifle Shot
@@ -166,6 +172,25 @@ enemy_ability_pressure_rocket_name,Pressurized Rocket
 enemy_ability_cold_gas_vent_name,Cold Gas Vent
 enemy_ability_temporal_blades_name,Dual Temporal Blades
 enemy_ability_blink_rush_name,Blink Rush
+boss_ability_siege_smash_name,Siege Maul Smash
+boss_ability_tremor_wave_name,Bombard Tremor
+boss_ability_lance_charge_name,Lance Charge
+boss_ability_arc_volley_name,Arc-Coil Volley
+boss_ability_resonator_pulse_name,Resonator Overload
+boss_ability_wrench_swipe_name,Wrench Swipe
+boss_ability_mob_call_name,Call the Mob
+boss_ability_verdict_bolt_name,Verdict Bolt
+boss_ability_guillotine_drop_name,Guillotine Drop
+boss_ability_tribunal_levy_name,Tribunal Levy
+boss_ability_tidal_surge_name,Tidal Surge
+boss_ability_brine_burst_name,Brine Burst
+boss_ability_undertow_pulse_name,Undertow Pulse
+boss_ability_ash_mortar_name,Ashfall Mortar
+boss_ability_magma_wave_name,Magma Wave
+boss_ability_pyroclast_smash_name,Pyroclast Smash
+boss_ability_gatling_volley_name,Gatling Broadside Volley
+boss_ability_broadside_pulse_name,Point-Blank Broadside
+boss_ability_cutlass_cleave_name,Cutlass Cleave
 common_unknown,Unknown
 common_unavailable,Unavailable
 common_ready,Ready

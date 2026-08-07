@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.chronal_inventor.resonator_pulse"
+DisplayNameKey = "boss_ability_resonator_pulse_name"
+Archetype = 5
+RangeClass = 2
+TelegraphFrames = 30
+ActiveFrames = 12
+RecoveryFrames = 28
+CooldownSeconds = 5.0
+SelectionWeight = 2.0
+Damage = 16.0
+KnockbackForce = Vector2(5.0, -2.5)
+HitstunDuration = 0.28
+HitboxSize = Vector2(180, 120)
+HitboxOffset = Vector2(0, -60)
+PulseRadius = 170.0
+AppliedStatus = 3
+StatusDuration = 1.5
+StatusIntensity = 1.0
+TelegraphTint = Color(0.5, 0.9, 1, 1)
+PresentationEventID = "boss.chronal_inventor.resonator_pulse"

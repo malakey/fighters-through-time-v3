@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.siegemaster_duke.lance_charge"
+DisplayNameKey = "boss_ability_lance_charge_name"
+Archetype = 3
+RangeClass = 1
+TelegraphFrames = 30
+ActiveFrames = 22
+RecoveryFrames = 30
+CooldownSeconds = 6.0
+SelectionWeight = 2.0
+Damage = 20.0
+KnockbackForce = Vector2(7.0, -2.5)
+HitstunDuration = 0.35
+HitboxSize = Vector2(108, 92)
+HitboxOffset = Vector2(60, -60)
+DashSpeed = 780.0
+DashDurationFrames = 22
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.55, 0.6, 0.8, 1)
+PresentationEventID = "boss.siegemaster_duke.lance_charge"

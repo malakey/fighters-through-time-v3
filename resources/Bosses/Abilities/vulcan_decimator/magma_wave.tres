@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.vulcan_decimator.magma_wave"
+DisplayNameKey = "boss_ability_magma_wave_name"
+Archetype = 2
+RangeClass = 2
+TelegraphFrames = 36
+ActiveFrames = 12
+RecoveryFrames = 32
+CooldownSeconds = 7.5
+SelectionWeight = 2.0
+Damage = 22.0
+KnockbackForce = Vector2(6.5, -2.5)
+HitstunDuration = 0.35
+HitboxSize = Vector2(80, 50)
+HitboxOffset = Vector2(60, -30)
+ProjectileSpeed = 300.0
+ProjectileCount = 1
+ProjectileSpreadDegrees = 0.0
+ProjectileLifetime = 2.6
+ProjectileGravity = 0.0
+PiercesTargets = true
+AppliedStatus = 4
+StatusDuration = 2.5
+StatusIntensity = 1.0
+TelegraphTint = Color(0.95, 0.3, 0.1, 1)
+PresentationEventID = "boss.vulcan_decimator.magma_wave"

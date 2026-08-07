@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.vulcan_decimator.ash_mortar"
+DisplayNameKey = "boss_ability_ash_mortar_name"
+Archetype = 1
+RangeClass = 1
+TelegraphFrames = 34
+ActiveFrames = 8
+RecoveryFrames = 30
+CooldownSeconds = 5.0
+SelectionWeight = 3.0
+Damage = 20.0
+KnockbackForce = Vector2(4.0, -3.0)
+HitstunDuration = 0.3
+HitboxSize = Vector2(36, 36)
+HitboxOffset = Vector2(38, -56)
+ProjectileSpeed = 360.0
+ProjectileCount = 2
+ProjectileSpreadDegrees = 10.0
+ProjectileLifetime = 3.0
+ProjectileGravity = 420.0
+PiercesTargets = false
+AppliedStatus = 4
+StatusDuration = 3.0
+StatusIntensity = 1.0
+TelegraphTint = Color(1, 0.45, 0.15, 1)
+PresentationEventID = "boss.vulcan_decimator.ash_mortar"

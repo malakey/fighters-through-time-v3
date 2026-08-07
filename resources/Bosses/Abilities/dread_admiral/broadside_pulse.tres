@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.dread_admiral.broadside_pulse"
+DisplayNameKey = "boss_ability_broadside_pulse_name"
+Archetype = 5
+RangeClass = 0
+TelegraphFrames = 34
+ActiveFrames = 12
+RecoveryFrames = 30
+CooldownSeconds = 8.0
+SelectionWeight = 2.0
+Damage = 22.0
+KnockbackForce = Vector2(7.0, -2.5)
+HitstunDuration = 0.35
+HitboxSize = Vector2(210, 130)
+HitboxOffset = Vector2(0, -64)
+PulseRadius = 200.0
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.9, 0.5, 0.25, 1)
+PresentationEventID = "boss.dread_admiral.broadside_pulse"
