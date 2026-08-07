@@ -597,10 +597,37 @@ namespace FTT.FighterSim {
             ref FighterRuntimeComponent runtimeTwo = ref frame.Get<FighterRuntimeComponent>(second);
             ref readonly FighterTuningComponent tuningOne = ref frame.GetReadOnly<FighterTuningComponent>(first);
             ref readonly FighterTuningComponent tuningTwo = ref frame.GetReadOnly<FighterTuningComponent>(second);
+            // Bespoke character ultimates dispatch first (X7): a successful
+            // dispatch consumes the meter, so the generic melee ultimate intent
+            // below cannot double-fire on the same press.
+            TryCharacterUltimate(ref frame, first, second, ref fighterOne, ref runtimeOne, in tuningOne);
+            TryCharacterUltimate(ref frame, second, first, ref fighterTwo, ref runtimeTwo, in tuningTwo);
+
             AttackIntent firstIntent = BuildIntent(in fighterOne, in runtimeOne, in tuningOne, in fighterTwo);
             AttackIntent secondIntent = BuildIntent(in fighterTwo, in runtimeTwo, in tuningTwo, in fighterOne);
             ApplyIntent(ref fighterOne, ref runtimeOne, ref fighterTwo, ref runtimeTwo, in tuningTwo, in firstIntent);
             ApplyIntent(ref fighterTwo, ref runtimeTwo, ref fighterOne, ref runtimeOne, in tuningOne, in secondIntent);
+        }
+
+        private static void TryCharacterUltimate(
+            ref Frame frame,
+            EntityRef attackerEntity,
+            EntityRef targetEntity,
+            ref FighterStateComponent attacker,
+            ref FighterRuntimeComponent attackerRuntime,
+            in FighterTuningComponent tuning) {
+            if ((attackerRuntime.PressedButtons & UltimateButton) == 0
+                || attacker.Influence < MaxInfluence
+                || attacker.HitstunFrames > 0
+                || attacker.DazeFrames > 0
+                || attacker.Stocks <= 0
+                || FighterUniversalMovementRules.IsCombatLocked(in attackerRuntime)) return;
+
+            if (FighterUltimateRules.TryExecute(
+                    ref frame, attackerEntity, targetEntity, ref attacker, ref attackerRuntime, in tuning)) {
+                FighterUniversalMovementRules.Cancel(ref attackerRuntime);
+                attacker.Influence = FP64.Zero;
+            }
         }
 
         private static AttackIntent BuildIntent(

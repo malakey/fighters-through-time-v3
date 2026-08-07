@@ -293,7 +293,7 @@ namespace FTT.FighterSim {
 
         private static int PositiveCooldown(int frames) => frames > 0 ? frames : 1;
 
-        private static void SpawnProjectile(
+        internal static void SpawnProjectile(
             ref Frame frame,
             in FighterStateComponent owner,
             int projectileTypeID,
@@ -326,7 +326,7 @@ namespace FTT.FighterSim {
             });
         }
 
-        private static void SpawnPersistent(
+        internal static void SpawnPersistent(
             ref Frame frame,
             in FighterStateComponent owner,
             int objectTypeID,
@@ -420,7 +420,7 @@ namespace FTT.FighterSim {
 
         private static readonly FP64 TempestLiftSpeed = FP64.FromInt(10);
 
-        private static void SpawnZone(
+        internal static void SpawnZone(
             ref Frame frame,
             ref FighterStateComponent owner,
             int specialSlot,
@@ -1076,9 +1076,15 @@ namespace FTT.FighterSim {
                     pulseHitstunFrames = TempestHitstunFrames;
                 }
 
+                // Ultimate-slot zones (ZoneTypeID % 10 == FighterUltimateRules
+                // .UltimateSlot) hit with the ultimate attack class so they
+                // bypass shields like every other ultimate.
+                int pulseAttackClass = zone.ZoneTypeID % 10 == FighterUltimateRules.UltimateSlot
+                    ? FighterDamageRules.UltimateAttackClass
+                    : FighterDamageRules.SpecialAttackClass;
                 FighterDamageRules.ApplyFighterHit(
                     ref attacker, ref attackerRuntime, ref target, ref targetRuntime, in targetTuning,
-                    FighterDamageRules.SpecialAttackClass, pulseDamage, pulseKnockback, pulseHitstunFrames,
+                    pulseAttackClass, pulseDamage, pulseKnockback, pulseHitstunFrames,
                     zone.StatusType, zone.StatusFrames, zone.StatusIntensity, zone.Position.x);
             }
         }
