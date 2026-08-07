@@ -324,16 +324,24 @@ namespace FTT.Characters.Abilities {
     }
 
     /// <summary>
-    /// Ultimate — Wardenclyffe Cataclysm. Structured sketch pending the dedicated
-    /// ultimates pass (audit gap X7): stage-wide multi-hit column plus a
-    /// chain-reaction detonation of every active coil.
+    /// Ultimate — Wardenclyffe Cataclysm (design Section 5): the spectral tower
+    /// draws all enemies toward Tesla, strikes them with a massive multi-hit
+    /// column of alternating current, and detonates every active Tesla Coil in a
+    /// chain reaction. Per-hit damage, hit count, tick interval, and phase frames
+    /// are the authored ultimate.tres numbers; each hit tick drags enemies toward
+    /// Tesla (Lorentz Attraction-style positional pull) before the column
+    /// strikes. Ultimate-class hits bypass shields and hyper-armor by the shared
+    /// combat rules. The pull/column radii are placeholder tuning — the design
+    /// gives no pixel numbers for either.
     /// </summary>
     public partial class TeslaWardenclyffeCataclysm : BaseSpecial {
-        private const float CinematicDuration = 2.5f;
-        private const float ShockwaveDamage = 18f;
-        private const int HitCount = 4;
+        private const float PullRadiusPixels = 1200f;
+        private const float ColumnRadiusPixels = 150f;
+        private const float PullStopDistancePixels = 70f;
+        private const float PullStepPixels = 120f;
+        private const int FallbackTickIntervalFrames = 30;
 
-        private float _hitTimer;
+        private int _framesInActive;
         private int _hitsDone;
         private UltimateMeter _meter;
 
@@ -347,31 +355,32 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override void OnStartup() {
-            PhaseTimer = 0.6f;
+            UseAuthoredPhaseFrames();
+            _framesInActive = 0;
             _hitsDone = 0;
-            _hitTimer = 0;
             Owner.Velocity = Vector2.Zero;
             _meter?.Consume();
         }
 
         protected override void OnActive() {
-            PhaseTimer = CinematicDuration;
+            UseAuthoredPhaseFrames();
             ExplodeAllCoils();
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = 0.5f;
+            UseAuthoredPhaseFrames();
         }
 
         public override void _PhysicsProcess(double delta) {
             if (CurrentPhase == AbilityPhase.Active) {
-                float dt = (float)delta;
-                _hitTimer += dt;
-                float hitInterval = CinematicDuration / HitCount;
-                while (_hitTimer >= hitInterval && _hitsDone < HitCount) {
-                    _hitTimer -= hitInterval;
+                _framesInActive++;
+                int interval = Data?.DamageTickIntervalFrames > 0
+                    ? Data.DamageTickIntervalFrames
+                    : FallbackTickIntervalFrames;
+                int hitCount = Data?.IsMultiHit == true ? Mathf.Max(1, Data.HitCount) : 1;
+                if (_hitsDone < hitCount && _framesInActive % interval == 0) {
                     _hitsDone++;
-                    DealShockwaveHit();
+                    DealColumnHit();
                 }
             }
             base._PhysicsProcess(delta);
@@ -386,14 +395,77 @@ namespace FTT.Characters.Abilities {
             }
         }
 
-        private void DealShockwaveHit() {
-            var hitbox = GetOrCreateChildHitbox("ShockwaveHitbox");
-            hitbox.Damage = ShockwaveDamage;
-            hitbox.KnockbackForce = new Vector2(0, -6f);
-            hitbox.OwnerPlayerIndex = Owner.PlayerIndex;
-            hitbox.GlobalPosition = Owner.GlobalPosition;
-            hitbox.Activate();
-            GetTree().CreateTimer(0.12f).Timeout += () => hitbox.Deactivate();
+        /// <summary>
+        /// One column strike: every enemy in the (stage-wide) pull radius is
+        /// dragged toward Tesla, then everyone inside the column takes one
+        /// authored per-hit ultimate strike.
+        /// </summary>
+        private void DealColumnHit() {
+            if (Owner == null) return;
+            foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(PullRadiusPixels)) {
+                DragTowardOwner(hurtbox);
+                if (Owner.GlobalPosition.DistanceTo(hurtbox.GlobalPosition) > ColumnRadiusPixels) continue;
+                float dealt = hurtbox.TakeHit(new HitPayload {
+                    AttackerIndex = Owner.PlayerIndex,
+                    AttackID = Data?.AbilityID ?? "tesla_wardenclyffe_cataclysm",
+                    HitboxID = "cataclysm_column",
+                    AttackClass = AttackClass.Ultimate,
+                    Damage = (Data?.BaseDamage ?? 18f) * Owner.StorySpecialDamageMultiplier,
+                    Knockback = Data?.KnockbackForce ?? new Vector2(0f, -6f),
+                    HitstunDuration = Data?.HitstunDuration ?? 0.2f,
+                    HitOrigin = Owner.GlobalPosition,
+                    AttackerFacingRight = Owner.IsFacingRight,
+                    AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.None,
+                    StatusDuration = Data?.StatusDuration ?? 0f,
+                    StatusIntensity = Data?.StatusIntensity ?? 1f,
+                    ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
+                    ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
+                });
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+            }
+        }
+
+        /// <summary>
+        /// Positional drag toward Tesla (the Lorentz Attraction pull pattern),
+        /// stepped per hit tick instead of teleporting the full distance.
+        /// </summary>
+        private void DragTowardOwner(Hurtbox hurtbox) {
+            Node current = hurtbox.GetParent();
+            while (current != null) {
+                if (current is CharacterBody2D body) {
+                    Vector2 toOwner = Owner.GlobalPosition - body.GlobalPosition;
+                    float distance = toOwner.Length();
+                    if (distance > PullStopDistancePixels) {
+                        float step = Mathf.Min(PullStepPixels, distance - PullStopDistancePixels);
+                        body.GlobalPosition += toOwner.Normalized() * step;
+                    }
+                    return;
+                }
+                current = current.GetParent();
+            }
+        }
+
+        private System.Collections.Generic.List<Hurtbox> QueryEnemyHurtboxes(float radius) {
+            var results = new System.Collections.Generic.List<Hurtbox>();
+            var space = Owner.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return results;
+            uint targetHurtboxLayer = Owner.PlayerIndex == 0
+                ? FTT.Core.CollisionLayers.EnemyHurtbox
+                : FTT.Core.CollisionLayers.PlayerHurtbox;
+            var query = new PhysicsShapeQueryParameters2D {
+                Shape = new CircleShape2D { Radius = radius },
+                Transform = new Transform2D(0f, Owner.GlobalPosition),
+                CollideWithAreas = true,
+                CollideWithBodies = false,
+                CollisionMask = targetHurtboxLayer
+            };
+            foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
+                if (result["collider"].AsGodotObject() is Hurtbox hurtbox
+                    && hurtbox.OwnerPlayerIndex != Owner.PlayerIndex) {
+                    results.Add(hurtbox);
+                }
+            }
+            return results;
         }
     }
 }

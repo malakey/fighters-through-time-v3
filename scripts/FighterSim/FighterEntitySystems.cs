@@ -536,6 +536,17 @@ namespace FTT.FighterSim {
                 centersOnOwner = true;
                 return;
             }
+            // Tesla's Wardenclyffe Cataclysm (ultimate zone type 53): the massive
+            // alternating-current column centered on Tesla — wider than melee
+            // range so the ultimate connects beyond arm's reach, and tall so
+            // launched targets stay inside; FighterZoneSystem drags the opponent
+            // toward the column center while it lives.
+            if (zoneTypeID == (int)FighterCharacterID.Tesla * 10 + FighterUltimateRules.UltimateSlot) {
+                halfExtents = new FPVector2(FP64.FromDouble(2.5), FP64.FromDouble(3.0));
+                grantsOwnerSpeedBonus = 0;
+                centersOnOwner = true;
+                return;
+            }
             halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
             grantsOwnerSpeedBonus = 0;
             centersOnOwner = false;
@@ -1030,6 +1041,14 @@ namespace FTT.FighterSim {
                 // velocity, so the pull stays impulse-free and snapshot-safe with
                 // no extra state.
                 if (zone.ZoneTypeID == (int)FighterCharacterID.Cleopatra * 10 + 2) {
+                    ApplyVortexPull(ref frame, in zone);
+                }
+
+                // Tesla's Wardenclyffe Cataclysm column (ultimate zone type 53)
+                // draws the opponent toward its center with the same impulse-free
+                // positional drag as the Sandstorm Vortex, so its pull stays
+                // snapshot-safe with no extra state.
+                if (zone.ZoneTypeID == (int)FighterCharacterID.Tesla * 10 + FighterUltimateRules.UltimateSlot) {
                     ApplyVortexPull(ref frame, in zone);
                 }
 
