@@ -604,6 +604,16 @@ namespace FTT.FighterSim {
                 centersOnOwner = true;
                 return;
             }
+            // Mozart's Symphony of Sorrow (ultimate zone type 73): piano-key
+            // meteors rain across the entire stage, so the bombardment footprint
+            // spans the full 20-unit arena width and reaches jump height —
+            // there is nowhere on stage to walk out of it.
+            if (zoneTypeID == (int)FighterCharacterID.Mozart * 10 + FighterUltimateRules.UltimateSlot) {
+                halfExtents = new FPVector2(FP64.FromInt(10), FP64.FromInt(6));
+                grantsOwnerSpeedBonus = 0;
+                centersOnOwner = true;
+                return;
+            }
             halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
             grantsOwnerSpeedBonus = 0;
             centersOnOwner = false;
@@ -1200,6 +1210,13 @@ namespace FTT.FighterSim {
                     // authored ultimate knockback.
                     pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
                     pulseHitstunFrames = TidewaterSurgeHitstunFrames;
+                } else if (zone.ZoneTypeID == (int)FighterCharacterID.Mozart * 10 + FighterUltimateRules.UltimateSlot
+                    && zone.LifetimeFrames <= zone.TickIntervalFrames) {
+                    // Symphony of Sorrow: earlier meteors pin the target inside
+                    // the bombardment impulse-free; only the closing strike
+                    // launches with the authored ultimate knockback.
+                    pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
+                    pulseHitstunFrames = SymphonyFinalHitstunFrames;
                 }
 
                 // Ultimate-slot zones (ZoneTypeID % 10 == FighterUltimateRules
@@ -1223,6 +1240,7 @@ namespace FTT.FighterSim {
         // HitstunDuration on lincoln/ultimate.tres.
         private const int UnionFinisherHitstunFrames = 30;
         private const int TidewaterSurgeHitstunFrames = 24;
+        private const int SymphonyFinalHitstunFrames = 30;
         private const int GrandCrusadeFinalHitstunFrames = 24;
 
         // 0.05 world units per frame (3 px at 60 px/unit), mirrored by the Story
