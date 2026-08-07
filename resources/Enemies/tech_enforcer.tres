@@ -1,6 +1,9 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/tech_enforcer/plasma_rifle.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/tech_enforcer/bubble_shield.tres" id="4"]
 
 [resource]
 script = ExtResource("1")
@@ -22,4 +25,15 @@ AttackCooldown = 3.0
 StunResistance = 0.5
 ReactionDelayMinFrames = 15
 ReactionDelayMaxFrames = 25
+EliteAbilityCooldown = 8.0
+Behavior = 0
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+PrimaryAttack = ExtResource("3")
+AttackTelegraphFrames = 22
+AttackActiveFrames = 6
+AttackRecoveryFrames = 24
+EliteAbilities = Array[ExtResource("2")]([ExtResource("4")])
 ChronalDustDrop = 10
+ItemDropChance = 1.0
+PlaceholderTint = Color(0.45, 0.5, 1, 1)

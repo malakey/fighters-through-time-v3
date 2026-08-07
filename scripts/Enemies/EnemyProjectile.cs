@@ -1,0 +1,154 @@
+using Godot;
+using FTT.Core;
+
+namespace FTT.Enemies {
+
+    /// <summary>
+    /// Pooled Story-side enemy/boss projectile. Always joins the
+    /// <c>enemy_projectile</c> group so <see cref="FTT.Environment.ChronalRewindManager"/>
+    /// can clear live shots when a rewind starts. Placeholder visuals are built in
+    /// code; production art replaces them by scene reassignment.
+    /// </summary>
+    public partial class EnemyProjectile : PooledNode, IPoolable, FTT.Environment.IStoryRewindSimulation {
+        public const string GroupName = "enemy_projectile";
+
+        private FTT.Combat.Hitbox _hitbox;
+        private ColorRect _visual;
+        private CollisionShape2D _shape;
+
+        private Vector2 _velocity;
+        private float _gravity;
+        private float _lifetime;
+        private bool _pierces;
+        private bool _lockVertical;
+        private float _lockedY;
+        private bool _frozen;
+
+        /// <summary>Owning enemy/boss ID, carried for presentation and debugging.</summary>
+        public string SourceID { get; private set; } = "";
+        public Vector2 Velocity => _velocity;
+        public float LifetimeRemaining => _lifetime;
+        public bool PiercesTargets => _pierces;
+
+        public override void _Ready() {
+            AddToGroup(GroupName);
+            AddToGroup("projectile");
+            EnsureNodes();
+        }
+
+        /// <summary>Configures one shot from authored ability data.</summary>
+        public void Setup(
+            EnemyAbilityData ability,
+            Vector2 velocity,
+            float scaledDamage,
+            string sourceID,
+            bool lockVertical = false) {
+            EnsureNodes();
+            SourceID = sourceID ?? "";
+            _velocity = velocity;
+            _gravity = ability?.ProjectileGravity ?? 0f;
+            _lifetime = Mathf.Max(0.05f, ability?.ProjectileLifetime ?? 2f);
+            _pierces = ability?.PiercesTargets ?? false;
+            _lockVertical = lockVertical;
+            _lockedY = GlobalPosition.Y;
+            _frozen = false;
+
+            Vector2 size = ability?.HitboxSize ?? new Vector2(24f, 12f);
+            if (size.X <= 0f || size.Y <= 0f) size = new Vector2(24f, 12f);
+            _visual.Size = size;
+            _visual.Position = -size / 2f;
+            _visual.Color = ability?.TelegraphTint ?? new Color(0.95f, 0.4f, 0.2f);
+            if (_shape.Shape is RectangleShape2D rect) rect.Size = size;
+
+            // Travel direction owns the knockback sign; a pull ability (negative
+            // authored X) drags the target back toward the caster instead.
+            float travelSign = _velocity.X >= 0f ? 1f : -1f;
+            float knockbackSign = (ability?.IsPullKnockback ?? false) ? -travelSign : travelSign;
+
+            _hitbox.AttackID = ability?.AbilityID ?? "enemy_projectile";
+            _hitbox.HitboxID = "projectile";
+            _hitbox.AttackClass = FTT.Combat.AttackClass.Special;
+            _hitbox.Damage = Mathf.Max(0f, scaledDamage);
+            _hitbox.KnockbackForce = new Vector2(
+                knockbackSign * Mathf.Abs(ability?.KnockbackForce.X ?? 2f),
+                ability?.KnockbackForce.Y ?? -1f);
+            _hitbox.HitstunDuration = Mathf.Max(0f, ability?.HitstunDuration ?? 0.15f);
+            _hitbox.AppliedStatus = ability?.AppliedStatus ?? StatusType.None;
+            _hitbox.StatusDuration = Mathf.Max(0f, ability?.StatusDuration ?? 0f);
+            _hitbox.StatusIntensity = (ability?.StatusIntensity ?? 1f) <= 0f ? 1f : ability.StatusIntensity;
+            _hitbox.OwnerPlayerIndex = -1;
+            _hitbox.SourcePlayer = null;
+            _hitbox.CollisionLayer = CollisionLayers.Projectile;
+            _hitbox.CollisionMask = CollisionLayers.PlayerHurtbox | CollisionLayers.PersistentObject;
+            _hitbox.Monitorable = true;
+            _hitbox.Activate();
+        }
+
+        private void EnsureNodes() {
+            if (_hitbox != null) return;
+            _visual = new ColorRect {
+                Name = "Visual",
+                Size = new Vector2(24f, 12f),
+                Position = new Vector2(-12f, -6f),
+                MouseFilter = Control.MouseFilterEnum.Ignore
+            };
+            AddChild(_visual);
+
+            _hitbox = new FTT.Combat.Hitbox { Name = "Hitbox" };
+            _shape = new CollisionShape2D {
+                Name = "CollisionShape2D",
+                Shape = new RectangleShape2D { Size = new Vector2(24f, 12f) }
+            };
+            _hitbox.AddChild(_shape);
+            AddChild(_hitbox);
+            _hitbox.HitConfirmed += OnHitConfirmed;
+        }
+
+        private void OnHitConfirmed(FTT.Combat.HitPayload payload, float damageApplied) {
+            if (_pierces) return;
+            ReturnToPool();
+        }
+
+        public override void _PhysicsProcess(double delta) {
+            if (_frozen) return;
+            float dt = (float)delta;
+            _lifetime -= dt;
+            if (_lifetime <= 0f) {
+                ReturnToPool();
+                return;
+            }
+            if (_gravity != 0f) _velocity = new Vector2(_velocity.X, _velocity.Y + _gravity * dt);
+            Vector2 next = GlobalPosition + _velocity * dt;
+            if (_lockVertical) next.Y = _lockedY;
+            GlobalPosition = next;
+        }
+
+        public void OnSpawn() {
+            EnsureNodes();
+            _frozen = false;
+            _lifetime = 0f;
+            _velocity = Vector2.Zero;
+            Visible = true;
+            SetPhysicsProcess(true);
+            if (!IsInGroup(GroupName)) AddToGroup(GroupName);
+        }
+
+        public void OnDespawn() {
+            _hitbox?.Deactivate();
+            _velocity = Vector2.Zero;
+            _gravity = 0f;
+            _lifetime = 0f;
+            _pierces = false;
+            _lockVertical = false;
+            _lockedY = 0f;
+            _frozen = false;
+            SourceID = "";
+            Rotation = 0f;
+            Scale = Vector2.One;
+            Modulate = Colors.White;
+            SetPhysicsProcess(false);
+        }
+
+        public void SetStoryRewindFrozen(bool frozen) => _frozen = frozen;
+    }
+}

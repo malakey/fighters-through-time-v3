@@ -146,21 +146,65 @@ public class PoolManagerTests {
     }
 
     [TestCase]
-    public void StoryEnemyFactoryReusesAResetControllerInstance() {
-        (PoolManager manager, Node parent, PackedScene template) = CreateSubject();
+    public void StoryEnemyFactoryReusesAResetControllerInstanceFromTheSharedTierPool() {
+        (PoolManager manager, Node parent, _) = CreateSubject();
+        // One warm instance makes the recycle deterministic instead of round-robin.
+        manager.RegisterPool(
+            EnemyFactory.StandardPoolID,
+            GD.Load<PackedScene>(EnemyFactory.StandardScenePath),
+            1, 4, PoolOverflowPolicy.RecycleOldest);
         EnemyController first = EnemyFactory.SpawnHologramDrone(parent, new Vector2(10f, 20f));
-        EnemyFactory.SpawnHologramDrone(parent, new Vector2(12f, 20f));
-        EnemyFactory.SpawnHologramDrone(parent, new Vector2(14f, 20f));
-        EnemyFactory.SpawnHologramDrone(parent, new Vector2(16f, 20f));
-        int maximumHP = first.Data.MaxHP;
+        int maximumHP = first.ScaledMaxHP;
         first.TakeDamage(maximumHP);
+        // The corpse holds its pool slot for the death animation window.
+        AssertThat(manager.GetStats(EnemyFactory.StandardPoolID).Value.Active).IsEqual(1);
+        PumpDeathAnimation(first);
+        AssertThat(manager.GetStats(EnemyFactory.StandardPoolID).Value.Active).IsEqual(0);
+
         EnemyController recycled = EnemyFactory.SpawnHologramDrone(parent, new Vector2(30f, 40f));
 
         AssertThat(ReferenceEquals(first, recycled)).IsTrue();
         AssertThat(recycled.CurrentHP).IsEqual(maximumHP);
+        AssertThat(recycled.CurrentState).IsEqual(EnemyState.Patrol);
         AssertThat(recycled.GlobalPosition).IsEqual(new Vector2(30f, 40f));
-        AssertThat(manager.IsRegistered("story_enemy.hologram_drone")).IsTrue();
+        AssertThat(manager.IsRegistered(EnemyFactory.StandardPoolID)).IsTrue();
         Cleanup(manager, parent);
+    }
+
+    [TestCase]
+    public void TierPoolsKeepStandardAndEliteEnemiesSeparate() {
+        (PoolManager manager, Node parent, _) = CreateSubject();
+        EnemyFactory.SpawnChronoSlasher(parent, new Vector2(0f, 0f));
+        EnemyFactory.SpawnSteamAutomaton(parent, new Vector2(50f, 0f));
+
+        AssertThat(manager.GetStats(EnemyFactory.StandardPoolID).Value.Active).IsEqual(1);
+        AssertThat(manager.GetStats(EnemyFactory.ElitePoolID).Value.Active).IsEqual(1);
+        Cleanup(manager, parent);
+    }
+
+    [TestCase]
+    public void RepeatedEnemyPoolCyclesFullyResetTheRecycledController() {
+        (PoolManager manager, Node parent, _) = CreateSubject();
+        for (int cycle = 0; cycle < 15; cycle++) {
+            EnemyController enemy = EnemyFactory.SpawnChronoSlasher(parent, new Vector2(cycle * 10f, 0f));
+            AssertObject(enemy).IsNotNull();
+            enemy.ApplyStatusEffect(FTT.Core.StatusType.Root, 5f);
+            enemy.TakeDamage(enemy.ScaledMaxHP);
+            PumpDeathAnimation(enemy);
+            AssertThat(enemy.CurrentHP).IsEqual(0);
+        }
+
+        EnemyController reused = EnemyFactory.SpawnChronoSlasher(parent, new Vector2(400f, 0f));
+        AssertThat(reused.CurrentHP).IsEqual(reused.ScaledMaxHP);
+        AssertThat(reused.ActiveStatusType).IsEqual(FTT.Core.StatusType.None);
+        AssertThat(reused.StatusMoveMultiplier).IsEqualApprox(1f, 0.0001f);
+        AssertThat(reused.CurrentState).IsEqual(EnemyState.Patrol);
+        Cleanup(manager, parent);
+    }
+
+    private static void PumpDeathAnimation(EnemyController enemy) {
+        int frames = Mathf.CeilToInt(EnemyController.DeathAnimationSeconds * 60f) + 2;
+        for (int frame = 0; frame < frames; frame++) enemy._PhysicsProcess(1.0 / 60.0);
     }
 
     private static (PoolManager manager, Node parent, PackedScene template) CreateSubject() {

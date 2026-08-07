@@ -1,6 +1,13 @@
 using Godot;
+using System;
 
 namespace FTT.Enemies {
+
+    /// <summary>design-godot.md Section 6 boss attack-selection modes.</summary>
+    public enum BossAttackPattern {
+        WeightedRandom,
+        DistanceBased
+    }
 
     [GlobalClass]
     public partial class BossData : Resource {
@@ -26,15 +33,44 @@ namespace FTT.Enemies {
         [ExportGroup("Phases")]
         [Export] public float[] PhaseThresholds = { 0.75f, 0.5f, 0.25f };
         [Export] public float PhaseTransitionInvincibilityDuration = 2.0f;
+        /// <summary>Per-phase move-speed multiplier; index 0 is phase 0 (opening phase).</summary>
+        [Export] public float[] PhaseSpeedMultipliers = Array.Empty<float>();
 
         [ExportGroup("Loot")]
         [Export] public int ChronalDustDrop = 50;
 
         [ExportGroup("Abilities")]
-        [Export] public FTT.Combat.AbilityData[] BossAbilities;
-        [Export] public float[] AbilityWeights;
+        [Export] public BossAttackPattern AttackPattern = BossAttackPattern.DistanceBased;
+        [Export] public EnemyAbilityData[] BossAbilities;
+        /// <summary>
+        /// Parallel to <see cref="BossAbilities"/>: the earliest phase index each
+        /// ability becomes selectable in. Missing entries default to phase 0.
+        /// </summary>
+        [Export] public int[] AbilityMinPhase = Array.Empty<int>();
+
+        [ExportGroup("Interruption")]
+        [Export] public bool InterruptibleDuringTelegraph;
+        [Export] public float InterruptDamageThreshold = 25f;
 
         [ExportGroup("Animation")]
         [Export] public SpriteFrames SpriteFramesResource;
+        [Export] public Color PlaceholderTint = Colors.White;
+
+        public int PhaseCount => (PhaseThresholds?.Length ?? 0) + 1;
+
+        /// <summary>Earliest phase an ability index unlocks in; 0 when unauthored.</summary>
+        public int GetAbilityMinPhase(int abilityIndex) {
+            if (AbilityMinPhase == null || abilityIndex < 0 || abilityIndex >= AbilityMinPhase.Length) return 0;
+            return Math.Max(0, AbilityMinPhase[abilityIndex]);
+        }
+
+        /// <summary>Move-speed multiplier for a phase; 1.0 when unauthored.</summary>
+        public float GetPhaseSpeedMultiplier(int phaseIndex) {
+            if (PhaseSpeedMultipliers == null || phaseIndex < 0 || phaseIndex >= PhaseSpeedMultipliers.Length) {
+                return 1f;
+            }
+            float value = PhaseSpeedMultipliers[phaseIndex];
+            return value <= 0f ? 1f : value;
+        }
     }
 }

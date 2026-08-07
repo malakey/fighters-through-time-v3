@@ -1,0 +1,75 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/BossController.cs" id="1_controller"]
+[ext_resource type="Script" path="res://scripts/Combat/Hurtbox.cs" id="2_hurtbox"]
+[ext_resource type="Script" path="res://scripts/Combat/Hitbox.cs" id="3_hitbox"]
+[ext_resource type="Script" path="res://scripts/Combat/CombatantPushbox.cs" id="4_pushbox"]
+[ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="5_marker"]
+[ext_resource type="Resource" path="res://resources/Contracts/boss_contract.tres" id="6_contract"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/placeholder_boss_frames.tres" id="7_frames"]
+
+[sub_resource type="RectangleShape2D" id="BodyShape"]
+resource_local_to_scene = true
+size = Vector2(96, 128)
+
+[sub_resource type="RectangleShape2D" id="AttackShape"]
+resource_local_to_scene = true
+size = Vector2(80, 80)
+
+[node name="Boss" type="CharacterBody2D" groups=["Enemies", "boss", "enemy"]]
+collision_layer = 2
+collision_mask = 704
+script = ExtResource("1_controller")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(0, -64)
+shape = SubResource("BodyShape")
+
+[node name="Presentation" type="Node2D" parent="."]
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Presentation"]
+position = Vector2(0, -96)
+sprite_frames = ExtResource("7_frames")
+animation = &"idle"
+
+[node name="Hurtbox" type="Area2D" parent="."]
+collision_layer = 32
+collision_mask = 1028
+script = ExtResource("2_hurtbox")
+OwnerPlayerIndex = -1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+position = Vector2(0, -64)
+shape = SubResource("BodyShape")
+
+[node name="Hitbox" type="Area2D" parent="."]
+collision_layer = 8
+collision_mask = 528
+monitoring = false
+script = ExtResource("3_hitbox")
+HitboxID = "primary"
+OwnerPlayerIndex = -1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hitbox"]
+shape = SubResource("AttackShape")
+
+[node name="Pushbox" type="Area2D" parent="."]
+position = Vector2(0, -60)
+collision_layer = 2
+collision_mask = 1
+monitoring = false
+monitorable = false
+script = ExtResource("4_pushbox")
+BoxSize = Vector2(80, 112)
+BlocksRollThrough = true
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Pushbox"]
+shape = SubResource("BodyShape")
+
+[node name="AbilityOrigin" type="Marker2D" parent="."]
+position = Vector2(64, -88)
+
+[node name="ContentContract" type="Node" parent="."]
+script = ExtResource("5_marker")
+ContentID = "boss"
+Contract = ExtResource("6_contract")

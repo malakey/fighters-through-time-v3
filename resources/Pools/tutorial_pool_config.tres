@@ -1,11 +1,13 @@
-[gd_resource type="Resource" script_class="ScenePoolConfig" load_steps=20 format=3]
+[gd_resource type="Resource" script_class="ScenePoolConfig" load_steps=24 format=3]
 
 [ext_resource type="Script" path="res://scripts/Core/ScenePoolConfig.cs" id="1_config"]
 [ext_resource type="Script" path="res://scripts/Core/PoolDefinition.cs" id="2_definition"]
 [ext_resource type="PackedScene" path="res://scenes/templates/StoryProjectileTemplate.tscn" id="3_projectile"]
 [ext_resource type="PackedScene" path="res://scenes/templates/PooledVfxTemplate.tscn" id="4_combat_vfx"]
 [ext_resource type="PackedScene" path="res://scenes/templates/EnvironmentalVfxTemplate.tscn" id="5_environment_vfx"]
-[ext_resource type="PackedScene" path="res://scenes/templates/StandardEnemyTemplate.tscn" id="6_enemy"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/StandardEnemy.tscn" id="6_enemy"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/EliteEnemy.tscn" id="7_elite"]
+[ext_resource type="PackedScene" path="res://scenes/enemies/EnemyProjectile.tscn" id="13_enemy_projectile"]
 [ext_resource type="PackedScene" path="res://scenes/ui/FloatingDamageNumber.tscn" id="8_damage"]
 [ext_resource type="PackedScene" path="res://scenes/templates/PersistentConstructTemplate.tscn" id="9_construct"]
 [ext_resource type="PackedScene" path="res://scenes/templates/StoryZoneTemplate.tscn" id="10_zone"]
@@ -41,6 +43,23 @@ PoolID = "standard_enemy"
 SceneTemplate = ExtResource("6_enemy")
 WarmUpCount = 10
 MaxCapacity = 25
+OverflowPolicy = 1
+
+[sub_resource type="Resource" id="EliteEnemy"]
+script = ExtResource("2_definition")
+PoolID = "elite_enemy"
+SceneTemplate = ExtResource("7_elite")
+WarmUpCount = 2
+MaxCapacity = 8
+OverflowPolicy = 1
+
+[sub_resource type="Resource" id="EnemyProjectile"]
+script = ExtResource("2_definition")
+PoolID = "enemy_projectile"
+SceneTemplate = ExtResource("13_enemy_projectile")
+WarmUpCount = 12
+MaxCapacity = 30
+OverflowPolicy = 1
 
 [sub_resource type="Resource" id="Zone"]
 script = ExtResource("2_definition")
@@ -83,4 +102,4 @@ MaxCapacity = 12
 script = ExtResource("1_config")
 ConfigID = "tutorial_pools"
 MaxWarmUpInstances = 180
-PoolDefinitions = Array[ExtResource("2_definition")]([SubResource("Projectile"), SubResource("Zone"), SubResource("CombatVfx"), SubResource("EnvironmentVfx"), SubResource("Enemy"), SubResource("Dust"), SubResource("Item"), SubResource("Damage"), SubResource("Construct")])
+PoolDefinitions = Array[ExtResource("2_definition")]([SubResource("Projectile"), SubResource("Zone"), SubResource("CombatVfx"), SubResource("EnvironmentVfx"), SubResource("Enemy"), SubResource("EliteEnemy"), SubResource("EnemyProjectile"), SubResource("Dust"), SubResource("Item"), SubResource("Damage"), SubResource("Construct")])

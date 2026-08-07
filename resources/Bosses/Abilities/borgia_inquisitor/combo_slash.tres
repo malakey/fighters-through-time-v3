@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.borgia_inquisitor.combo_slash"
+DisplayNameKey = "boss_ability_combo_slash_name"
+Archetype = 0
+RangeClass = 0
+TelegraphFrames = 16
+ActiveFrames = 10
+RecoveryFrames = 20
+CooldownSeconds = 1.5
+SelectionWeight = 3.0
+Damage = 18.0
+KnockbackForce = Vector2(4.0, -2.0)
+HitstunDuration = 0.25
+HitboxSize = Vector2(96, 96)
+HitboxOffset = Vector2(70, -64)
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(1, 0.35, 0.35, 1)
+PresentationEventID = "boss.borgia_inquisitor.combo_slash"

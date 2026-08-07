@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/cyber_guard/shock_pike.tres" id="2"]
 
 [resource]
 script = ExtResource("1")
@@ -22,4 +23,14 @@ AttackCooldown = 2.2
 StunResistance = 0.0
 ReactionDelayMinFrames = 30
 ReactionDelayMaxFrames = 45
+EliteAbilityCooldown = 5.0
+Behavior = 0
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+PrimaryAttack = ExtResource("2")
+AttackTelegraphFrames = 18
+AttackActiveFrames = 10
+AttackRecoveryFrames = 20
 ChronalDustDrop = 2
+ItemDropChance = 1.0
+PlaceholderTint = Color(1, 0.85, 0.3, 1)

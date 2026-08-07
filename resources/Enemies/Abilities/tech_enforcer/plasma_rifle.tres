@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "enemy.tech_enforcer.plasma_rifle"
+DisplayNameKey = "enemy_ability_plasma_rifle_name"
+Archetype = 1
+RangeClass = 1
+TelegraphFrames = 22
+ActiveFrames = 6
+RecoveryFrames = 24
+CooldownSeconds = 3.0
+SelectionWeight = 1.0
+Damage = 18.0
+KnockbackForce = Vector2(3.5, -1.0)
+HitstunDuration = 0.2
+HitboxSize = Vector2(26, 12)
+HitboxOffset = Vector2(36, -34)
+ProjectileSpeed = 640.0
+ProjectileCount = 1
+ProjectileSpreadDegrees = 0.0
+ProjectileLifetime = 2.5
+ProjectileGravity = 0.0
+PiercesTargets = false
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.55, 0.7, 1, 1)
+PresentationEventID = "enemy.tech_enforcer.plasma_rifle"
