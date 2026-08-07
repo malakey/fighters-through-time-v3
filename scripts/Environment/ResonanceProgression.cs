@@ -11,6 +11,26 @@ namespace FTT.Environment {
             ResonanceGridData grid,
             StorySaveData save,
             string nodeID) {
+            ResonanceUnlockResult evaluation = EvaluateUnlock(grid, save, nodeID);
+            if (evaluation != ResonanceUnlockResult.Unlocked) return evaluation;
+            ResonanceNodeData node = FindNode(grid, nodeID);
+            int balance = save.DepositedChronalDust.GetValueOrDefault(grid.CharacterID);
+            save.DepositedChronalDust[grid.CharacterID] = balance - node.UnlockCost;
+            GetUnlockedNodes(save, grid.CharacterID).Add(node.NodeID);
+            EventBus.Instance?.RaiseTalentNodeUnlocked(node.NodeID);
+            return ResonanceUnlockResult.Unlocked;
+        }
+
+        /// <summary>
+        /// Reports what <see cref="TryUnlock"/> would return for a node without
+        /// mutating the save. <see cref="ResonanceUnlockResult.Unlocked"/> means
+        /// the node is currently purchasable. Used by the grid UI for
+        /// disabled-state explanations and tooltips.
+        /// </summary>
+        public static ResonanceUnlockResult EvaluateUnlock(
+            ResonanceGridData grid,
+            StorySaveData save,
+            string nodeID) {
             if (grid == null || save == null || grid.CharacterID != save.SelectedCharacterID) {
                 return ResonanceUnlockResult.WrongCharacter;
             }
@@ -23,9 +43,6 @@ namespace FTT.Environment {
             }
             int balance = save.DepositedChronalDust.GetValueOrDefault(grid.CharacterID);
             if (balance < node.UnlockCost) return ResonanceUnlockResult.InsufficientDust;
-            save.DepositedChronalDust[grid.CharacterID] = balance - node.UnlockCost;
-            unlocked.Add(node.NodeID);
-            EventBus.Instance?.RaiseTalentNodeUnlocked(node.NodeID);
             return ResonanceUnlockResult.Unlocked;
         }
 
