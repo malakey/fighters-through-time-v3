@@ -31,10 +31,23 @@ namespace FTT.Enemies {
         private ProgressBar _hpBar;
         private bool _facingRight = true;
         private bool _rewindFrozen;
+        private int _scaledMaxHP;
+        private float _statusTimer;
+        private float _statusIntensity = 1f;
+        private float _venomTickTimer;
         public bool IsStoryRewindFrozen => _rewindFrozen;
 
+        /// <summary>Active status effect (newest replaces; no stacking), Story-only.</summary>
+        public StatusType ActiveStatusType { get; private set; } = StatusType.None;
+        public float StatusMoveMultiplier { get; private set; } = 1f;
+        public float StatusDamageTakenMultiplier { get; private set; } = 1f;
+
+        /// <summary>Story difficulty-scaled maximum HP; canonical base stays in EnemyData.</summary>
+        public int ScaledMaxHP => _scaledMaxHP > 0 ? _scaledMaxHP : Data?.MaxHP ?? 1;
+
         public override void _Ready() {
-            if (Data != null) CurrentHP = Data.MaxHP;
+            ApplyDifficultyScaling();
+            CurrentHP = ScaledMaxHP;
             _sprite = GetNodeOrNull<AnimatedSprite2D>("AnimatedSprite2D");
             _attackHitbox = GetNodeOrNull<FTT.Combat.Hitbox>("AttackHitbox");
             _hurtbox = GetNodeOrNull<FTT.Combat.Hurtbox>("Hurtbox");
@@ -55,12 +68,26 @@ namespace FTT.Enemies {
             CollisionLayer = FTT.Core.CollisionLayers.Enemy;
             CollisionMask = FTT.Core.CollisionLayers.EnemyBodyMask;
 
+            ApplyScaledHitboxDamage();
             UpdateHPBar();
+        }
+
+        private void ApplyDifficultyScaling() {
+            if (Data == null) return;
+            FTT.Core.Difficulty difficulty = FTT.Core.StoryDifficultyTuning.CurrentStoryDifficulty;
+            _scaledMaxHP = FTT.Core.StoryDifficultyTuning.ScaleEnemyHP(Data.MaxHP, difficulty);
+        }
+
+        private void ApplyScaledHitboxDamage() {
+            if (Data == null || _attackHitbox == null) return;
+            FTT.Core.Difficulty difficulty = FTT.Core.StoryDifficultyTuning.CurrentStoryDifficulty;
+            _attackHitbox.Damage = FTT.Core.StoryDifficultyTuning.ScaleEnemyDamage(Data.AttackDamage, difficulty);
         }
 
         public override void _PhysicsProcess(double delta) {
             if (_rewindFrozen) return;
             float dt = (float)delta;
+            TickStatus(dt);
             if (_attackCooldownTimer > 0) _attackCooldownTimer -= dt;
 
             if (_attackActiveTimer > 0) {
@@ -124,7 +151,7 @@ namespace FTT.Enemies {
 
             float sign = Mathf.Sign(dirX);
             _facingRight = sign > 0;
-            Velocity = new Vector2(sign * (Data?.MoveSpeed ?? 3f) * 60f, Velocity.Y);
+            Velocity = new Vector2(sign * (Data?.MoveSpeed ?? 3f) * 60f * StatusMoveMultiplier, Velocity.Y);
             if (_sprite != null) _sprite.FlipH = !_facingRight;
             _sprite?.Play("walk");
         }
@@ -151,7 +178,7 @@ namespace FTT.Enemies {
             float dirX = _target.GlobalPosition.X - GlobalPosition.X;
             float sign = Mathf.Sign(dirX);
             _facingRight = sign > 0;
-            Velocity = new Vector2(sign * (Data?.MoveSpeed ?? 3f) * 60f, Velocity.Y);
+            Velocity = new Vector2(sign * (Data?.MoveSpeed ?? 3f) * 60f * StatusMoveMultiplier, Velocity.Y);
             if (_sprite != null) _sprite.FlipH = !_facingRight;
             _sprite?.Play("walk");
         }
@@ -199,7 +226,7 @@ namespace FTT.Enemies {
 
             float sign = Mathf.Sign(dirX);
             _facingRight = sign > 0;
-            Velocity = new Vector2(sign * (Data?.MoveSpeed ?? 3f) * 60f, Velocity.Y);
+            Velocity = new Vector2(sign * (Data?.MoveSpeed ?? 3f) * 60f * StatusMoveMultiplier, Velocity.Y);
             if (_sprite != null) _sprite.FlipH = !_facingRight;
         }
 
@@ -210,6 +237,7 @@ namespace FTT.Enemies {
 
         public int TakeDamage(int damage) {
             if (CurrentState == EnemyState.Dead) return 0;
+            damage = Math.Max(0, (int)MathF.Round(damage * StatusDamageTakenMultiplier));
             int previousHP = CurrentHP;
             CurrentHP = Math.Max(0, CurrentHP - Math.Max(0, damage));
             int damageApplied = previousHP - CurrentHP;
@@ -243,9 +271,63 @@ namespace FTT.Enemies {
             CurrentState = EnemyState.Stunned;
         }
 
+        /// <summary>
+        /// Minimal Story status support mirroring StatusController semantics: one
+        /// active status at a time, the newest completely replaces the previous.
+        /// </summary>
+        public void ApplyStatusEffect(StatusType type, float duration, float intensity = 1f) {
+            if (CurrentState == EnemyState.Dead || type == StatusType.None || duration <= 0f) return;
+            ClearStatusEffect();
+
+            float potency = intensity <= 0f ? 1f : intensity;
+            ActiveStatusType = type;
+            _statusTimer = duration;
+            _statusIntensity = potency;
+            switch (type) {
+                case StatusType.TimeDilation:
+                    StatusMoveMultiplier = Mathf.Max(0.1f, 1f - 0.5f * potency);
+                    break;
+                case StatusType.RadiantBurn:
+                    StatusDamageTakenMultiplier = 1f + 0.25f * potency;
+                    break;
+                case StatusType.Root:
+                    StatusMoveMultiplier = 0f;
+                    Velocity = new Vector2(0f, Velocity.Y);
+                    break;
+                case StatusType.StaticCharge:
+                    ApplyStun(duration);
+                    break;
+                case StatusType.Venom:
+                    _venomTickTimer = 1f;
+                    break;
+            }
+        }
+
+        private void ClearStatusEffect() {
+            ActiveStatusType = StatusType.None;
+            _statusTimer = 0f;
+            _statusIntensity = 1f;
+            _venomTickTimer = 0f;
+            StatusMoveMultiplier = 1f;
+            StatusDamageTakenMultiplier = 1f;
+        }
+
+        private void TickStatus(float dt) {
+            if (ActiveStatusType == StatusType.None) return;
+            _statusTimer -= dt;
+            if (ActiveStatusType == StatusType.Venom) {
+                _venomTickTimer -= dt;
+                if (_venomTickTimer <= 0f) {
+                    _venomTickTimer += 1f;
+                    TakeDamage(Math.Max(1, (int)MathF.Round(2f * _statusIntensity)));
+                }
+            }
+            if (_statusTimer <= 0f) ClearStatusEffect();
+        }
+
         private void UpdateHPBar() {
             if (_hpBar != null) {
-                _hpBar.MaxValue = Data?.MaxHP ?? 50;
+                _hpBar.MaxValue = ScaledMaxHP;
                 _hpBar.Value = CurrentHP;
             }
         }
@@ -277,7 +359,9 @@ namespace FTT.Enemies {
         }
 
         public void OnSpawn() {
-            CurrentHP = Data?.MaxHP ?? 1;
+            ApplyDifficultyScaling();
+            ApplyScaledHitboxDamage();
+            CurrentHP = ScaledMaxHP;
             CurrentState = EnemyState.Patrol;
             _attackCooldownTimer = 0f;
             _stunTimer = 0f;
@@ -286,6 +370,7 @@ namespace FTT.Enemies {
             _patrolForward = true;
             _target = null;
             _rewindFrozen = false;
+            ClearStatusEffect();
             Velocity = Vector2.Zero;
             CollisionLayer = CollisionLayers.Enemy;
             CollisionMask = CollisionLayers.EnemyBodyMask;
@@ -326,6 +411,9 @@ namespace FTT.Enemies {
             int damageApplied = TakeDamage(Mathf.Max(0, (int)Mathf.Round(hit.Damage)));
             ApplyKnockback(hit.Knockback, hit.AttackerFacingRight);
             if (hit.HitstunDuration > 0f) ApplyStun(hit.HitstunDuration);
+            if (hit.AppliedStatus != StatusType.None && hit.StatusDuration > 0f) {
+                ApplyStatusEffect(hit.AppliedStatus, hit.StatusDuration, hit.StatusIntensity);
+            }
             return damageApplied;
         }
 

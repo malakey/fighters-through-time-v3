@@ -14,8 +14,17 @@ namespace FTT.Combat {
         private Node2D _p2;
 
         public override void _Ready() {
-            _p1 = GetNodeOrNull<Node2D>(Player1Path);
-            _p2 = GetNodeOrNull<Node2D>(Player2Path);
+            if (_p1 == null) _p1 = GetNodeOrNull<Node2D>(Player1Path);
+            if (_p2 == null) _p2 = GetNodeOrNull<Node2D>(Player2Path);
+        }
+
+        /// <summary>Assigns code-spawned fighters and snaps to their midpoint.</summary>
+        public void SetPlayers(Node2D playerOne, Node2D playerTwo) {
+            _p1 = playerOne;
+            _p2 = playerTwo;
+            if (_p1 != null && _p2 != null) {
+                GlobalPosition = (_p1.GlobalPosition + _p2.GlobalPosition) / 2f;
+            }
         }
 
         public override void _PhysicsProcess(double delta) {

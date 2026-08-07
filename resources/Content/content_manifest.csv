@@ -18,7 +18,7 @@ StoryLevel,level_13_chronal_void,3|7,res://scenes/campaign/Level_13_ChronalVoid.
 StoryLevel,level_14_neo_earth,3|7,res://scenes/campaign/Level_14_NeoEarth.tscn,StoryManager,Planned,Placeholder,Pending,true
 StoryLevel,level_15_alexandria,3|7,res://scenes/campaign/Level_15_Alexandria.tscn,StoryManager,Planned,Placeholder,Pending,true
 # Ten independent Fighter stage targets
-FighterStage,florence_workshop,10,res://scenes/fighter/FighterStage_Florence.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true
+FighterStage,florence_workshop,10,res://scenes/fighter/FighterStage_Florence.tscn,FighterStageCatalog,Implemented,Placeholder,Valid,true
 FighterStage,orleans_vanguard,10,res://scenes/fighter/FighterStage_Orleans.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true
 FighterStage,chicago_exposition,10,res://scenes/fighter/FighterStage_Chicago.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true
 FighterStage,paris_bastille,10,res://scenes/fighter/FighterStage_Paris.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true

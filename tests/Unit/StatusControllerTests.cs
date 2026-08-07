@@ -55,6 +55,26 @@ public class StatusControllerTests {
         player.Free();
     }
 
+    [TestCase]
+    public void EnemyMinimalStatusFollowsNewestReplacesSemantics() {
+        var enemy = new FTT.Enemies.EnemyController { CurrentHP = 100 };
+
+        enemy.ApplyStatusEffect(StatusType.TimeDilation, 3f, 1f);
+        AssertThat(enemy.ActiveStatusType).IsEqual(StatusType.TimeDilation);
+        AssertThat(enemy.StatusMoveMultiplier).IsEqual(0.5f);
+
+        // The newest status completely replaces the previous one.
+        enemy.ApplyStatusEffect(StatusType.RadiantBurn, 3f, 1f);
+        AssertThat(enemy.ActiveStatusType).IsEqual(StatusType.RadiantBurn);
+        AssertThat(enemy.StatusMoveMultiplier).IsEqual(1f);
+        AssertThat(enemy.StatusDamageTakenMultiplier).IsEqual(1.25f);
+
+        // RadiantBurn amplifies incoming damage (Einstein's Critical Mass burst).
+        enemy.TakeDamage(20);
+        AssertThat(enemy.CurrentHP).IsEqual(75);
+        enemy.Free();
+    }
+
     private static (PlayerController player, StatusController status) CreateSubject() {
         var player = new PlayerController { CurrentHP = 100, PlayerIndex = 0 };
         var status = new StatusController { Name = "StatusController" };

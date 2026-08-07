@@ -124,6 +124,41 @@ public class ResonanceProgressionTests {
             .IsFalse();
     }
 
+    [TestCase]
+    public void CollectUnlockedAbilityModifiersReturnsOnlyUnlockedMajorPerkKeys() {
+        ResonanceGridData grid = ResourceLoader.Load<ResonanceGridData>(
+            "res://resources/Resonance/einstein_grid.tres");
+        StorySaveData save = new() {
+            SelectedCharacterID = "einstein",
+            DepositedChronalDust = new Dictionary<string, int>(),
+            GridProgress = new Dictionary<string, List<string>> {
+                ["einstein"] = new() { "einstein_u1", "einstein_u2", "einstein_u3", "einstein_o1" }
+            }
+        };
+
+        var perks = new HashSet<string>();
+        ResonanceProgression.CollectUnlockedAbilityModifiers(grid, save, perks);
+        AssertThat(perks.Count).IsEqual(1);
+        AssertThat(perks.Contains("event_horizon")).IsTrue();
+
+        // Perk keys stay character-scoped: a different campaign character collects nothing.
+        save.SelectedCharacterID = "joan";
+        ResonanceProgression.CollectUnlockedAbilityModifiers(grid, save, perks);
+        AssertThat(perks.Count).IsEqual(0);
+    }
+
+    [TestCase]
+    public void PlayerPerkQueryIsEmptyUnlessStoryProgressionPopulatesIt() {
+        var player = new FTT.Characters.PlayerController();
+        AssertThat(player.HasStoryPerk("event_horizon")).IsFalse();
+        AssertThat(player.HasStoryPerk("")).IsFalse();
+
+        player.StoryAbilityPerks.Add("event_horizon");
+        AssertThat(player.HasStoryPerk("event_horizon")).IsTrue();
+        AssertThat(player.HasStoryPerk("critical_mass")).IsFalse();
+        player.Free();
+    }
+
     private static StorySaveData BuildSave(int dust) => new() {
         SelectedCharacterID = "einstein",
         DepositedChronalDust = new Dictionary<string, int> { ["einstein"] = dust },

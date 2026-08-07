@@ -122,6 +122,8 @@ namespace FTT.FighterSim {
                 SpecialTwoPersistentTypeID = modes.SpecialTwoPersistentTypeID,
                 SpecialTwoMaxActiveObjects = modes.SpecialTwoMaxActiveObjects,
                 SpecialTwoPersistentLifetimeFrames = modes.SpecialTwoPersistentLifetimeFrames,
+                SpecialOneTickIntervalFrames = modes.SpecialOneTickIntervalFrames,
+                SpecialTwoTickIntervalFrames = modes.SpecialTwoTickIntervalFrames,
                 MovementType = modes.MovementType,
                 MovementCooldownFrames = modes.MovementCooldownFrames,
                 MovementDurationFrames = modes.MovementDurationFrames,
@@ -168,10 +170,12 @@ namespace FTT.FighterSim {
         private static readonly FP64 Gravity = FP64.FromInt(-30);
         private static readonly FP64 DashSpeedMultiplier = FP64.FromDouble(UniversalMovementRules.DashSpeedMultiplier);
         private static readonly FP64 RollSpeedMultiplier = FP64.FromDouble(UniversalMovementRules.RollSpeedMultiplier);
-        private static readonly FP64 LeftWall = FP64.FromInt(-10);
-        private static readonly FP64 RightWall = FP64.FromInt(10);
-        private static readonly FP64 Ceiling = FP64.FromInt(9);
-        private static readonly FP64 BottomBlastZone = FP64.FromInt(-5);
+
+        private readonly FighterStageGeometry _geometry;
+
+        public FighterMovementSystem(FighterStageGeometry geometry = null) {
+            _geometry = geometry ?? FighterStageGeometry.Default;
+        }
 
         public void Update(ref Frame frame) {
             var filter = frame.Filter<FighterStateComponent, FighterRuntimeComponent, FighterTuningComponent>();
@@ -196,6 +200,11 @@ namespace FTT.FighterSim {
                     FP64 speedBuffMultiplier = runtime.SpeedBuffFrames > 0
                         ? FP64.FromDouble(1.4)
                         : FP64.One;
+                    // Standing inside a zone the fighter owns (Einstein's Relativity
+                    // Rift) grants the design's +25% movement speed in both modes.
+                    if (runtime.ZoneSpeedBonusFrames > 0) {
+                        speedBuffMultiplier *= FP64.FromDouble(1.25);
+                    }
                     FP64 jumpBuffMultiplier = runtime.JumpBuffFrames > 0
                         ? FP64.FromDouble(1.3)
                         : FP64.One;
@@ -214,28 +223,75 @@ namespace FTT.FighterSim {
                             rooted,
                             statusMoveMultiplier,
                             speedBuffMultiplier,
-                            jumpBuffMultiplier);
+                            jumpBuffMultiplier,
+                            groundIsSolid: _geometry.Platforms.Length > 0);
                     }
-                    if (fighter.IsGrounded == 0) fighter.Velocity.y += Gravity * FixedDelta;
+                    if (fighter.IsGrounded == 0) {
+                        // Float glide (post-warp cancel) heavily reduces gravity.
+                        FP64 gravityStep = runtime.FloatFrames > 0
+                            ? Gravity * FixedDelta / FP64.FromInt(5)
+                            : Gravity * FixedDelta;
+                        fighter.Velocity.y += gravityStep;
+                    }
                 }
 
+                FP64 previousY = fighter.Position.y;
                 fighter.Position += fighter.Velocity * FixedDelta;
-                fighter.Position.x = FP64.Clamp(fighter.Position.x, LeftWall, RightWall);
-                if (fighter.Position.y > Ceiling) {
-                    fighter.Position.y = Ceiling;
+                fighter.Position.x = FP64.Clamp(fighter.Position.x, _geometry.LeftWall, _geometry.RightWall);
+                if (fighter.Position.y > _geometry.Ceiling) {
+                    fighter.Position.y = _geometry.Ceiling;
                     if (fighter.Velocity.y > FP64.Zero) fighter.Velocity.y = FP64.Zero;
                 }
 
-                if (fighter.DropThroughFrames <= 0 && fighter.Position.y <= FP64.Zero) {
+                // Walking off a one-way platform edge removes ground support.
+                if (fighter.IsGrounded != 0 && fighter.Position.y > FP64.Zero && !HasPlatformSupport(in fighter)) {
+                    fighter.IsGrounded = 0;
+                }
+
+                if (fighter.DropThroughFrames <= 0 && fighter.Velocity.y <= FP64.Zero) {
+                    TryLandOnPlatform(ref fighter, in tuning, previousY);
+                }
+
+                // Stages with authored platforms have a solid base floor; only the
+                // legacy flat arena keeps its historical drop-through ground.
+                bool groundIsSolid = _geometry.Platforms.Length > 0;
+                if ((groundIsSolid || fighter.DropThroughFrames <= 0) && fighter.Position.y <= FP64.Zero) {
                     fighter.Position.y = FP64.Zero;
                     if (fighter.Velocity.y < FP64.Zero) fighter.Velocity.y = FP64.Zero;
                     fighter.IsGrounded = 1;
                     fighter.RemainingJumps = tuning.MaxJumpCount;
                 }
 
-                if (fighter.Position.y < BottomBlastZone) {
+                if (fighter.Position.y < _geometry.BottomBlastZone) {
                     FighterSimulationRules.ApplyStockLoss(ref fighter, ref runtime, in tuning);
                 }
+            }
+        }
+
+        /// <summary>True while the fighter stands on a platform surface span.</summary>
+        private bool HasPlatformSupport(in FighterStateComponent fighter) {
+            for (int index = 0; index < _geometry.Platforms.Length; index++) {
+                ref readonly FighterStagePlatform platform = ref _geometry.Platforms[index];
+                if (fighter.Position.y == platform.SurfaceY && platform.Supports(fighter.Position.x)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>One-way landing: only when the fall crossed the surface from above.</summary>
+        private void TryLandOnPlatform(
+            ref FighterStateComponent fighter,
+            in FighterTuningComponent tuning,
+            FP64 previousY) {
+            for (int index = 0; index < _geometry.Platforms.Length; index++) {
+                ref readonly FighterStagePlatform platform = ref _geometry.Platforms[index];
+                if (previousY < platform.SurfaceY
+                    || fighter.Position.y > platform.SurfaceY
+                    || !platform.Supports(fighter.Position.x)) continue;
+                fighter.Position.y = platform.SurfaceY;
+                if (fighter.Velocity.y < FP64.Zero) fighter.Velocity.y = FP64.Zero;
+                fighter.IsGrounded = 1;
+                fighter.RemainingJumps = tuning.MaxJumpCount;
+                return;
             }
         }
 
@@ -326,7 +382,8 @@ namespace FTT.FighterSim {
             bool rooted,
             FP64 statusMoveMultiplier,
             FP64 speedBuffMultiplier,
-            FP64 jumpBuffMultiplier) {
+            FP64 jumpBuffMultiplier,
+            bool groundIsSolid = false) {
             FP64 input = rooted ? FP64.Zero : FP64.FromInt(runtime.MoveX) / FP64.FromInt(127);
             FP64 maximumSpeed = tuning.MoveSpeed * statusMoveMultiplier * speedBuffMultiplier;
             FP64 targetSpeed = input * maximumSpeed;
@@ -342,7 +399,8 @@ namespace FTT.FighterSim {
 
             bool jumpPressed = (runtime.PressedButtons & JumpButton) != 0;
             bool downHeld = (runtime.HeldButtons & DownButton) != 0;
-            if (jumpPressed && downHeld && fighter.IsGrounded != 0 && !rooted) {
+            bool onSolidBaseFloor = groundIsSolid && fighter.Position.y <= FP64.Zero;
+            if (jumpPressed && downHeld && fighter.IsGrounded != 0 && !rooted && !onSolidBaseFloor) {
                 fighter.DropThroughFrames = 30;
                 fighter.IsGrounded = 0;
                 fighter.Velocity.y = FP64.FromInt(-2);
@@ -376,6 +434,8 @@ namespace FTT.FighterSim {
             if (runtime.MovementCooldownFrames > 0) runtime.MovementCooldownFrames--;
             if (runtime.SpeedBuffFrames > 0) runtime.SpeedBuffFrames--;
             if (runtime.JumpBuffFrames > 0) runtime.JumpBuffFrames--;
+            if (runtime.ZoneSpeedBonusFrames > 0) runtime.ZoneSpeedBonusFrames--;
+            if (runtime.FloatFrames > 0) runtime.FloatFrames--;
             if (runtime.StatusFrames > 0) {
                 runtime.StatusFrames--;
                 if (runtime.StatusTickFrames > 0) runtime.StatusTickFrames--;
@@ -429,8 +489,15 @@ namespace FTT.FighterSim {
     public sealed class FighterPushboxSystem : ISystem {
         public static readonly FP64 MinimumHorizontalDistance = FP64.FromDouble(0.8);
         private static readonly FP64 MaximumVerticalDistance = FP64.FromDouble(1.6);
-        private static readonly FP64 LeftWall = FP64.FromInt(-10);
-        private static readonly FP64 RightWall = FP64.FromInt(10);
+
+        private readonly FP64 LeftWall;
+        private readonly FP64 RightWall;
+
+        public FighterPushboxSystem(FighterStageGeometry geometry = null) {
+            geometry ??= FighterStageGeometry.Default;
+            LeftWall = geometry.LeftWall;
+            RightWall = geometry.RightWall;
+        }
 
         public void Update(ref Frame frame) {
             EntityRef firstEntity = default;

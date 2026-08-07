@@ -4,108 +4,53 @@ using FTT.Characters;
 
 namespace FTT.Characters.Abilities {
 
+    /// <summary>
+    /// Special 2 — Relativity Rift: a localized distortion field that inflicts
+    /// TimeDilation (-50% enemy movement/jump/animation speed) and continuous chip
+    /// damage (authored: 1.5 per 0.5 s tick over 3 s). If Einstein stands inside
+    /// his own rift he gains +25% movement speed, mirroring the Fighter-sim zone.
+    /// All tuning comes from the authored AbilityData resource.
+    /// </summary>
     public partial class EinsteinRelativityRift : BaseSpecial {
 
-        private const float StartupDuration = 0.2f;
-        private const float ActiveDuration = 0.1f;
-        private const float RecoveryDuration = 0.3f;
+        private const float RiftRadius = 100f;
+        private const float OwnerSpeedMultiplier = 1.25f;
 
         protected override void OnStartup() {
-            PhaseTimer = StartupDuration;
+            UseAuthoredPhaseFrames();
         }
 
         protected override void OnActive() {
-            PhaseTimer = ActiveDuration;
+            UseAuthoredPhaseFrames();
             SpawnRift();
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = RecoveryDuration;
+            UseAuthoredPhaseFrames();
         }
 
         private void SpawnRift() {
-            if (Data?.ProjectileScene == null && Owner != null) {
-                SpawnPlaceholderZone(
-                    Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 100f : -100f, 0f),
-                    Data.BaseDamage,
-                    Data.StatusDuration > 0 ? Data.StatusDuration : 3f,
-                    0.5f,
-                    new Color(0.4f, 0.3f, 0.9f));
-                Owner.SpecialTwoCooldownTimer = Data.CooldownDuration;
-                FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                    PlayerIndex = Owner.PlayerIndex,
-                    Slot = FTT.Core.AbilitySlot.Special2,
-                    Duration = Data.CooldownDuration
-                });
-                return;
-            }
             if (Owner == null) return;
+            float tickInterval = (Data?.DamageTickIntervalFrames ?? 30) / 60f;
+            if (tickInterval <= 0f) tickInterval = 0.5f;
+            SpawnPlaceholderZone(
+                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 100f : -100f, 0f),
+                Data?.BaseDamage ?? 1.5f,
+                Data?.Lifetime > 0f ? Data.Lifetime : 3f,
+                tickInterval,
+                new Color(0.4f, 0.3f, 0.9f),
+                RiftRadius,
+                Data?.AppliedStatus ?? FTT.Core.StatusType.TimeDilation,
+                Data?.StatusDuration > 0f ? Data.StatusDuration : 3f,
+                Data?.StatusIntensity ?? 1f,
+                OwnerSpeedMultiplier);
 
-            var rift = FTT.Core.PoolManager.Instance?.Spawn(
-                Data.ProjectileScene,
-                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 100f : -100f, 0f)
-            );
-
-            if (rift is RelativityRiftZone zone) {
-                zone.Initialize(Data.BaseDamage, Data.StatusDuration, Owner.PlayerIndex);
-            }
-
-            Owner.SpecialTwoCooldownTimer = Data.CooldownDuration;
+            Owner.SpecialTwoCooldownTimer = Data?.CooldownDuration ?? 10f;
             FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 Slot = FTT.Core.AbilitySlot.Special2,
-                Duration = Data.CooldownDuration
+                Duration = Data?.CooldownDuration ?? 10f
             });
-        }
-    }
-
-    public partial class RelativityRiftZone : FTT.Core.PooledNode, FTT.Core.IPoolable {
-        private float _damagePerTick = 1.5f;
-        private float _duration = 3.0f;
-        private float _tickInterval = 0.5f;
-        private float _tickTimer;
-        private float _lifetime;
-        private int _ownerIndex;
-
-        public void Initialize(float damagePerTick, float duration, int ownerIndex) {
-            _damagePerTick = damagePerTick;
-            _duration = duration;
-            _lifetime = duration;
-            _ownerIndex = ownerIndex;
-            _tickTimer = 0;
-        }
-
-        public void OnSpawn() { }
-        public void OnDespawn() { }
-
-        public override void _PhysicsProcess(double delta) {
-            float dt = (float)delta;
-            _lifetime -= dt;
-            if (_lifetime <= 0) {
-                ReturnToPool();
-                return;
-            }
-
-            _tickTimer += dt;
-            if (_tickTimer >= _tickInterval) {
-                _tickTimer -= _tickInterval;
-                ApplyEffectsToOverlapping();
-            }
-        }
-
-        private void ApplyEffectsToOverlapping() {
-            var area = GetNodeOrNull<Area2D>("Area2D");
-            if (area == null) return;
-
-            foreach (var body in area.GetOverlappingBodies()) {
-                if (body is PlayerController pc) {
-                    if (pc.PlayerIndex == _ownerIndex) {
-                        // Self-buff: +25% speed (handled by status system)
-                    } else {
-                        pc.ApplyDamage((int)_damagePerTick);
-                    }
-                }
-            }
         }
     }
 }

@@ -402,7 +402,7 @@ stage_gettysburg_hazard_description,A long warning line precedes a powerful arti
 hub_portal_prompt,"TEMPORAL PORTAL\n[E] Enter"
 hub_repository,CHRONAL REPOSITORY
 hub_ship_title,THE ARCHIVE TIME-SHIP
-hub_interaction_help,Archive Time-Ship | [E] Interact with Portal or Repository
+hub_interaction_help,Archive Time-Ship | [E] Interact with Portal / Repository / Holodeck / Crew
 hub_next_mission,Next Mission: {0}
 hub_carried_dust,Chronal Dust: {0}
 campaign_level_tutorial,Chronal Integration
@@ -430,3 +430,56 @@ interaction_open_chest,Press Interact to open chest
 timeline_collapse_title,Timeline Collapsed
 timeline_restart_anchor,Restart from Timeline Anchor
 timeline_restart_level,Restart Level from Beginning
+speaker_sarah,Commander Sarah
+speaker_player,Traveler
+speaker_borgia,The Borgia Inquisitor
+emotion_neutral,Neutral
+emotion_determined,Determined
+emotion_shocked,Shocked
+emotion_confused,Confused
+emotion_injured,Injured
+dlg_l00_intro_1,"Welcome back to reality, traveler. Or rather, what's left of it. I am Sarah, commander of the Chrono-Resistance. Take a breath — your body is adjusting to the temporal siphon."
+dlg_l00_intro_2,"...Where am I? The sky... it tore apart."
+dlg_l00_intro_3,"You are aboard the Archive Time-Ship. The people who did this to your home call themselves the Apex Archive. They are a futuristic cult siphoning the historical energy of pivotal eras to build their 'perfect' timeline. Your displacement was a side effect — but it also imbued you with Temporal Resonance, the power to fight back."
+dlg_l00_intro_4,"Then we must stop them. But what of the soldiers I saw? They looked like my people, but... wrong. Their eyes glowed, their weapons hummed with light."
+dlg_l00_intro_5,"That is the cult's doing. When the siphons deploy, the cultists use neural-linking implants to brainwash the local inhabitants of that era, forcing them to defend the siphons as 'Altered Mobs'. We must free them by destroying the siphons."
+dlg_l00_intro_6,"But first, we must calibrate your Temporal Resonance. Step up to the bay console."
+dlg_l00_mobility_1,"Your combat resonance is calibrated. Now let's test your spatial awareness — you'll need every advantage to navigate the fractured timelines."
+dlg_l00_complete_1,"Calibration complete. The time portals are unlocked — return to the bridge and choose your first destination."
+dlg_l01_entrance_1,"Florence... it's beautiful, but I hear the hum of machinery. These scaffoldings aren't from my books."
+dlg_l01_entrance_2,"Stay alert. The cult has deployed a siphon in Da Vinci's workshop. The city guards have been neural-linked. They are armed with shock-pikes. Do not let their electrical discharges lock your movements."
+dlg_l01_boss_1,"You dare interrupt the harvest? The Archive has promised Florence eternity — and promised me your resonance."
+dlg_l01_boss_2,"Eternity built on stolen memories is no gift. Stand aside, or fall with your siphon."
+dlg_l01_exit_1,"The siphon is shattered. The energy is dispersing."
+dlg_l01_exit_2,"Outstanding. With the siphon gone, the neural-link is broken. The altered guards are returning to their normal states. They will wake up with nothing but a headache, thinking it was a strange dream."
+dlg_l01_exit_3,"I can feel it. My hands... they are glowing less. The stabilization of the area is dampening my own temporal resonance."
+dlg_l01_exit_4,"Yes, that is the cost. Your powers are anchored to the temporal fractures. The more we repair history, the more your resonance will fade. But it is the only way to save your world."
+dlg_l01_exit_5,"A small price to pay. Let's return to the ship."
+dlg_hub_sarah_1,"The bridge is yours, traveler. The Chronal Repository will bank your dust, and the Holodeck can spar you against simulated foes."
+dlg_hub_sarah_2,"When you are ready, the Temporal Portal is charged for your next destination. History is waiting."
+hud_rewinds,Rewinds: {0}
+hud_checkpoint_reached,CHECKPOINT REACHED
+results_level_complete,LEVEL COMPLETE
+results_dust_earned,Chronal Dust earned this level: {0}
+results_return_hub,Return to Time-Ship
+hub_calibration_bay,CALIBRATION BAY
+hub_holodeck,HOLODECK ARENA CONSOLE
+hub_npc_sarah,COMMANDER SARAH
+hub_dust_deposited_toast,Deposited {0} Chronal Dust into the Repository
+fighter_return_to_ship,Return to Time-Ship
+tutorial_dummy_name,TRAINING DUMMY
+tutorial_fracture_label,CHRONAL FRACTURE
+tutorial_objective_fracture,Listen to Commander Sarah's briefing
+tutorial_step_attack,Calibration: land basic attacks on the dummy ({0}/{1})
+tutorial_step_special,Calibration: use a Special ability (K or L)
+tutorial_step_rewind,Calibration: trigger a Chronal Rewind (R)
+tutorial_step_double_jump,Mobility: reach the green marker with a double jump
+tutorial_step_dash,Mobility: cross the amber corridor while dashing
+tutorial_step_roll,Mobility: cross the blue strip while rolling
+tutorial_gate_double_jump,DOUBLE JUMP
+tutorial_gate_dash,DASH THROUGH
+tutorial_gate_roll,ROLL THROUGH
+florence_objective_defeat_boss,Defeat the Borgia Inquisitor!
+florence_objective_gears,Align both print-press gears to open the workshop door
+florence_door_locked,WORKSHOP SEALED — ALIGN THE GEARS
+interaction_rotate_gear,Press Interact to rotate gear

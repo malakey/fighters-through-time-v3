@@ -12,6 +12,16 @@ namespace FTT.Combat {
         private ColorRect _trail;
         private CollisionShape2D _shape;
 
+        /// <summary>
+        /// When true, the projectile despawns on its first confirmed contact and
+        /// raises <see cref="Impacted"/> with the impact position (heavy detonating
+        /// projectiles like Einstein's E=mc²). Cleared on despawn.
+        /// </summary>
+        public bool DetonateOnImpact { get; set; }
+
+        /// <summary>Raised once at the impact position when a detonating projectile connects.</summary>
+        public event System.Action<Vector2> Impacted;
+
         public override void _Ready() {
             AddToGroup("story_projectile");
         }
@@ -69,6 +79,14 @@ namespace FTT.Combat {
             };
             _hitbox.AddChild(_shape);
             AddChild(_hitbox);
+            _hitbox.HitConfirmed += OnHitConfirmed;
+        }
+
+        private void OnHitConfirmed(HitPayload payload, float damageApplied) {
+            if (!DetonateOnImpact) return;
+            Vector2 impactPosition = GlobalPosition;
+            Impacted?.Invoke(impactPosition);
+            ReturnToPool();
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -94,6 +112,8 @@ namespace FTT.Combat {
             _speed = 0f;
             _lifetime = 0f;
             _movingRight = true;
+            DetonateOnImpact = false;
+            Impacted = null;
             Modulate = Colors.White;
         }
     }

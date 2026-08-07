@@ -58,6 +58,18 @@ namespace FTT.Characters {
 		public float StorySpecialDamageMultiplier { get; set; } = 1f;
 		public float StoryTemporaryDamageMultiplier { get; private set; } = 1f;
 		public float StoryTemporarySpeedMultiplier { get; private set; } = 1f;
+		/// <summary>
+		/// Unlocked Resonance major-perk keys (Story-only). Populated by
+		/// CharacterFactory from the active save; always empty in Fighter Mode.
+		/// </summary>
+		public HashSet<string> StoryAbilityPerks { get; } = new(StringComparer.Ordinal);
+		public bool HasStoryPerk(string abilityModifierKey) =>
+			!string.IsNullOrWhiteSpace(abilityModifierKey) && StoryAbilityPerks.Contains(abilityModifierKey);
+		/// <summary>
+		/// Remaining float-glide time granted by movement abilities (Einstein's
+		/// Relativity Warp cancel). While positive, gravity is heavily reduced.
+		/// </summary>
+		public float StoryFloatTimer { get; set; }
 		public bool IsPostRewindInvulnerable => _postRewindInvulnerabilityFrames > 0;
 		public int MaximumHP => (Data?.MaxHP ?? 100) + StoryMaxHPBonus;
 		public int MaximumBlockCharges => (Data?.MaxBlockCharges ?? 3) + StoryBlockChargeBonus;
@@ -1091,12 +1103,21 @@ namespace FTT.Characters {
 		// === Movement Helpers ===
 
 		private void ApplyGravity(float dt) {
-			if (IsOnFloor()) return;
+			if (IsOnFloor()) {
+				StoryFloatTimer = 0f;
+				return;
+			}
 
 			float effectiveGravity = BaseGravity * (0.8f + 0.4f * (Data?.Weight ?? 1.0f));
 			float multiplier = 1.0f;
 
-			if (Velocity.Y > 0) {
+			if (StoryFloatTimer > 0f) {
+				StoryFloatTimer = Mathf.Max(0f, StoryFloatTimer - dt);
+				multiplier = 0.15f;
+				if (Velocity.Y > 0) {
+					Velocity = new Vector2(Velocity.X, Mathf.Min(Velocity.Y, 60f));
+				}
+			} else if (Velocity.Y > 0) {
 				multiplier = FallGravityMultiplier;
 			} else if (!_jumpHeld && Velocity.Y < 0) {
 				multiplier = ShortHopGravityMultiplier;

@@ -16,84 +16,50 @@ namespace FTT.FighterSim {
         Pocahontas = 8
     }
 
+    /// <summary>
+    /// Immutable per-character ability execution configuration baked from normalized
+    /// resources. Effect lifetimes reuse the shared persistent-lifetime fields for
+    /// zones as well as constructs.
+    /// </summary>
     public readonly struct FighterAbilityLoadout {
-        public readonly int SpecialOneExecutionType;
-        public readonly int SpecialTwoExecutionType;
-        public readonly int SpecialOneProjectileLifetimeFrames;
-        public readonly int SpecialTwoProjectileLifetimeFrames;
-        public readonly int SpecialOnePersistentTypeID;
-        public readonly int SpecialOneMaxActiveObjects;
-        public readonly int SpecialOnePersistentLifetimeFrames;
-        public readonly int SpecialTwoPersistentTypeID;
-        public readonly int SpecialTwoMaxActiveObjects;
-        public readonly int SpecialTwoPersistentLifetimeFrames;
-        public readonly int MovementType;
-        public readonly int MovementCooldownFrames;
-        public readonly int MovementDurationFrames;
-        public readonly int MovementResetsJump;
-        public readonly int MovementGrantsHyperArmor;
-        public readonly int MovementPersistentTypeID;
-        public readonly int MovementMaxActiveObjects;
-        public readonly int MovementPersistentLifetimeFrames;
-        public readonly FP64 SpecialOneProjectileSpeed;
-        public readonly FP64 SpecialTwoProjectileSpeed;
-        public readonly FP64 MovementDistance;
-        public readonly FP64 MovementSpeed;
+        public int SpecialOneExecutionType { get; init; }
+        public int SpecialTwoExecutionType { get; init; }
+        public int SpecialOneProjectileLifetimeFrames { get; init; }
+        public int SpecialTwoProjectileLifetimeFrames { get; init; }
+        public int SpecialOnePersistentTypeID { get; init; }
+        public int SpecialOneMaxActiveObjects { get; init; }
+        public int SpecialOnePersistentLifetimeFrames { get; init; }
+        public int SpecialTwoPersistentTypeID { get; init; }
+        public int SpecialTwoMaxActiveObjects { get; init; }
+        public int SpecialTwoPersistentLifetimeFrames { get; init; }
+        public int SpecialOneTickIntervalFrames { get; init; }
+        public int SpecialTwoTickIntervalFrames { get; init; }
+        public int MovementType { get; init; }
+        public int MovementCooldownFrames { get; init; }
+        public int MovementDurationFrames { get; init; }
+        public int MovementResetsJump { get; init; }
+        public int MovementGrantsHyperArmor { get; init; }
+        public int MovementPersistentTypeID { get; init; }
+        public int MovementMaxActiveObjects { get; init; }
+        public int MovementPersistentLifetimeFrames { get; init; }
+        public FP64 SpecialOneProjectileSpeed { get; init; }
+        public FP64 SpecialTwoProjectileSpeed { get; init; }
+        public FP64 MovementDistance { get; init; }
+        public FP64 MovementSpeed { get; init; }
 
-        public FighterAbilityLoadout(
-            int specialOneExecutionType,
-            int specialTwoExecutionType,
-            int specialOneProjectileLifetimeFrames,
-            int specialTwoProjectileLifetimeFrames,
-            int specialOnePersistentTypeID,
-            int specialOneMaxActiveObjects,
-            int specialOnePersistentLifetimeFrames,
-            int specialTwoPersistentTypeID,
-            int specialTwoMaxActiveObjects,
-            int specialTwoPersistentLifetimeFrames,
-            int movementType,
-            int movementCooldownFrames,
-            int movementDurationFrames,
-            int movementResetsJump,
-            int movementGrantsHyperArmor,
-            int movementPersistentTypeID,
-            int movementMaxActiveObjects,
-            int movementPersistentLifetimeFrames,
-            FP64 specialOneProjectileSpeed,
-            FP64 specialTwoProjectileSpeed,
-            FP64 movementDistance,
-            FP64 movementSpeed) {
-            SpecialOneExecutionType = specialOneExecutionType;
-            SpecialTwoExecutionType = specialTwoExecutionType;
-            SpecialOneProjectileLifetimeFrames = specialOneProjectileLifetimeFrames;
-            SpecialTwoProjectileLifetimeFrames = specialTwoProjectileLifetimeFrames;
-            SpecialOnePersistentTypeID = specialOnePersistentTypeID;
-            SpecialOneMaxActiveObjects = specialOneMaxActiveObjects;
-            SpecialOnePersistentLifetimeFrames = specialOnePersistentLifetimeFrames;
-            SpecialTwoPersistentTypeID = specialTwoPersistentTypeID;
-            SpecialTwoMaxActiveObjects = specialTwoMaxActiveObjects;
-            SpecialTwoPersistentLifetimeFrames = specialTwoPersistentLifetimeFrames;
-            MovementType = movementType;
-            MovementCooldownFrames = movementCooldownFrames;
-            MovementDurationFrames = movementDurationFrames;
-            MovementResetsJump = movementResetsJump;
-            MovementGrantsHyperArmor = movementGrantsHyperArmor;
-            MovementPersistentTypeID = movementPersistentTypeID;
-            MovementMaxActiveObjects = movementMaxActiveObjects;
-            MovementPersistentLifetimeFrames = movementPersistentLifetimeFrames;
-            SpecialOneProjectileSpeed = specialOneProjectileSpeed;
-            SpecialTwoProjectileSpeed = specialTwoProjectileSpeed;
-            MovementDistance = movementDistance;
-            MovementSpeed = movementSpeed;
-        }
-
-        public static FighterAbilityLoadout Default => new(
-            2, 2, 300, 300,
-            0, 0, 0,
-            0, 0, 0,
-            2, 300, 12, 0, 0,
-            0, 0, 0,
-            FP64.Zero, FP64.Zero, FP64.FromInt(2), FP64.FromInt(10));
+        public static FighterAbilityLoadout Default => new() {
+            SpecialOneExecutionType = 2,
+            SpecialTwoExecutionType = 2,
+            SpecialOneProjectileLifetimeFrames = 300,
+            SpecialTwoProjectileLifetimeFrames = 300,
+            MovementType = 2,
+            MovementCooldownFrames = 300,
+            MovementDurationFrames = 12,
+            SpecialOneProjectileSpeed = FP64.Zero,
+            SpecialTwoProjectileSpeed = FP64.Zero,
+            MovementDistance = FP64.FromInt(2),
+            MovementSpeed = FP64.FromInt(10)
+        };
     }
 
     public readonly struct FighterMatchRules {
@@ -293,6 +259,8 @@ namespace FTT.FighterSim {
         public int UniversalMovementState;
         public int UniversalMovementFramesRemaining;
         public int UniversalMovementDirection;
+        public int ZoneSpeedBonusFrames;
+        public int FloatFrames;
         public FP64 StatusIntensity;
     }
 
@@ -337,6 +305,8 @@ namespace FTT.FighterSim {
         public int SpecialTwoPersistentTypeID;
         public int SpecialTwoMaxActiveObjects;
         public int SpecialTwoPersistentLifetimeFrames;
+        public int SpecialOneTickIntervalFrames;
+        public int SpecialTwoTickIntervalFrames;
         public int MovementType;
         public int MovementCooldownFrames;
         public int MovementDurationFrames;
@@ -441,6 +411,28 @@ namespace FTT.FighterSim {
         public int EntityID;
         public int EffectType;
         public int LifetimeFrames;
+        public FPVector2 Position;
+        public FPVector2 HalfExtents;
+    }
+
+    /// <summary>
+    /// Deterministic Area-execution effect (Relativity Rift, Sandstorm Vortex, ...).
+    /// ZoneTypeID encodes CharacterID * 10 + special slot for per-character rules.
+    /// </summary>
+    [KlothoComponent(309, MaxCount = 8)]
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public partial struct FighterZoneComponent : IComponent {
+        public int EntityID;
+        public int OwnerPlayerID;
+        public int ZoneTypeID;
+        public int LifetimeFrames;
+        public int TickIntervalFrames;
+        public int TickFramesRemaining;
+        public int Damage;
+        public int StatusType;
+        public int StatusFrames;
+        public int GrantsOwnerSpeedBonus;
+        public FP64 StatusIntensity;
         public FPVector2 Position;
         public FPVector2 HalfExtents;
     }

@@ -91,7 +91,7 @@ namespace FTT.UI {
             }
 
             if (Input.IsActionJustPressed("ui_cancel")) {
-                Core.GameManager.Instance?.LoadScene("res://scenes/menus/MainMenu.tscn");
+                Core.GameManager.Instance?.LoadScene(ExitScenePath());
             }
         }
 
@@ -138,10 +138,17 @@ namespace FTT.UI {
             var fighters = MakeResultButton(Tr("fighter_change_fighters"));
             fighters.Pressed += () => Core.GameManager.Instance?.LoadScene("res://scenes/menus/CharacterSelect.tscn");
             layout.AddChild(fighters);
-            var menu = MakeResultButton(Tr("fighter_main_menu"));
-            menu.Pressed += () => Core.GameManager.Instance?.LoadScene("res://scenes/menus/MainMenu.tscn");
+            bool holodeck = Core.GameManager.Instance?.CurrentSession.ReturnToHubAfterFighterMatch == true;
+            var menu = MakeResultButton(Tr(holodeck ? "fighter_return_to_ship" : "fighter_main_menu"));
+            menu.Pressed += () => Core.GameManager.Instance?.LoadScene(ExitScenePath());
             layout.AddChild(menu);
         }
+
+        /// <summary>Holodeck practice sessions exit back to the Time-Ship hub; everything else exits to the menu.</summary>
+        private static string ExitScenePath() =>
+            Core.GameManager.Instance?.CurrentSession.ReturnToHubAfterFighterMatch == true
+                ? "res://scenes/campaign/HubWorld.tscn"
+                : "res://scenes/menus/MainMenu.tscn";
 
         private static Button MakeResultButton(string text) => new() {
             Text = text,

@@ -1,0 +1,63 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/UI/DialogueManager.cs" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/portrait.svg" id="2_portrait"]
+
+[node name="DialogueBox" type="CanvasLayer"]
+layer = 90
+visible = false
+script = ExtResource("1_script")
+
+[node name="Panel" type="PanelContainer" parent="."]
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 100.0
+offset_top = -240.0
+offset_right = -100.0
+offset_bottom = -40.0
+grow_horizontal = 2
+grow_vertical = 0
+
+[node name="Layout" type="HBoxContainer" parent="Panel"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Portrait" type="TextureRect" parent="Panel/Layout"]
+custom_minimum_size = Vector2(160, 160)
+layout_mode = 2
+texture = ExtResource("2_portrait")
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Content" type="VBoxContainer" parent="Panel/Layout"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SpeakerRow" type="HBoxContainer" parent="Panel/Layout/Content"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="SpeakerLabel" type="Label" parent="Panel/Layout/Content/SpeakerRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 22
+
+[node name="EmotionLabel" type="Label" parent="Panel/Layout/Content/SpeakerRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
+theme_override_font_sizes/font_size = 14
+
+[node name="TextLabel" type="RichTextLabel" parent="Panel/Layout/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_font_sizes/normal_font_size = 20
+bbcode_enabled = true
+
+[node name="ContinueHint" type="Label" parent="Panel/Layout/Content"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.65, 0.75, 1)
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 2

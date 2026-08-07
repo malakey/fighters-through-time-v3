@@ -73,7 +73,12 @@ namespace FTT.FighterSim {
                 return false;
             }
 
-            bool targetBlocking = targetRuntime.UniversalMovementState == (int)UniversalMovementPhase.None
+            // Pure tick/status pulses (zone effects) carry no impulse: they bypass
+            // the front-facing shield and must not interrupt movement or zero the
+            // target's velocity.
+            bool carriesImpulse = knockback > FP64.Zero || hitstunFrames > 0;
+            bool targetBlocking = carriesImpulse
+                && targetRuntime.UniversalMovementState == (int)UniversalMovementPhase.None
                 && (targetRuntime.HeldButtons & BlockButton) != 0;
             bool hitInFront = target.FacingRight != 0
                 ? hitOriginX >= target.Position.x
@@ -108,9 +113,11 @@ namespace FTT.FighterSim {
                 MaxInfluence,
                 target.Influence + FP64.FromInt(actualDamage) / FP64.FromInt(4));
 
-            FighterUniversalMovementRules.Cancel(ref targetRuntime);
+            if (carriesImpulse) {
+                FighterUniversalMovementRules.Cancel(ref targetRuntime);
+            }
 
-			if (target.HyperArmorFrames <= 0 || attackClass == UltimateAttackClass) {
+			if (carriesImpulse && (target.HyperArmorFrames <= 0 || attackClass == UltimateAttackClass)) {
                 FP64 force = knockback / (FP64.One + target.Weight);
                 target.Velocity.x = hitOriginX <= target.Position.x ? force : -force;
                 target.Velocity.y = force;
@@ -198,6 +205,7 @@ namespace FTT.FighterSim {
         private const int SpecialTwoButton = 1 << 4;
         private const int MovementButton = 1 << 5;
         private const int ProjectileExecutionType = 1;
+        private const int AreaExecutionType = 2;
         private const int PersistentExecutionType = 3;
 
         public void Update(ref Frame frame) {
@@ -234,6 +242,14 @@ namespace FTT.FighterSim {
                             tuning.SpecialOneDamage, tuning.SpecialOneKnockback,
                             tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames);
                         runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
+                    } else if (modes.SpecialOneExecutionType == AreaExecutionType) {
+                        SpawnZone(
+                            ref frame, in fighter, 1,
+                            modes.SpecialOneMaxActiveObjects, modes.SpecialOnePersistentLifetimeFrames,
+                            modes.SpecialOneTickIntervalFrames, tuning.SpecialOneDamage,
+                            tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames,
+                            tuning.SpecialOneStatusIntensity);
+                        runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
                     }
                 }
 
@@ -251,6 +267,14 @@ namespace FTT.FighterSim {
                             modes.SpecialTwoMaxActiveObjects, modes.SpecialTwoPersistentLifetimeFrames,
                             tuning.SpecialTwoDamage, tuning.SpecialTwoKnockback,
                             tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames);
+                        runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
+                    } else if (modes.SpecialTwoExecutionType == AreaExecutionType) {
+                        SpawnZone(
+                            ref frame, in fighter, 2,
+                            modes.SpecialTwoMaxActiveObjects, modes.SpecialTwoPersistentLifetimeFrames,
+                            modes.SpecialTwoTickIntervalFrames, tuning.SpecialTwoDamage,
+                            tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames,
+                            tuning.SpecialTwoStatusIntensity);
                         runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
                     }
                 }
@@ -380,6 +404,75 @@ namespace FTT.FighterSim {
             knockback = requestedKnockback > FP64.Zero ? requestedKnockback : FP64.FromInt(2);
         }
 
+        private static void SpawnZone(
+            ref Frame frame,
+            in FighterStateComponent owner,
+            int specialSlot,
+            int maxActive,
+            int lifetimeFrames,
+            int tickIntervalFrames,
+            int damage,
+            int statusType,
+            int statusFrames,
+            FP64 statusIntensity) {
+            int zoneTypeID = owner.CharacterID * 10 + specialSlot;
+            int deployLimit = maxActive > 0 ? maxActive : 1;
+            int activeCount = 0;
+            int oldestID = int.MaxValue;
+            EntityRef oldest = default;
+            bool foundOldest = false;
+            var filter = frame.Filter<FighterZoneComponent>();
+            while (filter.Next(out EntityRef existing)) {
+                ref readonly FighterZoneComponent zone = ref frame.GetReadOnly<FighterZoneComponent>(existing);
+                if (zone.OwnerPlayerID != owner.PlayerID || zone.ZoneTypeID != zoneTypeID) continue;
+                activeCount++;
+                if (zone.EntityID < oldestID) {
+                    oldestID = zone.EntityID;
+                    oldest = existing;
+                    foundOldest = true;
+                }
+            }
+            if (activeCount >= deployLimit && foundOldest) frame.DestroyEntity(oldest);
+
+            ResolveZoneSpec(zoneTypeID, out FPVector2 halfExtents, out int grantsOwnerSpeedBonus);
+            int resolvedTick = tickIntervalFrames > 0 ? tickIntervalFrames : 30;
+            ref FighterMatchComponent match = ref frame.GetSingleton<FighterMatchComponent>();
+            int facing = owner.FacingRight != 0 ? 1 : -1;
+            EntityRef created = frame.CreateEntity();
+            frame.Add(created, new FighterZoneComponent {
+                EntityID = match.NextEntityID++,
+                OwnerPlayerID = owner.PlayerID,
+                ZoneTypeID = zoneTypeID,
+                LifetimeFrames = lifetimeFrames > 0 ? lifetimeFrames : 300,
+                TickIntervalFrames = resolvedTick,
+                TickFramesRemaining = 1,
+                Damage = damage,
+                StatusType = statusType,
+                StatusFrames = statusFrames,
+                GrantsOwnerSpeedBonus = grantsOwnerSpeedBonus,
+                StatusIntensity = statusIntensity,
+                Position = owner.Position + new FPVector2(FP64.FromInt(facing * 2), FP64.Zero),
+                HalfExtents = halfExtents
+            });
+        }
+
+        /// <summary>
+        /// Per-zone-identity deterministic tuning. Einstein's Relativity Rift
+        /// (zone type 2) is wide and buffs the owner's movement while inside.
+        /// </summary>
+        private static void ResolveZoneSpec(
+            int zoneTypeID,
+            out FPVector2 halfExtents,
+            out int grantsOwnerSpeedBonus) {
+            if (zoneTypeID == (int)FighterCharacterID.Einstein * 10 + 2) {
+                halfExtents = new FPVector2(FP64.FromDouble(2.0), FP64.FromDouble(1.5));
+                grantsOwnerSpeedBonus = 1;
+                return;
+            }
+            halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
+            grantsOwnerSpeedBonus = 0;
+        }
+
         private static void ApplyMovement(
             ref Frame frame,
             ref FighterStateComponent fighter,
@@ -397,8 +490,20 @@ namespace FTT.FighterSim {
             } else if (modes.MovementType == 2) {
                 fighter.Velocity.x = speed * FP64.FromInt(facing);
             } else {
-                fighter.Position.x += distance * FP64.FromInt(facing);
+                // Blink/Teleport/Warp travel in the held input direction (world Y is
+                // up, so a negative MoveY stick value means an upward warp).
+                int directionX = runtime.MoveX > 30 ? 1 : runtime.MoveX < -30 ? -1 : 0;
+                int directionY = runtime.MoveY < -30 ? 1 : runtime.MoveY > 30 ? -1 : 0;
+                if (directionX == 0 && directionY == 0) directionX = facing;
+                fighter.Position.x += distance * FP64.FromInt(directionX);
                 fighter.Position.x = FP64.Clamp(fighter.Position.x, FP64.FromInt(-10), FP64.FromInt(10));
+                if (directionY != 0) {
+                    fighter.Position.y += distance * FP64.FromInt(directionY);
+                    if (fighter.Position.y < FP64.Zero) fighter.Position.y = FP64.Zero;
+                    if (directionY > 0) fighter.IsGrounded = 0;
+                }
+                // Warp cancels into a brief float glide (reduced gravity).
+                if (modes.MovementType == 4) runtime.FloatFrames = 60;
             }
 
             if (modes.MovementResetsJump != 0) fighter.RemainingJumps = tuning.MaxJumpCount;
@@ -495,6 +600,12 @@ namespace FTT.FighterSim {
         private const int DamageTickFrames = 30;
         private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
+        private readonly FighterStageGeometry _geometry;
+
+        public FighterHazardSystem(FighterStageGeometry geometry = null) {
+            _geometry = geometry ?? FighterStageGeometry.Default;
+        }
+
         public void Update(ref Frame frame) {
             ref FighterMatchComponent match = ref frame.GetSingleton<FighterMatchComponent>();
             if (match.MatchState != 1 || match.HazardsEnabled == 0 || match.HazardFrequency <= 0) return;
@@ -527,10 +638,14 @@ namespace FTT.FighterSim {
             }
         }
 
-        private static void SpawnHazard(ref Frame frame, ref FighterMatchComponent match) {
+        private void SpawnHazard(ref Frame frame, ref FighterMatchComponent match) {
             var random = new DeterministicRandom(1);
             random.SetFullState(match.RandomState0, match.RandomState1);
-            FP64 positionX = random.NextFixed(FP64.FromInt(-7), FP64.FromInt(7));
+            // Authored stages pick a deterministic anchor; the legacy arena keeps
+            // the historical random spawn range.
+            FP64 positionX = _geometry.HazardAnchorXs.Length > 0
+                ? _geometry.HazardAnchorXs[random.NextInt(0, _geometry.HazardAnchorXs.Length)]
+                : random.NextFixed(FP64.FromInt(-7), FP64.FromInt(7));
             int hazardType = match.StageHazardTypeID >= 1 && match.StageHazardTypeID <= 10
                 ? match.StageHazardTypeID
                 : 1;
@@ -612,6 +727,12 @@ namespace FTT.FighterSim {
         private const int BuffDurationFrames = 480;
         private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
+        private readonly FighterStageGeometry _geometry;
+
+        public FighterOrbSystem(FighterStageGeometry geometry = null) {
+            _geometry = geometry ?? FighterStageGeometry.Default;
+        }
+
         public void Update(ref Frame frame) {
             ref FighterMatchComponent match = ref frame.GetSingleton<FighterMatchComponent>();
             if (match.MatchState != 1 || match.ItemsEnabled == 0 || match.ItemFrequency <= 0) return;
@@ -640,11 +761,17 @@ namespace FTT.FighterSim {
             }
         }
 
-        private static void SpawnOrb(ref Frame frame, ref FighterMatchComponent match) {
+        private void SpawnOrb(ref Frame frame, ref FighterMatchComponent match) {
             var random = new DeterministicRandom(1);
             random.SetFullState(match.RandomState0, match.RandomState1);
             int effect = random.NextInt(0, 4);
-            FP64 positionX = random.NextFixed(FP64.FromInt(-7), FP64.FromInt(7));
+            // Authored stages pick a deterministic anchor; the legacy arena keeps
+            // the historical random spawn range.
+            FPVector2 position = _geometry.OrbAnchors.Length > 0
+                ? _geometry.OrbAnchors[random.NextInt(0, _geometry.OrbAnchors.Length)]
+                : new FPVector2(
+                    random.NextFixed(FP64.FromInt(-7), FP64.FromInt(7)),
+                    FP64.FromDouble(0.5));
             (match.RandomState0, match.RandomState1) = random.GetFullState();
 
             EntityRef entity = frame.CreateEntity();
@@ -652,7 +779,7 @@ namespace FTT.FighterSim {
                 EntityID = match.NextEntityID++,
                 EffectType = effect,
                 LifetimeFrames = OrbLifetimeFrames,
-                Position = new FPVector2(positionX, FP64.FromDouble(0.5)),
+                Position = position,
                 HalfExtents = new FPVector2(FP64.FromDouble(0.45), FP64.FromDouble(0.45))
             });
         }
@@ -689,6 +816,63 @@ namespace FTT.FighterSim {
                 runtime.JumpBuffFrames = BuffDurationFrames;
             } else {
                 runtime.AegisHits = 1;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Deterministic Area-execution effects. Zones periodically pulse damage and/or
+    /// status onto the opponent standing inside them and can grant the owner a
+    /// movement-speed bonus while the owner overlaps (Einstein's Relativity Rift).
+    /// Pulses carry no knockback or hitstun, so they never interrupt movement.
+    /// </summary>
+    public sealed class FighterZoneSystem : ISystem {
+        // Refreshed every frame the owner overlaps; decays one frame at a time in
+        // TickCounters, so the bonus expires immediately after leaving the zone.
+        private const int OwnerBonusRefreshFrames = 2;
+        private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
+
+        public void Update(ref Frame frame) {
+            var filter = frame.Filter<FighterZoneComponent>();
+            while (filter.Next(out EntityRef zoneEntity)) {
+                ref FighterZoneComponent zone = ref frame.Get<FighterZoneComponent>(zoneEntity);
+                zone.LifetimeFrames--;
+                if (zone.LifetimeFrames <= 0) {
+                    frame.DestroyEntity(zoneEntity);
+                    continue;
+                }
+
+                if (zone.GrantsOwnerSpeedBonus != 0
+                    && FighterEntityQueries.TryFindFighter(ref frame, zone.OwnerPlayerID, out EntityRef ownerEntity)) {
+                    ref readonly FighterStateComponent owner = ref frame.GetReadOnly<FighterStateComponent>(ownerEntity);
+                    if (FighterEntityQueries.Overlaps(
+                            in zone.Position, in zone.HalfExtents,
+                            in owner.Position, in FighterHalfExtents)) {
+                        ref FighterRuntimeComponent ownerRuntime = ref frame.Get<FighterRuntimeComponent>(ownerEntity);
+                        ownerRuntime.ZoneSpeedBonusFrames = OwnerBonusRefreshFrames;
+                    }
+                }
+
+                if (zone.TickFramesRemaining > 0) zone.TickFramesRemaining--;
+                if (zone.TickFramesRemaining > 0) continue;
+                zone.TickFramesRemaining = zone.TickIntervalFrames;
+
+                int targetPlayerID = zone.OwnerPlayerID == 0 ? 1 : 0;
+                if (!FighterEntityQueries.TryFindFighter(ref frame, zone.OwnerPlayerID, out EntityRef attackerEntity)
+                    || !FighterEntityQueries.TryFindFighter(ref frame, targetPlayerID, out EntityRef targetEntity)) continue;
+                ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
+                if (!FighterEntityQueries.Overlaps(
+                        in zone.Position, in zone.HalfExtents,
+                        in target.Position, in FighterHalfExtents)) continue;
+
+                ref FighterStateComponent attacker = ref frame.Get<FighterStateComponent>(attackerEntity);
+                ref FighterRuntimeComponent attackerRuntime = ref frame.Get<FighterRuntimeComponent>(attackerEntity);
+                ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
+                ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
+                FighterDamageRules.ApplyFighterHit(
+                    ref attacker, ref attackerRuntime, ref target, ref targetRuntime, in targetTuning,
+                    FighterDamageRules.SpecialAttackClass, zone.Damage, FP64.Zero, 0,
+                    zone.StatusType, zone.StatusFrames, zone.StatusIntensity, zone.Position.x);
             }
         }
     }

@@ -100,6 +100,47 @@ namespace FTT.Environment {
             return false;
         }
 
+        /// <summary>
+        /// Collects the ability modifier keys (major perks) currently unlocked on
+        /// the grid into <paramref name="destination"/>. Story-only: callers must
+        /// never feed these into Fighter loadouts.
+        /// </summary>
+        public static void CollectUnlockedAbilityModifiers(
+            ResonanceGridData grid,
+            StorySaveData save,
+            ICollection<string> destination) {
+            if (destination == null) return;
+            destination.Clear();
+            if (grid == null || save == null || grid.CharacterID != save.SelectedCharacterID) return;
+            List<string> unlocked = GetUnlockedNodes(save, grid.CharacterID);
+            foreach (ResonanceNodeData node in grid.Nodes ?? Array.Empty<ResonanceNodeData>()) {
+                if (node != null
+                    && !string.IsNullOrWhiteSpace(node.AbilityModifierKey)
+                    && unlocked.Contains(node.NodeID)) {
+                    destination.Add(node.AbilityModifierKey);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Resolves the active save slot's unlocked ability modifier keys for the
+        /// selected character. Returns false when no active Story context exists.
+        /// </summary>
+        public static bool TryCollectActiveAbilityModifiers(string characterID, ICollection<string> destination) {
+            if (destination == null) return false;
+            destination.Clear();
+            if (SaveManager.Instance == null || GameManager.Instance == null) return false;
+            int slot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+            if (slot < 0 || slot >= SaveManager.Instance.SaveSlots.Length) return false;
+            StorySaveData save = SaveManager.Instance.SaveSlots[slot];
+            if (save == null || save.SelectedCharacterID != characterID) return false;
+            ResonanceGridData grid = ResourceLoader.Load<ResonanceGridData>(
+                $"res://resources/Resonance/{characterID}_grid.tres");
+            if (grid == null) return false;
+            CollectUnlockedAbilityModifiers(grid, save, destination);
+            return true;
+        }
+
         public static bool TryResolveActive(string characterID, out StoryStatProfile profile) {
             profile = StoryStatProfile.Default;
             if (SaveManager.Instance == null || GameManager.Instance == null) return false;

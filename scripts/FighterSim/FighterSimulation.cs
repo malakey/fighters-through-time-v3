@@ -29,8 +29,9 @@ namespace FTT.FighterSim {
             int matchSeconds = 480,
             int seed = 2026,
             int spawnDistance = 4,
-            FighterMatchRules rules = default)
-            : this(FighterLoadout.Default(playerOne), FighterLoadout.Default(playerTwo), stocks, matchSeconds, seed, spawnDistance, rules) {
+            FighterMatchRules rules = default,
+            FighterStageGeometry stageGeometry = null)
+            : this(FighterLoadout.Default(playerOne), FighterLoadout.Default(playerTwo), stocks, matchSeconds, seed, spawnDistance, rules, stageGeometry) {
         }
 
         public FighterSimulation(
@@ -40,21 +41,27 @@ namespace FTT.FighterSim {
             int matchSeconds = 480,
             int seed = 2026,
             int spawnDistance = 4,
-            FighterMatchRules rules = default) {
+            FighterMatchRules rules = default,
+            FighterStageGeometry stageGeometry = null) {
             WarmupRegistry.RunAll();
+            FighterStageGeometry geometry = stageGeometry ?? FighterStageGeometry.Default;
+            // Authored geometry owns the spawn distance; the parameter remains for
+            // legacy flat-arena callers and tests.
+            int resolvedSpawnDistance = stageGeometry != null ? geometry.SpawnDistance : spawnDistance;
             _simulation = new EcsSimulation(MaxEntities, RollbackHistoryTicks, deltaTimeMs: 16);
             _simulation.AddSystem(
-                new FighterWorldSystem(playerOne, playerTwo, stocks, matchSeconds * TickRate, seed, spawnDistance, rules),
+                new FighterWorldSystem(playerOne, playerTwo, stocks, matchSeconds * TickRate, seed, resolvedSpawnDistance, rules),
                 SystemPhase.PreUpdate);
             _simulation.AddSystem(new FighterInputSystem(), SystemPhase.PreUpdate);
-            _simulation.AddSystem(new FighterMovementSystem(), SystemPhase.Update);
+            _simulation.AddSystem(new FighterMovementSystem(geometry), SystemPhase.Update);
             _simulation.AddSystem(new FighterAbilityEntitySystem(), SystemPhase.Update);
-            _simulation.AddSystem(new FighterPushboxSystem(), SystemPhase.PostUpdate);
+            _simulation.AddSystem(new FighterPushboxSystem(geometry), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterCombatSystem(), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterProjectileSystem(), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterPersistentObjectSystem(), SystemPhase.PostUpdate);
-            _simulation.AddSystem(new FighterHazardSystem(), SystemPhase.PostUpdate);
-            _simulation.AddSystem(new FighterOrbSystem(), SystemPhase.PostUpdate);
+            _simulation.AddSystem(new FighterZoneSystem(), SystemPhase.PostUpdate);
+            _simulation.AddSystem(new FighterHazardSystem(geometry), SystemPhase.PostUpdate);
+            _simulation.AddSystem(new FighterOrbSystem(geometry), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterMatchSystem(), SystemPhase.LateUpdate);
             _simulation.Initialize();
         }
@@ -151,6 +158,7 @@ namespace FTT.FighterSim {
         public int PersistentObjectCount => CountComponents<FighterPersistentObjectComponent>();
         public int HazardCount => CountComponents<FighterHazardComponent>();
         public int OrbCount => CountComponents<FighterOrbComponent>();
+        public int ZoneCount => CountComponents<FighterZoneComponent>();
 
         public bool TryGetFirstProjectile(out FighterProjectileComponent projectile) =>
             TryGetFirstComponent(out projectile);
@@ -164,6 +172,9 @@ namespace FTT.FighterSim {
         public bool TryGetFirstOrb(out FighterOrbComponent orb) =>
             TryGetFirstComponent(out orb);
 
+        public bool TryGetFirstZone(out FighterZoneComponent zone) =>
+            TryGetFirstComponent(out zone);
+
         public void CopyProjectilesTo(List<FighterProjectileComponent> destination) =>
             CopyComponentsTo(destination);
 
@@ -174,6 +185,9 @@ namespace FTT.FighterSim {
             CopyComponentsTo(destination);
 
         public void CopyOrbsTo(List<FighterOrbComponent> destination) =>
+            CopyComponentsTo(destination);
+
+        public void CopyZonesTo(List<FighterZoneComponent> destination) =>
             CopyComponentsTo(destination);
 
         public byte[] CaptureFullState() => _simulation.SerializeFullState();

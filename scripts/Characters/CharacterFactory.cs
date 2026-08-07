@@ -51,6 +51,8 @@ namespace FTT.Characters {
 				player.StoryJumpForceMultiplier = storyStats.JumpForceMultiplier;
 				player.StoryBasicDamageMultiplier = storyStats.BasicDamageMultiplier;
 				player.StorySpecialDamageMultiplier = storyStats.SpecialDamageMultiplier;
+				FTT.Environment.ResonanceProgression.TryCollectActiveAbilityModifiers(
+					characterID, player.StoryAbilityPerks);
 			}
 
 			var bodyShape = new CollisionShape2D { Name = "CollisionShape2D", Position = new Vector2(0, -32) };

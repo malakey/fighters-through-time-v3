@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
+
+[sub_resource type="Resource" id="Intro"]
+script = ExtResource("2")
+DialogueID = "level_00.intro"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_intro_1", "dlg_l00_intro_2", "dlg_l00_intro_3", "dlg_l00_intro_4", "dlg_l00_intro_5", "dlg_l00_intro_6")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_confused", "emotion_neutral", "emotion_shocked", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="MobilityIntro"]
+script = ExtResource("2")
+DialogueID = "level_00.mobility_intro"
+SpeakerNameKeys = PackedStringArray("speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_mobility_1")
+EmotionKeys = PackedStringArray("emotion_neutral")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="Complete"]
+script = ExtResource("2")
+DialogueID = "level_00.complete"
+SpeakerNameKeys = PackedStringArray("speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_complete_1")
+EmotionKeys = PackedStringArray("emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[resource]
+script = ExtResource("1")
+DialogueSetID = "dialogue_level_00"
+Sequences = [SubResource("Intro"), SubResource("MobilityIntro"), SubResource("Complete")]

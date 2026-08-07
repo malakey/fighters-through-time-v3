@@ -14,6 +14,8 @@ namespace FTT.Enemies {
         [Export] public int MaxHP = 500;
         [Export] public bool IsKnockbackImmune = true;
         [Export] public float MoveSpeed = 4.0f;
+        [Export] public float AttackDamage = 18.0f;
+        [Export] public float AttackKnockback = 4.0f;
         [Export] public float AttackRange = 2.0f;
         [Export] public float RestCooldown = 1.5f;
         [Export] public float MeleeRangeThreshold = 3.0f;

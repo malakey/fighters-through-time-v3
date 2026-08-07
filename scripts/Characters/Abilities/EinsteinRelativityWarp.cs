@@ -4,22 +4,31 @@ using FTT.Characters;
 
 namespace FTT.Characters.Abilities {
 
+    /// <summary>
+    /// Movement — Relativity Warp: folds spacetime to warp a short distance in the
+    /// input direction (horizontal, vertical, or diagonal), usable in the air.
+    /// The warp travel can cancel into a brief float glide when jump is held as it
+    /// ends. Distance, duration, and cooldown come from the authored
+    /// MovementAbilityData resource.
+    /// </summary>
     public partial class EinsteinRelativityWarp : BaseSpecial {
 
-        private const float WarpDuration = 0.2f;
-        private const float WarpDistance = 150f;
-        private const float CooldownTime = 5.0f;
+        private const float FloatDuration = 1.0f;
 
         private Vector2 _warpDirection;
         private Vector2 _startPosition;
-        private float _warpTimer;
+        private float _warpDuration = 0.2f;
+        private float _warpDistance = 150f;
+
+        private MovementAbilityData MovementData => Data as MovementAbilityData;
 
         protected override void OnStartup() {
-            PhaseTimer = 0.05f;
+            UseAuthoredPhaseFrames();
+            _warpDuration = MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : 0.2f;
+            _warpDistance = MovementData?.DistanceMoved > 0f ? MovementData.DistanceMoved : 150f;
 
             float hInput = Owner.CurrentInputFrame.Horizontal;
             float vInput = Owner.CurrentInputFrame.Vertical;
-
             _warpDirection = new Vector2(hInput, vInput);
             if (_warpDirection == Vector2.Zero) {
                 _warpDirection = Owner.IsFacingRight ? Vector2.Right : Vector2.Left;
@@ -29,32 +38,36 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override void OnActive() {
-            PhaseTimer = WarpDuration;
-            _warpTimer = WarpDuration;
+            PhaseTimer = _warpDuration;
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = 0.1f;
-            Owner.MovementAbilityCooldownTimer = CooldownTime;
+            UseAuthoredPhaseFrames();
+            float cooldown = Data?.CooldownDuration ?? 5f;
+            Owner.MovementAbilityCooldownTimer = cooldown;
+
+            // The design allows canceling the warp into a brief float glide; hold
+            // jump as the warp ends to trigger it in the air.
+            if (!Owner.IsOnFloor() && Owner.CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Jump)) {
+                Owner.StoryFloatTimer = FloatDuration;
+            }
 
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
-                AbilityName = "Relativity Warp",
+                AbilityName = Data?.AbilityName ?? "Relativity Warp",
                 StartPosition = _startPosition,
                 EndPosition = Owner.GlobalPosition
             });
             FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 Slot = FTT.Core.AbilitySlot.MovementAbility,
-                Duration = CooldownTime
+                Duration = cooldown
             });
         }
 
         public override void _PhysicsProcess(double delta) {
             if (CurrentPhase == AbilityPhase.Active) {
-                float dt = (float)delta;
-                _warpTimer -= dt;
-                float speed = WarpDistance / WarpDuration * 60f;
+                float speed = _warpDistance / _warpDuration;
                 Owner.Velocity = _warpDirection * speed;
             }
             base._PhysicsProcess(delta);

@@ -24,12 +24,14 @@ namespace FTT.FighterSim {
         private readonly Dictionary<int, ColorRect> _persistentProxies = new();
         private readonly Dictionary<int, ColorRect> _hazardProxies = new();
         private readonly Dictionary<int, ColorRect> _orbProxies = new();
+        private readonly Dictionary<int, ColorRect> _zoneProxies = new();
         private readonly HashSet<int> _seenProxyIDs = new();
         private readonly List<int> _releaseProxyIDs = new();
         private readonly List<FighterProjectileComponent> _projectiles = new(64);
         private readonly List<FighterPersistentObjectComponent> _persistentObjects = new(16);
         private readonly List<FighterHazardComponent> _hazards = new(16);
         private readonly List<FighterOrbComponent> _orbs = new(16);
+        private readonly List<FighterZoneComponent> _zones = new(8);
 
         public event Action<FighterMatchResult> MatchCompleted;
 
@@ -42,7 +44,8 @@ namespace FTT.FighterSim {
             PlayerController playerOne,
             PlayerController playerTwo,
             MatchSettings settings,
-            int stageHazardTypeID = 1) {
+            int stageHazardTypeID = 1,
+            string stageID = "") {
             if (Simulation != null) throw new InvalidOperationException("Fighter simulation is already initialized.");
             _playerOne = playerOne ?? throw new ArgumentNullException(nameof(playerOne));
             _playerTwo = playerTwo ?? throw new ArgumentNullException(nameof(playerTwo));
@@ -64,7 +67,8 @@ namespace FTT.FighterSim {
                     (int)settings.ItemSpawnRate,
                     settings.StageHazardsEnabled,
                     (int)settings.HazardRate,
-                    stageHazardTypeID));
+                    stageHazardTypeID),
+                stageGeometry: FighterStageGeometry.ForStage(stageID ?? ""));
             SessionData session = GameManager.Instance?.CurrentSession ?? default;
             if (session.FighterOpponentType == FighterOpponentType.Cpu) {
                 _cpuController = new FighterCpuController(session.CpuDifficulty, 2026);
@@ -202,6 +206,17 @@ namespace FTT.FighterSim {
                 _seenProxyIDs.Add(orb.EntityID);
             }
             ReleaseMissing(_orbProxies);
+
+            Simulation.CopyZonesTo(_zones);
+            _seenProxyIDs.Clear();
+            foreach (FighterZoneComponent zone in _zones) {
+                ColorRect proxy = GetProxy(_zoneProxies, zone.EntityID);
+                ConfigureProxy(
+                    proxy, zone.Position, zone.HalfExtents,
+                    new Color(0.45f, 0.3f, 1f, 0.35f));
+                _seenProxyIDs.Add(zone.EntityID);
+            }
+            ReleaseMissing(_zoneProxies);
         }
 
         private static Color HazardColor(int hazardTypeID, bool warning) {

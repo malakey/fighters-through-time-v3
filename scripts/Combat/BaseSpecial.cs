@@ -32,6 +32,22 @@ namespace FTT.Combat {
             Owner = GetParent<PlayerController>();
         }
 
+        /// <summary>
+        /// Sets the phase countdown from the authored frame timings on the
+        /// AbilityData resource for the current phase. Canonical kit conversions
+        /// should call this in OnStartup/OnActive/OnRecovery instead of hardcoding
+        /// per-ability durations; every phase runs at least one frame.
+        /// </summary>
+        protected void UseAuthoredPhaseFrames() {
+            if (Data == null) return;
+            _phaseFramesRemaining = CurrentPhase switch {
+                AbilityPhase.Startup => Mathf.Max(1, Data.StartupFrames),
+                AbilityPhase.Active => Mathf.Max(1, Data.ActiveFrames),
+                AbilityPhase.Recovery => Mathf.Max(1, Data.RecoveryFrames),
+                _ => _phaseFramesRemaining
+            };
+        }
+
         public bool TryExecute() {
             if (IsExecuting) return false;
             if (!Validate()) return false;
@@ -92,27 +108,33 @@ namespace FTT.Combat {
         }
 
         protected PlaceholderProjectile SpawnPlaceholderProjectile(Vector2 position, float speed,
-            bool movingRight, Color color, Vector2 size = default, float lifetime = 3f) {
+            bool movingRight, Color color, Vector2 size = default, float lifetime = 3f,
+            float damageOverride = -1f) {
             var proj = SpawnPooledPlaceholder<PlaceholderProjectile>(
                 PlaceholderProjectilePoolID,
                 PlaceholderProjectileScenePath,
                 position,
                 50);
             if (proj == null) return null;
-            proj.Setup(Data?.BaseDamage ?? 10f, Data?.KnockbackForce ?? new Vector2(3, -2),
+            float damage = damageOverride >= 0f ? damageOverride : Data?.BaseDamage ?? 10f;
+            proj.Setup(damage, Data?.KnockbackForce ?? new Vector2(3, -2),
                 speed, movingRight, Owner?.PlayerIndex ?? 0, color, size, lifetime, Owner, Data);
             return proj;
         }
 
         protected PlaceholderZone SpawnPlaceholderZone(Vector2 position, float damage,
-            float lifetime, float tickInterval, Color color, float radius = 60f) {
+            float lifetime, float tickInterval, Color color, float radius = 60f,
+            FTT.Core.StatusType appliedStatus = FTT.Core.StatusType.None,
+            float statusDuration = 0f, float statusIntensity = 1f,
+            float ownerSpeedMultiplier = 1f) {
             var zone = SpawnPooledPlaceholder<PlaceholderZone>(
                 PlaceholderZonePoolID,
                 PlaceholderZoneScenePath,
                 position,
                 24);
             if (zone == null) return null;
-            zone.Setup(damage, lifetime, tickInterval, Owner?.PlayerIndex ?? 0, color, radius);
+            zone.Setup(damage, lifetime, tickInterval, Owner?.PlayerIndex ?? 0, color, radius,
+                appliedStatus, statusDuration, statusIntensity, Owner, ownerSpeedMultiplier);
             return zone;
         }
 

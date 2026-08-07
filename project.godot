@@ -37,7 +37,6 @@ ViewportEnforcer="*res://scripts/Core/ViewportEnforcer.cs"
 window/size/viewport_width=1920
 window/size/viewport_height=1080
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
 
 [dotnet]
 
@@ -46,11 +45,6 @@ project/assembly_name="FightersThroughTime"
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/gdUnit4/plugin.cfg")
-
-[internationalization]
-
-locale/fallback="en"
-locale/translations=PackedStringArray("res://localization/en.en.translation")
 
 [input]
 
@@ -143,6 +137,10 @@ ui_pause={
 ]
 }
 
+[internationalization]
+
+locale/translations=PackedStringArray("res://localization/en.en.translation")
+
 [layer_names]
 
 2d_physics/layer_1="Player"
@@ -156,10 +154,6 @@ ui_pause={
 2d_physics/layer_9="Trigger"
 2d_physics/layer_10="PersistentObject"
 2d_physics/layer_11="Projectile"
-
-[physics]
-
-common/physics_ticks_per_second=60
 
 [rendering]
 

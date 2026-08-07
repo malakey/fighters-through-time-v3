@@ -6,6 +6,9 @@ namespace FTT.Characters {
         [Export] public int MaxHP = 200;
         public int CurrentHP;
 
+        /// <summary>Raised with applied damage each time a hit lands; used by tutorial calibration.</summary>
+        public event System.Action<int> HitLanded;
+
         private Label _hpLabel;
         private ColorRect _hpBar;
         private float _respawnTimer;
@@ -48,7 +51,7 @@ namespace FTT.Characters {
             AddChild(arms);
 
             var nameLabel = new Label();
-            nameLabel.Text = "TRAINING DUMMY";
+            nameLabel.Text = Tr("tutorial_dummy_name");
             nameLabel.Position = new Vector2(-55, -125);
             nameLabel.CustomMinimumSize = new Vector2(110, 20);
             nameLabel.HorizontalAlignment = HorizontalAlignment.Center;
@@ -106,6 +109,7 @@ namespace FTT.Characters {
                 _respawnTimer = 2.5f;
             }
             UpdateHPDisplay();
+            if (damageApplied > 0) HitLanded?.Invoke(damageApplied);
             return damageApplied;
         }
 

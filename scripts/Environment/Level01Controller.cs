@@ -2,37 +2,79 @@ using Godot;
 using FTT.Characters;
 using FTT.Core;
 using FTT.Enemies;
+using FTT.UI;
 
 namespace FTT.Environment {
 
+    /// <summary>
+    /// Level 1 - Florence, 1503 (Steampunk Renaissance). Four-room progression:
+    /// entry streets, the print-shop gear puzzle that unlocks the workshop door,
+    /// the workshop gauntlet, and the Borgia Inquisitor boss arena. Rooms two and
+    /// three spawn difficulty-scaled waves on first entry.
+    /// </summary>
     public partial class Level01Controller : Node2D {
         private PlayerController _player;
         private BossController _boss;
-        private Label _objectiveLabel;
-        private Label _bossHPLabel;
         private LevelManager _levelManager;
+        private StorySceneServices _services;
+
+        private PuzzleManager _gearPuzzle;
+        private StaticBody2D _workshopDoor;
+
+        private bool _room2WaveSpawned;
+        private bool _room3WaveSpawned;
+        private bool _bossIntroShown;
         private bool _bossDefeated;
         private bool _levelComplete;
+        private int _dustEarnedThisLevel;
 
         private const float LevelWidth = 11520f;
         private const float LevelHeight = 1080f;
+        private const float Room2OffsetX = 5760f;
+        private const float Room3OffsetX = 8640f;
+        private const float Room4OffsetX = 10560f;
 
         public override void _Ready() {
             _levelManager = new LevelManager();
             _levelManager.Name = "LevelManager";
             _levelManager.LevelID = "level_01_florence";
-            _levelManager.LevelDisplayName = "The Steampunk Renaissance";
+            _levelManager.LevelDisplayName = "florence_level_title";
             AddChild(_levelManager);
 
             BuildLevel();
             SpawnPlayer();
-            SpawnEnemies();
-            BuildHUD();
+            SpawnRoom1Enemies();
+
+            _services = StorySceneBootstrapper.Attach(
+                this, "res://resources/Dialogue/level_01_dialogue.tres");
+            _services.HUD?.SetLevelTitle("florence_level_title");
+            _services.HUD?.SetObjective("florence_objective_reach_boss");
 
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnEnemyKilled += OnEnemyKilled;
+                EventBus.Instance.OnDialogueComplete += OnDialogueComplete;
+            }
+
+            bool resumedMidLevel = _levelManager.LastCheckpointID.Length > 0;
+            if (!resumedMidLevel) CallDeferred(MethodName.StartEntranceDialogue);
+        }
+
+        public override void _ExitTree() {
+            if (EventBus.Instance != null) {
+                EventBus.Instance.OnEnemyKilled -= OnEnemyKilled;
+                EventBus.Instance.OnDialogueComplete -= OnDialogueComplete;
             }
         }
+
+        private void StartEntranceDialogue() {
+            _services?.Dialogue?.StartSequence("level_01.entrance");
+        }
+
+        private void OnDialogueComplete(string dialogueID) {
+            if (dialogueID == "level_01.exit") ShowCompletionResults();
+        }
+
+        // === Level construction ===
 
         private void BuildLevel() {
             BuildFarBackground();
@@ -89,7 +131,7 @@ namespace FTT.Environment {
         }
 
         private void BuildRoom2() {
-            float offsetX = 5760;
+            float offsetX = Room2OffsetX;
 
             var bg2 = new ColorRect();
             bg2.Name = "BG_Room2";
@@ -108,10 +150,120 @@ namespace FTT.Environment {
 
             BuildCheckpoint(offsetX + 1400, 850, "florence_checkpoint_1");
             BuildRoomDecoration(offsetX, "florence_room_print_shop", new Color(0.6f, 0.4f, 0.2f));
+
+            BuildWaveTrigger("Room2WaveTrigger", new Vector2(offsetX + 120, 800), () => {
+                if (_gearPuzzle != null && !_gearPuzzle.IsCompleted) {
+                    _services?.HUD?.SetObjective("florence_objective_gears");
+                }
+                if (_room2WaveSpawned) return;
+                _room2WaveSpawned = true;
+                SpawnRoom2Enemies();
+            });
+
+            BuildGearPuzzle(offsetX);
+        }
+
+        /// <summary>
+        /// Print-shop gear train: gear A drives gear B, gear B turns alone. Both
+        /// must be aligned upright to unlock the workshop door into room three.
+        /// </summary>
+        private void BuildGearPuzzle(float offsetX) {
+            _gearPuzzle = new PuzzleManager {
+                Name = "GearPuzzle",
+                PuzzleID = "florence_gear_puzzle",
+                RequiredConditionIDs = new[] { "gear_a_aligned", "gear_b_aligned" }
+            };
+            AddChild(_gearPuzzle);
+            _gearPuzzle.PuzzleCompleted += _ => OpenWorkshopDoor();
+
+            var gearA = BuildGear("GearA", new Vector2(offsetX + 2000, 820), initialQuarterTurns: 1,
+                conditionID: "gear_a_aligned");
+            var gearB = BuildGear("GearB", new Vector2(offsetX + 2350, 820), initialQuarterTurns: 2,
+                conditionID: "gear_b_aligned");
+            gearA.LinkedGearPaths.Add(gearA.GetPathTo(gearB));
+
+            // Deferred: PuzzleManager may already hold saved completion.
+            CallDeferred(MethodName.ApplySavedPuzzleState);
+        }
+
+        private void ApplySavedPuzzleState() {
+            if (_gearPuzzle != null && _gearPuzzle.IsCompleted) OpenWorkshopDoor();
+        }
+
+        private RotatingGear BuildGear(string name, Vector2 position, int initialQuarterTurns, string conditionID) {
+            var gear = new RotatingGear {
+                Name = name,
+                GearID = $"florence_{name.ToLowerInvariant()}",
+                Position = position,
+                RotationDegrees = initialQuarterTurns * 90f,
+                ConditionID = conditionID,
+                TargetQuarterTurns = 0,
+                // Absolute path: the puzzle manager is already in the tree.
+                PuzzleManagerPath = _gearPuzzle.GetPath()
+            };
+
+            var hub = new ColorRect {
+                Size = new Vector2(30, 30),
+                Position = new Vector2(-15, -15),
+                Color = new Color(0.55f, 0.4f, 0.15f)
+            };
+            gear.AddChild(hub);
+            // The alignment pointer makes the current orientation readable.
+            var pointer = new ColorRect {
+                Size = new Vector2(10, 45),
+                Position = new Vector2(-5, -60),
+                Color = new Color(0.9f, 0.75f, 0.3f)
+            };
+            gear.AddChild(pointer);
+            var toothLeft = new ColorRect {
+                Size = new Vector2(45, 10),
+                Position = new Vector2(-60, -5),
+                Color = new Color(0.45f, 0.32f, 0.12f)
+            };
+            gear.AddChild(toothLeft);
+            var toothRight = new ColorRect {
+                Size = new Vector2(45, 10),
+                Position = new Vector2(15, -5),
+                Color = new Color(0.45f, 0.32f, 0.12f)
+            };
+            gear.AddChild(toothRight);
+
+            AddChild(gear);
+
+            // Sibling interaction area so the trigger and prompt do not rotate
+            // with the gear.
+            var interaction = new InteractionArea {
+                Name = $"{name}Interaction",
+                Position = position,
+                TargetPath = gear.GetPath()
+            };
+            var shape = new CollisionShape2D();
+            shape.Shape = new RectangleShape2D { Size = new Vector2(140, 160) };
+            interaction.AddChild(shape);
+            var prompt = new Label {
+                Name = "Prompt",
+                Visible = false,
+                Position = new Vector2(-70, -110),
+                CustomMinimumSize = new Vector2(140, 20),
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            prompt.AddThemeFontSizeOverride("font_size", 11);
+            prompt.AddThemeColorOverride("font_color", new Color(0.95f, 0.85f, 0.4f));
+            interaction.AddChild(prompt);
+            AddChild(interaction);
+
+            return gear;
+        }
+
+        private void OpenWorkshopDoor() {
+            if (_workshopDoor == null || !IsInstanceValid(_workshopDoor)) return;
+            _workshopDoor.QueueFree();
+            _workshopDoor = null;
+            _services?.HUD?.SetObjective("florence_objective_reach_boss");
         }
 
         private void BuildRoom3() {
-            float offsetX = 8640;
+            float offsetX = Room3OffsetX;
 
             var bg3 = new ColorRect();
             bg3.Name = "BG_Room3";
@@ -130,10 +282,53 @@ namespace FTT.Environment {
             BuildHazardSpikes(offsetX + 900, 890, 80);
 
             BuildRoomDecoration(offsetX, "florence_room_workshop", new Color(0.5f, 0.3f, 0.15f));
+
+            _workshopDoor = BuildDoor("WorkshopDoor", new Vector2(offsetX, 0));
+
+            BuildWaveTrigger("Room3WaveTrigger", new Vector2(offsetX + 150, 800), () => {
+                if (_room3WaveSpawned) return;
+                _room3WaveSpawned = true;
+                SpawnRoom3Enemies();
+            });
+        }
+
+        /// <summary>Solid placeholder door; removed when the gear puzzle completes.</summary>
+        private StaticBody2D BuildDoor(string name, Vector2 position) {
+            var door = new StaticBody2D {
+                Name = name,
+                Position = position,
+                CollisionLayer = CollisionLayers.Environment,
+                CollisionMask = 0
+            };
+
+            var col = new CollisionShape2D();
+            col.Shape = new RectangleShape2D { Size = new Vector2(40, 400) };
+            col.Position = new Vector2(0, 700);
+            door.AddChild(col);
+
+            var visual = new ColorRect {
+                Size = new Vector2(40, 400),
+                Position = new Vector2(-20, 500),
+                Color = new Color(0.5f, 0.35f, 0.12f)
+            };
+            door.AddChild(visual);
+
+            var lockLabel = new Label {
+                Text = Tr("florence_door_locked"),
+                Position = new Vector2(-90, 460),
+                CustomMinimumSize = new Vector2(180, 20),
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            lockLabel.AddThemeFontSizeOverride("font_size", 11);
+            lockLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.6f, 0.2f));
+            door.AddChild(lockLabel);
+
+            AddChild(door);
+            return door;
         }
 
         private void BuildRoom4BossArena() {
-            float offsetX = 10560;
+            float offsetX = Room4OffsetX;
 
             var bg4 = new ColorRect();
             bg4.Name = "BG_Room4_Boss";
@@ -153,6 +348,22 @@ namespace FTT.Environment {
             BuildRoomDecoration(offsetX, "florence_room_boss", new Color(0.9f, 0.2f, 0.2f));
 
             SpawnBoss(offsetX + 700, 850);
+        }
+
+        private void BuildWaveTrigger(string name, Vector2 position, System.Action onEntered) {
+            var trigger = new Area2D {
+                Name = name,
+                Position = position,
+                CollisionLayer = CollisionLayers.Trigger,
+                CollisionMask = CollisionLayers.Player
+            };
+            var col = new CollisionShape2D();
+            col.Shape = new RectangleShape2D { Size = new Vector2(60, 400) };
+            trigger.AddChild(col);
+            trigger.BodyEntered += body => {
+                if (body is PlayerController) onEntered();
+            };
+            AddChild(trigger);
         }
 
         private void BuildFloor(float x, float y, float width) {
@@ -332,37 +543,72 @@ namespace FTT.Environment {
             StorySaveData save = SaveManager.Instance.SaveSlots[slot];
             if (save == null || save.CurrentLevelID != StoryManager.GetLevelScenePath(CampaignLevel.Florence)) return;
             Vector2 position = _player.Position;
-            if (_levelManager.TryGetCheckpointPosition(save.LastCheckpointID, out Vector2 checkpoint)) position = checkpoint;
+            if (_levelManager.TryGetCheckpointPosition(save.LastCheckpointID, out Vector2 checkpoint)) {
+                position = checkpoint;
+                _levelManager.SetCheckpointPosition(save.LastCheckpointID, checkpoint);
+                // Resuming past the print shop means the waves ahead of the
+                // checkpoint were already fought.
+                if (save.LastCheckpointID == "florence_checkpoint_1") _room2WaveSpawned = true;
+                if (save.LastCheckpointID == "florence_checkpoint_2") {
+                    _room2WaveSpawned = true;
+                    _room3WaveSpawned = true;
+                }
+            }
             _player.RestoreStoryCheckpoint(position, save.CurrentHP, save.CurrentUltimateMeter);
         }
 
-        private void SpawnEnemies() {
-            EnemyFactory.SpawnChronoSlasher(this, new Vector2(800, 850),
-                waypointA: new Vector2(600, 850), waypointB: new Vector2(1000, 850));
-            EnemyFactory.SpawnChronoSlasher(this, new Vector2(1800, 850),
-                waypointA: new Vector2(1600, 850), waypointB: new Vector2(2000, 850));
-            EnemyFactory.SpawnCyberGuard(this, new Vector2(2200, 850),
-                waypointA: new Vector2(2000, 850), waypointB: new Vector2(2400, 850));
-            EnemyFactory.SpawnCyberGuard(this, new Vector2(3000, 850),
-                waypointA: new Vector2(2800, 850), waypointB: new Vector2(3200, 850));
-            EnemyFactory.SpawnSteamAutomaton(this, new Vector2(4000, 850));
+        // === Encounters ===
 
-            float r2Offset = 5760;
-            EnemyFactory.SpawnCyberGuard(this, new Vector2(r2Offset + 500, 850),
-                waypointA: new Vector2(r2Offset + 300, 850), waypointB: new Vector2(r2Offset + 700, 850));
-            EnemyFactory.SpawnCyberGuard(this, new Vector2(r2Offset + 1200, 850));
-            EnemyFactory.SpawnChronoSlasher(this, new Vector2(r2Offset + 2000, 850),
-                waypointA: new Vector2(r2Offset + 1800, 850), waypointB: new Vector2(r2Offset + 2200, 850));
+        private void SpawnRoom1Enemies() {
+            var difficulty = StoryDifficultyTuning.CurrentStoryDifficulty;
+            int count = StoryDifficultyTuning.ScaleEncounterCount(5, difficulty);
 
-            float r3Offset = 8640;
-            EnemyFactory.SpawnChronoSlasher(this, new Vector2(r3Offset + 400, 850));
-            EnemyFactory.SpawnChronoSlasher(this, new Vector2(r3Offset + 800, 850));
-            EnemyFactory.SpawnChronoSlasher(this, new Vector2(r3Offset + 1200, 850));
-            EnemyFactory.SpawnCyberGuard(this, new Vector2(r3Offset + 600, 850),
-                waypointA: new Vector2(r3Offset + 400, 850), waypointB: new Vector2(r3Offset + 900, 850));
-            EnemyFactory.SpawnCyberGuard(this, new Vector2(r3Offset + 1400, 850));
-            EnemyFactory.SpawnSteamAutomaton(this, new Vector2(r3Offset + 1000, 850));
-            EnemyFactory.SpawnSteamAutomaton(this, new Vector2(r3Offset + 1600, 850));
+            System.Action[] spawns = {
+                () => EnemyFactory.SpawnChronoSlasher(this, new Vector2(800, 850),
+                    waypointA: new Vector2(600, 850), waypointB: new Vector2(1000, 850)),
+                () => EnemyFactory.SpawnChronoSlasher(this, new Vector2(1800, 850),
+                    waypointA: new Vector2(1600, 850), waypointB: new Vector2(2000, 850)),
+                () => EnemyFactory.SpawnCyberGuard(this, new Vector2(2200, 850),
+                    waypointA: new Vector2(2000, 850), waypointB: new Vector2(2400, 850)),
+                () => EnemyFactory.SpawnCyberGuard(this, new Vector2(3000, 850),
+                    waypointA: new Vector2(2800, 850), waypointB: new Vector2(3200, 850)),
+                () => EnemyFactory.SpawnSteamAutomaton(this, new Vector2(4000, 850))
+            };
+            for (int index = 0; index < count && index < spawns.Length; index++) spawns[index]();
+        }
+
+        private void SpawnRoom2Enemies() {
+            var difficulty = StoryDifficultyTuning.CurrentStoryDifficulty;
+            int count = StoryDifficultyTuning.ScaleEncounterCount(3, difficulty);
+            float offsetX = Room2OffsetX;
+
+            System.Action[] spawns = {
+                () => EnemyFactory.SpawnCyberGuard(this, new Vector2(offsetX + 500, 850),
+                    waypointA: new Vector2(offsetX + 300, 850), waypointB: new Vector2(offsetX + 700, 850)),
+                () => EnemyFactory.SpawnCyberGuard(this, new Vector2(offsetX + 1200, 850)),
+                () => EnemyFactory.SpawnChronoSlasher(this, new Vector2(offsetX + 2000, 850),
+                    waypointA: new Vector2(offsetX + 1800, 850), waypointB: new Vector2(offsetX + 2200, 850)),
+                () => EnemyFactory.SpawnChronoSlasher(this, new Vector2(offsetX + 900, 850))
+            };
+            for (int index = 0; index < count && index < spawns.Length; index++) spawns[index]();
+        }
+
+        private void SpawnRoom3Enemies() {
+            var difficulty = StoryDifficultyTuning.CurrentStoryDifficulty;
+            int count = StoryDifficultyTuning.ScaleEncounterCount(7, difficulty);
+            float offsetX = Room3OffsetX;
+
+            System.Action[] spawns = {
+                () => EnemyFactory.SpawnChronoSlasher(this, new Vector2(offsetX + 400, 850)),
+                () => EnemyFactory.SpawnCyberGuard(this, new Vector2(offsetX + 600, 850),
+                    waypointA: new Vector2(offsetX + 400, 850), waypointB: new Vector2(offsetX + 900, 850)),
+                () => EnemyFactory.SpawnChronoSlasher(this, new Vector2(offsetX + 800, 850)),
+                () => EnemyFactory.SpawnSteamAutomaton(this, new Vector2(offsetX + 1000, 850)),
+                () => EnemyFactory.SpawnChronoSlasher(this, new Vector2(offsetX + 1200, 850)),
+                () => EnemyFactory.SpawnCyberGuard(this, new Vector2(offsetX + 1400, 850)),
+                () => EnemyFactory.SpawnSteamAutomaton(this, new Vector2(offsetX + 1600, 850))
+            };
+            for (int index = 0; index < count && index < spawns.Length; index++) spawns[index]();
         }
 
         private void SpawnBoss(float x, float y) {
@@ -439,80 +685,57 @@ namespace FTT.Environment {
             AddChild(_boss);
         }
 
-        private void BuildHUD() {
-            var canvas = new CanvasLayer();
-            canvas.Name = "LevelHUD";
-            canvas.Layer = 10;
-            AddChild(canvas);
-
-            var levelLabel = new Label();
-            levelLabel.Text = Tr("florence_level_title");
-            levelLabel.Position = new Vector2(20, 15);
-            levelLabel.AddThemeFontSizeOverride("font_size", 14);
-            levelLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.7f, 0.2f));
-            canvas.AddChild(levelLabel);
-
-            _objectiveLabel = new Label();
-            _objectiveLabel.Text = Tr("florence_objective_reach_boss");
-            _objectiveLabel.Position = new Vector2(20, 40);
-            _objectiveLabel.AddThemeFontSizeOverride("font_size", 12);
-            _objectiveLabel.AddThemeColorOverride("font_color", new Color(0.8f, 0.8f, 0.6f));
-            canvas.AddChild(_objectiveLabel);
-
-            _bossHPLabel = new Label();
-            _bossHPLabel.Name = "BossHP";
-            _bossHPLabel.Position = new Vector2(660, 15);
-            _bossHPLabel.CustomMinimumSize = new Vector2(600, 25);
-            _bossHPLabel.HorizontalAlignment = HorizontalAlignment.Center;
-            _bossHPLabel.AddThemeFontSizeOverride("font_size", 14);
-            _bossHPLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.2f, 0.2f));
-            _bossHPLabel.Visible = false;
-            canvas.AddChild(_bossHPLabel);
-        }
+        // === Boss and completion flow ===
 
         public override void _Process(double delta) {
-            if (_boss != null && !_bossDefeated) {
-                if (_boss.CurrentState == BossState.Dead) {
-                    OnBossDefeated();
-                } else if (_player != null) {
-                    float dist = _player.GlobalPosition.DistanceTo(_boss.GlobalPosition);
-                    if (dist < 800) {
-                        _bossHPLabel.Visible = true;
-                        _bossHPLabel.Text = string.Format(
-                            Tr("boss_hp"),
-                            Tr("boss_borgia_inquisitor_name"),
-                            _boss.CurrentHP,
-                            _boss.Data.MaxHP);
-                    }
+            if (_boss == null || _bossDefeated) return;
+
+            if (_boss.CurrentState == BossState.Dead) {
+                OnBossDefeated();
+                return;
+            }
+            if (_player == null) return;
+
+            float dist = _player.GlobalPosition.DistanceTo(_boss.GlobalPosition);
+            if (dist < 800) {
+                if (!_bossIntroShown) {
+                    _bossIntroShown = true;
+                    _services?.HUD?.ShowBossBar("boss_borgia_inquisitor_name", _boss.CurrentHP, _boss.ScaledMaxHP);
+                    _services?.HUD?.SetObjective("florence_objective_defeat_boss");
+                    _services?.Dialogue?.StartSequence("level_01.boss_intro");
                 }
+                _services?.HUD?.UpdateBossHP(_boss.CurrentHP);
             }
         }
 
         private void OnEnemyKilled(EnemyKilledPayload payload) {
+            _dustEarnedThisLevel += payload.ChronalDustDrop;
             EventBus.Instance?.RaiseChronalDustCollected(payload.ChronalDustDrop);
         }
 
         private void OnBossDefeated() {
             _bossDefeated = true;
-            _bossHPLabel.Text = string.Format(
-                Tr("boss_defeated"),
-                Tr("boss_borgia_inquisitor_name"));
+            _services?.HUD?.HideBossBar();
+            _services?.HUD?.SetObjective("florence_objective_complete");
 
-            EventBus.Instance?.RaiseChronalDustCollected(50);
+            const int bossDustReward = 50;
+            _dustEarnedThisLevel += bossDustReward;
+            EventBus.Instance?.RaiseChronalDustCollected(bossDustReward);
 
-            _objectiveLabel.Text = Tr("florence_objective_complete");
-
-            var timer = GetTree().CreateTimer(4.0);
-            timer.Timeout += () => {
-                _levelManager?.CompleteLevel();
-                StoryManager.Instance?.ReturnToHub();
-            };
+            var timer = GetTree().CreateTimer(1.5);
+            timer.Timeout += () => _services?.Dialogue?.StartSequence("level_01.exit");
         }
 
-        public override void _ExitTree() {
-            if (EventBus.Instance != null) {
-                EventBus.Instance.OnEnemyKilled -= OnEnemyKilled;
-            }
+        private void ShowCompletionResults() {
+            if (_levelComplete) return;
+            _levelComplete = true;
+            // Raises OnLevelComplete: advances the campaign and autosaves completion.
+            _levelManager?.CompleteLevel();
+
+            var results = LevelResultsPanel.CreateDefault();
+            results.ReturnRequested += () => StoryManager.Instance?.ReturnToHub();
+            AddChild(results);
+            results.ShowResults("florence_level_title", _dustEarnedThisLevel);
         }
     }
 }

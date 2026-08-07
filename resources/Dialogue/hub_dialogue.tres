@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
+
+[sub_resource type="Resource" id="SarahBriefing"]
+script = ExtResource("2")
+DialogueID = "hub.sarah_briefing"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_hub_sarah_1", "dlg_hub_sarah_2")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[resource]
+script = ExtResource("1")
+DialogueSetID = "dialogue_hub"
+Sequences = [SubResource("SarahBriefing")]

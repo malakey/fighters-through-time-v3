@@ -58,6 +58,13 @@ namespace FTT.Combat {
         public PlayerController SourcePlayer { get; set; }
         private bool _areaEnteredConnected;
 
+        /// <summary>
+        /// Raised after a hurtbox accepts a payload from this hitbox. The float is
+        /// the actual HP damage dealt (0 when blocked/invulnerable). Projectiles
+        /// use this to detonate on first confirmed contact.
+        /// </summary>
+        public event Action<HitPayload, float> HitConfirmed;
+
         public void Activate() {
             IsActive = true;
             Monitoring = true;
@@ -107,8 +114,10 @@ namespace FTT.Combat {
             if (!IsActive || area is not Hurtbox hurtbox) return;
             if (hurtbox.OwnerPlayerIndex == OwnerPlayerIndex) return;
 
-            float damageApplied = hurtbox.TakeHit(CreatePayload(hurtbox.OwnerPlayerIndex));
+            HitPayload payload = CreatePayload(hurtbox.OwnerPlayerIndex);
+            float damageApplied = hurtbox.TakeHit(payload);
             if (damageApplied > 0f) SourcePlayer?.AddInfluenceFromDamageDealt(damageApplied);
+            HitConfirmed?.Invoke(payload, damageApplied);
         }
 
         private PlayerController FindOwningPlayer() {

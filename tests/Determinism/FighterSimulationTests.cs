@@ -387,6 +387,145 @@ public class FighterSimulationTests {
         AssertThat(vulnerableAfterRoll.CurrentHP < vulnerableAfterRoll.MaxHP).IsTrue();
     }
 
+    [TestCase]
+    public void AreaSpecialSpawnsZoneThatAppliesStatusWithoutImpulseAndBuffsTheOwner() {
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(BuildZoneTestCharacter()),
+            FighterLoadout.Default(FighterCharacterID.Joan),
+            seed: 61,
+            spawnDistance: 1,
+            rules: FighterMatchRules.Disabled);
+
+        simulation.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
+
+        AssertThat(simulation.ZoneCount).IsEqual(1);
+        AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
+        AssertThat(zone.ZoneTypeID).IsEqual((int)FighterCharacterID.Einstein * 10 + 2);
+        AssertThat(zone.TickIntervalFrames).IsEqual(30);
+        AssertThat(zone.StatusType).IsEqual((int)StatusType.TimeDilation);
+        AssertThat(zone.GrantsOwnerSpeedBonus).IsEqual(1);
+
+        // The first pulse fires on the spawn frame: chip damage plus TimeDilation,
+        // with no knockback, hitstun, or block interaction.
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
+        AssertThat(target.CurrentHP).IsEqual(98);
+        AssertThat(target.HitstunFrames).IsEqual(0);
+        AssertThat(target.BlockCharges).IsEqual(3);
+        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent targetRuntime)).IsTrue();
+        AssertThat(targetRuntime.StatusType).IsEqual((int)StatusType.TimeDilation);
+
+        // Einstein standing inside his own rift carries the +25% speed bonus flag.
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent ownerRuntime)).IsTrue();
+        AssertThat(ownerRuntime.ZoneSpeedBonusFrames > 0).IsTrue();
+
+        for (int tick = 1; tick <= 200; tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
+        AssertThat(simulation.ZoneCount).IsEqual(0);
+    }
+
+    [TestCase]
+    public void ZoneLifecycleIsSnapshotAndRollbackSafe() {
+        FighterLoadout zoneLoadout = FighterLoadoutFactory.FromCharacterData(BuildZoneTestCharacter());
+        var uninterrupted = new FighterSimulation(
+            zoneLoadout, FighterLoadout.Default(FighterCharacterID.Joan),
+            seed: 73, spawnDistance: 1, rules: FighterMatchRules.Disabled);
+        uninterrupted.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
+        for (int tick = 1; tick < 40; tick++) {
+            uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
+        byte[] snapshot = uninterrupted.CaptureFullState();
+        AssertThat(uninterrupted.ZoneCount).IsEqual(1);
+
+        var restored = new FighterSimulation(
+            zoneLoadout, FighterLoadout.Default(FighterCharacterID.Joan),
+            seed: 73, spawnDistance: 1, rules: FighterMatchRules.Disabled);
+        restored.RestoreFullState(snapshot);
+        for (int tick = 40; tick < 260; tick++) {
+            long expected = uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            long actual = restored.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            AssertThat(actual).IsEqual(expected);
+        }
+        AssertThat(restored.ZoneCount).IsEqual(0);
+    }
+
+    [TestCase]
+    public void WarpMovementTravelsInHeldInputDirectionAndGrantsFloatFrames() {
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(BuildWarpTestCharacter()),
+            FighterLoadout.Default(FighterCharacterID.Joan),
+            seed: 88,
+            spawnDistance: 4,
+            rules: FighterMatchRules.Disabled);
+
+        // Hold up while triggering the warp: world Y is up, stick up is negative.
+        simulation.Advance(
+            Frame(0, 0, GameplayButtons.MovementAbility, moveY: -127),
+            Frame(0, 0, GameplayButtons.None));
+
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent warped)).IsTrue();
+        AssertThat(warped.Position.y > xpTURN.Klotho.Deterministic.Math.FP64.FromInt(2)).IsTrue();
+        AssertThat(warped.IsGrounded).IsEqual(0);
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(runtime.FloatFrames > 0).IsTrue();
+
+        // The float glide's reduced gravity keeps the fighter airborne well past a
+        // normal fall over the same window.
+        for (int tick = 1; tick <= 30; tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent floating)).IsTrue();
+        AssertThat(floating.Position.y > xpTURN.Klotho.Deterministic.Math.FP64.One).IsTrue();
+    }
+
+    private static CharacterData BuildZoneTestCharacter() => new() {
+        CharacterID = "einstein",
+        MaxHP = 100,
+        Weight = 1f,
+        MaxBlockCharges = 3,
+        MaxJumpCount = 1,
+        MaxMoveSpeed = 8f,
+        MaxJumpForce = 13f,
+        BasicAttackDamage = 10f,
+        BasicAttackKnockback = 3f,
+        SpecialAttackOne = new AbilityData(),
+        SpecialAttackTwo = new AbilityData {
+            ExecutionType = AbilityExecutionType.Area,
+            BaseDamage = 1.5f,
+            DamageTickIntervalFrames = 30,
+            KnockbackForce = Vector2.Zero,
+            CooldownDuration = 10f,
+            Lifetime = 3f,
+            AppliedStatus = StatusType.TimeDilation,
+            StatusDuration = 3f,
+            StatusIntensity = 1f
+        },
+        MovementAbility = new MovementAbilityData(),
+        UltimateAttack = new AbilityData { BaseDamage = 20f }
+    };
+
+    private static CharacterData BuildWarpTestCharacter() => new() {
+        CharacterID = "einstein",
+        MaxHP = 100,
+        Weight = 1f,
+        MaxBlockCharges = 3,
+        MaxJumpCount = 1,
+        MaxMoveSpeed = 8f,
+        MaxJumpForce = 13f,
+        BasicAttackDamage = 10f,
+        BasicAttackKnockback = 3f,
+        SpecialAttackOne = new AbilityData(),
+        SpecialAttackTwo = new AbilityData(),
+        MovementAbility = new MovementAbilityData {
+            MovementType = MovementType.Warp,
+            MovementDuration = 0.2f,
+            DistanceMoved = 150f,
+            MovementSpeed = 750f,
+            CooldownDuration = 5f
+        },
+        UltimateAttack = new AbilityData { BaseDamage = 20f }
+    };
+
     private static CharacterData BuildStatusTestCharacter() => new() {
         CharacterID = "joan",
         MaxHP = 100,
@@ -475,9 +614,10 @@ public class FighterSimulationTests {
         return Frame(tick, axis, held);
     }
 
-    private static PlayerInputFrame Frame(int tick, sbyte moveX, GameplayButtons pressed) => new() {
+    private static PlayerInputFrame Frame(int tick, sbyte moveX, GameplayButtons pressed, sbyte moveY = 0) => new() {
         Tick = (uint)tick,
         MoveX = moveX,
+        MoveY = moveY,
         Held = pressed,
         Pressed = pressed
     };

@@ -71,6 +71,8 @@ namespace FTT.Core {
         public MatchSettings MatchSettings;
         public FighterOpponentType FighterOpponentType;
         public CpuDifficulty CpuDifficulty;
+        /// <summary>Set by the hub Holodeck so Fighter flows return to the Time-Ship instead of the main menu.</summary>
+        public bool ReturnToHubAfterFighterMatch;
     }
 
     public partial class GameManager : Node {

@@ -1,6 +1,6 @@
 # Fighters Through Time: remaining-gap implementation plan
 
-Status: Packages 0-1 (all P0 items) completed and verified on 2026-08-05. The next implementation gate is Package 2 (P1 production vertical slice with placeholders).
+Status: Packages 0-1 (all P0 items) completed and verified on 2026-08-05. Package 2 gameplay/content items (dialogue system, Story HUD, tutorial, Florence, hub, difficulty scaling, and the Florence Workshop production Fighter stage) were completed on 2026-08-06 with 132 passing tests; the authored-scene conversion, placeholder presentation (animation libraries, music stems, SFX), and frame-budget measurement items remain open. Package 3 started 2026-08-06 with the 36-slot kit audit (`docs/PACKAGE3_KIT_AUDIT.md`), the shared foundations (authored `AbilityData` frame timings in `BaseSpecial`, deterministic Fighter zone entities, minimal Story enemy status support, character-scoped Story-only perk queries), and the Einstein vertical slice: canonical E=mc² detonation, Relativity Rift (TimeDilation + self speed buff in both modes), directional Relativity Warp with float cancel, and all three Einstein major perks wired Story-only. 138 tests pass; the remaining eight characters, ultimates, and construct/perk passes follow the audit's conversion order.
 
 P0 validation record: `dotnet build` passed with only the existing vendored GdUnit4 nullable-context warning; 118 GdUnit4 tests passed; Godot 4.7.1 headless import and Tutorial, Florence, and Hub smoke runs completed without runtime diagnostics.
 
@@ -155,7 +155,7 @@ Priority: P0. Complete these shared systems before multiplying levels and encoun
 
 - The shared systems can support every planned level without level-specific forks of core behavior.
 - Rewind cannot duplicate loot, leave live projectiles, corrupt encounter state, or bypass puzzle/checkpoint progression.
-- Representative gameplay loops have no routine instantiate/free churn for projectiles, enemies, VFX, or loot.
+- Representative gameplay loops have no routine instantiate/free churn for projectiles, enemies, VFX, or loot. 
 
 ## Package 2 - Production vertical slice with placeholders
 
@@ -164,21 +164,21 @@ Priority: P1. Scope: New Story slot -> Tutorial -> Hub -> Florence -> Hub, plus 
 ### Tutorial, hub, and Florence
 
 - [ ] Convert Tutorial and Florence from controller-built layouts to authored scenes using the level template and graybox tile resources.
-- [ ] Complete all three Tutorial parts: fracture presentation, calibration movement/combat/rewind instruction, and advanced mobility gates.
-- [ ] Complete Florence's four-room progression, rotating-gear puzzle, enemy waves, checkpoints, hazards, Borgia Inquisitor boss, entrance/exit dialogue, completion results, autosave, and hub return.
-- [ ] Author the hub's placeholder spatial layout, walking paths, Calibration Bay return anchor, Chronal Repository terminal, Holodeck console, Resistance NPC interaction points, and sequential Temporal Portal.
-- [ ] Wire the Holodeck to configured human-vs-CPU practice matches and return cleanly to the hub.
-- [ ] Author Commander Sarah, Tutorial, Florence, hub, and boss dialogue as `DialogueSequenceData` resources using the documented typewriter and confirm behavior.
-- [ ] Add placeholder portraits/emotions and make dialogue suspend gameplay while leaving UI navigation responsive.
-- [ ] Complete Story HUD information, boss bar, enemy overhead bars, checkpoint feedback, level-completion overlay, dust auto-deposit, and loading treatment.
-- [ ] Implement full Story difficulty effects on enemies, drops, and rewind without changing Fighter balance.
-- [ ] Verify save/resume from every Tutorial/Florence checkpoint and the hub return anchor.
+- [x] Complete all three Tutorial parts: fracture presentation, calibration movement/combat/rewind instruction, and advanced mobility gates.
+- [x] Complete Florence's four-room progression, rotating-gear puzzle, enemy waves, checkpoints, hazards, Borgia Inquisitor boss, entrance/exit dialogue, completion results, autosave, and hub return.
+- [x] Author the hub's placeholder spatial layout, walking paths, Calibration Bay return anchor, Chronal Repository terminal, Holodeck console, Resistance NPC interaction points, and sequential Temporal Portal.
+- [x] Wire the Holodeck to configured human-vs-CPU practice matches and return cleanly to the hub.
+- [x] Author Commander Sarah, Tutorial, Florence, hub, and boss dialogue as `DialogueSequenceData` resources using the documented typewriter and confirm behavior.
+- [x] Add placeholder portraits/emotions and make dialogue suspend gameplay while leaving UI navigation responsive.
+- [x] Complete Story HUD information, boss bar, enemy overhead bars, checkpoint feedback, level-completion overlay, dust auto-deposit, and loading treatment.
+- [x] Implement full Story difficulty effects on enemies, drops, and rewind without changing Fighter balance.
+- [ ] Verify save/resume from every Tutorial/Florence checkpoint and the hub return anchor. (Checkpoint capture/restore logic is implemented in both level controllers; a manual in-editor verification pass across every checkpoint remains.)
 
 ### First production-contract Fighter stage
 
-- [ ] Create a Florence Fighter scene with unique platform geometry, bounds, camera anchors, spawn points, Orb points, and a deterministic era-specific hazard.
-- [ ] Complete dynamic midpoint tracking and bounded zoom for the stage.
-- [ ] Use the stage as the acceptance template for the nine remaining stage scenes.
+- [x] Create a Florence Fighter scene with unique platform geometry, bounds, camera anchors, spawn points, Orb points, and a deterministic era-specific hazard.
+- [x] Complete dynamic midpoint tracking and bounded zoom for the stage.
+- [x] Use the stage as the acceptance template for the nine remaining stage scenes. (`FighterStageGeometry` + `FighterStageController` + authored scene markers form the contract.)
 
 ### Placeholder presentation
 
@@ -198,7 +198,7 @@ Priority: P1. Use the stable data and presentation contracts from Packages 0-2.
 
 ### Cross-mode kit implementation
 
-- [ ] Audit all 36 ability slots against Section 5 of `design-godot.md`; convert every generic projectile/zone approximation into the character's canonical mechanics.
+- [x] Audit all 36 ability slots against Section 5 of `design-godot.md` (see `docs/PACKAGE3_KIT_AUDIT.md`, 2026-08-06); convert every generic projectile/zone approximation into the character's canonical mechanics (Einstein complete; eight characters remain).
 - [ ] Complete Einstein's spacetime/gravity setup, Joan's radiant rushdown/hyper-armor, Leonardo's inventions/turret, Lincoln's rail strikes/shockwaves, Cleopatra's sand/serpents, Tesla's linked coils/electricity, Shakespeare's barriers/spectral actors, Mozart's sonic waves/platforms, and Pocahontas's glide/roots/nature spirits.
 - [ ] Complete all nine movement abilities with character-specific rules, animation events, recovery, cooldowns, VFX/SFX hooks, and state interruption.
 - [ ] Give persistent constructs stable owner/type/state IDs, deploy limits, pool reset behavior, Story rewind behavior, Fighter snapshot/hash fields, and rollback lifecycle tests.

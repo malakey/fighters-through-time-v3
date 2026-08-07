@@ -369,7 +369,7 @@ This document provides a detailed comparison of what has been implemented versus
 
 | Feature | Design Spec | Implementation Status |
 |---------|-------------|----------------------|
-| GdUnit4 test framework | Automated headless C# tests | **Implemented** - 118 passing tests |
+| GdUnit4 test framework | Automated headless C# tests | **Implemented** - 132 passing tests |
 | Content validation tests | Character/ability/enemy/stage manifest completeness | **Implemented** |
 | Combat formula tests | Damage calc, block rules, meter build/use | **Implemented** |
 | Determinism/rollback tests | Hash consistency, prediction, correction convergence | **Implemented** |

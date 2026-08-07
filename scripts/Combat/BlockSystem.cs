@@ -76,13 +76,25 @@ namespace FTT.Combat {
             _isBlocking = false;
         }
 
+        /// <summary>Story-only Resonance perk key: teleport backward on guard break.</summary>
+        public const string QuantumEntanglementPerkKey = "quantum_entanglement";
+        private const float QuantumEntanglementDistance = 150f;
+
         private void BreakGuard() {
             _isBlocking = false;
             _owner.TransitionTo(CharacterState.Dazed);
 
-            Vector2 velocity = _owner.Velocity;
-            velocity += _owner.IsFacingRight ? new Vector2(-120f, -60f) : new Vector2(120f, -60f);
-            _owner.Velocity = velocity;
+            if (_owner.HasStoryPerk(QuantumEntanglementPerkKey)) {
+                // Quantum Entanglement: instead of being shoved, Einstein blinks
+                // backward out of immediate follow-up range.
+                float direction = _owner.IsFacingRight ? -1f : 1f;
+                _owner.GlobalPosition += new Vector2(direction * QuantumEntanglementDistance, 0f);
+                _owner.Velocity = new Vector2(0f, _owner.Velocity.Y);
+            } else {
+                Vector2 velocity = _owner.Velocity;
+                velocity += _owner.IsFacingRight ? new Vector2(-120f, -60f) : new Vector2(120f, -60f);
+                _owner.Velocity = velocity;
+            }
             FTT.Core.EventBus.Instance?.RaiseBlockBroken(_owner.PlayerIndex);
         }
 

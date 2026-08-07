@@ -21,7 +21,10 @@ namespace FTT.Environment {
 
         public override void _Ready() {
             _difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
-            RemainingRewinds = GetMaximumRewinds(_difficulty);
+            int maximum = GetMaximumRewinds(_difficulty);
+            RemainingRewinds = StoryManager.Instance != null
+                ? Math.Clamp(StoryManager.Instance.ChronalRewindsRemaining, 0, maximum)
+                : maximum;
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnPlayerDied += OnPlayerDied;
                 EventBus.Instance.OnCheckpointReached += OnCheckpointReached;
@@ -48,6 +51,15 @@ namespace FTT.Environment {
                 _player.IsOnFloor(),
                 _player.IsFacingRight,
                 _player.ActiveAnimationName));
+        }
+
+        /// <summary>
+        /// Refunds one rewind, used by the tutorial calibration step so the guided
+        /// demonstration never spends the player's real pool (Hard has only one).
+        /// </summary>
+        public void RefundRewind() {
+            RemainingRewinds = Math.Min(RemainingRewinds + 1, GetMaximumRewinds(_difficulty));
+            StoryManager.Instance?.SetRewinds(RemainingRewinds);
         }
 
         public static int GetMaximumRewinds(Difficulty difficulty) => difficulty switch {

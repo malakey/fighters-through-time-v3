@@ -4,104 +4,126 @@ using FTT.Characters;
 
 namespace FTT.Characters.Abilities {
 
+    /// <summary>
+    /// Special 1 — Mass-Energy Conversion (E=mc²): a heavy projectile with a brief
+    /// wind-up that deals minor contact damage, then detonates into a radiant burst
+    /// at the impact point. Timing/damage come from the authored AbilityData.
+    /// Story-only Resonance perks: Event Horizon (+20% burst damage to targets
+    /// under TimeDilation) and Critical Mass (burst applies RadiantBurn for 3 s).
+    /// </summary>
     public partial class EinsteinEmc2Blast : BaseSpecial {
 
-        private const float StartupDuration = 0.3f;
-        private const float ActiveDuration = 0.1f;
-        private const float RecoveryDuration = 0.2f;
+        public const string EventHorizonPerkKey = "event_horizon";
+        public const string CriticalMassPerkKey = "critical_mass";
+
+        private const float ContactDamageShare = 1f / 3f;
+        private const float BurstRadius = 100f;
+        private const float EventHorizonDamageMultiplier = 1.2f;
+        private const float CriticalMassBurnDuration = 3f;
 
         protected override void OnStartup() {
-            PhaseTimer = StartupDuration;
-            if (Data?.GrantsHyperArmor == true) {
-                // Apply hyper armor visual
-            }
+            UseAuthoredPhaseFrames();
         }
 
         protected override void OnActive() {
-            PhaseTimer = ActiveDuration;
+            UseAuthoredPhaseFrames();
             SpawnProjectile();
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = RecoveryDuration;
+            UseAuthoredPhaseFrames();
         }
 
         private void SpawnProjectile() {
-            if (Data?.ProjectileScene == null && Owner != null) {
-                SpawnPlaceholderProjectile(
-                    Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 50f : -50f, 0f),
-                    Data?.ProjectileSpeed ?? 350f, Owner.IsFacingRight, new Color(0.3f, 0.6f, 1f),
-                    new Vector2(20, 14));
-                Owner.SpecialOneCooldownTimer = Data?.CooldownDuration ?? 6f;
-                return;
-            }
             if (Owner == null) return;
-
-            var projectile = FTT.Core.PoolManager.Instance?.Spawn(
-                Data.ProjectileScene,
-                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 50f : -50f, 0f)
-            );
-
-            if (projectile is EinsteinProjectile ep) {
-                ep.Initialize(Data.BaseDamage, Data.KnockbackForce, Data.ProjectileSpeed, Owner.IsFacingRight, Owner.PlayerIndex);
+            float contactDamage = Mathf.Round((Data?.BaseDamage ?? 15f) * ContactDamageShare);
+            var projectile = SpawnPlaceholderProjectile(
+                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 50f : -50f, 0f),
+                Data?.ProjectileSpeed ?? 350f, Owner.IsFacingRight, new Color(0.3f, 0.6f, 1f),
+                new Vector2(20, 14), Data?.ProjectileLifetime ?? 5f, contactDamage);
+            if (projectile != null) {
+                projectile.DetonateOnImpact = true;
+                projectile.Impacted += OnProjectileImpacted;
             }
 
-            Owner.SpecialOneCooldownTimer = Data.CooldownDuration;
+            Owner.SpecialOneCooldownTimer = Data?.CooldownDuration ?? 10f;
             FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 Slot = FTT.Core.AbilitySlot.Special1,
-                Duration = Data.CooldownDuration
+                Duration = Data?.CooldownDuration ?? 10f
             });
         }
-    }
 
-    public partial class EinsteinProjectile : FTT.Core.PooledNode, FTT.Core.IPoolable {
-        private float _speed;
-        private float _damage;
-        private Vector2 _knockback;
-        private bool _movingRight;
-        private int _ownerIndex;
-        private float _lifetime;
-        private const float MaxLifetime = 5.0f;
+        private void OnProjectileImpacted(Vector2 impactPosition) {
+            // Area signals fire while the physics space is locked; defer the burst
+            // query one step so the shape cast is legal.
+            CallDeferred(nameof(Detonate), impactPosition);
+        }
 
-        private Hitbox _hitbox;
+        private void Detonate(Vector2 impactPosition) {
+            if (Owner == null || !IsInstanceValid(Owner)) return;
 
-        public void Initialize(float damage, Vector2 knockback, float speed, bool facingRight, int ownerIndex) {
-            _damage = damage;
-            _knockback = knockback;
-            _speed = speed * 60f;
-            _movingRight = facingRight;
-            _ownerIndex = ownerIndex;
-            _lifetime = MaxLifetime;
+            // Burst flash visual only; damage is applied through the shape query so
+            // per-target perk multipliers can be evaluated.
+            SpawnPlaceholderZone(impactPosition, 0f, 0.25f, 1f, new Color(1f, 0.9f, 0.4f), BurstRadius);
 
-            _hitbox = GetNodeOrNull<Hitbox>("Hitbox");
-            if (_hitbox != null) {
-                _hitbox.Damage = _damage;
-                _hitbox.KnockbackForce = _knockback;
-                _hitbox.OwnerPlayerIndex = _ownerIndex;
-                _hitbox.Activate();
+            var space = Owner.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return;
+            uint targetHurtboxLayer = Owner.PlayerIndex == 0
+                ? FTT.Core.CollisionLayers.EnemyHurtbox
+                : FTT.Core.CollisionLayers.PlayerHurtbox;
+            var query = new PhysicsShapeQueryParameters2D {
+                Shape = new CircleShape2D { Radius = BurstRadius },
+                Transform = new Transform2D(0f, impactPosition),
+                CollideWithAreas = true,
+                CollideWithBodies = false,
+                CollisionMask = targetHurtboxLayer
+            };
+
+            bool criticalMass = Owner.HasStoryPerk(CriticalMassPerkKey);
+            bool eventHorizon = Owner.HasStoryPerk(EventHorizonPerkKey);
+            foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
+                if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
+                if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
+
+                float burstDamage = Data?.BaseDamage ?? 15f;
+                if (eventHorizon && TargetHasTimeDilation(hurtbox)) {
+                    burstDamage *= EventHorizonDamageMultiplier;
+                }
+
+                float dealt = hurtbox.TakeHit(new HitPayload {
+                    AttackerIndex = Owner.PlayerIndex,
+                    AttackID = Data?.AbilityID ?? "einstein_mass_energy_conversion",
+                    HitboxID = "burst",
+                    AttackClass = AttackClass.Special,
+                    Damage = burstDamage * Owner.StorySpecialDamageMultiplier,
+                    Knockback = Data?.KnockbackForce ?? new Vector2(4, -2),
+                    HitstunDuration = Data?.HitstunDuration ?? 0.2f,
+                    HitOrigin = impactPosition,
+                    AttackerFacingRight = Owner.IsFacingRight,
+                    AppliedStatus = criticalMass ? FTT.Core.StatusType.RadiantBurn : FTT.Core.StatusType.None,
+                    StatusDuration = criticalMass ? CriticalMassBurnDuration : 0f,
+                    StatusIntensity = 1f,
+                    ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.3f,
+                    ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
+                });
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
             }
         }
 
-        public void OnSpawn() {
-            _lifetime = MaxLifetime;
-        }
-
-        public void OnDespawn() {
-            _hitbox?.Deactivate();
-        }
-
-        public override void _PhysicsProcess(double delta) {
-            float dt = (float)delta;
-            _lifetime -= dt;
-            if (_lifetime <= 0) {
-                ReturnToPool();
-                return;
+        private static bool TargetHasTimeDilation(Hurtbox hurtbox) {
+            Node current = hurtbox.GetParent();
+            while (current != null) {
+                if (current is PlayerController player) {
+                    var status = player.GetNodeOrNull<StatusController>("StatusController");
+                    return status?.ActiveType == FTT.Core.StatusType.TimeDilation;
+                }
+                if (current is FTT.Enemies.EnemyController enemy) {
+                    return enemy.ActiveStatusType == FTT.Core.StatusType.TimeDilation;
+                }
+                current = current.GetParent();
             }
-
-            var pos = GlobalPosition;
-            pos.X += (_movingRight ? _speed : -_speed) * dt;
-            GlobalPosition = pos;
+            return false;
         }
     }
 }

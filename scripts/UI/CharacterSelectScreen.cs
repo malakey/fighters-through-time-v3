@@ -331,7 +331,10 @@ namespace FTT.UI {
         }
 
         private void OnBack() {
-            FTT.Core.GameManager.Instance?.LoadScene("res://scenes/menus/MainMenu.tscn");
+            bool holodeck = FTT.Core.GameManager.Instance?.CurrentSession.ReturnToHubAfterFighterMatch == true;
+            FTT.Core.GameManager.Instance?.LoadScene(holodeck
+                ? "res://scenes/campaign/HubWorld.tscn"
+                : "res://scenes/menus/MainMenu.tscn");
         }
     }
 }
