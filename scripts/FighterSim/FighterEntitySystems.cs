@@ -553,23 +553,20 @@ namespace FTT.FighterSim {
             FP64 speed = modes.MovementSpeed > FP64.Zero ? modes.MovementSpeed : FP64.FromInt(8);
 
             if (modes.MovementType == 1) {
-                // Glide: forward wind boost plus a reduced-gravity float window
-                // sized from the authored movement duration (3 s glide = 180).
+                // Glide (Leonardo's Ornithopter, Joan's Ascendant Wings,
+                // Shakespeare's Prospero's Flight, Pocahontas's Breeze Glide):
+                // a forward-and-upward boost that cancels into a reduced-gravity
+                // float for the authored duration (design: up to 3 s = 180
+                // frames). FloatFrames is a snapshotted FighterRuntimeComponent
+                // field, so this stays rollback-safe.
                 fighter.Velocity.x = speed * FP64.FromInt(facing);
-                fighter.IsGrounded = 0;
-                runtime.FloatFrames = modes.MovementDurationFrames > 0 ? modes.MovementDurationFrames : 60;
-            } else if (modes.MovementType == 5) {
                 fighter.Velocity.y = speed / FP64.FromInt(2);
                 fighter.IsGrounded = 0;
-                // Glide (MovementType 1: Leonardo's Ornithopter, Joan's Ascendant
-                // Wings, Shakespeare's Prospero's Flight, Pocahontas's Breeze
-                // Glide): the boost cancels into a reduced-gravity float for the
-                // authored duration (design: up to 3 s = 180 frames). FloatFrames
-                // is already a snapshotted FighterRuntimeComponent field, so this
-                // stays rollback-safe.
-                if (modes.MovementType == 1) {
-                    runtime.FloatFrames = modes.MovementDurationFrames > 0 ? modes.MovementDurationFrames : 180;
-                }
+                runtime.FloatFrames = modes.MovementDurationFrames > 0 ? modes.MovementDurationFrames : 180;
+            } else if (modes.MovementType == 5) {
+                // Float (Mozart's Sonata Drift pop): upward velocity only.
+                fighter.Velocity.y = speed / FP64.FromInt(2);
+                fighter.IsGrounded = 0;
             } else if (modes.MovementType == 2) {
                 fighter.Velocity.x = speed * FP64.FromInt(facing);
             } else {
