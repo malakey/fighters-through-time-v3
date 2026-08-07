@@ -91,6 +91,9 @@ namespace FTT.Combat {
 
         public HitPayload CreatePayload(int targetIndex) {
             bool facingRight = SourcePlayer?.IsFacingRight ?? KnockbackForce.X >= 0f;
+            // Story-only Resonance minors (KnockbackForce, StatusDuration,
+            // StatusDamage); every multiplier is neutral 1f outside Story Mode.
+            bool damagingStatus = AppliedStatus is StatusType.Venom or StatusType.RadiantBurn;
             return new HitPayload {
                 AttackerIndex = OwnerPlayerIndex,
                 TargetIndex = targetIndex,
@@ -98,13 +101,15 @@ namespace FTT.Combat {
                 HitboxID = HitboxID ?? "primary",
                 AttackClass = AttackClass,
                 Damage = Mathf.Max(0f, Damage) * (SourcePlayer?.StoryTemporaryDamageMultiplier ?? 1f),
-                Knockback = KnockbackForce,
+                Knockback = KnockbackForce * (SourcePlayer?.StoryKnockbackMultiplier ?? 1f),
                 HitstunDuration = Mathf.Max(0f, HitstunDuration),
                 HitOrigin = GlobalPosition,
                 AttackerFacingRight = facingRight,
                 AppliedStatus = AppliedStatus,
-                StatusDuration = Mathf.Max(0f, StatusDuration),
-                StatusIntensity = StatusIntensity <= 0f ? 1f : StatusIntensity,
+                StatusDuration = Mathf.Max(0f, StatusDuration)
+                    * (SourcePlayer?.StoryStatusDurationMultiplier ?? 1f),
+                StatusIntensity = (StatusIntensity <= 0f ? 1f : StatusIntensity)
+                    * (damagingStatus ? SourcePlayer?.StoryStatusIntensityMultiplier ?? 1f : 1f),
                 ScreenShakeIntensity = Mathf.Max(0f, ScreenShakeIntensity),
                 ScreenShakeDuration = Mathf.Max(0f, ScreenShakeDuration)
             };

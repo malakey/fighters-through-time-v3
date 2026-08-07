@@ -117,8 +117,11 @@ namespace FTT.Combat {
                 50);
             if (proj == null) return null;
             float damage = damageOverride >= 0f ? damageOverride : Data?.BaseDamage ?? 10f;
+            // Story-only ProjectileSpeed minors accelerate every placeholder
+            // projectile the owner fires; neutral 1f outside Story Mode.
             proj.Setup(damage, Data?.KnockbackForce ?? new Vector2(3, -2),
-                speed, movingRight, Owner?.PlayerIndex ?? 0, color, size, lifetime, Owner, Data);
+                speed * (Owner?.StoryProjectileSpeedMultiplier ?? 1f),
+                movingRight, Owner?.PlayerIndex ?? 0, color, size, lifetime, Owner, Data);
             return proj;
         }
 

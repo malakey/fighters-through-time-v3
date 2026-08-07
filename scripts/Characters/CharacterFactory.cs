@@ -51,6 +51,19 @@ namespace FTT.Characters {
 				player.StoryJumpForceMultiplier = storyStats.JumpForceMultiplier;
 				player.StoryBasicDamageMultiplier = storyStats.BasicDamageMultiplier;
 				player.StorySpecialDamageMultiplier = storyStats.SpecialDamageMultiplier;
+				player.StoryCooldownMultiplier = storyStats.CooldownMultiplier;
+				player.StoryAttackRangeMultiplier = storyStats.AttackRangeMultiplier;
+				player.StoryComboSpeedMultiplier = storyStats.ComboSpeedMultiplier;
+				player.StoryBlockRecoveryMultiplier = storyStats.BlockRecoveryMultiplier;
+				player.StoryKnockbackMultiplier = storyStats.KnockbackMultiplier;
+				player.StoryProjectileSpeedMultiplier = storyStats.ProjectileSpeedMultiplier;
+				player.StoryProjectileDamageMultiplier = storyStats.ProjectileDamageMultiplier;
+				player.StoryGlideSpeedMultiplier = storyStats.GlideSpeedMultiplier;
+				player.StoryPersistentDurationMultiplier = storyStats.PersistentDurationMultiplier;
+				player.StoryPersistentRangeMultiplier = storyStats.PersistentRangeMultiplier;
+				player.StoryPersistentHealthMultiplier = storyStats.PersistentHealthMultiplier;
+				player.StoryStatusDurationMultiplier = storyStats.StatusDurationMultiplier;
+				player.StoryStatusIntensityMultiplier = storyStats.StatusIntensityMultiplier;
 				FTT.Environment.ResonanceProgression.TryCollectActiveAbilityModifiers(
 					characterID, player.StoryAbilityPerks);
 			}

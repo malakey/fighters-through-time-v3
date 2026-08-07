@@ -424,7 +424,9 @@ namespace FTT.Characters.Abilities {
                         ? Data?.AppliedStatus ?? FTT.Core.StatusType.Venom
                         : FTT.Core.StatusType.None,
                     StatusDuration = Data?.StatusDuration > 0f ? Data.StatusDuration : 5f,
-                    StatusIntensity = Data?.StatusIntensity ?? 1.5f,
+                    // Story-only StatusDamage minors raise the heavy Venom's potency.
+                    StatusIntensity = (Data?.StatusIntensity ?? 1.5f)
+                        * (finalTick ? Owner.StoryStatusIntensityMultiplier : 1f),
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
                 });

@@ -257,7 +257,10 @@ namespace FTT.Characters.Abilities {
             _isGliding = false;
             _isDiving = false;
             _glideDuration = MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : 3f;
-            _wingSpeed = MovementData?.MovementSpeed > 0f ? MovementData.MovementSpeed : 380f;
+            // Story-only GlideSpeed minors quicken the ornithopter's wing speed
+            // (boost and glide alike); neutral 1f outside Story Mode.
+            _wingSpeed = (MovementData?.MovementSpeed > 0f ? MovementData.MovementSpeed : 380f)
+                * Owner.StoryGlideSpeedMultiplier;
             Owner.Velocity = new Vector2(Owner.Velocity.X, -_wingSpeed);
         }
 

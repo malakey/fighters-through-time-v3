@@ -50,7 +50,9 @@ namespace FTT.Characters.Abilities {
             OwnerIndex = owner?.PlayerIndex ?? 0;
             _currentHP = MaxNestHP;
             IsNestDestroyed = false;
-            _lifetime = data?.Lifetime > 0f ? data.Lifetime : 12f;
+            // Story-only PersistentDuration minors extend the nest's lifespan.
+            _lifetime = (data?.Lifetime > 0f ? data.Lifetime : 12f)
+                * (owner?.StoryPersistentDurationMultiplier ?? 1f);
             _biteInterval = (data?.DamageTickIntervalFrames ?? 120) / 60f;
             if (_biteInterval <= 0f) _biteInterval = 2f;
             // Asp's Bite (Story-only Resonance major perk): Venom deals double
@@ -110,8 +112,12 @@ namespace FTT.Characters.Abilities {
             float damageMultiplier = _ownerPlayer != null && IsInstanceValid(_ownerPlayer)
                 ? _ownerPlayer.StorySpecialDamageMultiplier
                 : 1f;
+            // Story-only StatusDamage minors raise the bite Venom's potency.
+            float intensityMultiplier = _ownerPlayer != null && IsInstanceValid(_ownerPlayer)
+                ? _ownerPlayer.StoryStatusIntensityMultiplier
+                : 1f;
             foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(GlobalPosition, BiteRangePixels)) {
-                float venomIntensity = _data?.StatusIntensity ?? 1f;
+                float venomIntensity = (_data?.StatusIntensity ?? 1f) * intensityMultiplier;
                 if (_aspsBite && TargetIsAirborne(hurtbox)) venomIntensity *= 2f;
                 float dealt = hurtbox.TakeHit(new HitPayload {
                     AttackerIndex = OwnerIndex,

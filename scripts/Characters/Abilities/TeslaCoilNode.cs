@@ -39,6 +39,9 @@ namespace FTT.Characters.Abilities {
         private bool _drivesFence;
         private bool _rewindFrozen;
         private Hurtbox _hurtbox;
+        // Story-only Resonance minors captured at deploy time (1f in Fighter Mode).
+        private float _rangeMultiplier = 1f;
+        private float _statusDurationMultiplier = 1f;
 
         public override void _Ready() {
             _hurtbox = GetNodeOrNull<Hurtbox>("Hurtbox");
@@ -56,7 +59,13 @@ namespace FTT.Characters.Abilities {
             ArcDamage = data?.BaseDamage ?? 5f;
             _currentHP = MaxCoilHP;
             IsCoilDestroyed = false;
-            _lifetime = data?.Lifetime > 0f ? data.Lifetime : 30f;
+            // Story-only Resonance minors: PersistentDuration extends the coil's
+            // lifespan, PersistentRange widens arc/link reach, StatusDuration
+            // lengthens the fence's StaticCharge. All 1f outside Story Mode.
+            _lifetime = (data?.Lifetime > 0f ? data.Lifetime : 30f)
+                * (owner?.StoryPersistentDurationMultiplier ?? 1f);
+            _rangeMultiplier = owner?.StoryPersistentRangeMultiplier ?? 1f;
+            _statusDurationMultiplier = owner?.StoryStatusDurationMultiplier ?? 1f;
             _arcInterval = (data?.DamageTickIntervalFrames ?? 120) / 60f;
             if (_arcInterval <= 0f) _arcInterval = 2f;
             // Resonant Overdrive (Story-only Resonance major perk): coils last
@@ -93,6 +102,8 @@ namespace FTT.Characters.Abilities {
             _currentHP = 0;
             IsCoilDestroyed = true;
             _rewindFrozen = false;
+            _rangeMultiplier = 1f;
+            _statusDurationMultiplier = 1f;
         }
 
         public void SetStoryRewindFrozen(bool frozen) => _rewindFrozen = frozen;
@@ -117,7 +128,7 @@ namespace FTT.Characters.Abilities {
                 _fenceTimer -= dt;
                 if (_fenceTimer <= 0f) {
                     _fenceTimer = FenceTickInterval;
-                    if (GlobalPosition.DistanceTo(_partner.GlobalPosition) <= LinkRangePixels) {
+                    if (GlobalPosition.DistanceTo(_partner.GlobalPosition) <= LinkRangePixels * _rangeMultiplier) {
                         TickFence();
                     }
                 }
@@ -152,8 +163,9 @@ namespace FTT.Characters.Abilities {
 
         private void FireArc() {
             Hurtbox nearest = null;
-            float nearestDistance = ArcRangePixels;
-            foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(GlobalPosition, ArcRangePixels)) {
+            float arcRange = ArcRangePixels * _rangeMultiplier;
+            float nearestDistance = arcRange;
+            foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(GlobalPosition, arcRange)) {
                 float distance = GlobalPosition.DistanceTo(hurtbox.GlobalPosition);
                 if (distance <= nearestDistance) {
                     nearestDistance = distance;
@@ -196,7 +208,7 @@ namespace FTT.Characters.Abilities {
             HitOrigin = origin,
             AttackerFacingRight = true,
             AppliedStatus = status,
-            StatusDuration = statusDuration,
+            StatusDuration = statusDuration * _statusDurationMultiplier,
             StatusIntensity = 1f,
             ScreenShakeIntensity = 0.1f,
             ScreenShakeDuration = 0.05f

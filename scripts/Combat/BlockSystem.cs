@@ -137,7 +137,9 @@ namespace FTT.Combat {
 
         public override void _PhysicsProcess(double delta) {
             if (_isBlocking || CurrentCharges >= MaxCharges) return;
-            _regenTimer += (float)delta;
+            // Story-only BlockRecovery minors regenerate charges faster (1f
+            // outside Story Mode).
+            _regenTimer += (float)delta * (_owner?.StoryBlockRecoveryMultiplier ?? 1f);
             if (_regenTimer >= RegenInterval) {
                 _regenTimer -= RegenInterval;
                 CurrentCharges = Mathf.Min(CurrentCharges + 1, MaxCharges);
