@@ -555,6 +555,15 @@ namespace FTT.FighterSim {
                 centersOnOwner = true;
                 return;
             }
+            // Cleopatra's Wrath of the Nile (zone type 43): the ultimate
+            // sandstorm engulfs the whole arena (half-width 10 units) around
+            // Cleopatra, tall enough to catch airborne opponents.
+            if (zoneTypeID == (int)FighterCharacterID.Cleopatra * 10 + FighterUltimateRules.UltimateSlot) {
+                halfExtents = new FPVector2(FP64.FromInt(10), FP64.FromInt(4));
+                grantsOwnerSpeedBonus = 0;
+                centersOnOwner = true;
+                return;
+            }
             halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
             grantsOwnerSpeedBonus = 0;
             centersOnOwner = false;
@@ -1063,6 +1072,12 @@ namespace FTT.FighterSim {
                 // as the vortex, at black-hole strength.
                 if (zone.ZoneTypeID == (int)FighterCharacterID.Einstein * 10 + FighterUltimateRules.UltimateSlot) {
                     ApplySingularityPull(ref frame, in zone);
+                }
+                // Cleopatra's Wrath of the Nile (ultimate-slot zone type 43)
+                // reuses the same impulse-free positional drag toward the
+                // storm's eye for its flood current.
+                if (zone.ZoneTypeID == (int)FighterCharacterID.Cleopatra * 10 + FighterUltimateRules.UltimateSlot) {
+                    ApplyVortexPull(ref frame, in zone);
                 }
 
                 if (zone.TickFramesRemaining > 0) zone.TickFramesRemaining--;

@@ -35,6 +35,8 @@ namespace FTT.FighterSim {
                     return SpawnCosmologicalConstant(ref frame, ref attacker, in tuning);
                 case FighterCharacterID.Joan:
                     return SpawnGrandCrusade(ref frame, ref attacker, in tuning);
+                case FighterCharacterID.Cleopatra:
+                    return SpawnWrathOfTheNile(ref frame, ref attacker, in tuning);
                 default:
                     return false; // Fall back to the generic melee-range ultimate.
             }
@@ -99,6 +101,40 @@ namespace FTT.FighterSim {
                 maxActive: 1,
                 CosmologicalConstantLifetimeFrames,
                 CosmologicalConstantTickIntervalFrames,
+                tuning.UltimateDamage,
+                tuning.UltimateStatusType,
+                tuning.UltimateStatusFrames,
+                tuning.UltimateStatusIntensity);
+            return true;
+        }
+
+        // Wrath of the Nile: 10 impulse-free ticks over 3.5 s (210 frames at a
+        // 21-frame interval), mirroring the authored HitCount / Lifetime /
+        // DamageTickIntervalFrames in cleopatra/ultimate.tres — the loadout does
+        // not carry ultimate tick timing, so these two constants are the
+        // deterministic mirror of that resource.
+        private const int WrathOfTheNileLifetimeFrames = 210;
+        private const int WrathOfTheNileTickIntervalFrames = 21;
+
+        /// <summary>
+        /// Cleopatra's Wrath of the Nile: an arena-engulfing sandstorm zone in
+        /// the ultimate slot (zone type 43). Each tick deals the authored
+        /// per-hit ultimate damage and carries the authored heavy Venom through
+        /// the zone status args; FighterZoneSystem applies the shield-bypassing
+        /// UltimateAttackClass to ultimate-slot zones automatically and adds the
+        /// storm's vortex pull toward its eye.
+        /// </summary>
+        private static bool SpawnWrathOfTheNile(
+            ref Frame frame,
+            ref FighterStateComponent attacker,
+            in FighterTuningComponent tuning) {
+            FighterAbilityEntitySystem.SpawnZone(
+                ref frame,
+                ref attacker,
+                UltimateSlot,
+                1,
+                WrathOfTheNileLifetimeFrames,
+                WrathOfTheNileTickIntervalFrames,
                 tuning.UltimateDamage,
                 tuning.UltimateStatusType,
                 tuning.UltimateStatusFrames,

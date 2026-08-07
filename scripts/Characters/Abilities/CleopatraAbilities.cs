@@ -336,19 +336,30 @@ namespace FTT.Characters.Abilities {
     }
 
     /// <summary>
-    /// Ultimate — Wrath of the Nile. Structured sketch pending the dedicated
-    /// ultimates pass (audit gap X7): stage-wide sandstorm multi-hit plus a heavy
-    /// Venom debuff on every hit target.
+    /// Ultimate — Wrath of the Nile: a massive sandstorm/flood that engulfs the
+    /// arena around Cleopatra. The storm deals the authored HitCount ticks
+    /// (10 x 8 base at a 21-frame interval across the 210-frame active window)
+    /// through hurtbox queries with the shield-bypassing Ultimate attack class,
+    /// and the final tick leaves every caught target with the authored heavy
+    /// Venom (intensity 1.5 for 5 s). Venom rides only the last tick because
+    /// under the single-status rule earlier ticks would keep resetting the DoT
+    /// timer while the storm rages; applying it last lets the full-duration
+    /// poison survive the storm. Requires a full Ultimate meter, consumed on
+    /// cast.
     /// </summary>
     public partial class CleopatraWrathOfTheNile : BaseSpecial {
-        private const float CinematicDuration = 3.5f;
-        private const int HitCount = 10;
-        private const float DamagePerHit = 8f;
-        private const float PoisonDuration = 5f;
 
-        private float _hitTimer;
-        private int _hitsDone;
+        // 600 px = the Fighter zone's 10-unit arena half-width at 60 px/unit.
+        public const float StormRadiusPixels = 600f;
+
         private UltimateMeter _meter;
+        private int _hitsDone;
+        private int _tickFramesRemaining;
+        private Vector2 _stormCenter;
+
+        private int HitCap => Data?.HitCount > 0 ? Data.HitCount : 10;
+        private int TickIntervalFrames =>
+            Data?.DamageTickIntervalFrames > 0 ? Data.DamageTickIntervalFrames : 21;
 
         public override void _Ready() {
             base._Ready();
@@ -360,51 +371,88 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override void OnStartup() {
-            PhaseTimer = 0.6f;
+            UseAuthoredPhaseFrames();
             _hitsDone = 0;
-            _hitTimer = 0;
             Owner.Velocity = Vector2.Zero;
             _meter?.Consume();
         }
 
         protected override void OnActive() {
-            PhaseTimer = CinematicDuration;
+            UseAuthoredPhaseFrames();
+            _stormCenter = Owner.GlobalPosition;
+            _tickFramesRemaining = TickIntervalFrames;
+            // Presentation only: damage and the heavy Venom run through the
+            // hurtbox queries below so enemies participate alongside fighters.
+            SpawnPlaceholderZone(
+                _stormCenter,
+                0f,
+                Data?.Lifetime > 0f ? Data.Lifetime : 3.5f,
+                1f,
+                new Color(0.85f, 0.65f, 0.25f),
+                StormRadiusPixels);
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = 0.5f;
+            UseAuthoredPhaseFrames();
         }
 
         public override void _PhysicsProcess(double delta) {
-            if (CurrentPhase == AbilityPhase.Active) {
-                float dt = (float)delta;
-                _hitTimer += dt;
-                float hitInterval = CinematicDuration / HitCount;
-                while (_hitTimer >= hitInterval && _hitsDone < HitCount) {
-                    _hitTimer -= hitInterval;
+            if (CurrentPhase == AbilityPhase.Active && _hitsDone < HitCap) {
+                _tickFramesRemaining--;
+                if (_tickFramesRemaining <= 0) {
+                    _tickFramesRemaining = TickIntervalFrames;
                     _hitsDone++;
-                    DealSandstormHit();
+                    DealStormTick(_hitsDone >= HitCap);
                 }
             }
             base._PhysicsProcess(delta);
         }
 
-        private void DealSandstormHit() {
-            var hitbox = GetOrCreateChildHitbox("SandstormHitbox");
-            hitbox.Damage = DamagePerHit;
-            hitbox.KnockbackForce = new Vector2(
-                (float)GD.RandRange(-3f, 3f),
-                (float)GD.RandRange(-2f, 2f)
-            );
-            hitbox.AppliedStatus = FTT.Core.StatusType.Venom;
-            hitbox.StatusDuration = PoisonDuration;
-            hitbox.OwnerPlayerIndex = Owner.PlayerIndex;
-            hitbox.GlobalPosition = Owner.GlobalPosition + new Vector2(
-                (float)GD.RandRange(-150f, 150f),
-                (float)GD.RandRange(-80f, 80f)
-            );
-            hitbox.Activate();
-            GetTree().CreateTimer(0.06f).Timeout += () => hitbox.Deactivate();
+        private void DealStormTick(bool finalTick) {
+            foreach (Hurtbox hurtbox in QueryTargetHurtboxes()) {
+                float dealt = hurtbox.TakeHit(new HitPayload {
+                    AttackerIndex = Owner.PlayerIndex,
+                    AttackID = Data?.AbilityID ?? "cleopatra_wrath_of_the_nile",
+                    HitboxID = "sandstorm_tick",
+                    AttackClass = AttackClass.Ultimate,
+                    Damage = (Data?.BaseDamage ?? 8f) * Owner.StorySpecialDamageMultiplier,
+                    Knockback = Vector2.Zero,
+                    HitstunDuration = 0f,
+                    HitOrigin = _stormCenter,
+                    AttackerFacingRight = Owner.IsFacingRight,
+                    AppliedStatus = finalTick
+                        ? Data?.AppliedStatus ?? FTT.Core.StatusType.Venom
+                        : FTT.Core.StatusType.None,
+                    StatusDuration = Data?.StatusDuration > 0f ? Data.StatusDuration : 5f,
+                    StatusIntensity = Data?.StatusIntensity ?? 1.5f,
+                    ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
+                    ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
+                });
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+            }
+        }
+
+        private System.Collections.Generic.List<Hurtbox> QueryTargetHurtboxes() {
+            var results = new System.Collections.Generic.List<Hurtbox>();
+            var space = Owner?.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return results;
+            uint targetHurtboxLayer = Owner.PlayerIndex == 0
+                ? FTT.Core.CollisionLayers.EnemyHurtbox
+                : FTT.Core.CollisionLayers.PlayerHurtbox;
+            var query = new PhysicsShapeQueryParameters2D {
+                Shape = new CircleShape2D { Radius = StormRadiusPixels },
+                Transform = new Transform2D(0f, _stormCenter),
+                CollideWithAreas = true,
+                CollideWithBodies = false,
+                CollisionMask = targetHurtboxLayer
+            };
+            foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 32)) {
+                if (result["collider"].AsGodotObject() is Hurtbox hurtbox
+                    && hurtbox.OwnerPlayerIndex != Owner.PlayerIndex) {
+                    results.Add(hurtbox);
+                }
+            }
+            return results;
         }
     }
 }
