@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.apex_eraser.unwriting_lance"
+DisplayNameKey = "boss_ability_unwriting_lance_name"
+Archetype = 1
+RangeClass = 1
+TelegraphFrames = 22
+ActiveFrames = 6
+RecoveryFrames = 20
+CooldownSeconds = 2.8
+SelectionWeight = 3.0
+Damage = 20.0
+KnockbackForce = Vector2(3.5, -1.5)
+HitstunDuration = 0.22
+HitboxSize = Vector2(28, 24)
+HitboxOffset = Vector2(52, -58)
+ProjectileSpeed = 540.0
+ProjectileCount = 3
+ProjectileSpreadDegrees = 12.0
+ProjectileLifetime = 3.0
+ProjectileGravity = 0.0
+PiercesTargets = true
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(1, 0.4, 0.75, 1)
+PresentationEventID = "boss.apex_eraser.unwriting_lance"

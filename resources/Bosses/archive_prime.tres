@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="BossData" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/archive_prime/datablade_cleave.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/archive_prime/laser_grid.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/archive_prime/archive_purge.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/archive_prime/drone_deployment.tres" id="6"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+BossID = "archive_prime"
+DisplayName = "Archive Prime"
+DisplayNameKey = "boss_archive_prime_name"
+MaxHP = 1050
+IsKnockbackImmune = true
+MoveSpeed = 4.0
+AttackDamage = 24.0
+AttackKnockback = 4.5
+AttackRange = 3.0
+RestCooldown = 1.2
+MeleeRangeThreshold = 3.0
+RangedRangeThreshold = 10.0
+ReactionDelayMinFrames = 4
+ReactionDelayMaxFrames = 8
+PhaseThresholds = Array[float]([0.66, 0.33])
+PhaseTransitionInvincibilityDuration = 2.0
+PhaseSpeedMultipliers = Array[float]([1.0, 1.2, 1.4])
+ChronalDustDrop = 50
+AttackPattern = 1
+BossAbilities = Array[ExtResource("2")]([ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6")])
+AbilityMinPhase = Array[int]([0, 0, 1, 1])
+InterruptibleDuringTelegraph = false
+InterruptDamageThreshold = 30.0
+PlaceholderTint = Color(0.35, 0.85, 0.9, 1)

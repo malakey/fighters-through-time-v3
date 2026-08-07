@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.archive_prime.archive_purge"
+DisplayNameKey = "boss_ability_archive_purge_name"
+Archetype = 5
+RangeClass = 2
+TelegraphFrames = 32
+ActiveFrames = 16
+RecoveryFrames = 30
+CooldownSeconds = 8.0
+SelectionWeight = 2.0
+Damage = 20.0
+KnockbackForce = Vector2(5.0, -2.5)
+HitstunDuration = 0.3
+HitboxSize = Vector2(220, 150)
+HitboxOffset = Vector2(0, -66)
+PulseRadius = 220.0
+AppliedStatus = 3
+StatusDuration = 1.8
+StatusIntensity = 1.0
+TelegraphTint = Color(0.45, 1, 0.7, 1)
+PresentationEventID = "boss.archive_prime.archive_purge"

@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.gravity_overseer.orbital_lunge"
+DisplayNameKey = "boss_ability_orbital_lunge_name"
+Archetype = 3
+RangeClass = 1
+TelegraphFrames = 26
+ActiveFrames = 20
+RecoveryFrames = 26
+CooldownSeconds = 5.0
+SelectionWeight = 2.0
+Damage = 22.0
+KnockbackForce = Vector2(6.0, -2.5)
+HitstunDuration = 0.3
+HitboxSize = Vector2(104, 100)
+HitboxOffset = Vector2(58, -62)
+DashSpeed = 760.0
+DashDurationFrames = 20
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.6, 0.7, 1, 1)
+PresentationEventID = "boss.gravity_overseer.orbital_lunge"

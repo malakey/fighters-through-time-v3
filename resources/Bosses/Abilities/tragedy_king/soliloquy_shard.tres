@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.tragedy_king.soliloquy_shard"
+DisplayNameKey = "boss_ability_soliloquy_shard_name"
+Archetype = 1
+RangeClass = 1
+TelegraphFrames = 24
+ActiveFrames = 6
+RecoveryFrames = 22
+CooldownSeconds = 3.0
+SelectionWeight = 2.5
+Damage = 15.0
+KnockbackForce = Vector2(2.5, -1.5)
+HitstunDuration = 0.18
+HitboxSize = Vector2(24, 24)
+HitboxOffset = Vector2(42, -54)
+ProjectileSpeed = 430.0
+ProjectileCount = 3
+ProjectileSpreadDegrees = 18.0
+ProjectileLifetime = 2.6
+ProjectileGravity = 0.0
+PiercesTargets = false
+AppliedStatus = 1
+StatusDuration = 1.0
+StatusIntensity = 0.6
+TelegraphTint = Color(0.75, 0.45, 0.9, 1)
+PresentationEventID = "boss.tragedy_king.soliloquy_shard"

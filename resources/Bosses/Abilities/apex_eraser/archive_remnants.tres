@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.apex_eraser.archive_remnants"
+DisplayNameKey = "boss_ability_archive_remnants_name"
+Archetype = 6
+RangeClass = 2
+TelegraphFrames = 32
+ActiveFrames = 10
+RecoveryFrames = 26
+CooldownSeconds = 15.0
+SelectionWeight = 1.5
+Damage = 0.0
+KnockbackForce = Vector2(0.0, 0.0)
+HitstunDuration = 0.0
+HitboxSize = Vector2(28, 28)
+HitboxOffset = Vector2(0, -54)
+SummonEnemyID = "chrono_slasher"
+SummonCount = 2
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.9, 0.35, 0.4, 1)
+PresentationEventID = "boss.apex_eraser.archive_remnants"

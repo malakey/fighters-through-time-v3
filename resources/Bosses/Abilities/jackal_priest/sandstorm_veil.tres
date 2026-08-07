@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.jackal_priest.sandstorm_veil"
+DisplayNameKey = "boss_ability_sandstorm_veil_name"
+Archetype = 5
+RangeClass = 2
+TelegraphFrames = 30
+ActiveFrames = 14
+RecoveryFrames = 26
+CooldownSeconds = 7.0
+SelectionWeight = 1.5
+Damage = 14.0
+KnockbackForce = Vector2(3.0, -2.0)
+HitstunDuration = 0.3
+HitboxSize = Vector2(190, 130)
+HitboxOffset = Vector2(0, -60)
+PulseRadius = 190.0
+AppliedStatus = 1
+StatusDuration = 2.5
+StatusIntensity = 0.75
+TelegraphTint = Color(0.82, 0.62, 0.3, 1)
+PresentationEventID = "boss.jackal_priest.sandstorm_veil"

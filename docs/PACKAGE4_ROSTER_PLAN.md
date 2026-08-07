@@ -421,3 +421,40 @@ Phase C (serial closeout, one agent or orchestrator):
     `EnemyController.ResolveBodyMask(...)`, `BossController.SelectAbilityIndex(distance)`,
     `BossController.BeginAbility(...)`, and `BossController.TickAbility(...)` are public so the state
     machine is testable headlessly without driving a full scene with a live player.
+
+### B5 — Bosses, Act II/III, levels 8-15 excluding mirror_paradox (2026-08-07)
+
+1. **B5: Phase A was uncommitted when the B worktrees branched.** The A1 foundation existed only as
+   working-tree changes in the shared checkout, so branches cut from `4f2e3b3` did not contain
+   `EnemyAbilityData`, the executor, the rewritten `BossController`, `scenes/enemies/`, or the
+   `borgia_inquisitor` abilities. B5 mirrored that working tree into its worktree byte-for-byte as a
+   separate, clearly labelled first commit ("Mirror uncommitted Package 4 Phase A foundation from the
+   shared checkout") so the B5 work could build and test. The content is identical to the shared
+   checkout; drop or fast-forward past that commit at integration if Phase A lands on main first.
+   The B5 deliverable itself is the second commit and touches only new boss resources, the new test
+   suite, `localization/en.csv`, and this section.
+2. **B5: every boss got a melee-class option, including the teleport/summon-heavy kits.** Per the
+   no-deadlock rule `jackal_priest` gained `khopesh_sweep` and `tragedy_king` gained
+   `sceptre_strike`, neither of which appears in the Section 4.2 kit sketch. `gravity_overseer` and
+   `apex_eraser` likewise carry a dedicated `MeleeStrike` (`mass_slam`, `erasure_blade`) because
+   their sketched `ChargeDash`/`Teleport` entries are gap-closers authored as `Ranged`/`Any` class.
+3. **B5: phase gating goes beyond the plan's single call-out.** Section 4.2 only gates
+   `gravity_overseer`'s well to P3 (`AbilityMinPhase[gravity_well] = 2`, as specified).
+   B5 additionally gates `jackal_priest.sandstorm_veil` to P2, `archive_prime.archive_purge` and
+   `archive_prime.drone_deployment` to P2, `apex_eraser.chronal_collapse` to P2, and
+   `apex_eraser.archive_remnants` to P3, so each fight escalates. A new test
+   (`OpeningPhaseAlreadyCoversBothDistanceBands`) pins the invariant that gating never leaves phase 0
+   without both a melee and a ranged option.
+4. **B5: `holo_page` does not exist yet.** `tragedy_king.curtain_call` authors
+   `SummonEnemyID = "holo_page"` as instructed; the London enemy workstream owns that resource.
+   `BossRosterActIIandIIITests.SummonAbilitiesNameARealRosterEnemyID` asserts the ID string for
+   `holo_page` and asserts on-disk existence only for `hologram_drone` and `chrono_slasher`. Phase C
+   must extend that on-disk check to `holo_page` once the enemy lands.
+5. **B5: HP bands.** `jackal_priest` 700, `iron_chancellor` 780, `tragedy_king` 800,
+   `siege_cannon` 880, `gravity_overseer` 950, `archive_prime` 1050, `apex_eraser` 1200. All seven
+   are `IsKnockbackImmune = true` and `AttackPattern = DistanceBased`, matching `borgia_inquisitor`.
+6. **B5: worktree had no `.godot/imported/` cache.** The headless `--quit` check initially failed
+   with `Parse Error: [ext_resource] referenced non-existent resource` for every placeholder SVG.
+   That is a missing import cache in a fresh worktree, not a content fault: `--headless --import`
+   warms it, after which `--quit` exits 0 cleanly. The import pass rewrites every `.import` file
+   with line-ending-only churn; those were reverted rather than committed.
