@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/plasma_sabre_captain/sabre_rush.tres" id="3"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "plasma_sabre_captain"
+DisplayName = "Plasma-Sabre Captain"
+DisplayNameKey = "enemy_plasma_sabre_captain_name"
+Tier = 1
+MaxHP = 175
+Weight = 1.35
+MoveSpeed = 4.4
+JumpForce = 9.0
+AggroRadius = 580.0
+DeAggroRadius = 880.0
+AttackRange = 2.3
+AttackDamage = 19.0
+AttackKnockback = 3.6
+AttackCooldown = 2.6
+StunResistance = 0.45
+ReactionDelayMinFrames = 15
+ReactionDelayMaxFrames = 25
+EliteAbilityCooldown = 6.5
+Behavior = 0
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+AttackTelegraphFrames = 20
+AttackActiveFrames = 11
+AttackRecoveryFrames = 22
+EliteAbilities = Array[ExtResource("2")]([ExtResource("3")])
+ChronalDustDrop = 10
+ItemDropChance = 1.0
+PlaceholderTint = Color(0.35, 0.9, 0.5, 1)

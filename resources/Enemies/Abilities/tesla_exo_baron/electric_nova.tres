@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "enemy.tesla_exo_baron.electric_nova"
+DisplayNameKey = "enemy_ability_electric_nova_name"
+Archetype = 5
+RangeClass = 2
+TelegraphFrames = 30
+ActiveFrames = 10
+RecoveryFrames = 28
+CooldownSeconds = 8.0
+SelectionWeight = 1.0
+Damage = 18.0
+KnockbackForce = Vector2(4.5, -3.0)
+HitstunDuration = 0.3
+HitboxSize = Vector2(150, 120)
+HitboxOffset = Vector2(0, -34)
+PulseRadius = 165.0
+AppliedStatus = 3
+StatusDuration = 1.2
+StatusIntensity = 1.0
+TelegraphTint = Color(0.6, 0.7, 1, 1)
+PresentationEventID = "enemy.tesla_exo_baron.electric_nova"

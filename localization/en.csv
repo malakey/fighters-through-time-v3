@@ -125,12 +125,23 @@ enemy_tech_enforcer_name,Tech-Enforcer
 enemy_cyber_guard_name,Cyber-Guard
 enemy_steam_automaton_name,Steam Automaton v2
 enemy_hologram_drone_name,Hologram Drone
+enemy_laser_archer_name,Laser Archer
+enemy_neural_linked_knight_name,Neural-Linked Knight
+enemy_voltaic_shock_drone_name,Voltaic Shock Drone
+enemy_tesla_exo_baron_name,Tesla Exo-Baron
+enemy_chrono_rioter_name,Chrono-Rioter
+enemy_plasma_sabre_captain_name,Plasma-Sabre Captain
 boss_borgia_inquisitor_name,The Borgia Inquisitor
 enemy_ability_shock_pike_name,Shock-Pike Thrust
 enemy_ability_holo_bolt_name,Holographic Bolt
 enemy_ability_plasma_rifle_name,Plasma Rifle Shot
 enemy_ability_bubble_shield_name,Energy Bubble Shield
 enemy_ability_piston_shockwave_name,Piston Shockwave
+enemy_ability_energy_arrow_name,Energy Arrow
+enemy_ability_lance_lunge_name,Neural Lance Lunge
+enemy_ability_arc_bolt_name,Arc Bolt
+enemy_ability_electric_nova_name,Electric Nova
+enemy_ability_sabre_rush_name,Plasma Sabre Rush
 boss_ability_combo_slash_name,Dual-Blade Combo Slash
 boss_ability_cross_slash_dash_name,Cross-Slash Charge
 common_unknown,Unknown
