@@ -536,6 +536,16 @@ namespace FTT.FighterSim {
                 centersOnOwner = true;
                 return;
             }
+            // Leonardo's Vitruvian Matrix (ultimate zone type 23): the thrown
+            // trap sphere resolves as a wide circle 2 units ahead of the caster
+            // (radius 2.5 units = the Story matrix's 150 px), so the trap-and-
+            // bombard ultimate lands well beyond melee range.
+            if (zoneTypeID == (int)FighterCharacterID.Leonardo * 10 + FighterUltimateRules.UltimateSlot) {
+                halfExtents = new FPVector2(FP64.FromDouble(2.5), FP64.FromDouble(2.0));
+                grantsOwnerSpeedBonus = 0;
+                centersOnOwner = false;
+                return;
+            }
             halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
             grantsOwnerSpeedBonus = 0;
             centersOnOwner = false;
@@ -1010,6 +1020,13 @@ namespace FTT.FighterSim {
                     if (zone.ZoneTypeID == (int)FighterCharacterID.Leonardo * 10 + 1) {
                         ApplySpiralExpiryKnockback(ref frame, in zone);
                     }
+                    // Leonardo's Vitruvian Matrix (ultimate zone type 23) closes
+                    // with the massive final explosion: a zero-damage ultimate-
+                    // class knockback pulse away from the circle center (the 8
+                    // bombardment ticks deliver all the damage beforehand).
+                    if (zone.ZoneTypeID == (int)FighterCharacterID.Leonardo * 10 + FighterUltimateRules.UltimateSlot) {
+                        ApplyMatrixExpiryExplosion(ref frame, in zone);
+                    }
                     frame.DestroyEntity(zoneEntity);
                     continue;
                 }
@@ -1136,6 +1153,34 @@ namespace FTT.FighterSim {
             FighterDamageRules.ApplyFighterHit(
                 ref attacker, ref attackerRuntime, ref target, ref targetRuntime, in targetTuning,
                 FighterDamageRules.SpecialAttackClass, 0, SpiralExpiryKnockback, SpiralExpiryHitstunFrames,
+                (int)StatusType.None, 0, FP64.One, zone.Position.x);
+        }
+
+        private const int MatrixExpiryHitstunFrames = 18;
+
+        /// <summary>
+        /// Vitruvian Matrix expiry pulse: a zero-damage ultimate-class knockback
+        /// hit launching the opponent away from the circle center with the
+        /// attacker's authored ultimate knockback (the final "massive explosion";
+        /// ultimate-class impulses also pierce hyper-armor and block).
+        /// </summary>
+        private static void ApplyMatrixExpiryExplosion(ref Frame frame, in FighterZoneComponent zone) {
+            int targetPlayerID = zone.OwnerPlayerID == 0 ? 1 : 0;
+            if (!FighterEntityQueries.TryFindFighter(ref frame, zone.OwnerPlayerID, out EntityRef attackerEntity)
+                || !FighterEntityQueries.TryFindFighter(ref frame, targetPlayerID, out EntityRef targetEntity)) return;
+            ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
+            if (!FighterEntityQueries.Overlaps(
+                    in zone.Position, in zone.HalfExtents,
+                    in target.Position, in FighterHalfExtents)) return;
+
+            ref FighterStateComponent attacker = ref frame.Get<FighterStateComponent>(attackerEntity);
+            ref FighterRuntimeComponent attackerRuntime = ref frame.Get<FighterRuntimeComponent>(attackerEntity);
+            ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
+            ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
+            FP64 explosionKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
+            FighterDamageRules.ApplyFighterHit(
+                ref attacker, ref attackerRuntime, ref target, ref targetRuntime, in targetTuning,
+                FighterDamageRules.UltimateAttackClass, 0, explosionKnockback, MatrixExpiryHitstunFrames,
                 (int)StatusType.None, 0, FP64.One, zone.Position.x);
         }
 

@@ -34,9 +34,36 @@ namespace FTT.FighterSim {
                 // Ultimate kit passes add one case per character here, e.g.:
                 // case FighterCharacterID.Einstein:
                 //     return SpawnCosmologicalConstant(ref frame, ref attacker, in tuning);
+                case FighterCharacterID.Leonardo:
+                    return SpawnVitruvianMatrix(ref frame, ref attacker, in tuning);
                 default:
                     return false; // Fall back to the generic melee-range ultimate.
             }
+        }
+
+        // --- Leonardo: The Vitruvian Matrix (design Section 5) ---------------
+        // A thrown geometric trap locks the opponent inside the Vitruvian circle
+        // while clockwork cannons bombard them: an ultimate-slot zone (type 23)
+        // whose 8 ticks each carry tuning.UltimateDamage plus the authored Root
+        // hold (refreshed every tick, so it lapses shortly after the last hit),
+        // and whose expiry branch in FighterZoneSystem delivers the final-
+        // explosion knockback. The loadout does not carry ultimate lifetime or
+        // tick data, so the authored ultimate.tres numbers (2.4 s window, 18-
+        // frame interval) are mirrored here as constants.
+        private const int VitruvianMatrixLifetimeFrames = 144;
+        private const int VitruvianMatrixTickIntervalFrames = 18;
+
+        private static bool SpawnVitruvianMatrix(
+            ref Frame frame,
+            ref FighterStateComponent attacker,
+            in FighterTuningComponent tuning) {
+            FighterAbilityEntitySystem.SpawnZone(
+                ref frame, ref attacker, UltimateSlot,
+                1, VitruvianMatrixLifetimeFrames, VitruvianMatrixTickIntervalFrames,
+                tuning.UltimateDamage,
+                tuning.UltimateStatusType, tuning.UltimateStatusFrames,
+                tuning.UltimateStatusIntensity);
+            return true;
         }
     }
 }

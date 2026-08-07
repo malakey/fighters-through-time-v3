@@ -350,17 +350,27 @@ namespace FTT.Characters.Abilities {
     }
 
     /// <summary>
-    /// Ultimate — The Vitruvian Matrix. Structured sketch pending the dedicated
-    /// ultimates pass (audit gap X7): trap + blueprint-dimension bombardment
-    /// multi-hit ending in a final explosion.
+    /// Ultimate — The Vitruvian Matrix: Leonardo throws a geometric trap that
+    /// locks every enemy inside the Vitruvian circle in place (Root, refreshed
+    /// by each bombardment hit), then clockwork gears and cannons land the
+    /// authored HitCount hits of BaseDamage across the active window; the final
+    /// hit carries the authored knockback as the closing explosion. All numbers
+    /// come from the authored AbilityData resource (10 x 8 = 80 total at 0.3 s
+    /// intervals across the 2.4 s trap window). Ultimate-class hits bypass
+    /// shields; the blueprint-dimension cinematic is presentation (Package 8).
     /// </summary>
     public partial class LeonardoVitruvianMatrix : BaseSpecial {
-        private const float CinematicDuration = 3.0f;
-        private const int HitCount = 8;
-        private const float DamagePerHit = 10f;
 
-        private float _hitTimer;
-        private int _hitsDone;
+        // 2.5 world units, mirroring the Fighter zone half-width (type 23);
+        // thrown 2 units ahead of Leonardo like the Fighter zone center.
+        private const float MatrixRadiusPixels = 150f;
+        private const float MatrixForwardOffsetPixels = 120f;
+
+        private bool _matrixActive;
+        private Vector2 _matrixCenter;
+        private float _tickInterval = 0.3f;
+        private float _tickTimer;
+        private int _ticksRemaining;
         private UltimateMeter _meter;
 
         public override void _Ready() {
@@ -373,43 +383,133 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override void OnStartup() {
-            PhaseTimer = 0.6f;
-            _hitsDone = 0;
-            _hitTimer = 0;
+            UseAuthoredPhaseFrames();
             Owner.Velocity = Vector2.Zero;
             _meter?.Consume();
         }
 
         protected override void OnActive() {
-            PhaseTimer = CinematicDuration;
+            UseAuthoredPhaseFrames();
+            BeginMatrix();
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = 0.5f;
+            UseAuthoredPhaseFrames();
+            _matrixActive = false;
+        }
+
+        private void BeginMatrix() {
+            if (Owner == null) return;
+            _matrixCenter = Owner.GlobalPosition + new Vector2(
+                Owner.IsFacingRight ? MatrixForwardOffsetPixels : -MatrixForwardOffsetPixels, 0f);
+            _tickInterval = (Data?.DamageTickIntervalFrames ?? 18) / 60f;
+            if (_tickInterval <= 0f) _tickInterval = 0.3f;
+            _ticksRemaining = Data?.IsMultiHit == true ? Mathf.Max(1, Data.HitCount) : 8;
+            _tickTimer = 0f; // First bombardment hit lands on the next physics step.
+            _matrixActive = true;
+
+            // Trap: every enemy already inside the circle is locked in place.
+            // The Root is applied directly to the status handlers because the
+            // trap itself deals no damage (zero-damage hits do not carry status
+            // through the player damage gate); each bombardment hit then
+            // refreshes the hold through its own payload.
+            RootTargetsInCircle();
+
+            // Placeholder circle visual only; damage runs through the shape
+            // queries below so the final-hit knockback stays per-target.
+            SpawnPlaceholderZone(
+                _matrixCenter, 0f,
+                Data?.Lifetime > 0f ? Data.Lifetime : 2.4f, 1f,
+                new Color(0.35f, 0.55f, 0.9f), MatrixRadiusPixels);
         }
 
         public override void _PhysicsProcess(double delta) {
-            if (CurrentPhase == AbilityPhase.Active) {
-                float dt = (float)delta;
-                _hitTimer += dt;
-                float hitInterval = CinematicDuration / HitCount;
-                while (_hitTimer >= hitInterval && _hitsDone < HitCount) {
-                    _hitTimer -= hitInterval;
-                    _hitsDone++;
-                    DealMatrixHit();
-                }
-            }
             base._PhysicsProcess(delta);
+            if (!_matrixActive) return;
+            if (Owner == null || !IsInstanceValid(Owner)) { _matrixActive = false; return; }
+
+            _tickTimer -= (float)delta;
+            if (_tickTimer > 0f) return;
+            _tickTimer += _tickInterval;
+            TickBombardment();
+            _ticksRemaining--;
+            if (_ticksRemaining <= 0) _matrixActive = false;
         }
 
-        private void DealMatrixHit() {
-            var hitbox = GetOrCreateChildHitbox("MatrixHitbox");
-            hitbox.Damage = DamagePerHit;
-            hitbox.KnockbackForce = new Vector2(0, -3f);
-            hitbox.OwnerPlayerIndex = Owner.PlayerIndex;
-            hitbox.GlobalPosition = Owner.GlobalPosition;
-            hitbox.Activate();
-            GetTree().CreateTimer(0.1f).Timeout += () => hitbox.Deactivate();
+        private void TickBombardment() {
+            bool finalHit = _ticksRemaining == 1;
+            float damage = (Data?.BaseDamage ?? 10f) * Owner.StorySpecialDamageMultiplier;
+
+            foreach (Hurtbox hurtbox in QueryHurtboxesInCircle()) {
+                bool pushRight = hurtbox.GlobalPosition.X >= _matrixCenter.X;
+                float dealt = hurtbox.TakeHit(new HitPayload {
+                    AttackerIndex = Owner.PlayerIndex,
+                    AttackID = Data?.AbilityID ?? "leonardo_vitruvian_matrix",
+                    HitboxID = finalHit ? "matrix_explosion" : "matrix_bombardment",
+                    AttackClass = AttackClass.Ultimate,
+                    Damage = damage,
+                    // The final hit is the massive closing explosion: it carries
+                    // the authored knockback away from the circle center; the
+                    // earlier bombardment hits are impulse-free so the Root hold
+                    // is what keeps targets caged.
+                    Knockback = finalHit ? (Data?.KnockbackForce ?? new Vector2(5, -3)) : Vector2.Zero,
+                    HitstunDuration = finalHit ? (Data?.HitstunDuration ?? 0.3f) : 0.1f,
+                    HitOrigin = _matrixCenter,
+                    AttackerFacingRight = pushRight,
+                    // Each bombardment hit refreshes the trap's Root hold; the
+                    // final explosion applies none so the launch is not held.
+                    AppliedStatus = finalHit
+                        ? FTT.Core.StatusType.None
+                        : Data?.AppliedStatus ?? FTT.Core.StatusType.Root,
+                    StatusDuration = Data?.StatusDuration > 0f ? Data.StatusDuration : 0.4f,
+                    StatusIntensity = Data?.StatusIntensity ?? 1f,
+                    ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
+                    ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
+                });
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+            }
+        }
+
+        private void RootTargetsInCircle() {
+            float rootDuration = Data?.StatusDuration > 0f ? Data.StatusDuration : 0.4f;
+            foreach (Hurtbox hurtbox in QueryHurtboxesInCircle()) {
+                Node current = hurtbox.GetParent();
+                while (current != null) {
+                    if (current is PlayerController player) {
+                        player.GetNodeOrNull<StatusController>("StatusController")
+                            ?.ApplyStatus(FTT.Core.StatusType.Root, rootDuration);
+                        break;
+                    }
+                    if (current is FTT.Enemies.EnemyController enemy) {
+                        enemy.ApplyStatusEffect(FTT.Core.StatusType.Root, rootDuration);
+                        break;
+                    }
+                    current = current.GetParent();
+                }
+            }
+        }
+
+        private System.Collections.Generic.List<Hurtbox> QueryHurtboxesInCircle() {
+            var hits = new System.Collections.Generic.List<Hurtbox>();
+            var space = Owner?.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return hits;
+
+            uint targetHurtboxLayer = Owner.PlayerIndex == 0
+                ? FTT.Core.CollisionLayers.EnemyHurtbox
+                : FTT.Core.CollisionLayers.PlayerHurtbox;
+            var query = new PhysicsShapeQueryParameters2D {
+                Shape = new CircleShape2D { Radius = MatrixRadiusPixels },
+                Transform = new Transform2D(0f, _matrixCenter),
+                CollideWithAreas = true,
+                CollideWithBodies = false,
+                CollisionMask = targetHurtboxLayer
+            };
+            foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
+                if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
+                if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
+                hits.Add(hurtbox);
+            }
+            return hits;
         }
     }
 }
