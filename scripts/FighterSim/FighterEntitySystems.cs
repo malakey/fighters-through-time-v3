@@ -536,6 +536,16 @@ namespace FTT.FighterSim {
                 centersOnOwner = true;
                 return;
             }
+            // Einstein's Cosmological Constant (ultimate zone type 3): the
+            // screen-clearing micro black hole is a wide singularity centered on
+            // the caster; FighterZoneSystem pulls the opponent toward it and
+            // fires the final launch when it expires.
+            if (zoneTypeID == (int)FighterCharacterID.Einstein * 10 + FighterUltimateRules.UltimateSlot) {
+                halfExtents = new FPVector2(FP64.FromInt(6), FP64.FromInt(3));
+                grantsOwnerSpeedBonus = 0;
+                centersOnOwner = true;
+                return;
+            }
             halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
             grantsOwnerSpeedBonus = 0;
             centersOnOwner = false;
@@ -1010,6 +1020,12 @@ namespace FTT.FighterSim {
                     if (zone.ZoneTypeID == (int)FighterCharacterID.Leonardo * 10 + 1) {
                         ApplySpiralExpiryKnockback(ref frame, in zone);
                     }
+                    // Einstein's Cosmological Constant (ultimate zone type 3)
+                    // ends with the final explosive launch away from the
+                    // collapsed singularity toward the blast zones.
+                    if (zone.ZoneTypeID == (int)FighterCharacterID.Einstein * 10 + FighterUltimateRules.UltimateSlot) {
+                        ApplyCosmologicalLaunch(ref frame, in zone);
+                    }
                     frame.DestroyEntity(zoneEntity);
                     continue;
                 }
@@ -1031,6 +1047,13 @@ namespace FTT.FighterSim {
                 // no extra state.
                 if (zone.ZoneTypeID == (int)FighterCharacterID.Cleopatra * 10 + 2) {
                     ApplyVortexPull(ref frame, in zone);
+                }
+
+                // Einstein's Cosmological Constant sucks the opponent toward the
+                // singularity every frame: the same impulse-free positional drag
+                // as the vortex, at black-hole strength.
+                if (zone.ZoneTypeID == (int)FighterCharacterID.Einstein * 10 + FighterUltimateRules.UltimateSlot) {
+                    ApplySingularityPull(ref frame, in zone);
                 }
 
                 if (zone.TickFramesRemaining > 0) zone.TickFramesRemaining--;
@@ -1136,6 +1159,59 @@ namespace FTT.FighterSim {
             FighterDamageRules.ApplyFighterHit(
                 ref attacker, ref attackerRuntime, ref target, ref targetRuntime, in targetTuning,
                 FighterDamageRules.SpecialAttackClass, 0, SpiralExpiryKnockback, SpiralExpiryHitstunFrames,
+                (int)StatusType.None, 0, FP64.One, zone.Position.x);
+        }
+
+        // 0.08 world units per frame — a stronger drag than the sandstorm
+        // vortex's 0.05, befitting a black hole. Mirrored by the Story
+        // singularity's positional pull.
+        private static readonly FP64 SingularityPullPerFrame = FP64.FromDouble(0.08);
+        private const int CosmologicalLaunchHitstunFrames = 30;
+
+        /// <summary>
+        /// Cosmological Constant per-frame pull (mirrors ApplyVortexPull): an
+        /// impulse-free horizontal positional drag toward the singularity center
+        /// that never touches velocity, so it stays snapshot-safe with no extra
+        /// state.
+        /// </summary>
+        private static void ApplySingularityPull(ref Frame frame, in FighterZoneComponent zone) {
+            int targetPlayerID = zone.OwnerPlayerID == 0 ? 1 : 0;
+            if (!FighterEntityQueries.TryFindFighter(ref frame, targetPlayerID, out EntityRef targetEntity)) return;
+            ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
+            if (target.Stocks <= 0 || target.InvulnerabilityFrames > 0) return;
+            if (!FighterEntityQueries.Overlaps(
+                    in zone.Position, in zone.HalfExtents,
+                    in target.Position, in FighterHalfExtents)) return;
+            FP64 dx = zone.Position.x - target.Position.x;
+            if (dx > SingularityPullPerFrame) target.Position.x += SingularityPullPerFrame;
+            else if (dx < -SingularityPullPerFrame) target.Position.x -= SingularityPullPerFrame;
+            else target.Position.x = zone.Position.x;
+        }
+
+        /// <summary>
+        /// Cosmological Constant expiry launch (the expiry-knockback pattern of
+        /// ApplySpiralExpiryKnockback): a zero-damage ultimate-class hit that
+        /// blasts the opponent away from the collapsed singularity with the
+        /// attacker's authored UltimateKnockback. Ultimate class means it
+        /// bypasses shields and hyper-armor like every other ultimate hit.
+        /// </summary>
+        private static void ApplyCosmologicalLaunch(ref Frame frame, in FighterZoneComponent zone) {
+            int targetPlayerID = zone.OwnerPlayerID == 0 ? 1 : 0;
+            if (!FighterEntityQueries.TryFindFighter(ref frame, zone.OwnerPlayerID, out EntityRef attackerEntity)
+                || !FighterEntityQueries.TryFindFighter(ref frame, targetPlayerID, out EntityRef targetEntity)) return;
+            ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
+            if (!FighterEntityQueries.Overlaps(
+                    in zone.Position, in zone.HalfExtents,
+                    in target.Position, in FighterHalfExtents)) return;
+
+            ref FighterStateComponent attacker = ref frame.Get<FighterStateComponent>(attackerEntity);
+            ref FighterRuntimeComponent attackerRuntime = ref frame.Get<FighterRuntimeComponent>(attackerEntity);
+            ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
+            ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
+            FP64 launchKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
+            FighterDamageRules.ApplyFighterHit(
+                ref attacker, ref attackerRuntime, ref target, ref targetRuntime, in targetTuning,
+                FighterDamageRules.UltimateAttackClass, 0, launchKnockback, CosmologicalLaunchHitstunFrames,
                 (int)StatusType.None, 0, FP64.One, zone.Position.x);
         }
 

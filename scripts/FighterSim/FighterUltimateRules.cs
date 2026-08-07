@@ -31,12 +31,44 @@ namespace FTT.FighterSim {
             ref FighterRuntimeComponent attackerRuntime,
             in FighterTuningComponent tuning) {
             switch ((FighterCharacterID)attacker.CharacterID) {
-                // Ultimate kit passes add one case per character here, e.g.:
-                // case FighterCharacterID.Einstein:
-                //     return SpawnCosmologicalConstant(ref frame, ref attacker, in tuning);
+                case FighterCharacterID.Einstein:
+                    return SpawnCosmologicalConstant(ref frame, ref attacker, in tuning);
                 default:
                     return false; // Fall back to the generic melee-range ultimate.
             }
+        }
+
+        // The Cosmological Constant: a screen-clearing micro black hole. These
+        // constants mirror the authored einstein/ultimate.tres structure
+        // (HitCount 5 x DamageTickIntervalFrames 18 = the 90-frame Lifetime);
+        // damage and launch knockback flow from the deterministic tuning baked
+        // off that same resource.
+        private const int CosmologicalConstantLifetimeFrames = 90;
+        private const int CosmologicalConstantTickIntervalFrames = 18;
+
+        /// <summary>
+        /// Einstein's Cosmological Constant: spawns a single owner-centered
+        /// ultimate-slot zone (zone type 3). FighterZoneSystem drags the opponent
+        /// toward the singularity every frame, lands 5 shield-bypassing ticks of
+        /// tuning.UltimateDamage over the 1.5 s lifetime, and fires the final
+        /// explosive launch (tuning.UltimateKnockback) when the zone expires.
+        /// </summary>
+        private static bool SpawnCosmologicalConstant(
+            ref Frame frame,
+            ref FighterStateComponent attacker,
+            in FighterTuningComponent tuning) {
+            FighterAbilityEntitySystem.SpawnZone(
+                ref frame,
+                ref attacker,
+                UltimateSlot,
+                maxActive: 1,
+                CosmologicalConstantLifetimeFrames,
+                CosmologicalConstantTickIntervalFrames,
+                tuning.UltimateDamage,
+                tuning.UltimateStatusType,
+                tuning.UltimateStatusFrames,
+                tuning.UltimateStatusIntensity);
+            return true;
         }
     }
 }
