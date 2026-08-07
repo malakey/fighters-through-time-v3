@@ -536,6 +536,16 @@ namespace FTT.FighterSim {
                 centersOnOwner = true;
                 return;
             }
+            // Mozart's Symphony of Sorrow (ultimate zone type 73): piano-key
+            // meteors rain across the entire stage, so the bombardment footprint
+            // spans the full 20-unit arena width and reaches jump height —
+            // there is nowhere on stage to walk out of it.
+            if (zoneTypeID == (int)FighterCharacterID.Mozart * 10 + FighterUltimateRules.UltimateSlot) {
+                halfExtents = new FPVector2(FP64.FromInt(10), FP64.FromInt(6));
+                grantsOwnerSpeedBonus = 0;
+                centersOnOwner = true;
+                return;
+            }
             halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
             grantsOwnerSpeedBonus = 0;
             centersOnOwner = false;
@@ -1074,6 +1084,13 @@ namespace FTT.FighterSim {
                 } else if (zone.ZoneTypeID == (int)FighterCharacterID.Shakespeare * 10 + 2) {
                     pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).SpecialTwoKnockback;
                     pulseHitstunFrames = TempestHitstunFrames;
+                } else if (zone.ZoneTypeID == (int)FighterCharacterID.Mozart * 10 + FighterUltimateRules.UltimateSlot
+                    && zone.LifetimeFrames <= zone.TickIntervalFrames) {
+                    // Symphony of Sorrow: earlier meteors pin the target inside
+                    // the bombardment impulse-free; only the closing strike
+                    // launches with the authored ultimate knockback.
+                    pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
+                    pulseHitstunFrames = SymphonyFinalHitstunFrames;
                 }
 
                 // Ultimate-slot zones (ZoneTypeID % 10 == FighterUltimateRules
@@ -1093,6 +1110,7 @@ namespace FTT.FighterSim {
         private const int CoilObjectTypeID = 1;
         private const int EmancipatorHitstunFrames = 18;
         private const int TempestHitstunFrames = 10;
+        private const int SymphonyFinalHitstunFrames = 30;
 
         // 0.05 world units per frame (3 px at 60 px/unit), mirrored by the Story
         // vortex's 180 px/s positional drag.

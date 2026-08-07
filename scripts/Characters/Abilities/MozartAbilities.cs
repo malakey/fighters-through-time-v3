@@ -328,17 +328,28 @@ namespace FTT.Characters.Abilities {
     }
 
     /// <summary>
-    /// Ultimate — Symphony of Sorrow. Structured sketch pending the dedicated
-    /// ultimates pass (audit gap X7): Mozart hovers and conducts a downpour of
-    /// glowing piano keys that rain like meteors.
+    /// Ultimate — Symphony of Sorrow: Mozart rises into a hover and conducts a
+    /// downpour of giant glowing piano keys that rain like meteors across the
+    /// stage ahead of him. Canonical data-driven bombardment (audit gap X7):
+    /// HitCount meteor strikes land at the authored DamageTickIntervalFrames
+    /// cadence through the authored active window, each striking a
+    /// HitboxSize-footprint of ground via a hurtbox shape query with the
+    /// shield-bypassing Ultimate attack class; only the final strike carries
+    /// the authored KnockbackForce. The hover is the shared Story float window
+    /// (Owner.StoryFloatTimer) held for the active phase. Timing, damage, hit
+    /// count, cadence, and knockback all come from the authored AbilityData.
     /// </summary>
     public partial class MozartSymphonyOfSorrow : BaseSpecial {
-        private const float CinematicDuration = 3.0f;
-        private const int MeteorCount = 10;
-        private const float MeteorDamage = 8f;
 
-        private float _meteorTimer;
-        private int _meteorsSpawned;
+        private const float HoverRiseSpeed = -140f;
+        private const float StrikeFlashSeconds = 0.15f;
+
+        private int _strikesRemaining;
+        private int _strikeIndex;
+        private int _strikeCountdownFrames;
+        private float _stormOriginX;
+        private float _stormGroundY;
+        private bool _stormFacingRight;
         private UltimateMeter _meter;
 
         public override void _Ready() {
@@ -347,80 +358,113 @@ namespace FTT.Characters.Abilities {
         }
 
         protected override bool Validate() {
-            return base.Validate() && (_meter?.IsFull ?? false);
+            return base.Validate()
+                && (_meter?.IsFull ?? Owner.CurrentUltimateMeter >= UltimateMeter.MaxValue);
         }
 
         protected override void OnStartup() {
-            PhaseTimer = 0.5f;
-            _meteorsSpawned = 0;
-            _meteorTimer = 0;
-            Owner.Velocity = new Vector2(Owner.Velocity.X, -120f);
-            _meter?.Consume();
+            UseAuthoredPhaseFrames();
+            _strikesRemaining = 0;
+            _strikeIndex = 0;
+            _strikeCountdownFrames = 0;
+            // The meteors target the ground line Mozart conducts from, captured
+            // before he rises into the hover.
+            _stormOriginX = Owner.GlobalPosition.X;
+            _stormGroundY = Owner.GlobalPosition.Y;
+            _stormFacingRight = Owner.IsFacingRight;
+            Owner.Velocity = new Vector2(Owner.Velocity.X, HoverRiseSpeed);
+            Owner.DrainUltimateMeter(UltimateMeter.MaxValue);
         }
 
         protected override void OnActive() {
-            PhaseTimer = CinematicDuration;
+            UseAuthoredPhaseFrames();
+            _strikesRemaining = Data?.IsMultiHit == true ? Mathf.Max(1, Data.HitCount) : 1;
+            _strikeIndex = 0;
+            _strikeCountdownFrames = 0;
+            // Hover: the shared Story float window (0.15x gravity, capped fall)
+            // held for the whole authored bombardment window.
+            Owner.StoryFloatTimer = Mathf.Max(1, Data?.ActiveFrames ?? 180) / 60f;
         }
 
         protected override void OnRecovery() {
-            PhaseTimer = 0.4f;
+            UseAuthoredPhaseFrames();
         }
 
         public override void _PhysicsProcess(double delta) {
-            if (CurrentPhase == AbilityPhase.Active) {
-                float dt = (float)delta;
-                Owner.Velocity = new Vector2(Owner.Velocity.X, Mathf.Min(Owner.Velocity.Y, -60f));
-
-                _meteorTimer += dt;
-                float spawnInterval = CinematicDuration / MeteorCount;
-                while (_meteorTimer >= spawnInterval && _meteorsSpawned < MeteorCount) {
-                    _meteorTimer -= spawnInterval;
-                    _meteorsSpawned++;
-                    SpawnMeteor();
-                }
-            }
             base._PhysicsProcess(delta);
+            UpdateMeteorStrikes();
         }
 
-        private void SpawnMeteor() {
-            var meteorScene = GetNodeOrNull<PackedScene>("MeteorScene");
-            if (meteorScene == null) return;
-
-            float offsetX = (float)GD.RandRange(-200f, 200f);
-            var spawnPos = Owner.GlobalPosition + new Vector2(offsetX, -250f);
-            var meteor = FTT.Core.PoolManager.Instance?.Spawn(meteorScene, spawnPos);
-
-            if (meteor is MozartPianoKeyMeteor node) {
-                node.Initialize(MeteorDamage, Owner.PlayerIndex);
+        private void UpdateMeteorStrikes() {
+            if (CurrentPhase != AbilityPhase.Active || _strikesRemaining <= 0) return;
+            if (_strikeCountdownFrames > 0) {
+                _strikeCountdownFrames--;
+                return;
             }
+
+            bool finalStrike = _strikesRemaining == 1;
+            LandMeteorStrike(_strikeIndex, finalStrike);
+            _strikeIndex++;
+            _strikesRemaining--;
+            _strikeCountdownFrames = Mathf.Max(1, Data?.DamageTickIntervalFrames ?? 18);
         }
-    }
 
-    public partial class MozartPianoKeyMeteor : FTT.Core.PooledNode, FTT.Core.IPoolable {
-        private float _fallSpeed = 320f;
-        private float _damage;
-        private int _ownerIndex;
-        private Hitbox _hitbox;
+        /// <summary>
+        /// One piano-key meteor impact: a HitboxSize ground footprint landing
+        /// ahead of the cast point, tiling forward one key-width per strike so
+        /// the bombardment sweeps across the stage in front of Mozart.
+        /// </summary>
+        private void LandMeteorStrike(int strikeIndex, bool finalStrike) {
+            if (Owner == null || !IsInstanceValid(Owner)) return;
+            Vector2 footprint = Data?.HitboxSize ?? new Vector2(60, 50);
+            float leadOffset = Data?.HitboxOffset.X ?? 30f;
+            float advance = leadOffset + strikeIndex * footprint.X;
+            var strikePosition = new Vector2(
+                _stormOriginX + (_stormFacingRight ? advance : -advance),
+                _stormGroundY);
 
-        public void Initialize(float damage, int ownerIndex) {
-            _damage = damage;
-            _ownerIndex = ownerIndex;
+            // Impact flash placeholder (mechanics only; presentation is Package 8).
+            SpawnPlaceholderZone(
+                strikePosition, 0f, StrikeFlashSeconds, 1f,
+                new Color(0.85f, 0.8f, 1.0f), footprint.X / 2f);
 
-            _hitbox = GetNodeOrNull<Hitbox>("Hitbox");
-            if (_hitbox != null) {
-                _hitbox.Damage = _damage;
-                _hitbox.KnockbackForce = new Vector2(0, 4f);
-                _hitbox.OwnerPlayerIndex = _ownerIndex;
-                _hitbox.Activate();
+            var space = Owner.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return;
+            uint targetHurtboxLayer = Owner.PlayerIndex == 0
+                ? FTT.Core.CollisionLayers.EnemyHurtbox
+                : FTT.Core.CollisionLayers.PlayerHurtbox;
+            var query = new PhysicsShapeQueryParameters2D {
+                Shape = new RectangleShape2D { Size = footprint },
+                Transform = new Transform2D(0f, strikePosition),
+                CollideWithAreas = true,
+                CollideWithBodies = false,
+                CollisionMask = targetHurtboxLayer
+            };
+
+            foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
+                if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
+                if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
+
+                float dealt = hurtbox.TakeHit(new HitPayload {
+                    AttackerIndex = Owner.PlayerIndex,
+                    AttackID = Data?.AbilityID ?? "mozart_symphony_of_sorrow",
+                    HitboxID = finalStrike ? "meteor_final" : "meteor",
+                    AttackClass = AttackClass.Ultimate,
+                    Damage = Mathf.Round(Data?.BaseDamage ?? 8f) * Owner.StorySpecialDamageMultiplier,
+                    // Only the closing strike launches; earlier keys pin the
+                    // target inside the bombardment.
+                    Knockback = finalStrike ? Data?.KnockbackForce ?? new Vector2(5, -4) : Vector2.Zero,
+                    HitstunDuration = Data?.HitstunDuration ?? 0.2f,
+                    HitOrigin = strikePosition,
+                    AttackerFacingRight = _stormFacingRight,
+                    AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.None,
+                    StatusDuration = Data?.StatusDuration ?? 0f,
+                    StatusIntensity = Data?.StatusIntensity ?? 1f,
+                    ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.4f,
+                    ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.2f
+                });
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
             }
-        }
-
-        public void OnSpawn() { }
-        public void OnDespawn() => _hitbox?.Deactivate();
-
-        public override void _PhysicsProcess(double delta) {
-            GlobalPosition += Vector2.Down * _fallSpeed * (float)delta;
-            if (GlobalPosition.Y > 600f) ReturnToPool();
         }
     }
 }
