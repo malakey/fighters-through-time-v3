@@ -44,6 +44,8 @@ namespace FTT.FighterSim {
                 case FighterCharacterID.Tesla:
                     return SpawnWardenclyffeCataclysm(
                         ref frame, targetEntity, ref attacker, ref attackerRuntime, in tuning);
+                case FighterCharacterID.Pocahontas:
+                    return SpawnTidewaterTempest(ref frame, ref attacker, in tuning);
                 default:
                     return false; // Fall back to the generic melee-range ultimate.
             }
@@ -249,6 +251,38 @@ namespace FTT.FighterSim {
                 }
                 frame.DestroyEntity(coilEntity);
             }
+            return true;
+        }
+        // Tidewater Tempest cadence mirrors the authored ultimate.tres numbers
+        // (HitCount 8, DamageTickIntervalFrames 21, Lifetime 2.8 s = 168 frames);
+        // the tuning component only carries the ultimate's damage/knockback/status,
+        // so the frame structure is authored here alongside the resource.
+        private const int TidewaterTempestHitCount = 8;
+        private const int TidewaterTempestTickIntervalFrames = 21;
+        private const int TidewaterTempestLifetimeFrames =
+            TidewaterTempestHitCount * TidewaterTempestTickIntervalFrames;
+
+        /// <summary>
+        /// Pocahontas — Tidewater Tempest: a surging spirit storm centered on the
+        /// caster (zone type 83). The storm ticks the authored per-hit ultimate
+        /// damage 8 times at the authored 21-frame cadence; the final surge throws
+        /// the target outward with the authored ultimate knockback (see the
+        /// per-type impulse branch in FighterZoneSystem). Ultimate-slot zones hit
+        /// with UltimateAttackClass, bypassing shields.
+        /// </summary>
+        private static bool SpawnTidewaterTempest(
+            ref Frame frame,
+            ref FighterStateComponent attacker,
+            in FighterTuningComponent tuning) {
+            FighterAbilityEntitySystem.SpawnZone(
+                ref frame, ref attacker, UltimateSlot,
+                maxActive: 1,
+                lifetimeFrames: TidewaterTempestLifetimeFrames,
+                tickIntervalFrames: TidewaterTempestTickIntervalFrames,
+                damage: tuning.UltimateDamage,
+                statusType: tuning.UltimateStatusType,
+                statusFrames: tuning.UltimateStatusFrames,
+                statusIntensity: tuning.UltimateStatusIntensity);
             return true;
         }
     }

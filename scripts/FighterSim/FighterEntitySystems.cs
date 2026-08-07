@@ -594,6 +594,16 @@ namespace FTT.FighterSim {
                 centersOnOwner = true;
                 return;
             }
+            // Pocahontas's Tidewater Tempest ultimate (zone type 83): a wide
+            // spirit storm centered on the caster. The design's screen-engulfing
+            // storm is approximated by an 8x5-unit footprint (480x300 px, matching
+            // the Story hitbox) so the storm stays escapable at the arena edges.
+            if (zoneTypeID == (int)FighterCharacterID.Pocahontas * 10 + FighterUltimateRules.UltimateSlot) {
+                halfExtents = new FPVector2(FP64.FromDouble(4.0), FP64.FromDouble(2.5));
+                grantsOwnerSpeedBonus = 0;
+                centersOnOwner = true;
+                return;
+            }
             halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
             grantsOwnerSpeedBonus = 0;
             centersOnOwner = false;
@@ -1181,6 +1191,15 @@ namespace FTT.FighterSim {
                     // impulse-free so the Root pen keeps holding).
                     pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
                     pulseHitstunFrames = UnionFinisherHitstunFrames;
+                } else if (zone.ZoneTypeID == (int)FighterCharacterID.Pocahontas * 10 + FighterUltimateRules.UltimateSlot
+                    && zone.LifetimeFrames < zone.TickIntervalFrames) {
+                    // Pocahontas's Tidewater Tempest (zone type 83): the storm's
+                    // intermediate ticks are impulse-free; only the final surge —
+                    // the tick with less than one full interval of lifetime left —
+                    // throws the target outward from the storm center with the
+                    // authored ultimate knockback.
+                    pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
+                    pulseHitstunFrames = TidewaterSurgeHitstunFrames;
                 }
 
                 // Ultimate-slot zones (ZoneTypeID % 10 == FighterUltimateRules
@@ -1203,6 +1222,7 @@ namespace FTT.FighterSim {
         // Union Indestructible finisher: 0.5 s, matching the authored
         // HitstunDuration on lincoln/ultimate.tres.
         private const int UnionFinisherHitstunFrames = 30;
+        private const int TidewaterSurgeHitstunFrames = 24;
         private const int GrandCrusadeFinalHitstunFrames = 24;
 
         // 0.05 world units per frame (3 px at 60 px/unit), mirrored by the Story
