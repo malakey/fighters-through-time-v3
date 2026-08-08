@@ -1077,3 +1077,5 @@ hud_slot_ultimate,ULT
 results_completion_time,Completion time: {0}
 results_rewinds_used,Chronal Rewinds used: {0}
 timeline_restart_level_confirm,Restarting from the beginning discards the Timeline Anchor you reached. Continue?
+# Package 8 B4
+fighter_cpu_difficulty,CPU Difficulty

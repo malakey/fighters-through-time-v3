@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://scripts/UI/CharacterSelectScreen.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/UI/CharacterSelectScreen.cs" id="1_script"]
+[ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
 
 [node name="CharacterSelect" type="Control"]
 layout_mode = 3
@@ -9,4 +10,236 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1")
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.06, 0.06, 0.12, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Root" type="VBoxContainer" parent="Center"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="Center/Root"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 32
+text = "fighter_select_title"
+horizontal_alignment = 1
+
+[node name="Grid" type="GridContainer" parent="Center/Root"]
+layout_mode = 2
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 12
+columns = 3
+
+[node name="CharacterButton0" type="Button" parent="Center/Root/Grid"]
+custom_minimum_size = Vector2(190, 124)
+layout_mode = 2
+expand_icon = true
+vertical_icon_alignment = 0
+
+[node name="CharacterButton1" type="Button" parent="Center/Root/Grid"]
+custom_minimum_size = Vector2(190, 124)
+layout_mode = 2
+expand_icon = true
+vertical_icon_alignment = 0
+
+[node name="CharacterButton2" type="Button" parent="Center/Root/Grid"]
+custom_minimum_size = Vector2(190, 124)
+layout_mode = 2
+expand_icon = true
+vertical_icon_alignment = 0
+
+[node name="CharacterButton3" type="Button" parent="Center/Root/Grid"]
+custom_minimum_size = Vector2(190, 124)
+layout_mode = 2
+expand_icon = true
+vertical_icon_alignment = 0
+
+[node name="CharacterButton4" type="Button" parent="Center/Root/Grid"]
+custom_minimum_size = Vector2(190, 124)
+layout_mode = 2
+expand_icon = true
+vertical_icon_alignment = 0
+
+[node name="CharacterButton5" type="Button" parent="Center/Root/Grid"]
+custom_minimum_size = Vector2(190, 124)
+layout_mode = 2
+expand_icon = true
+vertical_icon_alignment = 0
+
+[node name="CharacterButton6" type="Button" parent="Center/Root/Grid"]
+custom_minimum_size = Vector2(190, 124)
+layout_mode = 2
+expand_icon = true
+vertical_icon_alignment = 0
+
+[node name="CharacterButton7" type="Button" parent="Center/Root/Grid"]
+custom_minimum_size = Vector2(190, 124)
+layout_mode = 2
+expand_icon = true
+vertical_icon_alignment = 0
+
+[node name="CharacterButton8" type="Button" parent="Center/Root/Grid"]
+custom_minimum_size = Vector2(190, 124)
+layout_mode = 2
+expand_icon = true
+vertical_icon_alignment = 0
+
+[node name="SelectedName" type="Label" parent="Center/Root"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+
+[node name="Stats" type="Label" parent="Center/Root"]
+custom_minimum_size = Vector2(640, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
+autowrap_mode = 3
+horizontal_alignment = 1
+
+[node name="OpponentRow" type="HBoxContainer" parent="Center/Root"]
+layout_mode = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="PreviousButton" type="Button" parent="Center/Root/OpponentRow"]
+custom_minimum_size = Vector2(56, 40)
+layout_mode = 2
+text = "<"
+
+[node name="OpponentLabel" type="Label" parent="Center/Root/OpponentRow"]
+custom_minimum_size = Vector2(300, 40)
+layout_mode = 2
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="NextButton" type="Button" parent="Center/Root/OpponentRow"]
+custom_minimum_size = Vector2(56, 40)
+layout_mode = 2
+text = ">"
+
+[node name="ModeRow" type="HBoxContainer" parent="Center/Root"]
+layout_mode = 2
+theme_override_constants/separation = 18
+alignment = 1
+
+[node name="LocalHumanToggle" type="CheckButton" parent="Center/Root/ModeRow"]
+layout_mode = 2
+text = "fighter_local_human"
+
+[node name="CpuDifficultyLabel" type="Label" parent="Center/Root/ModeRow"]
+layout_mode = 2
+text = "fighter_cpu_difficulty"
+vertical_alignment = 1
+
+[node name="CpuDifficulty" type="OptionButton" parent="Center/Root/ModeRow"]
+custom_minimum_size = Vector2(150, 36)
+layout_mode = 2
+
+[node name="StageRow" type="HBoxContainer" parent="Center/Root"]
+layout_mode = 2
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="StageLabel" type="Label" parent="Center/Root/StageRow"]
+layout_mode = 2
+text = "fighter_stage"
+vertical_alignment = 1
+
+[node name="StageSelect" type="OptionButton" parent="Center/Root/StageRow"]
+custom_minimum_size = Vector2(420, 38)
+layout_mode = 2
+
+[node name="StagePreview" type="TextureRect" parent="Center/Root/StageRow"]
+visible = false
+custom_minimum_size = Vector2(240, 135)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="RulesRow" type="HBoxContainer" parent="Center/Root"]
+layout_mode = 2
+theme_override_constants/separation = 14
+alignment = 1
+
+[node name="MatchMode" type="OptionButton" parent="Center/Root/RulesRow"]
+custom_minimum_size = Vector2(150, 36)
+layout_mode = 2
+
+[node name="StocksLabel" type="Label" parent="Center/Root/RulesRow"]
+layout_mode = 2
+text = "hud_stocks"
+vertical_alignment = 1
+
+[node name="StockCount" type="SpinBox" parent="Center/Root/RulesRow"]
+custom_minimum_size = Vector2(80, 36)
+layout_mode = 2
+min_value = 1.0
+max_value = 5.0
+value = 3.0
+
+[node name="TimerLabel" type="Label" parent="Center/Root/RulesRow"]
+layout_mode = 2
+text = "hud_timer"
+vertical_alignment = 1
+
+[node name="TimeLimit" type="SpinBox" parent="Center/Root/RulesRow"]
+custom_minimum_size = Vector2(110, 36)
+layout_mode = 2
+min_value = 60.0
+max_value = 480.0
+step = 30.0
+value = 480.0
+
+[node name="ItemsLabel" type="Label" parent="Center/Root/RulesRow"]
+layout_mode = 2
+text = "fighter_items"
+vertical_alignment = 1
+
+[node name="ItemFrequency" type="OptionButton" parent="Center/Root/RulesRow"]
+custom_minimum_size = Vector2(120, 36)
+layout_mode = 2
+
+[node name="HazardsLabel" type="Label" parent="Center/Root/RulesRow"]
+layout_mode = 2
+text = "fighter_hazards"
+vertical_alignment = 1
+
+[node name="HazardFrequency" type="OptionButton" parent="Center/Root/RulesRow"]
+custom_minimum_size = Vector2(120, 36)
+layout_mode = 2
+
+[node name="ButtonRow" type="HBoxContainer" parent="Center/Root"]
+layout_mode = 2
+theme_override_constants/separation = 24
+alignment = 1
+
+[node name="BackButton" type="Button" parent="Center/Root/ButtonRow"]
+custom_minimum_size = Vector2(180, 48)
+layout_mode = 2
+text = "common_back"
+
+[node name="FightButton" type="Button" parent="Center/Root/ButtonRow"]
+custom_minimum_size = Vector2(180, 48)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
+text = "fighter_start_match"
