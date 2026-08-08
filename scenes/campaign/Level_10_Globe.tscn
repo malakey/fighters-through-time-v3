@@ -1,0 +1,126 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/Level10Controller.cs" id="1_controller"]
+[ext_resource type="Script" path="res://scripts/Environment/StoryDropSystem.cs" id="2_drops"]
+[ext_resource type="PackedScene" path="res://scenes/templates/TrapdoorPlatformTemplate.tscn" id="3_trapdoor"]
+[ext_resource type="PackedScene" path="res://scenes/templates/PendulumAnchorTemplate.tscn" id="4_rigging"]
+[ext_resource type="PackedScene" path="res://scenes/templates/CyclicHazardTemplate.tscn" id="5_hazard"]
+
+[node name="Level_10_Globe" type="Node2D"]
+script = ExtResource("1_controller")
+
+[node name="StoryDropSystem" type="Node" parent="."]
+script = ExtResource("2_drops")
+
+[node name="TrapdoorStageWest" parent="." instance=ExtResource("3_trapdoor")]
+position = Vector2(3160, 1134)
+TrapdoorID = "level_10.trapdoor_stage_west"
+AutoCycle = true
+ClosedDurationSeconds = 3.4
+WarningShakeSeconds = 0.9
+OpenDurationSeconds = 1.6
+ShakeAmplitude = 5.0
+VisualDropDistance = 72.0
+
+[node name="TrapdoorStageCentre" parent="." instance=ExtResource("3_trapdoor")]
+position = Vector2(3900, 1134)
+TrapdoorID = "level_10.trapdoor_stage_centre"
+AutoCycle = true
+ClosedDurationSeconds = 4.2
+WarningShakeSeconds = 0.8
+OpenDurationSeconds = 1.8
+ShakeAmplitude = 5.0
+VisualDropDistance = 72.0
+
+[node name="TrapdoorStageEast" parent="." instance=ExtResource("3_trapdoor")]
+position = Vector2(4640, 1134)
+TrapdoorID = "level_10.trapdoor_stage_east"
+AutoCycle = true
+ClosedDurationSeconds = 2.8
+WarningShakeSeconds = 1.0
+OpenDurationSeconds = 1.4
+ShakeAmplitude = 5.0
+VisualDropDistance = 72.0
+
+[node name="TrapdoorArenaWest" parent="." instance=ExtResource("3_trapdoor")]
+position = Vector2(9080, 1134)
+TrapdoorID = "level_10.trapdoor_arena_west"
+AutoCycle = true
+ClosedDurationSeconds = 6.0
+WarningShakeSeconds = 1.6
+OpenDurationSeconds = 1.4
+ShakeAmplitude = 6.0
+VisualDropDistance = 60.0
+
+[node name="TrapdoorArenaEast" parent="." instance=ExtResource("3_trapdoor")]
+position = Vector2(9560, 1134)
+TrapdoorID = "level_10.trapdoor_arena_east"
+AutoCycle = true
+ClosedDurationSeconds = 7.2
+WarningShakeSeconds = 1.6
+OpenDurationSeconds = 1.2
+ShakeAmplitude = 6.0
+VisualDropDistance = 60.0
+
+[node name="RiggingYardLine" parent="." instance=ExtResource("4_rigging")]
+position = Vector2(6340, 480)
+AnchorID = "level_10.rigging_yard_line"
+AmplitudeDegrees = 26.0
+PeriodSeconds = 1.3
+PhaseOffset = 0.0
+ReleaseLaunchAssist = 0.7
+MaxLaunchSpeed = 520.0
+
+[node name="RiggingLowerToMiddle" parent="." instance=ExtResource("4_rigging")]
+position = Vector2(6800, 400)
+AnchorID = "level_10.rigging_lower_to_middle"
+AmplitudeDegrees = 28.0
+PeriodSeconds = 1.2
+PhaseOffset = 0.25
+ReleaseLaunchAssist = 0.7
+MaxLaunchSpeed = 520.0
+
+[node name="RiggingMiddleTraverse" parent="." instance=ExtResource("4_rigging")]
+position = Vector2(7250, 240)
+AnchorID = "level_10.rigging_middle_traverse"
+AmplitudeDegrees = 26.0
+PeriodSeconds = 1.15
+PhaseOffset = 0.5
+ReleaseLaunchAssist = 0.7
+MaxLaunchSpeed = 520.0
+
+[node name="RiggingMiddleToUpper" parent="." instance=ExtResource("4_rigging")]
+position = Vector2(7700, 100)
+AnchorID = "level_10.rigging_middle_to_upper"
+AmplitudeDegrees = 32.0
+PeriodSeconds = 1.35
+PhaseOffset = 0.75
+ReleaseLaunchAssist = 0.7
+MaxLaunchSpeed = 520.0
+
+[node name="AudienceThrow" parent="." instance=ExtResource("5_hazard")]
+position = Vector2(-600, 1176)
+HazardID = "level_10.audience_throw"
+WarningDuration = 1.1
+ActiveDuration = 0.25
+CooldownDuration = 0.1
+Damage = 18
+Knockback = Vector2(200, -220)
+Enabled = false
+RewindPolicy = 1
+
+[node name="CellarWinchWest" parent="." instance=ExtResource("5_hazard")]
+position = Vector2(3450, 1500)
+HazardID = "level_10.cellar_winch_west"
+WarningDuration = 1.2
+ActiveDuration = 0.6
+CooldownDuration = 2.8
+Damage = 14
+
+[node name="CellarWinchEast" parent="." instance=ExtResource("5_hazard")]
+position = Vector2(4300, 1500)
+HazardID = "level_10.cellar_winch_east"
+WarningDuration = 1.0
+ActiveDuration = 0.7
+CooldownDuration = 3.2
+Damage = 14
