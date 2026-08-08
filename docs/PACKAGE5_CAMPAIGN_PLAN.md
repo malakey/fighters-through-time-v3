@@ -387,3 +387,57 @@ a pre-merge `git add`) before it will fast-forward.
   check for other `Godot_*.exe` processes and re-run. Force-killing a hung Godot mid-run can also
   leave `.godot/imported/` inconsistent; re-run `--headless --import` before believing the next
   failure.
+
+### Wave A — Level 4, Paris 1789
+
+- **L04: the Wave A prompt's boss numbers do not match the authored resource; the resource wins and
+  was not touched.** The prompt described `revolutionary_tribunal` as 900 HP, thresholds
+  `[0.66, 0.33]`, `Sequential` pattern, and `IsKnockbackImmune = false`. On disk it is **590 HP, a
+  single threshold `[0.5]`, `AttackPattern = 1` (`DistanceBased`), and `IsKnockbackImmune = true`**.
+  Three of those are load-bearing: `BossRosterActITests` pins the Act I health band to 500-700
+  strictly ascending by level and asserts **exactly one** phase threshold for every Act I boss, so
+  editing the resource to match the prompt would fail Package 4 content tests. Plan §4 also says
+  levels build arenas and wiring only. Level 4 therefore wires the resource as authored; if the
+  larger, three-phase, knockback-vulnerable Tribunal is actually wanted, it is a Package 4 resource
+  change with its own test updates, not a level edit.
+- **L04: the boss arena's back wall is deliberately partial.** Florence seals its boss room with a
+  full-height wall at the room's start offset. Copying that here would wall the player out of the
+  cell block, because Paris's courtyard is entered by dropping into the pit rather than through a
+  door at the room edge. The west wall spans y 240-700 only; the 700-1000 band stays open as the
+  entry drop. The east wall is full height.
+- **L04: the arena pit floor is a floor, not a hazard.** `revolutionary_tribunal` summons
+  `chrono_rioter` pairs, and adds need a continuous surface to land on and path along, so the
+  "central lower pit" under the two drawbridge walkways is a flat 1600 px floor 100 px below the
+  approach.
+- **L04: the base class does not confine the camera to the room the run starts in.**
+  `BuildRoomTransition` only fires when the player crosses the trigger, so a checkpoint resume drops
+  the player past the trigger behind them and keeps whole-level limits. `Level04Controller`
+  `OnLevelReady` calls `trigger.ActivateRoom(Player)` for whichever authored room's `CameraBounds`
+  contains the spawn X. Other level agents will hit this; it is a candidate for the base class at
+  C1 rather than four copies.
+- **L04: `PuzzleManager` never re-emits `PuzzleCompleted` for a completion it restored from the
+  save**, so a resume at `level_04_paris_checkpoint_2` with the prisoners already freed would find
+  the courtyard gate still solid and nothing left to open it. The controller checks
+  `PrisonerPuzzle.IsCompleted` in `OnLevelReady` and opens the gate directly. Florence solves the
+  same problem with a deferred `ApplySavedPuzzleState`; pinned here by
+  `ResumingPastTheCellsWithTheGateAlreadyEarnedDoesNotSoftLock`.
+- **L04: the cell locks are `DestructibleBlockTemplate` instances scaled `Vector2(1, 3)`.** The
+  template's shape is a fixed 96x96 sub-resource, too short to seal a doorway; scaling the instance
+  gives a 96x288 barrier that meets the cell's ceiling slab. Gating is physical — the prisoner's
+  120 px interaction area sits ~200 px behind the lock, so it is unreachable until the lock breaks.
+  No `RescuableNPC` "locked" flag was added, because `ApplyPresentation` re-enables the interaction
+  area on every rewind and a controller-driven flag would fight it.
+- **L04: `SearchlightZone.PlayerDetected` drives an HUD alarm objective, not an alarm wave.** The
+  10-standard budget is locked, and the plan's alarm-wave suggestion cannot be honoured without
+  breaking it.
+- **L04: the content-test fixture always resumes at a checkpoint.** A fresh entry defers the
+  entrance dialogue, which is authored `PausesGameplay = true`; if that deferred call lands it leaks
+  `SceneTree.Paused` and hangs the session (§9 fault 1). The fixture also restores the pause flag in
+  `Dispose` and calls `PoolManager.ReleaseActiveInGroup("Enemies")` before freeing the level,
+  because pooled enemies parented to a freed level would otherwise stay in `pool.Active` as dead
+  references. Any level agent instantiating a real level scene in the tree needs both.
+- **L04: suite baseline 465 -> 476** (+11 `Level04ContentTests`), verified at 476/476, 0 failed.
+  `AGENTS.md` is left for C1 per the A1 convention.
+- **L04: a fresh worktree's `--headless --import` rewrites ~24 tracked `.import` files** with new
+  cache hashes and a `gdunit4` -> `gdUnit4` source-path casing change. Unrelated to level content;
+  left unstaged rather than committed.
