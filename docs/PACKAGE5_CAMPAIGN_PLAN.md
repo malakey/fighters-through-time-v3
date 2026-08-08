@@ -8,14 +8,14 @@ for the implementation passes; agents record deviations in §9 at the bottom.
 `IsCompleted` writers, post-campaign hub portal, `Level_10_Globe` route fix, 29 tests). All 46 new
 tests and the 139-test ContentValidation sweep pass on merged main.
 
-**Waves A/B/C are BLOCKED pending the finalizer-crash fix.** The full suite (463 tests after
-Phase A) cannot complete on merged main: the GdUnit Godot child dies nondeterministically
-(`FATAL: Condition "gchandle.is_released()"` in the GC finalizer path — CLAUDE.md signature 3's
-family). A1's worktree bisect showed the pre-Phase-A 417-test suite is stable and adding ANY 418th
-test enters the broken regime, so this is a suite-size threshold, not a content defect. A fix
-exists on `claude/peaceful-wilbur-23eaa0` (dispose Godot collections / drain finalizers, authored
-in a parallel session, unmerged, needs performance re-validation). Do not launch wave agents until
-that fix is merged and three consecutive full-suite runs pass.
+**Test gate UNBLOCKED 2026-08-08 (`74cc12d`); waves may launch.** The suite is now
+**465/465, verified over three consecutive runs at ~12 s**. The earlier instability was three
+stacked faults, none of them a suite-size threshold (that theory was wrong, as was the
+"excluding the A1 test classes is green" bisect — a 2-run green is not evidence on this signature):
+a leaked `SceneTree.Paused` froze GdUnit's own transport node (a real in-game bug: a scene change
+during a pausing dialogue or an open pause menu loaded into a frozen tree), double-disposed
+C#-scripted `RefCounted` resources tripped `mono_object_disposed_baseref`, and a verbose-stdout
+race killed the runner. See §9 `FIX:` and CLAUDE.md failure signatures 2 and 4.
 
 Authority order: explicit user instruction > `design-godot.md` > this plan > existing code — EXCEPT
 numbers: `docs/DUST_ECONOMY.md` + `tests/ContentValidation/DustEconomyTests.cs` lock the per-level
@@ -74,11 +74,21 @@ dialogue variants (deferred by design §16), New Game+/level replay (deferred).
    `tests/integration/SceneSmokeTests.cs`, `resources/Content/content_manifest.csv`, StoryManager,
    shared controllers/toolkit code, or other levels' files. Catalog rows, smoke-test rows, and
    manifest flips are applied at wave integration (§7). This is the shared-file conflict policy.
-8. **Known issue — do not chase:** full-scene `--quit-after` headless runs of Florence/Hub crash AT
-   SHUTDOWN with `-1073741819` in `Godot.Collections.Array.Finalize()` (CLAUDE.md failure
-   signature 3, fix in progress in a separate session). New levels may show the same exit-crash.
-   Gate on: zero SCRIPT errors during the run, clean `--headless --quit` import, and the in-process
-   SceneSmokeTests. Report the exit code but do not treat the shutdown fault alone as a failure.
+8. **Native-crash hygiene — these four rules are mandatory; violating them corrupts the whole
+   suite for everyone, and the crash never points at its cause.** (Learned the hard way; see §9
+   `FIX:` and CLAUDE.md signatures 2 and 4.)
+   - **Never call `Dispose()` on a Godot `Resource`.** Reference counting owns them. `Free()` the
+     node; leave its resources alone.
+   - **Load authored `.tres` data through `FTT.Core.AuthoredResources.Load<T>()`**, never
+     `ResourceLoader.Load`/`GD.Load` — this covers every `EnemyData`/`BossData`/`AbilityData`/
+     dialogue resource a level pulls in. `AuthoredResourceLoadRuleTests` fails with file:line if
+     you regress. Scenes, textures, audio, and pooled objects must NOT go through it.
+   - **Whoever sets `SceneTree.Paused` releases it in `_ExitTree`**; tests restore it in `finally`.
+   - **On a large partial `Total:`, read `<user data>/Godot/app_userdata/.../logs/godot.log`
+     first** — the runner only prints an exit code. Do not bisect by test class on this signature,
+     and never call a subset clean on fewer than 5 runs.
+   The earlier Florence/Hub shutdown crash (old signature 3) is FIXED and merged; a new level
+   showing that stack is a regression, not a known issue.
 9. **Rewind/Timeline Collapse:** levels get rewind services from `StorySceneBootstrapper.Attach`
    defaults. Enemies keep their Package 4 rewind policies. Nothing level-specific to build beyond
    checkpoint registration, but every level must survive: death → rewind, rewind exhaustion →
