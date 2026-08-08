@@ -720,3 +720,65 @@ a pre-merge `git add`) before it will fast-forward.
 - **INTEGRATION-A: suite total stays 514, 0 failed, across three consecutive runs.** No tests were
   added, weakened, or deleted; the 14 failures were fixed entirely in production code. Import clean;
   all four Wave A scenes plus Florence smoke clean at `--quit-after 300`.
+
+### Wave B — Level 9, Berlin 1961
+
+- **L09: the boss resource matches §4.1 exactly; nothing was re-derived.**
+  `resources/Bosses/iron_chancellor.tres` reads 780 HP, melee 3.5 / ranged 9.0, one threshold
+  (`[0.5]`, two phases), `DistanceBased`, knockback-immune, 50 dust — the §4.1 row as written. The
+  bunker street is 1,920 px against the 540 px the 9.0-unit band needs at 60 px/unit, and
+  `Level09ContentTests` asserts `RangedRangeThreshold * PixelsPerUnit < arenaWidth` rather than a
+  hardcoded width. The boss resource was not touched.
+- **L09: the stealth contrast with Paris is in the mode, and it is load-bearing.** Level 4 runs
+  `SearchlightZone` in `UltimateDrain`: exposure is a resource tax a player can simply eat, and the
+  answer is "keep moving". Level 9 runs the same component in `DelayedStrike`: exposure is silent
+  for the 1.5 s `ExposureGraceSeconds` the design quantifies, then a 26-damage drone strike with
+  knockback lands and re-arms every 1.5 s. Two tests pin the difference from the Berlin side —
+  `ABeamStrikesOnlyAfterItsGracePeriodAndNeverInstantly` proves the beam does *not* hit on entry,
+  does not hit at 1.4 s, does hit at 1.6 s, and never touches the Ultimate meter.
+- **L09: cover in a searchlight gauntlet is positional, not occlusion, and the level is authored
+  around that.** `SearchlightZone` is an `Area2D` cone; a wall between the player and the housing
+  does not stop detection, and adding raycast occlusion would mean editing shared Wave A code. So
+  the three rubble cover slabs are authored to sit in the gaps *between* the swept cone footprints,
+  and `Level09Controller.SweptFootprint` computes the conservative world span an arc-swept cone can
+  reach (`halfWidth·cos a + depth·sin a` from the template's 120×520 cone).
+  `EveryCheckpointAndCoverPocketSitsOutsideEverySweptBeam` asserts every pocket and every checkpoint
+  respawn against those footprints, so re-tuning a sweep arc cannot silently swallow a safe pocket
+  or drop a resume into a live beam. Any later level reusing this component inherits the same
+  constraint.
+- **L09: the three sweep periods (2.8 / 3.9 / 5.1 s) are asserted distinct.** A shared period would
+  collapse the corridor into one timing window instead of three interleaved ones, which is the
+  whole reason the plan asks for desynced sweeps; the test fails on a duplicate.
+- **L09: surveillance feeds are `DestructibleBlockTemplate` instances wired in the controller, not a
+  new toolkit component.** `DestructibleBlock` has no `PuzzleManagerPath`/`ConditionID` export the
+  way `RescuableNPC` does, and adding one is a shared-code edit. Each relay's `Destroyed` signal is
+  bound in `CollectAuthoredNodes` to a `FeedLink` record that names its beam, so cutting one relay
+  darkens exactly one light and satisfies exactly one condition. Unscaled 96×96 blocks with
+  `HitsToBreak = 2` — they are cables, not the doorway-sealing locks Paris needed.
+- **L09: darkening a beam releases the player it was counting down on.**
+  `SearchlightZone.Enabled = false` stops the sweep and the exposure tick but leaves an already
+  tracked player in `_exposure`, frozen mid-countdown; if the beam were ever re-enabled the strike
+  would land instantly. `DarkenSearchlight` therefore also calls `RemovePlayer(Player)`, and defers
+  the `Monitoring` flip (`SetDeferred`) because it runs inside an `Area2D` hit callback. Pinned by
+  `CuttingAFeedRelayPermanentlyDarkensTheBeamItPowers`.
+- **L09: resuming at checkpoint 2 blows the relays rather than just opening the gate.** Checkpoint 2
+  stands east of the radar gate the feed puzzle unseals, so a resume that lost the save flag would
+  strand the player behind a sealed gate with the gauntlet still live behind it.
+  `MarkWavesClearedThrough` sets a resume flag and `OnLevelReady` drives every surviving relay
+  through `TakeEnvironmentDamage` — the same path the player's attacks take — so the counter, the
+  puzzle conditions, the darkened beams, and the open gate all agree with a run that really cut
+  them (the L02 generator precedent). The `PuzzleCompleted` handler is idempotent, as the Wave A
+  integration requires.
+- **L09: the level is 1,400 px tall, not Florence's 1,080.** The two guard-tower climbs need the
+  headroom. The two flat rooms confine to a bottom-anchored 1,080 window
+  (`GroundRoomCameraTop = LevelHeight - 1080`); the two climb rooms use the full height, and the
+  content test asserts exactly two of each. Room 4 is widened to 1,920 px (level width 10,560)
+  rather than Paris's 1,600 so no room confines the camera to less than the reference viewport.
+- **L09: `--headless --import` on this fresh worktree rewrote ~40 tracked `.import` files with
+  line-ending-only churn** (no content diff at all — `git diff` reported nothing but CRLF warnings).
+  Reverted with `git checkout -- "*.import"`. The regenerated `localization/en.en.translation` *is*
+  committed, per the L02 rule.
+- **L09: suite total 514 → 529** (+15 `Level09ContentTests`), verified at 529/529, 0 failed, 15 s,
+  with no sibling worktree contention. `AGENTS.md`'s baseline sentence is left for C1 per the A1
+  convention. Import clean; `Level_09_Berlin.tscn` smoke at `--quit-after 300` exits 0 with no
+  script errors, byte-identical output to the Level 4 baseline run.

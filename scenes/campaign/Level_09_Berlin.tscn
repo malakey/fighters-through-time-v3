@@ -1,0 +1,67 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/Level09Controller.cs" id="1_controller"]
+[ext_resource type="Script" path="res://scripts/Environment/StoryDropSystem.cs" id="2_drops"]
+[ext_resource type="Script" path="res://scripts/Environment/PuzzleManager.cs" id="3_puzzle"]
+[ext_resource type="PackedScene" path="res://scenes/templates/SearchlightZoneTemplate.tscn" id="4_searchlight"]
+[ext_resource type="PackedScene" path="res://scenes/templates/DestructibleBlockTemplate.tscn" id="5_feed"]
+
+[node name="Level_09_Berlin" type="Node2D"]
+script = ExtResource("1_controller")
+
+[node name="StoryDropSystem" type="Node" parent="."]
+script = ExtResource("2_drops")
+
+[node name="SearchlightStripWest" parent="." instance=ExtResource("4_searchlight")]
+position = Vector2(3520, 700)
+SearchlightID = "level_09.searchlight_strip_west"
+Mode = 1
+SweepMode = 0
+SweepPeriodSeconds = 2.8
+SweepArcDegrees = 64.0
+ExposureGraceSeconds = 1.5
+StrikeDamage = 26
+
+[node name="SearchlightStripEast" parent="." instance=ExtResource("4_searchlight")]
+position = Vector2(4680, 700)
+SearchlightID = "level_09.searchlight_strip_east"
+Mode = 1
+SweepMode = 0
+SweepPeriodSeconds = 3.9
+SweepArcDegrees = 52.0
+ExposureGraceSeconds = 1.5
+StrikeDamage = 26
+
+[node name="SearchlightWatchtower" parent="." instance=ExtResource("4_searchlight")]
+position = Vector2(5760, 300)
+SearchlightID = "level_09.searchlight_watchtower"
+Mode = 1
+SweepMode = 0
+SweepPeriodSeconds = 5.1
+SweepArcDegrees = 44.0
+ExposureGraceSeconds = 1.5
+StrikeDamage = 26
+
+[node name="FeedPuzzle" type="Node" parent="."]
+script = ExtResource("3_puzzle")
+PuzzleID = "level_09.cut_feeds"
+RequiredConditionIDs = PackedStringArray("feed_west_cut", "feed_east_cut", "feed_tower_cut")
+PersistCompletionToSave = true
+
+[node name="FeedRelayWest" parent="FeedPuzzle" instance=ExtResource("5_feed")]
+position = Vector2(4120, 1064)
+ObjectID = "level_09.feed_relay_west"
+MaxHP = 30
+HitsToBreak = 2
+
+[node name="FeedRelayEast" parent="FeedPuzzle" instance=ExtResource("5_feed")]
+position = Vector2(5480, 702)
+ObjectID = "level_09.feed_relay_east"
+MaxHP = 30
+HitsToBreak = 2
+
+[node name="FeedRelayTower" parent="FeedPuzzle" instance=ExtResource("5_feed")]
+position = Vector2(6150, 464)
+ObjectID = "level_09.feed_relay_tower"
+MaxHP = 30
+HitsToBreak = 2

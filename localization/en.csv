@@ -722,3 +722,25 @@ dlg_l05_exit_2,"It has to. The sinking is real history and history stands. What 
 dlg_l05_exit_3,"There is something left in the wreck of the harvester. Encrypted. It keeps repeating one string."
 dlg_l05_exit_4,"Route it to me. Traveler, that is an uplink handshake. The Archive was never storing this haul aboard — it was relaying it upward, to an orbital communications relay that will not exist for another fifty-seven years."
 dlg_l05_exit_5,"Then that is where the rest of the timeline is going. Get me back to the ship, Sarah. We follow it up."
+berlin_level_title,"Berlin, 1961 — The Divided City"
+berlin_room_checkpoint_charlie,RUINED BLOCKS — CHECKPOINT CHARLIE
+berlin_room_death_strip,THE DEATH STRIP
+berlin_room_radar_yard,CLOAKED RADAR YARD
+berlin_room_bunker_street,BOSS: THE IRON CHANCELLOR
+berlin_objective_infiltrate,Cross the death strip unseen and reach the radar yard
+berlin_objective_exposed,In the light! A drone strike lands in seconds — break line of sight
+berlin_objective_cut_feeds,Cut the surveillance feed relays to darken the searchlights ({0}/{1})
+berlin_objective_reach_bunker,Every beam is dark and the radar gate is open — reach the bunker street
+berlin_objective_defeat_boss,Defeat the Iron Chancellor!
+berlin_objective_complete,LEVEL COMPLETE! Returning to Time-Ship...
+berlin_gate_locked,RADAR GATE SEALED — CUT THE SURVEILLANCE FEEDS
+speaker_iron_chancellor,The Iron Chancellor
+dlg_l09_entrance_1,"They are still pouring the Wall and there are already searchlights on it. Those towers are not 1961."
+dlg_l09_entrance_2,"They are cloaked radar masts, Traveler, and the beams under them are targeting paint. Stand in one longer than a second and a half and something above the cloud deck fires straight down the column. Keep to the dark, and cut the feed relays where you find them — a mast with no feed is a mast with no beam."
+dlg_l09_boss_1,"Far enough. Behind me is a switchboard that speaks to every silo on this continent, and tonight it tells them a lie they have been waiting fifteen years to believe. You will not reach it."
+dlg_l09_boss_2,"You cut a wall through the middle of a living city and called it order. I am going to come through you the same way they will come through it."
+dlg_l09_exit_1,"The switchboard is dead. The masts are dark all the way to the horizon."
+dlg_l09_exit_2,"Confirmed. The launch order never went out. Berlin gets to survive its own division the hard, slow, human way — which is the way it was written."
+dlg_l09_exit_3,"It is going faint again. The resonance. Every fracture we close, I hold a little less of it."
+dlg_l09_exit_4,"I know. You are giving it back to the moments it was stolen from, and there is nothing aboard this ship that can pay you for that."
+dlg_l09_exit_5,"Then stop trying to and get me to the next one. Bring me home, Commander."
