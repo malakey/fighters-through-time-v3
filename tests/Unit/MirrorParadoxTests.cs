@@ -204,12 +204,17 @@ public class MirrorParadoxTests {
         // verbatim so the Fighter path's behaviour is unchanged by the refactor.
         var self = new FighterStateComponent {
             Stocks = 3, HitstunFrames = 2, DazeFrames = 1, IsGrounded = 1,
+            RemainingJumps = 2, CurrentHP = 64, MaxHP = 100,
             Influence = xpTURN.Klotho.Deterministic.Math.FP64.FromInt(60),
             Position = new xpTURN.Klotho.Deterministic.Math.FPVector2(
                 xpTURN.Klotho.Deterministic.Math.FP64.FromInt(3),
-                xpTURN.Klotho.Deterministic.Math.FP64.Zero)
+                xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(2.4)),
+            Velocity = new xpTURN.Klotho.Deterministic.Math.FPVector2(
+                xpTURN.Klotho.Deterministic.Math.FP64.FromInt(-2),
+                xpTURN.Klotho.Deterministic.Math.FP64.FromInt(-7))
         };
         var target = new FighterStateComponent {
+            CurrentHP = 12, MaxHP = 100, HitstunFrames = 9,
             Position = new xpTURN.Klotho.Deterministic.Math.FPVector2(
                 xpTURN.Klotho.Deterministic.Math.FP64.FromInt(-4),
                 xpTURN.Klotho.Deterministic.Math.FP64.Zero)
@@ -223,16 +228,60 @@ public class MirrorParadoxTests {
             FighterCpuController.Observe(in self, in selfRuntime, in target, in targetRuntime);
 
         AssertThat(observation.SelfPositionXRaw).IsEqual(self.Position.x.RawValue);
+        AssertThat(observation.SelfPositionYRaw).IsEqual(self.Position.y.RawValue);
+        AssertThat(observation.SelfVelocityXRaw).IsEqual(self.Velocity.x.RawValue);
+        AssertThat(observation.SelfVelocityYRaw).IsEqual(self.Velocity.y.RawValue);
         AssertThat(observation.TargetPositionXRaw).IsEqual(target.Position.x.RawValue);
+        AssertThat(observation.TargetPositionYRaw).IsEqual(target.Position.y.RawValue);
         AssertThat(observation.Stocks).IsEqual(3);
         AssertThat(observation.HitstunFrames).IsEqual(2);
         AssertThat(observation.DazeFrames).IsEqual(1);
         AssertThat(observation.IsGrounded).IsEqual(1);
+        AssertThat(observation.RemainingJumps).IsEqual(2);
+        AssertThat(observation.SelfCurrentHP).IsEqual(64);
+        AssertThat(observation.SelfMaxHP).IsEqual(100);
         AssertThat(observation.InfluenceRaw).IsEqual(self.Influence.RawValue);
         AssertThat(observation.SpecialOneCooldownFrames).IsEqual(11);
         AssertThat(observation.SpecialTwoCooldownFrames).IsEqual(22);
         AssertThat(observation.MovementCooldownFrames).IsEqual(33);
+        AssertThat(observation.TargetCurrentHP).IsEqual(12);
+        AssertThat(observation.TargetMaxHP).IsEqual(100);
+        AssertThat(observation.TargetHitstunFrames).IsEqual(9);
         AssertThat(observation.TargetPressedButtons).IsEqual((int)GameplayButtons.Special1);
+        // No geometry and no world observer on this overload: every optional block
+        // must read as explicitly absent rather than as a zeroed real value.
+        AssertThat(observation.HasStageBounds).IsEqual(0);
+        AssertThat(observation.HasOrb).IsEqual(0);
+        AssertThat(observation.HasHazard).IsEqual(0);
+        AssertThat(observation.SuppressGameplayInput).IsEqual(0);
+    }
+
+    [TestCase]
+    public void TheStoryAdapterProjectsYUpwardAndDeclaresTheFighterOnlyBlocksAbsent() {
+        // Package 6 §2.5: both Observe paths carry the same fields. Story has no
+        // stage bounds, no Chronal Orbs, and no Fighter stage hazards, so it must
+        // say so explicitly — those flags are what stop the shared table's
+        // off-stage recovery, orb pursuit, and hazard evasion firing in a level
+        // whose floor is nowhere near world y = 0.
+        MirrorParadoxController mirror = CreateMirror();
+        try {
+            mirror.Clone.GlobalPosition = new Vector2(600f, 300f);
+            CpuDecisionObservation observation = mirror.Decisions.Observe();
+
+            AssertThat(observation.HasStageBounds).IsEqual(0);
+            AssertThat(observation.HasOrb).IsEqual(0);
+            AssertThat(observation.HasHazard).IsEqual(0);
+            AssertThat(observation.SuppressGameplayInput).IsEqual(0);
+            AssertThat(observation.PlatformCount).IsEqual(0);
+
+            // Godot screen space is +Y down; the decision table is +Y up.
+            AssertThat(observation.SelfPositionXRaw > 0).IsTrue();
+            AssertThat(observation.SelfPositionYRaw < 0).IsTrue();
+            AssertThat(observation.SelfMaxHP).IsEqual(mirror.ScaledMaxHP);
+            AssertThat(observation.SelfCurrentHP).IsEqual(mirror.CurrentHP);
+        } finally {
+            FreeMirror(mirror);
+        }
     }
 
     // === Defeat flow ===
