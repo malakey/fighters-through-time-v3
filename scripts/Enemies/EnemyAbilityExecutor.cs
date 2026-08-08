@@ -87,9 +87,17 @@ namespace FTT.Enemies {
             }
         }
 
+        /// <summary>
+        /// The owner's outline/glow arbiter when one is attached. While set, the
+        /// executor stops writing <c>Modulate</c> directly and drives the arbiter's
+        /// tint-override channel instead (Package 8 A3).
+        /// </summary>
+        public FTT.Combat.GlowPresentationController Glow { get; set; }
+
         /// <summary>Records the sprite tint the telegraph restores to.</summary>
         public void SetBaseModulate(Color modulate) {
             _spriteBaseModulate = modulate;
+            if (Glow != null) { Glow.SetBaseTint(modulate); return; }
             if (!_tintApplied && _sprite != null) _sprite.Modulate = modulate;
         }
 
@@ -316,13 +324,17 @@ namespace FTT.Enemies {
         private void ApplyTelegraphTint() {
             if (_sprite == null || ActiveAbility == null) return;
             _spriteBaseModulate = _tintApplied ? _spriteBaseModulate : _sprite.Modulate;
-            _sprite.Modulate = ActiveAbility.TelegraphTint;
+            // With an arbiter attached the telegraph lives on the tint-override
+            // channel, so a status effect ending cannot erase it and vice versa.
+            if (Glow != null) Glow.SetTintOverride(ActiveAbility.TelegraphTint);
+            else _sprite.Modulate = ActiveAbility.TelegraphTint;
             _tintApplied = true;
         }
 
         private void RestoreTint() {
             if (!_tintApplied) return;
-            if (_sprite != null) _sprite.Modulate = _spriteBaseModulate;
+            if (Glow != null) Glow.ClearTintOverride();
+            else if (_sprite != null) _sprite.Modulate = _spriteBaseModulate;
             _tintApplied = false;
         }
 

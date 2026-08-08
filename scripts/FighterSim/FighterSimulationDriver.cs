@@ -220,6 +220,7 @@ namespace FTT.FighterSim {
         }
 
         private void SyncPresentation() {
+            PushSlotIndicators();
             SyncPlayer(_playerOne, 0);
             SyncPlayer(_playerTwo, 1);
             SyncSimulationEntities();
@@ -355,6 +356,75 @@ namespace FTT.FighterSim {
             }
         }
 
+        // === Package 8 A3: presentation feedback state ===
+        // Purely cosmetic diffing caches. Nothing here is read by the simulation,
+        // and nothing here writes into scripts/FighterSim/ state.
+        private readonly int[] _presentedStatus = { -1, -1 };
+        private readonly bool[] _presentedHyperArmor = { false, false };
+        private readonly bool[] _presentedInvulnerable = { false, false };
+        private readonly int[] _presentedHP = { -1, -1 };
+        private readonly int[] _presentedDazeFrames = { 0, 0 };
+        private bool _slotIndicatorsPushed;
+
+        private const float FighterHitShakeScale = 0.35f;
+        private const float FighterHitShakeDuration = 0.12f;
+        private const float FighterKnockoutShake = 14f;
+        private const float FighterKnockoutShakeDuration = 0.45f;
+
+        /// <summary>
+        /// Pushes the persistent player-slot outline once the presentation bodies
+        /// exist (design-godot.md: a subtle ownership indicator for the match).
+        /// </summary>
+        private void PushSlotIndicators() {
+            if (_slotIndicatorsPushed) return;
+            _slotIndicatorsPushed = true;
+            _playerOne?.Glow?.SetSlotIndicator(0);
+            _playerTwo?.Glow?.SetSlotIndicator(1);
+        }
+
+        /// <summary>
+        /// Mirrors deterministic component state onto the shared glow arbiter and
+        /// fires hit feedback. Reads simulation components; writes only Godot
+        /// presentation nodes and the feedback autoloads.
+        /// </summary>
+        private void SyncPresentationFeedback(PlayerController player, int playerID,
+            in FighterStateComponent state, in FighterRuntimeComponent runtime) {
+            FTT.Combat.GlowPresentationController glow = player.Glow;
+            if (glow != null) {
+                if (_presentedStatus[playerID] != runtime.StatusType) {
+                    _presentedStatus[playerID] = runtime.StatusType;
+                    glow.SetStatus((StatusType)runtime.StatusType);
+                }
+                bool hyperArmor = state.HyperArmorFrames > 0;
+                if (_presentedHyperArmor[playerID] != hyperArmor) {
+                    _presentedHyperArmor[playerID] = hyperArmor;
+                    glow.SetHyperArmor(hyperArmor);
+                }
+                bool invulnerable = state.InvulnerabilityFrames > 0;
+                if (_presentedInvulnerable[playerID] != invulnerable) {
+                    _presentedInvulnerable[playerID] = invulnerable;
+                    glow.SetSpawnInvulnerability(invulnerable);
+                }
+            }
+
+            int previousHP = _presentedHP[playerID];
+            _presentedHP[playerID] = state.CurrentHP;
+            if (previousHP >= 0 && state.CurrentHP < previousHP) {
+                int damage = previousHP - state.CurrentHP;
+                glow?.FlashHit();
+                CameraShake.Instance?.Shake(damage * FighterHitShakeScale, FighterHitShakeDuration);
+                HapticFeedbackManager.Instance?.VibrateForPlayer(playerID, 0.3f, 0.5f, 0.08f);
+            }
+
+            // A fresh daze is the guard break: the sim has no block-broken event, so
+            // the driver derives the beat from the daze edge for feedback only.
+            int previousDaze = _presentedDazeFrames[playerID];
+            _presentedDazeFrames[playerID] = state.DazeFrames;
+            if (previousDaze <= 0 && state.DazeFrames > 0) {
+                HapticFeedbackManager.Instance?.VibrateForPlayer(playerID, 0.8f, 0.9f, 0.2f);
+            }
+        }
+
         private void SyncPlayer(PlayerController player, int playerID) {
             if (player == null || !IsInstanceValid(player)
                 || !Simulation.TryGetFighter(playerID, out FighterStateComponent state)
@@ -382,6 +452,7 @@ namespace FTT.FighterSim {
                 or (int)UniversalMovementPhase.RollRecovery) {
                 player.PlayPresentationAnimation("roll");
             }
+            SyncPresentationFeedback(player, playerID, in state, in runtime);
         }
 
         private static void DisableNativeGameplay(PlayerController player) {
@@ -481,6 +552,8 @@ namespace FTT.FighterSim {
                     FocusPosition = PresentationPositionOf(playerID)
                 });
                 PlayCue(KnockoutStingerPath);
+                CameraShake.Instance?.Shake(FighterKnockoutShake, FighterKnockoutShakeDuration);
+                HapticFeedbackManager.Instance?.VibrateForPlayer(playerID, 0.9f, 1f, 0.35f);
             }
         }
 
@@ -548,6 +621,14 @@ namespace FTT.FighterSim {
                         FocusPosition = PresentationPositionOf(loser)
                     });
                     PlayCue(KnockoutStingerPath);
+                    CameraShake.Instance?.Shake(FighterKnockoutShake, FighterKnockoutShakeDuration);
+                    if (loser >= 0) {
+                        HapticFeedbackManager.Instance?.VibrateForPlayer(loser, 1f, 1f, 0.5f);
+                    }
+                    if (_pendingResult.WinnerPlayerID >= 0) {
+                        HapticFeedbackManager.Instance?.VibrateForPlayer(
+                            _pendingResult.WinnerPlayerID, 0.3f, 0.4f, 0.25f);
+                    }
                     break;
                 case KnockoutStep.SlowMotion:
                     _camera?.FocusOn(PresentationPositionOf(loser), KnockoutFocusZoom);

@@ -44,6 +44,8 @@ namespace FTT.Enemies {
         private bool _spawnAnnounced;
 
         private AnimatedSprite2D _sprite;
+        private FTT.Combat.GlowPresentationController _glow;
+        private FTT.Combat.PresentationVisibilitySuspender _presentationSuspender;
         private FTT.Characters.PlayerController _target;
         private FTT.Combat.CombatantPushbox _pushbox;
         private FTT.Combat.Hurtbox _hurtbox;
@@ -98,6 +100,7 @@ namespace FTT.Enemies {
             CollisionLayer = CollisionLayers.Enemy;
             CollisionMask = CollisionLayers.EnemyBodyMask;
             BindEvents();
+            FTT.Combat.VfxPresentationBinder.EnsureInstalled(this);
             AnnounceSpawn();
         }
 
@@ -115,6 +118,12 @@ namespace FTT.Enemies {
                 ?? GetNodeOrNull<FTT.Combat.Hitbox>("AttackHitbox");
             _abilityOrigin = GetNodeOrNull<Node2D>("AbilityOrigin");
             Executor.Bind(_sprite, _attackHitbox, _abilityOrigin);
+            if (_sprite != null) {
+                _glow = FTT.Combat.GlowPresentationController.AttachTo(
+                    this, _sprite, ownerPlayerIndex: -1, subscribeToStoryEvents: false);
+                Executor.Glow = _glow;
+                _presentationSuspender = FTT.Combat.PresentationVisibilitySuspender.AttachTo(this, _sprite);
+            }
         }
 
         private void BindEvents() {
@@ -149,8 +158,9 @@ namespace FTT.Enemies {
                 if (Data?.SpriteFramesResource != null) _sprite.SpriteFrames = Data.SpriteFramesResource;
                 Color tint = Data?.PlaceholderTint ?? Colors.White;
                 if (tint.A <= 0f) tint = Colors.White;
-                _sprite.Modulate = tint;
                 Executor.SetBaseModulate(tint);
+                if (_glow == null) _sprite.Modulate = tint;
+                _glow?.ClearAllStates();
                 PlayAnimation("idle");
             }
             if (_attackHitbox != null) {
@@ -402,6 +412,7 @@ namespace FTT.Enemies {
                 Die();
                 return damageApplied;
             }
+            if (damageApplied > 0) _glow?.FlashHit();
             CheckPhaseTransition();
             return damageApplied;
         }
@@ -447,6 +458,7 @@ namespace FTT.Enemies {
             _pushbox?.SetPushEnabled(false);
             _deathTimer = DeathAnimationSeconds;
             PlayAnimation("death");
+            _glow?.ClearAllStates();
             RaiseHPChanged();
             EventBus.Instance?.RaiseBossDefeated(new BossDefeatedPayload {
                 BossID = Data?.BossID ?? "",
@@ -495,6 +507,7 @@ namespace FTT.Enemies {
                     _venomTickTimer = 1f;
                     break;
             }
+            _glow?.SetStatus(type);
         }
 
         private void ClearStatusEffect() {
@@ -504,6 +517,7 @@ namespace FTT.Enemies {
             _venomTickTimer = 0f;
             StatusMoveMultiplier = 1f;
             StatusDamageTakenMultiplier = 1f;
+            _glow?.ClearState(FTT.Combat.GlowLayer.Status);
         }
 
         private void TickStatus(float dt) {

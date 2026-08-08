@@ -107,14 +107,11 @@ namespace FTT.Characters {
 			};
 			player.AddChild(sprite);
 			if (frames != null && frames.HasAnimation("idle")) sprite.Play("idle");
-			player.AddChild(new ColorRect {
-				Name = "ChronalArmorOverlay",
-				Size = new Vector2(60, 92),
-				Position = new Vector2(-30, -88),
-				Color = new Color(0.83f, 0.69f, 0.22f, 0.28f),
-				MouseFilter = Control.MouseFilterEnum.Ignore,
-				Visible = false
-			});
+			// Package 8 A3: the gold ChronalArmorOverlay ColorRect is replaced by the
+			// shader-driven hyper-armor shell on the shared glow arbiter, which also
+			// owns status/spawn-invulnerability outlines and the sprite tint.
+			FTT.Combat.GlowPresentationController.AttachTo(
+				player, sprite, player.PlayerIndex, subscribeToStoryEvents: true);
 
 			var label = new Label {
 				Name = "NameLabel",

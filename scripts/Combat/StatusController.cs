@@ -133,11 +133,21 @@ namespace FTT.Combat {
         }
 
         public void ClearStatus() {
+            bool hadStatus = _activeType != FTT.Core.StatusType.None;
             _activeStrategy?.OnRemove(_owner);
             _activeStrategy = null;
             _activeType = FTT.Core.StatusType.None;
             _remainingDuration = 0.0f;
             _intensity = 0.0f;
+            if (!hadStatus || _owner == null) return;
+            // Presentation layers (glow arbiter, HUD status pips) need the falling
+            // edge as well as the rising one; nothing gameplay-side reads this.
+            FTT.Core.EventBus.Instance?.RaiseStatusEffectCleared(new FTT.Core.StatusEffectPayload {
+                TargetIndex = _owner.PlayerIndex,
+                Type = FTT.Core.StatusType.None,
+                Duration = 0f,
+                Intensity = 0f
+            });
         }
 
         public override void _PhysicsProcess(double delta) {

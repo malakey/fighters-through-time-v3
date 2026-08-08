@@ -1,9 +1,10 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/Core/PooledPlaceholder.cs" id="1_pool"]
 [ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="2_marker"]
 [ext_resource type="Resource" path="res://resources/Contracts/pooled_vfx_contract.tres" id="3_contract"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/orb.svg" id="4_visual"]
+[ext_resource type="Script" path="res://scripts/Combat/PresentationVisibilitySuspender.cs" id="5_suspend"]
 
 [sub_resource type="CanvasItemMaterial" id="Material"]
 blend_mode = 1
@@ -13,14 +14,35 @@ script = ExtResource("1_pool")
 ContentID = "pooled_vfx_template"
 Category = 1
 LifetimeFrames = 30
+ParticleBudgetCost = 12
 
 [node name="Visual" type="Sprite2D" parent="."]
 texture = ExtResource("4_visual")
 scale = Vector2(0.4, 0.4)
 material = SubResource("Material")
 
+[node name="Particles" type="CPUParticles2D" parent="."]
+material = SubResource("Material")
+emitting = false
+amount = 12
+lifetime = 0.5
+one_shot = true
+explosiveness = 0.85
+texture = ExtResource("4_visual")
+emission_shape = 1
+emission_sphere_radius = 6.0
+spread = 180.0
+gravity = Vector2(0, 120)
+initial_velocity_min = 60.0
+initial_velocity_max = 160.0
+scale_amount_min = 0.08
+scale_amount_max = 0.16
+
+[node name="PresentationVisibility" type="VisibleOnScreenNotifier2D" parent="."]
+rect = Rect2(-40, -40, 80, 80)
+script = ExtResource("5_suspend")
+
 [node name="ContentContract" type="Node" parent="."]
 script = ExtResource("2_marker")
 ContentID = "pooled_vfx_template"
 Contract = ExtResource("3_contract")
-

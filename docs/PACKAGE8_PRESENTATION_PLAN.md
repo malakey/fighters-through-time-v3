@@ -298,5 +298,123 @@ change is logged in §9.
 
 ## 9. Deviations (append-only)
 
-*(Empty at authoring. Agents append `### <WS> — <subject> (date)` blocks; orchestrator appends
+*(Agents append `### <WS> — <subject> (date)` blocks; orchestrator appends
 integration blocks; C1 appends the closeout and the "What Package 8 did NOT deliver" list.)*
+
+### A3 — visual framework (2026-08-08)
+
+**A3: `gl_compatibility` also forbids passing `TEXTURE` as a `sampler2D` function
+argument, so every ring sample in the shader is written inline.** The plan's §2.2
+already covered the missing `instance uniform` support; this is a *second*
+compatibility constraint, discovered by the headless TestArena smoke rather than by
+the build. A first draft factored the 8-directional sampling into a
+`ring_alpha(sampler2D tex, ...)` helper, which compiles as far as resource load and
+then aborts at `ShaderMaterial.Shader = shader` with
+`Condition "!actions.custom_samplers.has(function->arguments[j].tex_builtin)" is
+true` (`servers/rendering/shader_compiler.cpp:1329`) — once per material, so it also
+scales with the per-entity duplication decision. The three rings are therefore
+unrolled in `fragment()`. `OutlineGlowShaderTests.TheShaderIsACanvasItemShaderWith
+TheAuthoredRanges` asserts the source contains no `sampler2D tex` parameter, because
+a well-meaning refactor back into a helper would only fail at material-assignment
+time, in whichever scene happened to load first.
+
+**A3: a headless `--quit-after` smoke does compile shaders far enough to catch
+this, but does not exercise the fragment program.** Godot's headless renderer runs
+the shader *parser and compiler front end* (that is where the error above
+surfaced), so syntax and semantic errors are caught. It does not link or run GLSL,
+so the visual result — outline width, falloff weighting, pulse range, and the
+sprite-over-glow compositing — is unverified by any automated gate and needs a human
+look in the editor. Third known constraint, noted in the shader header: a
+`CanvasItem` shader cannot draw outside its own quad, so a thick outline is clipped
+unless the sprite art carries a few texels of transparent padding. Production art
+(P10) must budget that padding.
+
+**A3: `OnStatusEffectApplied` alone could not drive the arbiter; `StatusController`
+gained a falling edge.** The bus had a rising edge only, so a status outline could
+be pushed but never cleared. `EventBus.OnStatusEffectCleared` is new and
+`StatusController.ClearStatus` raises it (with `StatusType.None`) whenever a status
+was actually active — including the implicit clear inside `ApplyStatus`, so a
+replacement fires cleared-then-applied in that order. Nothing gameplay-side reads
+it; B1's HUD status pips want the same edge.
+
+**A3: the arbiter owns three separate channels, not one `Modulate` value.** §2.3
+requires that "a fighter tint must survive a status ending". Layering all three
+sources onto `Modulate` cannot satisfy that, so `GlowPresentationController` keeps
+base tint (`SetBaseTint`), tint override (`SetTintOverride`/`ClearTintOverride`/
+`FlashHit`) and the arbitrated outline stack (`PushState`/`ClearState`) independent:
+statuses and hyper-armor drive the shader, telegraphs and hit flashes drive the
+override, and the authored `PlaceholderTint` is the base. `EnemyAbilityExecutor`
+writes `Modulate` directly only when no arbiter is bound, which is what keeps
+`EnemyAbilityExecutorTests.TelegraphTintsTheSpriteAndRestoresItWhenTheHitboxGoesLive`
+green unmodified; `EnemyGlowRoutingTests` pins the arbiter-bound path beside it.
+
+**A3: the hyper-armor shell uses the design's gold `#d4af37`, not a gold-cyan
+blend.** `design-godot.md:3033` names two hex values for one outline colour
+("Golden-cyan `#d4af37` / `#00f0ff`") without saying how they combine. Gold alone
+was chosen because it preserves the retired `ChronalArmorOverlay` ColorRect's
+identity and stays distinct from the cyan spawn-invulnerability aura directly below
+it in the priority table. Venom's authored two-colour gradient *is* implemented, as
+a per-frame lerp in the arbiter's `_Process`. Pinned in `GlowStateStackTests`.
+
+**A3: the Fighter driver derives a guard-break beat from the daze edge.** The
+deterministic simulation has no block-broken event, only `DazeFrames`. The driver
+treats a 0→positive daze transition as the guard break for haptics only. If a future
+change makes daze reachable by another route, the feedback will fire there too;
+nothing gameplay-side depends on it.
+
+**A3: `HapticFeedbackManager` had two device bugs, both now routed through
+`InputManager.GetDeviceForPlayer`.** Damage feedback vibrated hardcoded device 0
+(so in local 1v1 player two's damage buzzed player one's pad), and guard-break
+feedback passed the *player index* to `Input.StartJoyVibration` as a device id.
+`ResolveDevice` is now the single mapping, `Vibrate` rejects any device below zero
+(covering both the keyboard `-1` and unassigned `-2` sentinels), and the previously
+dead `OnHitConfirm`/`OnUltimateActivation` entry points are wired to two new bus
+events rather than deleted. `HapticDeviceRoutingTests` pins it.
+
+**A3: the off-screen suspender and the glow arbiter bind their signals in
+`_EnterTree`, not `_Ready`.** Pooled owners re-enter the tree many times while
+`_Ready` runs once, so a `_Ready`/`_ExitTree` pair unsubscribes on the first release
+and then spams `Attempt to disconnect a nonexistent connection` on every later one —
+seen immediately in the Level 01 smoke. Both classes now guard an `_EnterTree`/
+`_ExitTree` pair with an explicit bound flag.
+
+**A3: the particle cap steals from the oldest emitter rather than refusing the
+newest.** `ParticleBudgetRegistry` supports both policies; the shared 500-particle
+registry uses `StealOldest` so the newest gameplay feedback always renders and a
+stale ambient emitter goes quiet instead. A single request larger than the whole
+budget is refused outright (no amount of eviction could seat it) and its instance
+simply spawns without particles. `PooledPlaceholder` reserves on `OnSpawn` and
+releases on `OnDespawn`, keyed on its instance id.
+
+**A3: `VfxPresentationBinder` self-installs from the enemy/boss controllers.** The
+`OnEnemyPresentation` → pooled-VFX binding needs a scene-scoped subscriber, and A3
+does not own the level controllers or `StorySceneBootstrapper`. `EnemyController`
+and `BossController` call `VfxPresentationBinder.EnsureInstalled(this)` in `_Ready`,
+which adds at most one binder to the current scene. B6 refines the per-
+`PresentationEventID` mappings on that same surface; if B5/B6 would rather host the
+binder from the bootstrapper, the `EnsureInstalled` call sites are the only change.
+
+**A3 API surface for B1/B2/B6.** `FTT.Combat.GlowPresentationController`:
+`AttachTo(owner, sprite, ownerPlayerIndex, subscribeToStoryEvents)`, `SetBaseTint`,
+`SetTintOverride`/`ClearTintOverride`, `FlashHit(color, seconds)`, `PushState`/
+`ClearState`/`ClearAllStates`, `SetStatus`/`SetHyperArmor`/`SetSpawnInvulnerability`/
+`SetSlotIndicator`, and read-only `Target`/`GlowMaterial`/`Light`/`BaseTint`/
+`IsGlowing`/`ResolvedState`/`IsLayerActive`. `PlayerController.Glow` exposes it on
+players. `FTT.Combat.GlowPalette` owns every authored colour and
+`GlowPalette.Status(StatusType)`. `FTT.Combat.VfxEmitter`: `EmitCombat`,
+`EmitEnvironment`, `Emit(poolID, …)`, `EmitScene(PackedScene, …)`,
+`EmitForPresentationEvent(id, phase, position, parent)` — all null-safe, all
+returning `Node2D` or null. `FTT.Combat.ParticleBudget.Shared` is the 500-particle
+registry; pooled emitters declare `PooledPlaceholder.ParticleBudgetCost`.
+`FTT.Combat.PresentationVisibilitySuspender.AttachTo(owner, presentationRoot)` adds
+off-screen suspension. New bus events: `OnStatusEffectCleared`, `OnHitConfirm`
+(`HitConfirmPayload`), `OnUltimateActivation` (`UltimateActivationPayload`).
+
+**A3 validation.** Build clean (only the pre-existing vendored `CS8632`); full suite
+**956 = 907 + 49** across two consecutive runs; `--headless --import`; headless
+smokes clean for `TestArena`, `FighterStage_Florence`, `Level_01_Florence`, and
+`Level_00_Tutorial`. No existing suite was modified. Not delivered by A3 and left to
+later workstreams: the post-rewind ghost trail / reverse sweep / clock tick payload
+fields (B6), authored `CastVFXScene`/`ImpactVFXScene` resources (B6), the rewind
+music duck migration (A2), and any visual confirmation of the shader's rendered
+output, which no headless gate can discharge.
