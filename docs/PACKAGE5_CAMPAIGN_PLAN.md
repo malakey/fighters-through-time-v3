@@ -918,3 +918,98 @@ a pre-merge `git add`) before it will fast-forward.
 - **L06: suite baseline 514 -> 528** (+14 `Level06ContentTests`), verified at 528/528, 0 failed on
   the first full run, in 15 s. Import clean; `Level_06_Pompeii.tscn` smoke clean at
   `--quit-after 300` with zero errors or warnings. `AGENTS.md` is left for C1 per the A1 convention.
+### Wave B — L12 Lunar Landing, 1969 (Act II finale)
+
+- **L12: §4.1 held exactly; the boss resource was not touched.**
+  `resources/Bosses/gravity_overseer.tres` reads `MaxHP = 950`, `MeleeRangeThreshold = 3.0`,
+  `RangedRangeThreshold = 9.0`, `PhaseThresholds [0.66, 0.33]` (three phases),
+  `PhaseSpeedMultipliers [1.0, 1.2, 1.45]`, `AttackPattern = DistanceBased`, knockback-immune,
+  50 dust, and `AbilityMinPhase [0, 0, 0, 2]` — so the `gravity_well` AreaPulse really is gated to
+  the final phase. The pad is 2,400 px against the 540 px the 9.0-unit band needs at 60 px/unit,
+  and `Level12ContentTests` asserts `RangedRangeThreshold * 60 < arenaWidth` rather than a
+  hardcoded width.
+- **L12: the level is 2,000 px tall — the tallest so far — and that height is load-bearing, not
+  scenery.** The whole design turns on one number: on the Moon the *highest*-mobility character
+  (`pocahontas`, 2 jumps) reaches 1,205 px, and the *lowest* (`lincoln`, 1 jump, weight 1.6)
+  reaches 252 px. Every authored one-way rung is a 200 px rise so Lincoln clears it on the Moon
+  and cannot clear it on Earth (113 px); the two `PathMovingPlatform` lifts rise 1,100 and 1,500 px
+  so no single lunar jump replaces them; and the critical-path spire lift plus the curtain slot
+  (1,500 and 1,350 px) both sit above Pocahontas's entire jump budget, so the climb cannot be
+  skipped by *any* character. `Level12ContentTests` derives all four numbers from the nine
+  `CharacterData` resources and `PlayerController`'s authored jump physics rather than hardcoding
+  them, so re-tuning a character's `MaxJumpForce` or `Weight` fails the level instead of silently
+  breaking or trivialising it. **Later low-gravity levels (13 Void, 14 Neo-Earth) inherit this
+  constraint and should reuse the same closed-form check.**
+- **L12: the outpost curtain is two wall segments with a cargo slot between them, not a wall with a
+  top.** A tall wall was the obvious gate and it does not work: at 0.45 gravity a 1,100 px wall is
+  inside Pocahontas's 1,205 px double jump, and making the wall taller than that pushes its top
+  below the highline the ferry has to cross. So the curtain is `BuildWall(x, 0, 250)` plus
+  `BuildWall(x, 550, 1350)`, leaving a 300 px slot at the highline altitude: there is no top to
+  land on, and the slot floor needs a 1,350 px rise from the regolith. The test also asserts a
+  64 px player standing on the 32 px ferry deck actually fits through the slot, so the gate cannot
+  be tightened into a wall the ferry cannot pass.
+- **L12: two gravity fields, deliberately contiguous and deliberately non-overlapping.**
+  `EnvironmentPlayerModifiers` publishes the PRODUCT of every live source (A2 deviation; L05 and
+  L08 both hit it), so the regolith field covers x 0–9000 at 0.45 and the pad dampers cover
+  9000–11600 at 0.60, meeting exactly at the arena seam with no overlap and no gap. The content
+  test walks the spans and asserts `start == previous end` for every one, that the union covers
+  `[0, LevelWidth]`, and that no span is Earth-normal or heavier — so "level-wide low gravity"
+  cannot regress into a level with a normal-gravity hole in it. The firmer pad is not decoration:
+  it is what keeps the Overseer's phase-3 PULL escapable, alongside an unbroken pad floor and a
+  full-height east wall (there is nothing on the pad to be pulled into).
+- **L12: the gravity fields are code-built, and the player is registered into one explicitly.**
+  `GravityFieldZoneTemplate.tscn` ships a fixed 960x720 shape and these fields are level-sized;
+  overriding a `SubResource` shape on an instanced scene risks mutating a shape shared between both
+  instantiations (the L05 flood-zone precedent), so they are graybox-in-code per §2.1. More
+  importantly, `Area2D` only reports its authored initial overlaps on the first physics frame, and
+  a checkpoint resume teleports the player before one ever runs — a resumed player would stand in a
+  low-gravity level at Earth-normal gravity, or walk out of the pad still carrying the pad's scale.
+  `Level12Controller.SyncGravityFieldToPlayer()` runs in `OnLevelReady` and again on
+  `EventBus.OnRewindTriggered`, adding the player to exactly the containing field and removing them
+  from every other; it is idempotent with the physics callbacks because `AddPlayer`/`RemovePlayer`
+  are set operations. Three tests pin it: every checkpoint resumes at the containing field's scale
+  with exactly one gravity source, a rewind across the seam re-registers, and releasing every field
+  restores exactly 1.0. **Any later level using a zone whose effect must be correct on frame zero
+  needs this** — the L06 pressure-plate deviation is the same class of bug.
+- **L12: the pre-boss beat is armed from a room trigger, and `OnBossDefeated` is NOT overridden.**
+  L08 had to override it wholesale for a *post*-boss beat and lost the base's `IsBossDefeated` in
+  the process. A *pre*-boss beat needs none of that: the authored Sarah scene fires from a
+  `BuildWaveTrigger` at the outpost entrance (the design's stated timing), exactly as L05 does, and
+  the base class keeps ownership of the defeat → exit → results chain. `MarkWavesClearedThrough`
+  deliberately leaves the trigger armed on a checkpoint-2 resume: the trigger stands between the
+  checkpoint and the pad, and the thesis scene must land before the Overseer no matter how the run
+  got there. Pinned by `EveryCheckpointResumeWakesThePlayerInTheRightGravityState`.
+- **L12: the authored thesis lines are asserted by content, not just by shape.** design-godot.md
+  3376–3383 is converted near-verbatim (five lines, Player / Sarah / Player / Sarah / Player,
+  ending Determined). Because this is the one place the campaign states its own price, the test
+  asserts the *text*: Sarah's warning must still name the "Act II siphon nexus", the "prime
+  anchor", and the timeline "snap back", and her answer must still contain "brainwashed",
+  "unaware", "lose all of your powers", and "mortal again". A rewrite that keeps the beat but drops
+  the bargain fails.
+- **L12: room transitions are bidirectional facing pairs (the L03 pattern) for the first two
+  seams.** The level is built around backtracking — two of the four extractors are up optional
+  climbs — and `RoomTransitionTrigger.ActivateOnce` defaults true, so single forward triggers would
+  clamp the camera to the last room forever the first time the player walked back. The pad seam
+  stays a single one-shot trigger on purpose: that clamp is the arena lock. The back trigger at
+  seam 1 is also what gives `ApplyResumeCameraBounds` a room to find for a checkpoint-0 resume.
+- **L12: every room confines the camera to the full 2,000 px height rather than a 1,080 window.**
+  L03/L08/L09 anchored their flat rooms to a 1,080 band; here all four rooms have real verticality
+  (the shortest climb is 600 px), so a banded window would cut the level in half. Widths are still
+  floored at 1,920 px per the L02 rule and the content test asserts both dimensions for every room.
+- **L12: the lunar lander is a 180 px platform and nothing on the surface line is a wall.** The
+  first draft gave Tranquility Base a flagpole built with `BuildWall`, which is a solid 320 px
+  body — taller than Lincoln's 252 px lunar jump, i.e. a fence across his own level. Anything
+  authored on the main traversal line in a low-gravity level has to be checked against the
+  *heaviest* character, not the average one.
+- **L12: the vacuum vents launch rather than shove.** `StoryCyclicHazard.Knockback` is authored
+  with a large negative Y (up to `(180, -480)`) because in 0.45 gravity a conventional sideways
+  shove reads as nothing; the vents are gas jets and the low-gravity arc is the tell. They are
+  placed along the surface route so the "walk the regolith" line is the punishing one and the
+  ferry/lift route is the clean one, and two of them flank extractor 3.
+- **L12: suite baseline 554 → 573** (+19 `Level12ContentTests`), verified at 573/573, 0 failed, in
+  17 s on the first full run with no sibling contention. Build clean but for the vendored CS8632;
+  import clean; `Level_12_Lunar.tscn` smoke at `--quit-after 300` exits 0 with zero script errors
+  or warnings. `--headless --import` rewrote ~40 tracked `.import` files (line-ending-only for the
+  assets, plus the known `gdunit4`/`gdUnit4` casing flip on eight addon PNGs); reverted with
+  `git checkout -- "*.import"`. The regenerated `localization/en.en.translation` IS committed, per
+  the L02 rule. `AGENTS.md` is left for C1 per the A1 convention.

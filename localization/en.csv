@@ -804,3 +804,30 @@ dlg_l06_exit_2,"Confirmed. Vesuvius is back on its own clock: eighteen hours, ex
 dlg_l06_exit_3,"It went dim again. Further than last time. Halfway up the ash road I felt it go out completely, for a second."
 dlg_l06_exit_4,"I saw it on the telemetry. Your resonance is drawn out of the fracture, and every fracture you close is a little less of you. I am logging it, Traveler. I will not pretend it is not happening."
 dlg_l06_exit_5,"Log it, and bring me home. There are nine more of these."
+lunar_level_title,The Lunar Landing — 1969
+lunar_room_tranquility_base,Tranquility Base — Sea of Tranquility
+lunar_room_vent_field,The Vent Field
+lunar_room_relay_spire,The Relay Spire
+lunar_room_landing_pad,Orbital Landing Pad
+lunar_objective_reach_outpost,Cross the mare and reach the Archive outpost
+lunar_objective_vent_field,"Mind the vacuum vents — the low route is the loud route"
+lunar_objective_climb_spire,Ride the spire lift and take the highline over the curtain wall
+lunar_objective_landing_pad,Clear the landing pad garrison
+lunar_objective_defeat_boss,Destroy the Gravity Overseer
+lunar_objective_complete,"The broadcast is clean. Return to the Time-Ship."
+speaker_gravity_overseer,The Gravity Overseer
+dlg_l12_entrance_1,"Tranquility Base is right there. The lander, the flag, the first footprints ever pressed into this dust — and half a kilometre east of it, something the crew will never see and never report."
+dlg_l12_entrance_2,"That is the relay, Traveler. The uplink handshake we pulled out of the Titanic wreck was pointing here all along — fifty-seven years early, and this is the address. The Archive is riding the broadcast: six hundred million people watching one moment together, and every one of them feeding the siphon. Watch your footing. One sixth of the gravity you are used to, and the outpost vents run straight to vacuum."
+dlg_l12_entrance_3,"Then we take the relay before the broadcast ends."
+dlg_l12_preboss_1,"To think humanity would walk among the stars... and yet, the cult has built a fortress of metal here."
+dlg_l12_preboss_2,"This is the Act II siphon nexus. If they extract this milestone, the future's memory of human space exploration will be completely erased. We are going to trigger the final overload process. But be warned: once the prime anchor at Alexandria is restored in the final act, the timeline will snap back to normal."
+dlg_l12_preboss_3,"And what happens to us then?"
+dlg_l12_preboss_4,"Every brainwashed local across all eras will be restored to their true self — safe, home, and entirely unaware of this nightmare. You will return to your own time as well. You will carry the memory of this voyage... but you will lose all of your powers, since the changes were centred on your displacement. You will be mortal again."
+dlg_l12_preboss_5,"Then let us make this final legacy count."
+dlg_l12_boss_intro_1,"Six hundred million witnesses, one signal, one instant. Do you know what a species remembers hardest? The first time it left. I will take that from them, and they will never learn the shape of the hole where it was."
+dlg_l12_boss_intro_2,"They came up here on arithmetic and nerve, and they came up here together. You do not get to hold that."
+dlg_l12_exit_1,"The relay is scrap. The broadcast is going out clean."
+dlg_l12_exit_2,"Confirmed. Every set on Earth is watching the real thing. The outpost crew the Archive pressed into service are already coming back to themselves — nobody down there will remember having been anything but themselves."
+dlg_l12_exit_3,"It went out completely on the pad, Sarah. The resonance. For a second I was just a person standing on the Moon. Whatever we do next, I should do it soon."
+dlg_l12_exit_4,"I know, and I have the reason we can. The overload wrote something back down the beam before it died — a coordinate signature. Traveler, it is not anywhere in history. It is their home. Far future. Neo-Earth."
+dlg_l12_exit_5,"Then Act Two ends here. Take me through their front door, Commander."
