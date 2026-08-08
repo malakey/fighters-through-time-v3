@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <!-- Vesuvius Caldera near parallax: the slanted inner slope and lava seams. -->
+  <defs>
+    <linearGradient id="slope" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#3d1206"/>
+      <stop offset="1" stop-color="#150503"/>
+    </linearGradient>
+  </defs>
+  <!-- Asymmetric slope: high on the left, cut away on the right. -->
+  <path d="M0 420 L340 520 L700 660 L1030 620 L1360 760 L1650 700 L1920 840 L1920 1080 L0 1080 Z"
+        fill="url(#slope)"/>
+  <!-- Lava seams glowing through the basalt. -->
+  <g stroke="#ff4008" stroke-width="6" fill="none" opacity="0.75">
+    <path d="M120 560 L260 640 L200 760 L330 880"/>
+    <path d="M780 720 L900 800 L860 930"/>
+    <path d="M1430 830 L1560 900 L1520 1020"/>
+  </g>
+  <!-- Broken columns of the buried town, canted by the quake. -->
+  <g fill="#4c2415" opacity="0.9">
+    <rect x="250" y="620" width="26" height="180" transform="rotate(-8 263 710)"/>
+    <rect x="1120" y="690" width="26" height="200" transform="rotate(6 1133 790)"/>
+    <rect x="1690" y="800" width="26" height="180" transform="rotate(-5 1703 890)"/>
+  </g>
+  <!-- Rising embers. -->
+  <g fill="#ffab4a" opacity="0.5">
+    <circle cx="420" cy="700" r="7"/>
+    <circle cx="640" cy="820" r="5"/>
+    <circle cx="1020" cy="740" r="8"/>
+    <circle cx="1280" cy="880" r="6"/>
+    <circle cx="1780" cy="760" r="7"/>
+  </g>
+</svg>

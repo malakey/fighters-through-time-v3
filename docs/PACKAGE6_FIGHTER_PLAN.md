@@ -895,3 +895,56 @@ CLAUDE.md's failure-signature table.
 **INTEGRATION-A: A4's one-`[TestSuite]`-per-file rule is promoted to a Phase B instruction** (a
 second suite in the same file is discovered but silently not executed — `Total:` moves by a
 plausible-looking +1 instead of the real delta).
+
+### B — Vesuvius (2026-08-08)
+
+**B-vesuvius: every merged geometry number was authored unchanged; the scene needed no adjustment
+and `FighterStageGeometry.Vesuvius` was not touched.** Walls ±8 → pixels 450/1450, ground rect
+1000×48 with its top edge on y = 700, ledges at (668.75, 575) and (1137.5, 481.25) with 137.5 px
+collision widths, spawns at 700/1200, three orb markers, four hazard markers at 575/825/1075/1325.
+`FighterStageConformance.Validate` passes with an empty issue list.
+
+**B-vesuvius: the "hazards High, one full cycle" hash-identity run needed a deep stock pool, and
+the reason is a real constraint every Phase B stage agent will hit.** `FighterHazardSystem.Update`
+returns immediately unless `match.MatchState == 1`, so a match that *ends* freezes the live hazard
+wherever it stood. The first hazard spawns on the 1800-frame boundary and Vesuvius' cycle runs
+warning 90 → active 240 (60 frames of fall, then the 180-frame time-dilation pool) → recovery 60,
+finishing at ~2190. Scripted adversarial inputs over that window burn roughly one stock per 300
+frames, so with the default three stocks both fighters were out at ~2100 and the hazard sat in the
+active phase forever — the test's "saw recovery" assertion was unreachable and looked like a hazard
+bug. The suite now constructs both simulations with `stocks: 20`. Measured phase transitions with
+that pool (headless probe, seed 605): warning at t=1799, active at t=1888, pool sub-state at impact,
+recovery at t=2129, despawn at t=2189. **A Phase B stage whose test runs adversarial inputs past
+frame ~1800 on the default three stocks is measuring a dead match, not a hazard cycle.**
+
+**B-vesuvius: the parallax tree is inspected by class name and property, not by typed reference.**
+Godot 4.7 marks `ParallaxBackground`/`ParallaxLayer` `[Obsolete]` in favour of `Parallax2D`, so
+`GetNodeOrNull<ParallaxBackground>` and `child is ParallaxLayer` each emit `CS0618` — two new build
+warnings, which §8 gate 1 forbids. The plan (§5 item 2) specifies `ParallaxBackground` for all nine
+stages and the node still works, so the *scene* uses it and the *test* reads
+`GetClass() == "ParallaxBackground"` / `Get("motion_scale")` instead. The build stays at the single
+pre-existing vendored `CS8632`. Flagging it because the other eight stage agents will hit the same
+warning; C1 may want to decide whether Package 6 or a later package migrates all ten stages to
+`Parallax2D`.
+
+**B-vesuvius: the era slope is cosmetic and drawn *behind* the flat floor, deliberately.** The
+dossier calls for "slanted rocky slope dressing" but the simulation floor is a flat solid plane at
+y = 0 across the whole ±8 span. `Presentation/CalderaSlope` is a `Polygon2D` at `z_index = -8` so
+the `Geometry/Ground` visual always draws over it; nothing in the scene implies a walkable slope.
+
+**B-vesuvius: three SVGs were authored under a new `assets/placeholders/stages/` directory** —
+`vesuvius_preview.svg` (the §5 item 5 preview), plus `vesuvius_sky.svg` and `vesuvius_ridge.svg`
+for the two parallax layers at scroll factors (0.15, 0.06) and (0.45, 0.18). The manifest's
+`visual_stage_vesuvius` row still points at the shared `parallax_far.svg`; repointing it is C1's
+job per §2.7/§6 item 4.
+
+**B-vesuvius: validation.** `dotnet build` clean (one pre-existing vendored `CS8632`);
+`FighterStageVesuviusTests` 9 passed / 0 failed; full suite 829 passed / 0 failed / **Total 829**
+(820 Phase A baseline + 9); `--headless --import` clean with no tracked-file churn beyond the three
+new SVG `.import` sidecars; `FighterStage_Vesuvius.tscn` headless smoke `--quit-after 300` exits 0
+with no script or resource errors. The GdUnit cross-worktree pipe collision predicted by
+INTEGRATION-A was hit repeatedly during this workstream (`exit code: 100` /
+`Failed to connect: Connection timeout` / `No test matches the given testcase filter` on a filter
+that plainly matches); every number above is from a run whose `Total:` matched the expected delta.
+A temporary headless probe scene was used to diagnose the stock-exhaustion issue above while the
+pipe was contended; it was deleted before commit.

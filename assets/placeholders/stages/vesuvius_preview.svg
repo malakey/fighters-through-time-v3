@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270" viewBox="0 0 480 270">
+  <!-- Stage-select preview for vesuvius_caldera: the narrowest arena, two
+       asymmetric ledges at different heights, four rockfall anchors. -->
+  <defs>
+    <linearGradient id="pv_sky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#1f0806"/>
+      <stop offset="1" stop-color="#7d2408"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="270" fill="url(#pv_sky)"/>
+  <!-- Erupting cone. -->
+  <path d="M200 130 L215 70 L200 34 L232 12 L262 20 L276 58 L262 96 L282 130 Z" fill="#2b0f08" opacity="0.9"/>
+  <path d="M120 168 L200 130 L240 112 L282 130 L360 168 Z" fill="#301006"/>
+  <!-- Caldera floor and side walls (narrow +/-8 unit arena). -->
+  <rect x="70" y="212" width="340" height="20" fill="#3d1706"/>
+  <rect x="70" y="208" width="340" height="4" fill="#ff400a"/>
+  <rect x="62" y="120" width="10" height="112" fill="#26100a"/>
+  <rect x="408" y="120" width="10" height="112" fill="#26100a"/>
+  <!-- Two asymmetric stone ledges: low-left, high-right. -->
+  <rect x="120" y="170" width="48" height="8" fill="#4a2010"/>
+  <rect x="120" y="166" width="48" height="4" fill="#ff400a"/>
+  <rect x="288" y="140" width="48" height="8" fill="#4a2010"/>
+  <rect x="288" y="136" width="48" height="4" fill="#ff400a"/>
+  <!-- Four rockfall impact scorches on the floor. -->
+  <g fill="#120402" stroke="#ff5a12" stroke-width="2">
+    <ellipse cx="110" cy="212" rx="17" ry="5"/>
+    <ellipse cx="190" cy="212" rx="17" ry="5"/>
+    <ellipse cx="270" cy="212" rx="17" ry="5"/>
+    <ellipse cx="350" cy="212" rx="17" ry="5"/>
+  </g>
+  <!-- Falling rock with its trail. -->
+  <circle cx="270" cy="96" r="9" fill="#5a2a13"/>
+  <path d="M270 96 L266 62 L274 62 Z" fill="#ff5a12" opacity="0.7"/>
+</svg>
