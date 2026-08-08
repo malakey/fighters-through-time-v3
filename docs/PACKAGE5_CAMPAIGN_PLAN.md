@@ -387,3 +387,68 @@ a pre-merge `git add`) before it will fast-forward.
   check for other `Godot_*.exe` processes and re-run. Force-killing a hung Godot mid-run can also
   leave `.godot/imported/` inconsistent; re-run `--headless --import` before believing the next
   failure.
+
+### Wave A — L05 Titanic (Act I finale)
+
+- **L05: `tidal_eraser.tres` disagrees with this plan's §4 prose and the agent brief; the resource
+  won.** On disk the boss is `MaxHP = 640`, `MeleeRangeThreshold = 3.5`, `RangedRangeThreshold =
+  10.0`; the brief said 1050 HP and 5.0 m / 12.0 m. Phase count (one threshold at 0.5, so two
+  phases) and `AttackPattern = DistanceBased` do match. Per AGENTS.md the resource is authoritative,
+  so nothing was edited. The stern arena is 2160 px, sized against the resource's real band
+  (10.0 × 60 px/unit = 600 px) with headroom for the brief's wider 12 m reading, and
+  `Level05ContentTests` asserts `RangedRangeThreshold * 60 < arenaWidth` rather than hardcoding a
+  number — so re-tuning the boss cannot silently outgrow the arena.
+- **L05: two non-overlapping `RisingWaterZone`s, not one.** `HullFlood` covers x 0–8800 and
+  `ArenaFlood` covers 8800–11200, and their Areas deliberately do not meet.
+  `EnvironmentPlayerModifiers` publishes the *product* of every live source (A2 deviation above), so
+  two water zones over one player would stack to a 0.30x crawl and double the drowning ticks. Levels
+  6/7 and anything else combining two zone components of the same family should assume the same
+  constraint.
+- **L05: one global water line is enough to model a listing ship.** Decks rise sternward, so a
+  single line drowns the bow while the stern is still dry — no per-room water offsets needed. The
+  list itself is stepped `BuildFloor` slabs joined by rotated ramp slabs
+  (`BuildListingRamp`: `BuildFloor` + `RotationDegrees`, −12° to −16°); a fully rotated floor plan
+  produced collision seams at the joins.
+- **L05: the hull's timed escalation uses an owned `Timer`, not `RisingWaterZone.AutoAdvanceSeconds`.**
+  The component latches `_autoTimer = AutoAdvanceSeconds` in `_Ready`, so a zone built with 0 has an
+  already-expired timer: assigning `AutoAdvanceSeconds` mid-level fires a step on the very next
+  physics frame. That would double-advance on top of the room's authored step. The **arena** flood
+  deliberately does use `AutoAdvanceSeconds`, because there the instant first step *is* the phase-2
+  beat. If a later level needs a genuinely deferred auto-advance, the component needs a public timer
+  reset.
+- **L05: checkpoint water restoration is structural, not just an authored table.**
+  `MarkWavesClearedThrough` calls `RestoreFloodForCheckpoint`, which sets the authored per-checkpoint
+  step (`_0`→0, `_1`→2, `_2`→3) and then *walks the step back down* while the registered respawn
+  position is still at or below the water line, and resets the arena flood to disabled/step 0. The
+  "never resume underwater" guarantee therefore survives someone re-authoring the deck heights
+  without touching the table. Two tests pin it: every checkpoint resumes dry, and a level flooded
+  past every authored step still restores to a dry `_2`.
+- **L05: the flood zones are code-built rather than `RisingWaterZoneTemplate.tscn` instances.**
+  The template ships a 1920-wide collision shape and visual; both zones need different widths, and
+  overriding a `SubResource` shape on an instanced scene risks mutating a sub-resource shared
+  between the two instantiations. Graybox-in-code is the sanctioned Florence convention (§2.1). The
+  `.tscn` still carries authored template content: `StoryDropSystem` plus three
+  `CyclicHazardTemplate` ruptured steam pipes.
+- **L05: the level is 1400 px tall, not Florence's 1080.** Four stacked deck bands (1300 → 800) are
+  what make the flood readable as a climb. `LevelBounds`/`StoryCameraConfiner` handle it with no
+  changes; room triggers are authored at `triggerSize = (80, 1400)` so they still span the full
+  height.
+
+#### Tooling notes for later wave agents
+
+- **A fresh worktree's first `dotnet test` fails with `GodotRuntimeTestRunner ends with exit code:
+  100` / `Failed to connect: Connection timeout` and `No test matches the given testcase filter`.**
+  The adapter writes `gdunit4_testadapter_v5/GdUnit4TestRunnerScene.cs` *after* the build, so the
+  first run's assembly has no such type. It is not a code fault: just `dotnet build` again (the file
+  now exists) and re-run. Worth doing right after the initial `--import`.
+- **The GdUnit pipe name `gdunit4-FightersThroughTime` is not worktree-scoped.** Concurrent
+  `dotnet test` runs from sibling worktrees collide on it and both report the connection timeout.
+  A collided run also leaves **two** live processes — one `Godot_..._console.exe` and one
+  `Godot_....exe` — that must be killed before the next attempt, or it fails the same way. Confirm
+  with `Get-CimInstance Win32_Process -Filter "Name LIKE 'Godot%'"` and check `CreationDate` before
+  killing: the processes may belong to another agent mid-run.
+- **`--headless --quit` does not rebuild `localization/en.en.translation`; `--headless --import`
+  does.** Confirmed independently on this level. Re-import after touching en.csv and commit the
+  regenerated `.translation` binary. The `--import` pass also rewrites eight
+  `addons/gdUnit4/**/*.png.import` files with a case-only `gdunit4`/`gdUnit4` source-path flip —
+  unrelated churn, revert with `git checkout -- addons/gdUnit4`.
