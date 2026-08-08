@@ -1,15 +1,29 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/Level02Controller.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/Environment/StoryDropSystem.cs" id="2_drops"]
 [ext_resource type="PackedScene" path="res://scenes/templates/ShieldGeneratorTowerTemplate.tscn" id="3_tower"]
 [ext_resource type="PackedScene" path="res://scenes/templates/CyclicHazardTemplate.tscn" id="4_mortar"]
+[ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="5_lighting"]
 
 [node name="Level_02_Orleans" type="Node2D"]
 script = ExtResource("1_controller")
 
 [node name="StoryDropSystem" type="Node" parent="."]
 script = ExtResource("2_drops")
+
+[node name="Lighting" parent="." instance=ExtResource("5_lighting")]
+AmbientTone = Color(0.72, 0.75, 0.86, 1)
+KeyColor = Color(1, 0.78, 0.38, 1)
+KeyEnergy = 0.8
+KeyOffset = Vector2(-280, 60)
+KeyScale = 11.0
+FillColor = Color(0.6, 0.72, 1, 1)
+FillEnergy = 0.4
+FillOffset = Vector2(320, -220)
+FillScale = 12.0
+RimEnabled = false
+FollowsCamera = true
 
 [node name="ShieldTowerA" parent="." instance=ExtResource("3_tower")]
 position = Vector2(5980, 790)

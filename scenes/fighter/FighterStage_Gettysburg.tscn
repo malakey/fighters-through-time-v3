@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/FighterStageController.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/UI/TestArenaHUD.cs" id="2_hud"]
@@ -7,6 +7,7 @@
 [ext_resource type="Resource" path="res://resources/Contracts/fighter_stage_contract.tres" id="5_contract"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/stages/gettysburg_parallax_far.svg" id="6_parallax_far"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/stages/gettysburg_parallax_near.svg" id="7_parallax_near"]
+[ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="8_lighting"]
 
 [sub_resource type="RectangleShape2D" id="ground_col"]
 size = Vector2(1250, 48)
@@ -23,20 +24,22 @@ StageID = "gettysburg_ridge"
 
 [node name="Presentation" type="Node2D" parent="."]
 
-[node name="ParallaxBackground" type="ParallaxBackground" parent="Presentation"]
-layer = -100
+[node name="Parallax" type="Node2D" parent="Presentation"]
+z_index = -200
 
-[node name="FarRidge" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
-motion_scale = Vector2(0.2, 0.08)
+[node name="FarRidge" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 1
+scroll_scale = Vector2(0.2, 0.08)
 
-[node name="Sprite2D" type="Sprite2D" parent="Presentation/ParallaxBackground/FarRidge"]
+[node name="Sprite2D" type="Sprite2D" parent="Presentation/Parallax/FarRidge"]
 position = Vector2(960, 540)
 texture = ExtResource("6_parallax_far")
 
-[node name="NearTreeline" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
-motion_scale = Vector2(0.55, 0.2)
+[node name="NearTreeline" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 2
+scroll_scale = Vector2(0.55, 0.2)
 
-[node name="Sprite2D" type="Sprite2D" parent="Presentation/ParallaxBackground/NearTreeline"]
+[node name="Sprite2D" type="Sprite2D" parent="Presentation/Parallax/NearTreeline"]
 position = Vector2(960, 560)
 texture = ExtResource("7_parallax_near")
 
@@ -159,6 +162,18 @@ offset_top = 676.0
 offset_right = 1302.0
 offset_bottom = 690.0
 color = Color(0.14, 0.1, 0.05, 1)
+
+[node name="Lighting" parent="." instance=ExtResource("8_lighting")]
+AmbientTone = Color(0.86, 0.84, 0.76, 1)
+KeyColor = Color(1, 0.94, 0.78, 1)
+KeyEnergy = 0.55
+KeyOffset = Vector2(950, 180)
+KeyScale = 13.0
+FillColor = Color(0.88, 0.84, 0.66, 1)
+FillEnergy = 0.35
+FillOffset = Vector2(500, 420)
+FillScale = 10.0
+RimEnabled = false
 
 [node name="Geometry" type="Node2D" parent="."]
 

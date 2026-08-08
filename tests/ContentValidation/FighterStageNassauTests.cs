@@ -154,20 +154,18 @@ public class FighterStageNassauTests {
             AssertObject(presentation).IsNotNull();
             AssertObject(presentation.GetNodeOrNull<ColorRect>("BackdropTint")).IsNotNull();
 
-            // Checked structurally rather than through the typed C# bindings:
-            // ParallaxBackground/ParallaxLayer are marked obsolete in the 4.7
-            // bindings (Parallax2D is the successor) and referencing them would
-            // add CS0618 warnings to a build the plan requires to stay clean.
-            Node parallax = presentation.GetNodeOrNull("ParallaxBackground");
+            // Typed against the successor class since the Package 8 B7 migration.
+            // The old ParallaxBackground/ParallaxLayer bindings are [Obsolete] in
+            // Godot 4.7, which is why this used to be checked structurally.
+            var parallax = presentation.GetNodeOrNull<Node2D>("Parallax");
             AssertObject(parallax).IsNotNull();
-            AssertThat(parallax.IsClass("ParallaxBackground")).IsTrue();
 
             int layers = 0;
             var scrollFactors = new List<Vector2>();
             foreach (Node child in parallax.GetChildren()) {
-                if (!child.IsClass("ParallaxLayer")) continue;
+                if (child is not Parallax2D layer) continue;
                 layers++;
-                scrollFactors.Add(child.Get("motion_scale").AsVector2());
+                scrollFactors.Add(layer.ScrollScale);
             }
             AssertThat(layers >= 2)
                 .OverrideFailureMessage($"Nassau needs at least two parallax layers, found {layers}.")

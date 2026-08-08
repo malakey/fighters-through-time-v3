@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/FighterStageController.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/UI/TestArenaHUD.cs" id="2_hud"]
@@ -7,6 +7,7 @@
 [ext_resource type="Resource" path="res://resources/Contracts/fighter_stage_contract.tres" id="5_contract"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/stages/chicago_parallax_far.svg" id="6_parallax_far"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/stages/chicago_parallax_near.svg" id="7_parallax_near"]
+[ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="8_lighting"]
 
 [sub_resource type="RectangleShape2D" id="ground_col"]
 size = Vector2(1250, 48)
@@ -31,10 +32,10 @@ offset_right = 2200.0
 offset_bottom = 1200.0
 color = Color(0.04, 0.09, 0.13, 0.45)
 
-[node name="ParallaxBackground" type="ParallaxBackground" parent="Presentation"]
-layer = -100
+[node name="Parallax" type="Node2D" parent="Presentation"]
+z_index = -200
 
-[node name="BackdropBase" type="ColorRect" parent="Presentation/ParallaxBackground"]
+[node name="BackdropBase" type="ColorRect" parent="Presentation/Parallax"]
 mouse_filter = 2
 offset_left = -400.0
 offset_top = -400.0
@@ -42,19 +43,23 @@ offset_right = 2320.0
 offset_bottom = 1480.0
 color = Color(0.04, 0.09, 0.13, 1)
 
-[node name="FarLayer" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
-motion_scale = Vector2(0.15, 0.05)
-motion_mirroring = Vector2(1920, 0)
+[node name="FarLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 1
+scroll_scale = Vector2(0.15, 0.05)
+repeat_size = Vector2(1920, 0)
+repeat_times = 3
 
-[node name="FarSky" type="Sprite2D" parent="Presentation/ParallaxBackground/FarLayer"]
+[node name="FarSky" type="Sprite2D" parent="Presentation/Parallax/FarLayer"]
 centered = false
 texture = ExtResource("6_parallax_far")
 
-[node name="NearLayer" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
-motion_scale = Vector2(0.4, 0.12)
-motion_mirroring = Vector2(1920, 0)
+[node name="NearLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 2
+scroll_scale = Vector2(0.4, 0.12)
+repeat_size = Vector2(1920, 0)
+repeat_times = 3
 
-[node name="NearColonnade" type="Sprite2D" parent="Presentation/ParallaxBackground/NearLayer"]
+[node name="NearColonnade" type="Sprite2D" parent="Presentation/Parallax/NearLayer"]
 modulate = Color(1, 1, 1, 0.9)
 centered = false
 texture = ExtResource("7_parallax_near")
@@ -180,6 +185,21 @@ offset_top = -125.0
 offset_right = 256.0
 offset_bottom = 0.0
 color = Color(0.16, 0.45, 0.55, 1)
+
+[node name="Lighting" parent="." instance=ExtResource("8_lighting")]
+AmbientTone = Color(0.78, 0.84, 0.88, 1)
+KeyColor = Color(0.42, 0.94, 1, 1)
+KeyEnergy = 0.7
+KeyOffset = Vector2(575, 500)
+KeyScale = 10.0
+FillColor = Color(0.42, 0.94, 1, 1)
+FillEnergy = 0.7
+FillOffset = Vector2(1325, 500)
+FillScale = 10.0
+RimColor = Color(1, 0.92, 0.72, 1)
+RimEnergy = 0.25
+RimOffset = Vector2(950, 220)
+RimScale = 11.0
 
 [node name="Geometry" type="Node2D" parent="."]
 

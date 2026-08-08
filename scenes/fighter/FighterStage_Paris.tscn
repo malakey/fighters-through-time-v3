@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/FighterStageController.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/UI/TestArenaHUD.cs" id="2_hud"]
@@ -7,6 +7,7 @@
 [ext_resource type="Resource" path="res://resources/Contracts/fighter_stage_contract.tres" id="5_contract"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/stages/paris_parallax_far.svg" id="6_parallax_far"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/stages/paris_parallax_near.svg" id="7_parallax_near"]
+[ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="8_lighting"]
 
 [sub_resource type="RectangleShape2D" id="ground_col"]
 size = Vector2(1125, 48)
@@ -23,20 +24,22 @@ StageID = "paris_bastille"
 
 [node name="Presentation" type="Node2D" parent="."]
 
-[node name="ParallaxBackground" type="ParallaxBackground" parent="Presentation"]
-layer = -100
+[node name="Parallax" type="Node2D" parent="Presentation"]
+z_index = -200
 
-[node name="FarLayer" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
-motion_scale = Vector2(0.15, 0.06)
+[node name="FarLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 1
+scroll_scale = Vector2(0.15, 0.06)
 
-[node name="FarSprite" type="Sprite2D" parent="Presentation/ParallaxBackground/FarLayer"]
+[node name="FarSprite" type="Sprite2D" parent="Presentation/Parallax/FarLayer"]
 position = Vector2(960, 540)
 texture = ExtResource("6_parallax_far")
 
-[node name="NearLayer" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
-motion_scale = Vector2(0.42, 0.16)
+[node name="NearLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 2
+scroll_scale = Vector2(0.42, 0.16)
 
-[node name="NearSprite" type="Sprite2D" parent="Presentation/ParallaxBackground/NearLayer"]
+[node name="NearSprite" type="Sprite2D" parent="Presentation/Parallax/NearLayer"]
 modulate = Color(0.82, 0.62, 0.62, 0.92)
 position = Vector2(960, 560)
 texture = ExtResource("7_parallax_near")
@@ -197,6 +200,21 @@ offset_top = 652.0
 offset_right = 1341.0
 offset_bottom = 664.0
 color = Color(0.98, 0.62, 0.6, 0.85)
+
+[node name="Lighting" parent="." instance=ExtResource("8_lighting")]
+AmbientTone = Color(0.84, 0.76, 0.76, 1)
+KeyColor = Color(1, 0.55, 0.28, 1)
+KeyEnergy = 0.75
+KeyOffset = Vector2(700, 600)
+KeyScale = 10.0
+FillColor = Color(1, 0.45, 0.35, 1)
+FillEnergy = 0.5
+FillOffset = Vector2(1200, 600)
+FillScale = 9.0
+RimColor = Color(0.72, 0.66, 0.9, 1)
+RimEnergy = 0.25
+RimOffset = Vector2(950, 180)
+RimScale = 12.0
 
 [node name="Geometry" type="Node2D" parent="."]
 

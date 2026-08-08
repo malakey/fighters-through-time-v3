@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/FighterStageController.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/UI/TestArenaHUD.cs" id="2_hud"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="4_marker"]
 [ext_resource type="Resource" path="res://resources/Contracts/fighter_stage_contract.tres" id="5_contract"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/parallax_far.svg" id="6_parallax"]
+[ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="7_lighting"]
 
 [sub_resource type="RectangleShape2D" id="ground_col"]
 size = Vector2(1125, 48)
@@ -22,121 +23,124 @@ StageID = "nassau_flagship"
 
 [node name="Presentation" type="Node2D" parent="."]
 
-[node name="ParallaxBackground" type="ParallaxBackground" parent="Presentation"]
-layer = -2
+[node name="Parallax" type="Node2D" parent="Presentation"]
+z_index = -200
 
-[node name="SeaBase" type="ColorRect" parent="Presentation/ParallaxBackground"]
+[node name="SeaBase" type="ColorRect" parent="Presentation/Parallax"]
 offset_left = -400.0
 offset_top = -400.0
 offset_right = 2320.0
 offset_bottom = 1480.0
 color = Color(0.025, 0.08, 0.12, 1)
 
-[node name="HorizonLayer" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
-motion_scale = Vector2(0.15, 0.05)
-motion_mirroring = Vector2(1920, 0)
+[node name="HorizonLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 1
+scroll_scale = Vector2(0.15, 0.05)
+repeat_size = Vector2(1920, 0)
+repeat_times = 3
 
-[node name="FarSea" type="Sprite2D" parent="Presentation/ParallaxBackground/HorizonLayer"]
+[node name="FarSea" type="Sprite2D" parent="Presentation/Parallax/HorizonLayer"]
 modulate = Color(0.32, 0.52, 0.6, 1)
 position = Vector2(960, 540)
 texture = ExtResource("6_parallax")
 
-[node name="DistantFrigateHull" type="Polygon2D" parent="Presentation/ParallaxBackground/HorizonLayer"]
+[node name="DistantFrigateHull" type="Polygon2D" parent="Presentation/Parallax/HorizonLayer"]
 color = Color(0.05, 0.13, 0.18, 1)
 polygon = PackedVector2Array(260, 620, 620, 620, 570, 672, 310, 672)
 
-[node name="DistantFrigateMast" type="ColorRect" parent="Presentation/ParallaxBackground/HorizonLayer"]
+[node name="DistantFrigateMast" type="ColorRect" parent="Presentation/Parallax/HorizonLayer"]
 offset_left = 432.0
 offset_top = 430.0
 offset_right = 442.0
 offset_bottom = 620.0
 color = Color(0.05, 0.13, 0.18, 1)
 
-[node name="DistantFrigateSail" type="Polygon2D" parent="Presentation/ParallaxBackground/HorizonLayer"]
+[node name="DistantFrigateSail" type="Polygon2D" parent="Presentation/Parallax/HorizonLayer"]
 color = Color(0.09, 0.2, 0.25, 1)
 polygon = PackedVector2Array(442, 452, 556, 486, 442, 566)
 
-[node name="DistantBrigHull" type="Polygon2D" parent="Presentation/ParallaxBackground/HorizonLayer"]
+[node name="DistantBrigHull" type="Polygon2D" parent="Presentation/Parallax/HorizonLayer"]
 color = Color(0.05, 0.13, 0.18, 1)
 polygon = PackedVector2Array(1290, 636, 1600, 636, 1558, 682, 1332, 682)
 
-[node name="DistantBrigMast" type="ColorRect" parent="Presentation/ParallaxBackground/HorizonLayer"]
+[node name="DistantBrigMast" type="ColorRect" parent="Presentation/Parallax/HorizonLayer"]
 offset_left = 1416.0
 offset_top = 476.0
 offset_right = 1425.0
 offset_bottom = 636.0
 color = Color(0.05, 0.13, 0.18, 1)
 
-[node name="DistantBroadsideFlash" type="Polygon2D" parent="Presentation/ParallaxBackground/HorizonLayer"]
+[node name="DistantBroadsideFlash" type="Polygon2D" parent="Presentation/Parallax/HorizonLayer"]
 modulate = Color(1, 1, 1, 0.5)
 color = Color(0.12, 0.72, 0.86, 1)
 polygon = PackedVector2Array(1290, 646, 1200, 626, 1206, 668)
 
-[node name="RiggingLayer" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
-motion_scale = Vector2(0.45, 0.18)
+[node name="RiggingLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 2
+scroll_scale = Vector2(0.45, 0.18)
 
-[node name="MainMast" type="ColorRect" parent="Presentation/ParallaxBackground/RiggingLayer"]
+[node name="MainMast" type="ColorRect" parent="Presentation/Parallax/RiggingLayer"]
 offset_left = 928.0
 offset_top = 60.0
 offset_right = 964.0
 offset_bottom = 700.0
 color = Color(0.13, 0.075, 0.035, 1)
 
-[node name="ForeMast" type="ColorRect" parent="Presentation/ParallaxBackground/RiggingLayer"]
+[node name="ForeMast" type="ColorRect" parent="Presentation/Parallax/RiggingLayer"]
 offset_left = 528.0
 offset_top = 170.0
 offset_right = 556.0
 offset_bottom = 700.0
 color = Color(0.11, 0.065, 0.03, 1)
 
-[node name="MizzenMast" type="ColorRect" parent="Presentation/ParallaxBackground/RiggingLayer"]
+[node name="MizzenMast" type="ColorRect" parent="Presentation/Parallax/RiggingLayer"]
 offset_left = 1356.0
 offset_top = 200.0
 offset_right = 1382.0
 offset_bottom = 700.0
 color = Color(0.11, 0.065, 0.03, 1)
 
-[node name="UpperSpar" type="ColorRect" parent="Presentation/ParallaxBackground/RiggingLayer"]
+[node name="UpperSpar" type="ColorRect" parent="Presentation/Parallax/RiggingLayer"]
 offset_left = 640.0
 offset_top = 152.0
 offset_right = 1260.0
 offset_bottom = 168.0
 color = Color(0.13, 0.075, 0.035, 1)
 
-[node name="TatteredMainSail" type="Polygon2D" parent="Presentation/ParallaxBackground/RiggingLayer"]
+[node name="TatteredMainSail" type="Polygon2D" parent="Presentation/Parallax/RiggingLayer"]
 color = Color(0.36, 0.31, 0.25, 1)
 polygon = PackedVector2Array(672, 168, 1232, 168, 1206, 372, 1120, 300, 1042, 396, 950, 306, 862, 400, 776, 306, 700, 366)
 
-[node name="SailScorch" type="Polygon2D" parent="Presentation/ParallaxBackground/RiggingLayer"]
+[node name="SailScorch" type="Polygon2D" parent="Presentation/Parallax/RiggingLayer"]
 color = Color(0.16, 0.12, 0.1, 1)
 polygon = PackedVector2Array(1010, 200, 1160, 176, 1206, 372, 1120, 300, 1042, 396, 1000, 350)
 
-[node name="PortShroud" type="Line2D" parent="Presentation/ParallaxBackground/RiggingLayer"]
+[node name="PortShroud" type="Line2D" parent="Presentation/Parallax/RiggingLayer"]
 points = PackedVector2Array(542, 176, 402, 700)
 width = 4.0
 default_color = Color(0.26, 0.2, 0.15, 1)
 
-[node name="PortShroudInner" type="Line2D" parent="Presentation/ParallaxBackground/RiggingLayer"]
+[node name="PortShroudInner" type="Line2D" parent="Presentation/Parallax/RiggingLayer"]
 points = PackedVector2Array(542, 176, 620, 700)
 width = 4.0
 default_color = Color(0.26, 0.2, 0.15, 1)
 
-[node name="StarboardShroud" type="Line2D" parent="Presentation/ParallaxBackground/RiggingLayer"]
+[node name="StarboardShroud" type="Line2D" parent="Presentation/Parallax/RiggingLayer"]
 points = PackedVector2Array(1370, 208, 1502, 700)
 width = 4.0
 default_color = Color(0.26, 0.2, 0.15, 1)
 
-[node name="StarboardShroudInner" type="Line2D" parent="Presentation/ParallaxBackground/RiggingLayer"]
+[node name="StarboardShroudInner" type="Line2D" parent="Presentation/Parallax/RiggingLayer"]
 points = PackedVector2Array(1370, 208, 1288, 700)
 width = 4.0
 default_color = Color(0.26, 0.2, 0.15, 1)
 
-[node name="MainStay" type="Line2D" parent="Presentation/ParallaxBackground/RiggingLayer"]
+[node name="MainStay" type="Line2D" parent="Presentation/Parallax/RiggingLayer"]
 points = PackedVector2Array(556, 182, 946, 74, 1370, 212)
 width = 3.0
 default_color = Color(0.24, 0.19, 0.14, 1)
 
-[node name="BlackFlag" type="Polygon2D" parent="Presentation/ParallaxBackground/RiggingLayer"]
+[node name="BlackFlag" type="Polygon2D" parent="Presentation/Parallax/RiggingLayer"]
 color = Color(0.04, 0.04, 0.05, 1)
 polygon = PackedVector2Array(964, 66, 1088, 92, 1058, 116, 1084, 142, 964, 156)
 
@@ -318,6 +322,21 @@ offset_top = -420.0
 offset_right = 34.0
 offset_bottom = -14.0
 color = Color(0.12, 0.72, 0.86, 0.05)
+
+[node name="Lighting" parent="." instance=ExtResource("7_lighting")]
+AmbientTone = Color(0.76, 0.82, 0.86, 1)
+KeyColor = Color(1, 0.8, 0.45, 1)
+KeyEnergy = 0.7
+KeyOffset = Vector2(700, 620)
+KeyScale = 9.0
+FillColor = Color(0.2, 0.76, 0.9, 1)
+FillEnergy = 0.45
+FillOffset = Vector2(1250, 560)
+FillScale = 10.0
+RimColor = Color(0.62, 0.8, 0.95, 1)
+RimEnergy = 0.3
+RimOffset = Vector2(950, 120)
+RimScale = 12.0
 
 [node name="Geometry" type="Node2D" parent="."]
 

@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/Level06Controller.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/Environment/StoryDropSystem.cs" id="2_drops"]
@@ -11,12 +11,26 @@
 [ext_resource type="PackedScene" path="res://scenes/templates/EscapeSequenceControllerTemplate.tscn" id="9_escape"]
 [ext_resource type="PackedScene" path="res://scenes/templates/RescuableNPCTemplate.tscn" id="10_civilian"]
 [ext_resource type="PackedScene" path="res://scenes/templates/CyclicHazardTemplate.tscn" id="11_geyser"]
+[ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="12_lighting"]
 
 [node name="Level_06_Pompeii" type="Node2D"]
 script = ExtResource("1_controller")
 
 [node name="StoryDropSystem" type="Node" parent="."]
 script = ExtResource("2_drops")
+
+[node name="Lighting" parent="." instance=ExtResource("12_lighting")]
+AmbientTone = Color(0.88, 0.74, 0.66, 1)
+KeyColor = Color(1, 0.34, 0.06, 1)
+KeyEnergy = 0.9
+KeyOffset = Vector2(-260, 140)
+KeyScale = 11.0
+FillColor = Color(1, 0.55, 0.2, 1)
+FillEnergy = 0.45
+FillOffset = Vector2(300, -180)
+FillScale = 12.0
+RimEnabled = false
+FollowsCamera = true
 
 [node name="RockfallPuzzle" type="Node" parent="."]
 script = ExtResource("3_puzzle")

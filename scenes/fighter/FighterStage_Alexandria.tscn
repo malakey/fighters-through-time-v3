@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/FighterStageController.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/UI/TestArenaHUD.cs" id="2_hud"]
@@ -7,6 +7,7 @@
 [ext_resource type="Resource" path="res://resources/Contracts/fighter_stage_contract.tres" id="5_contract"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/stages/alexandria_parallax_far.svg" id="6_parallax_far"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/stages/alexandria_parallax_near.svg" id="7_parallax_near"]
+[ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="8_lighting"]
 
 [sub_resource type="RectangleShape2D" id="ground_col"]
 size = Vector2(1125, 48)
@@ -31,8 +32,8 @@ offset_right = 2200.0
 offset_bottom = 1200.0
 color = Color(0.15, 0.09, 0.025, 0.45)
 
-[node name="Parallax" type="ParallaxBackground" parent="Presentation"]
-layer = -10
+[node name="Parallax" type="Node2D" parent="Presentation"]
+z_index = -200
 
 [node name="BackdropBase" type="ColorRect" parent="Presentation/Parallax"]
 mouse_filter = 2
@@ -42,18 +43,22 @@ offset_right = 2320.0
 offset_bottom = 1480.0
 color = Color(0.15, 0.09, 0.025, 1)
 
-[node name="GlyphWallLayer" type="ParallaxLayer" parent="Presentation/Parallax"]
-motion_scale = Vector2(0.12, 0.04)
-motion_mirroring = Vector2(1920, 0)
+[node name="GlyphWallLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 1
+scroll_scale = Vector2(0.12, 0.04)
+repeat_size = Vector2(1920, 0)
+repeat_times = 3
 
 [node name="Sprite" type="Sprite2D" parent="Presentation/Parallax/GlyphWallLayer"]
 modulate = Color(0.72, 0.62, 0.48, 1)
 position = Vector2(960, 540)
 texture = ExtResource("6_parallax_far")
 
-[node name="ColonnadeLayer" type="ParallaxLayer" parent="Presentation/Parallax"]
-motion_scale = Vector2(0.38, 0.1)
-motion_mirroring = Vector2(1920, 0)
+[node name="ColonnadeLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 2
+scroll_scale = Vector2(0.38, 0.1)
+repeat_size = Vector2(1920, 0)
+repeat_times = 3
 
 [node name="Sprite" type="Sprite2D" parent="Presentation/Parallax/ColonnadeLayer"]
 modulate = Color(0.88, 0.8, 0.66, 1)
@@ -123,6 +128,21 @@ offset_top = 694.0
 offset_right = 1450.0
 offset_bottom = 714.0
 color = Color(0.78, 0.65, 0.29, 0.45)
+
+[node name="Lighting" parent="." instance=ExtResource("8_lighting")]
+AmbientTone = Color(0.86, 0.8, 0.68, 1)
+KeyColor = Color(1, 0.84, 0.34, 1)
+KeyEnergy = 0.75
+KeyOffset = Vector2(499, 400)
+KeyScale = 10.0
+FillColor = Color(1, 0.84, 0.34, 1)
+FillEnergy = 0.75
+FillOffset = Vector2(1401, 400)
+FillScale = 10.0
+RimColor = Color(0.86, 0.69, 0.18, 1)
+RimEnergy = 0.3
+RimOffset = Vector2(950, 180)
+RimScale = 12.0
 
 [node name="Geometry" type="Node2D" parent="."]
 

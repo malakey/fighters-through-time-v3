@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/FighterStageController.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/UI/TestArenaHUD.cs" id="2_hud"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="4_marker"]
 [ext_resource type="Resource" path="res://resources/Contracts/fighter_stage_contract.tres" id="5_contract"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/stages/orleans_parallax.svg" id="6_parallax"]
+[ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="7_lighting"]
 
 [sub_resource type="RectangleShape2D" id="ground_col"]
 size = Vector2(1125, 48)
@@ -32,45 +33,47 @@ offset_right = 2200.0
 offset_bottom = 1300.0
 color = Color(0.06, 0.08, 0.15, 1)
 
-[node name="ParallaxBackground" type="ParallaxBackground" parent="Presentation"]
-layer = -1
+[node name="Parallax" type="Node2D" parent="Presentation"]
+z_index = -200
 
-[node name="SkyLayer" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
-motion_scale = Vector2(0.15, 0.05)
+[node name="SkyLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 1
+scroll_scale = Vector2(0.15, 0.05)
 
-[node name="FarSiege" type="Sprite2D" parent="Presentation/ParallaxBackground/SkyLayer"]
+[node name="FarSiege" type="Sprite2D" parent="Presentation/Parallax/SkyLayer"]
 modulate = Color(0.82, 0.84, 0.95, 1)
 position = Vector2(960, 540)
 texture = ExtResource("6_parallax")
 
-[node name="SiegeLineLayer" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
-motion_scale = Vector2(0.45, 0.12)
+[node name="SiegeLineLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 2
+scroll_scale = Vector2(0.45, 0.12)
 
-[node name="WestTower" type="Polygon2D" parent="Presentation/ParallaxBackground/SiegeLineLayer"]
+[node name="WestTower" type="Polygon2D" parent="Presentation/Parallax/SiegeLineLayer"]
 color = Color(0.1, 0.13, 0.19, 1)
 polygon = PackedVector2Array(180, 1080, 180, 470, 208, 430, 262, 430, 290, 470, 290, 1080)
 
-[node name="WestTrebuchetFrame" type="Polygon2D" parent="Presentation/ParallaxBackground/SiegeLineLayer"]
+[node name="WestTrebuchetFrame" type="Polygon2D" parent="Presentation/Parallax/SiegeLineLayer"]
 color = Color(0.08, 0.1, 0.15, 1)
 polygon = PackedVector2Array(400, 1080, 490, 700, 580, 1080)
 
-[node name="WestTrebuchetArm" type="Polygon2D" parent="Presentation/ParallaxBackground/SiegeLineLayer"]
+[node name="WestTrebuchetArm" type="Polygon2D" parent="Presentation/Parallax/SiegeLineLayer"]
 color = Color(0.08, 0.1, 0.15, 1)
 polygon = PackedVector2Array(452, 780, 470, 764, 600, 548, 582, 534)
 
-[node name="CathedralSpire" type="Polygon2D" parent="Presentation/ParallaxBackground/SiegeLineLayer"]
+[node name="CathedralSpire" type="Polygon2D" parent="Presentation/Parallax/SiegeLineLayer"]
 color = Color(0.11, 0.14, 0.21, 1)
 polygon = PackedVector2Array(900, 1080, 900, 520, 960, 330, 1020, 520, 1020, 1080)
 
-[node name="EastTower" type="Polygon2D" parent="Presentation/ParallaxBackground/SiegeLineLayer"]
+[node name="EastTower" type="Polygon2D" parent="Presentation/Parallax/SiegeLineLayer"]
 color = Color(0.1, 0.13, 0.19, 1)
 polygon = PackedVector2Array(1520, 1080, 1520, 452, 1548, 412, 1602, 412, 1630, 452, 1630, 1080)
 
-[node name="EastTrebuchetFrame" type="Polygon2D" parent="Presentation/ParallaxBackground/SiegeLineLayer"]
+[node name="EastTrebuchetFrame" type="Polygon2D" parent="Presentation/Parallax/SiegeLineLayer"]
 color = Color(0.08, 0.1, 0.15, 1)
 polygon = PackedVector2Array(1340, 1080, 1430, 700, 1520, 1080)
 
-[node name="EastTrebuchetArm" type="Polygon2D" parent="Presentation/ParallaxBackground/SiegeLineLayer"]
+[node name="EastTrebuchetArm" type="Polygon2D" parent="Presentation/Parallax/SiegeLineLayer"]
 color = Color(0.08, 0.1, 0.15, 1)
 polygon = PackedVector2Array(1468, 780, 1450, 764, 1320, 548, 1338, 534)
 
@@ -153,6 +156,21 @@ offset_top = 684.0
 offset_right = 1462.0
 offset_bottom = 700.0
 color = Color(0.93, 0.55, 0.16, 0.65)
+
+[node name="Lighting" parent="." instance=ExtResource("7_lighting")]
+AmbientTone = Color(0.72, 0.75, 0.86, 1)
+KeyColor = Color(1, 0.78, 0.38, 1)
+KeyEnergy = 0.8
+KeyOffset = Vector2(700, 600)
+KeyScale = 10.0
+FillColor = Color(1, 0.7, 0.3, 1)
+FillEnergy = 0.45
+FillOffset = Vector2(1250, 600)
+FillScale = 9.0
+RimColor = Color(0.6, 0.72, 1, 1)
+RimEnergy = 0.35
+RimOffset = Vector2(960, 180)
+RimScale = 13.0
 
 [node name="Geometry" type="Node2D" parent="."]
 

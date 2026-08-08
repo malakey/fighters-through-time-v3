@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/FighterStageController.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/UI/TestArenaHUD.cs" id="2_hud"]
@@ -7,6 +7,7 @@
 [ext_resource type="Resource" path="res://resources/Contracts/fighter_stage_contract.tres" id="5_contract"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/parallax_far.svg" id="6_far"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/stages/berlin_parallax_skyline.svg" id="7_skyline"]
+[ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="8_lighting"]
 
 [sub_resource type="RectangleShape2D" id="ground_col"]
 size = Vector2(1250, 48)
@@ -31,8 +32,8 @@ offset_right = 2200.0
 offset_bottom = 1200.0
 color = Color(0.055, 0.07, 0.1, 0.45)
 
-[node name="Parallax" type="ParallaxBackground" parent="Presentation"]
-layer = -20
+[node name="Parallax" type="Node2D" parent="Presentation"]
+z_index = -200
 
 [node name="BackdropBase" type="ColorRect" parent="Presentation/Parallax"]
 mouse_filter = 2
@@ -42,16 +43,18 @@ offset_right = 2320.0
 offset_bottom = 1480.0
 color = Color(0.055, 0.07, 0.1, 1)
 
-[node name="FarLayer" type="ParallaxLayer" parent="Presentation/Parallax"]
-motion_scale = Vector2(0.1, 0.04)
+[node name="FarLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 1
+scroll_scale = Vector2(0.1, 0.04)
 
 [node name="FarSky" type="Sprite2D" parent="Presentation/Parallax/FarLayer"]
 modulate = Color(0.34, 0.42, 0.52, 1)
 position = Vector2(960, 540)
 texture = ExtResource("6_far")
 
-[node name="SkylineLayer" type="ParallaxLayer" parent="Presentation/Parallax"]
-motion_scale = Vector2(0.35, 0.12)
+[node name="SkylineLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 2
+scroll_scale = Vector2(0.35, 0.12)
 
 [node name="Skyline" type="Sprite2D" parent="Presentation/Parallax/SkylineLayer"]
 modulate = Color(0.72, 0.78, 0.86, 1)
@@ -193,6 +196,21 @@ offset_top = 694.0
 offset_right = 1540.0
 offset_bottom = 706.0
 color = Color(0.88, 0.92, 0.96, 0.8)
+
+[node name="Lighting" parent="." instance=ExtResource("8_lighting")]
+AmbientTone = Color(0.7, 0.74, 0.8, 1)
+KeyColor = Color(0.85, 0.92, 1, 1)
+KeyEnergy = 0.9
+KeyOffset = Vector2(700, 200)
+KeyScale = 12.0
+FillColor = Color(0.85, 0.92, 1, 1)
+FillEnergy = 0.7
+FillOffset = Vector2(950, 200)
+FillScale = 12.0
+RimColor = Color(0.9, 0.25, 0.25, 1)
+RimEnergy = 0.3
+RimOffset = Vector2(1200, 560)
+RimScale = 9.0
 
 [node name="Geometry" type="Node2D" parent="."]
 

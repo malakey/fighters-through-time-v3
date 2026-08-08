@@ -144,20 +144,18 @@ public class FighterStageVesuviusTests {
             AssertObject(presentation).IsNotNull();
             AssertObject(presentation.GetNodeOrNull<ColorRect>("BackdropTint")).IsNotNull();
 
-            // Godot 4.7 marks ParallaxBackground/ParallaxLayer obsolete in favour of
-            // Parallax2D, and a typed reference here would emit CS0618. The plan (§5
-            // item 2) specifies ParallaxBackground for all nine stages, so the tree is
-            // inspected by class name and property instead of by deprecated type.
-            var parallax = presentation.GetNodeOrNull<CanvasLayer>("ParallaxBackground");
+            // Typed against Parallax2D since the Package 8 B7 migration; the
+            // predecessors are [Obsolete] in Godot 4.7 and a typed reference to them
+            // emitted CS0618, which is why this was inspected by class name before.
+            var parallax = presentation.GetNodeOrNull<Node2D>("Parallax");
             AssertObject(parallax).IsNotNull();
-            AssertThat(parallax.GetClass()).IsEqual("ParallaxBackground");
 
             var scrollFactors = new List<Vector2>();
             foreach (Node child in parallax.GetChildren()) {
-                if (child.GetClass() != "ParallaxLayer") continue;
-                scrollFactors.Add(child.Get("motion_scale").AsVector2());
+                if (child is not Parallax2D layer) continue;
+                scrollFactors.Add(layer.ScrollScale);
                 // A layer with no visual is a layer that does nothing.
-                AssertThat(child.GetChildCount() > 0).IsTrue();
+                AssertThat(layer.GetChildCount() > 0).IsTrue();
             }
             AssertThat(scrollFactors.Count >= 2).IsTrue();
             AssertThat(scrollFactors[0]).IsNotEqual(scrollFactors[1]);

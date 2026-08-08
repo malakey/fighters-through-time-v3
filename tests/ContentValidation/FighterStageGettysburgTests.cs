@@ -121,12 +121,11 @@ public class FighterStageGettysburgTests {
     /// background with at least two layers at distinct scroll factors, and the
     /// era dressing that makes the artillery band readable before it fires.
     ///
-    /// <para>The nodes are reached through <see cref="Node.IsClass"/> and untyped
-    /// property reads rather than the <c>ParallaxBackground</c>/<c>ParallaxLayer</c>
-    /// C# types: Godot 4.7 marks both `[Obsolete]` in favour of `Parallax2D`, and
-    /// naming them here would add two `CS0618` warnings to a build gate that
-    /// requires none. The authored scene still uses the node types the plan
-    /// specifies.</para>
+    /// <para>Typed against <see cref="Parallax2D"/> since the Package 8 B7
+    /// migration. The old <c>ParallaxBackground</c>/<c>ParallaxLayer</c> pair is
+    /// `[Obsolete]` in the Godot 4.7 bindings, which is why this assertion used to
+    /// go through <see cref="Node.IsClass"/> and untyped property reads; the
+    /// replacement class needs no such workaround.</para>
     /// </summary>
     [TestCase]
     public void ThePresentationLayerCarriesTheEraBackdropAndHazardDressing() {
@@ -134,16 +133,15 @@ public class FighterStageGettysburgTests {
         try {
             AssertObject(root.GetNodeOrNull<ColorRect>("Presentation/BackdropTint")).IsNotNull();
 
-            var parallax = root.GetNodeOrNull<CanvasLayer>("Presentation/ParallaxBackground");
+            var parallax = root.GetNodeOrNull<Node2D>("Presentation/Parallax");
             AssertObject(parallax).IsNotNull();
-            AssertThat(parallax.IsClass("ParallaxBackground")).IsTrue();
 
             var scrollFactors = new List<float>();
             foreach (Node child in parallax.GetChildren()) {
-                if (!child.IsClass("ParallaxLayer")) continue;
+                if (child is not Parallax2D layer) continue;
                 // Each layer must actually carry placeholder art, not be an empty node.
-                AssertObject(child.GetNodeOrNull<Sprite2D>("Sprite2D")?.Texture).IsNotNull();
-                scrollFactors.Add(child.Get("motion_scale").AsVector2().X);
+                AssertObject(layer.GetNodeOrNull<Sprite2D>("Sprite2D")?.Texture).IsNotNull();
+                scrollFactors.Add(layer.ScrollScale.X);
             }
             AssertThat(scrollFactors.Count >= 2).IsTrue();
             // Distinct scroll factors, otherwise there is no parallax.
