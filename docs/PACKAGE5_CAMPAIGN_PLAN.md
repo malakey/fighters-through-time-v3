@@ -918,3 +918,89 @@ a pre-merge `git add`) before it will fast-forward.
 - **L06: suite baseline 514 -> 528** (+14 `Level06ContentTests`), verified at 528/528, 0 failed on
   the first full run, in 15 s. Import clean; `Level_06_Pompeii.tscn` smoke clean at
   `--quit-after 300` with zero errors or warnings. `AGENTS.md` is left for C1 per the A1 convention.
+### Wave B — L11 Gettysburg, 1863
+
+- **L11: §4.1 held exactly; no boss-resource contradiction.** `resources/Bosses/siege_cannon.tres`
+  reads `MaxHP = 880`, `MeleeRangeThreshold = 3.0`, `RangedRangeThreshold = 12.0`, one threshold at
+  0.5, `AttackPattern = DistanceBased`, `IsKnockbackImmune = true`, 50 dust — the §4.1 row as
+  written. Nothing was edited. The railcut is 2,560 px against the 720 px the 12-unit band needs at
+  60 px/unit (the widest band in the roster), and `Level11ContentTests` asserts
+  `RangedRangeThreshold * 60` against the room width rather than a hardcoded number, so re-tuning
+  the boss cannot silently outgrow the arena.
+- **L11: the shielding arrays are differentiated from Orléans by geometry class, and a test pins
+  the difference.** Level 2 uses `ShieldGeneratorTower` as a *wall*: its panes straddle the walking
+  surface (y 582..902) so breaking a generator is how the player passes, which is why it needs a
+  solid arch above each 320 px pane. Level 11 instead stands both arrays on a raised earthwork
+  gallery at `CrestTopY = 560`, so every pane seals the **Union assault lane** (y 240..560) and
+  never the ground route the player walks. Progress is gated by the Confederate breastwork, a
+  `BuildDoor` the Union engineers drop only when `ArraysDestroyed == 2` — an objective gate, not a
+  barrier gate. `ThePanesSealTheRaisedUnionLaneAndNeverThePlayersOwnAdvance` fails if any pane
+  reaches down into the player's advance band (`GroundY - PlayerAdvanceHeadroom`), so a later
+  layout pass cannot quietly turn Level 11 back into a copy of the Orléans gate. The L02 arch
+  constraint still applies in spirit and is honoured: an earthwork roof mass fills everything above
+  each pane's top edge, and the gallery deck is flush with its bottom edge, so the lane is a real
+  seal rather than a jumpable ornament. Two of the three extractors sit on the galleries beyond a
+  pane, so sabotaging an array pays the player as well as the Union line.
+- **L11: the gallery height is a derived constant, not a taste call.** Everything follows from the
+  template's un-overridable `Barrier` offset of `(320, -48)` with a 48x320 pane:
+  `ArrayY = CrestTopY - 112` (the tower's collision half-height), `BarrierCenterY = ArrayY - 48`,
+  and the seal spans `BarrierCenterY ± 160`. `CrestTopY` was then lowered from an initial 620 to 560
+  purely so the gallery underside clears the tallest cover on the ground line beneath it by more
+  than a player's height — at 620 a player standing on a 140 px cannon wreck under the gallery had
+  only ~168 px of headroom. A content test asserts that clearance, because the two numbers are
+  coupled and nothing else would catch the regression.
+- **L11: the cover/artillery fairness contract is a pure function shared by the level and the test.**
+  `Level11Controller.UncoveredArtilleryGaps()` and `IsInsideBlastColumn(x)` live on the controller,
+  and `EveryArtilleryGapHoldsCoverAndNoCoverStandsInsideABlastColumn` drives them: every gap between
+  two consecutive shell columns must hold at least one authored cover piece, no cover piece (centre
+  *or* either edge) may stand inside a column, and no checkpoint may respawn the player inside one.
+  This is the design's advance/cover/advance beat expressed as an invariant — the L09 precedent of
+  positional cover, computed rather than eyeballed. The one deliberate exception is the two climbs
+  onto the galleries: their middle step sits squarely inside a column (x 4790 under the 4750 lane,
+  x 6620 under the 6620 lane), which is the "cross exposed artillery ground to reach the objective"
+  beat. The invariant is scoped to `CoverPositions`, not to every platform, so that stays authorable.
+  A second test asserts the scene's ten `CyclicHazardTemplate` instances match
+  `ArtilleryImpactPoints` position-for-position, so the table the invariant is checked against
+  cannot drift from the geometry it describes.
+- **L11: the artillery telegraph is proven by driving the real cycle, not by reading exports.**
+  `StoryCyclicHazard._PhysicsProcess` is stepped at 1/60 s (the `EraMechanicToolkitTests` pattern)
+  to prove the phase order is cooldown -> warning -> active and that the warning really lasts the
+  design's ~2 s of cycle time, then `ApplyToPlayer` is called in each phase to prove the telegraph
+  is a free read and the active phase is not. Asserting `WarningDuration >= 1.8` alone would pass
+  on a component that fired straight out of cooldown.
+- **L11: the checkpoint-2 resume force-destroys both arrays; the checkpoint-1 resume deliberately
+  does not.** Checkpoint 2 stands east of the breastwork, so `MarkWavesClearedThrough` drives both
+  arrays through `TakeEnvironmentDamage(MaxHP)` — the same path the player's attacks take — and
+  opens the gate, keeping the panes, the objective counter, and the geometry in agreement (the L02
+  generator precedent). Checkpoint 1 sits at x 6,250, inside room 2 and west of nothing that seals,
+  so a midpoint resume leaves the arrays standing and the player can still walk back to gallery
+  Alpha without crossing a room seam. Both halves are pinned by one test; the gate opener is
+  idempotent (`OpenDoor` nulls the reference) as the Wave A integration requires.
+- **L11: no bidirectional room-transition pairs were needed.** L03 added `BuildRoomTransitionPair`
+  because backtracking across a seam left the camera clamped. Level 11 is authored so that nothing
+  ever requires crossing a seam westward: both galleries, both climbs, and every extractor sit
+  inside the room whose checkpoint precedes them. Single one-shot triggers are correct here, and
+  the linearity the design asks for is what makes that true.
+- **L11: the level's only elite inherits the L06 flankability contract.**
+  `cyber_cavalry_commander` carries `FrontalDamageReduction = 0.4`, so its post at the Angle is
+  authored under a 400 px drop-through platform that spans its whole patrol, and
+  `TheCavalryCommandersPostIsFlankableFromAbove` fails if the platform is removed, the patrol
+  collapses to a point, or the post drifts out from under the platform.
+- **L11: the content fixture always resumes at a checkpoint (default `_checkpoint_0`),** following
+  L04/L06. A fresh entry defers the entrance dialogue, which is authored `PausesGameplay = true`,
+  and a landed deferred call leaks `SceneTree.Paused` and hangs the session (signature 4). The
+  fixture samples and restores the pause flag anyway.
+- **L11: the first full-suite run reported `Total: 24` with `GodotRuntimeTestRunner ends with exit
+  code: 100` / `Starting GodotRuntimeExecutor failed` / `Connection timeout`, with an empty process
+  table** — even though a filtered run of four suites had just passed 39/39 in the same worktree.
+  A plain `dotnet build` plus an immediate re-run was **570/570, 0 failed, 16 s**. So the
+  fresh-worktree exit-100 artifact is not strictly first-run-only: a filtered run does not
+  necessarily "warm" the adapter for the unfiltered one.
+- **L11: suite baseline 554 -> 570** (+16 `Level11ContentTests`), where 554 is Wave A's 514 plus the
+  merged L06 (+14), L08 (+11), and L09 (+15). Import clean; `--headless --quit` clean;
+  `Level_11_Gettysburg.tscn` smoke at `--quit-after 300` exits 0 with no output at all — no script
+  errors and no warnings. `AGENTS.md`'s baseline sentence is left for C1 per the A1 convention.
+- **L11: `--headless --import` rewrote 41 tracked `.import` files with line-ending-only churn**
+  (`git diff` reported nothing but CRLF warnings), the same artifact L09 logged. Reverted with
+  `git checkout -- "*.import"`. The regenerated `localization/en.en.translation` *is* committed,
+  per the L02 rule.

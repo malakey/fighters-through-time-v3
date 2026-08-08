@@ -804,3 +804,25 @@ dlg_l06_exit_2,"Confirmed. Vesuvius is back on its own clock: eighteen hours, ex
 dlg_l06_exit_3,"It went dim again. Further than last time. Halfway up the ash road I felt it go out completely, for a second."
 dlg_l06_exit_4,"I saw it on the telemetry. Your resonance is drawn out of the fracture, and every fracture you close is a little less of you. I am logging it, Traveler. I will not pretend it is not happening."
 dlg_l06_exit_5,"Log it, and bring me home. There are nine more of these."
+gettysburg_level_title,"LEVEL 11: THE GETTYSBURG BATTLEFIELD — PENNSYLVANIA 1863"
+gettysburg_room_seminary_ridge,SEMINARY RIDGE APPROACH
+gettysburg_room_wheatfield,THE WHEATFIELD
+gettysburg_room_angle,"THE ANGLE — CEMETERY RIDGE"
+gettysburg_room_railcut,BOSS: THE SIEGE CANNON
+gettysburg_objective_advance,"Advance east across the battlefield — use the fences and sandbags for cover."
+gettysburg_objective_arrays,Destroy the Apex shielding arrays ({0}/{1})
+gettysburg_objective_breach,"Both arrays are down. The Union line has the breastwork — follow it into the railcut."
+gettysburg_objective_defeat_boss,Destroy the Siege Cannon!
+gettysburg_objective_complete,LEVEL COMPLETE! Returning to Time-Ship...
+gettysburg_lane_shielded,"EM SCREEN — UNION LANE SEALED"
+gettysburg_gate_sealed,"CONFEDERATE BREASTWORK — BREAK THE SHIELDING ARRAYS"
+speaker_siege_cannon,The Siege Cannon
+dlg_l11_entrance_1,"That is not cannon fire. Those shells are tracking — they turn to follow me."
+dlg_l11_entrance_2,"Confirmed. The Archive handed the Confederate batteries laser guidance and an electromagnetic screen, and Union brigades are pinned in the open. Two shielding arrays hold that screen up. Break both and the line moves. Keep something solid between you and the sky, Traveler — those guns telegraph before they fire."
+dlg_l11_boss_1,"RAILHEAD SECURE. TARGET RESOLVED. THE FIELD BELONGS TO THE GUN."
+dlg_l11_boss_2,"Then come off the rails and say that where I can reach you."
+dlg_l11_exit_1,"The gun is dead. The sky is quiet. First time all day I can hear the wheat."
+dlg_l11_exit_2,"Siphon shattered — the whole Gettysburg draw just went dark on my board. The Union advance is over the wall and the battle is running on its own clock again. Whatever the Archive wrote here is unwritten."
+dlg_l11_exit_3,"Sarah. Climbing that last bank I reached for the resonance and for half a second there was nothing there. Just me."
+dlg_l11_exit_4,"I saw it on the telemetry. The gap is longer every level. I am not going to dress that up for you — every fracture you close is drawn out of you, and I am logging every second of it."
+dlg_l11_exit_5,"Log it. Then pull me out. There are four more of these."
