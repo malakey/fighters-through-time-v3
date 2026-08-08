@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <defs>
+    <linearGradient id="orleansSky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#0f1526"/>
+      <stop offset="0.65" stop-color="#0f1426"/>
+      <stop offset="1" stop-color="#3a2418"/>
+    </linearGradient>
+    <radialGradient id="siegeGlow" cx="0.5" cy="1" r="0.9">
+      <stop stop-color="#d9ab2e" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#d9ab2e" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="640" height="360" fill="url(#orleansSky)"/>
+  <ellipse cx="320" cy="330" rx="320" ry="150" fill="url(#siegeGlow)"/>
+
+  <!-- Besieged city skyline: cathedral spire between watchtowers. -->
+  <path d="M0 250 L52 250 L52 190 L84 190 L84 250 L150 250 L150 205 L168 205 L168 250
+           L214 250 L214 160 L232 96 L250 160 L250 250 L318 250 L318 198 L342 198 L342 250
+           L410 250 L410 172 L432 172 L432 250 L500 250 L500 206 L524 206 L524 250
+           L590 250 L590 186 L620 186 L620 250 L640 250 L640 360 L0 360 Z"
+        fill="#1a2233"/>
+
+  <!-- Siege lines and campfires beyond the ramparts. -->
+  <circle cx="96" cy="238" r="7" fill="#d9ab2e" opacity="0.45"/>
+  <circle cx="286" cy="242" r="6" fill="#d9ab2e" opacity="0.35"/>
+  <circle cx="556" cy="240" r="8" fill="#d9ab2e" opacity="0.4"/>
+
+  <!-- Rampart walkway: the stage floor. -->
+  <rect x="0" y="286" width="640" height="74" fill="#383d46"/>
+  <rect x="0" y="282" width="640" height="4" fill="#d9ab2e"/>
+  <g fill="#2b3038">
+    <rect x="14" y="266" width="26" height="18"/>
+    <rect x="70" y="266" width="26" height="18"/>
+    <rect x="126" y="266" width="26" height="18"/>
+    <rect x="488" y="266" width="26" height="18"/>
+    <rect x="544" y="266" width="26" height="18"/>
+    <rect x="600" y="266" width="26" height="18"/>
+  </g>
+
+  <!-- Three stone platforms in the authored triangle: two low flanks, one high keep. -->
+  <g>
+    <rect x="146" y="246" width="112" height="12" fill="#383d46"/>
+    <rect x="146" y="242" width="112" height="4" fill="#d9ab2e"/>
+    <rect x="382" y="246" width="112" height="12" fill="#383d46"/>
+    <rect x="382" y="242" width="112" height="4" fill="#d9ab2e"/>
+    <rect x="264" y="166" width="112" height="12" fill="#383d46"/>
+    <rect x="264" y="162" width="112" height="4" fill="#d9ab2e"/>
+  </g>
+
+  <!-- Trebuchet impact zones at the two wall anchors, and burning debris mid-roll. -->
+  <g opacity="0.85">
+    <rect x="0" y="276" width="56" height="10" fill="#c0631d"/>
+    <rect x="584" y="276" width="56" height="10" fill="#c0631d"/>
+  </g>
+  <circle cx="196" cy="268" r="14" fill="#e2761f"/>
+  <circle cx="196" cy="268" r="7" fill="#ffd47a"/>
+  <path d="M210 262 L246 250 L214 274 Z" fill="#e2761f" opacity="0.6"/>
+
+  <text x="20" y="42" fill="#d9ab2e" font-family="sans-serif" font-size="22" opacity="0.8">ORLEANS</text>
+  <text x="20" y="66" fill="#8f9aad" font-family="sans-serif" font-size="14" opacity="0.7">VANGUARD RAMPARTS - 1429</text>
+</svg>

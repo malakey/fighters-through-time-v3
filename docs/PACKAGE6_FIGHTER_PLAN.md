@@ -895,3 +895,56 @@ CLAUDE.md's failure-signature table.
 **INTEGRATION-A: A4's one-`[TestSuite]`-per-file rule is promoted to a Phase B instruction** (a
 second suite in the same file is discovered but silently not executed — `Total:` moves by a
 plausible-looking +1 instead of the real delta).
+
+### B — Orléans (2026-08-08)
+
+**Every §4 dossier number for `orleans_vanguard` shipped unchanged and the scene mirrors the merged
+`FighterStageGeometry.Orleans` exactly.** Walls ±9, platforms (−3.5, 2.0, 1.4), (3.5, 2.0, 1.4),
+(0, 4.0, 1.4), hazard anchors {−8, 8} and orb anchors (−3.5, 2.5), (3.5, 2.5), (0, 4.5) convert to
+pixels through §2.10 with no rounding residue — every value lands on a clean multiple of 0.25 px —
+so `FighterStageConformance.Validate` returns an empty issue list with no epsilon slack consumed.
+Pinned by `FighterStageOrleansTests.TheSceneMirrorsItsAuthoredFixedPointGeometry`.
+
+**`BackdropTint` lives at `Presentation/Backdrop/BackdropTint` — one `CanvasLayer` deeper than
+Florence's `Presentation/BackdropTint` — because a `ParallaxBackground` is itself a `CanvasLayer`.**
+To sit behind the stage the parallax must be on a negative layer, and *any* layer-0 `ColorRect` then
+draws in front of it regardless of `z_index`, hiding the whole backdrop. Florence has no parallax so
+the conflict never arose there. The tint therefore sits on its own `CanvasLayer` at layer −2 with the
+parallax at −1. The contract does not name `BackdropTint`, so this is a presentation-convention
+divergence, not a contract violation; the per-stage test pins the new path. **The other eight Phase B
+stages hit the same problem the moment they add a parallax — copying Florence's flat layout silently
+produces an invisible parallax that no test catches.**
+
+**`ParallaxBackground`/`ParallaxLayer` are deprecated in Godot 4.7.1 in favour of `Parallax2D`, and
+were used anyway because §5 deliverable 2 names them explicitly.** The nodes still function; the cost
+is a `CS0618` wherever C# references the types, scoped here with `#pragma warning disable CS0618`
+around the one block in `FighterStageOrleansTests` that reads `MotionScale`. The `.tscn` itself
+produces no warning. Nine stages doing this independently means nine identical suppressions — C1
+should decide whether to migrate all ten stages to `Parallax2D` in one pass rather than leaving the
+suppression scattered.
+
+**A second placeholder SVG, `assets/placeholders/stages/orleans_parallax.svg`, was authored beyond
+the single preview image §5 deliverable 5 asks for.** The only existing parallax placeholder,
+`assets/placeholders/parallax_far.svg`, is a purple-sky asset already used as the generic prototype
+backdrop; reusing it would have made Orléans read as "generic prototype stage" and failed the stated
+"distinct at a glance from every other stage" bar. Both new SVGs are imported and their `.import`
+sidecars are committed.
+
+**The hazard-cycle assertion is written against observed behaviour, not the dossier's active window.**
+At the authored 0.09 units/*frame* (A1's per-frame convention), the debris crosses the 18-unit stage
+in roughly 178 frames, inside the 240-frame active window — so the despawn that ends the active phase
+is the far-wall check in `AdvanceActiveHazard`, never the timer. The two-simulation run therefore
+covers 2400 ticks (spawn on the 1800-frame High boundary, 90-frame warning, the full roll, 60-frame
+recovery) and asserts both that the warning phase was observed and that the debris actually
+translated more than one unit from its spawn anchor, so a future change that leaves the boulder
+parked still fails.
+
+**`AssertBase.OverrideFailureMessage("")` throws `ArgumentException` inside GdUnit4.** The idiom
+`OverrideFailureMessage(string.Join("; ", errors))`, copied from an existing suite, fails the test on
+the *success* path when the error list is empty. Every override message in this suite is prefixed
+with a literal. Worth knowing before it costs another Phase B agent a run.
+
+**No shared file was touched.** `stage_catalog.tres`, `content_manifest.csv`,
+`scene_pool_catalog.tres`, `SceneSmokeTests.cs`, `localization/en.csv`, `scripts/FighterSim/**` and
+`scripts/Core/**` are unmodified; the scene is not routed at runtime until C1 wires the catalog
+`ScenePath`, and the per-stage test loads it directly by path.
