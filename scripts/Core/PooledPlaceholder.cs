@@ -15,6 +15,13 @@ namespace FTT.Core {
         [Export] public string ContentID = "placeholder";
         [Export] public PlaceholderPoolCategory Category;
         [Export(PropertyHint.Range, "0,36000,1")] public int LifetimeFrames;
+        /// <summary>
+        /// Particles this instance's emitters produce while alive. Reserved against
+        /// the shared 500-particle budget on spawn and released on despawn; when the
+        /// budget is exhausted the oldest emitters are silenced rather than the new
+        /// one being dropped, so the newest gameplay feedback always shows.
+        /// </summary>
+        [Export(PropertyHint.Range, "0,500,1")] public int ParticleBudgetCost;
         [Export] public FTT.Environment.StoryRewindPolicy RewindPolicy { get; set; } = FTT.Environment.StoryRewindPolicy.RestoreCheckpointState;
 
         public Vector2 RuntimeVelocity { get; set; }
@@ -39,7 +46,7 @@ namespace FTT.Core {
             _framesRemaining = LifetimeFrames;
             Visible = true;
             SetPhysicsProcess(true);
-            ResetParticles(true);
+            ResetParticles(ReserveParticleBudget());
             _initialPosition = GlobalPosition;
             _checkpointPosition = GlobalPosition;
             _checkpointVelocity = RuntimeVelocity;
@@ -64,8 +71,26 @@ namespace FTT.Core {
             Scale = Vector2.One;
             Modulate = Colors.White;
             ResetParticles(false);
+            if (ParticleBudgetCost > 0) FTT.Combat.ParticleBudget.Shared.Release(GetInstanceId());
             SetPhysicsProcess(false);
             _rewindFrozen = false;
+        }
+
+        /// <summary>
+        /// Claims this instance's slice of the shared particle budget. Returns false
+        /// when the request cannot fit at all, in which case the instance spawns
+        /// without particles rather than breaching the budget.
+        /// </summary>
+        private bool ReserveParticleBudget() {
+            if (ParticleBudgetCost <= 0) return true;
+            bool granted = FTT.Combat.ParticleBudget.Shared.TryReserve(
+                GetInstanceId(), ParticleBudgetCost,
+                out System.Collections.Generic.IReadOnlyList<ulong> evicted);
+            foreach (ulong id in evicted) {
+                if (!IsInstanceIdValid(id)) continue;
+                if (InstanceFromId(id) is PooledPlaceholder displaced) displaced.ResetParticles(false);
+            }
+            return granted;
         }
 
         public void CaptureCheckpointState(string checkpointID) {
@@ -90,6 +115,12 @@ namespace FTT.Core {
         private void OnRewindTriggered(Vector2 targetPosition) => ApplyStoryRewind();
 
         private void ResetParticles(bool emitting) {
+            // An instance spawned off-screen must not start emitting: the visibility
+            // suspender owns that decision and will resume it when it scrolls in.
+            if (emitting && GetNodeOrNull<FTT.Combat.PresentationVisibilitySuspender>(
+                    FTT.Combat.PresentationVisibilitySuspender.NodeName)?.IsSuspended == true) {
+                emitting = false;
+            }
             Godot.Collections.Array<Node> children = GetChildren();
             using var childrenLifetime = children.AsDisposable();
             foreach (Node child in children) {

@@ -111,6 +111,26 @@ namespace FTT.Core {
         public bool IsActive;
     }
 
+    /// <summary>
+    /// A combatant's own attack connected. Raised for the attacker so feedback
+    /// layers (haptics, hit VFX, hit stop) can respond without polling hitboxes.
+    /// </summary>
+    public struct HitConfirmPayload {
+        /// <summary>Attacking player slot, or -1 for an enemy/boss attacker.</summary>
+        public int PlayerIndex;
+        public string AttackID;
+        public float DamageApplied;
+        /// <summary>True for special/ultimate class hits; drives stronger feedback.</summary>
+        public bool IsHeavy;
+        public Vector2 Position;
+    }
+
+    public struct UltimateActivationPayload {
+        public int PlayerIndex;
+        public string AbilityID;
+        public Vector2 Position;
+    }
+
     public struct PuzzleStatePayload {
         public string PuzzleID;
         public bool IsCompleted;
@@ -252,6 +272,21 @@ namespace FTT.Core {
         // === Status Effect Events ===
         public event Action<StatusEffectPayload> OnStatusEffectApplied;
         public void RaiseStatusEffectApplied(StatusEffectPayload payload) => OnStatusEffectApplied?.Invoke(payload);
+
+        /// <summary>
+        /// Raised when an active status expires or is replaced. The payload carries
+        /// <c>StatusType.None</c>; presentation layers clear their status treatment.
+        /// </summary>
+        public event Action<StatusEffectPayload> OnStatusEffectCleared;
+        public void RaiseStatusEffectCleared(StatusEffectPayload payload) => OnStatusEffectCleared?.Invoke(payload);
+
+        /// <summary>Raised when a combatant's own attack lands, for feedback layers.</summary>
+        public event Action<HitConfirmPayload> OnHitConfirm;
+        public void RaiseHitConfirm(HitConfirmPayload payload) => OnHitConfirm?.Invoke(payload);
+
+        /// <summary>Raised the frame an ultimate starts, in both modes.</summary>
+        public event Action<UltimateActivationPayload> OnUltimateActivation;
+        public void RaiseUltimateActivation(UltimateActivationPayload payload) => OnUltimateActivation?.Invoke(payload);
 
         // === Chronal / Rewind Events ===
         public event Action<Vector2> OnRewindTriggered;

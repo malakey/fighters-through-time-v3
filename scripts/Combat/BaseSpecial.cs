@@ -54,7 +54,40 @@ namespace FTT.Combat {
 
             CurrentPhase = AbilityPhase.Startup;
             OnStartup();
+            EmitCastVfx();
             return true;
+        }
+
+        /// <summary>
+        /// Package 8 A3: spawns the authored cast effect from the pooled VFX
+        /// service. Null-safe — <c>CastVFXScene</c> is unassigned until B6 authors
+        /// the resources, and nothing gameplay-side depends on the result.
+        /// </summary>
+        private void EmitCastVfx() {
+            if (Data?.CastVFXScene == null || Owner == null) return;
+            VfxEmitter.EmitScene(Data.CastVFXScene, Owner.GlobalPosition, Owner.GetParent());
+        }
+
+        /// <summary>
+        /// Spawns the authored impact effect at a confirmed hit. Ability subclasses
+        /// and pooled projectiles call this from their hit-confirm paths.
+        /// </summary>
+        public void EmitImpactVfx(Vector2 position) {
+            if (Data?.ImpactVFXScene == null) return;
+            Node parent = Owner?.GetParent() ?? GetParent();
+            VfxEmitter.EmitScene(Data.ImpactVFXScene, position, parent);
+        }
+
+        private void OnAbilityHitConfirmed(HitPayload payload, float damageApplied) {
+            if (damageApplied <= 0f) return;
+            EmitImpactVfx(payload.HitOrigin);
+            FTT.Core.EventBus.Instance?.RaiseHitConfirm(new FTT.Core.HitConfirmPayload {
+                PlayerIndex = Owner?.PlayerIndex ?? -1,
+                AttackID = payload.AttackID ?? "",
+                DamageApplied = damageApplied,
+                IsHeavy = true,
+                Position = payload.HitOrigin
+            });
         }
 
         protected virtual bool Validate() {
@@ -185,6 +218,7 @@ namespace FTT.Combat {
             rect.Size = Data?.HitboxSize ?? new Vector2(50, 50);
             shape.Shape = rect;
             hb.AddChild(shape);
+            hb.HitConfirmed += OnAbilityHitConfirmed;
             AddChild(hb);
             return hb;
         }

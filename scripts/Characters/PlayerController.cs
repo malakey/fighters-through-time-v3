@@ -225,7 +225,7 @@ namespace FTT.Characters {
 		private Area2D _ledgeDetector;
 		private AnimationPlayer _combatAnimationPlayer;
 		private Marker2D _aerialHitboxMarker;
-		private CanvasItem _chronalArmorOverlay;
+		private FTT.Combat.GlowPresentationController _glow;
 		private FTT.Environment.LedgeGrabPoint _activeLedge;
 
 		// Combat wiring
@@ -250,6 +250,7 @@ namespace FTT.Characters {
 		private int _rollDirection;
 		private bool _rollInvulnerable;
 		private bool _hyperArmorPresentationActive;
+		private bool _spawnInvulnerabilityPresentationActive;
 
 		// Basic attack timing
 		private int _attackFramesRemaining;
@@ -312,7 +313,8 @@ namespace FTT.Characters {
 			_ledgeDetector = GetNodeOrNull<Area2D>("LedgeDetector");
 			_combatAnimationPlayer = GetNodeOrNull<AnimationPlayer>("CombatAnimationPlayer");
 			_aerialHitboxMarker = GetNodeOrNull<Marker2D>("AerialHitboxMarker");
-			_chronalArmorOverlay = GetNodeOrNull<CanvasItem>("ChronalArmorOverlay");
+			_glow = GetNodeOrNull<FTT.Combat.GlowPresentationController>(
+				FTT.Combat.GlowPresentationController.NodeName);
 
 			if (_collisionShape?.Shape is RectangleShape2D rect) {
 				_normalHurtboxHeight = rect.Size.Y;
@@ -429,6 +431,7 @@ namespace FTT.Characters {
 				? hit.ScreenShakeIntensity * 12f
 				: damageApplied * 0.25f;
 			FTT.Core.CameraShake.Instance?.Shake(shakeIntensity, hit.ScreenShakeDuration);
+			_glow?.FlashHit();
 			SpawnDamageNumber(damageApplied, hit.HitOrigin);
 			return damageApplied;
 		}
@@ -442,6 +445,17 @@ namespace FTT.Characters {
 		/// three-hit string heals 5% of missing HP.
 		/// </summary>
 		private void OnMeleeHitConfirmed(FTT.Combat.HitPayload payload, float damageApplied) {
+			if (damageApplied > 0f) {
+				// Package 8 A3: the attacker-side feedback hook. Haptics and impact
+				// VFX consume this; it carries no gameplay authority.
+				FTT.Core.EventBus.Instance?.RaiseHitConfirm(new FTT.Core.HitConfirmPayload {
+					PlayerIndex = PlayerIndex,
+					AttackID = payload.AttackID ?? "",
+					DamageApplied = damageApplied,
+					IsHeavy = payload.AttackClass != FTT.Combat.AttackClass.Basic,
+					Position = payload.HitOrigin
+				});
+			}
 			if (damageApplied <= 0f || !HasStoryPerk(ZealousVigorPerkKey)) return;
 			if (payload.HitboxID != "combo_3") return;
 			int missingHP = MaximumHP - CurrentHP;
@@ -1543,6 +1557,11 @@ namespace FTT.Characters {
 				if (meterReady && _ultimate != null && _ultimate.TryExecute()) {
 					_ultimateStartedAerial = !IsOnFloor();
 					TransitionTo(CharacterState.UsingUltimate);
+					FTT.Core.EventBus.Instance?.RaiseUltimateActivation(new FTT.Core.UltimateActivationPayload {
+						PlayerIndex = PlayerIndex,
+						AbilityID = _ultimate.Data?.AbilityID ?? "",
+						Position = GlobalPosition
+					});
 					return true;
 				}
 			}
@@ -1659,16 +1678,29 @@ namespace FTT.Characters {
 			}
 		}
 
+		/// <summary>
+		/// The shared outline/glow arbiter for this body, or null before it is
+		/// attached. Presentation only; nothing gameplay-side may read it.
+		/// </summary>
+		public FTT.Combat.GlowPresentationController Glow => _glow;
+
 		private void UpdateHyperArmorPresentation() {
 			bool isActive = HasActiveHyperArmor;
-			if (_chronalArmorOverlay != null) _chronalArmorOverlay.Visible = isActive;
-			if (_hyperArmorPresentationActive == isActive) return;
+			if (_hyperArmorPresentationActive != isActive) {
+				_hyperArmorPresentationActive = isActive;
+				// The arbiter also subscribes to this event, but a direct push keeps
+				// the shell correct when the bus autoload is absent (tests, tools).
+				_glow?.SetHyperArmor(isActive);
+				FTT.Core.EventBus.Instance?.RaiseHyperArmorChanged(new FTT.Core.HyperArmorPayload {
+					PlayerIndex = PlayerIndex,
+					IsActive = isActive
+				});
+			}
 
-			_hyperArmorPresentationActive = isActive;
-			FTT.Core.EventBus.Instance?.RaiseHyperArmorChanged(new FTT.Core.HyperArmorPayload {
-				PlayerIndex = PlayerIndex,
-				IsActive = isActive
-			});
+			bool spawnInvulnerable = IsPostRewindInvulnerable;
+			if (_spawnInvulnerabilityPresentationActive == spawnInvulnerable) return;
+			_spawnInvulnerabilityPresentationActive = spawnInvulnerable;
+			_glow?.SetSpawnInvulnerability(spawnInvulnerable);
 		}
 
 		private void PlayAnimation(string animName) {

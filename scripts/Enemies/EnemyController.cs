@@ -43,6 +43,8 @@ namespace FTT.Enemies {
         private Vector2 _patrolPointB;
         private bool _patrolPointsSet;
         private AnimatedSprite2D _sprite;
+        private FTT.Combat.GlowPresentationController _glow;
+        private FTT.Combat.PresentationVisibilitySuspender _presentationSuspender;
         private FTT.Characters.PlayerController _target;
         private FTT.Combat.Hitbox _attackHitbox;
         private FTT.Combat.Hurtbox _hurtbox;
@@ -95,6 +97,7 @@ namespace FTT.Enemies {
             CollisionLayer = CollisionLayers.Enemy;
             CollisionMask = CollisionLayers.EnemyBodyMask;
             BindEvents();
+            FTT.Combat.VfxPresentationBinder.EnsureInstalled(this);
         }
 
         public override void _ExitTree() {
@@ -115,6 +118,14 @@ namespace FTT.Enemies {
             _hpBar = GetNodeOrNull<ProgressBar>("HPBar") ?? GetNodeOrNull<ProgressBar>("Presentation/HPBar");
             _nameLabel = GetNodeOrNull<Label>("NameLabel") ?? GetNodeOrNull<Label>("Presentation/NameLabel");
             Executor.Bind(_sprite, _attackHitbox, _abilityOrigin);
+            if (_sprite != null) {
+                // Roster bodies have no player slot and are driven directly rather
+                // than through the EventBus (enemy status is not StatusController).
+                _glow = FTT.Combat.GlowPresentationController.AttachTo(
+                    this, _sprite, ownerPlayerIndex: -1, subscribeToStoryEvents: false);
+                Executor.Glow = _glow;
+                _presentationSuspender = FTT.Combat.PresentationVisibilitySuspender.AttachTo(this, _sprite);
+            }
         }
 
         private void CaptureWaypointsFromScene() {
@@ -167,8 +178,10 @@ namespace FTT.Enemies {
                 if (Data?.SpriteFramesResource != null) _sprite.SpriteFrames = Data.SpriteFramesResource;
                 Color tint = Data?.PlaceholderTint ?? Colors.White;
                 if (tint.A <= 0f) tint = Colors.White;
-                _sprite.Modulate = tint;
+                // SetBaseModulate routes through the arbiter when one is attached.
                 Executor.SetBaseModulate(tint);
+                if (_glow == null) _sprite.Modulate = tint;
+                _glow?.ClearAllStates();
                 PlayAnimation("idle");
             }
             if (_nameLabel != null) {
@@ -480,7 +493,10 @@ namespace FTT.Enemies {
             UpdateHPBar();
 
             if (CurrentHP <= 0) Die();
-            else if (damageApplied > 0) PlayAnimation("hitstun");
+            else if (damageApplied > 0) {
+                PlayAnimation("hitstun");
+                _glow?.FlashHit();
+            }
             return damageApplied;
         }
 
@@ -507,6 +523,7 @@ namespace FTT.Enemies {
             }
             _pushbox?.SetPushEnabled(false);
             PlayAnimation("death");
+            _glow?.ClearAllStates();
             _deathTimer = DeathAnimationSeconds;
 
             EventBus.Instance?.RaiseEnemyKilled(new EnemyKilledPayload {
@@ -574,6 +591,7 @@ namespace FTT.Enemies {
                     _venomTickTimer = 1f;
                     break;
             }
+            _glow?.SetStatus(type);
         }
 
         private void ClearStatusEffect() {
@@ -583,6 +601,7 @@ namespace FTT.Enemies {
             _venomTickTimer = 0f;
             StatusMoveMultiplier = 1f;
             StatusDamageTakenMultiplier = 1f;
+            _glow?.ClearState(FTT.Combat.GlowLayer.Status);
         }
 
         private void TickStatus(float dt) {
