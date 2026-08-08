@@ -268,3 +268,44 @@ cycling variant in the inspector. Cycling is covered by unit tests, not by the t
 shared checkout's working tree, not in any commit, so this branch adds it as a tracked file. If the
 orchestrator's checkout still has it untracked, the merge will need `git checkout` of that path (or
 a pre-merge `git add`) before it will fast-forward.
+
+### A1 — Level flow framework, completion chain, credits
+
+- **A1: `save_campaign_complete` was not needed.** `MainMenu.SaveSlotSummary` already renders
+  `IsCompleted` through the existing `save_completed` key ("Campaign Complete", en.csv line 320).
+  No new banner key was added; the A1 tests assert `save_completed` resolves instead.
+- **A1: the level-10 pool config file keeps its numeric name.** Plan §2.2 implies a
+  `level_10_globe_pools.tres`; the file on disk is `level_10_pool_config.tres` with
+  `ConfigID = "level_10_globe_pools"` (all fourteen configs use `level_NN_pool_config.tres`).
+  `CampaignRouteTests` asserts the **ConfigID**, not a filename, so the Globe/London tripwire
+  still fires without renaming a Package 4 resource.
+- **A1: hub label key for level 10 is `campaign_level_globe`.** The `CampaignLevel` enum member is
+  still `London`; the key follows the manifest/pool "globe" naming, not the enum name.
+- **A1: the base class owns the camera, and it is a `StoryCameraConfiner`, not a plain `Camera2D`.**
+  Florence builds a bare `Camera2D`. Because rooms are built before the player spawns,
+  `BuildRoomTransition` records its triggers and the base back-fills `CameraPath` right after the
+  confiner is created (`LinkRoomCameras`). Level agents therefore do **not** set `CameraPath`.
+- **A1: generic door label key.** `BuildDoor` defaults to a new `level_door_locked` key rather than
+  Florence's `florence_door_locked`; pass your own era key when the door deserves flavour text.
+- **A1: portal gating was extracted to a pure function.** `HubWorldController.ResolvePortalAction`
+  (+ `HubPortalAction`) so the completed-campaign rule is testable without instantiating the hub
+  scene. `_Input` is the only caller.
+- **A1: the campaign-completion entry point is a Node, not a static call.** The chain has to wait on
+  an EventBus dialogue callback, so `CampaignCompletionSequence : Node` owns the subscription
+  lifetime. Level 15 calls the static factory `CampaignCompletionSequence.Begin(host, dialogue,
+  endingDialogueID, returnToMainMenu)`. The save write goes through the new
+  `SaveManager.MarkCampaignCompleted()`; nothing outside SaveManager touches `IsCompleted`.
+- **A1: `Callable.From(...).CallDeferred()` instead of `CallDeferred(MethodName.X)`** in the base
+  class. Subclasses may be constructed in code (tests, future tooling) where a bound script method
+  name is not guaranteed.
+- **A1: test-suite baseline moves 417 → 446** (+29: 7 `CampaignRouteTests`, 13
+  `CampaignCompletionTests`, 9 `StoryLevelControllerBaseTests`). `AGENTS.md`'s baseline sentence is
+  left for C1 to update in one place rather than being edited by every Package 5 worktree.
+- **A1: GdUnit runs are unreliable while sibling worktree agents are also running `dotnet test`.**
+  Concurrent runs produce `GodotRuntimeTestRunner ends with exit code: -1` /
+  `The server returned an unexpected status code` / `Connection timeout`, nondeterministic partial
+  totals, and even `ResourceLoader.Load` returning null in unrelated suites — the same shapes
+  CLAUDE.md attributes to heap corruption. Before treating a partial total as a real regression,
+  check for other `Godot_*.exe` processes and re-run. Force-killing a hung Godot mid-run can also
+  leave `.godot/imported/` inconsistent; re-run `--headless --import` before believing the next
+  failure.

@@ -455,12 +455,11 @@ namespace FTT.Environment {
 
             var nextLevelLabel = new Label();
             nextLevelLabel.Name = "NextLevelLabel";
-            var storyMgr = StoryManager.Instance;
-            string nextLevelKey = storyMgr?.CurrentLevel switch {
-                CampaignLevel.Florence => "campaign_level_florence",
-                _ => "campaign_level_tutorial"
-            };
-            nextLevelLabel.Text = string.Format(Tr("hub_next_mission"), Tr(nextLevelKey));
+            nextLevelLabel.Text = IsCampaignCompleted()
+                ? Tr("hub_campaign_complete")
+                : string.Format(
+                    Tr("hub_next_mission"),
+                    Tr(CampaignLevelNameKey(StoryManager.Instance?.CurrentLevel ?? CampaignLevel.Tutorial)));
             nextLevelLabel.Position = new Vector2(20, 80);
             nextLevelLabel.AddThemeFontSizeOverride("font_size", 12);
             nextLevelLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.7f, 0.2f));
@@ -475,6 +474,49 @@ namespace FTT.Environment {
             _depositToast.AddThemeFontSizeOverride("font_size", 16);
             _depositToast.AddThemeColorOverride("font_color", new Color(0.95f, 0.8f, 0.3f));
             canvas.AddChild(_depositToast);
+        }
+
+        /// <summary>
+        /// Hub next-mission label key for every campaign slot. Replaces the
+        /// two-case prototype switch (Package 5 A1); levels 2-15 now name
+        /// themselves rather than falling back to the tutorial string.
+        /// </summary>
+        public static string CampaignLevelNameKey(CampaignLevel level) => level switch {
+            CampaignLevel.Tutorial => "campaign_level_tutorial",
+            CampaignLevel.Florence => "campaign_level_florence",
+            CampaignLevel.Orleans => "campaign_level_orleans",
+            CampaignLevel.Chicago => "campaign_level_chicago",
+            CampaignLevel.Paris => "campaign_level_paris",
+            CampaignLevel.Titanic => "campaign_level_titanic",
+            CampaignLevel.Pompeii => "campaign_level_pompeii",
+            CampaignLevel.Nassau => "campaign_level_nassau",
+            CampaignLevel.Egypt => "campaign_level_egypt",
+            CampaignLevel.Berlin => "campaign_level_berlin",
+            CampaignLevel.London => "campaign_level_globe",
+            CampaignLevel.Gettysburg => "campaign_level_gettysburg",
+            CampaignLevel.Lunar => "campaign_level_lunar",
+            CampaignLevel.ChronalVoid => "campaign_level_chronal_void",
+            CampaignLevel.NeoEarth => "campaign_level_neo_earth",
+            CampaignLevel.Alexandria => "campaign_level_alexandria",
+            _ => "campaign_level_tutorial"
+        };
+
+        /// <summary>Post-campaign hub state: the Temporal Portal stands down once the timeline is restored.</summary>
+        public static bool IsCampaignCompleted() => SaveManager.Instance?.IsActiveCampaignCompleted() == true;
+
+        public const string TimelineRestoredMessageKey = "hub_portal_timeline_restored";
+
+        /// <summary>What interacting with the Temporal Portal does right now.</summary>
+        public enum HubPortalAction { OpenMission, TimelineRestartChoice, TimelineRestored }
+
+        /// <summary>
+        /// Portal gating, kept pure so it is testable without a hub scene.
+        /// A completed campaign wins over everything: there is no next mission
+        /// and no collapsed level left to restart.
+        /// </summary>
+        public static HubPortalAction ResolvePortalAction(bool campaignCompleted, bool pendingTimelineRestart) {
+            if (campaignCompleted) return HubPortalAction.TimelineRestored;
+            return pendingTimelineRestart ? HubPortalAction.TimelineRestartChoice : HubPortalAction.OpenMission;
         }
 
         private void UpdateDustDisplay() {
@@ -518,10 +560,29 @@ namespace FTT.Environment {
                     return;
                 }
                 if (_playerInPortal && _portalReady) {
-                    if (StoryManager.Instance?.HasPendingTimelineRestart == true) ShowTimelineRestartChoice();
-                    else StoryManager.Instance?.LoadCurrentLevel();
+                    switch (ResolvePortalAction(
+                        IsCampaignCompleted(),
+                        StoryManager.Instance?.HasPendingTimelineRestart == true)) {
+                        case HubPortalAction.TimelineRestored:
+                            ShowPortalMessage(TimelineRestoredMessageKey);
+                            break;
+                        case HubPortalAction.TimelineRestartChoice:
+                            ShowTimelineRestartChoice();
+                            break;
+                        default:
+                            StoryManager.Instance?.LoadCurrentLevel();
+                            break;
+                    }
                 }
             }
+        }
+
+        /// <summary>Reuses the deposit toast slot for short localized hub notices.</summary>
+        public void ShowPortalMessage(string translationKey) {
+            if (_depositToast == null) return;
+            _depositToast.Text = Tr(translationKey);
+            _depositToast.Visible = true;
+            _depositToastTimer = 4.0f;
         }
 
         private void ShowTimelineRestartChoice() {
