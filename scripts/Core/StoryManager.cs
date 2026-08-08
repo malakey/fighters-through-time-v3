@@ -44,7 +44,7 @@ namespace FTT.Core {
             "res://scenes/campaign/Level_07_Nassau.tscn",
             "res://scenes/campaign/Level_08_Egypt.tscn",
             "res://scenes/campaign/Level_09_Berlin.tscn",
-            "res://scenes/campaign/Level_10_London.tscn",
+            "res://scenes/campaign/Level_10_Globe.tscn",
             "res://scenes/campaign/Level_11_Gettysburg.tscn",
             "res://scenes/campaign/Level_12_Lunar.tscn",
             "res://scenes/campaign/Level_13_ChronalVoid.tscn",

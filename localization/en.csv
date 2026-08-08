@@ -602,3 +602,34 @@ resonance_state_available,Available to unlock
 resonance_state_locked_prerequisite,Locked — requires {0}
 resonance_state_locked_dust,Locked — deposit {0} more Chronal Dust
 resonance_hint_controls,Move: D-Pad / Arrow Keys    Select: Confirm    Back: Cancel
+campaign_level_orleans,"Orléans 1429 — Siege of Orléans"
+campaign_level_chicago,"Chicago 1893 — World's Fair"
+campaign_level_paris,"Paris 1789 — Storming of the Bastille"
+campaign_level_titanic,"RMS Titanic 1912 — North Atlantic"
+campaign_level_pompeii,"Pompeii 79 AD — Eruption of Vesuvius"
+campaign_level_nassau,"Nassau 1715 — Golden Age of Pirates"
+campaign_level_egypt,"Alexandria 30 BC — Cleopatra's Palace"
+campaign_level_berlin,"Berlin 1961 — The Divided City"
+campaign_level_globe,"London 1599 — The Globe Theatre"
+campaign_level_gettysburg,"Gettysburg 1863 — The Turning Point"
+campaign_level_lunar,"Lunar Landing 1969 — Sea of Tranquility"
+campaign_level_chronal_void,The Chronal Void
+campaign_level_neo_earth,"Neo-Earth — The Apex Archive"
+campaign_level_alexandria,"Library of Alexandria — Restoration"
+hub_campaign_complete,The timeline is whole. No missions remain.
+hub_portal_timeline_restored,TEMPORAL PORTAL DORMANT — the timeline is restored.
+level_door_locked,SEALED
+credits_title,FIGHTERS THROUGH TIME
+credits_role_direction,Direction
+credits_role_design,Game Design
+credits_role_engineering,Engineering
+credits_role_narrative,Narrative
+credits_role_art,Art
+credits_role_audio,Audio
+credits_role_qa,Quality Assurance
+credits_name_placeholder,Placeholder Credit
+credits_placeholder_era,Placeholder Era Assets
+credits_thanks,Special Thanks
+credits_thanks_body,To everyone who held the timeline together.
+credits_the_end,The Timeline Endures
+credits_skip_hint,Press Confirm to skip

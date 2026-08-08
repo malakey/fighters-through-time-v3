@@ -287,6 +287,29 @@ namespace FTT.Core {
             SaveStorySlot(slot);
         }
 
+        /// <summary>
+        /// Campaign completion (Package 5 A1). Level 15's ending chain calls this
+        /// once the restoration sequence and credits finish: it is the only writer
+        /// of <see cref="StorySaveData.IsCompleted"/>, so UI code never pokes the
+        /// field directly. Returns false when there is no active story slot.
+        /// </summary>
+        public bool MarkCampaignCompleted() {
+            if (GameManager.Instance == null) return false;
+            return MarkCampaignCompleted(GameManager.Instance.CurrentSession.ActiveSaveSlot);
+        }
+
+        /// <summary>Slot-explicit campaign completion; persists the slot immediately.</summary>
+        public bool MarkCampaignCompleted(int slotIndex) {
+            if (slotIndex < 0 || slotIndex >= SaveSlots.Length) return false;
+            StorySaveData save = SaveSlots[slotIndex];
+            if (save == null) return false;
+            save.IsCompleted = true;
+            return SaveStorySlot(slotIndex);
+        }
+
+        /// <summary>True when the active story slot has finished the campaign.</summary>
+        public bool IsActiveCampaignCompleted() => GetActiveStorySave()?.IsCompleted == true;
+
         public bool IsPuzzleCompleted(string puzzleID) {
             StorySaveData save = GetActiveStorySave();
             return save?.CompletedPuzzleIDs?.Contains(puzzleID) == true;
