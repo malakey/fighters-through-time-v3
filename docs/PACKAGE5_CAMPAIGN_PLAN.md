@@ -387,3 +387,52 @@ a pre-merge `git add`) before it will fast-forward.
   check for other `Godot_*.exe` processes and re-run. Force-killing a hung Godot mid-run can also
   leave `.godot/imported/` inconsistent; re-run `--headless --import` before believing the next
   failure.
+
+### Wave A — Level 3, Chicago 1893
+
+- **L03: the Chronal Inventor is 560 HP with a 2.5-unit melee band, not the dossier's 800 HP /
+  3.5 m.** `resources/Bosses/chronal_inventor.tres` reads `MaxHP = 560`,
+  `MeleeRangeThreshold = 2.5`, `RangedRangeThreshold = 10.0`, one phase threshold (two phases),
+  `AttackPattern = DistanceBased`. Resources beat prose, so nothing in the boss resource was
+  touched; the arena was sized to the resource instead. `BossController.PixelsPerUnit` is 60, so
+  the 10-unit ranged band is 600 px and the Court of Honor room is 1,920 px wide.
+  `Level03ContentTests` asserts the band fits rather than asserting an HP number.
+- **L03: room transitions are authored as facing pairs.** `RoomTransitionTrigger.ActivateOnce`
+  defaults true, so a single forward trigger per seam leaves the camera clamped to the last room
+  forever once the player backtracks. Level 3 adds `BuildRoomTransitionPair`: two repeatable
+  triggers 160 px apart straddling each of the first two seams (their 80 px bodies never overlap),
+  giving real bidirectional confinement. The boss seam stays a single one-shot trigger on purpose —
+  that clamp *is* the arena lock. This is level-local; the shared base was not changed.
+- **L03: the beam chain is authored in the `.tscn`, not built in `BuildLevel`.**
+  `PowerRoutingNode` resolves its `OutputPaths` during `_Ready`, so a code-built chain only wires
+  up if nodes are added strictly downstream-first. Godot readies a packed scene's children
+  bottom-up, so scene authoring gets the dependency order for free and keeps the level a thin
+  scene per §2.1. Node order in the file is still downstream-first for readability.
+- **L03: mis-routing is expressed with dead-end "crowd tap" routing nodes, not an inverted
+  condition.** `BeamReceiver` can only set a `PuzzleManager` condition *true* when powered; there is
+  no fail/inverted condition in the toolkit and adding one would mean editing shared code. Instead
+  the wrong coil orientations feed bare `PowerRoutingNode` taps whose `PowerChanged` arms a
+  `StoryCyclicHazard` over the spectator stands — the design's "route it away from the crowds"
+  fantasy, and the read-plan-execute tell, with no toolkit change. Note the taps settle during
+  their own `_Ready`, i.e. before the level root's `_Ready`, so `Level03Controller` syncs the
+  initial hazard state explicitly right after subscribing; subscribing alone misses the first
+  emission.
+- **L03: the level is 1,600 px tall, not Florence's 1,080.** The Electricity Building climb is the
+  required vertical section and needs the headroom. Ground-level rooms therefore confine to a
+  bottom-anchored 1,080-tall camera window (`GroundRoomCameraTop`) while the climb room uses the
+  full height.
+- **L03: the Court of Honor door is 720 px tall, not the `BuildDoor` default 400.** The routing
+  hall's gallery catwalk sits at y=960; a Florence-height door could be cleared from it, skipping
+  the puzzle entirely.
+- **L03: the content-test fixture clears the persisted puzzle flag on setup.**
+  `PuzzleManager.PersistCompletionToSave` is true (required — the plan asks for completion to
+  survive a checkpoint resume), which means one case solving the puzzle would open the door for
+  every later case. `Level03Fixture` forces `SetPuzzleCompleted(level_03.beam_routing, false)` at
+  construction and restores the original value in `Dispose`. Later level agents authoring a
+  persisted puzzle need the same guard.
+- **L03: resuming at `_checkpoint_2` force-opens the routing door regardless of the puzzle flag.**
+  The pre-boss checkpoint stands past the gate, so a resume that lost the flag would reload the
+  player behind a sealed door. `OnLevelReady` opens it when either the puzzle is complete or the
+  resume checkpoint is the pre-boss one, and a test pins the behaviour.
+- **L03: suite total 465 → 479** (+14 `Level03ContentTests`), verified with the full suite at
+  479/479, 0 failed. `AGENTS.md`'s baseline sentence is left for C1 per the A1 precedent.
