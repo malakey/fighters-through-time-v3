@@ -72,9 +72,36 @@ public class SaveEnvelopeTests {
         StorySaveData migrated = SaveSchemaMigrator.DeserializeStory(
             "{\"SaveVersion\":2,\"SelectedCharacterID\":\"tesla\"}");
 
-        AssertThat(migrated.SaveVersion).IsEqual(3);
+        // Package 8 A4 moved CurrentVersion to 4 for the global payload's binding
+        // schema; the story chain has no v3 -> v4 step, so a v2 save still lands on
+        // whatever the current version is with its puzzle collection created.
+        AssertThat(migrated.SaveVersion).IsEqual(SaveSchemaMigrator.CurrentVersion);
         AssertObject(migrated.CompletedPuzzleIDs).IsNotNull();
         AssertThat(migrated.CompletedPuzzleIDs.Count).IsEqual(0);
+    }
+
+    [TestCase]
+    public void GlobalPayloadCarriesStructuredInputBindingsThroughTheEnvelope() {
+        // Package 8 A4: binding data lives inside the encrypted global envelope and
+        // nowhere else. This is the envelope-level proof for that schema.
+        var data = new GlobalSaveData();
+        data.InputBindings.Set("gameplay_jump", new[] {
+            new InputBindingEvent(InputBindingKind.Key, (int)Key.Z),
+            new InputBindingEvent(InputBindingKind.JoyButton, (int)JoyButton.X)
+        });
+        data.Normalize();
+
+        byte[] envelope = SaveEnvelopeCodec.Encode(
+            "global", data.SaveVersion, JsonConvert.SerializeObject(data), TestKey, 99L, TestIV);
+
+        AssertThat(SaveEnvelopeCodec.TryDecode(envelope, TestKey, out DecodedSaveEnvelope decoded, out _)).IsTrue();
+        AssertThat(decoded.PayloadType).IsEqual("global");
+        AssertThat(decoded.SchemaVersion).IsEqual(SaveSchemaMigrator.CurrentVersion);
+
+        GlobalSaveData restored = SaveSchemaMigrator.DeserializeGlobal(decoded.Json);
+        AssertThat(restored.InputBindings.For("gameplay_jump").Count).IsEqual(2);
+        AssertThat(restored.InputBindings.For("gameplay_jump")[1].Kind).IsEqual(InputBindingKind.JoyButton);
+        AssertThat(restored.InputBindings.For("gameplay_jump")[1].Code).IsEqual((int)JoyButton.X);
     }
 
     [TestCase]

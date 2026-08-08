@@ -43,7 +43,23 @@ namespace FTT.Core {
         }
     }
 
+    /// <summary>Persisted window mode (Package 8 A4). Stored as an int by the serializer.</summary>
+    public enum WindowModeSetting {
+        Windowed = 0,
+        Fullscreen = 1,
+        BorderlessFullscreen = 2
+    }
+
     public class GlobalSaveData {
+        /// <summary>
+        /// Selectable window sizes, in the order the Display tab lists them. The
+        /// reference canvas is 1920x1080 (AGENTS.md); every entry keeps 16:9 so the
+        /// fixed `keep` aspect never letterboxes a supported choice.
+        /// </summary>
+        public static readonly (int Width, int Height)[] SupportedResolutions = {
+            (1920, 1080), (1600, 900), (1280, 720), (1024, 576)
+        };
+
         public static readonly string[] InitialStageIDs = {
             "florence_workshop", "orleans_vanguard", "chicago_exposition", "paris_bastille",
             "vesuvius_caldera", "nassau_flagship", "alexandria_chambers", "berlin_wall",
@@ -70,7 +86,21 @@ namespace FTT.Core {
         public bool DamageNumbersVisible = true;
         public float HudOpacity = 1f;
         public float ScreenShakeScale = 1f;
-        public Dictionary<string, string> InputBindings = new();
+
+        // Display (Package 8 A4). Applied at boot by ViewportEnforcer, which is the
+        // last autoload and already owns window/viewport concerns.
+        public int ResolutionWidth = 1920;
+        public int ResolutionHeight = 1080;
+        public WindowModeSetting WindowMode = WindowModeSetting.Windowed;
+        public bool VSyncEnabled = true;
+
+        /// <summary>
+        /// InputMap overrides (Package 8 A4). Replaces the dead
+        /// <c>Dictionary&lt;string,string&gt;</c> of the same name, which was written
+        /// nowhere, read nowhere, and could not represent a multi-event action.
+        /// Only actions that differ from project.godot are stored.
+        /// </summary>
+        public InputBindingSet InputBindings = new();
 
         public void Normalize() {
             SaveVersion = SaveSchemaMigrator.CurrentVersion;
@@ -81,7 +111,8 @@ namespace FTT.Core {
             }
             CharacterWins ??= new Dictionary<string, int>();
             CharacterLosses ??= new Dictionary<string, int>();
-            InputBindings ??= new Dictionary<string, string>();
+            InputBindings ??= new InputBindingSet();
+            InputBindings.Normalize();
             MasterVolume = Math.Clamp(MasterVolume, 0f, 1f);
             MusicVolume = Math.Clamp(MusicVolume, 0f, 1f);
             SFXVolume = Math.Clamp(SFXVolume, 0f, 1f);
@@ -89,6 +120,39 @@ namespace FTT.Core {
             HapticIntensity = Math.Clamp(HapticIntensity, 0f, 1f);
             HudOpacity = Math.Clamp(HudOpacity, 0.2f, 1f);
             ScreenShakeScale = Math.Clamp(ScreenShakeScale, 0f, 1f);
+            NormalizeDisplay();
+        }
+
+        /// <summary>
+        /// Snaps the stored size onto the nearest supported resolution and clamps
+        /// the window mode. A hand-edited or corrupt payload can otherwise ask the
+        /// engine for a 0x0 window.
+        /// </summary>
+        private void NormalizeDisplay() {
+            if (!Enum.IsDefined(typeof(WindowModeSetting), WindowMode)) WindowMode = WindowModeSetting.Windowed;
+            int index = ResolutionIndex(ResolutionWidth, ResolutionHeight);
+            (int width, int height) = SupportedResolutions[index];
+            ResolutionWidth = width;
+            ResolutionHeight = height;
+        }
+
+        /// <summary>
+        /// Index of the supported resolution nearest to the requested size, by
+        /// squared pixel-dimension distance. Never out of range.
+        /// </summary>
+        public static int ResolutionIndex(int width, int height) {
+            int bestIndex = 0;
+            long bestDistance = long.MaxValue;
+            for (int index = 0; index < SupportedResolutions.Length; index++) {
+                (int candidateWidth, int candidateHeight) = SupportedResolutions[index];
+                long deltaWidth = candidateWidth - width;
+                long deltaHeight = candidateHeight - height;
+                long distance = (deltaWidth * deltaWidth) + (deltaHeight * deltaHeight);
+                if (distance >= bestDistance) continue;
+                bestDistance = distance;
+                bestIndex = index;
+            }
+            return bestIndex;
         }
     }
 
@@ -151,7 +215,39 @@ namespace FTT.Core {
 
         public StorySaveData[] SaveSlots = new StorySaveData[3];
         public GlobalSaveData GlobalData = new();
-        public string LastLoadNotice { get; private set; } = "";
+
+        /// <summary>
+        /// Translation key describing the last recovery/migration/corruption event,
+        /// or an empty string when the load was clean. Package 8 A4 replaced the raw
+        /// English strings these used to hold; the main menu surfaces
+        /// <see cref="LastLoadNotice"/> when this is set.
+        /// </summary>
+        public string LastLoadNoticeKey { get; private set; } = "";
+
+        /// <summary>Format arguments for <see cref="LastLoadNoticeKey"/>.</summary>
+        public string[] LastLoadNoticeArgs { get; private set; } = Array.Empty<string>();
+
+        /// <summary>The notice resolved through the translation server, or "".</summary>
+        public string LastLoadNotice => FormatNotice(LastLoadNoticeKey, LastLoadNoticeArgs);
+
+        /// <summary>Resolves a notice key/args pair. Static so UI can format a captured pair.</summary>
+        public static string FormatNotice(string key, string[] args) {
+            if (string.IsNullOrEmpty(key)) return "";
+            string template = TranslationServer.Translate(key);
+            if (args == null || args.Length == 0) return template;
+            try {
+                return string.Format(template, args);
+            } catch (FormatException) {
+                return template;
+            }
+        }
+
+        private void SetNotice(string key, params string[] args) {
+            LastLoadNoticeKey = key ?? "";
+            LastLoadNoticeArgs = args ?? Array.Empty<string>();
+        }
+
+        private void ClearNotice() => SetNotice("");
 
         public override void _Ready() {
             Instance = this;
@@ -159,7 +255,13 @@ namespace FTT.Core {
             Directory.CreateDirectory(saveDirectory);
             _keyProvider = new FileSaveKeyProvider(Path.Combine(saveDirectory, ".savekey"));
             _masterKey = _keyProvider.GetOrCreateKey();
+            // Snapshot project.godot's bindings before anything can mutate the map,
+            // then push the saved overrides in. InputManager is an earlier autoload
+            // and polls InputMap.ActionGetEvents live, so this lands before any
+            // gameplay scene reads an action.
+            InputBindingService.EnsureDefaultsCaptured();
             LoadGlobalData();
+            ApplySavedInputBindings();
             for (int slot = 0; slot < SaveSlots.Length; slot++) LoadStorySlot(slot);
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnCheckpointReached += SaveCheckpoint;
@@ -210,14 +312,14 @@ namespace FTT.Core {
                     session.ActiveSaveSlot = -1;
                     GameManager.Instance.CurrentSession = session;
                 }
-                LastLoadNotice = "";
+                ClearNotice();
                 return true;
             } catch (IOException exception) {
-                LastLoadNotice = $"Unable to delete story slot {slotIndex + 1}: {exception.Message}";
+                SetNotice("save_notice_slot_delete_failed", (slotIndex + 1).ToString(), exception.Message);
                 GD.PushError(LastLoadNotice);
                 return false;
             } catch (UnauthorizedAccessException exception) {
-                LastLoadNotice = $"Unable to delete story slot {slotIndex + 1}: {exception.Message}";
+                SetNotice("save_notice_slot_delete_failed", (slotIndex + 1).ToString(), exception.Message);
                 GD.PushError(LastLoadNotice);
                 return false;
             }
@@ -233,13 +335,13 @@ namespace FTT.Core {
             if (TryLoadPayload(path, "story", out string json, out bool backupUsed)) {
                 try {
                     SaveSlots[slotIndex] = SaveSchemaMigrator.DeserializeStory(json);
-                    if (backupUsed) LastLoadNotice = $"Story slot {slotIndex + 1} was recovered from backup.";
+                    if (backupUsed) SetNotice("save_notice_slot_recovered", (slotIndex + 1).ToString());
                     return true;
                 } catch (SaveVersionException exception) {
-                    LastLoadNotice = exception.Message;
+                    SetNotice("save_notice_error", exception.Message);
                     return false;
                 } catch (JsonException exception) {
-                    LastLoadNotice = exception.Message;
+                    SetNotice("save_notice_error", exception.Message);
                 }
             }
 
@@ -247,16 +349,16 @@ namespace FTT.Core {
                 if (TryLoadLegacyStory(path, out StorySaveData migrated)) {
                     SaveSlots[slotIndex] = migrated;
                     SaveStorySlot(slotIndex);
-                    LastLoadNotice = $"Story slot {slotIndex + 1} was migrated to the secure save format.";
+                    SetNotice("save_notice_slot_migrated", (slotIndex + 1).ToString());
                     return true;
                 }
             } catch (SaveVersionException exception) {
-                LastLoadNotice = exception.Message;
+                SetNotice("save_notice_error", exception.Message);
                 return false;
             }
             SaveSlots[slotIndex] = null;
             PreserveCorruptCandidates(path);
-            LastLoadNotice = $"Story slot {slotIndex + 1} is corrupted and could not be recovered.";
+            SetNotice("save_notice_slot_corrupt", (slotIndex + 1).ToString());
             return false;
         }
 
@@ -275,13 +377,13 @@ namespace FTT.Core {
             if (TryLoadPayload(path, "global", out string json, out bool backupUsed)) {
                 try {
                     GlobalData = SaveSchemaMigrator.DeserializeGlobal(json);
-                    if (backupUsed) LastLoadNotice = "Global settings were recovered from backup.";
+                    if (backupUsed) SetNotice("save_notice_global_recovered");
                     return true;
                 } catch (SaveVersionException exception) {
-                    LastLoadNotice = exception.Message;
+                    SetNotice("save_notice_error", exception.Message);
                     return false;
                 } catch (JsonException exception) {
-                    LastLoadNotice = exception.Message;
+                    SetNotice("save_notice_error", exception.Message);
                 }
             }
 
@@ -289,17 +391,48 @@ namespace FTT.Core {
                 if (TryLoadLegacyGlobal(path, out GlobalSaveData migrated)) {
                     GlobalData = migrated;
                     SaveGlobalData();
-                    LastLoadNotice = "Global settings were migrated to the secure save format.";
+                    SetNotice("save_notice_global_migrated");
                     return true;
                 }
             } catch (SaveVersionException exception) {
-                LastLoadNotice = exception.Message;
+                SetNotice("save_notice_error", exception.Message);
                 return false;
             }
             GlobalData = new GlobalSaveData();
             PreserveCorruptCandidates(path);
-            LastLoadNotice = "Global settings were corrupted and reset to defaults.";
+            SetNotice("save_notice_global_corrupt");
             return false;
+        }
+
+        /// <summary>
+        /// Pushes <see cref="GlobalSaveData.InputBindings"/> into the InputMap.
+        /// Called at boot right after the global payload loads; actions without an
+        /// override keep their project defaults.
+        /// </summary>
+        public void ApplySavedInputBindings() {
+            InputBindingService.Apply(GlobalData?.InputBindings);
+        }
+
+        /// <summary>
+        /// Stores the Settings tab's working map as overrides (only the actions that
+        /// differ from project.godot), applies it, and persists the global payload.
+        /// </summary>
+        public bool PersistInputBindings(InputBindingSet effective) {
+            GlobalData ??= new GlobalSaveData();
+            GlobalData.InputBindings = InputBindingService.BuildOverrides(effective);
+            InputBindingService.Apply(GlobalData.InputBindings);
+            return SaveGlobalData();
+        }
+
+        /// <summary>
+        /// Global reset-to-default: restores project.godot's InputMap and clears the
+        /// saved overrides so a later project change reaches the player.
+        /// </summary>
+        public bool ResetInputBindingsToDefault() {
+            GlobalData ??= new GlobalSaveData();
+            GlobalData.InputBindings = new InputBindingSet();
+            InputBindingService.ResetToProjectDefaults();
+            return SaveGlobalData();
         }
 
         public void SaveCheckpoint(string checkpointID) {

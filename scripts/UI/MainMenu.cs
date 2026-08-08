@@ -36,6 +36,8 @@ namespace FTT.UI {
             subtitle.AddThemeColorOverride("font_color", new Color(0.5f, 0.5f, 0.6f));
             vbox.AddChild(subtitle);
 
+            AddSaveLoadNotice(vbox);
+
             vbox.AddChild(new HSeparator());
 
             var quickPlayBtn = CreateButton(Tr("menu_quick_play"));
@@ -65,6 +67,28 @@ namespace FTT.UI {
             var quitBtn = CreateButton(Tr("menu_quit"));
             quitBtn.Pressed += () => GetTree().Quit();
             vbox.AddChild(quitBtn);
+        }
+
+        /// <summary>
+        /// Package 8 A4. <c>SaveManager.LastLoadNotice</c> recorded backup
+        /// recoveries, schema migrations, and corruption resets but had no consumer,
+        /// so a player whose save was recovered or reset was never told. The notice
+        /// is now a translation key plus arguments; this surfaces it once, localized,
+        /// on the first screen after boot. Additive by design — B4's authored menu
+        /// carries this line over.
+        /// </summary>
+        private static void AddSaveLoadNotice(Control parent) {
+            FTT.Core.SaveManager manager = FTT.Core.SaveManager.Instance;
+            if (manager == null || string.IsNullOrEmpty(manager.LastLoadNoticeKey)) return;
+            var notice = new Label {
+                Name = "SaveLoadNotice",
+                Text = manager.LastLoadNotice,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                CustomMinimumSize = new Vector2(360, 0)
+            };
+            notice.AddThemeColorOverride("font_color", new Color(0.95f, 0.8f, 0.3f));
+            parent.AddChild(notice);
         }
 
 		private void OpenSettings() {

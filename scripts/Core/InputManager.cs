@@ -23,6 +23,41 @@ namespace FTT.Core {
             public const string Pause = "ui_pause";
         }
 
+        /// <summary>
+        /// Actions the Controls tab may rebind, in display order (Package 8 A4).
+        /// <see cref="Actions.Ultimate"/> is deliberately absent: it is authored as
+        /// an LB+RB chord that <see cref="ReadUltimatePressed"/> evaluates as a
+        /// conjunction, which the per-event remap UI cannot express. Dash is absent
+        /// because it is a derived double-tap/flick gesture with no InputMap action
+        /// at all. Both are surfaced read-only instead.
+        /// </summary>
+        public static readonly string[] RemappableActions = {
+            Actions.MoveLeft, Actions.MoveRight, Actions.Jump, Actions.Down,
+            Actions.BasicAttack, Actions.Special1, Actions.Special2, Actions.MovementAbility,
+            Actions.Block, Actions.Roll, Actions.Interact, Actions.Pause
+        };
+
+        /// <summary>Actions shown in the Controls tab but not rebindable.</summary>
+        public static readonly string[] ReadOnlyActions = { Actions.Ultimate };
+
+        /// <summary>Translation key naming an action in the remap UI.</summary>
+        public static string ActionLabelKey(string action) => action switch {
+            Actions.MoveLeft => "controls_action_move_left",
+            Actions.MoveRight => "controls_action_move_right",
+            Actions.Jump => "controls_action_jump",
+            Actions.Down => "controls_action_down",
+            Actions.BasicAttack => "controls_action_basic_attack",
+            Actions.Special1 => "controls_action_special1",
+            Actions.Special2 => "controls_action_special2",
+            Actions.MovementAbility => "controls_action_movement_ability",
+            Actions.Block => "controls_action_block",
+            Actions.Roll => "controls_action_roll",
+            Actions.Ultimate => "controls_action_ultimate",
+            Actions.Interact => "controls_action_interact",
+            Actions.Pause => "controls_action_pause",
+            _ => "common_unknown"
+        };
+
         public const int KeyboardDevice = -1;
         public const int UnassignedDevice = -2;
 
