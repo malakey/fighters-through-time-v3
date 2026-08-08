@@ -1,0 +1,168 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/Level14Controller.cs" id="1_controller"]
+[ext_resource type="Script" path="res://scripts/Environment/StoryDropSystem.cs" id="2_drops"]
+[ext_resource type="PackedScene" path="res://scenes/templates/CyclicHazardTemplate.tscn" id="3_beam"]
+[ext_resource type="PackedScene" path="res://scenes/templates/PathMovingPlatformTemplate.tscn" id="4_platform"]
+
+[node name="Level_14_NeoEarth" type="Node2D"]
+script = ExtResource("1_controller")
+
+[node name="StoryDropSystem" type="Node" parent="."]
+script = ExtResource("2_drops")
+
+[node name="PerimeterBeam1" parent="." instance=ExtResource("3_beam")]
+position = Vector2(1500, 1700)
+HazardID = "level_14.perimeter_beam_1"
+WarningDuration = 1.4
+ActiveDuration = 0.9
+CooldownDuration = 1.9
+Damage = 16
+Knockback = Vector2(220, -120)
+
+[node name="PerimeterBeam2" parent="." instance=ExtResource("3_beam")]
+position = Vector2(1830, 1700)
+HazardID = "level_14.perimeter_beam_2"
+WarningDuration = 1.4
+ActiveDuration = 0.9
+CooldownDuration = 1.9
+Damage = 16
+Knockback = Vector2(220, -120)
+
+[node name="PerimeterBeam3" parent="." instance=ExtResource("3_beam")]
+position = Vector2(2160, 1700)
+HazardID = "level_14.perimeter_beam_3"
+WarningDuration = 1.4
+ActiveDuration = 0.9
+CooldownDuration = 1.9
+Damage = 16
+Knockback = Vector2(220, -120)
+
+[node name="ContainmentBeam1" parent="." instance=ExtResource("3_beam")]
+position = Vector2(3980, 1700)
+HazardID = "level_14.containment_beam_1"
+WarningDuration = 1.2
+ActiveDuration = 0.9
+CooldownDuration = 1.5
+Damage = 18
+Knockback = Vector2(230, -130)
+
+[node name="ContainmentBeam2" parent="." instance=ExtResource("3_beam")]
+position = Vector2(4310, 1700)
+HazardID = "level_14.containment_beam_2"
+WarningDuration = 1.2
+ActiveDuration = 0.9
+CooldownDuration = 1.5
+Damage = 18
+Knockback = Vector2(230, -130)
+
+[node name="ContainmentBeam3" parent="." instance=ExtResource("3_beam")]
+position = Vector2(4640, 1700)
+HazardID = "level_14.containment_beam_3"
+WarningDuration = 1.2
+ActiveDuration = 0.9
+CooldownDuration = 1.5
+Damage = 18
+Knockback = Vector2(230, -130)
+
+[node name="ContainmentBeam4" parent="." instance=ExtResource("3_beam")]
+position = Vector2(4970, 1700)
+HazardID = "level_14.containment_beam_4"
+WarningDuration = 1.2
+ActiveDuration = 0.9
+CooldownDuration = 1.5
+Damage = 18
+Knockback = Vector2(230, -130)
+
+[node name="CoreBeam1" parent="." instance=ExtResource("3_beam")]
+position = Vector2(6900, 1700)
+HazardID = "level_14.core_beam_1"
+WarningDuration = 1.0
+ActiveDuration = 0.9
+CooldownDuration = 1.1
+Damage = 20
+Knockback = Vector2(240, -140)
+
+[node name="CoreBeam2" parent="." instance=ExtResource("3_beam")]
+position = Vector2(7230, 1700)
+HazardID = "level_14.core_beam_2"
+WarningDuration = 1.0
+ActiveDuration = 0.9
+CooldownDuration = 1.1
+Damage = 20
+Knockback = Vector2(240, -140)
+
+[node name="CoreBeam3" parent="." instance=ExtResource("3_beam")]
+position = Vector2(7560, 1700)
+HazardID = "level_14.core_beam_3"
+WarningDuration = 1.0
+ActiveDuration = 0.9
+CooldownDuration = 1.1
+Damage = 20
+Knockback = Vector2(240, -140)
+
+[node name="CoreBeam4" parent="." instance=ExtResource("3_beam")]
+position = Vector2(7890, 1700)
+HazardID = "level_14.core_beam_4"
+WarningDuration = 1.0
+ActiveDuration = 0.9
+CooldownDuration = 1.1
+Damage = 20
+Knockback = Vector2(240, -140)
+
+[node name="CoreBeam5" parent="." instance=ExtResource("3_beam")]
+position = Vector2(8220, 1700)
+HazardID = "level_14.core_beam_5"
+WarningDuration = 1.0
+ActiveDuration = 0.9
+CooldownDuration = 1.1
+Damage = 20
+Knockback = Vector2(240, -140)
+
+[node name="SecurityCoreBeam1" parent="." instance=ExtResource("3_beam")]
+position = Vector2(9600, 1700)
+HazardID = "level_14.security_core_beam_1"
+WarningDuration = 1.4
+ActiveDuration = 0.9
+CooldownDuration = 3.3
+Damage = 22
+Knockback = Vector2(250, -150)
+Enabled = false
+
+[node name="SecurityCoreBeam2" parent="." instance=ExtResource("3_beam")]
+position = Vector2(10260, 1700)
+HazardID = "level_14.security_core_beam_2"
+WarningDuration = 1.4
+ActiveDuration = 0.9
+CooldownDuration = 3.3
+Damage = 22
+Knockback = Vector2(250, -150)
+Enabled = false
+
+[node name="SecurityCoreBeam3" parent="." instance=ExtResource("3_beam")]
+position = Vector2(10920, 1700)
+HazardID = "level_14.security_core_beam_3"
+WarningDuration = 1.4
+ActiveDuration = 0.9
+CooldownDuration = 3.3
+Damage = 22
+Knockback = Vector2(250, -150)
+Enabled = false
+
+[node name="SecurityCoreBeam4" parent="." instance=ExtResource("3_beam")]
+position = Vector2(11580, 1700)
+HazardID = "level_14.security_core_beam_4"
+WarningDuration = 1.4
+ActiveDuration = 0.9
+CooldownDuration = 3.3
+Damage = 22
+Knockback = Vector2(250, -150)
+Enabled = false
+
+[node name="BulkheadCargoLift" parent="." instance=ExtResource("4_platform")]
+position = Vector2(6100, 1716)
+PlatformID = "level_14.bulkhead_cargo_lift"
+Waypoints = PackedVector2Array(0, 0, 0, -1000)
+Speed = 280.0
+EndpointWaitSeconds = 1.5
+Mode = 0

@@ -894,3 +894,28 @@ dlg_l12_exit_2,"Confirmed. Every set on Earth is watching the real thing. The ou
 dlg_l12_exit_3,"It went out completely on the pad, Sarah. The resonance. For a second I was just a person standing on the Moon. Whatever we do next, I should do it soon."
 dlg_l12_exit_4,"I know, and I have the reason we can. The overload wrote something back down the beam before it died — a coordinate signature. Traveler, it is not anywhere in history. It is their home. Far future. Neo-Earth."
 dlg_l12_exit_5,"Then Act Two ends here. Take me through their front door, Commander."
+neo_earth_level_title,Neo-Earth — The Apex Archive
+neo_earth_room_breach_gallery,Breach Gallery — Outer Perimeter
+neo_earth_room_containment_wing,The Containment Wing
+neo_earth_room_core_approach,Fabrication Spine — Core Approach
+neo_earth_room_security_core,The Security Core
+neo_earth_objective_breach,Time the perimeter lattice and breach the outer wall
+neo_earth_objective_containment,Ride the containment pockets over the sealed bulkhead
+neo_earth_objective_core_approach,Run the fabrication spine to the security core
+neo_earth_objective_security_core,Clear the core garrison
+neo_earth_objective_defeat_boss,Shut down Archive Prime
+neo_earth_objective_complete,"The core is dark. Only Alexandria is left."
+neo_earth_pocket_alpha,ANTI-GRAV CONTAINMENT — ALPHA
+neo_earth_pocket_beta,ANTI-GRAV CONTAINMENT — BETA
+neo_earth_pocket_gamma,ANTI-GRAV CONTAINMENT — GAMMA
+speaker_archive_prime,Archive Prime
+dlg_l14_entrance_1,"There is no sky here. Just the machine — all the way up, all the way down — and not one person in it who was ever taken. Everything in this place is here because it chose to be."
+dlg_l14_entrance_2,"That is Neo-Earth, Traveler. Not a stolen era: their own. The Apex Archive's core laboratory, the room every siphon in history reported back to. It was built to keep people out, so the perimeter will be honest about it — security lattices on a fixed cycle, and anti-gravity containment fields they use to shift cargo. Read a lattice before you walk it. And mind the pockets: they will lift you a great deal further than you expect."
+dlg_l14_entrance_3,"Then let us walk into the one place they never rehearsed losing."
+dlg_l14_boss_intro_1,"You are a rounding error that learned to knock. I have catalogued every version of this conversation, and in the ones that matter you were filed a long time ago."
+dlg_l14_boss_intro_2,"You have catalogued an awful lot of people who never got to answer you. I am the answer."
+dlg_l14_exit_1,"The core is dark. Every siphon line in the building went slack at once."
+dlg_l14_exit_2,"Confirmed — and there is nobody down there to bring home. I want you to hear that part: no locals, no coerced crews, nothing to restore. Everyone in that building chose it. This one was only ever the machine, and the machine is off."
+dlg_l14_exit_3,"It faded again, Sarah. Halfway up the containment shaft the resonance thinned right out, and for a moment I was just a person climbing a ladder. It comes back slower every time now."
+dlg_l14_exit_4,"I know, and I will not pretend that is not the clock. The overload signature is clean enough to open a route to the prime anchor: Alexandria, the moment of the cataclysm, the Leader of the Apex Archive standing over it. One jump left, and nothing after it."
+dlg_l14_exit_5,"Then take me to Alexandria, Commander, while I still have hands worth using."
