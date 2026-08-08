@@ -670,3 +670,27 @@ volumeDb)`; `RegisterPresentationSound(key, stream)` / `ClearPresentationSounds(
 `VictoryFanfarePath`, `CountdownBlipPath`. Bus names: `AudioBuses.{Master,Music,SFX,UI,Combat,
 Movement,Environmental}`. Nothing in A2 subscribes to gameplay events except
 `EventBus.OnEnemyPresentation`, so B5 owns every other trigger point.
+
+### ORCHESTRATOR — Phase A integration (2026-08-08)
+
+**INTEGRATION-A: all four framework branches merged (order A1→A3→A4→A2 by completion; the declared
+A1→A2→A3→A4 order proved unnecessary as no declared overlap materialized into a code conflict).**
+Only `docs/PACKAGE8_PRESENTATION_PLAN.md` §9 and `localization/en.csv` marker blocks conflicted;
+both union-resolved. The compiled translation was regenerated and committed at the wave boundary
+per §2.8 (A4's compiled-translation assertions require it).
+
+**INTEGRATION-A: validation.** Build clean (pre-existing vendored `CS8632` only); `--import` clean;
+full suite **1060 passed / 0 failed / Total 1060** across two consecutive serial runs — exactly
+907 baseline + 30 (A1) + 49 (A3) + 28 (A4) + 46 (A2), no cross-workstream loss.
+
+**INTEGRATION-A: notes for Phase B, accumulated from §9 blocks:**
+1. Theme adoption = set `Theme` on the screen root; focus via `FocusChainBuilder.Apply`; loading
+   copy uses raw keys + control auto-translation (the pattern C1's scanner will expect).
+2. The stem mix is ADDITIVE (ambient always audible; combat/climax layer on top) — B5 reads
+   `SetIntensity` as "how much is layered on". Full A2 API list is in its §9 block.
+3. gl_compatibility shaders: `TEXTURE` cannot be passed as a `sampler2D` argument (A3 inlined all
+   sampling; a test guards the regression). Pooled nodes bind signals in `_EnterTree`, not
+   `_Ready`.
+4. A4's `MainMenu.cs` touch is exactly one call + one static method (`AddSaveLoadNotice`) — B4
+   carries it into the authored menu.
+5. `settings_difficulty` is a deliberately orphaned key feeding C1's unused-key sweep.
