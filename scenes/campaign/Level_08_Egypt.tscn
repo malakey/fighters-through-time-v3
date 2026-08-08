@@ -1,0 +1,201 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/Level08Controller.cs" id="1_controller"]
+[ext_resource type="Script" path="res://scripts/Environment/StoryDropSystem.cs" id="2_drops"]
+[ext_resource type="Script" path="res://scripts/Environment/PuzzleManager.cs" id="3_puzzle"]
+[ext_resource type="Script" path="res://scripts/Environment/SequenceLock.cs" id="4_lock"]
+[ext_resource type="Script" path="res://scripts/Environment/SequenceGlyph.cs" id="5_glyph"]
+[ext_resource type="Script" path="res://scripts/Environment/InteractionArea.cs" id="6_interaction"]
+[ext_resource type="PackedScene" path="res://scenes/templates/MovementDampenerZoneTemplate.tscn" id="7_sand"]
+[ext_resource type="PackedScene" path="res://scenes/templates/CyclicHazardTemplate.tscn" id="8_hazard"]
+
+[sub_resource type="RectangleShape2D" id="GlyphShape"]
+size = Vector2(96, 128)
+
+[node name="Level_08_Egypt" type="Node2D"]
+script = ExtResource("1_controller")
+
+[node name="StoryDropSystem" type="Node" parent="."]
+script = ExtResource("2_drops")
+
+[node name="DuneA" parent="." instance=ExtResource("7_sand")]
+position = Vector2(1200, 660)
+ZoneID = "level_08.deep_sand_a"
+MoveMultiplier = 0.5
+
+[node name="DuneB" parent="." instance=ExtResource("7_sand")]
+position = Vector2(2300, 660)
+ZoneID = "level_08.deep_sand_b"
+MoveMultiplier = 0.5
+
+[node name="DuneC" parent="." instance=ExtResource("7_sand")]
+position = Vector2(3400, 660)
+ZoneID = "level_08.deep_sand_c"
+MoveMultiplier = 0.5
+
+[node name="DuneD" parent="." instance=ExtResource("7_sand")]
+position = Vector2(4300, 660)
+ZoneID = "level_08.deep_sand_d"
+MoveMultiplier = 0.5
+
+[node name="DuneE" parent="." instance=ExtResource("7_sand")]
+position = Vector2(5200, 660)
+ZoneID = "level_08.deep_sand_e"
+MoveMultiplier = 0.5
+
+[node name="SandCascadeA" parent="." instance=ExtResource("8_hazard")]
+position = Vector2(6880, 1620)
+HazardID = "level_08.sand_cascade_a"
+WarningDuration = 1.1
+ActiveDuration = 0.7
+CooldownDuration = 2.8
+Damage = 16
+
+[node name="SandCascadeB" parent="." instance=ExtResource("8_hazard")]
+position = Vector2(7460, 1620)
+HazardID = "level_08.sand_cascade_b"
+WarningDuration = 0.9
+ActiveDuration = 0.7
+CooldownDuration = 2.4
+Damage = 16
+
+[node name="HieroglyphPuzzle" type="Node" parent="."]
+script = ExtResource("3_puzzle")
+PuzzleID = "level_08.hieroglyph_lock"
+RequiredConditionIDs = PackedStringArray("hieroglyph_sequence")
+PersistCompletionToSave = true
+
+[node name="HieroglyphLock" type="Node2D" parent="." groups=["puzzle_object"]]
+position = Vector2(7900, 1540)
+script = ExtResource("4_lock")
+LockID = "level_08.hieroglyph_lock"
+PuzzleManagerPath = NodePath("../HieroglyphPuzzle")
+ConditionID = "hieroglyph_sequence"
+
+[node name="GlyphFalcon" type="Node2D" parent="HieroglyphLock" groups=["puzzle_object"]]
+position = Vector2(-240, 0)
+script = ExtResource("5_glyph")
+GlyphID = "level_08.glyph_falcon"
+OrderIndex = 2
+InteractionPromptKey = "interaction_press_glyph"
+SequenceLockPath = NodePath("..")
+VisualPath = NodePath("Visual")
+
+[node name="Visual" type="Polygon2D" parent="HieroglyphLock/GlyphFalcon"]
+polygon = PackedVector2Array(-48, -64, 48, -64, 48, 64, -48, 64)
+color = Color(1, 1, 1, 1)
+
+[node name="InteractionArea" type="Area2D" parent="HieroglyphLock/GlyphFalcon"]
+collision_layer = 256
+collision_mask = 1
+script = ExtResource("6_interaction")
+TargetPath = NodePath("..")
+PromptLabelPath = NodePath("Prompt")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HieroglyphLock/GlyphFalcon/InteractionArea"]
+shape = SubResource("GlyphShape")
+
+[node name="Prompt" type="Label" parent="HieroglyphLock/GlyphFalcon/InteractionArea"]
+offset_left = -100.0
+offset_top = -120.0
+offset_right = 100.0
+offset_bottom = -88.0
+text = "interaction_press_glyph"
+horizontal_alignment = 1
+visible = false
+
+[node name="GlyphScarab" type="Node2D" parent="HieroglyphLock" groups=["puzzle_object"]]
+position = Vector2(-80, 0)
+script = ExtResource("5_glyph")
+GlyphID = "level_08.glyph_scarab"
+OrderIndex = 0
+InteractionPromptKey = "interaction_press_glyph"
+SequenceLockPath = NodePath("..")
+VisualPath = NodePath("Visual")
+
+[node name="Visual" type="Polygon2D" parent="HieroglyphLock/GlyphScarab"]
+polygon = PackedVector2Array(-48, -64, 48, -64, 48, 64, -48, 64)
+color = Color(1, 1, 1, 1)
+
+[node name="InteractionArea" type="Area2D" parent="HieroglyphLock/GlyphScarab"]
+collision_layer = 256
+collision_mask = 1
+script = ExtResource("6_interaction")
+TargetPath = NodePath("..")
+PromptLabelPath = NodePath("Prompt")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HieroglyphLock/GlyphScarab/InteractionArea"]
+shape = SubResource("GlyphShape")
+
+[node name="Prompt" type="Label" parent="HieroglyphLock/GlyphScarab/InteractionArea"]
+offset_left = -100.0
+offset_top = -120.0
+offset_right = 100.0
+offset_bottom = -88.0
+text = "interaction_press_glyph"
+horizontal_alignment = 1
+visible = false
+
+[node name="GlyphJackal" type="Node2D" parent="HieroglyphLock" groups=["puzzle_object"]]
+position = Vector2(80, 0)
+script = ExtResource("5_glyph")
+GlyphID = "level_08.glyph_jackal"
+OrderIndex = 3
+InteractionPromptKey = "interaction_press_glyph"
+SequenceLockPath = NodePath("..")
+VisualPath = NodePath("Visual")
+
+[node name="Visual" type="Polygon2D" parent="HieroglyphLock/GlyphJackal"]
+polygon = PackedVector2Array(-48, -64, 48, -64, 48, 64, -48, 64)
+color = Color(1, 1, 1, 1)
+
+[node name="InteractionArea" type="Area2D" parent="HieroglyphLock/GlyphJackal"]
+collision_layer = 256
+collision_mask = 1
+script = ExtResource("6_interaction")
+TargetPath = NodePath("..")
+PromptLabelPath = NodePath("Prompt")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HieroglyphLock/GlyphJackal/InteractionArea"]
+shape = SubResource("GlyphShape")
+
+[node name="Prompt" type="Label" parent="HieroglyphLock/GlyphJackal/InteractionArea"]
+offset_left = -100.0
+offset_top = -120.0
+offset_right = 100.0
+offset_bottom = -88.0
+text = "interaction_press_glyph"
+horizontal_alignment = 1
+visible = false
+
+[node name="GlyphIbis" type="Node2D" parent="HieroglyphLock" groups=["puzzle_object"]]
+position = Vector2(240, 0)
+script = ExtResource("5_glyph")
+GlyphID = "level_08.glyph_ibis"
+OrderIndex = 1
+InteractionPromptKey = "interaction_press_glyph"
+SequenceLockPath = NodePath("..")
+VisualPath = NodePath("Visual")
+
+[node name="Visual" type="Polygon2D" parent="HieroglyphLock/GlyphIbis"]
+polygon = PackedVector2Array(-48, -64, 48, -64, 48, 64, -48, 64)
+color = Color(1, 1, 1, 1)
+
+[node name="InteractionArea" type="Area2D" parent="HieroglyphLock/GlyphIbis"]
+collision_layer = 256
+collision_mask = 1
+script = ExtResource("6_interaction")
+TargetPath = NodePath("..")
+PromptLabelPath = NodePath("Prompt")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HieroglyphLock/GlyphIbis/InteractionArea"]
+shape = SubResource("GlyphShape")
+
+[node name="Prompt" type="Label" parent="HieroglyphLock/GlyphIbis/InteractionArea"]
+offset_left = -100.0
+offset_top = -120.0
+offset_right = 100.0
+offset_bottom = -88.0
+text = "interaction_press_glyph"
+horizontal_alignment = 1
+visible = false

@@ -1,0 +1,45 @@
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
+
+[sub_resource type="Resource" id="Entrance"]
+script = ExtResource("2")
+DialogueID = "level_08.entrance"
+SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_player")
+LineKeys = PackedStringArray("dlg_l08_entrance_1", "dlg_l08_entrance_2", "dlg_l08_entrance_3")
+EmotionKeys = PackedStringArray("emotion_shocked", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="BossIntro"]
+script = ExtResource("2")
+DialogueID = "level_08.boss_intro"
+SpeakerNameKeys = PackedStringArray("speaker_jackal_priest", "speaker_player")
+LineKeys = PackedStringArray("dlg_l08_boss_intro_1", "dlg_l08_boss_intro_2")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="PostBoss"]
+script = ExtResource("2")
+DialogueID = "level_08.postboss"
+SpeakerNameKeys = PackedStringArray("speaker_cleopatra", "speaker_player", "speaker_cleopatra", "speaker_player")
+LineKeys = PackedStringArray("dlg_l08_postboss_1", "dlg_l08_postboss_2", "dlg_l08_postboss_3", "dlg_l08_postboss_4")
+EmotionKeys = PackedStringArray("emotion_injured", "emotion_neutral", "emotion_confused", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="Exit"]
+script = ExtResource("2")
+DialogueID = "level_08.exit"
+SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player")
+LineKeys = PackedStringArray("dlg_l08_exit_1", "dlg_l08_exit_2", "dlg_l08_exit_3", "dlg_l08_exit_4", "dlg_l08_exit_5")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_neutral", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[resource]
+script = ExtResource("1")
+DialogueSetID = "dialogue_level_08"
+Sequences = [SubResource("Entrance"), SubResource("BossIntro"), SubResource("PostBoss"), SubResource("Exit")]
