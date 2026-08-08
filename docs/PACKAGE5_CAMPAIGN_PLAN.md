@@ -209,7 +209,7 @@ rather than hardcoding a width — re-tuning the boss then cannot silently outgr
 | 10 | `tragedy_king` | 800 | 3.0 / 8.0 | `[0.5]` (2) | `DistanceBased` | yes | 50 |
 | 11 | `siege_cannon` | 880 | 3.0 / 12.0 | `[0.5]` (2) | `DistanceBased` | yes | 50 |
 | 12 | `gravity_overseer` | 950 | 3.0 / 9.0 | `[0.66, 0.33]` (3) | `DistanceBased` | yes | 50 |
-| 13 | `mirror_paradox` | 1000 | 2.0 / 5.0 | `[]` (1) | `Sequential` | **no** | 50 |
+| 13 | `mirror_paradox` | 1000 | 2.0 / 5.0 | `[]` (1) | `WeightedRandom` (0, unused) | **no** | 50 |
 | 14 | `archive_prime` | 1050 | 3.0 / 10.0 | `[0.66, 0.33]` (3) | `DistanceBased` | yes | 50 |
 | 15 | `apex_eraser` | 1200 | 3.0 / 10.0 | `[0.66, 0.33]` (3) | `DistanceBased` | yes | 50 |
 
@@ -1436,3 +1436,17 @@ differently in play. No change required to either level.
   known `gdunit4`/`gdUnit4` casing flip; reverted with `git checkout -- "*.import"`. The regenerated
   `localization/en.en.translation` IS committed, per the L02 rule. `AGENTS.md` is left for C1 per
   the A1 convention.
+
+### ORCHESTRATOR — §4.1 `Sequential` correction (2026-08-08)
+
+Level 13 caught an error in the §4.1 table: it listed `mirror_paradox` as `AttackPattern =
+Sequential`, but `BossAttackPattern` only defines `WeightedRandom` and `DistanceBased`. The
+resource reads `AttackPattern = 0` (`WeightedRandom`) and the field is never consulted, because
+`MirrorParadoxController` drives the clone from the Hard Fighter-CPU decision table rather than
+`BossData` attack selection. The row is corrected above; no resource was touched. Everything else
+Level 13 checked in §4.1 held exactly.
+
+Also confirmed on main: Level 13 reported `PathMovingPlatformTemplate` shipping a hardcoded English
+"MOVING PLATFORM" and warned that levels 7 and 12 ship it visibly. That was true of its worktree,
+which was cut before `6a9818d`. On main all seven toolkit templates use `LabelKey` translation keys,
+all seven `toolkit_*` keys resolve, and no template ships raw English. No action needed.
