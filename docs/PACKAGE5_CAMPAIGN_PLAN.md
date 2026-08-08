@@ -918,3 +918,67 @@ a pre-merge `git add`) before it will fast-forward.
 - **L06: suite baseline 514 -> 528** (+14 `Level06ContentTests`), verified at 528/528, 0 failed on
   the first full run, in 15 s. Import clean; `Level_06_Pompeii.tscn` smoke clean at
   `--quit-after 300` with zero errors or warnings. `AGENTS.md` is left for C1 per the A1 convention.
+### Wave B — Level 7, Nassau 1715
+
+- **L07: §4.1 matched the resource exactly, so nothing had to be rediscovered.**
+  `resources/Bosses/dread_admiral.tres` reads 700 HP, melee 3.0 / ranged 11.0, one threshold at
+  0.5, `DistanceBased`, knockback-immune — identical to the §4.1 row. The burning deck is 2,100 px
+  against the 660 px the 11.0-unit band needs, and `Level07ContentTests` asserts
+  `RangedRangeThreshold * 60 < arenaWidth` rather than a hardcoded width. No boss resource touched.
+- **L07: "a gap that cannot be jumped" is computed from the roster, not asserted as a magic
+  number.** `Level07ContentTests.BestUnaidedJumpDistance` re-derives the horizontal reach of a
+  flat-ground jump for all nine characters from their `.tres` stats plus PlayerController's
+  movement model (impulse `MaxJumpForce * 54`, rising gravity `18 * (0.8 + 0.4 * Weight) * 60`,
+  falls at 1.8x clamped to a 600 px/s terminal velocity, air control capped at `MaxMoveSpeed * 60`).
+  The ceiling is Pocahontas at ~1,286 px with her double jump; the channel is 2,000 px, and the test
+  demands 25% headroom over the computed best so a movement retune cannot quietly turn the swing
+  into a long jump. The mirror bound (Lincoln, ~224 px single jump) caps every hop in the anchor
+  chain at 75% of it. **Movement abilities are deliberately excluded from the claim** — a glide or a
+  warp may well cross it, and should; what the level guarantees is that a *jump* cannot.
+- **L07: the sea is an undertow rescue area, not a kill plane and not a `RisingWaterZone`.** There
+  is no fall-death primitive in the toolkit (Level 4 solved its "bottomless pit" by putting a floor
+  in it), but Nassau genuinely needs open water under the ropes. Each entry in
+  `Level07Controller.WaterSpans` therefore carries an authored rescue anchor: falling in costs 18 HP
+  and dumps the player back on the deck they launched from with velocity zeroed. That keeps a missed
+  swing a setback rather than an instadeath, keeps rewind as the real failure state (plan §3 A2's
+  `EscapeSequenceController` rule), and means the player can never fall out of the world. A test
+  pins that every rescue anchor stands on a span in `SolidDeckSpans`, west of its own water.
+- **L07: no `RisingWaterZone` anywhere, and a test enforces it.** Level 5 is the ship that floods;
+  Nassau's flagship lists to starboard as *static* authored geometry — stepped slabs bridged by two
+  10.5° rotated ramps (the Level 5 seam finding), with the two wooden yards held dead horizontal so
+  the tilt reads. `TheFlagshipDeckListsToStarboardAsStaticGeometryAndNassauNeverFloods` counts the
+  tilted slabs, asserts the yards are unrotated, and fails if a flood zone ever appears here.
+- **L07: the anchor chain is geometrically coupled to `PendulumAnchorTemplate`'s fixed rope
+  lengths** — 320 px from pivot to the `LedgeGrabPoint`, 360 px to the `HangAnchor` the occupant is
+  pinned to. Those two radii and the 45° amplitude decide every reach in the chain, so they are
+  mirrored as `AnchorGrabRadius`/`AnchorHangRadius`/`AnchorAmplitudeDegrees` constants and the
+  content test recomputes the hop budget from them. Same class of coupling L02 recorded for
+  `ShieldGeneratorTowerTemplate`; **Level 10 (Globe) inherits it** when it reuses the component.
+- **L07: `PendulumAnchor` sits on the Environment collision layer, so a swinging rope is a solid
+  body.** The chain is authored so no rope ever sweeps over a deck the player stands on (the first
+  rope's westmost grab point is east of the launch yard's lip, the last rope's eastmost hang point
+  is west of the receiving yard), and `TheAnchorChainClosesTheChannelInHopsTheWeakestCharacterCanMake`
+  pins both clearances. Without that, a rope shoves the player off the yard they are standing on.
+- **L07: room seams are bidirectional pairs where backtracking is actually possible.** Adopting the
+  L03 pattern rather than L02/L04/L05's single one-shot triggers: Nassau's harbour/rigging and
+  rigging/channel seams are contiguous deck the player really can walk back across, so each is two
+  repeatable 80 px triggers straddling the seam 160 px apart. The boss seam stays a single one-shot
+  trigger on purpose — that clamp is the arena lock. `BuildRoomTransitionPair` is level-local; the
+  shared base was not changed. (If Wave B levels keep needing it, it belongs in the base at C1.)
+- **L07: the boarding-skiff crossings beat the weakest character's hop, not the best jump.** The
+  three channel gaps are 430 / 410 / 380 px, comfortably past Lincoln's ~224 px but inside
+  Pocahontas's double jump. Widening them past ~1,300 px each would have needed a ~4,000 px channel,
+  which does not fit the room budget. The skiffs are the intended route and the mortar lane is what
+  punishes trying to leap it; the test asserts the honest bound rather than overclaiming.
+- **L07: `--headless --import` after editing `en.csv` regenerated `en.en.translation`** (the L02
+  finding, confirmed again) and rewrote ~40 tracked `.import` files with new cache hashes plus the
+  `gdunit4` -> `gdUnit4` casing flip. That churn was reverted; the regenerated `.translation` is
+  committed with the csv block.
+- **L07: the first targeted `dotnet test` hit the sibling-worktree pipe collision.**
+  `Exception All pipe instances are busy` / `GodotRuntimeTestRunner ends with exit code: 100` /
+  `Connection timeout`, then `No test matches the given testcase filter` — the A1 concurrency shape,
+  not a code fault. The immediate re-run was clean. Note the failure mode reports *zero* matching
+  tests rather than a partial total when the filter is narrow.
+- **L07: suite baseline 514 -> 535** (+21 `Level07ContentTests`), verified at 535/535, 0 failed in
+  16 s. Import clean, `--quit` clean, and `Level_07_Nassau.tscn --quit-after 300` exits 0 with no
+  script errors. `AGENTS.md` is left for C1 per the A1 convention.
