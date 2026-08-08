@@ -663,3 +663,116 @@ port and one `app_userdata` log directory, so concurrent `dotnet test` runs abor
 truncated `Total:` (29 or 122 here) — always with **0 failures and no negative exit code**, which
 distinguishes it from CLAUDE.md failure signatures 1/2/4. The log will contain another worktree's
 absolute paths. Two clean serial runs were obtained at **742/742** (705 baseline + 37 A2 tests).
+
+### A3 — CPU completion (2026-08-08)
+
+**A3: the per-band rates were taken from `design-godot.md` §10's difficulty matrices rather than
+from §3 A3's summary, so three of this plan's phrasings are implemented differently.** §2's authority
+order puts the design document above this plan, and §10 specifies each band's kit precisely. The
+three divergences, all pinned by `tests/Determinism/FighterCpuBehaviorTests.cs`:
+
+1. **Special 2 on Easy is the off-stage recovery button, not a low-rate neutral option.** §3 A3 item 4
+   says "Special 2 at all bands (Easy included, lower rate)"; §10 Easy says Special 2 "is only
+   triggered when the AI is off-stage and below the main platform Y-coordinate" and that Easy is
+   "restricted from using Special 1 (projectiles) or Special 2 ... in standard neutral play". Easy
+   therefore has `SpecialTwoPercent = 0` and `RecoverySpecialTwoPercent = 55`. Pinned by
+   `EasyUsesSpecialTwoOffStageAndNeverInNeutral`.
+2. **Easy does not avoid hazards at all, and Normal reacts only once the hazard is damaging.** §3 A3
+   item 3 says avoidance is "scaled per band — even Easy's 30–45-frame reaction window fits"; §10
+   says Easy "does not react to stage hazard warning indicators. Will walk into active hazard zones
+   and take damage freely" and Medium "reacts to active hazard zones (after the warning phase ends
+   and damage begins) ... does not preemptively avoid warning indicators". Only Hard vacates during
+   the 90-frame telegraph. Pinned by `HardVacatesATelegraphedHazardDuringTheWarningPhase`,
+   `NormalIgnoresTheWarningAndOnlyLeavesOnceTheHazardIsDamaging`, and
+   `EasyWalksIntoHazardsInBothPhases`. **If the orchestrator prefers the plan's reading, the only
+   change needed is `CpuBandTuning.Easy.HazardAvoidPercent` / `Normal.AvoidsHazardWarning`** — the
+   table is the single edit point.
+3. **Easy commands a recovery but cannot physically complete one, and the test says so.** §3 A3 item 6
+   asks for "recovery gets back to stage on each band". At the simulation's −30 u/s² gravity, a
+   −5 blast zone, and a 13 u/s jump, a fighter that has crossed the floor plane is already past the
+   blast zone before Easy's 30–45-frame reflex window elapses. §10 Easy in fact says "No active
+   recovery attempts ... simply falls". The middle ground implemented: Easy *issues* toward-centre
+   steering plus jumps and Special 2 (its `RecoveryJumpPercent` is 60), but only Normal and Hard are
+   asserted to make it back. `OffStageRecoverySteersTowardCentreAndSpendsJumpsOnEveryBand` pins the
+   commands on all three bands; `CommandedRecoveryClimbsBackOverTheFloorWithinTheNormalAndHardReflexWindows`
+   pins the outcome on two. Note §10 Easy contradicts itself here — the same block grants Easy the
+   double jump "unless trying to recover from a ledge" and the off-stage Special 2.
+
+**A3: two band gaps outside the plan's list were closed while lifting the literals into
+`CpuBandTuning`, because they are the same bug as the Special 2 one.** Special 1 was Hard-only in
+every branch (§10 Medium: "Uses Special 1 (zoning/projectiles) when at medium-to-long distance"), and
+the defensive block/roll branch was Hard-only (§10 shield rates: Easy 10%, Medium 40%, Hard 80%).
+Normal now has `SpecialOneRangedPercent = 22` / `SpecialOneClosePercent = 12`, and all three bands
+block at their design rate with the evasive roll still Hard-only. Pinned by
+`NormalZonesWithSpecialOneAtRangeWhereItPreviouslyNeverCould` and
+`BandTuningMatchesTheDesignDifficultyMatrices`.
+
+**A3: the CPU's buttons are now pulsed (2-frame hold, 1-frame release gap) instead of latched, which
+is a behaviour change for every existing CPU including the Story Mirror Paradox.** The old controller
+held the chosen `GameplayButtons` until the next *different* decision, and the simulation reads Jump,
+Roll, Dash, Ultimate, and every attack from the `Pressed` edge — so a CPU that kept choosing "attack"
+produced exactly one attack for the whole match, and a double jump was impossible by construction.
+`EdgeButtons` are now scheduled through an explicit press → hold → release → gap cycle.
+`RepeatedIdenticalDecisionsStillProduceRepeatedPressedEdges` and
+`EveryEdgeButtonIsReleasedBeforeItIsPressedAgain` pin it; the Level 13 clone gets meaningfully more
+aggressive as a side effect, which `MirrorParadoxTests` parity still covers because both sides of the
+comparison changed identically.
+
+**A3: orbs, hazards, and the match-live gate reach the CPU through a new `ICpuWorldObserver` handed in
+at construction, not through the driver's per-frame `Sample` call site.** §3 A3 limits this workstream
+to "one-line CPU construction change in `FighterSimulationDriver.cs`", and the CPU cannot see orbs or
+hazards from fighter components alone. `FighterSimulationWorldObserver` wraps `FighterSimulation` and
+is constructed in the same block as the controller, so the driver's `_PhysicsProcess` is untouched and
+A2 owns it cleanly. The interface also lets the behaviour tests script an orb or a telegraphed hazard
+without standing up a simulation. `TheWorldObserverFillsTheOrbAndHazardBlocksAndTheLiveGate` pins it.
+
+**A3: `SuppressGameplayInput` is phrased as "not live" rather than as a `MatchState` value, so the
+default reads as live.** A2 introduces `MatchState = 0` for the countdown and a respawn-platform
+phase; a raw `MatchState` field would have made every hand-built observation (and the Story adapter)
+read as "state 0 = countdown" and emit nothing. The world observer sets it from
+`GetMatchState().MatchState != 1`, so any future non-live state suppresses the pad automatically.
+Pinned by `ANonLiveMatchStateSuppressesEveryGameplayButtonAndAllMovement`.
+
+**A3: the CPU seed is `WorldSeed * 397 + 1` (player slot), which today is a constant because the
+driver never passes a match seed.** `FighterSimulation`'s `seed` parameter still defaults to `2026`
+and `FighterSimulationDriver` does not supply one, so the derivation currently reproduces one fixed
+stream — but it now tracks the match seed rather than a literal, so whoever wires a real per-match
+seed (A2's rules round-trip is the natural place) gets varied CPUs with no further change here.
+
+**A3: `scripts/Enemies/CpuFighterAI.cs` and its duplicate `FTT.Enemies.CpuDifficulty` enum are
+deleted.** The class was a no-op stub — `DecideAction()` computed a distance and discarded it — and its
+enum forced the fully-qualified `FTT.Core.CpuDifficulty` workaround in `MirrorParadoxDecisionAdapter`,
+which is also removed. `IMPLEMENTATION_STATUS.md` line ~521 still lists it in an Enemies file
+inventory; C1 should drop it there.
+
+**A3: no hash literal was found in any test touched by this workstream** (plan §2.11 reporting duty).
+
+**A3: parallel Phase A worktrees cannot run `dotnet test` at the same time — the resulting partial
+`Total:` is contention, not a regression, and it is a sixth failure signature.** GdUnit4 v6.2's
+runner transport is a *named pipe* whose name derives from the project, not the worktree, and Godot's
+`app_userdata/Fighters Through Time` log/user directory is likewise shared across every worktree. A
+run that loses the race reports `Failed to connect: Connection timeout` with `Total: 46` (only the
+non-Godot tests), or aborts mid-suite with a large partial total; the tell is
+`Exception All pipe instances are busy` in `godot.log`, or another agent's worktree path appearing in
+the C# backtraces there. Re-running in a clear window gives the true result — every run in this
+worktree that actually launched Godot reported the full total, with no in-between values. Worth a
+CLAUDE.md failure-signature row at closeout.
+
+Post-merge re-verification for the orchestrator:
+
+- **A1's hazards.** The evasion tests use scripted observations, not real hazards, so they stay green
+  regardless — but once A1's ten era hazards land, re-run
+  `--filter "FullyQualifiedName~FighterCpuBehavior"` and spot-check that moving hazards (Orléans
+  debris, Paris beam, Vesuvius rockfall) are handled. The controller deliberately re-reads the hazard
+  every frame and never caches a position, and `TryGetRelevantHazard` selects by current region
+  distance with warning phase winning ties, so movement is expected to Just Work.
+- **A1's nine geometries.** `FighterStageGeometry` is a constructor parameter; new stages need no CPU
+  edit. Worth confirming the recovery branch never fires on a solid-floor stage (it cannot: the
+  movement system clamps X to the walls and pins Y at 0 when `Platforms.Length > 0`).
+- **A2's driver refactor.** The only overlap is the `if (session.FighterOpponentType == ...Cpu)` block
+  in `Initialize`; take A3's version whole. If A2 moves CPU construction before the `Simulation`
+  assignment, `Simulation.GetMatchState()` and `new FighterSimulationWorldObserver(Simulation)` must
+  move with it.
+- **A2's countdown/respawn phases.** Confirm the driver still reaches `_cpuController.Sample` during
+  those phases (the CPU will emit an inert pad on its own) or continues to early-return; either is
+  correct, but only the former exercises `SuppressGameplayInput`.

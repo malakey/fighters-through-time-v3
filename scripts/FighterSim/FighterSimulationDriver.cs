@@ -13,6 +13,8 @@ namespace FTT.FighterSim {
     public partial class FighterSimulationDriver : Node {
         private static readonly Vector2 WorldOrigin = new(950f, 700f);
         private const float PixelsPerUnit = 62.5f;
+        /// <summary>Local slot the CPU opponent occupies; folded into its seed.</summary>
+        private const int CpuPlayerSlot = 1;
 
         private PlayerController _playerOne;
         private PlayerController _playerTwo;
@@ -105,7 +107,15 @@ namespace FTT.FighterSim {
                 stageGeometry: FighterStageGeometry.ForStage(stageID ?? ""));
             SessionData session = GameManager.Instance?.CurrentSession ?? default;
             if (session.FighterOpponentType == FighterOpponentType.Cpu) {
-                _cpuController = new FighterCpuController(session.CpuDifficulty, 2026);
+                // Derive the CPU stream from the match seed plus its player slot, so a
+                // rematch with identical settings reproduces the same opponent instead
+                // of the old hardcoded literal. The CPU stays outside the snapshot.
+                int cpuSeed = unchecked(Simulation.GetMatchState().WorldSeed * 397 + CpuPlayerSlot);
+                _cpuController = new FighterCpuController(
+                    session.CpuDifficulty,
+                    cpuSeed,
+                    FighterStageGeometry.ForStage(stageID ?? ""),
+                    new FighterSimulationWorldObserver(Simulation));
             }
             WarmPresentationProxies(112);
             AddToGroup("FighterSimulation");

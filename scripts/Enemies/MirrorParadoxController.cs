@@ -348,9 +348,7 @@ namespace FTT.Enemies {
         private PlayerController _self;
 
         public MirrorParadoxDecisionAdapter(int seed) {
-            // FTT.Enemies also declares a CpuDifficulty (the legacy CpuFighterAI stub),
-            // so the Fighter engine's enum has to be named explicitly here.
-            _cpu = new FighterCpuController(FTT.Core.CpuDifficulty.Hard, seed);
+            _cpu = new FighterCpuController(CpuDifficulty.Hard, seed);
         }
 
         public PlayerController Target { get; private set; }
@@ -378,27 +376,54 @@ namespace FTT.Enemies {
             return _cpu.Sample(tick, in observation, in previousFrame);
         }
 
-        /// <summary>Projects the current Story frame onto the shared decision observation.</summary>
+        /// <summary>
+        /// Projects the current Story frame onto the shared decision observation.
+        /// </summary>
+        /// <remarks>
+        /// Story world units are pixels with <b>+Y down</b>, so every Y quantity is
+        /// negated to match the Fighter simulation's +Y-up convention. The stage,
+        /// orb, and hazard blocks are left at their "absent" sentinels
+        /// (<c>HasStageBounds</c>/<c>HasOrb</c>/<c>HasHazard</c> all zero): a campaign
+        /// level has no blast zone, no Chronal Orbs, and no Fighter stage hazards, and
+        /// those flags are exactly what keep the shared table's off-stage recovery,
+        /// orb pursuit, and hazard evasion branches from firing here. Package 6 §2.5
+        /// requires both Observe paths to stay field-for-field aligned.
+        /// </remarks>
         public CpuDecisionObservation Observe() {
             if (_self == null || !GodotObject.IsInstanceValid(_self)) return default;
             bool targetValid = Target != null && GodotObject.IsInstanceValid(Target);
-            float selfUnits = _self.GlobalPosition.X / StoryPixelsPerUnit;
-            float targetUnits = targetValid ? Target.GlobalPosition.X / StoryPixelsPerUnit : selfUnits;
+            float selfUnitsX = _self.GlobalPosition.X / StoryPixelsPerUnit;
+            float selfUnitsY = -_self.GlobalPosition.Y / StoryPixelsPerUnit;
+            float targetUnitsX = targetValid ? Target.GlobalPosition.X / StoryPixelsPerUnit : selfUnitsX;
+            float targetUnitsY = targetValid ? -Target.GlobalPosition.Y / StoryPixelsPerUnit : selfUnitsY;
             bool alive = _self.CurrentState != CharacterState.Dead
                 && _self.CurrentState != CharacterState.Respawning;
 
             return new CpuDecisionObservation {
-                SelfPositionXRaw = FP64.FromFloat(selfUnits).RawValue,
-                TargetPositionXRaw = FP64.FromFloat(targetUnits).RawValue,
+                SelfPositionXRaw = FP64.FromFloat(selfUnitsX).RawValue,
+                SelfPositionYRaw = FP64.FromFloat(selfUnitsY).RawValue,
+                SelfVelocityXRaw = FP64.FromFloat(_self.Velocity.X / StoryPixelsPerUnit).RawValue,
+                SelfVelocityYRaw = FP64.FromFloat(-_self.Velocity.Y / StoryPixelsPerUnit).RawValue,
+                TargetPositionXRaw = FP64.FromFloat(targetUnitsX).RawValue,
+                TargetPositionYRaw = FP64.FromFloat(targetUnitsY).RawValue,
                 Stocks = alive ? 1 : 0,
                 HitstunFrames = _self.CurrentState == CharacterState.Stunned ? 1 : 0,
                 DazeFrames = _self.CurrentState == CharacterState.Dazed ? 1 : 0,
                 IsGrounded = _self.IsOnFloor() ? 1 : 0,
+                RemainingJumps = _self.RemainingJumps,
+                SelfCurrentHP = _self.CurrentHP,
+                SelfMaxHP = _self.MaximumHP,
                 InfluenceRaw = FP64.FromFloat(Math.Max(0f, _self.CurrentUltimateMeter)).RawValue,
                 SpecialOneCooldownFrames = ToFrames(_self.SpecialOneCooldownTimer),
                 SpecialTwoCooldownFrames = ToFrames(_self.SpecialTwoCooldownTimer),
                 MovementCooldownFrames = ToFrames(_self.MovementAbilityCooldownTimer),
+                TargetCurrentHP = targetValid ? Target.CurrentHP : 0,
+                TargetMaxHP = targetValid ? Target.MaximumHP : 0,
+                TargetHitstunFrames = targetValid && Target.CurrentState == CharacterState.Stunned ? 1 : 0,
                 TargetPressedButtons = targetValid ? (int)Target.CurrentInputFrame.Pressed : 0
+                // HasStageBounds / HasOrb / HasHazard / SuppressGameplayInput stay 0:
+                // Story has no Fighter stage, no orbs, no stage hazards, and the
+                // encounter's own reveal gate owns whether the clone acts at all.
             };
         }
 
