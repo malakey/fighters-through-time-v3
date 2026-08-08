@@ -59,6 +59,50 @@ Cause: something set `SceneTree.Paused = true` and never cleared it. GdUnit4's t
 | 4 | large partial, short `Duration:` | timeout abort, child still running | `SceneTree.Paused` leaked; GdUnit's transport node stopped pumping |
 | GdUnit stdout race | large partial | `-532462766` (`0xE0434352`) | Unhandled managed exception on GdUnit's stdout-hook thread. Do not re-add the verbose engine flag to `.runsettings` |
 | Cold cache | partial, 1 spurious failure | timeout abort | Import timeout artifact; see below |
+| 5. Cross-worktree pipe contention | partial with **0 failures**, or a plausible `Passed! Total: ~73` in ~12 s | `100` (not negative) | Another checkout is running GdUnit at the same time; see below |
+| 6. Silently dropped `[TestSuite]` | `Total:` moves by a *plausible* small delta (e.g. +1) instead of the real one | 0 (green) | A second `[TestSuite]` class shares a source file with another; see below |
+
+### Failure signature 5: cross-worktree GdUnit pipe contention (a partial total that is NOT a crash)
+
+GdUnit4 v6.2 launches its Godot child with `--pipe-name gdunit4-FightersThroughTime`, derived from
+the **assembly** name — identical in every git worktree — and Godot's
+`app_userdata/Fighters Through Time` log directory is shared too. Two agents running `dotnet test`
+at once cross-connect and truncate each other. Confirmed independently by six Package 6 agents.
+
+Tells, any of which is enough:
+
+- a partial `Total:` with **0 failures** and a **positive** exit code `100`
+  (`GodotRuntimeTestRunner ends with exit code: 100`),
+- `Failed to connect: Connection timeout` / `The server returned an unexpected status code`,
+- `Exception All pipe instances are busy` or a *sibling worktree's absolute paths* in `godot.log`,
+- `No test matches the given testcase filter` on a filter that plainly matches a built suite,
+- most dangerous: a **green** `Passed! - Failed: 0, Passed: 73, Total: 73` finishing in ~12 s. That
+  is the pure-C# subset only. It looks entirely plausible; the count is the only tell.
+
+This is **not** signature 1 or 2: there is no FATAL in `godot.log`, the exit code is positive, and
+the truncation point moves with the other agent's activity. Remedy: never run GdUnit concurrently
+across checkouts. Drain `testhost` processes first (`Get-Process testhost`) and wait for the count to
+reach zero — polling for a clear window proved far more reliable than blind retries. **Never accept a
+full-suite number without comparing it to the exact expected total**; "Passed!" plus a non-trivial
+count is worthless on its own.
+
+### Failure signature 6: a second `[TestSuite]` in one file is discovered but never executed
+
+GdUnit4 silently refuses to *run* a plain C# `[TestSuite]` that shares a source file with a
+`[RequireGodotRuntime]` suite. The adapter logs `Discover: TestSuite ... with 22 TestCases found`
+and then runs none of them — the run stays green and `Total:` moves by a plausible-looking `+1`
+instead of `+23`. **Rule: one `[TestSuite]` class per file**, and always check `Total:` against the
+exact expected delta, not against "bigger than before".
+
+### Test-authoring footgun: `OverrideFailureMessage("")` throws on the *passing* path
+
+`AssertThat(errors.Count).OverrideFailureMessage(string.Join("; ", errors)).IsEqual(0)` — the natural
+way to surface a validator's messages — throws
+`ArgumentException("The value cannot be an empty string. (Parameter 'message')")` precisely when the
+content is correct and the error list is empty, because GdUnit4 evaluates the override eagerly. Use a
+non-empty literal prefix, or the repository idiom
+`if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");`. The resulting failure
+reads like a content bug, which is why it has cost several agents a run.
 
 A third signature — a headless scene smoke run exiting `-1073741819` inside
 `Godot.Collections.Array.Finalize()` **after** the scene finished with no script errors — was a
@@ -76,7 +120,7 @@ Build (verified: succeeds with 1 pre-existing vendored warning — `CS8632` in `
 dotnet build FightersThroughTime.csproj --nologo
 ```
 
-Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-08 on `net10.0` (Package 5 close, all sixteen campaign levels authored): **705 passed, 0 failed, Total 705** across three consecutive runs, in about 20 seconds after a warm build. Read the `Total:` count in the summary, not just the exit code — see the failure signatures above:
+Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-08 on `net10.0` (Package 6 close, ten production Fighter stages authored): **907 passed, 0 failed, Total 907** across three consecutive runs, in about 40 seconds after a warm build. Read the `Total:` count in the summary, not just the exit code — see the failure signatures above:
 
 ```bash
 dotnet test FightersThroughTime.csproj --settings .runsettings
@@ -108,7 +152,7 @@ Open the editor for manual verification (only when the user asks — it takes ov
 "D:\Projects\Godot_v4.7.1-stable_mono_win64.exe" --path "D:\Projects\Fighters Through Time - V3" --editor
 ```
 
-Useful scene targets: `res://scenes/menus/MainMenu.tscn` (main scene), `res://scenes/arenas/TestArena.tscn` (Fighter sandbox), `res://scenes/campaign/HubWorld.tscn` and `res://scenes/campaign/Level_NN_*.tscn` (all sixteen campaign levels are authored), `res://scenes/fighter/FighterStage_Florence.tscn` (production stage), `res://scenes/diagnostics/PerformanceBaselineRunner.tscn` (performance baseline runner).
+Useful scene targets: `res://scenes/menus/MainMenu.tscn` (main scene), `res://scenes/arenas/TestArena.tscn` (Fighter sandbox), `res://scenes/campaign/HubWorld.tscn` and `res://scenes/campaign/Level_NN_*.tscn` (all sixteen campaign levels are authored), `res://scenes/fighter/FighterStage_*.tscn` (all ten production Fighter stages are authored), `res://scenes/diagnostics/PerformanceBaselineRunner.tscn` (performance baseline runner).
 
 ### After editing `localization/en.csv`, run `--import`, not `--quit`
 
@@ -148,6 +192,7 @@ enemy/boss display names.
 | `docs/PACKAGE3_KIT_AUDIT.md` | The 36-slot character-kit audit and conversion order. |
 | `docs/PACKAGE4_ROSTER_PLAN.md` | The enemy/boss roster plan: archetype system, per-era roster IDs, boss kits, and the per-workstream deviation log. |
 | `docs/PACKAGE5_CAMPAIGN_PLAN.md` | The campaign plan for levels 2–15: per-level dossiers with the locked encounter economy, the authored boss stat table (§4.1), the shared-file conflict policy, crash hygiene (§2.8), and a long per-level deviation log (§9). Complete; read §9 before touching a campaign level. |
+| `docs/PACKAGE6_FIGHTER_PLAN.md` | The ten-stage local Fighter Mode plan: standing decisions (§2), the per-stage geometry dossiers and the ten era-hazard specs (§4/§4.1), the Phase A/B/C workstream split, and a long per-workstream deviation log (§9). Complete; read §9 before touching Fighter stages, hazards, match flow, the CPU, or the rollback harness. |
 | `docs/DUST_ECONOMY.md` | The Chronal Dust reward/cost model. Locked by `tests/ContentValidation/DustEconomyTests.cs`. |
 | `docs/architecture/000*.md` | Accepted ADRs. Supersede rather than silently rewrite one. |
 | `docs/BUILDING.md`, `docs/PERFORMANCE_BASELINE.md` | Build/validation procedure and the Package 0 performance baseline. |

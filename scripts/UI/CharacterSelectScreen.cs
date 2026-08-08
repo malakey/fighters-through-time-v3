@@ -37,6 +37,7 @@ namespace FTT.UI {
         private OptionButton _hazardFrequency;
         private OptionButton _matchMode;
         private OptionButton _stageSelect;
+        private TextureRect _stagePreview;
         private FighterStageCatalog _stageCatalog;
         private readonly List<string> _stageIDs = new();
 
@@ -243,7 +244,19 @@ namespace FTT.UI {
             stageRow.AddChild(new Label { Text = Tr("fighter_stage") });
             _stageSelect = new OptionButton { CustomMinimumSize = new Vector2(420, 38) };
             stageRow.AddChild(_stageSelect);
+            // Package 6 closeout: every stage now ships a placeholder preview plate.
+            // The rect stays hidden when a stage has no PreviewTexturePath so an
+            // unauthored stage degrades to the era colours instead of a blank hole.
+            _stagePreview = new TextureRect {
+                CustomMinimumSize = new Vector2(240, 135),
+                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+                Visible = false
+            };
+            stageRow.AddChild(_stagePreview);
+            _stageSelect.ItemSelected += _ => UpdateStagePreview();
             PopulateStages();
+            UpdateStagePreview();
 
             var rulesRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
             rulesRow.AddThemeConstantOverride("separation", 14);
@@ -293,11 +306,41 @@ namespace FTT.UI {
                 _stageIDs.Add(stage.StageID);
                 _stageSelect.AddItem(Tr(stage.DisplayNameKey), itemID);
                 int itemIndex = _stageSelect.ItemCount - 1;
-                _stageSelect.SetItemTooltip(
-                    itemIndex,
-                    $"{Tr(stage.LayoutDescriptionKey)}\n{Tr(stage.HazardNameKey)}: {Tr(stage.HazardDescriptionKey)}\n{Tr("fighter_stage_prototype")}");
+                // A production-contract stage is no longer a prototype. The line
+                // used to be appended unconditionally, which branded every stage —
+                // including the shipped Florence Workshop — as placeholder routing.
+                string tooltip =
+                    $"{Tr(stage.LayoutDescriptionKey)}\n{Tr(stage.HazardNameKey)}: {Tr(stage.HazardDescriptionKey)}";
+                if (!stage.ProductionReady) tooltip += $"\n{Tr("fighter_stage_prototype")}";
+                _stageSelect.SetItemTooltip(itemIndex, tooltip);
             }
             _stageSelect.Disabled = _stageIDs.Count == 0;
+        }
+
+        /// <summary>
+        /// Shows the selected stage's placeholder preview plate. Production art
+        /// replaces the SVG behind <see cref="FighterStageData.PreviewTexturePath"/>
+        /// with no change here.
+        /// </summary>
+        private void UpdateStagePreview() {
+            if (_stagePreview == null) return;
+            _stagePreview.Texture = null;
+            _stagePreview.Visible = false;
+
+            int index = (int)_stageSelect.GetSelectedId();
+            if (index < 0 || index >= _stageIDs.Count) return;
+
+            FighterStageData stage = _stageCatalog?.Find(_stageIDs[index]);
+            if (stage == null || string.IsNullOrWhiteSpace(stage.PreviewTexturePath)) return;
+            if (!ResourceLoader.Exists(stage.PreviewTexturePath)) return;
+
+            // Preview plates are streamable art, not authored tuning data, so they
+            // deliberately do NOT go through AuthoredResources' pinning cache.
+            var texture = ResourceLoader.Load<Texture2D>(stage.PreviewTexturePath);
+            if (texture == null) return;
+            _stagePreview.Texture = texture;
+            _stagePreview.TooltipText = Tr(stage.DisplayNameKey);
+            _stagePreview.Visible = true;
         }
 
         private void CycleOpponent(int direction) {

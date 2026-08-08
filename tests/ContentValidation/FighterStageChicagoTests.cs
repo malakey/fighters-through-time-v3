@@ -134,9 +134,19 @@ public class FighterStageChicagoTests {
             var presentation = root.GetNodeOrNull<Node2D>("Presentation");
             AssertObject(presentation).IsNotNull();
 
+            // Package 6 C1: the tint must be translucent. A ParallaxBackground is a
+            // negative-layer CanvasLayer, so an OPAQUE full-bleed ColorRect sitting
+            // in canvas layer 0 hides the whole parallax whatever its z_index — and
+            // a node-existence test still passes. Opaque screen coverage comes from
+            // BackdropBase inside the parallax instead.
             var tint = presentation.GetNodeOrNull<ColorRect>("BackdropTint");
             AssertObject(tint).IsNotNull();
-            AssertThat(tint.Color).IsEqual(new Color(0.04f, 0.09f, 0.13f, 1f));
+            AssertThat(tint.Color.R).IsEqualApprox(0.04f, 0.001f);
+            AssertThat(tint.Color.G).IsEqualApprox(0.09f, 0.001f);
+            AssertThat(tint.Color.B).IsEqualApprox(0.13f, 0.001f);
+            AssertThat(tint.Color.A < 1f).OverrideFailureMessage(
+                $"BackdropTint is opaque (alpha {tint.Color.A}); it would hide the parallax.")
+                .IsTrue();
 
             // Reached untyped: Godot 4.7 marks the ParallaxBackground/ParallaxLayer
             // C# classes obsolete in favour of Parallax2D, and referencing them here

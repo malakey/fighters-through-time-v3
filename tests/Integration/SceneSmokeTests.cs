@@ -29,7 +29,21 @@ public class SceneSmokeTests {
         // Package 5 Wave C.
         "res://scenes/campaign/Level_13_ChronalVoid.tscn",
         "res://scenes/campaign/Level_14_NeoEarth.tscn",
-        "res://scenes/campaign/Level_15_Alexandria.tscn"
+        "res://scenes/campaign/Level_15_Alexandria.tscn",
+        // Package 6: all ten production-contract Fighter stages. Florence shipped
+        // before this list existed and was never added; the other nine land with
+        // the Package 6 closeout, at which point every catalog ScenePath resolves
+        // to its own scene instead of aliasing the Test Arena.
+        "res://scenes/fighter/FighterStage_Florence.tscn",
+        "res://scenes/fighter/FighterStage_Orleans.tscn",
+        "res://scenes/fighter/FighterStage_Chicago.tscn",
+        "res://scenes/fighter/FighterStage_Paris.tscn",
+        "res://scenes/fighter/FighterStage_Vesuvius.tscn",
+        "res://scenes/fighter/FighterStage_Nassau.tscn",
+        "res://scenes/fighter/FighterStage_Alexandria.tscn",
+        "res://scenes/fighter/FighterStage_Berlin.tscn",
+        "res://scenes/fighter/FighterStage_Globe.tscn",
+        "res://scenes/fighter/FighterStage_Gettysburg.tscn"
     };
 
     [TestCase]

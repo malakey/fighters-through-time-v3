@@ -8,6 +8,8 @@ Package 4 update (2026-08-07): Section 4 below is superseded for the enemy and b
 
 Package 5 update (2026-08-08): **Section 1 below is superseded.** All sixteen campaign levels are authored, routed, pool-wired and manifest-flipped; levels 2-15 build on `StoryLevelControllerBase` with room graphs, three checkpoints each, the locked encounter economy, per-level era mechanics from the fourteen new toolkit components, boss arenas, extractors, and dialogue resources. The enemy/boss roster is now placed across the campaign rather than only in Florence, and the ending chain (Temporal Core -> ending dialogue -> credits -> `IsCompleted` -> Main Menu) is complete. What remains for campaign content is production presentation: art to replace graybox geometry, animation, music stems, VFX, and cinematic boss presentation (all Package 8). Percentages in the table below are updated accordingly.
 
+Package 6 update (2026-08-08): **Sections 2, 21 and 22 below are superseded.** All ten Fighter stages are independently authored production-contract scenes with their own fixed-point geometry, era-specific deterministic hazard, placeholder parallax presentation, pool config, audio set and preview plate; the match flow is complete end to end (countdown, respawn platform, KO presentation, pause, disconnect handling, results, rematch, all five end conditions); the CPU is complete at all three difficulty bands; and the rollback-readiness gate passes across all nine kits and all ten stages. What remains for Fighter Mode is production art, music, VFX and cinematic KO presentation (Package 8), rendering-cost measurement on target hardware (Package 9), and the online work (Package 7).
+
 This document provides a detailed comparison of what has been implemented versus what is documented in the design specification. It covers every major system, feature, and content area.
 
 ---
@@ -17,7 +19,7 @@ This document provides a detailed comparison of what has been implemented versus
 | Category | Estimated Completion |
 |----------|---------------------|
 | Core Architecture & Systems | ~75-80% |
-| Fighter Mode Foundation | ~65-70% |
+| Fighter Mode Foundation | ~85-90% (ten authored stages, ten era hazards, complete match flow and CPU, rollback gate passed; production art/audio and online remain) |
 | Story Mode Flow | ~80-85% (hub, all 16 levels, checkpoints/resume, rewind, completion, credits, and the campaign-complete save state are implemented) |
 | Campaign Content (Levels 2-15) | ~75-80% (all 14 levels authored and tested with graybox geometry and placeholder presentation; art/audio/VFX remain) |
 | Production Art & Animation | ~2-5% |
@@ -58,13 +60,18 @@ This document provides a detailed comparison of what has been implemented versus
 
 ## 2. Fighter Mode Arenas
 
+Package 6 (2026-08-08) closed this section. Plan of record: `docs/PACKAGE6_FIGHTER_PLAN.md`.
+
 | Feature | Design Spec | Implementation Status |
 |---------|-------------|----------------------|
-| 10 unique arena scenes | Individually authored with unique platform layouts, backgrounds, and hazard systems | **Not implemented** - All 10 stage catalog entries reuse `TestArena.tscn` with distinct presentation colors only |
-| Per-stage platform layouts | Unique geometry per arena (documented in Section 10 of design doc) | **Not implemented** - Shared template |
-| Era-themed stage hazards | 10 unique hazard behaviors (steam pipes, trebuchets, volcanic rockfall, etc.) | **Partially implemented** - Deterministic hazard identities exist in the simulation but use generic behavior, not era-specific implementations |
-| Stage backgrounds/art | Historical themed parallax backgrounds per arena | **Not implemented** |
-| Dynamic Fighter camera | Midpoint tracking with zoom based on distance | **Partially implemented** - `FighterCamera` script exists |
+| 10 unique arena scenes | Individually authored with unique platform layouts, backgrounds, and hazard systems | **Implemented** - ten `scenes/fighter/FighterStage_*.tscn`, one per catalog entry, each routed by its own `ScenePath` |
+| Per-stage platform layouts | Unique geometry per arena (documented in Section 10 of design doc) | **Implemented** - ten `FighterStageGeometry` entries (walls, ceiling, blast zone, spawn distance, 2-3 one-way platforms over a solid floor, hazard and orb anchors). Every scene marker and collider is pinned to its geometry by the shared `FighterStageConformance` validator |
+| Era-themed stage hazards | 10 unique hazard behaviors (steam pipes, trebuchets, volcanic rockfall, etc.) | **Implemented** - ten era-specific implementations with real warning/active/recovery phases, per-type movement/targeting/dwell/idle behaviour, one-shot per-fighter hit masks where specified, and a blocked tick costing one shield charge |
+| Stage backgrounds/art | Historical themed parallax backgrounds per arena | **Placeholder** - each stage ships a `ParallaxBackground` with two or more layers at distinct scroll factors over era-palette SVG placeholders, plus a stage-select preview plate. Production art is Package 8. The `ParallaxBackground` -> `Parallax2D` migration is deliberately deferred to that pass |
+| Per-stage lighting treatment | `Light2D`/`CanvasModulate` per era | **Not implemented** - flat placeholder colour only; Package 8 |
+| Dynamic Fighter camera | Midpoint tracking with zoom based on distance | **Implemented** - `FighterCamera` wired per stage with authored limits and 1.0-1.4 zoom |
+| Per-stage pool warm-up | Each stage warms its own gameplay pools | **Implemented** - ten `fighter_stage_*_pool_config.tres` mapped in `scene_pool_catalog.tres`. Florence warmed no pools at all before this package |
+| Per-stage music set | Ambient/combat/climax stems per stage | **Placeholder** - ten `StageAudioSet` resources over the shared placeholder stems; real stems are Package 8 |
 
 ---
 
@@ -400,9 +407,12 @@ This document provides a detailed comparison of what has been implemented versus
 | Easy difficulty (30-45 frame reaction) | Basic attacks only, no specials/ultimate, no recovery | **Implemented** |
 | Medium difficulty (15-20 frame reaction) | Uses specials, basic recovery, 40% block rate | **Implemented** |
 | Hard difficulty (4-8 frame reaction) | Frame-perfect combos, movement ability evasion, 80% block | **Implemented** |
-| Chronal Orb pickup behavior | Difficulty-scaled chance to path toward orbs | **Partially implemented** |
-| Hazard avoidance | Difficulty-scaled reaction to warning/active zones | **Partially implemented** |
-| Recovery behavior | Off-stage return using jumps + movement ability + Special 2 | **Partially implemented** |
+| Chronal Orb pickup behavior | Difficulty-scaled chance to path toward orbs | **Implemented** (Package 6) - the controller sees the nearest live orb through `ICpuWorldObserver` and pursues it when safe, at a per-band rate |
+| Hazard avoidance | Difficulty-scaled reaction to warning/active zones | **Implemented** (Package 6) - per `design-godot.md` Section 10 rather than a uniform scaling: Hard vacates during the 90-frame telegraph, Normal reacts only once the hazard is damaging, and Easy deliberately walks into both phases |
+| Recovery behavior | Off-stage return using jumps + movement ability + Special 2 | **Implemented** (Package 6) - steers toward centre, spends jumps, and aims the movement ability upward (`MoveY` was hardcoded to 0 before). All three bands issue the commands; only Normal and Hard are asserted to make it back, because Easy's 30-45 frame reflex window is longer than the fall to the blast zone |
+| Button edges | Attacks, jumps and dashes read from the `Pressed` edge | **Implemented** (Package 6) - CPU buttons are now pulsed (press, hold, release, gap) rather than latched. Latched buttons meant a CPU that kept choosing "attack" produced exactly one attack per match and could never double jump |
+| Per-band tuning | Design difficulty matrices | **Implemented** (Package 6) - lifted out of inline literals into a `CpuBandTuning` table; Special 1 and the defensive block/roll branch used to be Hard-only regardless of band |
+| Seed | Reproducible per match | **Implemented** (Package 6) - derived from the match seed and player slot instead of a literal `2026` |
 
 ---
 
@@ -416,11 +426,16 @@ This document provides a detailed comparison of what has been implemented versus
 | Draw/Tie behavior | Not logged as win/loss, "DRAW" text stamp | **Implemented** |
 | Chronal Orb spawning | Off/Low/Medium/High frequency with deterministic collection | **Implemented** |
 | Stage hazards | Off/Low/Medium/High frequency with warning/active phases | **Implemented** |
-| Respawn platform | 5s dissolve timer, all inputs disabled, invulnerability on drop | **Partially implemented** |
-| KO sequence | Hit-freeze, slow-motion, spotlight, KO stamp, victory pose | **Partially implemented** - Basic results exist; full cinematic sequence incomplete |
-| Rematch flow | Rematch / Change Fighters / Return to Menu | **Implemented** |
-| Win/loss statistics | Global and per-character tracking | **Implemented** |
-| Match settings persistence | Stock count, timer, items, hazards configurable | **Implemented** |
+| Pre-match countdown | 3-2-1-GO before inputs are live | **Implemented** (Package 6) - deterministic `MatchState = 0` for 180 frames plus a 30-frame GO window; the state ticks and enters every snapshot and hash, but gameplay input is discarded until the match goes live |
+| Respawn platform | 5s dissolve timer, all inputs disabled, invulnerability on drop | **Implemented** (Package 6) - deterministic simulation state: 300 frames at (0, +3.0) with all inputs locked, a 30-frame grace window, then 180 frames of invulnerability counted from the drop. Roll i-frames stay distinct. This replaced an instant ground teleport plus a flat 120 i-frames |
+| Bottom-fall stock loss | Falling through the bottom blast zone costs a stock | **Implemented** (Package 6) - this was **unreachable** before: on any stage whose floor spans the full width the ground snap ran before the blast-zone check and teleported the fighter back up. The end condition was nominal until the movement system's tail was reordered |
+| KO sequence | Hit-freeze, slow-motion, spotlight, KO stamp, victory pose | **Implemented, placeholder art** (Package 6) - driver-side hit-freeze, slow motion (paced `Advance` calls, never `Engine.TimeScale`), camera focus, localized KO/DRAW stamp, winner-pose hold, then the results transition, published as `EventBus` phases so Package 8 can restyle without touching flow. A test advances an identical simulation without the driver and compares hashes, proving deterministic state is untouched. Cinematic art and the fanfare stems are Package 8 |
+| Pause and controller disconnect | Forced pause naming the disconnected player, reconnect assignment, safe exit | **Implemented** (Package 6) - authored `LocalFighterPause.tscn` with `SceneTree.Paused` released in `_ExitTree`; `InputManager` no longer reshuffles both fighters' pads when any device is plugged in mid-match |
+| Results screen | Per-end-condition treatment | **Implemented** (Package 6) - authored `MatchResults.tscn` replacing the code-built panel; the raw `ui_cancel` instant-exit is gone |
+| Rematch flow | Rematch / Change Fighters / Return to Menu | **Implemented** - rematch now resolves through the catalog `ScenePath` for the selected stage rather than the hardcoded Test Arena |
+| Win/loss statistics | Global and per-character tracking | **Implemented** - `CharacterWins`/`CharacterLosses` alongside the player-one-centric totals; a true tie writes none of them |
+| Match settings persistence | Stock count, timer, items, hazards configurable | **Implemented, session-scoped** - Off/Low/Medium/High item and hazard granularity is exposed in select (it was collapsed to a binary), and every field survives select -> match -> rematch -> match through `GameManager.CurrentSession`. Deliberately **not** written to the save schema in this package (plan Section 2.6) |
+| Rollback readiness | Snapshots, hashes, delayed-input convergence, bounded history, depth-7 resimulation in budget | **Implemented and passing** (Package 6) - see `docs/PERFORMANCE_BASELINE.md` for the per-stage table; this is Package 7's entry criterion |
 
 ---
 
@@ -518,7 +533,7 @@ The project has strong architectural foundations that will support scaling:
 | Characters | 4 | CharacterData, CharacterFactory, PlayerController, TrainingDummy |
 | Characters/Abilities | 12 | Per-character ability implementations |
 | Combat | 14 | AbilityData, BaseSpecial, BlockSystem, HitboxSystem, StatusController, etc. |
-| Enemies | 6 | EnemyController, BossController, EnemyFactory, CpuFighterAI |
+| Enemies | 11 | EnemyController, BossController, BossEncounterController, EnemyAbilityExecutor, EnemyFactory, EnemyProjectile, MirrorParadoxController/EncounterController, plus the EnemyData/BossData/EnemyAbilityData resources (the dead `CpuFighterAI` stub and its duplicate `CpuDifficulty` enum were deleted in Package 6) |
 | Environment | 14 | ChronalRewindManager, HubWorldController, LevelManager, FighterStageCatalog, etc. |
 | FighterSim | 8 | FighterSimulation, FighterSimulationDriver, FighterCpuController, etc. |
 | Networking | 2 | NetworkManager, RollbackProtocol |

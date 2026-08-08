@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270" viewBox="0 0 480 270">
+  <defs>
+    <linearGradient id="florenceSky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#1c1108"/>
+      <stop offset="0.58" stop-color="#261708"/>
+      <stop offset="1" stop-color="#3a2410"/>
+    </linearGradient>
+    <linearGradient id="florenceSteam" x1="0" y1="1" x2="0" y2="0">
+      <stop stop-color="#f0a83c" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#f0a83c" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="480" height="270" fill="url(#florenceSky)"/>
+
+  <!-- workshop rear wall: the Duomo silhouette through the high windows -->
+  <rect x="188" y="66" width="104" height="86" fill="#150c05"/>
+  <path d="M200 118 L240 78 L280 118 Z" fill="#1f1309"/>
+  <rect x="236" y="66" width="8" height="16" fill="#1f1309"/>
+  <g fill="#f09429" opacity="0.16">
+    <rect x="60" y="76" width="46" height="64"/>
+    <rect x="374" y="76" width="46" height="64"/>
+  </g>
+  <g fill="#4a2e14">
+    <rect x="60" y="76" width="46" height="4"/>
+    <rect x="82" y="76" width="3" height="64"/>
+    <rect x="374" y="76" width="46" height="4"/>
+    <rect x="396" y="76" width="3" height="64"/>
+  </g>
+
+  <!-- the great drive gears behind the workshop floor -->
+  <g stroke="#5c3a18" stroke-width="4" fill="none">
+    <circle cx="118" cy="176" r="40"/>
+    <circle cx="118" cy="176" r="16"/>
+    <circle cx="362" cy="176" r="40"/>
+    <circle cx="362" cy="176" r="16"/>
+  </g>
+  <g fill="#5c3a18">
+    <rect x="112" y="128" width="12" height="14"/>
+    <rect x="112" y="210" width="12" height="14"/>
+    <rect x="70" y="170" width="14" height="12"/>
+    <rect x="152" y="170" width="14" height="12"/>
+    <rect x="356" y="128" width="12" height="14"/>
+    <rect x="356" y="210" width="12" height="14"/>
+    <rect x="314" y="170" width="14" height="12"/>
+    <rect x="396" y="170" width="14" height="12"/>
+  </g>
+
+  <!-- the two gear platforms (one-way, surface y = 2.4) -->
+  <rect x="82" y="140" width="72" height="5" fill="#4a2e14"/>
+  <rect x="82" y="136" width="72" height="4" fill="#f09429"/>
+  <rect x="88" y="145" width="60" height="7" fill="#33200d"/>
+  <rect x="326" y="140" width="72" height="5" fill="#4a2e14"/>
+  <rect x="326" y="136" width="72" height="4" fill="#f09429"/>
+  <rect x="332" y="145" width="60" height="7" fill="#33200d"/>
+
+  <!-- siege mech steam pipes at the three hazard anchors -->
+  <g fill="#6b4a22">
+    <rect x="104" y="196" width="22" height="16"/>
+    <rect x="229" y="196" width="22" height="16"/>
+    <rect x="354" y="196" width="22" height="16"/>
+  </g>
+  <g fill="#3a2712">
+    <rect x="100" y="190" width="30" height="7"/>
+    <rect x="225" y="190" width="30" height="7"/>
+    <rect x="350" y="190" width="30" height="7"/>
+  </g>
+  <path d="M104 190 L126 190 L134 146 L96 146 Z" fill="url(#florenceSteam)"/>
+  <path d="M229 190 L251 190 L262 132 L218 132 Z" fill="url(#florenceSteam)"/>
+  <path d="M354 190 L376 190 L384 146 L346 146 Z" fill="url(#florenceSteam)"/>
+
+  <!-- the siege mech leg looming over the centre -->
+  <path d="M222 66 L258 66 L266 126 L214 126 Z" fill="#241708"/>
+  <rect x="230" y="126" width="20" height="52" fill="#2e1d0b"/>
+  <rect x="226" y="120" width="28" height="8" fill="#f09429" opacity="0.5"/>
+
+  <!-- workshop floor -->
+  <rect x="34" y="212" width="412" height="26" fill="#4a2e14"/>
+  <rect x="34" y="209" width="412" height="3" fill="#f09429"/>
+  <rect x="34" y="222" width="412" height="1.5" fill="#2d1b0a"/>
+
+  <!-- wall scaffolding at +/-9 -->
+  <rect x="26" y="140" width="9" height="72" fill="#33200d"/>
+  <rect x="26" y="140" width="9" height="4" fill="#f09429"/>
+  <rect x="445" y="140" width="9" height="72" fill="#33200d"/>
+  <rect x="445" y="140" width="9" height="4" fill="#f09429"/>
+
+  <!-- forge glow along the floor -->
+  <path d="M34 238 L120 220 L200 236 L280 218 L360 234 L446 220 L446 270 L34 270 Z" fill="#f09429" opacity="0.1"/>
+</svg>

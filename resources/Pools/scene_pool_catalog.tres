@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ScenePoolCatalog" load_steps=37 format=3]
+[gd_resource type="Resource" script_class="ScenePoolCatalog" load_steps=57 format=3]
 
 [ext_resource type="Script" path="res://scripts/Core/ScenePoolCatalog.cs" id="1_catalog"]
 [ext_resource type="Script" path="res://scripts/Core/ScenePoolCatalogEntry.cs" id="2_entry"]
@@ -19,6 +19,16 @@
 [ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_13_pool_config.tres" id="17_void"]
 [ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_14_pool_config.tres" id="18_neoearth"]
 [ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_15_pool_config.tres" id="19_alexandria"]
+[ext_resource type="Resource" path="res://resources/Pools/fighter_stage_configs/fighter_stage_florence_pool_config.tres" id="20_stage_florence"]
+[ext_resource type="Resource" path="res://resources/Pools/fighter_stage_configs/fighter_stage_orleans_pool_config.tres" id="21_stage_orleans"]
+[ext_resource type="Resource" path="res://resources/Pools/fighter_stage_configs/fighter_stage_chicago_pool_config.tres" id="22_stage_chicago"]
+[ext_resource type="Resource" path="res://resources/Pools/fighter_stage_configs/fighter_stage_paris_pool_config.tres" id="23_stage_paris"]
+[ext_resource type="Resource" path="res://resources/Pools/fighter_stage_configs/fighter_stage_vesuvius_pool_config.tres" id="24_stage_vesuvius"]
+[ext_resource type="Resource" path="res://resources/Pools/fighter_stage_configs/fighter_stage_nassau_pool_config.tres" id="25_stage_nassau"]
+[ext_resource type="Resource" path="res://resources/Pools/fighter_stage_configs/fighter_stage_alexandria_pool_config.tres" id="26_stage_alexandria"]
+[ext_resource type="Resource" path="res://resources/Pools/fighter_stage_configs/fighter_stage_berlin_pool_config.tres" id="27_stage_berlin"]
+[ext_resource type="Resource" path="res://resources/Pools/fighter_stage_configs/fighter_stage_globe_pool_config.tres" id="28_stage_globe"]
+[ext_resource type="Resource" path="res://resources/Pools/fighter_stage_configs/fighter_stage_gettysburg_pool_config.tres" id="29_stage_gettysburg"]
 
 [sub_resource type="Resource" id="Tutorial"]
 script = ExtResource("2_entry")
@@ -88,7 +98,47 @@ PoolConfig = ExtResource("19_alexandria")
 script = ExtResource("2_entry")
 ScenePath = "res://scenes/arenas/TestArena.tscn"
 PoolConfig = ExtResource("5_arena")
+[sub_resource type="Resource" id="StageFlorence"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/fighter/FighterStage_Florence.tscn"
+PoolConfig = ExtResource("20_stage_florence")
+[sub_resource type="Resource" id="StageOrleans"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/fighter/FighterStage_Orleans.tscn"
+PoolConfig = ExtResource("21_stage_orleans")
+[sub_resource type="Resource" id="StageChicago"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/fighter/FighterStage_Chicago.tscn"
+PoolConfig = ExtResource("22_stage_chicago")
+[sub_resource type="Resource" id="StageParis"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/fighter/FighterStage_Paris.tscn"
+PoolConfig = ExtResource("23_stage_paris")
+[sub_resource type="Resource" id="StageVesuvius"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/fighter/FighterStage_Vesuvius.tscn"
+PoolConfig = ExtResource("24_stage_vesuvius")
+[sub_resource type="Resource" id="StageNassau"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/fighter/FighterStage_Nassau.tscn"
+PoolConfig = ExtResource("25_stage_nassau")
+[sub_resource type="Resource" id="StageAlexandria"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/fighter/FighterStage_Alexandria.tscn"
+PoolConfig = ExtResource("26_stage_alexandria")
+[sub_resource type="Resource" id="StageBerlin"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/fighter/FighterStage_Berlin.tscn"
+PoolConfig = ExtResource("27_stage_berlin")
+[sub_resource type="Resource" id="StageGlobe"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/fighter/FighterStage_Globe.tscn"
+PoolConfig = ExtResource("28_stage_globe")
+[sub_resource type="Resource" id="StageGettysburg"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/fighter/FighterStage_Gettysburg.tscn"
+PoolConfig = ExtResource("29_stage_gettysburg")
 
 [resource]
 script = ExtResource("1_catalog")
-Scenes = Array[ExtResource("2_entry")]([SubResource("Tutorial"), SubResource("Florence"), SubResource("Orleans"), SubResource("Chicago"), SubResource("Paris"), SubResource("Titanic"), SubResource("Pompeii"), SubResource("Nassau"), SubResource("Egypt"), SubResource("Berlin"), SubResource("Globe"), SubResource("Gettysburg"), SubResource("Lunar"), SubResource("ChronalVoid"), SubResource("NeoEarth"), SubResource("Alexandria"), SubResource("Arena")])
+Scenes = Array[ExtResource("2_entry")]([SubResource("Tutorial"), SubResource("Florence"), SubResource("Orleans"), SubResource("Chicago"), SubResource("Paris"), SubResource("Titanic"), SubResource("Pompeii"), SubResource("Nassau"), SubResource("Egypt"), SubResource("Berlin"), SubResource("Globe"), SubResource("Gettysburg"), SubResource("Lunar"), SubResource("ChronalVoid"), SubResource("NeoEarth"), SubResource("Alexandria"), SubResource("Arena"), SubResource("StageFlorence"), SubResource("StageOrleans"), SubResource("StageChicago"), SubResource("StageParis"), SubResource("StageVesuvius"), SubResource("StageNassau"), SubResource("StageAlexandria"), SubResource("StageBerlin"), SubResource("StageGlobe"), SubResource("StageGettysburg")])

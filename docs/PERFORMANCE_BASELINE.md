@@ -29,7 +29,13 @@ This is the Package 0 comparison baseline, not a release-performance certificati
 - The managed allocation delta includes probe and engine-interop overhead. It is a regression comparison value, not proof of zero gameplay allocations.
 - Process/physics monitor values are Godot monitor samples. Content packages must continue reporting frame delta, allocations, memory, draw calls, primitives, sprites, and particles through the same runner so changes remain comparable.
 
-## Rollback readiness (Package 6 A4)
+## Rollback readiness (Package 6 A4, refreshed at the C1 closeout)
+
+**Gate verdict: PASS across all ten authored stages.** This is Package 7's entry criterion, and it
+is met — worst-case depth-7 resimulation costs **0.058 ms median / 0.104 ms p95** against an 8.000 ms
+budget, with zero budget breaches over 3,000 measured corrections and a largest full-state snapshot
+of 2,699 bytes. Recorded 2026-08-08 by C1 across the ten production stage geometries; the A4 numbers
+this section originally carried were Florence-only.
 
 Captured 2026-08-08 on the same Windows development machine, Godot 4.7.1 .NET / .NET 10 Debug build.
 
@@ -43,45 +49,63 @@ dotnet test FightersThroughTime.csproj --settings .runsettings `
   --filter "FullyQualifiedName~RollbackReadinessTests" --logger "console;verbosity=detailed"
 ```
 
-The timing test prints one `[A4 rollback readiness] ...` line with the measured values; the
-`console` logger at `detailed` verbosity is needed to see it on a passing run.
+The timing test prints one `[A4 rollback readiness] ...` line **per stage** plus a worst-case summary
+line; the `console` logger at `detailed` verbosity is needed to see them on a passing run.
 
-### Worst-case seven-frame resimulation
+### Worst-case seven-frame resimulation, per stage
 
 Method: one `OnlineRollbackSession` is fed a remote input packet for exactly
 `CurrentTick - MaximumRollbackFrames` on every frame, so each frame pays a full depth-7 rollback plus
 seven replayed ticks. Cost is taken from the session's own `Stopwatch` (the same one that raises
 `RollbackBudgetExceeded`), sampled over 300 consecutive corrections after a 1,900-tick warm-up that
-puts the match into its heaviest state. JIT warm-up samples are discarded.
+puts the match into its heaviest state — past the first High-frequency hazard spawn at frame 1,800
+and its 90-frame warning, so the measured window always runs with a live hazard. JIT warm-up samples
+are discarded. Both fighters are Tesla vs Mozart (persistent coils + an execution zone against two
+projectile specials + a Float platform), spamming specials, the movement ability, block, and the
+ultimate, with items and hazards at High.
 
-Load at measurement time (Florence Workshop geometry, items and hazards at High): 11 concurrent
-simulated entities — 5 projectiles, 3 persistent constructs, 2 execution zones, 1 active stage
-hazard, 1 Chronal Orb — plus both fighters spamming specials, the movement ability, block, and the
-ultimate.
+The sweep enumerates `FighterStageGeometry.AllAuthored`, so a stage added later is measured with no
+edit to the test. Stage geometry is not part of any snapshot; the snapshot sizes differ between rows
+only because the entity mix each hazard identity produces differs.
+
+| Stage | Median | Mean | p95 | Max | Snapshot | Peak entities |
+|---|---:|---:|---:|---:|---:|---:|
+| `florence_workshop` | 0.048 ms | 0.050 ms | 0.061 ms | 0.319 ms | 2,511 B | 10 |
+| `orleans_vanguard` | 0.048 ms | 0.054 ms | 0.104 ms | 0.201 ms | 2,405 B | 10 |
+| `chicago_exposition` | 0.052 ms | 0.055 ms | 0.066 ms | 0.267 ms | 2,394 B | 11 |
+| `paris_bastille` | 0.050 ms | 0.056 ms | 0.095 ms | 0.265 ms | 2,530 B | 10 |
+| `vesuvius_caldera` | 0.048 ms | 0.049 ms | 0.054 ms | 0.198 ms | 2,502 B | 11 |
+| `nassau_flagship` | 0.048 ms | 0.050 ms | 0.053 ms | 0.357 ms | 2,610 B | 11 |
+| `alexandria_chambers` | 0.054 ms | 0.056 ms | 0.063 ms | 0.282 ms | 2,530 B | 11 |
+| `berlin_wall` | 0.046 ms | 0.047 ms | 0.053 ms | 0.197 ms | 2,574 B | 11 |
+| `globe_theatre` | **0.058 ms** | 0.062 ms | 0.076 ms | 0.273 ms | **2,699 B** | **12** |
+| `gettysburg_ridge` | 0.052 ms | 0.052 ms | 0.061 ms | 0.166 ms | 2,413 B | 9 |
 
 | Metric | Value |
 |---|---:|
 | Rollback budget (`OnlineRollbackSession.RollbackBudgetMilliseconds`) | 8.000 ms |
-| Depth-7 resimulation, median (3 runs) | 0.087 – 0.119 ms |
-| Depth-7 resimulation, mean (3 runs) | 0.090 – 0.116 ms |
-| Depth-7 resimulation, p95 (3 runs) | 0.100 – 0.141 ms |
-| Depth-7 resimulation, max (3 runs) | 0.251 – 0.402 ms |
-| Budget breaches over 900 measured corrections | 0 |
-| Full-state snapshot (`CaptureFullState().Length`) under that load | 2,482 bytes |
-| Peak concurrent simulated entities | 11 |
+| Worst median across ten stages | 0.058 ms (`globe_theatre`) |
+| Worst p95 across ten stages | 0.104 ms (`orleans_vanguard`) |
+| Worst max across ten stages | 0.357 ms (`nassau_flagship`) |
+| Budget breaches over 3,000 measured corrections (10 stages x 300) | 0 |
+| Largest full-state snapshot (`CaptureFullState().Length`) | 2,699 bytes (`globe_theatre`) |
+| Peak concurrent simulated entities | 12 (`globe_theatre`) |
 
-A worst-case correction therefore costs roughly **1.1 – 1.5 % of the 8 ms budget** and about
-**0.6 % of a 16.67 ms frame**, leaving roughly 60–90x headroom. The test fails only if p95 exceeds
-twice the budget, so ordinary CI variance cannot flap the gate; the recorded medians are the number
-that matters.
+A worst-case correction therefore costs roughly **0.7 % of the 8 ms budget** and about **0.35 % of a
+16.67 ms frame**, leaving roughly 140x headroom on the worst stage. The test fails only if a stage's
+p95 exceeds twice the budget or that stage records any budget breach, so ordinary CI variance cannot
+flap the gate; the recorded medians are the number that matters. The spread across stages is under
+0.012 ms of median — hazard identity is not a meaningful cost driver at this entity scale.
 
 ### Convergence and history bounds
 
 - Delayed-input convergence (latency 3 transport polls, items and hazards at High) is asserted for
-  nine mirror matchups plus six cross-pairs against **every** authored `FighterStageGeometry`. The
-  geometries are enumerated by reflection, so stages added later are covered without editing the
-  test. Each run asserts zero `InputArrivedTooLate`, more than one correction per tick across the
-  two peers, and per-tick recorded-hash equality across the whole retained 120-tick window.
+  nine mirror matchups plus six cross-pairs against **every** authored `FighterStageGeometry` — as of
+  the C1 closeout that is eleven geometries (the legacy flat arena plus the ten production stages),
+  i.e. 165 (matchup, stage) convergence runs. The geometries are enumerated by reflection, so stages
+  added later are covered without editing the test. Each run asserts zero `InputArrivedTooLate`, more
+  than one correction per tick across the two peers, and per-tick recorded-hash equality across the
+  whole retained 120-tick window.
 - A long run (2,200 ticks per stage) crosses a full High-frequency Chronal Orb cycle (660 frames)
   and a full stage-hazard cycle (1,800 frames plus its 90-frame warning) and asserts the same
   equality with live hazards and orbs on the field.
@@ -98,9 +122,10 @@ that matters.
 
 - Debug build, single machine, no Steam Deck measurement. Rollback cost on the minimum-spec target
   is unmeasured.
-- Stage geometry is not part of any snapshot, so the snapshot size above is stage-independent; the
-  per-stage sweep still needs re-running once all ten geometries and their hazard implementations
-  exist (Package 6 C1 refreshes this section).
+- The full gate (23 cases, including the 165-run convergence matrix and the ten-stage timing sweep)
+  completes in about 13 s, well inside the 300 s `TestSessionTimeout` in `.runsettings`.
+- Stage geometry is not part of any snapshot. The per-stage snapshot sizes above differ only through
+  the entity mix each hazard identity produces, not through the geometry itself.
 - These are simulation costs only. Presentation, rendering, and the real network transport are not
   included.
 

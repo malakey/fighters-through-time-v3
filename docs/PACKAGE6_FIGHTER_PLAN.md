@@ -5,6 +5,11 @@ CPU/rollback infrastructure, and content pipeline. Baseline at authoring time: 7
 Package 5 closed, one production Fighter stage (Florence Workshop), nine catalog entries silently
 aliasing `TestArena.tscn`.
 
+**Complete 2026-08-08.** All ten stages authored and routed; match flow, CPU and the rollback-readiness
+gate closed. Final baseline **907 passing tests** across three consecutive runs. Read the C1 closeout
+block at the end of §9 — including its "What Package 6 did NOT deliver" list — before treating any
+part of Fighter Mode as finished.
+
 **Authority order:** explicit user instruction > `design-godot.md` (§10 stages/hazards/orbs/CPU at
 lines ~3085–3203, §11 match flow at ~3205–3273, respawn platform at ~1565–1571) > this plan >
 existing code — EXCEPT numbers: an authored `.tres` resource beats prose everywhere it exists.
@@ -1517,3 +1522,162 @@ also reported a clean scene smoke (`--quit-after 300` exit 0) from its worktree.
    `Passed! Total: 73` pure-C#-only run), the one-`[TestSuite]`-per-file rule, and the
    `OverrideFailureMessage("")`-throws footgun. Draining `testhost` processes before running
    proved more reliable than blind retries.
+
+### C1 — Closeout (2026-08-08)
+
+**C1: what was wired.** All ten catalog entries now carry their own `ScenePath` and
+`PreviewTexturePath` and are flagged `ProductionReady`; ten `scene_pool_catalog.tres` rows map each
+`scenes/fighter/*.tscn` to its own pool config; ten rows entered `SceneSmokeTests`; 32
+`content_manifest.csv` rows were flipped (nine FighterStage rows to
+`Implemented/ReadyForReplacement/Valid`, ten AudioSet stage rows to `Implemented/Placeholder/Valid`,
+ten VisualSet stage rows repointed from the shared `parallax_far.svg` to each stage's own preview
+plate, and the `local_pause` / `match_results` UIScreen rows, whose scenes A2 authored but
+deliberately left `Planned`). Three Florence artifacts that had never existed were authored:
+`resources/Pools/fighter_stage_configs/fighter_stage_florence_pool_config.tres`,
+`resources/Audio/stage_florence_audio.tres`, and
+`assets/placeholders/stages/florence_preview.svg`.
+
+**C1: Florence's FighterStage manifest row was flipped to `ReadyForReplacement` too, which §6 item 4
+did not ask for.** The plan says "the nine". Leaving Florence at `Placeholder` while its nine
+siblings read `ReadyForReplacement` would have been drift a reviewer reads as a miss: Florence is
+exactly what `ReadyForReplacement` means — a contract-conformant placeholder that production art
+swaps out by reassignment. No test pinned the old value.
+
+**C1: `ContentManifestTests.PlannedResourcesRemainVisibleUntilTheyAreAuthored` still has honest
+feeders and was not retired.** After this pass the remaining `Planned`/`Pending` rows are the
+seventeen per-level AudioSet rows (`audio_tutorial`, `audio_hub`, `audio_level_01..15`), ten UIScreen
+rows (`story_hud`, `dialogue_box`, `resonance_grid`, `network_select`, `story_pause`, `online_pause`,
+`settings`, `story_loading`, `fighter_loading`, `network_error`) and three DialogueSet rows. Its own
+doc comment says to retire it rather than invent a feeder if the premise ever goes; the premise has
+not gone.
+
+**C1: four of the nine Phase B scenes shipped with an invisible parallax, and the per-stage tests
+could not see it.** INTEGRATION-B item 2 asked C1 to spot-check this, and the check found real
+breakage rather than confirming the claim. Alexandria, Berlin, Chicago and Vesuvius each pair a
+negative-layer `ParallaxBackground` with a **fully opaque** full-bleed `Presentation/BackdropTint`
+`ColorRect` in canvas layer 0. A `CanvasLayer` at a negative layer draws behind *everything* in layer
+0 regardless of `z_index`, so their two required parallax layers rendered to nothing. Every per-stage
+suite still passed, because all of them assert node existence and scroll factors, not visibility.
+The fix keeps each scene's node paths: the tint drops to alpha 0.45 (the pattern Paris, Gettysburg
+and Globe already used) and an opaque full-bleed `BackdropBase` `ColorRect` becomes the
+`ParallaxBackground`'s first child, so screen coverage no longer depends on the viewport clear colour
+(Nassau's `SeaBase` pattern). Chicago's suite pinned the opaque colour literal and now asserts the
+RGB triple plus `A < 1`. **New guard:**
+`FighterStagePresentationTests.NoStagePairsAnOpaqueLayerZeroBackdropWithAParallaxBackground` sweeps
+the catalog, tolerates Orléans' deeper-CanvasLayer solution, and refuses to pass vacuously (it
+asserts at least nine stages actually carry a parallax). Orléans, Nassau, Paris, Gettysburg and Globe
+were correct as authored.
+
+**C1: `ParallaxBackground`/`ParallaxLayer` are KEPT for the placeholder pass; the `Parallax2D`
+migration is Package 8's.** INTEGRATION-B item 1 asked for one decision, and five Phase B agents
+independently asked for it. Rationale: the deprecated nodes function correctly (all ten scenes smoke
+clean at `--quit-after 300`), all nine suites already read them untyped so the build carries no new
+`CS0618`, a uniform node type across ten scenes is worth more than removing a suppression, and
+swapping the node type is a presentation-layer change that belongs with the pass that replaces the
+placeholder art on top of it. **Do not migrate one stage in isolation.** When Package 8 migrates,
+migrate all ten together and update `FighterStagePresentationTests` and the nine per-stage suites in
+the same change — `Parallax2D` is a `Node2D`, not a `CanvasLayer`, so the opaque-backdrop invariant
+above changes shape (z-order within layer 0 becomes the ordering rule) and the guard must be
+rewritten, not deleted.
+
+**C1: the rollback-readiness gate PASSES, and the timing measurement now sweeps all ten stages
+rather than Florence alone.** A4's harness enumerated *geometries* dynamically for the convergence
+matrix but hardcoded `FighterStageGeometry.Florence` for the depth-7 timing test, so the recorded
+numbers were one stage's. `WorstCaseDepthSevenResimulationFitsTheRollbackBudget` now loops
+`FighterStageGeometry.AllAuthored` through an extracted `MeasureWorstCaseDepthSeven` helper that
+asserts the per-stage budget and returns its statistics; the case count is unchanged (one case, ten
+measurements), and a stage added later is measured with no edit. Measured on the C1 machine, 300
+corrections per stage after a 1,900-tick warm-up, Tesla vs Mozart with items and hazards High:
+worst median **0.058 ms** (`globe_theatre`), worst p95 **0.104 ms** (`orleans_vanguard`), worst max
+0.357 ms (`nassau_flagship`), largest full-state snapshot **2,699 bytes** (`globe_theatre`), **zero**
+budget breaches over 3,000 measured corrections against the 8.000 ms budget — roughly 140x headroom
+on the worst stage. The convergence matrix (nine mirrors plus six cross-pairs against all eleven
+authored geometries = 165 runs) and the long hazard/orb-crossing runs pass; the whole 23-case gate
+finishes in about 13 s, comfortably inside the 300 s `TestSessionTimeout`. The per-stage table is in
+`docs/PERFORMANCE_BASELINE.md`. **This is Package 7's entry criterion and it is met** — with the
+standing caveat that it is one Windows Debug machine over an in-memory transport, so the platform and
+real-transport gates remain open.
+
+**C1: the spread across stages is under 0.012 ms of median, so hazard identity is not a cost driver
+at this entity scale.** Worth recording because it means Package 7 does not need per-stage rollback
+budgets; one budget covers the catalog.
+
+**C1: stage select shows the preview plate and no longer brands production stages as prototypes.**
+`CharacterSelectScreen` gained a `TextureRect` beside the stage `OptionButton`, refreshed on
+`ItemSelected`, hidden when a stage has no importable `PreviewTexturePath` so an unauthored stage
+degrades to the era colours rather than a blank hole. The `fighter_stage_prototype` tooltip line is
+now appended only when `!stage.ProductionReady`; it used to be appended unconditionally, which
+branded even the shipped Florence Workshop a prototype. No new visible copy was needed — the preview
+carries the stage's existing `DisplayNameKey` as its tooltip. The preview texture deliberately loads
+through `ResourceLoader.Load`, **not** `AuthoredResources.Load`: it is streamable art, and the
+pinning cache is for immutable tuning data only.
+
+**C1: `FighterLocalizationTests` checks nine families, not the three §6 item 6 lists.** `stage_*`
+(≥40), `fighter_*` (≥25) and `match_*` (≥3) are the plan's; A2's new copy is split out into
+`fighter_countdown_*` (≥2), `fighter_frequency_*` (≥4), `fighter_disconnect_*` (≥3),
+`fighter_pause_*` (≥2), `fighter_state_*` (≥11) and `fighter_results_*` (≥3) because the `fighter_*`
+umbrella is large enough to hide a whole feature's worth of deleted keys under its own floor. Every
+assertion goes through `TranslationServer.Translate`, never CSV membership, per
+`CampaignLocalizationTests`' reasoning. `en.csv` was not edited this pass, so
+`en.en.translation` and `content_manifest.1.translation` regenerated byte-identically and there was
+nothing to commit for them.
+
+**C1: `--headless --import` rewrote 21 unrelated `.import` sidecars with line-ending-only changes,
+exactly as five Phase B agents predicted.** `git diff` reports them empty. They were discarded; the
+only import artifact committed is the new `florence_preview.svg.import`.
+
+**C1: no test was found pinning a hash literal** (plan §2.11 reporting duty), and no Godot `Resource`
+is disposed anywhere in the new code.
+
+**C1: final validation.** `dotnet build` clean — the single pre-existing vendored `CS8632`, no new
+warnings. `--headless --import` clean. Full suite **907 passed / 0 failed / Total 907** across
+**three consecutive runs** (901 Phase B baseline + 6: one Fighter pool-config case, three
+`FighterLocalizationTests` cases, two `FighterStagePresentationTests` cases — the exact expected
+delta, no cross-suite loss). Headless `--quit-after 300` smoke of all ten Fighter stage scenes plus
+`MainMenu.tscn`, `TestArena.tscn` and `CharacterSelect.tscn`: thirteen for thirteen exit 0 with zero
+`ERROR`/`SCRIPT ERROR` lines. End-to-end stage routing verified: with the catalog wired,
+`FighterStageCatalogTests`' `ResourceLoader.Exists` check now exercises ten real distinct paths, and
+`FighterStagePresentationTests.EveryCatalogScenePathResolvesToASceneDeclaringThatStageID` additionally
+proves each scene declares the `StageID` its catalog row claims — a copy-pasted scene that kept a
+sibling's id would otherwise resolve to the wrong deterministic geometry at runtime while every
+per-stage suite stayed green.
+
+#### What Package 6 did NOT deliver
+
+Recorded so the next package inherits an honest boundary rather than a checkbox.
+
+1. **A human playthrough of all ten stages.** The plan's exit criterion "all ten stage choices produce
+   a visibly and mechanically distinct local 1v1 match" is a judgement about what a player sees. The
+   automated gate proves the scenes load, the geometry is distinct, the hazards behave distinctly, and
+   nothing errors — it cannot discharge "visibly distinct". Nobody has played these stages. The same
+   applies to the human-vs-human and human-vs-CPU flow criterion: every step is unit-tested, and no
+   one has walked it with two controllers.
+2. **Production art, animation, music, VFX, and per-stage lighting.** Everything visual and audible in
+   these ten stages is placeholder SVG, `ColorRect`/`Polygon2D` dressing, and three shared placeholder
+   stems. No `Light2D`, `CanvasModulate`, `LightOccluder2D`, normal maps, or shaders — the era
+   "lighting treatment" in the plan's stage-production item 3 is unstarted. Hazard VFX and SFX are
+   likewise unstarted.
+3. **Cinematic KO art.** The KO *sequence* exists and is proven not to disturb deterministic state,
+   but hit-freeze, slow motion, spotlight, stamp and winner pose are all driven with placeholder
+   presentation. The two audio hooks (`res://audio/sfx/combat/ko_stinger.ogg`,
+   `res://audio/sfx/ui/victory_fanfare.ogg`) resolve to nothing because `audio/sfx/` is empty; the
+   driver no-ops.
+4. **The `ParallaxBackground` → `Parallax2D` migration.** Decided above: kept deliberately for the
+   placeholder pass. Ten scenes and ten test suites move together in Package 8, and the
+   opaque-backdrop guard must be rewritten rather than deleted when they do.
+5. **`MatchSettings` disk persistence.** Session-scoped by decision (§2.6). Rules survive
+   select → match → rematch → match through `GameManager.CurrentSession` and are lost on quit. No save
+   schema bump was taken.
+6. **Anything Steam or online.** Steam Networking Sockets, relay, LAN discovery, handshake and rules
+   negotiation, full-state resync, matchmaking UI, and production failure/forfeit flows are all
+   Package 7 and untouched here. The rollback gate makes Package 7 *startable*; it does not make the
+   networking path production netcode.
+7. **A CS0618-free typed parallax access path.** All nine per-stage suites plus the new cross-stage
+   suite reach the parallax through `GetClass()` and `Get("motion_scale")` to keep the build
+   warning-free. That is a deliberate suppression-by-avoidance, not a clean typed API, and it goes
+   away with the `Parallax2D` migration.
+8. **Rendering-cost measurement.** `docs/PERFORMANCE_BASELINE.md`'s new numbers are *simulation*
+   costs from the .NET test host. Draw batches, vertices, and frame time for ten dressed stages have
+   not been measured on any target machine, and the Steam Deck has never been touched. Package 9.
+9. **Florence's three budgeted Chronal Extractors** (`docs/DUST_ECONOMY.md` §6) remain unauthored —
+   a Package 5 leftover this package did not pick up, since it is Story content.

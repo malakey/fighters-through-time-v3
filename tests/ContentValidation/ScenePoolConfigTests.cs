@@ -27,6 +27,22 @@ public class ScenePoolConfigTests {
             .Select(level => $"res://resources/Pools/level_pool_configs/level_{level:00}_pool_config.tres")
             .ToArray();
 
+    /// <summary>
+    /// Package 6 closeout: the ten production-contract Fighter stages. Florence
+    /// warmed no pools at all before this package — it had no config and no catalog
+    /// row — so a Florence match paid a cold first spawn for every projectile, orb
+    /// and damage number.
+    /// </summary>
+    private static readonly string[] FighterStageEras = {
+        "florence", "orleans", "chicago", "paris", "vesuvius",
+        "nassau", "alexandria", "berlin", "globe", "gettysburg"
+    };
+
+    private static readonly string[] FighterStageConfigPaths =
+        FighterStageEras
+            .Select(era => $"res://resources/Pools/fighter_stage_configs/fighter_stage_{era}_pool_config.tres")
+            .ToArray();
+
     // AGENTS.md performance budget proxies: <=60 active AnimatedSprite2D and the
     // plan's derived pool caps (standard+elite <=30 per level, projectiles <=40).
     private const int MaxWarmCombatants = 30;
@@ -109,6 +125,57 @@ public class ScenePoolConfigTests {
         AssertThat(worstCombatants <= MaxWarmCombatants).IsTrue();
     }
 
+    /// <summary>
+    /// Package 6 §6 item 2: every Fighter stage carries its own valid, uniquely
+    /// identified warm-up budget, and that budget matches the Test Arena's — a
+    /// stage that quietly halved a pool would still be "valid" but would spawn
+    /// cold mid-match.
+    /// </summary>
+    [TestCase]
+    public void EveryFighterStagePoolConfigIsAuthoredValidAndUniquelyIdentified() {
+        AssertThat(FighterStageConfigPaths.Length).IsEqual(10);
+        ScenePoolConfig arena = FTT.Core.AuthoredResources.Load<ScenePoolConfig>(
+            "res://resources/Pools/test_arena_pool_config.tres");
+        AssertObject(arena).IsNotNull();
+
+        var configIDs = new HashSet<string>();
+        for (int index = 0; index < FighterStageConfigPaths.Length; index++) {
+            string path = FighterStageConfigPaths[index];
+            string era = FighterStageEras[index];
+            ScenePoolConfig config = FTT.Core.AuthoredResources.Load<ScenePoolConfig>(path);
+            AssertObject(config).OverrideFailureMessage($"{path} did not load.").IsNotNull();
+
+            IReadOnlyList<string> errors = config.ValidateBudget();
+            AssertThat(errors.Count).OverrideFailureMessage(
+                $"{path}: {string.Join("; ", errors)}").IsEqual(0);
+            AssertThat(config.ConfigID).OverrideFailureMessage(
+                $"{path} declares ConfigID '{config.ConfigID}'.")
+                .IsEqual($"fighter_stage_{era}_pools");
+            AssertThat(configIDs.Add(config.ConfigID)).OverrideFailureMessage(
+                $"{path} reuses ConfigID '{config.ConfigID}'.").IsTrue();
+            AssertThat(config.GetWarmUpInstanceCount() <= config.MaxWarmUpInstances).IsTrue();
+            AssertThat(config.GetMaxCapacityCount() >= config.GetWarmUpInstanceCount()).IsTrue();
+
+            // Plan Section 5 item 3: each stage mirrors the Test Arena's pool set
+            // and budgets. Comparing the totals catches a silently trimmed pool
+            // that a validity-only check would wave through.
+            AssertThat(config.GetWarmUpInstanceCount()).OverrideFailureMessage(
+                $"{path} warms {config.GetWarmUpInstanceCount()} instances; the Test Arena " +
+                $"warms {arena.GetWarmUpInstanceCount()}.").IsEqual(arena.GetWarmUpInstanceCount());
+            AssertThat(config.GetMaxCapacityCount()).OverrideFailureMessage(
+                $"{path} caps at {config.GetMaxCapacityCount()}; the Test Arena " +
+                $"caps at {arena.GetMaxCapacityCount()}.").IsEqual(arena.GetMaxCapacityCount());
+
+            foreach (string poolID in new[] {
+                "fighter_projectile", "fighter_vfx", "fighter_environment_vfx",
+                "chronal_orb", "damage_numbers", "fighter_construct"
+            }) {
+                AssertThat(config.PoolDefinitions.Any(d => d.PoolID == poolID)).OverrideFailureMessage(
+                    $"{path} does not warm the '{poolID}' pool.").IsTrue();
+            }
+        }
+    }
+
     private static int Warm(ScenePoolConfig config, string poolID) =>
         config.PoolDefinitions.FirstOrDefault(definition => definition.PoolID == poolID)?.WarmUpCount ?? 0;
 
@@ -141,7 +208,22 @@ public class ScenePoolConfigTests {
             // silent mis-point is possible here.
             ("res://scenes/campaign/Level_13_ChronalVoid.tscn", "level_13_chronal_void_pools"),
             ("res://scenes/campaign/Level_14_NeoEarth.tscn", "level_14_neo_earth_pools"),
-            ("res://scenes/campaign/Level_15_Alexandria.tscn", "level_15_alexandria_pools")
+            ("res://scenes/campaign/Level_15_Alexandria.tscn", "level_15_alexandria_pools"),
+            // Package 6 closeout: the ten Fighter stages. Several era names are
+            // shared with a campaign level (orleans, chicago, paris, nassau,
+            // berlin, globe, gettysburg, alexandria), so a row pointed at the
+            // level's config would warm Story enemy pools in a Fighter match and
+            // nothing else in the suite would notice.
+            ("res://scenes/fighter/FighterStage_Florence.tscn", "fighter_stage_florence_pools"),
+            ("res://scenes/fighter/FighterStage_Orleans.tscn", "fighter_stage_orleans_pools"),
+            ("res://scenes/fighter/FighterStage_Chicago.tscn", "fighter_stage_chicago_pools"),
+            ("res://scenes/fighter/FighterStage_Paris.tscn", "fighter_stage_paris_pools"),
+            ("res://scenes/fighter/FighterStage_Vesuvius.tscn", "fighter_stage_vesuvius_pools"),
+            ("res://scenes/fighter/FighterStage_Nassau.tscn", "fighter_stage_nassau_pools"),
+            ("res://scenes/fighter/FighterStage_Alexandria.tscn", "fighter_stage_alexandria_pools"),
+            ("res://scenes/fighter/FighterStage_Berlin.tscn", "fighter_stage_berlin_pools"),
+            ("res://scenes/fighter/FighterStage_Globe.tscn", "fighter_stage_globe_pools"),
+            ("res://scenes/fighter/FighterStage_Gettysburg.tscn", "fighter_stage_gettysburg_pools")
         }) {
             ScenePoolConfig config = catalog.Find(scene);
             AssertObject(config).OverrideFailureMessage(

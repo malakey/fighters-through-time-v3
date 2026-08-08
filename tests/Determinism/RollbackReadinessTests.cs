@@ -449,10 +449,51 @@ public class RollbackReadinessTests {
     /// session's own stopwatch. The assertion carries generous CI headroom; the
     /// recorded numbers are what matter and are transcribed into
     /// docs/PERFORMANCE_BASELINE.md.
+    ///
+    /// <para>Package 6 C1: the sweep covers <b>every</b> authored stage geometry
+    /// rather than Florence alone. Each stage carries a different hazard identity
+    /// (a moving debris body, a sweeping beam, a falling rock plus its ground pool,
+    /// per-fighter dwell and idle counters), so "worst case" is not the same shape
+    /// on every stage and a Florence-only measurement cannot stand in for the
+    /// Package 7 entry criterion. Stages are enumerated from
+    /// <c>FighterStageGeometry.AllAuthored</c>, so a stage added later is measured
+    /// with no edit here. The test count is unchanged — one case, ten
+    /// measurements.</para>
     /// </summary>
     [TestCase]
     public void WorstCaseDepthSevenResimulationFitsTheRollbackBudget() {
-        FighterStageGeometry geometry = FighterStageGeometry.Florence;
+        double worstMedian = 0;
+        double worstP95 = 0;
+        int largestSnapshot = 0;
+        string worstStage = "";
+
+        foreach (FighterStageGeometry stage in FighterStageGeometry.AllAuthored) {
+            (double median, double p95, int snapshotBytes) = MeasureWorstCaseDepthSeven(stage);
+            if (median > worstMedian) { worstMedian = median; worstStage = stage.StageID; }
+            worstP95 = Math.Max(worstP95, p95);
+            largestSnapshot = Math.Max(largestSnapshot, snapshotBytes);
+        }
+
+        Console.WriteLine(
+            "[A4 rollback readiness] worst case across "
+            + $"{FighterStageGeometry.AllAuthored.Length} authored stages: "
+            + $"median {worstMedian:F3} ms on '{worstStage}', p95 {worstP95:F3} ms, "
+            + $"largest snapshot {largestSnapshot} bytes, budget "
+            + $"{OnlineRollbackSession.RollbackBudgetMilliseconds:F1} ms.");
+
+        AssertThat(worstStage.Length)
+            .OverrideFailureMessage("The sweep measured no stage at all.").IsGreater(0);
+        AssertThat(largestSnapshot)
+            .OverrideFailureMessage("A full-state snapshot must be non-empty to be shippable over the wire.")
+            .IsGreater(0);
+    }
+
+    /// <summary>
+    /// One stage's depth-7 measurement. Returns (median ms, p95 ms, snapshot bytes)
+    /// and asserts the per-stage budget on the way through.
+    /// </summary>
+    private static (double Median, double P95, int SnapshotBytes) MeasureWorstCaseDepthSeven(
+        FighterStageGeometry geometry) {
         (InMemoryRollbackTransport localTransport, InMemoryRollbackTransport peerTransport) =
             InMemoryRollbackTransport.CreatePair();
         // Tesla contributes two persistent coils plus an execution zone; Mozart
@@ -548,13 +589,18 @@ public class RollbackReadinessTests {
         // the gate; the recorded medians are the number that matters.
         AssertThat(p95 <= OnlineRollbackSession.RollbackBudgetMilliseconds * 2.0)
             .OverrideFailureMessage(
-                $"Depth-7 resimulation p95 was {p95:F3} ms, beyond twice the "
+                $"Depth-7 resimulation p95 on '{geometry.StageID}' was {p95:F3} ms, beyond twice the "
                 + $"{OnlineRollbackSession.RollbackBudgetMilliseconds:F1} ms rollback budget "
                 + $"(median {median:F3} ms, max {max:F3} ms).")
             .IsTrue();
+        AssertThat(budgetBreaches.Count)
+            .OverrideFailureMessage(
+                $"'{geometry.StageID}' breached the rollback budget {budgetBreaches.Count} times.")
+            .IsEqual(0);
         AssertThat(snapshot.Length)
             .OverrideFailureMessage("A full-state snapshot must be non-empty to be shippable over the wire.")
             .IsGreater(0);
+        return (median, p95, snapshot.Length);
     }
 
     [TestCase]
