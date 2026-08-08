@@ -136,7 +136,12 @@ public class ScenePoolConfigTests {
             ("res://scenes/campaign/Level_09_Berlin.tscn", "level_09_berlin_pools"),
             ("res://scenes/campaign/Level_10_Globe.tscn", "level_10_globe_pools"),
             ("res://scenes/campaign/Level_11_Gettysburg.tscn", "level_11_gettysburg_pools"),
-            ("res://scenes/campaign/Level_12_Lunar.tscn", "level_12_lunar_pools")
+            ("res://scenes/campaign/Level_12_Lunar.tscn", "level_12_lunar_pools"),
+            // Package 5 Wave C. Levels 13-15 use era-name config ids too, so the same
+            // silent mis-point is possible here.
+            ("res://scenes/campaign/Level_13_ChronalVoid.tscn", "level_13_chronal_void_pools"),
+            ("res://scenes/campaign/Level_14_NeoEarth.tscn", "level_14_neo_earth_pools"),
+            ("res://scenes/campaign/Level_15_Alexandria.tscn", "level_15_alexandria_pools")
         }) {
             ScenePoolConfig config = catalog.Find(scene);
             AssertObject(config).OverrideFailureMessage(

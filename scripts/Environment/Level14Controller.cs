@@ -751,17 +751,18 @@ namespace FTT.Environment {
 
         /// <summary>
         /// Puts the player in exactly the pocket they are standing in and out of
-        /// every other one. Idempotent and consistent with the physics callbacks: a
-        /// redundant Add or Remove is a no-op inside <see cref="GravityFieldZone"/>.
+        /// every other one, through the shared
+        /// <see cref="GravityFieldZone.SyncPlayerToField"/> helper. The target comes
+        /// from this level's authored pocket table rather than the helper's geometric
+        /// lookup, because <see cref="PocketAt"/> reads the authored spans (which the
+        /// content test proves disjoint) rather than the built collision shapes — the
+        /// same split Level 12 uses. Idempotent and consistent with the physics
+        /// callbacks: a redundant Add or Remove is a no-op inside
+        /// <see cref="GravityFieldZone"/>.
         /// </summary>
         public void SyncContainmentPocketToPlayer() {
             if (Player == null || !IsInstanceValid(Player)) return;
-            GravityFieldZone target = PocketAt(Player.Position);
-            foreach (GravityFieldZone pocket in _pockets) {
-                if (!IsInstanceValid(pocket)) continue;
-                if (pocket == target) pocket.AddPlayer(Player);
-                else pocket.RemovePlayer(Player);
-            }
+            GravityFieldZone.SyncPlayerToField(_pockets, Player, PocketAt(Player.Position));
         }
 
         // === Checkpoint resume ===

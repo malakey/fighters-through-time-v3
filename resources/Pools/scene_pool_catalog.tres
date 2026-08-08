@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ScenePoolCatalog" load_steps=27 format=3]
+[gd_resource type="Resource" script_class="ScenePoolCatalog" load_steps=37 format=3]
 
 [ext_resource type="Script" path="res://scripts/Core/ScenePoolCatalog.cs" id="1_catalog"]
 [ext_resource type="Script" path="res://scripts/Core/ScenePoolCatalogEntry.cs" id="2_entry"]
@@ -16,6 +16,9 @@
 [ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_10_pool_config.tres" id="14_globe"]
 [ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_11_pool_config.tres" id="15_gettysburg"]
 [ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_12_pool_config.tres" id="16_lunar"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_13_pool_config.tres" id="17_void"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_14_pool_config.tres" id="18_neoearth"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_15_pool_config.tres" id="19_alexandria"]
 
 [sub_resource type="Resource" id="Tutorial"]
 script = ExtResource("2_entry")
@@ -69,6 +72,18 @@ PoolConfig = ExtResource("15_gettysburg")
 script = ExtResource("2_entry")
 ScenePath = "res://scenes/campaign/Level_12_Lunar.tscn"
 PoolConfig = ExtResource("16_lunar")
+[sub_resource type="Resource" id="ChronalVoid"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_13_ChronalVoid.tscn"
+PoolConfig = ExtResource("17_void")
+[sub_resource type="Resource" id="NeoEarth"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_14_NeoEarth.tscn"
+PoolConfig = ExtResource("18_neoearth")
+[sub_resource type="Resource" id="Alexandria"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_15_Alexandria.tscn"
+PoolConfig = ExtResource("19_alexandria")
 [sub_resource type="Resource" id="Arena"]
 script = ExtResource("2_entry")
 ScenePath = "res://scenes/arenas/TestArena.tscn"
@@ -76,4 +91,4 @@ PoolConfig = ExtResource("5_arena")
 
 [resource]
 script = ExtResource("1_catalog")
-Scenes = Array[ExtResource("2_entry")]([SubResource("Tutorial"), SubResource("Florence"), SubResource("Orleans"), SubResource("Chicago"), SubResource("Paris"), SubResource("Titanic"), SubResource("Pompeii"), SubResource("Nassau"), SubResource("Egypt"), SubResource("Berlin"), SubResource("Globe"), SubResource("Gettysburg"), SubResource("Lunar"), SubResource("Arena")])
+Scenes = Array[ExtResource("2_entry")]([SubResource("Tutorial"), SubResource("Florence"), SubResource("Orleans"), SubResource("Chicago"), SubResource("Paris"), SubResource("Titanic"), SubResource("Pompeii"), SubResource("Nassau"), SubResource("Egypt"), SubResource("Berlin"), SubResource("Globe"), SubResource("Gettysburg"), SubResource("Lunar"), SubResource("ChronalVoid"), SubResource("NeoEarth"), SubResource("Alexandria"), SubResource("Arena")])

@@ -25,6 +25,19 @@ public class ContentManifestTests {
         AssertThat(manifest.ForCategory(ContentCategory.Template).Count()).IsEqual(14);
     }
 
+    /// <summary>
+    /// The manifest must keep surfacing unauthored content rather than quietly
+    /// reporting a finished game.
+    ///
+    /// <para>Package 5 C1 note: this used to be backed largely by the Planned
+    /// StoryLevel rows for levels 2-15. All sixteen levels are Implemented now, so
+    /// the premise rests on the remaining families instead — the 27 per-level
+    /// AudioSet rows (Package 8), the nine unbuilt FighterStage rows, the twelve
+    /// unbuilt UIScreen rows, and three DialogueSet rows. If a later package
+    /// authors ALL of those, this assertion's premise is genuinely gone and the
+    /// right move is to retire the test with a note, not to invent a Planned row
+    /// to keep it fed.</para>
+    /// </summary>
     [TestCase]
     public void PlannedResourcesRemainVisibleUntilTheyAreAuthored() {
         ContentManifest manifest = ContentManifest.LoadDefault();

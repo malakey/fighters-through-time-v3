@@ -1,7 +1,15 @@
 # Package 5 — Campaign levels 2–15: implementation plan
 
-Status: authored 2026-08-07. Working plan for `IMPLEMENTATION_PLAN.md` Package 5. Shared reference
-for the implementation passes; agents record deviations in §9 at the bottom.
+Status: **COMPLETE — closed 2026-08-08.** Authored 2026-08-07 as the working plan for
+`IMPLEMENTATION_PLAN.md` Package 5. All sixteen campaign levels are authored, routed, pool-wired,
+manifest-flipped and smoke-clean; the suite stands at **705/705 across three consecutive runs**.
+
+This document is now a historical record plus a live reference: §4/§4.1 still hold the locked
+encounter economy and the authored boss stats, §2.8 still holds the crash-hygiene rules that apply
+to all future content work, and §9 holds the per-level deviation log. **Read §9 before touching a
+campaign level** — most of what looks like an oddity in a level controller is a recorded decision
+with a test pinning it. What Package 5 deliberately did NOT deliver is listed in `INTEGRATION-C`
+at the end of §9.
 
 **Phase A completed and merged 2026-08-07** (A2 `7507533`: 14 era-mechanic components + 11 templates
 + 17 tests; A1 `7898e4f`: `StoryLevelControllerBase`, credits/campaign-completion chain,
@@ -1626,3 +1634,147 @@ all seven `toolkit_*` keys resolve, and no template ships raw English. No action
   committed and the fresh-worktree `.import` churn was reverted. `Level_15_Alexandria.tscn` smokes
   clean at `--quit-after 300`: exit 0, zero script errors, no output beyond the engine banner.
   `AGENTS.md` is left for C1 per the A1 convention.
+
+### Wave C integration + C1 closeout (2026-08-08)
+
+- **INTEGRATION-C: no cross-level breakage, like Wave B and unlike Wave A.** The three Wave C
+  levels merged clean at 700/700 before this pass. Everything below is deferred shared-file wiring,
+  the two items the level agents were forbidden by §2.7 to touch, and the §6 closeout.
+- **INTEGRATION-C: shared-file wiring applied for levels 13-15** (§2.7 / §7). Three
+  `ScenePoolCatalogEntry` rows in `resources/Pools/scene_pool_catalog.tres` (`load_steps` corrected
+  to 37 while there — it had been stale at 27 since before Wave A, which Godot tolerates); three
+  paths added to `SceneSmokeTests.RequiredPrototypeScenes`; three `StoryLevel` and three
+  `DialogueSet` manifest rows flipped to `Implemented,ReadyForReplacement,Valid`, plus
+  `UIScreen,credits` (the A1 scene exists) and `UIScreen,level_results` (the scene already existed
+  and the row had simply never been flipped).
+  `ScenePoolConfigTests.CatalogMapsEveryCurrentGameplaySceneToItsPoolBudget` extended with the
+  three scene -> `ConfigID` pairs. StoryLevel row count stays 16, and **all sixteen are now
+  authored** — the campaign level table is complete.
+- **INTEGRATION-C: the Planned-warning test's premise survived on its own; nothing was adapted.**
+  §6 flagged the risk that flipping the last levels would starve
+  `ContentManifestTests.PlannedResourcesRemainVisibleUntilTheyAreAuthored`. Measured after the
+  flips, **51 `Planned`/`Pending` rows remain**: 27 AudioSet (per-level stems, Package 8), 12
+  UIScreen, 9 FighterStage (the unbuilt stages, Package 6), and 3 DialogueSet. The test was left
+  functionally untouched; only a doc comment was added recording that its premise no longer rests
+  on StoryLevel rows and that the honest move, if a later package authors all of those, is to
+  retire the test with a note rather than invent a Planned row to feed it.
+- **INTEGRATION-C: the duplicated frame-zero gravity registration is consolidated.** Levels 13 and
+  14 were cut before `GravityFieldZone.SyncPlayerToField` landed and each hand-rolled the
+  add-target/remove-everything-else loop. Both now call the shared static, exactly as Level 12
+  does — **each level keeps its own lookup** (`GravityFieldFor(x)` on 13's authored span table,
+  `PocketAt(position)` on 14's authored pocket table) and delegates only the set-membership loop,
+  because each owns a real boundary rule the helper's geometric `ContainsPoint` would not
+  reproduce (13's spans tile exactly and need the half-open-except-last seam rule; 14's pockets are
+  code-built and their authored spans, not their built shapes, are what the disjointness test
+  proves). Behaviour is identical, the public `SyncGravityFieldToPlayer` /
+  `SyncContainmentPocketToPlayer` entry points are unchanged, and all three levels' gravity tests
+  pass untouched. `SyncPlayerToContainingField` remains the right call only for scene-authored
+  fields with no span table.
+- **INTEGRATION-C: the credits/`IsCompleted` window is closed by writing the flag when the credits
+  BEGIN.** L15 flagged it: `CampaignCompletionSequence` wrote the save at the end of the credits,
+  so a player who quit mid-roll had a save that `LevelManager.CompleteLevel` had already advanced
+  and autosaved past the finale, but which still reported the campaign unfinished — the main-menu
+  banner and the hub's post-campaign portal both read it wrong. `RollCredits()` now calls the flag
+  write first; `Finish()` still calls it (idempotent) to cover the credits-less path where
+  `SkipToEnd` runs while the ending dialogue is still up, and to retry a write that could not find
+  an active slot. **The credits are the right point of no return**: the boss is dead, the Core is
+  in the anchor, the ending beat has played, and the campaign pointer is already advanced — there
+  is nothing left that could un-complete the campaign.
+  Two existing assertions pinned the old timing and were **inverted, not deleted**:
+  `CampaignCompletionTests.TheCompletionChainRollsCreditsThenWritesTheCompletedFlagExactlyOnce`
+  and the "nothing is written until the credits end" pair inside Level 15's full-chain case now
+  assert the flag IS set as the credits start. That is a strictly stronger contract than the one
+  they replaced. A new case,
+  `QuittingDuringTheCreditsStillLeavesTheCampaignMarkedCompleted`, tears the chain down mid-roll
+  and asserts the flag reached **disk**, not just memory.
+- **INTEGRATION-C: L13's "every cycle scale below 1.0" constraint is a design rule, not a bug.**
+  Recording it here per §6 so a future gravity retune understands the coupling: at 1.2 gravity the
+  heaviest character clears 94 px, below the 113 px he clears at Earth-normal, so any rung a heavy
+  gravity phase left reachable would be invisible at every other scale and any rung worth having
+  would strand him. A cycling `GravityFieldZone` therefore **cannot go heavier than Earth and still
+  promise reachability**, which is why 13's two fields run `[0.55, 0.28, 0.40]` and
+  `[0.32, 0.60, 0.22]` and every rung is checked against every scale its own field can publish.
+  The same constraint governs Level 14's three containment pockets, where a test explicitly
+  requires all three to be *anti*-gravity: a heavier-than-normal "suppression" pocket could drop a
+  player into a shaft they cannot climb out of. Any future retune that wants a crushing-gravity
+  beat needs a new mechanic (an assisted climb, a lower rung set that only exists while heavy), not
+  a bigger number.
+- **INTEGRATION-C: the campaign route contract now demands all sixteen scenes.** A1 wrote
+  `EveryRoutedSceneThatExistsOnDiskLoadsAndInstantiates` with an `if (!Exists) continue;` skip and a
+  floor of 2, deliberately, until the levels existed. It is now
+  `EveryRoutedSceneExistsLoadsAndInstantiates` and reports every missing route by name. The
+  sequential-advance case's per-step check was `Exists(path) || path.Length > 0` — satisfied by any
+  non-empty string — and is now a real existence assertion at every one of the sixteen steps. A new
+  case walks the manifest side and asserts every `StoryLevel` row's path is on disk and its state is
+  not `Planned`. **That last one asserts "not Planned + Valid", not "Implemented"**, because
+  Tutorial and Florence are legitimately still `Prototype`: Package 5 did not retrofit them onto
+  `StoryLevelControllerBase` and pretending otherwise in the manifest would be a false claim.
+- **INTEGRATION-C: the stale-compiled-translation trap now has a permanent test.**
+  `tests/ContentValidation/CampaignLocalizationTests.cs` (3 cases). The L02 finding —
+  `--headless --quit` does not reimport `en.csv`, only `--import` does, so an agent can ship a
+  stale `en.en.translation` where every new key renders as its raw key at runtime — cost several
+  level agents a cycle each, and a CSV-only assertion cannot see it. Every assertion goes through
+  `TranslationServer.Translate`, which is what `Node.Tr()` reads. Case 1 walks all seventeen
+  authored dialogue sets and checks every line and speaker key (and that each sequence's speaker
+  count matches its line count). Case 2 sweeps the CSV itself for the five campaign key families
+  (`dlg_l*`, `*_level_title`, `*_objective_*`, `campaign_level_*`, `speaker_*`) with a per-family
+  minimum count so a renamed prefix cannot make the suite pass by checking nothing. Case 3 pins one
+  distinct, resolving title per level. Duplicate-key detection was **not** duplicated here —
+  `EnemyRosterContentTests.EnglishTranslationTableHasNoDuplicateKeys` already owns it repo-wide, and
+  two copies that can drift apart are worse than one.
+- **INTEGRATION-C: `docs/DUST_ECONOMY.md` gained §6; no locked value changed and
+  `DustEconomyTests` was not touched.** It records that the X column is now real content for levels
+  2-15 (authored `ExtractorPlacements` tables through `StoryLevelControllerBase.BuildExtractors`,
+  each pinned by its level's own content test) and that the §2 table therefore describes shipped
+  content rather than placeholders. **Florence is the honest exception and its §4 gap bullet
+  stands**: Package 5 deliberately left the pre-existing `Level01Controller` alone, so Florence
+  still authors none of its 3 budgeted extractors and its row over-states real income by up to 45
+  full / 23 expected dust. §6.2 records the boss-summon variance per §2.4: summoned minions pay
+  ordinary roster dust the S/E/B/X model has no column for, it is accepted and deliberately not
+  compensated for, and the honest way to model it later is a separate drift term after a decision
+  about farming caps — not an edit to the X or S columns.
+- **INTEGRATION-C: validation.** Build clean but for the vendored CS8632. **705/705, 0 failed,
+  20 s, across three consecutive full runs** (700 before this pass, +5: 3 `CampaignLocalizationTests`,
+  1 `CampaignRouteTests` manifest case, 1 `CampaignCompletionTests` quit-during-credits case). No
+  corruption-shaped total, no exit-100 artifact, no worktree contention. `--headless --import` clean
+  with **zero `.import` churn** in the repository checkout (the churn other agents saw is a
+  fresh-worktree effect), and `--quit` clean. All **seventeen** campaign scenes — HubWorld, the
+  Tutorial, Florence and levels 2-15 — smoke clean at `--quit-after 300`: exit 0, zero errors, zero
+  warnings, no output beyond the engine banner. No new `en.csv` keys were added this pass, so
+  `en.en.translation` is unchanged.
+- **INTEGRATION-C: ledgers updated in one place, per the A1 convention** that every worktree
+  deferred to C1: `AGENTS.md` (baseline 464 -> 705, repository map, the campaign-routing and
+  level-framework sections, and the three now-closed prototype-gap bullets), `CLAUDE.md` (verified
+  baseline, this plan added to the authority map, and a new "after editing `en.csv`, run
+  `--import`" section promoting the L02 finding out of the deviation log),
+  `IMPLEMENTATION_PLAN.md` (all fourteen wave checkboxes ticked, Package 5 completion paragraph
+  added to the Status line), and both `IMPLEMENTATION_STATUS.md` files.
+
+#### What Package 5 did NOT deliver
+
+Recorded explicitly so nobody reads "Package 5 complete" as more than it is.
+
+1. **Production presentation, everywhere.** Every level is code-built graybox. No authored tile
+   geometry, environment art, animation libraries, music stems, or VFX. This was out of scope by
+   §1 and belongs to Package 8, but it is the bulk of what a player would notice.
+2. **Cinematic boss presentation** (§1, Package 8). Bosses fight correctly and have no staging.
+3. **A human end-to-end playthrough.** The exit criterion "one locked character can complete levels
+   0-15 in order at each difficulty and resume at every checkpoint/hub boundary" is not something
+   the automated gate can discharge. Each level's own content test drives its completion path and
+   its checkpoint resumes headlessly, and the route/advance contract is tested — but nobody has
+   played the campaign. The related criterion that all nine characters can traverse every critical
+   path is partially covered: the jump-reach invariants in levels 12, 13, 14 and 15 are derived
+   from all nine `CharacterData` resources rather than assumed, so a character retune fails those
+   levels, but the levels without a gravity or climb constraint have no equivalent proof.
+4. **Florence's 3 Chronal Extractors** (`docs/DUST_ECONOMY.md` §4/§6). Package 5 did not retrofit
+   the Tutorial or Florence onto `StoryLevelControllerBase`, per §3 A1.
+5. **The Tutorial and Florence remain `Prototype` in the manifest** and off the shared base class.
+   Retrofitting them is a real cleanup with real regression risk on the two most-tested flows in
+   the game; it was not attempted, and the route test's state assertion is written to tell the
+   truth about that rather than paper over it.
+6. **Hub NPC portal gating** — deferred by §1; interim auto-activation stays.
+7. **Character-specific dialogue variants** — deferred by design §16.
+8. **New Game+ / level replay** — deferred by §1.
+9. **Per-level performance measurement.** Pool warm-up budgets are validated as data and the
+   worst-case-encounter tests pass, but no level has been frame-profiled. `--quit-after 300` proves
+   a level loads and runs 300 frames without errors; it does not prove it holds 16.67 ms.

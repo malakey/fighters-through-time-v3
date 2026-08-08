@@ -33,8 +33,11 @@ through `StoryDifficultyTuning.ScaleEncounterCount` (mob spawn counts ×0.7 Easy
 
 ## 2. Campaign progression model (levels 0–15, Normal authored counts)
 
-Placeholder count assumptions (only level 1 Florence is authored today; all other
-counts are this model's placeholders for future level authoring):
+Count assumptions. These began as placeholders derived from Florence; **Package 5
+authored levels 2–15 to exactly these S/E/B/X counts rather than the reverse**, and
+each level's content test asserts its own row, so the table below is now a description
+of shipped content for levels 2–15 (and still a model target for Florence's
+extractors — see §6):
 
 - **S** standard mobs: ramp 8→14 across the campaign; Florence's authored 13
   (7 `chrono_slasher` + 6 `cyber_guard`) is the fixed point. Model uses 1.5 dust per
@@ -44,8 +47,8 @@ counts are this model's placeholders for future level authoring):
 - **B** boss: every level has one campaign boss except the tutorial (0) and the
   Chronal Void transition (13) — placeholder assumption for 13.
 - **X** extractors: design's "3 to 4 hidden per side-scrolling level"; 4 on the act
-  finales, 2 in the Void, 0 in the tutorial. Florence's 3 are **not yet authored**
-  in `Level01Controller` — model target, flagged as a level-authoring gap.
+  finales, 2 in the Void, 0 in the tutorial. **Authored for levels 2–15 as of
+  Package 5** (see the §6 addendum); Florence's 3 remain a model target only.
 
 Full = 1.5·S + 10·E + 50·B + 15·X (Florence: 26 + 30 + 50 + 45).
 Expected = 90% standard clears + all elites/bosses + **50% extractor discovery**
@@ -125,10 +128,55 @@ rewards — both rejected as conflicts with explicit design numbers.
   (~1,509) is comfortably inside.
 - **Gap — Florence extractors.** The design wants 3–4 hidden extractors per level;
   `Level01Controller` authors none yet. The model budgets 3 for Florence; authoring
-  them is level-content work outside this balance pass.
+  them is level-content work outside this balance pass. **Still open after Package 5**
+  — see the §6 addendum for why Florence specifically was not covered.
 
 ## 5. Visual sprite tiers (resources/Drops/dust_visual_tiers.tres)
 
 Small < 6 ≤ Medium < 25 ≤ Large. Under the authored values: standards (1–2) Small,
 elites (10) and extractors (15) Medium, bosses (50) Large. `DustEconomyTests`
 asserts each reward lands in its band.
+
+## 6. Package 5 addendum — authored content vs. the model (2026-08-08)
+
+Package 5 authored campaign levels 2–15. **No number in this document changed and
+`tests/ContentValidation/DustEconomyTests.cs` was not touched**; the model stayed
+locked and the content was authored to conform to it. Two things are worth recording
+so a later balance pass reads the gap correctly.
+
+### 6.1 Extractors are now real, for levels 2–15
+
+Section 2's X column was a budget with nothing behind it. Every level 2–15 now builds
+its budgeted extractors through `StoryLevelControllerBase.BuildExtractors` from an
+authored `ExtractorPlacements` table, and each level's own
+`tests/ContentValidation/LevelNNContentTests.cs` asserts the authored count against
+this document's row. The dust value itself stays resource-owned
+(`ChronalExtractor.DustReward` = 15); the levels place extractors, they do not price
+them.
+
+**Florence (level 1) is the exception and the §4 gap bullet stands.** Package 5
+deliberately did not retrofit `Level01Controller` (or the Tutorial) onto
+`StoryLevelControllerBase` — working pre-Package-5 code was left alone — so Florence
+still authors none of its 3 budgeted extractors. Its row in the §2 table therefore
+still over-states real income by up to 45 full / 23 expected dust. Closing it is
+level-content work on Florence, not a balance change.
+
+### 6.2 Boss summons pay dust the model does not count
+
+Several bosses run `SummonMinions` abilities (`revolutionary_tribunal`,
+`tragedy_king`, `archive_prime`, and others in `resources/Bosses/`). Those minions are
+ordinary roster enemies, so killing them awards ordinary standard/elite dust on top of
+the boss's flat 50 — income the S/E/B/X model has no column for, because summons are
+unbounded in principle (a player who stalls a phase can farm them) and their count is
+a runtime consequence of fight length rather than authored content.
+
+**This is a known, accepted, small variance above the model, and it is deliberately
+not compensated for.** Package 5 §2.4 forbade levels from reducing their authored
+enemy counts to offset it, precisely so that the authored budget stays comparable
+across levels and the drift stays visible here rather than being smeared into fourteen
+different encounter tables. In practice it is small: summon waves are 2 enemies at 1–2
+dust each, gated behind ability cooldowns and phase minimums.
+
+If a future pass wants to model it, the honest way is a separate "combat drift" term
+rather than an edit to the per-level X or S columns — and it needs a decision about
+farming caps first, which is a design question, not an arithmetic one.

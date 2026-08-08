@@ -14,9 +14,9 @@ StoryLevel,level_09_berlin,3|7,res://scenes/campaign/Level_09_Berlin.tscn,StoryM
 StoryLevel,level_10_globe,3|7,res://scenes/campaign/Level_10_Globe.tscn,StoryManager,Implemented,ReadyForReplacement,Valid,true
 StoryLevel,level_11_gettysburg,3|7,res://scenes/campaign/Level_11_Gettysburg.tscn,StoryManager,Implemented,ReadyForReplacement,Valid,true
 StoryLevel,level_12_lunar,3|7,res://scenes/campaign/Level_12_Lunar.tscn,StoryManager,Implemented,ReadyForReplacement,Valid,true
-StoryLevel,level_13_chronal_void,3|7,res://scenes/campaign/Level_13_ChronalVoid.tscn,StoryManager,Planned,Placeholder,Pending,true
-StoryLevel,level_14_neo_earth,3|7,res://scenes/campaign/Level_14_NeoEarth.tscn,StoryManager,Planned,Placeholder,Pending,true
-StoryLevel,level_15_alexandria,3|7,res://scenes/campaign/Level_15_Alexandria.tscn,StoryManager,Planned,Placeholder,Pending,true
+StoryLevel,level_13_chronal_void,3|7,res://scenes/campaign/Level_13_ChronalVoid.tscn,StoryManager,Implemented,ReadyForReplacement,Valid,true
+StoryLevel,level_14_neo_earth,3|7,res://scenes/campaign/Level_14_NeoEarth.tscn,StoryManager,Implemented,ReadyForReplacement,Valid,true
+StoryLevel,level_15_alexandria,3|7,res://scenes/campaign/Level_15_Alexandria.tscn,StoryManager,Implemented,ReadyForReplacement,Valid,true
 # Ten independent Fighter stage targets
 FighterStage,florence_workshop,10,res://scenes/fighter/FighterStage_Florence.tscn,FighterStageCatalog,Implemented,Placeholder,Valid,true
 FighterStage,orleans_vanguard,10,res://scenes/fighter/FighterStage_Orleans.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true
@@ -143,9 +143,9 @@ DialogueSet,dialogue_level_09,16,res://resources/Dialogue/level_09_dialogue.tres
 DialogueSet,dialogue_level_10,16,res://resources/Dialogue/level_10_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
 DialogueSet,dialogue_level_11,16,res://resources/Dialogue/level_11_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
 DialogueSet,dialogue_level_12,16,res://resources/Dialogue/level_12_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
-DialogueSet,dialogue_level_13,16,res://resources/Dialogue/level_13_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true
-DialogueSet,dialogue_level_14,16,res://resources/Dialogue/level_14_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true
-DialogueSet,dialogue_level_15,16,res://resources/Dialogue/level_15_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true
+DialogueSet,dialogue_level_13,16,res://resources/Dialogue/level_13_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
+DialogueSet,dialogue_level_14,16,res://resources/Dialogue/level_14_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
+DialogueSet,dialogue_level_15,16,res://resources/Dialogue/level_15_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
 DialogueSet,dialogue_hub,3|16,res://resources/Dialogue/hub_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true
 # Initial-release UI screens/components
 UIScreen,main_menu,7,res://scenes/menus/MainMenu.tscn,MainMenu,Implemented,ReadyForReplacement,Valid,true
@@ -155,7 +155,7 @@ UIScreen,difficulty_select,7,res://scenes/menus/MainMenu.tscn,MainMenu,Prototype
 UIScreen,story_hud,7,res://scenes/ui/StoryHUD.tscn,HUDController,Planned,Placeholder,Pending,true
 UIScreen,dialogue_box,7,res://scenes/ui/DialogueBox.tscn,DialogueManager,Planned,Placeholder,Pending,true
 UIScreen,resonance_grid,3|7,res://scenes/ui/ResonanceGrid.tscn,ResonanceGridPanel,Planned,Placeholder,Pending,true
-UIScreen,level_results,7,res://scenes/ui/LevelResults.tscn,LevelManager,Planned,Placeholder,Pending,true
+UIScreen,level_results,7,res://scenes/ui/LevelResults.tscn,LevelManager,Implemented,ReadyForReplacement,Valid,true
 UIScreen,network_select,7,res://scenes/menus/NetworkSelect.tscn,MatchmakingManager,Planned,Placeholder,Pending,true
 UIScreen,fighter_character_select,7,res://scenes/menus/CharacterSelect.tscn,CharacterSelectScreen,Prototype,Placeholder,Valid,true
 UIScreen,stage_select,7,res://scenes/menus/CharacterSelect.tscn,CharacterSelectScreen,Prototype,Placeholder,Valid,true
@@ -168,7 +168,7 @@ UIScreen,match_results,11,res://scenes/ui/MatchResults.tscn,TestArenaHUD,Planned
 UIScreen,settings,12,res://scenes/ui/Settings.tscn,SettingsMenu,Planned,Placeholder,Pending,true
 UIScreen,story_loading,7,res://scenes/ui/StoryLoading.tscn,GameManager,Planned,Placeholder,Pending,true
 UIScreen,fighter_loading,7,res://scenes/ui/FighterLoading.tscn,GameManager,Planned,Placeholder,Pending,true
-UIScreen,credits,7,res://scenes/ui/Credits.tscn,GameManager,Planned,Placeholder,Pending,true
+UIScreen,credits,7,res://scenes/ui/Credits.tscn,GameManager,Implemented,ReadyForReplacement,Valid,true
 UIScreen,network_error,11,res://scenes/ui/NetworkError.tscn,NetworkManager,Planned,Placeholder,Pending,true
 # Pool categories
 Pool,projectiles,4,res://scenes/templates/ProjectileTemplate.tscn,PoolManager,Implemented,Placeholder,Valid,true

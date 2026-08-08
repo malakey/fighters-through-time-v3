@@ -25,7 +25,11 @@ public class SceneSmokeTests {
         "res://scenes/campaign/Level_09_Berlin.tscn",
         "res://scenes/campaign/Level_10_Globe.tscn",
         "res://scenes/campaign/Level_11_Gettysburg.tscn",
-        "res://scenes/campaign/Level_12_Lunar.tscn"
+        "res://scenes/campaign/Level_12_Lunar.tscn",
+        // Package 5 Wave C.
+        "res://scenes/campaign/Level_13_ChronalVoid.tscn",
+        "res://scenes/campaign/Level_14_NeoEarth.tscn",
+        "res://scenes/campaign/Level_15_Alexandria.tscn"
     };
 
     [TestCase]

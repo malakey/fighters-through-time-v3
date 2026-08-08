@@ -599,18 +599,17 @@ namespace FTT.Environment {
         }
 
         /// <summary>
-        /// Puts the player in exactly the field they stand in and out of every other.
-        /// Idempotent and consistent with the physics callbacks: a redundant Add or
-        /// Remove is a no-op inside <see cref="GravityFieldZone"/>.
+        /// Puts the player in exactly the field they stand in and out of every other,
+        /// through the shared <see cref="GravityFieldZone.SyncPlayerToField"/> helper.
+        /// The target comes from this level's authored span table rather than the
+        /// helper's geometric lookup, because the void's fields tile exactly and
+        /// <see cref="GravityFieldFor"/> owns the seam rule — the same split Level 12
+        /// uses. Idempotent and consistent with the physics callbacks: a redundant Add
+        /// or Remove is a no-op inside <see cref="GravityFieldZone"/>.
         /// </summary>
         public void SyncGravityFieldToPlayer() {
             if (Player == null || !IsInstanceValid(Player)) return;
-            GravityFieldZone target = GravityFieldFor(Player.Position.X);
-            foreach (GravityFieldZone field in _gravityFields) {
-                if (!IsInstanceValid(field)) continue;
-                if (field == target) field.AddPlayer(Player);
-                else field.RemovePlayer(Player);
-            }
+            GravityFieldZone.SyncPlayerToField(_gravityFields, Player, GravityFieldFor(Player.Position.X));
         }
 
         protected override void SpawnInitialEnemies() => SpawnWave(1);

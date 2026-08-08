@@ -7,9 +7,17 @@ namespace FTT.UI {
     /// The end-of-campaign chain (Package 5 A1). Level 15 calls
     /// <see cref="Begin"/> after the Temporal Core restoration beat:
     ///
-    /// <para>ending dialogue -> credits roll -> active save
-    /// <c>IsCompleted = true</c> (through <see cref="SaveManager.MarkCampaignCompleted()"/>)
+    /// <para>ending dialogue -> active save <c>IsCompleted = true</c> (through
+    /// <see cref="SaveManager.MarkCampaignCompleted()"/>) + credits roll
     /// -> main menu.</para>
+    ///
+    /// <para><b>The flag is written when the credits BEGIN, not when they end</b>
+    /// (Package 5 C1, closing the window Level 15 flagged). The credits are the
+    /// point of no return: the boss is dead, the Temporal Core is in the anchor,
+    /// the ending beat has played, and the level's completion has already advanced
+    /// and autosaved the campaign pointer. Writing at the end left a player who
+    /// quit mid-credits with a save advanced past the finale that still reported
+    /// the campaign unfinished.</para>
     ///
     /// The save write goes through SaveManager rather than being poked from UI
     /// code, and it happens even if the player skips the credits. Set
@@ -87,13 +95,28 @@ namespace FTT.UI {
             RollCredits();
         }
 
-        /// <summary>Adds the credits overlay and finishes the chain when it ends.</summary>
+        /// <summary>
+        /// Adds the credits overlay and finishes the chain when it ends. The
+        /// completion flag is written <i>here</i>, before the roll starts, so
+        /// quitting during the credits cannot lose it.
+        /// </summary>
         public CreditsController RollCredits() {
             if (IsFinished || Credits != null) return Credits;
+            MarkCampaignCompleted();
             Credits = CreditsController.CreateDefault();
             Credits.CreditsFinished += Finish;
             AddChild(Credits);
             return Credits;
+        }
+
+        /// <summary>
+        /// Writes <c>IsCompleted</c> through SaveManager once. A write that fails
+        /// (no active slot yet) is retried from <see cref="Finish"/> rather than
+        /// being latched off, so the terminal path still has its chance.
+        /// </summary>
+        private void MarkCampaignCompleted() {
+            if (CampaignMarkedCompleted) return;
+            CampaignMarkedCompleted = SaveManager.Instance?.MarkCampaignCompleted() == true;
         }
 
         /// <summary>Skips whatever is on screen and completes the chain.</summary>
@@ -107,7 +130,10 @@ namespace FTT.UI {
             if (IsFinished) return;
             IsFinished = true;
             UnbindEvents();
-            CampaignMarkedCompleted = SaveManager.Instance?.MarkCampaignCompleted() == true;
+            // Normally already written at RollCredits(); this covers the credits-less
+            // skip path (SkipToEnd while the ending dialogue is still up) and retries
+            // a write that could not find an active slot earlier.
+            MarkCampaignCompleted();
             EmitSignal(SignalName.SequenceFinished);
             if (ReturnToMainMenu) GameManager.Instance?.LoadScene(MainMenuScenePath);
         }

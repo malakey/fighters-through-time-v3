@@ -1,10 +1,12 @@
 # Fighters Through Time: Implementation Gap Analysis
 
-Last audited: 2026-08-05 against `design-godot.md` and the current codebase.
+Last audited: 2026-08-08 against `design-godot.md` and the current codebase.
 
 P0 remediation update: Packages 0 and 1 in `IMPLEMENTATION_PLAN.md` are implemented and verified. Shared content contracts, the placeholder pipeline, combat/movement edges, the puzzle/environment toolkit, Story pools/drops, and rewind/timeline-collapse contracts now exist; production content and final presentation remain later packages.
 
 Package 4 update (2026-08-07): Section 4 below is superseded for the enemy and boss roster. All 27 `EnemyData` and 15 `BossData` resources are authored, manifest-registered, localized, pooled, and covered by tests; `EnemyController`, `BossController`, `EnemyAbilityExecutor`, `BossEncounterController`, and `MirrorParadoxController` are implemented. What remains for those systems is production art/animation (Package 8), placement inside campaign levels 2-15 (Package 5), and cinematic boss presentation (Package 8).
+
+Package 5 update (2026-08-08): **Section 1 below is superseded.** All sixteen campaign levels are authored, routed, pool-wired and manifest-flipped; levels 2-15 build on `StoryLevelControllerBase` with room graphs, three checkpoints each, the locked encounter economy, per-level era mechanics from the fourteen new toolkit components, boss arenas, extractors, and dialogue resources. The enemy/boss roster is now placed across the campaign rather than only in Florence, and the ending chain (Temporal Core -> ending dialogue -> credits -> `IsCompleted` -> Main Menu) is complete. What remains for campaign content is production presentation: art to replace graybox geometry, animation, music stems, VFX, and cinematic boss presentation (all Package 8). Percentages in the table below are updated accordingly.
 
 This document provides a detailed comparison of what has been implemented versus what is documented in the design specification. It covers every major system, feature, and content area.
 
@@ -16,14 +18,14 @@ This document provides a detailed comparison of what has been implemented versus
 |----------|---------------------|
 | Core Architecture & Systems | ~75-80% |
 | Fighter Mode Foundation | ~65-70% |
-| Story Mode Flow | ~30-35% |
-| Campaign Content (Levels 2-15) | 0% |
+| Story Mode Flow | ~80-85% (hub, all 16 levels, checkpoints/resume, rewind, completion, credits, and the campaign-complete save state are implemented) |
+| Campaign Content (Levels 2-15) | ~75-80% (all 14 levels authored and tested with graybox geometry and placeholder presentation; art/audio/VFX remain) |
 | Production Art & Animation | ~2-5% |
 | Audio & Music | ~5-10% |
 | Online Networking | ~20-25% |
-| Narrative & Dialogue | ~5-10% |
-| Puzzles & Environmental Interaction | ~55-60% (shared toolkit complete; campaign authoring remains) |
-| Enemy/Boss Roster | ~85-90% (all 27 enemies and 15 bosses authored and wired; production art, level placement, and cinematic boss presentation remain) |
+| Narrative & Dialogue | ~55-60% (all 17 dialogue sets authored and localized; character-specific variants and VO remain deferred) |
+| Puzzles & Environmental Interaction | ~85-90% (shared toolkit plus 14 era-mechanic components, all placed across the authored campaign) |
+| Enemy/Boss Roster | ~90% (all 27 enemies and 15 bosses authored, wired, and now placed across campaign levels 1-15; production art and cinematic boss presentation remain) |
 
 ---
 
@@ -31,24 +33,26 @@ This document provides a detailed comparison of what has been implemented versus
 
 | Level | Design Spec | Implementation Status |
 |-------|-------------|----------------------|
-| Level 0 - Tutorial | Full 3-part tutorial (Fracture, Calibration, Mobility) | **Partially implemented** - Scene exists (`Level_00_Tutorial.tscn`) but uses code-generated placeholder geometry, not authored content |
-| Level 1 - Florence | Full 4-room layout with puzzles, enemies, boss | **Partially implemented** - Scene exists (`Level_01_Florence.tscn`) with prototype geometry and one parallax background asset |
-| Level 2 - Orléans | Full level with siege battles and shield towers | **Not implemented** - Only routing target in `StoryManager` |
-| Level 3 - Chicago | Full level with logic/routing puzzles | **Not implemented** |
-| Level 4 - Paris | Full level with stealth/searchlight zones | **Not implemented** |
-| Level 5 - Titanic | Act I finale with flooding/sinking mechanics | **Not implemented** |
-| Level 6 - Pompeii | High-speed escape with volcanic hazards | **Not implemented** |
-| Level 7 - Nassau | Ship-to-ship combat and rope swinging | **Not implemented** |
-| Level 8 - Egypt | Sand dunes and hieroglyph puzzles | **Not implemented** |
-| Level 9 - Berlin | Stealth elements and snowy urban combat | **Not implemented** |
-| Level 10 - Globe Theatre | Theatrical stage combat with trapdoors | **Not implemented** |
-| Level 11 - Gettysburg | Linear battlefield assault | **Not implemented** |
-| Level 12 - Lunar | Low-gravity platforming (Act II finale) | **Not implemented** |
-| Level 13 - Chronal Void | Transitional level with shifting gravity | **Not implemented** |
-| Level 14 - Neo-Earth | Future laboratory assault | **Not implemented** |
-| Level 15 - Alexandria | Final boss and timeline restoration | **Not implemented** |
+| Level 0 - Tutorial | Full 3-part tutorial (Fracture, Calibration, Mobility) | **Implemented (placeholder presentation)** - `Level_00_Tutorial.tscn`; code-generated graybox geometry. Predates `StoryLevelControllerBase` and was not retrofitted |
+| Level 1 - Florence | Full 4-room layout with puzzles, enemies, boss | **Implemented (placeholder presentation)** - `Level_01_Florence.tscn`, graybox geometry plus one parallax background asset. Predates `StoryLevelControllerBase`; its 3 budgeted Chronal Extractors are still unauthored (`docs/DUST_ECONOMY.md` §6) |
+| Level 2 - Orléans | Full level with siege battles and shield towers | **Implemented (placeholder presentation)** - `Level_02_Orleans.tscn` on `StoryLevelControllerBase`: room graph, 3 checkpoints, locked encounter economy, extractors, 2× shield-generator towers with forcefield gates, mortar hazard lanes; siegemaster_duke |
+| Level 3 - Chicago | Full level with logic/routing puzzles | **Implemented (placeholder presentation)** - `Level_03_Chicago.tscn` on `StoryLevelControllerBase`: room graph, 3 checkpoints, locked encounter economy, extractors, scene-authored beam-routing puzzle with dead-end 'crowd tap' mis-routing, vertical climb; chronal_inventor |
+| Level 4 - Paris | Full level with stealth/searchlight zones | **Implemented (placeholder presentation)** - `Level_04_Paris.tscn` on `StoryLevelControllerBase`: room graph, 3 checkpoints, locked encounter economy, extractors, searchlight ultimate-drain corridors, 2 rescuable prisoners behind destructible locks; revolutionary_tribunal |
+| Level 5 - Titanic | Act I finale with flooding/sinking mechanics | **Implemented (placeholder presentation)** - `Level_05_Titanic.tscn` on `StoryLevelControllerBase`: room graph, 3 checkpoints, locked encounter economy, extractors, two non-overlapping rising-water zones, listing-deck slopes, arena floods in phase 2; tidal_eraser |
+| Level 6 - Pompeii | High-speed escape with volcanic hazards | **Implemented (placeholder presentation)** - `Level_06_Pompeii.tscn` on `StoryLevelControllerBase`: room graph, 3 checkpoints, locked encounter economy, extractors, escape-sequence lava front, counterweight puzzle, 2 rescuable civilians, ash geysers; vulcan_decimator |
+| Level 7 - Nassau | Ship-to-ship combat and rope swinging | **Implemented (placeholder presentation)** - `Level_07_Nassau.tscn` on `StoryLevelControllerBase`: room graph, 3 checkpoints, locked encounter economy, extractors, pendulum rope swings, path-moving boarding skiffs, mortar hazards; dread_admiral |
+| Level 8 - Egypt | Sand dunes and hieroglyph puzzles | **Implemented (placeholder presentation)** - `Level_08_Egypt.tscn` on `StoryLevelControllerBase`: room graph, 3 checkpoints, locked encounter economy, extractors, deep-sand movement dampeners, hieroglyph sequence lock, authored Cleopatra post-boss beat; jackal_priest |
+| Level 9 - Berlin | Stealth elements and snowy urban combat | **Implemented (placeholder presentation)** - `Level_09_Berlin.tscn` on `StoryLevelControllerBase`: room graph, 3 checkpoints, locked encounter economy, extractors, searchlight strike-mode stealth corridors, guard-tower climbs; iron_chancellor |
+| Level 10 - Globe Theatre | Theatrical stage combat with trapdoors | **Implemented (placeholder presentation)** - `Level_10_Globe.tscn` on `StoryLevelControllerBase`: room graph, 3 checkpoints, locked encounter economy, extractors, trapdoor stage floor, pendulum gallery traverse, idle-punish audience hazard; tragedy_king |
+| Level 11 - Gettysburg | Linear battlefield assault | **Implemented (placeholder presentation)** - `Level_11_Gettysburg.tscn` on `StoryLevelControllerBase`: room graph, 3 checkpoints, locked encounter economy, extractors, artillery-line hazards with cover geometry, 2 shield-generator arrays; siege_cannon (widest arena, 12-unit band) |
+| Level 12 - Lunar | Low-gravity platforming (Act II finale) | **Implemented (placeholder presentation)** - `Level_12_Lunar.tscn` on `StoryLevelControllerBase`: room graph, 3 checkpoints, locked encounter economy, extractors, level-wide low gravity, vacuum vents, path-moving platform ascent; gravity_overseer (3 phases) |
+| Level 13 - Chronal Void | Transitional level with shifting gravity | **Implemented (placeholder presentation)** - `Level_13_ChronalVoid.tscn` on `StoryLevelControllerBase`: room graph, 3 checkpoints, locked encounter economy, extractors, cycling gravity fields (all scales < 1.0), era-mashup motif platforms, drifting shards, rift pockets; Mirror Paradox instead of a scripted boss |
+| Level 14 - Neo-Earth | Future laboratory assault | **Implemented (placeholder presentation)** - `Level_14_NeoEarth.tscn` on `StoryLevelControllerBase`: room graph, 3 checkpoints, locked encounter economy, extractors, phase-offset laser grids with a computed survivable walk, 3 disjoint anti-gravity containment pockets, arena grid armed by boss phase; archive_prime (3 phases) |
+| Level 15 - Alexandria | Final boss and timeline restoration | **Implemented (placeholder presentation)** - `Level_15_Alexandria.tscn` on `StoryLevelControllerBase`: room graph, 3 checkpoints, locked encounter economy, extractors, burning-library firestorm escape, Temporal Core restoration, ending dialogue, credits, `IsCompleted`, Main Menu; apex_eraser (3 phases, 1200 HP) |
 
-**Missing:** 14 complete campaign level scenes with room layouts, tile geometry, puzzles, checkpoints, enemy placements, and boss arenas.
+**Status (Package 5, 2026-08-08):** all sixteen level scenes exist with room layouts, camera-confined room graphs, puzzles/era mechanics, three checkpoints each, enemy placements at the locked economy counts, boss arenas, extractors, and dialogue. Each has a `tests/ContentValidation/LevelNNContentTests.cs` suite, a `scene_pool_catalog.tres` row, and a `SceneSmokeTests` entry.
+
+**Still missing:** authored tile geometry and environment art (everything is code-built graybox), animation libraries, music stems, VFX, cinematic boss presentation, Florence's 3 extractors, and a human end-to-end playthrough of levels 0-15 at each difficulty.
 
 ---
 
@@ -89,9 +93,9 @@ This document provides a detailed comparison of what has been implemented versus
 | Elite mob abilities | Secondary abilities with cooldowns and stun resistance | **Implemented** - `EnemyData.EliteAbilities : EnemyAbilityData[]` cycles standard ↔ elite against `EliteAbilityCooldown`; every elite carries `StunResistance > 0` |
 | 15 boss encounters | Multi-phase bosses with attack patterns, weighted random selection, phase transitions | **Implemented** - 14 scripted `BossData` kits (49 abilities) plus Mirror Paradox; seeded weighted/distance selection, `AbilityMinPhase` gating, phase invincibility, interruption rules, and `BossEncounterController` wiring proven on Florence. Cinematic presentation is Package 8 |
 | Boss attack animations/phases | Scripted phase transitions, telegraphed attacks, invincibility windows | **Implemented with placeholder presentation** - `EnemyAbilityExecutor` runs telegraph → active → recovery for every archetype and raises `EventBus.OnEnemyPresentation`; real VFX/SFX bind in Package 8 |
-| Mirror Paradox boss (Level 13) | Uses CPU Fighter AI instead of standard boss logic | **Implemented** - `MirrorParadoxController` drives the real `FighterCpuController` Hard decision table through a Story-side `CpuDecisionObservation` adapter; the clone uses normalized character data with no Resonance perks. Level 13 itself is Package 5 |
+| Mirror Paradox boss (Level 13) | Uses CPU Fighter AI instead of standard boss logic | **Implemented** - `MirrorParadoxController` drives the real `FighterCpuController` Hard decision table through a Story-side `CpuDecisionObservation` adapter; the clone uses normalized character data with no Resonance perks. `Level_13_ChronalVoid.tscn` builds the encounter in `OnLevelReady` and passes the session's locked character, and its content test asserts the level wires no `BossController`/`BossEncounterController` at all |
 | Distance-based attack selection | Melee vs ranged ability filtering by player distance | **Implemented** - `BossController` filters `BossAbilities` by `RangeClass` against `MeleeRangeThreshold`/`RangedRangeThreshold` and falls back to the full set rather than deadlocking; every scripted boss authors both bands |
-| Per-level enemy pool warm-up | Warm every mob/elite/projectile/reward pool before a level loads | **Implemented as data** - `resources/Pools/level_pool_configs/level_02..15_pool_config.tres`; catalog wiring lands with the Package 5 scenes |
+| Per-level enemy pool warm-up | Warm every mob/elite/projectile/reward pool before a level loads | **Implemented** - `resources/Pools/level_pool_configs/level_02..15_pool_config.tres`, all fourteen now wired into `scene_pool_catalog.tres` with per-scene `ConfigID` assertions (Package 5, 2026-08-08) |
 
 ---
 
@@ -316,7 +320,7 @@ This document provides a detailed comparison of what has been implemented versus
 | VFX/particle pools | 30 per character / 100 max / RecycleOldest | **Implemented as replaceable placeholder pools** |
 | Enemy mob pools | 10 per type / 25 max / Grow | **Implemented** - Shared `standard_enemy`/`elite_enemy`/`enemy_projectile` pools over authored scenes; `EnemyFactory` is generic over any roster ID and reuses reset controllers |
 | Loot/currency drop pools | 30 warm / 50 max / Reject | **Implemented** - Separate Dust and helper-item pools use Reject overflow |
-| ScenePoolConfig per level | Data-driven warm-up definitions per scene | **Implemented** - Tutorial, Florence, and Test Arena configurations are cataloged and budget-validated; `resources/Pools/level_pool_configs/level_02..15_pool_config.tres` are authored and budget-tested, and get cataloged when the Package 5 scenes exist |
+| ScenePoolConfig per level | Data-driven warm-up definitions per scene | **Implemented** - Tutorial, Florence, Test Arena, and all fourteen campaign levels 2-15 are cataloged and budget-validated; `ScenePoolConfigTests` asserts every campaign scene resolves to its own `ConfigID` |
 
 ---
 
@@ -474,7 +478,7 @@ This document provides a detailed comparison of what has been implemented versus
 6. **No dialogue content authored** - Scripts documented in design but no resources in project
 7. **No puzzle system** - Core Story Mode gameplay mechanic doesn't exist
 8. **No enemy or boss production art** - All 42 roster entries render as tinted placeholder silhouettes; the data, AI, abilities, and encounter flow are complete (Package 4)
-9. **No roster placement in campaign content** - The 27 enemies and 15 bosses exist as resources but only Florence instantiates any of them; levels 2-15 are Package 5
+9. ~~**No roster placement in campaign content**~~ - **Closed (Package 5, 2026-08-08).** All 27 enemies and 15 bosses are placed across campaign levels 1-15 at the locked encounter economy counts
 10. **No online multiplayer UI or infrastructure** - Transport layer exists but no user-facing flow
 
 ---

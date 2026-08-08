@@ -565,9 +565,14 @@ public class Level15ContentTests {
                 AssertObject(chain.Credits).IsNotNull();
                 order.Add("credits_rolling");
 
-                // Nothing is written until the credits end (or are skipped).
-                AssertThat(SaveManager.Instance.SaveSlots[ScratchSlot].IsCompleted).IsFalse();
-                AssertThat(chain.CampaignMarkedCompleted).IsFalse();
+                // Package 5 C1 closed the window this pair used to pin: the flag lands
+                // as the credits START. A quit during the roll now keeps a completion
+                // the save's advanced level pointer already implies.
+                AssertThat(SaveManager.Instance.SaveSlots[ScratchSlot].IsCompleted)
+                    .OverrideFailureMessage(
+                        "Quitting during the credits must not lose the campaign completion.")
+                    .IsTrue();
+                AssertThat(chain.CampaignMarkedCompleted).IsTrue();
 
                 chain.Credits.Skip();
                 AssertThat(chain.IsFinished).IsTrue();

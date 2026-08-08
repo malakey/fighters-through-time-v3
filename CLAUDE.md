@@ -76,7 +76,7 @@ Build (verified: succeeds with 1 pre-existing vendored warning — `CS8632` in `
 dotnet build FightersThroughTime.csproj --nologo
 ```
 
-Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-08 on `net10.0` (Package 5 Phase A close): **464 passed, 0 failed, Total 464**, in about 13 seconds after a warm build. Read the `Total:` count in the summary, not just the exit code — see the failure signatures above:
+Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-08 on `net10.0` (Package 5 close, all sixteen campaign levels authored): **705 passed, 0 failed, Total 705** across three consecutive runs, in about 20 seconds after a warm build. Read the `Total:` count in the summary, not just the exit code — see the failure signatures above:
 
 ```bash
 dotnet test FightersThroughTime.csproj --settings .runsettings
@@ -108,7 +108,22 @@ Open the editor for manual verification (only when the user asks — it takes ov
 "D:\Projects\Godot_v4.7.1-stable_mono_win64.exe" --path "D:\Projects\Fighters Through Time - V3" --editor
 ```
 
-Useful scene targets: `res://scenes/menus/MainMenu.tscn` (main scene), `res://scenes/arenas/TestArena.tscn` (Fighter sandbox), `res://scenes/fighter/FighterStage_Florence.tscn` (production stage), `res://scenes/diagnostics/PerformanceBaselineRunner.tscn` (performance baseline runner).
+Useful scene targets: `res://scenes/menus/MainMenu.tscn` (main scene), `res://scenes/arenas/TestArena.tscn` (Fighter sandbox), `res://scenes/campaign/HubWorld.tscn` and `res://scenes/campaign/Level_NN_*.tscn` (all sixteen campaign levels are authored), `res://scenes/fighter/FighterStage_Florence.tscn` (production stage), `res://scenes/diagnostics/PerformanceBaselineRunner.tscn` (performance baseline runner).
+
+### After editing `localization/en.csv`, run `--import`, not `--quit`
+
+`--headless --quit` performs the project-load check but does **not** reimport a changed
+`en.csv` into the compiled `localization/en.en.translation` — only `--headless --import` (or the
+editor) does. `Node.Tr()` reads the compiled resource, so an agent who adds keys, runs the import
+*check*, and commits ships a stale translation: every new key renders as its raw key at runtime
+while the CSV looks perfectly correct in review. Run `--import` after editing `en.csv` and commit
+the regenerated `en.en.translation` alongside it. `tests/ContentValidation/CampaignLocalizationTests.cs`
+fails on exactly this drift for the campaign key families, and the roster suites do the same for
+enemy/boss display names.
+
+```bash
+"D:\Projects\Godot_v4.7.1-stable_mono_win64_console.exe" --headless --path "D:\Projects\Fighters Through Time - V3" --import
+```
 
 ## Shell notes
 
@@ -132,6 +147,7 @@ Useful scene targets: `res://scenes/menus/MainMenu.tscn` (main scene), `res://sc
 | `docs/IMPLEMENTATION_STATUS.md` | Concise milestone execution ledger. Different document from the root file despite the shared name — both are current, neither supersedes the other. |
 | `docs/PACKAGE3_KIT_AUDIT.md` | The 36-slot character-kit audit and conversion order. |
 | `docs/PACKAGE4_ROSTER_PLAN.md` | The enemy/boss roster plan: archetype system, per-era roster IDs, boss kits, and the per-workstream deviation log. |
+| `docs/PACKAGE5_CAMPAIGN_PLAN.md` | The campaign plan for levels 2–15: per-level dossiers with the locked encounter economy, the authored boss stat table (§4.1), the shared-file conflict policy, crash hygiene (§2.8), and a long per-level deviation log (§9). Complete; read §9 before touching a campaign level. |
 | `docs/DUST_ECONOMY.md` | The Chronal Dust reward/cost model. Locked by `tests/ContentValidation/DustEconomyTests.cs`. |
 | `docs/architecture/000*.md` | Accepted ADRs. Supersede rather than silently rewrite one. |
 | `docs/BUILDING.md`, `docs/PERFORMANCE_BASELINE.md` | Build/validation procedure and the Package 0 performance baseline. |

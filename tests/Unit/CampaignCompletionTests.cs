@@ -179,7 +179,16 @@ public class CampaignCompletionTests {
             AssertObject(sequence.Credits).OverrideFailureMessage(
                 "With no ending dialogue the chain must roll credits immediately.").IsNotNull();
             AssertThat(sequence.IsFinished).IsFalse();
-            AssertThat(SaveManager.Instance.SaveSlots[ScratchSlot].IsCompleted).IsFalse();
+
+            // Package 5 C1: the flag is written when the credits BEGIN, not when they
+            // end, so quitting mid-roll cannot lose a campaign the save has already
+            // advanced past. This assertion was previously IsFalse() here and pinned
+            // the window Level 15 flagged.
+            AssertThat(SaveManager.Instance.SaveSlots[ScratchSlot].IsCompleted)
+                .OverrideFailureMessage(
+                    "The completion flag must land as the credits start, not after them.")
+                .IsTrue();
+            AssertThat(sequence.CampaignMarkedCompleted).IsTrue();
 
             sequence.SkipToEnd();
 
@@ -333,6 +342,58 @@ public class CampaignCompletionTests {
     /// Puts the scratch slot back the way the suite found it, on disk as well as
     /// in memory, so a developer's real save is untouched by a test run.
     /// </summary>
+    /// <summary>
+    /// Package 5 C1. Level 15 flagged the window: the level advances and autosaves
+    /// the moment the Core goes in, but A1 wrote <c>IsCompleted</c> only after the
+    /// credits finished — so a player who quit (or alt-F4'd) mid-roll had a save
+    /// sitting past the finale that still reported the campaign unfinished, and the
+    /// hub portal and main-menu banner both read it wrong. Tearing the chain down
+    /// mid-credits must leave the flag written.
+    /// </summary>
+    [TestCase]
+    public void QuittingDuringTheCreditsStillLeavesTheCampaignMarkedCompleted() {
+        StorySaveData original = SaveManager.Instance.SaveSlots[ScratchSlot];
+        SessionData session = GameManager.Instance.CurrentSession;
+        int originalSlot = session.ActiveSaveSlot;
+        var host = new Node { Name = "CreditsQuitHost" };
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(host);
+
+        try {
+            session.ActiveSaveSlot = ScratchSlot;
+            GameManager.Instance.CurrentSession = session;
+            SaveManager.Instance.SaveSlots[ScratchSlot] = new StorySaveData { SelectedCharacterID = "einstein" };
+
+            CampaignCompletionSequence sequence =
+                CampaignCompletionSequence.Begin(host, null, "", returnToMainMenu: false);
+            AssertThat(sequence.CreditsRolling)
+                .OverrideFailureMessage("The credits must be on screen for this case to mean anything.")
+                .IsTrue();
+            AssertThat(sequence.IsFinished)
+                .OverrideFailureMessage("The chain must NOT have finished; that is the whole point.")
+                .IsFalse();
+
+            // The quit: the chain is destroyed without SequenceFinished ever firing.
+            DetachAndFree(host);
+            host = null;
+
+            AssertThat(SaveManager.Instance.SaveSlots[ScratchSlot].IsCompleted)
+                .OverrideFailureMessage(
+                    "A quit during the credits lost the campaign completion flag.")
+                .IsTrue();
+            // And it reached disk, not just memory.
+            SaveManager.Instance.LoadStorySlot(ScratchSlot);
+            AssertThat(SaveManager.Instance.SaveSlots[ScratchSlot].IsCompleted)
+                .OverrideFailureMessage("The completion flag never reached disk.")
+                .IsTrue();
+        } finally {
+            DetachAndFree(host);
+            RestoreScratchSlot(original);
+            SessionData restore = GameManager.Instance.CurrentSession;
+            restore.ActiveSaveSlot = originalSlot;
+            GameManager.Instance.CurrentSession = restore;
+        }
+    }
+
     private static void RestoreScratchSlot(StorySaveData original) {
         int activeSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
         SaveManager.Instance.SaveSlots[ScratchSlot] = original;

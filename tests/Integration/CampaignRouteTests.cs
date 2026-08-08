@@ -68,21 +68,64 @@ public class CampaignRouteTests {
         AssertString(poolConfig.ConfigID).IsEqual("level_10_globe_pools");
     }
 
+    /// <summary>
+    /// Package 5 C1 raised this from "every routed scene that happens to exist" to
+    /// all sixteen. The campaign is fully authored, so a route pointing at a scene
+    /// that is missing, unloadable, or not a campaign level is now a hard failure
+    /// rather than a silently skipped index.
+    /// </summary>
     [TestCase]
-    public void EveryRoutedSceneThatExistsOnDiskLoadsAndInstantiates() {
-        int authored = 0;
+    public void EveryRoutedSceneExistsLoadsAndInstantiates() {
+        var missing = new List<string>();
         for (int index = 0; index < CampaignLevelCount; index++) {
             string path = StoryManager.GetLevelScenePath((CampaignLevel)index);
-            if (!ResourceLoader.Exists(path)) continue;
-            authored++;
+            if (!ResourceLoader.Exists(path)) { missing.Add($"{(CampaignLevel)index} -> {path}"); continue; }
+
             PackedScene scene = ResourceLoader.Load<PackedScene>(path);
             AssertObject(scene).OverrideFailureMessage($"{path} exists but did not load.").IsNotNull();
             Node instance = scene.Instantiate();
-            AssertObject(instance).IsNotNull();
+            AssertObject(instance)
+                .OverrideFailureMessage($"{path} loaded but would not instantiate.").IsNotNull();
             instance.Free();
         }
-        // Levels 0 and 1 are authored today; Package 5 C1 raises this to all 16.
-        AssertThat(authored >= 2).IsTrue();
+
+        AssertThat(missing.Count == 0).OverrideFailureMessage(
+            "Every campaign level 0-15 is authored; these routes resolve to nothing: " +
+            string.Join(", ", missing)).IsTrue();
+    }
+
+    /// <summary>
+    /// Package 5 C1: the manifest's own StoryLevel paths must all be on disk too.
+    /// The route test above walks StoryManager; this walks the manifest, so a row
+    /// edited to point somewhere plausible-but-absent cannot hide behind the
+    /// path-agreement assertion alone.
+    ///
+    /// <para>The state assertion is "not <c>Planned</c>, and <c>Valid</c>", not
+    /// "<c>Implemented</c>". Levels 2-15 are <c>Implemented</c>; the Tutorial and
+    /// Florence are deliberately still <c>Prototype</c> — they predate Package 5,
+    /// were built before the <c>StoryLevelControllerBase</c> convention, and were
+    /// not retrofitted to it. What matters here is that no campaign level claims to
+    /// be unbuilt when its scene is on disk.</para>
+    /// </summary>
+    [TestCase]
+    public void EveryManifestStoryLevelRowPointsAtAnAuthoredScene() {
+        ContentManifest manifest = ContentManifest.LoadDefault();
+        List<ContentManifestEntry> rows = manifest.ForCategory(ContentCategory.StoryLevel).ToList();
+        AssertThat(rows.Count).IsEqual(CampaignLevelCount);
+
+        foreach (ContentManifestEntry row in rows) {
+            AssertThat(ResourceLoader.Exists(row.ResourcePath)).OverrideFailureMessage(
+                $"StoryLevel '{row.ContentID}' points at '{row.ResourcePath}', which is not on disk.")
+                .IsTrue();
+            AssertThat(row.ImplementationState != ContentImplementationState.Planned)
+                .OverrideFailureMessage(
+                    $"StoryLevel '{row.ContentID}' has an authored scene on disk but is " +
+                    "still marked Planned.").IsTrue();
+            AssertThat(row.ValidationState == ContentValidationState.Valid)
+                .OverrideFailureMessage(
+                    $"StoryLevel '{row.ContentID}' is authored but its validation state is " +
+                    $"{row.ValidationState}.").IsTrue();
+        }
     }
 
     [TestCase]
@@ -104,11 +147,19 @@ public class CampaignRouteTests {
         var manager = new StoryManager();
         try {
             AssertThat(manager.CurrentLevel).IsEqual(CampaignLevel.Tutorial);
+            // Package 5 C1: the old form was `Exists(path) || path.Length > 0`, which
+            // any non-empty string satisfied. Every level is authored now, so each
+            // step of the walk must land on a scene that is really there.
+            AssertThat(ResourceLoader.Exists(manager.GetCurrentLevelPath())).OverrideFailureMessage(
+                $"Campaign start routes to '{manager.GetCurrentLevelPath()}', which does not exist.")
+                .IsTrue();
             for (int expected = 1; expected <= 15; expected++) {
                 manager.AdvanceToNextLevel();
                 AssertThat((int)manager.CurrentLevel).IsEqual(expected);
-                AssertThat(ResourceLoader.Exists(manager.GetCurrentLevelPath())
-                    || manager.GetCurrentLevelPath().Length > 0).IsTrue();
+                string path = manager.GetCurrentLevelPath();
+                AssertThat(ResourceLoader.Exists(path)).OverrideFailureMessage(
+                    $"Advancing to level {expected} routes to '{path}', which does not exist.")
+                    .IsTrue();
             }
             AssertThat(manager.CurrentLevel).IsEqual(CampaignLevel.Alexandria);
 
