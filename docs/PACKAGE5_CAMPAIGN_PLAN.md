@@ -720,3 +720,76 @@ a pre-merge `git add`) before it will fast-forward.
 - **INTEGRATION-A: suite total stays 514, 0 failed, across three consecutive runs.** No tests were
   added, weakened, or deleted; the 14 failures were fixed entirely in production code. Import clean;
   all four Wave A scenes plus Florence smoke clean at `--quit-after 300`.
+
+### Wave B — L06 Pompeii, 79 AD
+
+- **L06: §4.1 held exactly; no boss-resource contradiction this time.**
+  `resources/Bosses/vulcan_decimator.tres` reads `MaxHP = 660`, `MeleeRangeThreshold = 4.0`,
+  `RangedRangeThreshold = 9.0`, one threshold at 0.5, `AttackPattern = DistanceBased`,
+  `IsKnockbackImmune = true` — identical to the §4.1 row. The Wave A transcription did its job;
+  nothing was edited. The caldera arena confines to 1,920 px against the resource's real 540 px
+  band, and `Level06ContentTests` asserts `RangedRangeThreshold * 60 < arenaWidth` rather than a
+  hardcoded number.
+- **L06: the weight puzzle's missing unit is the player, because the toolkit has no way for a
+  player to move a `WeightedObject`.** `MovableWeightTemplate.tscn` is a `RigidBody2D` on
+  `PersistentObject` with `collision_mask = 192` (Environment | OneWayPlatform), so it never sees
+  the player, and `PlayerController` has no rigid-body push (no `GetSlideCollision` /
+  `ApplyCentralImpulse` path anywhere in it). The classic "carry the block to the plate" puzzle is
+  therefore not expressible without editing shared toolkit code, which §2.7 forbids. So the vault
+  winch is authored around what *is* expressible: a 3-unit basalt boulder has already fallen into
+  the west pan, a 2-unit pumice block is released into the east pan by smashing a
+  `DestructibleBlock` wedge (the same blow-up-the-lock verb Level 4 uses), and the east pan is then
+  one unit light — the player has to stand on it and be the counterweight. `PressurePlate.PlayerWeight`
+  already models exactly that, `RequireBothThresholds` makes "both pans loaded AND equal" the win
+  condition, and the puzzle latches on completion so stepping back off cannot re-seal the road.
+  Later levels reusing this family should assume the same constraint: weights arrive by gravity or
+  by the player's own body, never by pushing.
+- **L06: the escape template's finish line is repositioned and wired from code.**
+  `EscapeSequenceControllerTemplate.tscn` parks `FinishTrigger` at its own default X and connects it
+  to nothing — `NotifyPlayerReachedFinish` has no caller. Overriding an instanced scene's child
+  position in the `.tscn` needs the fragile `index=` block (L02 deviation), so
+  `Level06Controller.WireEscapeFinishLine` sets the position from the `EscapeFinishX` constant and
+  binds `BodyEntered`. The root's own exports (StartX/EndX/FinishX/AdvanceSpeed/CatchDamage) stay
+  authored in the scene, and the content test asserts the scene and the constants agree. A later
+  level reusing this component needs the same two lines.
+- **L06: the lava front is `ResetToInitialState` plus a level-owned restart, or Chronal Rewind
+  switches the level's signature mechanic off.** With the default `RestoreCheckpointState` a rewind
+  restores the front to its checkpoint snapshot and, because the only checkpoint before the run is
+  west of it, leaves `IsRunning = false` — the rest of the corridor becomes a walk. The escape is
+  authored `RewindPolicy = 1` so the front always snaps back to `StartX`, and
+  `Level06Controller.OnStoryRewind` re-calls `Begin()` when the run was started and not yet
+  finished. Ordering is load-bearing and free: the component subscribes to `OnRewindTriggered` in
+  its own `_Ready` (a child, so before the level root's `OnLevelReady`), so the reset has always
+  landed before the restart runs.
+- **L06: `MarkWavesClearedThrough(checkpoint_2)` closes the escape rather than leaving it armed.**
+  The pre-boss checkpoint stands east of the run, so a resume there must not find a live front
+  behind it. The handler calls `ResetSequence()` (front parked at `StartX`) then `CompleteEscape()`,
+  and sets `EscapeTriggered` so the room trigger cannot re-arm it.
+  `ResumingPastTheAshRoadNeverDropsThePlayerIntoALiveLavaFront` pins all three.
+- **L06: the pan's starting load is registered explicitly, not left to the first physics tick.**
+  `Area2D` reports its authored initial overlaps on the first physics frame, and a GdUnit fixture
+  that instantiates a level and reads it synchronously never reaches one — the west pan would read
+  0 and the winch would look unsolvable. `OnLevelReady` calls `LeftPan.RegisterBody(BasaltBoulder)`;
+  `PressurePlate` keys loads by instance id, so it is idempotent with the physics callback that
+  follows. Any level authoring a body already resting inside a plate needs this.
+- **L06: room camera bounds are floored at 1,920 px, with a deliberate overlap on the arena.**
+  Following L02: the 1,600 px caldera court confines to a 1,920 px window starting 320 px west, and
+  the content test asserts the floor for every room. The resulting 320 px overlap with the Ash Road
+  is what makes `ApplyResumeCameraBounds` (last authored match wins) land a checkpoint-2 resume in
+  the arena.
+- **L06: the legionnaire's frontal shield is a geometry contract, not a comment.**
+  `shock_shield_legionnaire` carries `FrontalDamageReduction = 0.5`, so every one of its six posts
+  is authored under a drop-through platform and with a patrol that turns its back.
+  `EveryLegionnairePostIsFlankableFromAbove` walks the authored spawn table and fails if a post
+  loses its overhead platform or its patrol collapses to a point — otherwise a later layout edit
+  would quietly turn the era enemy into a damage sponge.
+- **L06: the fresh-worktree exit-100 artifact and the pipe collision are two different faults, and
+  the orphans can be your own.** The first `dotnet test` failed with `exit code: 100` as documented.
+  The rebuild-and-retry then failed *differently* — `Starting GodotRuntimeExecutor failed` /
+  `Connection timeout` — and left two live Godot processes (one console, one not) spawned by the
+  back-to-back runs, with no sibling agent involved (`Win32_Process` showed no `dotnet`/`testhost`
+  alive). Killing both and re-running was immediately green. So the tooling note's "check for other
+  `Godot_*.exe`" applies to your own previous attempt too, not only to concurrent worktrees.
+- **L06: suite baseline 514 -> 528** (+14 `Level06ContentTests`), verified at 528/528, 0 failed on
+  the first full run, in 15 s. Import clean; `Level_06_Pompeii.tscn` smoke clean at
+  `--quit-after 300` with zero errors or warnings. `AGENTS.md` is left for C1 per the A1 convention.
