@@ -1223,3 +1223,58 @@ with a literal. Worth knowing before it costs another Phase B agent a run.
 `scene_pool_catalog.tres`, `SceneSmokeTests.cs`, `localization/en.csv`, `scripts/FighterSim/**` and
 `scripts/Core/**` are unmodified; the scene is not routed at runtime until C1 wires the catalog
 `ScenePath`, and the per-stage test loads it directly by path.
+
+### B — Berlin (2026-08-08)
+
+**B-berlin: every merged `FighterStageGeometry.Berlin` value is mirrored in the scene unchanged; no
+geometry, dossier or shared file was touched.** Walls ±10 → x 325/1575, the snowy street's collision
+top edge at y = 700 and 1250 px wide, the two guard-tower balconies at (−6.5, 3.6) / (6.5, 3.6) →
+body origins (543.75, 475) and (1356.25, 475) with 162.5 px collision rects, spawns at ∓4, orb
+markers at (543.75, 443.75) / (1356.25, 443.75) / (950, 668.75), searchlight anchors at
+x 700/950/1200. Pinned by `FighterStageBerlinTests.SceneMirrorsItsAuthoredFixedPointGeometry`
+through A1's shared validator, including A1's rule that a one-way platform body's **origin** — not
+its collision rect's top edge — is the surface point.
+
+**B-berlin: the two-simulation hash-identity run uses movement-only inputs, and asserts the match is
+still live at the end.** The obvious pattern (the `InputFor` helper in `FighterStageGeometryTests`,
+which presses `BasicAttack` every 31 frames) KOs a fighter well inside the 2500 frames this test
+needs, and `FighterHazardSystem.Update` returns immediately when `MatchState != 1`. The searchlight
+then froze mid-active: the first version of this test saw warning and active but never recovery — a
+real failure that would otherwise have been "fixed" by deleting the assertion. The Berlin input
+schedule presses only move/jump/dash/roll, and
+`AssertThat(first.GetMatchState().MatchState).IsEqual(1)` makes a match that ends early fail loudly
+instead of turning the hazard assertions vacuous. **Any later stage whose hash run crosses a hazard
+cycle needs the same treatment.**
+
+**B-berlin: the run covers frames 0–2499, which is the searchlight's entire life.** Spawn on the
+High-frequency 1800-frame boundary, 90-frame warning, the full 480-frame active window (the whole
+dwell-counter sweep — the longest active window of any hazard except Globe), the 60-frame recovery,
+and the despawn at 2430 with no successor before 3600. The test asserts all four transitions were
+observed and that the column never leaves one of the three authored anchors.
+
+**B-berlin: the beams deliberately do not reach the balconies, and that is the stage's identity, not
+an authoring miss.** The hazard anchors are {−4, 0, 4} while the balconies sit at ±6.5, so a fighter
+who commits to a guard tower is outside every searchlight column but also out of the fight and slow
+to rotate back — the risk/reward the dossier's wide ±10 walls set up. Flagging it so nobody "fixes"
+the anchors to sit under the platforms.
+
+**B-berlin: a second placeholder SVG was authored beyond the required preview.**
+`assets/placeholders/stages/berlin_parallax_skyline.svg` carries the mid parallax layer (a flat
+East-Berlin concrete skyline with a transparent sky, so the shared `parallax_far.svg` reads through
+it at a slower scroll factor). §5 item 5 only requires `berlin_preview.svg`, but a stage reusing the
+shared far background at both scroll factors would not be "distinct at a glance", and C1's VisualSet
+manifest row wants per-stage parallax assets anyway. Both SVGs are imported;
+`PreviewImageIsAnImportedTexture` loads the preview as a `Texture2D` rather than only checking that
+the file exists, because an un-imported SVG loads as null and would ship an empty stage-select tile.
+
+**B-berlin: the scene has five `StaticBody2D`s, not four.** Three solid (street + two walls) plus the
+two one-way balconies. Recorded because the per-stage collision-contract test asserts the count
+exactly, and that count is the cheapest way to catch a body that lost its layer.
+
+**B-berlin: the GdUnit worktree pipe contention predicted by INTEGRATION-A is real and was the
+dominant cost of this stage.** Six consecutive `dotnet test --filter` invocations produced
+`GodotRuntimeTestRunner ends with exit code: 100` / `Failed to connect: Connection timeout` with no
+Godot process of mine alive and nothing in `godot.log`, while an unrelated filter
+(`StageAudioSetTests`) ran clean 3/3 in the same window — proof the failure is the shared pipe, not
+the content. Every number reported for this stage comes from a run whose `Total:` matched the
+expected count.

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <!-- Mid-distance East Berlin skyline: flat concrete blocks under an overcast sky.
+       Transparent above the roofline so the far parallax layer reads through. -->
+  <path d="M0 620 L120 620 L120 470 L250 470 L250 580 L390 580 L390 430 L520 430 L520 600 L690 600 L690 500 L820 500 L820 620 L980 620 L980 452 L1120 452 L1120 596 L1290 596 L1290 486 L1420 486 L1420 610 L1580 610 L1580 520 L1720 520 L1720 604 L1920 604 L1920 1080 L0 1080 Z" fill="#1c222b"/>
+  <g fill="#2a313c">
+    <rect x="936" y="240" width="26" height="212"/>
+    <circle cx="949" cy="212" r="46"/>
+  </g>
+  <g fill="#e8eef5" opacity="0.16">
+    <rect x="150" y="500" width="14" height="18"/>
+    <rect x="196" y="500" width="14" height="18"/>
+    <rect x="420" y="470" width="14" height="18"/>
+    <rect x="466" y="470" width="14" height="18"/>
+    <rect x="720" y="540" width="14" height="18"/>
+    <rect x="1010" y="490" width="14" height="18"/>
+    <rect x="1056" y="490" width="14" height="18"/>
+    <rect x="1320" y="524" width="14" height="18"/>
+    <rect x="1610" y="556" width="14" height="18"/>
+  </g>
+</svg>
