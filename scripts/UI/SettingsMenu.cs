@@ -1,12 +1,39 @@
 using Godot;
 using FTT.Core;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace FTT.UI {
 
+    /// <summary>
+    /// The one settings screen (Package 8 A4). Backed by the authored
+    /// <c>res://scenes/ui/Settings.tscn</c>; MainMenu, the Story pause menu, and
+    /// the local Fighter pause menu all embed this same overlay.
+    ///
+    /// <para><b>Why the scene root is a plain Control and the script stays a
+    /// CanvasLayer.</b> All three openers construct this class directly
+    /// (<c>new SettingsMenu()</c>). Putting the script on the scene root would make
+    /// those constructions produce an empty screen, and changing the call sites
+    /// would collide with A1 (pause menus) and B4 (main menu) in parallel
+    /// worktrees. So the scene is a script-less authored Control tree that this
+    /// CanvasLayer instantiates in <see cref="_Ready"/>: one authored scene, three
+    /// untouched openers.</para>
+    ///
+    /// <para><b>Pause discipline (plan §2.6).</b> This screen never writes
+    /// <see cref="SceneTree.Paused"/>. Closing it returns control to whoever opened
+    /// it — the pause menus still own their own pause — and raises
+    /// <see cref="Closed"/>. The old unconditional <c>GetTree().Paused = false</c>
+    /// on close silently unpaused the game behind an open pause menu.</para>
+    /// </summary>
     public partial class SettingsMenu : CanvasLayer {
+        public const string ScenePath = "res://scenes/ui/Settings.tscn";
+        public const string ThemePath = "res://resources/UI/ftt_theme.tres";
 
-        private VBoxContainer _container;
-        private TabContainer _tabs;
+        /// <summary>Raised after the screen hides, so the opener can restore focus.</summary>
+        public event Action Closed;
+
+        private Control _root;
 
         // Audio
         private HSlider _masterSlider;
@@ -16,182 +43,405 @@ namespace FTT.UI {
 
         // Display
         private OptionButton _resolutionDropdown;
-        private CheckButton _fullscreenToggle;
+        private OptionButton _windowModeDropdown;
         private CheckButton _vsyncToggle;
 
         // Gameplay
-        private HSlider _hapticSlider;
         private CheckButton _hapticToggle;
-        private OptionButton _difficultyDropdown;
+        private HSlider _hapticSlider;
         private CheckButton _damageNumbersToggle;
         private HSlider _hudOpacitySlider;
         private HSlider _screenShakeSlider;
 
+        // Controls
+        private TabContainer _tabs;
+        private VBoxContainer _actionRows;
+        private Label _controlsStatus;
+        private readonly Dictionary<string, Button> _keyboardSlots = new();
+        private readonly Dictionary<string, Button> _joypadSlots = new();
+        private InputBindingSet _workingBindings = new();
+        private string _listeningAction = "";
+        private InputDeviceKind _listeningDeviceKind = InputDeviceKind.Keyboard;
+
+        private static readonly string[] TabTitleKeys = {
+            "settings_tab_audio", "settings_tab_display", "settings_tab_gameplay", "settings_tab_controls"
+        };
+
+        private static readonly string[] WindowModeKeys = {
+            "settings_window_windowed", "settings_window_fullscreen", "settings_window_borderless"
+        };
+
+        /// <summary>True while a rebind row is waiting for a physical input.</summary>
+        public bool IsListening => _listeningAction.Length > 0;
+
+        /// <summary>The working (unsaved) binding map the Controls tab edits.</summary>
+        public InputBindingSet WorkingBindings => _workingBindings;
+
+        /// <summary>The instantiated authored scene root. Null only if the scene failed to load.</summary>
+        internal Control Root => _root;
+
+        /// <summary>The tab strip, for contract tests.</summary>
+        internal TabContainer Tabs => _tabs;
+
         public override void _Ready() {
+            Layer = 100;
             ProcessMode = ProcessModeEnum.Always;
             Visible = false;
-            BuildUI();
+            BuildFromScene();
             LoadSettings();
         }
 
-        private void BuildUI() {
-            var bg = new ColorRect();
-            bg.Color = new Color(0, 0, 0, 0.85f);
-            bg.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-            AddChild(bg);
-
-            var margin = new MarginContainer();
-            margin.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-            margin.AddThemeConstantOverride("margin_left", 200);
-            margin.AddThemeConstantOverride("margin_right", 200);
-            margin.AddThemeConstantOverride("margin_top", 100);
-            margin.AddThemeConstantOverride("margin_bottom", 100);
-            AddChild(margin);
-
-            var panel = new PanelContainer();
-            margin.AddChild(panel);
-
-            _container = new VBoxContainer();
-            panel.AddChild(_container);
-
-            var title = new Label();
-            title.Text = Tr("menu_settings").ToUpperInvariant();
-            title.HorizontalAlignment = HorizontalAlignment.Center;
-            title.AddThemeFontSizeOverride("font_size", 32);
-            _container.AddChild(title);
-
-            _tabs = new TabContainer();
-            _tabs.SizeFlagsVertical = Control.SizeFlags.ExpandFill;
-            _container.AddChild(_tabs);
-
-            BuildAudioTab();
-            BuildDisplayTab();
-            BuildGameplayTab();
-
-            var closeBtn = new Button();
-            closeBtn.Text = Tr("common_back");
-            closeBtn.Pressed += OnClosePressed;
-            _container.AddChild(closeBtn);
+        public override void _ExitTree() {
+            // Deliberately does not touch SceneTree.Paused: this screen never set it.
+            _listeningAction = "";
         }
 
-        private void BuildAudioTab() {
-            var vbox = new VBoxContainer();
-            vbox.Name = "Audio";
-            _tabs.AddChild(vbox);
+        // ------------------------------------------------------------------
+        // Construction
+        // ------------------------------------------------------------------
 
-            _masterSlider = CreateSlider(vbox, Tr("settings_master_volume"), 0, 1, 0.05f, 1.0f);
-            _masterSlider.ValueChanged += v => AudioManager.Instance?.SetMasterVolume((float)v);
-
-            _musicSlider = CreateSlider(vbox, Tr("settings_music_volume"), 0, 1, 0.05f, 0.8f);
-            _musicSlider.ValueChanged += v => AudioManager.Instance?.SetMusicVolume((float)v);
-
-            _sfxSlider = CreateSlider(vbox, Tr("settings_sfx_volume"), 0, 1, 0.05f, 1.0f);
-            _sfxSlider.ValueChanged += v => AudioManager.Instance?.SetSFXVolume((float)v);
-
-            _uiSlider = CreateSlider(vbox, Tr("settings_ui_volume"), 0, 1, 0.05f, 1.0f);
-            _uiSlider.ValueChanged += v => AudioManager.Instance?.SetUIVolume((float)v);
+        private void BuildFromScene() {
+            var packed = ResourceLoader.Load<PackedScene>(ScenePath);
+            _root = packed?.Instantiate<Control>();
+            if (_root == null) {
+                GD.PushError($"SettingsMenu could not instantiate {ScenePath}.");
+                return;
+            }
+            AddChild(_root);
+            ApplyTheme();
+            BindNodes();
+            LocalizeStaticText();
+            PopulateDropdowns();
+            WireSignals();
+            BuildControlsTab();
         }
 
-        private void BuildDisplayTab() {
-            var vbox = new VBoxContainer();
-            vbox.Name = "Display";
-            _tabs.AddChild(vbox);
+        /// <summary>
+        /// Applies the shared UI theme if it is present. A1 authors it in a parallel
+        /// worktree, so the lookup is deliberately fallback-safe: without the file
+        /// the screen still renders with engine defaults.
+        /// </summary>
+        private void ApplyTheme() {
+            if (_root == null || !ResourceLoader.Exists(ThemePath)) return;
+            var theme = ResourceLoader.Load<Theme>(ThemePath);
+            if (theme != null) _root.Theme = theme;
+        }
 
-            var resLabel = new Label { Text = Tr("settings_resolution") };
-            vbox.AddChild(resLabel);
-            _resolutionDropdown = new OptionButton();
-            _resolutionDropdown.AddItem("1920x1080");
-            _resolutionDropdown.AddItem("1600x900");
-            _resolutionDropdown.AddItem("1280x720");
-            _resolutionDropdown.AddItem("1024x576");
-            _resolutionDropdown.ItemSelected += OnResolutionChanged;
-            vbox.AddChild(_resolutionDropdown);
+        private void BindNodes() {
+            _tabs = _root.GetNode<TabContainer>("Margin/Panel/Body/Tabs");
+            _masterSlider = Slider("Audio/MasterSlider");
+            _musicSlider = Slider("Audio/MusicSlider");
+            _sfxSlider = Slider("Audio/SfxSlider");
+            _uiSlider = Slider("Audio/UiSlider");
 
-            _fullscreenToggle = new CheckButton();
-            _fullscreenToggle.Text = Tr("settings_fullscreen");
-            _fullscreenToggle.Toggled += OnFullscreenToggled;
-            vbox.AddChild(_fullscreenToggle);
+            _resolutionDropdown = _tabs.GetNode<OptionButton>("Display/ResolutionDropdown");
+            _windowModeDropdown = _tabs.GetNode<OptionButton>("Display/WindowModeDropdown");
+            _vsyncToggle = _tabs.GetNode<CheckButton>("Display/VSyncToggle");
 
-            _vsyncToggle = new CheckButton();
+            _hapticToggle = _tabs.GetNode<CheckButton>("Gameplay/HapticToggle");
+            _hapticSlider = Slider("Gameplay/HapticSlider");
+            _damageNumbersToggle = _tabs.GetNode<CheckButton>("Gameplay/DamageNumbersToggle");
+            _hudOpacitySlider = Slider("Gameplay/HudOpacitySlider");
+            _screenShakeSlider = Slider("Gameplay/ScreenShakeSlider");
+
+            _actionRows = _tabs.GetNode<VBoxContainer>("Controls/Scroll/ActionRows");
+            _controlsStatus = _tabs.GetNode<Label>("Controls/Status");
+        }
+
+        private HSlider Slider(string path) => _tabs.GetNode<HSlider>(path);
+
+        private void LocalizeStaticText() {
+            _root.GetNode<Label>("Margin/Panel/Body/Title").Text = Tr("menu_settings").ToUpperInvariant();
+            _root.GetNode<Button>("Margin/Panel/Body/Footer/BackButton").Text = Tr("common_back");
+
+            // TabContainer renders the child node names unless the titles are set
+            // explicitly, which is why the tabs used to read as raw English.
+            for (int index = 0; index < TabTitleKeys.Length && index < _tabs.GetTabCount(); index++) {
+                _tabs.SetTabTitle(index, Tr(TabTitleKeys[index]));
+            }
+
+            _tabs.GetNode<Label>("Audio/MasterLabel").Text = Tr("settings_master_volume");
+            _tabs.GetNode<Label>("Audio/MusicLabel").Text = Tr("settings_music_volume");
+            _tabs.GetNode<Label>("Audio/SfxLabel").Text = Tr("settings_sfx_volume");
+            _tabs.GetNode<Label>("Audio/UiLabel").Text = Tr("settings_ui_volume");
+
+            _tabs.GetNode<Label>("Display/ResolutionLabel").Text = Tr("settings_resolution");
+            _tabs.GetNode<Label>("Display/WindowModeLabel").Text = Tr("settings_window_mode");
             _vsyncToggle.Text = Tr("settings_vsync");
-            _vsyncToggle.ButtonPressed = true;
-            _vsyncToggle.Toggled += OnVsyncToggled;
-            vbox.AddChild(_vsyncToggle);
-        }
 
-        private void BuildGameplayTab() {
-            var vbox = new VBoxContainer();
-            vbox.Name = "Gameplay";
-            _tabs.AddChild(vbox);
-
-            _hapticToggle = new CheckButton();
             _hapticToggle.Text = Tr("settings_haptics");
-            _hapticToggle.ButtonPressed = true;
+            _tabs.GetNode<Label>("Gameplay/HapticLabel").Text = Tr("settings_haptic_intensity");
+            _damageNumbersToggle.Text = Tr("settings_damage_numbers");
+            _tabs.GetNode<Label>("Gameplay/HudOpacityLabel").Text = Tr("settings_hud_opacity");
+            _tabs.GetNode<Label>("Gameplay/ScreenShakeLabel").Text = Tr("settings_screen_shake");
+
+            _tabs.GetNode<Label>("Controls/Hint").Text = Tr("controls_hint");
+            _tabs.GetNode<Label>("Controls/ReadOnlyInfo").Text =
+                $"{Tr("controls_ultimate_readonly")}\n{Tr("controls_dash_readonly")}";
+            _tabs.GetNode<Button>("Controls/ResetAllButton").Text = Tr("controls_reset_all");
+            _controlsStatus.Text = "";
+        }
+
+        private void PopulateDropdowns() {
+            _resolutionDropdown.Clear();
+            foreach ((int width, int height) in GlobalSaveData.SupportedResolutions) {
+                _resolutionDropdown.AddItem($"{width}x{height}");
+            }
+            _windowModeDropdown.Clear();
+            foreach (string key in WindowModeKeys) _windowModeDropdown.AddItem(Tr(key));
+        }
+
+        private void WireSignals() {
+            _masterSlider.ValueChanged += value => AudioManager.Instance?.SetMasterVolume((float)value);
+            _musicSlider.ValueChanged += value => AudioManager.Instance?.SetMusicVolume((float)value);
+            _sfxSlider.ValueChanged += value => AudioManager.Instance?.SetSFXVolume((float)value);
+            _uiSlider.ValueChanged += value => AudioManager.Instance?.SetUIVolume((float)value);
+
+            _resolutionDropdown.ItemSelected += OnDisplayChanged;
+            _windowModeDropdown.ItemSelected += OnDisplayChanged;
+            _vsyncToggle.Toggled += _ => OnDisplayChanged(0);
+
             _hapticToggle.Toggled += on => HapticFeedbackManager.Instance?.SetEnabled(on);
-            vbox.AddChild(_hapticToggle);
-
-            _hapticSlider = CreateSlider(vbox, Tr("settings_haptic_intensity"), 0, 1, 0.05f, 0.7f);
-            _hapticSlider.ValueChanged += v => HapticFeedbackManager.Instance?.SetIntensity((float)v);
-
-            var diffLabel = new Label { Text = Tr("settings_difficulty") };
-            vbox.AddChild(diffLabel);
-            _difficultyDropdown = new OptionButton();
-            _difficultyDropdown.AddItem(Tr("difficulty_easy"));
-            _difficultyDropdown.AddItem(Tr("difficulty_normal"));
-            _difficultyDropdown.AddItem(Tr("difficulty_hard"));
-            _difficultyDropdown.Selected = 1;
-            vbox.AddChild(_difficultyDropdown);
-
-            _damageNumbersToggle = new CheckButton { Text = Tr("settings_damage_numbers"), ButtonPressed = true };
-            vbox.AddChild(_damageNumbersToggle);
-            _hudOpacitySlider = CreateSlider(vbox, Tr("settings_hud_opacity"), 0.2f, 1f, 0.05f, 1f);
-            _screenShakeSlider = CreateSlider(vbox, Tr("settings_screen_shake"), 0f, 1f, 0.05f, 1f);
+            _hapticSlider.ValueChanged += value => HapticFeedbackManager.Instance?.SetIntensity((float)value);
             _screenShakeSlider.ValueChanged += value => CameraShake.Instance?.SetIntensityScale((float)value);
+
+            _root.GetNode<Button>("Margin/Panel/Body/Footer/BackButton").Pressed += Close;
+            _tabs.GetNode<Button>("Controls/ResetAllButton").Pressed += OnResetAllBindings;
         }
 
-        private HSlider CreateSlider(Control parent, string label, float min, float max, float step, float defaultVal) {
-            var lbl = new Label { Text = label };
-            parent.AddChild(lbl);
-            var slider = new HSlider();
-            slider.MinValue = min;
-            slider.MaxValue = max;
-            slider.Step = step;
-            slider.Value = defaultVal;
-            slider.CustomMinimumSize = new Vector2(300, 20);
-            parent.AddChild(slider);
-            return slider;
+        // ------------------------------------------------------------------
+        // Controls tab
+        // ------------------------------------------------------------------
+
+        private void BuildControlsTab() {
+            if (_actionRows == null) return;
+            // Detach before freeing: QueueFree alone leaves the old rows parented
+            // until the end of the frame, and Show() rebuilds this list every time.
+            // Detach and free immediately. QueueFree here would leave the previous
+            // ~60 row nodes alive until the end of the frame, which reads as an
+            // orphan-node leak in the test harness and is pure churn at runtime.
+            Godot.Collections.Array<Node> existing = _actionRows.GetChildren();
+            using (existing.AsDisposable()) {
+                foreach (Node child in existing) {
+                    _actionRows.RemoveChild(child);
+                    child.Free();
+                }
+            }
+            _keyboardSlots.Clear();
+            _joypadSlots.Clear();
+            _workingBindings = InputBindingService.CaptureEffective();
+
+            foreach (string action in InputManager.RemappableActions) {
+                string capturedAction = action;
+                var row = new HBoxContainer { Name = $"Row_{action}" };
+                row.AddThemeConstantOverride("separation", 8);
+
+                var label = new Label {
+                    Text = Tr(InputManager.ActionLabelKey(action)),
+                    CustomMinimumSize = new Vector2(260, 0)
+                };
+                row.AddChild(label);
+
+                var keyboardSlot = new Button { CustomMinimumSize = new Vector2(220, 34) };
+                keyboardSlot.Pressed += () => BeginListening(capturedAction, InputDeviceKind.Keyboard);
+                row.AddChild(keyboardSlot);
+                _keyboardSlots[action] = keyboardSlot;
+
+                var joypadSlot = new Button { CustomMinimumSize = new Vector2(220, 34) };
+                joypadSlot.Pressed += () => BeginListening(capturedAction, InputDeviceKind.Joypad);
+                row.AddChild(joypadSlot);
+                _joypadSlots[action] = joypadSlot;
+
+                var reset = new Button { Text = Tr("controls_reset_action"), CustomMinimumSize = new Vector2(120, 34) };
+                reset.Pressed += () => ResetSingleAction(capturedAction);
+                row.AddChild(reset);
+
+                _actionRows.AddChild(row);
+            }
+
+            // The chord and the derived dash gesture are shown read-only in the
+            // Controls tab header text rather than as rebindable rows.
+            RefreshBindingLabels();
         }
 
-        private void OnResolutionChanged(long index) {
-            Vector2I[] resolutions = {
-                new(1920, 1080), new(1600, 900), new(1280, 720), new(1024, 576)
-            };
-            if (index >= 0 && index < resolutions.Length) {
-                DisplayServer.WindowSetSize(resolutions[index]);
+        private void RefreshBindingLabels() {
+            foreach (string action in InputManager.RemappableActions) {
+                IReadOnlyList<InputBindingEvent> events = _workingBindings.For(action);
+                if (_keyboardSlots.TryGetValue(action, out Button keyboardSlot) && IsInstanceValid(keyboardSlot)) {
+                    keyboardSlot.Text = DescribeSlot(events, InputDeviceKind.Keyboard);
+                }
+                if (_joypadSlots.TryGetValue(action, out Button joypadSlot) && IsInstanceValid(joypadSlot)) {
+                    joypadSlot.Text = DescribeSlot(events, InputDeviceKind.Joypad);
+                }
             }
         }
 
-        private void OnFullscreenToggled(bool on) {
-            DisplayServer.WindowSetMode(on ? DisplayServer.WindowMode.Fullscreen : DisplayServer.WindowMode.Windowed);
+        /// <summary>
+        /// Test seam: drives the listen-capture path without a physical device.
+        /// Returns the action that blocked the capture, or "" when it applied.
+        /// </summary>
+        internal string CaptureForTesting(string action, InputDeviceKind deviceKind, InputBindingEvent captured) {
+            BeginListening(action, deviceKind);
+            string conflict = InputBindingConflicts.FindConflictingAction(_workingBindings, action, captured);
+            CommitCapture(captured);
+            return conflict;
         }
 
-        private void OnVsyncToggled(bool on) {
-            DisplayServer.WindowSetVsyncMode(on ? DisplayServer.VSyncMode.Enabled : DisplayServer.VSyncMode.Disabled);
+        private static string DescribeSlot(IReadOnlyList<InputBindingEvent> events, InputDeviceKind deviceKind) {
+            List<InputBindingEvent> matching = events.Where(candidate => candidate.DeviceKind == deviceKind).ToList();
+            return InputBindingService.DescribeAll(matching);
         }
 
-        private void OnClosePressed() {
-            SaveSettings();
-            Visible = false;
-            GetTree().Paused = false;
+        private void BeginListening(string action, InputDeviceKind deviceKind) {
+            _listeningAction = action;
+            _listeningDeviceKind = deviceKind;
+            Button slot = deviceKind == InputDeviceKind.Keyboard ? _keyboardSlots[action] : _joypadSlots[action];
+            slot.Text = Tr("controls_listening");
+            _controlsStatus.Text = Tr(deviceKind == InputDeviceKind.Keyboard
+                ? "controls_listening_keyboard"
+                : "controls_listening_joypad");
         }
+
+        private void CancelListening() {
+            if (!IsListening) return;
+            _listeningAction = "";
+            if (_controlsStatus != null) _controlsStatus.Text = "";
+            RefreshBindingLabels();
+        }
+
+        public override void _Input(InputEvent @event) {
+            if (!Visible || !IsListening || @event == null) return;
+            if (@event is InputEventKey escape && escape.Pressed && escape.PhysicalKeycode == Key.Escape) {
+                CancelListening();
+                GetViewport()?.SetInputAsHandled();
+                return;
+            }
+            InputBindingEvent captured = TryCapture(@event);
+            if (captured == null) return;
+            GetViewport()?.SetInputAsHandled();
+            CommitCapture(captured);
+        }
+
+        /// <summary>
+        /// Converts a live event into a binding, honouring the listening slot's
+        /// device kind. Analog axes need a real deflection so a resting stick does
+        /// not bind itself the moment a joypad slot is armed.
+        /// </summary>
+        private InputBindingEvent TryCapture(InputEvent @event) {
+            bool wantsKeyboard = _listeningDeviceKind == InputDeviceKind.Keyboard;
+            switch (@event) {
+                case InputEventKey key when wantsKeyboard && key.Pressed && !key.Echo:
+                    return InputBindingService.FromInputEvent(key);
+                case InputEventMouseButton mouse when wantsKeyboard && mouse.Pressed:
+                    return InputBindingService.FromInputEvent(mouse);
+                case InputEventJoypadButton button when !wantsKeyboard && button.Pressed:
+                    return InputBindingService.FromInputEvent(button);
+                case InputEventJoypadMotion motion when !wantsKeyboard && Mathf.Abs(motion.AxisValue) >= 0.7f:
+                    return InputBindingService.FromInputEvent(motion);
+                default:
+                    return null;
+            }
+        }
+
+        /// <summary>
+        /// Conflict policy: block. One physical event drives at most one action in
+        /// the local action space, and a refused capture explains which action
+        /// already owns the input rather than silently moving that binding.
+        /// </summary>
+        private void CommitCapture(InputBindingEvent captured) {
+            string action = _listeningAction;
+            string conflict = InputBindingConflicts.FindConflictingAction(_workingBindings, action, captured);
+            if (conflict.Length > 0) {
+                _listeningAction = "";
+                RefreshBindingLabels();
+                _controlsStatus.Text = string.Format(
+                    Tr("controls_conflict"), Tr(InputManager.ActionLabelKey(conflict)));
+                return;
+            }
+
+            // Replace only this device kind's events; the other kind's slot keeps
+            // whatever it already had.
+            List<InputBindingEvent> next = _workingBindings.For(action)
+                .Where(existing => existing.DeviceKind != _listeningDeviceKind)
+                .Select(existing => existing.Clone())
+                .ToList();
+            next.Add(captured);
+            _workingBindings.Set(action, next);
+
+            _listeningAction = "";
+            RefreshBindingLabels();
+            _controlsStatus.Text = Tr("controls_rebound");
+        }
+
+        private void ResetSingleAction(string action) {
+            CancelListening();
+            IReadOnlyList<InputBindingEvent> defaults = InputBindingService.ProjectDefaults.For(action);
+            _workingBindings.Set(action, defaults);
+            RefreshBindingLabels();
+            _controlsStatus.Text = Tr("controls_reset_action_done");
+        }
+
+        private void OnResetAllBindings() {
+            CancelListening();
+            SaveManager.Instance?.ResetInputBindingsToDefault();
+            _workingBindings = InputBindingService.CaptureEffective();
+            RefreshBindingLabels();
+            _controlsStatus.Text = Tr("controls_reset_all_done");
+        }
+
+        // ------------------------------------------------------------------
+        // Display
+        // ------------------------------------------------------------------
+
+        private void OnDisplayChanged(long _) {
+            GlobalSaveData data = SaveManager.Instance?.GlobalData;
+            if (data == null) return;
+            ReadDisplayInto(data);
+            ViewportEnforcer.ApplyDisplaySettings(data);
+        }
+
+        private void ReadDisplayInto(GlobalSaveData data) {
+            int index = Math.Clamp(_resolutionDropdown.Selected, 0, GlobalSaveData.SupportedResolutions.Length - 1);
+            (int width, int height) = GlobalSaveData.SupportedResolutions[index];
+            data.ResolutionWidth = width;
+            data.ResolutionHeight = height;
+            data.WindowMode = (WindowModeSetting)Math.Clamp(_windowModeDropdown.Selected, 0, WindowModeKeys.Length - 1);
+            data.VSyncEnabled = _vsyncToggle.ButtonPressed;
+        }
+
+        // ------------------------------------------------------------------
+        // Open / close / persistence
+        // ------------------------------------------------------------------
 
         public new void Show() {
+            LoadSettings();
+            BuildControlsTab();
             Visible = true;
         }
 
+        public override void _UnhandledInput(InputEvent @event) {
+            if (!Visible || @event == null) return;
+            if (!@event.IsActionPressed(InputManager.Actions.Pause)) return;
+            Close();
+            GetViewport()?.SetInputAsHandled();
+        }
+
+        /// <summary>
+        /// Saves, hides, and hands control back to the opener. It must never write
+        /// <see cref="SceneTree.Paused"/> — the pause menu that opened it still owns
+        /// the pause (plan §2.6).
+        /// </summary>
+        public void Close() {
+            CancelListening();
+            SaveSettings();
+            Visible = false;
+            Closed?.Invoke();
+        }
+
         private void LoadSettings() {
-            var data = SaveManager.Instance?.GlobalData;
-            if (data == null) return;
+            GlobalSaveData data = SaveManager.Instance?.GlobalData;
+            if (data == null || _root == null) return;
+            data.Normalize();
             _masterSlider.Value = data.MasterVolume;
             _musicSlider.Value = data.MusicVolume;
             _sfxSlider.Value = data.SFXVolume;
@@ -201,11 +451,16 @@ namespace FTT.UI {
             _damageNumbersToggle.ButtonPressed = data.DamageNumbersVisible;
             _hudOpacitySlider.Value = data.HudOpacity;
             _screenShakeSlider.Value = data.ScreenShakeScale;
+            _resolutionDropdown.Selected =
+                GlobalSaveData.ResolutionIndex(data.ResolutionWidth, data.ResolutionHeight);
+            _windowModeDropdown.Selected = (int)data.WindowMode;
+            _vsyncToggle.ButtonPressed = data.VSyncEnabled;
         }
 
         private void SaveSettings() {
-            var data = SaveManager.Instance?.GlobalData;
-            if (data == null) return;
+            SaveManager manager = SaveManager.Instance;
+            GlobalSaveData data = manager?.GlobalData;
+            if (data == null || _root == null) return;
             data.MasterVolume = (float)_masterSlider.Value;
             data.MusicVolume = (float)_musicSlider.Value;
             data.SFXVolume = (float)_sfxSlider.Value;
@@ -215,7 +470,9 @@ namespace FTT.UI {
             data.DamageNumbersVisible = _damageNumbersToggle.ButtonPressed;
             data.HudOpacity = (float)_hudOpacitySlider.Value;
             data.ScreenShakeScale = (float)_screenShakeSlider.Value;
-            SaveManager.Instance?.SaveGlobalData();
+            ReadDisplayInto(data);
+            // PersistInputBindings writes the global payload itself.
+            manager.PersistInputBindings(_workingBindings);
         }
     }
 }

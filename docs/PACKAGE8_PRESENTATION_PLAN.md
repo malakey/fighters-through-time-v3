@@ -298,5 +298,104 @@ change is logged in §9.
 
 ## 9. Deviations (append-only)
 
-*(Empty at authoring. Agents append `### <WS> — <subject> (date)` blocks; orchestrator appends
-integration blocks; C1 appends the closeout and the "What Package 8 did NOT deliver" list.)*
+*(Agents append `### <WS> — <subject> (date)` blocks; orchestrator appends integration blocks; C1
+appends the closeout and the "What Package 8 did NOT deliver" list.)*
+
+### A4 — input remapping, settings persistence, save notices (2026-08-08)
+
+**A4: the binding schema is a per-action list of typed events, not a string map.** `InputBindingEvent`
+carries `{Kind, Code, AxisSign}` where `Kind ∈ {Key, MouseButton, JoyButton, JoyAxis}`, and
+`InputBindingSet` is `Dictionary<string, List<InputBindingEvent>>`. The dead
+`Dictionary<string,string>` it replaces could not express a single real action — `gameplay_move_left`
+alone ships two keys, a joypad axis and a joypad button. Keys are stored as **physical** keycodes,
+matching `InputManager.ReadActionStrength`, which prefers `PhysicalKeycode`, so a remap survives a
+keyboard-layout change. Pinned by `tests/Unit/InputBindingSchemaTests.cs`
+(`MultiEventBindingsRoundTripThroughTheEncryptedGlobalEnvelope`,
+`NormalizeClampsEveryEventShapeAndDropsUnusableRows`).
+
+**A4: `SaveSchemaMigrator.CurrentVersion` moved 3 → 4 and the story chain gained no step.** The
+version is shared by both payloads, so bumping it for the global binding change also renumbers story
+saves; `DeserializeStory` has no v3→v4 work, which is correct — nothing in `StorySaveData` changed.
+The one consequence is that `SaveEnvelopeTests.VersionTwoStorySaveMigratesPuzzleCompletionCollection`
+asserted the literal `3`; it now asserts `SaveSchemaMigrator.CurrentVersion`. That is the only
+pre-existing test A4 modified. Pinned by
+`tests/Unit/DisplaySettingsPersistenceTests.cs::GlobalVersionThreeMigratesTheDeadStringBindingMapToTheStructuredShape`.
+
+**A4: v3→v4 drops the old binding field rather than trying to interpret it.** The pre-v4
+`InputBindings` map was written by no code path in the repository's history, so there is no real data
+to preserve and any "interpretation" would be inventing player intent. The branch replaces it with an
+empty structured set; the player keeps project defaults and can rebind. A payload that already
+carries the structured shape passes through untouched
+(`GlobalVersionFourKeepsAnAlreadyStructuredBindingSet`).
+
+**A4: only actions that differ from project.godot are persisted.** `InputBindingService` snapshots
+the InputMap once at boot — in `SaveManager._Ready`, *before* `LoadGlobalData` — and
+`BuildOverrides` diffs the Settings tab's working map against that snapshot. Storing the whole map
+would freeze today's defaults into every save and stop a later project.godot change from ever
+reaching a player who never touched that action. Pinned by
+`OnlyActionsThatDifferFromProjectDefaultsArePersisted`.
+
+**A4: conflicts block, they do not swap.** One physical event drives at most one action in the local
+action space. A swap would move a binding the player never asked to change, and would have to invent
+a slot whenever the two actions hold different event counts. A refused capture leaves the working set
+untouched and shows `controls_conflict` naming the action that already owns the input. Re-pressing an
+event the same action already holds also reports that action, so the UI explains the no-op instead of
+silently duplicating the event. Pinned by
+`ConflictDetectionBlocksAnInputAlreadyOwnedByAnotherAction` and
+`SettingsMenuSceneTests::ACaptureThatCollidesWithAnotherActionIsRefused`.
+
+**A4: remap rows carry one slot per device kind, and a capture replaces only its own kind.** Each row
+is `label | keyboard-or-mouse slot | joypad slot | reset`. Binding a key never clears the joypad
+binding and vice versa, which is what makes the shipped mixed defaults (keys + axis + pad button on
+one action) survive a partial remap. Pinned by `AFreeCaptureReplacesOnlyItsOwnDeviceKind`.
+
+**A4: `gameplay_ultimate` and Dash are read-only in the Controls tab.** Ultimate is authored as an
+LB+RB chord that `InputManager.ReadUltimatePressed` evaluates as a *conjunction* of the action's
+joypad events — a per-event remap row cannot express "both at once" without redesigning the polling
+rule, which is out of A4's scope. Dash has no InputMap action at all; it is a derived double-tap /
+analog-flick gesture. Both are stated in `controls_ultimate_readonly` / `controls_dash_readonly`.
+Pinned by `TheUltimateChordAndDashGestureAreExcludedFromRemapping`.
+
+**A4: `Settings.tscn`'s root is a script-less `Control`, and `SettingsMenu` stays a `CanvasLayer`
+that instantiates it.** All three openers construct the class directly (`new SettingsMenu()`), and
+those call sites live in files owned by A1 (`PauseMenu`, `LocalFighterPause`) and B4 (`MainMenu`).
+Putting the script on the scene root would have required editing all three in parallel worktrees for
+no user-visible gain. The result still satisfies §2.6 — one authored scene, embedded by all three —
+with zero edits to the openers. Pinned by `SettingsMenuSceneTests::TheAuthoredSceneInstantiatesWithAllFourTabs`.
+
+**A4: closing Settings never writes `SceneTree.Paused`.** `SettingsMenu.Close()` saves, hides, and
+raises `Closed`; `_ExitTree` clears only its own listening state. The old `OnClosePressed` set
+`GetTree().Paused = false` unconditionally, which resumed gameplay behind a still-open pause menu
+whenever a player opened Settings from a pause. Pinned by `ClosingTheScreenLeavesThePauseOwnerInCharge`
+and `LeavingTheTreeDoesNotStealThePause`.
+
+**A4: display persistence lives on `ViewportEnforcer`, and the fields are
+`ResolutionWidth`/`ResolutionHeight` rather than a single `Resolution`.** `ViewportEnforcer` is the
+last autoload, so `SaveManager`'s global payload is already loaded when it runs, and it already owns
+every other window-level concern; `GameManager` owns scene flow and would have been the wrong home.
+Two ints beat a packed string or a `Vector2I` because `Normalize()` can snap them onto the supported
+table (`GlobalSaveData.SupportedResolutions`) — a corrupt payload otherwise asks the engine for a
+0x0 window. `WindowMode` is a three-value enum (windowed / fullscreen / borderless), replacing the
+old boolean fullscreen toggle. The DisplayServer calls are skipped when `DisplayServer.GetName()` is
+`headless`, or every test session would log window errors. Pinned by
+`DisplaySettingsPersistenceTests`.
+
+**A4: the dead difficulty dropdown is removed, not wired up.** Campaign difficulty is chosen per save
+slot at creation and locked for the playthrough (`SaveManager.CreateStorySlot`); a global "default
+difficulty" has no consumer and would be a second canonical value. `settings_difficulty` stays in
+`en.csv` as an orphaned key for C1's unused-key sweep to report. Pinned by
+`TheDeadDifficultyDropdownIsGone`.
+
+**A4: `SaveManager.LastLoadNotice` became a key + args pair and is surfaced on the main menu.** The
+eight raw-English notice strings are now `save_notice_*` keys; `LastLoadNoticeKey` /
+`LastLoadNoticeArgs` hold the pair and `LastLoadNotice` resolves it through the translation server, so
+the existing property name and shape still work. `MainMenu.AddSaveLoadNotice` is a single additive
+static method plus one call — **B4 must carry this line into the authored menu** when it converts
+`MainMenu`. Exception text (schema/JSON failures) rides the pass-through key `save_notice_error`
+(`{0}`), because engine exception messages are not localizable. Pinned by
+`SaveLoadNoticesResolveThroughTheTranslationTable`.
+
+**A4: the `# Package 8 A4` marker in `en.csv` is a bare comma-less line.** Godot's CSV translation
+importer and every test-side parser in the repository skip a line with no delimiter, so the marker
+imports cleanly and never becomes a key. Verified by `--headless --import` (no CSV warnings) and by
+`EnemyRosterContentTests.EnglishTranslationTableHasNoDuplicateKeys`, whose parser requires a comma.

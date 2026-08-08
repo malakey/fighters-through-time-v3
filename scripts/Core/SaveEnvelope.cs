@@ -246,7 +246,13 @@ namespace FTT.Core {
     }
 
     public static class SaveSchemaMigrator {
-        public const int CurrentVersion = 3;
+        /// <summary>
+        /// Shared by both payloads. v4 (Package 8 A4) is the first schema step the
+        /// <b>global</b> payload has ever needed: <c>InputBindings</c> changed from a
+        /// dead <c>Dictionary&lt;string,string&gt;</c> to a structured
+        /// <see cref="InputBindingSet"/>. Story saves have no v3→v4 work.
+        /// </summary>
+        public const int CurrentVersion = 4;
 
         public static StorySaveData DeserializeStory(string json) {
             JObject root = JObject.Parse(string.IsNullOrWhiteSpace(json) ? "{}" : json);
@@ -264,6 +270,7 @@ namespace FTT.Core {
             JObject root = JObject.Parse(string.IsNullOrWhiteSpace(json) ? "{}" : json);
             int version = ReadVersion(root);
             RejectFutureVersion(version);
+            if (version < 4) MigrateGlobalInputBindings(root);
             root[nameof(GlobalSaveData.SaveVersion)] = CurrentVersion;
             GlobalSaveData data = root.ToObject<GlobalSaveData>() ?? new GlobalSaveData();
             data.Normalize();
@@ -306,6 +313,26 @@ namespace FTT.Core {
 
         private static void MigratePuzzleState(JObject root) {
             root[nameof(StorySaveData.CompletedPuzzleIDs)] ??= new JArray();
+        }
+
+        /// <summary>
+        /// Global v3 → v4 (Package 8 A4). Pre-v4 payloads carry
+        /// <c>InputBindings</c> as a flat action → string map. That field was never
+        /// written by any code path and cannot express a multi-event binding, so the
+        /// old shape is dropped rather than guessed at; the player keeps the project
+        /// defaults and can rebind. A payload already carrying the structured shape
+        /// (an <c>Actions</c> object) is left untouched.
+        /// </summary>
+        private static void MigrateGlobalInputBindings(JObject root) {
+            const string field = nameof(GlobalSaveData.InputBindings);
+            JToken existing = root[field];
+            if (existing is JObject structured
+                && structured[nameof(InputBindingSet.Actions)] is JObject) {
+                return;
+            }
+            root[field] = new JObject {
+                [nameof(InputBindingSet.Actions)] = new JObject()
+            };
         }
     }
 }
