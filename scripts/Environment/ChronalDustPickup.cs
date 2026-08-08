@@ -18,7 +18,7 @@ namespace FTT.Environment {
             AddToGroup("story_loot");
             AddToGroup("chronal_dust");
             _visual = GetNodeOrNull<Sprite2D>("Visual");
-            VisualTiers ??= GD.Load<DustVisualTierSet>("res://resources/Drops/dust_visual_tiers.tres");
+            VisualTiers ??= FTT.Core.AuthoredResources.Load<DustVisualTierSet>("res://resources/Drops/dust_visual_tiers.tres");
             ApplyVisualTier();
         }
 

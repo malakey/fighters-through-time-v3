@@ -18,7 +18,7 @@ public class MozartContentTests {
 
     [TestCase]
     public void RequiemChordResourceAuthorsTheMultiHitBurst() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/mozart/special_1.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/mozart/special_1.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Projectile);
         AssertThat(data.IsMultiHit).IsTrue();
@@ -29,7 +29,7 @@ public class MozartContentTests {
 
     [TestCase]
     public void FortissimoWaveResourceDealsTwelveWithHeavyFullScreenPushback() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/mozart/special_2.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/mozart/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Projectile);
         AssertThat(data.BaseDamage).IsEqual(12f);
@@ -55,7 +55,7 @@ public class MozartContentTests {
         var scene = ResourceLoader.Load<PackedScene>("res://scenes/constructs/SonataPlatform.tscn");
         AssertObject(scene).IsNotNull();
         Node root = AutoFree(scene.Instantiate());
-        var contract = ResourceLoader.Load<ContentSceneContract>(
+        var contract = FTT.Core.AuthoredResources.Load<ContentSceneContract>(
             "res://resources/Contracts/persistent_construct_contract.tres");
         AssertObject(contract).IsNotNull();
         var issues = ContentSceneContractValidator.Validate(root, contract);

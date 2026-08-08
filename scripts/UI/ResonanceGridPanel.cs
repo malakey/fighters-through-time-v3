@@ -119,7 +119,8 @@ namespace FTT.UI {
             if (_slot < 0 || _slot >= SaveManager.Instance.SaveSlots.Length) return;
             _save = SaveManager.Instance.SaveSlots[_slot];
             string characterID = GameManager.Instance.CurrentSession.SelectedCharacterID ?? "";
-            _grid = ResourceLoader.Load<ResonanceGridData>($"res://resources/Resonance/{characterID}_grid.tres");
+            // Shared pinned instance - never ResourceLoader.Load a grid directly.
+            _grid = ResonanceProgression.LoadGrid(characterID);
             if (_save == null || _grid == null) {
                 _statusLabel.Text = Tr("resonance_grid_unavailable");
                 return;

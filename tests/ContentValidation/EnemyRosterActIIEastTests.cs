@@ -40,7 +40,7 @@ public class EnemyRosterActIIEastTests {
     private static IEnumerable<string> AllIDs => StandardIDs.Concat(EliteIDs);
 
     private static EnemyData Load(string enemyID) =>
-        ResourceLoader.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
+        FTT.Core.AuthoredResources.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
 
     /// <summary>Primary (when authored) plus every elite ability on one resource.</summary>
     private static IEnumerable<EnemyAbilityData> AbilitiesOf(EnemyData data) {

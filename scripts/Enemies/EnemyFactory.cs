@@ -78,7 +78,7 @@ namespace FTT.Enemies {
         public static EnemyData LoadData(string enemyID) {
             if (string.IsNullOrWhiteSpace(enemyID)) throw new ArgumentException("Enemy ID is empty.", nameof(enemyID));
             if (DataCache.TryGetValue(enemyID, out EnemyData cached) && cached != null) return cached;
-            EnemyData data = GD.Load<EnemyData>($"{EnemyResourceFolder}{enemyID}.tres")
+            EnemyData data = FTT.Core.AuthoredResources.Load<EnemyData>($"{EnemyResourceFolder}{enemyID}.tres")
                 ?? throw new InvalidOperationException($"Enemy data not found for '{enemyID}'.");
             DataCache[enemyID] = data;
             return data;

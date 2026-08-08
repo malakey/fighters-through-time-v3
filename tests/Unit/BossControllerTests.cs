@@ -33,8 +33,6 @@ public class BossControllerTests {
             AssertThat(share > 0.68f && share < 0.82f).IsTrue();
         } finally {
             FreeBoss(boss);
-            heavy.Dispose();
-            light.Dispose();
         }
     }
 
@@ -50,8 +48,6 @@ public class BossControllerTests {
             }
         } finally {
             FreeBoss(boss);
-            melee.Dispose();
-            ranged.Dispose();
         }
     }
 
@@ -65,7 +61,6 @@ public class BossControllerTests {
             AssertThat(boss.SelectAbilityIndex(MeleeDistance)).IsEqual(0);
         } finally {
             FreeBoss(boss);
-            meleeOnly.Dispose();
         }
     }
 
@@ -99,8 +94,6 @@ public class BossControllerTests {
             AssertThat(sawFinisher).IsTrue();
         } finally {
             FreeBoss(boss);
-            opener.Dispose();
-            finisher.Dispose();
         }
     }
 
@@ -125,7 +118,6 @@ public class BossControllerTests {
             AssertThat(boss.CurrentHP).IsEqual(maximum - firstHit);
         } finally {
             FreeBoss(boss);
-            melee.Dispose();
         }
     }
 
@@ -148,7 +140,6 @@ public class BossControllerTests {
         } finally {
             EventBus.Instance.OnBossPhaseChanged -= OnPhase;
             FreeBoss(boss);
-            melee.Dispose();
         }
     }
 
@@ -156,13 +147,9 @@ public class BossControllerTests {
     public void PhaseSpeedMultipliersAreResolvedPerPhaseWithANeutralDefault() {
         BossData data = BossResource();
         data.PhaseSpeedMultipliers = new[] { 1.0f, 1.35f };
-        try {
-            AssertThat(data.GetPhaseSpeedMultiplier(0)).IsEqualApprox(1.0f, 0.0001f);
-            AssertThat(data.GetPhaseSpeedMultiplier(1)).IsEqualApprox(1.35f, 0.0001f);
-            AssertThat(data.GetPhaseSpeedMultiplier(5)).IsEqualApprox(1.0f, 0.0001f);
-        } finally {
-            data.Dispose();
-        }
+        AssertThat(data.GetPhaseSpeedMultiplier(0)).IsEqualApprox(1.0f, 0.0001f);
+        AssertThat(data.GetPhaseSpeedMultiplier(1)).IsEqualApprox(1.35f, 0.0001f);
+        AssertThat(data.GetPhaseSpeedMultiplier(5)).IsEqualApprox(1.0f, 0.0001f);
     }
 
     [TestCase]
@@ -217,7 +204,6 @@ public class BossControllerTests {
             AssertThat(boss.AbilityPhase).IsEqual(EnemyAbilityPhase.Recovery);
         } finally {
             FreeBoss(boss);
-            melee.Dispose();
         }
     }
 
@@ -236,7 +222,6 @@ public class BossControllerTests {
             AssertThat(boss.AbilityPhase).IsEqual(EnemyAbilityPhase.Telegraph);
         } finally {
             FreeBoss(boss);
-            melee.Dispose();
         }
     }
 
@@ -294,7 +279,7 @@ public class BossControllerTests {
 
     [TestCase]
     public void FlorenceBossIsAuthoredWithMeleeAndRangedCoverageAndAPhaseTwoSpeedUp() {
-        BossData boss = ResourceLoader.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
+        BossData boss = FTT.Core.AuthoredResources.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
         AssertObject(boss).IsNotNull();
         AssertThat(boss.BossAbilities.Length).IsEqual(2);
         AssertThat(boss.PhaseThresholds.Length).IsEqual(1);
@@ -333,7 +318,6 @@ public class BossControllerTests {
             AssertThat(boss.CurrentState).IsNotEqual(BossState.RestWindow);
         } finally {
             FreeBoss(boss);
-            melee.Dispose();
         }
     }
 
@@ -374,9 +358,11 @@ public class BossControllerTests {
         return boss;
     }
 
-    private static void FreeBoss(BossController boss) {
-        BossData data = boss.Data;
-        boss.Free();
-        data?.Dispose();
-    }
+    /// <summary>
+    /// Frees the boss node only. Its BossData and the EnemyAbilityData it owns are
+    /// RefCounted: Godot's reference counting frees them, and calling Dispose() on
+    /// them here would double-dispose the C# script instance and corrupt the heap.
+    /// Never Dispose() a Godot Resource - see AGENTS.md.
+    /// </summary>
+    private static void FreeBoss(BossController boss) => boss.Free();
 }

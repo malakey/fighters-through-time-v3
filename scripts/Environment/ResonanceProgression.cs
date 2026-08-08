@@ -7,6 +7,23 @@ namespace FTT.Environment {
 
     /// <summary>Story-only currency, unlock, and stat resolution boundary.</summary>
     public static class ResonanceProgression {
+
+        public const string GridResourceDirectory = "res://resources/Resonance";
+
+        /// <summary>
+        /// The one place a Resonance grid is loaded. Goes through
+        /// <see cref="AuthoredResources"/> so the grid and its nine scripted
+        /// <c>ResonanceNodeData</c> sub-resources are marshalled once per process
+        /// and never torn down - never <c>ResourceLoader.Load</c> a grid directly.
+        /// Authored grids are immutable at runtime, so the shared instance is also
+        /// the semantically correct thing to hand out.
+        /// </summary>
+        public static ResonanceGridData LoadGrid(string characterID) {
+            if (string.IsNullOrWhiteSpace(characterID)) return null;
+            return AuthoredResources.Load<ResonanceGridData>(
+                $"{GridResourceDirectory}/{characterID}_grid.tres");
+        }
+
         public static ResonanceUnlockResult TryUnlock(
             ResonanceGridData grid,
             StorySaveData save,
@@ -195,8 +212,7 @@ namespace FTT.Environment {
             if (slot < 0 || slot >= SaveManager.Instance.SaveSlots.Length) return false;
             StorySaveData save = SaveManager.Instance.SaveSlots[slot];
             if (save == null || save.SelectedCharacterID != characterID) return false;
-            ResonanceGridData grid = ResourceLoader.Load<ResonanceGridData>(
-                $"res://resources/Resonance/{characterID}_grid.tres");
+            ResonanceGridData grid = LoadGrid(characterID);
             if (grid == null) return false;
             CollectUnlockedAbilityModifiers(grid, save, destination);
             return true;
@@ -209,8 +225,7 @@ namespace FTT.Environment {
             if (slot < 0 || slot >= SaveManager.Instance.SaveSlots.Length) return false;
             StorySaveData save = SaveManager.Instance.SaveSlots[slot];
             if (save == null || save.SelectedCharacterID != characterID) return false;
-            ResonanceGridData grid = ResourceLoader.Load<ResonanceGridData>(
-                $"res://resources/Resonance/{characterID}_grid.tres");
+            ResonanceGridData grid = LoadGrid(characterID);
             if (grid == null) return false;
             profile = Resolve(grid, save);
             return true;

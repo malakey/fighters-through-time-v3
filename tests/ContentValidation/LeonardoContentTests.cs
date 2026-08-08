@@ -18,7 +18,7 @@ public class LeonardoContentTests {
 
     [TestCase]
     public void GoldenRatioResourceMatchesDesignSpecification() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/leonardo/special_1.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/leonardo/special_1.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Area);
         AssertThat(data.BaseDamage).IsEqual(10f);
@@ -30,7 +30,7 @@ public class LeonardoContentTests {
 
     [TestCase]
     public void ClockworkTurretResourceMatchesDesignSpecification() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/leonardo/special_2.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/leonardo/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.PersistentObject);
         AssertThat(data.BaseDamage).IsEqual(5f);
@@ -56,7 +56,7 @@ public class LeonardoContentTests {
         var scene = ResourceLoader.Load<PackedScene>("res://scenes/constructs/ClockworkTurret.tscn");
         AssertObject(scene).IsNotNull();
         Node root = AutoFree(scene.Instantiate());
-        var contract = ResourceLoader.Load<ContentSceneContract>(
+        var contract = FTT.Core.AuthoredResources.Load<ContentSceneContract>(
             "res://resources/Contracts/persistent_construct_contract.tres");
         AssertObject(contract).IsNotNull();
         var issues = ContentSceneContractValidator.Validate(root, contract);

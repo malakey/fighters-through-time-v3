@@ -18,7 +18,7 @@ public class LincolnContentTests {
 
     [TestCase]
     public void EmancipatorResourceIsAForwardGroundWaveWithKnockUp() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/lincoln/special_1.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/lincoln/special_1.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Area);
         AssertThat(data.BaseDamage).IsEqual(20f);
@@ -34,7 +34,7 @@ public class LincolnContentTests {
 
     [TestCase]
     public void SplittingStrikeResourceDealsEighteenMeleeDamage() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/lincoln/special_2.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/lincoln/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Melee);
         AssertThat(data.BaseDamage).IsEqual(18f);
@@ -53,7 +53,7 @@ public class LincolnContentTests {
 
     [TestCase]
     public void LincolnGridAuthorsTheThreeMajorPerkKeysTheKitConsumes() {
-        var grid = ResourceLoader.Load<ResonanceGridData>("res://resources/Resonance/lincoln_grid.tres");
+        var grid = FTT.Core.AuthoredResources.Load<ResonanceGridData>("res://resources/Resonance/lincoln_grid.tres");
         AssertObject(grid).IsNotNull();
         var majorKeys = new HashSet<string>();
         foreach (ResonanceNodeData node in grid.Nodes) {

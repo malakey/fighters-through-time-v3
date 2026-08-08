@@ -17,6 +17,6 @@ namespace FTT.Core {
             return null;
         }
 
-        public static ScenePoolCatalog LoadDefault() => ResourceLoader.Load<ScenePoolCatalog>(DefaultPath);
+        public static ScenePoolCatalog LoadDefault() => AuthoredResources.Load<ScenePoolCatalog>(DefaultPath);
     }
 }

@@ -17,6 +17,6 @@ namespace FTT.Environment {
             return null;
         }
 
-        public static StoryDropTable LoadDefault() => GD.Load<StoryDropTable>(DefaultPath);
+        public static StoryDropTable LoadDefault() => FTT.Core.AuthoredResources.Load<StoryDropTable>(DefaultPath);
     }
 }

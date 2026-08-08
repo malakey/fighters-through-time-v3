@@ -17,7 +17,7 @@ public class JoanContentTests {
 
     [TestCase]
     public void RighteousSmiteResourceIsAFourteenDamageRadiantBurnShockwave() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/joan/special_1.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/joan/special_1.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Projectile);
         AssertThat(data.BaseDamage).IsEqual(14f);
@@ -28,7 +28,7 @@ public class JoanContentTests {
 
     [TestCase]
     public void DivinePiercingResourceTotalsTwelveDamageAcrossItsThrusts() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/joan/special_2.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/joan/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Melee);
         AssertThat(data.IsMultiHit).IsTrue();

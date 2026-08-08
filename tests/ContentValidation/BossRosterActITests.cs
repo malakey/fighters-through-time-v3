@@ -313,7 +313,7 @@ public class BossRosterActITests {
     // === Helpers ===
 
     private static BossData Load(string bossID) =>
-        ResourceLoader.Load<BossData>($"res://resources/Bosses/{bossID}.tres");
+        FTT.Core.AuthoredResources.Load<BossData>($"res://resources/Bosses/{bossID}.tres");
 
     private static EnemyAbilityData FindAbility(BossData boss, string abilityID) {
         foreach (EnemyAbilityData ability in boss.BossAbilities) {

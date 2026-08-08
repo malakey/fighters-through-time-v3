@@ -104,7 +104,6 @@ public class PoolManagerTests {
 
         AssertThat(config.ValidateBudget().Count > 0).IsTrue();
         Cleanup(manager, parent);
-        config.Dispose();
     }
 
     [TestCase]

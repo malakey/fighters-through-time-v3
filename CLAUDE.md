@@ -37,12 +37,27 @@ Tell: the total collapses to roughly **24** and the runner exit is `none`. Every
 
 A *different* truncation looks like a real run that stopped partway: a **large** partial `Total:` (say 250 of 417), 0 failures among what ran, and a **negative runner exit code** — `-1073741819` (`0xC0000005`, access violation) or `-1073741795` (`0xC000001D`, illegal instruction). The GdUnit Godot child died or hung mid-suite. Unrelated suites may also start seeing `ResourceLoader.Load` return null.
 
-This is memory corruption, not a flaky test. Found in Package 4 B6: an **empty** Script-typed Godot array in a resource (`Prop = Array[ExtResource("N")]([])` where `N` is a `.cs` script) corrupts the .NET heap when marshalled to its C# array export, and the process then dies at an unrelated allocation, so the crash site never points at the cause. `tests/ContentValidation/ScriptTypedEmptyArrayTests.cs` guards that specific pattern; see `docs/PACKAGE4_ROSTER_PLAN.md` §8 B6 for the isolation method (subtractive bisection against a repro harness) if a new corruption class appears. Never shrug this signature off as a flake — re-running may mask it, because the truncation point is nondeterministic.
+This is memory corruption, not a flaky test. Never shrug it off as a flake — re-running may mask it, because the truncation point is nondeterministic, and a class of corruption that dies on one run in three will look green twice before it bites. **Bisecting by test class is misleading for this signature**: removing suites lowers the hit rate without touching the cause. Prove a subset "clean" over at least five runs before believing it.
+
+Two causes are known, both with guards:
+
+- **Empty Script-typed array in a resource** (Package 4 B6). `Prop = Array[ExtResource("N")]([])` where `N` is a `.cs` script corrupts the .NET heap when marshalled to its C# array export, and the process then dies at an unrelated allocation. `tests/ContentValidation/ScriptTypedEmptyArrayTests.cs` guards it; `docs/PACKAGE4_ROSTER_PLAN.md` §8 B6 has the isolation method (subtractive bisection against a repro harness).
+- **Double-disposed C#-scripted `RefCounted`** (Package 5 A close). The tell is in the Godot log, not the runner output: `ERROR: FATAL: Condition "gchandle.is_released()" is true. at: mono_object_disposed_baseref` with a `GC.RunFinalizers -> GodotObject.Finalize -> Dispose` backtrace. That `CRASH_COND` compiles to `ud2` on this MinGW build, which *is* the `0xC000001D` exit. Two ways to cause it: calling `Dispose()` on a Godot `Resource` (never do this — reference counting owns them), and letting an authored `.tres` graph cycle in and out of the resource cache so its script instances are rebuilt and reaped repeatedly (load through `FTT.Core.AuthoredResources` instead). See `docs/PACKAGE5_CAMPAIGN_PLAN.md` §9.
+
+**Always read `<user data>/Godot/app_userdata/Fighters Through Time/logs/godot.log` after this signature.** The runner output only gives you an exit code; the Godot log carries the FATAL line, the C# backtrace, and the last resources loaded. Note the log rotates on every launch — `godot.log` is the current run, the timestamped files are older ones.
+
+### Failure signature 4: the suite hangs to the session timeout with `SceneTree.Paused` left set
+
+`Total:` is a large partial with 0 failures, `Duration:` is only a few seconds, and the run then sits until `Aborting test run: test run timeout of 300000 milliseconds exceeded`. The Godot child is still alive and burning CPU; its log just stops.
+
+Cause: something set `SceneTree.Paused = true` and never cleared it. GdUnit4's transport back to the .NET test host is an ordinary `Node` (`GdUnitTcpClient`, in `addons/gdUnit4/src/core/runners/GdUnitTestRunner.tscn`) with the default *Inherit* process mode, so a paused tree stops its `_process` and the harness stops receiving results. Anything that pauses — `DialogueManager` on a `PausesGameplay` sequence, `PauseMenu` — must release the pause in `_ExitTree` as well as on its normal path, and a test that pauses must restore it in `finally`.
 
 | Signature | `Total:` | Exit code | Meaning |
 |---|---|---|---|
 | 1 | ~24 | `none` (0) | GdUnit could not launch Godot; only pure-C# tests ran |
 | 2 | large partial | negative (`-1073741819` / `-1073741795`) | Native crash / heap corruption mid-suite |
+| 4 | large partial, short `Duration:` | timeout abort, child still running | `SceneTree.Paused` leaked; GdUnit's transport node stopped pumping |
+| GdUnit stdout race | large partial | `-532462766` (`0xE0434352`) | Unhandled managed exception on GdUnit's stdout-hook thread. Do not re-add the verbose engine flag to `.runsettings` |
 | Cold cache | partial, 1 spurious failure | timeout abort | Import timeout artifact; see below |
 
 A third signature — a headless scene smoke run exiting `-1073741819` inside
@@ -61,7 +76,7 @@ Build (verified: succeeds with 1 pre-existing vendored warning — `CS8632` in `
 dotnet build FightersThroughTime.csproj --nologo
 ```
 
-Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-07 on `net10.0` (Package 4 close): **417 passed, 0 failed, Total 417** across three consecutive runs, in about 12 seconds after a warm build. Read the `Total:` count in the summary, not just the exit code — see the two failure signatures above:
+Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-08 on `net10.0` (Package 5 Phase A close): **464 passed, 0 failed, Total 464**, in about 13 seconds after a warm build. Read the `Total:` count in the summary, not just the exit code — see the failure signatures above:
 
 ```bash
 dotnet test FightersThroughTime.csproj --settings .runsettings

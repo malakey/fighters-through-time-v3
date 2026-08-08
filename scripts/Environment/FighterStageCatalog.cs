@@ -25,6 +25,6 @@ namespace FTT.Environment {
         }
 
         public static FighterStageCatalog LoadDefault() =>
-            ResourceLoader.Load<FighterStageCatalog>(DefaultPath);
+            FTT.Core.AuthoredResources.Load<FighterStageCatalog>(DefaultPath);
     }
 }

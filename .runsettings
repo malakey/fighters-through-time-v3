@@ -7,7 +7,18 @@
     <TreatNoTestsAsError>true</TreatNoTestsAsError>
   </RunConfiguration>
   <GdUnit4>
-    <Parameters>--headless --verbose</Parameters>
+    <!--
+      The verbose engine flag is deliberately absent. It made Godot print a
+      "Loading resource:" line for every load (~2,100 lines a run) straight into
+      GdUnit4's WindowsStdOutHook pipe-reader thread, which races the
+      Console.SetOut that hook performs at test boundaries. The reader thread then
+      throws ArgumentNullException inside System.Console.Write, and an unhandled
+      exception on a background thread kills the Godot child:
+      "GodotRuntimeTestRunner ends with exit code: 532462766-negative"
+      (0xE0434352) plus a large partial Total. Errors and warnings are still
+      logged without it. Re-add it locally, never on main, for a load trace.
+    -->
+    <Parameters>--headless</Parameters>
     <DisplayName>FullyQualifiedName</DisplayName>
     <CaptureStdOut>true</CaptureStdOut>
     <CompileProcessTimeout>120000</CompileProcessTimeout>

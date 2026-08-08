@@ -18,7 +18,7 @@ public class CleopatraUltimateContentTests {
 
     [TestCase]
     public void WrathOfTheNileResourceMatchesDesignSpecification() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/cleopatra/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/cleopatra/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.AbilityID).IsEqual("cleopatra_wrath_of_the_nile");
         AssertThat(data.CharacterID).IsEqual("cleopatra");

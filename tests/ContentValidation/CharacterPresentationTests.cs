@@ -30,7 +30,7 @@ public class CharacterPresentationTests {
 
     [TestCase]
     public void EveryCharacterHasSpriteFramesWithAllContractAnimations() {
-        var contract = ResourceLoader.Load<ContentSceneContract>(
+        var contract = FTT.Core.AuthoredResources.Load<ContentSceneContract>(
             "res://resources/Contracts/player_presentation_contract.tres");
         AssertObject(contract).IsNotNull();
         AssertThat(contract.RequiredAnimationNames.Length > 0).IsTrue();
@@ -56,7 +56,7 @@ public class CharacterPresentationTests {
         var portraitPaths = new HashSet<string>();
 
         foreach (string characterID in InitialRoster) {
-            CharacterData character = ResourceLoader.Load<CharacterData>(
+            CharacterData character = FTT.Core.AuthoredResources.Load<CharacterData>(
                 $"res://resources/Characters/{characterID}_data.tres");
             AssertObject(character).IsNotNull();
 

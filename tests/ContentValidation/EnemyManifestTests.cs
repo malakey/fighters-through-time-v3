@@ -17,7 +17,7 @@ public class EnemyManifestTests {
     public void PrototypeEnemiesLoadWithUniqueStableIDsAndValidRanges() {
         var ids = new HashSet<string>();
         foreach (string enemyID in PrototypeEnemyIDs) {
-            EnemyData data = ResourceLoader.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
+            EnemyData data = FTT.Core.AuthoredResources.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
             AssertObject(data).IsNotNull();
             AssertThat(data.EnemyID == enemyID).IsTrue();
             AssertThat(ids.Add(data.EnemyID)).IsTrue();
@@ -30,7 +30,7 @@ public class EnemyManifestTests {
 
     [TestCase]
     public void FlorenceBossLoadsFromCanonicalResource() {
-        BossData boss = ResourceLoader.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
+        BossData boss = FTT.Core.AuthoredResources.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
         AssertObject(boss).IsNotNull();
         AssertThat(boss.BossID == "borgia_inquisitor").IsTrue();
         AssertThat(boss.MaxHP).IsEqual(500);

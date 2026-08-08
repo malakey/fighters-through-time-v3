@@ -28,7 +28,7 @@ public class CharacterManifestTests {
         var abilityIDs = new HashSet<string>();
 
         foreach (string characterID in InitialRoster) {
-            CharacterData character = ResourceLoader.Load<CharacterData>(
+            CharacterData character = FTT.Core.AuthoredResources.Load<CharacterData>(
                 $"res://resources/Characters/{characterID}_data.tres");
             AssertObject(character).IsNotNull();
             AssertThat(character.CharacterID == characterID).IsTrue();
@@ -64,7 +64,7 @@ public class CharacterManifestTests {
         }
 
         foreach (string characterID in InitialRoster) {
-            CharacterData character = ResourceLoader.Load<CharacterData>(
+            CharacterData character = FTT.Core.AuthoredResources.Load<CharacterData>(
                 $"res://resources/Characters/{characterID}_data.tres");
             AssertThat(keys.Contains(character.DisplayNameKey)).IsTrue();
             foreach (AbilityData ability in new AbilityData[] {

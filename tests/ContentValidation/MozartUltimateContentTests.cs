@@ -18,7 +18,7 @@ public class MozartUltimateContentTests {
 
     [TestCase]
     public void SymphonyOfSorrowResourceAuthorsTheMeteorBombardment() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/mozart/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/mozart/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.AbilityID).IsEqual("mozart_symphony_of_sorrow");
         AssertThat(data.CharacterID).IsEqual("mozart");
@@ -36,7 +36,7 @@ public class MozartUltimateContentTests {
 
     [TestCase]
     public void SymphonyOfSorrowWindowFitsAllTenMeteors() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/mozart/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/mozart/ultimate.tres");
         AssertObject(data).IsNotNull();
 
         // The hover/bombardment window: 3 s (180 frames) active phase matching

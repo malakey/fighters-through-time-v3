@@ -40,7 +40,7 @@ public class DustEconomyTests {
         // docs/DUST_ECONOMY.md Section 1: 3x50 + 3x75 + 3x200 = 975 on every grid,
         // competitively normalized — character identity comes from effects, not price.
         foreach (string characterID in CharacterIDs) {
-            ResonanceGridData grid = ResourceLoader.Load<ResonanceGridData>(
+            ResonanceGridData grid = FTT.Core.AuthoredResources.Load<ResonanceGridData>(
                 $"res://resources/Resonance/{characterID}_grid.tres");
             AssertObject(grid).IsNotNull();
 
@@ -74,17 +74,17 @@ public class DustEconomyTests {
     public void EnemyBossAndExtractorRewardsMatchTheDocumentedTiers() {
         // docs/DUST_ECONOMY.md Section 1: standards 1-2, elites 10, boss 50, extractor 15.
         foreach (string enemyID in StandardEnemyIDs) {
-            EnemyData data = ResourceLoader.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
+            EnemyData data = FTT.Core.AuthoredResources.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
             AssertThat(data.Tier).IsEqual(EnemyTier.Standard);
             AssertThat(data.ChronalDustDrop >= 1 && data.ChronalDustDrop <= 2).IsTrue();
         }
         foreach (string enemyID in EliteEnemyIDs) {
-            EnemyData data = ResourceLoader.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
+            EnemyData data = FTT.Core.AuthoredResources.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
             AssertThat(data.Tier).IsEqual(EnemyTier.Elite);
             AssertThat(data.ChronalDustDrop).IsEqual(EliteDustReward);
         }
 
-        BossData boss = ResourceLoader.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
+        BossData boss = FTT.Core.AuthoredResources.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
         AssertThat(boss.ChronalDustDrop).IsEqual(BossDustReward);
 
         PackedScene extractorScene = ResourceLoader.Load<PackedScene>(
@@ -101,23 +101,23 @@ public class DustEconomyTests {
     public void DustRewardsLandInTheirDesignedVisualSpriteTiers() {
         // docs/DUST_ECONOMY.md Section 5: standards Small (<6), elites and
         // extractors Medium (6-24), bosses Large (25+).
-        DustVisualTierSet tiers = ResourceLoader.Load<DustVisualTierSet>(
+        DustVisualTierSet tiers = FTT.Core.AuthoredResources.Load<DustVisualTierSet>(
             "res://resources/Drops/dust_visual_tiers.tres");
         AssertObject(tiers).IsNotNull();
 
         foreach (string enemyID in StandardEnemyIDs) {
-            EnemyData data = ResourceLoader.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
+            EnemyData data = FTT.Core.AuthoredResources.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
             AssertThat(data.ChronalDustDrop < tiers.MediumThreshold).IsTrue();
         }
         foreach (string enemyID in EliteEnemyIDs) {
-            EnemyData data = ResourceLoader.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
+            EnemyData data = FTT.Core.AuthoredResources.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
             AssertThat(data.ChronalDustDrop >= tiers.MediumThreshold).IsTrue();
             AssertThat(data.ChronalDustDrop < tiers.LargeThreshold).IsTrue();
         }
         AssertThat(ExtractorDustReward >= tiers.MediumThreshold).IsTrue();
         AssertThat(ExtractorDustReward < tiers.LargeThreshold).IsTrue();
 
-        BossData boss = ResourceLoader.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
+        BossData boss = FTT.Core.AuthoredResources.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
         AssertThat(boss.ChronalDustDrop >= tiers.LargeThreshold).IsTrue();
     }
 
@@ -127,10 +127,10 @@ public class DustEconomyTests {
         // (7 chrono_slasher + 6 cyber_guard + 3 steam_automaton, Level01Controller)
         // plus the boss yield 106 dust; the remaining 45 of the 151 full-collection
         // budget is the three not-yet-authored extractors (flagged gap).
-        EnemyData slasher = ResourceLoader.Load<EnemyData>("res://resources/Enemies/chrono_slasher.tres");
-        EnemyData guard = ResourceLoader.Load<EnemyData>("res://resources/Enemies/cyber_guard.tres");
-        EnemyData automaton = ResourceLoader.Load<EnemyData>("res://resources/Enemies/steam_automaton.tres");
-        BossData boss = ResourceLoader.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
+        EnemyData slasher = FTT.Core.AuthoredResources.Load<EnemyData>("res://resources/Enemies/chrono_slasher.tres");
+        EnemyData guard = FTT.Core.AuthoredResources.Load<EnemyData>("res://resources/Enemies/cyber_guard.tres");
+        EnemyData automaton = FTT.Core.AuthoredResources.Load<EnemyData>("res://resources/Enemies/steam_automaton.tres");
+        BossData boss = FTT.Core.AuthoredResources.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
 
         int killBudget = 7 * slasher.ChronalDustDrop
             + 6 * guard.ChronalDustDrop
@@ -165,8 +165,8 @@ public class DustEconomyTests {
 
         // Reward tiers come from the authored resources so a resource retune
         // re-derives the campaign totals instead of silently diverging.
-        EnemyData elite = ResourceLoader.Load<EnemyData>("res://resources/Enemies/steam_automaton.tres");
-        BossData boss = ResourceLoader.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
+        EnemyData elite = FTT.Core.AuthoredResources.Load<EnemyData>("res://resources/Enemies/steam_automaton.tres");
+        BossData boss = FTT.Core.AuthoredResources.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
         const float standardAverage = 1.5f; // midpoint of the designed 1-2 range
 
         float fullTotal = 0f;

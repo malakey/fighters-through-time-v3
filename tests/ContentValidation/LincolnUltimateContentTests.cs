@@ -18,7 +18,7 @@ public class LincolnUltimateContentTests {
 
     [TestCase]
     public void UltimateResourceAuthorsTheMultiHitSmashSequence() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/lincoln/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/lincoln/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.AbilityID).IsEqual("lincoln_union_indestructible");
         // Per-hit damage x hit count on a 0.5 s cadence: 5 smashes of 8.
@@ -32,7 +32,7 @@ public class LincolnUltimateContentTests {
 
     [TestCase]
     public void UltimateResourceAuthorsTheFencePenTrapWindow() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/lincoln/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/lincoln/ultimate.tres");
         AssertObject(data).IsNotNull();
         // Fighter zone lifetime matches the Story active window (2.5 s).
         AssertThat(data.Lifetime).IsEqual(2.5f);
@@ -49,7 +49,7 @@ public class LincolnUltimateContentTests {
 
     [TestCase]
     public void UltimateResourceAuthorsTheHeavyFinisherKnockback() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/lincoln/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/lincoln/ultimate.tres");
         AssertObject(data).IsNotNull();
         // Massive knockback: dominant horizontal shove with a real launch, far
         // heavier than the Emancipator special's (2, -6).

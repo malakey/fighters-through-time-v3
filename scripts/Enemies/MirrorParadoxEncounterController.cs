@@ -46,7 +46,7 @@ namespace FTT.Enemies {
         private bool _eventsBound;
 
         public override void _Ready() {
-            Data ??= GD.Load<BossData>(DefaultBossDataPath);
+            Data ??= FTT.Core.AuthoredResources.Load<BossData>(DefaultBossDataPath);
             BindEvents();
             if (SpawnOnReady) SpawnMirror();
         }
@@ -81,7 +81,7 @@ namespace FTT.Enemies {
         /// <summary>Instantiates the mirror controller at the encounter anchor.</summary>
         public MirrorParadoxController SpawnMirror() {
             if (Mirror != null && IsInstanceValid(Mirror)) return Mirror;
-            Data ??= GD.Load<BossData>(DefaultBossDataPath);
+            Data ??= FTT.Core.AuthoredResources.Load<BossData>(DefaultBossDataPath);
             Mirror = new MirrorParadoxController {
                 Name = "MirrorParadox",
                 Data = Data,

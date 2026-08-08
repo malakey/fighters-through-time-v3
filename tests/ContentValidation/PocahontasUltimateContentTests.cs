@@ -18,7 +18,7 @@ public class PocahontasUltimateContentTests {
 
     [TestCase]
     public void TidewaterTempestResourceAuthorsACoherentMultiHitStorm() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/pocahontas/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/pocahontas/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.AbilityID).IsEqual("pocahontas_tidewater_tempest");
         AssertThat(data.Slot).IsEqual(AbilitySlot.Ultimate);
@@ -40,7 +40,7 @@ public class PocahontasUltimateContentTests {
 
     [TestCase]
     public void TidewaterTempestResourceCarriesNoDeadProjectileOrConstructData() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/pocahontas/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/pocahontas/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ProjectileSpeed).IsEqual(0f);
         AssertThat(data.ProjectileLifetime).IsEqual(0f);

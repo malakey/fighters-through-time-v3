@@ -18,7 +18,7 @@ public class LeonardoUltimateContentTests {
 
     [TestCase]
     public void VitruvianMatrixResourceCarriesTheTrapAndBombardmentStructure() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/leonardo/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/leonardo/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.AbilityID).IsEqual("leonardo_vitruvian_matrix");
         AssertThat(data.CharacterID).IsEqual("leonardo");

@@ -34,7 +34,7 @@ public class ScenePoolConfigTests {
     [TestCase]
     public void InitialScenePoolBudgetsAreValidAndBounded() {
         foreach (string path in ConfigPaths) {
-            ScenePoolConfig config = ResourceLoader.Load<ScenePoolConfig>(path);
+            ScenePoolConfig config = FTT.Core.AuthoredResources.Load<ScenePoolConfig>(path);
             AssertObject(config).IsNotNull();
             AssertThat(config.ValidateBudget().Count).IsEqual(0);
             AssertThat(config.GetWarmUpInstanceCount() <= config.MaxWarmUpInstances).IsTrue();
@@ -48,7 +48,7 @@ public class ScenePoolConfigTests {
         var configIDs = new HashSet<string>();
 
         foreach (string path in LevelConfigPaths) {
-            ScenePoolConfig config = ResourceLoader.Load<ScenePoolConfig>(path);
+            ScenePoolConfig config = FTT.Core.AuthoredResources.Load<ScenePoolConfig>(path);
             AssertObject(config).OverrideFailureMessage($"{path} did not load.").IsNotNull();
 
             IReadOnlyList<string> errors = config.ValidateBudget();
@@ -86,7 +86,7 @@ public class ScenePoolConfigTests {
         string worstPath = "";
 
         foreach (string path in LevelConfigPaths) {
-            ScenePoolConfig config = ResourceLoader.Load<ScenePoolConfig>(path);
+            ScenePoolConfig config = FTT.Core.AuthoredResources.Load<ScenePoolConfig>(path);
             int combatants = Warm(config, "standard_enemy") + Warm(config, "elite_enemy");
             int projectiles = Warm(config, "enemy_projectile");
 

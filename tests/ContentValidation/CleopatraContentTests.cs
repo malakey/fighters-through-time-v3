@@ -17,7 +17,7 @@ public class CleopatraContentTests {
 
     [TestCase]
     public void SerpentNestResourceMatchesDesignSpecification() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/cleopatra/special_1.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/cleopatra/special_1.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.Lifetime).IsEqual(12f);
         AssertThat(data.MaxActiveObjects).IsEqual(1);
@@ -33,7 +33,7 @@ public class CleopatraContentTests {
 
     [TestCase]
     public void SandstormVortexResourceMatchesDesignSpecification() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/cleopatra/special_2.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/cleopatra/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.BaseDamage).IsEqual(2f);
         AssertThat(data.HitCount).IsEqual(5);
@@ -60,7 +60,7 @@ public class CleopatraContentTests {
         var scene = ResourceLoader.Load<PackedScene>("res://scenes/constructs/SerpentNest.tscn");
         AssertObject(scene).IsNotNull();
         Node root = AutoFree(scene.Instantiate());
-        var contract = ResourceLoader.Load<ContentSceneContract>(
+        var contract = FTT.Core.AuthoredResources.Load<ContentSceneContract>(
             "res://resources/Contracts/persistent_construct_contract.tres");
         AssertObject(contract).IsNotNull();
         var issues = ContentSceneContractValidator.Validate(root, contract);

@@ -17,7 +17,7 @@ public class PocahontasContentTests {
 
     [TestCase]
     public void SpiritStrikeResourceMatchesDesignSpecification() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/pocahontas/special_1.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/pocahontas/special_1.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.BaseDamage).IsEqual(14f);
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Melee);
@@ -26,7 +26,7 @@ public class PocahontasContentTests {
 
     [TestCase]
     public void VineSnareResourceMatchesDesignSpecification() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/pocahontas/special_2.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/pocahontas/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.Lifetime).IsEqual(10f);
         AssertThat(data.MaxActiveObjects).IsEqual(2);
@@ -52,7 +52,7 @@ public class PocahontasContentTests {
         var scene = ResourceLoader.Load<PackedScene>("res://scenes/constructs/VineSnare.tscn");
         AssertObject(scene).IsNotNull();
         Node root = AutoFree(scene.Instantiate());
-        var contract = ResourceLoader.Load<ContentSceneContract>(
+        var contract = FTT.Core.AuthoredResources.Load<ContentSceneContract>(
             "res://resources/Contracts/persistent_construct_contract.tres");
         AssertObject(contract).IsNotNull();
         var issues = ContentSceneContractValidator.Validate(root, contract);

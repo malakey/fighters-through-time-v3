@@ -19,7 +19,7 @@ public class ShakespeareUltimateContentTests {
 
     [TestCase]
     public void AllTheWorldsAStageAuthorsSixSequentialPhantomStrikes() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/shakespeare/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/shakespeare/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.HasValidIdentity()).IsTrue();
         AssertThat(data.Slot).IsEqual(AbilitySlot.Ultimate);
@@ -35,7 +35,7 @@ public class ShakespeareUltimateContentTests {
 
     [TestCase]
     public void AllTheWorldsAStageTimingSpansTheStrikeSequence() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/shakespeare/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/shakespeare/ultimate.tres");
         AssertObject(data).IsNotNull();
 
         // The Story active window holds exactly the authored sequence
@@ -50,7 +50,7 @@ public class ShakespeareUltimateContentTests {
 
     [TestCase]
     public void AllTheWorldsAStageAuthorsTheFinaleImpulseAndStageFootprint() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/shakespeare/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/shakespeare/ultimate.tres");
         AssertObject(data).IsNotNull();
 
         // Only the closing strike (Hamlet) carries this launch in both modes;

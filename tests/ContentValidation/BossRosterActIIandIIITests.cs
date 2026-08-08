@@ -29,7 +29,7 @@ public class BossRosterActIIandIIITests {
     };
 
     private static BossData Load(string bossID) =>
-        ResourceLoader.Load<BossData>($"{BossDirectory}/{bossID}.tres");
+        FTT.Core.AuthoredResources.Load<BossData>($"{BossDirectory}/{bossID}.tres");
 
     [TestCase]
     public void EveryActTwoAndThreeBossLoadsWithAnIDMatchingItsFilename() {

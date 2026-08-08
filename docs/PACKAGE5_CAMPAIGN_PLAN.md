@@ -237,6 +237,60 @@ launches. Lessons learned in a wave get appended to §9 and fed to the next wave
 
 ## 9. Deviations
 
+**FIX: the suite-breaking child-process death was three independent faults, only one of them
+introduced by Phase A.** After A1/A2 merged, `dotnet test` stopped completing: the GdUnit Godot
+child either hung to the 300 s `TestSessionTimeout` or died with a negative exit code, always
+reporting a large partial `Total:` with 0 failures. Bisecting by test class pointed at A1's three
+new suites, but that was a false lead — the 434-test subset that "passed" also died on run 2 of 3
+once it was run enough times. Three separate faults were stacked:
+
+1. **A leaked `SceneTree.Paused` (A1's fault, deterministic, caused the hang).**
+   `CampaignCompletionTests.TheChainWaitsForTheEndingDialogueBeforeRollingCredits` starts
+   `level_01.exit`, which is authored `PausesGameplay = true`, then completes it by raising
+   `EventBus.RaiseDialogueComplete` directly — bypassing `DialogueManager.EndSequence()`, the only
+   code that ever hands the pause back — and then frees the manager. `SceneTree.Paused` stayed true
+   for the rest of the process. GdUnit4's transport back to the .NET test host is a plain `Node`
+   (`GdUnitTcpClient` in `GdUnitTestRunner.tscn`) with the default *Inherit* process mode, so its
+   `_process` stopped pumping and the harness never heard from the child again.
+   *Fixed in production code, not the test:* `DialogueManager._ExitTree` (and now
+   `PauseMenu._ExitTree`) release the pause they took. This was a real shipping bug — any scene
+   change while a pausing dialogue or the pause menu was open would have loaded the next scene into
+   a permanently frozen tree. `CampaignCompletionTests` now samples, clears, and asserts the pause
+   flag, and a new case,
+   `ADialogueManagerTornDownMidSequenceHandsBackTheGameplayPause`, pins the contract (suite total
+   463 -> 464).
+
+2. **A double-disposed script instance (pre-existing, caused `-1073741795`).** The crash is
+   `CRASH_COND(gchandle.is_released())` in `mono_object_disposed_baseref` — Godot's assert that a
+   C#-scripted `RefCounted` is not disposed twice. On this MinGW build that trap is `ud2`, i.e.
+   exit `0xC000001D`. Two sources fed it:
+   *Explicit `Dispose()` on Godot `Resource` objects* in `BossControllerTests`,
+   `EnemyAbilityExecutorTests`, `ContentTemplateContractTests`, and `PoolManagerTests` (20 call
+   sites). `FreeBoss` disposed `boss.Data` and the caller then disposed the same
+   `EnemyAbilityData` instances that `BossData.BossAbilities` had already released. All removed —
+   Godot's reference counting owns Resource lifetime.
+   *Authored `.tres` graphs cycling through the resource cache.* Loading a scripted resource,
+   reading it, and dropping the only reference destroys the whole graph — including every scripted
+   sub-resource behind an `Array[ExtResource(script)]` export — and rebuilds it on the next call.
+   The .NET finalizer thread reaps those wrappers at unpredictable times, racing the main thread
+   that is destroying the same native objects. New `scripts/Core/AuthoredResources.cs` pins each
+   authored data resource for the process lifetime; every production and test load site
+   (about 100) now goes through it.
+   Symptoms before the fix included unrelated `ResourceLoader.Load` returning null and
+   `tesla_grid.tres` reading back with zeroed node values.
+
+3. **A GdUnit4 stdout race (pre-existing, caused `-532462766`).** `.runsettings` passed Godot the
+   verbose engine flag, so ~2,100 "Loading resource:" lines per run went through
+   `GdUnit4.Core.Hooks.WindowsStdOutHook.ReadPipeOutput`, whose pipe-reader thread calls
+   `System.Console.Write` while the hook swaps `Console.Out` at test boundaries. It threw
+   `ArgumentNullException` on a background thread and took the process with it (`0xE0434352`). The
+   flag is removed from `.runsettings`; errors and warnings still log.
+
+Measured after all three: 464/464 across consecutive full runs. **Level agents must not
+reintroduce any of these:** never call `Dispose()` on a Godot `Resource`; load authored `.tres`
+data through `FTT.Core.AuthoredResources`; and if you set `SceneTree.Paused`, release it in
+`_ExitTree` as well as on the normal path.
+
 **A2: two PlayerController hooks, not one, both routed through a shared registry.**
 §3 A2 allows `EnvironmentGravityScale` plus "the move-multiplier application if
 `MovementDampenerZone` needs one". Both were needed and both landed as one-line Story-only

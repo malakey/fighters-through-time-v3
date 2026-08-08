@@ -17,7 +17,7 @@ public class TeslaContentTests {
 
     [TestCase]
     public void TeslaCoilResourceMatchesDesignSpecification() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/tesla/special_1.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/tesla/special_1.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.BaseDamage).IsEqual(5f);
         AssertThat(data.DamageTickIntervalFrames).IsEqual(120);
@@ -29,7 +29,7 @@ public class TeslaContentTests {
 
     [TestCase]
     public void LorentzPulseResourceRootsForTwoSecondsWithOnePulseLifetime() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/tesla/special_2.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/tesla/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.AppliedStatus).IsEqual(StatusType.Root);
         AssertThat(data.StatusDuration).IsEqual(2f);
@@ -51,7 +51,7 @@ public class TeslaContentTests {
         var scene = ResourceLoader.Load<PackedScene>("res://scenes/constructs/TeslaCoil.tscn");
         AssertObject(scene).IsNotNull();
         Node root = AutoFree(scene.Instantiate());
-        var contract = ResourceLoader.Load<ContentSceneContract>(
+        var contract = FTT.Core.AuthoredResources.Load<ContentSceneContract>(
             "res://resources/Contracts/persistent_construct_contract.tres");
         AssertObject(contract).IsNotNull();
         var issues = ContentSceneContractValidator.Validate(root, contract);

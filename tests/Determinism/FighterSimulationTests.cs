@@ -96,7 +96,7 @@ public class FighterSimulationTests {
 
     [TestCase]
     public void LoadoutFactoryUsesNormalizedCharacterResources() {
-        CharacterData joan = ResourceLoader.Load<CharacterData>("res://resources/Characters/joan_data.tres");
+        CharacterData joan = FTT.Core.AuthoredResources.Load<CharacterData>("res://resources/Characters/joan_data.tres");
         AssertObject(joan).IsNotNull();
 
         FighterLoadout loadout = FighterLoadoutFactory.FromCharacterData(joan);

@@ -195,6 +195,12 @@ namespace FTT.Environment {
         }
 
         private void StartEntranceDialogue() {
+            // Callable.From(...) wraps a bare managed delegate, so - unlike
+            // CallDeferred(MethodName.X) - the engine does NOT drop the queued call
+            // when the target node is freed. A level torn down in the same frame it
+            // readied (fast scene change, a test fixture) would otherwise run this
+            // against a disposed node and its disposed DialogueManager.
+            if (!IsInstanceValid(this) || !IsInsideTree()) return;
             if (!string.IsNullOrWhiteSpace(EntranceDialogueID)) {
                 Services?.Dialogue?.StartSequence(EntranceDialogueID);
             }
@@ -638,7 +644,7 @@ namespace FTT.Environment {
             string encounterName = null,
             float revealDistance = 800f,
             Vector2 spawnOffset = default) {
-            var data = GD.Load<BossData>(bossResourcePath);
+            var data = AuthoredResources.Load<BossData>(bossResourcePath);
             if (data == null) {
                 GD.PushError($"Boss resource missing for level '{LevelID}': {bossResourcePath}");
                 return null;

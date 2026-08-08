@@ -621,7 +621,7 @@ namespace FTT.Environment {
             _bossEncounter = new BossEncounterController {
                 Name = "BorgiaInquisitorEncounter",
                 Position = new Vector2(x, y),
-                Data = GD.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres"),
+                Data = AuthoredResources.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres"),
                 RevealDistance = 800f
             };
             _bossEncounter.BossRevealed += OnBossRevealed;

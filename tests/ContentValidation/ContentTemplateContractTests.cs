@@ -51,6 +51,5 @@ public class ContentTemplateContractTests {
         AssertThat(errors.Count).IsEqual(1);
         AssertThat(errors[0].Contains("MissingNode")).IsTrue();
         root.Free();
-        contract.Dispose();
     }
 }

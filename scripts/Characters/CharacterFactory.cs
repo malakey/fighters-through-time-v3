@@ -31,7 +31,13 @@ namespace FTT.Characters {
 		}
 
 		public static PlayerController CreateCharacter(string characterID, int playerIndex = 0, bool applyStoryProgression = true) {
-			CharacterData data = GD.Load<CharacterData>($"res://resources/Characters/{characterID}_data.tres");
+			// Pinned, not GD.Load: a character .tres pulls in four AbilityData
+			// sub-resources and its SpriteFrames, all C#-scripted. Loading and
+			// dropping that graph on every spawn cycles a dozen script instances
+			// through the .NET finalizer thread and corrupts the heap
+			// (FTT.Core.AuthoredResources).
+			CharacterData data = AuthoredResources.Load<CharacterData>(
+				$"res://resources/Characters/{characterID}_data.tres");
 			if (data == null) throw new InvalidOperationException($"Character data not found for '{characterID}'.");
 
 			var player = new PlayerController {

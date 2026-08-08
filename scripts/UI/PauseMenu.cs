@@ -38,6 +38,18 @@ namespace FTT.UI {
             vbox.AddChild(quitBtn);
         }
 
+        /// <summary>
+        /// Same contract as DialogueManager: whoever set SceneTree.Paused has to
+        /// hand it back on teardown. A scene change while this menu is open would
+        /// otherwise leave the next scene frozen with no way to unpause it.
+        /// </summary>
+        public override void _ExitTree() {
+            if (!_isPaused) return;
+            _isPaused = false;
+            SceneTree tree = GetTree();
+            if (tree != null) tree.Paused = false;
+        }
+
         private void OpenSettings() {
             if (_settingsMenu == null || !IsInstanceValid(_settingsMenu)) {
                 _settingsMenu = new SettingsMenu { Name = "SettingsMenu" };

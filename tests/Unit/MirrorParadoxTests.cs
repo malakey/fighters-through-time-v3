@@ -26,7 +26,7 @@ public class MirrorParadoxTests {
 
     [TestCase]
     public void AuthoredResourceIsASinglePhaseThousandHPBossWithNoAttackPatterns() {
-        BossData data = ResourceLoader.Load<BossData>(MirrorResourcePath);
+        BossData data = FTT.Core.AuthoredResources.Load<BossData>(MirrorResourcePath);
         AssertObject(data).IsNotNull();
         AssertString(data.BossID).IsEqual("mirror_paradox");
         AssertString(data.DisplayNameKey).IsEqual("boss_mirror_paradox_name");
@@ -42,7 +42,7 @@ public class MirrorParadoxTests {
 
     [TestCase]
     public void AuthoredReactionWindowMatchesTheHardFighterCpuBoundsExactly() {
-        BossData data = ResourceLoader.Load<BossData>(MirrorResourcePath);
+        BossData data = FTT.Core.AuthoredResources.Load<BossData>(MirrorResourcePath);
         var hardCpu = new FighterCpuController(FTT.Core.CpuDifficulty.Hard, 1);
         int engineMinimum = hardCpu.GetReactionDelayBounds(out int engineMaximum);
 
@@ -72,7 +72,7 @@ public class MirrorParadoxTests {
             AssertObject(mirror.Clone.Data).IsNotNull();
             AssertString(mirror.Clone.Data.CharacterID).IsEqual(MirroredCharacter);
 
-            CharacterData canonical = ResourceLoader.Load<CharacterData>(
+            CharacterData canonical = FTT.Core.AuthoredResources.Load<CharacterData>(
                 $"res://resources/Characters/{MirroredCharacter}_data.tres");
             AssertString(mirror.Clone.Data.CharacterID).IsEqual(canonical.CharacterID);
             AssertObject(mirror.Clone.Data.SpecialAttackOne).IsEqual(canonical.SpecialAttackOne);
@@ -96,7 +96,7 @@ public class MirrorParadoxTests {
     public void ClonePoolIsTheAuthoredThousandHPBossPoolNotTheCharacterBaseline() {
         MirrorParadoxController mirror = CreateMirror();
         try {
-            CharacterData canonical = ResourceLoader.Load<CharacterData>(
+            CharacterData canonical = FTT.Core.AuthoredResources.Load<CharacterData>(
                 $"res://resources/Characters/{MirroredCharacter}_data.tres");
             AssertThat(canonical.MaxHP < 1000).IsTrue();
 
@@ -387,7 +387,7 @@ public class MirrorParadoxTests {
     private static MirrorParadoxController CreateMirror(ulong seed = 4242) {
         var mirror = new MirrorParadoxController {
             Name = "MirrorParadoxUnderTest",
-            Data = ResourceLoader.Load<BossData>(MirrorResourcePath),
+            Data = FTT.Core.AuthoredResources.Load<BossData>(MirrorResourcePath),
             CharacterIDOverride = MirroredCharacter,
             DecisionSeed = seed,
             // These tests assert construction and contract, not the fight. An

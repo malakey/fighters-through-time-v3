@@ -202,13 +202,15 @@ public class CampaignCompletionTests {
 
     [TestCase]
     public void TheChainWaitsForTheEndingDialogueBeforeRollingCredits() {
+        var tree = (SceneTree)Engine.GetMainLoop();
         var host = new Node { Name = "EndingDialogueHost" };
-        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(host);
+        tree.Root.AddChild(host);
         DialogueManager dialogue = DialogueManager.CreateDefault();
         host.AddChild(dialogue);
         dialogue.RegisterSetFromPath("res://resources/Dialogue/level_01_dialogue.tres");
 
         CampaignCompletionSequence sequence = null;
+        bool pausedAfterTeardown;
         try {
             sequence = CampaignCompletionSequence.Begin(
                 host, dialogue, "level_01.exit", returnToMainMenu: false);
@@ -226,7 +228,52 @@ public class CampaignCompletionTests {
             AssertThat(sequence.IsEndingDialogueActive).IsFalse();
         } finally {
             DetachAndFree(host);
+            // level_01.exit is a PausesGameplay sequence, and the EventBus route
+            // above deliberately bypasses DialogueManager.EndSequence(). Sample the
+            // pause flag, clear it unconditionally so a regression can never wedge
+            // the rest of the session, then assert on the sample.
+            pausedAfterTeardown = tree.Paused;
+            tree.Paused = false;
         }
+        AssertThat(pausedAfterTeardown).OverrideFailureMessage(
+            "DialogueManager left SceneTree.Paused set after teardown.").IsFalse();
+    }
+
+    /// <summary>
+    /// Regression guard for the Package 5 A1 suite hang. A PausesGameplay sequence
+    /// owns SceneTree.Paused; if the manager is torn down mid-sequence nothing else
+    /// gives it back and every later frame in the process is frozen - in game the
+    /// next scene loads dead, and under GdUnit the runner's transport node (default
+    /// Inherit process mode) stops pumping and the session times out.
+    /// </summary>
+    [TestCase]
+    public void ADialogueManagerTornDownMidSequenceHandsBackTheGameplayPause() {
+        var tree = (SceneTree)Engine.GetMainLoop();
+        bool pausedDuringSequence;
+        bool pausedAfterTeardown;
+        var host = new Node { Name = "PauseLeakHost" };
+        tree.Root.AddChild(host);
+        try {
+            DialogueManager dialogue = DialogueManager.CreateDefault();
+            host.AddChild(dialogue);
+            AssertThat(dialogue.RegisterSetFromPath("res://resources/Dialogue/level_01_dialogue.tres"))
+                .IsTrue();
+
+            AssertThat(dialogue.StartSequence("level_01.exit")).IsTrue();
+            pausedDuringSequence = tree.Paused;
+
+            DetachAndFree(host);
+            host = null;
+            pausedAfterTeardown = tree.Paused;
+        } finally {
+            DetachAndFree(host);
+            tree.Paused = false;
+        }
+
+        AssertThat(pausedDuringSequence).OverrideFailureMessage(
+            "level_01.exit is authored PausesGameplay = true; it must pause the tree.").IsTrue();
+        AssertThat(pausedAfterTeardown).OverrideFailureMessage(
+            "Freeing the DialogueManager mid-sequence must release SceneTree.Paused.").IsFalse();
     }
 
     // === Post-campaign hub ===

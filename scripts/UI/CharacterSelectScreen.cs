@@ -298,19 +298,19 @@ namespace FTT.UI {
         }
 
         private Texture2D GetCharacterPortrait(int index) {
-            CharacterData data = GD.Load<CharacterData>($"res://resources/Characters/{_characterIDs[index]}_data.tres");
+            CharacterData data = FTT.Core.AuthoredResources.Load<CharacterData>($"res://resources/Characters/{_characterIDs[index]}_data.tres");
             return data?.CharacterPortrait;
         }
 
         private string GetCharacterName(int index) {
-            CharacterData data = GD.Load<CharacterData>($"res://resources/Characters/{_characterIDs[index]}_data.tres");
+            CharacterData data = FTT.Core.AuthoredResources.Load<CharacterData>($"res://resources/Characters/{_characterIDs[index]}_data.tres");
             return data == null || string.IsNullOrWhiteSpace(data.DisplayNameKey)
                 ? Tr("common_unknown")
                 : Tr(data.DisplayNameKey);
         }
 
         private void UpdateStatsDisplay(string characterID) {
-            var data = GD.Load<CharacterData>($"res://resources/Characters/{characterID}_data.tres");
+            var data = FTT.Core.AuthoredResources.Load<CharacterData>($"res://resources/Characters/{characterID}_data.tres");
             if (data == null) {
                 _statsLabel.Text = Tr("fighter_stats_unavailable");
                 return;

@@ -47,7 +47,7 @@ public class EnemyRosterContentTests {
             AssertThat(entry.ValidationState).IsEqual(ContentValidationState.Valid);
             AssertThat(entry.ResourcePath).IsEqual($"res://resources/Enemies/{entry.ContentID}.tres");
 
-            EnemyData data = ResourceLoader.Load<EnemyData>(entry.ResourcePath);
+            EnemyData data = FTT.Core.AuthoredResources.Load<EnemyData>(entry.ResourcePath);
             AssertObject(data).OverrideFailureMessage(
                 $"Manifest Enemy row '{entry.ContentID}' has no loadable resource at {entry.ResourcePath}.")
                 .IsNotNull();
@@ -69,7 +69,7 @@ public class EnemyRosterContentTests {
             AssertThat(entry.ValidationState).IsEqual(ContentValidationState.Valid);
             AssertThat(entry.ResourcePath).IsEqual($"res://resources/Bosses/{entry.ContentID}.tres");
 
-            BossData data = ResourceLoader.Load<BossData>(entry.ResourcePath);
+            BossData data = FTT.Core.AuthoredResources.Load<BossData>(entry.ResourcePath);
             AssertObject(data).OverrideFailureMessage(
                 $"Manifest Boss row '{entry.ContentID}' has no loadable resource at {entry.ResourcePath}.")
                 .IsNotNull();
@@ -149,7 +149,7 @@ public class EnemyRosterContentTests {
             AssertThat(FileAccess.FileExists(summonPath)).OverrideFailureMessage(
                 $"{path} summons '{ability.SummonEnemyID}' but {summonPath} does not exist.").IsTrue();
 
-            EnemyData summoned = ResourceLoader.Load<EnemyData>(summonPath);
+            EnemyData summoned = FTT.Core.AuthoredResources.Load<EnemyData>(summonPath);
             AssertObject(summoned).IsNotNull();
             AssertThat(summoned.EnemyID).IsEqual(ability.SummonEnemyID);
             // Boss summons spawn through the standard/elite enemy pools; a summoned
@@ -166,7 +166,7 @@ public class EnemyRosterContentTests {
         // docs/DUST_ECONOMY.md Section 1: standards 1-2, elites exactly 10, bosses 50.
         int standards = 0, elites = 0;
         foreach (string path in TopLevelResources(EnemyDirectory)) {
-            EnemyData data = ResourceLoader.Load<EnemyData>(path);
+            EnemyData data = FTT.Core.AuthoredResources.Load<EnemyData>(path);
             AssertObject(data).IsNotNull();
             switch (data.Tier) {
                 case EnemyTier.Standard:
@@ -193,7 +193,7 @@ public class EnemyRosterContentTests {
 
         int bosses = 0;
         foreach (string path in TopLevelResources(BossDirectory)) {
-            BossData data = ResourceLoader.Load<BossData>(path);
+            BossData data = FTT.Core.AuthoredResources.Load<BossData>(path);
             AssertObject(data).IsNotNull();
             bosses++;
             AssertThat(data.ChronalDustDrop)
@@ -212,7 +212,7 @@ public class EnemyRosterContentTests {
         // the fallback every single time it crosses that threshold.
         int scripted = 0;
         foreach (string path in TopLevelResources(BossDirectory)) {
-            BossData data = ResourceLoader.Load<BossData>(path);
+            BossData data = FTT.Core.AuthoredResources.Load<BossData>(path);
             if (data.BossID == CpuDrivenBossID) {
                 AssertThat(data.BossAbilities == null || data.BossAbilities.Length == 0).OverrideFailureMessage(
                     "mirror_paradox must stay on the Fighter CPU engine with no BossData attacks.").IsTrue();

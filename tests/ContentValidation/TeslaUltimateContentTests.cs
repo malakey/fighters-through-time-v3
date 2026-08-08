@@ -17,7 +17,7 @@ public class TeslaUltimateContentTests {
 
     [TestCase]
     public void WardenclyffeCataclysmResourceAuthorsTheMultiHitColumn() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/tesla/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/tesla/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.BaseDamage).IsEqual(18f);
         AssertThat(data.IsMultiHit).IsTrue();
@@ -31,7 +31,7 @@ public class TeslaUltimateContentTests {
 
     [TestCase]
     public void WardenclyffeCataclysmResourceCarriesTheUltimateIdentity() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/tesla/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/tesla/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.HasValidIdentity()).IsTrue();
         AssertThat(data.AbilityID).IsEqual("tesla_wardenclyffe_cataclysm");

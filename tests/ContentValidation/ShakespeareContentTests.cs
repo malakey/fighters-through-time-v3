@@ -18,7 +18,7 @@ public class ShakespeareContentTests {
 
     [TestCase]
     public void YoricksLamentResourceMatchesTheDesignNumbers() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/shakespeare/special_1.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/shakespeare/special_1.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Projectile);
         AssertThat(data.BaseDamage).IsEqual(14f);
@@ -33,7 +33,7 @@ public class ShakespeareContentTests {
 
     [TestCase]
     public void TempestResourceIsAZeroDamageOwnerCenteredStorm() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/shakespeare/special_2.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/shakespeare/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Area);
         AssertThat(data.BaseDamage).IsEqual(0f);

@@ -253,7 +253,7 @@ public class EnemyRosterActITests {
     }
 
     private static EnemyData Load(string enemyID) =>
-        ResourceLoader.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
+        FTT.Core.AuthoredResources.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
 
     private static IEnumerable<EnemyAbilityData> AbilitiesOf(EnemyData data) {
         if (data.PrimaryAttack != null) yield return data.PrimaryAttack;

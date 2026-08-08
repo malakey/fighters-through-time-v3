@@ -62,7 +62,7 @@ public class CampaignRouteTests {
 
         // The Package 4 pool config already called level 10 "globe"; the route
         // said "London". This assertion is the tripwire for that split.
-        var poolConfig = ResourceLoader.Load<ScenePoolConfig>(
+        var poolConfig = FTT.Core.AuthoredResources.Load<ScenePoolConfig>(
             "res://resources/Pools/level_pool_configs/level_10_pool_config.tres");
         AssertObject(poolConfig).IsNotNull();
         AssertString(poolConfig.ConfigID).IsEqual("level_10_globe_pools");

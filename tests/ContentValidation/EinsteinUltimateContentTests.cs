@@ -18,7 +18,7 @@ public class EinsteinUltimateContentTests {
 
     [TestCase]
     public void CosmologicalConstantResourceCarriesTheMultiHitStructure() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/einstein/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/einstein/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.Slot).IsEqual(AbilitySlot.Ultimate);
         AssertThat(data.BaseDamage).IsEqual(15f);
@@ -31,7 +31,7 @@ public class EinsteinUltimateContentTests {
 
     [TestCase]
     public void CosmologicalConstantPhaseFramesSpanTheSingularity() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/einstein/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/einstein/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.StartupFrames).IsEqual(30);
         // The active window is exactly the singularity's lifetime, and the

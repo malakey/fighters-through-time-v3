@@ -29,7 +29,7 @@ public class EnemyRosterActIIWestTests {
     private const int EliteDustReward = 10;
 
     private static EnemyData Load(string enemyID) {
-        EnemyData data = ResourceLoader.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
+        EnemyData data = FTT.Core.AuthoredResources.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
         AssertObject(data).IsNotNull();
         // EnemyFactory caches EnemyData by ID; never mutate the shared instance.
         return data;

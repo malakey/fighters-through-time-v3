@@ -19,7 +19,7 @@ public class JoanUltimateContentTests {
 
     [TestCase]
     public void GrandCrusadeResourceIsAMultiHitDirectionalCavalryCharge() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/joan/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/joan/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.AbilityID).IsEqual("joan_grand_crusade");
         AssertThat(data.Slot).IsEqual(AbilitySlot.Ultimate);
@@ -35,7 +35,7 @@ public class JoanUltimateContentTests {
 
     [TestCase]
     public void GrandCrusadeHitCadenceFitsTheAuthoredActiveWindow() {
-        var data = ResourceLoader.Load<AbilityData>("res://resources/Abilities/joan/ultimate.tres");
+        var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/joan/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.DamageTickIntervalFrames).IsEqual(6);
         AssertThat(data.ActiveFrames).IsEqual(36);

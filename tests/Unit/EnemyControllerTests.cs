@@ -314,7 +314,7 @@ public class EnemyControllerTests {
         foreach (string enemyID in new[] {
             "chrono_slasher", "cyber_guard", "hologram_drone", "steam_automaton", "tech_enforcer"
         }) {
-            EnemyData data = ResourceLoader.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
+            EnemyData data = FTT.Core.AuthoredResources.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
             AssertThat(data.ItemDropChance).IsEqualApprox(1f, 0.0001f);
             AssertThat(data.PlaceholderTint.A > 0f).IsTrue();
         }
@@ -325,7 +325,7 @@ public class EnemyControllerTests {
     /// test may retune fields without leaking into the shared canonical .tres.
     /// </summary>
     private static EnemyController CreateEnemy(string enemyID) {
-        EnemyData canonical = ResourceLoader.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
+        EnemyData canonical = FTT.Core.AuthoredResources.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
         var data = (EnemyData)canonical.Duplicate();
         PackedScene scene = ResourceLoader.Load<PackedScene>(EnemyFactory.ScenePathForTier(data.Tier));
         var enemy = scene.Instantiate<EnemyController>();

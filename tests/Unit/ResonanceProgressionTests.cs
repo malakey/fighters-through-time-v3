@@ -58,7 +58,7 @@ public class ResonanceProgressionTests {
         TranslationServer.SetLocale("en");
         var allNodeIDs = new HashSet<string>();
         foreach (string characterID in CharacterIDs) {
-            ResonanceGridData grid = ResourceLoader.Load<ResonanceGridData>(
+            ResonanceGridData grid = FTT.Core.AuthoredResources.Load<ResonanceGridData>(
                 $"res://resources/Resonance/{characterID}_grid.tres");
             AssertObject(grid).IsNotNull();
             AssertString(grid.CharacterID).IsEqual(characterID);
@@ -103,7 +103,7 @@ public class ResonanceProgressionTests {
 
     [TestCase]
     public void UnlockedGenericAndMajorModifiersRemainCharacterScoped() {
-        ResonanceGridData grid = ResourceLoader.Load<ResonanceGridData>(
+        ResonanceGridData grid = FTT.Core.AuthoredResources.Load<ResonanceGridData>(
             "res://resources/Resonance/tesla_grid.tres");
         StorySaveData save = new() {
             SelectedCharacterID = "tesla",
@@ -126,7 +126,7 @@ public class ResonanceProgressionTests {
 
     [TestCase]
     public void CollectUnlockedAbilityModifiersReturnsOnlyUnlockedMajorPerkKeys() {
-        ResonanceGridData grid = ResourceLoader.Load<ResonanceGridData>(
+        ResonanceGridData grid = FTT.Core.AuthoredResources.Load<ResonanceGridData>(
             "res://resources/Resonance/einstein_grid.tres");
         StorySaveData save = new() {
             SelectedCharacterID = "einstein",
@@ -161,7 +161,7 @@ public class ResonanceProgressionTests {
 
     [TestCase]
     public void MinorCooldownPersistentAndStatusKeysResolveFromAuthoredGrid() {
-        ResonanceGridData grid = ResourceLoader.Load<ResonanceGridData>(
+        ResonanceGridData grid = FTT.Core.AuthoredResources.Load<ResonanceGridData>(
             "res://resources/Resonance/tesla_grid.tres");
         StorySaveData save = new() {
             SelectedCharacterID = "tesla",
@@ -267,7 +267,7 @@ public class ResonanceProgressionTests {
         };
         var documentedUnresolvedKeys = new HashSet<string> { "BlockDurability", "Armor" };
         foreach (string characterID in CharacterIDs) {
-            ResonanceGridData grid = ResourceLoader.Load<ResonanceGridData>(
+            ResonanceGridData grid = FTT.Core.AuthoredResources.Load<ResonanceGridData>(
                 $"res://resources/Resonance/{characterID}_grid.tres");
             foreach (ResonanceNodeData node in grid.Nodes) {
                 if (node.Type != ResonanceNodeType.Minor) continue;

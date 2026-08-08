@@ -61,9 +61,30 @@ namespace FTT.UI {
         }
 
         public override void _ExitTree() {
+            // A sequence with PausesGameplay owns SceneTree.Paused, and this manager
+            // is the only thing that ever hands it back. If the manager leaves the
+            // tree mid-sequence - scene change, level teardown, quit to menu, a test
+            // freeing the host - nothing else releases it and the ENTIRE process
+            // stays frozen, including whatever scene loads next. Release it here as
+            // well as in EndSequence(). See CLAUDE.md failure signature 4.
+            ReleaseGameplayPause();
+            _isActive = false;
+            _isTyping = false;
+            _currentSequence = null;
             if (Instance == this) Instance = null;
             if (FTT.Core.EventBus.Instance != null)
                 FTT.Core.EventBus.Instance.OnDialogueTriggered -= OnDialogueTriggered;
+        }
+
+        /// <summary>
+        /// Hands SceneTree.Paused back if - and only if - this manager is the one
+        /// that took it. Safe to call repeatedly and outside the tree.
+        /// </summary>
+        private void ReleaseGameplayPause() {
+            if (!_pausedGameplay) return;
+            _pausedGameplay = false;
+            SceneTree tree = GetTree();
+            if (tree != null) tree.Paused = false;
         }
 
         private void ResolveOrBuildUI() {
@@ -144,7 +165,7 @@ namespace FTT.UI {
 
         public bool RegisterSetFromPath(string resourcePath) {
             if (string.IsNullOrWhiteSpace(resourcePath) || !ResourceLoader.Exists(resourcePath)) return false;
-            var set = ResourceLoader.Load<DialogueSetData>(resourcePath);
+            var set = FTT.Core.AuthoredResources.Load<DialogueSetData>(resourcePath);
             if (set == null) return false;
             RegisterSet(set);
             return true;
@@ -256,8 +277,7 @@ namespace FTT.UI {
             _isTyping = false;
             Visible = false;
             _currentSequence = null;
-            if (_pausedGameplay && GetTree() != null) GetTree().Paused = false;
-            _pausedGameplay = false;
+            ReleaseGameplayPause();
             RecordLastViewedDialogue(completedID);
             FTT.Core.EventBus.Instance?.RaiseDialogueComplete(completedID);
         }

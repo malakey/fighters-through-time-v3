@@ -44,7 +44,7 @@ public class StoryDropsAndRewindTests {
 
     [TestCase]
     public void DustVisualTiersUseSmallMediumAndLargeThresholds() {
-        DustVisualTierSet tiers = GD.Load<DustVisualTierSet>("res://resources/Drops/dust_visual_tiers.tres");
+        DustVisualTierSet tiers = FTT.Core.AuthoredResources.Load<DustVisualTierSet>("res://resources/Drops/dust_visual_tiers.tres");
         AssertThat(ReferenceEquals(tiers.GetTexture(1), tiers.SmallTexture)).IsTrue();
         AssertThat(ReferenceEquals(tiers.GetTexture(6), tiers.MediumTexture)).IsTrue();
         AssertThat(ReferenceEquals(tiers.GetTexture(25), tiers.LargeTexture)).IsTrue();

@@ -130,7 +130,6 @@ public class EnemyAbilityExecutorTests {
             AssertThat(((EnemyProjectile)node).Velocity.X > 0f).IsTrue();
         }
 
-        ability.Dispose();
         owner.Free();
         CleanupPools(pools, parent);
     }
@@ -157,7 +156,6 @@ public class EnemyAbilityExecutorTests {
         }
 
         AssertThat(pools.GetStats(EnemyAbilityExecutor.ProjectilePoolID).Value.Active).IsEqual(0);
-        ability.Dispose();
         owner.Free();
         CleanupPools(pools, parent);
     }
@@ -175,7 +173,6 @@ public class EnemyAbilityExecutorTests {
         executor.Begin(ability, owner.GlobalPosition, facingRight: true);
 
         AssertThat(pools.GetActiveNodes(EnemyFactory.StandardPoolID).Count).IsEqual(2);
-        ability.Dispose();
         owner.Free();
         CleanupPools(pools, parent);
     }
@@ -306,8 +303,10 @@ public class EnemyAbilityExecutorTests {
         parent.Free();
     }
 
-    private static void Cleanup(Node2D owner, EnemyAbilityData ability) {
-        owner.Free();
-        ability.Dispose();
-    }
+    /// <summary>
+    /// Frees the owner node only. The EnemyAbilityData is RefCounted and Godot's
+    /// reference counting owns it; Dispose()ing a Godot Resource double-disposes
+    /// its C# script instance and corrupts the heap. See AGENTS.md.
+    /// </summary>
+    private static void Cleanup(Node2D owner, EnemyAbilityData ability) => owner.Free();
 }
