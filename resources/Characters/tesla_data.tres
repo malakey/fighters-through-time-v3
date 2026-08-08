@@ -31,3 +31,4 @@ MovementAbility = ExtResource("4")
 UltimateAttack = ExtResource("5")
 SpriteFramesResource = ExtResource("6")
 CharacterPortrait = ExtResource("7")
+DialogueChirpPitch = 1.18
