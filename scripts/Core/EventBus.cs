@@ -147,6 +147,50 @@ namespace FTT.Core {
         public bool ClockTickEnabled;
     }
 
+    /// <summary>
+    /// Local Fighter Mode presentation beats. Purely cosmetic: the deterministic
+    /// simulation never reads these, and the driver raises them from its own
+    /// presentation clock (design-godot.md Section 11 KO sequence). Package 8 can
+    /// restyle the whole sequence by consuming this payload differently.
+    /// </summary>
+    public enum FighterPresentationPhase {
+        /// <summary>Pre-match 3-2-1 tick. <c>CountdownValue</c> carries the digit.</summary>
+        Countdown,
+        /// <summary>"GO!" — the simulation is live.</summary>
+        MatchStart,
+        /// <summary>A fighter lost a stock but the match continues.</summary>
+        StockLost,
+        /// <summary>Both fighters frozen on the killing blow.</summary>
+        HitFreeze,
+        /// <summary>Losing fighter's defeat beat at reduced pace.</summary>
+        SlowMotion,
+        /// <summary>Background dim plus winner highlight.</summary>
+        Spotlight,
+        /// <summary>Large centred "K.O.!" stamp.</summary>
+        KOStamp,
+        /// <summary>Large centred "DRAW" stamp; no victory or defeat beat plays.</summary>
+        DrawStamp,
+        /// <summary>Winner victory-pose hold before the results screen.</summary>
+        WinnerPose,
+        /// <summary>Sequence finished; the results screen takes over.</summary>
+        Results
+    }
+
+    public struct FighterPresentationPayload {
+        public FighterPresentationPhase Phase;
+        /// <summary>Winner slot, or -1 when there is no winner yet / the match drew.</summary>
+        public int WinnerPlayerID;
+        /// <summary>Player slot the beat is about (stock loss, KO victim), else -1.</summary>
+        public int SubjectPlayerID;
+        public bool IsTrueTie;
+        /// <summary>3, 2, 1 during the countdown; 0 for "GO!" and every other phase.</summary>
+        public int CountdownValue;
+        /// <summary>Intended length of this beat in seconds.</summary>
+        public float DurationSeconds;
+        /// <summary>Presentation focus point in world pixels (KO location / winner).</summary>
+        public Vector2 FocusPosition;
+    }
+
     public enum StatusType {
         None,
         TimeDilation,
@@ -215,6 +259,10 @@ namespace FTT.Core {
 
         public event Action<RewindPresentationPayload> OnRewindPresentation;
         public void RaiseRewindPresentation(RewindPresentationPayload payload) => OnRewindPresentation?.Invoke(payload);
+
+        // === Fighter Mode presentation (countdown / KO sequence) ===
+        public event Action<FighterPresentationPayload> OnFighterPresentation;
+        public void RaiseFighterPresentation(FighterPresentationPayload payload) => OnFighterPresentation?.Invoke(payload);
 
         // === Dialogue Events ===
         public event Action<string> OnDialogueTriggered;

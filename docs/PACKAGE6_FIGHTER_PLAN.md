@@ -1,4 +1,4 @@
-# Package 6 — Ten-stage local Fighter Mode completion: implementation plan
+﻿# Package 6 — Ten-stage local Fighter Mode completion: implementation plan
 
 **Status:** Authored 2026-08-08 from a four-way reconnaissance of the stage system, match flow,
 CPU/rollback infrastructure, and content pipeline. Baseline at authoring time: 705 passing tests,
@@ -559,3 +559,107 @@ negative exit code, and the truncation point moves with the other agent's activi
 numbers below were taken in a window with no other Godot process alive. The orchestrator should
 serialize full-suite runs across Phase A/B worktrees, or this will keep producing phantom
 regressions.
+
+### A2 — Deterministic match flow + Fighter presentation core (2026-08-08)
+
+**The countdown length is a `FighterMatchRules` field defaulting to zero, and only the Godot driver
+passes the production 180.** §3 A2 asks for a pre-match `MatchState = 0`; making 180 the
+*simulation* default would have shifted the frame budget of roughly twenty existing tests spread
+across `FighterSimulationTests`, the nine kit/ultimate suites, `FighterCpuControllerTests` (A3),
+`RollbackProtocolTests` (A4) and `MirrorParadoxTests` (A3) — files this workstream does not own and
+whose edits would collide at merge. `FighterMatchRules.PreMatchCountdownFrames` is still fully
+deterministic state (it is written into `FighterMatchComponent.CountdownFramesRemaining` and enters
+every snapshot and hash); headless scenarios opt out by default and
+`FighterSimulationDriver.RulesFor` — the single production mapping — always passes
+`FighterMatchFlowRules.CountdownFrames`. Pinned by
+`FighterMatchFlowTests.ProductionRulesStartTheMatchInTheThreeSecondCountdown`,
+`.GameplayInputIsIgnoredUntilTheCountdownEnds` and
+`.MatchSettingsSurviveTheMappingIntoDeterministicRules` (which asserts the driver mapping carries
+180). **Later agents: construct a countdown simulation with
+`FighterMatchRules.Disabled.WithCountdown(FighterMatchFlowRules.CountdownFrames)`.**
+
+**The frame on which the countdown resolves is the match clock's first tick.** The countdown system
+runs in PreUpdate and flips `MatchState` to 1 there, so `FighterMatchSystem` (LateUpdate) decrements
+the timer on that same frame. Gameplay input is still discarded on it — `ClearGameplayInput` runs
+before the flip — so the fighters cannot act; only the clock moves. Exactly 180 frames are
+input-locked. Pinned by `FighterMatchFlowTests.TheMatchClockDoesNotRunDuringTheCountdown`.
+
+**The bottom blast zone was unreachable before this change, and fixing it required reordering the
+movement system's tail.** On any stage whose base floor spans the full width — which is every
+authored geometry — the ground snap `Position.y <= 0` ran *before* the blast-zone check, so a
+fighter who had fallen past `BottomBlastZone` was teleported back up onto the floor the instant
+their 30-frame drop-through window expired. From a standing drop-through the deepest reachable point
+is about −5.17 at frame 31, i.e. only just past the −5 line, and the snap always won. The blast-zone
+check now resolves first and `continue`s. This is what makes plan scope item 9's "bottom fall" end
+condition real rather than nominal; it changes nothing on solid-floor stages, where the fighter
+never gets below y = 0 at all. Pinned by `FighterMatchFlowTests.MatchEndsOnABottomBlastZoneFall` and
+`.MatchEndsOnStockExhaustion`. **A1/C1 note:** stages whose authored floor does not span the full
+width will now let fighters fall off the sides of the floor as designed; nothing else depends on the
+old ordering.
+
+**`FighterStateComponent` sits exactly on Klotho's 128-byte component budget, so the respawn phase
+and its countdown share one field.** Two `int`s pushed the struct to 132 bytes and raised
+`KLSG_ECS004`, which would have been a new build warning. `RespawnFramesRemaining > 0` is itself the
+"on platform" phase — the drop always zeroes the counter in the same frame it reaches zero — so
+`FighterMatchFlowRules.IsOnRespawnPlatform` reads the single field. Anyone adding a field to this
+struct must first free space; `SpawnPosition` (16 bytes) is now written at spawn and never read and
+is the obvious candidate.
+
+**Spawn invulnerability is expressed through the existing `InvulnerabilityFrames` field rather than
+a new damage-rule branch.** While the platform holds a fighter the movement system re-asserts
+`InvulnerabilityFrames = RespawnFramesRemaining + 180` every frame, and the drop sets a clean 180.
+That satisfies "invulnerable on the platform, 3 s counted from the drop" without editing
+`FighterDamageRules` in `FighterEntitySystems.cs`, which A1 owns. Roll i-frames stay distinct
+because the roll grant is guarded by `if (InvulnerabilityFrames < RollInvulnerabilityFrames)`.
+Pinned by `.TheFighterIsInvulnerableForTheWholeDissolve`,
+`.AnyInputAfterTheGraceWindowDropsTheFighterAndArmsTheThreeSecondWindow` and
+`.RollInvulnerabilityStaysDistinctFromSpawnInvulnerability`.
+
+**A 30-frame grace window was added to the respawn platform; the design does not name one.**
+design-godot.md ~1569 says "any input" drops the fighter, which in practice means the still-held
+input that scored the knockout drops them on frame one. §3 A2 anticipated this ("any gameplay input
+after a short grace"). `FighterMatchFlowRules.RespawnPlatformGraceFrames = 30` (0.5 s). Pinned by
+`.AFighterCannotActWhileTheRespawnPlatformHoldsThem`.
+
+**The flow UI is attached by `FighterSimulationDriver`, not by the stage controllers.**
+`LocalFighterPause.tscn`, `MatchResults.tscn` and the new `FighterPresentationOverlay` are added as
+driver children in `AttachMatchFlowUI`. The driver is the one node both `TestArenaController` (A1's
+file) and `FighterStageController` already create, so this needed no edit to either controller and
+every Phase B stage scene inherits the whole flow for free with no per-stage wiring. Pinned by
+`FighterMatchFlowContentTests.TheAuthoredPauseSceneInstantiatesAtItsReservedPath` /
+`.TheAuthoredResultsSceneInstantiatesAtItsReservedPath`.
+
+**`MatchCompleted` now fires at the *end* of the KO sequence instead of the instant the match
+resolves.** The driver raises the results transition after hit-freeze → slow motion → stamp →
+winner pose (~4.6 s). `TestArenaHUD` no longer subscribes to it — its code-built results panel and
+its raw `ui_cancel` instant-exit are both gone — so the only current consumer is the driver's own
+results screen. Any future subscriber must expect the delay.
+
+**Overall win/loss stays player-one-centric while the new character tallies are per-character.**
+`FighterMatchStatistics.Record` keeps the pre-Package-6 meaning of `TotalWins`/`TotalLosses` (the
+local profile is player one) and adds `CharacterWins`/`CharacterLosses` for both fighters. A true tie
+writes none of the four. Pinned by `FighterMatchStatisticsTests` (5 cases).
+
+**`InputManager.RefreshConnectedDevices` no longer re-runs a full auto-assign.** The old code called
+`AutoAssignDevices()` on every connect *and* disconnect, which cleared both maps and reshuffled both
+fighters' controllers any time any pad was plugged in mid-match. `ApplyDeviceTopology` now drops only
+assignments whose device vanished and fills only empty slots; `TryAssignFirstFreeDevice` backs the
+reconnect flow. `SetConnectedJoypadsForTesting` is an `internal` seam (tests compile into the same
+assembly) so the policy is exercisable without Godot's `Input` singleton. Pinned by
+`LocalFighterPauseTests.ReconnectingAJoypadKeepsExistingAssignmentsInsteadOfReshufflingThem`,
+`.ADisconnectOnlyClearsTheAffectedSlot` and `.RebindingTakesTheFirstUnclaimedConnectedDevice`.
+
+**No hash literal was found in any test**, per §2.11 — every determinism suite compares run-to-run,
+so the two new component fields shifted baselines harmlessly.
+
+**Placeholder KO/fanfare audio resolves to nothing today.** `FighterSimulationDriver` looks for
+`res://audio/sfx/combat/ko_stinger.ogg` and `res://audio/sfx/ui/victory_fanfare.ogg` and no-ops when
+absent; `audio/sfx/` is empty in this repository. The wiring and the `EventBus` phase payload are in
+place so Package 8 only has to drop the stems in.
+
+**Test-environment note for the orchestrator.** Parallel Phase A worktrees share one GdUnit4 REST
+port and one `app_userdata` log directory, so concurrent `dotnet test` runs abort each other with
+`Starting GodotRuntimeExecutor failed` / `The server returned an unexpected status code` and a
+truncated `Total:` (29 or 122 here) — always with **0 failures and no negative exit code**, which
+distinguishes it from CLAUDE.md failure signatures 1/2/4. The log will contain another worktree's
+absolute paths. Two clean serial runs were obtained at **742/742** (705 baseline + 37 A2 tests).
