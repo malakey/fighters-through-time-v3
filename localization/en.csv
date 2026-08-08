@@ -901,3 +901,36 @@ dlg_l12_exit_2,"Confirmed. Every set on Earth is watching the real thing. The ou
 dlg_l12_exit_3,"It went out completely on the pad, Sarah. The resonance. For a second I was just a person standing on the Moon. Whatever we do next, I should do it soon."
 dlg_l12_exit_4,"I know, and I have the reason we can. The overload wrote something back down the beam before it died — a coordinate signature. Traveler, it is not anywhere in history. It is their home. Far future. Neo-Earth."
 dlg_l12_exit_5,"Then Act Two ends here. Take me through their front door, Commander."
+alexandria_level_title,"LEVEL 15: THE LIBRARY OF ALEXANDRIA — RESTORATION"
+alexandria_room_portico,THE BURNING PORTICO
+alexandria_room_stacks,THE GREAT STACKS
+alexandria_room_collapse,THE COLLAPSING HALL
+alexandria_room_rotunda,THE PRIME ANCHOR ROTUNDA
+alexandria_objective_reach_anchor,Cross the burning Library and reach the Prime Anchor
+alexandria_objective_stacks,Climb the scriptorium and force a way east through the stacks
+alexandria_objective_escape,"RUN — the hall is coming down behind you"
+alexandria_objective_rotunda,Clear the rotunda guard
+alexandria_objective_defeat_boss,Defeat the Apex Eraser!
+alexandria_objective_restore,Insert the Temporal Core into the Alexandria Anchor
+alexandria_objective_complete,"The anchor is restored. History is safe."
+alexandria_anchor_dormant,PRIME ANCHOR — SEALED
+alexandria_anchor_ready,PRIME ANCHOR — EXPOSED
+alexandria_interaction_insert_core,Press Interact to insert the Temporal Core
+speaker_apex_eraser,The Apex Eraser
+speaker_narration,Narration
+dlg_l15_entrance_1,"I know this place. Not from a briefing — from the first second of all of this. The same colonnade. The same smoke. The Library is burning down around the exact moment it broke."
+dlg_l15_entrance_2,"Because it is that moment, Traveler. You are standing inside the original overload — the fracture every rift you have closed was torn out of. The Prime Anchor is at the far end of the rotunda, and the Eraser is standing over it. Get there, and put everything you have carried back into the stone."
+dlg_l15_entrance_3,Then we finish it where it started.
+dlg_l15_preboss_1,"The rotunda is through that door. Every scrap of temporal energy you have gathered since Florence is riding in you right now, and that anchor is the only thing in history built to hold it."
+dlg_l15_preboss_2,And the Eraser?
+dlg_l15_preboss_3,"Standing between you and the stone, with three phases of Archive doctrine and the whole future behind it. This is the last door, Traveler. There is nothing after this one."
+dlg_l15_boss_intro_1,"You are a footnote that learned to walk. I have unwritten empires, languages, entire centuries of a species that never noticed the subtraction. Alexandria burns twice: once for history, and once for you."
+dlg_l15_boss_intro_2,"Alexandria burned once. Everything after that was you. I am here to give it back."
+dlg_l15_postboss_1,"The Eraser is gone — and the anchor is exposed. That is it, Traveler. Walk to the stone and put the Temporal Core in. All of it. Everything you have carried since the workshop."
+dlg_l15_postboss_2,Every era. All the way back.
+dlg_l15_ending_1,It is working! The prime anchor is absorbing the feedback! The siphons are shutting down globally!
+dlg_l15_ending_2,"In Renaissance Florence, in Roman Pompeii, on the fields of Gettysburg — cybernetic gear, laser visors and glowing energy cells dissolve away from guards, soldiers and citizens. They rub their eyes in confusion and look around at pristine, restored historical settings."
+dlg_l15_ending_3,"The temporal resonance... it is fading. The weight of the era is returning."
+dlg_l15_ending_4,"The timelines are normal. History is safe. The rifts are closed forever. Thank you, Traveler. You will wake up exactly where your own life left off. You will remember the Time-Ship, the battle, and the friends you fought beside... but the magic of the rifts is gone. You are back where you belong."
+dlg_l15_ending_5,History... is ours to write now.
+dlg_l15_ending_6,"The Library of Alexandria stands tall, quiet, and untouched by futuristic fire under a clear, ancient sky."

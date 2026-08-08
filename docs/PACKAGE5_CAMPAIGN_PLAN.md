@@ -1351,3 +1351,78 @@ differently in play. No change required to either level.
   `localization/en.en.translation` IS committed. Florence plus all eleven Wave A/B campaign scenes
   smoke clean at `--quit-after 300`: exit 0, zero script errors, zero warnings, no output beyond the
   engine banner. `AGENTS.md` is left for C1 per the A1 convention.
+
+### Wave C - Level 15, Library of Alexandria Restoration (campaign finale)
+
+- **L15: the Core insertion sits BETWEEN the post-boss beat and the ending, and that ordering is
+  forced by the design.** design-godot.md 3389 gates the ending cinematic on the Eraser dying
+  *and* the Temporal Core going into the anchor. `PostBossDialogueIDs` fires the instant the boss
+  dies, so it can only carry the **prompt** (`level_15.postboss`, Sarah telling the player to
+  deposit the Core) - the ending cannot live there or it would play over a boss corpse with the
+  anchor untouched. The final order is therefore:
+  `OnBossDefeated` (base, not overridden) -> `StartPostBossSequence` override arms the anchor ->
+  `level_15.postboss` -> `StartExitSequence` override posts the restoration objective **and stops**
+  -> the player interacts with `TemporalCoreAnchor` -> `ShowCompletionResults()` ->
+  `PresentCompletion` starts `CampaignCompletionSequence` -> `level_15.ending` -> credits ->
+  `IsCompleted` -> Main Menu. The ending beat is owned by `CampaignCompletionSequence`'s
+  `endingDialogueID` route and by nothing else, so the "pick one, not both" rule is satisfied by
+  construction: `PostBossDialogueIDs` does not contain it.
+- **L15: the anchor arms on the defeat, not at the end of the beat chain.** `StartPostBossSequence`
+  calls `ArmTemporalCore()` *before* `base.StartPostBossSequence()`. Arming from the tail of the
+  chain would mean a `level_15.postboss` that failed to start could lock the player out of the
+  ending; the base skips a beat that will not start, but it skips it 1.5 s later and through a
+  `SceneTreeTimer`. The gate is now a pure function of `IsBossDefeated`.
+- **L15: nothing persists "the Eraser is dead", deliberately.** The obvious kindness - writing a
+  save flag at the defeat so a resumed run skips the refight - is exactly the failure the brief
+  warns about: `SaveManager.SetPuzzleCompleted` only mutates memory, so the flag would survive a
+  scene change but not a quit, and a run that *did* keep it would resume into an empty rotunda whose
+  anchor arm state came from a live encounter that no longer exists. Instead the anchor's armed
+  state is derived from this run's `BossEncounterController`, and the last autosave before the
+  restoration is checkpoint 2 (west of the rotunda, east of the firestorm's finish line). A quit
+  between the boss and the Core resumes with the Eraser alive, refights it, and reaches the same
+  ending. `ResumingAtTheFinalCheckpointAfterTheBossStillReachesTheEnding` drives that whole path.
+- **L15: `level_15.ending` is the one dialogue sequence in the campaign authored
+  `PausesGameplay = false`.** Every other beat here keeps the convention. The ending is the single
+  place where a leaked `SceneTree.Paused` would freeze the *Main Menu* rather than a level, and it
+  gains nothing from the pause: the arena is cleared, `CreditsController` runs on
+  `ProcessMode.Always`, and `GameManager._Process` - which is what performs the final
+  `ChangeSceneToPacked` - would itself stop under a paused tree. Pinned by
+  `TheEndingBeatDoesNotTakeTheGameplayPause`, and the full-chain case samples `SceneTree.Paused` at
+  the hand-off and asserts it clear.
+- **L15: there is no `level_15.exit` sequence and `ExitDialogueID` is `""`.** The campaign ends
+  here, so the base's "exit dialogue completed -> results overlay -> hub" route is deliberately made
+  unreachable rather than authored and then ignored. `StartExitSequence` is overridden to post the
+  restoration objective only. No shared-sweep test requires a per-level exit beat (only the
+  per-level suites assert their own), so nothing else needed changing.
+- **L15: `TemporalCoreAnchor` is a new bespoke class, not a toolkit component.** It ships no
+  template under `scenes/templates/`, is authored once directly in `Level_15_Alexandria.tscn`, and
+  exists to gate exactly one chain. Its `RewindPolicy` defaults to `PreserveCurrentState`: a rewind
+  after the restoration must not re-seal an anchor whose ending is already rolling
+  (`ARewindAfterTheRestorationCannotUndoIt`).
+- **L15: gallery rungs are 100 px because Lincoln clears 113 px.** This level has no gravity
+  mechanic to lend height, and at Earth gravity the closed-form apex for the heaviest
+  single-jump character is ~113 px (Leonardo, the next heaviest, gets ~197). Every rung in the
+  portico stair, the scriptorium climb, and the hall shelves is a 100 px step; the scriptorium is
+  the required vertical section at 500 px of climb over five rungs. Wave-B levels that used bigger
+  steps were either low-gravity (12) or had lift/ladder assists.
+- **L15: `apex_eraser` is 1200 HP with a 10.0-unit ranged band, and the resource wins.**
+  design-godot.md's 3000 is stale; plan section 4.1 already recorded 1200 and the authored `.tres`
+  agrees. Nothing in the boss resource was touched. The rotunda is 2,000 px against the 600 px band
+  at `BossController`'s 60 px per unit, and `Level15ContentTests` asserts the fit against the
+  resource rather than a hardcoded width.
+- **L15: `StoryManager.CurrentLevel` is not restored by the test fixture.** This is the only level
+  suite that reaches `OnLevelComplete`, and `AdvanceToNextLevel` bumps the campaign pointer. The
+  setter is private and both public paths (`ResumeCampaign`, `RestartCollapsedLevel`) call
+  `GameManager.LoadScene`, which would pull the GdUnit runner's own scene. Nothing in the suite
+  reads the pointer; if that changes, `StoryManager` needs a test seam - a shared-code change, which
+  Wave C is forbidden from making.
+- **L15: known edge, not fixed here.** A quit *during* the credits leaves the level advanced and
+  autosaved but `IsCompleted` still false, because A1 deliberately writes the flag at the end of the
+  credits (skipped or not). Closing that window means moving the save write earlier in
+  `CampaignCompletionSequence`, which is shared A1 code. Flagged for C1.
+- **L15: suite baseline 632 -> 653** (+21 `Level15ContentTests`). Verified 653/653, 0 failed, 19 s,
+  across two consecutive full runs with no corruption-shaped total. Build clean but for the vendored
+  CS8632. `--import` then `--quit` clean; the regenerated `localization/en.en.translation` IS
+  committed and the fresh-worktree `.import` churn was reverted. `Level_15_Alexandria.tscn` smokes
+  clean at `--quit-after 300`: exit 0, zero script errors, no output beyond the engine banner.
+  `AGENTS.md` is left for C1 per the A1 convention.
