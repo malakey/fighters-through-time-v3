@@ -982,3 +982,79 @@ a pre-merge `git add`) before it will fast-forward.
 - **L07: suite baseline 514 -> 535** (+21 `Level07ContentTests`), verified at 535/535, 0 failed in
   16 s. Import clean, `--quit` clean, and `Level_07_Nassau.tscn --quit-after 300` exits 0 with no
   script errors. `AGENTS.md` is left for C1 per the A1 convention.
+### Wave B — L10 The Globe Theatre, London 1599
+
+- **L10: §4.1 held exactly; no boss-resource contradiction.** `resources/Bosses/tragedy_king.tres`
+  reads `MaxHP = 800`, `MeleeRangeThreshold = 3.0`, `RangedRangeThreshold = 8.0`, one threshold at
+  0.5, `AttackPattern = 1` (`DistanceBased`), `IsKnockbackImmune = true`, 50 dust — identical to the
+  §4.1 row. Nothing was edited. The tiring-house arena confines to 1,920 px against the resource's
+  real 480 px band, and `Level10ContentTests` asserts `RangedRangeThreshold * 60 < arenaWidth`
+  rather than a hardcoded number.
+- **L10: the Nassau contrast is expressed entirely in the anchors' exported properties, because
+  rope length is not overridable.** `PendulumAnchorTemplate.tscn` fixes the rope at a 320 px child
+  polygon plus a 40 px hang marker, and overriding an instanced scene's child geometry needs the
+  fragile `index=` block (L02) or risks mutating a shared `SubResource` (L05). So the "tight indoor
+  rigging, not a long open-air crossing" reading is carried by the five properties a level *can*
+  set, and each one is pinned by a test: `AmplitudeDegrees` ≤ 34 (tight arcs), `PeriodSeconds` ≤ 1.4
+  (fast), `MaxLaunchSpeed` ≤ 520 with `ReleaseLaunchAssist` 0.7 (a Globe rope buys a balcony, not a
+  bay), `PhaseOffset` distinct across all four lines (a chain that has to be timed), and each
+  anchor mounted strictly higher than the previous one with ≤ 520 px between them (the rigging
+  ladders tiers instead of crossing distance). `Level10Controller` exposes those caps as public
+  constants so the test asserts against the level's own stated discipline. Level 7 had not merged
+  when this branch was cut; if Nassau's numbers land inside these caps, the two levels read alike
+  and one of them should move.
+- **L10: the idle-punish audience is level-owned, not a twelfth toolkit component.** §2.7 forbids
+  editing shared toolkit code and the design's beat is specific to this level, so `AudienceThrow`
+  is an ordinary `CyclicHazardTemplate` instance authored with `Enabled = false` and driven entirely
+  from `Level10Controller.TickAudience(dt)`: the component's own cycle would make the punish a
+  metronome instead of a response. The controller repositions the prop to the marked spot, drives
+  `ForcePhase(Warning → Active)`, and calls `ApplyToPlayer` itself. `TickAudience` is public and
+  `dt`-driven precisely so a test can step it frame by frame rather than waiting on physics.
+- **L10: one constant is both the escape distance and the strike radius, on purpose.**
+  `AudienceEscapeRadius` (90 px) is checked every frame of the telegraph to disarm, and checked
+  again at the moment of impact to hit. Two separate numbers would eventually drift into a hazard
+  that reaches further than the escape it advertises. The throw is armed only after 3 s of the
+  player moving slower than 40 px/s, telegraphed for 1.1 s, and cancelled outright by walking out of
+  the radius — escapable by construction, never a cheap shot. It is deliberately left live during
+  the boss fight: it only fires at a stationary player, and the Tragedy King's audience heckling
+  anyone who stops moving is the level's whole thesis.
+- **L10: the level is 1,600 px tall and only the Yard is bottom-anchored.** The under-stage cellar
+  (1500) and the upper gallery (420) are the two ends of the climb, so rooms 2–4 confine to the full
+  height. The Yard is the one flat room and would otherwise let the camera drift into empty gallery
+  air, so it confines to a bottom-anchored 1080 window (L03/L09 precedent). Every room still floors
+  at the 1,920 px reference width (L02 precedent).
+- **L10: no route out of a fallen-through trapdoor depends on a trapdoor's timing.** All five
+  trapdoors are `AutoCycle = true`, so the under-stage scaffolding lifts under each one always
+  reopen; but the guaranteed exit is the tiring-house stair at the cellar's east end, whose head is
+  a one-way platform sitting flush at board height — so the eastward walk across the stage is never
+  a hole, and the climb out of the cellar is never a wait. The boss arena uses the same trick: the
+  prompt recess under its two traps has a one-way island in the middle of it. A player can always
+  get back on the boards by walking, which is what makes coupling trapdoors to a boss arena fair.
+- **L10: trapdoor gaps are authored at exactly the template's fixed 220 px shape.**
+  `TrapdoorPlatformTemplate.tscn` carries a 220x28 `SubResource` shape, so the board segments in
+  `BuildStage`/`BuildTiringHouseStage` are cut to leave exactly that width and the traps sit flush at
+  `GroundY + 14`. `EveryTrapdoorSitsFlushInAGapInTheStageBoards` walks the built `Floor_*` bodies at
+  board height and fails on any overlap — without it a re-authored segment silently leaves a solid
+  floor under a "trapdoor" and the signature mechanic becomes decorative (the L02 barrier-offset
+  lesson, in a different shape).
+- **L10: the gallery climb is made mandatory by a wall, not by a gate.** Room 3's yard floor
+  dead-ends at a full-height wall spanning y 700–1160, so the only route into the tiring-house is
+  over the middle balcony tier. The fourth rigging line up to the *upper* gallery stays optional and
+  is what guards the third extractor. No `PuzzleManager` condition was needed.
+- **L10: `MarkWavesClearedThrough` shuts every trapdoor and silences the galleries, and so does
+  every rewind.** Both mid-level checkpoints stand on solid boards (asserted), but the traps and the
+  audience are the two stateful things in the level: a resume must not load into a hole that
+  happened to be open, and neither a resume nor a Chronal Rewind may finish a telegraph the player
+  has already been moved out of. The trapdoors restore themselves through their own
+  `IStoryRewindable` policy; the audience has no owner but the level, so `OnStoryRewind` resets it.
+  Enemy posts and patrols are also asserted never to stand over a trap — the floor dropping is a
+  threat to the player, not a free enemy delete.
+- **L10: `--headless --import` on this fresh worktree rewrote ~40 tracked `.import` files with
+  line-ending-only churn** (`git diff` reported nothing but CRLF warnings). Reverted with
+  `git checkout -- "*.import"`. The regenerated `localization/en.en.translation` *is* committed, per
+  the L02 rule.
+- **L10: suite total 554 → 570 in this worktree** (+16 `Level10ContentTests`, measured against a
+  branch with Wave A's 514 plus the merged L06/L08/L09 suites), verified at 570/570, 0 failed, 17 s
+  on the first full run with no worktree contention. Import clean; `Level_10_Globe.tscn` smoke at
+  `--quit-after 300` exits 0 with zero errors or warnings. `AGENTS.md` is left for C1 per the A1
+  convention.

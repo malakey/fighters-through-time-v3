@@ -823,3 +823,25 @@ dlg_l07_exit_1,"The grid is down. The guns are just guns again."
 dlg_l07_exit_2,"Confirmed — the bay is clear of chronal returns. Nassau still falls to the pardon in two years, Traveler, but it falls the way it actually fell, and everyone below decks gets to run for the boats."
 dlg_l07_exit_3,"The resonance is thinning again. I could feel every rope before I touched it, and now I can barely feel my own hands."
 dlg_l07_exit_4,"It always fades once the fracture closes. Come home and let the ship read you. There is another siphon burning three hundred years further back, and I do not like where."
+globe_level_title,"London, 1599 — The Globe Theatre"
+globe_room_yard,THE YARD — GROUNDLING PIT
+globe_room_stage,THE STAGE — MIND THE TRAPS
+globe_room_galleries,THE GALLERIES — RIGGING CLIMB
+globe_room_tiring_house,BOSS: THE TRAGEDY KING
+globe_objective_reach_stage,Cross the yard and get up onto the stage
+globe_objective_cross_stage,Cross the stage — the boards shake before they drop
+globe_objective_heckled,The galleries have you marked — move!
+globe_objective_climb,Swing the rigging up through the galleries to the tiring-house
+globe_objective_defeat_boss,Defeat the Tragedy King!
+globe_objective_complete,LEVEL COMPLETE! Returning to Time-Ship...
+speaker_tragedy_king,The Tragedy King
+dlg_l10_entrance_1,"Full house. Two thousand people packed in to watch a prince go mad, and not one of them has blinked since I walked in."
+dlg_l10_entrance_2,"That is the manipulators, Traveler. The Archive has seeded the galleries, and it has rigged collapse charges under the stage. The moment those boards go, two thousand held minds are released at once and they all try to leave through the same door. Keep off a plank that starts shaking — and keep moving. A held crowd throws whatever is in reach at anything that stands still."
+dlg_l10_entrance_3,"Then I will give them a performance worth watching."
+dlg_l10_boss_1,"You are early, and you are not in the script. Sit down. The fifth act is the only part of any of this that anyone remembers, and I have rewritten it so that nobody walks out."
+dlg_l10_boss_2,"Every one of them came here to watch a tragedy and then go home again. I am going to make sure they do."
+dlg_l10_exit_1,"Charges are out from under the boards. The galleries let go all at once — listen to them. They are arguing about the ending."
+dlg_l10_exit_2,"Confirmed. Two thousand people walk out of the Globe tonight and take that argument home with them, which is exactly what was written."
+dlg_l10_exit_3,"It went faint again. Halfway across the rigging I reached for the resonance and there was a beat where nothing came back."
+dlg_l10_exit_4,"I saw it on the telemetry. Every fracture you seal, you hand a little more of it back to the moment it was stolen from. I am not going to pretend that is free."
+dlg_l10_exit_5,"Then log it and line up the next one. Bring me home, Commander."
