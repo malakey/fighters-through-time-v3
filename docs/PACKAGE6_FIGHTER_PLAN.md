@@ -1481,3 +1481,39 @@ INTEGRATION-A was hit repeatedly during this workstream (`exit code: 100` /
 that plainly matches); every number above is from a run whose `Total:` matched the expected delta.
 A temporary headless probe scene was used to diagnose the stock-exhaustion issue above while the
 pipe was contended; it was deleted before commit.
+
+### ORCHESTRATOR — Phase B integration (2026-08-08)
+
+**INTEGRATION-B: all nine stage branches merged; purely additive as designed.** The only conflicts
+were this file's §9 appends (union-resolved). Each agent independently merged the post-Phase-A
+`main` into its stale worktree base before starting, so every branch built against the merged
+geometry and hazard code.
+
+**INTEGRATION-B: validation.** `dotnet build` clean (pre-existing vendored `CS8632` only);
+`--headless --import` clean (line-ending-only churn on the new SVG sidecars discarded); full suite
+**901 passed / 0 failed / Total 901** across two consecutive serial runs — exactly the 820 Phase A
+baseline + 81 per-stage tests (Alexandria 8, Nassau 10, the other seven 9 each). Every stage agent
+also reported a clean scene smoke (`--quit-after 300` exit 0) from its worktree.
+
+**INTEGRATION-B: items accumulated for C1, from the per-stage §9 blocks:**
+1. `ParallaxBackground`/`ParallaxLayer` are `[Obsolete]` in Godot 4.7 (superseded by `Parallax2D`).
+   All nine scenes use the node type §5 specified; all nine test suites deliberately read it
+   untyped so the build carries no new `CS0618`. C1 decides once: keep for the placeholder pass
+   (recommended — migration is presentation work that belongs with Package 8) and record the
+   decision, or migrate all ten scenes now.
+2. Backdrop-tint-over-parallax: a `ParallaxBackground` is a negative-layer `CanvasLayer`, so an
+   opaque layer-0 `BackdropTint` hides it. Each agent solved this locally (translucent tint or an
+   opaque base inside the parallax); C1 spot-checks all nine scenes for an actually-visible
+   parallax.
+3. `visual_stage_*` manifest rows still point at the shared `parallax_far.svg`; C1 §6.4 repoints
+   them at the per-stage assets.
+4. The vacuous-hazard-test trap (match ends → `FighterHazardSystem` freezes → phase assertions
+   never run) was independently found and guarded by the stage agents; every merged suite asserts
+   observed phases and/or match liveness.
+5. New failure signatures for CLAUDE.md: the cross-worktree GdUnit pipe contention (partial
+   `Total:` with 0 failures, exit code 100 / `Failed to connect: Connection timeout` /
+   `All pipe instances are busy` / a sibling worktree's paths in godot.log; also masquerades as
+   `No test matches the given testcase filter` and as a plausible-looking 12-second
+   `Passed! Total: 73` pure-C#-only run), the one-`[TestSuite]`-per-file rule, and the
+   `OverrideFailureMessage("")`-throws footgun. Draining `testhost` processes before running
+   proved more reliable than blind retries.
