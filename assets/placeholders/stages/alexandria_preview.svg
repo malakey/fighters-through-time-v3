@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270" viewBox="0 0 480 270">
+  <!-- Alexandria Chambers stage-select preview. Schematic silhouette of the
+       authored geometry: world x in [-9, 9] maps to [0, 480] (26.67 px/unit) and
+       the floor plane (y = 0) sits at y = 200. Placeholder art; the era palette is
+       the catalog's BackgroundColor / GroundColor / AccentColor. -->
+  <defs>
+    <linearGradient id="chamber" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#26170a"/>
+      <stop offset="1" stop-color="#5a3d14"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="270" fill="url(#chamber)"/>
+
+  <!-- hieroglyph wall registers -->
+  <g fill="#3a2810">
+    <rect x="0" y="70" width="480" height="130"/>
+  </g>
+  <g fill="#8a6522" opacity="0.5">
+    <rect x="30" y="88" width="12" height="12"/>
+    <rect x="50" y="88" width="7" height="19"/>
+    <rect x="196" y="120" width="12" height="12"/>
+    <rect x="216" y="120" width="7" height="19"/>
+    <rect x="410" y="88" width="16" height="8"/>
+    <rect x="436" y="88" width="8" height="16"/>
+  </g>
+
+  <!-- colonnade -->
+  <g fill="#4a3413">
+    <rect x="24" y="52" width="26" height="148"/>
+    <rect x="227" y="52" width="26" height="148"/>
+    <rect x="430" y="52" width="26" height="148"/>
+  </g>
+  <g fill="#dbb02e" opacity="0.7">
+    <rect x="24" y="96" width="26" height="4"/>
+    <rect x="227" y="96" width="26" height="4"/>
+    <rect x="430" y="96" width="26" height="4"/>
+  </g>
+
+  <!-- sand floor, GroundColor with an AccentColor top line -->
+  <rect x="0" y="200" width="480" height="70" fill="#61451a"/>
+  <rect x="0" y="197" width="480" height="3" fill="#dbb02e"/>
+
+  <!-- three sinkhole hazard anchors at world x = -6, 0, 6 -->
+  <g fill="#c8a54a" opacity="0.55">
+    <ellipse cx="80" cy="206" rx="34" ry="7"/>
+    <ellipse cx="240" cy="206" rx="34" ry="7"/>
+    <ellipse cx="400" cy="206" rx="34" ry="7"/>
+  </g>
+
+  <!-- two low sarcophagus platforms at (-4, 1.6) and (4, 1.6), half-width 1.3 -->
+  <g fill="#7a5a1e">
+    <rect x="99" y="157" width="69" height="14"/>
+    <rect x="312" y="157" width="69" height="14"/>
+  </g>
+  <g fill="#dbb02e">
+    <rect x="99" y="154" width="69" height="3"/>
+    <rect x="312" y="154" width="69" height="3"/>
+  </g>
+  <!-- sarcophagus lids -->
+  <g fill="#8a6522" opacity="0.85">
+    <rect x="112" y="171" width="43" height="12"/>
+    <rect x="325" y="171" width="43" height="12"/>
+  </g>
+</svg>

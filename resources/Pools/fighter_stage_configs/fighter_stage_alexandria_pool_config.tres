@@ -1,0 +1,56 @@
+[gd_resource type="Resource" script_class="ScenePoolConfig" load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://scripts/Core/ScenePoolConfig.cs" id="1_config"]
+[ext_resource type="Script" path="res://scripts/Core/PoolDefinition.cs" id="2_definition"]
+[ext_resource type="PackedScene" path="res://scenes/templates/ProjectileTemplate.tscn" id="3_projectile"]
+[ext_resource type="PackedScene" path="res://scenes/templates/PooledVfxTemplate.tscn" id="4_combat_vfx"]
+[ext_resource type="PackedScene" path="res://scenes/templates/EnvironmentalVfxTemplate.tscn" id="5_environment_vfx"]
+[ext_resource type="PackedScene" path="res://scenes/templates/PickupTemplate.tscn" id="6_orb"]
+[ext_resource type="PackedScene" path="res://scenes/ui/FloatingDamageNumber.tscn" id="7_damage"]
+[ext_resource type="PackedScene" path="res://scenes/templates/PersistentConstructTemplate.tscn" id="8_construct"]
+
+[sub_resource type="Resource" id="Projectile"]
+script = ExtResource("2_definition")
+PoolID = "fighter_projectile"
+SceneTemplate = ExtResource("3_projectile")
+WarmUpCount = 40
+MaxCapacity = 100
+[sub_resource type="Resource" id="CombatVfx"]
+script = ExtResource("2_definition")
+PoolID = "fighter_vfx"
+SceneTemplate = ExtResource("4_combat_vfx")
+WarmUpCount = 60
+MaxCapacity = 200
+OverflowPolicy = 1
+[sub_resource type="Resource" id="EnvironmentVfx"]
+script = ExtResource("2_definition")
+PoolID = "fighter_environment_vfx"
+SceneTemplate = ExtResource("5_environment_vfx")
+WarmUpCount = 15
+MaxCapacity = 50
+OverflowPolicy = 1
+[sub_resource type="Resource" id="Orb"]
+script = ExtResource("2_definition")
+PoolID = "chronal_orb"
+SceneTemplate = ExtResource("6_orb")
+WarmUpCount = 12
+MaxCapacity = 20
+OverflowPolicy = 2
+[sub_resource type="Resource" id="Damage"]
+script = ExtResource("2_definition")
+PoolID = "damage_numbers"
+SceneTemplate = ExtResource("7_damage")
+WarmUpCount = 50
+MaxCapacity = 100
+[sub_resource type="Resource" id="Construct"]
+script = ExtResource("2_definition")
+PoolID = "fighter_construct"
+SceneTemplate = ExtResource("8_construct")
+WarmUpCount = 16
+MaxCapacity = 32
+
+[resource]
+script = ExtResource("1_config")
+ConfigID = "fighter_stage_alexandria_pools"
+MaxWarmUpInstances = 200
+PoolDefinitions = Array[ExtResource("2_definition")]([SubResource("Projectile"), SubResource("CombatVfx"), SubResource("EnvironmentVfx"), SubResource("Orb"), SubResource("Damage"), SubResource("Construct")])

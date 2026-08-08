@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <!-- Mid-depth colonnade: lotus-capital columns that scroll faster than the
+       hieroglyph wall behind them. Transparent between the columns. -->
+  <g fill="#4a3413">
+    <rect x="120" y="180" width="120" height="900"/>
+    <rect x="640" y="180" width="120" height="900"/>
+    <rect x="1160" y="180" width="120" height="900"/>
+    <rect x="1680" y="180" width="120" height="900"/>
+  </g>
+  <!-- lotus capitals -->
+  <g fill="#6d4c1b">
+    <rect x="96" y="150" width="168" height="46"/>
+    <rect x="616" y="150" width="168" height="46"/>
+    <rect x="1136" y="150" width="168" height="46"/>
+    <rect x="1656" y="150" width="168" height="46"/>
+  </g>
+  <!-- gilded accent bands, catalog AccentColor family -->
+  <g fill="#dbb02e" opacity="0.75">
+    <rect x="120" y="330" width="120" height="10"/>
+    <rect x="640" y="330" width="120" height="10"/>
+    <rect x="1160" y="330" width="120" height="10"/>
+    <rect x="1680" y="330" width="120" height="10"/>
+    <rect x="120" y="620" width="120" height="10"/>
+    <rect x="640" y="620" width="120" height="10"/>
+    <rect x="1160" y="620" width="120" height="10"/>
+    <rect x="1680" y="620" width="120" height="10"/>
+  </g>
+  <!-- column bases -->
+  <g fill="#3a2810">
+    <rect x="96" y="1010" width="168" height="70"/>
+    <rect x="616" y="1010" width="168" height="70"/>
+    <rect x="1136" y="1010" width="168" height="70"/>
+    <rect x="1656" y="1010" width="168" height="70"/>
+  </g>
+</svg>
