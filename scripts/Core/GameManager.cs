@@ -80,9 +80,7 @@ namespace FTT.Core {
 
         public SessionData CurrentSession;
 
-        private CanvasLayer _loadingScreen;
-        private ColorRect _loadingBackground;
-        private Label _loadingLabel;
+        private FTT.UI.LoadingScreen _loadingScreen;
         private string _pendingScenePath;
         private bool _isLoading;
         private double _loadingDisplayTimer;
@@ -100,7 +98,6 @@ namespace FTT.Core {
                 MatchSettings = MatchSettings.GetDefault()
             };
             _scenePoolCatalog = ScenePoolCatalog.LoadDefault();
-            SetupLoadingScreen();
         }
 
         public override void _ExitTree() {
@@ -117,35 +114,37 @@ namespace FTT.Core {
             System.GC.Collect();
         }
 
-        private void SetupLoadingScreen() {
-            _loadingScreen = new CanvasLayer();
-            _loadingScreen.Layer = 100;
-            _loadingScreen.Visible = false;
-            AddChild(_loadingScreen);
-
-            _loadingBackground = new ColorRect();
-            _loadingBackground.Color = new Color(0.05f, 0.05f, 0.1f, 1.0f);
-            _loadingBackground.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-            _loadingScreen.AddChild(_loadingBackground);
-
-            _loadingLabel = new Label();
-            _loadingLabel.Text = Tr("loading");
-            _loadingLabel.HorizontalAlignment = HorizontalAlignment.Center;
-            _loadingLabel.VerticalAlignment = VerticalAlignment.Center;
-            _loadingLabel.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-            _loadingLabel.AddThemeColorOverride("font_color", new Color(0.0f, 0.9f, 0.9f));
-            _loadingScreen.AddChild(_loadingLabel);
-        }
-
+        /// <summary>
+        /// Raises the loading treatment matching <paramref name="scenePath"/> and
+        /// starts the threaded load.
+        ///
+        /// Package 8 A1: the screen is built per transition rather than once at
+        /// boot, because the variant depends on where the player is going — a
+        /// Fighter destination gets the VS plate, a campaign destination the portal.
+        /// It is parented to this autoload so it survives
+        /// <see cref="SceneTree.ChangeSceneToPacked"/>, and freed on arrival.
+        /// </summary>
         public void LoadScene(string scenePath) {
             if (_isLoading) return;
 
             _isLoading = true;
             _pendingScenePath = scenePath;
             _loadingDisplayTimer = 0.0;
-            _loadingScreen.Visible = true;
+
+            _loadingScreen = FTT.UI.LoadingScreen.CreateFor(scenePath);
+            AddChild(_loadingScreen);
+            _loadingScreen.Configure(scenePath, CurrentSession);
 
             ResourceLoader.LoadThreadedRequest(scenePath);
+        }
+
+        private void DismissLoadingScreen() {
+            if (_loadingScreen == null) return;
+            if (IsInstanceValid(_loadingScreen)) {
+                _loadingScreen.Visible = false;
+                _loadingScreen.QueueFree();
+            }
+            _loadingScreen = null;
         }
 
         public override void _Process(double delta) {
@@ -160,7 +159,7 @@ namespace FTT.Core {
                     WarmPoolsForScene(_pendingScenePath);
                     GetTree().ChangeSceneToPacked(packedScene);
                 }
-                _loadingScreen.Visible = false;
+                DismissLoadingScreen();
                 _isLoading = false;
                 _pendingScenePath = null;
             }

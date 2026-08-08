@@ -1,0 +1,65 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/UI/PauseMenu.cs" id="1_script"]
+[ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
+
+[node name="StoryPause" type="CanvasLayer"]
+layer = 99
+process_mode = 3
+script = ExtResource("1_script")
+
+[node name="Root" type="Control" parent="."]
+visible = false
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+theme = ExtResource("2_theme")
+
+[node name="Shade" type="ColorRect" parent="Root"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.02, 0.03, 0.08, 0.85)
+
+[node name="Center" type="CenterContainer" parent="Root"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="Root/Center"]
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+
+[node name="Layout" type="VBoxContainer" parent="Root/Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="Root/Center/Panel/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 28
+text = "menu_paused"
+horizontal_alignment = 1
+
+[node name="ResumeButton" type="Button" parent="Root/Center/Panel/Layout"]
+custom_minimum_size = Vector2(320, 44)
+layout_mode = 2
+text = "menu_resume"
+
+[node name="SettingsButton" type="Button" parent="Root/Center/Panel/Layout"]
+custom_minimum_size = Vector2(320, 44)
+layout_mode = 2
+text = "menu_settings"
+
+[node name="QuitButton" type="Button" parent="Root/Center/Panel/Layout"]
+custom_minimum_size = Vector2(320, 44)
+layout_mode = 2
+text = "pause_quit_to_menu"

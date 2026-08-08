@@ -298,5 +298,70 @@ change is logged in §9.
 
 ## 9. Deviations (append-only)
 
-*(Empty at authoring. Agents append `### <WS> — <subject> (date)` blocks; orchestrator appends
-integration blocks; C1 appends the closeout and the "What Package 8 did NOT deliver" list.)*
+*(Agents append `### <WS> — <subject> (date)` blocks; orchestrator appends integration blocks; C1
+appends the closeout and the "What Package 8 did NOT deliver" list.)*
+
+### A1 — UI theme, focus, pause, loading (2026-08-08)
+
+**A1: The theme carries no font resource, deliberately.** `assets/fonts/` is empty, so requiring a
+face would make the theme unloadable. `ftt_theme.tres` sets the full type scale
+(`default_font_size` plus per-type sizes) against Godot's built-in default face; dropping in a
+production font later is a one-line `default_font` addition, not a retheme. Pinned by
+`UIThemeTests.ThemeWorksWithoutAFontResource`, which asserts `DefaultFont` is null *on purpose* —
+if a later agent adds a face, that test is the place to record the decision changing.
+
+**A1: `UIPalette` and the theme are pinned to each other rather than one generating the other.**
+A Theme cannot express a `ColorRect` fill or a runtime tint, so both a resource and C# constants
+have to exist; the failure mode is silent drift producing a half-and-half UI that reads as
+sloppiness rather than as a bug. `UIThemeTests.AuthoredColoursMatchTheUIPaletteConstants` compares
+the authored type colours *and* the painted `StyleBoxFlat` bg/border/focus-ring colours against the
+constants, so changing one side alone fails.
+
+**A1: `PauseMenuBase` owns `SceneTree.Paused`; subclasses may layer presentation but cannot skip
+the tree write.** The extraction merged two independent implementations of the project's most
+dangerous invariant. `SetPaused` is virtual for presentation only, `_ExitTree` performs the
+handback and subclasses that override it must call `base._ExitTree()` (`LocalFighterPause` does,
+for its `InputManager` unsubscribe). The pause press is consumed even when `CanTogglePause()`
+refuses it, so it can never fall through to gameplay under a menu that is deliberately holding the
+player. Pinned on both sides: the pre-existing `LocalFighterPauseTests` stayed green unmodified,
+and `StoryPauseTests` mirrors its two pause-handback cases for the Story surface.
+
+**A1: `LocalFighterPause`'s exit confirmation moved onto the shared `ConfirmModal`; its
+disconnect modal did not.** The exit prompt is a confirm/cancel question and was one of the three
+ad-hoc patterns the helper exists to retire. The disconnect modal is a blocking "rebind or forfeit"
+state with no safe cancel, so forcing it into a confirm/cancel shape would have misrepresented it.
+`CanTogglePause()` now also refuses while the exit confirmation is open, which the previous
+implementation did not — an open confirmation could be resumed out from under.
+
+**A1: Loading-variant selection is pure string logic on the destination path, with the Test Arena
+named explicitly.** No caller states what kind of transition it is; `GameManager.LoadScene` passes
+a path and gets a treatment. `scenes/arenas/TestArena.tscn` lives outside `scenes/fighter/` for
+historical reasons but is a Fighter destination to the player, so it is matched by name rather than
+by directory. Pinned by `LoadingScreenTests` across all ten stage paths, all sixteen campaign
+paths, the hub, the menus, and null/blank input.
+
+**A1: campaign level titles are derived from the scene filename's era token, not from a level
+index.** The sixteen title keys were authored per level with a slug (`orleans_level_title`, not
+`level_02_title`), so `Level_13_ChronalVoid.tscn` → `chronal_void_level_title` via a
+PascalCase→snake_case pass; `HubWorld.tscn` maps to `hub_ship_title`. This is the fragile half of
+the loading work — a wrong derivation shows a raw key on a full-screen portal — so
+`EveryCampaignDestinationResolvesATitleKeyThatExists` resolves every one through the **compiled**
+translation rather than merely checking the key looks plausible.
+
+**A1: the loading screen is built per transition and freed on arrival, not created once at boot.**
+The variant depends on the destination, so a single persistent overlay cannot serve all three. It
+is parented to the `GameManager` autoload so it survives `ChangeSceneToPacked`, and runs
+`ProcessMode.Always` so a paused tree cannot freeze it. The 2 s `MinLoadingDisplayTime` and the
+threaded-load polling are unchanged.
+
+**A1: visible copy in the new scenes is stored as raw translation keys and resolved by Godot's
+automatic control translation**, rather than assigned through `Tr()` in `_Ready`. This is what lets
+a language change follow without rebuilding a surface, and it is the pattern C1's planned
+`.tscn` visible-`text` scanner expects. Tests therefore assert the raw key (`Text == "menu_paused"`),
+not the English string.
+
+**A1 handoff:** `resources/UI/ftt_theme.tres`, `scripts/UI/UIPalette.cs`,
+`scripts/UI/FocusChainBuilder.cs`, `scripts/UI/ConfirmModal.cs` and `scripts/UI/PauseMenuBase.cs`
+are on `main` at the §2.1 paths for B agents. Adopt the theme by setting `Theme` on a screen's root
+`Control` (Godot propagates); author focus with `FocusChainBuilder.Apply(container)` and rebuild it
+whenever a surface shows or hides options. Test delta **+30** (907 → 937).
