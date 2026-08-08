@@ -1010,3 +1010,7 @@ fighter_pause_exit_confirm,Exit the match and return to the character select lob
 fighter_disconnect_modal,"Controller Disconnected: Player {0} controller was lost. Reconnect device or press Confirm on another controller to bind and resume."
 fighter_disconnect_rebind,Bind Connected Controller
 fighter_disconnect_forfeit,Forfeit and Exit
+# Package 8 A1,
+pause_quit_confirm,Quit to the main menu? Progress since the last checkpoint will be lost.
+loading_rift,OPENING CHRONAL RIFT
+loading_versus,VS

@@ -1,0 +1,88 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/UI/LoadingScreen.cs" id="1_script"]
+[ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
+
+; Fighter VS variant. PlayerPortrait/OpponentPortrait, StageNameLabel and
+; StagePreview are filled by LoadingScreen.Configure from GameManager's live
+; SessionData. Each of those nodes hides itself when its source is unset, so a
+; session with no opponent or no authored preview degrades to the VS plate
+; rather than showing an empty frame.
+
+[node name="FighterLoading" type="CanvasLayer"]
+layer = 100
+process_mode = 3
+script = ExtResource("1_script")
+
+[node name="Root" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+theme = ExtResource("2_theme")
+
+[node name="Background" type="ColorRect" parent="Root"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.05, 0.05, 0.1, 1)
+
+[node name="Center" type="CenterContainer" parent="Root"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Layout" type="VBoxContainer" parent="Root/Center"]
+layout_mode = 2
+theme_override_constants/separation = 20
+
+[node name="Versus" type="HBoxContainer" parent="Root/Center/Layout"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 40
+
+[node name="PlayerPortrait" type="TextureRect" parent="Root/Center/Layout/Versus"]
+custom_minimum_size = Vector2(256, 256)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="VersusLabel" type="Label" parent="Root/Center/Layout/Versus"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.25, 0.25, 1)
+theme_override_font_sizes/font_size = 28
+text = "loading_versus"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="OpponentPortrait" type="TextureRect" parent="Root/Center/Layout/Versus"]
+custom_minimum_size = Vector2(256, 256)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="StagePreview" type="TextureRect" parent="Root/Center/Layout"]
+custom_minimum_size = Vector2(420, 160)
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="StageNameLabel" type="Label" parent="Root/Center/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+
+[node name="StatusLabel" type="Label" parent="Root/Center/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
+theme_override_font_sizes/font_size = 18
+text = "loading"
+horizontal_alignment = 1

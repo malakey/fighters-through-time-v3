@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using FTT.Core;
 
@@ -10,21 +11,23 @@ namespace FTT.UI {
     /// the affected player and cannot be dismissed until that slot has a device
     /// again.
     ///
-    /// Pause discipline: whoever sets <see cref="SceneTree.Paused"/> hands it
-    /// back, including on teardown — a leaked pause freezes the next scene in
-    /// game and hangs the whole GdUnit4 session.
+    /// Package 8 A1 moved the pause bookkeeping onto <see cref="PauseMenuBase"/>
+    /// and the exit confirmation onto the shared <see cref="ConfirmModal"/>. The
+    /// disconnect modal stays bespoke on purpose: it is not a confirm/cancel
+    /// question but a blocking "rebind or forfeit" state that the player cannot
+    /// simply back out of.
+    ///
+    /// Pause discipline lives in the base class: whoever sets
+    /// <see cref="SceneTree.Paused"/> hands it back, including on teardown.
     /// </summary>
-    public partial class LocalFighterPause : CanvasLayer {
+    public partial class LocalFighterPause : PauseMenuBase {
         private Control _panel;
         private Control _disconnectModal;
         private Label _disconnectLabel;
-        private Control _exitConfirm;
+        private ConfirmModal _exitConfirm;
         private SettingsMenu _settingsMenu;
-        private bool _isPaused;
+        private List<Control> _focusChain = new();
         private int _disconnectedPlayer = -1;
-
-        /// <summary>True while this menu holds the scene tree paused.</summary>
-        public bool IsPaused => _isPaused;
 
         /// <summary>Player slot whose device dropped, or -1 when every slot is bound.</summary>
         public int DisconnectedPlayer => _disconnectedPlayer;
@@ -46,32 +49,25 @@ namespace FTT.UI {
                 InputManager.Instance.PlayerDeviceDisconnected -= OnPlayerDeviceDisconnected;
                 InputManager.Instance.DeviceAssigned -= OnDeviceAssigned;
             }
-            if (!_isPaused) return;
-            _isPaused = false;
-            SceneTree tree = GetTree();
-            if (tree != null) tree.Paused = false;
+            // Releases a held pause. Must run.
+            base._ExitTree();
         }
 
-        public override void _UnhandledInput(InputEvent @event) {
-            if (@event == null || !@event.IsActionPressed(InputManager.Actions.Pause)) return;
-            // A forced disconnect pause cannot be dismissed with the pause button.
-            if (_disconnectedPlayer >= 0) {
-                GetViewport()?.SetInputAsHandled();
+        /// <summary>A forced disconnect pause cannot be dismissed with the pause button.</summary>
+        protected override bool CanTogglePause() =>
+            _disconnectedPlayer < 0 && _exitConfirm?.IsOpen != true;
+
+        protected override void OnPauseStateChanged(bool paused) {
+            if (_panel != null) _panel.Visible = paused && _disconnectedPlayer < 0;
+
+            if (!paused) {
+                _exitConfirm?.Close();
                 return;
             }
-            TogglePause();
-            GetViewport()?.SetInputAsHandled();
-        }
 
-        public void TogglePause() => SetPaused(!_isPaused);
-
-        public void SetPaused(bool paused) {
-            if (_isPaused == paused) return;
-            _isPaused = paused;
-            if (_panel != null) _panel.Visible = paused && _disconnectedPlayer < 0;
-            if (!paused) HideExitConfirm();
-            SceneTree tree = GetTree();
-            if (tree != null) tree.Paused = paused;
+            if (_disconnectedPlayer >= 0) return;
+            _focusChain = FocusChainBuilder.Build(_panel);
+            FocusChainBuilder.GrabInitialFocus(_focusChain);
         }
 
         /// <summary>
@@ -106,55 +102,37 @@ namespace FTT.UI {
         private void BuildPanel() {
             _panel = new PanelContainer { Name = "PausePanel", Visible = false };
             _panel.SetAnchorsPreset(Control.LayoutPreset.Center);
+            UIPalette.ApplyTheme(_panel);
             AddChild(_panel);
 
             var layout = new VBoxContainer();
-            layout.AddThemeConstantOverride("separation", 14);
+            layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
             _panel.AddChild(layout);
 
             var title = new Label {
-                Text = Tr("menu_paused"),
+                Text = "menu_paused",
                 HorizontalAlignment = HorizontalAlignment.Center
             };
-            title.AddThemeFontSizeOverride("font_size", 28);
+            title.AddThemeColorOverride("font_color", UIPalette.TextAccent);
+            title.AddThemeFontSizeOverride("font_size", UIPalette.TitleFontSize);
             layout.AddChild(title);
 
-            var resume = MakeButton(Tr("menu_resume"));
+            var resume = MakeButton("ResumeButton", "menu_resume");
             resume.Pressed += () => SetPaused(false);
             layout.AddChild(resume);
 
-            var settings = MakeButton(Tr("menu_settings"));
+            var settings = MakeButton("SettingsButton", "menu_settings");
             settings.Pressed += OpenSettings;
             layout.AddChild(settings);
 
-            var exit = MakeButton(Tr("fighter_pause_exit"));
+            var exit = MakeButton("ExitButton", "fighter_pause_exit");
             exit.Pressed += ShowExitConfirm;
             layout.AddChild(exit);
 
-            BuildExitConfirm(layout);
-        }
-
-        private void BuildExitConfirm(Control parent) {
-            var confirm = new VBoxContainer { Name = "ExitConfirm", Visible = false };
-            confirm.AddThemeConstantOverride("separation", 8);
-            parent.AddChild(confirm);
-            _exitConfirm = confirm;
-
-            var prompt = new Label {
-                Text = Tr("fighter_pause_exit_confirm"),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                AutowrapMode = TextServer.AutowrapMode.WordSmart,
-                CustomMinimumSize = new Vector2(360, 0)
-            };
-            confirm.AddChild(prompt);
-
-            var yes = MakeButton(Tr("common_confirm"));
-            yes.Pressed += ExitToLobby;
-            confirm.AddChild(yes);
-
-            var no = MakeButton(Tr("common_cancel"));
-            no.Pressed += HideExitConfirm;
-            confirm.AddChild(no);
+            _exitConfirm = ConfirmModal.Create("fighter_pause_exit_confirm");
+            _exitConfirm.Confirmed += ExitToLobby;
+            _exitConfirm.Cancelled += () => FocusChainBuilder.GrabInitialFocus(_focusChain);
+            AddChild(_exitConfirm);
         }
 
         private void BuildDisconnectModal() {
@@ -165,6 +143,7 @@ namespace FTT.UI {
                 Visible = false
             };
             modal.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            UIPalette.ApplyTheme(modal);
             AddChild(modal);
             _disconnectModal = modal;
 
@@ -183,14 +162,14 @@ namespace FTT.UI {
                 CustomMinimumSize = new Vector2(720, 0)
             };
             _disconnectLabel.AddThemeFontSizeOverride("font_size", 26);
-            _disconnectLabel.AddThemeColorOverride("font_color", new Color(1f, 0.75f, 0.3f));
+            _disconnectLabel.AddThemeColorOverride("font_color", UIPalette.Warning);
             layout.AddChild(_disconnectLabel);
 
-            var rebind = MakeButton(Tr("fighter_disconnect_rebind"));
+            var rebind = MakeButton("RebindButton", "fighter_disconnect_rebind");
             rebind.Pressed += TryRebindDisconnectedPlayer;
             layout.AddChild(rebind);
 
-            var forfeit = MakeButton(Tr("fighter_disconnect_forfeit"));
+            var forfeit = MakeButton("ForfeitButton", "fighter_disconnect_forfeit");
             forfeit.Pressed += ExitToLobby;
             layout.AddChild(forfeit);
         }
@@ -203,13 +182,7 @@ namespace FTT.UI {
             }
         }
 
-        private void ShowExitConfirm() {
-            if (_exitConfirm != null) _exitConfirm.Visible = true;
-        }
-
-        private void HideExitConfirm() {
-            if (_exitConfirm != null) _exitConfirm.Visible = false;
-        }
+        private void ShowExitConfirm() => _exitConfirm?.Open();
 
         /// <summary>Design: exit returns local players to the Fighter character select lobby.</summary>
         private void ExitToLobby() {
@@ -228,9 +201,10 @@ namespace FTT.UI {
             _settingsMenu.Show();
         }
 
-        private static Button MakeButton(string text) => new() {
-            Text = text,
-            CustomMinimumSize = new Vector2(320, 44)
+        private static Button MakeButton(string name, string textKey) => new() {
+            Name = name,
+            Text = textKey,
+            CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight)
         };
     }
 }

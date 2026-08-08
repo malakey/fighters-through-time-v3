@@ -42,7 +42,8 @@ namespace FTT.Environment {
                 sceneRoot.AddChild(services.HUD);
             }
 
-            services.Pause = new PauseMenu { Name = "PauseMenu" };
+            // Authored themed scene when present, code-built fallback otherwise.
+            services.Pause = PauseMenu.CreateDefault();
             sceneRoot.AddChild(services.Pause);
 
             if (includeRewind) {
