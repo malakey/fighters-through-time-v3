@@ -867,3 +867,31 @@ predates this workstream. Every Godot launch also rewrites eight tracked
 then `dotnet test`. Four full runs at **728 passed / 0 failed / Total 728** were obtained this way,
 two of them consecutive. Do not mistake the 46-test result for a regression — the `Total:` is
 unmistakably wrong, unlike the silent-suite-drop failure described in the first block.
+
+### ORCHESTRATOR — Phase A integration (2026-08-08)
+
+**INTEGRATION-A: merge order A1→A2→A3→A4 executed as declared; the two predicted overlaps resolved
+cleanly.** `FighterSimulationComponents.cs` auto-merged (A1's `FighterHazardComponent` fields vs
+A2's `FighterStateComponent`/`FighterMatchComponent` fields are disjoint regions);
+`FighterSimulationDriver.cs` auto-merged with A3's CPU construction (match-seed derivation,
+geometry, `FighterSimulationWorldObserver`) intact inside A2's restructured `Initialize` +
+`AttachMatchFlowUI` flow — verified by inspection. The only conflicts were `docs/PACKAGE6_FIGHTER_PLAN.md`
+§9 append blocks, union-resolved per §7.
+
+**INTEGRATION-A: validation.** `dotnet build` clean (pre-existing vendored `CS8632` only);
+`--headless --import` clean with no tracked-file churn; full suite **820 passed / 0 failed /
+Total 820** across two consecutive serial runs (705 baseline + 32 A1 + 37 A2 + 23 A3 + 23 A4 — the
+exact sum, no cross-workstream loss); TestArena and FighterStage_Florence headless smokes exit 0.
+
+**INTEGRATION-A: the worktree GdUnit collision signature is confirmed by three independent agents
+and is now a standing hazard for Phase B.** GdUnit4's runner pipe is named for the assembly
+(`gdunit4-FightersThroughTime`), identical in every worktree; concurrent `dotnet test` runs
+cross-connect and truncate each other (partial `Total:` with 0 failures and exit-code 100 /
+`Failed to connect: Connection timeout` — NOT CLAUDE.md signatures 1/2/4; the log shows another
+worktree's paths). Phase B agents are instructed to treat that signature as contention, retry, and
+report numbers only from runs whose `Total:` matches the expected delta. C1 folds this into
+CLAUDE.md's failure-signature table.
+
+**INTEGRATION-A: A4's one-`[TestSuite]`-per-file rule is promoted to a Phase B instruction** (a
+second suite in the same file is discovered but silently not executed — `Total:` moves by a
+plausible-looking +1 instead of the real delta).
