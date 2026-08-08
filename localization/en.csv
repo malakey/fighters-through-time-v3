@@ -677,3 +677,25 @@ dlg_l03_exit_2,"Readings are settling. Every lamp on the fairgrounds is still li
 dlg_l03_exit_3,"The resonance is fading already. I can barely feel the grid now."
 dlg_l03_exit_4,"It always fades once the moment is anchored. That is how we know it held."
 dlg_l03_exit_5,"Then anchor the next one. Bring me home, Commander."
+paris_level_title,"Paris, 1789 — Storming of the Bastille"
+paris_room_gatehouse,GATEHOUSE YARD
+paris_room_searchlights,SECURITY CORRIDORS
+paris_room_cells,THE CELL BLOCK
+paris_room_courtyard,BOSS: THE REVOLUTIONARY TRIBUNAL
+paris_objective_breach,Breach the Bastille and reach the inner courtyard
+paris_objective_searchlight_alarm,Caught in the beam! The dampener is draining your Ultimate — break the light
+paris_objective_free_prisoners,Blow the cell locks and free the prisoners ({0}/{1})
+paris_objective_reach_courtyard,The prisoners have hauled the gate open — breach the inner courtyard
+paris_objective_defeat_boss,Defeat the Revolutionary Tribunal!
+paris_objective_complete,LEVEL COMPLETE! Returning to Time-Ship...
+paris_gate_locked,INNER COURTYARD BARRED — FREE THE PRISONERS
+speaker_tribunal,The Revolutionary Tribunal
+dlg_l04_entrance_1,"The Bastille. The crowd is at the gates — and something inside is answering them with searchlights."
+dlg_l04_entrance_2,"Those are neural-dampening projectors, not lamps. Stay out of the beams: every second in the light bleeds off your Ultimate Meter. The cult wants this uprising too tired to finish what it started."
+dlg_l04_boss_1,"Citizen! You are charged with sedition against the Archive. The verdict is recorded, the sentence is eternal — and the mob will carry it out for me."
+dlg_l04_boss_2,"You did not come here to free anyone. You came to keep them shouting so nobody notices the siphon. Court adjourned."
+dlg_l04_exit_1,"The siphon is shattered. The projectors are dark."
+dlg_l04_exit_2,"Confirmed. The dampening field is collapsing and the prisoners are already through the inner gate. Paris takes the Bastille tonight — on its own terms, the way it was written."
+dlg_l04_exit_3,"The glow in my hands dimmed again. Every fracture I close takes a little more of it."
+dlg_l04_exit_4,"It does. Your resonance is borrowed from the damage, and we are giving the damage back. I will not pretend that is a fair trade."
+dlg_l04_exit_5,"It is the only trade on offer. Bring me home, Commander."
