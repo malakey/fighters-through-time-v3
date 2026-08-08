@@ -1060,3 +1060,12 @@ save_notice_global_recovered,Global settings were recovered from backup.
 save_notice_global_migrated,Global settings were migrated to the secure save format.
 save_notice_global_corrupt,Global settings were corrupted and reset to defaults.
 save_notice_error,{0}
+# Package 8 B2
+fighter_hud_clock,{0}:{1}
+fighter_hud_stocks,STOCKS
+fighter_hud_shield,SHIELD
+fighter_hud_player,P{0}
+fighter_hud_cooldown_special1,S1
+fighter_hud_cooldown_special2,S2
+fighter_hud_cooldown_movement,MOV
+fighter_hud_cooldown_ultimate,ULT

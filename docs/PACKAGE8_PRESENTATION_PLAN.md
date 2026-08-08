@@ -694,3 +694,105 @@ full suite **1060 passed / 0 failed / Total 1060** across two consecutive serial
 4. A4's `MainMenu.cs` touch is exactly one call + one static method (`AddSaveLoadNotice`) — B4
    carries it into the authored menu.
 5. `settings_difficulty` is a deliberately orphaned key feeding C1's unused-key sweep.
+
+### B2 — Fighter HUD & match presentation (2026-08-08)
+
+**B2: `TestArenaHUD` was demoted, not absorbed, and it hides itself rather than being removed from
+the eleven scenes that carry it.** The plan left the choice open. Absorbing the debug text into
+`FighterHUD` would have meant deleting the `HUDLayer` node from `scenes/arenas/TestArena.tscn` and
+all ten `scenes/fighter/FighterStage_*.tscn` — and B7 owns those ten scenes exclusively (§2.7), so
+a parallel worktree would have had to edit them. Instead the script alone changed: `TestArenaHUD`
+sets `Visible = false` in `_Ready` and toggles on `F3`. Zero stage scenes touched, and the
+state/tick/hash line survives, which is the only in-game view of deterministic simulation state and
+the thing you want during a desync. Pinned by
+`tests/Unit/FighterDebugOverlayTests.cs::TheDebugOverlayIsHiddenOnLoad` — the regression it guards
+is invisible in review and glaring in a build.
+
+**B2: the debug toggle is a raw `Key.F3`, deliberately not an InputMap action.** Every InputMap
+action now shows up as a rebindable row in A4's Controls tab, so adding `debug_hud_toggle` would
+advertise a developer affordance as a player feature and force A4 to special-case it the way it
+already special-cases the ultimate chord and the dash gesture.
+`TheToggleKeyIsNotAnInputMapActionAndCannotBeRebound` walks every authored action and fails if a
+future binding collides with F3 — that is the real risk, since a collision would silently flash the
+debug layer during play. The consequence: the overlay is undiscoverable in game. That is intended;
+it is documented here and in the class summary, not surfaced in the UI.
+
+**B2: the HUD's stock and shield pips and its four cooldown slots are built in code inside an
+otherwise authored scene.** Their counts are data-driven — stock rules come from `MatchSettings`,
+shield capacity from each character's authored `MaxBlockCharges` — so authoring a fixed number of
+pip nodes would either cap the HUD at today's defaults or leave dead nodes hidden in the scene.
+Everything with a fixed shape (panels, portraits, bars, labels, the clock) is authored.
+`FighterHudContentTests.TheAuthoredSceneCarriesEveryNodeTheScriptBinds` lists all eighteen bound
+node paths, because the script resolves widgets by path and a rename would produce a HUD that
+renders nothing rather than one that errors.
+
+**B2: the HUD takes component values as parameters instead of reading the simulation.**
+`ApplyPlayerState(playerIndex, in state, in runtime, tickRate)` and
+`ApplyMatchState(mode, frames, tickRate)` are the whole input surface; `_Process` pulls from the
+driver and calls them. This is what lets `FighterHudSceneTests` drive every widget from hand-built
+structs without standing up a match, and it is also the structural reason the HUD cannot become a
+second route into `scripts/FighterSim/`.
+
+**B2: the ultimate cooldown slot is meter-gated, and that is not a cosmetic choice.** There is no
+ultimate cooldown field — `FighterRuntimeComponent` carries basic/special1/special2/movement only,
+and `FighterSimulationSystems` gates the ultimate on `Influence >= 100`. A slot that showed a
+cooldown there would be inventing state.
+`CooldownSlotsReadReadyOrRemainingTimeAndTheUltimateIsMeterGated` pins the asymmetry so a later
+refactor does not "fix" it into a fourth cooldown.
+
+**B2: the clock rounds *up* and is hidden in Stock mode.** `FighterMatchComponent.RemainingFrames`
+counts down in every mode, including Stock, where it decides nothing; showing it would be a timer
+that does not matter. And flooring the seconds would display `0:00` for a full second while the
+fighters are still playing, which is the single most confusing thing a match clock can do.
+`FighterHudModelTests.TheClockRoundsUpSoALiveMatchNeverReadsZero`.
+
+**B2: every per-frame widget write is diffed, and the cooldown cache is a tri-state.** The HUD
+refreshes at 60 Hz, so unconditional `AddThemeColorOverride` / `StyleBoxFlat.Duplicate()` calls
+would allocate on every frame of every match against a budget that forbids gameplay-time GC spikes.
+The trap found in testing: a plain `bool` "presented ready" cache cannot express *never presented*,
+so the first refresh of a slot that is already cooling diffs as unchanged and leaves the plate
+showing the available treatment. The cache is `int` (-1 unknown / 0 cooling / 1 ready).
+
+**B2: `HUDController.cs` is deleted.** It was an orphaned code-built bars HUD with an empty
+`UpdateStocks()` stub and zero references anywhere in the repository; leaving it would leave a
+second, uncoordinated Fighter HUD for someone to wire up by mistake. The build is the proof that
+nothing referenced it, and `FighterHudContentTests.TheRetiredLegacyHudControllerIsGone` stops it
+coming back. **Two notes for C1:** the `story_hud` manifest row names `HUDController` as its owner
+and now points at a deleted class — B1 owns `StoryHUD`, so that row's owner needs correcting
+alongside the planned status flip; and the `fighter_hud` row still points at
+`res://scenes/arenas/TestArena.tscn` with owner `TestArenaHUD`, which should become
+`res://scenes/ui/FighterHUD.tscn` / `FighterHUD`.
+
+**B2: the presentation overlay's scrim is owned by exactly two phases, and the rest return "no
+opinion".** `FighterOverlayModel.DimAlphaFor` returns a negative value for every phase except
+`Spotlight` and `Results`. The KO sequence raises `Spotlight` and the stamp in the same frame, so a
+phase that returned `0f` meaning "no dim" would clear the dim the spotlight is holding.
+`ASpotlightDimIsNotClearedByALaterBannerBeat` walks the real KO order.
+
+**B2: the overlay gained a `Present(payload)` seam and the tests use it instead of the bus.** The
+`EventBus` handler is a one-line forward. Driving the surface directly means a failure names the
+phase that broke rather than a subscription that did not fire, and the suite cannot leave a stray
+subscriber on the autoload if a test aborts mid-way.
+
+**B2: countdown blips rise across 3-2-1 and peak on GO** (0.9 / 1.0 / 1.1 / 1.45 through A2's
+`AudioManager.PlayCountdownBlip`), so the start of a match is audible without reading the banner.
+The call is null-safe: `AudioManager.Instance` is absent in a bare test tree.
+
+**B2: `MatchResults` grabs focus in `ShowResult`, not in `_Ready`.** `FocusChainBuilder.Collect`
+skips invisible subtrees by design, so a chain built while the panel is still hidden collects
+nothing and a controller player lands on nothing with no way off the screen.
+`TheResultsPanelStampsTheOutcomeAndTakesFocus` asserts the viewport's focus owner is a Button.
+
+**B2: driver edits are four lines in the UI-attach block.** One field, one `InstantiateUI` call and
+one `Bind` call inside `AttachMatchFlowUI`, using `FighterHUD.ScenePath`. A3's presentation-sync
+code and B5's future audio block are untouched; `Bind` is called there because that method is the
+only place holding both `PlayerController`s and therefore both `CharacterData` portraits.
+
+**B2 validation.** Build clean (pre-existing vendored `CS8632` only); local `--headless --import`
+run and the compiled translation left **uncommitted** per §2.8; full suite
+**1103 passed / 0 failed / Total 1103 = 1060 + 43**; headless smokes clean for `TestArena`,
+`FighterStage_Florence`, `FighterStage_Berlin` and `CharacterSelect`.
+`FighterMatchFlowContentTests` and `LocalFighterPauseTests` passed unmodified. Test delta **+43**.
+Not delivered by B2: A1's VS loading variant already reads what it needs from `SessionData`, so
+nothing was added for it; production HUD art, animated bar interpolation, and cinematic KO
+presentation remain later work.
