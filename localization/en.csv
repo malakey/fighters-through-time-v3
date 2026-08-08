@@ -656,3 +656,24 @@ dlg_l02_exit_2,"Confirmed. The vanguard is moving. The relief of Orléans is bac
 dlg_l02_exit_3,"The glow in my hands dimmed again when the field collapsed. It happens every time we mend something."
 dlg_l02_exit_4,"It does. Your resonance is borrowed from the damage, and we are spending it repairing the damage. That arithmetic does not change, however many times you ask me."
 dlg_l02_exit_5,"Then let's spend it faster. Take me back to the ship."
+chicago_level_title,"LEVEL 3: THE WORLD'S FAIR — CHICAGO 1893"
+chicago_room_midway,THE MIDWAY
+chicago_room_electricity,ELECTRICITY BUILDING
+chicago_room_routing,COIL ROUTING HALL
+chicago_room_boss,BOSS: THE CHRONAL INVENTOR
+chicago_door_sealed,"COURT OF HONOR — SEALED"
+chicago_objective_fairgrounds,Cross the fairgrounds and reach the Electricity Building
+chicago_objective_reroute,Rotate the conductive coils to route the beam into the receiver
+chicago_objective_reach_boss,"The Court of Honor is open — press on!"
+chicago_objective_defeat_boss,Defeat the Chronal Inventor!
+chicago_objective_complete,LEVEL COMPLETE! Returning to Time-Ship...
+speaker_inventor,The Chronal Inventor
+dlg_l03_entrance_1,"Electric light for a mile in every direction — and every wire of it humming wrong."
+dlg_l03_entrance_2,"That is Archive work, Traveler. They have seeded siphon coils across the fairgrounds. Let the overload land and the Exposition burns with Tesla's name on it. Reroute the current before the crowds pay for it."
+dlg_l03_boss_1,"Do you feel it? Alternating. Accelerating. A century of progress, and I can spend all of it in one beautiful second."
+dlg_l03_boss_2,"Then spend it on me. Leave the fair out of it."
+dlg_l03_exit_1,"Siphon coils are shattered. The current is running where it should."
+dlg_l03_exit_2,"Readings are settling. Every lamp on the fairgrounds is still lit — and the crowd never knew."
+dlg_l03_exit_3,"The resonance is fading already. I can barely feel the grid now."
+dlg_l03_exit_4,"It always fades once the moment is anchored. That is how we know it held."
+dlg_l03_exit_5,"Then anchor the next one. Bring me home, Commander."

@@ -1,0 +1,94 @@
+[gd_scene load_steps=9 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/Level03Controller.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/StoryDropSystem.cs" id="2_drops"]
+[ext_resource type="Script" path="res://scripts/Environment/PuzzleManager.cs" id="3_puzzle"]
+[ext_resource type="Script" path="res://scripts/Environment/PowerRoutingNode.cs" id="4_routing"]
+[ext_resource type="PackedScene" path="res://scenes/templates/BeamEmitterTemplate.tscn" id="5_emitter"]
+[ext_resource type="PackedScene" path="res://scenes/templates/ConductiveCoilTemplate.tscn" id="6_coil"]
+[ext_resource type="PackedScene" path="res://scenes/templates/BeamReceiverTemplate.tscn" id="7_receiver"]
+[ext_resource type="PackedScene" path="res://scenes/templates/CyclicHazardTemplate.tscn" id="8_hazard"]
+
+[node name="Level_03_Chicago" type="Node2D"]
+script = ExtResource("1")
+
+[node name="StoryDropSystem" type="Node" parent="."]
+script = ExtResource("2_drops")
+
+[node name="MidwayArcA" parent="." instance=ExtResource("8_hazard")]
+position = Vector2(900, 1400)
+HazardID = "level_03.midway_arc_a"
+WarningDuration = 0.9
+ActiveDuration = 0.8
+CooldownDuration = 2.4
+Damage = 14
+
+[node name="MidwayArcB" parent="." instance=ExtResource("8_hazard")]
+position = Vector2(2400, 1400)
+HazardID = "level_03.midway_arc_b"
+WarningDuration = 0.9
+ActiveDuration = 0.8
+CooldownDuration = 3.1
+Damage = 14
+
+[node name="CrowdArcA" parent="." instance=ExtResource("8_hazard")]
+position = Vector2(7400, 1400)
+HazardID = "level_03.crowd_arc_a"
+WarningDuration = 0.8
+ActiveDuration = 1.0
+CooldownDuration = 1.8
+Damage = 18
+Enabled = false
+
+[node name="CrowdArcB" parent="." instance=ExtResource("8_hazard")]
+position = Vector2(8000, 1400)
+HazardID = "level_03.crowd_arc_b"
+WarningDuration = 0.8
+ActiveDuration = 1.0
+CooldownDuration = 1.8
+Damage = 18
+Enabled = false
+
+[node name="BeamRoutingPuzzle" type="Node" parent="."]
+script = ExtResource("3_puzzle")
+PuzzleID = "level_03.beam_routing"
+RequiredConditionIDs = PackedStringArray("beam_routed")
+
+[node name="Receiver" parent="BeamRoutingPuzzle" instance=ExtResource("7_receiver")]
+position = Vector2(7660, 1300)
+PowerNodeID = "level_03.beam_receiver"
+PuzzleManagerPath = NodePath("..")
+ConditionID = "beam_routed"
+
+[node name="CrowdTapA" type="Node2D" parent="BeamRoutingPuzzle"]
+position = Vector2(7400, 1300)
+script = ExtResource("4_routing")
+PowerNodeID = "level_03.crowd_tap_a"
+
+[node name="CrowdTapB" type="Node2D" parent="BeamRoutingPuzzle"]
+position = Vector2(8000, 900)
+script = ExtResource("4_routing")
+PowerNodeID = "level_03.crowd_tap_b"
+
+[node name="CoilC" parent="BeamRoutingPuzzle" instance=ExtResource("6_coil")]
+position = Vector2(7660, 900)
+CoilID = "level_03.coil_c"
+EastOutputPaths = Array[NodePath]([NodePath("../CrowdTapB")])
+SouthOutputPaths = Array[NodePath]([NodePath("../Receiver")])
+
+[node name="CoilB" parent="BeamRoutingPuzzle" instance=ExtResource("6_coil")]
+position = Vector2(7060, 900)
+rotation = 3.1415927
+CoilID = "level_03.coil_b"
+EastOutputPaths = Array[NodePath]([NodePath("../CoilC")])
+
+[node name="CoilA" parent="BeamRoutingPuzzle" instance=ExtResource("6_coil")]
+position = Vector2(7060, 1300)
+CoilID = "level_03.coil_a"
+EastOutputPaths = Array[NodePath]([NodePath("../CrowdTapA")])
+NorthOutputPaths = Array[NodePath]([NodePath("../CoilB")])
+
+[node name="BeamEmitter" parent="BeamRoutingPuzzle" instance=ExtResource("5_emitter")]
+position = Vector2(6700, 1300)
+PowerNodeID = "level_03.beam_emitter"
+OutputPaths = Array[NodePath]([NodePath("../CoilA")])
