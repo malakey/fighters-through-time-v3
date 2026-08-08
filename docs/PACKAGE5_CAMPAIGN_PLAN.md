@@ -3,6 +3,20 @@
 Status: authored 2026-08-07. Working plan for `IMPLEMENTATION_PLAN.md` Package 5. Shared reference
 for the implementation passes; agents record deviations in §9 at the bottom.
 
+**Phase A completed and merged 2026-08-07** (A2 `7507533`: 14 era-mechanic components + 11 templates
++ 17 tests; A1 `7898e4f`: `StoryLevelControllerBase`, credits/campaign-completion chain,
+`IsCompleted` writers, post-campaign hub portal, `Level_10_Globe` route fix, 29 tests). All 46 new
+tests and the 139-test ContentValidation sweep pass on merged main.
+
+**Waves A/B/C are BLOCKED pending the finalizer-crash fix.** The full suite (463 tests after
+Phase A) cannot complete on merged main: the GdUnit Godot child dies nondeterministically
+(`FATAL: Condition "gchandle.is_released()"` in the GC finalizer path — CLAUDE.md signature 3's
+family). A1's worktree bisect showed the pre-Phase-A 417-test suite is stable and adding ANY 418th
+test enters the broken regime, so this is a suite-size threshold, not a content defect. A fix
+exists on `claude/peaceful-wilbur-23eaa0` (dispose Godot collections / drain finalizers, authored
+in a parallel session, unmerged, needs performance re-validation). Do not launch wave agents until
+that fix is merged and three consecutive full-suite runs pass.
+
 Authority order: explicit user instruction > `design-godot.md` > this plan > existing code — EXCEPT
 numbers: `docs/DUST_ECONOMY.md` + `tests/ContentValidation/DustEconomyTests.cs` lock the per-level
 encounter economy and OVERRIDE the design doc's conflicting prose (elite dust is 10 not 20,
