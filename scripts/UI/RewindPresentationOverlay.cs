@@ -11,7 +11,6 @@ namespace FTT.UI {
         private ColorRect _tint;
         private Control _scanlines;
         private bool _musicDucked;
-        private float _appliedMusicDb;
 
         public override void _Ready() {
             Layer = 80;
@@ -56,15 +55,27 @@ namespace FTT.UI {
             SetMusicDuck(active ? payload.MusicDuckDecibels : 0f);
         }
 
+        /// <summary>
+        /// Ducks music for the rewind through the shared snapshot layer.
+        ///
+        /// <para>This used to snapshot the Music bus's absolute dB on entry and write
+        /// it back on exit, which quietly reverted any volume change the player made
+        /// mid-rewind and fought anything else that touched the bus. The snapshot
+        /// mixer instead holds the duck as an <em>offset</em> over whatever base
+        /// volume the settings own, and tweens it in and out.</para>
+        ///
+        /// <para>The authored depth still wins: <c>MusicDuckDecibels</c> from the
+        /// rewind payload is passed through rather than using the snapshot's
+        /// default.</para>
+        /// </summary>
         private void SetMusicDuck(float decibels) {
-            int busIndex = AudioServer.GetBusIndex("Music");
-            if (busIndex < 0) return;
-            if (!_musicDucked && decibels != 0f) {
-                _appliedMusicDb = AudioServer.GetBusVolumeDb(busIndex);
-                AudioServer.SetBusVolumeDb(busIndex, _appliedMusicDb + decibels);
+            FTT.Core.AudioManager audio = FTT.Core.AudioManager.Instance;
+            if (audio == null) return;
+            if (decibels != 0f) {
+                audio.ApplySnapshot(FTT.Core.AudioSnapshot.Rewind, decibels);
                 _musicDucked = true;
-            } else if (_musicDucked && decibels == 0f) {
-                AudioServer.SetBusVolumeDb(busIndex, _appliedMusicDb);
+            } else if (_musicDucked) {
+                audio.ReleaseSnapshot(FTT.Core.AudioSnapshot.Rewind);
                 _musicDucked = false;
             }
         }

@@ -18,6 +18,10 @@ config/name="Fighters Through Time"
 run/main_scene="res://scenes/menus/MainMenu.tscn"
 config/features=PackedStringArray("4.7", "C#", "Forward Plus")
 
+[audio]
+
+buses/default_bus_layout="res://resources/Audio/default_bus_layout.tres"
+
 [autoload]
 
 EventBus="*res://scripts/Core/EventBus.cs"
