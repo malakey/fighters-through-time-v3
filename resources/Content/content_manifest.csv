@@ -22,9 +22,9 @@ FighterStage,florence_workshop,10,res://scenes/fighter/FighterStage_Florence.tsc
 FighterStage,orleans_vanguard,10,res://scenes/fighter/FighterStage_Orleans.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true
 FighterStage,chicago_exposition,10,res://scenes/fighter/FighterStage_Chicago.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true
 FighterStage,paris_bastille,10,res://scenes/fighter/FighterStage_Paris.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true
-FighterStage,pompeii_caldera,10,res://scenes/fighter/FighterStage_Pompeii.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true
+FighterStage,vesuvius_caldera,10,res://scenes/fighter/FighterStage_Vesuvius.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true
 FighterStage,nassau_flagship,10,res://scenes/fighter/FighterStage_Nassau.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true
-FighterStage,egypt_chambers,10,res://scenes/fighter/FighterStage_Egypt.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true
+FighterStage,alexandria_chambers,10,res://scenes/fighter/FighterStage_Alexandria.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true
 FighterStage,berlin_wall,10,res://scenes/fighter/FighterStage_Berlin.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true
 FighterStage,globe_theatre,10,res://scenes/fighter/FighterStage_Globe.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true
 FighterStage,gettysburg_ridge,10,res://scenes/fighter/FighterStage_Gettysburg.tscn,FighterStageCatalog,Planned,Placeholder,Pending,true
@@ -200,9 +200,9 @@ AudioSet,audio_stage_florence,8|10,res://resources/Audio/stage_florence_audio.tr
 AudioSet,audio_stage_orleans,8|10,res://resources/Audio/stage_orleans_audio.tres,AudioManager,Planned,Placeholder,Pending,true
 AudioSet,audio_stage_chicago,8|10,res://resources/Audio/stage_chicago_audio.tres,AudioManager,Planned,Placeholder,Pending,true
 AudioSet,audio_stage_paris,8|10,res://resources/Audio/stage_paris_audio.tres,AudioManager,Planned,Placeholder,Pending,true
-AudioSet,audio_stage_pompeii,8|10,res://resources/Audio/stage_pompeii_audio.tres,AudioManager,Planned,Placeholder,Pending,true
+AudioSet,audio_stage_vesuvius,8|10,res://resources/Audio/stage_vesuvius_audio.tres,AudioManager,Planned,Placeholder,Pending,true
 AudioSet,audio_stage_nassau,8|10,res://resources/Audio/stage_nassau_audio.tres,AudioManager,Planned,Placeholder,Pending,true
-AudioSet,audio_stage_egypt,8|10,res://resources/Audio/stage_egypt_audio.tres,AudioManager,Planned,Placeholder,Pending,true
+AudioSet,audio_stage_alexandria,8|10,res://resources/Audio/stage_alexandria_audio.tres,AudioManager,Planned,Placeholder,Pending,true
 AudioSet,audio_stage_berlin,8|10,res://resources/Audio/stage_berlin_audio.tres,AudioManager,Planned,Placeholder,Pending,true
 AudioSet,audio_stage_globe,8|10,res://resources/Audio/stage_globe_audio.tres,AudioManager,Planned,Placeholder,Pending,true
 AudioSet,audio_stage_gettysburg,8|10,res://resources/Audio/stage_gettysburg_audio.tres,AudioManager,Planned,Placeholder,Pending,true
@@ -239,9 +239,9 @@ VisualSet,visual_stage_florence,9|17,res://assets/placeholders/parallax_far.svg,
 VisualSet,visual_stage_orleans,9|17,res://assets/placeholders/parallax_far.svg,FighterStageCatalog,Prototype,Placeholder,Valid,true
 VisualSet,visual_stage_chicago,9|17,res://assets/placeholders/parallax_far.svg,FighterStageCatalog,Prototype,Placeholder,Valid,true
 VisualSet,visual_stage_paris,9|17,res://assets/placeholders/parallax_far.svg,FighterStageCatalog,Prototype,Placeholder,Valid,true
-VisualSet,visual_stage_pompeii,9|17,res://assets/placeholders/parallax_far.svg,FighterStageCatalog,Prototype,Placeholder,Valid,true
+VisualSet,visual_stage_vesuvius,9|17,res://assets/placeholders/parallax_far.svg,FighterStageCatalog,Prototype,Placeholder,Valid,true
 VisualSet,visual_stage_nassau,9|17,res://assets/placeholders/parallax_far.svg,FighterStageCatalog,Prototype,Placeholder,Valid,true
-VisualSet,visual_stage_egypt,9|17,res://assets/placeholders/parallax_far.svg,FighterStageCatalog,Prototype,Placeholder,Valid,true
+VisualSet,visual_stage_alexandria,9|17,res://assets/placeholders/parallax_far.svg,FighterStageCatalog,Prototype,Placeholder,Valid,true
 VisualSet,visual_stage_berlin,9|17,res://assets/placeholders/parallax_far.svg,FighterStageCatalog,Prototype,Placeholder,Valid,true
 VisualSet,visual_stage_globe,9|17,res://assets/placeholders/parallax_far.svg,FighterStageCatalog,Prototype,Placeholder,Valid,true
 VisualSet,visual_stage_gettysburg,9|17,res://assets/placeholders/parallax_far.svg,FighterStageCatalog,Prototype,Placeholder,Valid,true

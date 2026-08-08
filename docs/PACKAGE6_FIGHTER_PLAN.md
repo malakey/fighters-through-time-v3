@@ -449,6 +449,113 @@ all four `stage_<era>_*` key families already exist and are compiled.
 
 ## 9. Deviations (append-only)
 
-*(Empty at authoring. Every agent appends `### <workstream> — <subject> (date)` blocks here in the
+*(Every agent appends `### <workstream> — <subject> (date)` blocks here in the
 Package 5 format: bold one-sentence claim, then reasoning and the pinning test. The orchestrator
 appends integration blocks per phase and the closeout appends the final honesty list.)*
+
+### A1 — Deterministic stage geometry + ten era hazards (2026-08-08)
+
+**A1: every §4 dossier number shipped unchanged; no platform needed an integrator-reachability
+adjustment.** Landing snaps `Position.y` to `SurfaceY` exactly on the crossing frame
+(`FighterMovementSystem.TryLandOnPlatform`), so reachability is a question of *jump height*, not
+representability: single jump is `13²/(2·30) ≈ 2.82` units and a double jump roughly doubles it,
+which clears the tallest authored surface (Globe's 4.4). Pinned by
+`FighterStageGeometryTests.EveryAuthoredPlatformIsReachableAndLandableByJumping`, which walks the
+real fixed-point simulation to every one of the 21 authored platforms and asserts an exact landing —
+not a tolerance comparison.
+
+**A1: the plan's item 1 said "rewrite `UnknownStagesFallBackToTheDefaultGeometry`"; the whole
+`FighterStageGeometryTests` file was rewritten instead.** The old file pinned Florence by hand and
+had no mechanism for nine more stages. It is now dossier-table driven
+(`EveryAuthoredStageMatchesItsLockedDossier`, `EveryAuthoredStageSharesTheCommonBoundsContract`,
+`EveryOrbAnchorSitsHalfAUnitAboveItsSupportingSurface`, plus per-stage jump-landing, hash-identity
+and anchor-only runs), and the six original Florence behaviour tests are preserved verbatim. The
+fallback test now asserts on genuinely unknown IDs *and* on the two retired manifest spellings
+(`pompeii_caldera`, `egypt_chambers`) so a stale ID can never silently resolve to a real stage.
+
+**A1: `FighterStageGeometry.AllAuthored` was added so downstream harnesses enumerate stages instead
+of hardcoding a list.** Plan §3 A4 item 1 explicitly wants the rollback harness to pick up new
+geometries "with zero edits"; a public ordered array is the cheapest way to give it that, and A1's
+own per-stage tests use the same array so the two can never disagree about what "all stages" means.
+
+**A1: the block-absorbs-a-hazard-tick rule (§2.4) turned out to be *already* satisfied by the shared
+`ApplyFighterHit` path, so A1 made it explicit rather than implementing it.** `ApplyEnvironmentHit`
+already routed through the basic-attack-class block branch, which charged 1 shield charge. That was
+incidental — it fell out of the class-default `attackClass == SpecialAttackClass ? all : 1`
+expression, so any later change to the special-shatter rule would have silently changed hazard
+behaviour too. `ApplyEnvironmentHit` now passes `FighterDamageRules.HazardBlockChargeCost = 1`
+explicitly, and `FighterHazardBehaviorTests.BlockingAbsorbsAHazardTickForOneShieldCharge` pins the
+blocked/unblocked pair. **This is a downgrade of the plan's claim that it is "a behavior change";
+it is not, and the plan's phrasing should not be read as evidence that hazards used to be
+unblockable.**
+
+**A1: one-shot hazard hit masks are consumed on first *overlap*, not on first *damage*.** A mortar
+shell or artillery strike that a fighter blocked, rolled through with i-frames, or was hyper-armoured
+against is spent for that fighter. The alternative — consuming only on a landed hit — lets a blocked
+30-frame explosion re-attempt every frame and drain the whole shield in half a second, which is
+strictly worse for the player and much harder to reason about. Pinned by the "exactly once" HP
+assertions in the Orléans, Nassau and Gettysburg scenarios.
+
+**A1: hazard `Velocity` is stored in units per *frame*, not per second, and is integrated directly
+without `FixedDelta`.** Every other velocity in the sim is per-second. The §4.1 dossier speeds
+(0.09, 0.05, 0.15) are authored per frame, and multiplying them by `FixedDelta` would have made the
+debris take 50 minutes to cross the stage. The field is documented as per-frame on
+`FighterHazardComponent`; the Orléans and Paris scenarios assert real travel distances so a unit
+mix-up fails loudly.
+
+**A1: the mortar's "upward bias" needed a new optional `verticalKnockbackScale` on
+`ApplyFighterHit`.** The shared impulse writes `Velocity.y = force` — a 1:1 pulse — so there was no
+way to express a launcher without duplicating the knockback maths in the hazard system. The
+parameter defaults to `FP64.Zero` meaning "use 1", so every existing call site is byte-identical.
+Nassau passes 2. Pinned by `NassauMortarTelegraphsThenLaunchesEachFighterUpwardExactlyOnce`
+(`Velocity.y > |Velocity.x|` on the hit frame).
+
+**A1: `CooldownFrames` now means *recovery length* (60), not the spawn interval.** The field was
+dead; the plan asks recovery to use it. It previously held
+`FighterSpawnIntervals.HazardFrames(frequency)`, which was never read. Nothing consumed the old
+meaning. `EveryHazardRunsWarningActiveAndRecoveryBeforeDespawning` pins the full phase chain and the
+value.
+
+**A1: the two existing hazard tests stayed green with no assertion changes.**
+`FighterSimulationTests.HazardAndOrbSpawnsAreDeterministicAndSnapshotSafe` (hazard count 1, phase 0
+at tick 1805) and `SelectedStageHazardTypeIsPartOfDeterministicState` still hold: the first hazard
+spawns on the 1800-frame boundary and the extra 60-frame recovery does not overlap the next spawn at
+any supported frequency.
+
+**A1: `TestArenaController` now forwards the stage ID, which means a TestArena-hosted match gets the
+selected stage's *geometry* while still showing the TestArena *visuals* until Phase B lands the nine
+scenes.** That mismatch is not new — the TestArena template already drew platforms the Default
+geometry did not have — and it resolves itself when the closeout points each catalog `ScenePath` at
+its own scene. Flagging it so nobody reports it as a regression during Phase B.
+
+**A1: the marker↔geometry conformance validator treats a one-way platform body's *origin* as the
+surface point, not the top edge of its collision rect.** Florence's `GearPlatformLeft` sits at pixel
+(700, 550) = (−4, 2.4) with a 200×12 rect centred on the origin, so its rect top edge is 6 px above
+the authored surface. Since `collision_mask = 0` everywhere and the simulation is authoritative,
+the collider is presentation; the node origin is the meaningful anchor. Florence was found fully
+conformant under this rule and **was not modified**. `FighterStageConformanceTests` proves the
+validator rejects drifted markers and a wrong-stage geometry, so it cannot pass nine Phase B scenes
+vacuously.
+
+**A1: `StageAudioSet` carries `ClimaxStem`, not `BossStem`.** Fighter Mode has no boss; the third
+layer is the last-stock/final-seconds climax. The placeholder kit's third stem file is still
+`placeholder_stem_boss.tres` (Story-named, shared), which `StageAudioSetTests` loads into the climax
+slot. Renaming the shared placeholder asset was out of A1's file ownership.
+
+**A1: `content_manifest.1.translation` did not change despite the manifest rename, and that is
+correct.** The manifest is imported with the `csv_translation` importer keyed on column 0
+(`category`), which is heavily duplicated, so the compiled artifact never contained the per-row ids
+that were renamed. `--headless --import` was run and regenerated the artifact byte-identically;
+there is nothing to commit for it.
+
+**A1: the GdUnit pipe name is shared across worktrees, so concurrent Phase A test runs corrupt each
+other's results.** GdUnit4 launches its Godot child with
+`--pipe-name gdunit4-FightersThroughTime`, derived from the assembly name — identical in every
+worktree. When two agents run `dotnet test` at once the testhosts cross-connect and one or both
+report a large partial `Total:` with `GodotRuntimeTestRunner ends with exit code: 100`, or fall back
+to the 24 pure-C# tests with `Failed to connect: Connection timeout`. **This looks exactly like
+CLAUDE.md failure signatures 1 and 2 but is neither** — there is no FATAL in `godot.log` and no
+negative exit code, and the truncation point moves with the other agent's activity. A1's full-suite
+numbers below were taken in a window with no other Godot process alive. The orchestrator should
+serialize full-suite runs across Phase A/B worktrees, or this will keep producing phantom
+regressions.
