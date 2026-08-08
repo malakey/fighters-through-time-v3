@@ -138,6 +138,11 @@ namespace FTT.Core {
                 node = pool.Inactive.Dequeue();
                 pool.InactiveContainer.RemoveChild(node);
             } else {
+                // The pool looks exhausted. Stale entries - nodes freed behind the
+                // pool's back - would otherwise count against capacity forever, so
+                // reconcile before deciding. Off the hot path: only reached once the
+                // inactive queue has run dry.
+                PurgeInvalidActive();
                 int totalCount = pool.Active.Count;
                 switch (pool.OverflowPolicy) {
                     case PoolOverflowPolicy.Reject:
@@ -148,8 +153,14 @@ namespace FTT.Core {
                         if (totalCount >= pool.MaxCapacity && pool.Active.Count > 0) {
                             var oldest = pool.Active[0];
                             Release(oldest);
-                            node = pool.Inactive.Dequeue();
-                            pool.InactiveContainer.RemoveChild(node);
+                            // Release only enqueues when the node really belonged to
+                            // this pool; fall back to a fresh instance if it did not.
+                            if (pool.Inactive.Count > 0) {
+                                node = pool.Inactive.Dequeue();
+                                pool.InactiveContainer.RemoveChild(node);
+                            } else {
+                                node = CreateInstance(template);
+                            }
                         } else {
                             node = CreateInstance(template);
                         }
@@ -220,6 +231,7 @@ namespace FTT.Core {
 
         public int ReleaseActiveInGroup(string groupName) {
             if (string.IsNullOrWhiteSpace(groupName)) return 0;
+            PurgeInvalidActive();
             var matches = new List<Node>();
             foreach (Pool pool in _pools.Values) {
                 foreach (Node node in pool.Active) {
@@ -228,6 +240,46 @@ namespace FTT.Core {
             }
             foreach (Node node in matches) Release(node);
             return matches.Count;
+        }
+
+        /// <summary>
+        /// Hands back every active pooled node parented under <paramref name="root"/>
+        /// (or <paramref name="root"/> itself). Scene owners call this from
+        /// <c>_ExitTree</c>: a pooled node parented to a scene that is being freed
+        /// would otherwise be destroyed with it and left in the pool's active list as
+        /// a dead reference, which poisons every later spawn and release.
+        /// Scoping by ancestry rather than by group means one unloading scene can
+        /// never hand back another live scene's pooled objects.
+        /// </summary>
+        public int ReleaseActiveUnder(Node root) {
+            if (root == null || !IsInstanceValid(root)) return 0;
+            PurgeInvalidActive();
+            var matches = new List<Node>();
+            foreach (Pool pool in _pools.Values) {
+                foreach (Node node in pool.Active) {
+                    if (node == root || root.IsAncestorOf(node)) matches.Add(node);
+                }
+            }
+            foreach (Node node in matches) Release(node);
+            return matches.Count;
+        }
+
+        /// <summary>
+        /// Drops active entries whose node was freed behind the pool's back. Without
+        /// this a single externally freed node makes every subsequent group/ancestry
+        /// sweep throw <see cref="ObjectDisposedException"/>, and permanently consumes
+        /// a slot of the pool's capacity.
+        /// </summary>
+        public int PurgeInvalidActive() {
+            int purged = 0;
+            foreach (Pool pool in _pools.Values) {
+                for (int index = pool.Active.Count - 1; index >= 0; index--) {
+                    if (IsInstanceValid(pool.Active[index])) continue;
+                    pool.Active.RemoveAt(index);
+                    purged++;
+                }
+            }
+            return purged;
         }
 
         public IReadOnlyList<Node> GetActiveNodes(string poolID) {
@@ -246,7 +298,9 @@ namespace FTT.Core {
             string key = GetTemplateKey(template);
             if (!_pools.TryGetValue(key, out var pool)) return;
 
-            foreach (var node in pool.Active) node.QueueFree();
+            foreach (var node in pool.Active) {
+                if (IsInstanceValid(node)) node.QueueFree();
+            }
             pool.Active.Clear();
 
             while (pool.Inactive.Count > 0) {
@@ -259,7 +313,9 @@ namespace FTT.Core {
 
         public void ClearAllPools() {
             foreach (var kvp in _pools) {
-                foreach (var node in kvp.Value.Active) node.QueueFree();
+                foreach (var node in kvp.Value.Active) {
+                    if (IsInstanceValid(node)) node.QueueFree();
+                }
                 kvp.Value.Active.Clear();
                 while (kvp.Value.Inactive.Count > 0) {
                     kvp.Value.Inactive.Dequeue().QueueFree();

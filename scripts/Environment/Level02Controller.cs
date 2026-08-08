@@ -356,24 +356,9 @@ namespace FTT.Environment {
             }
         }
 
-        protected override void OnLevelReady() {
-            ApplyResumeCameraBounds();
-            RefreshObjective();
-        }
-
-        /// <summary>
-        /// A resumed run starts behind every room trigger it already crossed, so the
-        /// confiner would otherwise stay on whole-level bounds until the next room.
-        /// </summary>
-        private void ApplyResumeCameraBounds() {
-            if (!ResumedMidLevel || Camera == null || Player == null) return;
-            float x = Player.Position.X;
-            foreach (RoomTransitionTrigger trigger in RoomTriggers) {
-                if (!IsInstanceValid(trigger)) continue;
-                Rect2 bounds = trigger.CameraBounds;
-                if (x >= bounds.Position.X && x <= bounds.End.X) Camera.SetBounds(bounds);
-            }
-        }
+        // Resume camera confinement is handled by
+        // StoryLevelControllerBase.ApplyResumeCameraBounds (Wave A integration).
+        protected override void OnLevelReady() => RefreshObjective();
 
         private void RefreshObjective() {
             if (IsBossDefeated) SetObjective(CompletionObjectiveKey);

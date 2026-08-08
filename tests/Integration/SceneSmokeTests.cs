@@ -12,7 +12,12 @@ public class SceneSmokeTests {
         "res://scenes/arenas/TestArena.tscn",
         "res://scenes/campaign/HubWorld.tscn",
         "res://scenes/campaign/Level_00_Tutorial.tscn",
-        "res://scenes/campaign/Level_01_Florence.tscn"
+        "res://scenes/campaign/Level_01_Florence.tscn",
+        // Package 5 Wave A.
+        "res://scenes/campaign/Level_02_Orleans.tscn",
+        "res://scenes/campaign/Level_03_Chicago.tscn",
+        "res://scenes/campaign/Level_04_Paris.tscn",
+        "res://scenes/campaign/Level_05_Titanic.tscn"
     };
 
     [TestCase]

@@ -3,10 +3,10 @@ category,id,source_section,resource_path,owner_system,implementation_state,asset
 # Story levels 0-15
 StoryLevel,level_00_tutorial,3|7,res://scenes/campaign/Level_00_Tutorial.tscn,StoryManager,Prototype,Placeholder,Valid,true
 StoryLevel,level_01_florence,3|7,res://scenes/campaign/Level_01_Florence.tscn,StoryManager,Prototype,Placeholder,Valid,true
-StoryLevel,level_02_orleans,3|7,res://scenes/campaign/Level_02_Orleans.tscn,StoryManager,Planned,Placeholder,Pending,true
-StoryLevel,level_03_chicago,3|7,res://scenes/campaign/Level_03_Chicago.tscn,StoryManager,Planned,Placeholder,Pending,true
-StoryLevel,level_04_paris,3|7,res://scenes/campaign/Level_04_Paris.tscn,StoryManager,Planned,Placeholder,Pending,true
-StoryLevel,level_05_titanic,3|7,res://scenes/campaign/Level_05_Titanic.tscn,StoryManager,Planned,Placeholder,Pending,true
+StoryLevel,level_02_orleans,3|7,res://scenes/campaign/Level_02_Orleans.tscn,StoryManager,Implemented,ReadyForReplacement,Valid,true
+StoryLevel,level_03_chicago,3|7,res://scenes/campaign/Level_03_Chicago.tscn,StoryManager,Implemented,ReadyForReplacement,Valid,true
+StoryLevel,level_04_paris,3|7,res://scenes/campaign/Level_04_Paris.tscn,StoryManager,Implemented,ReadyForReplacement,Valid,true
+StoryLevel,level_05_titanic,3|7,res://scenes/campaign/Level_05_Titanic.tscn,StoryManager,Implemented,ReadyForReplacement,Valid,true
 StoryLevel,level_06_pompeii,3|7,res://scenes/campaign/Level_06_Pompeii.tscn,StoryManager,Planned,Placeholder,Pending,true
 StoryLevel,level_07_nassau,3|7,res://scenes/campaign/Level_07_Nassau.tscn,StoryManager,Planned,Placeholder,Pending,true
 StoryLevel,level_08_egypt,3|7,res://scenes/campaign/Level_08_Egypt.tscn,StoryManager,Planned,Placeholder,Pending,true
@@ -132,10 +132,10 @@ Boss,apex_eraser,6,res://resources/Bosses/apex_eraser.tres,BossController,Implem
 # Dialogue sets: one per level plus hub
 DialogueSet,dialogue_level_00,4|16,res://resources/Dialogue/level_00_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true
 DialogueSet,dialogue_level_01,4|16,res://resources/Dialogue/level_01_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true
-DialogueSet,dialogue_level_02,16,res://resources/Dialogue/level_02_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true
-DialogueSet,dialogue_level_03,16,res://resources/Dialogue/level_03_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true
-DialogueSet,dialogue_level_04,16,res://resources/Dialogue/level_04_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true
-DialogueSet,dialogue_level_05,16,res://resources/Dialogue/level_05_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true
+DialogueSet,dialogue_level_02,16,res://resources/Dialogue/level_02_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
+DialogueSet,dialogue_level_03,16,res://resources/Dialogue/level_03_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
+DialogueSet,dialogue_level_04,16,res://resources/Dialogue/level_04_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
+DialogueSet,dialogue_level_05,16,res://resources/Dialogue/level_05_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
 DialogueSet,dialogue_level_06,16,res://resources/Dialogue/level_06_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true
 DialogueSet,dialogue_level_07,16,res://resources/Dialogue/level_07_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true
 DialogueSet,dialogue_level_08,16,res://resources/Dialogue/level_08_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true

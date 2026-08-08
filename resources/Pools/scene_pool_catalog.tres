@@ -1,10 +1,14 @@
-[gd_resource type="Resource" script_class="ScenePoolCatalog" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="ScenePoolCatalog" load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/Core/ScenePoolCatalog.cs" id="1_catalog"]
 [ext_resource type="Script" path="res://scripts/Core/ScenePoolCatalogEntry.cs" id="2_entry"]
 [ext_resource type="Resource" path="res://resources/Pools/tutorial_pool_config.tres" id="3_tutorial"]
 [ext_resource type="Resource" path="res://resources/Pools/florence_pool_config.tres" id="4_florence"]
 [ext_resource type="Resource" path="res://resources/Pools/test_arena_pool_config.tres" id="5_arena"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_02_pool_config.tres" id="6_orleans"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_03_pool_config.tres" id="7_chicago"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_04_pool_config.tres" id="8_paris"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_05_pool_config.tres" id="9_titanic"]
 
 [sub_resource type="Resource" id="Tutorial"]
 script = ExtResource("2_entry")
@@ -14,6 +18,22 @@ PoolConfig = ExtResource("3_tutorial")
 script = ExtResource("2_entry")
 ScenePath = "res://scenes/campaign/Level_01_Florence.tscn"
 PoolConfig = ExtResource("4_florence")
+[sub_resource type="Resource" id="Orleans"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_02_Orleans.tscn"
+PoolConfig = ExtResource("6_orleans")
+[sub_resource type="Resource" id="Chicago"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_03_Chicago.tscn"
+PoolConfig = ExtResource("7_chicago")
+[sub_resource type="Resource" id="Paris"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_04_Paris.tscn"
+PoolConfig = ExtResource("8_paris")
+[sub_resource type="Resource" id="Titanic"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_05_Titanic.tscn"
+PoolConfig = ExtResource("9_titanic")
 [sub_resource type="Resource" id="Arena"]
 script = ExtResource("2_entry")
 ScenePath = "res://scenes/arenas/TestArena.tscn"
@@ -21,4 +41,4 @@ PoolConfig = ExtResource("5_arena")
 
 [resource]
 script = ExtResource("1_catalog")
-Scenes = Array[ExtResource("2_entry")]([SubResource("Tutorial"), SubResource("Florence"), SubResource("Arena")])
+Scenes = Array[ExtResource("2_entry")]([SubResource("Tutorial"), SubResource("Florence"), SubResource("Orleans"), SubResource("Chicago"), SubResource("Paris"), SubResource("Titanic"), SubResource("Arena")])

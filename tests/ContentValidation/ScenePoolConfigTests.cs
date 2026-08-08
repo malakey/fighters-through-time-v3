@@ -17,9 +17,10 @@ public class ScenePoolConfigTests {
     };
 
     /// <summary>
-    /// Package 4 Section 3.6: per-level warm-up budgets for levels 2-15. The scenes
-    /// themselves are Package 5, so these are deliberately NOT in
-    /// <c>scene_pool_catalog.tres</c> yet — the catalog only maps existing scenes.
+    /// Package 4 Section 3.6: per-level warm-up budgets for levels 2-15. A config
+    /// enters <c>scene_pool_catalog.tres</c> when its Package 5 scene lands (levels
+    /// 2-5 are mapped as of the Wave A integration); the catalog only maps scenes
+    /// that exist, so 6-15 stay out until their waves merge.
     /// </summary>
     private static readonly string[] LevelConfigPaths =
         Enumerable.Range(2, 14)
@@ -118,5 +119,20 @@ public class ScenePoolConfigTests {
         AssertObject(catalog.Find("res://scenes/campaign/Level_00_Tutorial.tscn")).IsNotNull();
         AssertObject(catalog.Find("res://scenes/campaign/Level_01_Florence.tscn")).IsNotNull();
         AssertObject(catalog.Find("res://scenes/arenas/TestArena.tscn")).IsNotNull();
+
+        // Package 5 Wave A: every authored campaign level must resolve to its own
+        // per-level budget, or the level warms nothing and spawns cold.
+        foreach ((string scene, string configID) in new[] {
+            ("res://scenes/campaign/Level_02_Orleans.tscn", "level_02_orleans_pools"),
+            ("res://scenes/campaign/Level_03_Chicago.tscn", "level_03_chicago_pools"),
+            ("res://scenes/campaign/Level_04_Paris.tscn", "level_04_paris_pools"),
+            ("res://scenes/campaign/Level_05_Titanic.tscn", "level_05_titanic_pools")
+        }) {
+            ScenePoolConfig config = catalog.Find(scene);
+            AssertObject(config).OverrideFailureMessage(
+                $"{scene} has no scene_pool_catalog.tres entry.").IsNotNull();
+            AssertThat(config.ConfigID).OverrideFailureMessage(
+                $"{scene} maps to '{config.ConfigID}', expected '{configID}'.").IsEqual(configID);
+        }
     }
 }

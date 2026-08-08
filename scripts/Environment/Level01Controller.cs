@@ -65,6 +65,9 @@ namespace FTT.Environment {
                 EventBus.Instance.OnEnemyKilled -= OnEnemyKilled;
                 EventBus.Instance.OnDialogueComplete -= OnDialogueComplete;
             }
+            // Pooled wave enemies are parented here; hand them back or the pool keeps
+            // freed references once this scene unloads.
+            PoolManager.Instance?.ReleaseActiveUnder(this);
         }
 
         private void StartEntranceDialogue() {

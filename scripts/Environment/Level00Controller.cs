@@ -74,6 +74,9 @@ namespace FTT.Environment {
                 EventBus.Instance.OnRewindTriggered -= OnRewindTriggered;
             }
             if (_dummy != null && IsInstanceValid(_dummy)) _dummy.HitLanded -= OnDummyHit;
+            // Pooled combat-trial enemies are parented here; hand them back or the
+            // pool keeps freed references once this scene unloads.
+            PoolManager.Instance?.ReleaseActiveUnder(this);
         }
 
         // === Part 1: fracture presentation ===

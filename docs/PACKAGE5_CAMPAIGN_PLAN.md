@@ -161,24 +161,68 @@ Constraint: NO FighterSim changes; the only shared-runtime edit allowed is the
 Economy columns are LOCKED (S standards / E elites / B boss / X extractors). Era enemies from
 Package 4; "cultist mix" = blend chrono_slasher (+tech_enforcer where E>0). Boss resources exist —
 levels build arenas + `BossEncounterController` wiring only. Pool warm counts (concurrency caps)
-are in `resources/Pools/level_pool_configs/`.
+are in `resources/Pools/level_pool_configs/`. **Boss HP and range numbers live in §4.1, transcribed
+from the authored `.tres` files; any boss number in the prose column below is flavour, not spec.**
 
 | Lvl | Scene / LevelID | S/E/B/X | Era roster (S; E) | Era identity (mechanics to use) | Boss + arena notes |
 |---|---|---|---|---|---|
 | 2 | `Level_02_Orleans.tscn` / `level_02_orleans` | 8/0/1/3 | laser_archer, cyber-mix; — | Siege assault: 2× `ShieldGeneratorTower` + forcefields gating progress; mortar `StoryCyclicHazard` lanes | siegemaster_duke; battlement arena, 2–3 stone platforms |
 | 3 | `Level_03_Chicago.tscn` / `level_03_chicago` | 8/0/1/3 | voltaic_shock_drone, cultist mix; — | Beam-routing puzzle room (BeamEmitter/ConductiveCoil/BeamReceiver — exists) gating the fairground; coil-discharge cyclic hazards | chronal_inventor; flat metallic stage, two coil side platforms |
-| 4 | `Level_04_Paris.tscn` / `level_04_paris` | 10/0/1/3 | chrono_rioter, cultist mix; — | 2–3 `SearchlightZone` (ultimate-drain mode) corridors; 2× `RescuableNPC` prisoners behind `DestructibleBlock` locks opening the courtyard | revolutionary_tribunal (summoner, NOT knockback-immune); two drawbridge walkways over a pit, room for adds |
+| 4 | `Level_04_Paris.tscn` / `level_04_paris` | 10/0/1/3 | chrono_rioter, cultist mix; — | 2–3 `SearchlightZone` (ultimate-drain mode) corridors; 2× `RescuableNPC` prisoners behind `DestructibleBlock` locks opening the courtyard | revolutionary_tribunal (summoner, knockback-immune like the rest of the roster); two drawbridge walkways over a pit, room for adds |
 | 5 | `Level_05_Titanic.tscn` / `level_05_titanic` | 12/1/1/4 | chrono_slasher; tech_enforcer (cultist-only) | Act I finale. `RisingWaterZone` escalating per room, listing-deck slopes (angled floors), `level_05.preboss` beat | tidal_eraser; arena floods in phase 2 via `RisingWaterZone` hook |
 | 6 | `Level_06_Pompeii.tscn` / `level_06_pompeii` | 10/0/1/3 | shock_shield_legionnaire, cultist mix; — | `EscapeSequenceController` lava-front room; counterweight/weight puzzle (exists) clearing rockfall; 2× `RescuableNPC` civilians; ash `StoryCyclicHazard` geysers | vulcan_decimator; slanted rocky slopes, two narrow ledges |
 | 7 | `Level_07_Nassau.tscn` / `level_07_nassau` | 10/1/1/3 | laser_pistol_deckhand; overcharged_cannon_master | Ship-to-ship: `PendulumAnchor` rope swings between deck segments, `PathMovingPlatform` boarding skiffs, mortar cyclic hazards | dread_admiral; burning deck, two wooden yard platforms |
 | 8 | `Level_08_Egypt.tscn` / `level_08_egypt` | 10/0/1/3 | plasma_spear_ward, cultist mix; — | Surface dunes with `MovementDampenerZone` deep sand; tomb section with `SequenceLock` hieroglyph puzzle gating the palace; `level_08.postboss` = the authored Cleopatra script (design 3368–3374) | jackal_priest (teleporter); sandy floor, two sarcophagi platforms |
 | 9 | `Level_09_Berlin.tscn` / `level_09_berlin` | 12/1/1/3 | infrared_border_sentry; neural_mech_walker | `SearchlightZone` (strike mode, 1.5 s grace) stealth corridors; guard-tower vertical climbs; snow-tinted graybox | iron_chancellor; flat snowy street, two tower balconies |
 | 10 | `Level_10_Globe.tscn` / `level_10_globe` | 10/0/1/3 | holo_page, cultist mix; — | Stage machinery: `TrapdoorPlatform` stage floor, `PendulumAnchor` between gallery tiers, idle-punish audience hazard (cyclic hazard with reset-on-move trigger zone) | tragedy_king (illusion summoner); open wooden stage, two gallery balconies |
-| 11 | `Level_11_Gettysburg.tscn` / `level_11_gettysburg` | 12/1/1/3 | laser_rifle_infantry; cyber_cavalry_commander | Linear battlefield assault: artillery-line cyclic hazards (2 s telegraph) + cover geometry; 2× `ShieldGeneratorTower` arrays to destroy | siege_cannon (15 m ranges — WIDE arena); dirt path, rail-fence platforms |
+| 11 | `Level_11_Gettysburg.tscn` / `level_11_gettysburg` | 12/1/1/3 | laser_rifle_infantry; cyber_cavalry_commander | Linear battlefield assault: artillery-line cyclic hazards (2 s telegraph) + cover geometry; 2× `ShieldGeneratorTower` arrays to destroy | siege_cannon (12 m ranged band — the widest in the roster, WIDE arena); dirt path, rail-fence platforms |
 | 12 | `Level_12_Lunar.tscn` / `level_12_lunar` | 14/2/1/4 | vacuum_digger; void_enforcer | Act II finale. Level-wide `GravityFieldZone` low gravity; vacuum vents as cyclic hazards; high-altitude platforming with `PathMovingPlatform`; `level_12.preboss` = the authored Sarah script (design 3376–3383) | gravity_overseer (3 phases); orbital pad arena |
 | 13 | `Level_13_ChronalVoid.tscn` / `level_13_chronal_void` | 8/1/0/2 | rift_phantom + cultist mix; chrono_guard_elite | Era-mashup floating platforms; cycling `GravityFieldZone` shifts (telegraphed); `ChronalRiftZone` pockets. NO standard boss row — the encounter is `MirrorParadoxEncounterController` (dust 50 comes from it; economy table's B=0 EXCLUDES the mirror's 50, matching the locked 52-full/36-expected row — verify against DustEconomyTests before changing anything) | mirror_paradox; symmetric Fighter-like arena, flat + two platforms |
 | 14 | `Level_14_NeoEarth.tscn` / `level_14_neo_earth` | 14/2/1/3 | chrono_slasher (+hologram_drone); tech_enforcer | Apex lab: laser-grid corridors (cyclic hazards in authored patterns), anti-grav containment `GravityFieldZone` pockets, metallic graybox | archive_prime (3 phases); security-core arena whose laser grid hazards sync to boss phase via `BossPhaseChanged` |
-| 15 | `Level_15_Alexandria.tscn` / `level_15_alexandria` | 12/2/1/3 | chrono_slasher; tech_enforcer, chrono_guard_elite | Burning library assault; `EscapeSequenceController` reversed as advancing-restoration beat if useful; post-boss **Temporal Core insertion** interactable at the Prime Anchor → `level_15.ending` (authored script, design 3389–3399) → credits → `IsCompleted` → MainMenu (A1 chain). No standard results/hub-return flow | apex_eraser (3 phases, 3000 HP); grand library arena |
+| 15 | `Level_15_Alexandria.tscn` / `level_15_alexandria` | 12/2/1/3 | chrono_slasher; tech_enforcer, chrono_guard_elite | Burning library assault; `EscapeSequenceController` reversed as advancing-restoration beat if useful; post-boss **Temporal Core insertion** interactable at the Prime Anchor → `level_15.ending` (authored script, design 3389–3399) → credits → `IsCompleted` → MainMenu (A1 chain). No standard results/hub-return flow | apex_eraser (3 phases, 1200 HP — the roster ceiling); grand library arena |
+
+### 4.1 Authored boss stats — `resources/Bosses/*.tres` is authoritative
+
+**Read the resource, not this table, and never edit a boss resource from a level branch.** These
+numbers are transcribed from the Package 4 `.tres` files as of the Wave A integration and are
+reproduced here only so wave agents stop re-deriving them: all four Wave A agents independently
+discovered that the design doc's boss list (which seeded this plan's prose) was superseded by
+Package 4 and logged the same finding. Act I HP is pinned by `BossRosterActITests` (band 500–700,
+strictly ascending by level, **exactly one** phase threshold), so "fixing" a resource to match older
+prose fails Package 4 content tests.
+
+Arena sizing: `BossController.PixelsPerUnit` is **60**, so a ranged band of *N* units needs
+*N* × 60 px of usable floor. Assert `RangedRangeThreshold * 60 < arenaWidth` in your content test
+rather than hardcoding a width — re-tuning the boss then cannot silently outgrow the arena.
+
+| Lvl | BossID | MaxHP | Melee / Ranged (units) | PhaseThresholds (phases) | AttackPattern | KnockbackImmune | Dust |
+|---|---|---|---|---|---|---|---|
+| 1 | `borgia_inquisitor` | 500 | 3.0 / 7.0 | `[0.5]` (2) | `DistanceBased` | yes | 50 |
+| 2 | `siegemaster_duke` | 540 | 3.5 / 9.0 | `[0.5]` (2) | `DistanceBased` | yes | 50 |
+| 3 | `chronal_inventor` | 560 | 2.5 / 10.0 | `[0.5]` (2) | `DistanceBased` | yes | 50 |
+| 4 | `revolutionary_tribunal` | 590 | 3.0 / 9.0 | `[0.5]` (2) | `DistanceBased` | yes | 50 |
+| 5 | `tidal_eraser` | 640 | 3.5 / 10.0 | `[0.5]` (2) | `DistanceBased` | yes | 50 |
+| 6 | `vulcan_decimator` | 660 | 4.0 / 9.0 | `[0.5]` (2) | `DistanceBased` | yes | 50 |
+| 7 | `dread_admiral` | 700 | 3.0 / 11.0 | `[0.5]` (2) | `DistanceBased` | yes | 50 |
+| 8 | `jackal_priest` | 700 | 3.0 / 8.0 | `[0.5]` (2) | `DistanceBased` | yes | 50 |
+| 9 | `iron_chancellor` | 780 | 3.5 / 9.0 | `[0.5]` (2) | `DistanceBased` | yes | 50 |
+| 10 | `tragedy_king` | 800 | 3.0 / 8.0 | `[0.5]` (2) | `DistanceBased` | yes | 50 |
+| 11 | `siege_cannon` | 880 | 3.0 / 12.0 | `[0.5]` (2) | `DistanceBased` | yes | 50 |
+| 12 | `gravity_overseer` | 950 | 3.0 / 9.0 | `[0.66, 0.33]` (3) | `DistanceBased` | yes | 50 |
+| 13 | `mirror_paradox` | 1000 | 2.0 / 5.0 | `[]` (1) | `Sequential` | **no** | 50 |
+| 14 | `archive_prime` | 1050 | 3.0 / 10.0 | `[0.66, 0.33]` (3) | `DistanceBased` | yes | 50 |
+| 15 | `apex_eraser` | 1200 | 3.0 / 10.0 | `[0.66, 0.33]` (3) | `DistanceBased` | yes | 50 |
+
+Corrections this table supersedes, for anyone reading an older draft or an agent brief derived from
+one: `siegemaster_duke` is 540/3.5 (not 650/4.0); `chronal_inventor` 560/2.5 (not 800/3.5);
+`revolutionary_tribunal` 590 HP, one threshold, `DistanceBased`, knockback-**immune** (not 900,
+`[0.66, 0.33]`, `Sequential`, vulnerable); `tidal_eraser` 640/3.5/10.0 (not 1050/5.0/12.0);
+`siege_cannon`'s ranged band is 12 units, not 15; `apex_eraser` is 1200 HP, not 3000.
+
+`mirror_paradox` is the outlier by design: it is driven by `MirrorParadoxController`, not
+`BossController`, its `BossAbilities` export is deliberately **absent** (an empty script-typed array
+in a `.tres` corrupts the .NET heap — §2.8), and its 50 dust is awarded by
+`MirrorParadoxEncounterController`.
 
 Checkpoint counts: every level exactly 3 IDs (`_0` entry anchor at spawn, `_1` midpoint, `_2`
 pre-boss) matching the Florence precedent.
@@ -601,3 +645,78 @@ a pre-merge `git add`) before it will fast-forward.
   regenerated `.translation` binary. The `--import` pass also rewrites eight
   `addons/gdUnit4/**/*.png.import` files with a case-only `gdunit4`/`gdUnit4` source-path flip —
   unrelated churn, revert with `git checkout -- addons/gdUnit4`.
+
+### Wave A integration
+
+- **INTEGRATION-A: the merged-Wave-A failure (514 total, 14 failed) was one real shipping bug — an
+  unloading level leaks its pooled enemies into `PoolManager`.** Every failure died the same way:
+  `ObjectDisposedException: 'FTT.Enemies.EnemyController'` from `Godot.GodotObject.GetPtr`, thrown
+  by `Node.IsInGroup` inside `PoolManager.ReleaseActiveInGroup`.
+  Cause: `EnemyFactory.Spawn` parents pooled enemies to the level, and nothing handed them back
+  when the level went away. `PoolManager` kept the freed nodes in `pool.Active` forever. **This is
+  not a test artifact** — the same thing happens in game on every level → hub → level transition:
+  the dead entries permanently consume the pool's capacity, `RecycleOldest` then tries to recycle a
+  freed node and dequeues from an empty inactive queue, and any group sweep throws.
+  Each level class passed alone because it was the only pool user in the process; merged, level 2
+  and 3 poisoned the pool that levels 4 and 5 later swept, and their fixtures then threw *before*
+  reaching `Level.Free()` — which is why seven leaked level controllers stayed subscribed to
+  `EventBus` and turned `StoryLevelControllerBaseTests.KilledEnemiesTally…` into 8 × 15 = 120 dust.
+  `AerialComboUsesIndependentStateAndLandingResetDoesNotLeakIntoGroundCombo` was collateral from the
+  same leaked scenes. Both victims are now green with no test edits.
+  Fixed in production code on both sides:
+  1. `StoryLevelControllerBase._ExitTree` calls the new `PoolManager.ReleaseActiveUnder(this)`.
+     `Level00Controller` and `Level01Controller` do NOT extend the base and spawn through the same
+     pooled `EnemyFactory` wrappers, so both got the same one-liner.
+  2. `PoolManager` gained `ReleaseActiveUnder(Node)`, `PurgeInvalidActive()`, validity guards in
+     `ReleaseActiveInGroup`/`ClearPool`/`ClearAllPools`, a purge on the exhausted-pool path in
+     `SpawnFromPool`, and a fallback when `RecycleOldest` releases a node the pool no longer owns.
+     A pool now self-heals instead of throwing when something frees a node behind its back.
+  **Ancestry, not group, on purpose.** `ReleaseActiveInGroup("Enemies")` is global: it would also
+  reclaim a *live* scene's enemies, and it only covers the one group. `ReleaseActiveUnder(this)`
+  releases exactly the pooled objects parented under the level — enemies, their projectiles, loot,
+  VFX, constructs — and cannot reach across scenes. Only one level is live at a time today, but the
+  hub and the GdUnit fixtures are not, and the group form is what threw in the first place.
+  The Level 4/5 fixtures still call `ReleaseActiveInGroup("Enemies")` before freeing; that is now
+  redundant (the base does it) but harmless, and it was left in place.
+- **INTEGRATION-A: resume camera confinement is now in the base class.** L02 and L04 each hand-rolled
+  it. `StoryLevelControllerBase.ApplyResumeCameraBounds()` runs automatically between `BindEvents`
+  and `OnLevelReady`, and re-applies the `CameraBounds` of the authored room containing the spawn
+  point whenever `ResumedMidLevel` is true. Overlapping room bounds resolve to the **last** authored
+  match (L02 has a 320 px overlap between its battlement and boss rooms and relies on that).
+  It sets camera bounds *only* — it deliberately does not call `RoomTransitionTrigger.ActivateRoom`,
+  because that re-runs the room's `onEntered` handler: on Level 5 that would re-raise the hull flood
+  and respawn a wave straight on top of `RestoreFloodForCheckpoint`. A level that needs more than the
+  camera (Paris marks its starting room crossed and enables its encounter root) uses the new
+  `FindRoomTriggerContaining(x)` helper and calls `ActivateRoom` itself.
+  L02's private `ApplyResumeCameraBounds` and L04's `ActivateRoomContaining` are deleted; behaviour
+  is unchanged in both.
+- **INTEGRATION-A: `PuzzleManager` now re-emits `PuzzleCompleted` for a completion restored from the
+  save.** It read `SaveManager.IsPuzzleCompleted` in `_Ready` and set `IsCompleted` silently, so any
+  save-persisted gate stayed shut on resume with nothing left to open it — L03 force-opened its
+  court door and L04 checked `IsCompleted` explicitly to work around it. The emission is
+  **deferred** (`Callable.From(AnnounceRestoredCompletion).CallDeferred()`): a packed scene's
+  children ready before its root, so a synchronous emit in `_Ready` would reach no subscriber.
+  It also publishes a `PuzzleStatePayload` with reason `"restored"`.
+  Consequence for every later level agent: **`PuzzleCompleted` handlers must be idempotent.** All
+  three existing gate openers already were (`OpenDoor` null-checks, `CourtyardGateOpen` guard,
+  `OpenWorkshopDoor` validity check), so Florence, L03 and L04 are unchanged and their per-level
+  guards are now belt-and-braces rather than load-bearing. Puzzles with
+  `PersistCompletionToSave = false` are unaffected.
+- **INTEGRATION-A: shared-file wiring applied for levels 2–5** (§2.7 / §7): four
+  `ScenePoolCatalogEntry` rows in `resources/Pools/scene_pool_catalog.tres` mapping each scene to its
+  `level_NN_pool_config.tres`; four paths added to `SceneSmokeTests.RequiredPrototypeScenes`; the four
+  `StoryLevel` and four `DialogueSet` manifest rows flipped to
+  `Implemented,ReadyForReplacement,Valid`. `ScenePoolConfigTests.CatalogMapsEveryCurrentGameplaySceneToItsPoolBudget`
+  was extended to assert each new scene resolves to the right `ConfigID` (a mis-pointed row would
+  otherwise leave a level warming another level's budget, silently). StoryLevel row count stays 16
+  and levels 6–15 stay `Planned`/`Pending`, so
+  `ContentManifestTests.PlannedResourcesRemainVisibleUntilTheyAreAuthored` still has warnings to find.
+- **INTEGRATION-A: §4.1 added — the authored boss stat table.** All four Wave A agents independently
+  found and logged the same contradiction between §4's prose and `resources/Bosses/*.tres`. The
+  table is now transcribed from the resources for all 15 bosses so Waves B and C do not each burn a
+  cycle rediscovering it, and the three wrong numbers still embedded in §4's prose column
+  (`siege_cannon` 15 m, `apex_eraser` 3000 HP, `revolutionary_tribunal` "NOT knockback-immune") are
+  corrected. No boss resource was modified.
+- **INTEGRATION-A: suite total stays 514, 0 failed, across three consecutive runs.** No tests were
+  added, weakened, or deleted; the 14 failures were fixed entirely in production code. Import clean;
+  all four Wave A scenes plus Florence smoke clean at `--quit-after 300`.

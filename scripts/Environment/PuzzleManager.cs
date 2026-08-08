@@ -30,14 +30,35 @@ namespace FTT.Environment {
             foreach (string conditionID in RequiredConditionIDs) {
                 if (!string.IsNullOrWhiteSpace(conditionID)) _conditions.TryAdd(conditionID, false);
             }
+            bool restoredFromSave = false;
             if (PersistCompletionToSave && SaveManager.Instance?.IsPuzzleCompleted(PuzzleID) == true) {
                 IsCompleted = true;
+                restoredFromSave = true;
             }
             _checkpointCompleted = IsCompleted;
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnCheckpointReached += CaptureCheckpointState;
                 EventBus.Instance.OnRewindTriggered += OnRewindTriggered;
             }
+            if (restoredFromSave) Callable.From(AnnounceRestoredCompletion).CallDeferred();
+        }
+
+        /// <summary>
+        /// Re-raises <see cref="PuzzleCompletedEventHandler"/> for a completion this
+        /// puzzle restored from the save.
+        ///
+        /// Without it a save-persisted gate - a door, a barrier, a lift - stays shut
+        /// on resume with nothing left to open it, because the only thing that ever
+        /// opened it was the live completion signal. Deferred on purpose: a scene's
+        /// children ready before its root, so the level controller that wires
+        /// <see cref="PuzzleCompletedEventHandler"/> has not subscribed yet at
+        /// <see cref="_Ready"/> time. Gate-opening handlers must therefore be
+        /// idempotent, which the level controllers already are.
+        /// </summary>
+        private void AnnounceRestoredCompletion() {
+            if (!IsInstanceValid(this) || !IsCompleted) return;
+            EmitSignal(SignalName.PuzzleCompleted, PuzzleID);
+            Publish("restored");
         }
 
         public override void _ExitTree() {

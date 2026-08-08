@@ -150,6 +150,7 @@ namespace FTT.Environment {
             SpawnInitialEnemies();
             AttachStoryServices();
             BindEvents();
+            ApplyResumeCameraBounds();
             OnLevelReady();
             // Deferred through a Callable rather than MethodName: the base is
             // abstract and its subclasses may be constructed in code, so the
@@ -157,7 +158,21 @@ namespace FTT.Environment {
             if (!ResumedMidLevel) Callable.From(StartEntranceDialogue).CallDeferred();
         }
 
-        public override void _ExitTree() => UnbindEvents();
+        public override void _ExitTree() {
+            UnbindEvents();
+            ReleasePooledContent();
+        }
+
+        /// <summary>
+        /// Hands every pooled object this level owns back to <see cref="PoolManager"/>.
+        /// Pooled enemies, their projectiles, and loot are parented under the level, so
+        /// unloading the scene would destroy them while the pool still holds them in its
+        /// active list - the next level's spawns then inherit freed references and every
+        /// pool sweep throws. Scoped by ancestry rather than by the "Enemies" group so a
+        /// level tearing down can never reclaim another live scene's objects (only one
+        /// level is live at a time today, but the hub and the test fixtures are not).
+        /// </summary>
+        private void ReleasePooledContent() => PoolManager.Instance?.ReleaseActiveUnder(this);
 
         private void CreateLevelManager() {
             Levels = new LevelManager {
@@ -259,6 +274,42 @@ namespace FTT.Environment {
                 }
             }
         }
+
+        /// <summary>
+        /// Confines the camera to the authored room the run actually starts in.
+        ///
+        /// <see cref="RoomTransitionTrigger"/> only fires on a crossing, so a run
+        /// resumed at checkpoint 1 or 2 stands *behind* every trigger it already
+        /// passed and would keep whole-level limits for the rest of the level. Runs
+        /// automatically between <see cref="BindEvents"/> and <see cref="OnLevelReady"/>.
+        ///
+        /// Camera bounds only, deliberately: calling
+        /// <see cref="RoomTransitionTrigger.ActivateRoom"/> here would re-run the
+        /// room's <c>onEntered</c> handler and replay its waves, floods, and hazard
+        /// state on top of the checkpoint restore. A level that also needs the room's
+        /// encounter root enabled on resume calls
+        /// <see cref="FindRoomTriggerContaining"/> itself.
+        ///
+        /// Overlapping room bounds resolve to the last authored match.
+        /// </summary>
+        protected virtual void ApplyResumeCameraBounds() {
+            if (!ResumedMidLevel || Camera == null || Player == null) return;
+            float x = Player.Position.X;
+            foreach (RoomTransitionTrigger trigger in _roomTriggers) {
+                if (!IsInstanceValid(trigger)) continue;
+                if (ContainsX(trigger.CameraBounds, x)) Camera.SetBounds(trigger.CameraBounds);
+            }
+        }
+
+        /// <summary>First authored room trigger whose camera bounds span <paramref name="positionX"/>.</summary>
+        protected RoomTransitionTrigger FindRoomTriggerContaining(float positionX) {
+            foreach (RoomTransitionTrigger trigger in _roomTriggers) {
+                if (IsInstanceValid(trigger) && ContainsX(trigger.CameraBounds, positionX)) return trigger;
+            }
+            return null;
+        }
+
+        private static bool ContainsX(Rect2 bounds, float x) => x >= bounds.Position.X && x <= bounds.End.X;
 
         /// <summary>
         /// Generic Florence-pattern resume: only restores when the active save is

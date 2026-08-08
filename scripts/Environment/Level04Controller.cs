@@ -337,28 +337,20 @@ namespace FTT.Environment {
         // === Era mechanics ===
 
         protected override void OnLevelReady() {
-            // Confine the camera to whichever room the run actually starts in: a
-            // checkpoint resume drops the player past the room triggers behind them.
-            ActivateRoomContaining(Player?.Position.X ?? PlayerSpawnPosition.X);
+            // The base already confines the camera on a resume
+            // (StoryLevelControllerBase.ApplyResumeCameraBounds). Paris additionally
+            // marks the starting room's trigger as crossed so it cannot re-fire, and
+            // enables its encounter root - hence the full ActivateRoom, on every
+            // entry rather than only on a resume.
+            FindRoomTriggerContaining(Player?.Position.X ?? PlayerSpawnPosition.X)?.ActivateRoom(Player);
 
-            // The puzzle reads its saved completion in its own _Ready but never
-            // re-emits PuzzleCompleted, so a resume past the cells would otherwise
-            // find the gate still standing. This is the soft-lock guard.
+            // Redundant since PuzzleManager re-emits a save-restored completion
+            // (Wave A integration), but kept: it is also what sets PrisonersFreed.
             if (_prisonerPuzzle is { IsCompleted: true }) {
                 PrisonersFreed = _prisoners.Count;
                 OpenCourtyardGate();
             } else {
                 PostPrisonerObjective();
-            }
-        }
-
-        private void ActivateRoomContaining(float positionX) {
-            foreach (RoomTransitionTrigger trigger in RoomTriggers) {
-                if (!IsInstanceValid(trigger)) continue;
-                Rect2 bounds = trigger.CameraBounds;
-                if (positionX < bounds.Position.X || positionX > bounds.End.X) continue;
-                trigger.ActivateRoom(Player);
-                return;
             }
         }
 
