@@ -1,4 +1,4 @@
-[gd_resource type="Theme" load_steps=21 format=3]
+[gd_resource type="Theme" load_steps=22 format=3]
 
 ; Package 8 A1 - the single shared UI Theme.
 ;
@@ -268,6 +268,29 @@ corner_radius_bottom_left = 4
 color = Color(0, 0.55, 0.6, 0.9)
 thickness = 2
 
+; Package 8 B3 - the dialogue box's glass treatment, as a PanelContainer type
+; variation so the box adopts it with theme_type_variation and nothing else in
+; the UI changes. Translucent fill + soft shadow + accent border is as close to
+; frosted glass as gl_compatibility gets without a backbuffer blur pass; the
+; numbers are pinned to scripts/UI/DialogueTheme.cs by DialoguePresentationTests.
+[sub_resource type="StyleBoxFlat" id="DialogueGlass"]
+content_margin_left = 24.0
+content_margin_top = 18.0
+content_margin_right = 24.0
+content_margin_bottom = 18.0
+bg_color = Color(0.06, 0.06, 0.12, 0.72)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0.9, 0.9, 0.55)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+shadow_color = Color(0, 0.02, 0.04, 0.45)
+shadow_size = 12
+
 [resource]
 default_font_size = 18
 Button/colors/font_color = Color(0.7, 0.75, 0.85, 1)
@@ -286,6 +309,8 @@ CheckBox/colors/font_focus_color = Color(0, 0.9, 0.9, 1)
 CheckBox/colors/font_hover_color = Color(0, 0.9, 0.9, 1)
 CheckBox/font_sizes/font_size = 18
 CheckBox/styles/focus = SubResource("BtnFocus")
+DialogueGlassPanel/base_type = &"PanelContainer"
+DialogueGlassPanel/styles/panel = SubResource("DialogueGlass")
 HSeparator/styles/separator = SubResource("SeparatorLine")
 HSlider/styles/grabber_area = SubResource("GrabberArea")
 HSlider/styles/grabber_area_highlight = SubResource("GrabberHighlight")

@@ -48,5 +48,20 @@ namespace FTT.Characters {
 
 		[ExportGroup("Animation")]
 		[Export] public SpriteFrames SpriteFramesResource;
+
+		[ExportGroup("Dialogue")]
+		/// <summary>
+		/// Package 8 B3. Pitch scale for this character's typewriter "text
+		/// chirps" (design-godot.md, Dialogue Presentation: "lower, weightier
+		/// square-wave sounds for Lincoln; fast, whimsical triangle-wave tones
+		/// for Mozart"). One placeholder chirp sample is pitch-shifted per
+		/// character rather than nine samples being authored, so production
+		/// audio can replace the sample without retuning the roster.
+		///
+		/// Story-side presentation only: nothing in scripts/FighterSim/ or in
+		/// any combat calculation reads it. 1.0 is the neutral pitch used for
+		/// narration and for every speaker who is not the player's character.
+		/// </summary>
+		[Export] public float DialogueChirpPitch = 1.0f;
 	}
 }

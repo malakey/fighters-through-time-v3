@@ -4,26 +4,60 @@ using System.Collections.Generic;
 namespace FTT.UI {
 
     /// <summary>
-    /// Production dialogue presentation: 30 characters/second typewriter reveal,
-    /// confirm-to-complete then confirm-to-advance, placeholder portrait and
-    /// emotion treatment, and optional gameplay suspension while the UI layer
-    /// stays responsive. Instanced per campaign scene from DialogueBox.tscn.
+    /// Production dialogue presentation: 30 characters/second typewriter reveal
+    /// with punctuation pacing and per-character text chirps, confirm-to-complete
+    /// then confirm-to-advance, a glass panel with a per-emotion portrait
+    /// treatment, an in/out slide-and-fade, and optional gameplay suspension
+    /// while the UI layer stays responsive. Instanced per campaign scene from
+    /// DialogueBox.tscn.
+    ///
+    /// <para>Package 8 B3 added the presentation; the flow contract is
+    /// unchanged, including the one dangerous part of it — a
+    /// <c>PausesGameplay</c> sequence owns <see cref="SceneTree.Paused"/> and
+    /// this manager is the only thing that ever hands it back.</para>
     /// </summary>
     public partial class DialogueManager : CanvasLayer {
         public static DialogueManager Instance { get; private set; }
 
         public const string SceneResourcePath = "res://scenes/ui/DialogueBox.tscn";
-        public const float CharactersPerSecond = 30f;
+
+        /// <summary>Design-locked reveal rate. The model owns the pacing; this is the published number.</summary>
+        public const float CharactersPerSecond = DialogueRevealModel.CharactersPerSecond;
+
         private const string PlayerSpeakerKey = "speaker_player";
         private const string DefaultPortraitPath = "res://assets/placeholders/portrait.svg";
+
+        /// <summary>Chirp pitch for narration and any speaker who is not the player's character.</summary>
+        public const float NeutralChirpPitch = 1.0f;
 
         public bool IsSequenceActive => _isActive;
         public string ActiveDialogueID => _currentSequence?.DialogueID ?? "";
 
+        /// <summary>Pitch the current line's chirps are playing at. Test/diagnostic surface.</summary>
+        public float ActiveChirpPitch { get; private set; } = NeutralChirpPitch;
+
+        /// <summary>
+        /// Box animation progress: 0 fully hidden, 1 fully presented. Driven by
+        /// <see cref="AdvanceBoxAnimation"/> from <c>_Process</c>.
+        /// </summary>
+        public float BoxAnimationProgress { get; private set; }
+
+        /// <summary>True while the box is animating in or out.</summary>
+        public bool IsBoxAnimating =>
+            BoxAnimationProgress > 0f && BoxAnimationProgress < 1f;
+
+        /// <summary>The reveal model driving the current line. Never null.</summary>
+        public DialogueRevealModel Reveal { get; } = new();
+
+        /// <summary>The emotion treatment applied to the portrait for the current line.</summary>
+        public DialogueEmotionTreatment.Treatment ActiveEmotion { get; private set; } =
+            DialogueEmotionTreatment.Resolve(DialogueEmotion.Neutral);
+
         private PanelContainer _dialoguePanel;
+        private PanelContainer _portraitFrame;
+        private StyleBoxFlat _portraitFrameStyle;
         private TextureRect _portrait;
         private Label _speakerLabel;
-        private Label _emotionLabel;
         private RichTextLabel _textLabel;
         private Label _continueHint;
         private Texture2D _defaultPortrait;
@@ -32,11 +66,11 @@ namespace FTT.UI {
         private DialogueSequenceData _currentSequence;
         private int _currentIndex;
         private bool _isActive;
-        private bool _isTyping;
-        private float _revealedCharacters;
-        private int _lineCharacterTotal;
         private float _autoAdvanceTimer;
         private bool _pausedGameplay;
+        private bool _boxOpening;
+
+        private bool IsTyping => _isActive && !Reveal.IsComplete;
 
         /// <summary>Instantiates the authored DialogueBox scene, or a code-built fallback.</summary>
         public static DialogueManager CreateDefault() {
@@ -56,6 +90,7 @@ namespace FTT.UI {
                 ? ResourceLoader.Load<Texture2D>(DefaultPortraitPath)
                 : null;
             ResolveOrBuildUI();
+            ApplyPresentationTreatment();
             if (FTT.Core.EventBus.Instance != null)
                 FTT.Core.EventBus.Instance.OnDialogueTriggered += OnDialogueTriggered;
         }
@@ -69,7 +104,6 @@ namespace FTT.UI {
             // well as in EndSequence(). See CLAUDE.md failure signature 4.
             ReleaseGameplayPause();
             _isActive = false;
-            _isTyping = false;
             _currentSequence = null;
             if (Instance == this) Instance = null;
             if (FTT.Core.EventBus.Instance != null)
@@ -93,15 +127,18 @@ namespace FTT.UI {
                 BuildFallbackUI();
                 return;
             }
-            _portrait = GetNodeOrNull<TextureRect>("Panel/Layout/Portrait");
+            _portraitFrame = GetNodeOrNull<PanelContainer>("Panel/Layout/PortraitFrame");
+            _portrait = GetNodeOrNull<TextureRect>("Panel/Layout/PortraitFrame/Portrait");
             _speakerLabel = GetNodeOrNull<Label>("Panel/Layout/Content/SpeakerRow/SpeakerLabel");
-            _emotionLabel = GetNodeOrNull<Label>("Panel/Layout/Content/SpeakerRow/EmotionLabel");
             _textLabel = GetNodeOrNull<RichTextLabel>("Panel/Layout/Content/TextLabel");
             _continueHint = GetNodeOrNull<Label>("Panel/Layout/Content/ContinueHint");
         }
 
         private void BuildFallbackUI() {
-            _dialoguePanel = new PanelContainer { Name = "Panel" };
+            _dialoguePanel = new PanelContainer {
+                Name = "Panel",
+                MouseFilter = Control.MouseFilterEnum.Ignore
+            };
             _dialoguePanel.SetAnchorsPreset(Control.LayoutPreset.BottomWide);
             _dialoguePanel.OffsetLeft = 100;
             _dialoguePanel.OffsetRight = -100;
@@ -112,13 +149,19 @@ namespace FTT.UI {
             var layout = new HBoxContainer { Name = "Layout" };
             _dialoguePanel.AddChild(layout);
 
+            _portraitFrame = new PanelContainer {
+                Name = "PortraitFrame",
+                SizeFlagsVertical = Control.SizeFlags.ShrinkCenter
+            };
+            layout.AddChild(_portraitFrame);
+
             _portrait = new TextureRect {
                 Name = "Portrait",
-                CustomMinimumSize = new Vector2(160, 160),
+                CustomMinimumSize = new Vector2(DialogueTheme.PortraitSize, DialogueTheme.PortraitSize),
                 ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
                 StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered
             };
-            layout.AddChild(_portrait);
+            _portraitFrame.AddChild(_portrait);
 
             var content = new VBoxContainer {
                 Name = "Content",
@@ -130,14 +173,9 @@ namespace FTT.UI {
             content.AddChild(speakerRow);
 
             _speakerLabel = new Label { Name = "SpeakerLabel" };
-            _speakerLabel.AddThemeFontSizeOverride("font_size", 22);
-            _speakerLabel.AddThemeColorOverride("font_color", new Color(0f, 0.9f, 0.9f));
+            _speakerLabel.AddThemeFontSizeOverride("font_size", UIPalette.HeadingFontSize);
+            _speakerLabel.AddThemeColorOverride("font_color", UIPalette.TextAccent);
             speakerRow.AddChild(_speakerLabel);
-
-            _emotionLabel = new Label { Name = "EmotionLabel" };
-            _emotionLabel.AddThemeFontSizeOverride("font_size", 14);
-            _emotionLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.75f, 0.85f));
-            speakerRow.AddChild(_emotionLabel);
 
             _textLabel = new RichTextLabel {
                 Name = "TextLabel",
@@ -153,8 +191,28 @@ namespace FTT.UI {
                 Visible = false
             };
             _continueHint.AddThemeFontSizeOverride("font_size", 12);
-            _continueHint.AddThemeColorOverride("font_color", new Color(0.6f, 0.65f, 0.75f));
+            _continueHint.AddThemeColorOverride("font_color", UIPalette.SlateDim);
             content.AddChild(_continueHint);
+        }
+
+        /// <summary>
+        /// Adopts the shared theme, applies the glass variation, and installs the
+        /// mutable portrait frame style. Idempotent; the authored scene already
+        /// carries the theme and variation, the fallback does not.
+        /// </summary>
+        private void ApplyPresentationTreatment() {
+            if (_dialoguePanel == null) return;
+            UIPalette.ApplyTheme(_dialoguePanel);
+            if (string.IsNullOrEmpty(_dialoguePanel.ThemeTypeVariation.ToString())) {
+                _dialoguePanel.ThemeTypeVariation = DialogueTheme.GlassPanelVariation;
+            }
+
+            if (_portraitFrame != null) {
+                _portraitFrameStyle = DialogueTheme.CreatePortraitFrameStyle();
+                _portraitFrame.AddThemeStyleboxOverride("panel", _portraitFrameStyle);
+            }
+            ApplyEmotion(DialogueEmotionTreatment.Resolve(DialogueEmotion.Neutral), "");
+            SetBoxAnimationProgress(0f);
         }
 
         // === Set registration and event-driven triggering ===
@@ -203,10 +261,15 @@ namespace FTT.UI {
             _currentIndex = 0;
             _isActive = true;
             Visible = true;
+            // The pause is taken on the same frame the sequence starts, before the
+            // box has finished animating in. Deferring it until the animation
+            // completed would leave a ~0.18 s window in which gameplay still ran
+            // under an opening dialogue box.
             if (sequence.PausesGameplay && GetTree() != null && !GetTree().Paused) {
                 GetTree().Paused = true;
                 _pausedGameplay = true;
             }
+            BeginBoxAnimation(opening: true);
             ShowCurrentLine();
         }
 
@@ -216,23 +279,38 @@ namespace FTT.UI {
                 return;
             }
 
-            _speakerLabel.Text = ResolveSpeakerName(_currentSequence.GetSpeakerKey(_currentIndex));
+            string speakerKey = _currentSequence.GetSpeakerKey(_currentIndex);
+            _speakerLabel.Text = ResolveSpeakerName(speakerKey);
+            ActiveChirpPitch = ResolveChirpPitch(speakerKey);
+
             string emotionKey = _currentSequence.GetEmotionKey(_currentIndex);
-            if (_emotionLabel != null) {
-                _emotionLabel.Visible = !string.IsNullOrWhiteSpace(emotionKey);
-                _emotionLabel.Text = string.IsNullOrWhiteSpace(emotionKey) ? "" : $"({Tr(emotionKey)})";
-            }
+            ApplyEmotion(DialogueEmotionTreatment.Resolve(emotionKey), emotionKey);
             if (_portrait != null) _portrait.Texture = _currentSequence.GetPortrait(_currentIndex) ?? _defaultPortrait;
 
             _textLabel.Text = Tr(_currentSequence.GetLineKey(_currentIndex));
-            _lineCharacterTotal = _textLabel.GetTotalCharacterCount();
-            _revealedCharacters = 0f;
-            _textLabel.VisibleCharacters = 0;
-            _isTyping = _lineCharacterTotal > 0;
+            // The pacing model reads punctuation, so it needs the text the player
+            // will actually see - BBCode markup stripped.
+            Reveal.Begin(_textLabel.GetParsedText());
+            _textLabel.VisibleCharacters = Reveal.IsComplete ? -1 : 0;
             _autoAdvanceTimer = _currentSequence.AutoAdvanceDelay;
             if (_continueHint != null) {
                 _continueHint.Text = Tr("dialogue_continue");
-                _continueHint.Visible = !_isTyping;
+                _continueHint.Visible = Reveal.IsComplete;
+            }
+        }
+
+        /// <summary>Paints the portrait frame and tint for an emotion, and keeps the localized name as its tooltip.</summary>
+        private void ApplyEmotion(DialogueEmotionTreatment.Treatment treatment, string emotionKey) {
+            ActiveEmotion = treatment;
+            if (_portraitFrameStyle != null) {
+                _portraitFrameStyle.BorderColor = treatment.FrameColor;
+                _portraitFrameStyle.SetBorderWidthAll(treatment.FrameWidth);
+            }
+            if (_portrait != null) {
+                _portrait.SelfModulate = treatment.PortraitTint;
+                // Keeps the emotion_* keys referenced and the information
+                // reachable without colour.
+                _portrait.TooltipText = string.IsNullOrWhiteSpace(emotionKey) ? "" : Tr(emotionKey);
             }
         }
 
@@ -244,13 +322,36 @@ namespace FTT.UI {
             return Tr(speakerKey);
         }
 
+        /// <summary>
+        /// The player's locked campaign character chirps at its authored
+        /// <see cref="FTT.Characters.CharacterData.DialogueChirpPitch"/>; Sarah,
+        /// the bosses and narration all chirp neutral. Giving every named NPC its
+        /// own pitch would mean inventing a second table of tuning numbers with
+        /// no resource behind it, which is exactly what the repository's
+        /// "resources own the numbers" rule exists to prevent.
+        /// </summary>
+        private static float ResolveChirpPitch(string speakerKey) {
+            if (speakerKey != PlayerSpeakerKey) return NeutralChirpPitch;
+            string characterID = FTT.Core.GameManager.Instance?.CurrentSession.SelectedCharacterID;
+            if (string.IsNullOrWhiteSpace(characterID)) return NeutralChirpPitch;
+            string path = $"res://resources/Characters/{characterID}_data.tres";
+            if (!ResourceLoader.Exists(path)) return NeutralChirpPitch;
+            var data = FTT.Core.AuthoredResources.Load<FTT.Characters.CharacterData>(path);
+            return data != null && data.DialogueChirpPitch > 0f
+                ? data.DialogueChirpPitch
+                : NeutralChirpPitch;
+        }
+
         public override void _Process(double delta) {
+            AdvanceBoxAnimation((float)delta);
             if (!_isActive) return;
-            if (_isTyping) {
-                _revealedCharacters += CharactersPerSecond * (float)delta;
-                int visible = Mathf.Min(_lineCharacterTotal, Mathf.FloorToInt(_revealedCharacters));
-                _textLabel.VisibleCharacters = visible;
-                if (visible >= _lineCharacterTotal) CompleteLineReveal();
+            if (IsTyping) {
+                int chirps = Reveal.Advance((float)delta);
+                for (int index = 0; index < chirps; index++) {
+                    FTT.Core.AudioManager.Instance?.PlayChirp(ActiveChirpPitch);
+                }
+                _textLabel.VisibleCharacters = Reveal.VisibleCharacters;
+                if (Reveal.IsComplete) CompleteLineReveal();
                 return;
             }
             if (_currentSequence != null && _currentSequence.AutoAdvance) {
@@ -260,7 +361,6 @@ namespace FTT.UI {
         }
 
         private void CompleteLineReveal() {
-            _isTyping = false;
             _textLabel.VisibleCharacters = -1;
             if (_continueHint != null) _continueHint.Visible = true;
         }
@@ -274,12 +374,54 @@ namespace FTT.UI {
         private void EndSequence() {
             string completedID = _currentSequence?.DialogueID ?? "";
             _isActive = false;
-            _isTyping = false;
-            Visible = false;
             _currentSequence = null;
+            BeginBoxAnimation(opening: false);
             ReleaseGameplayPause();
             RecordLastViewedDialogue(completedID);
             FTT.Core.EventBus.Instance?.RaiseDialogueComplete(completedID);
+        }
+
+        // === Box in/out animation ===
+
+        /// <summary>
+        /// Starts the slide-and-fade. Like A2's crossfades this is a pumped
+        /// interpolation rather than a <see cref="Tween"/>: one advance point, no
+        /// node churn per sequence, and a seam a test can step deterministically.
+        /// </summary>
+        private void BeginBoxAnimation(bool opening) {
+            _boxOpening = opening;
+            if (opening && BoxAnimationProgress <= 0f) SetBoxAnimationProgress(0f);
+        }
+
+        /// <summary>Advances the box animation. Public for deterministic stepping in tests.</summary>
+        public void AdvanceBoxAnimation(float delta) {
+            if (_dialoguePanel == null) return;
+            float target = _boxOpening ? 1f : 0f;
+            if (Mathf.IsEqualApprox(BoxAnimationProgress, target)) {
+                // Closing settles exactly once, then the whole layer goes away.
+                if (!_boxOpening && Visible && !_isActive) Visible = false;
+                return;
+            }
+            float step = delta / Mathf.Max(DialogueTheme.BoxAnimationSeconds, 0.0001f);
+            float progress = _boxOpening
+                ? Mathf.Min(BoxAnimationProgress + step, 1f)
+                : Mathf.Max(BoxAnimationProgress - step, 0f);
+            SetBoxAnimationProgress(progress);
+            if (!_boxOpening && BoxAnimationProgress <= 0f && !_isActive) Visible = false;
+        }
+
+        private void SetBoxAnimationProgress(float progress) {
+            BoxAnimationProgress = Mathf.Clamp(progress, 0f, 1f);
+            if (_dialoguePanel == null) return;
+            // Ease-out on the way in so the box arrives rather than slams.
+            float eased = 1f - (1f - BoxAnimationProgress) * (1f - BoxAnimationProgress);
+            _dialoguePanel.Modulate = new Color(1f, 1f, 1f, BoxAnimationProgress);
+            // The slide is applied to the CanvasLayer, not to the panel's
+            // Position. The panel is anchored to the bottom of the viewport, and
+            // writing Position on an anchored Control rewrites its offsets - the
+            // layout then fights the animation on every resize notification.
+            // CanvasLayer.Offset shifts the whole layer and touches no layout.
+            Offset = new Vector2(Offset.X, DialogueTheme.BoxSlideDistance * (1f - eased));
         }
 
         private static void RecordLastViewedDialogue(string dialogueID) {
@@ -299,8 +441,9 @@ namespace FTT.UI {
                 || @event.IsActionPressed(FTT.Core.InputManager.Actions.BasicAttack)
                 || @event.IsActionPressed("ui_accept");
             if (!confirm) return;
-            if (_isTyping) {
-                _revealedCharacters = _lineCharacterTotal;
+            if (IsTyping) {
+                Reveal.CompleteImmediately();
+                _textLabel.VisibleCharacters = -1;
                 CompleteLineReveal();
             } else {
                 AdvanceLine();

@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/DialogueManager.cs" id="1_script"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/portrait.svg" id="2_portrait"]
+[ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="3_theme"]
 
 [node name="DialogueBox" type="CanvasLayer"]
 layer = 90
@@ -19,12 +20,19 @@ offset_right = -100.0
 offset_bottom = -40.0
 grow_horizontal = 2
 grow_vertical = 0
+mouse_filter = 2
+theme = ExtResource("3_theme")
+theme_type_variation = &"DialogueGlassPanel"
 
 [node name="Layout" type="HBoxContainer" parent="Panel"]
 layout_mode = 2
 theme_override_constants/separation = 20
 
-[node name="Portrait" type="TextureRect" parent="Panel/Layout"]
+[node name="PortraitFrame" type="PanelContainer" parent="Panel/Layout"]
+layout_mode = 2
+size_flags_vertical = 4
+
+[node name="Portrait" type="TextureRect" parent="Panel/Layout/PortraitFrame"]
 custom_minimum_size = Vector2(160, 160)
 layout_mode = 2
 texture = ExtResource("2_portrait")
@@ -44,11 +52,6 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
 theme_override_font_sizes/font_size = 22
 
-[node name="EmotionLabel" type="Label" parent="Panel/Layout/Content/SpeakerRow"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
-theme_override_font_sizes/font_size = 14
-
 [node name="TextLabel" type="RichTextLabel" parent="Panel/Layout/Content"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -61,3 +64,4 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.6, 0.65, 0.75, 1)
 theme_override_font_sizes/font_size = 12
 horizontal_alignment = 2
+text = "dialogue_continue"

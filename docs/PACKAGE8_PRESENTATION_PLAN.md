@@ -1029,3 +1029,101 @@ loss. No existing suite was modified. `localization/en.csv` gained seven keys un
 Contention note for later agents: the first three attempts at this suite returned the plausible
 green `Total: 15` (this workstream's pure-C# subset) with exit code 100 — signature 5, not a
 regression; polling `Get-Process testhost`/`Godot*` to zero before launching is what cleared it.
+
+### B3 — Dialogue & narrative presentation (2026-08-08)
+
+**B3: the emotion label was replaced, not restyled, and the localized string survives as the
+portrait's tooltip.** The old presentation printed `(Determined)` beside the speaker name — stage
+direction typed onto the page, which no shipping dialogue system does. Emotion now colours the
+portrait: a frame in the emotion's `UIPalette` accent (neutral cyan-dim, determined gold, shocked
+cyan, confused slate-dim, injured boss-red) plus a near-white tint over the texture. Keeping the
+localized string as `TooltipText` does two jobs: the five `emotion_*` keys stay referenced so C1's
+unused-key sweep does not report them as dead, and the information stays reachable for a player who
+cannot read colour. Tints deliberately hold every channel at >= 0.8 — the portrait is the character's
+face, and a heavier wash recolours their skin rather than suggesting a mood, a bug that would only
+become visible once production art lands. Pinned by `DialogueEmotionTreatmentTests` (mapping, palette
+provenance, unknown-key fallback, tint ceiling) and
+`DialoguePresentationTests.ThePortraitFrameAndTintFollowEachLinesAuthoredEmotion`, which walks the
+real `level_08.postboss` injured → neutral → confused run.
+
+**B3: "glass" under `gl_compatibility` is a translucent fill plus a drop shadow, not a blur.** A
+frosted panel needs a backbuffer copy and a blur pass, and A3 already recorded how narrow the shader
+envelope is on this renderer. The treatment is therefore everything a `StyleBoxFlat` can do: a navy
+fill at 0.72 alpha so the scene reads through, a soft shadow that lifts the box off the world, a
+translucent cyan accent border, and a 10 px corner radius against the utility panel's 4 px. It costs
+one draw call and no shader. It ships as a `DialogueGlassPanel` **theme type variation** on the
+shared A1 theme rather than a standalone `.tres`, so the box adopts it with one
+`theme_type_variation` line and nothing else in the UI changes; the numbers live in
+`scripts/UI/DialogueTheme.cs` and
+`DialoguePresentationTests.TheSharedThemeCarriesTheDialogueGlassVariation` pins the two together, the
+same contract A1 established between `UIPalette` and `ftt_theme.tres`. This is the only B3 edit to
+`ftt_theme.tres` and it is purely additive — no existing entry changed, and `UIThemeTests` passed
+unmodified.
+
+**B3: the reveal became a pure model, and the punctuation hold collapses runs of marks.** The old
+reveal was `revealed += 30 * delta`, which cannot express a pause and cannot be tested without engine
+frames. `DialogueRevealModel` (no Godot dependency) holds 0.26 s after `. ! ?` and 0.12 s after
+`, ; :`. A **run** of marks holds once, at its end: twenty-two authored lines use `...`, and three
+stacked sentence pauses there read as a stall rather than as a beat. Pumped rather than
+`Tween`-driven for the same reasons A2 recorded for its crossfades — one advance point, no node
+churn, and a seam a test can step by exact deltas. Pinned by `DialogueRevealPacingTests`.
+
+**B3: chirps fire every third non-whitespace character, and a frame hitch cannot burst them.** One
+chirp per character at 30 cps is thirty voices a second — it machine-guns the pooled voices A2 sized
+and reads as noise rather than as speech. Every third character lands at a steady ten per second
+while text is moving, and stops dead during a punctuation hold, which is what makes the hold audible
+instead of merely visible. Whitespace is silent. Separately, `Advance` clamps its own step to 0.25 s:
+a scene load or pool warm-up used to dump a whole line in one frame, and with chirps attached that is
+also a burst of voices in one frame. Confirm-to-complete lands the line **silently** — the player
+asked to stop listening to the reveal. Pinned by
+`ChirpsFireEveryThirdNonWhitespaceCharacterAndStopWhileHolding` and
+`AFrameHitchCannotFlushTheWholeLineOrBurstItsChirps`.
+
+**B3: only `speaker_player` chirps at a character pitch; Sarah, the bosses and narration are all
+neutral.** `CharacterData.DialogueChirpPitch` (the single B3 edit to that file, default 1.0) carries
+nine authored values spread 0.72 → 1.34, with Lincoln lowest and Mozart highest exactly as
+`design-godot.md`'s Dialogue Presentation section names them by example. Giving each of the eighteen
+named NPC speakers its own pitch would have meant a second table of tuning numbers with no resource
+behind it, which is what the repository's "resources own the numbers" rule exists to prevent — so
+every non-player speaker uses `DialogueManager.NeutralChirpPitch`. One placeholder sample is
+pitch-shifted rather than nine samples authored, so production audio replaces the sample without
+retuning the roster. Pinned by `DialogueChirpPitchTests` (band, pairwise separation >= 0.04, the
+Lincoln/Mozart ordering, and the field default) and
+`DialoguePresentationTests.ChirpPitchFollowsTheLockedCharacterAndGoesNeutralForEveryOtherSpeaker`.
+
+**B3: the box slide is applied to the `CanvasLayer`, not to the panel's `Position`.** The panel is
+anchored to the bottom of the viewport; writing `Position` on an anchored `Control` rewrites its
+offsets, and the layout then fights the animation on every resize notification — and the resting
+position sampled at `_Ready` is not yet the laid-out one, so the box would snap to the top of the
+screen on the first frame. `CanvasLayer.Offset` shifts the whole layer and touches no layout. The
+fade rides the panel's `Modulate` alpha with an ease-out over 0.18 s.
+
+**B3: the gameplay pause is taken on the start frame, ahead of the open animation.** Deferring
+`SceneTree.Paused` until the box finished sliding in would leave a ~0.18 s window in which gameplay
+still ran under a dialogue box that is already on screen.
+`TheGameplayPauseIsTakenOnTheStartFrameNotWhenTheBoxFinishesOpening` asserts both halves — that the
+tree is paused *and* that the box had not finished opening, so the case cannot silently stop proving
+anything. The close animation runs after `EndSequence`, which means the layer stays `Visible` for
+0.18 s after the sequence ends; the pause is released immediately regardless. Both pre-existing
+pause-handback cases in `CampaignCompletionTests` stayed green unmodified.
+
+**B3: Credits theming is colour and type only — no flow change whatsoever.** The roll adopts the
+shared theme and takes its backdrop, heading, body and skip-hint colours from `UIPalette` instead of
+four hardcoded literals. `CampaignCompletionSequence` has no visuals of its own, so
+"campaign-completion theming" is exactly the credits. `CampaignCompletionTests` passed unmodified,
+including the completion-flag-at-credits-start case.
+
+**B3: no new translation keys, so there is no `# Package 8 B3` marker in `en.csv`.** Everything B3
+presents was already authored — the five `emotion_*` keys, `dialogue_continue`, the eighteen credit
+keys. The one new user-visible channel is the portrait tooltip, which reuses the emotion keys.
+`en.csv` and the compiled `en.en.translation` are untouched by this workstream.
+
+**B3 validation.** Build clean (pre-existing vendored `CS8632` only); `--headless --import` and the
+load check clean; full suite **1084 = 1060 + 24** in one clean serial run (two earlier attempts hit
+CLAUDE.md failure signature 5 — partial `Total: 90`, exit code 100, three sibling Godot children
+alive; the number only landed once the window was actually clear). Headless smokes clean for
+`Level_00_Tutorial`, `HubWorld`, and `Level_15_Alexandria`. No existing test file was modified. Not
+delivered by B3 and left open: the glass panel's rendered result is unverified by any automated gate
+and needs a human look (the same limit A3 recorded for its shader), and the chirp still plays A2's
+single placeholder sample — the design's per-character *waveforms* (square for Lincoln, triangle for
+Mozart) are production audio, P10.

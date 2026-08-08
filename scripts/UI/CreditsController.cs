@@ -57,7 +57,11 @@ namespace FTT.UI {
         /// <summary>Total travel needed for the last line to clear the top of the screen.</summary>
         public float TotalScrollDistance { get; private set; }
 
+        /// <summary>Package 8 B3: the roll's backdrop, tied to the shared palette.</summary>
+        public static readonly Color BackdropColor = UIPalette.NavyDeep;
+
         private Control _scrollRoot;
+        private ColorRect _shade;
         private VBoxContainer _lines;
         private Label _skipHint;
         private float _startY;
@@ -144,24 +148,31 @@ namespace FTT.UI {
                     HorizontalAlignment = HorizontalAlignment.Center,
                     MouseFilter = Control.MouseFilterEnum.Ignore
                 };
-                label.AddThemeFontSizeOverride("font_size", line.IsHeading ? 26 : 18);
+                label.AddThemeFontSizeOverride(
+                    "font_size", line.IsHeading ? UIPalette.TitleFontSize : UIPalette.BodyFontSize);
                 label.AddThemeColorOverride(
-                    "font_color",
-                    line.IsHeading ? new Color(0f, 0.9f, 0.9f) : new Color(0.85f, 0.88f, 0.95f));
+                    "font_color", line.IsHeading ? UIPalette.Cyan : UIPalette.TextPrimary);
                 _lines.AddChild(label);
             }
         }
 
         private void ResolveOrBuildUI() {
+            _shade = GetNodeOrNull<ColorRect>("Shade");
             _scrollRoot = GetNodeOrNull<Control>("Shade/Scroll");
             _lines = GetNodeOrNull<VBoxContainer>("Shade/Scroll/Lines");
             _skipHint = GetNodeOrNull<Label>("Shade/SkipHint");
-            if (_scrollRoot != null && _lines != null) return;
-            BuildFallbackUI();
+            if (_scrollRoot == null || _lines == null) BuildFallbackUI();
+            // Package 8 B3: the roll adopts the shared theme so a later font or
+            // type-scale change reaches the credits without a second edit here.
+            if (_shade != null) {
+                UIPalette.ApplyTheme(_shade);
+                _shade.Color = BackdropColor;
+            }
         }
 
         private void BuildFallbackUI() {
-            var shade = new ColorRect { Name = "Shade", Color = new Color(0.01f, 0.02f, 0.05f, 1f) };
+            _shade = new ColorRect { Name = "Shade", Color = BackdropColor };
+            ColorRect shade = _shade;
             shade.SetAnchorsPreset(Control.LayoutPreset.FullRect);
             shade.MouseFilter = Control.MouseFilterEnum.Ignore;
             AddChild(shade);
@@ -184,8 +195,8 @@ namespace FTT.UI {
             _skipHint.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
             _skipHint.Position = new Vector2(760, 1010);
             _skipHint.CustomMinimumSize = new Vector2(400, 24);
-            _skipHint.AddThemeFontSizeOverride("font_size", 13);
-            _skipHint.AddThemeColorOverride("font_color", new Color(0.6f, 0.7f, 0.8f));
+            _skipHint.AddThemeFontSizeOverride("font_size", UIPalette.SmallFontSize);
+            _skipHint.AddThemeColorOverride("font_color", UIPalette.SlateDim);
             shade.AddChild(_skipHint);
         }
     }

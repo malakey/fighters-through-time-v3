@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/CreditsController.cs" id="1_script"]
+[ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
 
 [node name="Credits" type="CanvasLayer"]
 layer = 98
@@ -14,7 +15,8 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.01, 0.02, 0.05, 1)
+theme = ExtResource("2_theme")
+color = Color(0.05, 0.05, 0.1, 1)
 
 [node name="Scroll" type="Control" parent="Shade"]
 layout_mode = 1
@@ -46,7 +48,7 @@ offset_bottom = -36.0
 grow_horizontal = 2
 grow_vertical = 0
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.6, 0.7, 0.8, 1)
-theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
+theme_override_font_sizes/font_size = 14
 text = "credits_skip_hint"
 horizontal_alignment = 1
