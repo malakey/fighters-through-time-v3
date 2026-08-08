@@ -20,6 +20,10 @@ namespace FTT.Networking {
         public int LocalPlayerIndex { get; private set; }
         public string LastError { get; private set; } = "";
         public OnlineRollbackSession Session { get; private set; }
+        /// <summary>Confirmed-frame desyncs observed on the active session. Diagnostics only.</summary>
+        public int DesyncCount { get; private set; }
+        /// <summary>Tick of the most recent desync, or -1 when none has been observed.</summary>
+        public int LastDesyncTick { get; private set; } = -1;
         private IRollbackTransport _transport;
 
         public override void _Ready() => Instance = this;
@@ -59,12 +63,28 @@ namespace FTT.Networking {
             if (_transport == null) throw new InvalidOperationException("A LAN or platform transport must be connected first.");
             if (Session != null) throw new InvalidOperationException("A rollback session is already active. Disconnect before starting another session.");
             Session = new OnlineRollbackSession(simulation, _transport, sessionID, LocalPlayerIndex);
+            DesyncCount = 0;
+            LastDesyncTick = -1;
+            Session.DesyncDetected += OnDesyncDetected;
             State = NetworkConnectionState.Connected;
             return Session;
         }
 
+        /// <summary>
+        /// Minimal production consumer for the desync event: a hard error in the
+        /// Godot log with the confirmed tick and both hashes. Full-state resync is
+        /// Package 7 work; until then a desync must at least be visible.
+        /// </summary>
+        private void OnDesyncDetected(int tick, long localHash, long remoteHash) {
+            DesyncCount++;
+            LastDesyncTick = tick;
+            LastError = RollbackDiagnostics.FormatDesync(tick, localHash, remoteHash);
+            GD.PushError(LastError);
+        }
+
         public void Disconnect() {
             if (Session != null) {
+                Session.DesyncDetected -= OnDesyncDetected;
                 Session.Dispose();
             } else {
                 _transport?.Dispose();

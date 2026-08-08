@@ -213,22 +213,48 @@ namespace FTT.Networking {
         }
     }
 
+    /// <summary>
+    /// Pure formatting helpers for rollback diagnostics. Kept engine-free so the
+    /// wording is testable without a Godot runtime; <see cref="NetworkManager"/>
+    /// is the production consumer.
+    /// </summary>
+    public static class RollbackDiagnostics {
+        public static string FormatDesync(int tick, long localHash, long remoteHash) =>
+            $"Rollback desync at confirmed tick {tick}: local state hash {localHash} != remote state hash {remoteHash}.";
+    }
+
     public sealed class OnlineRollbackSession : IDisposable {
         public const int MaximumRollbackFrames = 7;
         public const double RollbackBudgetMilliseconds = 8.0;
+        /// <summary>
+        /// Slots retained for corrected-tick de-duplication. One more than the
+        /// rollback depth limit so a tick and the tick exactly one window older
+        /// can never share a slot; anything older is rejected before it is
+        /// recorded. Bounding this is what keeps a 480 s match allocation-free.
+        /// </summary>
+        private const int CorrectedTickSlots = MaximumRollbackFrames + 1;
         private readonly FighterSimulation _simulation;
         private readonly IRollbackTransport _transport;
         private readonly uint _sessionID;
         private readonly int _localPlayerID;
         private readonly int _remotePlayerID;
         private readonly Dictionary<int, PlayerInputFrame> _remoteInputs = new();
-        private readonly HashSet<int> _correctedTicks = new();
+        // Ring of already-corrected ticks, stored as tick + 1 so 0 means empty.
+        // Replaces an unbounded HashSet that grew for the whole match.
+        private readonly int[] _correctedTicks = new int[CorrectedTickSlots];
         private uint _outgoingSequence;
         private uint _latestRemoteSequence;
 
         public event Action<int, long, long> DesyncDetected;
         public event Action<int> InputArrivedTooLate;
         public event Action<int, double> RollbackBudgetExceeded;
+        /// <summary>
+        /// Fired for every applied correction with its rollback depth and the
+        /// measured resimulation cost in milliseconds, whether or not the cost
+        /// exceeded <see cref="RollbackBudgetMilliseconds"/>. Diagnostics only —
+        /// it carries no simulation state.
+        /// </summary>
+        public event Action<int, double> RollbackCorrectionMeasured;
 
         public OnlineRollbackSession(
             FighterSimulation simulation,
@@ -246,6 +272,23 @@ namespace FTT.Networking {
         public FighterSimulation Simulation => _simulation;
         public bool IsConnected => _transport.IsConnected;
         public int LocalPlayerID => _localPlayerID;
+
+        /// <summary>
+        /// Corrected-tick records currently retained. Bounded by
+        /// <see cref="CorrectedTickSlots"/> for the whole match length.
+        /// </summary>
+        public int RetainedCorrectedTickCount {
+            get {
+                int count = 0;
+                for (int slot = 0; slot < _correctedTicks.Length; slot++) {
+                    if (_correctedTicks[slot] != 0) count++;
+                }
+                return count;
+            }
+        }
+
+        /// <summary>Upper bound on <see cref="RetainedCorrectedTickCount"/>.</summary>
+        public static int CorrectedTickCapacity => CorrectedTickSlots;
 
         public long Advance(PlayerInputFrame localInput) {
             int tick = _simulation.CurrentTick;
@@ -279,14 +322,31 @@ namespace FTT.Networking {
                     InputArrivedTooLate?.Invoke(packet.Tick);
                     continue;
                 }
-                if (!_correctedTicks.Add(packet.Tick)) continue;
+                if (!TryRecordCorrectedTick(packet.Tick)) continue;
                 var stopwatch = Stopwatch.StartNew();
                 _simulation.CorrectRemoteInput(_remotePlayerID, packet.Tick, packet.Input);
                 stopwatch.Stop();
-                if (stopwatch.Elapsed.TotalMilliseconds > RollbackBudgetMilliseconds) {
-                    RollbackBudgetExceeded?.Invoke(rollbackDepth, stopwatch.Elapsed.TotalMilliseconds);
+                double elapsedMilliseconds = stopwatch.Elapsed.TotalMilliseconds;
+                RollbackCorrectionMeasured?.Invoke(rollbackDepth, elapsedMilliseconds);
+                if (elapsedMilliseconds > RollbackBudgetMilliseconds) {
+                    RollbackBudgetExceeded?.Invoke(rollbackDepth, elapsedMilliseconds);
                 }
             }
+        }
+
+        /// <summary>
+        /// Records a tick as corrected, returning false when the same tick was
+        /// already corrected inside the live rollback window. Only ticks within
+        /// <see cref="MaximumRollbackFrames"/> of the current tick reach here, so
+        /// a fixed ring keeps de-duplication exact while staying bounded.
+        /// </summary>
+        private bool TryRecordCorrectedTick(int tick) {
+            int slot = tick % CorrectedTickSlots;
+            if (slot < 0) slot += CorrectedTickSlots;
+            int record = tick + 1;
+            if (_correctedTicks[slot] == record) return false;
+            _correctedTicks[slot] = record;
+            return true;
         }
 
         private void SendLocalInput(int tick, PlayerInputFrame localInput) {
