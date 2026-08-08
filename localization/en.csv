@@ -722,3 +722,22 @@ dlg_l05_exit_2,"It has to. The sinking is real history and history stands. What 
 dlg_l05_exit_3,"There is something left in the wreck of the harvester. Encrypted. It keeps repeating one string."
 dlg_l05_exit_4,"Route it to me. Traveler, that is an uplink handshake. The Archive was never storing this haul aboard — it was relaying it upward, to an orbital communications relay that will not exist for another fifty-seven years."
 dlg_l05_exit_5,"Then that is where the rest of the timeline is going. Get me back to the ship, Sarah. We follow it up."
+nassau_level_title,Nassau, 1715 — The Pirate Republic
+nassau_objective_reach_moorings,"The Navy is shelling the harbour. Get to the moorings."
+nassau_objective_board_flagship,"Cross the channel and board the burning flagship."
+nassau_objective_defeat_boss,Defeat the Dread Admiral
+nassau_objective_complete,"The targeting grid is dead. Return to the Time-Ship."
+nassau_room_harbour,Nassau Harbour Front
+nassau_room_rigging,The Ranger — Rigging Crossing
+nassau_room_channel,Boarding Channel
+nassau_room_flagship,Flagship — Burning Deck
+speaker_dread_admiral,The Dread Admiral
+dlg_l07_entrance_1,"They voted. A whole town of thieves stood up and voted itself free — and the sky is full of mortars."
+dlg_l07_entrance_2,"Those are not Navy guns, Traveler, not entirely. The Archive has seeded the water with sub-aquatic torpedoes and laid a chronal targeting grid over the bay. Every shell the British fire is being aimed for them. Nassau is not being defeated. It is being erased on schedule."
+dlg_l07_entrance_3,"Then we go where the grid is anchored. Out to the ships."
+dlg_l07_boss_intro_1,"Look at it burn. A republic of nobodies, and history was going to keep the name anyway. I am simply correcting the ledger."
+dlg_l07_boss_intro_2,"They are not nobodies. They are the first people here who chose. Get off their harbour."
+dlg_l07_exit_1,"The grid is down. The guns are just guns again."
+dlg_l07_exit_2,"Confirmed — the bay is clear of chronal returns. Nassau still falls to the pardon in two years, Traveler, but it falls the way it actually fell, and everyone below decks gets to run for the boats."
+dlg_l07_exit_3,"The resonance is thinning again. I could feel every rope before I touched it, and now I can barely feel my own hands."
+dlg_l07_exit_4,"It always fades once the fracture closes. Come home and let the ship read you. There is another siphon burning three hundred years further back, and I do not like where."
