@@ -1248,3 +1248,88 @@ differently in play. No change required to either level.
   assets, plus the known `gdunit4`/`gdUnit4` casing flip on eight addon PNGs); reverted with
   `git checkout -- "*.import"`. The regenerated `localization/en.en.translation` IS committed, per
   the L02 rule. `AGENTS.md` is left for C1 per the A1 convention.
+### Wave C — L13 The Chronal Void (Act III opener)
+
+- **L13: §4.1's `Sequential` attack pattern does not exist, and it does not matter.** The table
+  lists `mirror_paradox` as `AttackPattern = Sequential`; the `BossAttackPattern` enum only has
+  `WeightedRandom` and `DistanceBased`, and `resources/Bosses/mirror_paradox.tres` reads
+  `AttackPattern = 0` (`WeightedRandom`). Nothing was edited and nothing needs to be:
+  `MirrorParadoxController` never reads the field, because the clone is driven by the Fighter CPU
+  decision table rather than by a `BossData` pattern. Every other §4.1 fact held exactly — 1000 HP,
+  melee 2.0 / ranged 5.0, zero phase thresholds, **not** knockback-immune, 50 dust, `BossAbilities`
+  deliberately absent. `Level13ContentTests` asserts the facts that are load-bearing and
+  deliberately does not assert the pattern.
+- **L13: "reachable at every scale in the cycle" forces every cycle scale below Earth gravity, and
+  that is the single decision the level's geometry hangs off.** The two cycling fields run
+  `[0.55, 0.28, 0.40]` (Threshold, 7.0 s) and `[0.32, 0.60, 0.22]` (Drift, 5.5 s). A scale above
+  1.0 would be the obvious "the void crushes you" beat and it cannot be authored: at 1.2 gravity
+  Lincoln clears 94 px, so any rung he could clear would be invisible, and any rung worth having
+  would strand him. The heaviest authored scale (0.60) sets the budget at 189 px and every rung is
+  140 px — 74% of it, with the same closed-form derivation L12 used, resolved **per field** so each
+  rung is checked against every scale its own field can publish.
+  `TheShiftingGravityIsLoadBearingAndNotDecoration` pins the other side: 140 px is out of Lincoln's
+  113 px Earth-normal reach, so the void's gravity cannot regress into scenery. Later shifting-
+  gravity levels (14 Neo-Earth) inherit the constraint: **a cycling field cannot go heavier than
+  Earth and still promise reachability.**
+- **L13: the reachability contract is expressed in motif IDs, not coordinates.** `EraMotifs` is the
+  single source of truth for every static platform, and `Ladders`/`Shards` reference motifs by ID
+  while the drifting shards' deck altitudes are read out of the scene's own `Waypoints`. So there is
+  no second copy of any Y to drift, and re-authoring a drift automatically re-checks the hop onto it
+  and the hop off it. Recommended over L12's coordinate tuples for anything with moving geometry.
+- **L13: the Mirror encounter is built in `OnLevelReady`, not `BuildLevel`.** Built during
+  `BuildLevel` the clone resolves the session a second time, and a scene opened outside a campaign
+  session (a direct load, the headless smoke run) has no locked character — the mirror then logged
+  `Mirror Paradox has no locked character to mirror` and spawned nothing while the base class
+  happily spawned its own `"einstein"` fallback player. Building it after the player exists and
+  passing `CharacterIDOverride = Player.Data.CharacterID` makes the clone provably reflect *the
+  avatar that is actually in the level*, with no duplicated fallback constant. The smoke run went
+  from that warning to completely silent. `MirrorParadoxEncounterController` was not touched.
+- **L13: the arena is a static Earth-normal `GravityFieldZone`, not the absence of one.** Expressing
+  "the void stops interfering here" as an authored field makes the tiling total (0 → 3200 → 7200 →
+  9600, contiguous and non-overlapping per the `EnvironmentPlayerModifiers` product rule) and makes
+  the fairness contract testable: `NoShiftingGravityAndNoRiftPocketReachesIntoTheMirrorArena`
+  asserts the arena field is non-cycling at exactly 1.0 and that no rift pocket's radius reaches
+  past the seam. It also gives `SyncGravityFieldToPlayer` (the L12 frame-zero pattern, reused
+  verbatim) a field to find everywhere, including a resume inside the arena.
+- **L13: the arena's side platforms are 90 px above the floor, and that is a Story-physics ceiling,
+  not a taste call.** At Earth-normal gravity the heaviest single-jump character clears 113 px, so a
+  Fighter-stage-proportioned platform in this arena would be furniture nobody can stand on. The test
+  demands 10% of headroom over the roster's worst reach to absorb the platform's own half-thickness.
+  The Fighter read is carried instead by what *can* be authored honestly: an unbroken floor, two
+  platforms mirrored about the centre line, spawn marks equidistant from it
+  (`MirrorSpawnX - centre == centre - PlayerArenaMarkX`), solid bounds, and no hazards at all.
+- **L13: there is no fall death and no floor gap anywhere, deliberately.** The toolkit has no
+  fall-death primitive (the L07 finding) and this level cycles its gravity, so the sediment shelf
+  runs unbroken from the entrance to the arena and every climb is optional — the two extractors are
+  the reward for the high road. That is what makes a heavy gravity phase a delay rather than a
+  soft-lock, and it is why the `ChronalRiftZone` pockets sit *on the shelf*: the low road is always
+  open and always costs. The three pockets keep the Package 1 defaults (2 s, 180 frames, 15 damage)
+  so they read as one mechanic rather than three tunings.
+- **L13: `PathMovingPlatformTemplate.tscn` ships a hardcoded English `MOVING PLATFORM` label.** Same
+  shape as the L08 `MovementDampenerZoneTemplate` finding: overriding a child of an instanced scene
+  from a `.tscn` needs the fragile `index=` block, so `Level13Controller.CollectAuthoredNodes` sets
+  `label.Text = Tr(key)` when it picks the shards up. Levels 7 and 12 already ship this template
+  with the raw English visible; folding a key plus a resolver into the template is a C1-sized
+  toolkit change, not a level edit.
+- **L13: the level asserts its own *absence* of a boss.** The economy row is B = 0 and the Mirror's
+  50 dust is already inside the locked 52-full/36-expected figure, so
+  `TheLevelHasNoBossRowAtAllAndNeverWiresABossEncounterController` recursively scans the built level
+  for `BossEncounterController` and `BossController` and fails on either. Without it, a later pass
+  "fixing the missing boss" would silently double-count 50 dust and replace a mirror match with a
+  scripted attack-pattern fight.
+- **L13: eleven settled era motifs plus four adrift, and a test that counts the eras.** Orléans,
+  Paris, Pompeii, Berlin, Alexandria, Nassau, Chicago, Gettysburg, the Globe, the Titanic and
+  Florence are authored as captioned drop-through fragments; the Florence gear, the Titanic boat
+  deck, the lunar gantry and the Globe stage boards are `PathMovingPlatform` instances still
+  drifting. `TheGeometryRemixesMotifsFromAtLeastEightEarlierEras` requires at least eight distinct
+  captions and checks each one really built a platform, so a later graybox pass cannot flatten the
+  level's whole visual thesis into anonymous grey slabs.
+- **L13: suite baseline 626 → 648** (+22 `Level13ContentTests`), verified at 648/648, 0 failed in
+  19 s across two full runs (the second after moving the Mirror encounter to `OnLevelReady`), with
+  no sibling worktree contention and no exit-100 artifact — this worktree was built and imported
+  before its first `dotnet test`. Build clean but for the vendored CS8632; `--import` and `--quit`
+  clean; `Level_13_ChronalVoid.tscn` smoke at `--quit-after 300` exits 0 with no output at all.
+  `--headless --import` rewrote 41 tracked `.import` files with line-ending-only churn plus the
+  known `gdunit4`/`gdUnit4` casing flip; reverted with `git checkout -- "*.import"`. The regenerated
+  `localization/en.en.translation` IS committed, per the L02 rule. `AGENTS.md` is left for C1 per
+  the A1 convention.
