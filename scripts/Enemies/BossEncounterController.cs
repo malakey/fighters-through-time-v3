@@ -98,10 +98,15 @@ namespace FTT.Enemies {
         private void Reveal() {
             if (IsRevealed) return;
             IsRevealed = true;
+            // Package 8 B1: the authored phase thresholds travel with the reveal so
+            // the HUD can notch the bar. They are the same array BossController
+            // advances on, passed through rather than copied, so a notch cannot
+            // disagree with the fight.
             HUD?.ShowBossBar(
                 string.IsNullOrWhiteSpace(Data?.DisplayNameKey) ? "boss" : Data.DisplayNameKey,
                 Boss?.CurrentHP ?? 0,
-                Boss?.ScaledMaxHP ?? 1);
+                Boss?.ScaledMaxHP ?? 1,
+                Data?.PhaseThresholds);
             BossRevealed?.Invoke();
         }
 

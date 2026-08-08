@@ -1069,3 +1069,11 @@ fighter_hud_cooldown_special1,S1
 fighter_hud_cooldown_special2,S2
 fighter_hud_cooldown_movement,MOV
 fighter_hud_cooldown_ultimate,ULT
+# Package 8 B1
+hud_slot_special1,S1
+hud_slot_special2,S2
+hud_slot_movement,MOV
+hud_slot_ultimate,ULT
+results_completion_time,Completion time: {0}
+results_rewinds_used,Chronal Rewinds used: {0}
+timeline_restart_level_confirm,Restarting from the beginning discards the Timeline Anchor you reached. Continue?

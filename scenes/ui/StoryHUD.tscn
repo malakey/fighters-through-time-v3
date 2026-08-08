@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/StoryHUD.cs" id="1_script"]
+[ext_resource type="Script" path="res://scripts/UI/BossPhaseNotchOverlay.cs" id="2_notches"]
 
 [node name="StoryHUD" type="CanvasLayer"]
 layer = 10
@@ -37,7 +38,7 @@ layout_mode = 0
 offset_left = 20.0
 offset_top = 80.0
 offset_right = 300.0
-offset_bottom = 200.0
+offset_bottom = 280.0
 
 [node name="HPBar" type="ProgressBar" parent="Root/Vitals"]
 custom_minimum_size = Vector2(280, 16)
@@ -56,6 +57,79 @@ custom_minimum_size = Vector2(280, 8)
 layout_mode = 2
 max_value = 100.0
 show_percentage = false
+
+[node name="Abilities" type="HBoxContainer" parent="Root/Vitals"]
+custom_minimum_size = Vector2(280, 30)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Special1" type="VBoxContainer" parent="Root/Vitals/Abilities"]
+custom_minimum_size = Vector2(62, 0)
+layout_mode = 2
+
+[node name="SlotName" type="Label" parent="Root/Vitals/Abilities/Special1"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 1
+
+[node name="SlotBar" type="ProgressBar" parent="Root/Vitals/Abilities/Special1"]
+custom_minimum_size = Vector2(62, 6)
+layout_mode = 2
+max_value = 100.0
+value = 100.0
+show_percentage = false
+
+[node name="Special2" type="VBoxContainer" parent="Root/Vitals/Abilities"]
+custom_minimum_size = Vector2(62, 0)
+layout_mode = 2
+
+[node name="SlotName" type="Label" parent="Root/Vitals/Abilities/Special2"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 1
+
+[node name="SlotBar" type="ProgressBar" parent="Root/Vitals/Abilities/Special2"]
+custom_minimum_size = Vector2(62, 6)
+layout_mode = 2
+max_value = 100.0
+value = 100.0
+show_percentage = false
+
+[node name="Movement" type="VBoxContainer" parent="Root/Vitals/Abilities"]
+custom_minimum_size = Vector2(62, 0)
+layout_mode = 2
+
+[node name="SlotName" type="Label" parent="Root/Vitals/Abilities/Movement"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 1
+
+[node name="SlotBar" type="ProgressBar" parent="Root/Vitals/Abilities/Movement"]
+custom_minimum_size = Vector2(62, 6)
+layout_mode = 2
+max_value = 100.0
+value = 100.0
+show_percentage = false
+
+[node name="Ultimate" type="VBoxContainer" parent="Root/Vitals/Abilities"]
+custom_minimum_size = Vector2(62, 0)
+layout_mode = 2
+
+[node name="SlotName" type="Label" parent="Root/Vitals/Abilities/Ultimate"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 1
+
+[node name="SlotBar" type="ProgressBar" parent="Root/Vitals/Abilities/Ultimate"]
+custom_minimum_size = Vector2(62, 6)
+layout_mode = 2
+max_value = 100.0
+show_percentage = false
+
+[node name="StatusIndicator" type="Label" parent="Root/Vitals"]
+visible = false
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
 
 [node name="RewindLabel" type="Label" parent="Root/Vitals"]
 layout_mode = 2
@@ -86,6 +160,16 @@ modulate = Color(1, 0.3, 0.3, 1)
 custom_minimum_size = Vector2(600, 14)
 layout_mode = 2
 show_percentage = false
+
+[node name="PhaseNotches" type="Control" parent="Root/BossPanel/BossBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("2_notches")
 
 [node name="CheckpointToast" type="Label" parent="Root"]
 visible = false

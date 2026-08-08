@@ -33,6 +33,29 @@ namespace FTT.Core {
         public CampaignLevel CollapsedLevel { get; private set; }
         public string CollapsedCheckpointID { get; private set; } = "";
 
+        // === Per-level run statistics (Package 8 B1) ===============================
+        // The results overlay wants a completion time and a rewind count and neither
+        // existed anywhere: rewinds were only ever tracked as a remaining pool (which
+        // a checkpoint refills, so it cannot be differenced), and nothing timed a
+        // level at all. Both live here rather than on a level controller because the
+        // Tutorial and Florence deliberately do not extend StoryLevelControllerBase,
+        // and a stat authored twice would drift between the two families.
+
+        /// <summary>Seconds elapsed in the level currently being played.</summary>
+        public float LevelElapsedSeconds { get; private set; }
+
+        /// <summary>Chronal Rewinds spent in the level currently being played.</summary>
+        public int LevelRewindsUsed { get; private set; }
+
+        /// <summary>True while the level timer is accumulating.</summary>
+        public bool IsLevelTimerRunning { get; private set; }
+
+        /// <summary>Completion time of the most recently finished level, frozen at completion.</summary>
+        public float LastLevelCompletionSeconds { get; private set; }
+
+        /// <summary>Rewinds spent in the most recently finished level.</summary>
+        public int LastLevelRewindsUsed { get; private set; }
+
         private static readonly string[] LevelScenePaths = {
             "res://scenes/campaign/Level_00_Tutorial.tscn",
             "res://scenes/campaign/Level_01_Florence.tscn",
@@ -57,6 +80,7 @@ namespace FTT.Core {
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnChronalDustCollected += OnDustCollected;
                 EventBus.Instance.OnLevelComplete += OnLevelComplete;
+                EventBus.Instance.OnRewindTriggered += OnRewindTriggered;
             }
         }
 
@@ -64,7 +88,19 @@ namespace FTT.Core {
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnChronalDustCollected -= OnDustCollected;
                 EventBus.Instance.OnLevelComplete -= OnLevelComplete;
+                EventBus.Instance.OnRewindTriggered -= OnRewindTriggered;
             }
+        }
+
+        /// <summary>
+        /// Accumulates the level timer. This is an autoload, so the timer keeps
+        /// running through room transitions and dialogue but stops the moment the
+        /// level reports complete; it is a wall-clock "how long did that take",
+        /// not a gameplay-time measurement, and nothing simulation-side reads it.
+        /// </summary>
+        public override void _Process(double delta) {
+            if (!IsLevelTimerRunning) return;
+            LevelElapsedSeconds += (float)delta;
         }
 
         public void StartCampaign(string characterID) {
@@ -105,12 +141,60 @@ namespace FTT.Core {
 
         public void LoadCurrentLevel() {
             string path = GetCurrentLevelPath();
-            if (!string.IsNullOrWhiteSpace(path) && ResourceLoader.Exists(path)) GameManager.Instance.LoadScene(path);
-            else GD.PushError($"Campaign scene is not authored yet: {path}");
+            if (!string.IsNullOrWhiteSpace(path) && ResourceLoader.Exists(path)) {
+                BeginLevelRun();
+                GameManager.Instance.LoadScene(path);
+            } else {
+                GD.PushError($"Campaign scene is not authored yet: {path}");
+            }
         }
 
         public void ReturnToHub() {
+            StopLevelRun();
             GameManager.Instance.LoadScene("res://scenes/campaign/HubWorld.tscn");
+        }
+
+        /// <summary>
+        /// Zeroes and starts the per-level statistics. Called on every level load,
+        /// including a Timeline Collapse restart — a restarted level is a fresh
+        /// attempt, and carrying the abandoned attempt's clock into it would report
+        /// a completion time the player never experienced.
+        /// </summary>
+        public void BeginLevelRun() {
+            LevelElapsedSeconds = 0f;
+            LevelRewindsUsed = 0;
+            IsLevelTimerRunning = true;
+        }
+
+        /// <summary>Stops the clock without publishing a completion result.</summary>
+        public void StopLevelRun() => IsLevelTimerRunning = false;
+
+        /// <summary>
+        /// Freezes the running statistics as the "last completed level" result the
+        /// results overlay reads. Idempotent, because both the base level
+        /// controller and the pre-existing Tutorial/Florence controllers reach
+        /// completion through <c>OnLevelComplete</c>.
+        /// </summary>
+        public void CompleteLevelRun() {
+            if (!IsLevelTimerRunning) return;
+            IsLevelTimerRunning = false;
+            LastLevelCompletionSeconds = LevelElapsedSeconds;
+            LastLevelRewindsUsed = LevelRewindsUsed;
+        }
+
+        /// <summary>
+        /// Formats a duration as <c>M:SS</c> (or <c>H:MM:SS</c> past an hour) for
+        /// the results overlay. Deliberately not localised as a pattern: digits and
+        /// colons carry across every language this project plans to ship.
+        /// </summary>
+        public static string FormatDuration(float seconds) {
+            int total = Mathf.Max(0, Mathf.FloorToInt(seconds));
+            int hours = total / 3600;
+            int minutes = total % 3600 / 60;
+            int remainder = total % 60;
+            return hours > 0
+                ? $"{hours}:{minutes:00}:{remainder:00}"
+                : $"{minutes}:{remainder:00}";
         }
 
         public void AdvanceToNextLevel() {
@@ -215,7 +299,17 @@ namespace FTT.Core {
         }
 
         private void OnLevelComplete(string levelID) {
+            CompleteLevelRun();
             AdvanceToNextLevel();
+        }
+
+        /// <summary>
+        /// Counts a spent rewind. The remaining pool cannot be differenced for this
+        /// — Easy and Normal refill it at checkpoints — so the count is taken from
+        /// the rewind event itself.
+        /// </summary>
+        private void OnRewindTriggered(Vector2 targetPosition) {
+            if (IsLevelTimerRunning) LevelRewindsUsed++;
         }
     }
 }
