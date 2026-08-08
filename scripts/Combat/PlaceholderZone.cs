@@ -83,7 +83,9 @@ namespace FTT.Combat {
             _tickTimer -= dt;
             if (_tickTimer <= 0) {
                 _tickTimer = _tickInterval;
-                foreach (Node2D body in _area.GetOverlappingBodies()) {
+                Godot.Collections.Array<Node2D> bodies = _area.GetOverlappingBodies();
+                using var bodiesLifetime = bodies.AsDisposable();
+                foreach (Node2D body in bodies) {
                     ApplyTickTo(body);
                 }
             }
@@ -127,7 +129,9 @@ namespace FTT.Combat {
 
         private void RefreshOwnerBuff() {
             if (_ownerSpeedMultiplier <= 1f || _ownerPlayer == null || !IsInstanceValid(_ownerPlayer)) return;
-            foreach (Node2D body in _area.GetOverlappingBodies()) {
+            Godot.Collections.Array<Node2D> bodies = _area.GetOverlappingBodies();
+            using var bodiesLifetime = bodies.AsDisposable();
+            foreach (Node2D body in bodies) {
                 if (body == _ownerPlayer) {
                     _ownerPlayer.ApplyStorySpeedBuff(_ownerSpeedMultiplier, OwnerBuffRefreshSeconds);
                     return;

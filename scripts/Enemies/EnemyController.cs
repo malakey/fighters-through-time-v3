@@ -621,7 +621,9 @@ namespace FTT.Enemies {
             if (!IsInsideTree()) return null;
             FTT.Characters.PlayerController nearest = null;
             float nearestDist = float.MaxValue;
-            foreach (var node in GetTree().GetNodesInGroup("Players")) {
+            Godot.Collections.Array<Node> players = GetTree().GetNodesInGroup("Players");
+            using var playersLifetime = players.AsDisposable();
+            foreach (var node in players) {
                 if (node is FTT.Characters.PlayerController pc && pc.CurrentState != FTT.Characters.CharacterState.Dead) {
                     float d = GlobalPosition.DistanceTo(pc.GlobalPosition);
                     if (d < nearestDist) { nearestDist = d; nearest = pc; }

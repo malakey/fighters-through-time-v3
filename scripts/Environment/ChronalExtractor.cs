@@ -34,7 +34,9 @@ namespace FTT.Environment {
                 Duration = 0.25f
             });
             if (_hazardArea == null) return;
-            foreach (Node2D body in _hazardArea.GetOverlappingBodies()) {
+            Godot.Collections.Array<Node2D> bodies = _hazardArea.GetOverlappingBodies();
+            using var bodiesLifetime = bodies.AsDisposable();
+            foreach (Node2D body in bodies) {
                 if (body is PlayerController player) ApplyDischargeToPlayer(player);
             }
         }

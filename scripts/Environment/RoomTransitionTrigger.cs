@@ -43,7 +43,9 @@ namespace FTT.Environment {
             if (encounter == null) return;
             encounter.ProcessMode = active ? ProcessModeEnum.Inherit : ProcessModeEnum.Disabled;
             if (encounter is CanvasItem item) item.Visible = active;
-            foreach (Node child in encounter.GetChildren()) {
+            Godot.Collections.Array<Node> children = encounter.GetChildren();
+            using var childrenLifetime = children.AsDisposable();
+            foreach (Node child in children) {
                 if (child is CanvasItem childItem) childItem.Visible = active;
             }
         }

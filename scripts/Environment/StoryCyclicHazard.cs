@@ -43,7 +43,9 @@ namespace FTT.Environment {
             _timer -= (float)delta;
             if (_timer <= 0f) AdvancePhase();
             if (Phase != HazardPhase.Active) return;
-            foreach (Node2D body in GetOverlappingBodies()) {
+            Godot.Collections.Array<Node2D> bodies = GetOverlappingBodies();
+            using var bodiesLifetime = bodies.AsDisposable();
+            foreach (Node2D body in bodies) {
                 if (body is PlayerController player) ApplyToPlayer(player);
             }
         }

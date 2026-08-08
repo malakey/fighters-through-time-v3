@@ -5,10 +5,10 @@ Phase C1 closeout all landed on `main`. All 27 enemy and 15 boss resources are a
 manifest-registered as `Implemented/ReadyForReplacement/Valid`, localized, pooled, and covered by
 tests; per-level warm-up configs exist for levels 2–15. Final gate: 417 passing tests across three
 consecutive full runs, clean headless import, clean TestArena/Tutorial/MainMenu smoke runs, and Florence
-running with no script errors — but the Florence and Hub smoke runs fault at .NET shutdown
-(`-1073741819`), a pre-existing teardown race that Package 4's content volume pushed over its threshold.
-It is diagnosed but deliberately **not fixed** in §8 C1 item 10; that is the one open item. Read §8 before
-changing anything here: several deliberate deviations from this plan are load-bearing.
+running with no script errors. The one item left open at close — the Florence and Hub smoke runs faulting
+at .NET shutdown (`-1073741819`), a pre-existing teardown race that Package 4's content volume pushed
+over its threshold — was **fixed 2026-08-07 after close**; diagnosis and resolution are in §8 C1 item 10.
+Read §8 before changing anything here: several deliberate deviations from this plan are load-bearing.
 
 This is the working plan for `IMPLEMENTATION_PLAN.md` Package 4. It is the
 shared reference for the parallel implementation passes; agents implementing a workstream follow the
@@ -795,9 +795,10 @@ content registration, pool configuration, tests, and documentation.
    case, so all pool budget validation stays in one file.
 9. **C1: ten new tests, 407 → 417.** Eight in `EnemyRosterContentTests`, two in
    `ScenePoolConfigTests`. No existing test needed changing, and no runtime code was touched.
-10. **C1 (open issue): the Florence and Hub headless smoke runs exit `-1073741819` at .NET shutdown.**
-    Found by the Phase C validation gate and **not fixed** — it is a runtime-code problem and C1's runtime
-    was frozen. Recorded here in full so the next agent does not repeat the four-hour bisect.
+10. **C1: the Florence and Hub headless smoke runs exit `-1073741819` at .NET shutdown.**
+    Found by the Phase C validation gate and left open — it was a runtime-code problem and C1's runtime
+    was frozen. **Fixed 2026-08-07 after Package 4 close** (see the resolution at the end of this item);
+    the diagnosis is kept in full because the isolation method transfers to any future teardown crash.
 
     Symptom: `--headless --path <repo> res://scenes/campaign/Level_01_Florence.tscn --quit-after N` runs
     the scene with **zero** script errors, then dies:
@@ -833,14 +834,25 @@ content registration, pool configuration, tests, and documentation.
     the merged *volume* of content (roster resources plus a larger compiled translation table) pushed a
     pre-existing race over its threshold.
 
-    **Most likely mechanism, unverified:** `foreach (Node n in GetTree().GetNodesInGroup(...))` allocates a
-    `Godot.Collections.Array<Node>` per call that is never disposed, so it lands on the finalizer queue.
-    `scripts/Combat/CombatantPushbox.cs` (lines 34 and 76) does this every physics frame per pushbox, and
-    `ChronalRewindManager`/`EnemyController`/`BossController` each add more. A large finalizer backlog at
-    process exit is exactly what produces this stack. The fix direction is deterministic disposal
-    (`using`) or caching at those call sites — a Package 2/3 runtime change, out of C1's scope.
+    **Mechanism (verified during the fix):** engine calls that return Godot collection wrappers
+    (`GetNodesInGroup`, `GetChildren`, `GetOverlappingBodies`) leave the wrapper to the GC, so it lands
+    on the finalizer queue, and any collection finalizer still pending when engine teardown begins
+    faults in `godotsharp_array_destroy`. Two experiments in the repository checkout pinned it down:
+    disposing only `CombatantPushbox`'s two per-frame arrays left Florence at 5/5 crashes (consistent
+    with `--quit-after 1` crashing — the queue also holds wrappers from scene-load marshaling, not just
+    per-frame gameplay), while draining the finalizer queue in `GameManager._ExitTree` (native side
+    still alive) took it to 0/5 on its own.
 
-    Documented as failure signature 3 in `CLAUDE.md` and as a known gap in `AGENTS.md`.
+    **Resolution (2026-08-07):** two-part fix. `GameManager._ExitTree` drains the finalizer queue at
+    quit (`GC.Collect` / `GC.WaitForPendingFinalizers` / `GC.Collect`) — the backstop that covers
+    wrappers no call site can dispose. Recurring gameplay call sites additionally dispose
+    engine-returned collections deterministically via `FTT.Core.GodotCollectionExtensions.AsDisposable`
+    (the typed `Array<T>` wrapper does not implement `IDisposable` in Godot 4.7.1; the explicit
+    conversion to the non-generic `Array` view of the same native array does). Verified in the
+    repository checkout: Florence 0/10 (was 10/10), HubWorld 0/10 (was 4/5), MainMenu/TestArena/Tutorial
+    0/3 each, headless import clean, suite 417/417. The former `CLAUDE.md` failure signature 3 and
+    `AGENTS.md` known-gap bullet were retired with the fix; the disposal contract is now an `AGENTS.md`
+    coding convention.
 
 11. **C1: stale ledger numbers were corrected in passing.** `docs/IMPLEMENTATION_STATUS.md` still
     claimed a 132-test validation record and `AGENTS.md`/`CLAUDE.md` were at 352 (B6's number); all

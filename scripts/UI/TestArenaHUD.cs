@@ -1,5 +1,6 @@
 using Godot;
 using FTT.Characters;
+using FTT.Core;
 using FTT.FighterSim;
 
 namespace FTT.UI {
@@ -14,7 +15,9 @@ namespace FTT.UI {
 
         public override void _Ready() {
             float hudOpacity = FTT.Core.SaveManager.Instance?.GlobalData?.HudOpacity ?? 1f;
-            foreach (Node child in GetChildren()) {
+            Godot.Collections.Array<Node> children = GetChildren();
+            using var childrenLifetime = children.AsDisposable();
+            foreach (Node child in children) {
                 if (child is CanvasItem item) item.Modulate = new Color(1f, 1f, 1f, hudOpacity);
             }
             _stateLabel = GetNodeOrNull<Label>("StateLabel");
@@ -25,10 +28,14 @@ namespace FTT.UI {
         }
 
         private void FindPlayer() {
-            foreach (var node in GetTree().GetNodesInGroup("Players")) {
+            Godot.Collections.Array<Node> players = GetTree().GetNodesInGroup("Players");
+            using var playersLifetime = players.AsDisposable();
+            foreach (var node in players) {
                 if (node is PlayerController pc && pc.PlayerIndex == 0) {
                     _player = pc;
-                    foreach (Node simulationNode in GetTree().GetNodesInGroup("FighterSimulation")) {
+                    Godot.Collections.Array<Node> simulations = GetTree().GetNodesInGroup("FighterSimulation");
+                    using var simulationsLifetime = simulations.AsDisposable();
+                    foreach (Node simulationNode in simulations) {
                         if (simulationNode is FighterSimulationDriver driver) {
                             _driver = driver;
                             _driver.MatchCompleted += ShowResults;

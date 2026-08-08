@@ -1,4 +1,5 @@
 using Godot;
+using FTT.Core;
 
 namespace FTT.Environment {
 
@@ -43,7 +44,9 @@ namespace FTT.Environment {
             if (_lifetime <= 0) { ReturnToPool(); return; }
 
             if (_magnetTarget == null) {
-                foreach (var node in GetTree().GetNodesInGroup("Players")) {
+                Godot.Collections.Array<Node> players = GetTree().GetNodesInGroup("Players");
+                using var playersLifetime = players.AsDisposable();
+                foreach (var node in players) {
                     if (node is FTT.Characters.PlayerController pc && GlobalPosition.DistanceTo(pc.GlobalPosition) <= MagnetRadius) {
                         _magnetTarget = pc;
                         break;

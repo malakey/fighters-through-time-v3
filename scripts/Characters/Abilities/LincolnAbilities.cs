@@ -1,6 +1,7 @@
 using Godot;
 using FTT.Combat;
 using FTT.Characters;
+using FTT.Core;
 
 namespace FTT.Characters.Abilities {
 
@@ -218,7 +219,9 @@ namespace FTT.Characters.Abilities {
         /// </summary>
         private void SpikeAirborneTargets() {
             if (_overheadHitbox == null || !_overheadHitbox.IsActive || Owner == null) return;
-            foreach (var area in _overheadHitbox.GetOverlappingAreas()) {
+            Godot.Collections.Array<Area2D> areas = _overheadHitbox.GetOverlappingAreas();
+            using var areasLifetime = areas.AsDisposable();
+            foreach (var area in areas) {
                 if (area is not Hurtbox hurtbox || hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
                 Node current = hurtbox.GetParent();
                 while (current != null) {
