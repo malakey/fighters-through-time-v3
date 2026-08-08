@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="orleansNight" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#0d1223"/>
+      <stop offset="0.6" stop-color="#141b30"/>
+      <stop offset="1" stop-color="#43291a"/>
+    </linearGradient>
+    <radialGradient id="burningSuburb" cx="0.5" cy="1" r="0.75">
+      <stop stop-color="#d9791f" stop-opacity="0.45"/>
+      <stop offset="1" stop-color="#d9791f" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#orleansNight)"/>
+  <ellipse cx="960" cy="1000" rx="1100" ry="420" fill="url(#burningSuburb)"/>
+
+  <!-- Waning crescent over the Loire. -->
+  <circle cx="1560" cy="200" r="72" fill="#cdd7ee" opacity="0.22"/>
+  <circle cx="1596" cy="184" r="66" fill="#0d1223" opacity="0.9"/>
+
+  <!-- Far city: cathedral spire flanked by watchtowers and curtain wall. -->
+  <path d="M0 820 L140 820 L140 700 L206 700 L206 820 L360 820 L360 730 L400 730 L400 820
+           L560 820 L560 620 L600 430 L640 620 L640 820 L820 820 L820 690 L872 690 L872 820
+           L1060 820 L1060 640 L1104 640 L1104 820 L1300 820 L1300 720 L1350 720 L1350 820
+           L1520 820 L1520 660 L1568 660 L1568 820 L1760 820 L1760 710 L1812 710 L1812 820
+           L1920 820 L1920 1080 L0 1080 Z"
+        fill="#161f33"/>
+
+  <!-- Besieging camp: distant fires along the English lines. -->
+  <g fill="#d9ab2e" opacity="0.35">
+    <circle cx="250" cy="800" r="16"/>
+    <circle cx="700" cy="812" r="12"/>
+    <circle cx="1180" cy="798" r="18"/>
+    <circle cx="1660" cy="806" r="14"/>
+  </g>
+
+  <!-- Trebuchet silhouettes hurling debris over the walls. -->
+  <g stroke="#0b101d" stroke-width="14" fill="none" opacity="0.85">
+    <path d="M300 900 L420 760 L360 900 M300 900 L420 900"/>
+    <path d="M1520 900 L1400 760 L1460 900 M1520 900 L1400 900"/>
+  </g>
+  <circle cx="470" cy="700" r="18" fill="#e2761f" opacity="0.7"/>
+  <circle cx="1352" cy="704" r="16" fill="#e2761f" opacity="0.6"/>
+</svg>
