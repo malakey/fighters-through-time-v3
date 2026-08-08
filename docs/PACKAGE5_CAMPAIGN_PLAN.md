@@ -1058,3 +1058,12 @@ a pre-merge `git add`) before it will fast-forward.
   on the first full run with no worktree contention. Import clean; `Level_10_Globe.tscn` smoke at
   `--quit-after 300` exits 0 with zero errors or warnings. `AGENTS.md` is left for C1 per the A1
   convention.
+
+### ORCHESTRATOR — rope-swing differentiation adjudicated (2026-08-08)
+
+Level 10 asked whether its `PendulumAnchor` caps collide with Nassau's, since L07 had not
+merged when the L10 branch was cut. Checked after both merged: they do not. Nassau is
+45° / 2.4 s / ~740 px/s launch, three anchors spanning a horizontal 2,000 px water channel;
+Globe is ≤34° / ≤1.4 s / ≤520 px/s, four anchors climbing three balcony tiers. Nassau's values
+sit outside every cap Globe asserts, so both tests can hold simultaneously and the two read
+differently in play. No change required to either level.
