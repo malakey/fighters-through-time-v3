@@ -895,3 +895,78 @@ CLAUDE.md's failure-signature table.
 **INTEGRATION-A: A4's one-`[TestSuite]`-per-file rule is promoted to a Phase B instruction** (a
 second suite in the same file is discovered but silently not executed — `Total:` moves by a
 plausible-looking +1 instead of the real delta).
+
+### B — Gettysburg (2026-08-08)
+
+**B-gettysburg: every merged `FighterStageGeometry.Gettysburg` value was authored into the scene
+unchanged; no geometry, marker or anchor needed an adjustment.** Walls ±10 → x 325/1575, platforms
+(−4.5, 1.8, 1.2) and (4.5, 1.8, 1.2) → body origins (668.75, 587.5) and (1231.25, 587.5) with
+150 px collision rects, hazard anchors {−5, 0, 5} → x {637.5, 950, 1262.5}, orb anchors →
+(668.75, 556.25), (1231.25, 556.25), (950, 668.75), spawns at (700, 700)/(1200, 700), ground rect
+1250 px wide with its top edge exactly on the floor plane. Pinned by
+`FighterStageGettysburgTests.TheStageSceneMirrorsItsAuthoredFixedPointGeometry`, which runs A1's
+conformance validator — including the §9 A1 rule that a one-way platform body's **origin**, not its
+collision-rect top edge, is the surface point.
+
+**B-gettysburg: `ParallaxBackground`/`ParallaxLayer` are `[Obsolete]` in Godot 4.7 in favour of
+`Parallax2D`, so naming them in C# adds `CS0618` warnings to a gate (§8.1) that allows none.** The
+authored scene still uses the node types §5 item 2 specifies — they load and render fine, and
+switching one stage to `Parallax2D` would have made this the odd scene out of nine for C1's sweeps.
+The per-stage test therefore reaches them untyped: `GetNodeOrNull<CanvasLayer>` plus
+`IsClass("ParallaxBackground")`, and `child.Get("motion_scale").AsVector2().X` for the scroll
+factors. Build is back to the single pre-existing vendored `CS8632`. **Sibling Phase B agents who
+referenced the typed API will each have contributed two `CS0618` warnings; C1 should either apply
+this pattern across the nine suites or accept the warnings deliberately, not discover them at
+integration.**
+
+**B-gettysburg: `Presentation/BackdropTint` is translucent (alpha 0.38), where Florence's is
+opaque.** `ParallaxBackground` is a `CanvasLayer`; at `layer = -100` it draws behind *everything* in
+canvas layer 0, so an opaque `BackdropTint` at any `z_index` would have completely hidden the two
+parallax layers this stage is required to have. Florence has no parallax, which is why its opaque
+backdrop works. The node keeps the Florence-consistent path and now behaves as its name says — an
+atmospheric tint over the backdrop rather than the backdrop itself. Any Phase B stage that authored
+both an opaque `BackdropTint` and a negative-layer `ParallaxBackground` has an invisible parallax
+and will still pass a node-existence test; worth a C1 spot-check.
+
+**B-gettysburg: two extra placeholder SVGs were authored beyond the one preview §5 item 5 names.**
+`assets/placeholders/stages/gettysburg_parallax_far.svg` and `gettysburg_parallax_near.svg` back the
+two required parallax layers (§5 item 2 asks for "placeholder SVGs" but only itemizes the preview).
+Reusing the shared `assets/placeholders/parallax_far.svg` was rejected: it is a purple/cyan night
+sky that reads as neither Gettysburg nor the catalog palette, and every stage sharing it would
+defeat "distinct at a glance". The far layer scrolls at 0.2 and the near at 0.55; the per-stage test
+asserts ≥2 layers, distinct scroll factors, and that each layer actually carries a texture.
+
+**B-gettysburg: the sight-line dressing is drawn stage-wide rather than as three separate
+half-width-5 bands.** The hazard's authored `HalfExtents.x` is 5 units (625 px across), so three
+bands centred on x {−5, 0, 5} would overlap into one full-width smear and read as a single flat
+rectangle. The scene instead draws one full-width band at the hazard's true height (ground up to
+1.5 units = y 606.25, the low horizontal band of §4.1 item 10), plus a 250 px scorch mark and a red
+ranging stake at each of the three anchors so the individual aim points stay legible. This is
+presentation only; the simulation's band is unchanged.
+
+**B-gettysburg: the wall collider is 562.5 px tall, not Florence's rounded 562.** The ceiling is at
+9 units, so the exact span is 562.5; the conformance validator checks wall X and layer only, so
+either value passes. Using the exact number avoids a half-pixel lie in a scene whose whole purpose
+is to mirror the fixed-point geometry.
+
+**B-gettysburg: the hash-identity run needs a 2100-frame window, not the ~700 the A1 sweep uses.**
+The first hazard spawns on the 1800-frame boundary and Gettysburg is the only 120-frame telegraph in
+the catalog, so a full cycle does not close until 1800 + 120 + 30 + 60 = 2010. The test also asserts
+it actually observed all three phases (warning, active, recovery) — a hash-identity run that never
+reached the hazard would agree trivially and prove nothing.
+
+**B-gettysburg: the suite ships 9 test cases against §5 item 6's six required coverage areas.** The
+three additions are the scene's catalog identity (`StageID` resolving to the same geometry the
+markers mirror), the collision contract (fences on layer 128 with `one_way_collision`, ground/walls
+on 64, `collision_mask = 0` everywhere), and the presentation contract. The conformance validator
+covers marker positions but not collision *layers*, and a fence authored on layer 64 would mirror
+its geometry perfectly while silently becoming a solid floor.
+
+**B-gettysburg: the GdUnit worktree pipe collision predicted by INTEGRATION-A cost two full test
+attempts and is trivially confirmable.** Both showed `GodotRuntimeTestRunner ends with exit code:
+100` / `Failed to connect: Connection timeout` / `No test matches the given testcase filter` — the
+last line being the most misleading, since the filter was correct and the assembly did contain the
+suite. `Get-Process testhost` showed five sibling runners alive at the time. Waiting for that count
+to reach zero and re-running produced 9/9 immediately, and the full suite at **829 passed / 0 failed
+/ Total 829** — exactly 820 + 9. Polling for a clear window is cheaper and far more reliable than
+retrying blind.
