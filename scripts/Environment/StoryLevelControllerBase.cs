@@ -69,6 +69,13 @@ namespace FTT.Environment {
         public virtual string BossIntroDialogueID => $"{DialoguePrefix}.boss_intro";
         public virtual string ExitDialogueID => $"{DialoguePrefix}.exit";
 
+        /// <summary>
+        /// Authored <see cref="StageAudioSet"/> for this level (Package 8 B5).
+        /// Derived from <see cref="LevelID"/> so a new level inherits its music with
+        /// no extra authoring; override only to point somewhere non-standard.
+        /// </summary>
+        protected virtual string AudioSetPath => AudioSetPaths.ForStoryLevel(LevelID);
+
         /// <summary>Objective posted as soon as the HUD exists. Empty means "post nothing".</summary>
         protected virtual string InitialObjectiveKey => "";
 
@@ -126,6 +133,9 @@ namespace FTT.Environment {
         public StorySceneServices Services { get; private set; }
         public StoryHUD HUD => Services?.HUD;
         public StoryCameraConfiner Camera { get; private set; }
+
+        /// <summary>Scene music and environment cues (Package 8 B5).</summary>
+        public StoryAudioDirector Audio => Services?.Audio;
 
         /// <summary>Dust tallied for the results overlay (the EventBus award is separate).</summary>
         public int DustEarnedThisLevel { get; private set; }
@@ -203,7 +213,7 @@ namespace FTT.Environment {
         }
 
         private void AttachStoryServices() {
-            Services = StorySceneBootstrapper.Attach(this, DialogueSetPath);
+            Services = StorySceneBootstrapper.Attach(this, DialogueSetPath, audioSetPath: AudioSetPath);
             Services.HUD?.SetLevelTitle(LevelTitleKey);
             if (!string.IsNullOrWhiteSpace(InitialObjectiveKey)) {
                 Services.HUD?.SetObjective(InitialObjectiveKey);
@@ -738,6 +748,11 @@ namespace FTT.Environment {
             };
             encounter.BossRevealed += () => OnBossRevealed(encounter);
             encounter.BossDefeated += payload => OnBossDefeated(encounter, payload);
+            // Package 8 B5: the climax layer is wired to the encounter directly rather
+            // than to OnBossDefeated, which subclasses are free to override without
+            // calling base — the music must not depend on that.
+            encounter.BossRevealed += () => Audio?.SetBossEngaged(true);
+            encounter.BossDefeated += _ => Audio?.SetBossEngaged(false);
             AddChild(encounter);
             _bossEncounters.Add(encounter);
             if (Services?.HUD != null) encounter.HUD = Services.HUD;
@@ -864,6 +879,8 @@ namespace FTT.Environment {
             if (LevelComplete) return null;
             LevelComplete = true;
             Levels?.CompleteLevel();
+            // Package 8 B5: settle back onto the ambient bed under the results overlay.
+            Audio?.ReleaseToAmbient();
             return PresentCompletion();
         }
 

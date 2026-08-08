@@ -46,10 +46,17 @@ namespace FTT.Environment {
             SpawnRoom1Enemies();
 
             _services = StorySceneBootstrapper.Attach(
-                this, "res://resources/Dialogue/level_01_dialogue.tres");
+                this, "res://resources/Dialogue/level_01_dialogue.tres",
+                audioSetPath: AudioSetPaths.ForStoryLevel("level_01_florence"));
             _services.HUD?.SetLevelTitle("florence_level_title");
             _services.HUD?.SetObjective("florence_objective_reach_boss");
-            if (_bossEncounter != null) _bossEncounter.HUD = _services.HUD;
+            if (_bossEncounter != null) {
+                _bossEncounter.HUD = _services.HUD;
+                // Package 8 B5: Florence predates StoryLevelControllerBase, so its
+                // climax wiring is done here rather than inherited.
+                _bossEncounter.BossRevealed += () => _services?.Audio?.SetBossEngaged(true);
+                _bossEncounter.BossDefeated += _ => _services?.Audio?.SetBossEngaged(false);
+            }
 
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnEnemyKilled += OnEnemyKilled;
@@ -662,6 +669,7 @@ namespace FTT.Environment {
             _levelComplete = true;
             // Raises OnLevelComplete: advances the campaign and autosaves completion.
             _levelManager?.CompleteLevel();
+            _services?.Audio?.ReleaseToAmbient();
 
             var results = LevelResultsPanel.CreateDefault();
             results.ReturnRequested += () => StoryManager.Instance?.ReturnToHub();

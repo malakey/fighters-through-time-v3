@@ -35,7 +35,8 @@ namespace FTT.Environment {
                 this,
                 "res://resources/Dialogue/hub_dialogue.tres",
                 includeHUD: false,
-                includeRewind: false);
+                includeRewind: false,
+                audioSetPath: AudioSetPaths.Hub);
             AutoDepositCarriedDust();
         }
 

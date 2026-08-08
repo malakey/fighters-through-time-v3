@@ -1127,3 +1127,117 @@ delivered by B3 and left open: the glass panel's rendered result is unverified b
 and needs a human look (the same limit A3 recorded for its shader), and the chirp still plays A2's
 single placeholder sample — the design's per-character *waveforms* (square for Lincoln, triangle for
 Mozart) are production audio, P10.
+
+### B5 — Audio content (2026-08-08)
+
+**B5: the seventeen sets exist at the reserved paths; the manifest rows stay `Planned` for C1.**
+`resources/Audio/{tutorial,hub,level_01..15}_audio.tres` are authored `StageAudioSet` resources on
+the three shared placeholder stems, exactly as the ten Fighter stage sets are, and every one passes
+the shared `StageAudioSetTests.Validate`. Per §2.12 no manifest row was touched.
+`StoryAudioSetContentTests.EverySeventeenStorySetExistsAtItsManifestPathAndSatisfiesTheStemContract`
+reads the reserved `ResourcePath` out of the manifest and validates what it finds there, so it will
+keep passing across C1's flip without an edit.
+
+**B5: the level→set mapping is derived, not authored, and lives in one class.** Neither
+`FighterStageData` nor any campaign resource carries an audio-set field, and adding one would have
+meant editing ten catalog rows plus the ten stage scenes B7 owns. `AudioSetPaths.ForStoryLevel`
+derives `level_NN_audio.tres` from the level id's own two-digit slot (so a later era-token rename
+keeps the level's music), maps slot 0 to `tutorial_audio.tres`, and returns "" for anything that is
+not a real campaign slot — "" means "attach no director", which is what a bare test fixture gets.
+`ForFighterStage` takes the era token that is the first segment of every catalog `StageID`. Both
+halves are pinned against the authored files rather than against a duplicate table, including a
+negative case, because a wrong derivation is completely silent: the scene simply plays nothing.
+
+**B5: `StageID` on a Story set is the level id, and the hub's is `hub_ship`.** The field is
+documented as "must match a catalog StageID", which only exists for Fighter stages. Reusing it for
+the campaign identity keeps one schema rather than forking `StageAudioSet` for seventeen rows that
+differ in no other way. The hub has no level id at all, so `AudioSetPaths.HubStageID` names the
+value once and the content test asserts it.
+
+**B5: combat intensity is driven by engaged enemies, not by living ones.** Campaign levels spawn
+their opening room's enemies during `BuildLevel`, so "any enemy alive" would pin every level to the
+combat layer from the first frame and the ambient bed would never be heard at all.
+`StoryAudioDirector` counts living hostiles within `EngagementRadius` (1000 px, a little over half
+the reference viewport) of the `StoryPlayer`, at 4 Hz — there is no enemy-spawned event on the bus,
+and a wave trigger seeds several enemies in one frame, so polling is both simpler and sufficient
+against a 2–3 s crossfade. The policy itself is `StoryCombatIntensityModel`, pure C# with no Godot
+types, which is what makes the timing edges (a staggered wave, a boss dying with adds still up)
+testable as arithmetic instead of as seconds of engine time.
+
+**B5: falling back to ambient is held for four seconds; rising is immediate.** Without the hold the
+gap between one wave dying and the next trigger firing — routinely under a second — makes the mix
+flap audibly. Leaving a boss fight also lands on Combat for the hold rather than on silence,
+because the post-boss dialogue beat plays over an arena that is usually still populated.
+`StoryCombatIntensityTests` pins both directions and the refill.
+
+**B5: the boss climax is wired to the encounter, not to `OnBossDefeated`.**
+`StoryLevelControllerBase.OnBossDefeated` is virtual and its doc comment anticipates subclasses
+overriding it; a level that does so without calling base would silently lose the music transition
+while keeping everything else. `BuildBossEncounter` therefore adds a second, separate subscription
+to `BossRevealed`/`BossDefeated` alongside the one that calls the virtuals. Level 15's completion
+override is the case that would have broken.
+
+**B5: the director releases the stage audio unconditionally in `_ExitTree`.** The stem director is
+an autoload child with a process-lifetime registration, so a scene that registers and never releases
+leaves the level the player just left playing under the hub. Same discipline as the project's
+`SceneTree.Paused` rule, and `StoryAudioDirectorTests.LeavingTheSceneReleasesTheStageAudio` is the
+guard. Level completion is deliberately *not* a release: it drops to ambient and keeps the set
+registered, so the results overlay plays over music rather than over silence.
+
+**B5: `EnvironmentAudioCues` exists because of an A2 API gap, and should collapse into A2 later.**
+`AudioManager` already loads the placeholder hazard and pickup streams but keeps them private behind
+`ResolvePresentationCue`; the only public entry point for an arbitrary world sound is
+`PlaySFX(stream)`/`PlayOneShot(stream, …)`, which needs the caller to hold the stream. B5 must not
+refactor A2's file (§6), so the two streams are resolved once in a small static and the call sites
+stay one-liners. If A2's surface ever grows a `PlayEnvironmentCue(id)`, this class collapses into it
+with no call-site edits. Loaded through `ResourceLoader`, not `AuthoredResources` — audio is
+streamed content and must stay out of the authored-data cache.
+
+**B5: hazards are wired through the one `OnHazardStateChanged` payload; pickups are wired at their
+collection sites.** All nine toolkit hazards, the escape sequence, and the extractor discharge
+already publish that payload, so one subscriber covers every authored hazard without touching a
+single template. `Cooldown` is silent, matching A2's rule that a recovery beat firing several times
+a second is noise rather than information. Pickups went the other way deliberately:
+`OnChronalDustCollected` is *also* re-raised for every enemy kill and every extractor break, so
+subscribing to it would have doubled the pickup cue on top of the death and destruction cues instead
+of marking a pickup. `StoryPickup.Collect` and `ChronalDustPickup`'s magnet collection call directly.
+
+**B5: footsteps are distance-based, and the first step is immediate.** A fixed frame interval makes
+a status-slowed walk keep a sprinter's cadence and makes a dash sound like a walk; accumulating
+travelled distance scales the rhythm with speed for free. `FootstepCadence` primes on every
+ineligible frame, so starting to run or landing plants a foot at once — without that, short hops
+between close platforms are completely silent and read as missing audio. A frame that banks several
+strides sounds once and drops the backlog (modulo, not repeated subtraction) rather than
+machine-gunning it out over the following frames. Rolling is silent on purpose. Pinned by
+`FootstepCadenceTests` at speeds that are exact multiples of the 60 Hz step, so the assertions test
+the cadence rather than float accumulation error.
+
+**B5: Fighter Mode gets no footsteps, and that is a real gap.** `FighterSimulationDriver` sets
+`ProcessMode.Disabled` on both presentation bodies, so `PlayerController._PhysicsProcess` — where
+the emission lives — never runs in a match. Emitting them would mean diffing grounded state and
+velocity in the driver's `SyncPlayer`, which is A3/B2 territory this workstream was told to keep
+additive. Left for Package 10's audio pass alongside the real footstep set.
+
+**B5: the Fighter climax is one-way and keyed on the mode, not just the stocks.** A pure time-limit
+match never removes a stock, so a stock-keyed climax could never fire there; its own final-seconds
+climax is a separate rule and is not implemented. Zero stocks is deliberately not a climax — that
+fighter is already out and the driver's KO sequence owns the moment. A one-stock match *is* a climax
+from the opening frame, which is correct for a sudden-death rule set rather than a case to suppress.
+The rule lives in `FTT.Core.FighterAudioRules` rather than in the driver precisely so it is testable
+without simulating a match to a knockout; the driver's whole audio block is additive and reads only
+deterministic fields.
+
+**B5: the match going live is the combat cue, and the countdown stays on ambient.** The stage
+controller registers the set (which starts on Ambient by A2's contract), and the driver layers combat
+in on the same edge that raises the `MatchStart` banner. KO/fanfare cues already play through A2's
+assets and were not touched; the countdown blip is B2's.
+
+**B5 validation.** Build clean (pre-existing vendored `CS8632` only); `--headless --import` clean
+(seventeen new `.tres`, no CSV edits so no compiled-translation artifact); full suite
+**1092 = 1060 + 32** across two consecutive serial runs; headless smokes clean and byte-identical to
+the pre-change baseline for `HubWorld`, `Level_00_Tutorial`, `Level_01_Florence`, `Level_02_Orleans`,
+`Level_05_Titanic`, `TestArena`, and `FighterStage_Florence` (the "6 ObjectDB instances leaked /
+3 resources still in use at exit" lines are pre-existing — verified by re-running the hub smoke with
+B5's script changes stashed). No existing suite was modified. Several early runs failed to launch the
+GdUnit child (exit 100 / connection timeout, no FATAL in `godot.log`) — CLAUDE.md failure signature 5,
+cross-worktree contention; only runs matching the exact expected total are reported here.

@@ -528,9 +528,36 @@ namespace FTT.FighterSim {
                     SubjectPlayerID = -1,
                     DurationSeconds = FighterMatchFlowRules.GoBannerFrames / (float)FighterSimulation.TickRate
                 });
+                // Package 8 B5: the match going live is the combat layer's cue. The
+                // stage controller registered the set, which starts on Ambient under
+                // the countdown.
+                AudioManager.Instance?.SetIntensity(StemIntensity.Combat);
             }
 
             DetectStockLoss(match);
+            UpdateLastStockClimax(in match);
+        }
+
+        // === Package 8 B5: match music intensity ===
+        // Additive presentation only. Reads deterministic stock/mode fields and calls
+        // the audio autoload; nothing here writes into scripts/FighterSim/ state.
+        private bool _climaxEntered;
+
+        /// <summary>
+        /// Layers the climax stem in once a stock loss leaves either fighter on their
+        /// last stock. One-way for the match: a Hybrid match cannot un-tense, and a
+        /// fighter cannot regain a stock, so there is nothing to fall back from.
+        /// The rule itself lives in <see cref="FighterAudioRules"/> so it is testable
+        /// without a running match.
+        /// </summary>
+        private void UpdateLastStockClimax(in FighterMatchComponent match) {
+            if (_climaxEntered) return;
+            if (!FighterAudioRules.ModeUsesStocks(match.MatchMode)) return;
+            if (!Simulation.TryGetFighter(0, out FighterStateComponent one)
+                || !Simulation.TryGetFighter(1, out FighterStateComponent two)) return;
+            if (!FighterAudioRules.IsLastStockClimax(one.Stocks, two.Stocks)) return;
+            _climaxEntered = true;
+            AudioManager.Instance?.SetIntensity(StemIntensity.Climax);
         }
 
         private void CaptureStocks() {

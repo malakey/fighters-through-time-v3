@@ -60,6 +60,9 @@ namespace FTT.Environment {
         protected override void OnDestroyed() {
             VisualState = ChronalExtractorVisualState.Destroyed;
             EventBus.Instance?.RaiseChronalDustCollected(DustReward);
+            // Package 8 B5. The discharge already sounds through the hazard event the
+            // director subscribes to; the break itself is a separate, lower beat.
+            EnvironmentAudioCues.PlayDestruction();
             Publish();
         }
 

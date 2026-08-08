@@ -14,6 +14,9 @@ namespace FTT.Environment {
         public PauseMenu Pause;
         public RewindPresentationOverlay RewindOverlay;
         public ChronalRewindManager RewindManager;
+
+        /// <summary>Scene music + environment cues (Package 8 B5). Null when the scene has no set.</summary>
+        public StoryAudioDirector Audio;
     }
 
     public static class StorySceneBootstrapper {
@@ -22,13 +25,27 @@ namespace FTT.Environment {
         /// Attaches the shared Story runtime stack to a campaign scene root.
         /// The rewind manager and overlay are level-only; the hub passes
         /// <paramref name="includeRewind"/> = false.
+        ///
+        /// <paramref name="audioSetPath"/> is the scene's authored
+        /// <see cref="StageAudioSet"/> (see <see cref="AudioSetPaths"/>); passing ""
+        /// attaches no <see cref="StoryAudioDirector"/> and the scene stays silent,
+        /// which is what a test fixture that only wants the dialogue stack gets.
         /// </summary>
         public static StorySceneServices Attach(
             Node sceneRoot,
             string dialogueSetPath,
             bool includeHUD = true,
-            bool includeRewind = true) {
+            bool includeRewind = true,
+            string audioSetPath = "") {
             var services = new StorySceneServices();
+
+            if (!string.IsNullOrWhiteSpace(audioSetPath)) {
+                services.Audio = new StoryAudioDirector {
+                    Name = "StoryAudioDirector",
+                    AudioSetPath = audioSetPath
+                };
+                sceneRoot.AddChild(services.Audio);
+            }
 
             services.Dialogue = DialogueManager.CreateDefault();
             sceneRoot.AddChild(services.Dialogue);
