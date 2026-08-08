@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="parisSky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#120409"/>
+      <stop offset="0.55" stop-color="#2a0a10"/>
+      <stop offset="1" stop-color="#4a1416"/>
+    </linearGradient>
+    <radialGradient id="parisGlow" cx="0.5" cy="1" r="0.85">
+      <stop stop-color="#d92e33" stop-opacity="0.42"/>
+      <stop offset="1" stop-color="#d92e33" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#parisSky)"/>
+  <!-- revolutionary fire glow rising off the far city -->
+  <rect y="420" width="1920" height="660" fill="url(#parisGlow)"/>
+  <!-- distant Paris rooftops -->
+  <path d="M0 800 L120 740 L240 800 L360 720 L470 800 L600 750 L720 800 L860 730 L1000 800 L1130 745 L1260 800 L1400 725 L1540 800 L1680 750 L1800 800 L1920 735 L1920 1080 L0 1080 Z" fill="#1b0a10"/>
+  <!-- the Bastille: eight round towers behind the arena -->
+  <g fill="#25101a">
+    <rect x="300" y="470" width="120" height="440"/>
+    <rect x="470" y="520" width="110" height="390"/>
+    <rect x="640" y="440" width="130" height="470"/>
+    <rect x="840" y="400" width="150" height="510"/>
+    <rect x="1050" y="440" width="130" height="470"/>
+    <rect x="1250" y="520" width="110" height="390"/>
+    <rect x="1420" y="470" width="120" height="440"/>
+    <rect x="300" y="880" width="1240" height="200"/>
+  </g>
+  <!-- crenellations -->
+  <g fill="#3d1f1f">
+    <rect x="300" y="455" width="30" height="24"/><rect x="345" y="455" width="30" height="24"/><rect x="390" y="455" width="30" height="24"/>
+    <rect x="640" y="425" width="32" height="24"/><rect x="689" y="425" width="32" height="24"/><rect x="738" y="425" width="32" height="24"/>
+    <rect x="840" y="385" width="34" height="26"/><rect x="898" y="385" width="34" height="26"/><rect x="956" y="385" width="34" height="26"/>
+    <rect x="1050" y="425" width="32" height="24"/><rect x="1099" y="425" width="32" height="24"/><rect x="1148" y="425" width="32" height="24"/>
+    <rect x="1420" y="455" width="30" height="24"/><rect x="1465" y="455" width="30" height="24"/><rect x="1510" y="455" width="30" height="24"/>
+  </g>
+  <!-- Apex Archive surveillance mast bolted onto the keep -->
+  <rect x="905" y="180" width="16" height="230" fill="#3d1f1f"/>
+  <circle cx="913" cy="176" r="26" fill="#d92e33" opacity="0.55"/>
+  <circle cx="913" cy="176" r="12" fill="#ffd4d4" opacity="0.75"/>
+  <!-- smoke columns -->
+  <g fill="#d92e33" opacity="0.10">
+    <path d="M700 440 q60 -180 20 -320 q80 150 30 320 Z"/>
+    <path d="M1180 440 q70 -200 10 -340 q90 160 40 340 Z"/>
+  </g>
+</svg>

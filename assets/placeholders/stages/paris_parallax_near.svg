@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <!-- Mid-distance layer: the inner curtain wall, the mob's barricade and pike
+       line seen behind the fighting floor. Transparent above the wall line so the
+       far layer's towers and sky read through it. -->
+  <g fill="#3d1f1f">
+    <rect x="0" y="600" width="1920" height="480"/>
+  </g>
+  <!-- curtain-wall crenellations -->
+  <g fill="#4d2828">
+    <rect x="0" y="576" width="56" height="26"/><rect x="96" y="576" width="56" height="26"/>
+    <rect x="192" y="576" width="56" height="26"/><rect x="288" y="576" width="56" height="26"/>
+    <rect x="384" y="576" width="56" height="26"/><rect x="480" y="576" width="56" height="26"/>
+    <rect x="576" y="576" width="56" height="26"/><rect x="672" y="576" width="56" height="26"/>
+    <rect x="768" y="576" width="56" height="26"/><rect x="864" y="576" width="56" height="26"/>
+    <rect x="960" y="576" width="56" height="26"/><rect x="1056" y="576" width="56" height="26"/>
+    <rect x="1152" y="576" width="56" height="26"/><rect x="1248" y="576" width="56" height="26"/>
+    <rect x="1344" y="576" width="56" height="26"/><rect x="1440" y="576" width="56" height="26"/>
+    <rect x="1536" y="576" width="56" height="26"/><rect x="1632" y="576" width="56" height="26"/>
+    <rect x="1728" y="576" width="56" height="26"/><rect x="1824" y="576" width="56" height="26"/>
+  </g>
+  <!-- arrow slits lit from within -->
+  <g fill="#d92e33" opacity="0.5">
+    <rect x="150" y="660" width="14" height="70"/>
+    <rect x="530" y="660" width="14" height="70"/>
+    <rect x="1370" y="660" width="14" height="70"/>
+    <rect x="1760" y="660" width="14" height="70"/>
+  </g>
+  <!-- gatehouse arch, centred behind the courtyard -->
+  <path d="M810 1080 L810 760 q150 -150 300 0 L1110 1080 Z" fill="#2a1414"/>
+  <path d="M850 1080 L850 780 q110 -110 220 0 L1070 1080 Z" fill="#150708"/>
+  <!-- pike line of the mob -->
+  <g stroke="#d92e33" stroke-width="5" opacity="0.55">
+    <line x1="220" y1="600" x2="196" y2="400"/>
+    <line x1="270" y1="600" x2="290" y2="392"/>
+    <line x1="330" y1="600" x2="308" y2="410"/>
+    <line x1="1580" y1="600" x2="1604" y2="400"/>
+    <line x1="1640" y1="600" x2="1620" y2="392"/>
+    <line x1="1700" y1="600" x2="1722" y2="410"/>
+  </g>
+  <!-- toppled barricade timbers flanking the courtyard -->
+  <g fill="#4d2828">
+    <rect x="120" y="900" width="300" height="26" transform="rotate(-8 120 900)"/>
+    <rect x="1500" y="900" width="300" height="26" transform="rotate(8 1800 900)"/>
+  </g>
+</svg>

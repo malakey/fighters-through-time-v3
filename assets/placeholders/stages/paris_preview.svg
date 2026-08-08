@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270" viewBox="0 0 480 270">
+  <!-- Stage-select preview: Paris Bastille. Two drawbridge walkways suspended
+       over a sunken courtyard, fortress towers behind, one sweeping
+       neural-dampening beam column. Palette is the catalog entry's
+       background/ground/accent colours. -->
+  <defs>
+    <linearGradient id="pvSky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#1f0b12"/>
+      <stop offset="1" stop-color="#4a1416"/>
+    </linearGradient>
+    <linearGradient id="pvBeam" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#d92e33" stop-opacity="0.65"/>
+      <stop offset="1" stop-color="#d92e33" stop-opacity="0.12"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="270" fill="url(#pvSky)"/>
+  <!-- fortress towers -->
+  <g fill="#2a1018">
+    <rect x="60" y="70" width="42" height="130"/>
+    <rect x="130" y="52" width="52" height="148"/>
+    <rect x="298" y="52" width="52" height="148"/>
+    <rect x="378" y="70" width="42" height="130"/>
+    <rect x="60" y="182" width="360" height="30"/>
+  </g>
+  <g fill="#3d1f1f">
+    <rect x="130" y="44" width="14" height="10"/><rect x="149" y="44" width="14" height="10"/><rect x="168" y="44" width="14" height="10"/>
+    <rect x="298" y="44" width="14" height="10"/><rect x="317" y="44" width="14" height="10"/><rect x="336" y="44" width="14" height="10"/>
+  </g>
+  <!-- sweeping beam column over the courtyard -->
+  <rect x="222" y="26" width="36" height="186" fill="url(#pvBeam)"/>
+  <circle cx="240" cy="26" r="9" fill="#d92e33" opacity="0.8"/>
+  <!-- sunken courtyard floor -->
+  <rect x="0" y="212" width="480" height="58" fill="#3d1f1f"/>
+  <rect x="150" y="212" width="180" height="58" fill="#2a1414"/>
+  <rect x="0" y="209" width="480" height="3" fill="#d92e33"/>
+  <!-- two drawbridge walkways -->
+  <g>
+    <rect x="88" y="146" width="128" height="9" fill="#3d1f1f"/>
+    <rect x="88" y="142" width="128" height="4" fill="#d92e33"/>
+    <rect x="264" y="146" width="128" height="9" fill="#3d1f1f"/>
+    <rect x="264" y="142" width="128" height="4" fill="#d92e33"/>
+  </g>
+  <!-- drawbridge chains back to the walls -->
+  <g stroke="#d92e33" stroke-width="2" opacity="0.55">
+    <line x1="88" y1="146" x2="34" y2="86"/>
+    <line x1="392" y1="146" x2="446" y2="86"/>
+  </g>
+  <!-- side walls -->
+  <rect x="22" y="60" width="12" height="152" fill="#4d2828"/>
+  <rect x="446" y="60" width="12" height="152" fill="#4d2828"/>
+</svg>

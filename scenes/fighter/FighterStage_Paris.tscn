@@ -1,0 +1,433 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/FighterStageController.cs" id="1_controller"]
+[ext_resource type="Script" path="res://scripts/UI/TestArenaHUD.cs" id="2_hud"]
+[ext_resource type="Script" path="res://scripts/Combat/FighterCamera.cs" id="3_camera"]
+[ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="4_marker"]
+[ext_resource type="Resource" path="res://resources/Contracts/fighter_stage_contract.tres" id="5_contract"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/stages/paris_parallax_far.svg" id="6_parallax_far"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/stages/paris_parallax_near.svg" id="7_parallax_near"]
+
+[sub_resource type="RectangleShape2D" id="ground_col"]
+size = Vector2(1125, 48)
+
+[sub_resource type="RectangleShape2D" id="platform_col"]
+size = Vector2(250, 12)
+
+[sub_resource type="RectangleShape2D" id="wall_col"]
+size = Vector2(24, 562.5)
+
+[node name="FighterStageParis" type="Node2D" groups=["fighter_stage"]]
+script = ExtResource("1_controller")
+StageID = "paris_bastille"
+
+[node name="Presentation" type="Node2D" parent="."]
+
+[node name="ParallaxBackground" type="ParallaxBackground" parent="Presentation"]
+layer = -100
+
+[node name="FarLayer" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
+motion_scale = Vector2(0.15, 0.06)
+
+[node name="FarSprite" type="Sprite2D" parent="Presentation/ParallaxBackground/FarLayer"]
+position = Vector2(960, 540)
+texture = ExtResource("6_parallax_far")
+
+[node name="NearLayer" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
+motion_scale = Vector2(0.42, 0.16)
+
+[node name="NearSprite" type="Sprite2D" parent="Presentation/ParallaxBackground/NearLayer"]
+modulate = Color(0.82, 0.62, 0.62, 0.92)
+position = Vector2(960, 560)
+texture = ExtResource("7_parallax_near")
+
+[node name="BackdropTint" type="ColorRect" parent="Presentation"]
+z_index = -30
+mouse_filter = 2
+offset_left = -200.0
+offset_top = -200.0
+offset_right = 2200.0
+offset_bottom = 1200.0
+color = Color(0.12, 0.04, 0.07, 0.42)
+
+[node name="CourtyardPit" type="ColorRect" parent="Presentation"]
+z_index = -12
+offset_left = 700.0
+offset_top = 640.0
+offset_right = 1200.0
+offset_bottom = 700.0
+color = Color(0.09, 0.04, 0.05, 1)
+
+[node name="CourtyardStepLeft" type="ColorRect" parent="Presentation"]
+z_index = -11
+offset_left = 700.0
+offset_top = 640.0
+offset_right = 760.0
+offset_bottom = 700.0
+color = Color(0.18, 0.09, 0.1, 1)
+
+[node name="CourtyardStepRight" type="ColorRect" parent="Presentation"]
+z_index = -11
+offset_left = 1140.0
+offset_top = 640.0
+offset_right = 1200.0
+offset_bottom = 700.0
+color = Color(0.18, 0.09, 0.1, 1)
+
+[node name="CourtyardRail" type="ColorRect" parent="Presentation"]
+z_index = -11
+offset_left = 700.0
+offset_top = 637.0
+offset_right = 1200.0
+offset_bottom = 640.0
+color = Color(0.85, 0.18, 0.2, 0.55)
+
+[node name="TowerLeft" type="ColorRect" parent="Presentation"]
+z_index = -14
+offset_left = 411.5
+offset_top = 210.0
+offset_right = 521.5
+offset_bottom = 700.0
+color = Color(0.2, 0.1, 0.11, 1)
+
+[node name="TowerLeftCap" type="ColorRect" parent="Presentation"]
+z_index = -13
+offset_left = 401.5
+offset_top = 192.0
+offset_right = 531.5
+offset_bottom = 210.0
+color = Color(0.3, 0.16, 0.16, 1)
+
+[node name="TowerRight" type="ColorRect" parent="Presentation"]
+z_index = -14
+offset_left = 1378.5
+offset_top = 210.0
+offset_right = 1488.5
+offset_bottom = 700.0
+color = Color(0.2, 0.1, 0.11, 1)
+
+[node name="TowerRightCap" type="ColorRect" parent="Presentation"]
+z_index = -13
+offset_left = 1368.5
+offset_top = 192.0
+offset_right = 1498.5
+offset_bottom = 210.0
+color = Color(0.3, 0.16, 0.16, 1)
+
+[node name="DrawbridgeChainLeft" type="Line2D" parent="Presentation"]
+z_index = -8
+points = PackedVector2Array(575, 537.5, 466.5, 260)
+width = 5.0
+default_color = Color(0.55, 0.3, 0.28, 0.9)
+
+[node name="DrawbridgeChainRight" type="Line2D" parent="Presentation"]
+z_index = -8
+points = PackedVector2Array(1325, 537.5, 1433.5, 260)
+width = 5.0
+default_color = Color(0.55, 0.3, 0.28, 0.9)
+
+[node name="BeamEmitterLeft" type="ColorRect" parent="Presentation"]
+z_index = -6
+offset_left = 543.0
+offset_top = 660.0
+offset_right = 607.0
+offset_bottom = 700.0
+color = Color(0.3, 0.16, 0.16, 1)
+
+[node name="BeamColumnLeft" type="ColorRect" parent="Presentation"]
+z_index = -7
+offset_left = 512.5
+offset_top = 137.5
+offset_right = 637.5
+offset_bottom = 660.0
+color = Color(0.85, 0.18, 0.2, 0.12)
+
+[node name="BeamLensLeft" type="ColorRect" parent="Presentation"]
+z_index = -5
+offset_left = 559.0
+offset_top = 652.0
+offset_right = 591.0
+offset_bottom = 664.0
+color = Color(0.98, 0.62, 0.6, 0.85)
+
+[node name="BeamEmitterCenter" type="ColorRect" parent="Presentation"]
+z_index = -6
+offset_left = 918.0
+offset_top = 660.0
+offset_right = 982.0
+offset_bottom = 700.0
+color = Color(0.3, 0.16, 0.16, 1)
+
+[node name="BeamColumnCenter" type="ColorRect" parent="Presentation"]
+z_index = -7
+offset_left = 887.5
+offset_top = 137.5
+offset_right = 1012.5
+offset_bottom = 660.0
+color = Color(0.85, 0.18, 0.2, 0.12)
+
+[node name="BeamLensCenter" type="ColorRect" parent="Presentation"]
+z_index = -5
+offset_left = 934.0
+offset_top = 652.0
+offset_right = 966.0
+offset_bottom = 664.0
+color = Color(0.98, 0.62, 0.6, 0.85)
+
+[node name="BeamEmitterRight" type="ColorRect" parent="Presentation"]
+z_index = -6
+offset_left = 1293.0
+offset_top = 660.0
+offset_right = 1357.0
+offset_bottom = 700.0
+color = Color(0.3, 0.16, 0.16, 1)
+
+[node name="BeamColumnRight" type="ColorRect" parent="Presentation"]
+z_index = -7
+offset_left = 1262.5
+offset_top = 137.5
+offset_right = 1387.5
+offset_bottom = 660.0
+color = Color(0.85, 0.18, 0.2, 0.12)
+
+[node name="BeamLensRight" type="ColorRect" parent="Presentation"]
+z_index = -5
+offset_left = 1309.0
+offset_top = 652.0
+offset_right = 1341.0
+offset_bottom = 664.0
+color = Color(0.98, 0.62, 0.6, 0.85)
+
+[node name="Geometry" type="Node2D" parent="."]
+
+[node name="Ground" type="StaticBody2D" parent="Geometry"]
+position = Vector2(950, 700)
+collision_layer = 64
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/Ground"]
+position = Vector2(0, 24)
+shape = SubResource("ground_col")
+
+[node name="Visual" type="ColorRect" parent="Geometry/Ground"]
+offset_left = -562.5
+offset_top = 0.0
+offset_right = 562.5
+offset_bottom = 48.0
+color = Color(0.24, 0.12, 0.12, 1)
+
+[node name="TopLine" type="ColorRect" parent="Geometry/Ground"]
+offset_left = -562.5
+offset_top = -3.0
+offset_right = 562.5
+offset_bottom = 0.0
+color = Color(0.85, 0.18, 0.2, 1)
+
+[node name="WallLeft" type="StaticBody2D" parent="Geometry"]
+position = Vector2(387.5, 418.75)
+collision_layer = 64
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/WallLeft"]
+shape = SubResource("wall_col")
+
+[node name="Visual" type="ColorRect" parent="Geometry/WallLeft"]
+offset_left = -12.0
+offset_top = -281.25
+offset_right = 12.0
+offset_bottom = 281.25
+color = Color(0.19, 0.1, 0.1, 1)
+
+[node name="WallRight" type="StaticBody2D" parent="Geometry"]
+position = Vector2(1512.5, 418.75)
+collision_layer = 64
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/WallRight"]
+shape = SubResource("wall_col")
+
+[node name="Visual" type="ColorRect" parent="Geometry/WallRight"]
+offset_left = -12.0
+offset_top = -281.25
+offset_right = 12.0
+offset_bottom = 281.25
+color = Color(0.19, 0.1, 0.1, 1)
+
+[node name="DrawbridgeLeft" type="StaticBody2D" parent="Geometry"]
+position = Vector2(700, 537.5)
+collision_layer = 128
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/DrawbridgeLeft"]
+one_way_collision = true
+shape = SubResource("platform_col")
+
+[node name="Visual" type="ColorRect" parent="Geometry/DrawbridgeLeft"]
+offset_left = -125.0
+offset_top = -6.0
+offset_right = 125.0
+offset_bottom = 6.0
+color = Color(0.24, 0.12, 0.12, 1)
+
+[node name="TopLine" type="ColorRect" parent="Geometry/DrawbridgeLeft"]
+offset_left = -125.0
+offset_top = -9.0
+offset_right = 125.0
+offset_bottom = -6.0
+color = Color(0.85, 0.18, 0.2, 1)
+
+[node name="PlankA" type="ColorRect" parent="Geometry/DrawbridgeLeft"]
+offset_left = -84.0
+offset_top = -6.0
+offset_right = -78.0
+offset_bottom = 6.0
+color = Color(0.15, 0.07, 0.08, 1)
+
+[node name="PlankB" type="ColorRect" parent="Geometry/DrawbridgeLeft"]
+offset_left = -3.0
+offset_top = -6.0
+offset_right = 3.0
+offset_bottom = 6.0
+color = Color(0.15, 0.07, 0.08, 1)
+
+[node name="PlankC" type="ColorRect" parent="Geometry/DrawbridgeLeft"]
+offset_left = 78.0
+offset_top = -6.0
+offset_right = 84.0
+offset_bottom = 6.0
+color = Color(0.15, 0.07, 0.08, 1)
+
+[node name="Winch" type="ColorRect" parent="Geometry/DrawbridgeLeft"]
+offset_left = -18.0
+offset_top = 6.0
+offset_right = 18.0
+offset_bottom = 30.0
+color = Color(0.34, 0.18, 0.16, 1)
+
+[node name="DrawbridgeRight" type="StaticBody2D" parent="Geometry"]
+position = Vector2(1200, 537.5)
+collision_layer = 128
+collision_mask = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Geometry/DrawbridgeRight"]
+one_way_collision = true
+shape = SubResource("platform_col")
+
+[node name="Visual" type="ColorRect" parent="Geometry/DrawbridgeRight"]
+offset_left = -125.0
+offset_top = -6.0
+offset_right = 125.0
+offset_bottom = 6.0
+color = Color(0.24, 0.12, 0.12, 1)
+
+[node name="TopLine" type="ColorRect" parent="Geometry/DrawbridgeRight"]
+offset_left = -125.0
+offset_top = -9.0
+offset_right = 125.0
+offset_bottom = -6.0
+color = Color(0.85, 0.18, 0.2, 1)
+
+[node name="PlankA" type="ColorRect" parent="Geometry/DrawbridgeRight"]
+offset_left = -84.0
+offset_top = -6.0
+offset_right = -78.0
+offset_bottom = 6.0
+color = Color(0.15, 0.07, 0.08, 1)
+
+[node name="PlankB" type="ColorRect" parent="Geometry/DrawbridgeRight"]
+offset_left = -3.0
+offset_top = -6.0
+offset_right = 3.0
+offset_bottom = 6.0
+color = Color(0.15, 0.07, 0.08, 1)
+
+[node name="PlankC" type="ColorRect" parent="Geometry/DrawbridgeRight"]
+offset_left = 78.0
+offset_top = -6.0
+offset_right = 84.0
+offset_bottom = 6.0
+color = Color(0.15, 0.07, 0.08, 1)
+
+[node name="Winch" type="ColorRect" parent="Geometry/DrawbridgeRight"]
+offset_left = -18.0
+offset_top = 6.0
+offset_right = 18.0
+offset_bottom = 30.0
+color = Color(0.34, 0.18, 0.16, 1)
+
+[node name="Spawns" type="Node2D" parent="."]
+
+[node name="Player1" type="Marker2D" parent="Spawns"]
+position = Vector2(700, 700)
+
+[node name="Player2" type="Marker2D" parent="Spawns"]
+position = Vector2(1200, 700)
+
+[node name="OrbSpawnPoints" type="Node2D" parent="."]
+
+[node name="LeftDrawbridge" type="Marker2D" parent="OrbSpawnPoints"]
+position = Vector2(700, 506.25)
+
+[node name="RightDrawbridge" type="Marker2D" parent="OrbSpawnPoints"]
+position = Vector2(1200, 506.25)
+
+[node name="Courtyard" type="Marker2D" parent="OrbSpawnPoints"]
+position = Vector2(950, 668.75)
+
+[node name="HazardAnchors" type="Node2D" parent="."]
+
+[node name="LeftEmitter" type="Marker2D" parent="HazardAnchors"]
+position = Vector2(575, 700)
+
+[node name="CenterEmitter" type="Marker2D" parent="HazardAnchors"]
+position = Vector2(950, 700)
+
+[node name="RightEmitter" type="Marker2D" parent="HazardAnchors"]
+position = Vector2(1325, 700)
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(950, 500)
+limit_left = 0
+limit_top = 0
+limit_right = 1920
+limit_bottom = 1080
+script = ExtResource("3_camera")
+MinZoom = 1.0
+MaxZoom = 1.4
+
+[node name="ContentContract" type="Node" parent="."]
+script = ExtResource("4_marker")
+ContentID = "fighter_stage_paris"
+Contract = ExtResource("5_contract")
+
+[node name="HUDLayer" type="CanvasLayer" parent="."]
+layer = 10
+script = ExtResource("2_hud")
+
+[node name="StateLabel" type="Label" parent="HUDLayer"]
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 700.0
+offset_bottom = 50.0
+text = "common_unavailable"
+
+[node name="HPLabel" type="Label" parent="HUDLayer"]
+offset_left = 20.0
+offset_top = 55.0
+offset_right = 700.0
+offset_bottom = 85.0
+text = ""
+
+[node name="CooldownLabel" type="Label" parent="HUDLayer"]
+offset_left = 20.0
+offset_top = 90.0
+offset_right = 700.0
+offset_bottom = 120.0
+text = ""
+
+[node name="ControlsLabel" type="Label" parent="HUDLayer"]
+offset_left = 20.0
+offset_top = 960.0
+offset_right = 1000.0
+offset_bottom = 1060.0
+text = "test_arena_controls"
