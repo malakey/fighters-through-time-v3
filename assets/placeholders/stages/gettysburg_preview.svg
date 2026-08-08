@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270" viewBox="0 0 480 270">
+  <!-- Stage-select preview: Gettysburg Ridge. Wide dirt path, two low broken
+       rail fences, cannon smoke on the horizon, and the red artillery sight
+       line that telegraphs the widest hazard band in the catalog. -->
+  <defs>
+    <linearGradient id="preview_sky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#0b0d07"/>
+      <stop offset="1" stop-color="#2a2413"/>
+    </linearGradient>
+  </defs>
+  <rect width="480" height="270" fill="url(#preview_sky)"/>
+  <!-- Cannon smoke on the horizon. -->
+  <ellipse cx="76" cy="150" rx="42" ry="20" fill="#4a4735" opacity="0.30"/>
+  <ellipse cx="86" cy="124" rx="30" ry="15" fill="#4a4735" opacity="0.20"/>
+  <ellipse cx="404" cy="152" rx="46" ry="21" fill="#4a4735" opacity="0.28"/>
+  <ellipse cx="414" cy="126" rx="32" ry="16" fill="#4a4735" opacity="0.18"/>
+  <!-- Far ridge silhouettes. -->
+  <path d="M0 176 L92 162 L188 178 L280 158 L376 176 L480 160 L480 270 L0 270 Z" fill="#1a1c10"/>
+  <path d="M0 196 L120 184 L250 198 L370 182 L480 196 L480 270 L0 270 Z" fill="#23200f"/>
+  <!-- The red artillery sight line: a wide low band across the whole ridge. -->
+  <rect x="0" y="214" width="480" height="26" fill="#bf1f14" opacity="0.16"/>
+  <rect x="0" y="214" width="480" height="2" fill="#bf1f14" opacity="0.85"/>
+  <!-- Dirt ridge path (ground plane). -->
+  <rect x="0" y="240" width="480" height="30" fill="#3d2b14"/>
+  <rect x="0" y="238" width="480" height="2" fill="#bf1f14"/>
+  <!-- Two low broken rail fences as one-way platforms. -->
+  <g fill="#5a4322">
+    <rect x="74" y="206" width="72" height="5"/>
+    <rect x="78" y="211" width="4" height="29"/>
+    <rect x="138" y="211" width="4" height="29"/>
+    <rect x="96" y="219" width="42" height="4"/>
+    <rect x="334" y="206" width="72" height="5"/>
+    <rect x="338" y="211" width="4" height="29"/>
+    <rect x="398" y="211" width="4" height="29"/>
+    <rect x="342" y="219" width="42" height="4"/>
+  </g>
+  <!-- Scorched strike marks at the three hazard anchors. -->
+  <g fill="#0f0a05" opacity="0.75">
+    <rect x="80" y="240" width="86" height="5"/>
+    <rect x="198" y="240" width="86" height="5"/>
+    <rect x="316" y="240" width="86" height="5"/>
+  </g>
+</svg>

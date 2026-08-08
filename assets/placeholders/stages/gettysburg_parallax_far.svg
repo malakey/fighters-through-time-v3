@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="gettysburg_sky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#0b0d07"/>
+      <stop offset="0.55" stop-color="#12140b"/>
+      <stop offset="1" stop-color="#2a2413"/>
+    </linearGradient>
+    <radialGradient id="gettysburg_sun" cx="0.5" cy="0.5" r="0.5">
+      <stop stop-color="#bf1f14" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#bf1f14" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#gettysburg_sky)"/>
+  <circle cx="1420" cy="700" r="340" fill="url(#gettysburg_sun)"/>
+  <!-- Cannon smoke columns rising off the far batteries. -->
+  <ellipse cx="300" cy="640" rx="150" ry="72" fill="#4a4735" opacity="0.30"/>
+  <ellipse cx="330" cy="520" rx="110" ry="58" fill="#4a4735" opacity="0.22"/>
+  <ellipse cx="352" cy="410" rx="78" ry="44" fill="#4a4735" opacity="0.14"/>
+  <ellipse cx="980" cy="668" rx="190" ry="80" fill="#4a4735" opacity="0.26"/>
+  <ellipse cx="1010" cy="540" rx="132" ry="62" fill="#4a4735" opacity="0.18"/>
+  <ellipse cx="1620" cy="650" rx="160" ry="74" fill="#4a4735" opacity="0.28"/>
+  <ellipse cx="1648" cy="528" rx="116" ry="56" fill="#4a4735" opacity="0.19"/>
+  <!-- Far ridge lines of the battlefield. -->
+  <path d="M0 800 L240 742 L520 786 L820 720 L1140 778 L1460 726 L1760 784 L1920 748 L1920 1080 L0 1080 Z" fill="#1a1c10"/>
+  <path d="M0 872 L300 826 L640 868 L960 810 L1280 862 L1620 818 L1920 866 L1920 1080 L0 1080 Z" fill="#23200f"/>
+</svg>
