@@ -4,7 +4,31 @@ using FTT.Core;
 using FTT.FighterSim;
 
 namespace FTT.UI {
+
+    /// <summary>
+    /// The Fighter Mode *developer* overlay: character/state/tick/hash, both
+    /// fighters' raw vitals, cooldown frames, and the controls hint.
+    ///
+    /// Package 8 B2 demoted this from "the Fighter HUD" to a debug layer. The
+    /// production HUD is <see cref="FighterHUD"/>, attached by the driver for
+    /// every stage. These labels were not deleted with the promotion because the
+    /// state/tick/hash line is the only in-game view of deterministic simulation
+    /// state — the thing you want on screen when a stage desyncs or a hazard
+    /// misbehaves — and no player-facing surface should ever show it.
+    ///
+    /// It is hidden on load and toggles with <c>F3</c>. The toggle is a raw key
+    /// rather than an InputMap action on purpose: an action would appear as a
+    /// rebindable row in the Package 8 A4 Controls tab, promising players a
+    /// feature that is a developer affordance.
+    ///
+    /// The node stays authored in the eleven Fighter scenes that already carry
+    /// it; nothing about this change edits a stage scene.
+    /// </summary>
     public partial class TestArenaHUD : CanvasLayer {
+
+        /// <summary>Key that toggles the debug overlay.</summary>
+        public const Key ToggleKey = Key.F3;
+
         private Label _stateLabel;
         private Label _hpLabel;
         private Label _cooldownLabel;
@@ -12,8 +36,18 @@ namespace FTT.UI {
         private PlayerController _player;
         private FighterSimulationDriver _driver;
 
+        /// <summary>
+        /// Whether the debug overlay is showing. Off by default — the production
+        /// HUD owns the screen.
+        /// </summary>
+        public bool DebugVisible { get; private set; }
+
         public override void _Ready() {
-            float hudOpacity = FTT.Core.SaveManager.Instance?.GlobalData?.HudOpacity ?? 1f;
+            Layer = 10;
+            // The overlay outlives a pause so a frozen frame can be inspected.
+            ProcessMode = ProcessModeEnum.Always;
+            float hudOpacity = FighterHudModel.ResolveOpacity(
+                SaveManager.Instance?.GlobalData?.HudOpacity ?? 1f);
             Godot.Collections.Array<Node> children = GetChildren();
             using var childrenLifetime = children.AsDisposable();
             foreach (Node child in children) {
@@ -24,6 +58,26 @@ namespace FTT.UI {
             _cooldownLabel = GetNodeOrNull<Label>("CooldownLabel");
             _controlsLabel = GetNodeOrNull<Label>("ControlsLabel");
             if (_controlsLabel != null) _controlsLabel.Text = Tr("test_arena_controls");
+            SetDebugVisible(false);
+        }
+
+        /// <summary>Shows or hides the whole debug layer.</summary>
+        public void SetDebugVisible(bool visible) {
+            DebugVisible = visible;
+            Visible = visible;
+        }
+
+        /// <summary>Flips the debug layer. Returns the new state.</summary>
+        public bool ToggleDebugVisible() {
+            SetDebugVisible(!DebugVisible);
+            return DebugVisible;
+        }
+
+        public override void _UnhandledKeyInput(InputEvent @event) {
+            if (@event is not InputEventKey key || !key.Pressed || key.Echo) return;
+            if (key.PhysicalKeycode != ToggleKey && key.Keycode != ToggleKey) return;
+            ToggleDebugVisible();
+            GetViewport()?.SetInputAsHandled();
         }
 
         private void FindPlayer() {
@@ -46,6 +100,9 @@ namespace FTT.UI {
         }
 
         public override void _Process(double delta) {
+            // Hidden is the default state for a whole match, so the per-frame
+            // string formatting below must not run in it.
+            if (!DebugVisible) return;
             if (_player == null || !IsInstanceValid(_player) || _driver == null || !IsInstanceValid(_driver)) {
                 FindPlayer();
                 if (_player == null || _driver == null) return;
@@ -90,9 +147,7 @@ namespace FTT.UI {
                     Tr("test_arena_cooldowns"),
                     CooldownText(runtime.SpecialOneCooldownFrames),
                     CooldownText(runtime.SpecialTwoCooldownFrames),
-                    Tr(((FTT.Core.StatusType)runtime.StatusType) == FTT.Core.StatusType.None
-                        ? "status_none"
-                        : $"status_{((FTT.Core.StatusType)runtime.StatusType).ToString().ToLowerInvariant()}"));
+                    Tr(FighterHudModel.StatusKey((StatusType)runtime.StatusType)));
             }
 
             // No raw ui_cancel bail-out: leaving a live match goes through the

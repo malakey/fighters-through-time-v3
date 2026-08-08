@@ -1,0 +1,241 @@
+[gd_scene load_steps=3 format=3]
+
+; Package 8 B2 - the production Fighter Mode HUD.
+;
+; Attached by FighterSimulationDriver for every stage rather than authored into
+; each stage scene, so the ten production stages and the Test Arena share one
+; surface. The stock / shield pips and the four cooldown slots are built by the
+; script because their counts are data-driven (match stock rules, per-character
+; MaxBlockCharges); everything with a fixed shape is authored here.
+
+[ext_resource type="Script" path="res://scripts/UI/FighterHUD.cs" id="1_hud"]
+[ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
+
+[node name="FighterHUD" type="CanvasLayer"]
+layer = 12
+script = ExtResource("1_hud")
+
+[node name="Root" type="Control" parent="."]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme = ExtResource("2_theme")
+
+[node name="PlayerOne" type="PanelContainer" parent="Root"]
+layout_mode = 1
+offset_left = 24.0
+offset_top = 18.0
+offset_right = 718.0
+offset_bottom = 186.0
+mouse_filter = 2
+
+[node name="Body" type="HBoxContainer" parent="Root/PlayerOne"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+[node name="Portrait" type="TextureRect" parent="Root/PlayerOne/Body"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Column" type="VBoxContainer" parent="Root/PlayerOne/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="TopRow" type="HBoxContainer" parent="Root/PlayerOne/Body/Column"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Name" type="Label" parent="Root/PlayerOne/Body/Column/TopRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 22
+
+[node name="Status" type="Label" parent="Root/PlayerOne/Body/Column/TopRow"]
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 14
+
+[node name="HPBar" type="ProgressBar" parent="Root/PlayerOne/Body/Column"]
+custom_minimum_size = Vector2(0, 22)
+layout_mode = 2
+mouse_filter = 2
+max_value = 100.0
+value = 100.0
+show_percentage = false
+
+[node name="MeterBar" type="ProgressBar" parent="Root/PlayerOne/Body/Column"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+mouse_filter = 2
+value = 0.0
+show_percentage = false
+
+[node name="PipRow" type="HBoxContainer" parent="Root/PlayerOne/Body/Column"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="StocksLabel" type="Label" parent="Root/PlayerOne/Body/Column/PipRow"]
+layout_mode = 2
+mouse_filter = 2
+text = "fighter_hud_stocks"
+theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
+theme_override_font_sizes/font_size = 12
+
+[node name="Stocks" type="HBoxContainer" parent="Root/PlayerOne/Body/Column/PipRow"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Spacer" type="Control" parent="Root/PlayerOne/Body/Column/PipRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="ShieldsLabel" type="Label" parent="Root/PlayerOne/Body/Column/PipRow"]
+layout_mode = 2
+mouse_filter = 2
+text = "fighter_hud_shield"
+theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
+theme_override_font_sizes/font_size = 12
+
+[node name="Shields" type="HBoxContainer" parent="Root/PlayerOne/Body/Column/PipRow"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Cooldowns" type="HBoxContainer" parent="Root/PlayerOne/Body/Column"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="PlayerTwo" type="PanelContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -718.0
+offset_top = 18.0
+offset_right = -24.0
+offset_bottom = 186.0
+grow_horizontal = 0
+mouse_filter = 2
+
+[node name="Body" type="HBoxContainer" parent="Root/PlayerTwo"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+[node name="Column" type="VBoxContainer" parent="Root/PlayerTwo/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="TopRow" type="HBoxContainer" parent="Root/PlayerTwo/Body/Column"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Status" type="Label" parent="Root/PlayerTwo/Body/Column/TopRow"]
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 14
+
+[node name="Name" type="Label" parent="Root/PlayerTwo/Body/Column/TopRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+horizontal_alignment = 2
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 22
+
+[node name="HPBar" type="ProgressBar" parent="Root/PlayerTwo/Body/Column"]
+custom_minimum_size = Vector2(0, 22)
+layout_mode = 2
+mouse_filter = 2
+max_value = 100.0
+value = 100.0
+fill_mode = 1
+show_percentage = false
+
+[node name="MeterBar" type="ProgressBar" parent="Root/PlayerTwo/Body/Column"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+mouse_filter = 2
+value = 0.0
+fill_mode = 1
+show_percentage = false
+
+[node name="PipRow" type="HBoxContainer" parent="Root/PlayerTwo/Body/Column"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 18
+
+[node name="Shields" type="HBoxContainer" parent="Root/PlayerTwo/Body/Column/PipRow"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="ShieldsLabel" type="Label" parent="Root/PlayerTwo/Body/Column/PipRow"]
+layout_mode = 2
+mouse_filter = 2
+text = "fighter_hud_shield"
+theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
+theme_override_font_sizes/font_size = 12
+
+[node name="Spacer" type="Control" parent="Root/PlayerTwo/Body/Column/PipRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Stocks" type="HBoxContainer" parent="Root/PlayerTwo/Body/Column/PipRow"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="StocksLabel" type="Label" parent="Root/PlayerTwo/Body/Column/PipRow"]
+layout_mode = 2
+mouse_filter = 2
+text = "fighter_hud_stocks"
+theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
+theme_override_font_sizes/font_size = 12
+
+[node name="Cooldowns" type="HBoxContainer" parent="Root/PlayerTwo/Body/Column"]
+layout_mode = 2
+alignment = 2
+mouse_filter = 2
+
+[node name="Portrait" type="TextureRect" parent="Root/PlayerTwo/Body"]
+custom_minimum_size = Vector2(96, 96)
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="MatchClock" type="Label" parent="Root"]
+visible = false
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -160.0
+offset_top = 24.0
+offset_right = 160.0
+offset_bottom = 96.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
+theme_override_font_sizes/font_size = 46
+horizontal_alignment = 1
+vertical_alignment = 1

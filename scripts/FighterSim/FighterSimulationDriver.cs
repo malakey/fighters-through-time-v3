@@ -24,6 +24,7 @@ namespace FTT.FighterSim {
         private FTT.Combat.FighterCamera _camera;
         private FTT.UI.LocalFighterPause _pauseMenu;
         private FTT.UI.MatchResults _results;
+        private FTT.UI.FighterHUD _hud;
         private int _lastCountdownDigit = -1;
         private bool _matchStartRaised;
         private readonly int[] _lastStocks = { -1, -1 };
@@ -474,6 +475,10 @@ namespace FTT.FighterSim {
             }
             _pauseMenu = InstantiateUI<FTT.UI.LocalFighterPause>(PauseScenePath, "LocalFighterPause");
             _results = InstantiateUI<FTT.UI.MatchResults>(ResultsScenePath, "MatchResults");
+            // Package 8 B2: the production HUD is attached here rather than authored
+            // into each stage, so all ten stages and the Test Arena share one surface.
+            _hud = InstantiateUI<FTT.UI.FighterHUD>(FTT.UI.FighterHUD.ScenePath, "FighterHUD");
+            _hud?.Bind(this, _playerOne, _playerTwo);
         }
 
         private T InstantiateUI<T>(string scenePath, string nodeName) where T : Node {
