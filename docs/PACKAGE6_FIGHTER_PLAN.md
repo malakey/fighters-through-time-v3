@@ -452,3 +452,94 @@ all four `stage_<era>_*` key families already exist and are compiled.
 *(Empty at authoring. Every agent appends `### <workstream> — <subject> (date)` blocks here in the
 Package 5 format: bold one-sentence claim, then reasoning and the pinning test. The orchestrator
 appends integration blocks per phase and the closeout appends the final honesty list.)*
+
+### A4 — Rollback-readiness harness (2026-08-08)
+
+**GdUnit4 silently refuses to execute a plain C# `[TestSuite]` that shares a source file with a
+`[RequireGodotRuntime]` suite, so the gate is split across two files.** The first draft put both
+suites in `tests/Determinism/RollbackReadinessTests.cs`. The adapter *discovered* all 22 pure-C#
+cases (`Discover: TestSuite ... with 22 TestCases found`) and then ran none of them: the full-suite
+`Total:` moved 705 → 706, i.e. only the one Godot-runtime case was added. Running the pure suite
+alone by exact filter executed all 22 and passed. This is the most dangerous failure mode in the
+repository's test story — a green run that silently drops a whole suite — and nothing in CLAUDE.md's
+failure-signature table covers it, because the `Total:` looks plausible rather than collapsed.
+Splitting the Godot-runtime suite into its own
+`tests/Determinism/RollbackReadinessKitShapeTests.cs` fixed it immediately (705 → 728). **Rule for
+later agents: one `[TestSuite]` class per file, and always check `Total:` against the exact expected
+delta, not just against "bigger than before".** Plan §3 A4 named a single new test file; this is the
+one file-layout deviation.
+
+**Authored stage geometries are enumerated by reflection over `FighterStageGeometry`'s public static
+members, not by a hardcoded list.** Plan §3 A4.1 requires the harness to pick up A1's nine new
+geometries with zero edits, and C1 to re-run it across all ten. `RollbackReadinessTests.AuthoredGeometries()`
+reflects over public static properties *and* fields of type `FighterStageGeometry`, de-duplicates by
+instance, and orders by member name so the sweep is reproducible. In this worktree that yields two
+(Default + Florence); after A1 merges it yields eleven with no change to the test. The 15 matchup
+`[TestCase]` rows are fixed, so the suite's contribution to `Total:` stays at 22 regardless of how
+many stages exist — only its runtime grows.
+
+**The nine per-character loadouts are pure-C# *shapes*, not the authored kits, and a separate
+Godot-runtime test pins the mirror.** `FighterLoadoutFactory.FromCharacterData` needs Godot
+`Resource` instances, which would have forced `[RequireGodotRuntime]` on the whole gate. Instead
+`RollbackHarnessKits.KitShape` builds a `FighterLoadout` per roster slot whose *structure* — special
+1/2 execution types, persistent construct IDs, movement type — matches that character's authored
+`.tres`, with deliberately synthetic tuning numbers chosen to maximize entity load. No canonical
+balance number is restated. `RollbackReadinessKitShapeTests` loads all nine `CharacterData`
+resources and fails if any of those six structural fields drifts, so a re-authored kit cannot
+silently leave the rollback gate testing a stale shape.
+
+**`OnlineRollbackSession` gained a `RollbackCorrectionMeasured` event so per-correction cost is
+observable, not only budget breaches.** Plan §3 A4.4 says to measure through "the existing
+`RollbackBudgetExceeded` stopwatch path", but that event only fires *above* 8 ms — and nothing ever
+exceeds 8 ms, so it yields no samples at all. The same stopwatch now also raises
+`RollbackCorrectionMeasured(depth, milliseconds)` for every applied correction;
+`RollbackBudgetExceeded` is unchanged and still fires above budget. The new event is diagnostics
+only, carries no simulation state, and is what produces the medians recorded in
+`docs/PERFORMANCE_BASELINE.md`.
+
+**`_correctedTicks` became a fixed 8-slot ring rather than a pruned `HashSet`.** Pruning a `HashSet`
+each frame costs an allocation-free but O(n) sweep; a ring indexed by `tick % (MaximumRollbackFrames + 1)`
+holding `tick + 1` (0 = empty) is O(1), allocation-free, and provably bounded, and de-duplication
+stays exact because only ticks within seven frames of the current tick ever reach the recorder — a
+tick exactly one window older is rejected upstream before it can collide. Pinned by
+`CorrectedTickTrackingStaysBoundedAndStillDeduplicates` (3,000 ticks, a correction every frame,
+`RetainedCorrectedTickCount` asserted `<= CorrectedTickCapacity` on every one, plus a duplicate-packet
+no-op check).
+
+**`DesyncDetected` now has a production consumer in `NetworkManager`.** `BeginRollback` subscribes,
+`Disconnect` unsubscribes, and the handler increments `DesyncCount`, records `LastDesyncTick`, sets
+`LastError`, and calls `GD.PushError`. The message text lives in a new engine-free
+`RollbackDiagnostics.FormatDesync` so the wording is asserted without a Godot runtime. Full-state
+resync remains Package 7; this only makes a desync visible instead of silent.
+
+**Hazard/orb spawn cycles are crossed by a separate long run, not by the matrix sweep.** At High
+frequency the first stage hazard spawns at frame 1,800 and the first orb at 660, so a run that
+crosses both must exceed ~1,900 ticks. Doing that for 15 matchups × every geometry would dominate
+the suite's runtime, so the matrix runs 420 ticks per (matchup, stage) and a dedicated
+`LongRunConvergenceCrossesHazardAndOrbSpawnCycles` runs 2,200 ticks per stage for one construct-heavy
+pair and asserts a hazard and an orb actually appeared. **Post-merge note for A2:** 2,200 was chosen
+with ~300 frames of headroom precisely because A2's pre-match countdown (`MatchState = 0` for
+180 + 30 frames) delays the spawn counters — `FighterHazardSystem`/`FighterOrbSystem` both return
+early unless `MatchState == 1`, so their countdowns do not start until the match goes live. If A2's
+countdown ends up longer than ~300 frames, raise the 2,200 constant.
+
+**Post-merge re-checks the orchestrator should run.** (1) A1 adds nine geometries: the matrix test's
+runtime grows ~5.5x — confirm the suite still finishes well inside the 300 s
+`TestSessionTimeout`, and confirm `AuthoredGeometries()` really returns eleven (the test asserts
+`> 1`, not a fixed count, by design). (2) A1's per-type hazard behaviours and A2's new component
+fields change every state hash; this suite compares run-to-run and pins no hash literal, so it
+should stay green — if it does not, the divergence is real. (3) A2's countdown means the sim is not
+live at tick 0; hash-equality assertions are unaffected, but see the 2,200-tick note above.
+(4) `docs/PERFORMANCE_BASELINE.md`'s rollback section is measured on Florence only and must be
+refreshed by C1 across all ten stages.
+
+**Worktree environment note (not a code defect).** In this git worktree roughly every other
+`dotnet test` invocation fails to launch the GdUnit Godot child —
+`GodotRuntimeTestRunner ends with exit code: 100` / `Failed to connect: Connection timeout` — and
+reports only the 46 pure-C# tests. This reproduces on a clean stash of `main` (705, then 24), so it
+predates this workstream. Every Godot launch also rewrites eight tracked
+`addons/gdUnit4/**/*.import` files. The reliable recipe used here: run
+`--headless --path <worktree> --quit`, then `git checkout -- addons assets localization resources`,
+then `dotnet test`. Four full runs at **728 passed / 0 failed / Total 728** were obtained this way,
+two of them consecutive. Do not mistake the 46-test result for a regression — the `Total:` is
+unmistakably wrong, unlike the silent-suite-drop failure described in the first block.
