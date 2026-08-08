@@ -1278,3 +1278,89 @@ Godot process of mine alive and nothing in `godot.log`, while an unrelated filte
 (`StageAudioSetTests`) ran clean 3/3 in the same window — proof the failure is the shared pipe, not
 the content. Every number reported for this stage comes from a run whose `Total:` matched the
 expected count.
+
+### B — Chicago (2026-08-08)
+
+**B-chicago: every merged `FighterStageGeometry.Chicago` value was authored into the scene
+unchanged; nothing needed a conformance adjustment.** Walls ±10, platforms (−6, 3.2, 1.5) and
+(6, 3.2, 1.5), the single hazard anchor at 0 and the three orb anchors all convert cleanly under
+§2.10 (`pixel = (950 + x·62.5, 700 − y·62.5)`), including the half-pixel values the ±1.5 half-width
+produces — the collision rect is 187.5 px wide and the wall bodies sit at exactly 325 / 1575.
+Pinned by `FighterStageChicagoTests.TheChicagoSceneMirrorsItsAuthoredFixedPointGeometry`, which
+calls A1's shared validator, plus `.EverySolidBodyIsPresentationOnlyWithNoCollisionMask` for the
+layer/mask half of the contract that the validator does not cover for the ground and walls.
+
+**B-chicago: the hash-identity run uses nine stocks, not the production three, and that is
+load-bearing rather than cosmetic.** The plan asks for a two-simulation run "crossing a full hazard
+cycle": Chicago's induction grid spawns on the High-frequency 1,800-frame boundary and then runs
+warning 90 → active 360 → recovery 60, so the cycle only closes at frame 2,310. With three stocks
+the scripted input pattern (basic attacks every 29 frames) exhausted a fighter's stocks first,
+`FighterMatchSystem` set `MatchState = 2`, and `FighterHazardSystem` — which returns immediately
+unless `MatchState == 1` — stopped advancing the hazard. The test would then have passed *vacuously*
+on hash equality while never observing a hazard at all. Nine stocks keeps the match live through
+frame 2,450, and the test now asserts liveness, that the grid actually spawned on the authored
+central anchor, that all three phases were observed, and that the hazard despawned — so it cannot
+regress back into a vacuous pass. **Later stage agents: assert `GetMatchState().MatchState == 1` at
+the end of any long determinism run, or raise the stock count.**
+
+**B-chicago: Godot 4.7 marks the `ParallaxBackground` / `ParallaxLayer` C# classes obsolete in
+favour of `Parallax2D`, so the scene keeps them (plan §5 item 2) but the test reads them untyped.**
+Referencing either type from C# raises `CS0618`, which would have added two new build warnings and
+failed §8 gate 1 ("no new warnings"). `TheChicagoPresentationIsDressedForTheWorldsFair` therefore
+fetches the node as a `CanvasLayer`, asserts `GetClass() == "ParallaxBackground"`, and reads each
+layer's scroll factor through `child.Get("motion_scale")`. The nodes themselves work correctly —
+the headless smoke of the scene exits 0. **This is a repo-wide decision C1 should make once:**
+either all ten stages stay on the deprecated node (and Package 8 migrates them together), or the
+plan's wording moves to `Parallax2D`. Nine Phase B agents authoring against §5 will all hit this.
+
+**B-chicago: `AssertBase.OverrideFailureMessage("")` throws `ArgumentException`, so the
+`AssertThat(errors.Count).OverrideFailureMessage(string.Join("; ", errors)).IsEqual(0)` idiom in
+`ScenePoolConfigTests` fails on the *passing* path.** GdUnit4 evaluates the override message before
+the assertion, and an empty error list joins to `""`. The first draft of the pool-config test copied
+that idiom straight from `ScenePoolConfigTests` and failed with
+`The value cannot be an empty string. (Parameter 'message')` rather than with any real budget
+problem. The working form is the one `FighterStageConformanceTests` already uses:
+`if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("")`. `ScenePoolConfigTests`
+itself is safe only because its own messages always carry a non-empty path prefix — worth a sweep at
+closeout, and worth knowing before eight sibling agents copy the same line.
+
+**B-chicago: two era parallax SVGs were authored alongside the required preview, and the manifest's
+`visual_stage_chicago` row still points at the shared `assets/placeholders/parallax_far.svg`.**
+§5 item 2 asks for "placeholder SVGs ... at distinct scroll factors"; reusing the one shared far
+backdrop with a tint would have left the nine stages distinguishable only by colour. The stage ships
+`assets/placeholders/stages/chicago_parallax_far.svg` (the White City at night with the 1893 Ferris
+Wheel) and `chicago_parallax_near.svg` (colonnade plus the electrical gantry), at motion scales 0.15
+and 0.40. C1's §6 item 4 manifest pass should repoint `visual_stage_chicago` at these two plus
+`chicago_preview.svg`; this workstream does not touch the manifest (§2.7).
+
+**B-chicago: the stage's presentation dresses the *hazard's real dimensions*, not a decorative
+guess.** `FighterHazardSpec.For(3)` authors half-extents (4, 2) centred on the anchor at y = 0, so
+`InductionSpan` draws a 500 × 125 px field (±4 units wide, 2 units tall) with rails at its edges,
+plus the coil-to-coil discharge arc between the two platform towers at ±6. A player reading the
+stage sees where the grid will damage them.
+
+**B-chicago: this worktree was branched from the pre-Phase-A `main` and had to merge `main`
+(`1e1c674`) before any work could start.** `docs/PACKAGE6_FIGHTER_PLAN.md`, `FighterStageGeometry`'s
+nine new entries, `FighterStageConformance` and `StageAudioSet` were all absent at branch time.
+Flagging it because a Phase B agent that did not notice would have authored against the §4 table
+instead of the merged code, with no validator to check itself against.
+
+**B-chicago: validation.** `dotnet build` clean (pre-existing vendored `CS8632` only);
+`--headless --import` regenerated only the three new SVG import artifacts, with no content change to
+any tracked `.import`, to `en.csv` or to the manifest translation; the scene's `--quit-after 300`
+headless smoke exits 0 with no script errors; `--filter "FullyQualifiedName~FighterStageChicago"`
+reports **9 passed / 0 failed / Total 9**; the full suite reports **829 passed / 0 failed /
+Total 829** — exactly the post-A baseline of 820 plus this workstream's 9, with no cross-workstream
+loss.
+
+**B-chicago: the GdUnit worktree contention has a second shape that a `Total:` check alone does not
+catch, and Phase B agents need both.** With eight sibling testhosts alive, a *filtered* run loses
+the pipe race and prints no `Total:` at all
+(`GodotRuntimeTestRunner ends with exit code: 100` / `Failed to connect: Connection timeout` /
+`No test matches the given testcase filter`) — obvious. A *full* run that loses the same race
+instead prints `Passed! - Failed: 0, Passed: 73, Total: 73` in 12 s: a plausible-looking green
+result carrying only the pure-C# tests (46 in A4's worktree, 73 now that A1–A4's engine-free suites
+landed). Four consecutive attempts here returned 73 before the fifth returned the real 829. **Never
+accept a full-suite number without comparing it to the exact expected total** — "Passed!" and a
+non-trivial count are both worthless on their own. C1 should add the 73-variant to CLAUDE.md's
+failure-signature table alongside the 24- and 46-test ones.

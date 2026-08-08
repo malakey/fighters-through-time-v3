@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270" viewBox="0 0 480 270">
+  <!-- Stage-select preview for chicago_exposition. The silhouette is the stage
+       layout at a glance: a wide flat metallic floor between two towering
+       conductor coils (the high side platforms at y = 3.2) with the induction
+       grid discharging across the middle. Placeholder art, catalog palette. -->
+  <defs>
+    <linearGradient id="previewSky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#0a1720"/>
+      <stop offset="1" stop-color="#1f3a46"/>
+    </linearGradient>
+    <linearGradient id="previewArc" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#33e6ff" stop-opacity="0.15"/>
+      <stop offset="0.5" stop-color="#33e6ff" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#33e6ff" stop-opacity="0.15"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="480" height="270" fill="url(#previewSky)"/>
+
+  <!-- Ferris wheel, far -->
+  <g stroke="#1b3d4d" fill="none" opacity="0.8">
+    <circle cx="370" cy="92" r="56" stroke-width="4"/>
+    <circle cx="370" cy="92" r="10" stroke-width="3"/>
+    <path d="M370 36 L370 148 M314 92 L426 92 M330 52 L410 132 M410 52 L330 132" stroke-width="2"/>
+    <path d="M370 92 L344 196 M370 92 L396 196" stroke-width="4"/>
+  </g>
+
+  <!-- Pavilion domes -->
+  <g fill="#132b38">
+    <path d="M30 200 L30 140 L64 112 L98 140 L98 200 Z"/>
+    <path d="M120 200 L120 156 L152 156 L152 200 Z"/>
+    <path d="M180 200 L180 132 L214 106 L248 132 L248 200 Z"/>
+  </g>
+
+  <!-- Conductor coil towers carrying the two side platforms -->
+  <g fill="#1a4c5e">
+    <path d="M78 200 L96 92 L112 92 L130 200 Z"/>
+    <path d="M350 200 L368 92 L384 92 L402 200 Z"/>
+  </g>
+  <g fill="#2a7d96">
+    <rect x="72" y="84" width="64" height="8" rx="3"/>
+    <rect x="344" y="84" width="64" height="8" rx="3"/>
+  </g>
+  <g fill="#33e6ff">
+    <rect x="72" y="78" width="64" height="4" rx="2"/>
+    <rect x="344" y="78" width="64" height="4" rx="2"/>
+    <circle cx="104" cy="66" r="9" opacity="0.75"/>
+    <circle cx="376" cy="66" r="9" opacity="0.75"/>
+  </g>
+
+  <!-- Induction discharge arcing coil to coil across the stage middle -->
+  <path d="M104 70 L150 96 L186 62 L226 104 L266 60 L308 98 L344 68 L376 70"
+        stroke="url(#previewArc)" stroke-width="3" fill="none"/>
+  <path d="M148 200 L182 172 L216 200 L252 170 L288 200 L322 176"
+        stroke="#33e6ff" stroke-width="2" fill="none" opacity="0.6"/>
+
+  <!-- Flat metallic exposition floor -->
+  <rect x="24" y="200" width="432" height="8" fill="#33e6ff" opacity="0.9"/>
+  <rect x="24" y="208" width="432" height="40" fill="#1f3848"/>
+  <g stroke="#2a5468" stroke-width="2">
+    <path d="M60 208 V248 M120 208 V248 M180 208 V248 M240 208 V248 M300 208 V248 M360 208 V248 M420 208 V248"/>
+  </g>
+
+  <!-- Solid side walls -->
+  <g fill="#16303c">
+    <rect x="14" y="70" width="10" height="178"/>
+    <rect x="456" y="70" width="10" height="178"/>
+  </g>
+</svg>
