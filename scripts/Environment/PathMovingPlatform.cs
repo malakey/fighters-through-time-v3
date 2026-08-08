@@ -22,6 +22,10 @@ namespace FTT.Environment {
         [Export(PropertyHint.Range, "0,60,0.05")] public float EndpointWaitSeconds = 0.5f;
         [Export] public PathMovingPlatformMode Mode = PathMovingPlatformMode.PingPong;
         [Export] public bool Enabled = true;
+
+        /// <summary>Translation key for the template's placeholder sign; blank hides it.</summary>
+        [Export] public string LabelKey = "toolkit_moving_platform";
+        [Export] public NodePath LabelPath = ToolkitLabel.DefaultLabelPath;
         [Export] public StoryRewindPolicy RewindPolicy { get; set; } = StoryRewindPolicy.RestoreCheckpointState;
 
         private Vector2 _origin;
@@ -44,6 +48,7 @@ namespace FTT.Environment {
             // Position writes land immediately (the RotatingPlatform convention).
             SyncToPhysics = false;
             _origin = Position;
+            ToolkitLabel.Apply(this, LabelPath, LabelKey);
             if (Waypoints is { Length: > 0 }) Position = _origin + Waypoints[0];
             TargetWaypointIndex = Waypoints is { Length: > 1 } ? 1 : 0;
             _checkpointPosition = Position;

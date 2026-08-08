@@ -35,5 +35,5 @@ offset_left = -160.0
 offset_top = -48.0
 offset_right = 160.0
 offset_bottom = -16.0
-text = "RISING WATER"
+text = "toolkit_rising_water"
 horizontal_alignment = 1

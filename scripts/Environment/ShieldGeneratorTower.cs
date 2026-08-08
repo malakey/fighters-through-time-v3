@@ -21,10 +21,15 @@ namespace FTT.Environment {
         /// <summary>Optional; leave blank when destruction only opens geometry.</summary>
         [Export] public string ConditionID = "";
 
+        /// <summary>Translation key for the template's placeholder sign; blank hides it.</summary>
+        [Export] public string LabelKey = "toolkit_shield_generator";
+        [Export] public NodePath LabelPath = ToolkitLabel.DefaultLabelPath;
+
         public override void _Ready() {
             base._Ready();
             AddToGroup("shield_generator");
             ApplyStatePresentation();
+            ToolkitLabel.Apply(this, LabelPath, LabelKey);
             // Barriers authored as siblings run their own _Ready after this node's,
             // which would reset them to StartActive. Re-assert once the frame settles.
             CallDeferred(MethodName.RefreshBarriers);

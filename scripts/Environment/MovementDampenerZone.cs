@@ -20,6 +20,10 @@ namespace FTT.Environment {
         [Export(PropertyHint.Range, "0.05,1,0.01")] public float MoveMultiplier = 0.5f;
         [Export] public bool Enabled = true;
 
+        /// <summary>Translation key for the template's placeholder sign; blank hides it.</summary>
+        [Export] public string LabelKey = "toolkit_movement_dampener";
+        [Export] public NodePath LabelPath = ToolkitLabel.DefaultLabelPath;
+
         private readonly HashSet<PlayerController> _inside = new();
 
         public int TrackedPlayerCount => _inside.Count;
@@ -30,6 +34,7 @@ namespace FTT.Environment {
             CollisionMask = CollisionLayers.Player;
             BodyEntered += OnBodyEntered;
             BodyExited += OnBodyExited;
+            ToolkitLabel.Apply(this, LabelPath, LabelKey);
         }
 
         public override void _ExitTree() {

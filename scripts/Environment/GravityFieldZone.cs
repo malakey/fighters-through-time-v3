@@ -31,6 +31,10 @@ namespace FTT.Environment {
         [Export] public Color IdleTint = new(0.45f, 0.55f, 1f, 0.25f);
         [Export] public NodePath FieldVisualPath = "Visual";
         [Export] public bool Enabled = true;
+
+        /// <summary>Translation key for the template's placeholder sign; blank hides it.</summary>
+        [Export] public string LabelKey = "toolkit_gravity_field";
+        [Export] public NodePath LabelPath = ToolkitLabel.DefaultLabelPath;
         [Export] public StoryRewindPolicy RewindPolicy { get; set; } = StoryRewindPolicy.RestoreCheckpointState;
 
         private readonly HashSet<PlayerController> _inside = new();
@@ -60,6 +64,7 @@ namespace FTT.Environment {
                 EventBus.Instance.OnRewindTriggered += OnRewind;
             }
             ApplyTint();
+            ToolkitLabel.Apply(this, LabelPath, LabelKey);
         }
 
         public override void _ExitTree() {
@@ -112,6 +117,77 @@ namespace FTT.Environment {
             if (player == null || !_inside.Remove(player)) return false;
             EnvironmentPlayerModifiers.ClearGravityScale(player, this);
             return true;
+        }
+
+        // === Frame-zero / post-teleport registration ===
+
+        /// <summary>
+        /// True when <paramref name="globalPoint"/> falls inside any of this field's
+        /// own <see cref="CollisionShape2D"/> children. Rectangles and circles only —
+        /// every authored field is one of the two, and an exotic shape reads as "not
+        /// containing" rather than guessing.
+        /// </summary>
+        public bool ContainsPoint(Vector2 globalPoint) {
+            Godot.Collections.Array<Node> children = GetChildren();
+            using var lifetime = children.AsDisposable();
+            foreach (Node child in children) {
+                if (child is not CollisionShape2D collision || collision.Disabled) continue;
+                Vector2 local = collision.ToLocal(globalPoint);
+                switch (collision.Shape) {
+                    case RectangleShape2D rectangle:
+                        Vector2 half = rectangle.Size / 2f;
+                        if (Mathf.Abs(local.X) <= half.X && Mathf.Abs(local.Y) <= half.Y) return true;
+                        break;
+                    case CircleShape2D circle:
+                        if (local.LengthSquared() <= circle.Radius * circle.Radius) return true;
+                        break;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Puts <paramref name="player"/> into exactly <paramref name="target"/> and
+        /// out of every other field in <paramref name="fields"/>, then returns the
+        /// target. Pass null to release the player from all of them.
+        ///
+        /// <para><b>Why this exists.</b> An <see cref="Area2D"/> only reports its
+        /// authored initial overlaps on the first physics frame, and a checkpoint
+        /// resume, a Chronal Rewind, or a scripted teleport moves the player without
+        /// one ever running — so a resumed player stands in a low-gravity level at
+        /// Earth-normal gravity, or walks out of a pocket still carrying its scale.
+        /// Call this from <c>OnLevelReady</c> and again on
+        /// <c>EventBus.OnRewindTriggered</c>. It is idempotent with the physics
+        /// callbacks that follow: <see cref="AddPlayer"/>/<see cref="RemovePlayer"/>
+        /// are set operations. (Level 12 found this; levels 13 and 14 inherit it.)</para>
+        /// </summary>
+        public static GravityFieldZone SyncPlayerToField(
+            IEnumerable<GravityFieldZone> fields, PlayerController player, GravityFieldZone target) {
+            if (fields == null || player == null || !IsInstanceValid(player)) return null;
+            foreach (GravityFieldZone field in fields) {
+                if (field == null || !IsInstanceValid(field)) continue;
+                if (field == target) field.AddPlayer(player);
+                else field.RemovePlayer(player);
+            }
+            return target != null && IsInstanceValid(target) ? target : null;
+        }
+
+        /// <summary>
+        /// <see cref="SyncPlayerToField"/> against the first field whose own
+        /// collision geometry contains the player. Use this when the fields are
+        /// scene-authored and there is no span table to consult; a level that owns an
+        /// authored span table should pass its own lookup to
+        /// <see cref="SyncPlayerToField"/> so the boundary rule stays in one place.
+        /// </summary>
+        public static GravityFieldZone SyncPlayerToContainingField(
+            IEnumerable<GravityFieldZone> fields, PlayerController player) {
+            if (fields == null || player == null || !IsInstanceValid(player)) return null;
+            GravityFieldZone target = null;
+            foreach (GravityFieldZone field in fields) {
+                if (field == null || !IsInstanceValid(field)) continue;
+                if (field.ContainsPoint(player.GlobalPosition)) { target = field; break; }
+            }
+            return SyncPlayerToField(fields, player, target);
         }
 
         public void CaptureCheckpointState(string checkpointID) {

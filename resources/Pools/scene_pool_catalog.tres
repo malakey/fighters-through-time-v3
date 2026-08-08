@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ScenePoolCatalog" load_steps=13 format=3]
+[gd_resource type="Resource" script_class="ScenePoolCatalog" load_steps=27 format=3]
 
 [ext_resource type="Script" path="res://scripts/Core/ScenePoolCatalog.cs" id="1_catalog"]
 [ext_resource type="Script" path="res://scripts/Core/ScenePoolCatalogEntry.cs" id="2_entry"]
@@ -9,6 +9,13 @@
 [ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_03_pool_config.tres" id="7_chicago"]
 [ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_04_pool_config.tres" id="8_paris"]
 [ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_05_pool_config.tres" id="9_titanic"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_06_pool_config.tres" id="10_pompeii"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_07_pool_config.tres" id="11_nassau"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_08_pool_config.tres" id="12_egypt"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_09_pool_config.tres" id="13_berlin"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_10_pool_config.tres" id="14_globe"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_11_pool_config.tres" id="15_gettysburg"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_12_pool_config.tres" id="16_lunar"]
 
 [sub_resource type="Resource" id="Tutorial"]
 script = ExtResource("2_entry")
@@ -34,6 +41,34 @@ PoolConfig = ExtResource("8_paris")
 script = ExtResource("2_entry")
 ScenePath = "res://scenes/campaign/Level_05_Titanic.tscn"
 PoolConfig = ExtResource("9_titanic")
+[sub_resource type="Resource" id="Pompeii"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_06_Pompeii.tscn"
+PoolConfig = ExtResource("10_pompeii")
+[sub_resource type="Resource" id="Nassau"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_07_Nassau.tscn"
+PoolConfig = ExtResource("11_nassau")
+[sub_resource type="Resource" id="Egypt"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_08_Egypt.tscn"
+PoolConfig = ExtResource("12_egypt")
+[sub_resource type="Resource" id="Berlin"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_09_Berlin.tscn"
+PoolConfig = ExtResource("13_berlin")
+[sub_resource type="Resource" id="Globe"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_10_Globe.tscn"
+PoolConfig = ExtResource("14_globe")
+[sub_resource type="Resource" id="Gettysburg"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_11_Gettysburg.tscn"
+PoolConfig = ExtResource("15_gettysburg")
+[sub_resource type="Resource" id="Lunar"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_12_Lunar.tscn"
+PoolConfig = ExtResource("16_lunar")
 [sub_resource type="Resource" id="Arena"]
 script = ExtResource("2_entry")
 ScenePath = "res://scenes/arenas/TestArena.tscn"
@@ -41,4 +76,4 @@ PoolConfig = ExtResource("5_arena")
 
 [resource]
 script = ExtResource("1_catalog")
-Scenes = Array[ExtResource("2_entry")]([SubResource("Tutorial"), SubResource("Florence"), SubResource("Orleans"), SubResource("Chicago"), SubResource("Paris"), SubResource("Titanic"), SubResource("Arena")])
+Scenes = Array[ExtResource("2_entry")]([SubResource("Tutorial"), SubResource("Florence"), SubResource("Orleans"), SubResource("Chicago"), SubResource("Paris"), SubResource("Titanic"), SubResource("Pompeii"), SubResource("Nassau"), SubResource("Egypt"), SubResource("Berlin"), SubResource("Globe"), SubResource("Gettysburg"), SubResource("Lunar"), SubResource("Arena")])

@@ -30,5 +30,5 @@ offset_left = -160.0
 offset_top = -392.0
 offset_right = 160.0
 offset_bottom = -360.0
-text = "GRAVITY FIELD"
+text = "toolkit_gravity_field"
 horizontal_alignment = 1

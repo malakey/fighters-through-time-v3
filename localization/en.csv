@@ -539,6 +539,13 @@ boss_defeated,{0} - DEFEATED!
 interaction_use_lever,Press Interact to use lever
 interaction_rotate_coil,Press Interact to rotate coil
 interaction_open_chest,Press Interact to open chest
+toolkit_movement_dampener,SLOWED GROUND
+toolkit_gravity_field,GRAVITY FIELD
+toolkit_moving_platform,MOVING PLATFORM
+toolkit_rising_water,RISING WATER
+toolkit_searchlight,SEARCHLIGHT
+toolkit_shield_generator,SHIELD GENERATOR
+toolkit_trapdoor,TRAPDOOR
 timeline_collapse_title,Timeline Collapsed
 timeline_restart_anchor,Restart from Timeline Anchor
 timeline_restart_level,Restart Level from Beginning

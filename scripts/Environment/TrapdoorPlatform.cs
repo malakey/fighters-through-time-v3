@@ -25,6 +25,10 @@ namespace FTT.Environment {
         [Export] public NodePath CollisionShapePath = "CollisionShape2D";
         [Export] public NodePath VisualPath = "Visual";
         [Export] public bool Enabled = true;
+
+        /// <summary>Translation key for the template's placeholder sign; blank hides it.</summary>
+        [Export] public string LabelKey = "toolkit_trapdoor";
+        [Export] public NodePath LabelPath = ToolkitLabel.DefaultLabelPath;
         [Export] public StoryRewindPolicy RewindPolicy { get; set; } = StoryRewindPolicy.RestoreCheckpointState;
 
         private Vector2 _visualHomePosition;
@@ -38,6 +42,7 @@ namespace FTT.Environment {
         public override void _Ready() {
             AddToGroup("puzzle_object");
             SyncToPhysics = false;
+            ToolkitLabel.Apply(this, LabelPath, LabelKey);
             if (GetNodeOrNull<Node2D>(VisualPath) is Node2D visual) _visualHomePosition = visual.Position;
             _timer = ClosedDurationSeconds;
             ApplyState(TrapdoorState.Closed, notify: false);

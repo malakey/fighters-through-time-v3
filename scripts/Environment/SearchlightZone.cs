@@ -33,6 +33,10 @@ namespace FTT.Environment {
         [Export(PropertyHint.Range, "0,500,1")] public int StrikeDamage = 20;
         [Export] public Vector2 StrikeKnockback = new(220f, -180f);
         [Export] public bool Enabled = true;
+
+        /// <summary>Translation key for the template's placeholder sign; blank hides it.</summary>
+        [Export] public string LabelKey = "toolkit_searchlight";
+        [Export] public NodePath LabelPath = ToolkitLabel.DefaultLabelPath;
         [Export] public StoryRewindPolicy RewindPolicy { get; set; } = StoryRewindPolicy.RestoreCheckpointState;
 
         private readonly Dictionary<PlayerController, float> _exposure = new();
@@ -50,6 +54,7 @@ namespace FTT.Environment {
             CollisionLayer = CollisionLayers.Trigger;
             CollisionMask = CollisionLayers.Player;
             _baseOffset = Position;
+            ToolkitLabel.Apply(this, LabelPath, LabelKey);
             _baseRotationDegrees = RotationDegrees;
             ApplySweepTransform();
             BodyEntered += OnBodyEntered;

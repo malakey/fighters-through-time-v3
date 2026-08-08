@@ -35,6 +35,10 @@ namespace FTT.Environment {
         [Export] public float VisualWidth = 1920f;
         [Export] public float VisualDepthBelowLine = 720f;
         [Export] public bool Enabled = true;
+
+        /// <summary>Translation key for the template's placeholder sign; blank hides it.</summary>
+        [Export] public string LabelKey = "toolkit_rising_water";
+        [Export] public NodePath LabelPath = ToolkitLabel.DefaultLabelPath;
         [Export] public StoryRewindPolicy RewindPolicy { get; set; } = StoryRewindPolicy.RestoreCheckpointState;
 
         private readonly HashSet<PlayerController> _tracked = new();
@@ -66,6 +70,7 @@ namespace FTT.Environment {
                 EventBus.Instance.OnRewindTriggered += OnRewind;
             }
             RefreshVisual();
+            ToolkitLabel.Apply(this, LabelPath, LabelKey);
         }
 
         public override void _ExitTree() {

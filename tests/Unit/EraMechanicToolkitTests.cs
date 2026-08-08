@@ -190,6 +190,65 @@ public class EraMechanicToolkitTests {
     }
 
     [TestCase]
+    public void GravityFieldsRegisterThePlayerFromGeometryWithoutWaitingForAPhysicsFrame() {
+        // An Area2D only reports its authored initial overlaps on the first physics
+        // frame, and a checkpoint resume or a Chronal Rewind teleports the player
+        // before one ever runs. Level 12 hand-rolled this sweep; levels 13 and 14
+        // use GravityFieldZone's shared version.
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        GravityFieldZone west = BuildRectField("test.sync.west", 0f, 1000f, 0.4f);
+        GravityFieldZone east = BuildRectField("test.sync.east", 1000f, 2000f, 0.7f);
+        PlayerController player = CharacterFactory.CreateCharacter("einstein");
+        var fields = new[] { west, east };
+        tree.Root.AddChild(west);
+        tree.Root.AddChild(east);
+        tree.Root.AddChild(player);
+        try {
+            AssertThat(west.ContainsPoint(new Vector2(500f, 0f))).IsTrue();
+            AssertThat(west.ContainsPoint(new Vector2(1500f, 0f))).IsFalse();
+
+            player.GlobalPosition = new Vector2(500f, 0f);
+            AssertThat(GravityFieldZone.SyncPlayerToContainingField(fields, player) == west).IsTrue();
+            AssertFloat(player.EnvironmentGravityScale).IsEqualApprox(0.4f, 0.001f);
+            AssertThat(EnvironmentPlayerModifiers.GravitySourceCount(player)).IsEqual(1);
+
+            // Re-running it is a no-op, not a second source.
+            GravityFieldZone.SyncPlayerToContainingField(fields, player);
+            AssertThat(EnvironmentPlayerModifiers.GravitySourceCount(player)).IsEqual(1);
+
+            // A teleport across the seam re-registers into exactly the new field.
+            player.GlobalPosition = new Vector2(1500f, 0f);
+            AssertThat(GravityFieldZone.SyncPlayerToContainingField(fields, player) == east).IsTrue();
+            AssertFloat(player.EnvironmentGravityScale).IsEqualApprox(0.7f, 0.001f);
+            AssertThat(EnvironmentPlayerModifiers.GravitySourceCount(player)).IsEqual(1);
+
+            // Outside every field the player is released back to Earth-normal.
+            player.GlobalPosition = new Vector2(9000f, 0f);
+            AssertObject(GravityFieldZone.SyncPlayerToContainingField(fields, player)).IsNull();
+            AssertFloat(player.EnvironmentGravityScale).IsEqualApprox(1f, 0.001f);
+            AssertThat(EnvironmentPlayerModifiers.GravitySourceCount(player)).IsEqual(0);
+        } finally {
+            west.Free();
+            east.Free();
+            player.Free();
+        }
+    }
+
+    private static GravityFieldZone BuildRectField(string id, float startX, float endX, float scale) {
+        float width = endX - startX;
+        var field = new GravityFieldZone {
+            FieldID = id,
+            GravityScale = scale,
+            Position = new Vector2(startX + width / 2f, 0f)
+        };
+        field.AddChild(new CollisionShape2D {
+            Name = "CollisionShape2D",
+            Shape = new RectangleShape2D { Size = new Vector2(width, 2000f) }
+        });
+        return field;
+    }
+
+    [TestCase]
     public void CyclingGravityFieldTelegraphsThenShiftsScaleForEveryoneInside() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
         var field = new GravityFieldZone {
@@ -649,6 +708,70 @@ public class EraMechanicToolkitTests {
     }
 
     // === Template sweep ===
+
+    /// <summary>
+    /// Every visible string in a shared template must be a translation key, not
+    /// English. Six templates shipped literals ("DEEP SAND", "GRAVITY FIELD", ...)
+    /// until the Wave B integration; Level 8 was patching one of them from level
+    /// code because the template could not be fixed mid-wave.
+    /// </summary>
+    [TestCase]
+    public void NoSharedToolkitTemplateShipsHardcodedEnglishSignage() {
+        TranslationServer.SetLocale("en");
+        using DirAccess directory = DirAccess.Open("res://scenes/templates");
+        AssertObject(directory).IsNotNull();
+
+        var offenders = new List<string>();
+        int scannedLabels = 0;
+        foreach (string file in directory.GetFiles()) {
+            if (!file.EndsWith(".tscn")) continue;
+            string path = $"res://scenes/templates/{file}";
+            using Godot.FileAccess handle = Godot.FileAccess.Open(path, Godot.FileAccess.ModeFlags.Read);
+            if (handle == null) continue;
+            string[] lines = handle.GetAsText().Split('\n');
+            for (int index = 0; index < lines.Length; index++) {
+                string line = lines[index].Trim();
+                if (!line.StartsWith("text = \"") || !line.EndsWith("\"")) continue;
+                scannedLabels++;
+                string value = line[8..^1];
+                if (TranslationServer.Translate(value) == value) {
+                    offenders.Add($"{path}:{index + 1}  text = \"{value}\"");
+                }
+            }
+        }
+
+        // A scan that reached nothing would pass vacuously.
+        AssertThat(scannedLabels).OverrideFailureMessage(
+            $"Template scan found only {scannedLabels} label strings; the walk is broken.")
+            .IsGreater(8);
+        AssertThat(offenders.Count).OverrideFailureMessage(
+            "Shared toolkit templates must carry a translation key in `text`, with the " +
+            "English in localization/en.csv (the component resolves it through " +
+            "ToolkitLabel and a level can retarget it with LabelKey). Offenders:\n  " +
+            string.Join("\n  ", offenders)).IsEqual(0);
+    }
+
+    /// <summary>
+    /// The label key is an export on the template ROOT, so a level can retarget the
+    /// signage from its own .tscn without the fragile `index=` block that overriding
+    /// a child of an instanced scene needs. Level 8's sand drifts rely on this.
+    /// </summary>
+    [TestCase]
+    public void AToolkitTemplateSignCanBeRetargetedFromTheInstancesRootExport() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        TranslationServer.SetLocale("en");
+        var zone = ResourceLoader.Load<PackedScene>(
+            "res://scenes/templates/MovementDampenerZoneTemplate.tscn").Instantiate<MovementDampenerZone>();
+        zone.LabelKey = "egypt_deep_sand";
+        tree.Root.AddChild(zone);
+        try {
+            var label = zone.GetNode<Label>("Label");
+            AssertString(label.Text).IsEqual(TranslationServer.Translate("egypt_deep_sand"));
+            AssertString(label.Text).IsNotEqual("egypt_deep_sand");
+        } finally {
+            zone.Free();
+        }
+    }
 
     [TestCase]
     public void AllEraMechanicPlaceholderTemplatesInstantiate() {

@@ -81,6 +81,25 @@ namespace FTT.Environment {
         /// <summary>Delay between the boss dying and the exit dialogue starting.</summary>
         protected virtual float ExitDialogueDelaySeconds => 1.5f;
 
+        /// <summary>
+        /// Authored dialogue beats that run BETWEEN the boss dying and the ordinary
+        /// exit beat, in order. Empty (the default) hands defeat straight to
+        /// <see cref="StartExitSequence"/>, which is what levels 2-7 and 9-12 do.
+        ///
+        /// A level that owes an extra scene here (Level 8's Cleopatra
+        /// <c>level_08.postboss</c>) lists it instead of overriding
+        /// <see cref="OnBossDefeated"/>: overriding the defeat handler wholesale
+        /// loses the base's bookkeeping, so <see cref="IsBossDefeated"/> would never
+        /// become true and the level would have to track its own flag.
+        ///
+        /// Each beat waits <see cref="ExitDialogueDelaySeconds"/> first, and a beat
+        /// whose sequence will not start is skipped rather than stranding the player
+        /// in a finished arena with no results overlay.
+        /// </summary>
+        protected virtual IReadOnlyList<string> PostBossDialogueIDs => NoPostBossBeats;
+
+        private static readonly string[] NoPostBossBeats = Array.Empty<string>();
+
         /// <summary>Build graybox geometry, checkpoints, room triggers, puzzles, and boss anchors.</summary>
         protected abstract void BuildLevel();
 
@@ -226,7 +245,11 @@ namespace FTT.Environment {
                 ShowCompletionResults();
                 return;
             }
+            // Read before the hook runs: a subclass is free to change what the
+            // chain looks like from inside OnDialogueSequenceComplete.
+            bool finishedPostBossBeat = IsActivePostBossBeat(dialogueID);
             OnDialogueSequenceComplete(dialogueID);
+            if (finishedPostBossBeat) AdvancePostBossChain();
         }
 
         /// <summary>Level dust tally. The award itself is re-raised for StoryManager.</summary>
@@ -344,7 +367,12 @@ namespace FTT.Environment {
             HUD?.SetObjective(translationKey, arguments);
         }
 
-        protected bool StartDialogue(string dialogueID) =>
+        /// <summary>
+        /// Starts an authored sequence, reporting whether it actually began. Virtual
+        /// so a level (or a test) can substitute the dialogue source without
+        /// reimplementing the beat chains that call it.
+        /// </summary>
+        protected virtual bool StartDialogue(string dialogueID) =>
             !string.IsNullOrWhiteSpace(dialogueID) &&
             Services?.Dialogue?.StartSequence(dialogueID) == true;
 
@@ -718,8 +746,22 @@ namespace FTT.Environment {
 
         private bool _bossIntroShown;
         private bool _bossDefeated;
+        private int _postBossBeatIndex = -1;
 
         public bool IsBossDefeated => _bossDefeated;
+
+        /// <summary>
+        /// Post-boss beat currently on screen, or "" when the chain has not started
+        /// or has already handed off to the exit sequence.
+        /// </summary>
+        public string ActivePostBossDialogueID {
+            get {
+                IReadOnlyList<string> beats = PostBossDialogueIDs ?? NoPostBossBeats;
+                return _postBossBeatIndex >= 0 && _postBossBeatIndex < beats.Count
+                    ? beats[_postBossBeatIndex]
+                    : "";
+            }
+        }
 
         protected virtual void OnBossRevealed(BossEncounterController encounter) {
             if (_bossIntroShown) return;
@@ -728,25 +770,87 @@ namespace FTT.Environment {
             StartDialogue(BossIntroDialogueID);
         }
 
+        /// <summary>
+        /// Boss-defeat bookkeeping. Prefer <see cref="PostBossDialogueIDs"/> or
+        /// <see cref="StartPostBossSequence"/> over overriding this: everything a
+        /// level normally wants to change lives after the flag, the objective, and
+        /// the dust tally, and an override that skips them silently disables
+        /// <see cref="IsBossDefeated"/>.
+        /// </summary>
         protected virtual void OnBossDefeated(BossEncounterController encounter, BossDefeatedPayload payload) {
             if (_bossDefeated) return;
             _bossDefeated = true;
             SetObjective(CompletionObjectiveKey);
             // The encounter controller already raised the dust award; only tally.
             TallyDust(payload.ChronalDustDrop);
+            StartPostBossSequence();
+        }
+
+        /// <summary>
+        /// Everything that happens once the boss is down and the base has settled
+        /// its bookkeeping: play every <see cref="PostBossDialogueIDs"/> beat in
+        /// order, then <see cref="StartExitSequence"/>.
+        ///
+        /// Override to replace the whole tail — Level 15 swaps the exit/results
+        /// chain for the campaign completion chain — while keeping
+        /// <see cref="IsBossDefeated"/>, the completion objective, and the dust
+        /// tally intact.
+        /// </summary>
+        protected virtual void StartPostBossSequence() => AdvancePostBossChain();
+
+        /// <summary>
+        /// Plays the next unplayed <see cref="PostBossDialogueIDs"/> beat after the
+        /// standard beat delay, or starts the exit sequence when the chain is spent.
+        /// Called again by the base each time one of those beats completes.
+        /// </summary>
+        protected void AdvancePostBossChain() {
+            if ((PostBossDialogueIDs ?? NoPostBossBeats).Count <= _postBossBeatIndex + 1) {
+                _postBossBeatIndex = int.MaxValue;
+                StartExitSequence();
+                return;
+            }
+            RunAfterBeatDelay(PlayNextPostBossBeat);
+        }
+
+        private void PlayNextPostBossBeat() {
+            IReadOnlyList<string> beats = PostBossDialogueIDs ?? NoPostBossBeats;
+            while (++_postBossBeatIndex < beats.Count) {
+                if (StartDialogue(beats[_postBossBeatIndex])) return;
+            }
+            // Nothing left, or nothing would start: never leave the player in a
+            // finished arena with no results overlay.
+            _postBossBeatIndex = int.MaxValue;
             StartExitSequence();
         }
 
+        private bool IsActivePostBossBeat(string dialogueID) {
+            IReadOnlyList<string> beats = PostBossDialogueIDs ?? NoPostBossBeats;
+            return _postBossBeatIndex >= 0 && _postBossBeatIndex < beats.Count &&
+                   beats[_postBossBeatIndex] == dialogueID;
+        }
+
         /// <summary>Delayed hand-off from the boss beat to the exit dialogue.</summary>
-        protected void StartExitSequence() {
+        protected virtual void StartExitSequence() =>
+            RunAfterBeatDelay(() => {
+                if (!StartDialogue(ExitDialogueID)) ShowCompletionResults();
+            });
+
+        /// <summary>
+        /// Runs <paramref name="step"/> after <see cref="ExitDialogueDelaySeconds"/>,
+        /// or immediately when there is no tree to time against. The timer callback
+        /// re-checks the level: a scene torn down mid-beat (fast scene change, a test
+        /// fixture) must not resume the chain against a freed node.
+        /// </summary>
+        private void RunAfterBeatDelay(Action step) {
             float delay = Mathf.Max(0f, ExitDialogueDelaySeconds);
             if (delay <= 0f || GetTree() == null) {
-                if (!StartDialogue(ExitDialogueID)) ShowCompletionResults();
+                step();
                 return;
             }
             SceneTreeTimer timer = GetTree().CreateTimer(delay);
             timer.Timeout += () => {
-                if (!StartDialogue(ExitDialogueID)) ShowCompletionResults();
+                if (!IsInstanceValid(this) || !IsInsideTree()) return;
+                step();
             };
         }
 
@@ -760,7 +864,20 @@ namespace FTT.Environment {
             if (LevelComplete) return null;
             LevelComplete = true;
             Levels?.CompleteLevel();
+            return PresentCompletion();
+        }
 
+        /// <summary>
+        /// What the player sees once the level is over and <c>OnLevelComplete</c>
+        /// has been raised. Default: the shared results overlay whose Return button
+        /// goes back to the Time-Ship hub.
+        ///
+        /// Level 15 overrides this to run <c>CampaignCompletionSequence</c>
+        /// (credits -> campaign completion -> main menu) instead of returning to the
+        /// hub, and returns null. The one-shot <see cref="LevelComplete"/> guard and
+        /// the level advance stay with the base either way.
+        /// </summary>
+        protected virtual LevelResultsPanel PresentCompletion() {
             var results = LevelResultsPanel.CreateDefault();
             results.ReturnRequested += () => StoryManager.Instance?.ReturnToHub();
             AddChild(results);

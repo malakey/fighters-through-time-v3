@@ -66,6 +66,42 @@ internal partial class FrameworkTestLevelController : StoryLevelControllerBase {
 }
 
 /// <summary>
+/// Drives the post-boss beat chain without a DialogueManager: the beat list is
+/// writable, dialogue starts are recorded, and the beat delay is zero so a case
+/// can step the chain synchronously. A real sequence here would pause the tree
+/// (signature 4) and the fixture would have to unwind it.
+/// </summary>
+internal partial class PostBossChainTestLevelController : StoryLevelControllerBase {
+    public override string LevelID => FrameworkTestLevelController.TestLevelID;
+    public override CampaignLevel Level => FrameworkTestLevelController.TestLevel;
+    public override string LevelTitleKey => "orleans_level_title";
+    public override string DialogueSetPath => "";
+    public override Vector2 PlayerSpawnPosition => new(200, 850);
+    public override Rect2 LevelBounds => new(0, 0, 6000, 1080);
+
+    public readonly List<string> Beats = new();
+    public readonly List<string> StartedDialogues = new();
+    public readonly List<string> RoutedToSubclass = new();
+    public bool DialogueStartsSucceed = true;
+
+    protected override IReadOnlyList<string> PostBossDialogueIDs => Beats;
+    protected override float ExitDialogueDelaySeconds => 0f;
+
+    protected override void BuildLevel() => BuildFloor(0, 900, 4000);
+
+    protected override bool StartDialogue(string dialogueID) {
+        StartedDialogues.Add(dialogueID);
+        return DialogueStartsSucceed;
+    }
+
+    protected override void OnDialogueSequenceComplete(string dialogueID) =>
+        RoutedToSubclass.Add(dialogueID);
+
+    public void DefeatBossForTest(int dust = 50) =>
+        OnBossDefeated(null, new BossDefeatedPayload { BossID = "test_boss", ChronalDustDrop = dust });
+}
+
+/// <summary>
 /// Package 5 A1: the shared level framework campaign levels 2-15 extend. What is
 /// pinned here is exactly what every level agent depends on — the "LevelManager"
 /// child, geometry/collision conventions, camera confinement, checkpoint resume
@@ -259,9 +295,96 @@ public class StoryLevelControllerBaseTests {
         AssertString(PrefixOf("level_15_alexandria")).IsEqual("level_15");
     }
 
+    // === Post-boss beat chain (Package 5 Wave B integration) ===
+
+    [TestCase]
+    public void WithNoPostBossBeatsDefeatGoesStraightToTheExitDialogueExactlyAsBefore() {
+        // Levels 2-7 and 9-12 declare no beats; the chain must not insert an extra
+        // hop or an extra delay between the boss dying and the exit sequence.
+        using var fixture = new PostBossFixture();
+        PostBossChainTestLevelController level = fixture.Level;
+        level.DefeatBossForTest(50);
+
+        AssertThat(level.IsBossDefeated).IsTrue();
+        AssertThat(level.DustEarnedThisLevel).IsEqual(50);
+        AssertThat(level.StartedDialogues).ContainsExactly("level_02.exit");
+        AssertString(level.ActivePostBossDialogueID).IsEqual("");
+    }
+
+    [TestCase]
+    public void APostBossBeatRunsBetweenDefeatAndExitWithoutCostingTheBaseItsDefeatFlag() {
+        // Level 8's Cleopatra scene, and the shape Level 15's ending chain reuses.
+        // Before this hook existed L8 overrode OnBossDefeated wholesale and
+        // IsBossDefeated stayed false for the whole level.
+        using var fixture = new PostBossFixture();
+        PostBossChainTestLevelController level = fixture.Level;
+        level.Beats.Add("level_02.postboss");
+
+        level.DefeatBossForTest(50);
+        AssertThat(level.IsBossDefeated).IsTrue();
+        AssertThat(level.StartedDialogues).ContainsExactly("level_02.postboss");
+        AssertString(level.ActivePostBossDialogueID).IsEqual("level_02.postboss");
+        AssertThat(level.LevelComplete).IsFalse();
+
+        // Finishing the beat advances the chain, and still routes to the subclass
+        // hook so a level can react to its own beat.
+        EventBus.Instance.RaiseDialogueComplete("level_02.postboss");
+        AssertThat(level.RoutedToSubclass).ContainsExactly("level_02.postboss");
+        AssertThat(level.StartedDialogues).ContainsExactly("level_02.postboss", "level_02.exit");
+        AssertString(level.ActivePostBossDialogueID).IsEqual("");
+        AssertThat(level.LevelComplete).IsFalse();
+
+        EventBus.Instance.RaiseDialogueComplete("level_02.exit");
+        AssertThat(level.LevelComplete).IsTrue();
+    }
+
+    [TestCase]
+    public void ABeatThatWillNotStartFallsThroughInsteadOfStrandingThePlayer() {
+        // A missing sequence must never leave the player in a finished arena with
+        // no results overlay.
+        using var fixture = new PostBossFixture();
+        PostBossChainTestLevelController level = fixture.Level;
+        level.Beats.Add("level_02.postboss");
+        level.DialogueStartsSucceed = false;
+
+        level.DefeatBossForTest(50);
+        AssertThat(level.StartedDialogues).ContainsExactly("level_02.postboss", "level_02.exit");
+        AssertThat(level.LevelComplete).IsTrue();
+    }
+
     private static string PrefixOf(string levelID) {
         string[] parts = levelID.Split('_');
         return parts.Length >= 2 ? $"{parts[0]}_{parts[1]}" : levelID;
+    }
+
+    /// <summary>
+    /// Same shape as <see cref="LevelFixture"/> for the beat-chain controller, plus
+    /// the pause guard every level fixture needs: the base defers the entrance
+    /// dialogue and a landed deferred call must not leave the tree paused.
+    /// </summary>
+    private sealed class PostBossFixture : IDisposable {
+        public readonly PostBossChainTestLevelController Level;
+        private readonly int _originalSlot;
+        private readonly bool _originalPaused;
+
+        public PostBossFixture() {
+            var tree = (SceneTree)Engine.GetMainLoop();
+            _originalPaused = tree.Paused;
+            _originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+
+            Level = new PostBossChainTestLevelController { Name = "PostBossChainTestLevel" };
+            tree.Root.AddChild(Level);
+        }
+
+        public void Dispose() {
+            if (GodotObject.IsInstanceValid(Level)) {
+                Level.GetParent()?.RemoveChild(Level);
+                Level.Free();
+            }
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = _originalSlot;
+            ((SceneTree)Engine.GetMainLoop()).Paused = _originalPaused;
+        }
     }
 
     /// <summary>

@@ -22,26 +22,31 @@ script = ExtResource("2_drops")
 position = Vector2(1200, 660)
 ZoneID = "level_08.deep_sand_a"
 MoveMultiplier = 0.5
+LabelKey = "egypt_deep_sand"
 
 [node name="DuneB" parent="." instance=ExtResource("7_sand")]
 position = Vector2(2300, 660)
 ZoneID = "level_08.deep_sand_b"
 MoveMultiplier = 0.5
+LabelKey = "egypt_deep_sand"
 
 [node name="DuneC" parent="." instance=ExtResource("7_sand")]
 position = Vector2(3400, 660)
 ZoneID = "level_08.deep_sand_c"
 MoveMultiplier = 0.5
+LabelKey = "egypt_deep_sand"
 
 [node name="DuneD" parent="." instance=ExtResource("7_sand")]
 position = Vector2(4300, 660)
 ZoneID = "level_08.deep_sand_d"
 MoveMultiplier = 0.5
+LabelKey = "egypt_deep_sand"
 
 [node name="DuneE" parent="." instance=ExtResource("7_sand")]
 position = Vector2(5200, 660)
 ZoneID = "level_08.deep_sand_e"
 MoveMultiplier = 0.5
+LabelKey = "egypt_deep_sand"
 
 [node name="SandCascadeA" parent="." instance=ExtResource("8_hazard")]
 position = Vector2(6880, 1620)

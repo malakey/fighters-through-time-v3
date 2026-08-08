@@ -479,17 +479,17 @@ namespace FTT.Environment {
 
         /// <summary>
         /// Puts the player in exactly the field they are standing in and out of
-        /// every other one. Idempotent, and consistent with the physics callbacks:
-        /// a redundant Add or Remove is a no-op inside <see cref="GravityFieldZone"/>.
+        /// every other one, through the shared
+        /// <see cref="GravityFieldZone.SyncPlayerToField"/> helper. The target comes
+        /// from this level's authored span table rather than the helper's geometric
+        /// lookup, because the spans meet exactly and
+        /// <see cref="GravityFieldFor"/> owns the seam rule (half-open except the
+        /// last span). A level with scene-authored fields and no span table calls
+        /// <see cref="GravityFieldZone.SyncPlayerToContainingField"/> instead.
         /// </summary>
         public void SyncGravityFieldToPlayer() {
             if (Player == null || !IsInstanceValid(Player)) return;
-            GravityFieldZone target = GravityFieldFor(Player.Position.X);
-            foreach (GravityFieldZone field in _gravityFields) {
-                if (!IsInstanceValid(field)) continue;
-                if (field == target) field.AddPlayer(Player);
-                else field.RemovePlayer(Player);
-            }
+            GravityFieldZone.SyncPlayerToField(_gravityFields, Player, GravityFieldFor(Player.Position.X));
         }
 
         protected override void SpawnInitialEnemies() => SpawnWave(1);

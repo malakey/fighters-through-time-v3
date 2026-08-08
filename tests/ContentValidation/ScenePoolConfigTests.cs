@@ -126,7 +126,17 @@ public class ScenePoolConfigTests {
             ("res://scenes/campaign/Level_02_Orleans.tscn", "level_02_orleans_pools"),
             ("res://scenes/campaign/Level_03_Chicago.tscn", "level_03_chicago_pools"),
             ("res://scenes/campaign/Level_04_Paris.tscn", "level_04_paris_pools"),
-            ("res://scenes/campaign/Level_05_Titanic.tscn", "level_05_titanic_pools")
+            ("res://scenes/campaign/Level_05_Titanic.tscn", "level_05_titanic_pools"),
+            // Package 5 Wave B. Level 10's config id is the era name, not the file
+            // stem - a row pointed at the wrong config warms another level's budget
+            // and nothing else in the suite would notice.
+            ("res://scenes/campaign/Level_06_Pompeii.tscn", "level_06_pompeii_pools"),
+            ("res://scenes/campaign/Level_07_Nassau.tscn", "level_07_nassau_pools"),
+            ("res://scenes/campaign/Level_08_Egypt.tscn", "level_08_egypt_pools"),
+            ("res://scenes/campaign/Level_09_Berlin.tscn", "level_09_berlin_pools"),
+            ("res://scenes/campaign/Level_10_Globe.tscn", "level_10_globe_pools"),
+            ("res://scenes/campaign/Level_11_Gettysburg.tscn", "level_11_gettysburg_pools"),
+            ("res://scenes/campaign/Level_12_Lunar.tscn", "level_12_lunar_pools")
         }) {
             ScenePoolConfig config = catalog.Find(scene);
             AssertObject(config).OverrideFailureMessage(

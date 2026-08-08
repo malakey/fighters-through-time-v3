@@ -33,8 +33,10 @@ namespace FTT.Environment {
     ///
     /// This level owes a FOURTH dialogue beat: <c>level_08.postboss</c> is an authored
     /// campaign scene (design-godot.md 3368-3374) that runs between the boss dying and
-    /// the ordinary exit beat, so <see cref="OnBossDefeated"/> is overridden to chain
-    /// defeat -> postboss -> exit -> results.
+    /// the ordinary exit beat. It is declared through the base class's
+    /// <see cref="StoryLevelControllerBase.PostBossDialogueIDs"/> hook, which chains
+    /// defeat -> postboss -> exit -> results without taking the defeat bookkeeping
+    /// away from the base.
     /// </summary>
     public partial class Level08Controller : StoryLevelControllerBase {
 
@@ -179,14 +181,14 @@ namespace FTT.Environment {
         private bool _tombWaveSpawned;
         private bool _vaultWaveSpawned;
         private bool _descended;
-        private bool _bossBeatStarted;
-        private bool _postBossPlayed;
 
         public IReadOnlyList<MovementDampenerZone> DeepSandZones => _deepSand;
         public PuzzleManager HieroglyphPuzzle => _hieroglyphPuzzle;
         public SequenceLock HieroglyphLock => _hieroglyphLock;
         public bool VaultDoorOpen => _vaultDoor == null || !IsInstanceValid(_vaultDoor);
-        public bool PostBossBeatPlayed => _postBossPlayed;
+
+        /// <summary>True while the authored Cleopatra scene is the beat on screen.</summary>
+        public bool PostBossBeatActive => ActivePostBossDialogueID == PostBossDialogueID;
 
         // === Palette: bleached limestone, tomb shadow, Archive cyan ===
 
@@ -357,19 +359,18 @@ namespace FTT.Environment {
         }
 
         /// <summary>
-        /// Picks up the scene-authored sand drifts and localizes their placeholder
-        /// signage. The shared template ships a hardcoded English label; overriding a
-        /// child of an instanced scene from the .tscn needs a fragile `index=` block,
-        /// so the level does it here instead of editing shared toolkit content.
+        /// Picks up the scene-authored sand drifts. Their signage is authored, not
+        /// patched: each instance sets <c>LabelKey = "egypt_deep_sand"</c> on the
+        /// template root, which the component resolves through
+        /// <see cref="ToolkitLabel"/>. (Before the Wave B integration the template
+        /// shipped a hardcoded English label and this method rewrote it.)
         /// </summary>
         private void CollectDeepSand() {
             _deepSand.Clear();
             Godot.Collections.Array<Node> children = GetChildren();
             using var lifetime = children.AsDisposable();
             foreach (Node child in children) {
-                if (child is not MovementDampenerZone zone) continue;
-                _deepSand.Add(zone);
-                if (zone.GetNodeOrNull<Label>("Label") is Label label) label.Text = Tr("egypt_deep_sand");
+                if (child is MovementDampenerZone zone) _deepSand.Add(zone);
             }
         }
 
@@ -506,48 +507,23 @@ namespace FTT.Environment {
         // === Boss beat: defeat -> authored Cleopatra scene -> exit -> results ===
 
         /// <summary>
-        /// Level 8 owes an authored post-boss scene (design-godot.md 3368-3374) that the
-        /// base class knows nothing about, so the defeat hand-off is rebuilt here:
-        /// objective + dust exactly as the base does, then the Cleopatra beat, and only
-        /// then the ordinary exit sequence. The base's own defeat flag stays untouched
-        /// (it would start the exit dialogue immediately), so this level tracks its own.
+        /// The authored Cleopatra scene (design-godot.md 3368-3374) runs between the
+        /// Jackal Priest dying and the ordinary exit beat. Declaring it here is the
+        /// whole of it: the base plays the beat after its usual defeat delay, waits
+        /// for it, then starts the exit sequence — and keeps ownership of
+        /// <c>IsBossDefeated</c>, the completion objective, and the dust tally.
+        /// (Before the Wave B integration this level overrode <c>OnBossDefeated</c>
+        /// wholesale and lost all three.)
         /// </summary>
-        protected override void OnBossDefeated(BossEncounterController encounter, BossDefeatedPayload payload) {
-            if (_bossBeatStarted) return;
-            _bossBeatStarted = true;
-            SetObjective(CompletionObjectiveKey);
-            // The encounter controller already raised the dust award; only tally.
-            TallyDust(payload.ChronalDustDrop);
-            StartPostBossBeat();
-        }
+        protected override IReadOnlyList<string> PostBossDialogueIDs =>
+            _postBossBeats ??= new[] { PostBossDialogueID };
 
-        private void StartPostBossBeat() {
-            float delay = Mathf.Max(0f, ExitDialogueDelaySeconds);
-            if (delay <= 0f || GetTree() == null) {
-                RunPostBossBeat();
-                return;
-            }
-            SceneTreeTimer timer = GetTree().CreateTimer(delay);
-            timer.Timeout += RunPostBossBeat;
-        }
-
-        private void RunPostBossBeat() {
-            if (!IsInstanceValid(this) || !IsInsideTree()) return;
-            if (_postBossPlayed) return;
-            _postBossPlayed = true;
-            // If the authored scene cannot start, fall through rather than stranding
-            // the player in a finished arena with no results overlay.
-            if (!StartDialogue(PostBossDialogueID)) StartExitSequence();
-        }
-
-        protected override void OnDialogueSequenceComplete(string dialogueID) {
-            if (dialogueID == PostBossDialogueID) StartExitSequence();
-        }
+        private string[] _postBossBeats;
 
         // === Objectives ===
 
         private void RefreshObjective() {
-            if (_bossBeatStarted) {
+            if (IsBossDefeated) {
                 SetObjective(CompletionObjectiveKey);
             } else if (VaultDoorOpen && _descended) {
                 SetObjective("egypt_objective_chamber");

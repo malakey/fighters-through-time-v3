@@ -28,5 +28,5 @@ offset_left = -160.0
 offset_top = -112.0
 offset_right = 160.0
 offset_bottom = -80.0
-text = "DEEP SAND"
+text = "toolkit_movement_dampener"
 horizontal_alignment = 1

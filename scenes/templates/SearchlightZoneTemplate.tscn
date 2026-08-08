@@ -34,5 +34,5 @@ offset_left = -110.0
 offset_top = -68.0
 offset_right = 110.0
 offset_bottom = -36.0
-text = "SEARCHLIGHT"
+text = "toolkit_searchlight"
 horizontal_alignment = 1

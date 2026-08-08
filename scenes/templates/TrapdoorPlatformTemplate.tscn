@@ -31,5 +31,5 @@ offset_left = -110.0
 offset_top = -50.0
 offset_right = 110.0
 offset_bottom = -18.0
-text = "TRAPDOOR"
+text = "toolkit_trapdoor"
 horizontal_alignment = 1

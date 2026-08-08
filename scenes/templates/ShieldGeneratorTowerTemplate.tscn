@@ -41,7 +41,7 @@ offset_left = -140.0
 offset_top = -156.0
 offset_right = 140.0
 offset_bottom = -124.0
-text = "SHIELD GENERATOR"
+text = "toolkit_shield_generator"
 horizontal_alignment = 1
 
 [node name="Barrier" type="StaticBody2D" parent="." groups=["forcefield_barrier"]]

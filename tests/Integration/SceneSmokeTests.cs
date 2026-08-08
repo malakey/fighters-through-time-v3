@@ -17,7 +17,15 @@ public class SceneSmokeTests {
         "res://scenes/campaign/Level_02_Orleans.tscn",
         "res://scenes/campaign/Level_03_Chicago.tscn",
         "res://scenes/campaign/Level_04_Paris.tscn",
-        "res://scenes/campaign/Level_05_Titanic.tscn"
+        "res://scenes/campaign/Level_05_Titanic.tscn",
+        // Package 5 Wave B.
+        "res://scenes/campaign/Level_06_Pompeii.tscn",
+        "res://scenes/campaign/Level_07_Nassau.tscn",
+        "res://scenes/campaign/Level_08_Egypt.tscn",
+        "res://scenes/campaign/Level_09_Berlin.tscn",
+        "res://scenes/campaign/Level_10_Globe.tscn",
+        "res://scenes/campaign/Level_11_Gettysburg.tscn",
+        "res://scenes/campaign/Level_12_Lunar.tscn"
     };
 
     [TestCase]

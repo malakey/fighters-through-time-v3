@@ -27,5 +27,5 @@ offset_left = -120.0
 offset_top = -52.0
 offset_right = 120.0
 offset_bottom = -20.0
-text = "MOVING PLATFORM"
+text = "toolkit_moving_platform"
 horizontal_alignment = 1

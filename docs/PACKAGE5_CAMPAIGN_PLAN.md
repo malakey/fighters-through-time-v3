@@ -1248,3 +1248,106 @@ differently in play. No change required to either level.
   assets, plus the known `gdunit4`/`gdUnit4` casing flip on eight addon PNGs); reverted with
   `git checkout -- "*.import"`. The regenerated `localization/en.en.translation` IS committed, per
   the L02 rule. `AGENTS.md` is left for C1 per the A1 convention.
+
+### Wave B integration
+
+- **INTEGRATION-B: no cross-level breakage this time.** Wave A's merge cost 14 failures (the pooled
+  enemy leak); the seven Wave B levels merged clean at 626/626 before this pass started, and nothing
+  in this pass was a bug fix. All of it is deferred shared-file wiring plus the three shared-code
+  items the level agents flagged and were forbidden by §2.7 to touch.
+- **INTEGRATION-B: shared-file wiring applied for levels 6-12** (§2.7 / §7). Seven
+  `ScenePoolCatalogEntry` rows in `resources/Pools/scene_pool_catalog.tres`; seven paths added to
+  `SceneSmokeTests.RequiredPrototypeScenes`; the seven `StoryLevel` and seven `DialogueSet` manifest
+  rows flipped to `Implemented,ReadyForReplacement,Valid`.
+  `ScenePoolConfigTests.CatalogMapsEveryCurrentGameplaySceneToItsPoolBudget` was extended with the
+  seven scene -> `ConfigID` pairs the Wave A way, including **Level 10's `level_10_globe_pools`,
+  whose id is the era name and not the file stem** - a mis-pointed row silently warms another
+  level's budget and nothing else in the suite would notice. StoryLevel row count stays 16 and
+  levels 13-15 stay `Planned`/`Pending`, so
+  `ContentManifestTests.PlannedResourcesRemainVisibleUntilTheyAreAuthored` still has warnings to
+  find (verified).
+- **INTEGRATION-B: the post-boss chain is now a base-class hook, and Level 8 no longer overrides
+  `OnBossDefeated`.** L08 needed a beat between the boss dying and the exit beat, overrode the
+  defeat handler wholesale, and consequently `IsBossDefeated` was permanently false on that level
+  (it tracked a private `_bossBeatStarted` instead). Level 15 wants the same shape and would have
+  been the third copy. `StoryLevelControllerBase` now owns the whole tail:
+
+  | Member | Shape | Use it for |
+  |---|---|---|
+  | `protected virtual IReadOnlyList<string> PostBossDialogueIDs` | defaults to empty | extra authored beats between defeat and the exit beat, in order |
+  | `protected virtual void StartPostBossSequence()` | defaults to the beat chain, then `StartExitSequence()` | replacing the whole tail after the boss dies |
+  | `protected virtual void StartExitSequence()` | was non-virtual | replacing just the exit beat |
+  | `protected virtual LevelResultsPanel PresentCompletion()` | was inlined in `ShowCompletionResults` | replacing the results overlay (credits) |
+  | `protected virtual bool StartDialogue(string)` | was non-virtual | substituting the dialogue source (tests) |
+  | `public string ActivePostBossDialogueID` | new, read-only | the beat currently on screen, or `""` |
+
+  `OnBossDefeated` still sets the defeat flag, posts `CompletionObjectiveKey`, and tallies the boss
+  dust, then calls `StartPostBossSequence()`. Each beat waits `ExitDialogueDelaySeconds` first, the
+  base advances the chain when a beat's `OnDialogueComplete` arrives (after routing it to
+  `OnDialogueSequenceComplete`, so a level still sees its own beat), and a beat whose sequence will
+  not start is skipped rather than stranding the player. **Levels with no beats are unchanged**: the
+  empty chain calls `StartExitSequence()` directly, so there is exactly one delay, not two. Pinned
+  by three new `StoryLevelControllerBaseTests` cases (no beats / one beat with `IsBossDefeated`
+  intact / a beat that will not start). Level 12 still overrides nothing. `Level08Controller` is now
+  four lines (`PostBossDialogueIDs => new[] { PostBossDialogueID }`), `IsBossDefeated` works there,
+  and its objective refresh reads it; the workaround flags and the `PostBossBeatPlayed` property are
+  gone (`PostBossBeatActive` replaces the latter).
+
+  **Level 15's ending chain should use this exact shape:**
+
+  ```csharp
+  // The ending beat before the credits, when it is a dialogue sequence distinct
+  // from the ordinary exit beat:
+  protected override IReadOnlyList<string> PostBossDialogueIDs => _endingBeats; // { "level_15.ending" }
+
+  // Credits + campaign completion INSTEAD of the hub results overlay:
+  protected override LevelResultsPanel PresentCompletion() {
+      CampaignCompletionSequence.Begin(this, Services?.Dialogue, endingDialogueID: "", returnToMainMenu: true);
+      return null; // the base already set LevelComplete and raised OnLevelComplete
+  }
+  ```
+
+  `CampaignCompletionSequence.Begin` can also play the ending beat itself (pass `endingDialogueID`),
+  so 15 picks one of the two - do not do both. Overriding `StartPostBossSequence()` is the escape
+  hatch if the ending needs something that is not a dialogue beat at all; overriding
+  `OnBossDefeated` is not, and is now documented as such on the method.
+- **INTEGRATION-B: seven shared templates shipped hardcoded English; all seven are keys now.**
+  `MovementDampenerZoneTemplate` ("DEEP SAND", the one L08 was patching from level code) plus
+  `GravityFieldZoneTemplate`, `PathMovingPlatformTemplate`, `RisingWaterZoneTemplate`,
+  `SearchlightZoneTemplate`, `ShieldGeneratorTowerTemplate`, and `TrapdoorPlatformTemplate`. Each
+  component gained `[Export] string LabelKey` (plus `LabelPath`) resolved in `_Ready` through the new
+  `FTT.Environment.ToolkitLabel`, and each template's `text` is now that key - matching the
+  `interaction_*` templates that were already correct. Seven `toolkit_*` entries added to
+  `localization/en.csv`. **`LabelKey` is an export on the template ROOT, so a level retargets the
+  signage from its own `.tscn` with one line and never needs the fragile `index=` block** that
+  overriding a child of an instanced scene requires (the L02 finding, which is what forced L08's
+  workaround). Level 8's five dunes now carry `LabelKey = "egypt_deep_sand"` in
+  `Level_08_Egypt.tscn` and `CollectDeepSand` just collects. A new sweep test
+  (`NoSharedToolkitTemplateShipsHardcodedEnglishSignage`) scans every `scenes/templates/*.tscn` for
+  `text = "..."` and fails on any value that is not a resolving translation key, so this cannot come
+  back.
+- **INTEGRATION-B: frame-zero zone registration is now shared, and Wave C needs it.**
+  `GravityFieldZone` gained `ContainsPoint(Vector2 globalPoint)` (tested against its own
+  `CollisionShape2D` children; rectangles and circles) and two statics:
+  `GravityFieldZone.SyncPlayerToContainingField(IEnumerable<GravityFieldZone>, PlayerController)`
+  and `GravityFieldZone.SyncPlayerToField(fields, player, target)`. Call the first from
+  `OnLevelReady` and again on `EventBus.OnRewindTriggered`; it is idempotent with the physics
+  callbacks because `AddPlayer`/`RemovePlayer` are set operations. **Levels 13 and 14 both use
+  `GravityFieldZone` and both need this**: an `Area2D` only reports its authored initial overlaps on
+  the first physics frame, so a checkpoint resume or a rewind teleport leaves a player in a
+  low-gravity level at Earth-normal gravity (L12's finding, and the same class as L06's pressure
+  plate). Level 12 now calls `SyncPlayerToField` with its own span-table lookup - its authored seam
+  rule (half-open except the last span) stays in `GravityFieldFor`, so its behaviour and its three
+  gravity tests are unchanged. Use `SyncPlayerToContainingField` when the fields are scene-authored
+  and there is no span table. The L06 pressure-plate case (`PressurePlate.RegisterBody` for a body
+  authored already resting in a plate) was deliberately NOT generalised: it is one explicit line at
+  the one call site, and generalising it would mean guessing which authored bodies count as loads.
+- **INTEGRATION-B: suite baseline 626 -> 632** (+6: three post-boss chain cases in
+  `StoryLevelControllerBaseTests`, one frame-zero gravity sync case and two template-localization
+  cases in `EraMechanicToolkitTests`). Verified 632/632, 0 failed, 18 s, across three consecutive
+  runs with no corruption-shaped run and no worktree contention. Build clean but for the vendored
+  CS8632. `--import` then `--quit` clean, and `--import` produced **no `.import` churn at all** in
+  the repository checkout - that artifact is a fresh-worktree effect. The regenerated
+  `localization/en.en.translation` IS committed. Florence plus all eleven Wave A/B campaign scenes
+  smoke clean at `--quit-after 300`: exit 0, zero script errors, zero warnings, no output beyond the
+  engine banner. `AGENTS.md` is left for C1 per the A1 convention.
