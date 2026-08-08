@@ -895,3 +895,67 @@ CLAUDE.md's failure-signature table.
 **INTEGRATION-A: A4's one-`[TestSuite]`-per-file rule is promoted to a Phase B instruction** (a
 second suite in the same file is discovered but silently not executed — `Total:` moves by a
 plausible-looking +1 instead of the real delta).
+
+### B — Paris (2026-08-08)
+
+**B-paris: every merged `FighterStageGeometry.Paris` value was authorable in pixels exactly; the
+scene needed no geometry compromise and no §4 dossier number moved.** Walls ±9, platforms
+(−4, 2.6, 2.0) and (4, 2.6, 2.0), hazard anchors {−6, 0, 6} and orb anchors (−4, 3.1), (4, 3.1),
+(0, 0.5) all land on clean pixel coordinates through `pixel = (950 + x·62.5, 700 − y·62.5)` — the
+drawbridge surfaces sit at y = 537.5 px with 250 px-wide colliders, the searchlight emitters at
+x = 575/950/1325. `FighterStageParisTests.SceneMirrorsItsAuthoredFixedPointGeometry` runs A1's
+shared conformance validator, and a second test pins the collision hygiene the validator does not
+cover (every `Geometry` child is a `StaticBody2D` with `collision_mask = 0`, three on layer 64 and
+exactly `Platforms.Length` on layer 128).
+
+**B-paris: the hash-identity run needs 25 stocks, not the default 3, and that is a property of the
+hazard system rather than of Paris.** `FighterHazardSystem.Update` returns immediately when
+`MatchState != 1`, so a match that ends *before* the hazard's active window leaves the hazard frozen
+in its warning phase forever. The first hazard spawns on the 1800-frame High boundary; a scripted
+2340-tick run with attacks in the input pattern burns three stocks by tick ~1828, which silently
+produced a run where the beam existed for 541 frames and never once reached `ActivePhase`. Raising
+the stock count keeps the match live across the full spawn → warning 90 → active 360 → recovery 60
+cycle while keeping combat in the input stream. The test now also asserts
+`MatchState == FighterMatchStates.InProgress` at the end with an explicit message, so the failure is
+loud rather than a vacuously green hazard assertion. **The other eight Phase B agents should check
+their own hash-identity runs for the same trap** — an assertion that only checks "no desync" passes
+happily on a dead match with a frozen hazard.
+
+**B-paris: the scene uses `ParallaxBackground`/`ParallaxLayer` as the plan specifies, but the test
+reaches them by class name instead of by their C# types.** Both are `[Obsolete]` in the Godot 4.7.1
+bindings ("Use the 'Parallax2D' node instead"), so a typed `GetNodeOrNull<ParallaxBackground>` emits
+CS0618 and breaks §8's no-new-warnings gate. The node types are unchanged in the `.tscn` — only the
+test avoids naming them, via `GetClass()` and `Get("motion_scale")`. A headless `--quit-after 300`
+smoke of the scene exits 0 with no engine-side deprecation output, so the nodes are functional, not
+stubs. **C1 should decide once whether all ten stages migrate to `Parallax2D`**; this agent did not
+migrate unilaterally because the plan names `ParallaxBackground` and eight sibling agents author
+against the same text.
+
+**B-paris: `BackdropTint` is a translucent colour grade over the parallax, not the opaque backdrop
+Florence uses.** A `ParallaxBackground` is a `CanvasLayer`, and a negative-layer CanvasLayer draws
+behind *everything* in layer 0 — including a full-bleed opaque `ColorRect`. Keeping Florence's
+opaque tint would have hidden the parallax entirely. The Paris tint is the catalog
+`BackgroundColor` at alpha 0.42 over an opaque far-parallax SVG, which grades the backdrop toward
+the era palette instead of erasing it. Any Phase B stage that pairs the two nodes has the same
+ordering constraint.
+
+**B-paris: `GdUnit4.Asserts.AssertBase.OverrideFailureMessage` throws
+`ArgumentException("The value cannot be an empty string")` on an empty message.** The natural
+`AssertThat(errors.Count).OverrideFailureMessage(string.Join("; ", errors)).IsEqual(0)` pattern
+therefore *fails* precisely when the content is correct and the error list is empty. Use the
+existing repository idiom instead —
+`if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("")` — or guard the message.
+Worth flagging because the resulting failure reads like a content bug.
+
+**B-paris: the pool config is asserted equal to the Test Arena's warm-up and capacity totals rather
+than merely "valid".** Plan §5 item 3 says "mirroring `test_arena_pool_config.tres`'s pool
+set/budgets"; a validity-only check would pass a config that quietly halved a budget. The test
+compares `GetWarmUpInstanceCount()` and `GetMaxCapacityCount()` against the Test Arena config
+directly, so the two can only drift on purpose. Catalog wiring for `fighter_stage_paris_pools`
+remains C1's.
+
+**B-paris: the first `--headless --import` in a fresh worktree rewrites ~40 unrelated `.import`
+files with line-ending-only changes.** `git diff` reports no content difference; the churn is CRLF
+normalization on files Git would re-normalize anyway. They were reverted with `git checkout --`
+before committing, so the Paris commit carries only its own three new `.svg.import` sidecars. Phase
+B agents should read `git status` after `--import` rather than committing the sweep.
