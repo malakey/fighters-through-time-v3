@@ -1090,3 +1090,83 @@ suite. `Get-Process testhost` showed five sibling runners alive at the time. Wai
 to reach zero and re-running produced 9/9 immediately, and the full suite at **829 passed / 0 failed
 / Total 829** — exactly 820 + 9. Polling for a clear window is cheaper and far more reliable than
 retrying blind.
+
+### B — Nassau (2026-08-08)
+
+**B-nassau: every merged `FighterStageGeometry.Nassau` value was authored into the scene unchanged
+and the conformance validator passed on the first run — no scene or geometry adjustment was
+needed.** Walls ±9, platforms (−4, 2.8, 1.8) and (4, 2.8, 1.8), hazard anchors {−5, 0, 5}, orb
+anchors (−4, 3.3), (4, 3.3), (0, 0.5), spawn distance 4. Pinned by
+`FighterStageNassauTests.TheSceneMirrorsItsAuthoredFixedPointGeometry`.
+
+**B-nassau: Nassau's bounds are numerically identical to Florence's, so the ground and wall
+colliders are byte-identical to Florence's — that is agreement, not copy-paste drift.** Both stages
+author walls at ±9 and a ceiling at 9, which forces the same 1125×48 ground rect at (950, 700) and
+the same 24×562 wall rects at x 387.5 / 1512.5. Only the platforms differ (Nassau's yards are
+higher and wider: surface y 525 px, half-width 112.5 px against Florence's 550 / 100). The
+conformance validator is checked against `FighterStageGeometry.Nassau` specifically, and A1's
+`ValidatorRejectsAStageCheckedAgainstTheWrongGeometry` proves a wrong-stage check fails, so the
+shared numbers cannot hide a mis-authored stage.
+
+**B-nassau: `BackdropTint` is a translucent wash (alpha 0.42) over the parallax, not Florence's
+opaque fill.** Florence has no `ParallaxBackground`, so its tint could be the backdrop itself. A
+stage that layers a parallax behind an opaque full-screen ColorRect renders no parallax at all —
+`ParallaxBackground` is a `CanvasLayer` and sits behind canvas layer 0 whatever its z-index. Full
+screen coverage is instead guaranteed by an opaque `SeaBase` ColorRect parented directly to the
+`ParallaxBackground` (a static, non-scrolling child), and the tint does what its name says. Stages
+authored after this one should follow the same shape rather than copying Florence's opaque tint on
+top of a parallax.
+
+**B-nassau: the deck dressing (`Presentation/DeckProps`, `Presentation/MortarTargets`) sits at
+negative z-index so it renders behind the fighters.** `FighterStageController._Ready` adds both
+`PlayerController`s as children of the stage root at z 0; positive-z scenery would draw cannons and
+targeting grids over the fighters. Nothing overlaps the ground visual, which starts at y = 700 while
+all dressing ends there.
+
+**B-nassau: the per-stage test checks the parallax structurally (`IsClass` +
+`Get("motion_scale")`) instead of through the typed `ParallaxBackground`/`ParallaxLayer` C#
+bindings.** Those bindings are `[Obsolete]` in Godot 4.7 (`Parallax2D` is the successor) and
+referencing them adds two `CS0618` warnings to a build §8 requires to stay clean. The *scene* still
+uses `ParallaxBackground` as §5 item 2 specifies — the node type is fully supported at runtime; only
+the managed wrapper is deprecated. **The other eight Phase B stages will hit this the moment they
+type `ParallaxBackground` in a test, and C1 should decide whether Package 6 migrates all ten stages
+to `Parallax2D` or accepts the deprecated node for the placeholder pass.**
+
+**B-nassau: the hash-identity run uses 12 stocks, not the production 3.** The first hazard spawns on
+the 1800-frame High boundary, and `FighterHazardSystem.Update` returns immediately once
+`MatchState != InProgress` — two fighters trading basics for those thirty seconds burn three stocks,
+the match ends, and no mortar ever spawns. The first draft failed exactly that way with the
+misleading message "the mortar never telegraphed". Dropping the attack inputs would have removed the
+run's combat hash coverage instead, so the stock count moved and the test now asserts
+`MatchState == InProgress` *before* the hazard assertions so the real cause is named if this ever
+regresses. Stock count is not stage content; nothing in the shipped stage changed.
+
+**B-nassau: flame colours are derived, not from the catalog triple.** The catalog authors
+`BackgroundColor` (0.025, 0.08, 0.12), `GroundColor` (0.22, 0.12, 0.055) and `AccentColor`
+(0.12, 0.72, 0.86) — a cold cyan accent that reads well as British Navy targeting optics but cannot
+depict a burning deck. The accent drives every structural highlight (ground top line, yard top
+lines, gunwales, all three target grids) as the plan intends; only the two deck fires and the
+preview's blaze gradient use warm tones outside the triple. Replacing them is a texture swap, not a
+code change.
+
+**B-nassau: `--headless --import` in a fresh worktree rewrote 41 unrelated `.import` files and none
+of that churn was committed.** Two causes, neither related to this stage: Godot rewrites the files
+with CRLF endings (git reports them modified with an empty textual diff), and the eight
+`addons/gdUnit4/**` entries additionally re-cased their `source_file` from `addons/gdunit4/` to
+`addons/gdUnit4/` and re-hashed their `.godot/imported/` paths, which is a fresh-cache artifact of
+the worktree. All 41 were restored; the only import artifact committed is the new
+`assets/placeholders/stages/nassau_preview.svg.import`. Other Phase B agents should expect the same
+and restore rather than commit, or the nine merges will conflict on files none of them touched.
+
+**B-nassau: the preview SVG is a 480×270 thumbnail, not a full 1920×1080 plate.** §5 item 5 asks for
+a "distinct silhouette + era palette" for the stage-select card; authoring it at card resolution
+keeps it legible when C1 scales it down and keeps the placeholder small. The test asserts only that
+it imports as a `Texture2D` with non-zero dimensions, so a production plate at any resolution
+replaces it without touching the test.
+
+**B-nassau: GdUnit worktree contention cost six of nine test invocations.** Confirming
+INTEGRATION-A's standing hazard: `exit code: 100` / `Failed to connect: Connection timeout` /
+`The server returned an unexpected status code`, each time with `No test matches the given testcase
+filter` despite the filter being correct and the assembly built. No `godot.log` FATAL, no negative
+exit code. Retrying with a short backoff eventually produced a clean run; only clean runs are
+reported below.

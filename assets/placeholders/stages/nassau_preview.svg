@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270" viewBox="0 0 480 270">
+  <defs>
+    <linearGradient id="nassauSky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#040d14"/>
+      <stop offset="0.62" stop-color="#06141d"/>
+      <stop offset="1" stop-color="#0a1f2b"/>
+    </linearGradient>
+    <linearGradient id="nassauBlaze" x1="0" y1="1" x2="0" y2="0">
+      <stop stop-color="#f7b847"/>
+      <stop offset="1" stop-color="#d95917"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="480" height="270" fill="url(#nassauSky)"/>
+
+  <!-- distant burning fleet on the horizon -->
+  <path d="M46 160 L112 160 L102 172 L56 172 Z" fill="#0d2029"/>
+  <rect x="76" y="118" width="3" height="42" fill="#0d2029"/>
+  <path d="M79 122 L106 131 L79 152 Z" fill="#152f3a"/>
+  <path d="M372 164 L438 164 L428 176 L382 176 Z" fill="#0d2029"/>
+  <rect x="402" y="128" width="3" height="36" fill="#0d2029"/>
+  <circle cx="360" cy="166" r="9" fill="#1ec3dd" opacity="0.28"/>
+
+  <!-- flagship rigging: three masts, upper spar, tattered mainsail, black flag -->
+  <rect x="130" y="52" width="7" height="160" fill="#1c1008"/>
+  <rect x="234" y="24" width="9" height="188" fill="#22140a"/>
+  <rect x="342" y="58" width="7" height="154" fill="#1c1008"/>
+  <rect x="160" y="46" width="156" height="5" fill="#22140a"/>
+  <path d="M168 51 L308 51 L302 105 L280 88 L260 112 L238 90 L216 114 L194 90 L174 104 Z" fill="#5c5041"/>
+  <path d="M256 58 L296 51 L302 105 L280 88 L260 112 L250 96 Z" fill="#2a211c"/>
+  <path d="M243 26 L274 33 L266 39 L273 45 L243 49 Z" fill="#0a0a0c"/>
+  <path d="M137 54 L235 27 L342 60" stroke="#3d3025" stroke-width="1.6" fill="none"/>
+  <path d="M134 54 L100 212 M134 54 L154 212" stroke="#42342a" stroke-width="1.6" fill="none"/>
+  <path d="M345 60 L378 212 M345 60 L322 212" stroke="#42342a" stroke-width="1.6" fill="none"/>
+
+  <!-- the two wooden yards that serve as one-way platforms -->
+  <rect x="147" y="128" width="56" height="4" fill="#4f2e14"/>
+  <rect x="147" y="125" width="56" height="3" fill="#1eb8dc"/>
+  <rect x="151" y="132" width="48" height="6" fill="#574c3b"/>
+  <rect x="277" y="128" width="56" height="4" fill="#4f2e14"/>
+  <rect x="277" y="125" width="56" height="3" fill="#1eb8dc"/>
+  <rect x="281" y="132" width="48" height="6" fill="#574c3b"/>
+
+  <!-- mortar shells falling onto the three deck target grids -->
+  <g opacity="0.5" fill="#1eb8dc">
+    <rect x="118" y="86" width="34" height="126"/>
+    <rect x="223" y="70" width="34" height="142"/>
+    <rect x="328" y="86" width="34" height="126"/>
+  </g>
+  <g fill="#1eb8dc">
+    <circle cx="135" cy="96" r="4"/>
+    <circle cx="240" cy="78" r="4"/>
+    <circle cx="345" cy="102" r="4"/>
+  </g>
+
+  <!-- burning deck -->
+  <rect x="60" y="212" width="360" height="26" fill="#38200e"/>
+  <rect x="60" y="209" width="360" height="3" fill="#1eb8dc"/>
+  <rect x="60" y="222" width="360" height="1.5" fill="#241408"/>
+  <path d="M282 212 L292 186 L300 200 L310 174 L320 198 L328 190 L334 212 Z" fill="url(#nassauBlaze)"/>
+  <path d="M170 212 L179 190 L186 202 L194 184 L202 212 Z" fill="url(#nassauBlaze)" opacity="0.85"/>
+  <rect x="112" y="198" width="40" height="10" fill="#191b1d"/>
+  <rect x="122" y="206" width="22" height="6" fill="#38200e"/>
+  <rect x="348" y="198" width="40" height="10" fill="#191b1d"/>
+  <rect x="356" y="206" width="22" height="6" fill="#38200e"/>
+
+  <!-- gunwales at the stage walls -->
+  <rect x="52" y="150" width="9" height="62" fill="#2a180b"/>
+  <rect x="52" y="150" width="9" height="4" fill="#1eb8dc"/>
+  <rect x="419" y="150" width="9" height="62" fill="#2a180b"/>
+  <rect x="419" y="150" width="9" height="4" fill="#1eb8dc"/>
+
+  <!-- gunsmoke haze -->
+  <path d="M40 238 L110 214 L180 232 L250 208 L320 230 L400 210 L440 236 L440 270 L40 270 Z" fill="#8d989e" opacity="0.16"/>
+</svg>
