@@ -1450,3 +1450,104 @@ Also confirmed on main: Level 13 reported `PathMovingPlatformTemplate` shipping 
 "MOVING PLATFORM" and warned that levels 7 and 12 ship it visibly. That was true of its worktree,
 which was cut before `6a9818d`. On main all seven toolkit templates use `LabelKey` translation keys,
 all seven `toolkit_*` keys resolve, and no template ships raw English. No action needed.
+### Wave C — L14 Neo-Earth / The Apex Archive
+
+- **L14: §4.1 held exactly; the boss resource was not touched.**
+  `resources/Bosses/archive_prime.tres` reads `MaxHP = 1050`, `MeleeRangeThreshold = 3.0`,
+  `RangedRangeThreshold = 10.0`, `PhaseThresholds [0.66, 0.33]` (three phases),
+  `PhaseSpeedMultipliers [1.0, 1.2, 1.4]`, `AttackPattern = 1` (`DistanceBased`), knockback-immune,
+  50 dust, `AbilityMinPhase [0, 0, 1, 1]`, and `drone_deployment` summoning two `hologram_drone`s.
+  The Security Core is 2,440 px against the 600 px the 10-unit band needs at 60 px/unit, and
+  `Level14ContentTests` asserts `RangedRangeThreshold * 60 < arenaWidth` rather than a literal.
+- **L14: a laser grid is a phase table, not a scatter of hazards, and the phase offset had to be
+  smuggled in through the first cooldown.** `StoryCyclicHazard` has no phase-offset export and
+  adding one is a shared-toolkit edit (§2.7). So `Level14Controller.ArmGrid` writes the beam's
+  durations and then calls `ForcePhase(Cooldown, offset)`: the beam's *first* cooldown is the
+  offset and every cycle after it runs at the authored length, which is exactly a phase shift.
+  Beams are spaced one reference-walk second apart and offset by the same amount, so a player
+  walking east at that speed meets every beam at an identical point in its cycle — the safe window
+  travels with them. That is what makes a grid learnable instead of a dice roll, and a test asserts
+  both the spacing and the offset stride so the two cannot drift apart.
+- **L14: "the grid is survivable" is a computed invariant, not a claim.**
+  `Level14Controller.FindSafeWalkEntryTime(pattern, walkSpeed)` is a pure function on the
+  controller: it searches a full steady-state cycle for an entry beat at which a constant-speed
+  eastbound walk never has the player's contact footprint (`BeamHalfWidth 60 + PlayerHalfWidth 20`)
+  overlapping an active window, and returns −1 when the grid has no solution.
+  `EveryGridLeavesASurvivablePathForTheSlowestCharacterInTheRoster` runs it for all three corridor
+  grids **and both arena tunings**, then re-checks each beam individually at the walker's arrival
+  time. The reference speed is re-derived in the test from the nine `CharacterData` resources
+  (Lincoln, `MaxMoveSpeed 5.5` × 60 = 330 px/s), so making a character slower than Lincoln fails
+  the level instead of quietly rendering a corridor unwalkable. A faster character can always
+  choose to walk slower; nobody can choose to walk faster than their cap, which is why the slowest
+  speed is the honest bound. The escalation (3 beams/4.2 s → 4/3.6 s → 5/3.0 s) is also asserted.
+- **L14: a Chronal Rewind has to be caught by the *level*, or the signature mechanic dissolves.**
+  `StoryCyclicHazard.ApplyStoryRewind` restores one beam at a time: `ResetToInitialState` puts
+  every beam of a grid into the same phase (collapsing the travelling window into a single
+  synchronised flash), and `RestoreCheckpointState` is worse before the first checkpoint capture,
+  where `_checkpointTimer` is still 0. So every grid beam is forced to `ResetToInitialState` when
+  the level collects it, and `Level14Controller.OnStoryRewind` re-arms every grid with its authored
+  offsets afterwards. Ordering is free and load-bearing: the component subscribes in its own
+  `_Ready` (a scene child, so before the level root), so its reset has always landed before the
+  level's re-apply runs — the L06 lava-front precedent in a different shape.
+- **L14: three containment pockets, code-built, strictly disjoint in X.**
+  `GravityFieldZoneTemplate.tscn` ships a fixed 960x720 shape and the three pockets are all
+  different sizes; overriding a `SubResource` shape on an instanced scene risks mutating a shape
+  shared between instantiations (the L05 flood-zone precedent), so they are graybox-in-code per
+  §2.1. `EnvironmentPlayerModifiers` publishes the PRODUCT of every live source (A2 deviation; L05,
+  L08 and L12 all hit it), so the content test walks the authored spans sorted and fails on any
+  overlap at all. All three are genuinely *anti*-gravity (scale < 1) and a test enforces it: a
+  heavier-than-normal "suppression" pocket could drop a player into a shaft they cannot climb out
+  of, which is the one failure mode a localized field has that Level 12's level-wide field did not.
+  Frame-zero registration reuses L12's `SyncGravityFieldToPlayer` verbatim as
+  `SyncContainmentPocketToPlayer`, run in `OnLevelReady` and on `OnRewindTriggered`.
+- **L14: Level 12's closed-form jump check is reused and made per-pocket.** Each pocket has its own
+  scale (0.34 / 0.30 / 0.26), so every shaft's rungs are checked against *that* pocket's reach:
+  each rise must be ≤ the heaviest character's single jump at the pocket's scale AND > the most
+  mobile character's single jump at Earth-normal, and each shaft's total climb must exceed the best
+  Earth-normal multi-jump budget. Authored rises are 300 / 330 / 340 px against an Earth-normal
+  ceiling of 271 px (Pocahontas) and pocket reaches of 334 / 378 / 436 px (Lincoln). All six
+  numbers are derived in the test from the `.tres` files and `PlayerController`'s jump physics, so
+  a character retune fails the level rather than silently trivialising or breaking a shaft.
+- **L14: one climb in the level is deliberately NOT pocket-driven, and that is asserted.** If every
+  vertical route needed a field, the fields would read as geometry rather than as a mechanic. The
+  Breach Gallery's portal scaffold uses 100 px rungs — inside Lincoln's 113 px Earth-normal jump —
+  and `TheBreachGalleryScaffoldIsAnOrdinaryClimbSoTheContrastIsLegible` also fails if the scaffold
+  ever drifts inside a pocket. The 13 px margin is intentionally tight: it is the contrast.
+- **L14: the arena is coupled to the boss by *arming*, not by spawning, and the disarm runs after
+  `base.OnBossDefeated`.** The Security Core grid's four beams are authored `Enabled = false` in the
+  `.tscn`, so phase 1 is a clean duel; `OnBossPhaseChanged(1)` arms the slow tuning (1.4 s warning,
+  5.6 s cycle) and `(2)` the tight one (1.0 s warning, 4.0 s cycle). `ArmArenaGrid` refuses to move
+  backwards so a repeated event cannot loosen the grid, `OnBossPhaseChanged` early-returns once
+  `IsBossDefeated`, and `OnBossDefeated` calls `base` *first* and then `DisarmArenaGrid()` — that
+  ordering is what makes the `IsBossDefeated` guard true for any late phase event. `DisarmArenaGrid`
+  is public so the test can exercise the same seam the defeat path uses without starting the exit
+  dialogue chain (whose 1.5 s `SceneTreeTimer` would outlive the fixture and could leak
+  `SceneTree.Paused`; signature 4).
+- **L14: the exit beat drops the "locals restored" line on purpose, and the test pins the
+  replacement.** §2.6's Florence template is entrance → boss_intro → exit with a locals-restored
+  motif, but §2.4 makes Act III cultist-only and design-godot.md 148 puts Level 14 in the cult's own
+  home timeline — there is nobody in that building who did not choose to be there. `dlg_l14_exit_2`
+  says exactly that ("nobody down there... everyone in that building chose it"), and
+  `TheExitBeatHandsTheCampaignToAlexandriaAndKeepsTheFadingResonanceMotif` fails if a rewrite
+  reinstates a restoration the level does not earn. The fading-resonance motif and the hand-off to
+  Alexandria and the Leader of the Apex Archive are both asserted by content, since this is the last
+  level before the finale and its exit is the only place the campaign aims at it.
+- **L14: the level is one continuous deck with a bulkhead, not a level with a pit.** The lab deck
+  runs unbroken from x 0 to the east wall; the Containment Wing's only exit is a sealed bulkhead
+  spanning the whole deck-to-high-deck band at x 5,780, so the beta pocket is the route rather than
+  a shortcut. The way back down (and back up, for the wing's own extractor) is a
+  `PathMovingPlatform` cargo lift authored east of the bulkhead — east on purpose, or it would be a
+  way to reach the high deck without the pocket. A test asserts exactly one bulkhead wall, the
+  lift's travel against `DeckY - HighDeckY`, and that the lift stands east of the bulkhead.
+- **L14: the pocket labels are localized in code.** The pockets are code-built, so
+  `BuildContainmentPocket` sets `Tr(labelKey)` on the field's `Label` directly and the content test
+  asserts every authored `labelKey` resolves in `en.csv` — the L08 sand-drift finding, avoided
+  rather than worked around, because nothing here instances the template.
+- **L14: suite baseline 626 → 651** (+25 `Level14ContentTests`), verified at 651/651, 0 failed, in
+  19 s on the first full run with no sibling contention. Build clean but for the vendored CS8632;
+  `--headless --import` clean and `--quit` clean; `Level_14_NeoEarth.tscn` smoke at
+  `--quit-after 300` exits 0 with no output at all — no script errors and no warnings. `--import`
+  rewrote ~40 tracked `.import` files (line-ending-only churn plus the known `gdunit4`/`gdUnit4`
+  casing flip on eight addon PNGs); reverted with `git checkout -- "*.import"`. The regenerated
+  `localization/en.en.translation` IS committed, per the L02 rule. `AGENTS.md` is left for C1 per
+  the A1 convention.
