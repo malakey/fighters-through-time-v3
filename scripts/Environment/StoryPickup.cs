@@ -61,6 +61,13 @@ namespace FTT.Environment {
                     player.ApplyStorySpeedBuff(BuffMultiplier, BuffDurationSeconds);
                     break;
             }
+            // Package 8 B5: pitch separates the three drop kinds on one placeholder cue.
+            EnvironmentAudioCues.PlayPickup(Kind switch {
+                StoryPickupKind.Healing => 1.0f,
+                StoryPickupKind.DamageBuff => 0.85f,
+                StoryPickupKind.SpeedBuff => 1.2f,
+                _ => 1.0f
+            });
             ReturnToPool();
             return true;
         }

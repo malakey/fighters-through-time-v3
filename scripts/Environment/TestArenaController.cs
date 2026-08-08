@@ -39,6 +39,18 @@ namespace FTT.Environment {
             // platforms, and hazard/orb anchors.
             FighterDriver.Initialize(
                 player, opponent, settings, stage?.HazardTypeID ?? 1, stage?.StageID ?? stageID ?? "");
+
+            // Package 8 B5: the sandbox hosts the selected stage, so it registers that
+            // stage's authored music set exactly as the production stage scenes do.
+            _audioRegistered = FighterStageAudio.Register(stage?.StageID ?? stageID ?? "");
+        }
+
+        private bool _audioRegistered;
+
+        public override void _ExitTree() {
+            if (!_audioRegistered) return;
+            _audioRegistered = false;
+            AudioManager.Instance?.ReleaseStageAudio();
         }
 
         private void ApplyStagePresentation(FighterStageData stage) {

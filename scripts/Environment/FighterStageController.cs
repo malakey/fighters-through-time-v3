@@ -53,7 +53,26 @@ namespace FTT.Environment {
             AddChild(FighterDriver);
             FighterDriver.Initialize(player, opponent, settings, stage?.HazardTypeID ?? 1, stage?.StageID ?? StageID);
 
+            RegisterStageAudio(stage?.StageID ?? StageID);
             AddStageTitle(stage);
+        }
+
+        /// <summary>
+        /// Package 8 B5. Registers the stage's authored music set at match start; the
+        /// driver moves it to Combat when the countdown ends. Released in
+        /// <see cref="_ExitTree"/> so leaving the stage does not carry its stems into
+        /// the next scene.
+        /// </summary>
+        private void RegisterStageAudio(string stageID) {
+            _audioRegistered = FighterStageAudio.Register(stageID);
+        }
+
+        private bool _audioRegistered;
+
+        public override void _ExitTree() {
+            if (!_audioRegistered) return;
+            _audioRegistered = false;
+            AudioManager.Instance?.ReleaseStageAudio();
         }
 
         private void AddStageTitle(FighterStageData stage) {

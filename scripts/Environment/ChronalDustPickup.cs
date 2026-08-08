@@ -59,6 +59,11 @@ namespace FTT.Environment {
                 GlobalPosition += dir * MagnetSpeed * dt;
                 if (GlobalPosition.DistanceTo(_magnetTarget.GlobalPosition) < 20f) {
                     FTT.Core.EventBus.Instance?.RaiseChronalDustCollected(DustAmount);
+                    // Package 8 B5. Keyed off the collection site, not
+                    // OnChronalDustCollected: that event is also re-raised for every
+                    // enemy kill and every extractor break, which would double up with
+                    // those cues instead of marking a pickup.
+                    EnvironmentAudioCues.PlayPickup(1.35f);
                     ReturnToPool();
                 }
             }

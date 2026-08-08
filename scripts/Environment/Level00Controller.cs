@@ -51,7 +51,8 @@ namespace FTT.Environment {
             _levelManager.SetCheckpointPosition("l00_start", new Vector2(400, 850));
 
             _services = StorySceneBootstrapper.Attach(
-                this, "res://resources/Dialogue/level_00_dialogue.tres");
+                this, "res://resources/Dialogue/level_00_dialogue.tres",
+                audioSetPath: AudioSetPaths.Tutorial);
             _services.HUD?.SetLevelTitle("tutorial_level_title");
             _services.HUD?.SetObjective("tutorial_objective_fracture");
 
@@ -340,6 +341,7 @@ namespace FTT.Environment {
         }
 
         private void ShowCompletionResults() {
+            _services?.Audio?.ReleaseToAmbient();
             var results = LevelResultsPanel.CreateDefault();
             results.ReturnRequested += () => StoryManager.Instance?.ReturnToHub();
             AddChild(results);

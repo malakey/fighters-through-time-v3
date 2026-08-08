@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="StageAudioSet" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/StageAudioSet.cs" id="1_set"]
+[ext_resource type="AudioStream" path="res://resources/Audio/placeholder_stem_ambient.tres" id="2_ambient"]
+[ext_resource type="AudioStream" path="res://resources/Audio/placeholder_stem_combat.tres" id="3_combat"]
+[ext_resource type="AudioStream" path="res://resources/Audio/placeholder_stem_boss.tres" id="4_climax"]
+
+[resource]
+script = ExtResource("1_set")
+SchemaVersion = 1
+SetID = "audio_level_15"
+StageID = "level_15_alexandria"
+AmbientStem = ExtResource("2_ambient")
+CombatStem = ExtResource("3_combat")
+ClimaxStem = ExtResource("4_climax")
+CrossfadeSeconds = 2.0
+StemsAreSynchronized = true
+LoopSeconds = 1.0

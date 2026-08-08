@@ -252,6 +252,19 @@ namespace FTT.Characters {
 		private bool _hyperArmorPresentationActive;
 		private bool _spawnInvulnerabilityPresentationActive;
 
+		// === Package 8 B5: footsteps ===
+		// Presentation only; nothing here is read by movement, combat, or rewind.
+
+		/// <summary>
+		/// Surface the character is standing on, used to pick a footstep sound.
+		/// Levels set this from their geometry as production audio lands; until then
+		/// every surface resolves to the single placeholder step through
+		/// <c>AudioManager.PlayFootstep</c>'s fallback.
+		/// </summary>
+		public string FootstepSurfaceID = "";
+
+		private readonly FTT.Core.FootstepCadence _footsteps = new();
+
 		// Basic attack timing
 		private int _attackFramesRemaining;
 		private float _attackFrameProgress;
@@ -545,7 +558,37 @@ namespace FTT.Characters {
 				}
 			}
 
+			UpdateFootsteps(dt);
+
 			_wasGrounded = IsOnFloor();
+		}
+
+		/// <summary>
+		/// Package 8 B5. Emits a footstep every stride of grounded travel. Runs after
+		/// <c>MoveAndSlide</c> so <c>IsOnFloor</c> and <c>Velocity</c> describe the
+		/// frame that actually happened; the cadence itself lives in
+		/// <see cref="FTT.Core.FootstepCadence"/> so the rhythm is testable without a
+		/// physics frame. Purely additive presentation — no gameplay state is read or
+		/// written here.
+		///
+		/// <para>Rolling is deliberately silent: the character is off their feet, and
+		/// the roll has its own feedback. Fighter Mode gets no footsteps from this
+		/// path at all, because the driver disables native processing on its
+		/// presentation bodies.</para>
+		/// </summary>
+		private void UpdateFootsteps(float dt) {
+			bool eligible = IsOnFloor() && !_rewindSuspended && CurrentState switch {
+				CharacterState.Rolling => false,
+				CharacterState.Dead => false,
+				CharacterState.Respawning => false,
+				CharacterState.Stunned => false,
+				CharacterState.Dazed => false,
+				CharacterState.LedgeHanging => false,
+				_ => true
+			};
+			if (_footsteps.Advance(eligible, Velocity.X, dt)) {
+				FTT.Core.AudioManager.Instance?.PlayFootstep(FootstepSurfaceID);
+			}
 		}
 
 		// === State Processors ===
