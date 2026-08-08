@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">
+  <defs>
+    <linearGradient id="berlinSky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#0e1219"/>
+      <stop offset="1" stop-color="#2b3038"/>
+    </linearGradient>
+    <linearGradient id="berlinBeam" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#f2ecc8" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#f2ecc8" stop-opacity="0.05"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#berlinSky)"/>
+  <!-- overcast concrete skyline -->
+  <path d="M0 196 L54 196 L54 150 L104 150 L104 182 L168 182 L168 138 L226 138 L226 190 L296 190 L296 158 L358 158 L358 196 L430 196 L430 146 L488 146 L488 188 L560 188 L560 162 L640 162 L640 360 L0 360 Z" fill="#1a1f27"/>
+  <path d="M0 224 L86 224 L86 200 L150 200 L150 226 L242 226 L242 204 L322 204 L322 228 L410 228 L410 206 L500 206 L500 230 L640 230 L640 360 L0 360 Z" fill="#242a33"/>
+  <!-- searchlight beams over the death strip -->
+  <polygon points="150,96 178,96 208,290 120,290" fill="url(#berlinBeam)"/>
+  <polygon points="306,96 334,96 364,290 276,290" fill="url(#berlinBeam)"/>
+  <polygon points="462,96 490,96 520,290 432,290" fill="url(#berlinBeam)"/>
+  <!-- guard-tower balconies -->
+  <g fill="#333944">
+    <rect x="66" y="176" width="18" height="114"/>
+    <rect x="556" y="176" width="18" height="114"/>
+  </g>
+  <g fill="#3d4450">
+    <rect x="38" y="164" width="74" height="12"/>
+    <rect x="528" y="164" width="74" height="12"/>
+  </g>
+  <g fill="#bf1f1f">
+    <rect x="38" y="160" width="74" height="4"/>
+    <rect x="528" y="160" width="74" height="4"/>
+  </g>
+  <!-- the Wall itself, red stripe and all -->
+  <rect x="0" y="256" width="640" height="34" fill="#333944"/>
+  <rect x="0" y="252" width="640" height="5" fill="#e8eef5"/>
+  <rect x="0" y="274" width="640" height="4" fill="#bf1f1f"/>
+  <!-- snowy street -->
+  <rect x="0" y="290" width="640" height="70" fill="#33383f"/>
+  <rect x="0" y="290" width="640" height="7" fill="#e8eef5"/>
+  <g fill="#f2ecc8" opacity="0.5">
+    <ellipse cx="164" cy="298" rx="46" ry="7"/>
+    <ellipse cx="320" cy="298" rx="46" ry="7"/>
+    <ellipse cx="476" cy="298" rx="46" ry="7"/>
+  </g>
+</svg>
