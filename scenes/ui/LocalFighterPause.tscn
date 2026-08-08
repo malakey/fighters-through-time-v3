@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/UI/LocalFighterPause.cs" id="1_pause"]
+
+[node name="LocalFighterPause" type="CanvasLayer"]
+layer = 95
+process_mode = 3
+script = ExtResource("1_pause")

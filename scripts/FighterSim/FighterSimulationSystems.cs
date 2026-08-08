@@ -37,9 +37,12 @@ namespace FTT.FighterSim {
             (ulong state0, ulong state1) = random.GetFullState();
 
             EntityRef matchEntity = frame.CreateEntity();
+            int countdownFrames = _rules.PreMatchCountdownFrames;
             frame.Add(matchEntity, new FighterMatchComponent {
                 RemainingFrames = _matchFrames,
-                MatchState = 1,
+                MatchState = countdownFrames > 0 ? FighterMatchStates.Countdown : FighterMatchStates.InProgress,
+                CountdownFramesRemaining = countdownFrames,
+                GoBannerFramesRemaining = countdownFrames > 0 ? 0 : FighterMatchFlowRules.GoBannerFrames,
                 MatchMode = _rules.MatchMode,
                 WinnerPlayerID = -1,
                 WorldSeed = _seed,
@@ -161,6 +164,42 @@ namespace FTT.FighterSim {
         public void Update(ref Frame frame) { }
     }
 
+    /// <summary>
+    /// Deterministic pre-match countdown. While <see cref="FighterMatchComponent.MatchState"/>
+    /// is <see cref="FighterMatchStates.Countdown"/> the simulation still ticks (so
+    /// snapshots, hashes, and rollback stay uniform) but every fighter's sampled
+    /// gameplay input is discarded, so nothing can act before "GO!". Runs in
+    /// PreUpdate immediately after <see cref="FighterInputSystem"/> and before any
+    /// Update/PostUpdate system reads the runtime input fields.
+    /// </summary>
+    public sealed class FighterCountdownSystem : ISystem {
+        public void Update(ref Frame frame) {
+            ref FighterMatchComponent match = ref frame.GetSingleton<FighterMatchComponent>();
+            if (match.MatchState == FighterMatchStates.Countdown) {
+                ClearGameplayInput(ref frame);
+                if (match.CountdownFramesRemaining > 0) match.CountdownFramesRemaining--;
+                if (match.CountdownFramesRemaining <= 0) {
+                    match.MatchState = FighterMatchStates.InProgress;
+                    match.GoBannerFramesRemaining = FighterMatchFlowRules.GoBannerFrames;
+                }
+                return;
+            }
+            if (match.GoBannerFramesRemaining > 0) match.GoBannerFramesRemaining--;
+        }
+
+        private static void ClearGameplayInput(ref Frame frame) {
+            var filter = frame.Filter<FighterStateComponent, FighterRuntimeComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(entity);
+                runtime.MoveX = 0;
+                runtime.MoveY = 0;
+                runtime.HeldButtons = 0;
+                runtime.PressedButtons = 0;
+                runtime.ReleasedButtons = 0;
+            }
+        }
+    }
+
     public sealed class FighterMovementSystem : ISystem {
         private const int JumpButton = 1 << 0;
         private const int DownButton = 1 << 1;
@@ -184,6 +223,13 @@ namespace FTT.FighterSim {
                 ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(entity);
                 ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(entity);
                 TickCounters(ref fighter, ref runtime, in tuning);
+
+                // The Chronal Respawn Platform owns the fighter completely: it is
+                // frozen, invulnerable, and consumes no input until it drops.
+                if (FighterMatchFlowRules.IsOnRespawnPlatform(in fighter)) {
+                    ProcessRespawnPlatform(ref fighter, ref runtime);
+                    continue;
+                }
 
                 if (fighter.InvulnerabilityFrames > 0) fighter.InvulnerabilityFrames--;
                 if (fighter.HitstunFrames > 0 || fighter.DazeFrames > 0) {
@@ -252,6 +298,16 @@ namespace FTT.FighterSim {
                     TryLandOnPlatform(ref fighter, in tuning, previousY);
                 }
 
+                // The blast zone is resolved before the ground snap. With the old
+                // order a fighter who had already fallen past the blast zone was
+                // teleported back up onto the floor the instant their drop-through
+                // window expired, which made the bottom blast zone unreachable on
+                // any stage whose base floor spans the full width.
+                if (fighter.Position.y < _geometry.BottomBlastZone) {
+                    FighterSimulationRules.ApplyStockLoss(ref fighter, ref runtime, in tuning);
+                    continue;
+                }
+
                 // Stages with authored platforms have a solid base floor; only the
                 // legacy flat arena keeps its historical drop-through ground.
                 bool groundIsSolid = _geometry.Platforms.Length > 0;
@@ -261,11 +317,54 @@ namespace FTT.FighterSim {
                     fighter.IsGrounded = 1;
                     fighter.RemainingJumps = tuning.MaxJumpCount;
                 }
-
-                if (fighter.Position.y < _geometry.BottomBlastZone) {
-                    FighterSimulationRules.ApplyStockLoss(ref fighter, ref runtime, in tuning);
-                }
             }
+        }
+
+        /// <summary>
+        /// Chronal Respawn Platform (design-godot.md ~1565-1571). The fighter
+        /// stands frozen and invulnerable for up to five seconds. After a short
+        /// grace window any gameplay input drops them; otherwise the platform
+        /// dissolves on expiry. Either way the three-second spawn invulnerability
+        /// is (re)armed at the drop, never before it.
+        /// </summary>
+        private static void ProcessRespawnPlatform(
+            ref FighterStateComponent fighter,
+            ref FighterRuntimeComponent runtime) {
+            int elapsed = FighterMatchFlowRules.RespawnPlatformFrames - fighter.RespawnFramesRemaining;
+            bool graceElapsed = elapsed >= FighterMatchFlowRules.RespawnPlatformGraceFrames;
+            bool inputRequestedDrop = graceElapsed
+                && (runtime.MoveX != 0
+                    || runtime.MoveY != 0
+                    || runtime.PressedButtons != 0
+                    || runtime.HeldButtons != 0);
+
+            // Nothing downstream may read this frame's input: no movement, no
+            // attack, no ability, no block while the platform holds the fighter.
+            runtime.MoveX = 0;
+            runtime.MoveY = 0;
+            runtime.HeldButtons = 0;
+            runtime.PressedButtons = 0;
+            runtime.ReleasedButtons = 0;
+            FighterUniversalMovementRules.Cancel(ref runtime);
+
+            fighter.Position = FighterMatchFlowRules.RespawnPlatformPosition;
+            fighter.Velocity = FPVector2.Zero;
+            fighter.IsGrounded = 1;
+            fighter.HitstunFrames = 0;
+            fighter.DazeFrames = 0;
+
+            if (fighter.RespawnFramesRemaining > 0) fighter.RespawnFramesRemaining--;
+            if (inputRequestedDrop || fighter.RespawnFramesRemaining <= 0) {
+                fighter.RespawnFramesRemaining = 0;
+                fighter.IsGrounded = 0;
+                fighter.InvulnerabilityFrames = FighterMatchFlowRules.RespawnInvulnerabilityFrames;
+                return;
+            }
+
+            // Invulnerable for the whole dissolve, and the 3 s window still has
+            // its full length left the instant the platform releases them.
+            fighter.InvulnerabilityFrames =
+                fighter.RespawnFramesRemaining + FighterMatchFlowRules.RespawnInvulnerabilityFrames;
         }
 
         /// <summary>True while the fighter stands on a platform surface span.</summary>
@@ -517,6 +616,10 @@ namespace FTT.FighterSim {
             ref FighterRuntimeComponent firstRuntime = ref frame.Get<FighterRuntimeComponent>(firstEntity);
             ref FighterRuntimeComponent secondRuntime = ref frame.Get<FighterRuntimeComponent>(secondEntity);
             if (first.Stocks <= 0 || second.Stocks <= 0) return;
+            // A fighter held by the respawn platform is pinned by the movement
+            // system; jostling it would fight that pin for a frame.
+            if (FighterMatchFlowRules.IsOnRespawnPlatform(in first)
+                || FighterMatchFlowRules.IsOnRespawnPlatform(in second)) return;
             if (IsRollTravel(in firstRuntime) || IsRollTravel(in secondRuntime)) return;
             if (FP64.Abs(first.Position.y - second.Position.y) >= MaximumVerticalDistance) return;
 
@@ -845,10 +948,22 @@ namespace FTT.FighterSim {
             fighter.CurrentHP = fighter.MaxHP;
             fighter.BlockCharges = tuning.MaxBlockCharges;
             fighter.RemainingJumps = tuning.MaxJumpCount;
-            fighter.Position = fighter.SpawnPosition;
+            // Chronal Respawn Platform, all match modes: the fighter materialises
+            // frozen and invulnerable at stage centre +3.0 rather than teleporting
+            // straight back into play. The 3 s spawn invulnerability is armed when
+            // the platform drops them, not here.
+            fighter.Position = FighterMatchFlowRules.RespawnPlatformPosition;
             fighter.Velocity = FPVector2.Zero;
             fighter.IsGrounded = 1;
-            fighter.InvulnerabilityFrames = 120;
+            if (fighter.Stocks > 0) {
+                fighter.RespawnFramesRemaining = FighterMatchFlowRules.RespawnPlatformFrames;
+                fighter.InvulnerabilityFrames =
+                    FighterMatchFlowRules.RespawnPlatformFrames + FighterMatchFlowRules.RespawnInvulnerabilityFrames;
+            } else {
+                // Out of stocks: no platform, no respawn. The match resolves this frame.
+                fighter.RespawnFramesRemaining = 0;
+                fighter.InvulnerabilityFrames = FighterMatchFlowRules.RespawnInvulnerabilityFrames;
+            }
             fighter.HitstunFrames = 0;
             fighter.DazeFrames = 0;
             runtime.StatusType = (int)FTT.Core.StatusType.None;

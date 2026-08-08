@@ -9,9 +9,17 @@ namespace FTT.Combat {
         [Export] public float ZoomSpeed = 2.0f;
         [Export] public float FollowSpeed = 5.0f;
         [Export] public Vector2 MarginPadding = new(200, 100);
+        /// <summary>Tightening speed while a KO focus is held; deliberately slower than the normal chase.</summary>
+        [Export] public float FocusSpeed = 3.0f;
 
         private Node2D _p1;
         private Node2D _p2;
+        private bool _focusActive;
+        private Vector2 _focusPosition;
+        private float _focusZoom = 1f;
+
+        /// <summary>True while a presentation focus overrides midpoint framing.</summary>
+        public bool IsFocused => _focusActive;
 
         public override void _Ready() {
             if (_p1 == null) _p1 = GetNodeOrNull<Node2D>(Player1Path);
@@ -27,9 +35,33 @@ namespace FTT.Combat {
             }
         }
 
+        /// <summary>
+        /// Presentation-only override used by the KO sequence: tightens on a world
+        /// point at a fixed zoom instead of framing both fighters. It touches
+        /// nothing the deterministic simulation reads.
+        /// </summary>
+        public void FocusOn(Vector2 globalPosition, float zoom) {
+            _focusActive = true;
+            _focusPosition = globalPosition;
+            _focusZoom = Mathf.Clamp(zoom, MinZoom, MaxZoom * 2f);
+        }
+
+        /// <summary>Returns the camera to normal midpoint framing.</summary>
+        public void ReleaseFocus() {
+            _focusActive = false;
+        }
+
         public override void _PhysicsProcess(double delta) {
-            if (_p1 == null || _p2 == null) return;
             float dt = (float)delta;
+
+            if (_focusActive) {
+                GlobalPosition = GlobalPosition.Lerp(_focusPosition, FocusSpeed * dt);
+                float focusStep = Mathf.Lerp(Zoom.X, _focusZoom, FocusSpeed * dt);
+                Zoom = new Vector2(focusStep, focusStep);
+                return;
+            }
+
+            if (_p1 == null || _p2 == null) return;
 
             var midpoint = (_p1.GlobalPosition + _p2.GlobalPosition) / 2f;
             GlobalPosition = GlobalPosition.Lerp(midpoint, FollowSpeed * dt);

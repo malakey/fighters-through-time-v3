@@ -69,12 +69,20 @@ namespace FTT.FighterSim {
         public readonly bool HazardsEnabled;
         public readonly int HazardFrequency;
         public readonly int StageHazardTypeID;
+        /// <summary>
+        /// Pre-match 3-2-1 countdown length. Deterministic state: it is written
+        /// into <see cref="FighterMatchComponent.CountdownFramesRemaining"/> and
+        /// participates in every snapshot and hash. Defaults to zero so headless
+        /// scenarios start live; the Godot driver passes
+        /// <see cref="FighterMatchFlowRules.CountdownFrames"/>.
+        /// </summary>
+        public readonly int PreMatchCountdownFrames;
 
         public FighterMatchRules(bool itemsEnabled, int itemFrequency, bool hazardsEnabled, int hazardFrequency)
-            : this(2, itemsEnabled, itemFrequency, hazardsEnabled, hazardFrequency, 1) { }
+            : this(2, itemsEnabled, itemFrequency, hazardsEnabled, hazardFrequency, 1, 0) { }
 
         public FighterMatchRules(int matchMode, bool itemsEnabled, int itemFrequency, bool hazardsEnabled, int hazardFrequency)
-            : this(matchMode, itemsEnabled, itemFrequency, hazardsEnabled, hazardFrequency, 1) { }
+            : this(matchMode, itemsEnabled, itemFrequency, hazardsEnabled, hazardFrequency, 1, 0) { }
 
         public FighterMatchRules(
             int matchMode,
@@ -82,14 +90,34 @@ namespace FTT.FighterSim {
             int itemFrequency,
             bool hazardsEnabled,
             int hazardFrequency,
-            int stageHazardTypeID) {
+            int stageHazardTypeID)
+            : this(matchMode, itemsEnabled, itemFrequency, hazardsEnabled, hazardFrequency, stageHazardTypeID, 0) { }
+
+        public FighterMatchRules(
+            int matchMode,
+            bool itemsEnabled,
+            int itemFrequency,
+            bool hazardsEnabled,
+            int hazardFrequency,
+            int stageHazardTypeID,
+            int preMatchCountdownFrames) {
             MatchMode = matchMode;
             ItemsEnabled = itemsEnabled;
             ItemFrequency = itemFrequency;
             HazardsEnabled = hazardsEnabled;
             HazardFrequency = hazardFrequency;
             StageHazardTypeID = System.Math.Clamp(stageHazardTypeID, 1, 10);
+            PreMatchCountdownFrames = preMatchCountdownFrames > 0 ? preMatchCountdownFrames : 0;
         }
+
+        public FighterMatchRules WithCountdown(int preMatchCountdownFrames) => new(
+            MatchMode,
+            ItemsEnabled,
+            ItemFrequency,
+            HazardsEnabled,
+            HazardFrequency,
+            StageHazardTypeID,
+            preMatchCountdownFrames);
 
         public static FighterMatchRules Disabled => new(2, false, 0, false, 0);
     }
@@ -228,6 +256,15 @@ namespace FTT.FighterSim {
         public int HyperArmorFrames;
         public int DropThroughFrames;
         public int RemainingJumps;
+        /// <summary>
+        /// Frames left before the Chronal Respawn Platform dissolves. Non-zero is
+        /// itself the "on platform" phase: the drop always zeroes it in the same
+        /// frame it reaches zero, so <c>&gt; 0</c> and "held by the platform" are
+        /// the same condition. Kept as one field because
+        /// <see cref="FighterStateComponent"/> sits exactly on Klotho's 128-byte
+        /// component budget.
+        /// </summary>
+        public int RespawnFramesRemaining;
         public FP64 Weight;
         public FP64 Influence;
         public FPVector2 Position;
@@ -343,6 +380,10 @@ namespace FTT.FighterSim {
         public int PlayerTwoKOs;
         public int LastPlayerOneKnockoutsSuffered;
         public int LastPlayerTwoKnockoutsSuffered;
+        /// <summary>Frames left in the pre-match 3-2-1 countdown while MatchState is 0.</summary>
+        public int CountdownFramesRemaining;
+        /// <summary>Frames left in the "GO!" banner window on the first live frames.</summary>
+        public int GoBannerFramesRemaining;
         public ulong RandomState0;
         public ulong RandomState1;
     }

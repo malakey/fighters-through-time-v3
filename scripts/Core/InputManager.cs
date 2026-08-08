@@ -154,7 +154,59 @@ namespace FTT.Core {
             _connectedJoypads.Clear();
             foreach (int joypad in Input.GetConnectedJoypads()) _connectedJoypads.Add(joypad);
             _connectedJoypads.Sort();
-            AutoAssignDevices();
+            ApplyDeviceTopology();
+        }
+
+        /// <summary>
+        /// Reconciles assignments with the currently connected joypad set. It
+        /// drops assignments whose device vanished and fills only the slots that
+        /// have no device — it must never re-run a full auto-assign, because that
+        /// would silently reshuffle both fighters mid-match every time any pad is
+        /// plugged in or unplugged. Exposed for tests; production calls it through
+        /// <see cref="RefreshConnectedDevices"/>.
+        /// </summary>
+        public void ApplyDeviceTopology() {
+            for (int playerIndex = 0; playerIndex < MaxPlayers; playerIndex++) {
+                if (!_playerToDevice.TryGetValue(playerIndex, out int deviceId)) continue;
+                if (deviceId == KeyboardDevice || _connectedJoypads.Contains(deviceId)) continue;
+                _playerToDevice.Remove(playerIndex);
+                _deviceToPlayer.Remove(deviceId);
+                _frames.Remove(playerIndex);
+                _dashDetectors.Remove(playerIndex);
+            }
+
+            for (int playerIndex = 0; playerIndex < MaxPlayers; playerIndex++) {
+                if (_playerToDevice.ContainsKey(playerIndex)) continue;
+                // The keyboard is a complete first-player device; the remaining
+                // slots draw from the unclaimed connected joypads.
+                if (playerIndex == 0 && GetPlayerForDevice(KeyboardDevice) < 0) {
+                    AssignDevice(KeyboardDevice, 0);
+                    continue;
+                }
+                TryAssignFirstFreeDevice(playerIndex);
+            }
+        }
+
+        /// <summary>
+        /// Binds the first connected joypad not already claimed by another slot.
+        /// Used by the controller-reconnect flow. Returns false when nothing is free.
+        /// </summary>
+        public bool TryAssignFirstFreeDevice(int playerIndex) {
+            ValidatePlayerIndex(playerIndex);
+            foreach (int deviceId in _connectedJoypads) {
+                if (_deviceToPlayer.ContainsKey(deviceId)) continue;
+                AssignDevice(deviceId, playerIndex);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>Test seam: replaces the connected-joypad set without touching Godot's Input singleton.</summary>
+        internal void SetConnectedJoypadsForTesting(params int[] deviceIds) {
+            _connectedJoypads.Clear();
+            if (deviceIds != null) _connectedJoypads.AddRange(deviceIds);
+            _connectedJoypads.Sort();
+            ApplyDeviceTopology();
         }
 
         private void AssignDevice(int deviceId, int playerIndex) {

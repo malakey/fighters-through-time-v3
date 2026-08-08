@@ -92,6 +92,55 @@ namespace FTT.Core {
         }
     }
 
+    /// <summary>
+    /// Versus statistics rules (design-godot.md Section 11 "Versus Statistics
+    /// Logging" and "Draw/Tie Resolution"). Kept separate from the Godot node so
+    /// the tallies can be exercised without a SaveManager autoload.
+    /// </summary>
+    public static class FighterMatchStatistics {
+        /// <summary>
+        /// Records one concluded local match. The overall tallies stay
+        /// profile-centric (player one is the local profile, unchanged from the
+        /// pre-Package-6 behaviour) while the character tallies are per-character
+        /// for both fighters. A true tie counts in neither.
+        /// </summary>
+        public static void Record(
+            GlobalSaveData data,
+            string playerOneCharacterID,
+            string playerTwoCharacterID,
+            int winnerPlayerID,
+            bool isTrueTie) {
+            if (data == null || isTrueTie) return;
+            data.CharacterWins ??= new Dictionary<string, int>();
+            data.CharacterLosses ??= new Dictionary<string, int>();
+            if (winnerPlayerID == 0) {
+                data.TotalWins++;
+                Increment(data.CharacterWins, playerOneCharacterID);
+                Increment(data.CharacterLosses, playerTwoCharacterID);
+            } else if (winnerPlayerID == 1) {
+                data.TotalLosses++;
+                Increment(data.CharacterWins, playerTwoCharacterID);
+                Increment(data.CharacterLosses, playerOneCharacterID);
+            }
+        }
+
+        public static int WinsFor(GlobalSaveData data, string characterID) =>
+            Read(data?.CharacterWins, characterID);
+
+        public static int LossesFor(GlobalSaveData data, string characterID) =>
+            Read(data?.CharacterLosses, characterID);
+
+        private static void Increment(Dictionary<string, int> tally, string characterID) {
+            if (tally == null || string.IsNullOrWhiteSpace(characterID)) return;
+            tally[characterID] = tally.GetValueOrDefault(characterID) + 1;
+        }
+
+        private static int Read(Dictionary<string, int> tally, string characterID) {
+            if (tally == null || string.IsNullOrWhiteSpace(characterID)) return 0;
+            return tally.GetValueOrDefault(characterID);
+        }
+    }
+
     public partial class SaveManager : Node {
         public static SaveManager Instance { get; private set; }
 

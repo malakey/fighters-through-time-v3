@@ -33,8 +33,8 @@ namespace FTT.UI {
         private OptionButton _cpuDifficulty;
         private SpinBox _stockCount;
         private SpinBox _timeLimit;
-        private CheckButton _itemsToggle;
-        private CheckButton _hazardsToggle;
+        private OptionButton _itemFrequency;
+        private OptionButton _hazardFrequency;
         private OptionButton _matchMode;
         private OptionButton _stageSelect;
         private FighterStageCatalog _stageCatalog;
@@ -259,11 +259,25 @@ namespace FTT.UI {
             rulesRow.AddChild(new Label { Text = Tr("hud_timer") });
             _timeLimit = new SpinBox { MinValue = 60, MaxValue = 480, Step = 30, Value = 480, CustomMinimumSize = new Vector2(100, 36) };
             rulesRow.AddChild(_timeLimit);
-            _itemsToggle = new CheckButton { Text = Tr("fighter_items"), ButtonPressed = true };
-            rulesRow.AddChild(_itemsToggle);
-            _hazardsToggle = new CheckButton { Text = Tr("fighter_hazards"), ButtonPressed = true };
-            rulesRow.AddChild(_hazardsToggle);
+            // Off/Low/Medium/High, matching the deterministic spawn-interval bands
+            // the simulation actually consumes rather than a binary on/off.
+            rulesRow.AddChild(new Label { Text = Tr("fighter_items") });
+            _itemFrequency = BuildFrequencySelect((int)FTT.Core.ChronalOrbFrequency.High);
+            rulesRow.AddChild(_itemFrequency);
+            rulesRow.AddChild(new Label { Text = Tr("fighter_hazards") });
+            _hazardFrequency = BuildFrequencySelect((int)FTT.Core.HazardTriggerFrequency.High);
+            rulesRow.AddChild(_hazardFrequency);
             UpdateOpponentLabel();
+        }
+
+        private OptionButton BuildFrequencySelect(int selectedID) {
+            var select = new OptionButton { CustomMinimumSize = new Vector2(120, 36) };
+            select.AddItem(Tr("fighter_frequency_off"), 0);
+            select.AddItem(Tr("fighter_frequency_low"), 1);
+            select.AddItem(Tr("fighter_frequency_medium"), 2);
+            select.AddItem(Tr("fighter_frequency_high"), 3);
+            select.Select(selectedID);
+            return select;
         }
 
         private void PopulateStages() {
@@ -339,10 +353,12 @@ namespace FTT.UI {
             settings.Mode = (FTT.Core.MatchMode)_matchMode.GetSelectedId();
             settings.StockCount = (int)_stockCount.Value;
             settings.TimeLimit = (float)_timeLimit.Value;
-            settings.ItemsEnabled = _itemsToggle.ButtonPressed;
-            settings.ItemSpawnRate = _itemsToggle.ButtonPressed ? FTT.Core.ChronalOrbFrequency.High : FTT.Core.ChronalOrbFrequency.Off;
-            settings.StageHazardsEnabled = _hazardsToggle.ButtonPressed;
-            settings.HazardRate = _hazardsToggle.ButtonPressed ? FTT.Core.HazardTriggerFrequency.High : FTT.Core.HazardTriggerFrequency.Off;
+            var itemRate = (FTT.Core.ChronalOrbFrequency)_itemFrequency.GetSelectedId();
+            var hazardRate = (FTT.Core.HazardTriggerFrequency)_hazardFrequency.GetSelectedId();
+            settings.ItemSpawnRate = itemRate;
+            settings.ItemsEnabled = itemRate != FTT.Core.ChronalOrbFrequency.Off;
+            settings.HazardRate = hazardRate;
+            settings.StageHazardsEnabled = hazardRate != FTT.Core.HazardTriggerFrequency.Off;
             session.MatchSettings = settings;
             FTT.Core.GameManager.Instance.CurrentSession = session;
             FighterStageData stage = _stageCatalog?.Find(session.SelectedStageID);

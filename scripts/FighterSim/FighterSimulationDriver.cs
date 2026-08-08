@@ -19,6 +19,17 @@ namespace FTT.FighterSim {
         private FighterCpuController _cpuController;
         private PlayerInputFrame _previousCpuFrame;
         private bool _completionRaised;
+        private FTT.Combat.FighterCamera _camera;
+        private FTT.UI.LocalFighterPause _pauseMenu;
+        private FTT.UI.MatchResults _results;
+        private int _lastCountdownDigit = -1;
+        private bool _matchStartRaised;
+        private readonly int[] _lastStocks = { -1, -1 };
+        private int _stockLossFreezeFrames;
+        private KnockoutStep _knockoutStep = KnockoutStep.None;
+        private double _knockoutTimer;
+        private double _slowMotionCredit;
+        private FighterMatchResult _pendingResult;
         private readonly Queue<ColorRect> _inactiveProxies = new();
         private readonly Dictionary<int, ColorRect> _projectileProxies = new();
         private readonly Dictionary<int, ColorRect> _persistentProxies = new();
@@ -40,6 +51,36 @@ namespace FTT.FighterSim {
         public long CurrentHash => Simulation?.CurrentHash ?? 0L;
         public int CurrentTick => Simulation?.CurrentTick ?? 0;
 
+        /// <summary>True while the driver is playing the post-match KO sequence.</summary>
+        public bool IsPlayingKnockoutSequence => _knockoutStep != KnockoutStep.None;
+
+        /// <summary>
+        /// Post-match presentation steps. Timings from design-godot.md Section 11
+        /// "Match-Ending KO Sequence". These pace or defer <c>Simulation.Advance</c>
+        /// on the driver's own presentation clock; the simulation itself has no
+        /// notion of a cinematic and <c>Engine.TimeScale</c> is never touched.
+        /// </summary>
+        private enum KnockoutStep {
+            None,
+            HitFreeze,
+            SlowMotion,
+            Stamp,
+            WinnerPose
+        }
+
+        private const double HitFreezeSeconds = 0.5;
+        private const double SlowMotionSeconds = 1.5;
+        private const double SlowMotionRate = 0.75;
+        private const double StampSeconds = 0.6;
+        private const double WinnerPoseSeconds = 2.0;
+        private const int StockLossFreezeFrames = 12;
+        private const float KnockoutFocusZoom = 1.35f;
+
+        private const string PauseScenePath = "res://scenes/ui/LocalFighterPause.tscn";
+        private const string ResultsScenePath = "res://scenes/ui/MatchResults.tscn";
+        private const string KnockoutStingerPath = "res://audio/sfx/combat/ko_stinger.ogg";
+        private const string VictoryFanfarePath = "res://audio/sfx/ui/victory_fanfare.ogg";
+
         public void Initialize(
             PlayerController playerOne,
             PlayerController playerTwo,
@@ -55,19 +96,12 @@ namespace FTT.FighterSim {
 
             DisableNativeGameplay(_playerOne);
             DisableNativeGameplay(_playerTwo);
-            int matchSeconds = Math.Max(1, Mathf.RoundToInt(settings.TimeLimit));
             Simulation = new FighterSimulation(
                 FighterLoadoutFactory.FromCharacterData(_playerOne.Data),
                 FighterLoadoutFactory.FromCharacterData(_playerTwo.Data),
                 Math.Max(1, settings.StockCount),
-                matchSeconds,
-                rules: new FighterMatchRules(
-                    (int)settings.Mode,
-                    settings.ItemsEnabled,
-                    (int)settings.ItemSpawnRate,
-                    settings.StageHazardsEnabled,
-                    (int)settings.HazardRate,
-                    stageHazardTypeID),
+                MatchSeconds(settings),
+                rules: RulesFor(settings, stageHazardTypeID),
                 stageGeometry: FighterStageGeometry.ForStage(stageID ?? ""));
             SessionData session = GameManager.Instance?.CurrentSession ?? default;
             if (session.FighterOpponentType == FighterOpponentType.Cpu) {
@@ -75,13 +109,47 @@ namespace FTT.FighterSim {
             }
             WarmPresentationProxies(112);
             AddToGroup("FighterSimulation");
+            AttachMatchFlowUI();
             SyncPresentation();
         }
 
+        /// <summary>Match length in whole seconds, matching the lobby setting.</summary>
+        public static int MatchSeconds(in MatchSettings settings) =>
+            Math.Max(1, Mathf.RoundToInt(settings.TimeLimit));
+
+        /// <summary>
+        /// The single mapping from lobby <see cref="MatchSettings"/> to deterministic
+        /// <see cref="FighterMatchRules"/>. Every rule the select screen exposes has
+        /// to survive this hop, and the production countdown is applied here so a
+        /// real match never starts live on frame zero.
+        /// </summary>
+        public static FighterMatchRules RulesFor(in MatchSettings settings, int stageHazardTypeID) => new(
+            (int)settings.Mode,
+            settings.ItemsEnabled && settings.ItemSpawnRate != ChronalOrbFrequency.Off,
+            (int)settings.ItemSpawnRate,
+            settings.StageHazardsEnabled && settings.HazardRate != HazardTriggerFrequency.Off,
+            (int)settings.HazardRate,
+            stageHazardTypeID,
+            FighterMatchFlowRules.CountdownFrames);
+
         public override void _PhysicsProcess(double delta) {
             if (Simulation == null) return;
+            if (_knockoutStep != KnockoutStep.None) {
+                AdvanceKnockoutSequence(delta);
+                return;
+            }
             FighterMatchComponent match = Simulation.GetMatchState();
-            if (match.MatchState != 1) return;
+            if (match.MatchState == FighterMatchStates.Complete) {
+                RaiseCompletionIfNeeded();
+                return;
+            }
+            // A stock-loss impact freeze holds the presentation for a few frames
+            // without advancing the simulation. Deferred frames are simply frames
+            // that have not happened yet — no state is skipped or replayed.
+            if (_stockLossFreezeFrames > 0) {
+                _stockLossFreezeFrames--;
+                return;
+            }
 
             uint tick = unchecked((uint)Simulation.CurrentTick);
             // InputManager owns one edge calculation per engine physics frame. Preserve
@@ -108,6 +176,7 @@ namespace FTT.FighterSim {
             playerTwoInput.Tick = tick;
             Simulation.Advance(playerOneInput, playerTwoInput);
             SyncPresentation();
+            PublishMatchFlowPresentation();
             RaiseCompletionIfNeeded();
         }
 
@@ -127,6 +196,8 @@ namespace FTT.FighterSim {
             if (!TryGetFighter(playerID, out FighterStateComponent state)
                 || !TryGetRuntime(playerID, out FighterRuntimeComponent runtime)) return "Unavailable";
             if (state.Stocks <= 0) return "Knocked Out";
+            if (FighterMatchFlowRules.IsOnRespawnPlatform(in state)) return "Respawn Platform";
+            if (Simulation.GetMatchState().MatchState == FighterMatchStates.Countdown) return "Countdown";
             if (runtime.UniversalMovementState is (int)UniversalMovementPhase.RollStartup
                 or (int)UniversalMovementPhase.RollTravel
                 or (int)UniversalMovementPhase.RollRecovery) return "Rolling";
@@ -308,10 +379,250 @@ namespace FTT.FighterSim {
             DisableCollisionTree(player);
         }
 
+        // === Match-flow presentation (countdown, stock loss, KO sequence) ===
+
+        /// <summary>
+        /// Attaches the shared Fighter-mode flow UI as driver children so every
+        /// stage scene gets it without each stage controller wiring it up.
+        /// </summary>
+        private void AttachMatchFlowUI() {
+            if (!IsInsideTree()) return;
+            _camera = FindCamera(GetParent());
+            if (GetNodeOrNull<FTT.UI.FighterPresentationOverlay>("FighterPresentationOverlay") == null) {
+                AddChild(new FTT.UI.FighterPresentationOverlay { Name = "FighterPresentationOverlay" });
+            }
+            _pauseMenu = InstantiateUI<FTT.UI.LocalFighterPause>(PauseScenePath, "LocalFighterPause");
+            _results = InstantiateUI<FTT.UI.MatchResults>(ResultsScenePath, "MatchResults");
+        }
+
+        private T InstantiateUI<T>(string scenePath, string nodeName) where T : Node {
+            if (!ResourceLoader.Exists(scenePath)) return null;
+            // Scenes are streamed presentation, never AuthoredResources cache entries.
+            var packed = ResourceLoader.Load<PackedScene>(scenePath);
+            if (packed?.Instantiate() is not T instance) return null;
+            instance.Name = nodeName;
+            AddChild(instance);
+            return instance;
+        }
+
+        private static FTT.Combat.FighterCamera FindCamera(Node root) {
+            if (root == null) return null;
+            if (root is FTT.Combat.FighterCamera camera) return camera;
+            foreach (Node child in root.GetChildren()) {
+                if (child is FTT.Combat.FighterCamera found) return found;
+            }
+            return null;
+        }
+
+        /// <summary>Countdown ticks, the GO banner, and per-stock knockout beats.</summary>
+        private void PublishMatchFlowPresentation() {
+            FighterMatchComponent match = Simulation.GetMatchState();
+            if (match.MatchState == FighterMatchStates.Countdown) {
+                int digit = FighterMatchFlowRules.CountdownDigit(match.CountdownFramesRemaining);
+                if (digit != _lastCountdownDigit) {
+                    _lastCountdownDigit = digit;
+                    Raise(new FighterPresentationPayload {
+                        Phase = FighterPresentationPhase.Countdown,
+                        WinnerPlayerID = -1,
+                        SubjectPlayerID = -1,
+                        CountdownValue = digit,
+                        DurationSeconds = FighterMatchFlowRules.CountdownFramesPerDigit
+                            / (float)FighterSimulation.TickRate
+                    });
+                }
+                CaptureStocks();
+                return;
+            }
+
+            if (!_matchStartRaised) {
+                _matchStartRaised = true;
+                Raise(new FighterPresentationPayload {
+                    Phase = FighterPresentationPhase.MatchStart,
+                    WinnerPlayerID = -1,
+                    SubjectPlayerID = -1,
+                    DurationSeconds = FighterMatchFlowRules.GoBannerFrames / (float)FighterSimulation.TickRate
+                });
+            }
+
+            DetectStockLoss(match);
+        }
+
+        private void CaptureStocks() {
+            for (int playerID = 0; playerID < 2; playerID++) {
+                if (Simulation.TryGetFighter(playerID, out FighterStateComponent state)) {
+                    _lastStocks[playerID] = state.Stocks;
+                }
+            }
+        }
+
+        private void DetectStockLoss(in FighterMatchComponent match) {
+            for (int playerID = 0; playerID < 2; playerID++) {
+                if (!Simulation.TryGetFighter(playerID, out FighterStateComponent state)) continue;
+                int previous = _lastStocks[playerID];
+                _lastStocks[playerID] = state.Stocks;
+                if (previous < 0 || state.Stocks >= previous) continue;
+                if (match.MatchState == FighterMatchStates.Complete) continue;
+                _stockLossFreezeFrames = StockLossFreezeFrames;
+                Raise(new FighterPresentationPayload {
+                    Phase = FighterPresentationPhase.StockLost,
+                    WinnerPlayerID = -1,
+                    SubjectPlayerID = playerID,
+                    DurationSeconds = StockLossFreezeFrames / (float)FighterSimulation.TickRate,
+                    FocusPosition = PresentationPositionOf(playerID)
+                });
+                PlayCue(KnockoutStingerPath);
+            }
+        }
+
+        /// <summary>
+        /// Drives the post-match cinematic. Hit-freeze defers advancing entirely
+        /// and slow motion advances at a fractional rate; both only change *when*
+        /// ticks are consumed, never what they contain.
+        /// </summary>
+        private void AdvanceKnockoutSequence(double delta) {
+            _knockoutTimer += delta;
+            switch (_knockoutStep) {
+                case KnockoutStep.HitFreeze:
+                    if (_knockoutTimer >= HitFreezeSeconds) EnterKnockoutStep(KnockoutStep.SlowMotion);
+                    break;
+                case KnockoutStep.SlowMotion:
+                    _slowMotionCredit += SlowMotionRate;
+                    while (_slowMotionCredit >= 1.0) {
+                        _slowMotionCredit -= 1.0;
+                        AdvanceInertFrame();
+                    }
+                    if (_knockoutTimer >= SlowMotionSeconds) EnterKnockoutStep(KnockoutStep.Stamp);
+                    break;
+                case KnockoutStep.Stamp:
+                    if (_knockoutTimer >= StampSeconds) EnterKnockoutStep(KnockoutStep.WinnerPose);
+                    break;
+                case KnockoutStep.WinnerPose:
+                    if (_knockoutTimer >= WinnerPoseSeconds) FinishKnockoutSequence();
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// One paced tick with neutral inputs. The match is already decided, so
+        /// this cannot alter the outcome; it exists so lingering entities keep
+        /// moving through the slow-motion beat.
+        /// </summary>
+        private void AdvanceInertFrame() {
+            uint tick = unchecked((uint)Simulation.CurrentTick);
+            Simulation.Advance(
+                new PlayerInputFrame { Tick = tick },
+                new PlayerInputFrame { Tick = tick });
+            SyncPresentation();
+        }
+
+        private void BeginKnockoutSequence(in FighterMatchResult result) {
+            _pendingResult = result;
+            _slowMotionCredit = 0.0;
+            EnterKnockoutStep(KnockoutStep.HitFreeze);
+        }
+
+        private void EnterKnockoutStep(KnockoutStep step) {
+            _knockoutStep = step;
+            _knockoutTimer = 0.0;
+            int loser = _pendingResult.IsTrueTie
+                ? -1
+                : _pendingResult.WinnerPlayerID == 0 ? 1 : 0;
+            switch (step) {
+                case KnockoutStep.HitFreeze:
+                    Raise(new FighterPresentationPayload {
+                        Phase = FighterPresentationPhase.HitFreeze,
+                        WinnerPlayerID = _pendingResult.WinnerPlayerID,
+                        SubjectPlayerID = loser,
+                        IsTrueTie = _pendingResult.IsTrueTie,
+                        DurationSeconds = (float)HitFreezeSeconds,
+                        FocusPosition = PresentationPositionOf(loser)
+                    });
+                    PlayCue(KnockoutStingerPath);
+                    break;
+                case KnockoutStep.SlowMotion:
+                    _camera?.FocusOn(PresentationPositionOf(loser), KnockoutFocusZoom);
+                    Raise(new FighterPresentationPayload {
+                        Phase = FighterPresentationPhase.SlowMotion,
+                        WinnerPlayerID = _pendingResult.WinnerPlayerID,
+                        SubjectPlayerID = loser,
+                        IsTrueTie = _pendingResult.IsTrueTie,
+                        DurationSeconds = (float)SlowMotionSeconds,
+                        FocusPosition = PresentationPositionOf(loser)
+                    });
+                    break;
+                case KnockoutStep.Stamp:
+                    Raise(new FighterPresentationPayload {
+                        Phase = FighterPresentationPhase.Spotlight,
+                        WinnerPlayerID = _pendingResult.WinnerPlayerID,
+                        SubjectPlayerID = loser,
+                        IsTrueTie = _pendingResult.IsTrueTie,
+                        DurationSeconds = (float)StampSeconds,
+                        FocusPosition = PresentationPositionOf(_pendingResult.WinnerPlayerID)
+                    });
+                    Raise(new FighterPresentationPayload {
+                        // A draw stamps "DRAW" and neither fighter plays a beat.
+                        Phase = _pendingResult.IsTrueTie
+                            ? FighterPresentationPhase.DrawStamp
+                            : FighterPresentationPhase.KOStamp,
+                        WinnerPlayerID = _pendingResult.WinnerPlayerID,
+                        SubjectPlayerID = loser,
+                        IsTrueTie = _pendingResult.IsTrueTie,
+                        DurationSeconds = (float)StampSeconds
+                    });
+                    break;
+                case KnockoutStep.WinnerPose:
+                    if (!_pendingResult.IsTrueTie) {
+                        _camera?.FocusOn(PresentationPositionOf(_pendingResult.WinnerPlayerID), KnockoutFocusZoom);
+                        PlayCue(VictoryFanfarePath);
+                    }
+                    Raise(new FighterPresentationPayload {
+                        Phase = FighterPresentationPhase.WinnerPose,
+                        WinnerPlayerID = _pendingResult.WinnerPlayerID,
+                        SubjectPlayerID = loser,
+                        IsTrueTie = _pendingResult.IsTrueTie,
+                        DurationSeconds = (float)WinnerPoseSeconds,
+                        FocusPosition = PresentationPositionOf(_pendingResult.WinnerPlayerID)
+                    });
+                    break;
+            }
+        }
+
+        private void FinishKnockoutSequence() {
+            _knockoutStep = KnockoutStep.None;
+            _knockoutTimer = 0.0;
+            _camera?.ReleaseFocus();
+            Raise(new FighterPresentationPayload {
+                Phase = FighterPresentationPhase.Results,
+                WinnerPlayerID = _pendingResult.WinnerPlayerID,
+                SubjectPlayerID = -1,
+                IsTrueTie = _pendingResult.IsTrueTie
+            });
+            if (_results != null && IsInstanceValid(_results)) _results.ShowResult(_pendingResult);
+            MatchCompleted?.Invoke(_pendingResult);
+        }
+
+        private Vector2 PresentationPositionOf(int playerID) {
+            PlayerController player = playerID == 0 ? _playerOne : playerID == 1 ? _playerTwo : null;
+            if (player != null && IsInstanceValid(player)) return player.GlobalPosition;
+            return WorldOrigin;
+        }
+
+        private static void Raise(FighterPresentationPayload payload) =>
+            EventBus.Instance?.RaiseFighterPresentation(payload);
+
+        /// <summary>
+        /// Placeholder audio hook. The stems are Package 8 content; until they
+        /// exist this resolves to null and AudioManager no-ops.
+        /// </summary>
+        private static void PlayCue(string streamPath) {
+            if (!ResourceLoader.Exists(streamPath)) return;
+            AudioManager.Instance?.PlaySFX(ResourceLoader.Load<AudioStream>(streamPath));
+        }
+
         private void RaiseCompletionIfNeeded() {
             if (_completionRaised || Simulation == null) return;
             FighterMatchComponent match = Simulation.GetMatchState();
-            if (match.MatchState != 2) return;
+            if (match.MatchState != FighterMatchStates.Complete) return;
             _completionRaised = true;
             var result = new FighterMatchResult(
                 match.WinnerPlayerID,
@@ -319,15 +630,19 @@ namespace FTT.FighterSim {
                 Simulation.CurrentTick,
                 Simulation.CurrentHash);
             RecordStatistics(result);
-            MatchCompleted?.Invoke(result);
+            BeginKnockoutSequence(result);
         }
 
-        private static void RecordStatistics(in FighterMatchResult result) {
+        private void RecordStatistics(in FighterMatchResult result) {
             SaveManager manager = SaveManager.Instance;
-            if (manager == null || result.IsTrueTie) return;
-            if (result.WinnerPlayerID == 0) manager.GlobalData.TotalWins++;
-            else manager.GlobalData.TotalLosses++;
-            manager.SaveGlobalData();
+            if (manager == null) return;
+            FighterMatchStatistics.Record(
+                manager.GlobalData,
+                _playerOne?.Data?.CharacterID,
+                _playerTwo?.Data?.CharacterID,
+                result.WinnerPlayerID,
+                result.IsTrueTie);
+            if (!result.IsTrueTie) manager.SaveGlobalData();
         }
 
         private static void DisableCollisionTree(Node node) {

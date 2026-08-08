@@ -53,6 +53,7 @@ namespace FTT.FighterSim {
                 new FighterWorldSystem(playerOne, playerTwo, stocks, matchSeconds * TickRate, seed, resolvedSpawnDistance, rules),
                 SystemPhase.PreUpdate);
             _simulation.AddSystem(new FighterInputSystem(), SystemPhase.PreUpdate);
+            _simulation.AddSystem(new FighterCountdownSystem(), SystemPhase.PreUpdate);
             _simulation.AddSystem(new FighterMovementSystem(geometry), SystemPhase.Update);
             _simulation.AddSystem(new FighterAbilityEntitySystem(), SystemPhase.Update);
             _simulation.AddSystem(new FighterPushboxSystem(geometry), SystemPhase.PostUpdate);
