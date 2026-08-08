@@ -720,3 +720,68 @@ a pre-merge `git add`) before it will fast-forward.
 - **INTEGRATION-A: suite total stays 514, 0 failed, across three consecutive runs.** No tests were
   added, weakened, or deleted; the 14 failures were fixed entirely in production code. Import clean;
   all four Wave A scenes plus Florence smoke clean at `--quit-after 300`.
+
+### Wave B — Level 8, Alexandria 30 BC (Cleopatra's Palace)
+
+- **L08: the boss resource agrees with §4.1 exactly — no contradiction this time.**
+  `resources/Bosses/jackal_priest.tres` reads 700 HP, `MeleeRangeThreshold = 3.0`,
+  `RangedRangeThreshold = 8.0`, one threshold `[0.5]`, `AttackPattern = 1` (`DistanceBased`),
+  knockback-immune, 50 dust. Nothing was edited. Recorded only because every Wave A agent burned a
+  cycle on this; §4.1 is now load-bearing and correct.
+- **L08: the level is 1,800 px tall because the design's two zones are stacked, not adjacent.**
+  Surface (dunes, y 700 floor) sits above the tomb network (y 1620 floor). Surface rooms confine to
+  a top-anchored 1080 window, the boss chamber to a bottom-anchored one (`Position.Y = 720`), and
+  the descent room to the full 1,800 so the burial-shaft fall stays on camera. `Level08ContentTests`
+  asserts one room of each kind exists, so collapsing the level back to a single band fails.
+- **L08: the sand drifts are scene-authored template instances, but the level localizes their label
+  in code.** `MovementDampenerZoneTemplate.tscn` ships a `Label` with hardcoded English
+  `"DEEP SAND"`, and overriding a child of an instanced scene from a `.tscn` needs the fragile
+  `index=` block L02 flagged. `Level08Controller.CollectDeepSand` therefore sets
+  `label.Text = Tr("egypt_deep_sand")` when it picks the drifts up. Shared toolkit content was not
+  edited (§2.7); levels 6/9 reusing this component inherit the same one-liner. Fixing the template
+  to carry a key plus a resolver is a C1-sized toolkit change, not a level edit.
+- **L08: five sand drifts, none of them overlapping.** `EnvironmentPlayerModifiers` publishes the
+  PRODUCT of every live source (A2 deviation), so two drifts over one player would compound to a
+  0.25x crawl — the same constraint L05 hit with its two flood zones. A content test sorts the
+  authored spans and fails on any overlap, so re-authoring the desert cannot reintroduce it.
+- **L08: the hieroglyph lock is authored directly in the `.tscn` instead of instancing
+  `SequenceLockTemplate.tscn`.** The template ships exactly three placeholder glyphs with fixed IDs
+  and spacing; the puzzle needs four with era IDs (`level_08.glyph_scarab` …) and a deliberately
+  scrambled wall order. Adding a fourth child and overriding three existing ones is strictly worse
+  than authoring the four nodes, and L03 already set the precedent of authoring a puzzle graph as
+  raw scripted nodes (`PuzzleManager`, `PowerRoutingNode`) alongside template instances. The node
+  structure copies the template's glyph contract exactly (`Visual` Polygon2D + `InteractionArea` +
+  `Prompt`), so a later template revision is a mechanical diff.
+- **L08: the wall order is deliberately NOT the solution, and that is pinned by a test.** Mounted
+  west-to-east the glyphs read Falcon, Scarab, Jackal, Ibis; the activation order is Scarab, Ibis,
+  Falcon, Jackal, carved on a relief in a side alcove ~1,200 px west (which also holds the second
+  extractor, so the detour pays twice). `TheHieroglyphSealOpensOnlyInTheCarvedOrderAndResetsOnAWrongPick`
+  fails if anyone "tidies" the glyphs into solution order and turns the relief into decoration.
+  The controller also labels each glyph in code (`egypt_glyph_*`) so the relief can be matched to
+  the wall.
+- **L08: `OnBossDefeated` is overridden wholesale rather than calling `base`, because the base class
+  has no concept of a beat between defeat and exit.** `StoryLevelControllerBase.OnBossDefeated` calls
+  `StartExitSequence()` directly, and Level 8 owes the authored Cleopatra scene
+  (`level_08.postboss`, design-godot.md 3368–3374) first. The override reproduces the base's
+  objective post and dust tally, then chains defeat → postboss → exit → results through
+  `OnDialogueSequenceComplete`. Consequence: the base's private `_bossDefeated` flag stays false for
+  this level, so **`IsBossDefeated` is not meaningful on Level 8** — the controller exposes its own
+  `PostBossBeatPlayed` and gates objectives on a local flag. Levels 12 and 15 want the same shape
+  (`preboss`/`ending` beats); if a third level needs it, C1 should make `StartExitSequence` virtual
+  or give the base an optional post-boss dialogue hook rather than a third copy of this override.
+- **L08: the post-boss beat falls through to the exit sequence if the dialogue cannot start.**
+  A missing sequence must not strand the player in a finished arena with no results overlay, so
+  `RunPostBossBeat` calls `StartExitSequence()` when `StartDialogue` returns false.
+- **L08: the content fixture forces the persisted vault flag off on setup and restores it on
+  dispose,** the guard L03 discovered. `level_08.hieroglyph_lock` is authored
+  `PersistCompletionToSave = true` (the plan requires the seal to survive a resume), so one case
+  solving it would open the vault for every later case in the same process.
+- **L08: resuming at `_checkpoint_2` opens the vault even without the puzzle flag.** The pre-boss
+  checkpoint stands past the door. `OnLevelReady` opens it when either the puzzle is complete or the
+  resume checkpoint is the pre-boss one, and the opener is idempotent (`OpenDoor` nulls the ref), so
+  `PuzzleManager`'s deferred restored-completion re-emission cannot double-fire anything.
+- **L08: first full-suite run reported `Total: 24` with `Starting GodotRuntimeExecutor failed` /
+  `Connection timeout` / `exit code: -1`.** The immediate re-run was **525/525, 0 failed, 15 s**.
+  Same concurrent-worktree shape A1 and L02 logged; not signature 1 or 2.
+- **L08: suite baseline 514 → 525** (+11 `Level08ContentTests`). Left for C1 to fold into
+  `AGENTS.md` in one edit.

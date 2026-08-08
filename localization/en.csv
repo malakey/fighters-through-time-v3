@@ -722,3 +722,37 @@ dlg_l05_exit_2,"It has to. The sinking is real history and history stands. What 
 dlg_l05_exit_3,"There is something left in the wreck of the harvester. Encrypted. It keeps repeating one string."
 dlg_l05_exit_4,"Route it to me. Traveler, that is an uplink handshake. The Archive was never storing this haul aboard — it was relaying it upward, to an orbital communications relay that will not exist for another fifty-seven years."
 dlg_l05_exit_5,"Then that is where the rest of the timeline is going. Get me back to the ship, Sarah. We follow it up."
+egypt_level_title,"LEVEL 8: CLEOPATRA'S PALACE — ALEXANDRIA 30 BC"
+egypt_room_dunes,THE SHIFTING DUNES
+egypt_room_siege,OCTAVIAN'S SIEGE LINE
+egypt_room_tombs,THE TOMB NETWORK
+egypt_room_chamber,BOSS: THE JACKAL PRIEST
+egypt_objective_dunes,Wade the shifting dunes and find a way beneath the siege line
+egypt_objective_tombs,"Find the hieroglyph seal — the order is carved somewhere in the tombs"
+egypt_objective_seal,Press the glyphs in the carved order ({0}/{1})
+egypt_objective_chamber,"The vault is open — reach Cleopatra's chambers before the legion does"
+egypt_objective_defeat_boss,Defeat the Jackal Priest!
+egypt_objective_complete,LEVEL COMPLETE! Returning to Time-Ship...
+egypt_deep_sand,DEEP SAND — MOVEMENT HALVED
+egypt_vault_sealed,HIEROGLYPH SEAL — PRESS THE GLYPHS IN THE CARVED ORDER
+egypt_relief_order,CARVED ORDER — SCARAB · IBIS · FALCON · JACKAL
+egypt_glyph_scarab,SCARAB
+egypt_glyph_ibis,IBIS
+egypt_glyph_falcon,FALCON
+egypt_glyph_jackal,JACKAL
+speaker_cleopatra,Cleopatra
+speaker_jackal_priest,The Jackal Priest
+dlg_l08_entrance_1,"Roman siege towers on the shore — and every legionnaire down there is carrying a blade that burns."
+dlg_l08_entrance_2,"Plasma swords and powered centurion plate, Traveler. The Archive is buying Octavian a total victory and siphoning the fall of Alexandria while it burns. The palace guard is on the same neural link. Get under the sand line: the tomb network runs beneath the siege and comes up inside the royal vault."
+dlg_l08_entrance_3,"Then I go through the dead to reach the living."
+dlg_l08_boss_intro_1,"The queen's vault opens only for those who know the old order, little ghost. I wrote the order. I wrote her ending. Kneel and be catalogued."
+dlg_l08_boss_intro_2,"You put a leash on her own guard and called it worship. Step away from the door."
+dlg_l08_postboss_1,"My royal guards... they fought with Roman steel and future fire. They turned their spears on their own queen."
+dlg_l08_postboss_2,"The cult's mind control leaves no room for loyalty, Majesty. But look — the siphons have dissolved. The Roman legionnaires and your guards are breathing normally again. The spell is broken."
+dlg_l08_postboss_3,"They are safe. That is what matters. Yet... the power I held. The sand obeyed my command. I could feel the flow of years in my grasp. Now, it is just dust again."
+dlg_l08_postboss_4,"Our resonance is a symptom of a sick timeline. As the wound heals, the strength fades. We must see this through to the end."
+dlg_l08_exit_1,"The siphon is shattered. The sand is just sand again."
+dlg_l08_exit_2,"Confirmed. The neural link is down across the whole delta. Octavian's legion and the palace guard both come back to themselves, and the siege ends the way history wrote it — not one hour worse."
+dlg_l08_exit_3,"The queen felt her resonance go out. I felt mine dim with it."
+dlg_l08_exit_4,"You will feel that at every anchor we mend from here. Act II runs harder than Act I, Traveler, and the fractures ahead are bigger than one palace."
+dlg_l08_exit_5,"Then stop warning me and take me home, Commander. There is another one waiting."
