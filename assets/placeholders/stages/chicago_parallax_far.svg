@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <!-- Chicago 1893 World's Fair placeholder far parallax: the White City at night
+       under a charged sky. Palette follows the catalog entry for chicago_exposition
+       (background 0.04/0.09/0.13, ground 0.12/0.22/0.28, accent 0.2/0.9/1.0). -->
+  <defs>
+    <linearGradient id="chicagoSky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#0a1720"/>
+      <stop offset="0.62" stop-color="#0f2733"/>
+      <stop offset="1" stop-color="#1f3a46"/>
+    </linearGradient>
+    <radialGradient id="arcGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop stop-color="#33e6ff" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#33e6ff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1920" height="1080" fill="url(#chicagoSky)"/>
+
+  <!-- Charged haze over the fairgrounds -->
+  <ellipse cx="960" cy="720" rx="900" ry="300" fill="url(#arcGlow)"/>
+
+  <!-- The 1893 Ferris Wheel, the fair's signature silhouette -->
+  <g stroke="#1b3d4d" fill="none">
+    <circle cx="1470" cy="470" r="250" stroke-width="14"/>
+    <circle cx="1470" cy="470" r="196" stroke-width="6"/>
+    <circle cx="1470" cy="470" r="30" stroke-width="10"/>
+    <g stroke-width="4">
+      <path d="M1470 220 L1470 720 M1220 470 L1720 470"/>
+      <path d="M1293 293 L1647 647 M1647 293 L1293 647"/>
+      <path d="M1374 233 L1566 707 M1566 233 L1374 707"/>
+      <path d="M1233 374 L1707 566 M1707 374 L1233 566"/>
+    </g>
+    <path d="M1470 470 L1340 900 M1470 470 L1600 900" stroke-width="12"/>
+  </g>
+  <g fill="#2a5468">
+    <rect x="1440" y="196" width="60" height="26" rx="6"/>
+    <rect x="1690" y="446" width="60" height="26" rx="6"/>
+    <rect x="1190" y="446" width="60" height="26" rx="6"/>
+    <rect x="1440" y="700" width="60" height="26" rx="6"/>
+  </g>
+
+  <!-- Beaux-Arts pavilions of the Court of Honor -->
+  <g fill="#132b38">
+    <path d="M120 900 L120 620 L250 500 L380 620 L380 900 Z"/>
+    <path d="M420 900 L420 660 L540 660 L540 900 Z"/>
+    <path d="M580 900 L580 560 L720 430 L860 560 L860 900 Z"/>
+    <path d="M900 900 L900 680 L1020 680 L1020 900 Z"/>
+    <path d="M1060 900 L1060 600 L1180 500 L1300 600 L1300 900 Z"/>
+  </g>
+  <g fill="#1d4053">
+    <rect x="236" y="452" width="28" height="52"/>
+    <rect x="706" y="382" width="28" height="52"/>
+    <rect x="1166" y="452" width="28" height="52"/>
+  </g>
+
+  <!-- Arc lamps: the fair was famous for being lit by electricity -->
+  <g fill="#33e6ff" opacity="0.5">
+    <circle cx="250" cy="446" r="16"/>
+    <circle cx="720" cy="376" r="20"/>
+    <circle cx="1180" cy="446" r="16"/>
+    <circle cx="1470" cy="470" r="18"/>
+  </g>
+
+  <!-- Reflecting basin -->
+  <rect x="0" y="900" width="1920" height="180" fill="#0d1f29"/>
+  <g stroke="#2f8ea6" stroke-width="3" opacity="0.45">
+    <path d="M0 940 H1920 M0 1000 H1920 M0 1060 H1920"/>
+  </g>
+</svg>

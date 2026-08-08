@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <!-- Chicago 1893 placeholder near parallax: the exposition colonnade and the
+       electrical gantry that feeds the induction grid, scrolling faster than the
+       far layer. Transparent above the skyline so the far layer reads through. -->
+  <defs>
+    <linearGradient id="chicagoNear" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#153341" stop-opacity="0"/>
+      <stop offset="0.35" stop-color="#153341" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#0c1e27" stop-opacity="0.95"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Electrical gantry spanning the fairground -->
+  <g stroke="#20485c" stroke-width="10" fill="none">
+    <path d="M0 470 H1920"/>
+    <path d="M0 500 H1920" stroke-width="4"/>
+  </g>
+  <g fill="#20485c">
+    <rect x="150" y="470" width="22" height="300"/>
+    <rect x="610" y="470" width="22" height="300"/>
+    <rect x="1070" y="470" width="22" height="300"/>
+    <rect x="1530" y="470" width="22" height="300"/>
+  </g>
+  <g fill="#33e6ff" opacity="0.45">
+    <circle cx="161" cy="462" r="12"/>
+    <circle cx="621" cy="462" r="12"/>
+    <circle cx="1081" cy="462" r="12"/>
+    <circle cx="1541" cy="462" r="12"/>
+  </g>
+
+  <!-- Colonnade -->
+  <rect x="0" y="700" width="1920" height="380" fill="url(#chicagoNear)"/>
+  <g fill="#1a3f50">
+    <rect x="60" y="700" width="34" height="200"/>
+    <rect x="220" y="700" width="34" height="200"/>
+    <rect x="380" y="700" width="34" height="200"/>
+    <rect x="540" y="700" width="34" height="200"/>
+    <rect x="700" y="700" width="34" height="200"/>
+    <rect x="860" y="700" width="34" height="200"/>
+    <rect x="1020" y="700" width="34" height="200"/>
+    <rect x="1180" y="700" width="34" height="200"/>
+    <rect x="1340" y="700" width="34" height="200"/>
+    <rect x="1500" y="700" width="34" height="200"/>
+    <rect x="1660" y="700" width="34" height="200"/>
+    <rect x="1820" y="700" width="34" height="200"/>
+    <rect x="0" y="672" width="1920" height="30"/>
+  </g>
+  <g fill="#2a6b83" opacity="0.7">
+    <rect x="0" y="664" width="1920" height="10"/>
+  </g>
+</svg>
