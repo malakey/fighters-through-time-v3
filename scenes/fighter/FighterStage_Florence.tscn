@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/FighterStageController.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/UI/TestArenaHUD.cs" id="2_hud"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="4_marker"]
 [ext_resource type="Resource" path="res://resources/Contracts/fighter_stage_contract.tres" id="5_contract"]
 [ext_resource type="Texture2D" path="res://assets/environments/florence/florence_far_background.png" id="6_background"]
+[ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="7_lighting"]
 
 [sub_resource type="RectangleShape2D" id="ground_col"]
 size = Vector2(1125, 48)
@@ -51,6 +52,21 @@ offset_top = 200.0
 offset_right = 1355.0
 offset_bottom = 700.0
 color = Color(0.35, 0.28, 0.22, 0.85)
+
+[node name="Lighting" parent="." instance=ExtResource("7_lighting")]
+AmbientTone = Color(0.86, 0.79, 0.7, 1)
+KeyColor = Color(1, 0.7, 0.3, 1)
+KeyEnergy = 0.85
+KeyOffset = Vector2(950, 660)
+KeyScale = 11.0
+FillColor = Color(0.74, 0.82, 0.96, 1)
+FillEnergy = 0.32
+FillOffset = Vector2(500, 300)
+FillScale = 8.0
+RimColor = Color(1, 0.82, 0.45, 1)
+RimEnergy = 0.3
+RimOffset = Vector2(1325, 250)
+RimScale = 9.0
 
 [node name="Geometry" type="Node2D" parent="."]
 

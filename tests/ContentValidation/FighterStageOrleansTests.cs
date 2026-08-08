@@ -139,18 +139,17 @@ public class FighterStageOrleansTests {
             var tint = root.GetNodeOrNull<ColorRect>("Presentation/Backdrop/BackdropTint");
             AssertObject(tint).IsNotNull();
 
-            // Godot 4.7 marks ParallaxBackground/ParallaxLayer obsolete in favour of
-            // Parallax2D, but the Package 6 §5 deliverable names ParallaxBackground
-            // explicitly and the nodes still work; the deprecation is acknowledged in §9.
-#pragma warning disable CS0618
-            var parallax = root.GetNodeOrNull<ParallaxBackground>("Presentation/ParallaxBackground");
+            // Package 8 B7 migrated the deprecated ParallaxBackground/ParallaxLayer
+            // pair to Parallax2D; the typed replacement carries no [Obsolete], so the
+            // CS0618 suppression is gone with it. Orléans keeps its opaque backdrop in
+            // a deeper CanvasLayer (-2), which still sits behind canvas layer 0.
+            var parallax = root.GetNodeOrNull<Node2D>("Presentation/Parallax");
             AssertObject(parallax).IsNotNull();
 
             var scrollFactors = new List<float>();
             foreach (Node child in parallax.GetChildren()) {
-                if (child is ParallaxLayer layer) scrollFactors.Add(layer.MotionScale.X);
+                if (child is Parallax2D layer) scrollFactors.Add(layer.ScrollScale.X);
             }
-#pragma warning restore CS0618
             AssertThat(scrollFactors.Count >= 2).IsTrue();
             // Distinct scroll factors, or it is not parallax.
             for (int outer = 0; outer < scrollFactors.Count; outer++) {

@@ -139,19 +139,15 @@ public class FighterStageGlobeTests {
             var presentation = root.GetNode<Node2D>("Presentation");
             AssertObject(presentation.GetNodeOrNull<ColorRect>("BackdropTint")).IsNotNull();
 
-            // Reached through the untyped API on purpose: the C# ParallaxBackground /
-            // ParallaxLayer bindings carry [Obsolete] in Godot 4.7 (superseded by
-            // Parallax2D) and referencing them would add CS0618 to a clean build,
-            // while the plan's §5 deliverable names ParallaxBackground explicitly.
-            var parallax = presentation.GetNodeOrNull<CanvasLayer>("ParallaxBackground");
+            // Typed since the Package 8 B7 migration: the old ParallaxBackground /
+            // ParallaxLayer bindings carried [Obsolete] in Godot 4.7 and had to be
+            // reached untyped to keep the build warning-free; Parallax2D does not.
+            var parallax = presentation.GetNodeOrNull<Node2D>("Parallax");
             AssertObject(parallax).IsNotNull();
-            AssertThat(parallax.IsClass("ParallaxBackground")).IsTrue();
 
             var scrollFactors = new List<float>();
             foreach (Node child in parallax.GetChildren()) {
-                if (child.IsClass("ParallaxLayer")) {
-                    scrollFactors.Add(child.Get("motion_scale").AsVector2().X);
-                }
+                if (child is Parallax2D layer) scrollFactors.Add(layer.ScrollScale.X);
             }
             AssertThat(scrollFactors.Count >= 2).IsTrue();
             // Distinct scroll factors, or it is one flat backdrop wearing two nodes.

@@ -129,25 +129,23 @@ public class FighterStageParisTests {
             var presentation = root.GetNode<Node2D>("Presentation");
             AssertObject(presentation.GetNodeOrNull<ColorRect>("BackdropTint")).IsNotNull();
 
-            // ParallaxBackground/ParallaxLayer are reached by class name rather than
-            // by their C# types: both are [Obsolete] in the Godot 4.7 bindings, and a
-            // typed reference would raise CS0618 against the plan's no-new-warnings
-            // gate. The plan (§5 item 2) specifies these node types, so the scene
-            // keeps them; only the test avoids naming them in C#.
-            Node parallax = presentation.GetNodeOrNull("ParallaxBackground");
+            // Typed against Parallax2D since the Package 8 B7 migration. The
+            // predecessors were reached by class name because both are [Obsolete] in
+            // the Godot 4.7 bindings and a typed reference raised CS0618 against the
+            // no-new-warnings gate; the replacement carries no such attribute.
+            var parallax = presentation.GetNodeOrNull<Node2D>("Parallax");
             AssertObject(parallax).IsNotNull();
-            AssertThat(parallax.GetClass()).IsEqual("ParallaxBackground");
 
             var scrollFactors = new List<float>();
             foreach (Node child in parallax.GetChildren()) {
-                if (child.GetClass() != "ParallaxLayer") continue;
+                if (child is not Parallax2D layer) continue;
                 bool hasArtwork = false;
-                foreach (Node grandChild in child.GetChildren()) {
+                foreach (Node grandChild in layer.GetChildren()) {
                     if (grandChild is Sprite2D sprite && sprite.Texture != null) hasArtwork = true;
                 }
                 AssertThat(hasArtwork).OverrideFailureMessage(
-                    $"parallax layer '{child.Name}' carries no textured Sprite2D.").IsTrue();
-                scrollFactors.Add(child.Get("motion_scale").AsVector2().X);
+                    $"parallax layer '{layer.Name}' carries no textured Sprite2D.").IsTrue();
+                scrollFactors.Add(layer.ScrollScale.X);
             }
             AssertThat(scrollFactors.Count >= 2).IsTrue();
             for (int outer = 0; outer < scrollFactors.Count; outer++) {

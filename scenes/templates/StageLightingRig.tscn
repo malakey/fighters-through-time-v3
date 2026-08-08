@@ -1,0 +1,31 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/StageLightingRig.cs" id="1_rig"]
+[ext_resource type="GradientTexture2D" path="res://assets/placeholders/glow_light_gradient.tres" id="2_light"]
+
+[node name="StageLightingRig" type="Node2D"]
+script = ExtResource("1_rig")
+
+[node name="Ambient" type="CanvasModulate" parent="."]
+color = Color(0.82, 0.82, 0.86, 1)
+
+[node name="KeyLight" type="PointLight2D" parent="."]
+position = Vector2(700, 380)
+color = Color(1, 0.86, 0.66, 1)
+energy = 0.65
+texture = ExtResource("2_light")
+texture_scale = 10.0
+
+[node name="FillLight" type="PointLight2D" parent="."]
+position = Vector2(1200, 380)
+color = Color(0.62, 0.74, 0.95, 1)
+energy = 0.4
+texture = ExtResource("2_light")
+texture_scale = 9.0
+
+[node name="RimLight" type="PointLight2D" parent="."]
+position = Vector2(950, 150)
+color = Color(0.8, 0.86, 1, 1)
+energy = 0.3
+texture = ExtResource("2_light")
+texture_scale = 12.0

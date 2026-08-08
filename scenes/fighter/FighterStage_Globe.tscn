@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/FighterStageController.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/UI/TestArenaHUD.cs" id="2_hud"]
@@ -6,6 +6,7 @@
 [ext_resource type="Script" path="res://scripts/Core/ContentTemplateMarker.cs" id="4_marker"]
 [ext_resource type="Resource" path="res://resources/Contracts/fighter_stage_contract.tres" id="5_contract"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/parallax_far.svg" id="6_parallax"]
+[ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="7_lighting"]
 
 [sub_resource type="RectangleShape2D" id="ground_col"]
 size = Vector2(1125, 48)
@@ -25,49 +26,51 @@ StageID = "globe_theatre"
 
 [node name="Presentation" type="Node2D" parent="."]
 
-[node name="ParallaxBackground" type="ParallaxBackground" parent="Presentation"]
-layer = -110
+[node name="Parallax" type="Node2D" parent="Presentation"]
+z_index = -200
 
-[node name="NightSkyLayer" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
-motion_scale = Vector2(0.15, 0.05)
+[node name="NightSkyLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 1
+scroll_scale = Vector2(0.15, 0.05)
 
-[node name="NightSky" type="Sprite2D" parent="Presentation/ParallaxBackground/NightSkyLayer"]
+[node name="NightSky" type="Sprite2D" parent="Presentation/Parallax/NightSkyLayer"]
 modulate = Color(0.44, 0.24, 0.5, 1)
 position = Vector2(960, 540)
 texture = ExtResource("6_parallax")
 
-[node name="GalleryTiersLayer" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
-motion_scale = Vector2(0.45, 0.12)
+[node name="GalleryTiersLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 2
+scroll_scale = Vector2(0.45, 0.12)
 
-[node name="UpperTier" type="ColorRect" parent="Presentation/ParallaxBackground/GalleryTiersLayer"]
+[node name="UpperTier" type="ColorRect" parent="Presentation/Parallax/GalleryTiersLayer"]
 offset_left = 120.0
 offset_top = 250.0
 offset_right = 1800.0
 offset_bottom = 330.0
 color = Color(0.18, 0.09, 0.05, 1)
 
-[node name="UpperTierRail" type="ColorRect" parent="Presentation/ParallaxBackground/GalleryTiersLayer"]
+[node name="UpperTierRail" type="ColorRect" parent="Presentation/Parallax/GalleryTiersLayer"]
 offset_left = 120.0
 offset_top = 244.0
 offset_right = 1800.0
 offset_bottom = 250.0
 color = Color(0.4, 0.21, 0.43, 1)
 
-[node name="MiddleTier" type="ColorRect" parent="Presentation/ParallaxBackground/GalleryTiersLayer"]
+[node name="MiddleTier" type="ColorRect" parent="Presentation/Parallax/GalleryTiersLayer"]
 offset_left = 60.0
 offset_top = 400.0
 offset_right = 1860.0
 offset_bottom = 480.0
 color = Color(0.21, 0.11, 0.06, 1)
 
-[node name="MiddleTierRail" type="ColorRect" parent="Presentation/ParallaxBackground/GalleryTiersLayer"]
+[node name="MiddleTierRail" type="ColorRect" parent="Presentation/Parallax/GalleryTiersLayer"]
 offset_left = 60.0
 offset_top = 394.0
 offset_right = 1860.0
 offset_bottom = 400.0
 color = Color(0.45, 0.24, 0.48, 1)
 
-[node name="DistantCrowd" type="Polygon2D" parent="Presentation/ParallaxBackground/GalleryTiersLayer"]
+[node name="DistantCrowd" type="Polygon2D" parent="Presentation/Parallax/GalleryTiersLayer"]
 color = Color(0.05, 0.02, 0.07, 1)
 polygon = PackedVector2Array(80, 400, 140, 356, 200, 400, 260, 350, 320, 400, 380, 360, 440, 400, 500, 348, 560, 400, 620, 358, 680, 400, 740, 352, 800, 400, 860, 356, 920, 400, 980, 350, 1040, 400, 1100, 358, 1160, 400, 1220, 352, 1280, 400, 1340, 356, 1400, 400, 1460, 350, 1520, 400, 1580, 358, 1640, 400, 1700, 354, 1760, 400, 1820, 360, 1860, 400)
 
@@ -177,6 +180,21 @@ offset_top = 160.0
 offset_right = 950.0
 offset_bottom = 240.0
 color = Color(0.28, 0.14, 0.07, 1)
+
+[node name="Lighting" parent="." instance=ExtResource("7_lighting")]
+AmbientTone = Color(0.8, 0.74, 0.84, 1)
+KeyColor = Color(1, 0.66, 0.28, 1)
+KeyEnergy = 0.75
+KeyOffset = Vector2(420, 520)
+KeyScale = 9.0
+FillColor = Color(1, 0.66, 0.28, 1)
+FillEnergy = 0.75
+FillOffset = Vector2(1500, 520)
+FillScale = 9.0
+RimColor = Color(0.72, 0.38, 0.78, 1)
+RimEnergy = 0.35
+RimOffset = Vector2(950, 240)
+RimScale = 12.0
 
 [node name="Geometry" type="Node2D" parent="."]
 

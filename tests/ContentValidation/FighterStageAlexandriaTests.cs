@@ -114,19 +114,17 @@ public class FighterStageAlexandriaTests {
             AssertObject(presentation).IsNotNull();
             AssertObject(presentation.GetNodeOrNull<ColorRect>("BackdropTint")).IsNotNull();
 
-            // Godot 4.7 marks ParallaxBackground/ParallaxLayer obsolete in favour of
-            // Parallax2D, but the Package 6 plan §5.2 specifies a ParallaxBackground
-            // with >= 2 layers for all nine Phase B stages. Following the plan keeps
-            // the nine scenes uniform for the C1 closeout; the migration is a single
-            // sweep for Package 8 presentation, not a per-stage decision.
-#pragma warning disable CS0618
-            var parallax = presentation.GetNodeOrNull<ParallaxBackground>("Parallax");
+            // Package 8 B7 migrated the deprecated ParallaxBackground/ParallaxLayer
+            // pair to Parallax2D, so this reads the typed replacement class directly
+            // and the CS0618 suppression the untyped workaround needed is gone. The
+            // container is now a plain Node2D holding one Parallax2D per layer.
+            var parallax = presentation.GetNodeOrNull<Node2D>("Parallax");
             AssertObject(parallax).IsNotNull();
 
             var scrollFactors = new List<Vector2>();
             foreach (Node child in parallax.GetChildren()) {
-                if (child is ParallaxLayer layer) {
-                    scrollFactors.Add(layer.MotionScale);
+                if (child is Parallax2D layer) {
+                    scrollFactors.Add(layer.ScrollScale);
                     // An empty layer scrolls nothing; each must carry artwork.
                     bool hasArt = false;
                     foreach (Node grandchild in layer.GetChildren()) {
@@ -136,7 +134,6 @@ public class FighterStageAlexandriaTests {
                         $"parallax layer '{layer.Name}' has no textured Sprite2D").IsTrue();
                 }
             }
-#pragma warning restore CS0618
             AssertThat(scrollFactors.Count >= 2).IsTrue();
             // Distinct scroll factors are the whole point of a parallax.
             AssertThat(scrollFactors[0].X).IsNotEqual(scrollFactors[1].X);

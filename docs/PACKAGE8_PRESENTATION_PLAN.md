@@ -694,3 +694,127 @@ full suite **1060 passed / 0 failed / Total 1060** across two consecutive serial
 4. A4's `MainMenu.cs` touch is exactly one call + one static method (`AddSaveLoadNotice`) — B4
    carries it into the authored menu.
 5. `settings_difficulty` is a deliberately orphaned key feeding C1's unused-key sweep.
+
+### B7 — Parallax2D migration and stage lighting (2026-08-08)
+
+**B7: the `ParallaxBackground` container became a plain `Node2D` at `z_index = -200`, not a
+`CanvasLayer`.** `Parallax2D` replaces `ParallaxLayer` one-for-one, but nothing replaces the
+*container* — one `Parallax2D` **is** one layer. Keeping a negative `CanvasLayer` around them would
+have preserved the old z-order for free and thrown away the reason to migrate: content in a
+negative canvas layer is invisible to the `CanvasModulate` and the `PointLight2D`s this same
+workstream adds, because 2D lighting and canvas modulation act **per canvas**, and a `CanvasLayer`
+owns its own. Post-migration every stage's parallax sits in canvas layer 0 and is lit with the rest
+of the world. The group node carries the depth and its children step up from it (`z_index` 1 and 2
+→ effective −199 / −198, with any non-scrolling `BackdropBase` left at −200 beneath them), which is
+well under every authored tint (−30 … −100) and prop (−5 … −25), so each scene's *relative* layering
+is unchanged.
+
+**B7: the container node is now named `Parallax` on all nine stages.** Seven were named
+`ParallaxBackground` — the class name of a node type that is no longer there. Renaming was free
+(only the nine test files referenced the paths) and the alternative was a `Node2D` called
+`ParallaxBackground`, which is exactly the kind of thing a later agent "fixes" by changing the type
+back. `motion_scale` → `scroll_scale` and `motion_mirroring` → `repeat_size` are literal transfers;
+`repeat_times` is new and had to be set to 3 alongside every `repeat_size`, because it defaults to 1
+and a repeating layer that draws a single tile leaves a hard edge mid-pan.
+`FighterStageParallaxMigrationTests.EveryRepeatingLayerCarriesBothRepeatSizeAndARepeatCount` pins
+the pair; five layers across Alexandria, Chicago and Nassau are affected.
+
+**B7: the migration changes one thing a headless gate cannot see — the parallax now zooms with the
+camera.** `ParallaxBackground` drew in canvas-layer space, so `FighterCamera`'s 1.0–1.4 zoom band
+never touched it; `Parallax2D` is world-space and scales with everything else. This is the normal
+behaviour for the successor node and arguably the better look, but it *is* a visual change on all
+nine stages and it belongs to the same "no automated gate can discharge this" bucket as A3's shader
+output. The scroll *rate* is unchanged: `Parallax2D` positions itself at
+`−screen_offset · scroll_scale` in world space, which produces the identical screen displacement the
+old `motion_scale` did.
+
+**B7: the opaque-backdrop guard was rebuilt around effective draw order rather than around a tint's
+alpha, and it is a stronger test than the one it replaces.** Package 6 C1's version encoded the old
+semantics directly — "a stage may pair a `ParallaxBackground` with `Presentation/BackdropTint` only
+if the tint is translucent" — which under the new node type is both too strict (an opaque rect below
+the parallax is fine, and five stages deliberately author one) and too weak (it only ever looked at
+one hard-coded node path). `NoStageHidesItsParallaxBehindAnOpaqueFullBleedRect` now walks the whole
+scene accumulating each canvas item's real `(canvas layer, z_index)` with `z_as_relative`
+compounding, and fails if **any** opaque full-bleed `ColorRect` outside the parallax subtree sorts at
+or above the shallowest parallax content. It carries two vacuity guards, not one: at least nine
+stages must be found carrying a parallax, and at least six opaque full-bleed rects must be *detected*
+somewhere — without the second, a `Control.GetRect()` that stopped resolving outside the tree would
+turn the whole sweep into a no-op that still passed.
+
+**B7: Florence is deliberately not given a parallax.** It predates Package 6 and dresses its
+distance with a single static `Sprite2D`; the invariant this workstream owns is "authored parallax is
+visible", not "every stage must have one". Its opaque `BackdropTint` is therefore still legal and
+still detected by the guard's full-bleed pass (it just has no parallax to hide). Both the guard and
+the migration sweep state the floor as nine rather than ten for exactly this reason.
+
+**B7: `StageLightingRig` drives everything from exports on its root, with property setters that
+apply immediately.** A stage tunes its era in one node-override block; nothing reaches into the
+instanced scene's children with `index=` blocks. The setters call `Apply()` (guarded on null
+children) so an instanced override lands as the scene is built, and `_Ready` calls it again for a
+rig constructed in code — which is what lets `StageLightingRigTests` read the resolved child state
+without ever entering the tree.
+
+**B7: every ambient tone is held above 0.55 on every channel, and that is a hard floor, not taste.**
+A `CanvasModulate` multiplies the whole canvas layer including the fighters, and this project's
+characters are flat placeholder silhouettes with no rim art to survive a crush. Era identity
+therefore comes from the channel *ratio* and from the light colours. The authored tones, brightest
+to darkest: Gettysburg `(0.86,0.84,0.76)` dusty daylight, Alexandria `(0.86,0.80,0.68)`,
+Florence `(0.86,0.79,0.70)`, Vesuvius `(0.88,0.74,0.66)`, Paris `(0.84,0.76,0.76)`,
+Globe `(0.80,0.74,0.84)`, Chicago `(0.78,0.84,0.88)`, Nassau `(0.76,0.82,0.86)`,
+Orléans `(0.72,0.75,0.86)`, Berlin `(0.70,0.74,0.80)` — the coldest, as the searchlight stage should
+be. Hub `(0.80,0.84,0.90)`, Level 02 reuses Orléans', Level 06 reuses Vesuvius'.
+`StageLightingRig.MinimumAmbientChannel` is the constant and
+`EveryLitSceneInstancesTheRigWithAReadableAmbientTone` sweeps all thirteen scenes against it. The
+test also refuses an ambient alpha below 1, which fades the entire layer rather than tinting it.
+
+**B7: key-light colours follow each stage's catalog `AccentColor` where the era reads as a light
+source, and deliberately diverge where it does not.** Chicago's coil cyan, Vesuvius' ember, Globe's
+purple rim and Alexandria's gold are the accent; Berlin's accent is the wall's red stripe, which is
+paint and not illumination, so its key/fill are cold searchlight white-blue from the two authored
+tower masts and the accent red is demoted to the rim. Nassau splits the difference — a warm lantern
+key on deck with the accent cyan as the sea-side fill.
+`EveryFighterStageTunesTheRigToItsOwnEra` requires nine distinct tones and eight distinct key
+colours across the ten stages, because ten scenes that instanced the template without overriding it
+would satisfy every other assertion in the suite while shipping one look for the whole catalog.
+
+**B7: campaign levels get `FollowsCamera`, Fighter stages do not.** A level is thousands of pixels
+wide and builds its geometry at runtime, so three fixed lights would only ever dress the opening
+room; with the flag the rig glides to the active `Camera2D` each frame and the key/fill pair stays
+meaningful everywhere. A Fighter stage is one authored screen and its lights are placed against real
+geometry (Chicago's two coil towers at x 575/1325, Berlin's mast tops at 700/950, Vesuvius' lava
+seams), so following the camera there would flatten the very placement that gives it identity. The
+suite asserts no stage sets it. The hub and levels 2/6 also disable the rim light: a third light with
+nothing authored to rim is cost without an image.
+
+**B7: `StoryItemPickupTemplate`'s `Glow` was still an inert texture-less `PointLight2D`; A3 had not
+fixed it.** A `PointLight2D` with no texture emits nothing at all, so that light had been dead since
+it was authored and was the repository's only Light2D before this pass. It now carries A3's
+`glow_light_gradient.tres` at `texture_scale` 0.9 with the pickup's cyan.
+`TheStoryPickupGlowIsNoLongerAnInertTexturelessLight` pins it, and the same texture-presence
+assertion covers all three rig lights — the failure mode is identical and neither version errors.
+
+**B7: `--headless --import` rewrote eight `addons/gdUnit4` `.import` sidecars with real content
+changes, not the usual line-ending churn.** The worktree path resolves the addon directory as
+`gdunit4` where the repository has `gdUnit4`, so the importer rewrote `source_file` and the
+`.godot/imported` hashes. Unrelated to this workstream and discarded, along with the line-ending-only
+rewrites of the other ~70 sidecars and `resources/Audio/default_bus_layout.tres`. `en.csv` was not
+touched, so no compiled translation artifact moved.
+
+**B7 validation.** `dotnet build` clean — the single pre-existing vendored `CS8632`, and **the two
+`#pragma warning disable CS0618` blocks and six untyped-`GetClass()` workarounds are gone**, which
+was the point of doing the migration with the suites in one change. Full suite **1067 passed / 0
+failed / Total 1067** across two consecutive serial runs — exactly the post-Phase-A 1060 plus 7
+(`FighterStageParallaxMigrationTests` ×2, `StageLightingRigTests` ×5); the nine per-stage suites and
+`FighterStagePresentationTests` kept their case counts, and `FighterStageConformance` was not
+touched and stayed green for all ten stages. `--headless --import` clean. Headless `--quit-after 300`
+smokes: all ten Fighter stages plus `HubWorld`, `Level_02_Orleans` and `Level_06_Pompeii` — thirteen
+for thirteen, exit 0, zero `ERROR`/`SCRIPT ERROR` lines. One contention run was discarded first
+(exit 100 with `Failed to connect: Connection timeout`, CLAUDE.md failure signature 5).
+
+**B7: not delivered.** Nobody has *looked* at any of this. A headless gate proves the scenes load,
+the node types are right, the scroll factors are distinct and the ambient tones clear the floor; it
+cannot tell you whether the parallax reads at 1.4× zoom, whether the key light lands where the era
+wants it, or whether Berlin is now too cold. Also out: `LightOccluder2D` and any shadow casting (no
+occluder geometry is authored anywhere), normal maps, per-room level lighting beyond the two
+exemplars, and the remaining thirteen campaign scenes — the rig is the pattern, and applying it is
+per-level content work.

@@ -134,11 +134,12 @@ public class FighterStageChicagoTests {
             var presentation = root.GetNodeOrNull<Node2D>("Presentation");
             AssertObject(presentation).IsNotNull();
 
-            // Package 6 C1: the tint must be translucent. A ParallaxBackground is a
-            // negative-layer CanvasLayer, so an OPAQUE full-bleed ColorRect sitting
-            // in canvas layer 0 hides the whole parallax whatever its z_index — and
-            // a node-existence test still passes. Opaque screen coverage comes from
-            // BackdropBase inside the parallax instead.
+            // Package 6 C1, still true after the Package 8 B7 Parallax2D migration:
+            // the tint must be translucent. The parallax now lives in canvas layer 0
+            // at a deep negative z_index, so an OPAQUE full-bleed ColorRect above it
+            // hides it just as thoroughly as the old negative-CanvasLayer version did
+            // — and a node-existence test still passes. Opaque screen coverage comes
+            // from BackdropBase, which sits inside the parallax group beneath it.
             var tint = presentation.GetNodeOrNull<ColorRect>("BackdropTint");
             AssertObject(tint).IsNotNull();
             AssertThat(tint.Color.R).IsEqualApprox(0.04f, 0.001f);
@@ -148,19 +149,14 @@ public class FighterStageChicagoTests {
                 $"BackdropTint is opaque (alpha {tint.Color.A}); it would hide the parallax.")
                 .IsTrue();
 
-            // Reached untyped: Godot 4.7 marks the ParallaxBackground/ParallaxLayer
-            // C# classes obsolete in favour of Parallax2D, and referencing them here
-            // would add CS0618 warnings to the build gate. The plan (§5 item 2) still
-            // specifies ParallaxBackground for every Phase B stage, so the scene keeps
-            // it and the assertion reads the class name and property directly.
-            var parallax = presentation.GetNodeOrNull<CanvasLayer>("ParallaxBackground");
+            // Typed against Parallax2D since the Package 8 B7 migration; the
+            // replacement class carries no [Obsolete], so the untyped GetClass()
+            // workaround and its CS0618 rationale are both retired.
+            var parallax = presentation.GetNodeOrNull<Node2D>("Parallax");
             AssertObject(parallax).IsNotNull();
-            AssertThat(parallax.GetClass()).IsEqual("ParallaxBackground");
             var scrollFactors = new List<float>();
             foreach (Node child in parallax.GetChildren()) {
-                if (child.GetClass() == "ParallaxLayer") {
-                    scrollFactors.Add(child.Get("motion_scale").AsVector2().X);
-                }
+                if (child is Parallax2D layer) scrollFactors.Add(layer.ScrollScale.X);
             }
             AssertThat(scrollFactors.Count >= 2).OverrideFailureMessage(
                 $"expected at least two parallax layers, found {scrollFactors.Count}").IsTrue();

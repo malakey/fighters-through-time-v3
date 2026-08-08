@@ -1,4 +1,4 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/FighterStageController.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/UI/TestArenaHUD.cs" id="2_hud"]
@@ -7,6 +7,7 @@
 [ext_resource type="Resource" path="res://resources/Contracts/fighter_stage_contract.tres" id="5_contract"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/stages/vesuvius_sky.svg" id="6_sky"]
 [ext_resource type="Texture2D" path="res://assets/placeholders/stages/vesuvius_ridge.svg" id="7_ridge"]
+[ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="8_lighting"]
 
 [sub_resource type="RectangleShape2D" id="ground_col"]
 size = Vector2(1000, 48)
@@ -31,9 +32,10 @@ offset_right = 2200.0
 offset_bottom = 1200.0
 color = Color(0.12, 0.035, 0.02, 0.45)
 
-[node name="ParallaxBackground" type="ParallaxBackground" parent="Presentation"]
+[node name="Parallax" type="Node2D" parent="Presentation"]
+z_index = -200
 
-[node name="BackdropBase" type="ColorRect" parent="Presentation/ParallaxBackground"]
+[node name="BackdropBase" type="ColorRect" parent="Presentation/Parallax"]
 mouse_filter = 2
 offset_left = -400.0
 offset_top = -400.0
@@ -41,18 +43,20 @@ offset_right = 2320.0
 offset_bottom = 1480.0
 color = Color(0.12, 0.035, 0.02, 1)
 
-[node name="AshSkyLayer" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
-motion_scale = Vector2(0.15, 0.06)
+[node name="AshSkyLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 1
+scroll_scale = Vector2(0.15, 0.06)
 
-[node name="AshSky" type="Sprite2D" parent="Presentation/ParallaxBackground/AshSkyLayer"]
+[node name="AshSky" type="Sprite2D" parent="Presentation/Parallax/AshSkyLayer"]
 modulate = Color(0.85, 0.6, 0.52, 1)
 position = Vector2(960, 540)
 texture = ExtResource("6_sky")
 
-[node name="CalderaRidgeLayer" type="ParallaxLayer" parent="Presentation/ParallaxBackground"]
-motion_scale = Vector2(0.45, 0.18)
+[node name="CalderaRidgeLayer" type="Parallax2D" parent="Presentation/Parallax"]
+z_index = 2
+scroll_scale = Vector2(0.45, 0.18)
 
-[node name="CalderaRidge" type="Sprite2D" parent="Presentation/ParallaxBackground/CalderaRidgeLayer"]
+[node name="CalderaRidge" type="Sprite2D" parent="Presentation/Parallax/CalderaRidgeLayer"]
 modulate = Color(0.9, 0.72, 0.66, 1)
 position = Vector2(960, 620)
 texture = ExtResource("7_ridge")
@@ -180,6 +184,21 @@ offset_top = 100.0
 offset_right = 1450.0
 offset_bottom = 760.0
 color = Color(0.55, 0.2, 0.08, 0.07)
+
+[node name="Lighting" parent="." instance=ExtResource("8_lighting")]
+AmbientTone = Color(0.88, 0.74, 0.66, 1)
+KeyColor = Color(1, 0.34, 0.06, 1)
+KeyEnergy = 0.95
+KeyOffset = Vector2(610, 660)
+KeyScale = 11.0
+FillColor = Color(1, 0.45, 0.12, 1)
+FillEnergy = 0.7
+FillOffset = Vector2(1300, 690)
+FillScale = 10.0
+RimColor = Color(1, 0.62, 0.3, 1)
+RimEnergy = 0.3
+RimOffset = Vector2(950, 200)
+RimScale = 12.0
 
 [node name="Geometry" type="Node2D" parent="."]
 
