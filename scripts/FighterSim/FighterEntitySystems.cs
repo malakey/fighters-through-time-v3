@@ -48,6 +48,8 @@ namespace FTT.FighterSim {
         public const int SpecialAttackClass = 2;
         public const int UltimateAttackClass = 3;
         public const int HazardAttackClass = 4;
+        /// <summary>A blocked hazard tick costs exactly one shield charge (design §10).</summary>
+        public const int HazardBlockChargeCost = 1;
         private const int BlockButton = 1 << 6;
         private static readonly FP64 MaxInfluence = FP64.FromInt(100);
 
@@ -66,7 +68,8 @@ namespace FTT.FighterSim {
             FP64 statusIntensity,
             FP64 hitOriginX,
             bool creditInfluence = true,
-            int blockChargeCost = 0) {
+            int blockChargeCost = 0,
+            FP64 verticalKnockbackScale = default) {
             if (target.InvulnerabilityFrames > 0 || target.Stocks <= 0) return false;
 
             if (targetRuntime.AegisHits > 0) {
@@ -125,8 +128,11 @@ namespace FTT.FighterSim {
 
 			if (carriesImpulse && (target.HyperArmorFrames <= 0 || attackClass == UltimateAttackClass)) {
                 FP64 force = knockback / (FP64.One + target.Weight);
+                // Launcher-class impulses (Nassau's mortar) bias the impulse
+                // upward; everything else keeps the symmetric 1:1 pulse.
+                FP64 verticalScale = verticalKnockbackScale > FP64.Zero ? verticalKnockbackScale : FP64.One;
                 target.Velocity.x = hitOriginX <= target.Position.x ? force : -force;
-                target.Velocity.y = force;
+                target.Velocity.y = force * verticalScale;
                 target.IsGrounded = 0;
                 target.HitstunFrames = hitstunFrames;
             }
@@ -157,6 +163,13 @@ namespace FTT.FighterSim {
                 0,
                 FP64.One);
 
+        /// <summary>
+        /// Environment/hazard damage. Per `design-godot.md` §10 ("Block
+        /// Compatibility"), a hazard tick is treated as a basic attack: an active
+        /// front-facing block absorbs it for exactly one block charge, which is
+        /// why <c>blockChargeCost</c> is pinned to 1 here rather than left to the
+        /// attack-class default.
+        /// </summary>
         public static bool ApplyEnvironmentHit(
             ref FighterStateComponent target,
             ref FighterRuntimeComponent targetRuntime,
@@ -167,7 +180,8 @@ namespace FTT.FighterSim {
             FP64 hitOriginX,
             int statusType,
             int statusFrames,
-            FP64 statusIntensity) {
+            FP64 statusIntensity,
+            FP64 verticalKnockbackScale = default) {
             FighterStateComponent environment = default;
             FighterRuntimeComponent environmentRuntime = default;
             return ApplyFighterHit(
@@ -184,7 +198,9 @@ namespace FTT.FighterSim {
                 statusFrames,
                 statusIntensity,
                 hitOriginX,
-                false);
+                false,
+                HazardBlockChargeCost,
+                verticalKnockbackScale);
         }
 
         private static void ApplyStatus(
@@ -847,11 +863,64 @@ namespace FTT.FighterSim {
         }
     }
 
+    /// <summary>
+    /// Canonical era-hazard identities (`design-godot.md` §10 stage table). The ID
+    /// is authored on <c>FighterStageData.HazardTypeID</c> and carried into the
+    /// simulation through <c>FighterMatchComponent.StageHazardTypeID</c>.
+    /// </summary>
+    public static class FighterHazardTypeID {
+        public const int FlorenceSteamPipe = 1;
+        public const int OrleansTrebuchetDebris = 2;
+        public const int ChicagoTeslaInduction = 3;
+        public const int ParisDampeningBeam = 4;
+        public const int VesuviusRockfall = 5;
+        public const int NassauMortar = 6;
+        public const int AlexandriaSinkhole = 7;
+        public const int BerlinSearchlight = 8;
+        public const int GlobeAudienceHeckle = 9;
+        public const int GettysburgArtillery = 10;
+        public const int Count = 10;
+    }
+
+    /// <summary>
+    /// Deterministic era hazards. Every hazard runs warning → active → recovery;
+    /// only the active phase damages. Per-type behaviour (rolling debris, sweeping
+    /// beams, falling rocks and their residue pools, dwell timers, idle punishment,
+    /// one-shot artillery) is authored in <see cref="FighterHazardSpec"/> and driven
+    /// here. Hazard damage ticks are basic-attack class, so an active front-facing
+    /// block absorbs a tick for one shield charge (design §10 "Block Compatibility").
+    ///
+    /// <para>All movement is integrated in units per frame from the component's
+    /// <c>Velocity</c> field, and all randomness threads
+    /// <c>FighterMatchComponent.RandomState0/1</c> through
+    /// <see cref="DeterministicRandom"/> inside <c>SpawnHazard</c> in a fixed draw
+    /// order, so hazards stay rollback-identical.</para>
+    /// </summary>
     public sealed class FighterHazardSystem : ISystem {
-        private const int WarningFrames = 90;
-        private const int ActiveFrames = 360;
-        private const int DamageTickFrames = 30;
+        internal const int DefaultWarningFrames = 90;
+        internal const int RecoveryFrames = 60;
+        internal const int DamageTickFrames = 30;
+        internal const int WarningPhase = 0;
+        internal const int ActivePhase = 1;
+        internal const int RecoveryPhase = 2;
+        /// <summary>Vesuvius sub-states: the falling rock, then its ground pool.</summary>
+        internal const int RockFallingSubType = 0;
+        internal const int RockPoolSubType = 1;
+        internal const int RockPoolFrames = 180;
+        /// <summary>Berlin's drone fires after this many consecutive frames in the beam.</summary>
+        internal const int SearchlightDwellFrames = 90;
+        /// <summary>The Globe crowd pelts a fighter that has stood still this long.</summary>
+        internal const int HeckleIdleFrames = 120;
+        private const int HitstunFrames = 10;
         private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
+        private static readonly FP64 DebrisSpeed = FP64.FromDouble(0.09);
+        private static readonly FP64 BeamSweepSpeed = FP64.FromDouble(0.05);
+        private static readonly FP64 RockFallSpeed = FP64.FromDouble(0.15);
+        private static readonly FP64 InfluenceDrainPerTick = FP64.FromInt(5);
+        /// <summary>Below this |velocity.x| a grounded fighter counts as idle for the Globe crowd.</summary>
+        private static readonly FP64 IdleSpeedThreshold = FP64.FromDouble(0.5);
+        /// <summary>The mortar is a launcher: its vertical impulse is doubled.</summary>
+        private static readonly FP64 MortarVerticalScale = FP64.FromInt(2);
 
         private readonly FighterStageGeometry _geometry;
 
@@ -873,21 +942,23 @@ namespace FTT.FighterSim {
             while (filter.Next(out EntityRef hazardEntity)) {
                 ref FighterHazardComponent hazard = ref frame.Get<FighterHazardComponent>(hazardEntity);
                 hazard.PhaseFramesRemaining--;
-                if (hazard.Phase == 0) {
-                    if (hazard.PhaseFramesRemaining <= 0) {
-                        hazard.Phase = 1;
-                        hazard.PhaseFramesRemaining = hazard.ActiveFrames;
-                        hazard.TickFramesRemaining = 1;
-                    }
+
+                if (hazard.Phase == WarningPhase) {
+                    if (hazard.PhaseFramesRemaining <= 0) BeginActivePhase(ref hazard);
+                    continue;
+                }
+                if (hazard.Phase == RecoveryPhase) {
+                    if (hazard.PhaseFramesRemaining <= 0) frame.DestroyEntity(hazardEntity);
                     continue;
                 }
 
-                hazard.TickFramesRemaining--;
+                AdvanceActiveHazard(ref frame, ref hazard);
+                if (hazard.TickFramesRemaining > 0) hazard.TickFramesRemaining--;
                 if (hazard.TickFramesRemaining <= 0) {
-                    ApplyHazardTick(ref frame, in hazard);
+                    ApplyPeriodicTick(ref frame, ref hazard);
                     hazard.TickFramesRemaining = DamageTickFrames;
                 }
-                if (hazard.PhaseFramesRemaining <= 0) frame.DestroyEntity(hazardEntity);
+                if (hazard.PhaseFramesRemaining <= 0) BeginRecoveryPhase(ref hazard);
             }
         }
 
@@ -895,84 +966,390 @@ namespace FTT.FighterSim {
             var random = new DeterministicRandom(1);
             random.SetFullState(match.RandomState0, match.RandomState1);
             // Authored stages pick a deterministic anchor; the legacy arena keeps
-            // the historical random spawn range.
+            // the historical random spawn range. Both draws always run, in this
+            // order, so the RNG stream does not depend on the hazard identity.
             FP64 positionX = _geometry.HazardAnchorXs.Length > 0
                 ? _geometry.HazardAnchorXs[random.NextInt(0, _geometry.HazardAnchorXs.Length)]
                 : random.NextFixed(FP64.FromInt(-7), FP64.FromInt(7));
-            int hazardType = match.StageHazardTypeID >= 1 && match.StageHazardTypeID <= 10
+            int hazardType = match.StageHazardTypeID >= 1 && match.StageHazardTypeID <= FighterHazardTypeID.Count
                 ? match.StageHazardTypeID
-                : 1;
-            int baseDamage = random.NextIntInclusive(5, 10);
-            int damage = hazardType switch {
-                4 => 0,
-                5 => 8,
-                6 => 10,
-                7 => 2,
-                8 => 8,
-                9 => 5,
-                10 => 12,
-                _ => baseDamage
-            };
-            int knockback = hazardType switch {
-                6 => 5,
-                10 => 6,
-                7 => 1,
-                _ => 3
-            };
-            int halfWidth = hazardType == 10 ? 3 : hazardType == 2 || hazardType == 4 ? 1 : 2;
+                : FighterHazardTypeID.FlorenceSteamPipe;
+            int steamDamage = random.NextIntInclusive(5, 10);
             (match.RandomState0, match.RandomState1) = random.GetFullState();
+
+            FighterHazardSpec spec = FighterHazardSpec.For(hazardType, steamDamage);
 
             EntityRef entity = frame.CreateEntity();
             frame.Add(entity, new FighterHazardComponent {
                 EntityID = match.NextEntityID++,
                 HazardTypeID = hazardType,
-                Phase = 0,
-                PhaseFramesRemaining = WarningFrames,
-                Damage = damage,
+                SubTypeID = 0,
+                Phase = WarningPhase,
+                PhaseFramesRemaining = spec.WarningFrames,
+                Damage = spec.Damage,
                 TickFramesRemaining = DamageTickFrames,
-                WarningFrames = WarningFrames,
-                ActiveFrames = ActiveFrames,
-                CooldownFrames = FighterSpawnIntervals.HazardFrames(match.HazardFrequency),
-                Position = new FPVector2(positionX, FP64.Zero),
-                HalfExtents = new FPVector2(FP64.FromInt(halfWidth), FP64.FromInt(2)),
-                Knockback = new FPVector2(FP64.FromInt(knockback), FP64.FromInt(knockback))
+                WarningFrames = spec.WarningFrames,
+                ActiveFrames = spec.ActiveFrames,
+                CooldownFrames = RecoveryFrames,
+                HitMask = 0,
+                DwellFramesPlayerOne = 0,
+                DwellFramesPlayerTwo = 0,
+                Position = new FPVector2(positionX, spec.CenterY),
+                HalfExtents = spec.HalfExtents,
+                Knockback = new FPVector2(spec.Knockback, spec.Knockback),
+                Velocity = FPVector2.Zero
             });
         }
 
-        private static void ApplyHazardTick(ref Frame frame, in FighterHazardComponent hazard) {
+        /// <summary>
+        /// Warning → active. Types that move or relocate at ignition (rolling
+        /// debris, the sweeping beam, the rock dropping from the ceiling) set their
+        /// travel state here; everything else simply arms.
+        /// </summary>
+        private void BeginActivePhase(ref FighterHazardComponent hazard) {
+            hazard.Phase = ActivePhase;
+            hazard.PhaseFramesRemaining = hazard.ActiveFrames;
+            hazard.TickFramesRemaining = 1;
+            hazard.HitMask = 0;
+
+            if (hazard.HazardTypeID == FighterHazardTypeID.OrleansTrebuchetDebris) {
+                // Debris rolls away from the wall it was launched over.
+                hazard.Velocity = new FPVector2(
+                    hazard.Position.x < FP64.Zero ? DebrisSpeed : -DebrisSpeed, FP64.Zero);
+            } else if (hazard.HazardTypeID == FighterHazardTypeID.ParisDampeningBeam) {
+                hazard.Velocity = new FPVector2(
+                    hazard.Position.x <= FP64.Zero ? BeamSweepSpeed : -BeamSweepSpeed, FP64.Zero);
+            } else if (hazard.HazardTypeID == FighterHazardTypeID.VesuviusRockfall) {
+                // The ground marker becomes the rock, which now falls from the sky.
+                hazard.Position = new FPVector2(hazard.Position.x, _geometry.Ceiling);
+                hazard.HalfExtents = new FPVector2(FP64.FromDouble(0.6), FP64.FromDouble(0.6));
+                hazard.Velocity = new FPVector2(FP64.Zero, -RockFallSpeed);
+            }
+        }
+
+        private static void BeginRecoveryPhase(ref FighterHazardComponent hazard) {
+            hazard.Phase = RecoveryPhase;
+            hazard.PhaseFramesRemaining = hazard.CooldownFrames > 0 ? hazard.CooldownFrames : RecoveryFrames;
+            hazard.Velocity = FPVector2.Zero;
+        }
+
+        /// <summary>
+        /// Per-frame active behaviour: movement, contact hits for one-shot hazards,
+        /// and the dwell/idle counters. The periodic damage tick runs separately.
+        /// </summary>
+        private void AdvanceActiveHazard(ref Frame frame, ref FighterHazardComponent hazard) {
+            switch (hazard.HazardTypeID) {
+                case FighterHazardTypeID.OrleansTrebuchetDebris:
+                    hazard.Position += hazard.Velocity;
+                    ApplyOneShotContact(ref frame, ref hazard, FP64.Zero);
+                    // Rolled off the far side of the ramparts.
+                    if (hazard.Position.x - hazard.HalfExtents.x > _geometry.RightWall
+                        || hazard.Position.x + hazard.HalfExtents.x < _geometry.LeftWall) {
+                        hazard.PhaseFramesRemaining = 0;
+                    }
+                    break;
+
+                case FighterHazardTypeID.ParisDampeningBeam:
+                    hazard.Position += hazard.Velocity;
+                    if (hazard.Position.x + hazard.HalfExtents.x >= _geometry.RightWall && hazard.Velocity.x > FP64.Zero) {
+                        hazard.Velocity = new FPVector2(-hazard.Velocity.x, FP64.Zero);
+                    } else if (hazard.Position.x - hazard.HalfExtents.x <= _geometry.LeftWall && hazard.Velocity.x < FP64.Zero) {
+                        hazard.Velocity = new FPVector2(-hazard.Velocity.x, FP64.Zero);
+                    }
+                    break;
+
+                case FighterHazardTypeID.VesuviusRockfall:
+                    if (hazard.SubTypeID == RockFallingSubType) {
+                        hazard.Position += hazard.Velocity;
+                        ApplyOneShotContact(ref frame, ref hazard, FP64.Zero);
+                        if (hazard.Position.y <= FP64.Zero) {
+                            // Impact: the rock shatters into a time-dilation pool.
+                            hazard.Position = new FPVector2(hazard.Position.x, FP64.Zero);
+                            hazard.Velocity = FPVector2.Zero;
+                            hazard.SubTypeID = RockPoolSubType;
+                            hazard.HalfExtents = new FPVector2(FP64.One, FP64.FromDouble(0.5));
+                            hazard.PhaseFramesRemaining = RockPoolFrames;
+                            hazard.TickFramesRemaining = 1;
+                        }
+                    }
+                    break;
+
+                case FighterHazardTypeID.NassauMortar:
+                case FighterHazardTypeID.GettysburgArtillery:
+                    ApplyOneShotContact(
+                        ref frame, ref hazard,
+                        hazard.HazardTypeID == FighterHazardTypeID.NassauMortar
+                            ? MortarVerticalScale
+                            : FP64.Zero);
+                    break;
+
+                case FighterHazardTypeID.BerlinSearchlight:
+                    AdvanceSearchlightDwell(ref frame, ref hazard);
+                    break;
+
+                case FighterHazardTypeID.GlobeAudienceHeckle:
+                    AdvanceHeckleIdle(ref frame, ref hazard);
+                    break;
+            }
+        }
+
+        /// <summary>
+        /// The periodic 0.5 s damage tick shared by the dwell-free damage-over-time
+        /// hazards. One-shot and counter-driven identities deliberately opt out.
+        /// </summary>
+        private void ApplyPeriodicTick(ref Frame frame, ref FighterHazardComponent hazard) {
+            int type = hazard.HazardTypeID;
+            bool rockPool = type == FighterHazardTypeID.VesuviusRockfall && hazard.SubTypeID == RockPoolSubType;
+            bool ticks = type == FighterHazardTypeID.FlorenceSteamPipe
+                || type == FighterHazardTypeID.ChicagoTeslaInduction
+                || type == FighterHazardTypeID.ParisDampeningBeam
+                || type == FighterHazardTypeID.AlexandriaSinkhole
+                || rockPool;
+            if (!ticks) return;
+
             var fighterFilter = frame.Filter<FighterStateComponent, FighterRuntimeComponent, FighterTuningComponent>();
             while (fighterFilter.Next(out EntityRef fighterEntity)) {
                 ref FighterStateComponent fighter = ref frame.Get<FighterStateComponent>(fighterEntity);
                 if (!FighterEntityQueries.Overlaps(
                         in hazard.Position, in hazard.HalfExtents,
                         in fighter.Position, in FighterHalfExtents)) continue;
-                ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(fighterEntity);
-                ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(fighterEntity);
-                if (hazard.HazardTypeID == 4) {
-                    fighter.Influence = FP64.Max(FP64.Zero, fighter.Influence - FP64.FromInt(5));
+
+                // The dampening beam is pure meter denial: no damage, no impulse.
+                if (type == FighterHazardTypeID.ParisDampeningBeam) {
+                    fighter.Influence = FP64.Max(FP64.Zero, fighter.Influence - InfluenceDrainPerTick);
                     continue;
                 }
-                int statusType = hazard.HazardTypeID switch {
-                    3 => (int)StatusType.StaticCharge,
-                    5 => (int)StatusType.TimeDilation,
-                    7 => (int)StatusType.TimeDilation,
-                    _ => (int)StatusType.None
-                };
-                int statusFrames = hazard.HazardTypeID switch {
-                    3 => 30,
-                    5 => 120,
-                    7 => 60,
-                    _ => 0
-                };
-                FP64 statusIntensity = hazard.HazardTypeID == 7
-                    ? FP64.One
-                    : FP64.FromDouble(0.5);
+                // Quicksand only grips fighters standing in it.
+                if (type == FighterHazardTypeID.AlexandriaSinkhole && fighter.IsGrounded == 0) continue;
+
+                ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(fighterEntity);
+                ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(fighterEntity);
+                ResolveTickStatus(type, rockPool, out int statusType, out int statusFrames, out FP64 statusIntensity);
+                // The residue pool slows, it does not wound.
+                int damage = rockPool ? 0 : hazard.Damage;
+                FP64 knockback = rockPool ? FP64.Zero : hazard.Knockback.x;
+                int hitstun = rockPool ? 0 : HitstunFrames;
                 FighterDamageRules.ApplyEnvironmentHit(
                     ref fighter, ref runtime, in tuning,
-                    hazard.Damage, hazard.Knockback.x, 10, hazard.Position.x,
+                    damage, knockback, hitstun, hazard.Position.x,
                     statusType, statusFrames, statusIntensity);
             }
         }
+
+        private static void ResolveTickStatus(
+            int hazardType,
+            bool rockPool,
+            out int statusType,
+            out int statusFrames,
+            out FP64 statusIntensity) {
+            if (rockPool) {
+                statusType = (int)StatusType.TimeDilation;
+                statusFrames = 120;
+                statusIntensity = FP64.FromDouble(0.5);
+                return;
+            }
+            if (hazardType == FighterHazardTypeID.ChicagoTeslaInduction) {
+                statusType = (int)StatusType.StaticCharge;
+                statusFrames = 30;
+                statusIntensity = FP64.FromDouble(0.5);
+                return;
+            }
+            if (hazardType == FighterHazardTypeID.AlexandriaSinkhole) {
+                // The design's "reducing speed by 50%" is TimeDilation at full intensity.
+                statusType = (int)StatusType.TimeDilation;
+                statusFrames = 60;
+                statusIntensity = FP64.One;
+                return;
+            }
+            statusType = (int)StatusType.None;
+            statusFrames = 0;
+            statusIntensity = FP64.FromDouble(0.5);
+        }
+
+        /// <summary>
+        /// One damaging contact per fighter for the whole hazard instance. The mask
+        /// is consumed on the first overlapping frame whether or not the hit landed
+        /// (a blocked mortar shell is spent, and so is one the fighter rolled
+        /// through) so that a single shell can never chain-hit across frames.
+        /// </summary>
+        private static void ApplyOneShotContact(
+            ref Frame frame,
+            ref FighterHazardComponent hazard,
+            FP64 verticalKnockbackScale) {
+            var fighterFilter = frame.Filter<FighterStateComponent, FighterRuntimeComponent, FighterTuningComponent>();
+            while (fighterFilter.Next(out EntityRef fighterEntity)) {
+                ref FighterStateComponent fighter = ref frame.Get<FighterStateComponent>(fighterEntity);
+                int bit = 1 << fighter.PlayerID;
+                if ((hazard.HitMask & bit) != 0) continue;
+                if (!FighterEntityQueries.Overlaps(
+                        in hazard.Position, in hazard.HalfExtents,
+                        in fighter.Position, in FighterHalfExtents)) continue;
+
+                hazard.HitMask |= bit;
+                ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(fighterEntity);
+                ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(fighterEntity);
+                FighterDamageRules.ApplyEnvironmentHit(
+                    ref fighter, ref runtime, in tuning,
+                    hazard.Damage, hazard.Knockback.x, HitstunFrames, hazard.Position.x,
+                    (int)StatusType.None, 0, FP64.One, verticalKnockbackScale);
+            }
+        }
+
+        /// <summary>
+        /// Berlin: the searchlight itself is harmless. Staying inside its column for
+        /// 1.5 consecutive seconds calls down a drone laser on that fighter alone;
+        /// stepping out of the light resets the counter.
+        /// </summary>
+        private static void AdvanceSearchlightDwell(ref Frame frame, ref FighterHazardComponent hazard) {
+            var fighterFilter = frame.Filter<FighterStateComponent, FighterRuntimeComponent, FighterTuningComponent>();
+            while (fighterFilter.Next(out EntityRef fighterEntity)) {
+                ref FighterStateComponent fighter = ref frame.Get<FighterStateComponent>(fighterEntity);
+                bool inside = FighterEntityQueries.Overlaps(
+                    in hazard.Position, in hazard.HalfExtents,
+                    in fighter.Position, in FighterHalfExtents);
+                int dwell = ReadDwell(in hazard, fighter.PlayerID);
+                if (!inside) {
+                    WriteDwell(ref hazard, fighter.PlayerID, 0);
+                    continue;
+                }
+                dwell++;
+                if (dwell < SearchlightDwellFrames) {
+                    WriteDwell(ref hazard, fighter.PlayerID, dwell);
+                    continue;
+                }
+                WriteDwell(ref hazard, fighter.PlayerID, 0);
+                ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(fighterEntity);
+                ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(fighterEntity);
+                FighterDamageRules.ApplyEnvironmentHit(
+                    ref fighter, ref runtime, in tuning,
+                    hazard.Damage, hazard.Knockback.x, HitstunFrames, hazard.Position.x,
+                    (int)StatusType.None, 0, FP64.One);
+            }
+        }
+
+        /// <summary>
+        /// Globe: the crowd punishes camping. A grounded fighter that has barely
+        /// moved for two seconds is pelted from the nearest gallery anchor; a moving
+        /// fighter is never hit, and the hazard has no damaging region at all.
+        /// </summary>
+        private void AdvanceHeckleIdle(ref Frame frame, ref FighterHazardComponent hazard) {
+            var fighterFilter = frame.Filter<FighterStateComponent, FighterRuntimeComponent, FighterTuningComponent>();
+            while (fighterFilter.Next(out EntityRef fighterEntity)) {
+                ref FighterStateComponent fighter = ref frame.Get<FighterStateComponent>(fighterEntity);
+                bool idle = fighter.IsGrounded != 0 && FP64.Abs(fighter.Velocity.x) < IdleSpeedThreshold;
+                int idleFrames = ReadDwell(in hazard, fighter.PlayerID);
+                if (!idle) {
+                    WriteDwell(ref hazard, fighter.PlayerID, 0);
+                    continue;
+                }
+                idleFrames++;
+                if (idleFrames < HeckleIdleFrames) {
+                    WriteDwell(ref hazard, fighter.PlayerID, idleFrames);
+                    continue;
+                }
+                WriteDwell(ref hazard, fighter.PlayerID, 0);
+                ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(fighterEntity);
+                ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(fighterEntity);
+                FighterDamageRules.ApplyEnvironmentHit(
+                    ref fighter, ref runtime, in tuning,
+                    hazard.Damage, hazard.Knockback.x, HitstunFrames,
+                    NearestGalleryAnchorX(fighter.Position.x),
+                    (int)StatusType.None, 0, FP64.One);
+            }
+        }
+
+        private FP64 NearestGalleryAnchorX(FP64 fighterX) {
+            if (_geometry.HazardAnchorXs.Length == 0) return fighterX;
+            FP64 best = _geometry.HazardAnchorXs[0];
+            FP64 bestDistance = FP64.Abs(best - fighterX);
+            for (int index = 1; index < _geometry.HazardAnchorXs.Length; index++) {
+                FP64 candidate = _geometry.HazardAnchorXs[index];
+                FP64 distance = FP64.Abs(candidate - fighterX);
+                if (distance < bestDistance) {
+                    best = candidate;
+                    bestDistance = distance;
+                }
+            }
+            return best;
+        }
+
+        private static int ReadDwell(in FighterHazardComponent hazard, int playerID) =>
+            playerID == 0 ? hazard.DwellFramesPlayerOne : hazard.DwellFramesPlayerTwo;
+
+        private static void WriteDwell(ref FighterHazardComponent hazard, int playerID, int frames) {
+            if (playerID == 0) hazard.DwellFramesPlayerOne = frames;
+            else hazard.DwellFramesPlayerTwo = frames;
+        }
+    }
+
+    /// <summary>
+    /// Authored per-identity hazard tuning (damage, impulse, footprint, phase
+    /// lengths). Kept beside the system rather than in a `.tres` because
+    /// hazard geometry is deterministic simulation data that must be identical on
+    /// every peer without loading a Godot resource.
+    /// </summary>
+    internal readonly struct FighterHazardSpec {
+        public readonly int Damage;
+        public readonly int WarningFrames;
+        public readonly int ActiveFrames;
+        public readonly FP64 Knockback;
+        public readonly FP64 CenterY;
+        public readonly FPVector2 HalfExtents;
+
+        private FighterHazardSpec(
+            int damage, int warningFrames, int activeFrames,
+            FP64 knockback, FP64 centerY, FPVector2 halfExtents) {
+            Damage = damage;
+            WarningFrames = warningFrames;
+            ActiveFrames = activeFrames;
+            Knockback = knockback;
+            CenterY = centerY;
+            HalfExtents = halfExtents;
+        }
+
+        /// <param name="steamDamage">The Florence pipe's authored random 5–10 roll.</param>
+        public static FighterHazardSpec For(int hazardType, int steamDamage) => hazardType switch {
+            // Orléans: a narrow ground-band boulder that rolls the whole stage.
+            FighterHazardTypeID.OrleansTrebuchetDebris => new FighterHazardSpec(
+                7, 90, 240, FP64.FromInt(3), FP64.Zero,
+                new FPVector2(FP64.FromDouble(0.8), FP64.One)),
+            // Chicago: a wide static induction grid across stage centre.
+            FighterHazardTypeID.ChicagoTeslaInduction => new FighterHazardSpec(
+                6, 90, 360, FP64.FromInt(3), FP64.Zero,
+                new FPVector2(FP64.FromInt(4), FP64.FromInt(2))),
+            // Paris: a narrow full-height sweeping column; 0 damage, drains meter.
+            FighterHazardTypeID.ParisDampeningBeam => new FighterHazardSpec(
+                0, 90, 360, FP64.Zero, FP64.FromInt(3),
+                new FPVector2(FP64.One, FP64.FromInt(6))),
+            // Vesuvius: the ground warning marker before the rock drops.
+            FighterHazardTypeID.VesuviusRockfall => new FighterHazardSpec(
+                8, 90, 240, FP64.FromInt(4), FP64.Zero,
+                new FPVector2(FP64.One, FP64.FromDouble(0.25))),
+            // Nassau: a targeting grid, then a half-second launching explosion.
+            FighterHazardTypeID.NassauMortar => new FighterHazardSpec(
+                10, 90, 30, FP64.FromInt(5), FP64.Zero,
+                new FPVector2(FP64.FromInt(2), FP64.FromInt(2))),
+            // Alexandria: a long-lived quicksand patch that only grips the grounded.
+            FighterHazardTypeID.AlexandriaSinkhole => new FighterHazardSpec(
+                2, 90, 480, FP64.One, FP64.Zero,
+                new FPVector2(FP64.FromInt(2), FP64.One)),
+            // Berlin: a tall narrow light column; harmless until you loiter in it.
+            FighterHazardTypeID.BerlinSearchlight => new FighterHazardSpec(
+                8, 90, 480, FP64.FromInt(3), FP64.FromInt(3),
+                new FPVector2(FP64.FromDouble(1.2), FP64.FromInt(5))),
+            // Globe: no damaging region at all — the crowd watches the whole stage.
+            FighterHazardTypeID.GlobeAudienceHeckle => new FighterHazardSpec(
+                5, 90, 600, FP64.FromInt(2), FP64.Zero,
+                new FPVector2(FP64.FromInt(10), FP64.FromInt(10))),
+            // Gettysburg: the widest band, a 2 s sight line, then a heavy strike.
+            FighterHazardTypeID.GettysburgArtillery => new FighterHazardSpec(
+                12, 120, 30, FP64.FromInt(6), FP64.FromDouble(0.75),
+                new FPVector2(FP64.FromInt(5), FP64.FromDouble(0.75))),
+            // Florence (and the legacy fallback): the shipped steam pipe.
+            _ => new FighterHazardSpec(
+                steamDamage, 90, 360, FP64.FromInt(3), FP64.Zero,
+                new FPVector2(FP64.FromInt(2), FP64.FromInt(2)))
+        };
     }
 
     public sealed class FighterOrbSystem : ISystem {

@@ -390,11 +390,24 @@ namespace FTT.FighterSim {
         public FPVector2 HalfExtents;
     }
 
+    /// <summary>
+    /// One live era hazard. <c>Phase</c> is 0 = warning (telegraph, no damage),
+    /// 1 = active, 2 = recovery (the post-active settle window whose length is
+    /// <c>CooldownFrames</c>); the entity is destroyed when recovery ends.
+    /// <para><c>SubTypeID</c> encodes a per-type sub-state (Vesuvius: 0 = falling
+    /// rock, 1 = ground time-dilation pool). <c>Velocity</c> is in world units per
+    /// <em>frame</em> (not per second) and is integrated directly, so a rolling or
+    /// sweeping hazard stays exactly reproducible. <c>HitMask</c> holds one bit per
+    /// player for one-shot hazards. <c>DwellFramesPlayerOne/Two</c> count the
+    /// consecutive frames a fighter has satisfied the type's trigger condition
+    /// (Berlin: inside the beam; Globe: standing still).</para>
+    /// </summary>
     [KlothoComponent(304, MaxCount = 16)]
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public partial struct FighterHazardComponent : IComponent {
         public int EntityID;
         public int HazardTypeID;
+        public int SubTypeID;
         public int Phase;
         public int PhaseFramesRemaining;
         public int Damage;
@@ -402,9 +415,13 @@ namespace FTT.FighterSim {
         public int WarningFrames;
         public int ActiveFrames;
         public int CooldownFrames;
+        public int HitMask;
+        public int DwellFramesPlayerOne;
+        public int DwellFramesPlayerTwo;
         public FPVector2 Position;
         public FPVector2 HalfExtents;
         public FPVector2 Knockback;
+        public FPVector2 Velocity;
     }
 
     [KlothoComponent(308, MaxCount = 16)]

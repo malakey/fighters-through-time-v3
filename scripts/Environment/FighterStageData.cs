@@ -11,6 +11,12 @@ namespace FTT.Environment {
         [Export] public string HazardNameKey = "";
         [Export] public string HazardDescriptionKey = "";
         [Export(PropertyHint.File, "*.tscn")] public string ScenePath = "res://scenes/arenas/TestArena.tscn";
+        /// <summary>
+        /// Stage-select preview image. Empty means "no preview authored yet"; the
+        /// select screen falls back to the era colours. Populated per stage in the
+        /// Package 6 closeout once every stage ships a placeholder preview.
+        /// </summary>
+        [Export(PropertyHint.File, "*.svg,*.png")] public string PreviewTexturePath = "";
         [Export(PropertyHint.Range, "1,10,1")] public int HazardTypeID = 1;
         [Export] public bool IsPlayable = true;
         [Export] public bool ProductionReady;

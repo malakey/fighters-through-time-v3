@@ -33,7 +33,12 @@ namespace FTT.Environment {
                 ?? MatchSettings.GetDefault();
             FighterDriver = new FighterSimulationDriver { Name = "FighterSimulationDriver" };
             AddChild(FighterDriver);
-            FighterDriver.Initialize(player, opponent, settings, stage?.HazardTypeID ?? 1);
+            // The stage ID must be forwarded, not just the hazard identity: without
+            // it the driver falls back to FighterStageGeometry.Default and a
+            // TestArena-hosted match silently loses the selected stage's walls,
+            // platforms, and hazard/orb anchors.
+            FighterDriver.Initialize(
+                player, opponent, settings, stage?.HazardTypeID ?? 1, stage?.StageID ?? stageID ?? "");
         }
 
         private void ApplyStagePresentation(FighterStageData stage) {
