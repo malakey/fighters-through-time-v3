@@ -1,0 +1,70 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/Level02Controller.cs" id="1_controller"]
+[ext_resource type="Script" path="res://scripts/Environment/StoryDropSystem.cs" id="2_drops"]
+[ext_resource type="PackedScene" path="res://scenes/templates/ShieldGeneratorTowerTemplate.tscn" id="3_tower"]
+[ext_resource type="PackedScene" path="res://scenes/templates/CyclicHazardTemplate.tscn" id="4_mortar"]
+
+[node name="Level_02_Orleans" type="Node2D"]
+script = ExtResource("1_controller")
+
+[node name="StoryDropSystem" type="Node" parent="."]
+script = ExtResource("2_drops")
+
+[node name="ShieldTowerA" parent="." instance=ExtResource("3_tower")]
+position = Vector2(5980, 790)
+ObjectID = "level_02.shield_tower_a"
+MaxHP = 150
+
+[node name="ShieldTowerB" parent="." instance=ExtResource("3_tower")]
+position = Vector2(8380, 440)
+ObjectID = "level_02.shield_tower_b"
+MaxHP = 150
+
+[node name="MortarLaneA" parent="." instance=ExtResource("4_mortar")]
+position = Vector2(3700, 900)
+HazardID = "level_02.mortar_lane_a"
+WarningDuration = 1.0
+ActiveDuration = 0.6
+CooldownDuration = 2.6
+Damage = 18
+
+[node name="MortarLaneB" parent="." instance=ExtResource("4_mortar")]
+position = Vector2(4250, 900)
+HazardID = "level_02.mortar_lane_b"
+WarningDuration = 1.0
+ActiveDuration = 0.6
+CooldownDuration = 3.0
+Damage = 18
+
+[node name="MortarLaneC" parent="." instance=ExtResource("4_mortar")]
+position = Vector2(4800, 900)
+HazardID = "level_02.mortar_lane_c"
+WarningDuration = 1.2
+ActiveDuration = 0.6
+CooldownDuration = 2.2
+Damage = 18
+
+[node name="MortarLaneD" parent="." instance=ExtResource("4_mortar")]
+position = Vector2(5650, 900)
+HazardID = "level_02.mortar_lane_d"
+WarningDuration = 1.0
+ActiveDuration = 0.8
+CooldownDuration = 2.8
+Damage = 18
+
+[node name="MortarBattlementA" parent="." instance=ExtResource("4_mortar")]
+position = Vector2(7000, 900)
+HazardID = "level_02.mortar_battlement_a"
+WarningDuration = 1.2
+ActiveDuration = 0.7
+CooldownDuration = 3.2
+Damage = 18
+
+[node name="MortarBattlementB" parent="." instance=ExtResource("4_mortar")]
+position = Vector2(7900, 900)
+HazardID = "level_02.mortar_battlement_b"
+WarningDuration = 1.0
+ActiveDuration = 0.7
+CooldownDuration = 2.4
+Damage = 18

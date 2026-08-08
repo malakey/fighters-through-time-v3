@@ -387,3 +387,52 @@ a pre-merge `git add`) before it will fast-forward.
   check for other `Godot_*.exe` processes and re-run. Force-killing a hung Godot mid-run can also
   leave `.godot/imported/` inconsistent; re-run `--headless --import` before believing the next
   failure.
+
+### Wave A — Level 2, Orléans 1429
+
+- **L02: the boss resource does not match the dossier's prose numbers, and the resource wins.**
+  §4 describes `siegemaster_duke` as "2 phases, 650 HP, melee 4.0 m / ranged 9.0 m". The authored
+  `resources/Bosses/siegemaster_duke.tres` is **540 HP** with `MeleeRangeThreshold = 3.5` (ranged
+  9.0 and the two phases do match). Nothing was changed — Package 4 owns that resource and
+  `resources/**/*.tres` outranks prose. The arena was sized against the resource: 1,600 px of boss
+  court, against 540 px for the 9.0 m band at `BossController`'s 60 px/unit.
+- **L02: gate geometry is coupled to the template's fixed barrier offset, and that coupling is
+  now pinned by a test.** `ShieldGeneratorTowerTemplate.tscn` hangs its `Barrier` child at local
+  `(320, -48)` with a 320 px pane, and overriding a property on an instanced scene's child needs
+  a fragile `index=` block. So instead each generator is authored exactly
+  `Level02Controller.BarrierLocalOffsetX` west of the gate it seals, and
+  `Level02ContentTests` asserts the scene positions against `GateAX`/`GateBX`. A 320 px pane also
+  does not reach a ceiling, so each gate gets a solid arch above the barrier's span — without it
+  both gates are simply jumped and the era mechanic is decorative. Later levels reusing this
+  component (11 Gettysburg) inherit the same constraint.
+- **L02: checkpoint resume force-destroys the generators rather than restoring barrier state.**
+  `_checkpoint_2` sits past both gates, so a resumed run would find the route re-sealed *behind*
+  the player and could not backtrack. `MarkWavesClearedThrough` calls
+  `TakeEnvironmentDamage(MaxHP)` on the towers ahead of that checkpoint: the barriers drop through
+  the same path the player's attacks take, the `TowerDestroyed` signal fires once, and the
+  objective counter stays honest. No bespoke barrier-restore state was added.
+- **L02: the base class does not confine the camera on a resumed run.** Room triggers sit behind a
+  player restored at a mid-level checkpoint, so `StoryCameraConfiner` keeps whole-level bounds
+  until the next room boundary. `Level02Controller.OnLevelReady` re-applies the containing room's
+  `CameraBounds`. If every wave-A level needs this, it belongs in `StoryLevelControllerBase` at C1
+  rather than being copy-pasted fourteen times.
+- **L02: room camera bounds are floored at 1,920 px.** A confiner narrower than the reference
+  viewport produces a useless clamp, so the 1,600 px boss court is confined to a 1,920 px window
+  starting 320 px west of the room. The content test asserts the floor for every room.
+- **L02: `--headless --quit` does NOT regenerate `localization/en.en.translation`.** Only
+  `--import` (or the editor) reimports a changed `en.csv`. A level agent that adds keys, runs the
+  import *check* and commits will ship a stale compiled translation — every new key then renders
+  as its raw key at runtime, and the `TranslationServer.Translate(key) != key` assertion every
+  roster/localization suite uses will fail. Run `--headless --import` **after** editing `en.csv`,
+  and commit the regenerated `en.en.translation` with it.
+- **L02: first full-suite run reported `Total: 24` with `Starting GodotRuntimeExecutor failed` /
+  `Connection timeout` / `exit code: -1`, with no stray `Godot_*.exe` alive.** The immediate
+  re-run was **475/475, 0 failed, 14 s**. This is the A1 concurrent-worktree shape above, not
+  signature 1 (`GodotSharp` was present and the next run was full) — worth noting that it can
+  present with a *clean* process table, so "no stray Godot" is not evidence against it.
+- **L02: test-suite baseline moves 465 → 475** (+10 `Level02ContentTests`). Left for C1 to fold
+  into `AGENTS.md` in one edit.
+- **L02: note for later wave agents** — `tests/Unit/StoryLevelControllerBaseTests.cs` already
+  contains an internal `FrameworkTestLevelController` that reports `LevelID = "level_02_orleans"`
+  and registers the same three checkpoint IDs. It is a test-only stand-in for the A1 framework and
+  does not collide with the real scene, but a grep for the level id returns it first.

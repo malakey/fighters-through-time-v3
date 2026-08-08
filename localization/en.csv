@@ -635,3 +635,24 @@ credits_thanks,Special Thanks
 credits_thanks_body,To everyone who held the timeline together.
 credits_the_end,The Timeline Endures
 credits_skip_hint,Press Confirm to skip
+orleans_level_title,"LEVEL 2: THE SIEGE OF ORLÉANS — ORLÉANS 1429"
+orleans_room_vanguard,VANGUARD APPROACH
+orleans_room_siege_line,ENGLISH SIEGE LINE
+orleans_room_battlement,BATTLEMENT CLIMB
+orleans_room_boss,BOSS: THE SIEGEMASTER DUKE
+orleans_objective_advance,Break through the English lines toward the siege works.
+orleans_objective_towers,Sabotage the Apex shield generators ({0}/{1})
+orleans_objective_breach,The barriers are down. Take the battlement.
+orleans_objective_defeat_boss,Defeat the Siegemaster Duke!
+orleans_objective_complete,LEVEL COMPLETE! Returning to Time-Ship...
+orleans_gate_shielded,KINETIC BARRIER — DESTROY THE GENERATOR
+speaker_siegemaster,The Siegemaster Duke
+dlg_l02_entrance_1,"Orléans is starving behind those walls. And that shimmer across the causeway — no siege line in 1429 glows like that."
+dlg_l02_entrance_2,"That is Archive hardware. Kinetic shield generators pinning the French vanguard in place, and mortar emplacements ranged on every approach. Break the generators and the cavalry charge history remembers can finally happen."
+dlg_l02_boss_1,"So the little ghost walks through my barriers. The Archive bought me this siege, traveler, and I intend to keep it until the walls come down."
+dlg_l02_boss_2,"You sold a city for borrowed lightning. Put down the lance and I might leave you your century."
+dlg_l02_exit_1,"The last generator is slag. The barriers are gone."
+dlg_l02_exit_2,"Confirmed. The vanguard is moving. The relief of Orléans is back on its own timeline, and the English commanders will remember nothing but bad weather and worse luck."
+dlg_l02_exit_3,"The glow in my hands dimmed again when the field collapsed. It happens every time we mend something."
+dlg_l02_exit_4,"It does. Your resonance is borrowed from the damage, and we are spending it repairing the damage. That arithmetic does not change, however many times you ask me."
+dlg_l02_exit_5,"Then let's spend it faster. Take me back to the ship."
