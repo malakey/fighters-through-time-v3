@@ -901,3 +901,38 @@ dlg_l12_exit_2,"Confirmed. Every set on Earth is watching the real thing. The ou
 dlg_l12_exit_3,"It went out completely on the pad, Sarah. The resonance. For a second I was just a person standing on the Moon. Whatever we do next, I should do it soon."
 dlg_l12_exit_4,"I know, and I have the reason we can. The overload wrote something back down the beam before it died — a coordinate signature. Traveler, it is not anywhere in history. It is their home. Far future. Neo-Earth."
 dlg_l12_exit_5,"Then Act Two ends here. Take me through their front door, Commander."
+chronal_void_level_title,The Chronal Void
+void_room_threshold,The Threshold Shelf
+void_room_drift,The Drift
+void_room_mirror_arena,The Mirror Arena
+void_objective_cross_rift,Cross the rift and find the far corridor
+void_objective_drift,Ride the loose era fragments — the shelf below is pooled with stalled time
+void_objective_face_mirror,Step into the stabilised arena
+void_objective_defeat_mirror,Defeat the Mirror Paradox
+void_objective_complete,"The corridor is open. Return to the Time-Ship."
+void_shard_orleans,ORLÉANS — BATTLEMENT STONE
+void_shard_paris,PARIS — BASTILLE IRONWORK
+void_shard_pompeii,POMPEII — BASALT STEP
+void_shard_berlin,BERLIN — CHECKPOINT SLAB
+void_shard_egypt,ALEXANDRIA — PALACE CORNICE
+void_shard_nassau,NASSAU — DECK PLANKING
+void_shard_chicago,CHICAGO — FAIRGROUND GIRDER
+void_shard_gettysburg,GETTYSBURG — RAIL FENCE
+void_shard_globe,THE GLOBE — GALLERY RAIL
+void_shard_titanic,TITANIC — PROMENADE BOARD
+void_shard_florence,FLORENCE — COG HOUSING
+void_shard_florence_gear,FLORENCE — TURNING GEAR (ADRIFT)
+void_shard_titanic_deck,TITANIC — BOAT DECK (ADRIFT)
+void_shard_lunar_gantry,TRANQUILITY — LANDING GANTRY (ADRIFT)
+void_shard_globe_stage,THE GLOBE — STAGE BOARDS (ADRIFT)
+speaker_mirror_paradox,The Mirror Paradox
+dlg_l13_entrance_1,"There is no ground here. There is no here here — only pieces. That is the flag from Tranquility Base, and that is a Bastille door, and they are falling past each other without either of them falling down."
+dlg_l13_entrance_2,"You are between dimensions, Traveler. The trace we pulled off the Overseer runs straight through it — the Archive cut a corridor from their own century back through every fracture they ever made, and this is the spoil heap. Head east. The far side opens on Neo-Earth."
+dlg_l13_entrance_3,"Then I walk east on Orléans stone and Titanic decking. Tell me the moment the gravity is about to turn over."
+dlg_l13_boss_intro_1,"You have shed a piece of yourself in every century you closed. Did you think they went nowhere? I am every second of resonance the fractures took out of you, and I still remember the shape it left behind."
+dlg_l13_boss_intro_2,"Then you know exactly how I fight, and exactly how tired I am. So do I. Come on."
+dlg_l13_exit_1,"It went down the way I would have gone down. Same guard, same tell, same half-second too late. I have never had to watch myself lose before."
+dlg_l13_exit_2,"The corridor is holding. There was no siphon in here to shatter — the rift stopped tearing the moment that thing stopped drawing on it. And nothing living was ever caught in the Void, so there is nobody down there to send home. For once I have no casualty list to read you."
+dlg_l13_exit_3,"Sarah, when it went out I reached for the resonance and for a second I could not tell whose it was. I could not tell which one of us was still standing."
+dlg_l13_exit_4,"I know. It is on my board and I am not going to dress it up. That was the price, and it is closer now than it was on the Moon. But the far end of this corridor is their front door, and it is standing open."
+dlg_l13_exit_5,"Then let it be me who walks through it. Take me to Neo-Earth, Commander."
