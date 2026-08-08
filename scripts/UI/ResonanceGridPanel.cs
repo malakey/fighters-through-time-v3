@@ -9,6 +9,9 @@ namespace FTT.UI {
     public partial class ResonanceGridPanel : Control {
         private const int GridColumns = 3;
 
+        /// <summary>The authored scene this panel presents (Package 8 B4).</summary>
+        public const string ScenePath = "res://scenes/ui/ResonanceGrid.tscn";
+
         public event Action Closed;
         private ResonanceGridData _grid;
         private StorySaveData _save;
@@ -16,79 +19,81 @@ namespace FTT.UI {
         private Label _balanceLabel;
         private Label _statusLabel;
         private GridContainer _nodeGrid;
-        private ConfirmationDialog _confirmation;
+        private ConfirmModal _confirmation;
         private ResonanceNodeData _pendingNode;
         private int _focusedIndex;
         private StyleBoxFlat _focusStyle;
         private readonly List<ResonanceNodeData> _nodes = new();
         private readonly Dictionary<string, Button> _buttons = new(StringComparer.Ordinal);
 
+        /// <summary>The instantiated authored scene root. Test surface.</summary>
+        public Control Root { get; private set; }
+
+        /// <summary>The shared confirmation modal guarding a purchase.</summary>
+        public ConfirmModal Confirmation => _confirmation;
+
+        /// <summary>The node index the custom D-pad navigation is sitting on.</summary>
+        public int FocusedIndex => _focusedIndex;
+
+        /// <summary>
+        /// Package 8 B4. The grid is now an authored scene at
+        /// <see cref="ScenePath"/> rather than ~60 lines of construction here.
+        ///
+        /// <para>Following the A4 precedent for <c>Settings.tscn</c>, the scene root
+        /// is script-less and this class instantiates it, so the single opener
+        /// (<c>HubWorldController</c>, owned by other Package 8 workstreams) keeps
+        /// working through <c>new ResonanceGridPanel()</c> unchanged.</para>
+        ///
+        /// <para>The node buttons themselves stay code-built: their count and copy
+        /// come from the character's authored <c>ResonanceGridData</c>, so they
+        /// cannot be authored in the scene without duplicating content.</para>
+        /// </summary>
         public override void _Ready() {
             SetAnchorsPreset(LayoutPreset.FullRect);
             MouseFilter = MouseFilterEnum.Stop;
-            ColorRect shade = new() { Color = new Color(0.015f, 0.025f, 0.07f, 0.96f) };
-            shade.SetAnchorsPreset(LayoutPreset.FullRect);
-            AddChild(shade);
-            var center = new CenterContainer();
-            center.SetAnchorsPreset(LayoutPreset.FullRect);
-            AddChild(center);
-            var panel = new PanelContainer { CustomMinimumSize = new Vector2(1100, 760) };
-            center.AddChild(panel);
-            var layout = new VBoxContainer();
-            layout.AddThemeConstantOverride("separation", 16);
-            panel.AddChild(layout);
+            UIPalette.ApplyTheme(this);
 
-            var title = new Label {
-                Text = Tr("resonance_title"),
-                HorizontalAlignment = HorizontalAlignment.Center
-            };
-            title.AddThemeFontSizeOverride("font_size", 32);
-            title.AddThemeColorOverride("font_color", new Color(0.1f, 0.95f, 0.95f));
-            layout.AddChild(title);
-            _balanceLabel = new Label { HorizontalAlignment = HorizontalAlignment.Center };
-            layout.AddChild(_balanceLabel);
-            _nodeGrid = new GridContainer { Columns = GridColumns };
-            _nodeGrid.AddThemeConstantOverride("h_separation", 18);
-            _nodeGrid.AddThemeConstantOverride("v_separation", 18);
-            layout.AddChild(_nodeGrid);
-            _statusLabel = new Label {
-                HorizontalAlignment = HorizontalAlignment.Center,
-                AutowrapMode = TextServer.AutowrapMode.WordSmart
-            };
-            layout.AddChild(_statusLabel);
-            var hint = new Label {
-                Text = Tr("resonance_hint_controls"),
-                HorizontalAlignment = HorizontalAlignment.Center
-            };
-            hint.AddThemeColorOverride("font_color", new Color(0.65f, 0.75f, 0.85f));
-            layout.AddChild(hint);
-            var close = new Button {
-                Text = Tr("common_back"),
-                CustomMinimumSize = new Vector2(220, 48),
-                FocusMode = FocusModeEnum.None
-            };
-            close.Pressed += Close;
-            layout.AddChild(close);
+            Root = InstantiateAuthoredScene();
+            if (Root == null) return;
+            AddChild(Root);
+
+            _balanceLabel = Root.GetNode<Label>("Center/Panel/Layout/Balance");
+            _statusLabel = Root.GetNode<Label>("Center/Panel/Layout/Status");
+            _nodeGrid = Root.GetNode<GridContainer>("Center/Panel/Layout/NodeGrid");
+            Root.GetNode<Button>("Center/Panel/Layout/CloseButton").Pressed += Close;
 
             _focusStyle = new StyleBoxFlat {
                 BgColor = new Color(0.05f, 0.14f, 0.2f),
-                BorderColor = new Color(0.1f, 0.95f, 0.95f)
+                BorderColor = UIPalette.Cyan
             };
             _focusStyle.SetBorderWidthAll(3);
             _focusStyle.SetContentMarginAll(8);
 
-            _confirmation = new ConfirmationDialog {
-                Title = Tr("resonance_confirm_title"),
-                OkButtonText = Tr("resonance_confirm_ok"),
-                CancelButtonText = Tr("resonance_confirm_cancel")
-            };
+            // The native ConfirmationDialog this replaces opened an OS-level window,
+            // ignored the theme, and trapped no focus. A purchase is destructive
+            // (dust is spent permanently), so it belongs on the shared modal.
+            _confirmation = ConfirmModal.Create(
+                "resonance_confirm_unlock",
+                "resonance_confirm_ok",
+                "resonance_confirm_cancel",
+                "resonance_confirm_title");
             _confirmation.Confirmed += ConfirmUnlock;
+            _confirmation.Cancelled += () => _pendingNode = null;
             AddChild(_confirmation);
             LoadActiveGrid();
         }
 
+        private static Control InstantiateAuthoredScene() {
+            if (!ResourceLoader.Exists(ScenePath)) return null;
+            // A PackedScene is streamable content, not authored tuning data, so it
+            // deliberately does not go through AuthoredResources' pinning cache.
+            var packed = ResourceLoader.Load<PackedScene>(ScenePath);
+            return packed?.InstantiateOrNull<Control>();
+        }
+
         public override void _UnhandledInput(InputEvent @event) {
-            if (_confirmation != null && _confirmation.Visible) return;
+            if (@event == null) return;
+            if (_confirmation != null && _confirmation.IsOpen) return;
             if (@event.IsActionPressed("ui_cancel")) {
                 GetViewport().SetInputAsHandled();
                 Close();
@@ -114,7 +119,7 @@ namespace FTT.UI {
         }
 
         private void LoadActiveGrid() {
-            if (GameManager.Instance == null || SaveManager.Instance == null) return;
+            if (_nodeGrid == null || GameManager.Instance == null || SaveManager.Instance == null) return;
             _slot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
             if (_slot < 0 || _slot >= SaveManager.Instance.SaveSlots.Length) return;
             _save = SaveManager.Instance.SaveSlots[_slot];
@@ -160,11 +165,13 @@ namespace FTT.UI {
 
         private void RequestUnlock(ResonanceNodeData node) {
             _pendingNode = node;
-            _confirmation.DialogText = string.Format(
+            // Already-formatted copy, not a raw key: automatic control translation
+            // leaves an unknown string untouched, so a resolved sentence is safe.
+            _confirmation.SetPromptKey(string.Format(
                 Tr("resonance_confirm_unlock"),
                 Tr(node.DisplayNameKey),
-                node.UnlockCost);
-            _confirmation.PopupCentered();
+                node.UnlockCost));
+            _confirmation.Open();
         }
 
         private void ConfirmUnlock() {

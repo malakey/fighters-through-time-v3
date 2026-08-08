@@ -1,10 +1,28 @@
-using Godot;
+using System.Collections.Generic;
 using FTT.Characters;
 using FTT.Environment;
-using System.Collections.Generic;
+using Godot;
 
 namespace FTT.UI {
+
+    /// <summary>
+    /// Package 8 B4. The Fighter Mode character/stage/rules screen, converted from
+    /// a fully code-built shell to an authored, themed scene.
+    ///
+    /// <para>The nine character tiles used to be <see cref="PanelContainer"/>s with
+    /// a <c>GuiInput</c> mouse handler — not focusable, so a controller or keyboard
+    /// player could not select a fighter at all. They are now real
+    /// <see cref="Button"/>s in the authored grid, chained by
+    /// <see cref="FocusChainBuilder"/> and drawing the theme's focus ring. The
+    /// character colour identity survives as a per-tile stylebox override on
+    /// normal/hover/pressed only; <c>focus</c> is deliberately left to the theme so
+    /// the ring is never painted over.</para>
+    ///
+    /// <para>All session writes, stage routing through the catalog, and the four
+    /// frequency bands are unchanged from the pre-conversion behaviour.</para>
+    /// </summary>
     public partial class CharacterSelectScreen : Control {
+
         private int _selectedIndex;
         private int _opponentIndex = 1;
 
@@ -25,7 +43,7 @@ namespace FTT.UI {
             new(0.55f, 0.35f, 0.2f),
         };
 
-        private PanelContainer[] _characterPanels;
+        private Button[] _characterButtons;
         private Label _statsLabel;
         private Label _selectedNameLabel;
         private Label _opponentLabel;
@@ -41,256 +59,160 @@ namespace FTT.UI {
         private FighterStageCatalog _stageCatalog;
         private readonly List<string> _stageIDs = new();
 
+        /// <summary>The tile index currently chosen for player one.</summary>
+        public int SelectedIndex => _selectedIndex;
+
+        /// <summary>The tile index currently chosen for player two.</summary>
+        public int OpponentIndex => _opponentIndex;
+
         public override void _Ready() {
-            var bg = new ColorRect();
-            bg.SetAnchorsPreset(LayoutPreset.FullRect);
-            bg.Color = new Color(0.06f, 0.06f, 0.12f, 1);
-            AddChild(bg);
+            UIPalette.ApplyTheme(this);
 
-            var center = new CenterContainer();
-            center.SetAnchorsPreset(LayoutPreset.FullRect);
-            AddChild(center);
+            const string root = "Center/Root/";
+            _selectedNameLabel = GetNode<Label>(root + "SelectedName");
+            _statsLabel = GetNode<Label>(root + "Stats");
+            _opponentLabel = GetNode<Label>(root + "OpponentRow/OpponentLabel");
+            _localHumanToggle = GetNode<CheckButton>(root + "ModeRow/LocalHumanToggle");
+            _cpuDifficulty = GetNode<OptionButton>(root + "ModeRow/CpuDifficulty");
+            _stageSelect = GetNode<OptionButton>(root + "StageRow/StageSelect");
+            _stagePreview = GetNode<TextureRect>(root + "StageRow/StagePreview");
+            _matchMode = GetNode<OptionButton>(root + "RulesRow/MatchMode");
+            _stockCount = GetNode<SpinBox>(root + "RulesRow/StockCount");
+            _timeLimit = GetNode<SpinBox>(root + "RulesRow/TimeLimit");
+            _itemFrequency = GetNode<OptionButton>(root + "RulesRow/ItemFrequency");
+            _hazardFrequency = GetNode<OptionButton>(root + "RulesRow/HazardFrequency");
 
-            var root = new VBoxContainer();
-            root.AddThemeConstantOverride("separation", 16);
-            center.AddChild(root);
+            BindCharacterGrid();
+            BindOpponentAndRules();
 
-            var title = new Label();
-            title.Text = Tr("fighter_select_title");
-            title.HorizontalAlignment = HorizontalAlignment.Center;
-            title.AddThemeColorOverride("font_color", new Color(0, 0.9f, 0.9f));
-            title.AddThemeFontSizeOverride("font_size", 32);
-            root.AddChild(title);
-
-            _grid = new GridContainer();
-            _grid.Columns = 3;
-            _grid.AddThemeConstantOverride("h_separation", 12);
-            _grid.AddThemeConstantOverride("v_separation", 12);
-            root.AddChild(_grid);
-
-            _characterPanels = new PanelContainer[_characterIDs.Length];
-            for (int i = 0; i < _characterIDs.Length; i++) {
-                int idx = i;
-                var panel = CreateCharacterPanel(i);
-                panel.GuiInput += (InputEvent @event) => {
-                    if (@event is InputEventMouseButton mb && mb.Pressed && mb.ButtonIndex == MouseButton.Left) {
-                        SelectCharacter(idx);
-                    }
-                };
-                _grid.AddChild(panel);
-                _characterPanels[i] = panel;
-            }
-
-            _selectedNameLabel = new Label();
-            _selectedNameLabel.HorizontalAlignment = HorizontalAlignment.Center;
-            _selectedNameLabel.AddThemeColorOverride("font_color", new Color(0.9f, 0.9f, 0.95f));
-            _selectedNameLabel.AddThemeFontSizeOverride("font_size", 22);
-            root.AddChild(_selectedNameLabel);
-
-            _statsLabel = new Label();
-            _statsLabel.HorizontalAlignment = HorizontalAlignment.Center;
-            _statsLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-            _statsLabel.CustomMinimumSize = new Vector2(640, 0);
-            _statsLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.75f, 0.85f));
-            root.AddChild(_statsLabel);
-
-            BuildOpponentAndRules(root);
-
-            var buttonRow = new HBoxContainer();
-            buttonRow.Alignment = BoxContainer.AlignmentMode.Center;
-            buttonRow.AddThemeConstantOverride("separation", 24);
-            root.AddChild(buttonRow);
-
-            var backBtn = CreateActionButton(Tr("common_back"));
-            backBtn.Pressed += OnBack;
-            buttonRow.AddChild(backBtn);
-
-            var fightBtn = CreateActionButton(Tr("fighter_start_match"));
-            fightBtn.AddThemeColorOverride("font_color", new Color(1, 0.85f, 0.2f));
-            fightBtn.Pressed += OnFight;
-            buttonRow.AddChild(fightBtn);
+            GetNode<Button>(root + "ButtonRow/BackButton").Pressed += OnBack;
+            GetNode<Button>(root + "ButtonRow/FightButton").Pressed += OnFight;
 
             SelectCharacter(0);
+            UpdateOpponentLabel();
+
+            BuildFocusChain();
         }
 
-        private GridContainer _grid;
+        /// <summary>
+        /// Chains every interactive control in authored reading order.
+        ///
+        /// <para>The chain is assembled explicitly rather than through
+        /// <c>FocusChainBuilder.Apply</c> because <see cref="SpinBox"/> keeps its
+        /// editable <see cref="LineEdit"/> as an *internal* child: the collector
+        /// walks <c>GetChild</c> and therefore cannot see it, which would leave the
+        /// stock count and time limit unreachable by keyboard or controller — the
+        /// exact class of gap this workstream exists to close.</para>
+        ///
+        /// <para>Focus starts on the roster, so the first thing a controller player
+        /// touches is the choice the screen exists to make.</para>
+        /// </summary>
+        private void BuildFocusChain() {
+            FocusChainBuilder.Chain(FocusChain);
+            _characterButtons[0]?.GrabFocus();
+        }
 
-        private PanelContainer CreateCharacterPanel(int index) {
-            var panel = new PanelContainer();
-            panel.CustomMinimumSize = new Vector2(180, 120);
-            panel.MouseFilter = MouseFilterEnum.Stop;
+        /// <summary>The authored focus order, exposed so a test can walk it.</summary>
+        public IReadOnlyList<Control> FocusChain => new List<Control>(_characterButtons) {
+            GetNode<Button>("Center/Root/OpponentRow/PreviousButton"),
+            GetNode<Button>("Center/Root/OpponentRow/NextButton"),
+            _localHumanToggle,
+            _cpuDifficulty,
+            _stageSelect,
+            _matchMode,
+            _stockCount.GetLineEdit(),
+            _timeLimit.GetLineEdit(),
+            _itemFrequency,
+            _hazardFrequency,
+            GetNode<Button>("Center/Root/ButtonRow/BackButton"),
+            GetNode<Button>("Center/Root/ButtonRow/FightButton")
+        };
 
-            var style = new StyleBoxFlat();
-            style.BgColor = _characterColors[index];
-            style.BorderWidthLeft = 2;
-            style.BorderWidthTop = 2;
-            style.BorderWidthRight = 2;
-            style.BorderWidthBottom = 2;
-            style.BorderColor = new Color(0.2f, 0.2f, 0.25f);
-            style.CornerRadiusTopLeft = 6;
-            style.CornerRadiusTopRight = 6;
-            style.CornerRadiusBottomLeft = 6;
-            style.CornerRadiusBottomRight = 6;
-            panel.AddThemeStyleboxOverride("panel", style);
+        private void BindCharacterGrid() {
+            var grid = GetNode<GridContainer>("Center/Root/Grid");
+            _characterButtons = new Button[_characterIDs.Length];
+            for (int index = 0; index < _characterIDs.Length; index++) {
+                int captured = index;
+                var button = grid.GetNode<Button>($"CharacterButton{index}");
+                button.Text = GetCharacterName(index);
+                button.Icon = GetCharacterPortrait(index);
+                button.Pressed += () => SelectCharacter(captured);
+                _characterButtons[index] = button;
+            }
+        }
 
-            var margin = new MarginContainer();
-            margin.AddThemeConstantOverride("margin_left", 8);
-            margin.AddThemeConstantOverride("margin_top", 8);
-            margin.AddThemeConstantOverride("margin_right", 8);
-            margin.AddThemeConstantOverride("margin_bottom", 8);
-            panel.AddChild(margin);
-
-            var layout = new VBoxContainer();
-            layout.Alignment = BoxContainer.AlignmentMode.Center;
-            layout.MouseFilter = MouseFilterEnum.Ignore;
-            margin.AddChild(layout);
-
-            var portrait = new TextureRect {
-                Texture = GetCharacterPortrait(index),
-                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-                CustomMinimumSize = new Vector2(160, 64),
-                MouseFilter = MouseFilterEnum.Ignore
+        /// <summary>
+        /// Paints one tile. Selection is a thick cyan border over the character's
+        /// colour; the theme's focus ring is layered on top by the <c>focus</c>
+        /// stylebox, which is never overridden here.
+        /// </summary>
+        private void StyleTile(int index, bool selected) {
+            Color color = _characterColors[index];
+            var style = new StyleBoxFlat {
+                BgColor = color,
+                BorderColor = selected ? UIPalette.Cyan : new Color(0.2f, 0.2f, 0.25f),
+                ShadowSize = selected ? 8 : 0,
+                ShadowColor = selected ? new Color(UIPalette.Cyan, 0.5f) : Colors.Transparent
             };
-            layout.AddChild(portrait);
+            style.SetBorderWidthAll(selected ? 5 : 2);
+            style.SetCornerRadiusAll(6);
+            style.SetContentMarginAll(8);
 
-            var label = new Label();
-            label.Text = GetCharacterName(index);
-            label.HorizontalAlignment = HorizontalAlignment.Center;
-            label.VerticalAlignment = VerticalAlignment.Center;
-            label.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-            label.CustomMinimumSize = new Vector2(160, 36);
-            label.MouseFilter = MouseFilterEnum.Ignore;
+            Button button = _characterButtons[index];
+            button.AddThemeStyleboxOverride("normal", style);
+            button.AddThemeStyleboxOverride("hover", style);
+            button.AddThemeStyleboxOverride("pressed", style);
 
-            var c = _characterColors[index];
-            float luminance = 0.299f * c.R + 0.587f * c.G + 0.114f * c.B;
-            var textColor = luminance > 0.55f
+            // Readable text on top of an arbitrary character colour.
+            float luminance = 0.299f * color.R + 0.587f * color.G + 0.114f * color.B;
+            Color textColor = luminance > 0.55f
                 ? new Color(0.1f, 0.1f, 0.15f)
                 : new Color(0.95f, 0.95f, 0.98f);
-            label.AddThemeColorOverride("font_color", textColor);
-            label.AddThemeFontSizeOverride("font_size", 16);
-            layout.AddChild(label);
-
-            return panel;
-        }
-
-        private static Button CreateActionButton(string text) {
-            var btn = new Button();
-            btn.Text = text;
-            btn.CustomMinimumSize = new Vector2(160, 48);
-            return btn;
+            button.AddThemeColorOverride("font_color", textColor);
+            button.AddThemeColorOverride("font_hover_color", textColor);
+            button.AddThemeColorOverride("font_pressed_color", textColor);
+            button.AddThemeColorOverride("font_focus_color", textColor);
         }
 
         private void SelectCharacter(int index) {
             _selectedIndex = index;
-
-            for (int i = 0; i < _characterPanels.Length; i++) {
-                var style = _characterPanels[i].GetThemeStylebox("panel") as StyleBoxFlat;
-                if (style == null) continue;
-
-                bool selected = i == index;
-                style.BorderWidthLeft = selected ? 5 : 2;
-                style.BorderWidthTop = selected ? 5 : 2;
-                style.BorderWidthRight = selected ? 5 : 2;
-                style.BorderWidthBottom = selected ? 5 : 2;
-                style.BorderColor = selected
-                    ? new Color(0, 0.95f, 0.95f)
-                    : new Color(0.2f, 0.2f, 0.25f);
-                style.ShadowSize = selected ? 8 : 0;
-                style.ShadowColor = selected
-                    ? new Color(0, 0.9f, 0.9f, 0.5f)
-                    : Colors.Transparent;
-            }
-
+            for (int i = 0; i < _characterButtons.Length; i++) StyleTile(i, i == index);
             _selectedNameLabel.Text = string.Format(Tr("fighter_player_selection"), 1, GetCharacterName(index));
             UpdateStatsDisplay(_characterIDs[index]);
         }
 
-        private void BuildOpponentAndRules(VBoxContainer root) {
-            var opponentRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
-            opponentRow.AddThemeConstantOverride("separation", 12);
-            root.AddChild(opponentRow);
-            var previous = CreateActionButton("<");
-            previous.CustomMinimumSize = new Vector2(48, 40);
-            previous.Pressed += () => CycleOpponent(-1);
-            opponentRow.AddChild(previous);
-            _opponentLabel = new Label {
-                CustomMinimumSize = new Vector2(300, 40),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            opponentRow.AddChild(_opponentLabel);
-            var next = CreateActionButton(">");
-            next.CustomMinimumSize = new Vector2(48, 40);
-            next.Pressed += () => CycleOpponent(1);
-            opponentRow.AddChild(next);
+        private void BindOpponentAndRules() {
+            const string root = "Center/Root/";
+            GetNode<Button>(root + "OpponentRow/PreviousButton").Pressed += () => CycleOpponent(-1);
+            GetNode<Button>(root + "OpponentRow/NextButton").Pressed += () => CycleOpponent(1);
 
-            var modeRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
-            modeRow.AddThemeConstantOverride("separation", 18);
-            root.AddChild(modeRow);
-            _localHumanToggle = new CheckButton { Text = Tr("fighter_local_human") };
             _localHumanToggle.Toggled += enabled => _cpuDifficulty.Disabled = enabled;
-            modeRow.AddChild(_localHumanToggle);
-            _cpuDifficulty = new OptionButton();
             _cpuDifficulty.AddItem(Tr("difficulty_easy"), (int)FTT.Core.CpuDifficulty.Easy);
             _cpuDifficulty.AddItem(Tr("difficulty_normal"), (int)FTT.Core.CpuDifficulty.Normal);
             _cpuDifficulty.AddItem(Tr("difficulty_hard"), (int)FTT.Core.CpuDifficulty.Hard);
             _cpuDifficulty.Select(1);
-            modeRow.AddChild(_cpuDifficulty);
 
-            var stageRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
-            stageRow.AddThemeConstantOverride("separation", 12);
-            root.AddChild(stageRow);
-            stageRow.AddChild(new Label { Text = Tr("fighter_stage") });
-            _stageSelect = new OptionButton { CustomMinimumSize = new Vector2(420, 38) };
-            stageRow.AddChild(_stageSelect);
-            // Package 6 closeout: every stage now ships a placeholder preview plate.
-            // The rect stays hidden when a stage has no PreviewTexturePath so an
-            // unauthored stage degrades to the era colours instead of a blank hole.
-            _stagePreview = new TextureRect {
-                CustomMinimumSize = new Vector2(240, 135),
-                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-                Visible = false
-            };
-            stageRow.AddChild(_stagePreview);
             _stageSelect.ItemSelected += _ => UpdateStagePreview();
             PopulateStages();
             UpdateStagePreview();
 
-            var rulesRow = new HBoxContainer { Alignment = BoxContainer.AlignmentMode.Center };
-            rulesRow.AddThemeConstantOverride("separation", 14);
-            root.AddChild(rulesRow);
-            _matchMode = new OptionButton { CustomMinimumSize = new Vector2(145, 36) };
             _matchMode.AddItem(Tr("fighter_mode_stock"), (int)FTT.Core.MatchMode.Stock);
             _matchMode.AddItem(Tr("fighter_mode_time"), (int)FTT.Core.MatchMode.TimeLimit);
             _matchMode.AddItem(Tr("fighter_mode_hybrid"), (int)FTT.Core.MatchMode.Hybrid);
-            rulesRow.AddChild(_matchMode);
-            rulesRow.AddChild(new Label { Text = Tr("hud_stocks") });
-            _stockCount = new SpinBox { MinValue = 1, MaxValue = 5, Step = 1, Value = 3, CustomMinimumSize = new Vector2(80, 36) };
-            rulesRow.AddChild(_stockCount);
-            rulesRow.AddChild(new Label { Text = Tr("hud_timer") });
-            _timeLimit = new SpinBox { MinValue = 60, MaxValue = 480, Step = 30, Value = 480, CustomMinimumSize = new Vector2(100, 36) };
-            rulesRow.AddChild(_timeLimit);
+
             // Off/Low/Medium/High, matching the deterministic spawn-interval bands
             // the simulation actually consumes rather than a binary on/off.
-            rulesRow.AddChild(new Label { Text = Tr("fighter_items") });
-            _itemFrequency = BuildFrequencySelect((int)FTT.Core.ChronalOrbFrequency.High);
-            rulesRow.AddChild(_itemFrequency);
-            rulesRow.AddChild(new Label { Text = Tr("fighter_hazards") });
-            _hazardFrequency = BuildFrequencySelect((int)FTT.Core.HazardTriggerFrequency.High);
-            rulesRow.AddChild(_hazardFrequency);
-            UpdateOpponentLabel();
+            FillFrequencySelect(_itemFrequency, (int)FTT.Core.ChronalOrbFrequency.High);
+            FillFrequencySelect(_hazardFrequency, (int)FTT.Core.HazardTriggerFrequency.High);
         }
 
-        private OptionButton BuildFrequencySelect(int selectedID) {
-            var select = new OptionButton { CustomMinimumSize = new Vector2(120, 36) };
-            select.AddItem(Tr("fighter_frequency_off"), 0);
-            select.AddItem(Tr("fighter_frequency_low"), 1);
-            select.AddItem(Tr("fighter_frequency_medium"), 2);
-            select.AddItem(Tr("fighter_frequency_high"), 3);
+        private static void FillFrequencySelect(OptionButton select, int selectedID) {
+            select.Clear();
+            select.AddItem(TranslationServer.Translate("fighter_frequency_off"), 0);
+            select.AddItem(TranslationServer.Translate("fighter_frequency_low"), 1);
+            select.AddItem(TranslationServer.Translate("fighter_frequency_medium"), 2);
+            select.AddItem(TranslationServer.Translate("fighter_frequency_high"), 3);
             select.Select(selectedID);
-            return select;
         }
 
         private void PopulateStages() {
@@ -379,14 +301,39 @@ namespace FTT.UI {
                 data.Weight, data.MaxBlockCharges, data.Style, data.MaxJumpForce, data.MaxJumpCount);
         }
 
+        /// <summary>
+        /// Uniform cancel: from this screen, back means leave it, exactly as the
+        /// Back button does. The screen has no sub-states to unwind.
+        /// </summary>
+        public override void _UnhandledInput(InputEvent @event) {
+            if (@event == null || !@event.IsActionPressed("ui_cancel")) return;
+            GetViewport()?.SetInputAsHandled();
+            OnBack();
+        }
+
         private void OnFight() {
-            if (FTT.Core.GameManager.Instance == null) return;
+            FighterStageData stage = ApplySelectionToSession();
+            if (stage == null || !ResourceLoader.Exists(stage.ScenePath)) return;
+            FTT.Core.GameManager.Instance.LoadScene(stage.ScenePath);
+        }
+
+        /// <summary>
+        /// Writes every control's value into the session and returns the stage the
+        /// match should route to, or null when the selection cannot resolve.
+        ///
+        /// <para>Split out of <c>OnFight</c> so the session round-trip is testable
+        /// without triggering a real scene change: a test that pressed Fight would
+        /// tear the GdUnit runner's own scene out from under it two seconds
+        /// later.</para>
+        /// </summary>
+        public FighterStageData ApplySelectionToSession() {
+            if (FTT.Core.GameManager.Instance == null) return null;
 
             var session = FTT.Core.GameManager.Instance.CurrentSession;
             session.SelectedCharacterID = _characterIDs[_selectedIndex];
             session.OpponentCharacterID = _characterIDs[_opponentIndex];
             int selectedStageIndex = (int)_stageSelect.GetSelectedId();
-            if (selectedStageIndex < 0 || selectedStageIndex >= _stageIDs.Count) return;
+            if (selectedStageIndex < 0 || selectedStageIndex >= _stageIDs.Count) return null;
             session.SelectedStageID = _stageIDs[selectedStageIndex];
             session.FighterOpponentType = _localHumanToggle.ButtonPressed
                 ? FTT.Core.FighterOpponentType.LocalHuman
@@ -404,9 +351,7 @@ namespace FTT.UI {
             settings.StageHazardsEnabled = hazardRate != FTT.Core.HazardTriggerFrequency.Off;
             session.MatchSettings = settings;
             FTT.Core.GameManager.Instance.CurrentSession = session;
-            FighterStageData stage = _stageCatalog?.Find(session.SelectedStageID);
-            if (stage == null || !ResourceLoader.Exists(stage.ScenePath)) return;
-            FTT.Core.GameManager.Instance.LoadScene(stage.ScenePath);
+            return _stageCatalog?.Find(session.SelectedStageID);
         }
 
         private void OnBack() {

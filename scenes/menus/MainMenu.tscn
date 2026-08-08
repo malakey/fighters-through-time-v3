@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://scripts/UI/MainMenu.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/UI/MainMenu.cs" id="1_script"]
+[ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -9,7 +10,8 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1")
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
 
 [node name="Background" type="ColorRect" parent="."]
 layout_mode = 1
@@ -18,4 +20,295 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 color = Color(0.06, 0.06, 0.12, 1)
+
+[node name="RootScreen" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Center" type="CenterContainer" parent="RootScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="RootScreen/Center"]
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+
+[node name="Layout" type="VBoxContainer" parent="RootScreen/Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="RootScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 28
+text = "game_title"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="RootScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
+text = "menu_subtitle"
+horizontal_alignment = 1
+
+[node name="NoticeSlot" type="VBoxContainer" parent="RootScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="TopSeparator" type="HSeparator" parent="RootScreen/Center/Panel/Layout"]
+layout_mode = 2
+
+[node name="QuickPlayButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "menu_quick_play"
+
+[node name="StoryButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "menu_story_mode"
+
+[node name="FighterButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "menu_fighter_mode"
+
+[node name="SettingsButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "menu_settings"
+
+[node name="BottomSeparator" type="HSeparator" parent="RootScreen/Center/Panel/Layout"]
+layout_mode = 2
+
+[node name="QuitButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "menu_quit"
+
+[node name="SlotScreen" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Center" type="CenterContainer" parent="SlotScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="SlotScreen/Center"]
+layout_mode = 2
+
+[node name="Layout" type="VBoxContainer" parent="SlotScreen/Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="SlotScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 28
+text = "save_select_title"
+horizontal_alignment = 1
+
+[node name="SlotRow0" type="HBoxContainer" parent="SlotScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SlotButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow0"]
+custom_minimum_size = Vector2(600, 84)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow0"]
+custom_minimum_size = Vector2(120, 84)
+layout_mode = 2
+text = "save_delete"
+
+[node name="SlotRow1" type="HBoxContainer" parent="SlotScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SlotButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow1"]
+custom_minimum_size = Vector2(600, 84)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow1"]
+custom_minimum_size = Vector2(120, 84)
+layout_mode = 2
+text = "save_delete"
+
+[node name="SlotRow2" type="HBoxContainer" parent="SlotScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="SlotButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow2"]
+custom_minimum_size = Vector2(600, 84)
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow2"]
+custom_minimum_size = Vector2(120, 84)
+layout_mode = 2
+text = "save_delete"
+
+[node name="BackButton" type="Button" parent="SlotScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(240, 44)
+layout_mode = 2
+text = "common_back"
+
+[node name="CharacterScreen" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Center" type="CenterContainer" parent="CharacterScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="CharacterScreen/Center"]
+layout_mode = 2
+
+[node name="Layout" type="VBoxContainer" parent="CharacterScreen/Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="CharacterScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 22
+text = "story_select_character"
+horizontal_alignment = 1
+
+[node name="TopSeparator" type="HSeparator" parent="CharacterScreen/Center/Panel/Layout"]
+layout_mode = 2
+
+[node name="Grid" type="GridContainer" parent="CharacterScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 10
+columns = 3
+
+[node name="CharacterButton0" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(210, 46)
+layout_mode = 2
+
+[node name="CharacterButton1" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(210, 46)
+layout_mode = 2
+
+[node name="CharacterButton2" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(210, 46)
+layout_mode = 2
+
+[node name="CharacterButton3" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(210, 46)
+layout_mode = 2
+
+[node name="CharacterButton4" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(210, 46)
+layout_mode = 2
+
+[node name="CharacterButton5" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(210, 46)
+layout_mode = 2
+
+[node name="CharacterButton6" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(210, 46)
+layout_mode = 2
+
+[node name="CharacterButton7" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(210, 46)
+layout_mode = 2
+
+[node name="CharacterButton8" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(210, 46)
+layout_mode = 2
+
+[node name="BottomSeparator" type="HSeparator" parent="CharacterScreen/Center/Panel/Layout"]
+layout_mode = 2
+
+[node name="BackButton" type="Button" parent="CharacterScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(240, 44)
+layout_mode = 2
+text = "common_back"
+
+[node name="DifficultyScreen" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Center" type="CenterContainer" parent="DifficultyScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="DifficultyScreen/Center"]
+layout_mode = 2
+
+[node name="Layout" type="VBoxContainer" parent="DifficultyScreen/Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="DifficultyScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 26
+text = "story_select_difficulty"
+horizontal_alignment = 1
+
+[node name="EasyButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(620, 76)
+layout_mode = 2
+
+[node name="NormalButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(620, 76)
+layout_mode = 2
+
+[node name="HardButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(620, 76)
+layout_mode = 2
+
+[node name="BackButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(400, 44)
+layout_mode = 2
+text = "common_back"

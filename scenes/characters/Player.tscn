@@ -27,11 +27,3 @@ offset_top = -76.0
 offset_right = 12.0
 offset_bottom = -64.0
 color = Color(0.9, 0.8, 0.6, 1)
-
-[node name="DebugLabel" type="Label" parent="."]
-offset_left = -30.0
-offset_top = -90.0
-offset_right = 30.0
-offset_bottom = -76.0
-text = "Player"
-horizontal_alignment = 1

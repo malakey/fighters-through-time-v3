@@ -694,3 +694,113 @@ full suite **1060 passed / 0 failed / Total 1060** across two consecutive serial
 4. A4's `MainMenu.cs` touch is exactly one call + one static method (`AddSaveLoadNotice`) — B4
    carries it into the authored menu.
 5. `settings_difficulty` is a deliberately orphaned key feeding C1's unused-key sweep.
+
+### B4 — menus (2026-08-08)
+
+**B4: the four main-menu screens are authored siblings that are shown and hidden, not
+panels that are built and freed.** The old flow instantiated a `PanelContainer` per step,
+called `HideMenuControls()` (which iterated *every* child and hid it), and then either
+`QueueFree`d the panel or flipped `Visible` on a node it looked up by name — three
+different unwind mechanisms across three transitions, with no single place that knew where
+"back" went. `MainMenu.tscn` now carries `RootScreen`/`SlotScreen`/`CharacterScreen`/
+`DifficultyScreen` as authored siblings and the script owns one `List<MainMenuScreen>`
+stack; `GoBack()` pops one entry, `ui_cancel` calls it, and the root is the floor.
+`ExactlyOneScreenIsVisibleAtATime` and `CancelWalksTheScreenStackBackAndStopsAtTheRoot`
+pin both halves — the second specifically asserts that cancel at the root does *not* quit,
+unwind past the floor, or leave every screen hidden.
+
+**B4: the three story slot rows are authored, not generated.** `SaveManager.SaveSlots` is a
+fixed three-element array, so the rows are a contract rather than data; `RefreshSlotRows()`
+repaints text and toggles each delete button's visibility in place. A slot with no save
+**hides** its delete button rather than disabling it, because `FocusChainBuilder.Collect`
+skips hidden subtrees but would happily stop the chain on a disabled control that can never
+do anything. `AFilledSlotShowsItsDeleteButtonAndAnEmptyOneHidesIt` asserts the chain grows
+from 4 to 5 when a slot fills.
+
+**B4: `SpinBox` keeps its editable `LineEdit` as an *internal* child, so
+`FocusChainBuilder.Collect` cannot see it.** The collector walks `GetChild`, which excludes
+internal nodes, so the character-select stock-count and time-limit fields would have been
+silently unreachable by keyboard and controller — the exact class of gap this workstream
+exists to close. `CharacterSelectScreen` therefore assembles its chain explicitly
+(`FocusChain` → `FocusChainBuilder.Chain`) and splices in `SpinBox.GetLineEdit()`. This is
+not a defect in A1's utility: a generic collector should not reach into another control's
+internals. `EveryInteractiveControlJoinsOneFocusChainAndTheRosterTakesInitialFocus` asserts
+both numbers — 21 in the authored chain, 19 from the generic collector — so a later
+refactor back onto `Apply` fails loudly instead of quietly dropping two controls.
+
+**B4: the nine character tiles are `Button`s with a per-tile stylebox override, and
+`focus` is deliberately never overridden.** The tiles were `PanelContainer`s driven by a
+`GuiInput` mouse handler, so a controller player could not select a fighter at all. They
+are now real focusable Buttons, but they still have to carry the character colour identity,
+which a Theme cannot express per instance. `StyleTile` overrides `normal`/`hover`/`pressed`
+only; the theme's `focus` stylebox draws the ring on top, so selection (thick cyan border +
+shadow) and focus (the ring) stay visually distinct states. Font colours are overridden per
+tile against the tile's own luminance, because the theme's slate body colour is unreadable
+on Mozart's near-white.
+
+**B4: `CharacterSelectScreen.ApplySelectionToSession()` was split out of `OnFight` purely
+as a test seam, and that is load-bearing.** A test that pressed Fight for real would run
+`GameManager.LoadScene`, which — after A1's 2 s minimum loading treatment — calls
+`ChangeSceneToPacked` and tears the GdUnit runner's own scene out from under the suite.
+The split leaves `OnFight` as two lines (apply, then route) and lets
+`TheSelectionWritesTheWholeSessionAndMatchSettingsRoundTrip` prove every session and
+`MatchSettings` field survived the conversion, including that `Off` clears `ItemsEnabled`
+as well as the band.
+
+**B4: `ResonanceGrid.tscn`'s root is script-less and `ResonanceGridPanel` instantiates it,
+following A4's `Settings.tscn` precedent.** The single opener, `HubWorldController`,
+constructs the class directly (`new ResonanceGridPanel()`) and lives in a file two other
+Package 8 workstreams are editing. Putting the script on the scene root would have forced a
+cross-worktree edit for no user-visible gain. The manifest row (owner `ResonanceGridPanel`,
+path `res://scenes/ui/ResonanceGrid.tscn`) is satisfied either way; C1 flips it.
+`ResonanceGridPanel.ScenePath` is the constant the test asserts against the reserved path.
+
+**B4: the grid's node buttons stay code-built, and the navigation math is untouched.** Their
+count and copy come from the character's authored `ResonanceGridData`, so authoring them in
+the scene would duplicate content and break the moment a grid changes shape. The authored
+scene supplies the shell (shade, panel, title, balance, three-column `NodeGrid`, status,
+hint, close). The bespoke `_UnhandledInput` D-pad walk over `ResonanceGridNavigation.Move`
+is unchanged — a spatial talent tree is not a linear menu — and
+`ResonanceGridNavigationTests` passed unmodified.
+
+**B4: both destructive confirmations moved onto A1's `ConfirmModal`, and both pass resolved
+copy rather than a raw key.** Slot deletion and node purchase each need runtime arguments
+(slot number + character; node name + cost), which automatic control translation cannot
+supply. `SetPromptKey` is given an already-formatted sentence; Godot's control translation
+leaves an unknown string untouched, so this is safe and is the documented way to use the
+helper with arguments. Both native dialogs are gone —
+`typeof(Window).IsAssignableFrom(...)` is asserted false on each, because a
+`ConfirmationDialog` is a `Window`: an OS-level popup that ignores the theme and traps no
+focus. `CancelClosesAnOpenConfirmationRatherThanWalkingTheScreenStack` pins the precedence
+rule: the modal absorbs the first cancel and the screen stack does not move.
+
+**B4: the deletion test picks a slot the environment has proven empty.** Every other
+save-touching test in the repository swaps `SaveSlots[n]` in memory, but
+`SaveManager.DeleteStorySlot` reaches disk through `AtomicSaveStore.DeleteAllCandidates`.
+`ConfirmingDeletionClearsTheSlotAndRepaintsTheRow` therefore records which slots were
+originally `null` — meaning no file exists — and runs against the first of those, so a
+developer's real campaign can never be destroyed by a test run. It skips if all three slots
+are filled.
+
+**B4: `scenes/TestScene.tscn` deleted, `Player.tscn`'s `DebugLabel` node removed
+outright.** Both were unreferenced by any script or scene (only `docs/development-plan.md`
+and a status-ledger row mention TestScene, as history). The label was not referenced by
+name anywhere, so it was removed rather than blanked. These are the two visible-`text`
+offenders C1's planned `.tscn` scanner is meant to prove itself against;
+`MenuSceneContentTests` pins them now so the scanner inherits a clean tree.
+
+**B4: `MainMenu.CharacterName()`'s `GD.Load` is gone, and the guard is a regex, not a
+substring.** The first version of the guard tested `source.Contains("GD.Load<")` and failed
+on the doc comment that *explains* the fix — `<c>GD.Load</c>` contains that substring.
+`MenuSceneContentTests` matches `GD\.Load<[^>]+>\s*\(` so it catches a call and not prose.
+
+**B4 validation.** Build clean (pre-existing vendored `CS8632` only); `--headless --import`
+clean; owned suites 32/32; full suite **1089 passed / 0 failed / Total 1089** — exactly
+1060 + 29 — in a verified-clear window (two earlier attempts hit CLAUDE.md failure signature
+5, exit code 100 with `Total: 3`, against three concurrent sibling `testhost` processes; the
+reliable remedy was polling for five consecutive zero readings of both `testhost` and
+`Godot*`). Headless smokes clean for `MainMenu`, `CharacterSelect`, and `HubWorld`. No
+pre-existing suite was modified. Test delta **+29** (1060 → 1089). Per §2.8 `en.csv` gains
+one key (`fighter_cpu_difficulty`) under `# Package 8 B4` and `en.en.translation` is
+**not** committed — the compiled-translation assertions in `MenuSceneContentTests` and both
+scene suites need the orchestrator's wave-boundary `--import`.

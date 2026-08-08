@@ -1,72 +1,225 @@
-using Godot;
 using System;
+using System.Collections.Generic;
+using Godot;
 
 namespace FTT.UI {
+
+    /// <summary>Which authored screen of the main menu is showing.</summary>
+    public enum MainMenuScreen {
+        Root,
+        SlotSelect,
+        CharacterSelect,
+        DifficultySelect
+    }
+
+    /// <summary>
+    /// Package 8 B4. The main menu, converted from a fully code-built shell to an
+    /// authored, themed scene.
+    ///
+    /// <para>Every visible control now lives in <c>scenes/menus/MainMenu.tscn</c>
+    /// and this script binds it by path. The four screens (root, story slot select,
+    /// story character select, difficulty select) are authored siblings that are
+    /// shown and hidden rather than instantiated and freed, which is what makes a
+    /// uniform back stack possible: <c>ui_cancel</c> walks one screen back from
+    /// wherever the player is, and the root screen is the floor.</para>
+    ///
+    /// <para>Static copy is stored in the scene as raw translation keys and
+    /// resolved by Godot's automatic control translation (the A1 convention).
+    /// Only the strings that need runtime arguments — slot summaries, character
+    /// names, difficulty descriptions — are assigned here.</para>
+    /// </summary>
     public partial class MainMenu : Control {
-		private SettingsMenu _settingsMenu;
+
+        /// <summary>The locked nine-character roster, in authored grid order.</summary>
+        private static readonly string[] RosterIDs = {
+            "einstein", "joan", "leonardo", "lincoln", "cleopatra",
+            "tesla", "shakespeare", "mozart", "pocahontas"
+        };
+
+        private const int StorySlotCount = 3;
+
+        private SettingsMenu _settingsMenu;
+        private ConfirmModal _confirmModal;
+
+        private Control _rootScreen;
+        private Control _slotScreen;
+        private Control _characterScreen;
+        private Control _difficultyScreen;
+
+        private readonly Button[] _slotButtons = new Button[StorySlotCount];
+        private readonly Button[] _deleteButtons = new Button[StorySlotCount];
+        private readonly List<MainMenuScreen> _stack = new() { MainMenuScreen.Root };
+
+        private string _pendingCharacterID = "";
+        private int _pendingDeleteSlot = -1;
+
+        /// <summary>The screen currently showing. Test surface for the back walk.</summary>
+        public MainMenuScreen CurrentScreen => _stack[^1];
+
+        /// <summary>How deep the back stack is; 1 at the root screen.</summary>
+        public int ScreenDepth => _stack.Count;
+
+        /// <summary>The shared confirmation modal, created lazily on first use.</summary>
+        public ConfirmModal Confirmation => _confirmModal;
 
         public override void _Ready() {
-            var bg = new ColorRect();
-            bg.SetAnchorsPreset(LayoutPreset.FullRect);
-            bg.Color = new Color(0.06f, 0.06f, 0.12f, 1);
-            AddChild(bg);
+            UIPalette.ApplyTheme(this);
 
-            var center = new CenterContainer();
-            center.SetAnchorsPreset(LayoutPreset.FullRect);
-            AddChild(center);
+            _rootScreen = GetNode<Control>("RootScreen");
+            _slotScreen = GetNode<Control>("SlotScreen");
+            _characterScreen = GetNode<Control>("CharacterScreen");
+            _difficultyScreen = GetNode<Control>("DifficultyScreen");
 
-            var panel = new PanelContainer();
-            panel.CustomMinimumSize = new Vector2(400, 0);
-            center.AddChild(panel);
+            BindRootScreen();
+            BindSlotScreen();
+            BindCharacterScreen();
+            BindDifficultyScreen();
 
-            var vbox = new VBoxContainer();
-            vbox.AddThemeConstantOverride("separation", 12);
-            panel.AddChild(vbox);
+            AddSaveLoadNotice(GetNode<Control>("RootScreen/Center/Panel/Layout/NoticeSlot"));
+            ShowScreen(MainMenuScreen.Root, resetStack: true);
+        }
 
-            var title = new Label();
-            title.Text = Tr("game_title");
-            title.HorizontalAlignment = HorizontalAlignment.Center;
-            title.AddThemeColorOverride("font_color", new Color(0, 0.9f, 0.9f));
-            title.AddThemeFontSizeOverride("font_size", 28);
-            vbox.AddChild(title);
+        // ---- Binding ---------------------------------------------------------
 
-            var subtitle = new Label();
-            subtitle.Text = Tr("menu_subtitle");
-            subtitle.HorizontalAlignment = HorizontalAlignment.Center;
-            subtitle.AddThemeColorOverride("font_color", new Color(0.5f, 0.5f, 0.6f));
-            vbox.AddChild(subtitle);
+        private void BindRootScreen() {
+            const string layout = "RootScreen/Center/Panel/Layout/";
+            GetNode<Button>(layout + "QuickPlayButton").Pressed += OnQuickPlayPressed;
+            GetNode<Button>(layout + "StoryButton").Pressed += OnStoryModePressed;
+            GetNode<Button>(layout + "FighterButton").Pressed += () =>
+                FTT.Core.GameManager.Instance?.LoadScene("res://scenes/menus/CharacterSelect.tscn");
+            GetNode<Button>(layout + "SettingsButton").Pressed += OpenSettings;
+            GetNode<Button>(layout + "QuitButton").Pressed += () => GetTree().Quit();
+        }
 
-            AddSaveLoadNotice(vbox);
+        private void BindSlotScreen() {
+            const string layout = "SlotScreen/Center/Panel/Layout/";
+            for (int slot = 0; slot < StorySlotCount; slot++) {
+                int captured = slot;
+                _slotButtons[slot] = GetNode<Button>($"{layout}SlotRow{slot}/SlotButton");
+                _deleteButtons[slot] = GetNode<Button>($"{layout}SlotRow{slot}/DeleteButton");
+                _slotButtons[slot].Pressed += () => OnSlotPressed(captured);
+                _deleteButtons[slot].Pressed += () => ConfirmDeleteStorySlot(captured);
+            }
+            GetNode<Button>(layout + "BackButton").Pressed += GoBack;
+        }
 
-            vbox.AddChild(new HSeparator());
+        private void BindCharacterScreen() {
+            const string layout = "CharacterScreen/Center/Panel/Layout/";
+            var grid = GetNode<GridContainer>(layout + "Grid");
+            for (int index = 0; index < RosterIDs.Length; index++) {
+                string characterID = RosterIDs[index];
+                var button = grid.GetNode<Button>($"CharacterButton{index}");
+                button.Text = CharacterName(characterID);
+                button.Pressed += () => OnCharacterPressed(characterID);
+            }
+            GetNode<Button>(layout + "BackButton").Pressed += GoBack;
+        }
 
-            var quickPlayBtn = CreateButton(Tr("menu_quick_play"));
-            quickPlayBtn.Pressed += () => {
-                if (FTT.Core.GameManager.Instance == null) return;
-                var session = FTT.Core.GameManager.Instance.CurrentSession;
-                session.SelectedCharacterID = "einstein";
-                FTT.Core.GameManager.Instance.CurrentSession = session;
-                FTT.Core.GameManager.Instance.LoadScene("res://scenes/arenas/TestArena.tscn");
-            };
-            vbox.AddChild(quickPlayBtn);
+        private void BindDifficultyScreen() {
+            const string layout = "DifficultyScreen/Center/Panel/Layout/";
+            BindDifficultyButton(
+                GetNode<Button>(layout + "EasyButton"),
+                FTT.Core.Difficulty.Easy, "difficulty_easy", "difficulty_easy_description");
+            BindDifficultyButton(
+                GetNode<Button>(layout + "NormalButton"),
+                FTT.Core.Difficulty.Normal, "difficulty_normal", "difficulty_normal_description");
+            BindDifficultyButton(
+                GetNode<Button>(layout + "HardButton"),
+                FTT.Core.Difficulty.Hard, "difficulty_hard", "difficulty_hard_description");
+            GetNode<Button>(layout + "BackButton").Pressed += GoBack;
+        }
 
-            var storyBtn = CreateButton(Tr("menu_story_mode"));
-            storyBtn.Pressed += OnStoryModePressed;
-            vbox.AddChild(storyBtn);
+        private void BindDifficultyButton(
+            Button button,
+            FTT.Core.Difficulty difficulty,
+            string nameKey,
+            string descriptionKey) {
+            // Two lines with different emphasis cannot be one raw key, so this one
+            // resolves here rather than through automatic control translation.
+            button.Text = $"{Tr(nameKey)}\n{Tr(descriptionKey)}";
+            button.Pressed += () => BeginNewStory(_pendingCharacterID, difficulty);
+        }
 
-            var fighterBtn = CreateButton(Tr("menu_fighter_mode"));
-            fighterBtn.Pressed += () => FTT.Core.GameManager.Instance?.LoadScene("res://scenes/menus/CharacterSelect.tscn");
-            vbox.AddChild(fighterBtn);
+        // ---- Screen stack ----------------------------------------------------
 
-            var settingsBtn = CreateButton(Tr("menu_settings"));
-            settingsBtn.Pressed += OpenSettings;
-            vbox.AddChild(settingsBtn);
+        /// <summary>
+        /// Shows one authored screen and rebuilds its focus chain. Focus authoring
+        /// has to be redone per transition because the chain is a property of the
+        /// visible controls, and the slot screen's delete buttons come and go with
+        /// the save data.
+        /// </summary>
+        private void ShowScreen(MainMenuScreen screen, bool resetStack = false) {
+            if (resetStack) {
+                _stack.Clear();
+                _stack.Add(MainMenuScreen.Root);
+            }
 
-            vbox.AddChild(new HSeparator());
+            _rootScreen.Visible = screen == MainMenuScreen.Root;
+            _slotScreen.Visible = screen == MainMenuScreen.SlotSelect;
+            _characterScreen.Visible = screen == MainMenuScreen.CharacterSelect;
+            _difficultyScreen.Visible = screen == MainMenuScreen.DifficultySelect;
 
-            var quitBtn = CreateButton(Tr("menu_quit"));
-            quitBtn.Pressed += () => GetTree().Quit();
-            vbox.AddChild(quitBtn);
+            if (screen == MainMenuScreen.SlotSelect) RefreshSlotRows();
+            FocusChainBuilder.Apply(ScreenRoot(screen));
+        }
+
+        private Control ScreenRoot(MainMenuScreen screen) => screen switch {
+            MainMenuScreen.SlotSelect => _slotScreen,
+            MainMenuScreen.CharacterSelect => _characterScreen,
+            MainMenuScreen.DifficultySelect => _difficultyScreen,
+            _ => _rootScreen
+        };
+
+        private void PushScreen(MainMenuScreen screen) {
+            _stack.Add(screen);
+            ShowScreen(screen);
+        }
+
+        /// <summary>
+        /// Walks one screen back. Public so the cancel path is exercisable without
+        /// synthetic input. At the root screen it is deliberately a no-op — the main
+        /// menu is the floor of the application, and cancel there must not quit.
+        /// </summary>
+        public void GoBack() {
+            if (_confirmModal is { IsOpen: true }) {
+                _confirmModal.Cancel();
+                return;
+            }
+            if (_stack.Count <= 1) return;
+            _stack.RemoveAt(_stack.Count - 1);
+            ShowScreen(CurrentScreen);
+        }
+
+        public override void _UnhandledInput(InputEvent @event) {
+            if (@event == null || !@event.IsActionPressed("ui_cancel")) return;
+            if (_settingsMenu != null && IsInstanceValid(_settingsMenu) && _settingsMenu.Visible) return;
+            if (_stack.Count <= 1 && _confirmModal is not { IsOpen: true }) return;
+            GetViewport()?.SetInputAsHandled();
+            GoBack();
+        }
+
+        // ---- Root screen actions --------------------------------------------
+
+        private void OnQuickPlayPressed() {
+            if (FTT.Core.GameManager.Instance == null) return;
+            FTT.Core.SessionData session = FTT.Core.GameManager.Instance.CurrentSession;
+            session.SelectedCharacterID = "einstein";
+            FTT.Core.GameManager.Instance.CurrentSession = session;
+            FTT.Core.GameManager.Instance.LoadScene("res://scenes/arenas/TestArena.tscn");
+        }
+
+        private void OnStoryModePressed() {
+            if (FTT.Core.GameManager.Instance == null) return;
+            PushScreen(MainMenuScreen.SlotSelect);
+        }
+
+        private void OpenSettings() {
+            if (_settingsMenu == null || !IsInstanceValid(_settingsMenu)) {
+                _settingsMenu = new SettingsMenu { Name = "SettingsMenu" };
+                AddChild(_settingsMenu);
+                _settingsMenu.Closed += () => FocusChainBuilder.Apply(ScreenRoot(CurrentScreen));
+            }
+            _settingsMenu.Show();
         }
 
         /// <summary>
@@ -74,12 +227,11 @@ namespace FTT.UI {
         /// recoveries, schema migrations, and corruption resets but had no consumer,
         /// so a player whose save was recovered or reset was never told. The notice
         /// is now a translation key plus arguments; this surfaces it once, localized,
-        /// on the first screen after boot. Additive by design — B4's authored menu
-        /// carries this line over.
+        /// on the first screen after boot.
         /// </summary>
         private static void AddSaveLoadNotice(Control parent) {
             FTT.Core.SaveManager manager = FTT.Core.SaveManager.Instance;
-            if (manager == null || string.IsNullOrEmpty(manager.LastLoadNoticeKey)) return;
+            if (parent == null || manager == null || string.IsNullOrEmpty(manager.LastLoadNoticeKey)) return;
             var notice = new Label {
                 Name = "SaveLoadNotice",
                 Text = manager.LastLoadNotice,
@@ -87,105 +239,81 @@ namespace FTT.UI {
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
                 CustomMinimumSize = new Vector2(360, 0)
             };
-            notice.AddThemeColorOverride("font_color", new Color(0.95f, 0.8f, 0.3f));
+            notice.AddThemeColorOverride("font_color", UIPalette.Gold);
             parent.AddChild(notice);
         }
 
-		private void OpenSettings() {
-			if (_settingsMenu == null || !IsInstanceValid(_settingsMenu)) {
-				_settingsMenu = new SettingsMenu { Name = "SettingsMenu" };
-				AddChild(_settingsMenu);
-			}
-			_settingsMenu.Show();
-		}
+        // ---- Story slot select ----------------------------------------------
 
-        private Button CreateButton(string text) {
-            var btn = new Button();
-            btn.Text = text;
-            btn.CustomMinimumSize = new Vector2(350, 50);
-            return btn;
-        }
-
-        private void OnStoryModePressed() {
-            if (FTT.Core.GameManager.Instance == null) return;
-            ShowStorySlotSelect();
-        }
-
-        private void ShowStorySlotSelect() {
-            HideMenuControls();
-            var selectPanel = new PanelContainer { Name = "StorySlotSelect" };
-            selectPanel.SetAnchorsPreset(LayoutPreset.FullRect);
-            AddChild(selectPanel);
-            var center = new CenterContainer();
-            center.SetAnchorsPreset(LayoutPreset.FullRect);
-            selectPanel.AddChild(center);
-            var layout = new VBoxContainer();
-            layout.AddThemeConstantOverride("separation", 14);
-            center.AddChild(layout);
-            var title = new Label {
-                Text = Tr("save_select_title"),
-                HorizontalAlignment = HorizontalAlignment.Center
-            };
-            title.AddThemeFontSizeOverride("font_size", 28);
-            layout.AddChild(title);
-            for (int slot = 0; slot < 3; slot++) {
-                int capturedSlot = slot;
+        /// <summary>
+        /// Repaints the three authored slot rows from the current save data. A slot
+        /// with no save hides its delete button rather than disabling it, so the
+        /// focus chain does not stop on a control that can never do anything.
+        /// </summary>
+        private void RefreshSlotRows() {
+            for (int slot = 0; slot < StorySlotCount; slot++) {
                 FTT.Core.StorySaveData save = FTT.Core.SaveManager.Instance?.SaveSlots[slot];
-                var row = new HBoxContainer();
-                row.AddThemeConstantOverride("separation", 10);
-                var button = new Button {
-                    Text = save == null
-                        ? string.Format(Tr("save_slot_empty"), slot + 1)
-                        : SaveSlotSummary(slot, save),
-                    CustomMinimumSize = new Vector2(save == null ? 600 : 500, save == null ? 64 : 84)
-                };
-                button.Pressed += () => {
-                    if (save == null) {
-                        FTT.Core.SessionData session = FTT.Core.GameManager.Instance.CurrentSession;
-                        session.ActiveSaveSlot = capturedSlot;
-                        FTT.Core.GameManager.Instance.CurrentSession = session;
-                        ShowCharacterSelectForStory();
-                    } else {
-                        FTT.Core.StoryManager.Instance?.ResumeCampaign(capturedSlot, save);
-                    }
-                };
-                row.AddChild(button);
-                if (save != null) {
-                    var delete = new Button {
-                        Text = Tr("save_delete"),
-                        CustomMinimumSize = new Vector2(90, 84)
-                    };
-                    delete.Pressed += () => ConfirmDeleteStorySlot(capturedSlot, save);
-                    row.AddChild(delete);
-                }
-                layout.AddChild(row);
+                _slotButtons[slot].Text = save == null
+                    ? string.Format(Tr("save_slot_empty"), slot + 1)
+                    : SaveSlotSummary(slot, save);
+                _deleteButtons[slot].Visible = save != null;
             }
-            var back = new Button { Text = Tr("common_back"), CustomMinimumSize = new Vector2(240, 44) };
-            back.Pressed += () => {
-                selectPanel.QueueFree();
-                ShowMenuControls();
-            };
-            layout.AddChild(back);
         }
 
-        private void ConfirmDeleteStorySlot(int slotIndex, FTT.Core.StorySaveData save) {
-            var confirmation = new ConfirmationDialog {
-                Title = Tr("save_delete_title"),
-                DialogText = string.Format(
-                    Tr("save_confirm_delete"),
-                    slotIndex + 1,
-                    CharacterName(save.SelectedCharacterID))
-            };
-            confirmation.Confirmed += () => {
-                if (FTT.Core.SaveManager.Instance?.DeleteStorySlot(slotIndex) == true) {
-                    GetNodeOrNull<Control>("StorySlotSelect")?.QueueFree();
-                    Callable.From(ShowStorySlotSelect).CallDeferred();
-                }
-                confirmation.QueueFree();
-            };
-            confirmation.Canceled += confirmation.QueueFree;
-            AddChild(confirmation);
-            confirmation.PopupCentered();
+        private void OnSlotPressed(int slot) {
+            FTT.Core.StorySaveData save = FTT.Core.SaveManager.Instance?.SaveSlots[slot];
+            if (save == null) {
+                if (FTT.Core.GameManager.Instance == null) return;
+                FTT.Core.SessionData session = FTT.Core.GameManager.Instance.CurrentSession;
+                session.ActiveSaveSlot = slot;
+                FTT.Core.GameManager.Instance.CurrentSession = session;
+                PushScreen(MainMenuScreen.CharacterSelect);
+                return;
+            }
+            FTT.Core.StoryManager.Instance?.ResumeCampaign(slot, save);
+        }
+
+        /// <summary>
+        /// Slot deletion is destructive, so it goes through the shared themed
+        /// <see cref="ConfirmModal"/> rather than the native
+        /// <c>ConfirmationDialog</c> it used to use — that one opened an OS-level
+        /// window, ignored the theme, and trapped no focus, so a controller player
+        /// could tab off it onto the delete button behind.
+        /// </summary>
+        private void ConfirmDeleteStorySlot(int slotIndex) {
+            FTT.Core.StorySaveData save = FTT.Core.SaveManager.Instance?.SaveSlots[slotIndex];
+            if (save == null) return;
+
+            _pendingDeleteSlot = slotIndex;
+            EnsureConfirmModal();
+            // Already-formatted copy, not a raw key: automatic control translation
+            // leaves an unknown string untouched, so a resolved sentence is safe here.
+            _confirmModal.SetPromptKey(string.Format(
+                Tr("save_confirm_delete"),
+                slotIndex + 1,
+                CharacterName(save.SelectedCharacterID)));
+            _confirmModal.Open();
+        }
+
+        private void EnsureConfirmModal() {
+            if (_confirmModal != null && IsInstanceValid(_confirmModal)) return;
+            _confirmModal = ConfirmModal.Create(
+                "save_confirm_delete",
+                "common_confirm",
+                "common_cancel",
+                "save_delete_title");
+            _confirmModal.Confirmed += OnDeleteConfirmed;
+            _confirmModal.Cancelled += () => _pendingDeleteSlot = -1;
+            AddChild(_confirmModal);
+        }
+
+        private void OnDeleteConfirmed() {
+            int slot = _pendingDeleteSlot;
+            _pendingDeleteSlot = -1;
+            if (slot < 0) return;
+            FTT.Core.SaveManager.Instance?.DeleteStorySlot(slot);
+            RefreshSlotRows();
+            FocusChainBuilder.Apply(_slotScreen);
         }
 
         private string SaveSlotSummary(int slotIndex, FTT.Core.StorySaveData save) {
@@ -210,141 +338,43 @@ namespace FTT.UI {
                 timestamp);
         }
 
-        private void ShowCharacterSelectForStory() {
-            HideMenuControls();
+        // ---- Story character / difficulty select -----------------------------
 
-            var selectPanel = new PanelContainer();
-            selectPanel.Name = "StoryCharSelect";
-            selectPanel.SetAnchorsPreset(LayoutPreset.FullRect);
-            AddChild(selectPanel);
-
-            var center = new CenterContainer();
-            center.SetAnchorsPreset(LayoutPreset.FullRect);
-            selectPanel.AddChild(center);
-
-            var vbox = new VBoxContainer();
-            vbox.AddThemeConstantOverride("separation", 8);
-            center.AddChild(vbox);
-
-            var titleLbl = new Label();
-            titleLbl.Text = Tr("story_select_character");
-            titleLbl.HorizontalAlignment = HorizontalAlignment.Center;
-            titleLbl.AddThemeColorOverride("font_color", new Color(0, 0.9f, 0.9f));
-            titleLbl.AddThemeFontSizeOverride("font_size", 22);
-            vbox.AddChild(titleLbl);
-
-            vbox.AddChild(new HSeparator());
-
-            string[] characters = { "einstein", "joan", "leonardo", "lincoln", "cleopatra", "tesla", "shakespeare", "mozart", "pocahontas" };
-            var grid = new GridContainer();
-            grid.Columns = 3;
-            grid.AddThemeConstantOverride("h_separation", 10);
-            grid.AddThemeConstantOverride("v_separation", 10);
-            vbox.AddChild(grid);
-
-            for (int i = 0; i < characters.Length; i++) {
-                string charID = characters[i];
-                var btn = new Button();
-                btn.Text = CharacterName(charID);
-                btn.CustomMinimumSize = new Vector2(200, 45);
-                btn.Pressed += () => StartStoryWithCharacter(charID);
-                grid.AddChild(btn);
-            }
-
-            vbox.AddChild(new HSeparator());
-
-            var backBtn = new Button();
-            backBtn.Text = Tr("common_back");
-            backBtn.CustomMinimumSize = new Vector2(200, 40);
-            backBtn.Pressed += () => {
-                selectPanel.QueueFree();
-                Control slotPanel = GetNodeOrNull<Control>("StorySlotSelect");
-                if (slotPanel != null) slotPanel.Visible = true;
-                else ShowMenuControls();
-            };
-            vbox.AddChild(backBtn);
-        }
-
-        private void StartStoryWithCharacter(string characterID) {
-            ShowDifficultySelect(characterID);
-        }
-
-        private void ShowDifficultySelect(string characterID) {
-            Control characterPanel = GetNodeOrNull<Control>("StoryCharSelect");
-            if (characterPanel != null) characterPanel.Visible = false;
-            var panel = new PanelContainer { Name = "StoryDifficultySelect" };
-            panel.SetAnchorsPreset(LayoutPreset.FullRect);
-            AddChild(panel);
-            var center = new CenterContainer();
-            center.SetAnchorsPreset(LayoutPreset.FullRect);
-            panel.AddChild(center);
-            var layout = new VBoxContainer();
-            layout.AddThemeConstantOverride("separation", 16);
-            center.AddChild(layout);
-            var title = new Label {
-                Text = Tr("story_select_difficulty"),
-                HorizontalAlignment = HorizontalAlignment.Center
-            };
-            title.AddThemeFontSizeOverride("font_size", 26);
-            layout.AddChild(title);
-            AddDifficultyButton(layout, characterID, FTT.Core.Difficulty.Easy, "difficulty_easy", "difficulty_easy_description");
-            AddDifficultyButton(layout, characterID, FTT.Core.Difficulty.Normal, "difficulty_normal", "difficulty_normal_description");
-            AddDifficultyButton(layout, characterID, FTT.Core.Difficulty.Hard, "difficulty_hard", "difficulty_hard_description");
-            var back = new Button { Text = Tr("common_back"), CustomMinimumSize = new Vector2(400, 44) };
-            back.Pressed += () => {
-                panel.QueueFree();
-                if (characterPanel != null) characterPanel.Visible = true;
-            };
-            layout.AddChild(back);
-        }
-
-        private void AddDifficultyButton(
-            VBoxContainer parent,
-            string characterID,
-            FTT.Core.Difficulty difficulty,
-            string nameKey,
-            string descriptionKey) {
-            var button = new Button {
-                Text = $"{Tr(nameKey)}\n{Tr(descriptionKey)}",
-                CustomMinimumSize = new Vector2(620, 76)
-            };
-            button.Pressed += () => BeginNewStory(characterID, difficulty);
-            parent.AddChild(button);
+        private void OnCharacterPressed(string characterID) {
+            _pendingCharacterID = characterID;
+            PushScreen(MainMenuScreen.DifficultySelect);
         }
 
         private void BeginNewStory(string characterID, FTT.Core.Difficulty difficulty) {
+            if (string.IsNullOrEmpty(characterID) || FTT.Core.GameManager.Instance == null) return;
             FTT.Core.SessionData session = FTT.Core.GameManager.Instance.CurrentSession;
             session.Difficulty = difficulty;
             FTT.Core.GameManager.Instance.CurrentSession = session;
-            var storyMgr = FTT.Core.StoryManager.Instance;
+            FTT.Core.StoryManager storyMgr = FTT.Core.StoryManager.Instance;
             if (storyMgr != null) {
                 storyMgr.StartCampaign(characterID);
             } else {
-                var fallbackSession = FTT.Core.GameManager.Instance.CurrentSession;
+                FTT.Core.SessionData fallbackSession = FTT.Core.GameManager.Instance.CurrentSession;
                 fallbackSession.SelectedCharacterID = characterID;
                 FTT.Core.GameManager.Instance.CurrentSession = fallbackSession;
                 FTT.Core.GameManager.Instance.LoadScene("res://scenes/campaign/HubWorld.tscn");
             }
         }
 
+        /// <summary>
+        /// Resolves a character's localized display name. Goes through
+        /// <see cref="FTT.Core.AuthoredResources"/> rather than <c>GD.Load</c>:
+        /// a bare load drops the pinned instance and rebuilds the whole scripted
+        /// resource graph on the next call, which races the .NET finalizer thread
+        /// (CLAUDE.md failure signature 2).
+        /// </summary>
         private string CharacterName(string characterID) {
-            FTT.Characters.CharacterData data = GD.Load<FTT.Characters.CharacterData>(
+            if (string.IsNullOrWhiteSpace(characterID)) return Tr("common_unknown");
+            FTT.Characters.CharacterData data = FTT.Core.AuthoredResources.Load<FTT.Characters.CharacterData>(
                 $"res://resources/Characters/{characterID}_data.tres");
             return data == null || string.IsNullOrWhiteSpace(data.DisplayNameKey)
                 ? Tr("common_unknown")
                 : Tr(data.DisplayNameKey);
-        }
-
-        private void HideMenuControls() {
-            foreach (Node child in GetChildren()) {
-                if (child is Control control) control.Visible = false;
-            }
-        }
-
-        private void ShowMenuControls() {
-            foreach (Node child in GetChildren()) {
-                if (child is Control control && !control.IsQueuedForDeletion()) control.Visible = true;
-            }
         }
     }
 }
