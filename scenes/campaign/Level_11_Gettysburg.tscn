@@ -1,0 +1,102 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/Level11Controller.cs" id="1_controller"]
+[ext_resource type="Script" path="res://scripts/Environment/StoryDropSystem.cs" id="2_drops"]
+[ext_resource type="PackedScene" path="res://scenes/templates/ShieldGeneratorTowerTemplate.tscn" id="3_array"]
+[ext_resource type="PackedScene" path="res://scenes/templates/CyclicHazardTemplate.tscn" id="4_artillery"]
+
+[node name="Level_11_Gettysburg" type="Node2D"]
+script = ExtResource("1_controller")
+
+[node name="StoryDropSystem" type="Node" parent="."]
+script = ExtResource("2_drops")
+
+[node name="ShieldArrayAlpha" parent="." instance=ExtResource("3_array")]
+position = Vector2(5400, 448)
+ObjectID = "level_11.shield_array_alpha"
+MaxHP = 160
+
+[node name="ShieldArrayBravo" parent="." instance=ExtResource("3_array")]
+position = Vector2(7500, 448)
+ObjectID = "level_11.shield_array_bravo"
+MaxHP = 160
+
+[node name="ArtilleryRidgeA" parent="." instance=ExtResource("4_artillery")]
+position = Vector2(1150, 900)
+HazardID = "level_11.artillery_ridge_a"
+WarningDuration = 2.0
+ActiveDuration = 0.7
+CooldownDuration = 2.4
+Damage = 22
+
+[node name="ArtilleryRidgeB" parent="." instance=ExtResource("4_artillery")]
+position = Vector2(1900, 900)
+HazardID = "level_11.artillery_ridge_b"
+WarningDuration = 2.1
+ActiveDuration = 0.6
+CooldownDuration = 3.0
+Damage = 22
+
+[node name="ArtilleryWheatA" parent="." instance=ExtResource("4_artillery")]
+position = Vector2(3650, 900)
+HazardID = "level_11.artillery_wheat_a"
+WarningDuration = 1.9
+ActiveDuration = 0.8
+CooldownDuration = 2.2
+Damage = 22
+
+[node name="ArtilleryWheatB" parent="." instance=ExtResource("4_artillery")]
+position = Vector2(4200, 900)
+HazardID = "level_11.artillery_wheat_b"
+WarningDuration = 2.0
+ActiveDuration = 0.7
+CooldownDuration = 2.8
+Damage = 22
+
+[node name="ArtilleryWheatC" parent="." instance=ExtResource("4_artillery")]
+position = Vector2(4750, 900)
+HazardID = "level_11.artillery_wheat_c"
+WarningDuration = 2.1
+ActiveDuration = 0.6
+CooldownDuration = 3.4
+Damage = 22
+
+[node name="ArtilleryWheatD" parent="." instance=ExtResource("4_artillery")]
+position = Vector2(5300, 900)
+HazardID = "level_11.artillery_wheat_d"
+WarningDuration = 1.9
+ActiveDuration = 0.8
+CooldownDuration = 2.6
+Damage = 22
+
+[node name="ArtilleryWheatE" parent="." instance=ExtResource("4_artillery")]
+position = Vector2(5850, 900)
+HazardID = "level_11.artillery_wheat_e"
+WarningDuration = 2.0
+ActiveDuration = 0.7
+CooldownDuration = 3.2
+Damage = 22
+
+[node name="ArtilleryAngleA" parent="." instance=ExtResource("4_artillery")]
+position = Vector2(6620, 900)
+HazardID = "level_11.artillery_angle_a"
+WarningDuration = 2.1
+ActiveDuration = 0.6
+CooldownDuration = 2.4
+Damage = 22
+
+[node name="ArtilleryAngleB" parent="." instance=ExtResource("4_artillery")]
+position = Vector2(7150, 900)
+HazardID = "level_11.artillery_angle_b"
+WarningDuration = 1.9
+ActiveDuration = 0.8
+CooldownDuration = 3.0
+Damage = 22
+
+[node name="ArtilleryAngleC" parent="." instance=ExtResource("4_artillery")]
+position = Vector2(7700, 900)
+HazardID = "level_11.artillery_angle_c"
+WarningDuration = 2.0
+ActiveDuration = 0.7
+CooldownDuration = 2.8
+Damage = 22
