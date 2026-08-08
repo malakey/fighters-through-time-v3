@@ -1,0 +1,141 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/Level06Controller.cs" id="1_controller"]
+[ext_resource type="Script" path="res://scripts/Environment/StoryDropSystem.cs" id="2_drops"]
+[ext_resource type="Script" path="res://scripts/Environment/PuzzleManager.cs" id="3_puzzle"]
+[ext_resource type="Script" path="res://scripts/Environment/WeightComparisonObjective.cs" id="4_balance"]
+[ext_resource type="PackedScene" path="res://scenes/templates/PressurePlateTemplate.tscn" id="5_plate"]
+[ext_resource type="PackedScene" path="res://scenes/templates/MovableWeightTemplate.tscn" id="6_boulder"]
+[ext_resource type="PackedScene" path="res://scenes/templates/DestructibleBlockTemplate.tscn" id="7_wedge"]
+[ext_resource type="PackedScene" path="res://scenes/templates/CounterweightTemplate.tscn" id="8_counterweight"]
+[ext_resource type="PackedScene" path="res://scenes/templates/EscapeSequenceControllerTemplate.tscn" id="9_escape"]
+[ext_resource type="PackedScene" path="res://scenes/templates/RescuableNPCTemplate.tscn" id="10_civilian"]
+[ext_resource type="PackedScene" path="res://scenes/templates/CyclicHazardTemplate.tscn" id="11_geyser"]
+
+[node name="Level_06_Pompeii" type="Node2D"]
+script = ExtResource("1_controller")
+
+[node name="StoryDropSystem" type="Node" parent="."]
+script = ExtResource("2_drops")
+
+[node name="RockfallPuzzle" type="Node" parent="."]
+script = ExtResource("3_puzzle")
+PuzzleID = "level_06.clear_rockfall"
+RequiredConditionIDs = PackedStringArray("weights_balanced")
+PersistCompletionToSave = true
+
+[node name="LeftPan" parent="RockfallPuzzle" instance=ExtResource("5_plate")]
+position = Vector2(3900, 880)
+PlateID = "level_06.winch_pan_west"
+RequiredWeight = 3.0
+PlayerWeight = 1.0
+PuzzleManagerPath = NodePath("..")
+ConditionID = "west_pan_loaded"
+
+[node name="RightPan" parent="RockfallPuzzle" instance=ExtResource("5_plate")]
+position = Vector2(4260, 880)
+PlateID = "level_06.winch_pan_east"
+RequiredWeight = 3.0
+PlayerWeight = 1.0
+PuzzleManagerPath = NodePath("..")
+ConditionID = "east_pan_loaded"
+
+[node name="BasaltBoulder" parent="RockfallPuzzle" instance=ExtResource("6_boulder")]
+position = Vector2(3900, 872)
+WeightUnits = 3.0
+
+[node name="PumiceBoulder" parent="RockfallPuzzle" instance=ExtResource("6_boulder")]
+position = Vector2(4260, 320)
+WeightUnits = 2.0
+
+[node name="WedgeLock" parent="RockfallPuzzle" instance=ExtResource("7_wedge")]
+position = Vector2(4260, 396)
+ObjectID = "level_06.pumice_wedge"
+MaxHP = 45
+HitsToBreak = 3
+
+[node name="WinchCounterweight" parent="RockfallPuzzle" instance=ExtResource("8_counterweight")]
+position = Vector2(4080, 200)
+LoadedPosition = Vector2(4080, 470)
+FullLoadWeight = 6.0
+
+[node name="WinchBalance" type="Node" parent="RockfallPuzzle"]
+script = ExtResource("4_balance")
+LeftPlatePath = NodePath("../LeftPan")
+RightPlatePath = NodePath("../RightPan")
+CounterweightPath = NodePath("../WinchCounterweight")
+PuzzleManagerPath = NodePath("..")
+ConditionID = "weights_balanced"
+Tolerance = 0.1
+RequireBothThresholds = true
+
+[node name="EscapeRun" parent="." instance=ExtResource("9_escape")]
+position = Vector2(0, 900)
+SequenceID = "level_06.lava_front"
+StartX = 5700.0
+EndX = 8800.0
+FinishX = 8880.0
+AdvanceSpeed = 280.0
+CatchDamage = 22
+CatchKnockback = Vector2(560, -280)
+CatchCooldownSeconds = 1.2
+AutoBegin = false
+RewindPolicy = 1
+
+[node name="CivilianForum" parent="." instance=ExtResource("10_civilian")]
+position = Vector2(2200, 820)
+NpcID = "level_06.civilian_forum"
+InteractionPromptKey = "interaction_rescue"
+
+[node name="CivilianAshRoad" parent="." instance=ExtResource("10_civilian")]
+position = Vector2(7050, 820)
+NpcID = "level_06.civilian_ash_road"
+InteractionPromptKey = "interaction_rescue"
+
+[node name="AshGeyserForumA" parent="." instance=ExtResource("11_geyser")]
+position = Vector2(1450, 900)
+HazardID = "level_06.ash_geyser_forum_a"
+WarningDuration = 1.2
+ActiveDuration = 0.6
+CooldownDuration = 2.8
+Damage = 16
+
+[node name="AshGeyserForumB" parent="." instance=ExtResource("11_geyser")]
+position = Vector2(2620, 900)
+HazardID = "level_06.ash_geyser_forum_b"
+WarningDuration = 1.0
+ActiveDuration = 0.7
+CooldownDuration = 3.0
+Damage = 16
+
+[node name="AshGeyserVault" parent="." instance=ExtResource("11_geyser")]
+position = Vector2(3300, 900)
+HazardID = "level_06.ash_geyser_vault"
+WarningDuration = 1.4
+ActiveDuration = 0.6
+CooldownDuration = 2.6
+Damage = 16
+
+[node name="AshGeyserRoadA" parent="." instance=ExtResource("11_geyser")]
+position = Vector2(6420, 900)
+HazardID = "level_06.ash_geyser_road_a"
+WarningDuration = 1.0
+ActiveDuration = 0.8
+CooldownDuration = 2.2
+Damage = 16
+
+[node name="AshGeyserRoadB" parent="." instance=ExtResource("11_geyser")]
+position = Vector2(7250, 900)
+HazardID = "level_06.ash_geyser_road_b"
+WarningDuration = 1.2
+ActiveDuration = 0.7
+CooldownDuration = 2.4
+Damage = 16
+
+[node name="AshGeyserRoadC" parent="." instance=ExtResource("11_geyser")]
+position = Vector2(8180, 900)
+HazardID = "level_06.ash_geyser_road_c"
+WarningDuration = 1.0
+ActiveDuration = 0.8
+CooldownDuration = 2.2
+Damage = 16

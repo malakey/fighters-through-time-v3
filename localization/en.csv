@@ -778,3 +778,29 @@ dlg_l08_exit_2,"Confirmed. The neural link is down across the whole delta. Octav
 dlg_l08_exit_3,"The queen felt her resonance go out. I felt mine dim with it."
 dlg_l08_exit_4,"You will feel that at every anchor we mend from here. Act II runs harder than Act I, Traveler, and the fractures ahead are bigger than one palace."
 dlg_l08_exit_5,"Then stop warning me and take me home, Commander. There is another one waiting."
+pompeii_level_title,The Fall of Pompeii — 79 AD
+pompeii_room_forum,The Forum — First Ashfall
+pompeii_room_vault,Via dell'Abbondanza — Collapsed Vault
+pompeii_room_ashroad,The Ash Road
+pompeii_room_caldera,Caldera Rim — Thermal Anchor
+pompeii_objective_evacuate,Get the citizens out before Vesuvius buries the city
+pompeii_objective_rockfall,"Balance the winch — both stone pans must carry the same load"
+pompeii_objective_ashroad,The road east is open. Run.
+pompeii_objective_outrun,OUTRUN THE LAVA FRONT
+pompeii_objective_caught,"The flow caught you — keep moving east!"
+pompeii_objective_anchor,Reach the thermal anchor on the caldera rim
+pompeii_objective_civilians,Evacuate the citizens of Pompeii ({0}/{1})
+pompeii_objective_defeat_boss,Destroy the Vulcan Decimator
+pompeii_objective_complete,"The harvest is broken. Return to the Time-Ship."
+pompeii_rockfall_blocked,ROAD BURIED — HAUL THE ROCKFALL CLEAR
+speaker_vulcan_decimator,The Vulcan Decimator
+dlg_l06_entrance_1,"The mountain is already open. That ash column is miles high — and it is coming down far faster than it should be."
+dlg_l06_entrance_2,"Faster is the whole point, Traveler. The Archive has driven thermal anchors into the caldera to tap the eruption at its peak. They are forcing Vesuvius ahead of its own schedule so the yield lands before anyone in Pompeii can reach the harbour."
+dlg_l06_entrance_3,"Then I get them to the harbour first. The anchor second."
+dlg_l06_boss_1,"Eighteen hours of terror, compressed into two. Do you understand what that concentration is worth? Every one of them running, and not one of them fast enough."
+dlg_l06_boss_2,"They were never running from the mountain. They were running from you."
+dlg_l06_exit_1,"The anchor is down. The mountain sounds ordinary again — as ordinary as that ever gets."
+dlg_l06_exit_2,"Confirmed. Vesuvius is back on its own clock: eighteen hours, exactly the way it was written. That is enough time. The south road is moving and the harbour is answering."
+dlg_l06_exit_3,"It went dim again. Further than last time. Halfway up the ash road I felt it go out completely, for a second."
+dlg_l06_exit_4,"I saw it on the telemetry. Your resonance is drawn out of the fracture, and every fracture you close is a little less of you. I am logging it, Traveler. I will not pretend it is not happening."
+dlg_l06_exit_5,"Log it, and bring me home. There are nine more of these."
