@@ -895,3 +895,58 @@ CLAUDE.md's failure-signature table.
 **INTEGRATION-A: A4's one-`[TestSuite]`-per-file rule is promoted to a Phase B instruction** (a
 second suite in the same file is discovered but silently not executed — `Total:` moves by a
 plausible-looking +1 instead of the real delta).
+
+### B — Alexandria (2026-08-08)
+
+**B-alexandria: the scene was authored against the merged `FighterStageGeometry.Alexandria` and
+needed no deviation from it — walls ±9, sarcophagi at (−4, 1.6, 1.3) and (4, 1.6, 1.3), sinkhole
+anchors {−6, 0, 6}, orb anchors (−4, 2.1), (4, 2.1), (0, 0.5).** A1 shipped the §4 dossier row
+unchanged, so the pixel mirror is exact: platform bodies at (700, 600) and (1200, 600) with a
+162.5×12 rect, orb markers at (700, 568.75), (1200, 568.75), (950, 668.75), hazard markers at
+(575, 700), (950, 700), (1325, 700). `FighterStageAlexandriaTests.TheSceneMirrorsItsAuthoredFixedPointGeometry`
+passed on the first run with no scene adjustment, which is the first independent confirmation that
+A1's conformance validator works against a scene it did not help author.
+
+**B-alexandria: `ParallaxBackground`/`ParallaxLayer` are marked obsolete in Godot 4.7 in favour of
+`Parallax2D`, and the plan's §5.2 wording was followed anyway.** Referencing the deprecated types
+from C# raises `CS0618`, which would have broken the §8 "no new warnings" gate, so the two
+references in the per-stage test are wrapped in an explicit
+`#pragma warning disable CS0618` with the reason inline. Rationale for not silently switching to
+`Parallax2D`: nine Phase B stages are being authored in parallel against the same sentence, and C1
+inherits nine scenes plus the ten VisualSet manifest rows — a uniform node type is worth more than
+avoiding a suppressed warning, and the migration is one sweep in the Package 8 presentation pass.
+**Any sibling stage agent that chose `Parallax2D` instead should be reconciled at integration; the
+scenes should not ship split between the two.**
+
+**B-alexandria: GdUnit4's `OverrideFailureMessage` throws `ArgumentException` on an empty string,
+even when the assertion passes.** `AssertThat(errors.Count).OverrideFailureMessage(string.Join("; ",
+errors)).IsEqual(0)` — the natural way to surface a validator's messages — fails the *passing* case,
+because the override is evaluated eagerly. Every such message needs a non-empty constant prefix.
+Flagged because the same idiom appears in the sibling per-stage suites and the failure mode looks
+like a content bug rather than a harness bug.
+
+**B-alexandria: the ground and wall colliders are dimensionally identical to Florence's, which is
+correct rather than copy-paste drift.** Both stages author walls at ±9, so the ground rect is the
+same 1125 px span and the wall bodies sit on the same x planes (387.5 / 1512.5). The wall rect keeps
+Florence's 24×562 shape; only the wall's x plane is contract-relevant (`collision_mask = 0`
+everywhere, the simulation is authoritative), so the half-pixel difference from the exact 562.5
+floor-to-ceiling span is presentation, not geometry.
+
+**B-alexandria: `--headless --import` rewrote the line endings of roughly forty unrelated tracked
+`.import` files with zero content change, and those were reverted.** `git diff` reports them empty
+while `git status` shows them modified (LF→CRLF). They are not part of this stage's change; only the
+three new `assets/placeholders/stages/*.svg.import` artifacts are committed. Phase B siblings and C1
+should expect the same churn and discard it rather than committing forty unrelated files.
+
+**B-alexandria: the hash-identity run asserts it actually reached an active sinkhole, not merely
+that it ran 2500 ticks.** Hazard type 7 is warning 90 + active 480 + recovery 60 and the first
+High-frequency spawn is on the 1800-frame boundary, so a full cycle closes at 2430. The test tracks
+`hazard.Phase == 1` across the run and fails if the active window was never observed — otherwise a
+future change to the spawn interval would quietly turn a "full hazard cycle" test into a
+2500-frame idle run that still passes.
+
+**B-alexandria: validation.** `dotnet build` clean (only the pre-existing vendored `CS8632`);
+`FighterStageAlexandriaTests` 8/8; full suite **828 passed / 0 failed / Total 828** (820 Phase A
+baseline + 8), no contention signature on that run; `--headless --import` clean; a 300-frame
+headless smoke of `res://scenes/fighter/FighterStage_Alexandria.tscn` exits 0 with an empty error
+log.

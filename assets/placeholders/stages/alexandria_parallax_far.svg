@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <defs>
+    <linearGradient id="chamberAir" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#26170a"/>
+      <stop offset="1" stop-color="#5a3d14"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#chamberAir)"/>
+  <!-- distant torch glow pools along the far chamber wall -->
+  <circle cx="300" cy="300" r="150" fill="#dbb02e" opacity="0.10"/>
+  <circle cx="960" cy="240" r="180" fill="#dbb02e" opacity="0.12"/>
+  <circle cx="1620" cy="300" r="150" fill="#dbb02e" opacity="0.10"/>
+  <!-- far wall of hieroglyph registers -->
+  <rect x="0" y="380" width="1920" height="700" fill="#3a2810"/>
+  <g fill="#61451a" opacity="0.85">
+    <rect x="0" y="380" width="1920" height="14"/>
+    <rect x="0" y="560" width="1920" height="14"/>
+    <rect x="0" y="740" width="1920" height="14"/>
+    <rect x="0" y="920" width="1920" height="14"/>
+  </g>
+  <!-- glyph blocks, deliberately abstract placeholder shapes -->
+  <g fill="#8a6522" opacity="0.55">
+    <rect x="120" y="420" width="46" height="46"/>
+    <rect x="200" y="420" width="26" height="72"/>
+    <rect x="470" y="600" width="46" height="46"/>
+    <rect x="550" y="600" width="26" height="72"/>
+    <rect x="880" y="420" width="60" height="30"/>
+    <rect x="980" y="420" width="30" height="60"/>
+    <rect x="1320" y="600" width="46" height="46"/>
+    <rect x="1400" y="600" width="26" height="72"/>
+    <rect x="1660" y="780" width="60" height="30"/>
+    <rect x="1760" y="780" width="30" height="60"/>
+    <rect x="240" y="780" width="60" height="30"/>
+    <rect x="340" y="780" width="30" height="60"/>
+  </g>
+</svg>
