@@ -1060,3 +1060,11 @@ save_notice_global_recovered,Global settings were recovered from backup.
 save_notice_global_migrated,Global settings were migrated to the secure save format.
 save_notice_global_corrupt,Global settings were corrupted and reset to defaults.
 save_notice_error,{0}
+# Package 8 B1
+hud_slot_special1,S1
+hud_slot_special2,S2
+hud_slot_movement,MOV
+hud_slot_ultimate,ULT
+results_completion_time,Completion time: {0}
+results_rewinds_used,Chronal Rewinds used: {0}
+timeline_restart_level_confirm,Restarting from the beginning discards the Timeline Anchor you reached. Continue?

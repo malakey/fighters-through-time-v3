@@ -52,6 +52,13 @@ namespace FTT.Enemies {
         private Node2D _abilityOrigin;
         private ProgressBar _hpBar;
         private Label _nameLabel;
+        /// <summary>
+        /// Package 8 B1. Overhead bars are hidden until this body is damaged and
+        /// fade out after the exchange goes quiet; bosses are unaffected (they use
+        /// the HUD bar and have no overhead widgets). The state is reset on both
+        /// halves of a pool cycle so a recycled body never inherits a visible bar.
+        /// </summary>
+        private readonly FTT.UI.OverheadBarVisibility _barVisibility = new();
         private bool _facingRight = true;
         private bool _rewindFrozen;
         private int _scaledMaxHP;
@@ -81,6 +88,9 @@ namespace FTT.Enemies {
 
         /// <summary>Frames left before the committed attack starts its telegraph.</summary>
         public int ReactionFramesRemaining => _reactionFramesRemaining;
+
+        /// <summary>Overhead HP bar / name label visibility state (Package 8 B1).</summary>
+        public FTT.UI.OverheadBarVisibility BarVisibility => _barVisibility;
 
         public EnemyAbilityPhase AbilityPhase => Executor.Phase;
         public EnemyAbilityData ActiveAbility => Executor.ActiveAbility;
@@ -206,6 +216,11 @@ namespace FTT.Enemies {
         public override void _PhysicsProcess(double delta) {
             if (_rewindFrozen) return;
             float dt = (float)delta;
+
+            // Bars keep fading while the body plays out its death animation, so a
+            // corpse does not hold a full-opacity bar for the pool's release delay.
+            _barVisibility.Tick(dt);
+            ApplyBarVisibility();
 
             if (CurrentState == EnemyState.Dead) {
                 ProcessDead(dt);
@@ -490,6 +505,9 @@ namespace FTT.Enemies {
             int previousHP = CurrentHP;
             CurrentHP = Math.Max(0, CurrentHP - applied);
             int damageApplied = previousHP - CurrentHP;
+            // Any damage that lands reveals the bar and re-arms the quiet window,
+            // including a Venom tick — the player caused that too.
+            if (damageApplied > 0) _barVisibility.NotifyDamaged();
             UpdateHPBar();
 
             if (CurrentHP <= 0) Die();
@@ -622,6 +640,28 @@ namespace FTT.Enemies {
                 _hpBar.MaxValue = ScaledMaxHP;
                 _hpBar.Value = CurrentHP;
             }
+            ApplyBarVisibility();
+        }
+
+        /// <summary>
+        /// Writes the current bar alpha onto the two overhead widgets. The
+        /// HudOpacity accessibility setting multiplies in here rather than being
+        /// read once at spawn, so moving the slider mid-level is visible on mobs
+        /// already in the room.
+        /// </summary>
+        private void ApplyBarVisibility() {
+            float alpha = _barVisibility.Alpha * Mathf.Clamp(FTT.UI.HudOpacityBinder.CurrentSetting, 0f, 1f);
+            bool visible = alpha > 0f;
+            if (_hpBar != null) {
+                _hpBar.Visible = visible;
+                Color barModulate = _hpBar.Modulate;
+                _hpBar.Modulate = new Color(barModulate.R, barModulate.G, barModulate.B, alpha);
+            }
+            if (_nameLabel != null) {
+                _nameLabel.Visible = visible;
+                Color labelModulate = _nameLabel.Modulate;
+                _nameLabel.Modulate = new Color(labelModulate.R, labelModulate.G, labelModulate.B, alpha);
+            }
         }
 
         private void SetFacing(bool facingRight) {
@@ -714,12 +754,17 @@ namespace FTT.Enemies {
             _pushbox?.SetPushEnabled(true);
             _attackHitbox?.Deactivate();
             PlayAnimation("idle");
+            // Reset before the bar write: a recycled body must start hidden even if
+            // its previous occupant died with a full bar showing.
+            _barVisibility.Reset();
             UpdateHPBar();
             BindEvents();
         }
 
         public void OnDespawn() {
             UnbindEvents();
+            _barVisibility.Reset();
+            ApplyBarVisibility();
             Executor.Reset();
             _attackHitbox?.Deactivate();
             if (_hurtbox != null) {
@@ -777,6 +822,8 @@ namespace FTT.Enemies {
             Executor.Reset();
             _attackHitbox?.Deactivate();
             PlayAnimation("idle");
+            // A rewound encounter has not been engaged yet in the restored timeline.
+            _barVisibility.Reset();
             UpdateHPBar();
         }
 

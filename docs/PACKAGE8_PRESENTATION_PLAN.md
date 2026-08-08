@@ -694,3 +694,112 @@ full suite **1060 passed / 0 failed / Total 1060** across two consecutive serial
 4. A4's `MainMenu.cs` touch is exactly one call + one static method (`AddSaveLoadNotice`) — B4
    carries it into the authored menu.
 5. `settings_difficulty` is a deliberately orphaned key feeding C1's unused-key sweep.
+
+### B1 — Story HUD, results, enemy bars, HUD opacity (2026-08-08)
+
+**B1: the boss bar's notches are the authored `PhaseThresholds` array, passed through rather than
+re-derived.** `BossBarPhaseNotches.Normalized` returns the threshold values themselves as bar
+fractions, because `BossController.CheckPhaseTransition` advances when the remaining HP fraction is
+`<=` the next entry — so the notch and the transition are the same number by construction, not by
+agreement. `BossEncounterController.Reveal` forwards `Data?.PhaseThresholds` into a new fourth
+`ShowBossBar` parameter (the three-argument overload still exists and draws a plain bar). The sweep
+in `BossBarPhaseNotchTests` walks all fifteen authored bosses rather than a representative one: the
+roster is eight single-threshold bosses, six with two, and the single-phase Mirror Paradox with an
+empty array, so a hardcoded "thirds" would have looked correct on six of fifteen. `PhaseAt` is
+pinned against the `<=` boundary specifically, because a notch on the other side of that comparison
+lights up one hit late for an entire fight and no smoke test would catch it.
+
+**B1: unusable thresholds are dropped, not clamped.** A hand-edited `0`, `1`, negative, NaN or
+duplicate entry yields *fewer* notches rather than a stripe pinned under the bar's own border, where
+it reads as a rendering bug rather than as bad data. Pinned by
+`UnusableThresholdsAreDroppedRatherThanClampedOntoTheBarEnds`.
+
+**B1: `HudOpacity` is polled, not evented, and the decision is deliberate.** There is no
+settings-changed signal anywhere in the project, and `SettingsMenu` — the only writer — belongs to
+A4 this package, so adding one would have meant editing a file B1 does not own. `HudOpacityBinder`
+compares a float against the autoload field once per frame and writes only on change; that also
+picks up a change made by a save load or migration, which a settings-only event would miss.
+`StoryHudPresentationTests.HudOpacityIsAppliedAtReadyAndAgainWheneverTheSettingChanges` drives
+`_Process` directly and asserts the value moves twice after `_Ready`, because a one-shot read (the
+pre-existing `TestArenaHUD` pattern, and the §2.10 bug) passes any test that only checks
+construction. Only the alpha channel is written, so the boss bar's red and the meter's blue survive.
+
+**B1: enemy overhead bars are hidden until first damage and fade after four quiet seconds; the
+reset lives on both halves of the pool cycle.** `OverheadBarVisibility` is a pure model owned by
+`EnemyController`, reset in `OnSpawn`, `OnDespawn` *and* `ApplyStoryRewind`. `OnDespawn` also writes
+the widgets, not just the flag — a released body can still render for a frame, and a pool bug of
+this shape only shows up once a level happens to recycle a body the player already fought. Bosses
+are untouched: `Boss.tscn` has no overhead widgets at all and uses the HUD's big bar, so "bosses
+keep the big bar" needed no code. A zero-damage hit does not reveal the bar (nothing landed), and a
+Venom tick does (the player caused it). Pinned by `OverheadBarVisibilityTests` (state machine,
+degenerate configuration, non-positive delta) and `EnemyOverheadBarTests` (both authored scenes,
+pool cycle, rewind, live opacity).
+
+**B1: the ultimate indicator is meter-gated, not cooldown-gated, and the model refuses a cooldown
+on that slot.** Every kit raises `OnCooldownStarted` for Special 1/2 and the movement ability;
+nothing raises it for the ultimate, which is gated purely by the Influence meter reaching 100. A
+model that treated all four slots alike produced an ultimate icon that never lit up, which is how
+this was found. `HudAbilityIndicatorModel.StartCooldown` ignores `AbilitySlot.Ultimate` outright so
+a stray payload cannot blank an icon the player can legitimately press;
+`ReadinessFraction(Ultimate)` reports the meter fraction, which is the same "how close am I"
+reading. `EventBus.OnCooldownComplete` has no raiser anywhere in the repository — it is subscribed
+anyway, as a zero-duration release, so a future raiser works without a HUD change.
+
+**B1: the status pip reads `GlowPalette`, not `UIPalette`.** §4 B1 says "icon/tint per status via
+UIPalette", but `UIPalette` carries no status colours and A3 already owns the authored five in
+`GlowPalette.Status`. Adding them to `UIPalette` would have created a second canonical palette for
+the same five statuses, and the visible failure mode — a character outlined in one colour with a HUD
+pip in another — is exactly the drift the palette work exists to stop. The key family is reused for
+the same reason: `HudAbilityIndicatorModel.StatusLabelKey` builds the existing `status_*` keys by
+lowercasing the enum name, and `StoryHudLocalizationTests` sweeps every `StatusType` value against
+`en.csv` so a new status cannot ship rendering a raw key.
+
+**B1: `StoryManager` gained the two run statistics the results overlay needs; neither existed and
+one could not be derived.** Completion time was tracked nowhere. Rewinds *used* cannot be
+differenced out of `ChronalRewindsRemaining`, because Easy and Normal refill that pool at every new
+checkpoint — differencing under-reports precisely the runs where the player used the most rewinds.
+So the count is taken from `EventBus.OnRewindTriggered` and the clock from a `_Process` accumulator,
+both on the autoload rather than on a level controller: the Tutorial and Florence deliberately do
+not extend `StoryLevelControllerBase`, and a statistic authored twice would drift between the two
+families. `BeginLevelRun` fires from `LoadCurrentLevel` (so a Timeline Collapse restart is a fresh
+attempt, not a continuation), `ReturnToHub` stops the clock, and `OnLevelComplete` freezes
+`LastLevelCompletionSeconds`/`LastLevelRewindsUsed` — which is the pair `LevelResultsPanel` reads,
+frozen *before* `PresentCompletion` runs. No level controller was edited. Pinned by
+`LevelResultsStatsTests`.
+
+**B1: `FormatDuration` is not a translation key.** `M:SS` (growing an `H:` field past an hour) is
+digits and colons, which carry across every language this project plans to ship; the localised half
+is the surrounding sentence (`results_completion_time`). A negative or unstarted clock floors to
+`0:00` rather than rendering a negative time.
+
+**B1: both `BuildFallbackUI` duplicates are deleted, and the authored scenes had already drifted.**
+`StoryHUD` and `LevelResultsPanel` are constructed only through their own `CreateDefault`, both
+authored scenes are committed and are now asserted to exist by their suites, so the code-built
+copies were pure duplication — and the proof that duplication was already costing something is that
+`LevelResults.tscn`'s Return button carried *no text at all* while the fallback set it, so anyone
+who saw the authored panel saw a blank button. `CreateDefault` now reports a missing scene through
+`GD.PushError` and returns a bare instance rather than null, because level controllers call into it
+unconditionally; every accessor is null-guarded. `TimelineRestartPanel` stays code-built — it is a
+single hub-owned panel with no authored scene to converge on, and authoring one was not in scope.
+
+**B1: `LevelResults.tscn`'s button text is now a raw translation key, following A1's pattern.** The
+authored control resolves it through Godot's automatic control translation, so a language change
+follows without rebuilding the surface, and the test asserts the raw key (`"results_return_hub"`)
+rather than the English string.
+
+**B1: the Timeline Collapse full restart is confirmed; resuming from the anchor is not.** The two
+options sit one row apart and only one of them discards the Timeline Anchor the player already
+reached, so the destructive one goes through A1's `ConfirmModal`
+(`timeline_restart_level_confirm`). The confirmation is parented beside the button column rather
+than inside it, so its hidden buttons never join the panel's focus chain — pinned by
+`TheConfirmationSitsOutsideTheFocusChainItGuards`, which counts the chain at exactly three.
+
+**B1 validation.** Build clean (pre-existing vendored `CS8632` only); `--headless --import` clean;
+headless smokes clean for `HubWorld`, `Level_02_Orleans` and `Level_15_Alexandria`. Full suite
+**1108 passed / 0 failed / Total 1108** — exactly 1060 + the declared **+48**, no cross-workstream
+loss. No existing suite was modified. `localization/en.csv` gained seven keys under the
+`# Package 8 B1` marker; per §2.8 the regenerated `en.en.translation` is **not** committed, so
+`StoryHudLocalizationTests` needs the orchestrator's wave import (or a local one) to go green.
+Contention note for later agents: the first three attempts at this suite returned the plausible
+green `Total: 15` (this workstream's pure-C# subset) with exit code 100 — signature 5, not a
+regression; polling `Get-Process testhost`/`Godot*` to zero before launching is what cleared it.
