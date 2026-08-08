@@ -895,3 +895,68 @@ CLAUDE.md's failure-signature table.
 **INTEGRATION-A: A4's one-`[TestSuite]`-per-file rule is promoted to a Phase B instruction** (a
 second suite in the same file is discovered but silently not executed — `Total:` moves by a
 plausible-looking +1 instead of the real delta).
+
+### B — Globe (2026-08-08)
+
+**B-globe: every merged `FighterStageGeometry.Globe` value is mirrored in the scene unchanged; no
+geometry, hazard or catalog number was touched.** Walls ±9, the two gallery platforms
+(∓5, 2.4, 1.4), the tiring-house balcony (0, 4.4, 1.2), hazard anchors {−5, 0, 5} and orb anchors
+(∓5, 2.9) / (0, 4.9) convert to pixels exactly through §2.10, and
+`FighterStageGlobeTests.GlobeSceneMirrorsItsAuthoredFixedPointGeometry` runs A1's shared conformance
+validator against the instantiated scene. The A1 rule that a one-way platform body's *origin* is the
+surface point (not the top edge of its 12 px collision rect) is what the three platform bodies are
+authored to.
+
+**B-globe: the three `HazardAnchors` markers sit at gallery/balcony height, not on the floor plane
+Florence uses.** A1's validator compares hazard anchors on the X axis only
+(`ValidateMarkerSet(..., compareYAxis: false)`), and the Globe hazard is thrown *from* the galleries
+— a heckler marker at y = 0 would sit in the groundlings' pit, under the very platform the fruit
+comes from. The markers are at (637.5, 520), (950, 395) and (1262.5, 520): just above each gallery
+deck and the balcony, inside the authored gallery-box dressing. Nothing reads these markers at
+runtime (they are documentation plus the conformance anchor set), so this is a readability choice,
+not a behaviour change. Flagging it because sibling stages will most likely keep the Florence floor
+convention and a reviewer diffing stages should not read this as drift.
+
+**B-globe: `BackdropTint` is deliberately semi-transparent (alpha 0.55) rather than opaque like
+Florence's.** `ParallaxBackground` is a `CanvasLayer` and its default layer is −100, so *any* opaque
+layer-0 ColorRect painted behind the stage hides the parallax completely. Florence has no parallax,
+so its opaque tint costs nothing; a stage that must ship "≥2 parallax layers" cannot have both an
+opaque backdrop and a visible parallax. The tint is therefore what its name says — a purple era wash
+the night sky and gallery tiers read through — and the viewport clear colour is the opaque base.
+Phase B siblings hitting the same conflict should either do this or push the tint into its own
+CanvasLayer below −100.
+
+**B-globe: the per-stage test reaches `ParallaxBackground`/`ParallaxLayer` through the untyped
+`Node` API instead of the C# bindings.** Both bindings carry `[Obsolete]` in Godot 4.7 (superseded
+by `Parallax2D`), so `GetNodeOrNull<ParallaxBackground>` / `child is ParallaxLayer` add two `CS0618`
+warnings to a build the gate requires to be warning-free. The scene still authors real
+`ParallaxBackground`/`ParallaxLayer` nodes exactly as §5 item 2 specifies; only the test's type
+references changed (`IsClass("ParallaxBackground")` and `child.Get("motion_scale").AsVector2().X`).
+**If C1 or a later package migrates the stages to `Parallax2D`, this is the reason the plan's
+wording and the engine's advice disagree — it is not an oversight.**
+
+**B-globe: the wall collider is 562.5 px tall, where Florence rounds to 562.** Globe shares
+Florence's ±9 walls and ceiling 9, so the exact floor-to-ceiling span is (9 − 0) · 62.5 = 562.5. The
+conformance validator only checks wall X and layer, so both are conformant; the unrounded value was
+used because there was no reason to introduce a half-pixel error.
+
+**B-globe: the determinism run asserts the *behaviour* that makes the run meaningful, not just hash
+equality.** Audience Heckle has no damaging region at all — it fires from per-fighter idle counters
+stored on `FighterHazardComponent` — so a two-simulation hash comparison that never reaches the
+active window would pass vacuously. `GlobeRunsIdenticallyAcrossTwoSimulationsThroughAFullHeckleCycle`
+runs 2650 ticks (first spawn at 1800, warning 90, active 600, recovery 60) with hazards and orbs at
+High, drives player one on a 40-frame pacing reversal so its idle counter can never reach 120, feeds
+player two nothing at all, and asserts: warning/active/recovery phases all observed, the entity
+despawned, the spawn landed on an authored anchor, `ActiveFrames == 600` and `Damage == 5`, the pacer
+finished on full HP, and the camper lost a non-zero multiple of 5 — identical in both simulations.
+
+**B-globe: the audio set puts `placeholder_stem_boss.tres` in the `ClimaxStem` slot, per A1's
+deviation.** Fighter Mode has no boss; the shared placeholder kit's third stem is simply
+Story-named. No asset was renamed (out of Phase B file ownership).
+
+**B-globe: validation.** `dotnet build` clean (only the pre-existing vendored `CS8632`);
+`FighterStageGlobeTests` 9 passed / 0 failed; `--headless --import` clean with no tracked-file
+content churn (the `.import` sidecars Godot rewrote differed only in line endings and were restored);
+`res://scenes/fighter/FighterStage_Globe.tscn` headless `--quit-after 300` smoke exits 0 with no
+script errors. Full-suite numbers are in the commit message; per INTEGRATION-A, any run whose
+`Total:` did not match 820 + 9 was treated as worktree pipe contention and retried.

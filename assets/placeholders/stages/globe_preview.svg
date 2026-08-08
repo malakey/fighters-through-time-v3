@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270" viewBox="0 0 480 270">
+  <defs>
+    <linearGradient id="globeSky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#140a17"/>
+      <stop offset="1" stop-color="#3a1b3f"/>
+    </linearGradient>
+    <radialGradient id="torchGlow" cx="0.5" cy="0.5" r="0.5">
+      <stop stop-color="#e68c40" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#e68c40" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="480" height="270" fill="url(#globeSky)"/>
+
+  <!-- Distant tiered galleries ringing the yard -->
+  <path d="M0 108 L480 108 L480 128 L0 128 Z" fill="#2e1710"/>
+  <path d="M0 104 L480 104 L480 108 L0 108 Z" fill="#b861c7"/>
+  <path d="M0 150 L480 150 L480 172 L0 172 Z" fill="#381c12"/>
+  <path d="M0 146 L480 146 L480 150 L0 150 Z" fill="#b861c7"/>
+  <path d="M4 150 L18 132 L32 150 L48 130 L62 150 L78 134 L92 150 L108 129 L122 150 L138 133 L152 150 L168 131 L182 150 L198 134 L212 150 L228 129 L242 150 L258 133 L272 150 L288 131 L302 150 L318 134 L332 150 L348 130 L362 150 L378 133 L392 150 L408 131 L422 150 L438 134 L452 150 L468 132 L478 150 Z" fill="#0d0512"/>
+
+  <!-- Tiring-house facade with the balcony above -->
+  <rect x="176" y="90" width="128" height="128" fill="#33190c"/>
+  <rect x="176" y="86" width="128" height="4" fill="#b861c7"/>
+  <rect x="156" y="70" width="168" height="16" fill="#6b5223"/>
+  <rect x="188" y="176" width="22" height="42" fill="#0d0512"/>
+  <rect x="270" y="176" width="22" height="42" fill="#0d0512"/>
+
+  <!-- Balcony above the tiring-house (the high centre platform) -->
+  <rect x="202" y="126" width="76" height="7" fill="#5c3117"/>
+  <rect x="202" y="122" width="76" height="4" fill="#b861c7"/>
+  <rect x="202" y="106" width="76" height="6" fill="#3d1f0f"/>
+  <path d="M226 126 L226 108 L230 102 L234 108 L234 126 Z" fill="#0d0512"/>
+  <path d="M250 126 L250 110 L254 104 L258 110 L258 126 Z" fill="#0d0512"/>
+
+  <!-- Side gallery boxes (the two one-way platforms) -->
+  <rect x="52" y="158" width="90" height="8" fill="#5c3117"/>
+  <rect x="52" y="153" width="90" height="5" fill="#b861c7"/>
+  <rect x="52" y="138" width="90" height="7" fill="#3d1f0f"/>
+  <rect x="54" y="166" width="9" height="52" fill="#36190c"/>
+  <rect x="131" y="166" width="9" height="52" fill="#36190c"/>
+  <path d="M68 158 L68 140 L72 133 L76 140 L76 158 Z" fill="#0d0512"/>
+  <path d="M92 158 L92 138 L96 130 L100 138 L100 158 Z" fill="#0d0512"/>
+  <path d="M116 158 L116 141 L120 134 L124 141 L124 158 Z" fill="#0d0512"/>
+
+  <rect x="338" y="158" width="90" height="8" fill="#5c3117"/>
+  <rect x="338" y="153" width="90" height="5" fill="#b861c7"/>
+  <rect x="338" y="138" width="90" height="7" fill="#3d1f0f"/>
+  <rect x="340" y="166" width="9" height="52" fill="#36190c"/>
+  <rect x="417" y="166" width="9" height="52" fill="#36190c"/>
+  <path d="M356 158 L356 141 L360 134 L364 141 L364 158 Z" fill="#0d0512"/>
+  <path d="M380 158 L380 138 L384 130 L388 138 L388 158 Z" fill="#0d0512"/>
+  <path d="M404 158 L404 140 L408 133 L412 140 L412 158 Z" fill="#0d0512"/>
+
+  <!-- Hurled fruit and a tankard mid-flight: the audience heckle hazard -->
+  <circle cx="152" cy="176" r="5" fill="#d95a4c"/>
+  <rect x="322" y="170" width="11" height="12" fill="#9e8c59"/>
+  <circle cx="214" cy="150" r="4" fill="#d9a24c"/>
+
+  <!-- The open wooden stage floor -->
+  <rect x="30" y="218" width="420" height="18" fill="#472312"/>
+  <rect x="30" y="214" width="420" height="4" fill="#b861c7"/>
+  <rect x="150" y="218" width="3" height="18" fill="#301708"/>
+  <rect x="328" y="218" width="3" height="18" fill="#301708"/>
+
+  <!-- Groundlings in the yard -->
+  <path d="M30 270 L30 248 L46 236 L62 248 L78 234 L94 248 L110 237 L126 248 L142 235 L158 248 L174 236 L190 248 L206 234 L222 248 L238 237 L254 248 L270 235 L286 248 L302 236 L318 248 L334 234 L350 248 L366 237 L382 248 L398 235 L414 248 L430 236 L450 248 L450 270 Z" fill="#0d0512"/>
+
+  <!-- Torchlight -->
+  <circle cx="34" cy="130" r="26" fill="url(#torchGlow)"/>
+  <circle cx="446" cy="130" r="26" fill="url(#torchGlow)"/>
+  <rect x="30" y="124" width="8" height="16" fill="#e68c40"/>
+  <rect x="442" y="124" width="8" height="16" fill="#e68c40"/>
+
+  <!-- Playhouse flag -->
+  <rect x="238" y="36" width="4" height="36" fill="#472312"/>
+  <path d="M242 38 L288 46 L242 56 Z" fill="#b861c7"/>
+</svg>
