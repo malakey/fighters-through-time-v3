@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+  <!-- Vesuvius Caldera far parallax: ash-choked sky over the 79 AD eruption. -->
+  <defs>
+    <linearGradient id="ashsky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#1e0705"/>
+      <stop offset="0.55" stop-color="#4a1108"/>
+      <stop offset="1" stop-color="#7d2408"/>
+    </linearGradient>
+    <radialGradient id="glare" cx="0.5" cy="0.85" r="0.6">
+      <stop stop-color="#ff5a0b" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ff5a0b" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#ashsky)"/>
+  <ellipse cx="960" cy="900" rx="900" ry="420" fill="url(#glare)"/>
+  <!-- Eruption column boiling out of the cone. -->
+  <path d="M860 700 L900 400 L840 240 L920 90 L1000 60 L1090 140 L1030 300 L1080 470 L1050 700 Z"
+        fill="#2b0f08" opacity="0.85"/>
+  <circle cx="960" cy="150" r="150" fill="#3a150a" opacity="0.7"/>
+  <circle cx="800" cy="230" r="105" fill="#33120a" opacity="0.6"/>
+  <circle cx="1140" cy="215" r="120" fill="#33120a" opacity="0.6"/>
+  <!-- Distant caldera rim. -->
+  <path d="M0 830 L300 700 L620 790 L860 640 L960 590 L1080 660 L1330 780 L1650 690 L1920 810 L1920 1080 L0 1080 Z"
+        fill="#240b06"/>
+  <!-- Ash fall streaks. -->
+  <g fill="#ff8a3d" opacity="0.28">
+    <rect x="180" y="120" width="4" height="46"/>
+    <rect x="470" y="300" width="4" height="52"/>
+    <rect x="1420" y="180" width="4" height="44"/>
+    <rect x="1700" y="420" width="4" height="58"/>
+    <rect x="640" y="520" width="4" height="40"/>
+  </g>
+</svg>
