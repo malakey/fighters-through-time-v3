@@ -699,3 +699,26 @@ dlg_l04_exit_2,"Confirmed. The dampening field is collapsing and the prisoners a
 dlg_l04_exit_3,"The glow in my hands dimmed again. Every fracture I close takes a little more of it."
 dlg_l04_exit_4,"It does. Your resonance is borrowed from the damage, and we are giving the damage back. I will not pretend that is a fair trade."
 dlg_l04_exit_5,"It is the only trade on offer. Bring me home, Commander."
+titanic_level_title,The Sinking Titanic — 1912
+titanic_objective_reach_stern,Climb sternward before the flooding overtakes you
+titanic_objective_boat_deck,Reach the boat deck — the water is still rising
+titanic_objective_defeat_boss,Destroy the Tidal Eraser
+titanic_objective_complete,"The harvest is broken. Return to the Time-Ship."
+titanic_room_grand_staircase,D-Deck — Grand Staircase
+titanic_room_boiler_casing,E-Deck — Boiler Casing
+titanic_room_boat_deck,Boat Deck
+titanic_room_stern_rail,Stern Rail
+speaker_tidal_eraser,The Tidal Eraser
+dlg_l05_entrance_1,"The deck is already tilting. This ship has hours. Maybe less."
+dlg_l05_entrance_2,"The Archive is not siphoning a battle this time, Traveler. They are draining grief — fifteen hundred lives' worth, harvested at the exact moment history remembers it happening. Get sternward before the bow goes under."
+dlg_l05_entrance_3,"Then we take their siphon before the sea takes the ship."
+dlg_l05_preboss_1,"Traveler, the flooding is running ahead of the historical record. Something down there is pulling water in faster than the hull can take it."
+dlg_l05_preboss_2,"It is not the sea doing this. It is them."
+dlg_l05_preboss_3,"Their harvester is anchored at the stern rail. Engage it and that deck will not stay dry. Keep to the gantries and finish it fast."
+dlg_l05_boss_intro_1,"Sixteen hundred endings, all in one hour. Do you understand how rare a yield like this is? Stand still. You are spoiling it."
+dlg_l05_boss_intro_2,"This is not a harvest. It is a grave. And you are standing in it."
+dlg_l05_exit_1,"The siphon is down. The water is still rising."
+dlg_l05_exit_2,"It has to. The sinking is real history and history stands. What we stopped was the theft — those people will be remembered instead of drained. The lifeboats are launching on schedule now."
+dlg_l05_exit_3,"There is something left in the wreck of the harvester. Encrypted. It keeps repeating one string."
+dlg_l05_exit_4,"Route it to me. Traveler, that is an uplink handshake. The Archive was never storing this haul aboard — it was relaying it upward, to an orbital communications relay that will not exist for another fifty-seven years."
+dlg_l05_exit_5,"Then that is where the rest of the timeline is going. Get me back to the ship, Sarah. We follow it up."
