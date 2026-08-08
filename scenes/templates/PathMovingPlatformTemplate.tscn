@@ -1,0 +1,31 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/PathMovingPlatform.cs" id="1"]
+
+[sub_resource type="RectangleShape2D" id="Shape"]
+size = Vector2(240, 32)
+
+[node name="PathMovingPlatform" type="AnimatableBody2D" groups=["puzzle_object"]]
+collision_layer = 64
+collision_mask = 0
+script = ExtResource("1")
+PlatformID = "placeholder_path_platform"
+Waypoints = PackedVector2Array(0, 0, 480, 0)
+Speed = 120.0
+EndpointWaitSeconds = 0.5
+Mode = 0
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Shape")
+
+[node name="Visual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-120, -16, 120, -16, 120, 16, -120, 16)
+color = Color(0.46, 0.5, 0.58, 1)
+
+[node name="Label" type="Label" parent="."]
+offset_left = -120.0
+offset_top = -52.0
+offset_right = 120.0
+offset_bottom = -20.0
+text = "MOVING PLATFORM"
+horizontal_alignment = 1

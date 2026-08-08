@@ -1,0 +1,45 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/EscapeSequenceController.cs" id="1"]
+
+[sub_resource type="RectangleShape2D" id="FrontShape"]
+size = Vector2(320, 1080)
+
+[sub_resource type="RectangleShape2D" id="FinishShape"]
+size = Vector2(96, 720)
+
+[node name="EscapeSequenceController" type="Node2D" groups=["story_hazard"]]
+script = ExtResource("1")
+SequenceID = "placeholder_escape_sequence"
+StartX = 0.0
+EndX = 6000.0
+FinishX = 6200.0
+AdvanceSpeed = 220.0
+CatchDamage = 25
+CatchCooldownSeconds = 1.0
+DamageFrontPath = NodePath("DamageFront")
+AutoBegin = false
+
+[node name="DamageFront" type="Area2D" parent="." groups=["story_hazard"]]
+collision_layer = 256
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="DamageFront"]
+position = Vector2(-160, -400)
+shape = SubResource("FrontShape")
+
+[node name="Visual" type="Polygon2D" parent="DamageFront"]
+polygon = PackedVector2Array(-320, -940, 0, -940, 0, 140, -320, 140)
+color = Color(0.86, 0.28, 0.1, 0.55)
+
+[node name="FinishTrigger" type="Area2D" parent="."]
+position = Vector2(6200, -360)
+collision_layer = 256
+collision_mask = 1
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="FinishTrigger"]
+shape = SubResource("FinishShape")
+
+[node name="Visual" type="Polygon2D" parent="FinishTrigger"]
+polygon = PackedVector2Array(-48, -360, 48, -360, 48, 360, -48, 360)
+color = Color(0.3, 0.86, 0.45, 0.3)

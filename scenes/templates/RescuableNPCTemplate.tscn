@@ -1,0 +1,38 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/RescuableNPC.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/InteractionArea.cs" id="2"]
+
+[sub_resource type="RectangleShape2D" id="Shape"]
+size = Vector2(120, 160)
+
+[node name="RescuableNPC" type="Node2D" groups=["rescuable_npc"]]
+script = ExtResource("1")
+NpcID = "placeholder_rescuable_npc"
+InteractionPromptKey = "interaction_rescue"
+VisualPath = NodePath("Visual")
+InteractionAreaPath = NodePath("InteractionArea")
+FreedFlashSeconds = 0.35
+
+[node name="Visual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-28, -80, 28, -80, 28, 80, -28, 80)
+color = Color(1, 1, 1, 1)
+
+[node name="InteractionArea" type="Area2D" parent="."]
+collision_layer = 256
+collision_mask = 1
+script = ExtResource("2")
+TargetPath = NodePath("..")
+PromptLabelPath = NodePath("Prompt")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="InteractionArea"]
+shape = SubResource("Shape")
+
+[node name="Prompt" type="Label" parent="InteractionArea"]
+offset_left = -110.0
+offset_top = -136.0
+offset_right = 110.0
+offset_bottom = -104.0
+text = "interaction_rescue"
+horizontal_alignment = 1
+visible = false

@@ -1,0 +1,35 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/TrapdoorPlatform.cs" id="1"]
+
+[sub_resource type="RectangleShape2D" id="Shape"]
+size = Vector2(220, 28)
+
+[node name="TrapdoorPlatform" type="AnimatableBody2D" groups=["puzzle_object"]]
+collision_layer = 64
+collision_mask = 0
+script = ExtResource("1")
+TrapdoorID = "placeholder_trapdoor"
+AutoCycle = false
+ClosedDurationSeconds = 3.0
+WarningShakeSeconds = 0.75
+OpenDurationSeconds = 1.5
+ShakeAmplitude = 4.0
+VisualDropDistance = 64.0
+CollisionShapePath = NodePath("CollisionShape2D")
+VisualPath = NodePath("Visual")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Shape")
+
+[node name="Visual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-110, -14, 110, -14, 110, 14, -110, 14)
+color = Color(0.5, 0.34, 0.18, 1)
+
+[node name="Label" type="Label" parent="."]
+offset_left = -110.0
+offset_top = -50.0
+offset_right = 110.0
+offset_bottom = -18.0
+text = "TRAPDOOR"
+horizontal_alignment = 1

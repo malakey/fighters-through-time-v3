@@ -57,6 +57,22 @@ namespace FTT.Characters {
 		public float StatusAnimationMultiplier { get; set; } = 1.0f;
 		public float StatusDamageTakenMultiplier { get; set; } = 1.0f;
 		public bool IsMovementRooted { get; set; }
+		/// <summary>
+		/// Story-only environment gravity scale (low-gravity fields, Chronal Void
+		/// shifts). 1.0 is normal gravity; multiplied into the Story gravity
+		/// integration only. Owned by <c>FTT.Environment.EnvironmentPlayerModifiers</c>
+		/// so overlapping zones stack instead of clobbering each other's restore.
+		/// Fighter Mode never reads this — <c>scripts/FighterSim/</c> is authoritative
+		/// there and has no equivalent field.
+		/// </summary>
+		public float EnvironmentGravityScale { get; set; } = 1.0f;
+		/// <summary>
+		/// Story-only environment movement multiplier (deep sand, submerged water).
+		/// Stacks multiplicatively with — and never replaces — the status-effect
+		/// <see cref="StatusMovementMultiplier"/>. Same ownership and isolation rules
+		/// as <see cref="EnvironmentGravityScale"/>.
+		/// </summary>
+		public float EnvironmentMoveMultiplier { get; set; } = 1.0f;
 		public int StoryMaxHPBonus { get; set; }
 		public int StoryBlockChargeBonus { get; set; }
 		public float StoryMoveSpeedMultiplier { get; set; } = 1f;
@@ -154,7 +170,8 @@ namespace FTT.Characters {
 			? EncounterMaxHPOverride
 			: (Data?.MaxHP ?? 100) + StoryMaxHPBonus;
 		public int MaximumBlockCharges => (Data?.MaxBlockCharges ?? 3) + StoryBlockChargeBonus;
-		private float EffectiveMoveSpeed => (Data?.MaxMoveSpeed ?? 8f) * StoryMoveSpeedMultiplier * StoryTemporarySpeedMultiplier;
+		private float EffectiveMoveSpeed => (Data?.MaxMoveSpeed ?? 8f) * StoryMoveSpeedMultiplier
+			* StoryTemporarySpeedMultiplier * EnvironmentMoveMultiplier;
 		private float EffectiveJumpForce => (Data?.MaxJumpForce ?? 14f) * StoryJumpForceMultiplier;
 
 		// Physics constants
@@ -1238,7 +1255,7 @@ namespace FTT.Characters {
 				return;
 			}
 
-			float effectiveGravity = BaseGravity * (0.8f + 0.4f * (Data?.Weight ?? 1.0f));
+			float effectiveGravity = BaseGravity * (0.8f + 0.4f * (Data?.Weight ?? 1.0f)) * EnvironmentGravityScale;
 			float multiplier = 1.0f;
 
 			if (StoryFloatTimer > 0f) {

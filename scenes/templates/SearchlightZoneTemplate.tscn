@@ -1,0 +1,38 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/SearchlightZone.cs" id="1"]
+
+[sub_resource type="ConvexPolygonShape2D" id="Shape"]
+points = PackedVector2Array(0, 0, -120, 520, 120, 520)
+
+[node name="SearchlightZone" type="Area2D" groups=["story_hazard"]]
+collision_layer = 256
+collision_mask = 1
+script = ExtResource("1")
+SearchlightID = "placeholder_searchlight"
+Mode = 0
+SweepMode = 0
+SweepPeriodSeconds = 4.0
+SweepArcDegrees = 60.0
+UltimateDrainPerSecond = 5.0
+ExposureGraceSeconds = 1.5
+StrikeDamage = 20
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("Shape")
+
+[node name="Visual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(0, 0, -120, 520, 120, 520)
+color = Color(1, 0.94, 0.62, 0.24)
+
+[node name="Housing" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-26, -22, 26, -22, 18, 8, -18, 8)
+color = Color(0.32, 0.34, 0.4, 1)
+
+[node name="Label" type="Label" parent="."]
+offset_left = -110.0
+offset_top = -68.0
+offset_right = 110.0
+offset_bottom = -36.0
+text = "SEARCHLIGHT"
+horizontal_alignment = 1

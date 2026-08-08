@@ -1,0 +1,108 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/SequenceLock.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/SequenceGlyph.cs" id="2"]
+[ext_resource type="Script" path="res://scripts/Environment/InteractionArea.cs" id="3"]
+
+[sub_resource type="RectangleShape2D" id="GlyphShape"]
+size = Vector2(96, 128)
+
+[node name="SequenceLock" type="Node2D" groups=["puzzle_object"]]
+script = ExtResource("1")
+LockID = "placeholder_sequence_lock"
+ConditionID = "sequence_complete"
+
+[node name="GlyphA" type="Node2D" parent="." groups=["puzzle_object"]]
+position = Vector2(-240, 0)
+script = ExtResource("2")
+GlyphID = "placeholder_glyph_a"
+OrderIndex = 0
+InteractionPromptKey = "interaction_press_glyph"
+SequenceLockPath = NodePath("..")
+VisualPath = NodePath("Visual")
+
+[node name="Visual" type="Polygon2D" parent="GlyphA"]
+polygon = PackedVector2Array(-48, -64, 48, -64, 48, 64, -48, 64)
+color = Color(1, 1, 1, 1)
+
+[node name="InteractionArea" type="Area2D" parent="GlyphA"]
+collision_layer = 256
+collision_mask = 1
+script = ExtResource("3")
+TargetPath = NodePath("..")
+PromptLabelPath = NodePath("Prompt")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GlyphA/InteractionArea"]
+shape = SubResource("GlyphShape")
+
+[node name="Prompt" type="Label" parent="GlyphA/InteractionArea"]
+offset_left = -100.0
+offset_top = -120.0
+offset_right = 100.0
+offset_bottom = -88.0
+text = "interaction_press_glyph"
+horizontal_alignment = 1
+visible = false
+
+[node name="GlyphB" type="Node2D" parent="." groups=["puzzle_object"]]
+script = ExtResource("2")
+GlyphID = "placeholder_glyph_b"
+OrderIndex = 1
+InteractionPromptKey = "interaction_press_glyph"
+SequenceLockPath = NodePath("..")
+VisualPath = NodePath("Visual")
+
+[node name="Visual" type="Polygon2D" parent="GlyphB"]
+polygon = PackedVector2Array(-48, -64, 48, -64, 48, 64, -48, 64)
+color = Color(1, 1, 1, 1)
+
+[node name="InteractionArea" type="Area2D" parent="GlyphB"]
+collision_layer = 256
+collision_mask = 1
+script = ExtResource("3")
+TargetPath = NodePath("..")
+PromptLabelPath = NodePath("Prompt")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GlyphB/InteractionArea"]
+shape = SubResource("GlyphShape")
+
+[node name="Prompt" type="Label" parent="GlyphB/InteractionArea"]
+offset_left = -100.0
+offset_top = -120.0
+offset_right = 100.0
+offset_bottom = -88.0
+text = "interaction_press_glyph"
+horizontal_alignment = 1
+visible = false
+
+[node name="GlyphC" type="Node2D" parent="." groups=["puzzle_object"]]
+position = Vector2(240, 0)
+script = ExtResource("2")
+GlyphID = "placeholder_glyph_c"
+OrderIndex = 2
+InteractionPromptKey = "interaction_press_glyph"
+SequenceLockPath = NodePath("..")
+VisualPath = NodePath("Visual")
+
+[node name="Visual" type="Polygon2D" parent="GlyphC"]
+polygon = PackedVector2Array(-48, -64, 48, -64, 48, 64, -48, 64)
+color = Color(1, 1, 1, 1)
+
+[node name="InteractionArea" type="Area2D" parent="GlyphC"]
+collision_layer = 256
+collision_mask = 1
+script = ExtResource("3")
+TargetPath = NodePath("..")
+PromptLabelPath = NodePath("Prompt")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="GlyphC/InteractionArea"]
+shape = SubResource("GlyphShape")
+
+[node name="Prompt" type="Label" parent="GlyphC/InteractionArea"]
+offset_left = -100.0
+offset_top = -120.0
+offset_right = 100.0
+offset_bottom = -88.0
+text = "interaction_press_glyph"
+horizontal_alignment = 1
+visible = false

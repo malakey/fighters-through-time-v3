@@ -602,3 +602,5 @@ resonance_state_available,Available to unlock
 resonance_state_locked_prerequisite,Locked — requires {0}
 resonance_state_locked_dust,Locked — deposit {0} more Chronal Dust
 resonance_hint_controls,Move: D-Pad / Arrow Keys    Select: Confirm    Back: Cancel
+interaction_rescue,Press Interact to free them
+interaction_press_glyph,Press Interact to press glyph
