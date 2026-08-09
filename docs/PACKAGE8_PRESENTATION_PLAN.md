@@ -1491,3 +1491,32 @@ reflows line endings across the asset `.import` sidecars and
 `resources/Audio/default_bus_layout.tres`. `git diff --numstat` on them is empty — it is pure
 churn, not content — and they were restored with `git checkout` before committing. Any Phase B
 agent that commits a wide `.import` diff has committed this artifact, not a real reimport.
+
+### ORCHESTRATOR — Phase B integration (2026-08-08)
+
+**INTEGRATION-B: all seven application branches merged (completion order B2→B7→B1→B3→B5→B4→B6);
+the B2-before-B5 driver rule held and the driver's three additive regions (A3 sync, B2 UI attach,
+B5 audio) auto-merged cleanly.** Conflicts were limited to §9 appends and en.csv marker blocks
+(union-resolved). Compiled translation regenerated and committed at the wave boundary.
+
+**INTEGRATION-B: validation.** Build clean (pre-existing vendored `CS8632` only; B7 removed the
+CS0618 workarounds as planned); `--import` clean; full suite **1285 passed / 0 failed /
+Total 1285** across two consecutive serial runs — exactly 1060 + 43 (B2) + 7 (B7) + 48 (B1) +
+24 (B3) + 32 (B5) + 29 (B4) + 42 (B6).
+
+**INTEGRATION-B: C1 punch list accumulated from §9 blocks:**
+1. Manifest rows beyond the planned flips: `story_hud` names the deleted `HUDController` as owner
+   (B1's `StoryHUD` is the owner); `fighter_hud` should point at `res://scenes/ui/FighterHUD.tscn`
+   / `FighterHUD` (B2).
+2. `FocusChainBuilder` cannot see SpinBox internal LineEdits (B4's finding + explicit-chain
+   workaround + pinning test) — evaluate folding the fix into A1's utility or documenting the
+   pattern.
+3. B5's `EnvironmentAudioCues` is a deliberate wrapper over an A2 API gap
+   (`PlayEnvironmentCue(id)` candidate).
+4. `ChronalOrbTemplate.tscn` is not in any pool config (B6) — evaluate whether a Story pool row
+   is warranted or the template stays direct-instantiated.
+5. Fighter Mode has no footsteps (driver disables the presentation bodies' ProcessMode — B5
+   deferred to P10 audio pass; record in not-delivered).
+6. Human-eye items for the not-delivered list: parallax at 1.4× zoom, lighting tone per era,
+   glass-panel look, shader rendered output (B7/B3/A3 all flagged "no headless gate can judge
+   this").
