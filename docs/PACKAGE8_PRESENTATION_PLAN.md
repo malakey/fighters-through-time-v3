@@ -1520,3 +1520,180 @@ Total 1285** across two consecutive serial runs — exactly 1060 + 43 (B2) + 7 (
 6. Human-eye items for the not-delivered list: parallax at 1.4× zoom, lighting tone per era,
    glass-panel look, shader rendered output (B7/B3/A3 all flagged "no headless gate can judge
    this").
+
+### C1 — Closeout (2026-08-08)
+
+**C1: the manifest flip is 32 rows, and three of them were pointing at things that no longer
+exist.** The planned status flips (seven UIScreen rows, the seventeen Story AudioSet rows, the
+`visual_shaders` row onto the real `assets/shaders/outline_glow.gdshader`) were the easy half. The
+half worth recording is the corrections the phase agents surfaced: `story_hud` named `HUDController`
+as its owner, a class B2 **deleted**; `fighter_hud` still pointed at `res://scenes/arenas/TestArena.tscn`
+with owner `TestArenaHUD`, when B2 authored `res://scenes/ui/FighterHUD.tscn`; and `story_character_select`
+pointed at `res://scenes/menus/CharacterSelect.tscn`, which is the *Fighter* character select — B4's
+conversion moved the Story character grid into `MainMenu.tscn`'s `CharacterScreen`, so that row had
+silently become a lie about a different screen. Six B4-converted rows (`save_select`,
+`difficulty_select`, `story_character_select`, `fighter_character_select`, `stage_select`,
+`match_settings`) moved `Prototype` → `Implemented`. Every exact-count category still matches
+`ContentManifestValidator.ExactRequiredCounts` — no row was added or removed.
+
+**C1: the three network rows keep `PlannedResourcesRemainVisibleUntilTheyAreAuthored` honestly fed,
+and that was checked rather than assumed.** After the flip six rows remain `Planned`: the three
+Package-7 network screens and three Package-5-era `DialogueSet` rows. Only the network three
+generate the *warning* the test's first assertion needs, because their scenes genuinely do not exist
+on disk; the dialogue three resolve to real files and satisfy only the second assertion. So the test
+is fed by the deferral it is supposed to be fed by. The three stale dialogue rows are left alone
+deliberately — they are Package 5 territory, and flipping them would have been C1 inventing content
+status for a package it did not run.
+
+**C1: the `Tr()` sweep found zero raw-English literals, which is a result and not a non-result.**
+Ninety-eight distinct `Tr("...")` literals and eleven `TranslationServer.Translate("...")` literals
+across `scripts/`, every one a real key resolving through the compiled translation. Package 8 added
+roughly a hundred call sites in eleven parallel worktrees, which is exactly the scale at which one
+typo normally survives — the discipline held. `ScriptTranslationKeyTests` makes it permanent, with
+floors on the literal counts so a refactor that stops the regex matching fails loudly instead of
+turning the suite into a no-op, and an `AllowedNonKeyLiterals` list that is **empty** and whose
+entries, if any are ever added, must still appear in the source.
+
+**C1: the `.tscn` scanner is stricter than "looks like a key", because the likely failure is a typo,
+not an English sentence.** 111 `text =` properties across `scenes/`; 87 are key-shaped and all 87
+exist in `en.csv` and resolve through the compiled translation, so the test asserts membership and
+resolution rather than shape alone. The 24 remainder are handled by two rules rather than an
+allowlist: an empty string (the debug HUD's state/tick/hash labels, filled at runtime, across the
+eleven arena scenes) and a value containing no letters at all (character select's `<` and `>`
+opponent arrows — glyphs carry across every language this project plans to ship). `AllowedLiterals`
+is therefore also empty. B4's two offenders were already gone, so the scanner inherited a clean tree
+and its job is to keep it that way.
+
+**C1: the unused-key rule is a roster, not a threshold, and that difference is the whole point.** A
+count-only cap passes happily while one orphan is fixed and a different one is created in the same
+change. `UnusedTranslationKeyTests` fails on any unused key **not** on `RecordedOrphans`, and lets a
+recorded one disappear at any time, so the list can only shrink without a deliberate edit. Twelve
+orphans are recorded, all of them pre-dating Package 8: `menu_save`, `menu_restart`, `menu_exit`,
+`hud_ultimate`, `hud_block_charges`, `match_player_wins`, `save_new_game`, `save_load_game`,
+`tutorial_objective_wave_one`, `tutorial_controls`, `boss_hp`, `boss_defeated`. Each names a surface
+that was specified and then built differently; deciding whether an in-level save affordance or a boss
+HP readout is coming back is content scope, not closeout scope. The `status_*` family is exempted by
+prefix rather than recorded, because it is assembled at runtime from an enum name in two places, and
+a second test pins each exemption to the line that justifies it so the exemption cannot outlive its
+reason.
+
+**C1: two orphans were deleted rather than recorded, and A4's deliberate probe was one of them.**
+A4 left `settings_difficulty` in `en.csv` specifically so this sweep would have something to report.
+The sweep now exists and has twelve other orphans proving it non-vacuous, so keeping a key alive as a
+test fixture is no longer paying for itself — and the key can have no future consumer, because
+campaign difficulty is chosen per save slot at creation and locked for the playthrough, which is
+exactly why A4 removed the dropdown. `settings_fullscreen` went with it for the same reason: A4
+replaced the boolean fullscreen toggle with the three-value `settings_window_*` family, so it is a
+Package-8-caused orphan and cleaning up after yourself is not content scope. Neither key is
+referenced by any test or script.
+
+**C1: A1's `en.csv` marker line had a trailing comma and was importing as a translation key.** A4
+recorded the convention — a marker must be comma-less so Godot's CSV importer and every test-side
+parser in the repository skip it — and `# Package 8 A1,` did not follow it, so `# Package 8 A1`
+appeared in the key set and in the first unused-key report. Fixed to match the other four markers.
+It is a one-character change with no user-visible effect, which is precisely why nothing else would
+ever have caught it.
+
+**C1: B4's SpinBox finding was folded into `FocusChainBuilder.Collect`, and the pinning test was
+rewritten to assert membership instead of a count gap.** A `SpinBox` keeps its editable `LineEdit` as
+an *internal* child, so the collector's `GetChild` walk cannot see it and the spin box is silently
+unreachable by keyboard and controller. B4 correctly worked around it at the call site and pinned the
+gap as "21 in the authored chain, 19 from the generic collector". Leaving it there would have made
+every future screen with a spin box repeat the workaround, so `Collect` now splices
+`spinBox.GetLineEdit()` in at the spin box's own position (preserving authored reading order) and
+skips a non-editable spin box, which is display rather than input. The two chains now agree, so
+`CharacterSelectSceneTests` asserts `collected.Count == chain.Count` **plus** that both editors are
+present by identity — the invariant B4 actually cared about, expressed directly rather than through a
+magic difference that would go quiet if either side changed. `CharacterSelectScreen`'s explicit
+`FocusChain` is deliberately kept: it is now redundant with the collector, but it is also the screen's
+authored-order declaration and the seam its suite walks, and switching it to `Apply` would have traded
+a documented order for an emergent one for no user-visible gain. This is the only pre-existing test
+C1 modified.
+
+**C1: `ChronalOrbTemplate.tscn` stays direct-instantiated, and `EnvironmentAudioCues` stays as it
+is.** B6 authored the orb template and deliberately left it out of every pool config, because the
+`chronal_orb` pool ID belongs to the ten Fighter stage configs and the Test Arena, all of which render
+orbs through the driver's proxies rather than through the Story scene. Adding a Story pool row now
+would warm a budget for a spawner that does not exist — Story orb drops are unwritten — and pool rows
+are validated per scene by `ScenePoolConfigTests`, so a speculative row is a maintained lie. The
+recommendation stands: leave it direct-instantiated, and whoever adds Story orb drops adds the row in
+the same change. Likewise B5's `EnvironmentAudioCues` is a small static over an A2 API gap
+(`AudioManager` loads the placeholder hazard and pickup streams but keeps them private behind
+`ResolvePresentationCue`, and the only public entry point for an arbitrary world sound needs the
+caller to hold the stream). Collapsing it into a `PlayEnvironmentCue(id)` on `AudioManager` is the
+right shape, but it is an audio-framework change with no behavioural gain today; recorded here as an
+A2 API-gap note for Package 10's audio pass, where the real cue set arrives and the call sites
+multiply.
+
+**C1 validation.** `dotnet build` clean — one warning, the pre-existing vendored `CS8632`; B7's
+CS0618 pragmas are gone as planned and nothing new appeared. `--headless --import` clean, with
+`localization/en.en.translation` regenerated and committed (`content_manifest.1.translation` did not
+move: the compiled manifest translation carries only the id column, and C1 changed no ids). Full
+suite **1293 passed / 0 failed / Total 1293 across three consecutive serial runs** — exactly the
+post-Phase-B 1285 plus C1's declared **+8** (3 `ScriptTranslationKeyTests`, 3
+`UnusedTranslationKeyTests`, 2 `SceneVisibleTextTests`). No failure signature was hit; C1 ran solo in
+the main checkout with no sibling worktrees, so no run was discarded. Headless `--quit-after 300`
+smokes: MainMenu, CharacterSelect, TestArena, all ten `FighterStage_*`, HubWorld, Level 00 Tutorial,
+Level 01 Florence, Level 02 Orléans, Level 06 Pompeii and Level 15 Alexandria — **nineteen for
+nineteen, exit 0, zero `SCRIPT ERROR` lines**. The only `ERROR:` line any of them prints is the
+pre-existing "N resources still in use at exit" teardown notice B5 verified against a stashed
+baseline. Godot launches rewrote the usual ~70 `.import` sidecars, `project.godot` and
+`resources/Audio/default_bus_layout.tres` with line-ending-only changes (`git diff --numstat` empty);
+all discarded per B6's note.
+
+#### What Package 8 did NOT deliver
+
+Stated plainly, because a package that touches every visible surface is the easiest one to overclaim.
+
+1. **No human has looked at any of it.** This is the single largest gap and it applies to the whole
+   package, not to one workstream. A headless gate proves a shader compiles, a scene loads, a node is
+   the right type, an ambient tone clears a readability floor and a string resolves. It cannot tell
+   you whether the outline reads at gameplay scale, whether the parallax works now that `Parallax2D`
+   makes it zoom with the camera's 1.0–1.4 band, whether Berlin's cold searchlight tone is right or
+   merely cold, whether the dialogue "glass" reads as glass, or whether any of the six VFX families
+   look like the verb they are named after. A3, B3 and B7 each flagged this independently. Treat the
+   entire visual layer as unreviewed.
+2. **Production art, audio and VFX assets — all of Package 10.** Every character is still a
+   placeholder `SpriteFrames`; every enemy and boss is a tinted silhouette; every level is graybox;
+   every sound in the game is one of three shared placeholder stems or a synthetic `.ogg` generated
+   by `tools/generate_placeholder_audio.py`; every effect is one of six reusable family scenes
+   recoloured by an accent. What Package 8 delivered is that each of those now has a real consumer,
+   so replacing it is a resource reassignment rather than an engineering task.
+3. **The three network UI screens** (`network_select`, `online_pause`, `network_error`), the Chronal
+   Jitter warning, and reverb tuning for netplay — deferred with Package 7 by user decision before
+   this package started. Their manifest rows stay `Planned`.
+4. **Fighter Mode has no footsteps.** `FighterSimulationDriver` sets `ProcessMode.Disabled` on both
+   presentation bodies, so `PlayerController._PhysicsProcess` — where B5's emission lives — never runs
+   during a match. Story Mode has them (distance-based, immediate first step, silent while rolling).
+   Fixing it means diffing grounded state and velocity in the driver's `SyncPlayer`; deferred to
+   Package 10's audio pass alongside the real footstep set.
+5. **Per-character chirp waveforms are Package 10.** The nine authored `DialogueChirpPitch` values
+   (0.72–1.34, Lincoln lowest, Mozart highest) pitch-shift **one** placeholder sample. The design's
+   per-character timbres — a square wave for Lincoln, a triangle for Mozart, something electric for
+   Tesla — are production audio.
+6. **Thirteen of the sixteen campaign scenes are unlit.** `StageLightingRig` is applied to all ten
+   Fighter stages plus the hub and levels 2 and 6, which B7 authored as the exemplar pattern.
+   Applying it to the rest is per-level content work, and a campaign level is thousands of pixels
+   wide, so it needs per-room placement rather than one rig per scene.
+7. **No normal maps and no shadows.** Nothing authored consumes a normal map, and no
+   `LightOccluder2D` geometry exists anywhere in the project, so neither was plumbed — untested
+   scaffolding for absent art would have been worse than the gap. Both arrive with production art.
+8. **Reverb zones and low-pass content are framework, not tuning.** Music and SFX carry low-pass
+   filters at a transparent 20500 Hz cutoff so a snapshot can lower them without an audible
+   effect-toggle click, and the pause and low-health snapshots drive them. No reverb zone is authored
+   anywhere, and the design's "underwater" snapshot has no content asking for it.
+9. **Cinematic boss and KO presentation.** The KO sequence's beats, banners, scrim ownership and
+   audio cues are all real and tested; the *cinematic* treatment the design describes is art.
+10. **Draw-batch cost was not re-measured.** §2.2's decision duplicates one authored `ShaderMaterial`
+    per entity because `gl_compatibility` has no `instance uniform`s. It is bounded by the budget's
+    fewer-than-70 concurrent character/enemy sprites, and the particle registry caps at 500, but
+    Package 8 was explicitly not a performance package: the actual batch count and frame cost of the
+    glow, lighting and VFX layers are a Package 9 measurement.
+11. **Two content gaps left open on purpose.** Florence's three budgeted Chronal Extractors remain
+    unauthored (`docs/DUST_ECONOMY.md` §6, inherited from Package 5's decision not to retrofit the
+    pre-existing Florence controller), and `scenes/templates/ChronalOrbTemplate.tscn` is authored,
+    tested, and in no pool config, awaiting a Story orb-drop spawner that does not exist yet.
+12. **Twelve dead translation keys are recorded, not removed.** They name surfaces that were
+    specified and built differently. They are now visible, capped, and cannot be joined by a
+    thirteenth without failing the suite — but they are still dead rows in a table that will one day
+    go to a translator.

@@ -79,12 +79,19 @@ public class CharacterSelectSceneTests {
             // + match mode + 2 spin-box editors + 2 frequency selects + back + fight.
             AssertThat(chain.Count).IsEqual(21);
 
-            // A SpinBox keeps its editable LineEdit as an INTERNAL child, so the
-            // generic collector cannot see it. If the chain ever falls back to
-            // FocusChainBuilder.Collect, the stock count and time limit silently
-            // become unreachable by keyboard and controller.
+            // A SpinBox keeps its editable LineEdit as an INTERNAL child, which
+            // GetChild does not return, so the stock count and time limit were
+            // invisible to the generic collector and silently unreachable by keyboard
+            // and controller. B4 worked around it with the explicit chain above; C1
+            // folded the splice into FocusChainBuilder.Collect, so the two now agree.
+            // Asserting the membership rather than only the count is what keeps this
+            // proving something if either side is ever rebuilt.
             List<Control> collected = FocusChainBuilder.Collect(screen);
-            AssertThat(collected.Count).IsEqual(19);
+            AssertThat(collected.Count).IsEqual(chain.Count);
+            AssertThat(collected.Contains(screen.GetNode<SpinBox>(Root + "RulesRow/StockCount").GetLineEdit()))
+                .OverrideFailureMessage("The stock-count editor is not reachable by focus.").IsTrue();
+            AssertThat(collected.Contains(screen.GetNode<SpinBox>(Root + "RulesRow/TimeLimit").GetLineEdit()))
+                .OverrideFailureMessage("The time-limit editor is not reachable by focus.").IsTrue();
 
             foreach (Control control in chain) {
                 AssertThat(control.FocusMode)

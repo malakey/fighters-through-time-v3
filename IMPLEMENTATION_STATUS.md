@@ -10,6 +10,8 @@ Package 5 update (2026-08-08): **Section 1 below is superseded.** All sixteen ca
 
 Package 6 update (2026-08-08): **Sections 2, 21 and 22 below are superseded.** All ten Fighter stages are independently authored production-contract scenes with their own fixed-point geometry, era-specific deterministic hazard, placeholder parallax presentation, pool config, audio set and preview plate; the match flow is complete end to end (countdown, respawn platform, KO presentation, pause, disconnect handling, results, rematch, all five end conditions); the CPU is complete at all three difficulty bands; and the rollback-readiness gate passes across all nine kits and all ten stages. What remains for Fighter Mode is production art, music, VFX and cinematic KO presentation (Package 8), rendering-cost measurement on target hardware (Package 9), and the online work (Package 7).
 
+Package 8 update (2026-08-08): **Sections 11, 12, 13, 17, 18 and 19 below are superseded and have been rewritten in place.** Every production UI screen is an authored, themed, focus-authored scene; the audio framework (bus layout, stem director, snapshot mixer, voice pool) is complete with all 27 audio sets authored on placeholder stems; the visual framework (outline/glow shader, glow arbiter, VFX emitter with all 78 roster and ability hooks bound, particle budget, off-screen suspension, `Parallax2D`, era lighting rigs) is complete; input remapping, conflict UX, reset-to-default and display persistence are complete; and localization is gated in both directions by three new permanent tools. **The distinction that matters for everything below: Package 8 delivered frameworks and placeholder content, not assets.** Production art, music and VFX remain Package 10. Nothing in the visual layer has been judged by a human — no headless gate can do it.
+
 This document provides a detailed comparison of what has been implemented versus what is documented in the design specification. It covers every major system, feature, and content area.
 
 ---
@@ -22,8 +24,9 @@ This document provides a detailed comparison of what has been implemented versus
 | Fighter Mode Foundation | ~85-90% (ten authored stages, ten era hazards, complete match flow and CPU, rollback gate passed; production art/audio and online remain) |
 | Story Mode Flow | ~80-85% (hub, all 16 levels, checkpoints/resume, rewind, completion, credits, and the campaign-complete save state are implemented) |
 | Campaign Content (Levels 2-15) | ~75-80% (all 14 levels authored and tested with graybox geometry and placeholder presentation; art/audio/VFX remain) |
-| Production Art & Animation | ~2-5% |
-| Audio & Music | ~5-10% |
+| UI, Controls & Localization | ~90-95% (every production screen authored and themed, focus authored, full remapping and settings persistence, localization gated both ways; only the three Package-7 network screens and production UI art remain) |
+| Production Art & Animation | ~2-5% (unchanged — Package 8 built the pipelines that consume art, not the art) |
+| Audio & Music | ~30-35% (framework complete and fully wired, all 27 sets authored; every sound is a placeholder) |
 | Online Networking | ~20-25% |
 | Narrative & Dialogue | ~55-60% (all 17 dialogue sets authored and localized; character-specific variants and VO remain deferred) |
 | Puzzles & Environmental Interaction | ~85-90% (shared toolkit plus 14 era-mechanic components, all placed across the authored campaign) |
@@ -224,23 +227,33 @@ Package 6 (2026-08-08) closed this section. Plan of record: `docs/PACKAGE6_FIGHT
 
 | Feature | Design Spec | Implementation Status |
 |---------|-------------|----------------------|
-| Main Menu | Story Mode, Fighter Mode, Settings, Quit with confirmation | **Implemented** |
-| Character Select Screen | Grid portraits, ready toggle, 3s countdown, duplicate prevention | **Implemented** |
-| Stage Select Screen | Carousel/grid of 10 arenas with preview | **Implemented** - Ten-stage catalog with localized names |
-| Settings Menu | Audio, Display, Controls, Gameplay sections | **Implemented** - Persisted to global save |
-| Pause Menu | Story and Fighter variants with correct options | **Implemented** |
-| Story Mode HUD | HP, meter, rewinds, block charges, cooldowns, status, currency | **Partially implemented** - `HUDController` exists; visual polish incomplete |
-| Fighter Mode HUD | HP bars depleting to center, stocks, timer, block, status, meter | **Partially implemented** - `TestArenaHUD` exists |
-| Dialogue box system | Typewriter reveal at 30 chars/sec, portraits, speaker names | **Partially implemented** - `DialogueManager` script exists; no authored dialogue resources |
-| Resonance Grid UI | Constellation navigation with purchase flow | **Implemented** - `ResonanceGridPanel` exists |
-| Save Select Screen | Slot summaries, new/load/delete with confirmation | **Implemented** |
+Package 8 (2026-08-08) converted every production screen from a code-built shell to an authored,
+themed, focus-authored scene against one shared `Theme` (`resources/UI/ftt_theme.tres`) and one
+palette (`scripts/UI/UIPalette.cs`), pinned to each other by test. Presentation is placeholder
+**art**, not placeholder structure.
+
+| Feature | Design Spec | Implementation Status |
+|---------|-------------|----------------------|
+| Shared UI theme | One Theme resource driving every screen | **Implemented** - `ftt_theme.tres` + `UIPalette`; no font resource by design (`assets/fonts/` is empty) |
+| Controller/keyboard focus | Authored focus order and initial focus on every screen | **Implemented** - `FocusChainBuilder`, including `SpinBox` internal editors |
+| Main Menu | Story Mode, Fighter Mode, Settings, Quit with confirmation | **Implemented** - Authored four-screen stack (root/slot/character/difficulty) with one back/cancel rule |
+| Character Select Screen | Grid portraits, ready toggle, 3s countdown, duplicate prevention | **Implemented** - Nine real focusable Button tiles (previously mouse-only PanelContainers) |
+| Stage Select Screen | Carousel/grid of 10 arenas with preview | **Implemented** - Ten-stage catalog with localized names and preview plate |
+| Settings Menu | Audio, Display, Controls, Gameplay sections | **Implemented** - Authored `Settings.tscn`, four tabs, embedded by all three openers; never writes `SceneTree.Paused` |
+| Pause Menu | Story and Fighter variants with correct options | **Implemented** - Shared `PauseMenuBase` owns the pause and hands it back in `_ExitTree`; Story variant adds an exit confirmation |
+| Story Mode HUD | HP, meter, rewinds, block charges, cooldowns, status, currency | **Implemented** - Authored `StoryHUD.tscn`, cooldown + status indicators, live `HudOpacity` |
+| Fighter Mode HUD | HP bars depleting to center, stocks, timer, block, status, meter | **Implemented** - Authored `FighterHUD.tscn` (bars, stock pips, portraits, block charges, cooldown slots, clock, status); debug text moved behind an F3 toggle |
+| Dialogue box system | Typewriter reveal at 30 chars/sec, portraits, speaker names | **Implemented** - Glass panel treatment, emotion-driven portrait framing, punctuation pacing, per-character chirps |
+| Resonance Grid UI | Constellation navigation with purchase flow | **Implemented** - Authored `ResonanceGrid.tscn` shell; node buttons stay code-built from the character's authored grid |
+| Save Select Screen | Slot summaries, new/load/delete with confirmation | **Implemented** - Authored rows; deletion confirmed through the shared modal |
 | Difficulty Select | Easy/Normal/Hard with description tooltips | **Implemented** |
-| Loading screen overlay | Story portal effect / Fighter VS matchup cards | **Partially implemented** - Loading overlay with minimum display time; not the full portal/VS-card VFX |
-| Post-match results flow | KO freeze/slow-mo/spotlight, results screen, rematch | **Implemented** - Results/rematch/return flow functional |
-| Quit confirmation modal | "Are you sure?" with Confirm/Cancel | **Implemented** |
-| Boss health bar | Top-center 50% width bar with name and phase notches | **Not implemented** |
-| Enemy overhead health bars | Floating bars above damaged/aggroed enemies | **Not implemented** |
-| Level completion overlay | Dust earned, time, auto-deposit, return prompt | **Not implemented** |
+| Loading screen overlay | Story portal effect / Fighter VS matchup cards | **Implemented** - Themed per-transition scene chosen from the destination path; portal and VS variants; 2 s minimum retained. Production VFX for the portal is Package 10 |
+| Post-match results flow | KO freeze/slow-mo/spotlight, results screen, rematch | **Implemented** - Themed banners and results; cinematic KO art remains Package 10 |
+| Quit confirmation modal | "Are you sure?" with Confirm/Cancel | **Implemented** - Shared `ConfirmModal` replaced three ad-hoc patterns and both native `ConfirmationDialog` windows |
+| Boss health bar | Top-center 50% width bar with name and phase notches | **Implemented** - Notches are the authored `PhaseThresholds` themselves, not a derived split |
+| Enemy overhead health bars | Floating bars above damaged/aggroed enemies | **Implemented** - Hidden until first damage, fade after four quiet seconds, reset on both halves of the pool cycle and on rewind |
+| Level completion overlay | Dust earned, time, auto-deposit, return prompt | **Implemented** - Dust, completion time and rewinds used (both statistics are new on `StoryManager`) |
+| Network select / online pause / network error | Online lobby, pause and error surfaces | **Not implemented** - deferred with Package 7; manifest rows stay `Planned` |
 
 ---
 
@@ -248,16 +261,26 @@ Package 6 (2026-08-08) closed this section. Plan of record: `docs/PACKAGE6_FIGHT
 
 | Feature | Design Spec | Implementation Status |
 |---------|-------------|----------------------|
-| AudioServer bus hierarchy | Master → Music/SFX/UI with sub-buses (Environmental/Combat/Movement) | **Partially implemented** - `AudioManager` controls buses |
-| Dynamic music stems (3 layers) | Ambient, Combat, Boss stems per level with crossfade | **Not implemented** - No music/stem assets exist |
-| Horizontal transitions | Last-stock tempo change, KO stinger, silence | **Not implemented** |
-| Surface-specific footstep SFX | Wood, stone, sand, metal, snow variants | **Not implemented** |
-| Character-specific attack SFX | Per-ability cast and impact sounds | **Not implemented** - No SFX assets |
-| Dialogue text chirps | Character-pitched blip sounds (lower for Lincoln, electric for Tesla) | **Not implemented** |
-| Audio snapshots | Low health filter, pause duck, ultimate duck, normal gameplay | **Not implemented** |
-| SFX pool | Fixed-size reusable players | **Implemented** - 24 prewarmed SFX players |
-| Reverb zones | Per-area AudioEffectReverb (caves, cathedrals) | **Not implemented** |
-| Low-pass filtering | Pause menus, low health, underwater | **Not implemented** |
+Package 8 built the whole audio framework and filled it with placeholder content. Every row below
+that says "Implemented" means the *system and its wiring* are real and tested; the audio itself is
+three shared placeholder stems and a handful of synthetic `.ogg` cues generated by a committed
+script (`tools/generate_placeholder_audio.py`). Production audio replaces the files in place with
+no code change — that is the exit criterion this package was measured against, not fidelity.
+
+| Feature | Design Spec | Implementation Status |
+|---------|-------------|----------------------|
+| AudioServer bus hierarchy | Master → Music/SFX/UI with sub-buses (Environmental/Combat/Movement) | **Implemented** - Authored `resources/Audio/default_bus_layout.tres`, registered in project settings; the orphaned runtime `Ambient` bus removed |
+| Dynamic music stems (3 layers) | Ambient, Combat, Boss stems per level with crossfade | **Implemented (placeholder audio)** - `StemDirector` plays all 27 authored `StageAudioSet`s synchronized; the mix is **additive** (ambient always audible) per the design's vertical layering |
+| Intensity transitions | Ambient ↔ combat ↔ climax with authored crossfade | **Implemented** - Story: engaged enemies within 1000 px at 4 Hz, four-second fall-back hold; Fighter: last-stock climax, one-way, mode-keyed |
+| Horizontal transitions | Last-stock tempo change, KO stinger, silence | **Implemented (placeholder audio)** - KO stinger, victory fanfare and countdown blips now resolve; they had been silently no-oping since Package 6 because the asset paths did not exist |
+| Surface-specific footstep SFX | Wood, stone, sand, metal, snow variants | **Partially implemented** - Story footsteps are distance-based with an immediate first step and a surface parameter plumbed through, on one placeholder sound. **Fighter Mode has no footsteps at all** — the driver disables the presentation bodies' `ProcessMode`; deferred to Package 10 |
+| Character-specific attack SFX | Per-ability cast and impact sounds | **Partially implemented** - The `PresentationEventID` → SFX binding covers telegraph/active/death for all 42 roster entries on generic cues; per-ability character audio is Package 10 |
+| Dialogue text chirps | Character-pitched blip sounds (lower for Lincoln, electric for Tesla) | **Implemented (placeholder audio)** - Every third non-whitespace character, silent during punctuation holds; nine authored `DialogueChirpPitch` values 0.72–1.34 pitch-shifting one sample. Per-character *waveforms* are Package 10 |
+| Audio snapshots | Low health filter, pause duck, ultimate duck, normal gameplay | **Implemented** - `AudioSnapshotMixer` blends volume offsets and low-pass cutoffs (cutoffs stack by minimum, not sum); the rewind duck migrated onto it, fixing a bug where a volume change during a rewind was reverted when it ended |
+| SFX pool | Fixed-size reusable players | **Implemented** - 24 prewarmed players with oldest-steal, now tested; `ReleaseAllVoices()` added for scene changes |
+| Boot-time volume application | Saved sliders applied before first audio | **Implemented** - `AudioManager._Ready` reads `GlobalData` (autoload order permits it) |
+| Reverb zones | Per-area AudioEffectReverb (caves, cathedrals) | **Not implemented** - no content declares one; the bus layout can carry them |
+| Low-pass filtering | Pause menus, low health, underwater | **Partially implemented** - Music and SFX carry filters at a transparent 20500 Hz cutoff so a snapshot can lower them without an audible effect-toggle click; pause and low-health drive them. Underwater is not authored |
 
 ---
 
@@ -265,18 +288,31 @@ Package 6 (2026-08-08) closed this section. Plan of record: `docs/PACKAGE6_FIGHT
 
 | Feature | Design Spec | Implementation Status |
 |---------|-------------|----------------------|
-| Hand-drawn 2D sprite sheets | Full animation sets per character (17+ sheets each) | **Not implemented** - All characters use code-generated colored rectangles |
-| Outline/glow shader system | Alpha-based edge detection with configurable parameters | **Not implemented** |
-| Status effect visual indicators | Per-status ShaderMaterial + GPUParticles2D | **Not implemented** |
-| PointLight2D glow accompaniment | Ambient environmental light cast matching outline color | **Not implemented** |
-| Normal-mapped sprites | Light2D interaction for 2D lighting | **Not implemented** |
-| Parallax backgrounds per level | Multi-layer scrolling historical backgrounds | **Partially implemented** - One Florence background asset exists |
+Package 8 built the visual *framework*. Nothing in this section has been looked at by a human:
+headless gates prove the shader compiles, the arbiter resolves the right state, the parallax
+migrated, and every ambient tone clears a readability floor — none of them can judge how it looks.
+
+| Feature | Design Spec | Implementation Status |
+|---------|-------------|----------------------|
+| Hand-drawn 2D sprite sheets | Full animation sets per character (17+ sheets each) | **Not implemented** - per-character placeholder `SpriteFrames` wired through `CharacterData`; production art is a resource reassignment (Package 10) |
+| Outline/glow shader system | Alpha-based edge detection with configurable parameters | **Implemented** - `assets/shaders/outline_glow.gdshader` with the design's four uniforms. Two `gl_compatibility` limits found and test-guarded: no `instance uniform`s (the base material is duplicated per entity by the arbiter) and `TEXTURE` cannot be passed as a `sampler2D` argument (all ring sampling inlined). A `CanvasItem` shader cannot draw outside its quad, so production art must budget a few texels of transparent padding |
+| Glow/tint arbitration | Priority: hyper-armor/spawn-invuln > status > slot colour | **Implemented** - `GlowPresentationController` is the single owner of sprite material/tint state, with three independent channels (base tint, tint override, arbitrated outline stack) so a fighter tint survives a status ending |
+| Status effect visual indicators | Per-status ShaderMaterial + GPUParticles2D | **Implemented** - driven by `OnStatusEffectApplied`/the new `OnStatusEffectCleared` falling edge (the bus previously had a rising edge only, so a status outline could be set but never cleared); Venom's authored two-colour gradient is a per-frame lerp |
+| Hyper-armor shell / hit feedback | Gold shell, hit flash, camera shake, haptics | **Implemented** - the gold shell replaced the `ChronalArmorOverlay` ColorRect; Fighter-mode shake and haptics wired from driver HP deltas and KOs |
+| PointLight2D glow accompaniment | Ambient environmental light cast matching outline color | **Implemented** - textured; the repository's one pre-existing light had been emitting nothing at all for want of a texture |
+| Normal-mapped sprites | Light2D interaction for 2D lighting | **Not implemented** - nothing authored consumes a normal map; Package 10 with production art |
+| Shadow casting | `LightOccluder2D` geometry | **Not implemented** - no occluder geometry is authored anywhere |
+| Parallax backgrounds per level | Multi-layer scrolling historical backgrounds | **Implemented (placeholder art)** - nine Fighter stages carry authored `Parallax2D` layers (migrated from `ParallaxBackground` so they sit in canvas layer 0 and are lit; they now zoom with the camera, which is a real visual change nobody has reviewed). Florence dresses distance with a static sprite by design. Campaign levels have no parallax |
+| Environment lighting | `CanvasModulate` ambient tone + per-era key/fill/rim lights | **Implemented (thirteen scenes)** - `StageLightingRig` on all ten Fighter stages plus the hub and levels 2 and 6; ambient channels held above 0.55 because the placeholder character silhouettes have no rim art to survive a crush. The other thirteen campaign scenes are unlit — the rig is the pattern |
 | Tile palettes per era | Historical-themed tilesets with physics layers | **Not implemented** |
-| Environment VFX | Steam, lava, sand, electricity GPUParticles2D | **Not implemented** |
-| Character portraits (512×512) | For character select and HUD panels | **Not implemented** |
-| Enemy/boss sprite sheets | Per-type idle/patrol/attack/hit/death animations | **Not implemented** |
-| Chronal Orb sprites | 4 types with distinct colored glow effects | **Not implemented** |
-| Chronal Extractor props | Idle/damaged/destroyed animation states | **Not implemented** |
+| Environment VFX | Steam, lava, sand, electricity GPUParticles2D | **Implemented (placeholder art)** - six reusable family scenes (`Burst/Slash/Beam/Shockwave/Summon/Impact`) carry all 78 hooks: 36 ability cast/impact assignments derived from `ExecutionType`, and 42 roster `PresentationEventID` mappings resolved by verb token. Recovery deliberately draws nothing |
+| Particle budget | 500 active particles | **Implemented** - shared registry with steal-oldest eviction; a request larger than the whole budget is refused outright |
+| Off-screen suspension | Suspend animation/VFX outside the view | **Implemented** - `PresentationVisibilitySuspender`, presentation nodes only |
+| Character portraits (512×512) | For character select and HUD panels | **Partially implemented** - placeholder portraits wired through `CharacterData` and consumed by the Fighter HUD and dialogue box |
+| Enemy/boss sprite sheets | Per-type idle/patrol/attack/hit/death animations | **Not implemented** - authored scenes with `PlaceholderTint`/`SpriteFramesResource` |
+| Chronal Orb sprites | 4 types with distinct colored glow effects | **Implemented (placeholder art)** - `ChronalOrbData.Icon` finally has a reader; `ChronalOrbItem.EffectColor` is now the single colour source shared by the Story item and the Fighter proxy. The template is deliberately not in any pool config |
+| Chronal Extractor props | Idle/damaged/destroyed animation states | **Implemented (placeholder art)** - damaged/destroyed dressing in the template |
+| Rewind treatment | Ghost trail, reverse sweep, clock tick, tint, music duck | **Implemented (placeholder art)** - the three dead payload fields are consumed at last; `RewindCueState` owns the edges, since the manager republishes `Playback` every frame |
 
 ---
 
@@ -340,9 +376,11 @@ Package 6 (2026-08-08) closed this section. Plan of record: `docs/PACKAGE6_FIGHT
 | Dash input detection | Digital double-tap (15 frames) / analog flick (85% magnitude) | **Implemented** |
 | Roll dedicated input | `O` keyboard / Right Trigger controller | **Implemented** |
 | Serializable PlayerInputFrame | Deterministic per-player input capture for replay/network | **Implemented** |
-| Full input remapping | Serialized keybinding overrides via InputMap API | **Partially implemented** - Settings UI exists; full persistence of remapped bindings incomplete |
-| Controller haptics | Vibration on hit/block/KO/heavy-landing/hazard events | **Implemented** - `HapticFeedbackManager` with intensity settings |
-| Reset-to-default controls | Restore all bindings to factory defaults | **Not fully implemented** |
+| Full input remapping | Serialized keybinding overrides via InputMap API | **Implemented** - Controls tab with listen-for-input capture; typed multi-event `InputBindingSet` (physical keycodes, so a remap survives a keyboard-layout change) in the global payload at schema v4; only actions that differ from `project.godot` are persisted, so a later default change still reaches players who never touched that action. Restored into `InputMap` by `SaveManager` after global load, before gameplay |
+| Binding conflict UX | Explain and prevent a duplicate binding | **Implemented** - Conflicts **block** rather than swap (a swap would move a binding the player never asked to change) and name the owning action; each row carries one slot per device kind, so a key remap never clears the joypad binding |
+| Non-remappable inputs | Inputs that a per-event row cannot express | **Implemented as read-only** - the `gameplay_ultimate` LB+RB chord is evaluated as a conjunction of the action's joypad events, and Dash has no InputMap action at all (it is a derived double-tap / analog flick). Both are stated in the UI rather than hidden |
+| Controller haptics | Vibration on hit/block/KO/heavy-landing/hazard events | **Implemented** - `HapticFeedbackManager` with intensity settings. Two device bugs fixed in Package 8: damage vibrated hardcoded device 0 (so in local 1v1 player two's damage buzzed player one's pad) and guard-break passed a *player index* as a device id; both now route through `InputManager.GetDeviceForPlayer` |
+| Reset-to-default controls | Restore all bindings to factory defaults | **Implemented** - per-action and global, via `InputMap.LoadFromProjectSettings()` plus clearing the saved overrides |
 
 ---
 
@@ -351,14 +389,17 @@ Package 6 (2026-08-08) closed this section. Plan of record: `docs/PACKAGE6_FIGHT
 | Feature | Design Spec | Implementation Status |
 |---------|-------------|----------------------|
 | Master/Music/SFX volume sliders | Mapped to AudioServer buses (default 100%/80%/100%) | **Implemented** |
-| Resolution dropdown | Populated from DisplayServer | **Implemented** |
-| Screen mode toggle | Fullscreen / Borderless / Windowed | **Implemented** |
-| VSync toggle | Enable/disable vertical sync | **Implemented** |
+| Boot-time application | Saved volumes and display settings applied before first frame/audio | **Implemented** - volumes in `AudioManager._Ready`, display in `ViewportEnforcer` (the last autoload, so the global payload is already loaded) |
+| Resolution dropdown | Populated from DisplayServer | **Implemented** - persisted as two ints and snapped onto `GlobalSaveData.SupportedResolutions`, so a corrupt payload cannot ask the engine for a 0×0 window |
+| Screen mode toggle | Fullscreen / Borderless / Windowed | **Implemented** - three-value `WindowMode` enum replacing the old boolean fullscreen flag; DisplayServer calls skipped under `headless` |
+| VSync toggle | Enable/disable vertical sync | **Implemented** - persisted |
 | Damage number toggle | Show/hide floating combat text | **Implemented** |
-| HUD opacity slider | Alpha control for on-screen bars | **Implemented** |
+| HUD opacity slider | Alpha control for on-screen bars | **Implemented** - and now honoured **live** on both HUDs. It is polled once per frame rather than evented, deliberately: there is no settings-changed signal in the project, and polling also picks up a change made by a save load or migration |
 | Screen shake slider | 0.0-1.0 intensity multiplier | **Implemented** |
 | Haptics toggle + intensity | On/off master + 0-100% slider | **Implemented** |
-| Input remapping persistence | Serialized to JSON in GlobalSaveData | **Not fully implemented** - UI exists but complete persistence/reset incomplete |
+| Input remapping persistence | Serialized in GlobalSaveData | **Implemented** - see §17; global payload schema v3 → v4 with a migration branch that drops the never-written string map rather than inventing player intent |
+| Save recovery notices | Tell the player when a save was recovered or migrated | **Implemented** - the eight raw-English notices became localized `save_notice_*` key + args pairs and are surfaced on the main menu |
+| Dead settings removed | No disabled or non-functional options shown | **Implemented** - the global default-difficulty dropdown had no consumer (campaign difficulty is per-slot and locked at creation) and was removed rather than wired up |
 | Colorblind modes | Protanopia/Deuteranopia/Tritanopia shader presets | **Not implemented** (deferred in design doc) |
 | Screen reader support | Text-to-speech for menus/HUD/dialogue | **Not implemented** (deferred in design doc) |
 | Alternative input layouts | Tap-to-hold, toggle sprint, deadzone sliders | **Not implemented** (deferred in design doc) |
@@ -371,8 +412,10 @@ Package 6 (2026-08-08) closed this section. Plan of record: `docs/PACKAGE6_FIGHT
 |---------|-------------|----------------------|
 | Translation key architecture | `Tr("key")` / `TranslationServer.Translate()` for all visible text | **Implemented** - Registered in `project.godot` |
 | English translation file | `localization/en.csv` with key-value pairs | **Implemented** |
-| Key screens localized | Menus, HUD, select screens, settings | **Mostly implemented** - Key flows use translation keys |
-| Hardcoded copy audit | All prototype UI cleaned of raw English strings | **In progress** - Some less-traveled paths may still have raw text |
+| Key screens localized | Menus, HUD, select screens, settings | **Implemented** - every production screen; authored `.tscn`s store the raw key as the control's `text` and let Godot's automatic control translation resolve it, so a language change follows without rebuilding a surface |
+| Hardcoded copy audit | All prototype UI cleaned of raw English strings | **Implemented** - zero raw-English visible strings remain in `scripts/` or `scenes/`; the last offenders (settings tab titles, save-load notices, a `Player.tscn` debug label, an unreferenced `TestScene.tscn`) were fixed or deleted in Package 8 |
+| Missing-key validation | Fail the build on a key that does not resolve | **Implemented** - `ScriptTranslationKeyTests` sweeps every `Tr("...")` and `TranslationServer.Translate("...")` literal under `scripts/`; `SceneVisibleTextTests` sweeps every visible `text` in an authored `.tscn`. Both resolve through the **compiled** `en.en.translation`, because `--headless --quit` does not regenerate it and a CSV ahead of the compiled resource renders raw keys while looking perfect in review |
+| Unused-key validation | Report keys nothing references | **Implemented** - `UnusedTranslationKeyTests` fails on a *new* orphan and lets a recorded one be retired freely; twelve pre-Package-8 orphans are on the recorded roster, and two Package-8-caused ones were deleted outright |
 | Multi-language support | ES, FR, DE, JA, etc. with `.translation` resources | **Not implemented** (deferred in design doc) |
 | Language selection UI | Dropdown in settings | **Not implemented** (deferred in design doc) |
 | CJK font fallback | SystemFont or imported TTF/OTF with fallback chain | **Not implemented** (deferred in design doc) |
@@ -383,7 +426,7 @@ Package 6 (2026-08-08) closed this section. Plan of record: `docs/PACKAGE6_FIGHT
 
 | Feature | Design Spec | Implementation Status |
 |---------|-------------|----------------------|
-| GdUnit4 test framework | Automated headless C# tests | **Implemented** - 140 passing tests |
+| GdUnit4 test framework | Automated headless C# tests | **Implemented** - 1293 passing tests (Package 8 close, 2026-08-08) |
 | Content validation tests | Character/ability/enemy/stage manifest completeness | **Implemented** |
 | Combat formula tests | Damage calc, block rules, meter build/use | **Implemented** |
 | Determinism/rollback tests | Hash consistency, prediction, correction convergence | **Implemented** |

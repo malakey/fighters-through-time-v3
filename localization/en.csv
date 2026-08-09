@@ -21,12 +21,10 @@ settings_master_volume,Master Volume
 settings_music_volume,Music Volume
 settings_sfx_volume,SFX Volume
 settings_ui_volume,UI Volume
-settings_fullscreen,Fullscreen
 settings_vsync,VSync
 settings_resolution,Resolution
 settings_haptics,Controller Haptics
 settings_haptic_intensity,Haptic Intensity
-settings_difficulty,Default Difficulty
 settings_damage_numbers,Show Damage Numbers
 settings_hud_opacity,HUD Opacity
 settings_screen_shake,Screen Shake
@@ -1010,7 +1008,7 @@ fighter_pause_exit_confirm,Exit the match and return to the character select lob
 fighter_disconnect_modal,"Controller Disconnected: Player {0} controller was lost. Reconnect device or press Confirm on another controller to bind and resume."
 fighter_disconnect_rebind,Bind Connected Controller
 fighter_disconnect_forfeit,Forfeit and Exit
-# Package 8 A1,
+# Package 8 A1
 pause_quit_confirm,Quit to the main menu? Progress since the last checkpoint will be lost.
 loading_rift,OPENING CHRONAL RIFT
 loading_versus,VS

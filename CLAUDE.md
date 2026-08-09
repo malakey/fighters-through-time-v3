@@ -120,7 +120,7 @@ Build (verified: succeeds with 1 pre-existing vendored warning — `CS8632` in `
 dotnet build FightersThroughTime.csproj --nologo
 ```
 
-Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-08 on `net10.0` (Package 6 close, ten production Fighter stages authored): **907 passed, 0 failed, Total 907** across three consecutive runs, in about 40 seconds after a warm build. Read the `Total:` count in the summary, not just the exit code — see the failure signatures above:
+Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-08 on `net10.0` (Package 8 close, product-wide UI/audio/visual/controls/localization pass): **1293 passed, 0 failed, Total 1293** across three consecutive runs, in about 50 seconds after a warm build. Read the `Total:` count in the summary, not just the exit code — see the failure signatures above:
 
 ```bash
 dotnet test FightersThroughTime.csproj --settings .runsettings
@@ -226,6 +226,9 @@ If a document and a `.tres` resource disagree, the resource wins. If two documen
 | Fighter simulation / netcode | `docs/architecture/0002-*.md`, `docs/architecture/0003-*.md` → `scripts/FighterSim/` → `scripts/Networking/` |
 | Story level or hub content | `design-godot.md` Sections 2–3, 6–10 → `scripts/Environment/` → `scenes/campaign/` |
 | Saves | `docs/architecture/0004-*.md` → `scripts/Core/SaveManager*` |
-| UI / dialogue | `scenes/ui/`, `scripts/UI/`, `resources/Dialogue/`, `localization/en.csv` |
+| UI / dialogue | `docs/PACKAGE8_PRESENTATION_PLAN.md` §9 → `resources/UI/ftt_theme.tres` + `scripts/UI/UIPalette.cs` → `scenes/ui/`, `scripts/UI/`, `resources/Dialogue/`, `localization/en.csv`. Adopt the theme on the screen root; author focus with `FocusChainBuilder`; store raw keys in `.tscn` `text` and let control auto-translation resolve them |
+| Audio | `docs/PACKAGE8_PRESENTATION_PLAN.md` §9 A2/B5 → `resources/Audio/default_bus_layout.tres` → `scripts/Core/AudioManager.cs` (`StemDirector`, `AudioSnapshotMixer`) → `resources/Audio/*_audio.tres`. The stem mix is **additive** |
+| Visual / VFX / shaders | `docs/PACKAGE8_PRESENTATION_PLAN.md` §9 A3/B6/B7 → `assets/shaders/outline_glow.gdshader` → `scripts/Combat/GlowPresentationController.cs`, `VfxEmitter`, `ParticleBudget` → `scenes/vfx/`. `gl_compatibility` forbids `instance uniform`s and `TEXTURE` as a `sampler2D` argument |
+| Input remapping / settings | `docs/PACKAGE8_PRESENTATION_PLAN.md` §9 A4 → `scripts/Core/InputBindings.cs` → `scripts/UI/SettingsMenu.cs` + `scenes/ui/Settings.tscn` → `scripts/Core/SaveManager*` (global payload schema v4) |
 | Enemy or boss content | `docs/PACKAGE4_ROSTER_PLAN.md` → `resources/Enemies/`, `resources/Bosses/` → `scripts/Enemies/` → `resources/Content/content_manifest.csv` + `localization/en.csv` |
 | Collision changes | `project.godot` layer names + `CollisionLayers` constants + scene masks + tests, all together |

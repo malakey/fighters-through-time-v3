@@ -40,6 +40,18 @@ namespace FTT.UI {
         ///
         /// <see cref="ProgressBar"/> is a <see cref="Range"/> but is never
         /// focusable — it is display, not input — so it is excluded explicitly.
+        ///
+        /// <para><b>Internal children.</b> A <see cref="SpinBox"/> keeps its editable
+        /// <see cref="LineEdit"/> as an *internal* child, and this walk uses
+        /// <c>GetChild</c>, which excludes internal nodes. The SpinBox itself is not a
+        /// focus candidate, so without the explicit splice below a spin box is silently
+        /// unreachable by keyboard and controller while looking perfectly fine on
+        /// screen — B4 hit exactly that on the character-select rules row and worked
+        /// around it with a hand-assembled chain (Package 8 §9). The editor is spliced
+        /// in at the spin box's own position so authored reading order is preserved.
+        /// A non-editable spin box is display, not input, and is skipped. If another
+        /// control type ever hides a focusable widget the same way, extend this branch
+        /// rather than hand-assembling a chain at the call site.</para>
         /// </summary>
         public static List<Control> Collect(Node root) {
             var found = new List<Control>();
@@ -53,6 +65,10 @@ namespace FTT.UI {
                 // a subtree the player cannot see or reach.
                 if (!control.Visible) return;
                 if (IsFocusCandidate(control) && !control.IsInGroup(SkipGroup)) found.Add(control);
+                else if (control is SpinBox spinBox && spinBox.Editable && !spinBox.IsInGroup(SkipGroup)) {
+                    LineEdit editor = spinBox.GetLineEdit();
+                    if (editor != null) found.Add(editor);
+                }
             }
 
             int count = node.GetChildCount();
