@@ -1,6 +1,8 @@
-[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="AbilityData" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/Combat/AbilityData.cs" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/VfxBeam.tscn" id="vfx_beam"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/VfxImpact.tscn" id="vfx_impact"]
 
 [resource]
 script = ExtResource("1")
@@ -35,3 +37,5 @@ StatusIntensity = 0.6
 AnimationName = "special_1"
 ScreenShakeIntensity = 0.2
 ScreenShakeDuration = 0.15
+CastVFXScene = ExtResource("vfx_beam")
+ImpactVFXScene = ExtResource("vfx_impact")

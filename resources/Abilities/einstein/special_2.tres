@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="AbilityData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="AbilityData" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/Combat/AbilityData.cs" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/VfxShockwave.tscn" id="vfx_shockwave"]
 
 [resource]
 script = ExtResource("1")
@@ -35,3 +36,5 @@ StatusIntensity = 1.0
 AnimationName = "special_2"
 ScreenShakeIntensity = 0.2
 ScreenShakeDuration = 0.15
+CastVFXScene = ExtResource("vfx_shockwave")
+ImpactVFXScene = ExtResource("vfx_shockwave")

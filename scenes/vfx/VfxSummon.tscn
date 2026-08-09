@@ -1,0 +1,42 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/VfxEffect.cs" id="1_effect"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/orb.svg" id="2_visual"]
+[ext_resource type="Script" path="res://scripts/Combat/PresentationVisibilitySuspender.cs" id="3_suspend"]
+
+[sub_resource type="CanvasItemMaterial" id="Additive"]
+blend_mode = 1
+
+[node name="VfxSummon" type="Node2D" groups=["pooled_vfx"]]
+script = ExtResource("1_effect")
+ContentID = "vfx_summon"
+Category = 2
+LifetimeFrames = 54
+ParticleBudgetCost = 14
+Family = 4
+SummonRiseSpeed = 90.0
+
+[node name="Visual" type="Sprite2D" parent="."]
+texture = ExtResource("2_visual")
+material = SubResource("Additive")
+
+[node name="Particles" type="CPUParticles2D" parent="."]
+material = SubResource("Additive")
+emitting = false
+amount = 14
+lifetime = 0.9
+explosiveness = 0.15
+texture = ExtResource("2_visual")
+emission_shape = 3
+emission_rect_extents = Vector2(22, 8)
+direction = Vector2(0, -1)
+spread = 18.0
+gravity = Vector2(0, -60)
+initial_velocity_min = 30.0
+initial_velocity_max = 70.0
+scale_amount_min = 0.04
+scale_amount_max = 0.11
+
+[node name="PresentationVisibility" type="VisibleOnScreenNotifier2D" parent="."]
+rect = Rect2(-48, -80, 96, 160)
+script = ExtResource("3_suspend")

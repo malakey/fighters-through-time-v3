@@ -31,10 +31,30 @@ namespace FTT.Combat {
             if (bus != null) bus.OnEnemyPresentation -= OnEnemyPresentation;
         }
 
+        /// <summary>
+        /// Package 8 B6: routes the beat through <see cref="RosterVfxMap"/> so the
+        /// authored event ID picks a silhouette from the shared taxonomy, and only
+        /// falls back to A3's generic emitter when the taxonomy scene is unavailable
+        /// (a stripped export, or a pool that refused the spawn).
+        /// </summary>
         private void OnEnemyPresentation(EnemyPresentationPayload payload) {
             if (!IsInsideTree()) return;
+            Node parent = GetParent();
+            if (parent == null) return;
+
+            RosterVfxMap.Mapping mapping = RosterVfxMap.Resolve(payload.PresentationEventID, payload.Phase);
+            if (!mapping.HasEffect) return;
+
+            Color tint = VfxAccentPalette.ForRoster(
+                RosterVfxMap.IsBossEvent(payload.PresentationEventID), payload.Phase);
+
+            PackedScene scene = VfxLibrary.Load(mapping.Family);
+            if (scene != null &&
+                VfxEmitter.EmitScene(scene, payload.Position, parent, tint) != null) {
+                return;
+            }
             VfxEmitter.EmitForPresentationEvent(
-                payload.PresentationEventID, payload.Phase, payload.Position, GetParent());
+                payload.PresentationEventID, payload.Phase, payload.Position, parent);
         }
 
         /// <summary>

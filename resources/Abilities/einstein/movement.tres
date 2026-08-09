@@ -1,6 +1,8 @@
-[gd_resource type="Resource" script_class="MovementAbilityData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="MovementAbilityData" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/Combat/MovementAbilityData.cs" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/VfxBurst.tscn" id="vfx_burst"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/VfxImpact.tscn" id="vfx_impact"]
 
 [resource]
 script = ExtResource("1")
@@ -40,3 +42,5 @@ MovementDuration = 0.2
 DistanceMoved = 150.0
 MovementSpeed = 750.0
 ResetsDoubleJump = false
+CastVFXScene = ExtResource("vfx_burst")
+ImpactVFXScene = ExtResource("vfx_impact")

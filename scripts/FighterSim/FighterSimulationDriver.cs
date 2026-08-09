@@ -263,13 +263,19 @@ namespace FTT.FighterSim {
             }
             ReleaseMissing(_persistentProxies);
 
+            // Package 8 B6: a presentation-only clock. It advances with the driver's
+            // sync pass, never feeds back into FighterSimulation, and drives only
+            // proxy colour/rotation/scale.
+            _proxyStyleFrame++;
+
             Simulation.CopyHazardsTo(_hazards);
             _seenProxyIDs.Clear();
             foreach (FighterHazardComponent hazard in _hazards) {
                 ColorRect proxy = GetProxy(_hazardProxies, hazard.EntityID);
                 ConfigureProxy(
                     proxy, hazard.Position, hazard.HalfExtents,
-                    HazardColor(hazard.HazardTypeID, hazard.Phase == 0));
+                    HazardColor(hazard.HazardTypeID, hazard.Phase == 0, _proxyStyleFrame),
+                    FighterProxyStyle.HazardRotation(hazard.HazardTypeID, _proxyStyleFrame));
                 _seenProxyIDs.Add(hazard.EntityID);
             }
             ReleaseMissing(_hazardProxies);
@@ -280,12 +286,9 @@ namespace FTT.FighterSim {
                 ColorRect proxy = GetProxy(_orbProxies, orb.EntityID);
                 ConfigureProxy(
                     proxy, orb.Position, orb.HalfExtents,
-                    orb.EffectType switch {
-                        0 => new Color(0.2f, 1f, 0.35f, 0.95f),
-                        1 => new Color(1f, 0.85f, 0.1f, 0.95f),
-                        2 => new Color(0.4f, 0.75f, 1f, 0.95f),
-                        _ => new Color(0.75f, 0.35f, 1f, 0.95f)
-                    });
+                    FighterProxyStyle.OrbColor(orb.EffectType, _proxyStyleFrame),
+                    FighterProxyStyle.OrbRotation,
+                    FighterProxyStyle.OrbScale(_proxyStyleFrame));
                 _seenProxyIDs.Add(orb.EntityID);
             }
             ReleaseMissing(_orbProxies);
@@ -296,13 +299,16 @@ namespace FTT.FighterSim {
                 ColorRect proxy = GetProxy(_zoneProxies, zone.EntityID);
                 ConfigureProxy(
                     proxy, zone.Position, zone.HalfExtents,
-                    new Color(0.45f, 0.3f, 1f, 0.35f));
+                    new Color(0.45f, 0.3f, 1f, FighterProxyStyle.ZoneAlpha(_proxyStyleFrame)));
                 _seenProxyIDs.Add(zone.EntityID);
             }
             ReleaseMissing(_zoneProxies);
         }
 
-        private static Color HazardColor(int hazardTypeID, bool warning) {
+        /// <summary>Presentation-only frame counter for proxy pulses (Package 8 B6).</summary>
+        private int _proxyStyleFrame;
+
+        private static Color HazardColor(int hazardTypeID, bool warning, int styleFrame) {
             Color active = hazardTypeID switch {
                 1 => new Color(0.9f, 0.9f, 0.95f, 0.78f),
                 2 => new Color(1f, 0.35f, 0.08f, 0.82f),
@@ -315,7 +321,11 @@ namespace FTT.FighterSim {
                 9 => new Color(0.55f, 0.24f, 0.1f, 0.8f),
                 _ => new Color(1f, 0.08f, 0.05f, 0.82f)
             };
-            return warning ? new Color(active.R, active.G, active.B, 0.3f) : active;
+            // Package 8 B6: a warning phase now blinks rather than sitting at a flat
+            // low alpha, so a telegraph reads as "about to hurt".
+            return warning
+                ? new Color(active.R, active.G, active.B, FighterProxyStyle.HazardWarningAlpha(styleFrame))
+                : active;
         }
 
         private ColorRect GetProxy(Dictionary<int, ColorRect> active, int entityID) {
@@ -331,16 +341,22 @@ namespace FTT.FighterSim {
             ColorRect proxy,
             xpTURN.Klotho.Deterministic.Math.FPVector2 position,
             xpTURN.Klotho.Deterministic.Math.FPVector2 halfExtents,
-            Color color) {
+            Color color,
+            float rotationRadians = 0f,
+            float silhouetteScale = 1f) {
             Vector2 size = new(
-                halfExtents.x.ToFloat() * PixelsPerUnit * 2f,
-                halfExtents.y.ToFloat() * PixelsPerUnit * 2f);
+                halfExtents.x.ToFloat() * PixelsPerUnit * 2f * silhouetteScale,
+                halfExtents.y.ToFloat() * PixelsPerUnit * 2f * silhouetteScale);
             Vector2 center = WorldOrigin + new Vector2(
                 position.x.ToFloat() * PixelsPerUnit,
                 -position.y.ToFloat() * PixelsPerUnit);
             proxy.Size = size;
             proxy.Position = center - size / 2f;
             proxy.Color = color;
+            // Package 8 B6 silhouette identity. Rotation is about the rect's centre,
+            // so the proxy still occupies the position the simulation reported.
+            proxy.PivotOffset = size / 2f;
+            proxy.Rotation = rotationRadians;
         }
 
         private void ReleaseMissing(Dictionary<int, ColorRect> active) {
@@ -353,6 +369,9 @@ namespace FTT.FighterSim {
                 active.Remove(entityID);
                 proxy.Visible = false;
                 proxy.Size = Vector2.Zero;
+                // A recycled proxy must not inherit the previous entity's silhouette.
+                proxy.Rotation = 0f;
+                proxy.PivotOffset = Vector2.Zero;
                 _inactiveProxies.Enqueue(proxy);
             }
         }

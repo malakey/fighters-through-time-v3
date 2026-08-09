@@ -1351,3 +1351,143 @@ pre-existing suite was modified. Test delta **+29** (1060 → 1089). Per §2.8 `
 one key (`fighter_cpu_difficulty`) under `# Package 8 B4` and `en.en.translation` is
 **not** committed — the compiled-translation assertions in `MenuSceneContentTests` and both
 scene suites need the orchestrator's wave-boundary `--import`.
+
+### B6 — VFX content (2026-08-08)
+
+**B6: six reusable effect scenes carry all 78 hooks, and the identity lives in the tint.** The
+brief for the roster was explicitly "reusable mappings, not 42 bespoke scenes"; the same argument
+applies to the 36 abilities, so `scenes/vfx/` holds one scene per `VfxEffectFamily` — `Burst,
+Slash, Beam, Shockwave, Summon, Impact` — and nothing else. What separates Joan's cast from
+Tesla's is `VfxAccentPalette`, which reads `CharacterFactory.GetCharacterColor` rather than
+authoring a second per-character colour table, and lifts it 35% toward white because several of
+the nine body colours (Lincoln's near-black navy) are invisible as an additive spark.
+`AbilityVfxAssignmentTests.TheAssignmentExercisesEveryFamilyRatherThanCollapsingToOne` and
+`VfxTaxonomyTests.EveryFamilyFadesOutAndNoTwoShareASilhouette` guard against this decaying into
+six copies of one puff.
+
+**B6: the 36 assignments are derived from `ExecutionType`, not hand-picked per ability.**
+`Melee→Slash`, `Projectile→Beam`, `Area→Shockwave`, `PersistentObject→Summon`,
+`Cinematic→Shockwave`, and movement abilities split by `MovementType`
+(`Blink/Teleport/Warp→Burst`, `Glide/Float→Summon`, `Dash→Beam`). Impacts are `Impact` except for
+`Area`, which reuses `Shockwave` because an area ability's "impact" is the field pulsing, not a
+contact spark. A mechanical rule means a future ability lands on a sensible effect without a
+content decision, and it is reviewable at a glance. Only the two VFX fields were touched in
+`resources/Abilities/**`; the canonical tuning numbers are untouched.
+
+**B6: `VfxEffect` subclasses `PooledPlaceholder` instead of reimplementing pooling.** Lifetime,
+the shared particle-budget reservation, the off-screen suspension handshake and the Story rewind
+contract all come for free, and the subclass adds only the per-family scale/alpha/rotation curve.
+It re-declares `IPoolable` so the pool's `node is IPoolable` dispatch reaches the overrides, which
+then chain to the base. The curve deliberately animates the `Visual`/`Particles` children's
+`SelfModulate` and transform and never the root `Modulate` — the root is where `VfxEmitter` writes
+the caller's accent *after* `OnSpawn` returns, so a curve that owned it would erase the character
+identity every frame.
+`VfxTaxonomyTests.ASpawnedEffectRunsItsLifetimeAndReturnsToThePool` pins both halves.
+
+**B6: the roster mapping matches verb tokens, and family priority beats token order.**
+`RosterVfxMap` splits the final dot segment of a `PresentationEventID` on underscores and matches
+whole tokens against an ordered vocabulary (`Summon > Beam > Slash > Shockwave > Burst`). Priority
+has to dominate token order because several authored names carry two verbs: `pulse_flintlock` is a
+gun, not a pulse; `shell_burst` is a shell; `cross_slash_dash` is a slash that happens to move;
+`lance_lunge` is a lance. A first-token-wins pass got `pulse_flintlock` wrong, which is why the
+loop is nested family-outer. All 76 authored kits plus all 27 `{enemyID}.death` events resolve to
+an explicit keyword, and
+`RosterVfxMappingTests.EveryAuthoredPresentationEventResolvesToAnExplicitFamily` fails with the
+offending `.tres` path when a future roster entry introduces a verb outside the vocabulary, rather
+than letting it ship a silently generic puff.
+
+**B6: the `Recovery` phase deliberately draws nothing, mirroring A2's call on sound.** Recovery
+fires several times a second on every ability of every enemy; an effect there is particle churn,
+not information. `Mapping.HasEffect` is false for exactly that phase and
+`RosterVfxMappingTests.RecoveryDeliberatelyDrawsNothing` pins it beside a proof that the other
+three phases do draw. This is the same reasoning A2 recorded for `RegisterPresentationSound`, so
+the two systems now agree.
+
+**B6: A3's `VfxEmitter` and `ParticleBudget` were consumed unmodified; only the binder changed.**
+A3's §9 named `VfxPresentationBinder` as the surface B6 refines, so `OnEnemyPresentation` now
+resolves through `RosterVfxMap` + `VfxLibrary` and falls back to A3's generic
+`EmitForPresentationEvent` when a taxonomy scene will not load.
+`VfxEmitter.EmitForPresentationEvent` still carries its `_ = presentationEventID` line: it is now
+the fallback path rather than the primary one, and rewriting it would have been an edit to A3's
+framework for no behavioural gain.
+
+**B6: `BaseSpecial`'s two emit calls now pass a tint — the one A3-authored file touched, and only
+to fill an argument A3 provided.** `EmitScene(scene, position, parent, tint)` already took a tint
+and both call sites passed none, which is precisely the "assign per-character accent" half of the
+deliverable. Two lines, no signature change, and no behavioural change when the fields are
+unassigned.
+
+**B6: the three dead rewind payload fields are implemented as one state model plus a world-space
+trail.** `RewindCueState` is pure C# with no Godot dependency (same reasoning as A2's pumped
+fades: the cadence is assertable without an engine frame). It owns the edges the payload cannot
+express by itself — `ChronalRewindManager` republishes `Playback` every frame, so a naive consumer
+would have retriggered the reverse sweep sixty times a second. `RewindGhostTrail` is a `Node2D` on
+the running scene rather than a child of the overlay's `CanvasLayer`, because ghosts belong with
+the level geometry under the tint, not over it; it reads the per-player
+`TemporalPositionHistory` from the outside and never writes to it or to `CharacterFactory`. Ghosts
+are offset by the sprite's own local position, or they draw at the character's feet — the history
+samples the body root and the placeholder sprite hangs 64 px above it.
+
+**B6: `StoryDropsAndRewindTests` already asserted the manager *sets* those three fields, which is
+why they looked covered while nothing consumed them.** Worth recording as a testing lesson: a
+producer-side assertion on a payload field proves nothing about whether anything reads it. The new
+`RewindCuePresentationTests` covers the consumer side, and that older suite was left unmodified.
+
+**B6: two new placeholder cues, and the generator is not byte-reproducible.**
+`tools/generate_placeholder_audio.py` gained `rewind_sweep.ogg` and `clock_tick.ogg` under
+`audio/sfx/chronal/`, following A2's conventions (quiet, obviously synthetic, `.ogg` with committed
+`.import` sidecars). Re-running the script rewrote A2's three existing files with byte-different
+but audibly identical output — the Vorbis encoder is not deterministic across runs — so those
+three were restored from git and only the two new assets are committed. Anyone extending `ASSETS`
+again should expect the same and check `git status` before committing.
+
+**B6: the Fighter proxy polish is a pure function of a presentation-owned frame counter.**
+`FighterProxyStyle` gives orbs a 45° diamond silhouette with a breathing scale, warning-phase
+hazards a fast blink instead of a flat low alpha, two hazard identities a continuous spin, and
+zones a slow swell. `_proxyStyleFrame` advances in the driver's sync pass and is read by nothing
+else; no styling function reads simulation state beyond the type ids `ConfigureProxy` was already
+given. `ConfigureProxy` gained optional rotation/scale arguments and `ReleaseMissing` now resets
+`Rotation`/`PivotOffset`, because a recycled proxy inheriting the previous entity's silhouette is
+exactly the kind of pool bug that only shows up after a stock loss. No file under
+`scripts/FighterSim/` other than the driver's presentation code and the new style class was
+touched, and no existing determinism suite was modified.
+
+**B6: orb colour is now one canonical value shared by both modes.** The driver carried an
+anonymous `switch` on the orb effect index and the Story `ChronalOrbItem` had no colour at all;
+`ChronalOrbItem.EffectColor` is now the single source and `FighterProxyStyle.OrbColor` layers only
+the pulse on top of it. The five effects produce four distinct colours — `DamageBoost` and
+`ShieldRestore` share the catch-all purple, which is the pre-existing driver behaviour preserved
+deliberately rather than a new gap.
+
+**B6: `ChronalOrbItem` had no authored scene at all.** `ChronalOrbData.Icon` was an exported
+texture with no reader anywhere in the project, and the orb script bobbed an invisible node — there
+is no `.tscn` for it in the repository. `scenes/templates/ChronalOrbTemplate.tscn` now gives it a
+`Glow`/`Icon` pair. It is deliberately **not** wired into any pool config: the `chronal_orb` pool
+ID belongs to the ten Fighter stage configs and the Test Arena, all of which render orbs through
+the driver's proxies, and repointing those rows is stage/pool content this workstream does not own.
+The template is authored, tested, and ready for whoever adds Story orb drops.
+
+**B6: no en.csv keys.** Nothing in this workstream renders text, so there is no `# Package 8 B6`
+marker block and `en.en.translation` was not touched.
+
+**B6 API surface for later workstreams.** `FTT.Combat.VfxEffectFamily`;
+`VfxLibrary.PathFor`/`Load`/`AllPaths`; `VfxAccentPalette.ForCharacter`/`ForAbility`/`ForRoster`;
+`RosterVfxMap.Resolve(eventID, phase)` → `{Family, PoolID, MatchedKeyword, IsExplicit, HasEffect}`
+plus `IsBossEvent` and `VerbTokens`; `ChronalOrbItem.EffectColor(OrbEffect)`;
+`ChronalExtractor.DischargeColor`; `FTT.UI.RewindCueState` and
+`RewindGhostTrail.EnsureInstalled`; `FTT.FighterSim.FighterProxyStyle`.
+
+**B6 validation.** Build clean (pre-existing vendored `CS8632` only); `--import` clean; full suite
+**1102 = 1060 + 42** (5 ability assignment + 6 taxonomy + 8 roster mapping + 8 rewind cue + 3
+extractor + 7 proxy style + 5 pickup), plus a filtered run of the seven new suites at 42/42;
+headless smokes clean for `TestArena`, `Level_01_Florence`, `Level_06_Pompeii` and
+`FighterStage_Vesuvius`. No existing suite was modified. Not delivered by B6 and left to later
+work: production VFX art and shaders (P10), a human look at the rendered result (no headless gate
+can discharge it), Story orb pool wiring, and cinematic boss presentation.
+
+**B6 note for the orchestrator: running Godot in a worktree rewrites ~68 unrelated `.import`
+files.** Every launch rewrites the `gdunit4`/`gdUnit4` case in `source_file`/`dest_files` paths and
+reflows line endings across the asset `.import` sidecars and
+`resources/Audio/default_bus_layout.tres`. `git diff --numstat` on them is empty — it is pure
+churn, not content — and they were restored with `git checkout` before committing. Any Phase B
+agent that commits a wide `.import` diff has committed this artifact, not a real reimport.

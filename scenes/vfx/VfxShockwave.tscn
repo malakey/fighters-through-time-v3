@@ -1,0 +1,42 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/VfxEffect.cs" id="1_effect"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/orb.svg" id="2_visual"]
+[ext_resource type="Script" path="res://scripts/Combat/PresentationVisibilitySuspender.cs" id="3_suspend"]
+
+[sub_resource type="CanvasItemMaterial" id="Additive"]
+blend_mode = 1
+
+[node name="VfxShockwave" type="Node2D" groups=["pooled_vfx"]]
+script = ExtResource("1_effect")
+ContentID = "vfx_shockwave"
+Category = 2
+LifetimeFrames = 36
+ParticleBudgetCost = 12
+Family = 3
+
+[node name="Visual" type="Sprite2D" parent="."]
+texture = ExtResource("2_visual")
+material = SubResource("Additive")
+
+[node name="Particles" type="CPUParticles2D" parent="."]
+material = SubResource("Additive")
+emitting = false
+amount = 12
+lifetime = 0.6
+one_shot = true
+explosiveness = 0.95
+texture = ExtResource("2_visual")
+emission_shape = 3
+emission_rect_extents = Vector2(28, 3)
+direction = Vector2(0, -1)
+spread = 78.0
+gravity = Vector2(0, 260)
+initial_velocity_min = 110.0
+initial_velocity_max = 210.0
+scale_amount_min = 0.05
+scale_amount_max = 0.12
+
+[node name="PresentationVisibility" type="VisibleOnScreenNotifier2D" parent="."]
+rect = Rect2(-110, -48, 220, 96)
+script = ExtResource("3_suspend")

@@ -93,10 +93,43 @@ def countdown_blip() -> np.ndarray:
     return tone(880.0, 0.10, amplitude=0.16, harmonic=0.2, attack=0.002, release=0.05)
 
 
+def rewind_sweep() -> np.ndarray:
+    """Package 8 B6: the Chronal Rewind reverse sweep.
+
+    Filtered noise swelling into a downward tone, so it reads as "time running
+    backwards" rather than as a hit. Seeded so regenerating the file byte-matches.
+    """
+    seconds = 0.9
+    length = int(seconds * SAMPLE_RATE)
+    rng = np.random.default_rng(20260808)
+    noise = rng.standard_normal(length)
+    # Cheap one-pole low pass whose cutoff closes over the sweep.
+    filtered = np.empty(length, dtype=np.float64)
+    state = 0.0
+    alpha = np.linspace(0.28, 0.02, length)
+    for index in range(length):
+        state += alpha[index] * (noise[index] - state)
+        filtered[index] = state
+    filtered /= max(1e-9, float(np.max(np.abs(filtered))))
+    swell = np.concatenate([
+        np.linspace(0.0, 1.0, int(length * 0.65)),
+        np.linspace(1.0, 0.0, length - int(length * 0.65)),
+    ])
+    body = tone(320.0, seconds, amplitude=0.10, harmonic=0.2, attack=0.25, release=0.4, bend=0.35)
+    return filtered * swell * 0.16 + body
+
+
+def clock_tick() -> np.ndarray:
+    """Package 8 B6: one tick of the rewind clock. Short, dry, unobtrusive."""
+    return tone(1480.0, 0.045, amplitude=0.09, harmonic=0.5, attack=0.001, release=0.03, bend=0.8)
+
+
 ASSETS = {
     "audio/sfx/combat/ko_stinger.ogg": ko_stinger,
     "audio/sfx/ui/victory_fanfare.ogg": victory_fanfare,
     "audio/sfx/ui/countdown_blip.ogg": countdown_blip,
+    "audio/sfx/chronal/rewind_sweep.ogg": rewind_sweep,
+    "audio/sfx/chronal/clock_tick.ogg": clock_tick,
 }
 
 
