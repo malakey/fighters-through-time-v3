@@ -1,0 +1,20 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/ChronalOrbItem.cs" id="1_orb"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/orb.svg" id="2_visual"]
+
+[sub_resource type="CanvasItemMaterial" id="Additive"]
+blend_mode = 1
+
+[node name="ChronalOrbTemplate" type="Node2D" groups=["pickup", "chronal_orb"]]
+script = ExtResource("1_orb")
+GlowPulseHz = 1.4
+
+[node name="Glow" type="Sprite2D" parent="."]
+texture = ExtResource("2_visual")
+scale = Vector2(1.5, 1.5)
+material = SubResource("Additive")
+
+[node name="Icon" type="Sprite2D" parent="."]
+texture = ExtResource("2_visual")
+scale = Vector2(0.6, 0.6)

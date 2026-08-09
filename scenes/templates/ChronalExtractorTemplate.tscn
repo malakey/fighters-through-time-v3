@@ -1,13 +1,17 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/ChronalExtractor.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Environment/EnvironmentHurtboxAdapter.cs" id="2"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/orb.svg" id="3_spark"]
 
 [sub_resource type="RectangleShape2D" id="BodyShape"]
 size = Vector2(112, 144)
 
 [sub_resource type="CircleShape2D" id="HazardShape"]
 radius = 190.0
+
+[sub_resource type="CanvasItemMaterial" id="Additive"]
+blend_mode = 1
 
 [node name="ChronalExtractor" type="StaticBody2D" groups=["chronal_extractor", "damageable_environment"]]
 collision_layer = 64
@@ -23,10 +27,37 @@ shape = SubResource("BodyShape")
 polygon = PackedVector2Array(-56, -72, 56, -72, 56, 72, -56, 72)
 color = Color(0.14, 0.22, 0.3, 1)
 
+[node name="CoreGlow" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-22, -40, 22, -40, 22, 40, -22, 40)
+color = Color(0, 0.9, 0.9, 0.55)
+material = SubResource("Additive")
+
 [node name="DamagedVisual" type="Polygon2D" parent="."]
 polygon = PackedVector2Array(-50, -66, 50, -66, 50, 66, -50, 66)
 color = Color(0.9, 0.2, 0.12, 0.6)
 visible = false
+
+[node name="DestroyedVisual" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-56, 6, 56, 6, 44, 72, -44, 72)
+color = Color(0.05, 0.05, 0.07, 0.92)
+visible = false
+
+[node name="DamageSparks" type="CPUParticles2D" parent="."]
+material = SubResource("Additive")
+modulate = Color(1, 0.6, 0.25, 0.85)
+emitting = false
+amount = 10
+lifetime = 0.9
+texture = ExtResource("3_spark")
+emission_shape = 3
+emission_rect_extents = Vector2(48, 60)
+direction = Vector2(0, -1)
+spread = 45.0
+gravity = Vector2(0, 180)
+initial_velocity_min = 40.0
+initial_velocity_max = 130.0
+scale_amount_min = 0.04
+scale_amount_max = 0.1
 
 [node name="Hurtbox" type="Area2D" parent="."]
 collision_layer = 32

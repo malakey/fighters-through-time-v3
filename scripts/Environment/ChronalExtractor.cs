@@ -33,6 +33,7 @@ namespace FTT.Environment {
                 Phase = HazardPhase.Active,
                 Duration = 0.25f
             });
+            EmitDischargeVfx();
             if (_hazardArea == null) return;
             Godot.Collections.Array<Node2D> bodies = _hazardArea.GetOverlappingBodies();
             using var bodiesLifetime = bodies.AsDisposable();
@@ -63,6 +64,24 @@ namespace FTT.Environment {
             Publish();
         }
 
+        /// <summary>
+        /// Package 8 B6: a shockwave at the discharge ring, so the 190-unit hazard
+        /// radius that already damages the player is visible before it lands. Pooled
+        /// and null-safe — a scene with no VFX pool simply gets no effect.
+        /// </summary>
+        private void EmitDischargeVfx() {
+            if (!IsInsideTree()) return;
+            PackedScene scene = FTT.Combat.VfxLibrary.Load(FTT.Combat.VfxEffectFamily.Shockwave);
+            if (scene == null) {
+                FTT.Combat.VfxEmitter.EmitEnvironment(GlobalPosition, GetParent(), DischargeColor);
+                return;
+            }
+            FTT.Combat.VfxEmitter.EmitScene(scene, GlobalPosition, GetParent(), DischargeColor);
+        }
+
+        /// <summary>Apex Archive cyan, matching the extractor's core glow.</summary>
+        public static readonly Color DischargeColor = new(0.2f, 0.95f, 1f, 0.85f);
+
         protected override void ApplyStatePresentation() {
             base.ApplyStatePresentation();
             VisualState = IsDestroyed
@@ -70,6 +89,20 @@ namespace FTT.Environment {
                 : CurrentHP <= MaxHP / 2 ? ChronalExtractorVisualState.Damaged : ChronalExtractorVisualState.Idle;
             if (GetNodeOrNull<CanvasItem>("DamagedVisual") is CanvasItem damaged) {
                 damaged.Visible = VisualState == ChronalExtractorVisualState.Damaged;
+            }
+            // Package 8 B6 dressing: the destroyed husk, the sparks that only run
+            // while the machine is wounded, and the core glow that dies with it.
+            if (GetNodeOrNull<CanvasItem>("DestroyedVisual") is CanvasItem destroyed) {
+                destroyed.Visible = VisualState == ChronalExtractorVisualState.Destroyed;
+            }
+            if (GetNodeOrNull<CpuParticles2D>("DamageSparks") is CpuParticles2D sparks) {
+                sparks.Emitting = VisualState == ChronalExtractorVisualState.Damaged;
+            }
+            if (GetNodeOrNull<CanvasItem>("CoreGlow") is CanvasItem core) {
+                core.Visible = !IsDestroyed;
+                core.Modulate = VisualState == ChronalExtractorVisualState.Damaged
+                    ? new Color(1f, 0.45f, 0.2f, 1f)
+                    : Colors.White;
             }
         }
 

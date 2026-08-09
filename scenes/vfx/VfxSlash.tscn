@@ -1,0 +1,42 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/VfxEffect.cs" id="1_effect"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/orb.svg" id="2_visual"]
+[ext_resource type="Script" path="res://scripts/Combat/PresentationVisibilitySuspender.cs" id="3_suspend"]
+
+[sub_resource type="CanvasItemMaterial" id="Additive"]
+blend_mode = 1
+
+[node name="VfxSlash" type="Node2D" groups=["pooled_vfx"]]
+script = ExtResource("1_effect")
+ContentID = "vfx_slash"
+Category = 1
+LifetimeFrames = 18
+ParticleBudgetCost = 8
+Family = 1
+
+[node name="Visual" type="Sprite2D" parent="."]
+texture = ExtResource("2_visual")
+material = SubResource("Additive")
+
+[node name="Particles" type="CPUParticles2D" parent="."]
+material = SubResource("Additive")
+emitting = false
+amount = 8
+lifetime = 0.28
+one_shot = true
+explosiveness = 1.0
+texture = ExtResource("2_visual")
+emission_shape = 3
+emission_rect_extents = Vector2(34, 4)
+direction = Vector2(1, 0)
+spread = 22.0
+gravity = Vector2(0, 90)
+initial_velocity_min = 140.0
+initial_velocity_max = 260.0
+scale_amount_min = 0.04
+scale_amount_max = 0.1
+
+[node name="PresentationVisibility" type="VisibleOnScreenNotifier2D" parent="."]
+rect = Rect2(-64, -40, 128, 80)
+script = ExtResource("3_suspend")
