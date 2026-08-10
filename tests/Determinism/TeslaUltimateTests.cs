@@ -220,15 +220,24 @@ public class TeslaUltimateTests {
         for (int limit = startTick + 900; tick < limit; tick++) {
             AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
             if (attacker.Influence >= FullMeter) break;
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
             AssertThat(simulation.TryGetFighter(1, out FighterStateComponent defender)).IsTrue();
             sbyte toward = defender.Position.x >= attacker.Position.x ? (sbyte)127 : (sbyte)-127;
+            // Basics are phased swings: press only when the string is idle. The
+            // held approach direction cancels each swing's recovery, so every
+            // press is a fresh 0.8x opener; the mutual walk-in keeps the pair
+            // inside melee range across the attacker's swing deceleration.
+            GameplayButtons buttons = runtime.AttackPhase == FighterBasicAttackRules.PhaseNone
+                ? GameplayButtons.BasicAttack
+                : GameplayButtons.None;
             simulation.Advance(
-                Frame(tick, toward, GameplayButtons.BasicAttack),
+                Frame(tick, toward, buttons),
                 Frame(tick, (sbyte)(-toward), GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent filled)).IsTrue();
         AssertThat(filled.Influence >= FullMeter).IsTrue();
-        return tick;
+        // Settle so no swing, chain window, or hitstun leaks into the scenario.
+        return BasicStringTestDriver.SettleToNeutral(simulation, tick);
     }
 
     /// <summary>

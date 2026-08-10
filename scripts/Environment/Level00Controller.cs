@@ -127,6 +127,37 @@ namespace FTT.Environment {
             if (_phase != TutorialPhase.Calibration || _calibrationStep != CalibrationStep.UseSpecial) return;
             _calibrationStep = CalibrationStep.UseRewind;
             _services.HUD?.SetObjective("tutorial_step_rewind");
+            // Rewind is a death-save, not an input the player can perform, so the
+            // tutorial demonstrates it: hold the objective on screen briefly, then
+            // run a scripted rewind through the real manager.
+            _rewindDemoCountdownFrames = RewindDemoDelayFrames;
+        }
+
+        private const int RewindDemoDelayFrames = 90;
+        private int _rewindDemoCountdownFrames = -1;
+        private int _rewindDemoAttempts;
+
+        private void ProcessRewindDemo() {
+            if (_phase != TutorialPhase.Calibration || _calibrationStep != CalibrationStep.UseRewind) return;
+            if (_rewindDemoCountdownFrames < 0) return;
+            if (_rewindDemoCountdownFrames > 0) {
+                _rewindDemoCountdownFrames--;
+                return;
+            }
+            if (_services.RewindManager != null && _services.RewindManager.TriggerScriptedRewind()) {
+                // OnRewindTriggered advances the step once playback completes.
+                _rewindDemoCountdownFrames = -1;
+                return;
+            }
+            _rewindDemoAttempts++;
+            if (_services.RewindManager == null || _rewindDemoAttempts >= 3) {
+                // Never strand the tutorial: skip the demonstration if it cannot run.
+                _rewindDemoCountdownFrames = -1;
+                _calibrationStep = CalibrationStep.Done;
+                _mobilityIntroPending = true;
+            } else {
+                _rewindDemoCountdownFrames = 60;
+            }
         }
 
         private bool _mobilityIntroPending;
@@ -205,6 +236,7 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            ProcessRewindDemo();
             if (_phase != TutorialPhase.Mobility || _player == null || !IsInstanceValid(_player)) return;
 
             if (!_doubleJumpGateCleared && ZoneContainsPlayer(_doubleJumpGate)) {

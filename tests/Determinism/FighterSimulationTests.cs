@@ -383,6 +383,15 @@ public class FighterSimulationTests {
         simulation.Advance(
             Frame(recoveryCompleteTick, 0, GameplayButtons.None),
             Frame(recoveryCompleteTick, 0, GameplayButtons.BasicAttack));
+        // Basics are real swings now (BasicComboRules): this press lands inside
+        // the first swing's recovery, so it buffers and chains into hit two,
+        // whose active window arrives a few dozen ticks later. Drain enough
+        // ticks to cover the chained swing before asserting the hit connected.
+        for (int tick = 1; tick <= 60; tick++) {
+            simulation.Advance(
+                Frame(recoveryCompleteTick + tick, 0, GameplayButtons.None),
+                Frame(recoveryCompleteTick + tick, 0, GameplayButtons.None));
+        }
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent vulnerableAfterRoll)).IsTrue();
         AssertThat(vulnerableAfterRoll.CurrentHP < vulnerableAfterRoll.MaxHP).IsTrue();
     }

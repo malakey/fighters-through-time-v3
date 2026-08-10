@@ -300,7 +300,13 @@ namespace FTT.Combat {
                 existing = new GlowPresentationController {
                     Name = NodeName,
                     OwnerPlayerIndex = ownerPlayerIndex,
-                    SubscribeToStoryEvents = subscribeToStoryEvents
+                    SubscribeToStoryEvents = subscribeToStoryEvents,
+                    // Explicit so the arbiter keeps processing under Fighter-mode
+                    // proxies, whose body subtree the driver sets to Disabled —
+                    // otherwise FlashHit's tint decay and the Venom lerp freeze
+                    // and the first hit's flash sticks forever. Under a Story
+                    // body (Pausable via Inherit) this changes nothing.
+                    ProcessMode = ProcessModeEnum.Pausable
                 };
                 owner.AddChild(existing);
             } else {

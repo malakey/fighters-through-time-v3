@@ -81,9 +81,11 @@ namespace FTT.FighterSim {
             // the front-facing shield and must not interrupt movement or zero the
             // target's velocity.
             bool carriesImpulse = knockback > FP64.Zero || hitstunFrames > 0;
+            // The absorb requires the real grounded stance (mirrors Story's
+            // Blocking state): no blocking while airborne, mid-swing, mid
+            // dash/roll, or inside hitstun/daze.
             bool targetBlocking = carriesImpulse
-                && targetRuntime.UniversalMovementState == (int)UniversalMovementPhase.None
-                && (targetRuntime.HeldButtons & BlockButton) != 0;
+                && FighterBasicAttackRules.IsBlockStance(in target, in targetRuntime);
             bool hitInFront = target.FacingRight != 0
                 ? hitOriginX >= target.Position.x
                 : hitOriginX <= target.Position.x;
@@ -95,6 +97,8 @@ namespace FTT.FighterSim {
                     ? blockChargeCost
                     : attackClass == SpecialAttackClass ? target.BlockCharges : 1;
                 target.BlockCharges -= cost;
+                // A spent charge re-arms the regeneration interval, as Story does.
+                targetRuntime.BlockRegenFrames = FTT.Combat.BasicComboRules.BlockChargeRegenFrames;
                 if (target.BlockCharges <= 0) {
                     target.BlockCharges = 0;
                     target.DazeFrames = 60;
@@ -138,6 +142,12 @@ namespace FTT.FighterSim {
             }
 
             ApplyStatus(ref target, ref targetRuntime, statusType, statusFrames, statusIntensity);
+            // Being hit into hitstun cancels the victim's swing and resets their
+            // chain in both modes (design 752). Hyper-armored hits carry no
+            // hitstun and leave the string running, matching Story.
+            if (target.HitstunFrames > 0) {
+                FighterBasicAttackRules.CancelString(ref targetRuntime);
+            }
             if (target.CurrentHP <= 0) {
                 FighterSimulationRules.ApplyStockLoss(ref target, ref targetRuntime, in targetTuning);
             }
@@ -249,6 +259,14 @@ namespace FTT.FighterSim {
                     || fighter.DazeFrames > 0
                     || FighterUniversalMovementRules.IsCombatLocked(in runtime)) continue;
 
+                // Story's Blocking state ignores ability inputs entirely; specials
+                // remain usable mid-swing because they cancel the basic string
+                // (design 1051 — resolved below via the cooldown edge).
+                bool blockStance = FighterBasicAttackRules.IsBlockStance(in fighter, in runtime);
+                if (blockStance) continue;
+                int specialOneCooldownBefore = runtime.SpecialOneCooldownFrames;
+                int specialTwoCooldownBefore = runtime.SpecialTwoCooldownFrames;
+
                 if ((runtime.PressedButtons & SpecialOneButton) != 0 && runtime.SpecialOneCooldownFrames <= 0) {
                     if (modes.SpecialOneExecutionType == ProjectileExecutionType) {
                         SpawnProjectile(
@@ -301,7 +319,17 @@ namespace FTT.FighterSim {
                     }
                 }
 
-                if ((runtime.PressedButtons & MovementButton) != 0 && runtime.MovementCooldownFrames <= 0) {
+                if (runtime.SpecialOneCooldownFrames != specialOneCooldownBefore
+                    || runtime.SpecialTwoCooldownFrames != specialTwoCooldownBefore) {
+                    // An executed special cancels an in-progress basic and resets
+                    // the chain, matching Story and the melee-intent path.
+                    FighterBasicAttackRules.CancelString(ref runtime);
+                }
+
+                // Story never polls the movement ability during a swing.
+                if (runtime.AttackPhase == FighterBasicAttackRules.PhaseNone
+                    && (runtime.PressedButtons & MovementButton) != 0
+                    && runtime.MovementCooldownFrames <= 0) {
                     ApplyMovement(ref frame, ref fighter, ref runtime, in tuning, in modes);
                 }
             }

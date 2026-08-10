@@ -216,7 +216,8 @@ namespace FTT.FighterSim {
             if (state.InvulnerabilityFrames > 0) return "Respawning";
             if (state.DazeFrames > 0) return "Dazed";
             if (state.HitstunFrames > 0) return "Stunned";
-            if ((runtime.HeldButtons & (int)GameplayButtons.Block) != 0) return "Blocking";
+            if (FighterBasicAttackRules.IsSwinging(in runtime)) return "Attacking";
+            if (FighterBasicAttackRules.IsBlockStance(in state, in runtime)) return "Blocking";
             return state.IsGrounded != 0 ? "Grounded" : "Airborne";
         }
 
@@ -384,7 +385,13 @@ namespace FTT.FighterSim {
         private readonly bool[] _presentedInvulnerable = { false, false };
         private readonly int[] _presentedHP = { -1, -1 };
         private readonly int[] _presentedDazeFrames = { 0, 0 };
+        private readonly bool[] _presentedMeleeActive = { false, false };
+        private readonly int[] _presentedBlockCharges = { -1, -1 };
         private bool _slotIndicatorsPushed;
+
+        private static readonly string[] BasicAttackAnimationNames = {
+            "basic_attack_1", "basic_attack_2", "basic_attack_3"
+        };
 
         private const float FighterHitShakeScale = 0.35f;
         private const float FighterHitShakeDuration = 0.12f;
@@ -434,6 +441,22 @@ namespace FTT.FighterSim {
                 glow?.FlashHit();
                 CameraShake.Instance?.Shake(damage * FighterHitShakeScale, FighterHitShakeDuration);
                 HapticFeedbackManager.Instance?.VibrateForPlayer(playerID, 0.3f, 0.5f, 0.08f);
+                // Same victim feedback Story shows on a hit: a floating number at
+                // roughly mid-body. Presentation only.
+                FTT.UI.FloatingDamageNumber.Show(
+                    damage,
+                    player.GlobalPosition + new Vector2(-10f, -46f),
+                    GetParent());
+            }
+
+            // A blocked hit spends a charge without moving HP; give it Story's
+            // small shake so absorbing a hit reads. Regen raises the count and
+            // must stay silent, so only decreases outside a fresh daze count.
+            int previousBlockCharges = _presentedBlockCharges[playerID];
+            _presentedBlockCharges[playerID] = state.BlockCharges;
+            if (previousBlockCharges > 0 && state.BlockCharges < previousBlockCharges
+                && state.DazeFrames <= 0) {
+                CameraShake.Instance?.Shake(3f, 0.08f);
             }
 
             // A fresh daze is the guard break: the sim has no block-broken event, so
@@ -460,19 +483,53 @@ namespace FTT.FighterSim {
             player.CurrentBlockCharges = state.BlockCharges;
             player.CurrentUltimateMeter = state.Influence.ToFloat();
             player.IsFacingRight = state.FacingRight != 0;
+            player.SyncPresentationFacing();
             player.RemainingJumps = state.RemainingJumps;
             player.ComboCounter = runtime.ComboIndex;
             player.SpecialOneCooldownTimer = runtime.SpecialOneCooldownFrames / (float)FighterSimulation.TickRate;
             player.SpecialTwoCooldownTimer = runtime.SpecialTwoCooldownFrames / (float)FighterSimulation.TickRate;
             player.MovementAbilityCooldownTimer = runtime.MovementCooldownFrames / (float)FighterSimulation.TickRate;
-            if (runtime.UniversalMovementState == (int)UniversalMovementPhase.Dash) {
-                player.PlayPresentationAnimation("dash");
-            } else if (runtime.UniversalMovementState is (int)UniversalMovementPhase.RollStartup
-                or (int)UniversalMovementPhase.RollTravel
-                or (int)UniversalMovementPhase.RollRecovery) {
-                player.PlayPresentationAnimation("roll");
+            player.PlayPresentationAnimation(ResolvePresentationAnimation(in state, in runtime));
+
+            // The melee active window shows the same yellow flash Story's
+            // authored callbacks produce.
+            bool meleeActive = runtime.AttackPhase == FighterBasicAttackRules.PhaseActive;
+            if (_presentedMeleeActive[playerID] != meleeActive) {
+                _presentedMeleeActive[playerID] = meleeActive;
+                player.SetMeleePresentation(
+                    meleeActive,
+                    runtime.ComboIndex,
+                    (runtime.AttackFlags & FighterBasicAttackRules.FlagAerial) != 0);
             }
             SyncPresentationFeedback(player, playerID, in state, in runtime);
+        }
+
+        /// <summary>
+        /// Maps deterministic fighter state onto the shared placeholder animation
+        /// set, one branch chain in priority order. Read-only over sim state.
+        /// </summary>
+        private static string ResolvePresentationAnimation(
+            in FighterStateComponent state,
+            in FighterRuntimeComponent runtime) {
+            if (state.RespawnFramesRemaining > 0) return "respawn";
+            if (state.HitstunFrames > 0) return "hitstun";
+            if (state.DazeFrames > 0) return "dazed";
+            if (FighterBasicAttackRules.IsSwinging(in runtime)) {
+                int step = runtime.ComboIndex < 0 ? 0 : runtime.ComboIndex > 2 ? 2 : runtime.ComboIndex;
+                return BasicAttackAnimationNames[step];
+            }
+            if (runtime.UniversalMovementState == (int)UniversalMovementPhase.Dash) return "dash";
+            if (runtime.UniversalMovementState is (int)UniversalMovementPhase.RollStartup
+                or (int)UniversalMovementPhase.RollTravel
+                or (int)UniversalMovementPhase.RollRecovery) return "roll";
+            if (FighterBasicAttackRules.IsBlockStance(in state, in runtime)) return "block";
+            if (state.IsGrounded == 0) {
+                return state.Velocity.y > xpTURN.Klotho.Deterministic.Math.FP64.Zero ? "jump" : "fall";
+            }
+            return xpTURN.Klotho.Deterministic.Math.FP64.Abs(state.Velocity.x)
+                > xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(0.1)
+                ? "run"
+                : "idle";
         }
 
         private static void DisableNativeGameplay(PlayerController player) {

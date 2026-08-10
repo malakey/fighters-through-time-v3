@@ -563,7 +563,9 @@ namespace FTT.Enemies {
         public void ApplyKnockback(Vector2 knockback, bool attackerFacingRight) {
             if (CurrentState == EnemyState.Dead) return;
             float weight = Data?.Weight ?? 1.0f;
-            Velocity += FTT.Combat.DamageCalculator.CalculateKnockback(knockback, weight, attackerFacingRight) * 60f;
+            // Knockback replaces velocity, matching the player and the Fighter
+            // sim — a hit imparts the same impulse regardless of prior motion.
+            Velocity = FTT.Combat.DamageCalculator.CalculateKnockback(knockback, weight, attackerFacingRight) * 60f;
         }
 
         public void ApplyStun(float duration) {

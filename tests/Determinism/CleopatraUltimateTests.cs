@@ -205,15 +205,7 @@ public class CleopatraUltimateTests {
     }
 
     private static int ChargeMeter(FighterSimulation simulation, int startTick) {
-        int tick = startTick;
-        for (int punch = 0; punch < 3; punch++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.BasicAttack), Frame(tick, 0, GameplayButtons.None));
-            tick++;
-            for (int rest = 0; rest < 19; rest++) {
-                simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-                tick++;
-            }
-        }
+        int tick = BasicStringTestDriver.LandChainedBasics(simulation, startTick, 3);
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent charged)).IsTrue();
         AssertThat(charged.Influence.RawValue).IsEqual(
             xpTURN.Klotho.Deterministic.Math.FP64.FromInt(100).RawValue);

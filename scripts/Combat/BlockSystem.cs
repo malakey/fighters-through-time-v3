@@ -32,7 +32,7 @@ namespace FTT.Combat {
         public int CurrentCharges { get; private set; }
 
         private float _regenTimer;
-        private const float RegenInterval = 3.0f;
+        private const float RegenInterval = BasicComboRules.BlockChargeRegenFrames / 60f;
         private bool _isBlocking;
         private PlayerController _owner;
 

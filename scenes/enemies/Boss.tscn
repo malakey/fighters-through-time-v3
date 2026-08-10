@@ -28,7 +28,7 @@ shape = SubResource("BodyShape")
 [node name="Presentation" type="Node2D" parent="."]
 
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="Presentation"]
-position = Vector2(0, -96)
+position = Vector2(0, -88)
 sprite_frames = ExtResource("7_frames")
 animation = &"idle"
 

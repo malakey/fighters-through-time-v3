@@ -273,6 +273,7 @@ namespace FTT.Characters {
 		private bool _comboBufferActive;
 		private bool _nextAttackBuffered;
 		private bool _attackHitActive;
+		private bool _attackInRecovery;
 		private bool _inRecoveryHold;
 		private int _pendingSpecialSlot;
 		private bool _attackStartedAerial;
@@ -281,16 +282,25 @@ namespace FTT.Characters {
 		private bool _specialStartedAerial;
 		private bool _ultimateStartedAerial;
 
-		private static readonly FTT.Combat.CombatFrameTimeline[] ComboTimelines = {
-			new(6, 6, 15),
-			new(7, 7, 16),
-			new(15, 9, 21)
-		};
-		private static readonly FTT.Combat.CombatFrameTimeline[] AerialComboTimelines = {
-			new(5, 7, 13),
-			new(6, 8, 14),
-			new(12, 10, 18)
-		};
+		// Built from FTT.Combat.BasicComboRules — the one shared rulebook with
+		// the Fighter simulation. Do not author numbers here.
+		private static readonly FTT.Combat.CombatFrameTimeline[] ComboTimelines = BuildComboTimelines(
+			FTT.Combat.BasicComboRules.GroundStartupFrames,
+			FTT.Combat.BasicComboRules.GroundActiveFrames,
+			FTT.Combat.BasicComboRules.GroundRecoveryFrames);
+		private static readonly FTT.Combat.CombatFrameTimeline[] AerialComboTimelines = BuildComboTimelines(
+			FTT.Combat.BasicComboRules.AerialStartupFrames,
+			FTT.Combat.BasicComboRules.AerialActiveFrames,
+			FTT.Combat.BasicComboRules.AerialRecoveryFrames);
+
+		private static FTT.Combat.CombatFrameTimeline[] BuildComboTimelines(
+			int[] startup, int[] active, int[] recovery) {
+			var timelines = new FTT.Combat.CombatFrameTimeline[startup.Length];
+			for (int index = 0; index < startup.Length; index++) {
+				timelines[index] = new(startup[index], active[index], recovery[index]);
+			}
+			return timelines;
+		}
 		private static readonly float[] ComboDamageMultipliers = { 0.8f, 1.0f, 1.5f };
 		private static readonly Vector2[] ComboHitboxSizes = {
 			new(72f, 60f),
@@ -427,7 +437,9 @@ namespace FTT.Characters {
 					hit.Knockback,
 					Data?.Weight ?? 1f,
 					hit.AttackerFacingRight);
-				Velocity += knockback * 60f;
+				// Knockback replaces velocity, as the Fighter sim resolves it —
+				// a hit imparts the same impulse regardless of prior motion.
+				Velocity = knockback * 60f;
 
 				if (hit.HitstunDuration > 0f && CurrentState != CharacterState.Dead) {
 					ApplyStun(hit.HitstunDuration);
@@ -801,7 +813,9 @@ namespace FTT.Characters {
 			float targetSpeed = hAxis * maxSpeed;
 			bool isAccelerating = Mathf.Abs(targetSpeed) >= Mathf.Abs(Velocity.X)
 				|| (targetSpeed > 0 && Velocity.X < 0) || (targetSpeed < 0 && Velocity.X > 0);
-			float rampFrames = isAccelerating ? GroundRampFrames : AirDecelRampFrames;
+			// The 4-frame air ramp is the designed constant the Fighter sim uses;
+			// the 8-frame ground ramp was accidental here (audit M-17).
+			float rampFrames = isAccelerating ? AirAccelRampFrames : AirDecelRampFrames;
 			float step = maxSpeed / rampFrames * dt * 60f;
 			var vel = Velocity;
 			vel.X = Mathf.MoveToward(vel.X, targetSpeed, step);
@@ -848,6 +862,19 @@ namespace FTT.Characters {
 				ApplyAirControl(dt);
 			}
 
+			// Design 1051 — a special (or the ultimate) cancels a basic at any
+			// point in the swing and resets the chain; shared rule with the
+			// Fighter sim.
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special1)
+				|| CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special2)
+				|| CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Ultimate)) {
+				if (CheckSpecialInput() || CheckUltimateInput()) {
+					CancelActiveAttack();
+					ResetComboChain();
+					return;
+				}
+			}
+
 			if (_inRecoveryHold) {
 				ProcessRecoveryHold(dt);
 				return;
@@ -858,6 +885,12 @@ namespace FTT.Characters {
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack) && !_attackHitActive) {
 				_nextAttackBuffered = true;
 			}
+
+			// Design 752/3080 — during recovery frames, movement, jumping,
+			// dashing, rolling, or blocking cancels the swing and resets the
+			// chain. Startup/active frames stay committed so a held approach
+			// direction cannot self-cancel a fresh swing.
+			if (_attackInRecovery && TryRecoveryCancel()) return;
 
 			if (_attackAnimationDriven) return;
 
@@ -903,21 +936,11 @@ namespace FTT.Characters {
 				return;
 			}
 
-			if (CheckJumpInput()) {
+			// Same cancel set as the recovery frames: movement, jump, dash, roll,
+			// or block ends the chain window (specials are handled upstream in
+			// ProcessAttacking before the hold dispatch).
+			if (TryRecoveryCancel()) {
 				_inRecoveryHold = false;
-				ResetActiveCombo();
-				return;
-			}
-
-			if (CheckSpecialInput()) {
-				_inRecoveryHold = false;
-				ResetActiveCombo();
-				return;
-			}
-
-			if (CheckBlockInput()) {
-				_inRecoveryHold = false;
-				ResetActiveCombo();
 				return;
 			}
 
@@ -926,6 +949,36 @@ namespace FTT.Characters {
 				ResetActiveCombo();
 				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
 			}
+		}
+
+		/// <summary>
+		/// Design 752/3080: during a basic's recovery frames or the chain-hold
+		/// window, movement, jumping, dashing, rolling, or blocking cancels the
+		/// swing and resets the chain. The Fighter sim applies the identical
+		/// rule in its phase machine.
+		/// </summary>
+		private bool TryRecoveryCancel() {
+			if (CheckJumpInput() || CheckRollInput() || CheckDashInput() || CheckBlockInput()) {
+				CancelActiveAttack();
+				ResetComboChain();
+				return true;
+			}
+			float hAxis = GetHorizontalInput();
+			if (IsOnFloor() && Mathf.Abs(hAxis) > 0.1f) {
+				CancelActiveAttack();
+				ResetComboChain();
+				UpdateFacing(hAxis);
+				TransitionTo(CharacterState.Running);
+				return true;
+			}
+			return false;
+		}
+
+		/// <summary>Resets both surface counters — the whole chain, not one string.</summary>
+		private void ResetComboChain() {
+			GroundComboCounter = 0;
+			AerialComboCounter = 0;
+			ComboCounter = 0;
 		}
 
 		private void ProcessUsingSpecial(float dt) {
@@ -1114,6 +1167,11 @@ namespace FTT.Characters {
 
 		public void ApplyStun(float duration) {
 			if (CurrentState == CharacterState.Dead || CurrentState == CharacterState.Respawning) return;
+			// Being hit cancels the swing and resets the chain (design 752) —
+			// and cleans up an active hitbox the state switch alone would leave
+			// live. The Fighter sim applies the identical rule on hitstun.
+			if (CurrentState == CharacterState.Attacking) CancelActiveAttack();
+			ResetComboChain();
 			_stunTimer = duration;
 			TransitionTo(CharacterState.Stunned);
 		}
@@ -1239,7 +1297,38 @@ namespace FTT.Characters {
 
 		public void PlayPresentationAnimation(string animationName) {
 			if (_animatedSprite == null || string.IsNullOrWhiteSpace(animationName)) return;
+			// Same-name guard so per-frame presentation drivers do not restart
+			// the animation at frame zero every tick.
+			if (_animatedSprite.Animation == animationName) return;
 			if (_animatedSprite.SpriteFrames?.HasAnimation(animationName) == true) _animatedSprite.Play(animationName);
+		}
+
+		/// <summary>
+		/// Applies <see cref="IsFacingRight"/> to the sprite. Fighter-mode
+		/// presentation entry point: the driver writes the field from sim state
+		/// and native processing (which normally flips the sprite) is disabled.
+		/// </summary>
+		public void SyncPresentationFacing() => UpdateSpriteFlip();
+
+		/// <summary>
+		/// Fighter-mode presentation of the melee active window: the same yellow
+		/// flash Story's authored callbacks draw, sized from the shared combo
+		/// hitbox tables, without touching the real Hitbox or any collision.
+		/// </summary>
+		public void SetMeleePresentation(bool active, int comboIndex, bool aerial) {
+			if (_meleeHitVisual == null) return;
+			if (!active) {
+				_meleeHitVisual.Color = new Color(1, 1, 0.3f, 0f);
+				return;
+			}
+			int index = Mathf.Clamp(comboIndex, 0, 2);
+			Vector2 size = aerial ? AerialComboHitboxSizes[index] : ComboHitboxSizes[index];
+			Vector2 offset = aerial ? AerialComboHitboxOffsets[index] : ComboHitboxOffsets[index];
+			float facing = IsFacingRight ? 1f : -1f;
+			Vector2 resolved = new(offset.X * facing, offset.Y);
+			_meleeHitVisual.Size = size;
+			_meleeHitVisual.Position = new Vector2(resolved.X - size.X * 0.5f, resolved.Y - size.Y * 0.5f);
+			_meleeHitVisual.Color = new Color(1, 1, 0.3f, 0.5f);
 		}
 
 		public void SetRewindSuspended(bool suspended) {
@@ -1355,7 +1444,9 @@ namespace FTT.Characters {
 			float targetSpeed = hAxis * maxSpeed;
 			bool isAccelerating = Mathf.Abs(targetSpeed) >= Mathf.Abs(Velocity.X)
 				|| (targetSpeed > 0 && Velocity.X < 0) || (targetSpeed < 0 && Velocity.X > 0);
-			float rampFrames = isAccelerating ? GroundRampFrames : AirDecelRampFrames;
+			// The 4-frame air ramp is the designed constant the Fighter sim uses;
+			// the 8-frame ground ramp was accidental here (audit M-17).
+			float rampFrames = isAccelerating ? AirAccelRampFrames : AirDecelRampFrames;
 			float step = maxSpeed / rampFrames * dt * 60f;
 			var vel = Velocity;
 			vel.X = Mathf.MoveToward(vel.X, targetSpeed, step);
@@ -1436,6 +1527,7 @@ namespace FTT.Characters {
 			ComboCounter = comboIdx;
 			_attackFramesRemaining = GetActiveComboTimeline().TotalFrames;
 			_attackHitActive = false;
+			_attackInRecovery = false;
 			_nextAttackBuffered = false;
 			_inRecoveryHold = false;
 
@@ -1453,15 +1545,15 @@ namespace FTT.Characters {
 					: FTT.Combat.AttackClass.Basic;
 
 				float baseKB = Data?.BasicAttackKnockback ?? 3f;
+				// Hitstun comes from the shared rulebook (9/12/18 frames), the
+				// same values the Fighter sim applies.
+				_meleeHitbox.HitstunDuration = FTT.Combat.BasicComboRules.HitstunFrames[comboIdx] / 60f;
 				if (comboIdx == 2) {
 					_meleeHitbox.KnockbackForce = new Vector2(baseKB * 2f, -4f);
-					_meleeHitbox.HitstunDuration = 0.3f;
 				} else if (comboIdx == 1) {
 					_meleeHitbox.KnockbackForce = new Vector2(baseKB * 1.2f, -1.5f);
-					_meleeHitbox.HitstunDuration = 0.2f;
 				} else {
 					_meleeHitbox.KnockbackForce = new Vector2(baseKB, -1f);
-					_meleeHitbox.HitstunDuration = 0.15f;
 				}
 			}
 
@@ -1515,6 +1607,9 @@ namespace FTT.Characters {
 		}
 
 		public void OnAttackActiveEnded() {
+			// Reaching the end of the active window mid-swing means the recovery
+			// frames are running — the cancellable part of the swing.
+			if (_attackHitActive && CurrentState == CharacterState.Attacking) _attackInRecovery = true;
 			_attackHitActive = false;
 			_meleeHitbox?.Deactivate();
 			if (_meleeHitVisual != null) _meleeHitVisual.Color = new Color(1, 1, 0.3f, 0f);
@@ -1552,6 +1647,7 @@ namespace FTT.Characters {
 			_inRecoveryHold = false;
 			_nextAttackBuffered = false;
 			OnAttackActiveEnded();
+			_attackInRecovery = false;
 		}
 
 		private int GetActiveComboIndex() => Mathf.Clamp(

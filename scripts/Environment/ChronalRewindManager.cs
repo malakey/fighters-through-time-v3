@@ -95,7 +95,30 @@ namespace FTT.Environment {
                 CollapseTimeline();
                 return;
             }
+            BeginRewind();
+        }
 
+        /// <summary>
+        /// Starts the full rewind sequence (world freeze, playback, restore,
+        /// presentation) without requiring a lethal hit. The tutorial's
+        /// calibration step uses this to demonstrate the mechanic — rewind is
+        /// otherwise only ever triggered by death. Callers decide whether to
+        /// refund the spent charge afterwards. Returns false when a rewind
+        /// cannot start: already rewinding, no resolvable player, or an empty
+        /// pool (a scripted demonstration must never trigger a Timeline
+        /// Collapse).
+        /// </summary>
+        public bool TriggerScriptedRewind() {
+            ResolvePlayer();
+            if (_isRewinding || _player == null || !IsInstanceValid(_player)) return false;
+            if (_player.CurrentState == CharacterState.Dead
+                || _player.CurrentState == CharacterState.Respawning) return false;
+            if (RemainingRewinds <= 0) return false;
+            BeginRewind();
+            return true;
+        }
+
+        private void BeginRewind() {
             RemainingRewinds--;
             StoryManager.Instance?.SetRewinds(RemainingRewinds);
             Vector2 checkpoint = GetCheckpointPosition();
@@ -122,7 +145,10 @@ namespace FTT.Environment {
 
         private void CompleteRewind(Vector2 landingPosition) {
             int maximumHP = _player.MaximumHP;
-            int restoredHP = Math.Max(1, Mathf.CeilToInt(maximumHP * GetHPRestorePercent(_difficulty)));
+            // On the death path CurrentHP is 0, so the difficulty restore applies
+            // unchanged; a scripted demonstration must not damage a healthy player.
+            int restoredHP = Math.Max(_player.CurrentHP,
+                Math.Max(1, Mathf.CeilToInt(maximumHP * GetHPRestorePercent(_difficulty))));
             _player.CompleteStoryRewind(landingPosition, restoredHP);
             _isRewinding = false;
             _playbackPath = null;

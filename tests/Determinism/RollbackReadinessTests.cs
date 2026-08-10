@@ -334,7 +334,17 @@ public class RollbackReadinessTests {
         int current = simulation.CurrentTick;
         long hashBeforeDepthSeven = simulation.CurrentHash;
 
-        SendRemotePacket(peerTransport, 5150, current - OnlineRollbackSession.MaximumRollbackFrames);
+        // The correction must be an input that provably perturbs state under the
+        // shared combat rules. The default recipe's odd-tick variant is a Block
+        // hold, which the grounded block stance now resolves as a legitimate
+        // no-op for an idle fighter (movement locks to zero, nothing persists) —
+        // a jump diverges the arc no matter what state the fighter is in.
+        SendRemotePacket(peerTransport, 5150, current - OnlineRollbackSession.MaximumRollbackFrames,
+            new PlayerInputFrame {
+                MoveX = 100,
+                Held = GameplayButtons.Jump,
+                Pressed = GameplayButtons.Jump
+            });
         session.PumpNetwork();
         AssertThat(lateTicks.Count)
             .OverrideFailureMessage("A depth-7 packet is inside the window and must not be reported too late.")

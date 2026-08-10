@@ -62,6 +62,16 @@ Cause: something set `SceneTree.Paused = true` and never cleared it. GdUnit4's t
 | 5. Cross-worktree pipe contention | partial with **0 failures**, or a plausible `Passed! Total: ~73` in ~12 s | `100` (not negative) | Another checkout is running GdUnit at the same time; see below |
 | 6. Silently dropped `[TestSuite]` | `Total:` moves by a *plausible* small delta (e.g. +1) instead of the real one | 0 (green) | A second `[TestSuite]` class shares a source file with another; see below |
 
+### Orphaned Godot children fake signatures 1/2 in a single checkout
+
+Confirmed 2026-08-09: two `Godot_v4.7.1-stable_mono_win64` processes left over from an earlier
+GdUnit run (an aborted or crashed session leaves them alive) made the next `dotnet test` log
+`Rebuilding Godot Project ends with exit code: -1073741819` and silently run only the pure-C#
+subset (Total ~126 and growing as pure-C# suites are added — the signature-1 tell, at a larger
+count than the historical ~24). No FATAL appears in `godot.log`. Before diagnosing heap
+corruption, run `Get-Process testhost,Godot*`, kill the orphans, and re-run — the same suite
+passed in full immediately afterwards. Drain **both** process names, not just `testhost`.
+
 ### Failure signature 5: cross-worktree GdUnit pipe contention (a partial total that is NOT a crash)
 
 GdUnit4 v6.2 launches its Godot child with `--pipe-name gdunit4-FightersThroughTime`, derived from
@@ -120,7 +130,7 @@ Build (verified: succeeds with 1 pre-existing vendored warning — `CS8632` in `
 dotnet build FightersThroughTime.csproj --nologo
 ```
 
-Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-08 on `net10.0` (Package 8 close, product-wide UI/audio/visual/controls/localization pass): **1293 passed, 0 failed, Total 1293** across three consecutive runs, in about 50 seconds after a warm build. Read the `Total:` count in the summary, not just the exit code — see the failure signatures above:
+Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-09 on `net10.0` (cross-mode combat parity pass): **1301 passed, 0 failed, Total 1301**, in about 47 seconds after a warm build. Read the `Total:` count in the summary, not just the exit code — see the failure signatures above:
 
 ```bash
 dotnet test FightersThroughTime.csproj --settings .runsettings

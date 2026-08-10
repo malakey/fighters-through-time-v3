@@ -102,7 +102,9 @@ namespace FTT.Characters {
 			var sprite = new AnimatedSprite2D {
 				Name = "AnimatedSprite2D",
 				SpriteFrames = frames,
-				Position = new Vector2(0, -64),
+				// 128 px frame at 0.5 scale spans 64 px; -32 keeps the drawn feet on the
+				// body origin, which is what rests on the floor in both modes.
+				Position = new Vector2(0, -32),
 				Scale = new Vector2(0.5f, 0.5f)
 			};
 			player.AddChild(sprite);
@@ -116,7 +118,7 @@ namespace FTT.Characters {
 			var label = new Label {
 				Name = "NameLabel",
 				Text = data.DisplayName,
-				Position = new Vector2(-55, -102),
+				Position = new Vector2(-55, -84),
 				CustomMinimumSize = new Vector2(110, 18),
 				HorizontalAlignment = HorizontalAlignment.Center
 			};

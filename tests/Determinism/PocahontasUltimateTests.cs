@@ -21,7 +21,6 @@ namespace FTT.Tests.Determinism;
 public class PocahontasUltimateTests {
 
     private const int TempestZoneTypeID = 83;
-    private const int UltimatePressTick = 60;
     private const int StormTotalDamage = 80;   // 8 ticks x 10 authored per-hit damage.
     private const int MeterChargeDamage = 138; // 33 + 42 + 63 basic combo, capped to 100 meter.
 
@@ -41,7 +40,7 @@ public class PocahontasUltimateTests {
     [TestCase]
     public void TempestConsumesMeterAndDealsTheMultiHitTotalWithoutGenericDoubleHit() {
         FighterSimulation simulation = BuildSimulation(seed: 83);
-        ChargeMeterWithBasics(simulation);
+        int ultimatePressTick = ChargeMeterWithBasics(simulation);
 
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent charged)).IsTrue();
         AssertThat(charged.Influence.ToFloat()).IsEqual(100f);
@@ -54,8 +53,8 @@ public class PocahontasUltimateTests {
         // by that tick's damage — a generic melee ultimate double-firing on
         // the press would have credited its own damage on top.
         simulation.Advance(
-            Frame(UltimatePressTick, 0, GameplayButtons.Ultimate),
-            Frame(UltimatePressTick, 0, GameplayButtons.None));
+            Frame(ultimatePressTick, 0, GameplayButtons.Ultimate),
+            Frame(ultimatePressTick, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent spent)).IsTrue();
         AssertThat(spent.Influence.ToFloat()).IsEqual(10f);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent storm)).IsTrue();
@@ -64,7 +63,7 @@ public class PocahontasUltimateTests {
 
         // Run past the full 168-frame storm: exactly 8 x 10 damage. A generic
         // melee ultimate double-firing on the same press would add another hit.
-        for (int tick = UltimatePressTick + 1; tick <= UltimatePressTick + 170; tick++) {
+        for (int tick = ultimatePressTick + 1; tick <= ultimatePressTick + 170; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterStorm)).IsTrue();
@@ -75,14 +74,14 @@ public class PocahontasUltimateTests {
     [TestCase]
     public void TempestFinalSurgeCarriesTheAuthoredOutwardKnockbackImpulse() {
         FighterSimulation simulation = BuildSimulation(seed: 84);
-        ChargeMeterWithBasics(simulation);
+        int ultimatePressTick = ChargeMeterWithBasics(simulation);
         simulation.Advance(
-            Frame(UltimatePressTick, 0, GameplayButtons.Ultimate),
-            Frame(UltimatePressTick, 0, GameplayButtons.None));
+            Frame(ultimatePressTick, 0, GameplayButtons.Ultimate),
+            Frame(ultimatePressTick, 0, GameplayButtons.None));
 
         // Ticks land at press + 0, 21, ..., 147; every tick before the final
         // surge is impulse-free (no hitstun, no launch).
-        for (int tick = UltimatePressTick + 1; tick <= UltimatePressTick + 146; tick++) {
+        for (int tick = ultimatePressTick + 1; tick <= ultimatePressTick + 146; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent beforeSurge)).IsTrue();
@@ -91,8 +90,8 @@ public class PocahontasUltimateTests {
         // The final surge throws the target outward from the storm center: the
         // target sits to the caster's right, so the launch is up and to the right.
         simulation.Advance(
-            Frame(UltimatePressTick + 147, 0, GameplayButtons.None),
-            Frame(UltimatePressTick + 147, 0, GameplayButtons.None));
+            Frame(ultimatePressTick + 147, 0, GameplayButtons.None),
+            Frame(ultimatePressTick + 147, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent surged)).IsTrue();
         AssertThat(surged.HitstunFrames > 0).IsTrue();
         AssertThat(surged.IsGrounded).IsEqual(0);
@@ -103,12 +102,12 @@ public class PocahontasUltimateTests {
     [TestCase]
     public void TempestReachesBeyondMeleeRange() {
         FighterSimulation simulation = BuildSimulation(seed: 85);
-        ChargeMeterWithBasics(simulation);
+        int ultimatePressTick = ChargeMeterWithBasics(simulation);
 
         // The target retreats out of the 2-unit melee attack range but stays
         // inside the storm's 4-unit half-width; a generic melee ultimate would
         // whiff from here.
-        for (int tick = UltimatePressTick; tick < UltimatePressTick + 12; tick++) {
+        for (int tick = ultimatePressTick; tick < ultimatePressTick + 12; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 127, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
@@ -118,7 +117,7 @@ public class PocahontasUltimateTests {
         AssertThat(gap < 4.4f).IsTrue();
         int hpBeforeStorm = retreated.CurrentHP;
 
-        int pressTick = UltimatePressTick + 12;
+        int pressTick = ultimatePressTick + 12;
         simulation.Advance(Frame(pressTick, 0, GameplayButtons.Ultimate), Frame(pressTick, 0, GameplayButtons.None));
         for (int tick = pressTick + 1; tick <= pressTick + 170; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
@@ -130,7 +129,7 @@ public class PocahontasUltimateTests {
     [TestCase]
     public void TempestBypassesBlockChargesLikeEveryUltimate() {
         FighterSimulation simulation = BuildSimulation(seed: 86);
-        ChargeMeterWithBasics(simulation);
+        int ultimatePressTick = ChargeMeterWithBasics(simulation);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent beforeStorm)).IsTrue();
         int hpBeforeStorm = beforeStorm.CurrentHP;
         int chargesBeforeStorm = beforeStorm.BlockCharges;
@@ -138,9 +137,9 @@ public class PocahontasUltimateTests {
         // The target holds Block for the whole storm; ultimate-class zone hits
         // bypass the shield, so the full total lands and no charge is spent.
         simulation.Advance(
-            Frame(UltimatePressTick, 0, GameplayButtons.Ultimate),
-            Frame(UltimatePressTick, 0, GameplayButtons.Block));
-        for (int tick = UltimatePressTick + 1; tick <= UltimatePressTick + 170; tick++) {
+            Frame(ultimatePressTick, 0, GameplayButtons.Ultimate),
+            Frame(ultimatePressTick, 0, GameplayButtons.Block));
+        for (int tick = ultimatePressTick + 1; tick <= ultimatePressTick + 170; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.Block));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterStorm)).IsTrue();
@@ -153,11 +152,11 @@ public class PocahontasUltimateTests {
         FighterSimulation uninterrupted = BuildSimulation(seed: 87);
         FighterSimulation restored = BuildSimulation(seed: 87);
 
-        ChargeMeterWithBasics(uninterrupted);
+        int ultimatePressTick = ChargeMeterWithBasics(uninterrupted);
         uninterrupted.Advance(
-            Frame(UltimatePressTick, 0, GameplayButtons.Ultimate),
-            Frame(UltimatePressTick, 0, GameplayButtons.None));
-        for (int tick = UltimatePressTick + 1; tick < UltimatePressTick + 60; tick++) {
+            Frame(ultimatePressTick, 0, GameplayButtons.Ultimate),
+            Frame(ultimatePressTick, 0, GameplayButtons.None));
+        for (int tick = ultimatePressTick + 1; tick < ultimatePressTick + 60; tick++) {
             uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
 
@@ -167,7 +166,7 @@ public class PocahontasUltimateTests {
 
         // Resimulate through the remaining ticks, the final surge launch, and
         // the zone expiry; both simulations must stay hash-identical every tick.
-        for (int tick = UltimatePressTick + 60; tick < UltimatePressTick + 260; tick++) {
+        for (int tick = ultimatePressTick + 60; tick < ultimatePressTick + 260; tick++) {
             long expected = uninterrupted.Advance(
                 Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             long actual = restored.Advance(
@@ -185,17 +184,12 @@ public class PocahontasUltimateTests {
 
     /// <summary>
     /// Lands the three-hit basic combo (0.8x / 1.0x / 1.5x of 42 = 138 damage
-    /// dealt) to fill the Influence meter to its 100 cap. The attacker's basics
+    /// dealt) to fill the Influence meter to its 100 cap, driving the real
+    /// phased string, and returns the next free tick. The attacker's basics
     /// carry zero knockback so the adjacent target never leaves attack range.
     /// </summary>
-    private static void ChargeMeterWithBasics(FighterSimulation simulation) {
-        for (int tick = 0; tick < UltimatePressTick; tick++) {
-            GameplayButtons pressed = tick is 0 or 20 or 40
-                ? GameplayButtons.BasicAttack
-                : GameplayButtons.None;
-            simulation.Advance(Frame(tick, 0, pressed), Frame(tick, 0, GameplayButtons.None));
-        }
-    }
+    private static int ChargeMeterWithBasics(FighterSimulation simulation) =>
+        BasicStringTestDriver.LandChainedBasics(simulation, 0, 3);
 
     /// <summary>
     /// Pocahontas with the authored Tidewater Tempest numbers from

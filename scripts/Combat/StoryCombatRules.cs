@@ -3,7 +3,7 @@ using FTT.Characters;
 namespace FTT.Combat {
 
     public static class StoryCombatRules {
-        public const int ComboBufferFrames = 24;
+        public const int ComboBufferFrames = BasicComboRules.ChainHoldFrames;
         public const int DropThroughFrames = 15;
         public const int DownDoubleTapFrames = 18;
         public const float CrouchHurtboxScale = 0.7f;

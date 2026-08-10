@@ -46,6 +46,11 @@ public class JoanKitTests {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         simulation.Advance(Frame(26, 0, GameplayButtons.BasicAttack), Frame(26, 0, GameplayButtons.None));
+        // Basics are phased swings: the opener's hit lands during its active
+        // window (6 startup frames), still well inside the 3 s burn.
+        for (int tick = 27; tick <= 40; tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent amplified)).IsTrue();
         AssertThat(amplified.CurrentHP).IsEqual(76);
     }

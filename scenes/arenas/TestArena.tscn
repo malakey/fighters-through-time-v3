@@ -34,20 +34,21 @@ collision_layer = 64
 collision_mask = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Ground"]
+position = Vector2(0, 20)
 shape = SubResource("ground_col")
 
 [node name="Visual" type="ColorRect" parent="Ground"]
 offset_left = -600.0
-offset_top = -20.0
+offset_top = 0.0
 offset_right = 600.0
-offset_bottom = 20.0
+offset_bottom = 40.0
 color = Color(0.2, 0.18, 0.12, 1)
 
 [node name="TopLine" type="ColorRect" parent="Ground"]
 offset_left = -600.0
-offset_top = -22.0
+offset_top = -3.0
 offset_right = 600.0
-offset_bottom = -20.0
+offset_bottom = 0.0
 color = Color(0.4, 0.8, 0.3, 1)
 
 [node name="PlatformLeft" type="StaticBody2D" parent="."]

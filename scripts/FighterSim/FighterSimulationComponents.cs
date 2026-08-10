@@ -298,6 +298,19 @@ namespace FTT.FighterSim {
         public int UniversalMovementDirection;
         public int ZoneSpeedBonusFrames;
         public int FloatFrames;
+        /// <summary>
+        /// Basic-combo phase machine (FighterBasicAttackRules): 0 none, 1 startup,
+        /// 2 active, 3 recovery, 4 chain hold. Timings come from
+        /// FTT.Combat.BasicComboRules so both modes run the same string. The four
+        /// attack/block fields bring this component to 116 of Klotho's 128-byte
+        /// budget.
+        /// </summary>
+        public int AttackPhase;
+        public int AttackPhaseFrames;
+        /// <summary>Bit flags: 1 aerial string, 2 hit resolved, 4 next hit buffered.</summary>
+        public int AttackFlags;
+        /// <summary>Countdown to the next block-charge regeneration.</summary>
+        public int BlockRegenFrames;
         public FP64 StatusIntensity;
     }
 

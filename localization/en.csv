@@ -589,7 +589,7 @@ tutorial_fracture_label,CHRONAL FRACTURE
 tutorial_objective_fracture,Listen to Commander Sarah's briefing
 tutorial_step_attack,Calibration: land basic attacks on the dummy ({0}/{1})
 tutorial_step_special,Calibration: use a Special ability (K or L)
-tutorial_step_rewind,Calibration: trigger a Chronal Rewind (R)
+tutorial_step_rewind,Calibration: stand by - Chronal Rewind demonstration
 tutorial_step_double_jump,Mobility: reach the green marker with a double jump
 tutorial_step_dash,Mobility: cross the amber corridor while dashing
 tutorial_step_roll,Mobility: cross the blue strip while rolling

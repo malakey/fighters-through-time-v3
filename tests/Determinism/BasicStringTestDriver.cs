@@ -1,0 +1,68 @@
+using FTT.Core;
+using FTT.FighterSim;
+using static GdUnit4.Assertions;
+
+namespace FTT.Tests.Determinism;
+
+/// <summary>
+/// Drives the shared three-hit basic string for deterministic suites. Basics
+/// are phased swings (FTT.Combat.BasicComboRules): a press starts a swing, the
+/// next hit chains from the post-recovery hold window, and a suite must settle
+/// the string back to idle before scripting its next scenario. Suites that
+/// used to mash BasicAttack against the old instant-hit model route their
+/// meter charging through this driver instead.
+/// </summary>
+internal static class BasicStringTestDriver {
+
+    /// <summary>
+    /// Lands <paramref name="hits"/> chained basic hits from player one on a
+    /// stationary player two (0.8x / 1.0x / 1.5x progression), then settles
+    /// until the string is idle and all hitstun has expired. Returns the next
+    /// free input tick. Callers keep both fighters inside the 2-unit melee
+    /// range (zero-knockback attackers or adjacent spawns).
+    /// </summary>
+    public static int LandChainedBasics(FighterSimulation simulation, int startTick, int hits) {
+        int tick = startTick;
+        int swingsStarted = 0;
+        for (int limit = startTick + 600; tick < limit && swingsStarted < hits; tick++) {
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
+            bool press = swingsStarted == 0
+                ? runtime.AttackPhase == FighterBasicAttackRules.PhaseNone
+                : runtime.AttackPhase == FighterBasicAttackRules.PhaseChainHold;
+            Advance(simulation, tick, press);
+            if (press) swingsStarted++;
+        }
+        AssertThat(swingsStarted)
+            .OverrideFailureMessage("The basic string never reached the requested chain length.")
+            .IsEqual(hits);
+        return SettleToNeutral(simulation, tick);
+    }
+
+    /// <summary>
+    /// Advances neutral frames until player one's string is fully idle and
+    /// neither fighter carries hitstun, so later assertions see only the
+    /// scenario under test. Returns the next free input tick.
+    /// </summary>
+    public static int SettleToNeutral(FighterSimulation simulation, int startTick) {
+        int tick = startTick;
+        for (int limit = startTick + 200; tick < limit; tick++) {
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
+            if (runtime.AttackPhase == FighterBasicAttackRules.PhaseNone
+                && attacker.HitstunFrames == 0
+                && target.HitstunFrames == 0) {
+                return tick;
+            }
+            Advance(simulation, tick, press: false);
+        }
+        return tick;
+    }
+
+    private static void Advance(FighterSimulation simulation, int tick, bool press) {
+        GameplayButtons buttons = press ? GameplayButtons.BasicAttack : GameplayButtons.None;
+        simulation.Advance(
+            new PlayerInputFrame { Tick = (uint)tick, Held = buttons, Pressed = buttons },
+            new PlayerInputFrame { Tick = (uint)tick });
+    }
+}

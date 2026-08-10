@@ -39,17 +39,18 @@ public class LeonardoUltimateTests {
     public void UltimateConsumesTheMeterAndReplacesTheGenericMeleeHit() {
         var simulation = CreateSimulation(spawnDistance: 1, seed: 71);
 
-        // Frame 0: a 100-damage basic fills the Influence meter exactly.
-        simulation.Advance(Frame(0, 0, GameplayButtons.BasicAttack), Frame(0, 0, GameplayButtons.None));
+        // One landed basic (125 x 0.8 = 100) fills the meter exactly; the
+        // driver walks the real phased swing and settles back to idle.
+        int tick = BasicStringTestDriver.LandChainedBasics(simulation, 0, 1);
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent charged)).IsTrue();
         AssertThat(charged.Influence.ToFloat()).IsEqual(100f);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterCharge)).IsTrue();
         AssertThat(afterCharge.CurrentHP).IsEqual(300);
 
-        // Frame 1: the ultimate press dispatches the bespoke trap zone, consumes
-        // the meter, and the generic melee ultimate cannot double-fire — the
-        // cast frame's damage is exactly one 10-damage bombardment tick.
-        simulation.Advance(Frame(1, 0, GameplayButtons.Ultimate), Frame(1, 0, GameplayButtons.None));
+        // The ultimate press dispatches the bespoke trap zone, consumes the
+        // meter, and the generic melee ultimate cannot double-fire — the cast
+        // frame's damage is exactly one 10-damage bombardment tick.
+        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual((int)FighterCharacterID.Leonardo * 10 + 3);
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
@@ -63,8 +64,8 @@ public class LeonardoUltimateTests {
     [TestCase]
     public void TrapRootHoldsTheTargetInsideTheMatrix() {
         var simulation = CreateSimulation(spawnDistance: 1, seed: 72);
-        simulation.Advance(Frame(0, 0, GameplayButtons.BasicAttack), Frame(0, 0, GameplayButtons.None));
-        simulation.Advance(Frame(1, 0, GameplayButtons.Ultimate), Frame(1, 0, GameplayButtons.None));
+        int tick = BasicStringTestDriver.LandChainedBasics(simulation, 0, 1);
+        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
 
         // The first bombardment tick applies the authored Root hold.
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent trapped)).IsTrue();
@@ -76,8 +77,10 @@ public class LeonardoUltimateTests {
         // The target mashes run-away input for the whole bombardment window but
         // the refreshed Root keeps them caged (the pulses are impulse-free, so
         // nothing else moves them either).
-        for (int tick = 2; tick <= 120; tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 127, GameplayButtons.None));
+        for (int step = 1; step <= 119; step++) {
+            simulation.Advance(
+                Frame(tick + step, 0, GameplayButtons.None),
+                Frame(tick + step, 127, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent midWindow)).IsTrue();
         AssertThat(midWindow.StatusType).IsEqual((int)StatusType.Root);
@@ -120,14 +123,16 @@ public class LeonardoUltimateTests {
     [TestCase]
     public void UltimateBombardmentBypassesBlock() {
         var simulation = CreateSimulation(spawnDistance: 1, seed: 74);
-        simulation.Advance(Frame(0, 0, GameplayButtons.BasicAttack), Frame(0, 0, GameplayButtons.None));
+        int tick = BasicStringTestDriver.LandChainedBasics(simulation, 0, 1);
 
         // The target holds Block for the entire ultimate; the ultimate-class
         // pulses ignore the shield entirely, so the full 80 damage lands and no
         // block charge is spent.
-        simulation.Advance(Frame(1, 0, GameplayButtons.Ultimate), Frame(1, 0, GameplayButtons.Block));
-        for (int tick = 2; tick <= 170; tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.Block));
+        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.Block));
+        for (int step = 1; step <= 169; step++) {
+            simulation.Advance(
+                Frame(tick + step, 0, GameplayButtons.None),
+                Frame(tick + step, 0, GameplayButtons.Block));
         }
         AssertThat(simulation.ZoneCount).IsEqual(0);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent blocked)).IsTrue();

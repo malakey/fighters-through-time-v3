@@ -223,17 +223,8 @@ public class ShakespeareUltimateTests {
     /// basic strikes (influence gains 1 per HP dealt and caps at 100; each hit
     /// deals at least 40 against the durable target).
     /// </summary>
-    private static int FillMeterWithBasicStrikes(FighterSimulation simulation) {
-        int tick = 0;
-        for (int hit = 0; hit < 3; hit++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.BasicAttack), Frame(tick, 0, GameplayButtons.None));
-            tick++;
-            for (int cooldown = 0; cooldown < 18; cooldown++, tick++) {
-                simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-            }
-        }
-        return tick;
-    }
+    private static int FillMeterWithBasicStrikes(FighterSimulation simulation) =>
+        BasicStringTestDriver.LandChainedBasics(simulation, 0, 3);
 
     private static CharacterData BuildStageCharacter() => new() {
         CharacterID = "shakespeare",

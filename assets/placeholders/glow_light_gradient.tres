@@ -1,7 +1,6 @@
 [gd_resource type="GradientTexture2D" load_steps=2 format=3]
 
 [sub_resource type="Gradient" id="Gradient_glow"]
-interpolation_mode = 1
 offsets = PackedFloat32Array(0, 0.45, 1)
 colors = PackedColorArray(1, 1, 1, 1, 1, 1, 1, 0.45, 1, 1, 1, 0)
 

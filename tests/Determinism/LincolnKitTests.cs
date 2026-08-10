@@ -68,10 +68,15 @@ public class LincolnKitTests {
         // The opponent's basic lands during the charge: damage sticks, but the
         // armored Lincoln takes no hitstun (design: damage yes, hitstun no).
         simulation.Advance(Frame(1, 0, GameplayButtons.None), Frame(1, 0, GameplayButtons.BasicAttack));
+        // Basics are phased swings: the hit lands during the active window
+        // (6 startup frames), still deep inside the 180-frame armor.
+        for (int tick = 2; tick <= 15; tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent struck)).IsTrue();
         AssertThat(struck.CurrentHP).IsEqual(92);
         AssertThat(struck.HitstunFrames).IsEqual(0);
-        AssertThat(struck.HyperArmorFrames).IsEqual(179);
+        AssertThat(struck.HyperArmorFrames).IsEqual(165);
     }
 
     [TestCase]

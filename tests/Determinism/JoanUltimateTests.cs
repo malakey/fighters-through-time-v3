@@ -21,11 +21,10 @@ namespace FTT.Tests.Determinism;
 [RequireGodotRuntime]
 public class JoanUltimateTests {
 
-    // Charge: three 50-base basics (combo 0.8x/1.0x/1.5x = 40+50+75 damage,
-    // 18-frame cooldown) cap the meter at 100 (1 influence per damage dealt).
-    // The opponent has 1000 HP and Joan's basics carry zero knockback, so
-    // nobody moves or loses a stock.
-    private const int MeterChargedTick = 39;
+    // Charge: three 50-base basics (combo 0.8x/1.0x/1.5x = 40+50+75 damage)
+    // cap the meter at 100 (1 influence per damage dealt). The opponent has
+    // 1000 HP and Joan's basics carry zero knockback, so nobody moves or
+    // loses a stock.
     private const int MeterChargeDamage = 165;
     private const int UltimateDamagePerHit = 12;
     private const int UltimateHitCount = 6;
@@ -155,21 +154,11 @@ public class JoanUltimateTests {
     }
 
     /// <summary>
-    /// Caps Joan's meter at 100 with three zero-knockback basics (40+50+75
-    /// damage) and returns the next free tick.
+    /// Caps Joan's meter at 100 with the real chained three-hit string
+    /// (40+50+75 damage) and returns the next free tick, settled to neutral.
     /// </summary>
-    private static int ChargeMeter(FighterSimulation simulation) {
-        for (int hit = 0; hit < 3; hit++) {
-            int attackTick = hit * 19;
-            simulation.Advance(
-                Frame(attackTick, 0, GameplayButtons.BasicAttack),
-                Frame(attackTick, 0, GameplayButtons.None));
-            for (int tick = attackTick + 1; tick < attackTick + 19 && hit < 2; tick++) {
-                simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-            }
-        }
-        return MeterChargedTick;
-    }
+    private static int ChargeMeter(FighterSimulation simulation) =>
+        BasicStringTestDriver.LandChainedBasics(simulation, 0, 3);
 
     private static FighterSimulation BuildSimulation(int seed, int spawnDistance) => new(
         FighterLoadoutFactory.FromCharacterData(BuildJoan()),

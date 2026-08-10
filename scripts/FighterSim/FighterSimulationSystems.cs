@@ -203,6 +203,8 @@ namespace FTT.FighterSim {
     public sealed class FighterMovementSystem : ISystem {
         private const int JumpButton = 1 << 0;
         private const int DownButton = 1 << 1;
+        private const int BasicButton = 1 << 2;
+        private const int BlockButton = 1 << 6;
         private const int RollButton = 1 << 10;
         private const int DashButton = 1 << 11;
         private static readonly FP64 FixedDelta = FP64.One / FP64.FromInt(60);
@@ -255,7 +257,18 @@ namespace FTT.FighterSim {
                         ? FP64.FromDouble(1.3)
                         : FP64.One;
                     if (rooted) FighterUniversalMovementRules.Cancel(ref runtime);
-                    TryStartUniversalMovement(ref fighter, ref runtime, rooted);
+                    // The basic-combo phase machine advances before movement so its
+                    // locks and cancels gate the same tick's movement, mirroring how
+                    // Story resolves both inside one _PhysicsProcess.
+                    ProcessBasicAttackPhase(ref fighter, ref runtime);
+                    bool attacking = runtime.AttackPhase != FighterBasicAttackRules.PhaseNone;
+                    bool blockStance = FighterBasicAttackRules.IsBlockStance(in fighter, in runtime);
+                    TryStartUniversalMovement(
+                        ref fighter,
+                        ref runtime,
+                        rooted,
+                        allowRoll: !attacking,
+                        allowDash: !attacking && !blockStance);
                     bool movementHandled = ProcessUniversalMovement(
                         ref fighter,
                         ref runtime,
@@ -270,7 +283,10 @@ namespace FTT.FighterSim {
                             statusMoveMultiplier,
                             speedBuffMultiplier,
                             jumpBuffMultiplier,
-                            groundIsSolid: _geometry.Platforms.Length > 0);
+                            groundIsSolid: _geometry.Platforms.Length > 0,
+                            lockHorizontal: (attacking && fighter.IsGrounded != 0) || blockStance,
+                            lockFacing: attacking || blockStance,
+                            allowJump: !attacking && !blockStance);
                     }
                     if (fighter.IsGrounded == 0) {
                         // Float glide (post-warp cancel) heavily reduces gravity.
@@ -397,16 +413,18 @@ namespace FTT.FighterSim {
         private static void TryStartUniversalMovement(
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
-            bool rooted) {
+            bool rooted,
+            bool allowRoll = true,
+            bool allowDash = true) {
             if (rooted
                 || fighter.IsGrounded == 0
                 || runtime.UniversalMovementState != (int)UniversalMovementPhase.None) return;
             int direction = runtime.MoveX > 0 ? 1 : runtime.MoveX < 0 ? -1 : fighter.FacingRight != 0 ? 1 : -1;
-            if ((runtime.PressedButtons & RollButton) != 0) {
+            if (allowRoll && (runtime.PressedButtons & RollButton) != 0) {
                 runtime.UniversalMovementState = (int)UniversalMovementPhase.RollStartup;
                 runtime.UniversalMovementFramesRemaining = UniversalMovementRules.RollStartupFrames;
                 runtime.UniversalMovementDirection = direction;
-            } else if ((runtime.PressedButtons & DashButton) != 0) {
+            } else if (allowDash && (runtime.PressedButtons & DashButton) != 0) {
                 runtime.UniversalMovementState = (int)UniversalMovementPhase.Dash;
                 runtime.UniversalMovementFramesRemaining = UniversalMovementRules.DashDurationFrames;
                 runtime.UniversalMovementDirection = direction;
@@ -482,8 +500,13 @@ namespace FTT.FighterSim {
             FP64 statusMoveMultiplier,
             FP64 speedBuffMultiplier,
             FP64 jumpBuffMultiplier,
-            bool groundIsSolid = false) {
-            FP64 input = rooted ? FP64.Zero : FP64.FromInt(runtime.MoveX) / FP64.FromInt(127);
+            bool groundIsSolid = false,
+            bool lockHorizontal = false,
+            bool lockFacing = false,
+            bool allowJump = true) {
+            // Grounded swings and the block stance decelerate to zero on the same
+            // ramp Story uses; aerial swings keep full air drift.
+            FP64 input = rooted || lockHorizontal ? FP64.Zero : FP64.FromInt(runtime.MoveX) / FP64.FromInt(127);
             FP64 maximumSpeed = tuning.MoveSpeed * statusMoveMultiplier * speedBuffMultiplier;
             FP64 targetSpeed = input * maximumSpeed;
             int accelerationFrames = fighter.IsGrounded != 0
@@ -493,23 +516,114 @@ namespace FTT.FighterSim {
                 fighter.Velocity.x,
                 targetSpeed,
                 maximumSpeed / FP64.FromInt(accelerationFrames));
-            if (runtime.MoveX > 0) fighter.FacingRight = 1;
-            else if (runtime.MoveX < 0) fighter.FacingRight = 0;
+            if (!lockFacing) {
+                if (runtime.MoveX > 0) fighter.FacingRight = 1;
+                else if (runtime.MoveX < 0) fighter.FacingRight = 0;
+            }
 
             bool jumpPressed = (runtime.PressedButtons & JumpButton) != 0;
             bool downHeld = (runtime.HeldButtons & DownButton) != 0;
             bool onSolidBaseFloor = groundIsSolid && fighter.Position.y <= FP64.Zero;
+            // Drop-through stays available while attacking or blocking, matching
+            // Story's IsDropThroughAllowed states; plain jumps do not.
             if (jumpPressed && downHeld && fighter.IsGrounded != 0 && !rooted && !onSolidBaseFloor) {
                 fighter.DropThroughFrames = 30;
                 fighter.IsGrounded = 0;
                 fighter.Velocity.y = FP64.FromInt(-2);
-            } else if (jumpPressed && fighter.IsGrounded != 0 && !rooted) {
+            } else if (allowJump && jumpPressed && fighter.IsGrounded != 0 && !rooted) {
                 fighter.Velocity.y = tuning.JumpSpeed * statusMoveMultiplier * jumpBuffMultiplier;
                 fighter.IsGrounded = 0;
                 fighter.RemainingJumps = tuning.MaxJumpCount - 1;
-            } else if (jumpPressed && fighter.IsGrounded == 0 && fighter.RemainingJumps > 0 && !rooted) {
+            } else if (allowJump && jumpPressed && fighter.IsGrounded == 0 && fighter.RemainingJumps > 0 && !rooted) {
                 fighter.Velocity.y = tuning.JumpSpeed * statusMoveMultiplier * jumpBuffMultiplier;
                 fighter.RemainingJumps--;
+            }
+        }
+
+        /// <summary>
+        /// Advances the universal three-hit basic string
+        /// (<see cref="FTT.Combat.BasicComboRules"/>) one tick: swing start, phase
+        /// clock, input buffering, aerial landing cancel, and the recovery /
+        /// chain-hold cancels. Startup and active frames are committed; a held
+        /// approach direction must not self-cancel a fresh swing.
+        /// </summary>
+        private static void ProcessBasicAttackPhase(
+            ref FighterStateComponent fighter,
+            ref FighterRuntimeComponent runtime) {
+            bool basicPressed = (runtime.PressedButtons & BasicButton) != 0;
+            int phase = runtime.AttackPhase;
+            if (phase == FighterBasicAttackRules.PhaseNone) {
+                if (basicPressed
+                    && !FighterUniversalMovementRules.IsCombatLocked(in runtime)
+                    && !FighterBasicAttackRules.IsBlockStance(in fighter, in runtime)) {
+                    FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, 0);
+                }
+                return;
+            }
+
+            bool aerial = (runtime.AttackFlags & FighterBasicAttackRules.FlagAerial) != 0;
+            if (aerial && fighter.IsGrounded != 0) {
+                // Landing cancels an aerial string with no landing lag.
+                FighterBasicAttackRules.CancelString(ref runtime);
+                return;
+            }
+
+            if (basicPressed) {
+                if (phase == FighterBasicAttackRules.PhaseChainHold) {
+                    if (runtime.ComboIndex < FTT.Combat.BasicComboRules.ComboHits - 1) {
+                        FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, runtime.ComboIndex + 1);
+                    }
+                    return;
+                }
+                if (phase != FighterBasicAttackRules.PhaseActive) {
+                    runtime.AttackFlags |= FighterBasicAttackRules.FlagBuffered;
+                }
+            }
+
+            if (phase is FighterBasicAttackRules.PhaseRecovery or FighterBasicAttackRules.PhaseChainHold) {
+                // Movement, jumping, dashing, rolling, or blocking cancels the
+                // recovery and resets the chain (design 752 / 3080).
+                bool cancels = (fighter.IsGrounded != 0 && runtime.MoveX != 0)
+                    || (runtime.PressedButtons & (JumpButton | DashButton | RollButton)) != 0
+                    || (runtime.HeldButtons & BlockButton) != 0;
+                if (cancels) {
+                    FighterBasicAttackRules.CancelString(ref runtime);
+                    return;
+                }
+            }
+
+            runtime.AttackPhaseFrames--;
+            if (runtime.AttackPhaseFrames > 0) return;
+            int step = runtime.ComboIndex < 0 ? 0 : runtime.ComboIndex > 2 ? 2 : runtime.ComboIndex;
+            switch (phase) {
+                case FighterBasicAttackRules.PhaseStartup:
+                    runtime.AttackPhase = FighterBasicAttackRules.PhaseActive;
+                    runtime.AttackPhaseFrames = aerial
+                        ? FTT.Combat.BasicComboRules.AerialActiveFrames[step]
+                        : FTT.Combat.BasicComboRules.GroundActiveFrames[step];
+                    break;
+                case FighterBasicAttackRules.PhaseActive:
+                    runtime.AttackPhase = FighterBasicAttackRules.PhaseRecovery;
+                    runtime.AttackPhaseFrames = aerial
+                        ? FTT.Combat.BasicComboRules.AerialRecoveryFrames[step]
+                        : FTT.Combat.BasicComboRules.GroundRecoveryFrames[step];
+                    break;
+                case FighterBasicAttackRules.PhaseRecovery:
+                    if ((runtime.AttackFlags & FighterBasicAttackRules.FlagBuffered) != 0
+                        && step < FTT.Combat.BasicComboRules.ComboHits - 1) {
+                        FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, step + 1);
+                    } else if (step >= FTT.Combat.BasicComboRules.ComboHits - 1) {
+                        // The finisher exits straight out; the chain resets.
+                        FighterBasicAttackRules.CancelString(ref runtime);
+                    } else {
+                        runtime.AttackPhase = FighterBasicAttackRules.PhaseChainHold;
+                        runtime.AttackPhaseFrames = FTT.Combat.BasicComboRules.ChainHoldFrames;
+                        runtime.AttackFlags &= ~FighterBasicAttackRules.FlagBuffered;
+                    }
+                    break;
+                default:
+                    FighterBasicAttackRules.CancelString(ref runtime);
+                    break;
             }
         }
 
@@ -528,6 +642,19 @@ namespace FTT.FighterSim {
             if (fighter.HyperArmorFrames > 0) fighter.HyperArmorFrames--;
             if (fighter.DropThroughFrames > 0) fighter.DropThroughFrames--;
             if (runtime.BasicCooldownFrames > 0) runtime.BasicCooldownFrames--;
+            // Block-charge regeneration, mirroring Story's BlockSystem: one charge
+            // per interval, timer held at full while the stance is up and re-armed
+            // when a charge is spent (FighterDamageRules resets it on block).
+            if (fighter.BlockCharges >= tuning.MaxBlockCharges || fighter.Stocks <= 0) {
+                runtime.BlockRegenFrames = 0;
+            } else if (FighterBasicAttackRules.IsBlockStance(in fighter, in runtime)) {
+                runtime.BlockRegenFrames = FTT.Combat.BasicComboRules.BlockChargeRegenFrames;
+            } else if (runtime.BlockRegenFrames > 0) {
+                runtime.BlockRegenFrames--;
+                if (runtime.BlockRegenFrames == 0) fighter.BlockCharges++;
+            } else {
+                runtime.BlockRegenFrames = FTT.Combat.BasicComboRules.BlockChargeRegenFrames;
+            }
             if (runtime.SpecialOneCooldownFrames > 0) runtime.SpecialOneCooldownFrames--;
             if (runtime.SpecialTwoCooldownFrames > 0) runtime.SpecialTwoCooldownFrames--;
             if (runtime.MovementCooldownFrames > 0) runtime.MovementCooldownFrames--;
@@ -578,6 +705,80 @@ namespace FTT.FighterSim {
             runtime.UniversalMovementState = (int)UniversalMovementPhase.None;
             runtime.UniversalMovementFramesRemaining = 0;
             runtime.UniversalMovementDirection = 0;
+        }
+    }
+
+    /// <summary>
+    /// The deterministic half of the universal three-hit basic combo. All
+    /// timings come from <see cref="FTT.Combat.BasicComboRules"/> — one shared
+    /// rulebook with Story. The phase machine advances in
+    /// <see cref="FighterMovementSystem"/> so movement locks and cancels resolve
+    /// in the same tick they gate; <see cref="FighterCombatSystem"/> applies the
+    /// hit during active frames.
+    /// </summary>
+    internal static class FighterBasicAttackRules {
+        public const int PhaseNone = 0;
+        public const int PhaseStartup = 1;
+        public const int PhaseActive = 2;
+        public const int PhaseRecovery = 3;
+        public const int PhaseChainHold = 4;
+
+        public const int FlagAerial = 1;
+        public const int FlagHitResolved = 2;
+        public const int FlagBuffered = 4;
+
+        private const int BlockButton = 1 << 6;
+
+        public static bool IsSwinging(in FighterRuntimeComponent runtime) =>
+            runtime.AttackPhase is PhaseStartup or PhaseActive or PhaseRecovery;
+
+        /// <summary>
+        /// The grounded block stance, mirroring Story's Blocking state: grounded,
+        /// free of hitstun/daze, not mid dash/roll, not mid swing, holding Block.
+        /// The movement lock, the attack/ability gates, and the shield-absorb
+        /// rule in FighterDamageRules all key off this one predicate.
+        /// </summary>
+        public static bool IsBlockStance(
+            in FighterStateComponent fighter,
+            in FighterRuntimeComponent runtime) =>
+            fighter.IsGrounded != 0
+            && fighter.Stocks > 0
+            && fighter.HitstunFrames <= 0
+            && fighter.DazeFrames <= 0
+            && fighter.RespawnFramesRemaining <= 0
+            && runtime.UniversalMovementState == (int)UniversalMovementPhase.None
+            && runtime.AttackPhase == PhaseNone
+            && (runtime.HeldButtons & BlockButton) != 0;
+
+        public static void CancelString(ref FighterRuntimeComponent runtime) {
+            runtime.AttackPhase = PhaseNone;
+            runtime.AttackPhaseFrames = 0;
+            runtime.AttackFlags = 0;
+            runtime.ComboIndex = 0;
+        }
+
+        public static void StartSwing(
+            ref FighterStateComponent fighter,
+            ref FighterRuntimeComponent runtime,
+            int comboStep) {
+            bool aerial = fighter.IsGrounded == 0;
+            runtime.ComboIndex = comboStep;
+            runtime.AttackPhase = PhaseStartup;
+            runtime.AttackFlags = aerial ? FlagAerial : 0;
+            runtime.AttackPhaseFrames = aerial
+                ? FTT.Combat.BasicComboRules.AerialStartupFrames[comboStep]
+                : FTT.Combat.BasicComboRules.GroundStartupFrames[comboStep];
+            // Starting a swing ends a post-commit dash, exactly as in Story.
+            FighterUniversalMovementRules.Cancel(ref runtime);
+            // Legacy "busy" mirror for observers (HUD, CPU pacing): the remaining
+            // swing length. No gameplay system reads it any more.
+            runtime.BasicCooldownFrames = aerial
+                ? FTT.Combat.BasicComboRules.AerialStartupFrames[comboStep]
+                    + FTT.Combat.BasicComboRules.AerialActiveFrames[comboStep]
+                    + FTT.Combat.BasicComboRules.AerialRecoveryFrames[comboStep]
+                : FTT.Combat.BasicComboRules.GroundStartupFrames[comboStep]
+                    + FTT.Combat.BasicComboRules.GroundActiveFrames[comboStep]
+                    + FTT.Combat.BasicComboRules.GroundRecoveryFrames[comboStep];
         }
     }
 
@@ -679,6 +880,7 @@ namespace FTT.FighterSim {
         // shatter. The multi-hit damage total is baked by FighterLoadoutFactory.
         private const int DivinePiercingBlockChargeCost = 2;
         private static readonly FP64 AttackRange = FP64.FromInt(2);
+        private static readonly FP64 AttackVerticalRange = FP64.FromDouble(1.6);
         private static readonly FP64 MaxInfluence = FP64.FromInt(100);
 
         public void Update(ref Frame frame) {
@@ -710,6 +912,57 @@ namespace FTT.FighterSim {
             AttackIntent secondIntent = BuildIntent(in fighterTwo, in runtimeTwo, in tuningTwo, in fighterOne);
             ApplyIntent(ref fighterOne, ref runtimeOne, ref fighterTwo, ref runtimeTwo, in tuningTwo, in firstIntent);
             ApplyIntent(ref fighterTwo, ref runtimeTwo, ref fighterOne, ref runtimeOne, in tuningOne, in secondIntent);
+            ApplyBasicSwing(ref fighterOne, ref runtimeOne, in tuningOne, ref fighterTwo, ref runtimeTwo, in tuningTwo);
+            ApplyBasicSwing(ref fighterTwo, ref runtimeTwo, in tuningTwo, ref fighterOne, ref runtimeOne, in tuningOne);
+        }
+
+        /// <summary>
+        /// Applies the basic string's hit during its active window. One attempt
+        /// per swing — Story's hitbox also connects at most once per activation —
+        /// whether it lands, is blocked, or meets invulnerability.
+        /// </summary>
+        private static void ApplyBasicSwing(
+            ref FighterStateComponent attacker,
+            ref FighterRuntimeComponent attackerRuntime,
+            in FighterTuningComponent attackerTuning,
+            ref FighterStateComponent target,
+            ref FighterRuntimeComponent targetRuntime,
+            in FighterTuningComponent targetTuning) {
+            if (attackerRuntime.AttackPhase != FighterBasicAttackRules.PhaseActive) return;
+            if ((attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagHitResolved) != 0) return;
+            if (attacker.Stocks <= 0) return;
+            if (FP64.Abs(target.Position.x - attacker.Position.x) > AttackRange) return;
+            if (FP64.Abs(target.Position.y - attacker.Position.y) > AttackVerticalRange) return;
+
+            int step = attackerRuntime.ComboIndex < 0 ? 0 : attackerRuntime.ComboIndex > 2 ? 2 : attackerRuntime.ComboIndex;
+            int damage = step == 0
+                ? attackerTuning.BasicDamage * 8 / 10
+                : step == 1
+                    ? attackerTuning.BasicDamage
+                    : attackerTuning.BasicDamage * 15 / 10;
+            // Story's authored knockback pattern: 1.0x / 1.2x / 2.0x.
+            FP64 knockback = step == 2
+                ? attackerTuning.BasicKnockback * FP64.FromInt(2)
+                : step == 1
+                    ? attackerTuning.BasicKnockback * FP64.FromInt(12) / FP64.FromInt(10)
+                    : attackerTuning.BasicKnockback;
+            attackerRuntime.AttackFlags |= FighterBasicAttackRules.FlagHitResolved;
+            FighterDamageRules.ApplyFighterHit(
+                ref attacker,
+                ref attackerRuntime,
+                ref target,
+                ref targetRuntime,
+                in targetTuning,
+                FighterDamageRules.BasicAttackClass,
+                damage,
+                knockback,
+                FTT.Combat.BasicComboRules.HitstunFrames[step],
+                (int)FTT.Core.StatusType.None,
+                0,
+                FP64.One,
+                attacker.Position.x,
+                true,
+                0);
         }
 
         private static void TryCharacterUltimate(
@@ -729,6 +982,8 @@ namespace FTT.FighterSim {
             if (FighterUltimateRules.TryExecute(
                     ref frame, attackerEntity, targetEntity, ref attacker, ref attackerRuntime, in tuning)) {
                 FighterUniversalMovementRules.Cancel(ref attackerRuntime);
+                // The ultimate cancels an in-progress basic and resets the chain.
+                FighterBasicAttackRules.CancelString(ref attackerRuntime);
                 attacker.Influence = FP64.Zero;
             }
         }
@@ -742,6 +997,9 @@ namespace FTT.FighterSim {
                 || attacker.DazeFrames > 0
                 || attacker.Stocks <= 0
                 || FighterUniversalMovementRules.IsCombatLocked(in attackerRuntime)) return default;
+            // The block stance ignores attack inputs, exactly as Story's Blocking
+            // state does.
+            if (FighterBasicAttackRules.IsBlockStance(in attacker, in attackerRuntime)) return default;
             if (FP64.Abs(target.Position.x - attacker.Position.x) > AttackRange) return default;
 
             if ((attackerRuntime.PressedButtons & UltimateButton) != 0 && attacker.Influence >= MaxInfluence) {
@@ -779,17 +1037,9 @@ namespace FTT.FighterSim {
                         ? DivinePiercingBlockChargeCost
                         : 0);
             }
-            if ((attackerRuntime.PressedButtons & BasicButton) != 0 && attackerRuntime.BasicCooldownFrames <= 0) {
-                int damage = attackerRuntime.ComboIndex == 0
-                    ? tuning.BasicDamage * 8 / 10
-                    : attackerRuntime.ComboIndex == 1
-                        ? tuning.BasicDamage
-                        : tuning.BasicDamage * 15 / 10;
-                FP64 knockback = attackerRuntime.ComboIndex == 2
-                    ? tuning.BasicKnockback * FP64.FromInt(2)
-                    : tuning.BasicKnockback;
-                return new AttackIntent(1, damage, knockback, attackerRuntime.ComboIndex == 2 ? 18 : 10);
-            }
+            // Basic attacks no longer resolve here: the phase machine in
+            // FighterMovementSystem starts and times the swing, and
+            // ApplyBasicSwing lands the hit during its active window.
             return default;
         }
 
@@ -803,11 +1053,11 @@ namespace FTT.FighterSim {
             if (intent.Kind == 0) return;
 
             FighterUniversalMovementRules.Cancel(ref attackerRuntime);
+            // A special or the ultimate cancels an in-progress basic at any point
+            // and resets the chain (design 1051) — the same rule Story applies.
+            FighterBasicAttackRules.CancelString(ref attackerRuntime);
 
-            if (intent.Kind == 1) {
-                attackerRuntime.BasicCooldownFrames = 18;
-                attackerRuntime.ComboIndex = (attackerRuntime.ComboIndex + 1) % 3;
-            } else if (intent.Kind == 2) {
+            if (intent.Kind == 2) {
                 attackerRuntime.SpecialOneCooldownFrames = intent.CooldownFrames > 1 ? intent.CooldownFrames : 1;
             } else if (intent.Kind == 4) {
                 attackerRuntime.SpecialTwoCooldownFrames = intent.CooldownFrames > 1 ? intent.CooldownFrames : 1;
@@ -971,6 +1221,9 @@ namespace FTT.FighterSim {
             runtime.StatusTickFrames = 0;
             runtime.StatusIntensity = FP64.One;
             FighterUniversalMovementRules.Cancel(ref runtime);
+            // Stock loss ends any swing and resets the chain and shield regen.
+            FighterBasicAttackRules.CancelString(ref runtime);
+            runtime.BlockRegenFrames = 0;
         }
     }
 }
