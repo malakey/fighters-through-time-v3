@@ -853,11 +853,12 @@ namespace FTT.Characters {
 				return;
 			}
 			if (IsOnFloor()) {
-				float maxSpeed = EffectiveMoveSpeed * StatusMovementMultiplier * 60f;
-				float step = maxSpeed / GroundRampFrames * dt * 60f;
-				var vel = Velocity;
-				vel.X = Mathf.MoveToward(vel.X, 0, step);
-				Velocity = vel;
+				// Swings never stop the attacker: full horizontal steering at
+				// the normal run ramp through startup/active/recovery/hold
+				// (mirrors the Fighter sim's unlocked swing movement). Facing
+				// stays committed — no UpdateFacing in the attack states — so
+				// the hitbox direction cannot flip mid-swing.
+				ApplyHorizontalMovement(GetHorizontalInput(), dt);
 			} else {
 				ApplyAirControl(dt);
 			}
@@ -886,10 +887,10 @@ namespace FTT.Characters {
 				_nextAttackBuffered = true;
 			}
 
-			// Design 752/3080 — during recovery frames, movement, jumping,
-			// dashing, rolling, or blocking cancels the swing and resets the
-			// chain. Startup/active frames stay committed so a held approach
-			// direction cannot self-cancel a fresh swing.
+			// Design 752/3080 — during recovery frames, jumping, dashing,
+			// rolling, or blocking cancels the swing and resets the chain.
+			// Held movement steers the attacker but never cancels: the
+			// authored string pace is the only pace.
 			if (_attackInRecovery && TryRecoveryCancel()) return;
 
 			if (_attackAnimationDriven) return;
@@ -936,9 +937,10 @@ namespace FTT.Characters {
 				return;
 			}
 
-			// Same cancel set as the recovery frames: movement, jump, dash, roll,
-			// or block ends the chain window (specials are handled upstream in
-			// ProcessAttacking before the hold dispatch).
+			// Same cancel set as the recovery frames: jump, dash, roll, or
+			// block ends the chain window (specials are handled upstream in
+			// ProcessAttacking before the hold dispatch). Held movement walks
+			// the hold window without ending it.
 			if (TryRecoveryCancel()) {
 				_inRecoveryHold = false;
 				return;
@@ -953,22 +955,16 @@ namespace FTT.Characters {
 
 		/// <summary>
 		/// Design 752/3080: during a basic's recovery frames or the chain-hold
-		/// window, movement, jumping, dashing, rolling, or blocking cancels the
-		/// swing and resets the chain. The Fighter sim applies the identical
-		/// rule in its phase machine.
+		/// window, jumping, dashing, rolling, or blocking cancels the swing and
+		/// resets the chain. Held horizontal movement deliberately does not —
+		/// it steers the attacker while the string keeps its authored pace
+		/// (movement-cancel let a moving attacker restart hit one early). The
+		/// Fighter sim applies the identical rule in its phase machine.
 		/// </summary>
 		private bool TryRecoveryCancel() {
 			if (CheckJumpInput() || CheckRollInput() || CheckDashInput() || CheckBlockInput()) {
 				CancelActiveAttack();
 				ResetComboChain();
-				return true;
-			}
-			float hAxis = GetHorizontalInput();
-			if (IsOnFloor() && Mathf.Abs(hAxis) > 0.1f) {
-				CancelActiveAttack();
-				ResetComboChain();
-				UpdateFacing(hAxis);
-				TransitionTo(CharacterState.Running);
 				return true;
 			}
 			return false;
@@ -1545,15 +1541,18 @@ namespace FTT.Characters {
 					: FTT.Combat.AttackClass.Basic;
 
 				float baseKB = Data?.BasicAttackKnockback ?? 3f;
-				// Hitstun comes from the shared rulebook (9/12/18 frames), the
-				// same values the Fighter sim applies.
+				// Hitstun and the horizontal knockback multiplier both come from
+				// the shared rulebook, the same tables the Fighter sim applies.
+				// The stun holds the victim through the chain gap to the next
+				// hit; the 3x finisher launches them away.
 				_meleeHitbox.HitstunDuration = FTT.Combat.BasicComboRules.HitstunFrames[comboIdx] / 60f;
+				float kbMultiplier = FTT.Combat.BasicComboRules.KnockbackMultipliers[comboIdx];
 				if (comboIdx == 2) {
-					_meleeHitbox.KnockbackForce = new Vector2(baseKB * 2f, -4f);
+					_meleeHitbox.KnockbackForce = new Vector2(baseKB * kbMultiplier, -6f);
 				} else if (comboIdx == 1) {
-					_meleeHitbox.KnockbackForce = new Vector2(baseKB * 1.2f, -1.5f);
+					_meleeHitbox.KnockbackForce = new Vector2(baseKB * kbMultiplier, -1.5f);
 				} else {
-					_meleeHitbox.KnockbackForce = new Vector2(baseKB, -1f);
+					_meleeHitbox.KnockbackForce = new Vector2(baseKB * kbMultiplier, -1f);
 				}
 			}
 

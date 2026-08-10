@@ -215,13 +215,17 @@ public class EinsteinUltimateTests {
 
     /// <summary>
     /// One basic hit (125 x 0.8 = 100 damage) fills the Influence meter, then
-    /// 20 idle frames let the fill hit's hitstun decay so later assertions see
-    /// only the ultimate's effects. Returns the next input tick.
+    /// idle frames sized from the shared tables (opener startup plus its
+    /// hitstun, with a small pad) let the fill hit's hitstun decay so later
+    /// assertions see only the ultimate's effects. Returns the next input tick.
     /// </summary>
     private static int FillMeterAndSettle(FighterSimulation simulation) {
         int tick = 0;
         simulation.Advance(Frame(tick++, 0, GameplayButtons.BasicAttack), Frame(0, 0, GameplayButtons.None));
-        for (int i = 0; i < 20; i++) {
+        int settleFrames = FTT.Combat.BasicComboRules.GroundStartupFrames[0]
+            + FTT.Combat.BasicComboRules.HitstunFrames[0]
+            + 4;
+        for (int i = 0; i < settleFrames; i++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             tick++;
         }
