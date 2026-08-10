@@ -17,6 +17,17 @@ namespace FTT.Core {
         public float Duration;
     }
 
+    /// <summary>
+    /// M-27: raised by <see cref="FTT.Combat.BlockSystem"/> whenever a player's
+    /// shield-charge count (or capacity) changes, so the Story HUD's pips track
+    /// blocks, guard breaks, and interval regen without polling the player.
+    /// </summary>
+    public struct BlockChargesPayload {
+        public int PlayerIndex;
+        public int CurrentCharges;
+        public int MaxCharges;
+    }
+
     public enum AbilitySlot {
         Special1,
         Special2,
@@ -249,6 +260,9 @@ namespace FTT.Core {
 
         public event Action<int> OnBlockBroken;
         public void RaiseBlockBroken(int playerIndex) => OnBlockBroken?.Invoke(playerIndex);
+
+        public event Action<BlockChargesPayload> OnBlockChargesChanged;
+        public void RaiseBlockChargesChanged(BlockChargesPayload payload) => OnBlockChargesChanged?.Invoke(payload);
 
         // === Ability & Cooldown Events ===
         public event Action<CooldownPayload> OnCooldownStarted;

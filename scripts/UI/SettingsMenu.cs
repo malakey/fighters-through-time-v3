@@ -62,6 +62,7 @@ namespace FTT.UI {
         private InputBindingSet _workingBindings = new();
         private string _listeningAction = "";
         private InputDeviceKind _listeningDeviceKind = InputDeviceKind.Keyboard;
+        private List<Control> _focusChain = new();
 
         private static readonly string[] TabTitleKeys = {
             "settings_tab_audio", "settings_tab_display", "settings_tab_gameplay", "settings_tab_controls"
@@ -82,6 +83,9 @@ namespace FTT.UI {
 
         /// <summary>The tab strip, for contract tests.</summary>
         internal TabContainer Tabs => _tabs;
+
+        /// <summary>The focus chain built for the currently visible controls. Test seam.</summary>
+        internal IReadOnlyList<Control> FocusChain => _focusChain;
 
         public override void _Ready() {
             Layer = 100;
@@ -207,6 +211,25 @@ namespace FTT.UI {
 
             _root.GetNode<Button>("Margin/Panel/Body/Footer/BackButton").Pressed += Close;
             _tabs.GetNode<Button>("Controls/ResetAllButton").Pressed += OnResetAllBindings;
+
+            // H-10: the chain is a property of the visible controls, so switching
+            // tabs swaps the whole middle of it and it must be rebuilt.
+            _tabs.TabChanged += _ => {
+                if (Visible) RebuildFocusChain();
+            };
+        }
+
+        /// <summary>
+        /// H-10 (audit 2026-08-08). Authors focus for whatever is visible right now
+        /// and takes initial focus. Before this existed the Settings overlay had no
+        /// focus authoring at all: a controller or keyboard player could not reach a
+        /// single control, and navigation input kept driving the opener's chain
+        /// underneath the overlay. Grabbing focus into this chain is also what stops
+        /// the surface beneath from acting on the same presses.
+        /// </summary>
+        private void RebuildFocusChain() {
+            if (_root == null) return;
+            _focusChain = FocusChainBuilder.Apply(_root);
         }
 
         // ------------------------------------------------------------------
@@ -417,6 +440,7 @@ namespace FTT.UI {
             LoadSettings();
             BuildControlsTab();
             Visible = true;
+            RebuildFocusChain();
         }
 
         public override void _UnhandledInput(InputEvent @event) {

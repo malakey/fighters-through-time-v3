@@ -31,18 +31,6 @@ namespace FTT.UI {
             "tesla", "shakespeare", "mozart", "pocahontas"
         };
 
-        private readonly Color[] _characterColors = {
-            new(0.2f, 0.5f, 0.9f),
-            new(0.85f, 0.75f, 0.2f),
-            new(0.3f, 0.7f, 0.3f),
-            new(0.15f, 0.15f, 0.35f),
-            new(0.6f, 0.2f, 0.8f),
-            new(0.1f, 0.8f, 0.9f),
-            new(0.7f, 0.15f, 0.2f),
-            new(0.9f, 0.85f, 0.8f),
-            new(0.55f, 0.35f, 0.2f),
-        };
-
         private Button[] _characterButtons;
         private Label _statsLabel;
         private Label _selectedNameLabel;
@@ -147,7 +135,9 @@ namespace FTT.UI {
         /// stylebox, which is never overridden here.
         /// </summary>
         private void StyleTile(int index, bool selected) {
-            Color color = _characterColors[index];
+            // The canonical nine-colour identity table lives in CharacterFactory;
+            // a duplicated copy here was audit Low "select-screen colour dedupe".
+            Color color = CharacterFactory.GetCharacterColor(_characterIDs[index]);
             var style = new StyleBoxFlat {
                 BgColor = color,
                 BorderColor = selected ? UIPalette.Cyan : new Color(0.2f, 0.2f, 0.25f),

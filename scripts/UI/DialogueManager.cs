@@ -294,9 +294,35 @@ namespace FTT.UI {
             _textLabel.VisibleCharacters = Reveal.IsComplete ? -1 : 0;
             _autoAdvanceTimer = _currentSequence.AutoAdvanceDelay;
             if (_continueHint != null) {
-                _continueHint.Text = Tr("dialogue_continue");
+                _continueHint.Text = BuildContinueHint();
                 _continueHint.Visible = Reveal.IsComplete;
             }
+        }
+
+        /// <summary>
+        /// Audit Low (UI): the hint used to be the hardcoded copy "Press [E] to
+        /// continue" — wrong after a remap and for controller players. The key is
+        /// now parameterized (<c>dialogue_continue,Press {0} to continue</c>, the
+        /// save-notice key+args idiom) and the argument is the *actual* bound
+        /// Interact event for the active device, read live from the InputMap via
+        /// <see cref="FTT.Core.InputBindingService"/>. Rebuilt on every line show,
+        /// so a mid-scene rebind or device change is picked up at the next line.
+        /// </summary>
+        private string BuildContinueHint() {
+            List<FTT.Core.InputBindingEvent> events =
+                FTT.Core.InputBindingService.CaptureAction(FTT.Core.InputManager.Actions.Interact);
+            bool joypad = FTT.Core.InputManager.Instance?.IsJoypadConnected(0) == true;
+            FTT.Core.InputDeviceKind preferred = joypad
+                ? FTT.Core.InputDeviceKind.Joypad
+                : FTT.Core.InputDeviceKind.Keyboard;
+
+            FTT.Core.InputBindingEvent match = null;
+            foreach (FTT.Core.InputBindingEvent candidate in events) {
+                if (candidate.DeviceKind == preferred) { match = candidate; break; }
+            }
+            if (match == null && events.Count > 0) match = events[0];
+
+            return string.Format(Tr("dialogue_continue"), FTT.Core.InputBindingService.Describe(match));
         }
 
         /// <summary>Paints the portrait frame and tint for an emotion, and keeps the localized name as its tooltip.</summary>

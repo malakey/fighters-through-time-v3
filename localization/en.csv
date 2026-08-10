@@ -31,7 +31,7 @@ settings_screen_shake,Screen Shake
 difficulty_easy,Easy
 difficulty_normal,Normal
 difficulty_hard,Hard
-dialogue_continue,Press [E] to continue
+dialogue_continue,Press {0} to continue
 save_new_game,New Game
 save_load_game,Load Game
 save_delete,Delete Save
@@ -1077,3 +1077,5 @@ results_rewinds_used,Chronal Rewinds used: {0}
 timeline_restart_level_confirm,Restarting from the beginning discards the Timeline Anchor you reached. Continue?
 # Package 8 B4
 fighter_cpu_difficulty,CPU Difficulty
+# Audit fixes 2026-08-10 (M-30)
+menu_quit_confirm,Are you sure you want to quit?

@@ -68,6 +68,14 @@ namespace FTT.UI {
                 else if (control is SpinBox spinBox && spinBox.Editable && !spinBox.IsInGroup(SkipGroup)) {
                     LineEdit editor = spinBox.GetLineEdit();
                     if (editor != null) found.Add(editor);
+                } else if (control is TabContainer tabContainer && !tabContainer.IsInGroup(SkipGroup)) {
+                    // A TabContainer keeps its TabBar as an *internal* child, so the
+                    // GetChild walk never sees it and a controller player could open
+                    // a tabbed surface (H-10: Settings) but never switch tabs. Splice
+                    // the bar in at the container's own position; the visible tab's
+                    // content follows from the ordinary child walk below.
+                    TabBar tabBar = tabContainer.GetTabBar();
+                    if (tabBar != null) found.Add(tabBar);
                 }
             }
 

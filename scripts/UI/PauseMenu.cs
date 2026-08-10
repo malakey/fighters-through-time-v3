@@ -160,6 +160,9 @@ namespace FTT.UI {
             if (_settingsMenu == null || !IsInstanceValid(_settingsMenu)) {
                 _settingsMenu = new SettingsMenu { Name = "SettingsMenu" };
                 AddChild(_settingsMenu);
+                // H-10: Settings holds focus while open; hand it back to this
+                // menu's chain on close (mirrors MainMenu's restore).
+                _settingsMenu.Closed += RestoreMenuFocus;
             }
             _settingsMenu.Show();
         }

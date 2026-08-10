@@ -1,4 +1,5 @@
 using Godot;
+using FTT.Core;
 
 namespace FTT.UI {
 
@@ -20,6 +21,9 @@ namespace FTT.UI {
         };
 
         private Control _root;
+        private TextureRect _portrait;
+        private HBoxContainer _blockPipRow;
+        private ColorRect[] _blockPips = System.Array.Empty<ColorRect>();
         private Label _levelTitleLabel;
         private Label _objectiveLabel;
         private ProgressBar _hpBar;
@@ -52,6 +56,23 @@ namespace FTT.UI {
         /// <summary>The boss bar's phase-notch overlay, or null before it resolves.</summary>
         public BossPhaseNotchOverlay BossNotches => _bossNotches;
 
+        /// <summary>Total authored shield pips (base capacity plus Resonance bonus). Test seam.</summary>
+        public int BlockPipCapacity => _blockPips.Length;
+
+        /// <summary>How many shield pips currently render lit. Test seam.</summary>
+        public int LitBlockPips {
+            get {
+                int lit = 0;
+                foreach (ColorRect pip in _blockPips) {
+                    if (pip.Modulate.A >= 1f) lit++;
+                }
+                return lit;
+            }
+        }
+
+        /// <summary>The portrait widget, or null before the scene resolves. Test seam.</summary>
+        public TextureRect Portrait => _portrait;
+
         /// <summary>
         /// Instantiates the authored StoryHUD scene. The scene is a committed,
         /// tested asset (Package 8 B1 removed the duplicated code-built fallback
@@ -82,7 +103,9 @@ namespace FTT.UI {
                 bus.OnStatusEffectApplied += OnStatusEffectApplied;
                 bus.OnStatusEffectCleared += OnStatusEffectCleared;
                 bus.OnBossPhaseChanged += OnBossPhaseChanged;
+                bus.OnBlockChargesChanged += OnBlockChargesChanged;
             }
+            InitializeCharacterPresentation();
             RefreshCounters(force: true);
             RefreshIndicators();
             _opacity.Apply(_root, force: true);
@@ -99,6 +122,7 @@ namespace FTT.UI {
                 bus.OnStatusEffectApplied -= OnStatusEffectApplied;
                 bus.OnStatusEffectCleared -= OnStatusEffectCleared;
                 bus.OnBossPhaseChanged -= OnBossPhaseChanged;
+                bus.OnBlockChargesChanged -= OnBlockChargesChanged;
             }
         }
 
@@ -196,6 +220,15 @@ namespace FTT.UI {
 
         private void OnBossPhaseChanged(int phaseIndex) => _bossNotches?.NotifyPhaseChanged(phaseIndex);
 
+        private void OnBlockChargesChanged(FTT.Core.BlockChargesPayload payload) {
+            if (payload.PlayerIndex != 0) return;
+            // The published max is BlockSystem.MaxCharges, which CharacterFactory
+            // sets from PlayerController.MaximumBlockCharges — base capacity plus
+            // the Story-only Resonance bonus. Capacity changes rebuild the row.
+            if (payload.MaxCharges != _blockPips.Length) RebuildBlockPips(payload.MaxCharges);
+            SetBlockPips(payload.CurrentCharges);
+        }
+
         private void OnCheckpointReached(string checkpointID) {
             if (_checkpointToast == null) return;
             _checkpointToast.Text = Tr("hud_checkpoint_reached");
@@ -261,12 +294,89 @@ namespace FTT.UI {
                 "font_color", FTT.Combat.GlowPalette.Status(status).OutlineColor);
         }
 
+        // === Portrait and block-charge pips (M-27) ===
+
+        /// <summary>Design's 20x20 px shield icons; a ColorRect stands in for art.</summary>
+        private const int BlockPipSize = 20;
+
+        /// <summary>
+        /// M-27 (audit 2026-08-08; design :2607/:2611/:2721). Resolves the locked
+        /// campaign character's portrait and initial shield-charge capacity. The
+        /// portrait comes straight from the authored <c>CharacterData</c> — the same
+        /// resource the Fighter HUD consumes — and the capacity is
+        /// <c>MaxBlockCharges</c> plus the Story-only Resonance bonus, resolved
+        /// through the canonical <see cref="FTT.Environment.ResonanceProgression"/>
+        /// rather than a second table. The live count then tracks
+        /// <see cref="FTT.Core.EventBus.OnBlockChargesChanged"/>; this initial pass
+        /// only covers the window before the player (and its BlockSystem) exists.
+        /// </summary>
+        private void InitializeCharacterPresentation() {
+            string characterID = FTT.Core.GameManager.Instance?.CurrentSession.SelectedCharacterID;
+            if (string.IsNullOrWhiteSpace(characterID)) return;
+            string path = $"res://resources/Characters/{characterID}_data.tres";
+            if (!ResourceLoader.Exists(path)) return;
+            var data = FTT.Core.AuthoredResources.Load<FTT.Characters.CharacterData>(path);
+            if (data == null) return;
+
+            if (_portrait != null) {
+                _portrait.Texture = data.CharacterPortrait;
+                _portrait.Visible = data.CharacterPortrait != null;
+            }
+
+            int capacity = data.MaxBlockCharges;
+            if (FTT.Environment.ResonanceProgression.TryResolveActive(
+                    characterID, out FTT.Environment.StoryStatProfile storyStats)) {
+                capacity += storyStats.BlockChargeBonus;
+            }
+            RebuildBlockPips(capacity);
+            SetBlockPips(capacity);
+        }
+
+        /// <summary>
+        /// Pip count is data-driven (base capacity plus Resonance), so the pips are
+        /// code-built inside the authored row — the same deliberate pattern as the
+        /// Fighter HUD's stock/shield pips.
+        /// </summary>
+        private void RebuildBlockPips(int capacity) {
+            if (_blockPipRow == null) return;
+            Godot.Collections.Array<Node> children = _blockPipRow.GetChildren();
+            using (children.AsDisposable()) {
+                foreach (Node child in children) {
+                    _blockPipRow.RemoveChild(child);
+                    child.Free();
+                }
+            }
+            int count = Mathf.Max(1, capacity);
+            var pips = new ColorRect[count];
+            for (int index = 0; index < count; index++) {
+                var pip = new ColorRect {
+                    Name = $"Pip{index}",
+                    Color = UIPalette.Cyan,
+                    CustomMinimumSize = new Vector2(BlockPipSize, BlockPipSize),
+                    MouseFilter = Control.MouseFilterEnum.Ignore
+                };
+                _blockPipRow.AddChild(pip);
+                pips[index] = pip;
+            }
+            _blockPips = pips;
+        }
+
+        /// <summary>A spent pip dims rather than disappearing, so capacity stays readable.</summary>
+        private void SetBlockPips(int filled) {
+            int lit = Mathf.Clamp(filled, 0, _blockPips.Length);
+            for (int index = 0; index < _blockPips.Length; index++) {
+                _blockPips[index].Modulate = new Color(1f, 1f, 1f, index < lit ? 1f : 0.18f);
+            }
+        }
+
         // === UI resolution ===
 
         private void ResolveUI() {
             _root = GetNodeOrNull<Control>("Root");
             if (_root == null) return;
             UIPalette.ApplyTheme(_root);
+            _portrait = GetNodeOrNull<TextureRect>("Root/Portrait");
+            _blockPipRow = GetNodeOrNull<HBoxContainer>("Root/Vitals/BlockCharges");
             _levelTitleLabel = GetNodeOrNull<Label>("Root/TopLeft/LevelTitle");
             _objectiveLabel = GetNodeOrNull<Label>("Root/TopLeft/Objective");
             _hpBar = GetNodeOrNull<ProgressBar>("Root/Vitals/HPBar");

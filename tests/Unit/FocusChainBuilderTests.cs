@@ -149,6 +149,39 @@ public class FocusChainBuilderTests {
     }
 
     [TestCase]
+    public void ATabContainersInternalTabBarIsSplicedIntoTheChain() {
+        // H-10: a TabContainer keeps its TabBar as an internal child, invisible to
+        // the GetChild walk — without the splice a controller player could open a
+        // tabbed surface (Settings) but never switch tabs.
+        var root = new VBoxContainer { Name = "TabSpliceHost" };
+        AddToTree(root);
+        try {
+            var tabs = new TabContainer { Name = "Tabs" };
+            root.AddChild(tabs);
+            var pageOne = new VBoxContainer { Name = "PageOne" };
+            tabs.AddChild(pageOne);
+            Button inside = AddButton(pageOne, "Inside");
+            var pageTwo = new VBoxContainer { Name = "PageTwo" };
+            tabs.AddChild(pageTwo);
+            AddButton(pageTwo, "HiddenPageButton");
+            tabs.CurrentTab = 0;
+
+            List<Control> chain = FocusChainBuilder.Collect(root);
+
+            AssertThat(chain.Count).IsEqual(2);
+            AssertThat(chain[0] is TabBar).IsTrue();
+            AssertThat(chain.Contains(inside)).IsTrue();
+
+            // A skipped TabContainer keeps its bar out of the chain like any control.
+            tabs.AddToGroup(FocusChainBuilder.SkipGroup);
+            AssertThat(FocusChainBuilder.Collect(root).Count).IsEqual(1);
+        } finally {
+            root.GetParent()?.RemoveChild(root);
+            root.Free();
+        }
+    }
+
+    [TestCase]
     public void GrabbingInitialFocusReportsFailureWhenNothingIsEligible() {
         var root = AutoFree(new VBoxContainer());
 
