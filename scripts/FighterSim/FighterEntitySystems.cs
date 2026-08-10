@@ -83,7 +83,7 @@ namespace FTT.FighterSim {
             bool carriesImpulse = knockback > FP64.Zero || hitstunFrames > 0;
             // The absorb requires the real grounded stance (mirrors Story's
             // Blocking state): no blocking while airborne, mid-swing, mid
-            // dash/roll, or inside hitstun/daze.
+            // roll, or inside hitstun/daze.
             bool targetBlocking = carriesImpulse
                 && FighterBasicAttackRules.IsBlockStance(in target, in targetRuntime);
             bool hitInFront = target.FacingRight != 0

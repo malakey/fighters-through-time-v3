@@ -54,7 +54,7 @@ namespace FTT.Combat {
         /// <summary>
         /// Post-recovery chain window (and the mid-swing input buffer length).
         /// Design 3080: the next basic pressed inside this window continues the
-        /// string; jumping, dashing, rolling, or blocking inside the recovery
+        /// string; jumping, rolling, or blocking inside the recovery
         /// or this window cancels the swing and resets the chain. Held
         /// horizontal movement steers the attacker but never cancels — letting
         /// it cancel allowed a moving attacker to restart hit one faster than

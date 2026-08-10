@@ -166,7 +166,6 @@ namespace FTT.UI {
             "Dazed" => "fighter_state_dazed",
             "Stunned" => "fighter_state_stunned",
             "Blocking" => "fighter_state_blocking",
-            "Dashing" => "fighter_state_dashing",
             "Rolling" => "fighter_state_rolling",
             "Grounded" => "fighter_state_grounded",
             "Airborne" => "fighter_state_airborne",

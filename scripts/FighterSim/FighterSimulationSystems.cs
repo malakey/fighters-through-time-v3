@@ -206,10 +206,8 @@ namespace FTT.FighterSim {
         private const int BasicButton = 1 << 2;
         private const int BlockButton = 1 << 6;
         private const int RollButton = 1 << 10;
-        private const int DashButton = 1 << 11;
         private static readonly FP64 FixedDelta = FP64.One / FP64.FromInt(60);
         private static readonly FP64 Gravity = FP64.FromInt(-30);
-        private static readonly FP64 DashSpeedMultiplier = FP64.FromDouble(UniversalMovementRules.DashSpeedMultiplier);
         private static readonly FP64 RollSpeedMultiplier = FP64.FromDouble(UniversalMovementRules.RollSpeedMultiplier);
 
         private readonly FighterStageGeometry _geometry;
@@ -267,8 +265,7 @@ namespace FTT.FighterSim {
                         ref fighter,
                         ref runtime,
                         rooted,
-                        allowRoll: !attacking,
-                        allowDash: !attacking && !blockStance);
+                        allowRoll: !attacking);
                     bool movementHandled = ProcessUniversalMovement(
                         ref fighter,
                         ref runtime,
@@ -419,8 +416,7 @@ namespace FTT.FighterSim {
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
             bool rooted,
-            bool allowRoll = true,
-            bool allowDash = true) {
+            bool allowRoll = true) {
             if (rooted
                 || fighter.IsGrounded == 0
                 || runtime.UniversalMovementState != (int)UniversalMovementPhase.None) return;
@@ -429,11 +425,6 @@ namespace FTT.FighterSim {
                 runtime.UniversalMovementState = (int)UniversalMovementPhase.RollStartup;
                 runtime.UniversalMovementFramesRemaining = UniversalMovementRules.RollStartupFrames;
                 runtime.UniversalMovementDirection = direction;
-            } else if (allowDash && (runtime.PressedButtons & DashButton) != 0) {
-                runtime.UniversalMovementState = (int)UniversalMovementPhase.Dash;
-                runtime.UniversalMovementFramesRemaining = UniversalMovementRules.DashDurationFrames;
-                runtime.UniversalMovementDirection = direction;
-                fighter.FacingRight = direction > 0 ? 1 : 0;
             }
         }
 
@@ -448,19 +439,6 @@ namespace FTT.FighterSim {
             FP64 runStep = tuning.MoveSpeed / FP64.FromInt(UniversalMovementRules.RunAccelerationFrames);
 
             switch (phase) {
-                case UniversalMovementPhase.Dash:
-                    int elapsed = UniversalMovementRules.DashDurationFrames - runtime.UniversalMovementFramesRemaining;
-                    bool canJumpCancel = elapsed >= UniversalMovementRules.DashCommitFrames
-                        && (runtime.PressedButtons & JumpButton) != 0;
-                    if (canJumpCancel) {
-                        FighterUniversalMovementRules.Cancel(ref runtime);
-                        return false;
-                    }
-                    fighter.Velocity.x = direction * tuning.MoveSpeed * speedMultiplier * DashSpeedMultiplier;
-                    runtime.UniversalMovementFramesRemaining--;
-                    if (runtime.UniversalMovementFramesRemaining <= 0) FighterUniversalMovementRules.Cancel(ref runtime);
-                    return true;
-
                 case UniversalMovementPhase.RollStartup:
                     fighter.Velocity.x = MoveToward(fighter.Velocity.x, FP64.Zero, runStep);
                     runtime.UniversalMovementFramesRemaining--;
@@ -589,10 +567,10 @@ namespace FTT.FighterSim {
             }
 
             if (phase is FighterBasicAttackRules.PhaseRecovery or FighterBasicAttackRules.PhaseChainHold) {
-                // Jumping, dashing, rolling, or blocking cancels the recovery
-                // and resets the chain (design 752 / 3080). Held movement does
+                // Jumping, rolling, or blocking cancels the recovery and
+                // resets the chain (design 752 / 3080). Held movement does
                 // not — it steers the swing without touching the string.
-                bool cancels = (runtime.PressedButtons & (JumpButton | DashButton | RollButton)) != 0
+                bool cancels = (runtime.PressedButtons & (JumpButton | RollButton)) != 0
                     || (runtime.HeldButtons & BlockButton) != 0;
                 if (cancels) {
                     FighterBasicAttackRules.CancelString(ref runtime);
@@ -701,12 +679,9 @@ namespace FTT.FighterSim {
     internal static class FighterUniversalMovementRules {
         public static bool IsCombatLocked(in FighterRuntimeComponent runtime) {
             UniversalMovementPhase phase = (UniversalMovementPhase)runtime.UniversalMovementState;
-            if (phase is UniversalMovementPhase.RollStartup
+            return phase is UniversalMovementPhase.RollStartup
                 or UniversalMovementPhase.RollTravel
-                or UniversalMovementPhase.RollRecovery) return true;
-            return phase == UniversalMovementPhase.Dash
-                && runtime.UniversalMovementFramesRemaining
-                    >= UniversalMovementRules.DashDurationFrames - UniversalMovementRules.DashCommitFrames;
+                or UniversalMovementPhase.RollRecovery;
         }
 
         public static void Cancel(ref FighterRuntimeComponent runtime) {
@@ -742,7 +717,7 @@ namespace FTT.FighterSim {
 
         /// <summary>
         /// The grounded block stance, mirroring Story's Blocking state: grounded,
-        /// free of hitstun/daze, not mid dash/roll, not mid swing, holding Block.
+        /// free of hitstun/daze, not mid roll, not mid swing, holding Block.
         /// The movement lock, the attack/ability gates, and the shield-absorb
         /// rule in FighterDamageRules all key off this one predicate.
         /// </summary>
@@ -776,7 +751,10 @@ namespace FTT.FighterSim {
             runtime.AttackPhaseFrames = aerial
                 ? FTT.Combat.BasicComboRules.AerialStartupFrames[comboStep]
                 : FTT.Combat.BasicComboRules.GroundStartupFrames[comboStep];
-            // Starting a swing ends a post-commit dash, exactly as in Story.
+            // Defensive: universal movement is provably None at every current call
+            // site (IsCombatLocked gates fresh swings, and no roll can start while
+            // a string is active), so this cancel is a no-op today. It stays so a
+            // future cancel window cannot leave a phase running under a swing.
             FighterUniversalMovementRules.Cancel(ref runtime);
             // Legacy "busy" mirror for observers (HUD, CPU pacing): the remaining
             // swing length. No gameplay system reads it any more.
@@ -792,7 +770,7 @@ namespace FTT.FighterSim {
 
     /// <summary>
     /// Deterministic horizontal jostling. Roll travel explicitly bypasses the
-    /// fighter pushbox; dashes keep it and terminate when body-blocked.
+    /// fighter pushbox.
     /// </summary>
     public sealed class FighterPushboxSystem : ISystem {
         public static readonly FP64 MinimumHorizontalDistance = FP64.FromDouble(0.8);
@@ -840,8 +818,6 @@ namespace FTT.FighterSim {
             bool firstIsLeft = delta > FP64.Zero || (delta == FP64.Zero && first.PlayerID < second.PlayerID);
             ref FighterStateComponent left = ref (firstIsLeft ? ref first : ref second);
             ref FighterStateComponent right = ref (firstIsLeft ? ref second : ref first);
-            ref FighterRuntimeComponent leftRuntime = ref (firstIsLeft ? ref firstRuntime : ref secondRuntime);
-            ref FighterRuntimeComponent rightRuntime = ref (firstIsLeft ? ref secondRuntime : ref firstRuntime);
 
             FP64 half = overlap / FP64.FromInt(2);
             FP64 leftSpace = left.Position.x - LeftWall;
@@ -862,20 +838,10 @@ namespace FTT.FighterSim {
             right.Position.x += rightMove;
             if (left.Velocity.x > FP64.Zero) left.Velocity.x = FP64.Zero;
             if (right.Velocity.x < FP64.Zero) right.Velocity.x = FP64.Zero;
-            StopBlockedDash(ref left, ref leftRuntime);
-            StopBlockedDash(ref right, ref rightRuntime);
         }
 
         private static bool IsRollTravel(in FighterRuntimeComponent runtime) =>
             runtime.UniversalMovementState == (int)UniversalMovementPhase.RollTravel;
-
-        private static void StopBlockedDash(
-            ref FighterStateComponent fighter,
-            ref FighterRuntimeComponent runtime) {
-            if (runtime.UniversalMovementState != (int)UniversalMovementPhase.Dash) return;
-            FighterUniversalMovementRules.Cancel(ref runtime);
-            fighter.Velocity.x = FP64.Zero;
-        }
     }
 
     public sealed class FighterCombatSystem : ISystem {

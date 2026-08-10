@@ -36,7 +36,6 @@ public class FighterCpuBehaviorTests {
         AssertThat(easy.SpecialTwoPercent).IsEqual(0);
         AssertThat(easy.MovementAbilityPercent).IsEqual(0);
         AssertThat(easy.UltimatePercent).IsEqual(0);
-        AssertThat(easy.DashPercent).IsEqual(0);
         AssertThat(easy.ApproachJumpPercent).IsEqual(0);
         AssertThat(easy.OrbPursuitPercent).IsEqual(0);
         AssertThat(easy.HazardAvoidPercent).IsEqual(0);
@@ -264,8 +263,9 @@ public class FighterCpuBehaviorTests {
     // === Ranged kit ===
 
     [TestCase]
-    public void MovementAbilityIsNoLongerStarvedBehindTheDashRoll() {
-        // It used to sit in an else-if chain after Dash and almost never fired.
+    public void MovementAbilityFiresInRangedNeutral() {
+        // Historical: it used to sit behind the (since-removed universal) dash
+        // in an else-if chain and was effectively starved.
         var cpu = new FighterCpuController(CpuDifficulty.Hard, 2718);
         CpuDecisionObservation observation = Neutral(selfX: 0, targetX: 8);
         observation.SpecialOneCooldownFrames = 120;

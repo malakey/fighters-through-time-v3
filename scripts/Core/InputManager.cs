@@ -27,9 +27,8 @@ namespace FTT.Core {
         /// Actions the Controls tab may rebind, in display order (Package 8 A4).
         /// <see cref="Actions.Ultimate"/> is deliberately absent: it is authored as
         /// an LB+RB chord that <see cref="ReadUltimatePressed"/> evaluates as a
-        /// conjunction, which the per-event remap UI cannot express. Dash is absent
-        /// because it is a derived double-tap/flick gesture with no InputMap action
-        /// at all. Both are surfaced read-only instead.
+        /// conjunction, which the per-event remap UI cannot express. It is surfaced
+        /// read-only instead.
         /// </summary>
         public static readonly string[] RemappableActions = {
             Actions.MoveLeft, Actions.MoveRight, Actions.Jump, Actions.Down,
@@ -65,7 +64,6 @@ namespace FTT.Core {
         private readonly Dictionary<int, int> _playerToDevice = new();
         private readonly Dictionary<int, IPlayerInputSource> _overrides = new();
         private readonly Dictionary<int, PlayerInputFrame> _frames = new();
-        private readonly Dictionary<int, DashInputDetector> _dashDetectors = new();
         private readonly List<int> _connectedJoypads = new();
 
         [Export(PropertyHint.Range, "1,2,1")]
@@ -110,7 +108,7 @@ namespace FTT.Core {
                 frame = source.Sample(tick, previous);
             } else {
                 int deviceId = GetDeviceForPlayer(playerIndex);
-                frame = SampleGodotDevice(playerIndex, tick, deviceId, previous.Held);
+                frame = SampleGodotDevice(tick, deviceId, previous.Held);
             }
 
             frame.Tick = tick;
@@ -142,7 +140,6 @@ namespace FTT.Core {
             _deviceToPlayer.Clear();
             _playerToDevice.Clear();
             _frames.Clear();
-            _dashDetectors.Clear();
 
             // Keyboard is a complete first-player device. Connected joypads fill the
             // remaining local slots, enabling keyboard-versus-controller with one pad.
@@ -207,7 +204,6 @@ namespace FTT.Core {
                 _playerToDevice.Remove(playerIndex);
                 _deviceToPlayer.Remove(deviceId);
                 _frames.Remove(playerIndex);
-                _dashDetectors.Remove(playerIndex);
             }
 
             for (int playerIndex = 0; playerIndex < MaxPlayers; playerIndex++) {
@@ -257,11 +253,10 @@ namespace FTT.Core {
             _deviceToPlayer[deviceId] = playerIndex;
             _playerToDevice[playerIndex] = deviceId;
             _frames.Remove(playerIndex);
-            _dashDetectors.Remove(playerIndex);
             DeviceAssigned?.Invoke(playerIndex, deviceId);
         }
 
-        private PlayerInputFrame SampleGodotDevice(int playerIndex, uint tick, int deviceId, GameplayButtons previousHeld) {
+        private static PlayerInputFrame SampleGodotDevice(uint tick, int deviceId, GameplayButtons previousHeld) {
             if (deviceId == UnassignedDevice) return PlayerInputFrame.Create(tick, 0, 0, GameplayButtons.None, previousHeld);
             float horizontal = ReadActionStrength(Actions.MoveRight, deviceId)
                 - ReadActionStrength(Actions.MoveLeft, deviceId);
@@ -281,16 +276,6 @@ namespace FTT.Core {
             AddIfHeld(ref held, GameplayButtons.Ultimate, ReadUltimatePressed(deviceId));
             AddIfHeld(ref held, GameplayButtons.Interact, ReadActionPressed(Actions.Interact, deviceId));
             AddIfHeld(ref held, GameplayButtons.Pause, ReadActionPressed(Actions.Pause, deviceId));
-
-            if (!_dashDetectors.TryGetValue(playerIndex, out DashInputDetector dashDetector)) {
-                dashDetector = new DashInputDetector();
-                _dashDetectors[playerIndex] = dashDetector;
-            }
-            float analogHorizontal = deviceId >= 0 ? Input.GetJoyAxis(deviceId, JoyAxis.LeftX) : 0f;
-            AddIfHeld(
-                ref held,
-                GameplayButtons.Dash,
-                dashDetector.Update(tick, horizontal, analogHorizontal, deviceId >= 0));
 
             return PlayerInputFrame.Create(tick, horizontal, vertical, held, previousHeld);
         }

@@ -10,7 +10,7 @@ namespace FTT.Environment {
     /// Level 0 - Chronal Integration tutorial. Three documented parts: the
     /// fracture presentation, guided calibration (attacks, special, Chronal
     /// Rewind) against a training dummy, and advanced mobility gates (double
-    /// jump, dash, roll) followed by the holographic combat trial.
+    /// jump, roll) followed by the holographic combat trial.
     /// </summary>
     public partial class Level00Controller : Node2D {
         private enum TutorialPhase { Fracture, Calibration, Mobility, CombatTrial, Complete }
@@ -28,10 +28,8 @@ namespace FTT.Environment {
         private int _basicHitsLanded;
 
         private Area2D _doubleJumpGate;
-        private Area2D _dashGate;
         private Area2D _rollGate;
         private bool _doubleJumpGateCleared;
-        private bool _dashGateCleared;
         private bool _rollGateCleared;
 
         private int _enemiesKilled;
@@ -193,10 +191,6 @@ namespace FTT.Environment {
             _doubleJumpGate = BuildGateZone("DoubleJumpGate", new Vector2(1900, 400), new Vector2(160, 140),
                 new Color(0.2f, 0.9f, 0.5f, 0.25f), "tutorial_gate_double_jump");
 
-            // Dash gate: a wide marked corridor the player must cross while dashing.
-            _dashGate = BuildGateZone("DashGate", new Vector2(2500, 830), new Vector2(220, 140),
-                new Color(0.9f, 0.7f, 0.2f, 0.25f), "tutorial_gate_dash");
-
             // Roll gate: a marked strip the player must cross while rolling.
             _rollGate = BuildGateZone("RollGate", new Vector2(3100, 850), new Vector2(200, 110),
                 new Color(0.4f, 0.6f, 1f, 0.25f), "tutorial_gate_roll");
@@ -242,15 +236,9 @@ namespace FTT.Environment {
             if (!_doubleJumpGateCleared && ZoneContainsPlayer(_doubleJumpGate)) {
                 _doubleJumpGateCleared = true;
                 MarkGateCleared(_doubleJumpGate);
-                _services.HUD?.SetObjective("tutorial_step_dash");
-            }
-            if (_doubleJumpGateCleared && !_dashGateCleared && ZoneContainsPlayer(_dashGate)
-                && _player.CurrentState == CharacterState.Dashing) {
-                _dashGateCleared = true;
-                MarkGateCleared(_dashGate);
                 _services.HUD?.SetObjective("tutorial_step_roll");
             }
-            if (_dashGateCleared && !_rollGateCleared && ZoneContainsPlayer(_rollGate)
+            if (_doubleJumpGateCleared && !_rollGateCleared && ZoneContainsPlayer(_rollGate)
                 && _player.CurrentState == CharacterState.Rolling) {
                 _rollGateCleared = true;
                 MarkGateCleared(_rollGate);

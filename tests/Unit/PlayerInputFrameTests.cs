@@ -9,6 +9,9 @@ namespace FTT.Tests.Unit;
 public class PlayerInputFrameTests {
     [TestCase]
     public void SerializationRoundTripPreservesEveryField() {
+        // GameplayButtons.Dash is a reserved wire bit (the universal dash
+        // mechanic was removed 2026-08-09): production never sets it, but the
+        // protocol v2 layout keeps the bit and it must round-trip losslessly.
         PlayerInputFrame original = PlayerInputFrame.Create(
             42,
             -0.75f,
@@ -45,25 +48,6 @@ public class PlayerInputFrameTests {
 
         AssertThat(restored.MoveX).IsEqual((sbyte)127);
         AssertThat(restored.MoveY).IsEqual((sbyte)-127);
-    }
-
-    [TestCase]
-    public void DigitalDoubleTapProducesOneDashCommand() {
-        var detector = new DashInputDetector();
-
-        AssertThat(detector.Update(0, 1f, 0f, false)).IsFalse();
-        AssertThat(detector.Update(1, 0f, 0f, false)).IsFalse();
-        AssertThat(detector.Update(8, 1f, 0f, false)).IsTrue();
-        AssertThat(detector.Update(9, 1f, 0f, false)).IsFalse();
-    }
-
-    [TestCase]
-    public void AnalogNeutralToFullFlickProducesImmediateDashCommand() {
-        var detector = new DashInputDetector();
-
-        AssertThat(detector.Update(0, 0f, 0f, true)).IsFalse();
-        AssertThat(detector.Update(1, 0.9f, 0.9f, true)).IsTrue();
-        AssertThat(detector.Update(2, 0.95f, 0.95f, true)).IsFalse();
     }
 
     [TestCase]

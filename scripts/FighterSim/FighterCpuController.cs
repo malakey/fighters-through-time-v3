@@ -46,7 +46,7 @@ namespace FTT.FighterSim {
         private const GameplayButtons EdgeButtons =
             GameplayButtons.Jump | GameplayButtons.BasicAttack | GameplayButtons.Special1
             | GameplayButtons.Special2 | GameplayButtons.Ultimate | GameplayButtons.MovementAbility
-            | GameplayButtons.Roll | GameplayButtons.Dash;
+            | GameplayButtons.Roll;
 
         /// <summary>design Section 6/10: the Mirror Paradox reaction window.</summary>
         public const int HardReactionDelayMinFrames = 4;
@@ -439,17 +439,14 @@ namespace FTT.FighterSim {
                 return held;
             }
 
-            // Ranged neutral. MovementAbility is evaluated before Dash: it used to sit
-            // behind the Dash roll in an else-if chain and was effectively starved.
+            // Ranged neutral: zoning special first, then the far-range movement
+            // ability as the gap-closer.
             if (observation.SpecialOneCooldownFrames <= 0
                 && NextPercent() < _tuning.SpecialOneRangedPercent) {
                 held |= GameplayButtons.Special1;
             } else if (absoluteRaw > farRaw && observation.MovementCooldownFrames <= 0
                 && NextPercent() < _tuning.MovementAbilityPercent) {
                 held |= GameplayButtons.MovementAbility;
-            } else if (absoluteRaw > farRaw && observation.IsGrounded != 0
-                && NextPercent() < _tuning.DashPercent) {
-                held |= GameplayButtons.Dash;
             }
             return held;
         }
@@ -504,7 +501,7 @@ namespace FTT.FighterSim {
     /// </summary>
     /// <remarks>
     /// Values follow <c>design-godot.md</c> §10 "Difficulty Settings &amp; Behavior
-    /// Matrices". Easy walks and jabs; Normal zones, hops, dashes, blocks 40%, and
+    /// Matrices". Easy walks and jabs; Normal zones, hops, blocks 40%, and
     /// fires the Ultimate the moment the meter fills; Hard blocks/rolls 80%, uses the
     /// full kit, and holds the Ultimate for a confirmed finish.
     /// </remarks>
@@ -513,7 +510,6 @@ namespace FTT.FighterSim {
 
         /// <summary>Chance to hop while approaching from beyond far range.</summary>
         public int ApproachJumpPercent { get; init; }
-        public int DashPercent { get; init; }
         public int MovementAbilityPercent { get; init; }
         public int UltimatePercent { get; init; }
         /// <summary>Hard only: the Ultimate waits for a confirmed kill setup.</summary>
@@ -551,7 +547,6 @@ namespace FTT.FighterSim {
         /// </summary>
         public static CpuBandTuning Easy { get; } = new() {
             ApproachJumpPercent = 0,
-            DashPercent = 0,
             MovementAbilityPercent = 0,
             UltimatePercent = 0,
             RequiresUltimateSetup = false,
@@ -575,7 +570,6 @@ namespace FTT.FighterSim {
 
         public static CpuBandTuning Normal { get; } = new() {
             ApproachJumpPercent = 12,
-            DashPercent = 25,
             MovementAbilityPercent = 18,
             UltimatePercent = 100,
             RequiresUltimateSetup = false,
@@ -599,7 +593,6 @@ namespace FTT.FighterSim {
 
         public static CpuBandTuning Hard { get; } = new() {
             ApproachJumpPercent = 12,
-            DashPercent = 30,
             MovementAbilityPercent = 30,
             UltimatePercent = 85,
             RequiresUltimateSetup = true,
