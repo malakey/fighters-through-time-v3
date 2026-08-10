@@ -89,7 +89,8 @@ namespace FTT.FighterSim {
             PlayerController playerTwo,
             MatchSettings settings,
             int stageHazardTypeID = 1,
-            string stageID = "") {
+            string stageID = "",
+            int? matchSeed = null) {
             if (Simulation != null) throw new InvalidOperationException("Fighter simulation is already initialized.");
             _playerOne = playerOne ?? throw new ArgumentNullException(nameof(playerOne));
             _playerTwo = playerTwo ?? throw new ArgumentNullException(nameof(playerTwo));
@@ -99,18 +100,29 @@ namespace FTT.FighterSim {
 
             DisableNativeGameplay(_playerOne);
             DisableNativeGameplay(_playerTwo);
+            // Audit M-7: without an explicit seed every match replayed the
+            // constructor default's identical orb/hazard schedule. The driver is
+            // the Godot presentation boundary, so it may roll a real random seed
+            // per match; a rematch re-runs Initialize and rerolls naturally.
+            // Tests pass `matchSeed` for reproducible harnesses. For the record:
+            // the Package 7 online handshake must agree on this value at match
+            // start (design-godot.md ~3134, "shared seed synchronized at match
+            // start") instead of each peer rolling its own.
+            int resolvedSeed = matchSeed ?? GenerateMatchSeed();
             Simulation = new FighterSimulation(
                 FighterLoadoutFactory.FromCharacterData(_playerOne.Data),
                 FighterLoadoutFactory.FromCharacterData(_playerTwo.Data),
                 Math.Max(1, settings.StockCount),
                 MatchSeconds(settings),
+                seed: resolvedSeed,
                 rules: RulesFor(settings, stageHazardTypeID),
                 stageGeometry: FighterStageGeometry.ForStage(stageID ?? ""));
             SessionData session = GameManager.Instance?.CurrentSession ?? default;
             if (session.FighterOpponentType == FighterOpponentType.Cpu) {
-                // Derive the CPU stream from the match seed plus its player slot, so a
-                // rematch with identical settings reproduces the same opponent instead
-                // of the old hardcoded literal. The CPU stays outside the snapshot.
+                // Derive the CPU stream from the match seed plus its player slot, so
+                // the opponent's stream follows the per-match world seed (an explicit
+                // matchSeed reproduces it; the default reroll varies it per match).
+                // The CPU stays outside the snapshot.
                 int cpuSeed = unchecked(Simulation.GetMatchState().WorldSeed * 397 + CpuPlayerSlot);
                 _cpuController = new FighterCpuController(
                     session.CpuDifficulty,
@@ -127,6 +139,13 @@ namespace FTT.FighterSim {
         /// <summary>Match length in whole seconds, matching the lobby setting.</summary>
         public static int MatchSeconds(in MatchSettings settings) =>
             Math.Max(1, Mathf.RoundToInt(settings.TimeLimit));
+
+        /// <summary>
+        /// Fresh per-match world seed. Godot's global RNG is fine here — the value
+        /// crosses into the simulation once, at construction, as plain data; the
+        /// deterministic core never draws from Godot randomness afterwards.
+        /// </summary>
+        private static int GenerateMatchSeed() => unchecked((int)GD.Randi());
 
         /// <summary>
         /// The single mapping from lobby <see cref="MatchSettings"/> to deterministic
@@ -839,7 +858,8 @@ namespace FTT.FighterSim {
                 _playerTwo?.Data?.CharacterID,
                 result.WinnerPlayerID,
                 result.IsTrueTie);
-            if (!result.IsTrueTie) manager.SaveGlobalData();
+            // A true tie now increments the draw tally, so it persists too.
+            manager.SaveGlobalData();
         }
 
         private static void DisableCollisionTree(Node node) {

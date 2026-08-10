@@ -49,7 +49,11 @@ public class FighterPresentationSyncTests {
 
         var driver = new FighterSimulationDriver { Name = "Driver" };
         host.AddChild(driver);
-        driver.Initialize(one, two, MatchSettings.GetDefault(), stageHazardTypeID: 1, stageID: "florence_workshop");
+        // The two drivers this suite compares must share one world seed: since
+        // M-7 an unseeded Initialize rolls a fresh random seed per match.
+        driver.Initialize(
+            one, two, MatchSettings.GetDefault(),
+            stageHazardTypeID: 1, stageID: "florence_workshop", matchSeed: 2026);
         return (driver, host, one, two);
     }
 
