@@ -34,13 +34,22 @@ namespace FTT.Characters.Abilities {
         private float _fireTimer;
         private bool _rewindFrozen;
         private Hurtbox _hurtbox;
+        private bool _hurtboxBound;
 
-        public override void _Ready() {
-            _hurtbox = GetNodeOrNull<Hurtbox>("Hurtbox");
-            if (_hurtbox != null) _hurtbox.OnHit += OnTurretHit;
+        // Pooled constructs re-enter the tree on every spawn cycle but _Ready runs
+        // once, so the hurtbox subscription lives on the enter/exit pair (audit
+        // H-3: a _Ready-only bind left the warmed turret indestructible after its
+        // first reparent).
+        public override void _EnterTree() {
+            _hurtbox ??= GetNodeOrNull<Hurtbox>("Hurtbox");
+            if (_hurtbox == null || _hurtboxBound) return;
+            _hurtbox.OnHit += OnTurretHit;
+            _hurtboxBound = true;
         }
 
         public override void _ExitTree() {
+            if (!_hurtboxBound) return;
+            _hurtboxBound = false;
             if (_hurtbox != null) _hurtbox.OnHit -= OnTurretHit;
         }
 

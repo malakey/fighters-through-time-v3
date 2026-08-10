@@ -39,16 +39,25 @@ namespace FTT.Characters.Abilities {
         private bool _drivesFence;
         private bool _rewindFrozen;
         private Hurtbox _hurtbox;
+        private bool _hurtboxBound;
         // Story-only Resonance minors captured at deploy time (1f in Fighter Mode).
         private float _rangeMultiplier = 1f;
         private float _statusDurationMultiplier = 1f;
 
-        public override void _Ready() {
-            _hurtbox = GetNodeOrNull<Hurtbox>("Hurtbox");
-            if (_hurtbox != null) _hurtbox.OnHit += OnCoilHit;
+        // Pooled constructs re-enter the tree on every spawn cycle but _Ready runs
+        // once, so the hurtbox subscription lives on the enter/exit pair (audit
+        // H-3: a _Ready-only bind left the warmed coil indestructible after its
+        // first reparent).
+        public override void _EnterTree() {
+            _hurtbox ??= GetNodeOrNull<Hurtbox>("Hurtbox");
+            if (_hurtbox == null || _hurtboxBound) return;
+            _hurtbox.OnHit += OnCoilHit;
+            _hurtboxBound = true;
         }
 
         public override void _ExitTree() {
+            if (!_hurtboxBound) return;
+            _hurtboxBound = false;
             if (_hurtbox != null) _hurtbox.OnHit -= OnCoilHit;
         }
 

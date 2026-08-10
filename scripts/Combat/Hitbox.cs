@@ -49,11 +49,19 @@ namespace FTT.Combat {
             Monitoring = false;
         }
 
+        // Pooled owners re-enter the tree on every spawn/release cycle but _Ready
+        // runs once, so the hit-delivery connection lives on the enter/exit pair
+        // (audit C-1: a _Ready-only connect left warmed and recycled hitboxes
+        // permanently disconnected after their first reparent).
+        public override void _EnterTree() {
+            if (_areaEnteredConnected) return;
+            AreaEntered += OnAreaEntered;
+            _areaEnteredConnected = true;
+        }
+
         public override void _Ready() {
             SourcePlayer ??= FindOwningPlayer();
             Deactivate();
-            AreaEntered += OnAreaEntered;
-            _areaEnteredConnected = true;
         }
 
         public override void _ExitTree() {
