@@ -215,6 +215,7 @@ public class MirrorParadoxTests {
         };
         var target = new FighterStateComponent {
             CurrentHP = 12, MaxHP = 100, HitstunFrames = 9,
+            Influence = xpTURN.Klotho.Deterministic.Math.FP64.FromInt(88),
             Position = new xpTURN.Klotho.Deterministic.Math.FPVector2(
                 xpTURN.Klotho.Deterministic.Math.FP64.FromInt(-4),
                 xpTURN.Klotho.Deterministic.Math.FP64.Zero)
@@ -248,11 +249,13 @@ public class MirrorParadoxTests {
         AssertThat(observation.TargetMaxHP).IsEqual(100);
         AssertThat(observation.TargetHitstunFrames).IsEqual(9);
         AssertThat(observation.TargetPressedButtons).IsEqual((int)GameplayButtons.Special1);
+        AssertThat(observation.TargetInfluenceRaw).IsEqual(target.Influence.RawValue);
         // No geometry and no world observer on this overload: every optional block
         // must read as explicitly absent rather than as a zeroed real value.
         AssertThat(observation.HasStageBounds).IsEqual(0);
         AssertThat(observation.HasOrb).IsEqual(0);
         AssertThat(observation.HasHazard).IsEqual(0);
+        AssertThat(observation.HasHostileProjectile).IsEqual(0);
         AssertThat(observation.SuppressGameplayInput).IsEqual(0);
     }
 
@@ -271,6 +274,7 @@ public class MirrorParadoxTests {
             AssertThat(observation.HasStageBounds).IsEqual(0);
             AssertThat(observation.HasOrb).IsEqual(0);
             AssertThat(observation.HasHazard).IsEqual(0);
+            AssertThat(observation.HasHostileProjectile).IsEqual(0);
             AssertThat(observation.SuppressGameplayInput).IsEqual(0);
             AssertThat(observation.PlatformCount).IsEqual(0);
 
@@ -280,6 +284,61 @@ public class MirrorParadoxTests {
             AssertThat(observation.SelfMaxHP).IsEqual(mirror.ScaledMaxHP);
             AssertThat(observation.SelfCurrentHP).IsEqual(mirror.CurrentHP);
         } finally {
+            FreeMirror(mirror);
+        }
+    }
+
+    [TestCase]
+    public void TheStoryAdapterProjectsTheNearestHostileProjectileAndTheOpponentMeter() {
+        // M-8 parity: the adapter must fill the same projectile and opponent-meter
+        // fields the Fighter world observer fills, projected from Story state —
+        // pixels to world units, +Y flipped, X sign carrying the travel direction.
+        MirrorParadoxController mirror = CreateMirror();
+        PlayerController target = null;
+        FTT.Combat.PlaceholderProjectile projectile = null;
+        var root = ((SceneTree)Engine.GetMainLoop()).Root;
+        try {
+            mirror.Clone.GlobalPosition = new Vector2(600f, 300f);
+
+            target = CharacterFactory.CreateCharacter(
+                MirroredCharacter, 0, applyStoryProgression: false);
+            root.AddChild(target);
+            target.GlobalPosition = new Vector2(300f, 300f);
+            target.CurrentUltimateMeter = 42f;
+            mirror.Decisions.Bind(mirror.Clone, target);
+
+            CpuDecisionObservation before = mirror.Decisions.Observe();
+            AssertThat(before.TargetInfluenceRaw).IsEqual(
+                xpTURN.Klotho.Deterministic.Math.FP64.FromFloat(42f).RawValue);
+            AssertThat(before.HasHostileProjectile).IsEqual(0);
+
+            // A player-owned shot 120 px left of and 60 px above the clone,
+            // travelling right toward it.
+            projectile = new FTT.Combat.PlaceholderProjectile { Name = "HostileShotUnderTest" };
+            root.AddChild(projectile);
+            projectile.Setup(0f, Vector2.Zero, 300f, movingRight: true,
+                ownerIndex: 0, color: Colors.White, lifetime: 999f);
+            projectile.GlobalPosition = new Vector2(480f, 240f);
+
+            CpuDecisionObservation observation = mirror.Decisions.Observe();
+            AssertThat(observation.HasHostileProjectile).IsEqual(1);
+            // -120 px => -2 world units; -60 px (screen up) => +1 unit, Y flipped.
+            AssertThat(observation.ProjectileRelativeXRaw).IsEqual(
+                xpTURN.Klotho.Deterministic.Math.FP64.FromFloat(-2f).RawValue);
+            AssertThat(observation.ProjectileRelativeYRaw).IsEqual(
+                xpTURN.Klotho.Deterministic.Math.FP64.FromFloat(1f).RawValue);
+            // Moving right at 300 px/s => +5 units/s toward the clone, level flight.
+            AssertThat(observation.ProjectileVelocityXRaw).IsEqual(
+                xpTURN.Klotho.Deterministic.Math.FP64.FromFloat(5f).RawValue);
+            AssertThat(observation.ProjectileVelocityYRaw).IsEqual(0L);
+
+            // The clone's own shots are never hostile to it.
+            projectile.Setup(0f, Vector2.Zero, 300f, movingRight: true,
+                ownerIndex: mirror.Clone.PlayerIndex, color: Colors.White, lifetime: 999f);
+            AssertThat(mirror.Decisions.Observe().HasHostileProjectile).IsEqual(0);
+        } finally {
+            DetachAndFree(projectile);
+            DetachAndFree(target);
             FreeMirror(mirror);
         }
     }

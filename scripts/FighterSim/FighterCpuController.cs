@@ -58,6 +58,15 @@ namespace FTT.FighterSim {
         private static readonly FP64 OrbClimbHeight = FP64.One;
         private static readonly FP64 MaxInfluence = FP64.FromInt(100);
         private static readonly FP64 CorneredMargin = FP64.FromDouble(1.5);
+        /// <summary>Incoming shots beyond this horizontal gap are not yet a threat.</summary>
+        private static readonly FP64 ProjectileAwarenessRange = FP64.FromInt(7);
+        /// <summary>Shots this far above/below the fighter will pass clean over or under.</summary>
+        private static readonly FP64 ProjectileVerticalBand = FP64.FromInt(2);
+        /// <summary>
+        /// Below this much total walkable room outside a hazard's danger band there
+        /// is nowhere to flee to, so flee-evasion is pointless (M-9, Globe heckle).
+        /// </summary>
+        private static readonly FP64 MinimumHazardEscapeRoom = FP64.One;
 
         private readonly CpuDifficulty _difficulty;
         private readonly CpuBandTuning _tuning;
@@ -216,7 +225,8 @@ namespace FTT.FighterSim {
                 TargetCurrentHP = target.CurrentHP,
                 TargetMaxHP = target.MaxHP,
                 TargetHitstunFrames = target.HitstunFrames,
-                TargetPressedButtons = targetRuntime.PressedButtons
+                TargetPressedButtons = targetRuntime.PressedButtons,
+                TargetInfluenceRaw = target.Influence.RawValue
             };
 
             if (geometry != null) {
@@ -256,6 +266,14 @@ namespace FTT.FighterSim {
                     observation.HazardPositionYRaw = hazard.Position.y.RawValue;
                     observation.HazardHalfWidthRaw = hazard.HalfExtents.x.RawValue;
                 }
+                if (world.TryGetNearestHostileProjectile(
+                        self.PlayerID, in self.Position, out FighterProjectileComponent projectile)) {
+                    observation.HasHostileProjectile = 1;
+                    observation.ProjectileRelativeXRaw = (projectile.Position.x - self.Position.x).RawValue;
+                    observation.ProjectileRelativeYRaw = (projectile.Position.y - self.Position.y).RawValue;
+                    observation.ProjectileVelocityXRaw = projectile.Velocity.x.RawValue;
+                    observation.ProjectileVelocityYRaw = projectile.Velocity.y.RawValue;
+                }
             }
 
             return observation;
@@ -294,6 +312,7 @@ namespace FTT.FighterSim {
 
             if (IsOffStage(in observation)) return DecideRecovery(in observation, out moveX, out moveY);
             if (TryDecideHazardEvasion(in observation, out GameplayButtons evasion, out moveX)) return evasion;
+            if (TryDecideProjectileDefense(in observation, out GameplayButtons defense, out moveX)) return defense;
             if (TryDecideOrbPursuit(in observation, out GameplayButtons pursuit, out moveX)) return pursuit;
             return DecideCombat(in observation, out moveX);
         }
@@ -339,6 +358,53 @@ namespace FTT.FighterSim {
             return held;
         }
 
+        // === Projectile defense (M-8) ===
+
+        /// <summary>
+        /// Reaction to an incoming hostile projectile, per the design difficulty
+        /// matrices: Easy "rarely blocks projectiles" (:3161), Medium "will attempt
+        /// to block projectiles if they are far enough away" (:3175), Hard blinks
+        /// through them with its movement ability when available and shields
+        /// otherwise (:3186).
+        /// </summary>
+        private bool TryDecideProjectileDefense(
+            in CpuDecisionObservation observation, out GameplayButtons held, out sbyte moveX) {
+            held = GameplayButtons.None;
+            moveX = 0;
+            if (observation.HasHostileProjectile == 0) return false;
+            if (_tuning.ProjectileBlockPercent <= 0 && _tuning.ProjectileBlinkPercent <= 0) return false;
+
+            long relativeXRaw = observation.ProjectileRelativeXRaw;
+            long absoluteXRaw = Absolute(relativeXRaw);
+            if (absoluteXRaw > ProjectileAwarenessRange.RawValue) return false;
+            if (Absolute(observation.ProjectileRelativeYRaw) > ProjectileVerticalBand.RawValue) return false;
+            // Only shots actually closing the horizontal gap are a threat; one that
+            // already passed, or flies parallel, is ignored.
+            bool closing = relativeXRaw >= 0
+                ? observation.ProjectileVelocityXRaw < 0
+                : observation.ProjectileVelocityXRaw > 0;
+            if (!closing) return false;
+
+            // Hard's signature answer: blink through the shot with the movement
+            // ability while it is off cooldown. The stick aims at the projectile so
+            // a directional warp travels through it, not away from it.
+            if (observation.MovementCooldownFrames <= 0
+                && NextPercent() < _tuning.ProjectileBlinkPercent) {
+                held = GameplayButtons.MovementAbility;
+                moveX = relativeXRaw >= 0 ? (sbyte)127 : (sbyte)-127;
+                return true;
+            }
+
+            // The shield answer. Blocking is a grounded stance, and Medium only
+            // commits when the shot is still far enough away for its 15–20-frame
+            // reflex window to catch it.
+            if (observation.IsGrounded == 0) return false;
+            if (absoluteXRaw < _tuning.ProjectileBlockMinRangeRaw) return false;
+            if (NextPercent() >= _tuning.ProjectileBlockPercent) return false;
+            held = GameplayButtons.Block;
+            return true;
+        }
+
         // === Hazard avoidance ===
 
         private bool TryDecideHazardEvasion(
@@ -349,6 +415,18 @@ namespace FTT.FighterSim {
             // Easy never reacts; Normal reacts only once the zone is damaging; Hard
             // vacates during the telegraph (design-godot.md §10 difficulty matrices).
             if (observation.HazardPhase == 0 && !_tuning.AvoidsHazardWarning) return false;
+
+            // M-9: when the danger region spans (or nearly spans) the walkable
+            // width — the Globe heckle authors HalfExtents (10,10) against ±9
+            // walls — no escape band exists and blanket flight just wall-ping-pongs
+            // for the whole active window. The idle-punisher archetype is answered
+            // by staying active, which normal combat/pursuit behaviour already
+            // provides, so flee-evasion is skipped entirely.
+            if (observation.HasStageBounds != 0) {
+                long escapeRoomRaw = (observation.RightWallRaw - observation.LeftWallRaw)
+                    - 2 * observation.HazardHalfWidthRaw;
+                if (escapeRoomRaw < MinimumHazardEscapeRoom.RawValue) return false;
+            }
 
             long gapRaw = Absolute(observation.HazardPositionXRaw - observation.SelfPositionXRaw)
                 - observation.HazardHalfWidthRaw - _tuning.HazardClearanceRaw;
@@ -387,6 +465,14 @@ namespace FTT.FighterSim {
             bool wounded = observation.SelfMaxHP > 0
                 && observation.SelfCurrentHP * 100 <= _tuning.HealingOrbHPPercent * observation.SelfMaxHP;
             if (observation.OrbEffectType == 0 && wounded) chance = _tuning.HealingOrbPursuitPercent;
+            // design :3191, Hard only: "strongly prioritizes ... shield orbs when
+            // the opponent's Ultimate meter is near full". Aegis is EffectType 3.
+            if (observation.OrbEffectType == 3
+                && _tuning.ShieldOrbPursuitPercent > 0
+                && observation.TargetInfluenceRaw
+                    >= FP64.FromInt(_tuning.ShieldOrbTargetMeterFloor).RawValue) {
+                chance = _tuning.ShieldOrbPursuitPercent;
+            }
             if (NextPercent() >= chance) return false;
 
             moveX = orbDeltaRaw >= 0 ? (sbyte)110 : (sbyte)-110;
@@ -510,6 +596,7 @@ namespace FTT.FighterSim {
     /// </remarks>
     public readonly struct CpuBandTuning {
         private static readonly FP64 HardHazardClearance = FP64.FromDouble(1.5);
+        private static readonly FP64 NormalProjectileBlockMinRange = FP64.FromDouble(2.5);
 
         /// <summary>Chance to hop while approaching from beyond far range.</summary>
         public int ApproachJumpPercent { get; init; }
@@ -528,6 +615,16 @@ namespace FTT.FighterSim {
         public int OrbPursuitPercent { get; init; }
         public int HealingOrbPursuitPercent { get; init; }
         public int HealingOrbHPPercent { get; init; }
+        /// <summary>Hard only: priority chance toward Aegis orbs at high opponent meter.</summary>
+        public int ShieldOrbPursuitPercent { get; init; }
+        /// <summary>Opponent meter (0–100 scale) at or above which the Aegis priority engages.</summary>
+        public int ShieldOrbTargetMeterFloor { get; init; }
+        /// <summary>Chance to shield an incoming projectile: design's rarely / attempt / 80%.</summary>
+        public int ProjectileBlockPercent { get; init; }
+        /// <summary>Minimum horizontal gap before the band commits to the block, raw <c>FP64</c>.</summary>
+        public long ProjectileBlockMinRangeRaw { get; init; }
+        /// <summary>Hard only: chance to blink through the shot with the movement ability.</summary>
+        public int ProjectileBlinkPercent { get; init; }
         public int HazardAvoidPercent { get; init; }
         /// <summary>Hard vacates during the 90-frame telegraph; the others wait for damage.</summary>
         public bool AvoidsHazardWarning { get; init; }
@@ -564,6 +661,13 @@ namespace FTT.FighterSim {
             OrbPursuitPercent = 0,
             HealingOrbPursuitPercent = 0,
             HealingOrbHPPercent = 0,
+            ShieldOrbPursuitPercent = 0,
+            ShieldOrbTargetMeterFloor = 0,
+            // design §10 Easy: "Rarely blocks projectiles" — below even its 10%
+            // standard-attack shield rate, and never blinks.
+            ProjectileBlockPercent = 5,
+            ProjectileBlockMinRangeRaw = 0,
+            ProjectileBlinkPercent = 0,
             HazardAvoidPercent = 0,
             AvoidsHazardWarning = false,
             HazardEscapeMovementPercent = 0,
@@ -588,6 +692,14 @@ namespace FTT.FighterSim {
             OrbPursuitPercent = 25,
             HealingOrbPursuitPercent = 60,
             HealingOrbHPPercent = 40,
+            ShieldOrbPursuitPercent = 0,
+            ShieldOrbTargetMeterFloor = 0,
+            // design §10 Medium: "will attempt to block projectiles if they are far
+            // enough away" — the 40% shield rate, gated behind a 2.5-unit gap its
+            // 15–20-frame reflex window can still catch.
+            ProjectileBlockPercent = 40,
+            ProjectileBlockMinRangeRaw = NormalProjectileBlockMinRange.RawValue,
+            ProjectileBlinkPercent = 0,
             HazardAvoidPercent = 85,
             AvoidsHazardWarning = false,
             HazardEscapeMovementPercent = 0,
@@ -612,6 +724,15 @@ namespace FTT.FighterSim {
             OrbPursuitPercent = 75,
             HealingOrbPursuitPercent = 95,
             HealingOrbHPPercent = 50,
+            // design :3191: "shield orbs when the opponent's Ultimate meter is
+            // near full" — same strength as the wounded healing-orb priority.
+            ShieldOrbPursuitPercent = 95,
+            ShieldOrbTargetMeterFloor = 85,
+            // design :3186: blink through player projectiles with the movement
+            // ability when available; the 80% shield rate is the fallback.
+            ProjectileBlockPercent = 80,
+            ProjectileBlockMinRangeRaw = 0,
+            ProjectileBlinkPercent = 85,
             HazardAvoidPercent = 100,
             AvoidsHazardWarning = true,
             HazardEscapeMovementPercent = 45,
