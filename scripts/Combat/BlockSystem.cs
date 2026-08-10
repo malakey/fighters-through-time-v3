@@ -107,7 +107,12 @@ namespace FTT.Combat {
             if (CurrentCharges <= 0 || count <= 0) return BlockResult.NotBlocked;
             CurrentCharges = Mathf.Max(0, CurrentCharges - count);
             _regenTimer = 0f;
-            if (CurrentCharges > 0) return BlockResult.Blocked;
+            if (CurrentCharges > 0) {
+                // Guard Impact haptic: a shield-stutter special absorbed without a
+                // break is still a successful block (design haptic table).
+                FTT.Core.HapticFeedbackManager.Instance?.OnGuardImpact(_owner?.PlayerIndex ?? -1);
+                return BlockResult.Blocked;
+            }
 
             BreakGuard();
             return BlockResult.GuardBroken;

@@ -27,7 +27,9 @@ namespace FTT.FighterSim {
         private FTT.UI.FighterHUD _hud;
         private int _lastCountdownDigit = -1;
         private bool _matchStartRaised;
-        private readonly int[] _lastStocks = { -1, -1 };
+        // KO beats key off KnockoutsSuffered, not Stocks: TimeLimit runs
+        // UsesStocks = 0, so a stock diff never sees its knockouts (audit M-10).
+        private readonly int[] _lastKnockouts = { -1, -1 };
         private int _stockLossFreezeFrames;
         private KnockoutStep _knockoutStep = KnockoutStep.None;
         private double _knockoutTimer;
@@ -143,6 +145,17 @@ namespace FTT.FighterSim {
             stageHazardTypeID,
             FighterMatchFlowRules.CountdownFrames);
 
+        public override void _ExitTree() {
+            // Hand back the level-triggered LowHealth duck on teardown; a snapshot
+            // that outlives the match would muffle the menus. GameManager's scene
+            // transition also clears it, but the driver can be freed outside a
+            // managed transition (Test Arena rebuilds, tests).
+            if (_lowHealthPresented) {
+                _lowHealthPresented = false;
+                AudioManager.Instance?.SetLowHealth(false);
+            }
+        }
+
         public override void _PhysicsProcess(double delta) {
             if (Simulation == null) return;
             if (_knockoutStep != KnockoutStep.None) {
@@ -223,9 +236,11 @@ namespace FTT.FighterSim {
 
         private void SyncPresentation() {
             PushSlotIndicators();
+            // Entities first so the hazard list SyncPlayer's damage feedback
+            // consults describes the frame being presented, not the previous one.
+            SyncSimulationEntities();
             SyncPlayer(_playerOne, 0);
             SyncPlayer(_playerTwo, 1);
-            SyncSimulationEntities();
         }
 
         private void WarmPresentationProxies(int count) {
@@ -387,7 +402,20 @@ namespace FTT.FighterSim {
         private readonly int[] _presentedDazeFrames = { 0, 0 };
         private readonly bool[] _presentedMeleeActive = { false, false };
         private readonly int[] _presentedBlockCharges = { -1, -1 };
+        private readonly bool[] _presentedInfluenceFull = { false, false };
+        private readonly bool[] _fallTracking = { false, false };
+        private readonly float[] _fallPeakY = { 0f, 0f };
+        private bool _lowHealthPresented;
         private bool _slotIndicatorsPushed;
+
+        private static readonly xpTURN.Klotho.Deterministic.Math.FP64 FullInfluence =
+            xpTURN.Klotho.Deterministic.Math.FP64.FromInt(100);
+        // Mirror of the sim's fighter hurt volume (FighterEntitySystems), used only
+        // for the presentation-side "was that damage a hazard?" classification.
+        private static readonly xpTURN.Klotho.Deterministic.Math.FP64 FighterHalfWidth =
+            xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(0.5);
+        private static readonly xpTURN.Klotho.Deterministic.Math.FP64 FighterHalfHeight =
+            xpTURN.Klotho.Deterministic.Math.FP64.One;
 
         private static readonly string[] BasicAttackAnimationNames = {
             "basic_attack_1", "basic_attack_2", "basic_attack_3"
@@ -440,7 +468,15 @@ namespace FTT.FighterSim {
                 int damage = previousHP - state.CurrentHP;
                 glow?.FlashHit();
                 CameraShake.Instance?.Shake(damage * FighterHitShakeScale, FighterHitShakeDuration);
-                HapticFeedbackManager.Instance?.VibrateForPlayer(playerID, 0.3f, 0.5f, 0.08f);
+                // Stage hazards buzz their own distinct pattern instead of folding
+                // into the attack-damage buzz (audit M-31). The classification is a
+                // presentation-side heuristic: the victim overlapping an
+                // active-phase hazard volume on the frame HP dropped.
+                if (IsInsideActiveHazard(in state)) {
+                    HapticFeedbackManager.Instance?.OnStageHazardHit(playerID);
+                } else {
+                    HapticFeedbackManager.Instance?.OnTakingDamage(playerID);
+                }
                 // Same victim feedback Story shows on a hit: a floating number at
                 // roughly mid-body. Presentation only.
                 FTT.UI.FloatingDamageNumber.Show(
@@ -450,13 +486,15 @@ namespace FTT.FighterSim {
             }
 
             // A blocked hit spends a charge without moving HP; give it Story's
-            // small shake so absorbing a hit reads. Regen raises the count and
-            // must stay silent, so only decreases outside a fresh daze count.
+            // small shake plus the design's Guard Impact buzz so absorbing a hit
+            // reads. Regen raises the count and must stay silent, so only
+            // decreases outside a fresh daze count.
             int previousBlockCharges = _presentedBlockCharges[playerID];
             _presentedBlockCharges[playerID] = state.BlockCharges;
             if (previousBlockCharges > 0 && state.BlockCharges < previousBlockCharges
                 && state.DazeFrames <= 0) {
                 CameraShake.Instance?.Shake(3f, 0.08f);
+                HapticFeedbackManager.Instance?.OnGuardImpact(playerID);
             }
 
             // A fresh daze is the guard break: the sim has no block-broken event, so
@@ -464,8 +502,64 @@ namespace FTT.FighterSim {
             int previousDaze = _presentedDazeFrames[playerID];
             _presentedDazeFrames[playerID] = state.DazeFrames;
             if (previousDaze <= 0 && state.DazeFrames > 0) {
-                HapticFeedbackManager.Instance?.VibrateForPlayer(playerID, 0.8f, 0.9f, 0.2f);
+                HapticFeedbackManager.Instance?.VibrateForPlayer(
+                    playerID,
+                    HapticFeedbackManager.GuardBreakWeak,
+                    HapticFeedbackManager.GuardBreakStrong,
+                    HapticFeedbackManager.GuardBreakSeconds);
             }
+
+            // Heavy Landing (design: fall > 3 units): track the airborne apex and
+            // buzz when the grounded edge closes a tall enough drop. The respawn
+            // platform materialisation is a teleport, not a landing — the platform
+            // hold zeroes velocity and grounds the fighter, so the tracker resets
+            // through the same grounded edge without a buzz for short falls.
+            bool grounded = state.IsGrounded != 0;
+            float worldY = state.Position.y.ToFloat();
+            if (!grounded) {
+                if (!_fallTracking[playerID]) {
+                    _fallTracking[playerID] = true;
+                    _fallPeakY[playerID] = worldY;
+                } else if (worldY > _fallPeakY[playerID]) {
+                    _fallPeakY[playerID] = worldY;
+                }
+            } else if (_fallTracking[playerID]) {
+                _fallTracking[playerID] = false;
+                if (_fallPeakY[playerID] - worldY >= HapticFeedbackManager.HeavyLandingFallUnits) {
+                    HapticFeedbackManager.Instance?.OnHeavyLanding(playerID);
+                }
+            }
+
+            // Ultimate activation (audit H-9 / M-31): the sim zeroes a full meter
+            // the tick an ultimate executes, and nothing else takes Influence from
+            // full to zero (a stock loss retains 75%). The edge opens the
+            // UltimateCinematic duck and fires the ramped activation haptic.
+            bool influenceFull = state.Influence >= FullInfluence;
+            if (_presentedInfluenceFull[playerID]
+                && state.Influence == xpTURN.Klotho.Deterministic.Math.FP64.Zero) {
+                AudioManager.Instance?.BeginUltimateWindow();
+                HapticFeedbackManager.Instance?.OnUltimateActivation(
+                    HapticFeedbackManager.ResolveDevice(playerID));
+            }
+            _presentedInfluenceFull[playerID] = influenceFull;
+        }
+
+        /// <summary>
+        /// True when the fighter's hurt volume overlaps any active-phase hazard.
+        /// Read-only over copied component lists; mirrors the sim's AABB overlap
+        /// with the fighter half extents from FighterEntitySystems.
+        /// </summary>
+        private bool IsInsideActiveHazard(in FighterStateComponent state) {
+            foreach (FighterHazardComponent hazard in _hazards) {
+                if (hazard.Phase != FighterHazardSystem.ActivePhase) continue;
+                if (xpTURN.Klotho.Deterministic.Math.FP64.Abs(state.Position.x - hazard.Position.x)
+                        <= hazard.HalfExtents.x + FighterHalfWidth
+                    && xpTURN.Klotho.Deterministic.Math.FP64.Abs(state.Position.y - hazard.Position.y)
+                        <= hazard.HalfExtents.y + FighterHalfHeight) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private void SyncPlayer(PlayerController player, int playerID) {
@@ -592,7 +686,7 @@ namespace FTT.FighterSim {
                             / (float)FighterSimulation.TickRate
                     });
                 }
-                CaptureStocks();
+                CaptureKnockouts();
                 return;
             }
 
@@ -610,8 +704,9 @@ namespace FTT.FighterSim {
                 AudioManager.Instance?.SetIntensity(StemIntensity.Combat);
             }
 
-            DetectStockLoss(match);
-            UpdateLastStockClimax(in match);
+            DetectKnockouts(match);
+            UpdateClimax(in match);
+            UpdateLowHealthSnapshot();
         }
 
         // === Package 8 B5: match music intensity ===
@@ -620,36 +715,64 @@ namespace FTT.FighterSim {
         private bool _climaxEntered;
 
         /// <summary>
-        /// Layers the climax stem in once a stock loss leaves either fighter on their
-        /// last stock. One-way for the match: a Hybrid match cannot un-tense, and a
-        /// fighter cannot regain a stock, so there is nothing to fall back from.
-        /// The rule itself lives in <see cref="FighterAudioRules"/> so it is testable
-        /// without a running match.
+        /// Layers the climax stem in once either fighter is on their last stock (in
+        /// a stock-bearing mode) or has fallen below 20% health in any mode
+        /// (design-godot.md:2832, audit M-32). One-way for the match: a fighter
+        /// cannot regain a stock, and once the tension has arrived a full-HP
+        /// respawn un-tensing the track would read as the music losing the plot.
+        /// The rule itself lives in <see cref="FighterAudioRules"/> so it is
+        /// testable without a running match.
         /// </summary>
-        private void UpdateLastStockClimax(in FighterMatchComponent match) {
+        private void UpdateClimax(in FighterMatchComponent match) {
             if (_climaxEntered) return;
-            if (!FighterAudioRules.ModeUsesStocks(match.MatchMode)) return;
             if (!Simulation.TryGetFighter(0, out FighterStateComponent one)
                 || !Simulation.TryGetFighter(1, out FighterStateComponent two)) return;
-            if (!FighterAudioRules.IsLastStockClimax(one.Stocks, two.Stocks)) return;
+            if (!FighterAudioRules.ShouldEnterClimax(
+                    match.MatchMode,
+                    one.Stocks, two.Stocks,
+                    one.CurrentHP, one.MaxHP,
+                    two.CurrentHP, two.MaxHP)) return;
             _climaxEntered = true;
             AudioManager.Instance?.SetIntensity(StemIntensity.Climax);
         }
 
-        private void CaptureStocks() {
+        /// <summary>
+        /// Level-triggered LowHealth snapshot (audit H-9), driven from the
+        /// deterministic HP fraction: active while either fighter is below 20%,
+        /// released when a respawn restores them. Uses the same threshold as the
+        /// climax so ear and mix agree.
+        /// </summary>
+        private void UpdateLowHealthSnapshot() {
+            if (!Simulation.TryGetFighter(0, out FighterStateComponent one)
+                || !Simulation.TryGetFighter(1, out FighterStateComponent two)) return;
+            bool low = FighterAudioRules.IsLowHealthClimax(one.CurrentHP, one.MaxHP)
+                || FighterAudioRules.IsLowHealthClimax(two.CurrentHP, two.MaxHP);
+            if (_lowHealthPresented == low) return;
+            _lowHealthPresented = low;
+            AudioManager.Instance?.SetLowHealth(low);
+        }
+
+        private void CaptureKnockouts() {
             for (int playerID = 0; playerID < 2; playerID++) {
-                if (Simulation.TryGetFighter(playerID, out FighterStateComponent state)) {
-                    _lastStocks[playerID] = state.Stocks;
+                if (Simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime)) {
+                    _lastKnockouts[playerID] = runtime.KnockoutsSuffered;
                 }
             }
         }
 
-        private void DetectStockLoss(in FighterMatchComponent match) {
+        /// <summary>
+        /// The per-knockout presentation beat. Keyed off the runtime's
+        /// <c>KnockoutsSuffered</c> counter, which increments in every mode —
+        /// TimeLimit knockouts never touch <c>Stocks</c>, so the old stock diff
+        /// silently skipped them (audit M-10). Presentation only: hit-freeze pacing,
+        /// stinger, shake, haptic; no simulation state is written.
+        /// </summary>
+        private void DetectKnockouts(in FighterMatchComponent match) {
             for (int playerID = 0; playerID < 2; playerID++) {
-                if (!Simulation.TryGetFighter(playerID, out FighterStateComponent state)) continue;
-                int previous = _lastStocks[playerID];
-                _lastStocks[playerID] = state.Stocks;
-                if (previous < 0 || state.Stocks >= previous) continue;
+                if (!Simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime)) continue;
+                int previous = _lastKnockouts[playerID];
+                _lastKnockouts[playerID] = runtime.KnockoutsSuffered;
+                if (previous < 0 || runtime.KnockoutsSuffered <= previous) continue;
                 if (match.MatchState == FighterMatchStates.Complete) continue;
                 _stockLossFreezeFrames = StockLossFreezeFrames;
                 Raise(new FighterPresentationPayload {
@@ -661,7 +784,8 @@ namespace FTT.FighterSim {
                 });
                 PlayCue(KnockoutStingerPath);
                 CameraShake.Instance?.Shake(FighterKnockoutShake, FighterKnockoutShakeDuration);
-                HapticFeedbackManager.Instance?.VibrateForPlayer(playerID, 0.9f, 1f, 0.35f);
+                // KO / Death row of the design haptic table: 1.0/1.0/300 ms.
+                HapticFeedbackManager.Instance?.OnKnockout(playerID);
             }
         }
 
@@ -709,6 +833,16 @@ namespace FTT.FighterSim {
         private void BeginKnockoutSequence(in FighterMatchResult result) {
             _pendingResult = result;
             _slowMotionCredit = 0.0;
+            // "On a knockout ... the main track drops out immediately"
+            // (design-godot.md:2834, audit M-32): the stems stop dead so the KO
+            // stinger and the winner fanfare stand alone. The results/rematch flow
+            // re-registers stage audio when the next match scene loads. The
+            // low-health duck goes with them — there is no mix left to muffle.
+            AudioManager.Instance?.ReleaseStageAudio();
+            if (_lowHealthPresented) {
+                _lowHealthPresented = false;
+                AudioManager.Instance?.SetLowHealth(false);
+            }
             EnterKnockoutStep(KnockoutStep.HitFreeze);
         }
 
@@ -731,7 +865,8 @@ namespace FTT.FighterSim {
                     PlayCue(KnockoutStingerPath);
                     CameraShake.Instance?.Shake(FighterKnockoutShake, FighterKnockoutShakeDuration);
                     if (loser >= 0) {
-                        HapticFeedbackManager.Instance?.VibrateForPlayer(loser, 1f, 1f, 0.5f);
+                        // KO / Death: 1.0/1.0/300 ms (audit M-31; was 500 ms).
+                        HapticFeedbackManager.Instance?.OnKnockout(loser);
                     }
                     if (_pendingResult.WinnerPlayerID >= 0) {
                         HapticFeedbackManager.Instance?.VibrateForPlayer(

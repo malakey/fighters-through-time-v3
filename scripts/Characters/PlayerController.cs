@@ -419,6 +419,12 @@ namespace FTT.Characters {
 						CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
 					}
 					FTT.Core.CameraShake.Instance?.Shake(3f, 0.08f);
+					if (blockResult == FTT.Combat.BlockResult.Blocked) {
+						// Guard Impact (design haptic table): a successful absorb.
+						// A guard break buzzes its own heavier pattern through the
+						// OnBlockBroken event instead.
+						FTT.Core.HapticFeedbackManager.Instance?.OnGuardImpact(PlayerIndex);
+					}
 					return 0f;
 				}
 			}
@@ -571,8 +577,45 @@ namespace FTT.Characters {
 			}
 
 			UpdateFootsteps(dt);
+			UpdateLandingFeedback();
 
 			_wasGrounded = IsOnFloor();
+		}
+
+		/// <summary>
+		/// Fall distance, in pixels, above which a landing plays the Heavy Landing
+		/// haptic — the design's "fall &gt; 3 units" at the 62.5 px/world-unit scale
+		/// the Fighter presentation mapping uses.
+		/// </summary>
+		private const float HeavyLandingFallPixels =
+			FTT.Core.HapticFeedbackManager.HeavyLandingFallUnits * 62.5f;
+
+		private bool _fallTracking;
+		private float _fallPeakY;
+
+		/// <summary>
+		/// Heavy Landing haptic (design haptic table; audit M-31). Tracks the
+		/// airborne apex and buzzes on the grounded edge when the drop was tall
+		/// enough. Purely additive presentation, runs after <c>MoveAndSlide</c> so
+		/// <c>IsOnFloor</c> describes the frame that actually happened.
+		/// </summary>
+		private void UpdateLandingFeedback() {
+			if (!IsOnFloor()) {
+				// Y grows downward, so the apex is the smallest Y seen airborne.
+				if (!_fallTracking) {
+					_fallTracking = true;
+					_fallPeakY = GlobalPosition.Y;
+				} else if (GlobalPosition.Y < _fallPeakY) {
+					_fallPeakY = GlobalPosition.Y;
+				}
+				return;
+			}
+			if (!_fallTracking) return;
+			_fallTracking = false;
+			if (_rewindSuspended || CurrentState == CharacterState.Dead) return;
+			if (GlobalPosition.Y - _fallPeakY >= HeavyLandingFallPixels) {
+				FTT.Core.HapticFeedbackManager.Instance?.OnHeavyLanding(PlayerIndex);
+			}
 		}
 
 		/// <summary>

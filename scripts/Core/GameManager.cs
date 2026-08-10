@@ -131,6 +131,10 @@ namespace FTT.Core {
             _pendingScenePath = scenePath;
             _loadingDisplayTimer = 0.0;
 
+            // The scene being left owns the LowHealth/Ultimate snapshot state; a
+            // duck must not follow the player into the next scene (audit H-9).
+            AudioManager.Instance?.OnSceneTransitionStarted();
+
             _loadingScreen = FTT.UI.LoadingScreen.CreateFor(scenePath);
             AddChild(_loadingScreen);
             _loadingScreen.Configure(scenePath, CurrentSession);
