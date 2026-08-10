@@ -49,7 +49,9 @@ public class FighterLocalizationTests {
         ("fighter_frequency_*", "fighter_frequency_", 4),
         ("fighter_disconnect_*", "fighter_disconnect_", 3),
         ("fighter_pause_*", "fighter_pause_", 2),
-        ("fighter_state_*", "fighter_state_", 11),
+        // 10 since the universal dash's removal retired fighter_state_dashing
+        // (2026-08-09 user directive).
+        ("fighter_state_*", "fighter_state_", 10),
         ("fighter_results_*", "fighter_results_", 3)
     };
 

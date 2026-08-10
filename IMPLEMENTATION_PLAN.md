@@ -205,7 +205,7 @@ Priority: P1. Use the stable data and presentation contracts from Packages 0-2.
 - [x] Complete all nine movement abilities with character-specific rules, recovery, cooldowns, and state interruption, all data-driven from MovementAbilityData. (VFX/SFX hooks remain placeholder-level; animation events land with the presentation pass.)
 - [x] Give persistent constructs stable owner/type/state IDs, deploy limits, pool reset behavior, Story rewind behavior, Fighter snapshot/hash fields, and rollback lifecycle tests. (Five authored construct scenes: coil, turret, nest, snare, staff platform.)
 - [x] Maintain shared definitions and expected outcomes while keeping Story physics and Fighter fixed-point execution behind explicit adapters.
-- [x] Add placeholder sprite/portrait/animation resources for every character and every required state so none remains a colored controller-drawn rectangle. (Nine per-character tinted SpriteFrames + portraits wired through `CharacterData`; the presentation contract now includes the dash/roll runtime animation names. Ability VFX/SFX remain placeholder zones/projectiles pending Package 8.)
+- [x] Add placeholder sprite/portrait/animation resources for every character and every required state so none remains a colored controller-drawn rectangle. (Nine per-character tinted SpriteFrames + portraits wired through `CharacterData`; the presentation contract now includes the roll runtime animation names (dash retired 2026-08-09). Ability VFX/SFX remain placeholder zones/projectiles pending Package 8.)
 
 ### Resonance Grid completion
 
@@ -359,7 +359,7 @@ Priority: P2. Build the reusable systems early, then perform this completion pas
 ### Controls and accessibility
 
 - [x] Serialize complete InputMap binding overrides in global save data and restore them before gameplay input begins. (Typed multi-event `InputBindingSet` at global schema v4, physical keycodes, only actions differing from `project.godot` persisted; pushed into `InputMap` by `SaveManager` after global load.)
-- [x] Implement binding conflict UX and reset-to-default controls. (Conflicts **block** rather than swap and name the owning action; one slot per device kind so a key remap never clears the joypad binding; per-action and global reset. The `gameplay_ultimate` chord and the derived Dash gesture are shown read-only — neither is expressible as a per-event row.)
+- [x] Implement binding conflict UX and reset-to-default controls. (Conflicts **block** rather than swap and name the owning action; one slot per device kind so a key remap never clears the joypad binding; per-action and global reset. The `gameplay_ultimate` chord is shown read-only — it is not expressible as a per-event row. (The derived Dash gesture was removed with the universal dash, 2026-08-09.))
 - [x] Verify haptics, shake scale, damage-number visibility, HUD opacity, audio levels, screen mode, resolution, and VSync across all Story, Fighter, boss, hazard, rewind, and online flows. (All except online, deferred with Package 7. Two real haptics bugs fixed: damage vibrated hardcoded device 0, and guard-break passed a player index as a device id.)
 
 ### Audio implementation

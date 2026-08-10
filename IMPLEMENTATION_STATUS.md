@@ -114,7 +114,7 @@ Package 6 (2026-08-08) closed this section. Plan of record: `docs/PACKAGE6_FIGHT
 | Feature | Design Spec | Implementation Status |
 |---------|-------------|----------------------|
 | GGPO-style rollback netcode | Frame-perfect deterministic rollback with 7-frame budget | **Foundation only** - Klotho FP64 simulation with rollback/resimulation works locally and via in-memory transport |
-| Direct-IP UDP LAN transport | Binary input/hash packets with acknowledgements | **Implemented** - Protocol v2 with Roll/Dash bits |
+| Direct-IP UDP LAN transport | Binary input/hash packets with acknowledgements | **Implemented** - Protocol v2 with the Roll bit (the Dash bit is reserved wire padding since the universal dash's 2026-08-09 removal) |
 | Steam Networking Sockets | NAT traversal, relay, encrypted P2P | **Not implemented** |
 | LAN discovery | Auto-discover peers on local network | **Not implemented** |
 | Connection handshake/negotiation | Rules agreement, version check, synchronized start | **Not implemented** |
@@ -193,7 +193,7 @@ Package 6 (2026-08-08) closed this section. Plan of record: `docs/PACKAGE6_FIGHT
 | Cooldown system | 10s flat for specials, 5s for movement ability | **Implemented** |
 | Damage numbers | Floating pooled damage text with shimmer | **Implemented** - Pooled with configurable visibility |
 | Combatant pushboxes | Soft horizontal jostling, non-solid hurtboxes | **Implemented** - Both Story and Fighter modes |
-| Universal dash | 12-frame, 1.35× speed, no invulnerability, 4-frame commitment | **Implemented** |
+| Universal dash | 12-frame, 1.35× speed, no invulnerability, 4-frame commitment | **Removed 2026-08-09 by user decision** (supersedes the design spec; roll and character movement abilities are the mobility tools) |
 | Universal evasive roll | 4 startup / 12 travel / 10 recovery, first 8 invulnerable | **Implemented** |
 | Ledge hanging | 5-second hang limit, pull up/drop/jump off, single occupancy | **Implemented with placeholder geometry** - Reusable ledge points, occupancy, response, and representative Tutorial placements exist |
 | One-way platform drop-through | Double-tap down, 0.25s collision disable, state restrictions | **Implemented with placeholder geometry** - Authored template and representative Tutorial platform exist |
@@ -371,14 +371,14 @@ migrated, and every ambient tone clears a readability floor — none of them can
 
 | Feature | Design Spec | Implementation Status |
 |---------|-------------|----------------------|
-| InputMap actions (12 defined) | Move, Dash, Jump, Down, BasicAttack, Special1/2, MovementAbility, Block, Roll, Ultimate, Interact, Pause | **Implemented** |
+| InputMap actions (12 defined) | Move, Jump, Down, BasicAttack, Special1/2, MovementAbility, Block, Roll, Ultimate, Interact, Pause | **Implemented** (Dash retired with the universal dash, 2026-08-09) |
 | Per-player device assignment | Local 1v1 controller separation via player index | **Implemented** |
-| Dash input detection | Digital double-tap (15 frames) / analog flick (85% magnitude) | **Implemented** |
+| Dash input detection | Digital double-tap (15 frames) / analog flick (85% magnitude) | **Removed 2026-08-09 by user decision** (supersedes the design spec; roll and character movement abilities are the mobility tools) |
 | Roll dedicated input | `O` keyboard / Right Trigger controller | **Implemented** |
 | Serializable PlayerInputFrame | Deterministic per-player input capture for replay/network | **Implemented** |
 | Full input remapping | Serialized keybinding overrides via InputMap API | **Implemented** - Controls tab with listen-for-input capture; typed multi-event `InputBindingSet` (physical keycodes, so a remap survives a keyboard-layout change) in the global payload at schema v4; only actions that differ from `project.godot` are persisted, so a later default change still reaches players who never touched that action. Restored into `InputMap` by `SaveManager` after global load, before gameplay |
 | Binding conflict UX | Explain and prevent a duplicate binding | **Implemented** - Conflicts **block** rather than swap (a swap would move a binding the player never asked to change) and name the owning action; each row carries one slot per device kind, so a key remap never clears the joypad binding |
-| Non-remappable inputs | Inputs that a per-event row cannot express | **Implemented as read-only** - the `gameplay_ultimate` LB+RB chord is evaluated as a conjunction of the action's joypad events, and Dash has no InputMap action at all (it is a derived double-tap / analog flick). Both are stated in the UI rather than hidden |
+| Non-remappable inputs | Inputs that a per-event row cannot express | **Implemented as read-only** - the `gameplay_ultimate` LB+RB chord is evaluated as a conjunction of the action's joypad events and is stated in the UI rather than hidden (the derived Dash gesture was removed with the universal dash, 2026-08-09) |
 | Controller haptics | Vibration on hit/block/KO/heavy-landing/hazard events | **Implemented** - `HapticFeedbackManager` with intensity settings. Two device bugs fixed in Package 8: damage vibrated hardcoded device 0 (so in local 1v1 player two's damage buzzed player one's pad) and guard-break passed a *player index* as a device id; both now route through `InputManager.GetDeviceForPlayer` |
 | Reset-to-default controls | Restore all bindings to factory defaults | **Implemented** - per-action and global, via `InputMap.LoadFromProjectSettings()` plus clearing the saved overrides |
 
@@ -431,7 +431,7 @@ migrated, and every ambient tone clears a readability floor — none of them can
 | Combat formula tests | Damage calc, block rules, meter build/use | **Implemented** |
 | Determinism/rollback tests | Hash consistency, prediction, correction convergence | **Implemented** |
 | Save system tests | Encryption, migration, corruption, tamper rejection, atomic backup | **Implemented** |
-| Input/collision tests | Roll bindings, dash gesture, pushbox geometry | **Implemented** |
+| Input/collision tests | Roll bindings, pushbox geometry (dash-gesture tests removed with the mechanic, 2026-08-09) | **Implemented** |
 | Resonance grid tests | All nine grids, prerequisites, isolation from Fighter | **Implemented** |
 | Localization tests | Key registration validation | **Implemented** |
 | FSM state validation | Simulated inputs + state assertions | **Partially implemented** |
@@ -547,7 +547,7 @@ The project has strong architectural foundations that will support scaling:
 
 - **Deterministic Fighter simulation** - Klotho FP64 with full snapshots, hashes, prediction, rollback, and resimulation
 - **Secure save system** - AES-256-CBC, HMAC-SHA256, atomic writes, backup recovery, migration, corruption handling
-- **Input architecture** - Per-player serializable input frames with device isolation and dash gesture detection
+- **Input architecture** - Per-player serializable input frames with device isolation (dash gesture detection removed with the universal dash, 2026-08-09)
 - **Combat formulas** - Typed hits, canonical damage/knockback/block/meter/status rules tested
 - **Object pooling** - PoolManager with IPoolable lifecycle, overflow policies, and warm-up
 - **Event-driven architecture** - EventBus decouples combat, HUD, audio, and save systems
