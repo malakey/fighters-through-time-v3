@@ -33,7 +33,11 @@ namespace FTT.Core {
         public override void _Process(double delta) {
             if (_shakeTimer <= 0) return;
 
-            _camera ??= GetViewport().GetCamera2D();
+            // M-24: never trust a camera cached across scene changes — the first
+            // scene's camera is freed with it, and dereferencing the disposed
+            // wrapper threw every shake frame for the rest of the session.
+            // Re-resolving is cheap and only happens while a shake is active.
+            if (_camera == null || !IsInstanceValid(_camera)) _camera = GetViewport().GetCamera2D();
             if (_camera == null) return;
 
             float dt = (float)delta;

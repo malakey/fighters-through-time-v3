@@ -124,6 +124,37 @@ public class SaveEnvelopeTests {
     }
 
     [TestCase]
+    public void BackupRotationRefusesToClobberTheGoodBackupWithACorruptPrimary() {
+        // Audit M-21: rotation used to copy the current primary over the backup
+        // unconditionally. After a backup-based recovery (corrupt primary still on
+        // disk), the next save then destroyed the last-known-good copy.
+        string directory = ProjectSettings.GlobalizePath($"user://test-saves/{Guid.NewGuid():N}");
+        string path = Path.Combine(directory, "story.sav");
+        try {
+            byte[] first = SaveEnvelopeCodec.Encode("story", 2, "{\"value\":1}", TestKey, 1L, TestIV);
+            byte[] second = SaveEnvelopeCodec.Encode("story", 2, "{\"value\":2}", TestKey, 2L, TestIV);
+            AtomicSaveStore.Write(path, first, IsValidStoryEnvelope);
+            AtomicSaveStore.Write(path, second, IsValidStoryEnvelope);
+            // The backup now holds the good {"value":1}; corrupt the primary in place.
+            byte[] corrupted = File.ReadAllBytes(path);
+            corrupted[corrupted.Length / 2] ^= 0x40;
+            File.WriteAllBytes(path, corrupted);
+
+            byte[] third = SaveEnvelopeCodec.Encode("story", 2, "{\"value\":3}", TestKey, 3L, TestIV);
+            AtomicSaveStore.Write(path, third, IsValidStoryEnvelope);
+
+            // The unverifiable primary was not rotated: the backup is still good.
+            AssertThat(SaveEnvelopeCodec.TryDecode(File.ReadAllBytes(path + ".bak"), TestKey, out DecodedSaveEnvelope backup, out _)).IsTrue();
+            AssertThat(backup.Json).IsEqual("{\"value\":1}");
+            // And the new primary landed normally.
+            AssertThat(SaveEnvelopeCodec.TryDecode(File.ReadAllBytes(path), TestKey, out DecodedSaveEnvelope primary, out _)).IsTrue();
+            AssertThat(primary.Json).IsEqual("{\"value\":3}");
+        } finally {
+            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+        }
+    }
+
+    [TestCase]
     public void DeleteAllCandidatesRemovesPrimaryRecoveryAndTemporaryFiles() {
         string directory = ProjectSettings.GlobalizePath($"user://test-saves/{Guid.NewGuid():N}");
         string path = Path.Combine(directory, "story.sav");

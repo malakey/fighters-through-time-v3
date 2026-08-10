@@ -34,6 +34,8 @@ namespace FTT.Environment {
         [Export] public StoryRewindPolicy RewindPolicy { get; set; } = StoryRewindPolicy.RestoreCheckpointState;
 
         private readonly Dictionary<PlayerController, float> _catchCooldowns = new();
+        /// <summary>Reused per-frame key scratch; AdvanceFront must not allocate at 60 Hz.</summary>
+        private readonly List<PlayerController> _cooldownScratch = new();
         private float _checkpointFrontX;
         private bool _checkpointRunning;
 
@@ -67,7 +69,9 @@ namespace FTT.Environment {
         public override void _PhysicsProcess(double delta) => AdvanceFront((float)delta);
 
         public void AdvanceFront(float dt) {
-            foreach (PlayerController player in new List<PlayerController>(_catchCooldowns.Keys)) {
+            _cooldownScratch.Clear();
+            _cooldownScratch.AddRange(_catchCooldowns.Keys);
+            foreach (PlayerController player in _cooldownScratch) {
                 float remaining = _catchCooldowns[player] - dt;
                 if (remaining <= 0f) _catchCooldowns.Remove(player);
                 else _catchCooldowns[player] = remaining;
@@ -80,7 +84,12 @@ namespace FTT.Environment {
 
             Area2D front = DamageFront;
             if (front == null) return;
-            foreach (Node2D body in front.GetOverlappingBodies()) {
+            // Audit Low: this was the one undisposed overlap query in the repo,
+            // leaking an engine collection wrapper every physics frame of the
+            // Pompeii/Level-15 escape beats. See the AGENTS.md disposal rule.
+            Godot.Collections.Array<Node2D> bodies = front.GetOverlappingBodies();
+            using var lifetime = bodies.AsDisposable();
+            foreach (Node2D body in bodies) {
                 if (body is not PlayerController player) continue;
                 if (player.GlobalPosition.X >= FinishX) { CompleteEscape(); return; }
                 CatchPlayer(player);

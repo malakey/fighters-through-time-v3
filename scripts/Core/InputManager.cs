@@ -295,16 +295,26 @@ namespace FTT.Core {
             return PlayerInputFrame.Create(tick, horizontal, vertical, held, previousHeld);
         }
 
+        /// <summary>
+        /// Scratch buffer for <see cref="ReadUltimatePressed"/> (audit M-26): this
+        /// runs on the 60 Hz per-player poll path, so it must not allocate a List
+        /// per call. Main-thread only, like all input polling.
+        /// </summary>
+        private static readonly List<JoyButton> UltimateChordScratch = new();
+
         private static bool ReadUltimatePressed(int deviceId) {
             if (deviceId == KeyboardDevice) return ReadActionPressed(Actions.Ultimate, deviceId);
 
-            var requiredButtons = new List<JoyButton>();
-            foreach (InputEvent inputEvent in InputMap.ActionGetEvents(Actions.Ultimate)) {
-                if (inputEvent is InputEventJoypadButton button) requiredButtons.Add(button.ButtonIndex);
+            UltimateChordScratch.Clear();
+            Godot.Collections.Array<InputEvent> ultimateEvents = InputMap.ActionGetEvents(Actions.Ultimate);
+            using (ultimateEvents.AsDisposable()) {
+                foreach (InputEvent inputEvent in ultimateEvents) {
+                    if (inputEvent is InputEventJoypadButton button) UltimateChordScratch.Add(button.ButtonIndex);
+                }
             }
 
-            if (requiredButtons.Count <= 1) return ReadActionPressed(Actions.Ultimate, deviceId);
-            foreach (JoyButton button in requiredButtons) {
+            if (UltimateChordScratch.Count <= 1) return ReadActionPressed(Actions.Ultimate, deviceId);
+            foreach (JoyButton button in UltimateChordScratch) {
                 if (!Input.IsJoyButtonPressed(deviceId, button)) return false;
             }
             return true;
@@ -316,7 +326,12 @@ namespace FTT.Core {
 
         private static float ReadActionStrength(string action, int deviceId) {
             float strength = 0.0f;
-            foreach (InputEvent inputEvent in InputMap.ActionGetEvents(action)) {
+            // M-26: the hottest poll path in the project (~12 actions x 2 players
+            // x 60 Hz). Dispose the engine collection wrapper deterministically
+            // instead of flooding the finalizer queue (AGENTS.md disposal rule).
+            Godot.Collections.Array<InputEvent> actionEvents = InputMap.ActionGetEvents(action);
+            using var lifetime = actionEvents.AsDisposable();
+            foreach (InputEvent inputEvent in actionEvents) {
                 if (deviceId == KeyboardDevice) {
                     if (inputEvent is InputEventKey keyEvent) {
                         Key key = keyEvent.PhysicalKeycode != Key.None ? keyEvent.PhysicalKeycode : keyEvent.Keycode;

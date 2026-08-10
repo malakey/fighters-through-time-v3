@@ -1077,3 +1077,5 @@ results_rewinds_used,Chronal Rewinds used: {0}
 timeline_restart_level_confirm,Restarting from the beginning discards the Timeline Anchor you reached. Continue?
 # Package 8 B4
 fighter_cpu_difficulty,CPU Difficulty
+# Audit 2026-08-08 core-services fixes
+save_notice_key_error,Save data is unavailable: the local save key could not be read. Progress will not be saved this session; existing save files were left untouched.

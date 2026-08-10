@@ -166,7 +166,10 @@ namespace FTT.Core {
                         }
                         break;
                     default: // Grow
-                        if (totalCount >= pool.MaxCapacity) return null;
+                        // M-25: Grow really grows. MaxCapacity is the warm-up /
+                        // budget hint, not a hard cap — the old arm was identical
+                        // to Reject, so projectiles, story mobs, and damage
+                        // numbers silently stopped spawning during dense fights.
                         node = CreateInstance(template);
                         break;
                 }

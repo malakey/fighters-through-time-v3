@@ -226,6 +226,54 @@ public class InputBindingSchemaTests {
     }
 
     [TestCase]
+    public void RestoreRefusesNonRemappableActionsFromATamperedPayload() {
+        // Audit H-2 blast radius / §5.2: the restore path used to apply saved
+        // bindings to ANY existing InputMap action, so a tampered global payload
+        // could rebind ui_* navigation or the read-only gameplay_ultimate chord.
+        List<InputBindingEvent> acceptDefault = InputBindingService.CaptureAction("ui_accept");
+        List<InputBindingEvent> ultimateDefault = InputBindingService.CaptureAction(InputManager.Actions.Ultimate);
+        try {
+            var tampered = new InputBindingSet();
+            tampered.Set("ui_accept", new[] { new InputBindingEvent(InputBindingKind.Key, (int)Key.F13) });
+            tampered.Set(InputManager.Actions.Ultimate, new[] { new InputBindingEvent(InputBindingKind.Key, (int)Key.F14) });
+
+            InputBindingService.Apply(tampered);
+
+            List<InputBindingEvent> acceptNow = InputBindingService.CaptureAction("ui_accept");
+            AssertThat(acceptNow.Count).IsEqual(acceptDefault.Count);
+            for (int index = 0; index < acceptNow.Count; index++) {
+                AssertThat(acceptNow[index].Matches(acceptDefault[index])).IsTrue();
+            }
+            List<InputBindingEvent> ultimateNow = InputBindingService.CaptureAction(InputManager.Actions.Ultimate);
+            AssertThat(ultimateNow.Count).IsEqual(ultimateDefault.Count);
+            for (int index = 0; index < ultimateNow.Count; index++) {
+                AssertThat(ultimateNow[index].Matches(ultimateDefault[index])).IsTrue();
+            }
+        } finally {
+            InputMap.LoadFromProjectSettings();
+        }
+    }
+
+    [TestCase]
+    public void RestoreCapsTheEventCountPerAction() {
+        try {
+            var overrides = new InputBindingSet();
+            var events = new List<InputBindingEvent>();
+            for (int index = 0; index < InputBindingService.MaxEventsPerAction + 4; index++) {
+                events.Add(new InputBindingEvent(InputBindingKind.Key, (int)Key.A + index));
+            }
+            overrides.Set(InputManager.Actions.Jump, events);
+
+            InputBindingService.Apply(overrides);
+
+            AssertThat(InputBindingService.CaptureAction(InputManager.Actions.Jump).Count)
+                .IsEqual(InputBindingService.MaxEventsPerAction);
+        } finally {
+            InputMap.LoadFromProjectSettings();
+        }
+    }
+
+    [TestCase]
     public void TheUltimateChordAndDashGestureAreExcludedFromRemapping() {
         AssertThat(InputManager.RemappableActions.Contains(InputManager.Actions.Ultimate)).IsFalse();
         AssertThat(InputManager.ReadOnlyActions.Contains(InputManager.Actions.Ultimate)).IsTrue();

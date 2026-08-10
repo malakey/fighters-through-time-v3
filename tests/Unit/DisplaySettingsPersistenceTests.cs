@@ -1,5 +1,6 @@
 using FTT.Core;
 using GdUnit4;
+using Godot;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using static GdUnit4.Assertions;
@@ -121,6 +122,20 @@ public class DisplaySettingsPersistenceTests {
         AssertObject(migrated.InputBindings).IsNotNull();
         AssertThat(migrated.InputBindings.Actions.Count).IsEqual(0);
         AssertThat(migrated.UIVolume).IsEqual(0.25f);
+    }
+
+    [TestCase]
+    public void WindowModeSettingsMapToTheirEngineModes() {
+        // Audit Low ("window-mode swap"): Godot's DisplayServer.WindowMode.Fullscreen
+        // is the BORDERLESS fullscreen window; ExclusiveFullscreen is true
+        // fullscreen. The settings labels map accordingly — the old mapping had
+        // the two crossed.
+        AssertThat(ViewportEnforcer.ResolveWindowMode(WindowModeSetting.Windowed))
+            .IsEqual(DisplayServer.WindowMode.Windowed);
+        AssertThat(ViewportEnforcer.ResolveWindowMode(WindowModeSetting.Fullscreen))
+            .IsEqual(DisplayServer.WindowMode.ExclusiveFullscreen);
+        AssertThat(ViewportEnforcer.ResolveWindowMode(WindowModeSetting.BorderlessFullscreen))
+            .IsEqual(DisplayServer.WindowMode.Fullscreen);
     }
 
     [TestCase]
