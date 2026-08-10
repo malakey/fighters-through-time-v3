@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Generates the Package 8 A2 placeholder one-shot SFX under ``audio/sfx/``.
 
-These are deliberately crude synthesized tones: distinct enough to tell apart in
-a playtest, quiet enough not to fatigue, and obviously not production audio.
-They exist so the cue call sites that already reference them stop no-oping —
+The files currently render as digital silence (see ``RENDER_SILENT`` below); the
+tone builders are kept as the shape reference for what each cue meant. They exist
+so the cue call sites that already reference them stop no-oping —
 notably ``FighterSimulationDriver``'s ``ko_stinger.ogg`` / ``victory_fanfare.ogg``
 constants, which resolve through ``ResourceLoader.Exists`` and silently skip when
 the file is absent. Production audio replaces the files in place; no code change.
@@ -37,6 +37,15 @@ except ImportError:  # pragma: no cover - developer tooling
 
 SAMPLE_RATE = 44100
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# 2026-08-09: the placeholder cues render as digital silence by directive — the
+# synthesized tones were judged distracting in playtests, matching the muting of
+# the three placeholder music stems the same day. Every cue keeps its exact
+# duration, file path, and non-looping import settings, so call sites, .import
+# sidecars, and PlaceholderCueAssetTests (path, duration bounds, Loop == false)
+# hold unchanged, and production audio still drops in with zero code changes.
+# Flip to False only if the audible placeholder tones are wanted again.
+RENDER_SILENT = True
 
 
 def envelope(length: int, attack: float, release: float) -> np.ndarray:
@@ -139,6 +148,11 @@ def main() -> int:
         peak = float(np.max(np.abs(samples)))
         if peak > 0.5:
             sys.exit(f"{relative_path} peaks at {peak:.3f}; placeholders must stay quiet")
+        if RENDER_SILENT:
+            # Preserve the sample count (and therefore GetLength()) exactly;
+            # only the content goes quiet.
+            samples = np.zeros_like(samples)
+            peak = 0.0
         target = os.path.join(REPO_ROOT, relative_path)
         os.makedirs(os.path.dirname(target), exist_ok=True)
         sf.write(target, samples.astype(np.float32), SAMPLE_RATE, format="OGG", subtype="VORBIS")
