@@ -226,10 +226,11 @@ public class InputBindingSchemaTests {
     }
 
     [TestCase]
-    public void TheUltimateChordAndDashGestureAreExcludedFromRemapping() {
+    public void TheUltimateChordIsExcludedFromRemapping() {
         AssertThat(InputManager.RemappableActions.Contains(InputManager.Actions.Ultimate)).IsFalse();
         AssertThat(InputManager.ReadOnlyActions.Contains(InputManager.Actions.Ultimate)).IsTrue();
-        // Dash has no InputMap action at all — it is a derived gesture.
+        // The universal dash mechanic was removed (2026-08-09): no InputMap
+        // action for it may ever reappear.
         AssertThat(InputMap.HasAction("gameplay_dash")).IsFalse();
         foreach (string action in InputManager.RemappableActions) {
             AssertThat(InputMap.HasAction(action))
@@ -250,7 +251,7 @@ public class InputBindingSchemaTests {
             "settings_window_mode", "settings_window_windowed", "settings_window_fullscreen",
             "settings_window_borderless", "controls_hint", "controls_listening", "controls_conflict",
             "controls_reset_all", "controls_reset_action", "controls_binding_unbound",
-            "controls_ultimate_readonly", "controls_dash_readonly"
+            "controls_ultimate_readonly"
         };
         foreach (string key in uiKeys) {
             if (TranslationServer.Translate(key).ToString() == key) unresolved.Add(key);

@@ -17,8 +17,10 @@ public class CharacterPresentationTests {
 
     // Runtime states PlayerController plays that the presentation contract does
     // not list yet; the per-character placeholder frames must still carry them.
+    // ("dash" left this list with the universal dash's removal, 2026-08-09; the
+    // placeholder frame sets may keep the orphaned animation harmlessly.)
     private static readonly string[] RuntimeOnlyAnimationNames = {
-        "dash", "roll_startup", "roll", "roll_recovery"
+        "roll_startup", "roll", "roll_recovery"
     };
 
     [After]

@@ -261,7 +261,7 @@ public class FighterStageBerlinTests {
     /// Movement only, deliberately: 2500 frames of random attacking KOs a fighter
     /// and ends the match, and a finished match stops the hazard system dead —
     /// the searchlight would freeze mid-active and never reach recovery. Walking,
-    /// jumping and dashing keeps both fighters alive, keeps them crossing the
+    /// jumping and rolling keeps both fighters alive, keeps them crossing the
     /// three beam anchors, and still drives every deterministic system this run
     /// is meant to compare.
     /// </summary>
@@ -269,7 +269,6 @@ public class FighterStageBerlinTests {
         sbyte axis = (sbyte)(((tick + playerID * 13) % 7 - 3) * 40);
         GameplayButtons buttons = GameplayButtons.None;
         if (tick % 43 == 0) buttons |= GameplayButtons.Jump;
-        if (tick % 89 == 0) buttons |= GameplayButtons.Dash;
         if (tick % 137 == 0) buttons |= GameplayButtons.Roll;
         return new PlayerInputFrame {
             Tick = (uint)tick,

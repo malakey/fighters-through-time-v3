@@ -212,7 +212,6 @@ namespace FTT.FighterSim {
             if (runtime.UniversalMovementState is (int)UniversalMovementPhase.RollStartup
                 or (int)UniversalMovementPhase.RollTravel
                 or (int)UniversalMovementPhase.RollRecovery) return "Rolling";
-            if (runtime.UniversalMovementState == (int)UniversalMovementPhase.Dash) return "Dashing";
             if (state.InvulnerabilityFrames > 0) return "Respawning";
             if (state.DazeFrames > 0) return "Dazed";
             if (state.HitstunFrames > 0) return "Stunned";
@@ -518,7 +517,6 @@ namespace FTT.FighterSim {
                 int step = runtime.ComboIndex < 0 ? 0 : runtime.ComboIndex > 2 ? 2 : runtime.ComboIndex;
                 return BasicAttackAnimationNames[step];
             }
-            if (runtime.UniversalMovementState == (int)UniversalMovementPhase.Dash) return "dash";
             if (runtime.UniversalMovementState is (int)UniversalMovementPhase.RollStartup
                 or (int)UniversalMovementPhase.RollTravel
                 or (int)UniversalMovementPhase.RollRecovery) return "roll";

@@ -280,7 +280,6 @@ public class FighterStageOrleansTests {
         GameplayButtons buttons = GameplayButtons.None;
         if (tick % 53 == 0) buttons |= GameplayButtons.Jump;
         if (tick % 37 == 0) buttons |= GameplayButtons.BasicAttack;
-        if (tick % 89 == 0) buttons |= GameplayButtons.Dash;
         return new PlayerInputFrame {
             Tick = (uint)tick,
             MoveX = axis,

@@ -17,6 +17,12 @@ namespace FTT.Core {
         Interact = 1 << 8,
         Pause = 1 << 9,
         Roll = 1 << 10,
+        /// <summary>
+        /// Reserved wire bit. The universal dash mechanic (and its derived
+        /// double-tap/flick gesture) was removed on 2026-08-09 by user directive;
+        /// the bit stays allocated so the protocol v2 packet layout is unchanged.
+        /// Nothing sets it and nothing consumes it.
+        /// </summary>
         Dash = 1 << 11
     }
 

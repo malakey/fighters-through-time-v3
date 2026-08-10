@@ -9,6 +9,6 @@ TemplateKind = 2
 RequiredNodePaths = PackedStringArray("Presentation/AnimatedSprite2D", "AnimationPlayer", "Hurtbox", "Pushbox", "Hitboxes", "ContentContract")
 RequiredRootGroups = PackedStringArray("player")
 AnimatedSpritePath = "Presentation/AnimatedSprite2D"
-RequiredAnimationNames = PackedStringArray("idle", "run", "jump", "fall", "dash", "roll_startup", "roll", "roll_recovery", "basic_attack_1", "basic_attack_2", "basic_attack_3", "special_1", "special_2", "movement_ability", "ultimate", "block", "dazed", "hitstun", "death", "skid", "crouch", "ledge_hang", "ledge_pull_up", "ledge_drop", "respawn", "victory", "defeat")
+RequiredAnimationNames = PackedStringArray("idle", "run", "jump", "fall", "roll_startup", "roll", "roll_recovery", "basic_attack_1", "basic_attack_2", "basic_attack_3", "special_1", "special_2", "movement_ability", "ultimate", "block", "dazed", "hitstun", "death", "skid", "crouch", "ledge_hang", "ledge_pull_up", "ledge_drop", "respawn", "victory", "defeat")
 RequiredEventCallbacks = PackedStringArray("ActivateHitbox", "DeactivateHitbox", "EmitFootstep", "EmitPresentationEvent")
 RequiredCollisionLayerNames = PackedStringArray("Player", "PlayerHitbox", "PlayerHurtbox")

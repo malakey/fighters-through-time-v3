@@ -321,31 +321,33 @@ public class FighterSimulationTests {
         AssertThat(target.HitstunFrames).IsEqual(15);
     }
 
+    /// <summary>
+    /// The universal dash was removed on 2026-08-09 (user directive). Its wire
+    /// bit stays allocated in the protocol, so a frame carrying it must leave
+    /// every fighter's gameplay state identical to the same frame without it.
+    /// (The full state hash is deliberately not compared: it covers the raw
+    /// input mirror, which legitimately differs by exactly the reserved bit.)
+    /// </summary>
     [TestCase]
-    public void DashIsFasterThanRunningButStopsAtAnOpponentPushbox() {
-        var runner = new FighterSimulation(spawnDistance: 8, rules: FighterMatchRules.Disabled);
-        var dasher = new FighterSimulation(spawnDistance: 8, rules: FighterMatchRules.Disabled);
-        for (int tick = 0; tick < UniversalMovementRules.DashDurationFrames; tick++) {
-            runner.Advance(Frame(tick, 127, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-            dasher.Advance(
-                Frame(tick, 127, tick == 0 ? GameplayButtons.Dash : GameplayButtons.None),
-                Frame(tick, 0, GameplayButtons.None));
+    public void TheReservedDashBitHasNoEffectOnSimulationState() {
+        var plain = new FighterSimulation(spawnDistance: 8, rules: FighterMatchRules.Disabled);
+        var flagged = new FighterSimulation(spawnDistance: 8, rules: FighterMatchRules.Disabled);
+        for (int tick = 0; tick < 120; tick++) {
+            GameplayButtons buttons = tick % 3 == 0 ? GameplayButtons.Jump : GameplayButtons.None;
+            plain.Advance(Frame(tick, 127, buttons), Frame(tick, -127, GameplayButtons.None));
+            flagged.Advance(
+                Frame(tick, 127, buttons | GameplayButtons.Dash),
+                Frame(tick, -127, GameplayButtons.Dash));
         }
-        AssertThat(runner.TryGetFighter(0, out FighterStateComponent runningState)).IsTrue();
-        AssertThat(dasher.TryGetFighter(0, out FighterStateComponent dashState)).IsTrue();
-        AssertThat(dashState.Position.x > runningState.Position.x).IsTrue();
-
-        var blocked = new FighterSimulation(spawnDistance: 1, rules: FighterMatchRules.Disabled);
-        for (int tick = 0; tick < 20; tick++) {
-            blocked.Advance(
-                Frame(tick, 127, tick == 0 ? GameplayButtons.Dash : GameplayButtons.None),
-                Frame(tick, 0, GameplayButtons.None));
+        for (int playerID = 0; playerID < 2; playerID++) {
+            AssertThat(plain.TryGetFighter(playerID, out FighterStateComponent plainState)).IsTrue();
+            AssertThat(flagged.TryGetFighter(playerID, out FighterStateComponent flaggedState)).IsTrue();
+            AssertThat(flaggedState.Equals(plainState)).IsTrue();
+            AssertThat(plain.TryGetFighterRuntime(playerID, out FighterRuntimeComponent plainRuntime)).IsTrue();
+            AssertThat(flagged.TryGetFighterRuntime(playerID, out FighterRuntimeComponent flaggedRuntime)).IsTrue();
+            AssertThat(flaggedRuntime.UniversalMovementState).IsEqual(plainRuntime.UniversalMovementState);
+            AssertThat(flaggedRuntime.AttackPhase).IsEqual(plainRuntime.AttackPhase);
         }
-        AssertThat(blocked.TryGetFighter(0, out FighterStateComponent blockedDasher)).IsTrue();
-        AssertThat(blocked.TryGetFighter(1, out FighterStateComponent blocker)).IsTrue();
-        AssertThat(blockedDasher.Position.x < blocker.Position.x).IsTrue();
-        AssertThat(blocked.TryGetFighterRuntime(0, out FighterRuntimeComponent blockedRuntime)).IsTrue();
-        AssertThat(blockedRuntime.UniversalMovementState).IsEqual((int)UniversalMovementPhase.None);
     }
 
     [TestCase]

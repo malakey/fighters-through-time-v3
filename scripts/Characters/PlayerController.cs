@@ -7,6 +7,11 @@ namespace FTT.Characters {
 	public enum CharacterState {
 		Idle,
 		Running,
+		/// <summary>
+		/// Reserved. The universal dash mechanic was removed (2026-08-09 user
+		/// directive); the member stays so serialized/int-cast state and the
+		/// enum's ordinal layout are undisturbed. No code enters this state.
+		/// </summary>
 		Dashing,
 		Rolling,
 		Skidding,
@@ -244,8 +249,6 @@ namespace FTT.Characters {
 		private uint _rewindCollisionLayer;
 		private uint _rewindCollisionMask;
 		private bool _rewindSuspended;
-		private int _dashFramesRemaining;
-		private int _dashDirection;
 		private int _rollFrame;
 		private int _rollDirection;
 		private bool _rollInvulnerable;
@@ -505,9 +508,6 @@ namespace FTT.Characters {
 				case CharacterState.Running:
 					ProcessRunning(dt);
 					break;
-				case CharacterState.Dashing:
-					ProcessDashing(dt);
-					break;
 				case CharacterState.Rolling:
 					ProcessRolling(dt);
 					break;
@@ -562,11 +562,8 @@ namespace FTT.Characters {
 						EnterRollRecovery();
 					}
 				} else {
-					bool bodyBlocked = _pushbox.ResolveStoryOverlaps(
+					_pushbox.ResolveStoryOverlaps(
 						CurrentState == CharacterState.Rolling ? _rollDirection : 0);
-					if (bodyBlocked && CurrentState == CharacterState.Dashing) {
-						TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
-					}
 				}
 			}
 
@@ -625,7 +622,6 @@ namespace FTT.Characters {
 			}
 
 			if (CheckRollInput()) return;
-			if (CheckDashInput()) return;
 			if (CheckJumpInput()) return;
 			if (CheckAttackInput()) return;
 			if (CheckSpecialInput()) return;
@@ -664,7 +660,6 @@ namespace FTT.Characters {
 			}
 
 			if (CheckRollInput()) return;
-			if (CheckDashInput()) return;
 			if (CheckJumpInput()) return;
 			if (CheckAttackInput()) return;
 			if (CheckBlockInput()) return;
@@ -691,32 +686,6 @@ namespace FTT.Characters {
 			UpdateFacing(hAxis);
 			CheckDropThrough();
 			PlayAnimation("run");
-		}
-
-		private void ProcessDashing(float dt) {
-			ApplyGravity(dt);
-			if (!IsOnFloor() || IsMovementRooted) {
-				TransitionTo(CharacterState.Airborne);
-				return;
-			}
-
-			int elapsed = FTT.Core.UniversalMovementRules.DashDurationFrames - _dashFramesRemaining;
-			if (elapsed >= FTT.Core.UniversalMovementRules.DashCommitFrames) {
-				if (CheckJumpInput()) return;
-				if (CheckAttackInput()) return;
-			}
-
-			float dashSpeed = EffectiveMoveSpeed
-				* StatusMovementMultiplier
-				* 60f
-				* FTT.Core.UniversalMovementRules.DashSpeedMultiplier;
-			Velocity = new Vector2(_dashDirection * dashSpeed, Velocity.Y);
-			_dashFramesRemaining--;
-			if (_dashFramesRemaining <= 0 || IsOnWall()) {
-				TransitionTo(CharacterState.Idle);
-				return;
-			}
-			PlayAnimation("dash");
 		}
 
 		private void ProcessRolling(float dt) {
@@ -887,7 +856,7 @@ namespace FTT.Characters {
 			}
 
 			// Design 752/3080 — during recovery frames, movement, jumping,
-			// dashing, rolling, or blocking cancels the swing and resets the
+			// rolling, or blocking cancels the swing and resets the
 			// chain. Startup/active frames stay committed so a held approach
 			// direction cannot self-cancel a fresh swing.
 			if (_attackInRecovery && TryRecoveryCancel()) return;
@@ -936,7 +905,7 @@ namespace FTT.Characters {
 				return;
 			}
 
-			// Same cancel set as the recovery frames: movement, jump, dash, roll,
+			// Same cancel set as the recovery frames: movement, jump, roll,
 			// or block ends the chain window (specials are handled upstream in
 			// ProcessAttacking before the hold dispatch).
 			if (TryRecoveryCancel()) {
@@ -953,12 +922,12 @@ namespace FTT.Characters {
 
 		/// <summary>
 		/// Design 752/3080: during a basic's recovery frames or the chain-hold
-		/// window, movement, jumping, dashing, rolling, or blocking cancels the
+		/// window, movement, jumping, rolling, or blocking cancels the
 		/// swing and resets the chain. The Fighter sim applies the identical
 		/// rule in its phase machine.
 		/// </summary>
 		private bool TryRecoveryCancel() {
-			if (CheckJumpInput() || CheckRollInput() || CheckDashInput() || CheckBlockInput()) {
+			if (CheckJumpInput() || CheckRollInput() || CheckBlockInput()) {
 				CancelActiveAttack();
 				ResetComboChain();
 				return true;
@@ -1127,11 +1096,6 @@ namespace FTT.Characters {
 			CurrentState = newState;
 
 			switch (newState) {
-				case CharacterState.Dashing:
-					_dashFramesRemaining = FTT.Core.UniversalMovementRules.DashDurationFrames;
-					IsFacingRight = _dashDirection > 0;
-					UpdateSpriteFlip();
-					break;
 				case CharacterState.Rolling:
 					_rollFrame = 0;
 					_rollInvulnerable = false;
@@ -1465,15 +1429,6 @@ namespace FTT.Characters {
 			float input = GetHorizontalInput();
 			_rollDirection = Mathf.Abs(input) > 0.1f ? Math.Sign(input) : (IsFacingRight ? 1 : -1);
 			TransitionTo(CharacterState.Rolling);
-			return true;
-		}
-
-		private bool CheckDashInput() {
-			if (IsMovementRooted || !IsOnFloor()) return false;
-			if (!CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Dash)) return false;
-			float input = GetHorizontalInput();
-			_dashDirection = Mathf.Abs(input) > 0.1f ? Math.Sign(input) : (IsFacingRight ? 1 : -1);
-			TransitionTo(CharacterState.Dashing);
 			return true;
 		}
 

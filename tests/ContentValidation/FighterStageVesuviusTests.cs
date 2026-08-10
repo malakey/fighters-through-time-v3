@@ -280,7 +280,6 @@ public class FighterStageVesuviusTests {
         GameplayButtons buttons = GameplayButtons.None;
         if (tick % 53 == 0) buttons |= GameplayButtons.Jump;
         if (tick % 29 == 0) buttons |= GameplayButtons.BasicAttack;
-        if (tick % 101 == 0) buttons |= GameplayButtons.Dash;
         return new PlayerInputFrame {
             Tick = (uint)tick,
             MoveX = axis,

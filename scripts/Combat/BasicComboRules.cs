@@ -29,7 +29,7 @@ namespace FTT.Combat {
         /// <summary>
         /// Post-recovery chain window (and the mid-swing input buffer length).
         /// Design 3080: the next basic pressed inside this window continues the
-        /// string; movement, jumping, dashing, rolling, or blocking inside the
+        /// string; movement, jumping, rolling, or blocking inside the
         /// recovery or this window cancels the swing and resets the chain.
         /// </summary>
         public const int ChainHoldFrames = 24;

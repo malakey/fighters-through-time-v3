@@ -176,8 +176,7 @@ namespace FTT.UI {
             _tabs.GetNode<Label>("Gameplay/ScreenShakeLabel").Text = Tr("settings_screen_shake");
 
             _tabs.GetNode<Label>("Controls/Hint").Text = Tr("controls_hint");
-            _tabs.GetNode<Label>("Controls/ReadOnlyInfo").Text =
-                $"{Tr("controls_ultimate_readonly")}\n{Tr("controls_dash_readonly")}";
+            _tabs.GetNode<Label>("Controls/ReadOnlyInfo").Text = Tr("controls_ultimate_readonly");
             _tabs.GetNode<Button>("Controls/ResetAllButton").Text = Tr("controls_reset_all");
             _controlsStatus.Text = "";
         }
@@ -259,8 +258,8 @@ namespace FTT.UI {
                 _actionRows.AddChild(row);
             }
 
-            // The chord and the derived dash gesture are shown read-only in the
-            // Controls tab header text rather than as rebindable rows.
+            // The ultimate chord is shown read-only in the Controls tab header
+            // text rather than as a rebindable row.
             RefreshBindingLabels();
         }
 
