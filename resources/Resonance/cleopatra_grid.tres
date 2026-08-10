@@ -42,7 +42,7 @@ DisplayNameKey = "resonance_cleopatra_dm1_name"
 DescriptionKey = "resonance_cleopatra_dm1_description"
 UnlockCost = 50
 PrerequisiteNodeIDs = PackedStringArray()
-StatModifierKey = "AttackRange"
+StatModifierKey = "ZoneRadius"
 StatModifierValue = 0.15
 StatModifierIsPercent = true
 
@@ -53,7 +53,7 @@ DisplayNameKey = "resonance_cleopatra_dm2_name"
 DescriptionKey = "resonance_cleopatra_dm2_description"
 UnlockCost = 75
 PrerequisiteNodeIDs = PackedStringArray("cleopatra_dm1")
-StatModifierKey = "PersistentDuration"
+StatModifierKey = "ZoneDuration"
 StatModifierValue = 0.2
 StatModifierIsPercent = true
 

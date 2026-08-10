@@ -42,12 +42,6 @@ namespace FTT.Characters.Abilities {
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
             LaunchChord();
-            Owner.SpecialOneCooldownTimer = Data?.CooldownDuration ?? 10f;
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.Special1,
-                Duration = Data?.CooldownDuration ?? 10f
-            });
         }
 
         protected override void OnRecovery() {
@@ -197,12 +191,6 @@ namespace FTT.Characters.Abilities {
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
             EmitWave();
-            Owner.SpecialTwoCooldownTimer = Data?.CooldownDuration ?? 10f;
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.Special2,
-                Duration = Data?.CooldownDuration ?? 10f
-            });
         }
 
         protected override void OnRecovery() {
@@ -245,18 +233,11 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
-            float cooldown = Data?.CooldownDuration ?? 5f;
-            Owner.MovementAbilityCooldownTimer = cooldown;
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 AbilityName = Data?.AbilityName ?? "Sonata Drift",
                 StartPosition = Owner.GlobalPosition,
                 EndPosition = Owner.GlobalPosition
-            });
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.MovementAbility,
-                Duration = cooldown
             });
         }
 
@@ -388,6 +369,16 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
+        }
+
+        /// <summary>
+        /// H-4: interrupting the bombardment releases the conducted hover — the
+        /// shared Story float window must not keep softening gravity through the
+        /// interposed stun. The meteor strikes themselves are phase-gated, so
+        /// clearing the phase already stops them.
+        /// </summary>
+        protected override void OnInterrupted() {
+            if (Owner != null) Owner.StoryFloatTimer = 0f;
         }
 
         public override void _PhysicsProcess(double delta) {

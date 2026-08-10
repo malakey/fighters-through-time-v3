@@ -37,6 +37,12 @@ namespace FTT.Environment {
         public readonly float ProjectileSpeedMultiplier;
         public readonly float ProjectileDamageMultiplier;
         public readonly float GlideSpeedMultiplier;
+        /// <summary>Glide-window length multiplier (from "GlideDuration" nodes, e.g. Pocahontas wr2).</summary>
+        public readonly float GlideDurationMultiplier;
+        /// <summary>Ability-zone radius multiplier (from "ZoneRadius" nodes: Einstein u2, Leonardo a2, Cleopatra dm1).</summary>
+        public readonly float ZoneRadiusMultiplier;
+        /// <summary>Ability-zone lifetime multiplier (from "ZoneDuration" nodes, e.g. Cleopatra dm2).</summary>
+        public readonly float ZoneDurationMultiplier;
         public readonly float PersistentDurationMultiplier;
         public readonly float PersistentRangeMultiplier;
         public readonly float PersistentHealthMultiplier;
@@ -63,7 +69,10 @@ namespace FTT.Environment {
             float persistentRangeMultiplier = 1f,
             float persistentHealthMultiplier = 1f,
             float statusDurationMultiplier = 1f,
-            float statusIntensityMultiplier = 1f) {
+            float statusIntensityMultiplier = 1f,
+            float glideDurationMultiplier = 1f,
+            float zoneRadiusMultiplier = 1f,
+            float zoneDurationMultiplier = 1f) {
             MaxHPBonus = maxHPBonus;
             BlockChargeBonus = blockChargeBonus;
             MoveSpeedMultiplier = moveSpeedMultiplier;
@@ -78,6 +87,9 @@ namespace FTT.Environment {
             ProjectileSpeedMultiplier = projectileSpeedMultiplier;
             ProjectileDamageMultiplier = projectileDamageMultiplier;
             GlideSpeedMultiplier = glideSpeedMultiplier;
+            GlideDurationMultiplier = glideDurationMultiplier;
+            ZoneRadiusMultiplier = zoneRadiusMultiplier;
+            ZoneDurationMultiplier = zoneDurationMultiplier;
             PersistentDurationMultiplier = persistentDurationMultiplier;
             PersistentRangeMultiplier = persistentRangeMultiplier;
             PersistentHealthMultiplier = persistentHealthMultiplier;

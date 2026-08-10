@@ -53,7 +53,7 @@ DisplayNameKey = "resonance_pocahontas_wr2_name"
 DescriptionKey = "resonance_pocahontas_wr2_description"
 UnlockCost = 75
 PrerequisiteNodeIDs = PackedStringArray("pocahontas_wr1")
-StatModifierKey = "PersistentDuration"
+StatModifierKey = "GlideDuration"
 StatModifierValue = 0.2
 StatModifierIsPercent = true
 

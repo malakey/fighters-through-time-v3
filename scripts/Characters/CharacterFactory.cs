@@ -65,6 +65,9 @@ namespace FTT.Characters {
 				player.StoryProjectileSpeedMultiplier = storyStats.ProjectileSpeedMultiplier;
 				player.StoryProjectileDamageMultiplier = storyStats.ProjectileDamageMultiplier;
 				player.StoryGlideSpeedMultiplier = storyStats.GlideSpeedMultiplier;
+				player.StoryGlideDurationMultiplier = storyStats.GlideDurationMultiplier;
+				player.StoryZoneRadiusMultiplier = storyStats.ZoneRadiusMultiplier;
+				player.StoryZoneDurationMultiplier = storyStats.ZoneDurationMultiplier;
 				player.StoryPersistentDurationMultiplier = storyStats.PersistentDurationMultiplier;
 				player.StoryPersistentRangeMultiplier = storyStats.PersistentRangeMultiplier;
 				player.StoryPersistentHealthMultiplier = storyStats.PersistentHealthMultiplier;

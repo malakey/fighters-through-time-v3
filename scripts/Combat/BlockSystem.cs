@@ -98,6 +98,17 @@ namespace FTT.Combat {
         }
 
         /// <summary>
+        /// Restores every charge without touching the blocking stance — the
+        /// Chronal Orb shield-restore pickup's entry point. Writing here keeps
+        /// this system authoritative; the PlayerController.CurrentBlockCharges
+        /// field is only a display mirror.
+        /// </summary>
+        public void RestoreAllCharges() {
+            CurrentCharges = Mathf.Max(0, MaxCharges);
+            _regenTimer = 0f;
+        }
+
+        /// <summary>
         /// Depletes a fixed number of charges outside the per-class cost table.
         /// Design-specified "shield-stutter" specials (Lincoln's Emancipator,
         /// Joan's Divine Piercing) drain exactly 2 charges instead of the generic

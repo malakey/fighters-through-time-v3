@@ -92,6 +92,12 @@ namespace FTT.Characters {
 		public float StoryProjectileSpeedMultiplier { get; set; } = 1f;
 		public float StoryProjectileDamageMultiplier { get; set; } = 1f;
 		public float StoryGlideSpeedMultiplier { get; set; } = 1f;
+		/// <summary>Story-only "GlideDuration" minors (e.g. Pocahontas wr2) lengthen glide windows.</summary>
+		public float StoryGlideDurationMultiplier { get; set; } = 1f;
+		/// <summary>Story-only "ZoneRadius" minors (Einstein u2, Leonardo a2, Cleopatra dm1) widen authored ability zones.</summary>
+		public float StoryZoneRadiusMultiplier { get; set; } = 1f;
+		/// <summary>Story-only "ZoneDuration" minors (Cleopatra dm2) lengthen authored ability zones.</summary>
+		public float StoryZoneDurationMultiplier { get; set; } = 1f;
 		public float StoryPersistentDurationMultiplier { get; set; } = 1f;
 		public float StoryPersistentRangeMultiplier { get; set; } = 1f;
 		public float StoryPersistentHealthMultiplier { get; set; } = 1f;
@@ -1172,8 +1178,26 @@ namespace FTT.Characters {
 			// live. The Fighter sim applies the identical rule on hitstun.
 			if (CurrentState == CharacterState.Attacking) CancelActiveAttack();
 			ResetComboChain();
+			// H-4: a landed stun also cancels an executing special/ultimate
+			// outright — no further ticks, steering, or phase advancement.
+			// Hyper-armor gating lives at the hit-resolution site
+			// (OnHurtboxHit): while an armor window covers the incoming attack
+			// class, this method is never reached and the cast completes.
+			InterruptActiveAbilities();
 			_stunTimer = duration;
 			TransitionTo(CharacterState.Stunned);
+		}
+
+		/// <summary>
+		/// H-4: interrupts whichever ability slot is mid-cast. Safe to call
+		/// unconditionally — <see cref="FTT.Combat.BaseSpecial.Interrupt"/>
+		/// no-ops on an inactive ability.
+		/// </summary>
+		private void InterruptActiveAbilities() {
+			_special1?.Interrupt();
+			_special2?.Interrupt();
+			_movementAbility?.Interrupt();
+			_ultimate?.Interrupt();
 		}
 
 		public int ApplyDamage(int damage) => ApplyDamage(damage, ignoreRollInvulnerability: false);
@@ -1203,6 +1227,12 @@ namespace FTT.Characters {
 			});
 
 			if (CurrentHP <= 0) {
+				// H-4: death cancels the basic swing and any executing
+				// special/ultimate unconditionally — hyper-armor prevents
+				// hitstun, never death — so no hitbox, steering, or
+				// multi-hit sequence survives into the Dead state.
+				if (CurrentState == CharacterState.Attacking) CancelActiveAttack();
+				InterruptActiveAbilities();
 				TransitionTo(CharacterState.Dead);
 				FTT.Core.EventBus.Instance?.RaisePlayerDied(PlayerIndex);
 			}

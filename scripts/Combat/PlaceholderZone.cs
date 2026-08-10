@@ -93,27 +93,40 @@ namespace FTT.Combat {
             Modulate = new Color(1, 1, 1, 0.5f + 0.5f * Mathf.Sin((float)Time.GetTicksMsec() / 200f));
         }
 
-        private void ApplyTickTo(Node2D body) {
+        /// <summary>
+        /// One damage/status pulse against an overlapping combatant body (audit
+        /// Low "Kits/talents", Einstein rift incoherence). All zones share the
+        /// same rules: damage is scaled by the owner's Story special-damage
+        /// multiplier, rounded half-up to match the Fighter loadout convention
+        /// (authored 1.5 ticks 2 in both modes, not a truncated 1), and dealt
+        /// damage credits the owner's Ultimate Meter — the same contract the
+        /// bespoke tick paths (e.g. Cleopatra's vortex) already honored. Public
+        /// so tests can pulse a constructed target without a physics frame.
+        /// </summary>
+        public void ApplyTickTo(Node2D body) {
+            int tickDamage = _damage > 0f
+                ? ComputeTickDamage(_damage, _ownerPlayer?.StorySpecialDamageMultiplier ?? 1f)
+                : 0;
             if (body is FTT.Characters.PlayerController pc) {
                 if (pc.PlayerIndex == _ownerIndex) return;
-                if (_damage > 0f) pc.ApplyDamage((int)_damage);
+                if (tickDamage > 0) CreditOwner(pc.ApplyDamage(tickDamage));
                 if (_appliedStatus != StatusType.None && _statusDuration > 0f) {
                     pc.GetNodeOrNull<StatusController>("StatusController")
                         ?.ApplyStatus(_appliedStatus, _statusDuration, _statusIntensity);
                 }
             } else if (body is FTT.Enemies.EnemyController enemy) {
-                if (_damage > 0f) enemy.TakeDamage((int)_damage);
+                if (tickDamage > 0) CreditOwner(enemy.TakeDamage(tickDamage));
                 if (_appliedStatus != StatusType.None && _statusDuration > 0f) {
                     enemy.ApplyStatusEffect(_appliedStatus, _statusDuration, _statusIntensity);
                 }
             } else if (body is FTT.Characters.TrainingDummy) {
                 Hurtbox hurtbox = body.GetNodeOrNull<Hurtbox>("Hurtbox");
-                hurtbox?.TakeHit(new HitPayload {
+                float dealt = hurtbox?.TakeHit(new HitPayload {
                     AttackerIndex = _ownerIndex,
                     AttackID = "placeholder_zone",
                     HitboxID = "tick",
                     AttackClass = AttackClass.Special,
-                    Damage = _damage,
+                    Damage = tickDamage,
                     Knockback = new Vector2(1, -1),
                     HitstunDuration = 0.1f,
                     HitOrigin = GlobalPosition,
@@ -123,8 +136,25 @@ namespace FTT.Combat {
                     StatusIntensity = _statusIntensity,
                     ScreenShakeIntensity = 0.1f,
                     ScreenShakeDuration = 0.08f
-                });
+                }) ?? 0f;
+                CreditOwner(dealt);
             }
+        }
+
+        /// <summary>
+        /// The shared zone-tick rounding rule: half-up, exactly like
+        /// <c>FighterLoadoutFactory.RoundDamage</c>, so an authored 1.5-damage
+        /// tick means 2 in Story just as it does in Fighter.
+        /// </summary>
+        public static int ComputeTickDamage(float damage, float specialDamageMultiplier) =>
+            System.Math.Max(0, (int)System.MathF.Round(
+                damage * specialDamageMultiplier,
+                System.MidpointRounding.AwayFromZero));
+
+        private void CreditOwner(float damageApplied) {
+            if (damageApplied <= 0f) return;
+            if (_ownerPlayer == null || !IsInstanceValid(_ownerPlayer)) return;
+            _ownerPlayer.AddInfluenceFromDamageDealt(damageApplied);
         }
 
         private void RefreshOwnerBuff() {

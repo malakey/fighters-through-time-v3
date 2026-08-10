@@ -39,18 +39,13 @@ namespace FTT.Characters.Abilities {
                 Data?.Lifetime > 0f ? Data.Lifetime : 3f,
                 tickInterval,
                 new Color(0.4f, 0.3f, 0.9f),
-                RiftRadius,
+                // Story-only ZoneRadius minor ("Rift Range +10%", einstein_u2)
+                // widens the rift; neutral 1f outside Story Mode.
+                RiftRadius * Owner.StoryZoneRadiusMultiplier,
                 Data?.AppliedStatus ?? FTT.Core.StatusType.TimeDilation,
                 Data?.StatusDuration > 0f ? Data.StatusDuration : 3f,
                 Data?.StatusIntensity ?? 1f,
                 OwnerSpeedMultiplier);
-
-            Owner.SpecialTwoCooldownTimer = Data?.CooldownDuration ?? 10f;
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.Special2,
-                Duration = Data?.CooldownDuration ?? 10f
-            });
         }
     }
 }

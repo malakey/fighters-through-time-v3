@@ -31,12 +31,6 @@ namespace FTT.Characters.Abilities {
                 float activeSeconds = Mathf.Max(1, Data?.ActiveFrames ?? 6) / 60f;
                 Owner.ApplyStoryHyperArmor(activeSeconds);
             }
-            Owner.SpecialOneCooldownTimer = Data?.CooldownDuration ?? 10f;
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.Special1,
-                Duration = Data?.CooldownDuration ?? 10f
-            });
         }
 
         protected override void OnRecovery() {
@@ -82,12 +76,6 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
-            Owner.SpecialTwoCooldownTimer = Data?.CooldownDuration ?? 10f;
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.Special2,
-                Duration = Data?.CooldownDuration ?? 10f
-            });
         }
 
         protected override void OnRecovery() {
@@ -207,19 +195,17 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
-            float cooldown = Data?.CooldownDuration ?? 5f;
-            Owner.MovementAbilityCooldownTimer = cooldown;
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 AbilityName = Data?.AbilityName ?? "Ascendant Wings",
                 StartPosition = Owner.GlobalPosition,
                 EndPosition = Owner.GlobalPosition
             });
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.MovementAbility,
-                Duration = cooldown
-            });
+        }
+
+        /// <summary>H-4: a stun/death mid-cast releases the wing glide's velocity hold.</summary>
+        protected override void OnInterrupted() {
+            _isGliding = false;
         }
 
         public override void _PhysicsProcess(double delta) {

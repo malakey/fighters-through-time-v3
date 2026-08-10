@@ -49,13 +49,6 @@ namespace FTT.Characters.Abilities {
                 projectile.DetonateOnImpact = true;
                 projectile.Impacted += OnProjectileImpacted;
             }
-
-            Owner.SpecialOneCooldownTimer = Data?.CooldownDuration ?? 10f;
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.Special1,
-                Duration = Data?.CooldownDuration ?? 10f
-            });
         }
 
         private void OnProjectileImpacted(Vector2 impactPosition) {
@@ -157,12 +150,6 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
-            Owner.SpecialTwoCooldownTimer = Data?.CooldownDuration ?? 10f;
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.Special2,
-                Duration = Data?.CooldownDuration ?? 10f
-            });
         }
 
         protected override void OnRecovery() {
@@ -264,19 +251,18 @@ namespace FTT.Characters.Abilities {
             }
             _glideVictims.Clear();
 
-            float cooldown = Data?.CooldownDuration ?? 5f;
-            Owner.MovementAbilityCooldownTimer = cooldown;
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 AbilityName = Data?.AbilityName ?? "Prospero's Flight",
                 StartPosition = _startPosition,
                 EndPosition = Owner.GlobalPosition
             });
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.MovementAbility,
-                Duration = cooldown
-            });
+        }
+
+        /// <summary>H-4: a stun/death mid-cast releases the glide's velocity steering.</summary>
+        protected override void OnInterrupted() {
+            _isGliding = false;
+            _glideVictims.Clear();
         }
 
         public override void _PhysicsProcess(double delta) {
