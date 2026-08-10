@@ -123,6 +123,7 @@ namespace FTT.Combat {
         public void RestoreAllCharges() {
             CurrentCharges = Mathf.Max(0, MaxCharges);
             _regenTimer = 0f;
+            RaiseChargesChanged();
         }
 
         /// <summary>
