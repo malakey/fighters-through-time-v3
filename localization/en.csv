@@ -1077,3 +1077,11 @@ results_rewinds_used,Chronal Rewinds used: {0}
 timeline_restart_level_confirm,Restarting from the beginning discards the Timeline Anchor you reached. Continue?
 # Package 8 B4
 fighter_cpu_difficulty,CPU Difficulty
+# M-28 designed select-screen mechanics (two-player tokens, ready/countdown, stage step)
+fighter_ready_banner,READY!
+fighter_slot_unavailable,That fighter is already taken!
+fighter_select_countdown,Match starts in {0:0.0}
+fighter_stage_select_title,SELECT YOUR STAGE
+fighter_cpu_selection,CPU Opponent: {0}
+fighter_pick_cpu_prompt,Choose the CPU opponent and confirm.
+fighter_select_hint,Move your token with the movement controls. Attack confirms; Block cancels.
