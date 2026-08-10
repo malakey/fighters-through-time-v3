@@ -1077,3 +1077,7 @@ results_rewinds_used,Chronal Rewinds used: {0}
 timeline_restart_level_confirm,Restarting from the beginning discards the Timeline Anchor you reached. Continue?
 # Package 8 B4
 fighter_cpu_difficulty,CPU Difficulty
+# Audit M-1: itemized dust lines on the level results overlay
+results_dust_mobs,Mob kills: {0}
+results_dust_extractors,Chronal Extractors: {0}
+results_dust_boss,Boss reward: {0}

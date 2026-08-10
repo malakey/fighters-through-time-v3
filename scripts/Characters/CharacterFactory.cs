@@ -30,6 +30,15 @@ namespace FTT.Characters {
 			return Visuals.TryGetValue(characterID, out CharacterVisual visual) ? visual.Body : Colors.Gray;
 		}
 
+		/// <summary>
+		/// True when <paramref name="characterID"/> is one of the nine roster IDs
+		/// this factory can build. Callers that interpolate the ID into a
+		/// <c>res://resources/Characters/</c> path must gate on this first so an
+		/// unknown or empty ID never fabricates a resource lookup.
+		/// </summary>
+		public static bool IsKnownCharacter(string characterID) =>
+			!string.IsNullOrEmpty(characterID) && Visuals.ContainsKey(characterID);
+
 		public static PlayerController CreateCharacter(string characterID, int playerIndex = 0, bool applyStoryProgression = true) {
 			// Pinned, not GD.Load: a character .tres pulls in four AbilityData
 			// sub-resources and its SpriteFrames, all C#-scripted. Loading and
