@@ -40,6 +40,7 @@ namespace FTT.UI {
 
         private SettingsMenu _settingsMenu;
         private ConfirmModal _confirmModal;
+        private ConfirmModal _quitConfirm;
 
         private Control _rootScreen;
         private Control _slotScreen;
@@ -61,6 +62,9 @@ namespace FTT.UI {
 
         /// <summary>The shared confirmation modal, created lazily on first use.</summary>
         public ConfirmModal Confirmation => _confirmModal;
+
+        /// <summary>The quit confirmation modal, created lazily on first use. Test seam.</summary>
+        public ConfirmModal QuitConfirmation => _quitConfirm;
 
         public override void _Ready() {
             UIPalette.ApplyTheme(this);
@@ -88,7 +92,23 @@ namespace FTT.UI {
             GetNode<Button>(layout + "FighterButton").Pressed += () =>
                 FTT.Core.GameManager.Instance?.LoadScene("res://scenes/menus/CharacterSelect.tscn");
             GetNode<Button>(layout + "SettingsButton").Pressed += OpenSettings;
-            GetNode<Button>(layout + "QuitButton").Pressed += () => GetTree().Quit();
+            GetNode<Button>(layout + "QuitButton").Pressed += ConfirmQuit;
+        }
+
+        /// <summary>
+        /// M-30 (audit 2026-08-08). Design §"Main Menu Screen": Quit Game shows a
+        /// confirmation modal; only Confirm terminates the process. Routed through
+        /// the shared themed <see cref="ConfirmModal"/> (the slot-delete idiom), so
+        /// it traps focus and restores it to the quit button on cancel.
+        /// </summary>
+        private void ConfirmQuit() {
+            if (_quitConfirm == null || !IsInstanceValid(_quitConfirm)) {
+                _quitConfirm = ConfirmModal.Create("menu_quit_confirm", "common_confirm", "common_cancel", "menu_quit");
+                _quitConfirm.Name = "QuitConfirmModal";
+                _quitConfirm.Confirmed += () => GetTree().Quit();
+                AddChild(_quitConfirm);
+            }
+            _quitConfirm.Open();
         }
 
         private void BindSlotScreen() {
@@ -181,6 +201,10 @@ namespace FTT.UI {
         /// menu is the floor of the application, and cancel there must not quit.
         /// </summary>
         public void GoBack() {
+            if (_quitConfirm is { IsOpen: true }) {
+                _quitConfirm.Cancel();
+                return;
+            }
             if (_confirmModal is { IsOpen: true }) {
                 _confirmModal.Cancel();
                 return;
@@ -324,7 +348,7 @@ namespace FTT.UI {
             };
             string progress = save.IsCompleted
                 ? Tr("save_completed")
-                : save.CurrentLevelID.GetFile().GetBaseName();
+                : LocationText(save.CurrentLevelID);
             string timestamp = Tr("save_timestamp_unknown");
             if (DateTimeOffset.TryParse(save.LastSavedTimestamp, out DateTimeOffset savedAt)) {
                 timestamp = savedAt.ToLocalTime().ToString("g");
@@ -336,6 +360,23 @@ namespace FTT.UI {
                 progress,
                 Tr(difficultyKey),
                 timestamp);
+        }
+
+        /// <summary>
+        /// Audit Low (UI): the slot row used to render the raw scene basename
+        /// ("Level_02_Orleans") as the save's location — an unlocalized machine ID.
+        /// The scene path maps onto the authored per-level <c>*_level_title</c> key
+        /// family through <see cref="LoadingScreen.LevelTitleKeyForScene"/> (the
+        /// existing path-to-title mapping); an unknown path falls back to the old
+        /// basename so a forward-compatible save still shows something.
+        /// </summary>
+        private string LocationText(string currentLevelID) {
+            string fallback = currentLevelID.GetFile().GetBaseName();
+            string titleKey = LoadingScreen.LevelTitleKeyForScene(currentLevelID);
+            if (string.IsNullOrEmpty(titleKey)) return fallback;
+            string resolved = Tr(titleKey);
+            // Tr returns the key itself when the table has no entry for it.
+            return resolved == titleKey ? fallback : resolved;
         }
 
         // ---- Story character / difficulty select -----------------------------

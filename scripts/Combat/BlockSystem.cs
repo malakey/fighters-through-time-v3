@@ -39,6 +39,20 @@ namespace FTT.Combat {
         public override void _Ready() {
             _owner = GetParent<PlayerController>();
             CurrentCharges = Mathf.Max(0, MaxCharges);
+            RaiseChargesChanged();
+        }
+
+        /// <summary>
+        /// M-27: publishes the charge state so the Story HUD's shield pips track
+        /// blocks, guard breaks, resets, and regen. Raised from every site that
+        /// mutates <see cref="CurrentCharges"/>.
+        /// </summary>
+        private void RaiseChargesChanged() {
+            FTT.Core.EventBus.Instance?.RaiseBlockChargesChanged(new FTT.Core.BlockChargesPayload {
+                PlayerIndex = _owner?.PlayerIndex ?? 0,
+                CurrentCharges = CurrentCharges,
+                MaxCharges = MaxCharges
+            });
         }
 
         public bool IsBlocking => _isBlocking;
@@ -64,6 +78,7 @@ namespace FTT.Combat {
 
             CurrentCharges = Mathf.Max(0, CurrentCharges - cost);
             _regenTimer = 0f;
+            RaiseChargesChanged();
             if (CurrentCharges > 0) {
                 GrantHenrysBastion();
                 FTT.Core.EventBus.Instance?.RaiseBlockAbsorbed(_owner.PlayerIndex, CurrentCharges);
@@ -96,6 +111,7 @@ namespace FTT.Combat {
             CurrentCharges = Mathf.Max(0, MaxCharges);
             _regenTimer = 0f;
             _isBlocking = false;
+            RaiseChargesChanged();
         }
 
         /// <summary>
@@ -108,6 +124,7 @@ namespace FTT.Combat {
             if (CurrentCharges <= 0 || count <= 0) return BlockResult.NotBlocked;
             CurrentCharges = Mathf.Max(0, CurrentCharges - count);
             _regenTimer = 0f;
+            RaiseChargesChanged();
             if (CurrentCharges > 0) {
                 // Guard Impact haptic: a shield-stutter special absorbed without a
                 // break is still a successful block (design haptic table).
@@ -149,6 +166,7 @@ namespace FTT.Combat {
             if (_regenTimer >= RegenInterval) {
                 _regenTimer -= RegenInterval;
                 CurrentCharges = Mathf.Min(CurrentCharges + 1, MaxCharges);
+                RaiseChargesChanged();
             }
         }
     }

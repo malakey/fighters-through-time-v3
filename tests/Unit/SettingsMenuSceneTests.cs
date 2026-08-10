@@ -205,6 +205,48 @@ public class SettingsMenuSceneTests {
     }
 
     [TestCase]
+    public void ShowingTheScreenAuthorsFocusAndRebuildsTheChainOnTabSwitch() {
+        // H-10 (audit 2026-08-08): the screen previously had zero focus authoring —
+        // a controller/keyboard player could not reach a single control and input
+        // kept driving the surface beneath the overlay.
+        var host = NewHost("SettingsFocusHost");
+        try {
+            SettingsMenu menu = OpenMenu(host);
+
+            AssertThat(menu.FocusChain.Count > 0)
+                .OverrideFailureMessage("Show() must author a focus chain.").IsTrue();
+            foreach (Control control in menu.FocusChain) {
+                AssertThat(control.FocusMode)
+                    .OverrideFailureMessage($"{control.Name} is not focusable")
+                    .IsEqual(Control.FocusModeEnum.All);
+                bool linked = !control.FocusNeighborTop.IsEmpty || !control.FocusNeighborBottom.IsEmpty;
+                AssertThat(linked)
+                    .OverrideFailureMessage($"{control.Name} has no focus neighbour")
+                    .IsTrue();
+            }
+
+            // The internal tab bar is spliced in so tabs are switchable at all.
+            AssertThat(menu.FocusChain.Any(control => control is TabBar)).IsTrue();
+
+            // Focus is held inside the settings surface, not the opener beneath it.
+            Control owner = menu.Root.GetViewport().GuiGetFocusOwner();
+            AssertObject(owner).IsNotNull();
+            AssertThat(menu.IsAncestorOf(owner))
+                .OverrideFailureMessage("Initial focus must land inside Settings.").IsTrue();
+
+            // Switching to the Controls tab swaps the visible controls, so the
+            // chain must be rebuilt to include them.
+            menu.Tabs.CurrentTab = 3;
+            AssertThat(menu.FocusChain.Any(control =>
+                    control is Button button && button.Name.ToString().Length > 0
+                    && menu.Tabs.GetNode<VBoxContainer>("Controls/Scroll/ActionRows").IsAncestorOf(button)))
+                .OverrideFailureMessage("The rebuilt chain must reach the remap rows.").IsTrue();
+        } finally {
+            Teardown(host);
+        }
+    }
+
+    [TestCase]
     public void SaveLoadNoticesResolveThroughTheTranslationTable() {
         TranslationServer.SetLocale("en");
         string recovered = SaveManager.FormatNotice("save_notice_slot_recovered", new[] { "2" });

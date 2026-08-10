@@ -31,7 +31,7 @@ settings_screen_shake,Screen Shake
 difficulty_easy,Easy
 difficulty_normal,Normal
 difficulty_hard,Hard
-dialogue_continue,Press [E] to continue
+dialogue_continue,Press {0} to continue
 save_new_game,New Game
 save_load_game,Load Game
 save_delete,Delete Save
@@ -1079,7 +1079,6 @@ save_notice_key_error,Save data is unavailable: the local save key could not be 
 results_dust_mobs,Mob kills: {0}
 results_dust_extractors,Chronal Extractors: {0}
 results_dust_boss,Boss reward: {0}
-=======
 # Audit M-2/M-3: Story pause Save/Restart/Exit and tutorial block/ultimate/movement calibration
 pause_save_done,Progress saved
 pause_restart_confirm,Are you sure? Unsaved progress will be lost.
@@ -1091,3 +1090,5 @@ dlg_l00_block_1,Attacks calibrated. Now defense. The dummy will telegraph slow s
 dlg_l00_block_2,"Careful: three absorbed hits exhaust your shield entirely and break your guard, leaving you dazed. Absorb the swipes to continue."
 dlg_l00_ultimate_1,I am flooding your Influence Meter to full for the final combat test. Trigger your Ultimate - your History Maker - and let history itself answer.
 dlg_l00_mobility_2,First: your unique Movement Ability. It recharges in seconds and works in the air - use it to cross the marked corridor no ordinary jump can clear.
+# Audit fixes 2026-08-10 (M-30)
+menu_quit_confirm,Are you sure you want to quit?

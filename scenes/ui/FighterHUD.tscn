@@ -7,6 +7,11 @@
 ; surface. The stock / shield pips and the four cooldown slots are built by the
 ; script because their counts are data-driven (match stock rules, per-character
 ; MaxBlockCharges); everything with a fixed shape is authored here.
+;
+; M-29 (audit 2026-08-08): both player clusters anchor to the BOTTOM of the
+; screen per design :2617 ("Bottom of screen, evenly spaced (P1 left, P2
+; right)"); the match clock stays top-center. HP bars keep depleting toward the
+; center (P2 fill_mode = 1).
 
 [ext_resource type="Script" path="res://scripts/UI/FighterHUD.cs" id="1_hud"]
 [ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
@@ -27,10 +32,14 @@ theme = ExtResource("2_theme")
 
 [node name="PlayerOne" type="PanelContainer" parent="Root"]
 layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
 offset_left = 24.0
-offset_top = 18.0
+offset_top = -186.0
 offset_right = 718.0
-offset_bottom = 186.0
+offset_bottom = -18.0
+grow_vertical = 0
 mouse_filter = 2
 
 [node name="Body" type="HBoxContainer" parent="Root/PlayerOne"]
@@ -122,14 +131,17 @@ mouse_filter = 2
 
 [node name="PlayerTwo" type="PanelContainer" parent="Root"]
 layout_mode = 1
-anchors_preset = 1
+anchors_preset = 3
 anchor_left = 1.0
+anchor_top = 1.0
 anchor_right = 1.0
+anchor_bottom = 1.0
 offset_left = -718.0
-offset_top = 18.0
+offset_top = -186.0
 offset_right = -24.0
-offset_bottom = 186.0
+offset_bottom = -18.0
 grow_horizontal = 0
+grow_vertical = 0
 mouse_filter = 2
 
 [node name="Body" type="HBoxContainer" parent="Root/PlayerTwo"]

@@ -290,6 +290,63 @@ public class MainMenuSceneTests {
     }
 
     [TestCase]
+    public void QuitOpensAConfirmationAndCancelReturnsToTheMenu() {
+        // M-30 (audit 2026-08-08; design :2574): Quit Game must confirm before
+        // terminating. Only the cancel path is exercisable — confirming would
+        // quit the test runner — so the wiring is asserted structurally.
+        MainMenu menu = Open(out Node host);
+        try {
+            Press(menu, RootLayout + "QuitButton");
+
+            AssertThat(menu.QuitConfirmation != null).IsTrue();
+            AssertThat(menu.QuitConfirmation.IsOpen).IsTrue();
+            // The shared themed modal, never a native OS window.
+            AssertThat(typeof(Window).IsAssignableFrom(menu.QuitConfirmation.GetType())).IsFalse();
+            AssertThat(menu.QuitConfirmation.CancelButton != null).IsTrue();
+            // Raw key stored per the A1 convention; auto-translation resolves it.
+            AssertThat(menu.QuitConfirmation.GetNode<Label>("Center/Panel/Layout/Prompt").Text)
+                .IsEqual("menu_quit_confirm");
+
+            menu.QuitConfirmation.Cancel();
+            AssertThat(menu.QuitConfirmation.IsOpen).IsFalse();
+            AssertThat(menu.CurrentScreen).IsEqual(MainMenuScreen.Root);
+
+            // GoBack while the quit modal is open cancels it, not the stack.
+            Press(menu, RootLayout + "QuitButton");
+            menu.GoBack();
+            AssertThat(menu.QuitConfirmation.IsOpen).IsFalse();
+            AssertThat(menu.CurrentScreen).IsEqual(MainMenuScreen.Root);
+        } finally {
+            Teardown(host);
+        }
+    }
+
+    [TestCase]
+    public void AFilledSlotShowsALocalizedLocationRatherThanTheSceneBasename() {
+        // Audit Low (UI): the slot row rendered "Level_02_Orleans"-style machine
+        // IDs; the scene path now maps onto the *_level_title key family.
+        TranslationServer.SetLocale("en");
+        StorySaveData[] originals = ClearAllSlots();
+        if (originals == null) return;
+        MainMenu menu = Open(out Node host);
+        try {
+            SaveManager.Instance.SaveSlots[0] = NewSyntheticSave();
+            Press(menu, RootLayout + "StoryButton");
+
+            string text = menu.GetNode<Button>(SlotLayout + "SlotRow0/SlotButton").Text;
+            AssertThat(text.Contains("Level_01_Florence"))
+                .OverrideFailureMessage("Slot row still shows the raw scene basename.")
+                .IsFalse();
+            AssertThat(text.Contains(TranslationServer.Translate("florence_level_title").ToString()))
+                .OverrideFailureMessage("Slot row must show the localized level title.")
+                .IsTrue();
+        } finally {
+            Teardown(host);
+            RestoreSlots(originals);
+        }
+    }
+
+    [TestCase]
     public void CancelClosesAnOpenConfirmationRatherThanWalkingTheScreenStack() {
         StorySaveData[] originals = ClearAllSlots();
         if (originals == null) return;

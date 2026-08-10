@@ -52,6 +52,9 @@ public class StoryHudPresentationTests {
 
             AssertObject(hud.GetNodeOrNull<Label>("Root/TopLeft/LevelTitle")).IsNotNull();
             AssertObject(hud.GetNodeOrNull<Label>("Root/TopLeft/Objective")).IsNotNull();
+            // M-27: the designed portrait and block-charge row exist in the scene.
+            AssertObject(hud.GetNodeOrNull<TextureRect>("Root/Portrait")).IsNotNull();
+            AssertObject(hud.GetNodeOrNull<HBoxContainer>("Root/Vitals/BlockCharges")).IsNotNull();
             AssertObject(hud.GetNodeOrNull<ProgressBar>("Root/Vitals/HPBar")).IsNotNull();
             AssertObject(hud.GetNodeOrNull<ProgressBar>("Root/Vitals/MeterBar")).IsNotNull();
             AssertObject(hud.GetNodeOrNull<Label>("Root/Vitals/RewindLabel")).IsNotNull();
@@ -170,6 +173,48 @@ public class StoryHudPresentationTests {
                 TargetIndex = 1, Type = StatusType.Root, Duration = 5f, Intensity = 1f
             });
             AssertThat(hud.Indicators.ActiveStatus).IsEqual(StatusType.None);
+        } finally {
+            host.Free();
+        }
+    }
+
+    [TestCase]
+    public void BlockChargePipsAreDataDrivenAndTrackTheBus() {
+        // M-27 (audit 2026-08-08; design :2611/:2721): Story is the mode where
+        // Resonance can raise charge capacity, so the pip count is data-driven and
+        // the lit count follows BlockSystem's published charge state.
+        Node host = CreateHost("StoryHudBlockChargesHost");
+        try {
+            StoryHUD hud = AddHud(host);
+            EventBus bus = EventBus.Instance;
+            AssertObject(bus).IsNotNull();
+
+            bus.RaiseBlockChargesChanged(new BlockChargesPayload {
+                PlayerIndex = 0, CurrentCharges = 3, MaxCharges = 3
+            });
+            AssertThat(hud.BlockPipCapacity).IsEqual(3);
+            AssertThat(hud.LitBlockPips).IsEqual(3);
+
+            // A spent pip dims rather than disappearing, so capacity stays readable.
+            bus.RaiseBlockChargesChanged(new BlockChargesPayload {
+                PlayerIndex = 0, CurrentCharges = 1, MaxCharges = 3
+            });
+            AssertThat(hud.BlockPipCapacity).IsEqual(3);
+            AssertThat(hud.LitBlockPips).IsEqual(1);
+
+            // A Resonance capacity raise rebuilds the row rather than clamping.
+            bus.RaiseBlockChargesChanged(new BlockChargesPayload {
+                PlayerIndex = 0, CurrentCharges = 4, MaxCharges = 4
+            });
+            AssertThat(hud.BlockPipCapacity).IsEqual(4);
+            AssertThat(hud.LitBlockPips).IsEqual(4);
+
+            // Another combatant's charges never touch the Story player's readout.
+            bus.RaiseBlockChargesChanged(new BlockChargesPayload {
+                PlayerIndex = 1, CurrentCharges = 0, MaxCharges = 3
+            });
+            AssertThat(hud.BlockPipCapacity).IsEqual(4);
+            AssertThat(hud.LitBlockPips).IsEqual(4);
         } finally {
             host.Free();
         }

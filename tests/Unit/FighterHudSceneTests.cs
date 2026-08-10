@@ -127,6 +127,43 @@ public class FighterHudSceneTests {
     }
 
     [TestCase]
+    public void PlayerPanelsAnchorToTheBottomAndTheClockStaysTopCenter() {
+        // M-29 (audit 2026-08-08; design :2617): "Bottom of screen, evenly spaced
+        // (P1 left, P2 right)" — the panels were authored top-anchored.
+        FighterHUD hud = Mount();
+        try {
+            var one = hud.GetNode<Control>("Root/PlayerOne");
+            var two = hud.GetNode<Control>("Root/PlayerTwo");
+
+            AssertFloat(one.AnchorTop).IsEqual(1f);
+            AssertFloat(one.AnchorBottom).IsEqual(1f);
+            AssertFloat(one.AnchorLeft).IsEqual(0f);
+            AssertThat(one.OffsetBottom < 0f)
+                .OverrideFailureMessage("P1 panel must sit above the bottom edge.").IsTrue();
+
+            AssertFloat(two.AnchorTop).IsEqual(1f);
+            AssertFloat(two.AnchorBottom).IsEqual(1f);
+            AssertFloat(two.AnchorLeft).IsEqual(1f);
+            AssertFloat(two.AnchorRight).IsEqual(1f);
+
+            // The deplete-toward-center HP treatment survives the move: P2's bar
+            // still fills end-to-begin (fill_mode = 1).
+            AssertThat(hud.GetNode<ProgressBar>("Root/PlayerTwo/Body/Column/HPBar")
+                .Get("fill_mode").AsInt32()).IsEqual(1);
+            AssertThat(hud.GetNode<ProgressBar>("Root/PlayerOne/Body/Column/HPBar")
+                .Get("fill_mode").AsInt32()).IsEqual(0);
+
+            // Match timer stays top-center (design :2622).
+            var clock = hud.GetNode<Control>("Root/MatchClock");
+            AssertFloat(clock.AnchorTop).IsEqual(0f);
+            AssertFloat(clock.AnchorLeft).IsEqual(0.5f);
+            AssertFloat(clock.AnchorRight).IsEqual(0.5f);
+        } finally {
+            hud.Free();
+        }
+    }
+
+    [TestCase]
     public void TheStatusPipAppearsOnlyWhileAStatusIsActive() {
         FighterHUD hud = Mount();
         try {
