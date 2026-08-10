@@ -23,14 +23,42 @@ namespace FTT.Combat {
         public static readonly int[] AerialActiveFrames = { 7, 8, 10 };
         public static readonly int[] AerialRecoveryFrames = { 13, 14, 18 };
 
-        /// <summary>Victim hitstun per hit (0.15 / 0.2 / 0.3 s at 60 Hz).</summary>
-        public static readonly int[] HitstunFrames = { 9, 12, 18 };
+        /// <summary>
+        /// Victim hitstun per hit (0.5 / 0.667 / 0.4 s at 60 Hz). Hits one and
+        /// two hold the victim through the gap to the next chain hit (roughly
+        /// 28 frames from hit one's connect to hit two's, 38 from hit two's to
+        /// the finisher's, on the buffered grounded string); the finisher's
+        /// shorter stun hands off to its launch knockback, which creates the
+        /// separation that ends the exchange.
+        /// </summary>
+        public static readonly int[] HitstunFrames = { 30, 40, 24 };
+
+        /// <summary>
+        /// Knockback multipliers per hit, applied to the character's base
+        /// basic-attack knockback in both modes. The 3x finisher visibly
+        /// launches the target away.
+        /// </summary>
+        public static readonly float[] KnockbackMultipliers = { 1f, 1.2f, 3f };
+
+        /// <summary>
+        /// Story-enemy floor on post-<c>StunResistance</c> hitstun for the
+        /// basic string's hits (the melee combo's <c>combo_N</c> hitboxes;
+        /// <c>EnemyController.ApplyStun</c>): however high an enemy's authored
+        /// resistance, a landed string hit keeps it stunned for at least this
+        /// long, so no roster enemy can act between chain hits. Other
+        /// Basic-class sources (constructs) keep their authored stuns, and the
+        /// Fighter sim has no stun resistance and never consumes this.
+        /// </summary>
+        public const int EnemyBasicStunFloorFrames = 24;
 
         /// <summary>
         /// Post-recovery chain window (and the mid-swing input buffer length).
         /// Design 3080: the next basic pressed inside this window continues the
-        /// string; movement, jumping, dashing, rolling, or blocking inside the
-        /// recovery or this window cancels the swing and resets the chain.
+        /// string; jumping, dashing, rolling, or blocking inside the recovery
+        /// or this window cancels the swing and resets the chain. Held
+        /// horizontal movement steers the attacker but never cancels — letting
+        /// it cancel allowed a moving attacker to restart hit one faster than
+        /// the authored string pace.
         /// </summary>
         public const int ChainHoldFrames = 24;
 

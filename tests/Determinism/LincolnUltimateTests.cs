@@ -206,8 +206,9 @@ public class LincolnUltimateTests {
     /// <summary>
     /// Builds a simulation with Lincoln's meter fully charged: the oversized
     /// zero-knockback basic (125 x 0.8 = 100 damage) fills the meter in one hit
-    /// against the 400 HP opponent, then 20 idle frames let the hitstun lapse.
-    /// Returns the next free input tick.
+    /// against the 400 HP opponent, then idle frames sized from the shared
+    /// tables (opener startup plus its hitstun, with a small pad) let the
+    /// hitstun lapse. Returns the next free input tick.
     /// </summary>
     private static FighterSimulation BuildChargedSimulation(int seed, out int nextTick) {
         var simulation = new FighterSimulation(
@@ -218,7 +219,10 @@ public class LincolnUltimateTests {
             rules: FighterMatchRules.Disabled);
 
         simulation.Advance(Frame(0, 0, GameplayButtons.BasicAttack), Frame(0, 0, GameplayButtons.None));
-        for (int tick = 1; tick <= 20; tick++) {
+        int settleTicks = FTT.Combat.BasicComboRules.GroundStartupFrames[0]
+            + FTT.Combat.BasicComboRules.HitstunFrames[0]
+            + 4;
+        for (int tick = 1; tick <= settleTicks; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
 
@@ -227,7 +231,7 @@ public class LincolnUltimateTests {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(target.CurrentHP).IsEqual(300);
         AssertThat(target.HitstunFrames).IsEqual(0);
-        nextTick = 21;
+        nextTick = settleTicks + 1;
         return simulation;
     }
 

@@ -568,10 +568,18 @@ namespace FTT.Enemies {
             Velocity = FTT.Combat.DamageCalculator.CalculateKnockback(knockback, weight, attackerFacingRight) * 60f;
         }
 
-        public void ApplyStun(float duration) {
+        public void ApplyStun(float duration) => ApplyStun(duration, 0f);
+
+        /// <summary>
+        /// Applies hitstun scaled down by the authored <c>StunResistance</c>,
+        /// floored at <paramref name="minimumSeconds"/>. Basic-class string
+        /// hits pass <c>BasicComboRules.EnemyBasicStunFloorFrames</c> so no
+        /// roster enemy — however resistant — can act between chain hits.
+        /// </summary>
+        public void ApplyStun(float duration, float minimumSeconds) {
             if (CurrentState == EnemyState.Dead) return;
             float resistance = Mathf.Clamp(Data?.StunResistance ?? 0f, 0f, 1f);
-            float stun = duration * (1f - resistance);
+            float stun = Mathf.Max(duration * (1f - resistance), minimumSeconds);
             if (stun <= 0f) return;
             Executor.Cancel();
             _attackCommitted = false;
@@ -834,7 +842,20 @@ namespace FTT.Enemies {
         private float OnHurtboxHit(FTT.Combat.HitPayload hit) {
             int damageApplied = TakeDamage(Mathf.Max(0, (int)Mathf.Round(hit.Damage)), hit.HitOrigin);
             ApplyKnockback(hit.Knockback, hit.AttackerFacingRight);
-            if (hit.HitstunDuration > 0f) ApplyStun(hit.HitstunDuration);
+            if (hit.HitstunDuration > 0f) {
+                // Basic-class STRING hits (the melee combo's "combo_N" hitboxes,
+                // the idiom Joan's Zealous Vigor also keys on) floor the
+                // post-resistance stun so the three-hit chain holds every roster
+                // enemy (max StunResistance 0.65) through its gaps. Other
+                // Basic-class sources — Leonardo's turret, Tesla's coil arcs —
+                // keep their authored short stuns.
+                bool basicStringHit = hit.AttackClass == FTT.Combat.AttackClass.Basic
+                    && hit.HitboxID?.StartsWith("combo_", System.StringComparison.Ordinal) == true;
+                float minimumSeconds = basicStringHit
+                    ? FTT.Combat.BasicComboRules.EnemyBasicStunFloorFrames / 60f
+                    : 0f;
+                ApplyStun(hit.HitstunDuration, minimumSeconds);
+            }
             if (hit.AppliedStatus != StatusType.None && hit.StatusDuration > 0f) {
                 ApplyStatusEffect(hit.AppliedStatus, hit.StatusDuration, hit.StatusIntensity);
             }

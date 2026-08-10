@@ -75,6 +75,55 @@ public class EnemyControllerTests {
     }
 
     [TestCase]
+    public void BasicStringHitsFloorPostResistanceStunSoElitesCannotActBetweenChainHits() {
+        EnemyController elite = CreateEnemy("steam_automaton");
+        try {
+            var hurtbox = elite.GetNode<Hurtbox>("Hurtbox");
+            // A string opener carries HitstunFrames[0] = 30 frames (0.5s). At
+            // StunResistance 0.5 the unfloored result would be 15 frames —
+            // enough for the elite to act inside the chain gap. The combo's
+            // "combo_N" Basic-class hits floor the post-resistance stun at the
+            // shared 24 frames.
+            hurtbox.TakeHit(new HitPayload {
+                AttackID = "einstein.basic",
+                HitboxID = "combo_1",
+                AttackClass = AttackClass.Basic,
+                Damage = 1f,
+                HitstunDuration = BasicComboRules.HitstunFrames[0] / 60f,
+                HitOrigin = Vector2.Zero,
+                AttackerFacingRight = true
+            });
+            AssertThat(elite.CurrentState).IsEqual(EnemyState.Stunned);
+            for (int frame = 0; frame < 20; frame++) elite._PhysicsProcess(Step);
+            AssertThat(elite.CurrentState)
+                .OverrideFailureMessage("The floored stun must outlast the unfloored 15 frames.")
+                .IsEqual(EnemyState.Stunned);
+            for (int frame = 0; frame < 10; frame++) elite._PhysicsProcess(Step);
+            AssertThat(elite.CurrentState).IsEqual(EnemyState.Patrol);
+
+            // A non-string Basic-class source (Leonardo's turret, Tesla's coil
+            // arcs) keeps its authored short stun: 0.15s at 0.5 resistance
+            // recovers within a handful of frames.
+            hurtbox.TakeHit(new HitPayload {
+                AttackID = "leonardo.turret",
+                HitboxID = "turret_shot",
+                AttackClass = AttackClass.Basic,
+                Damage = 1f,
+                HitstunDuration = 0.15f,
+                HitOrigin = Vector2.Zero,
+                AttackerFacingRight = true
+            });
+            AssertThat(elite.CurrentState).IsEqual(EnemyState.Stunned);
+            for (int frame = 0; frame < 10; frame++) elite._PhysicsProcess(Step);
+            AssertThat(elite.CurrentState)
+                .OverrideFailureMessage("Non-string Basic sources must not inherit the floor.")
+                .IsEqual(EnemyState.Patrol);
+        } finally {
+            elite.Free();
+        }
+    }
+
+    [TestCase]
     public void TelegraphRunsBeforeTheHitboxEverGoesLive() {
         EnemyController enemy = CreateEnemy("cyber_guard");
         var hitbox = enemy.GetNode<Hitbox>("Hitbox");

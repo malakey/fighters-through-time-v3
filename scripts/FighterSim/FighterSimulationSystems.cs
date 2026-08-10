@@ -284,7 +284,12 @@ namespace FTT.FighterSim {
                             speedBuffMultiplier,
                             jumpBuffMultiplier,
                             groundIsSolid: _geometry.Platforms.Length > 0,
-                            lockHorizontal: (attacking && fighter.IsGrounded != 0) || blockStance,
+                            // Swings never lock steering — an attacker keeps
+                            // full horizontal control at normal run
+                            // acceleration; only the block stance roots.
+                            // Facing stays committed for the whole swing so
+                            // the hitbox direction cannot flip mid-string.
+                            lockHorizontal: blockStance,
                             lockFacing: attacking || blockStance,
                             allowJump: !attacking && !blockStance);
                     }
@@ -504,8 +509,9 @@ namespace FTT.FighterSim {
             bool lockHorizontal = false,
             bool lockFacing = false,
             bool allowJump = true) {
-            // Grounded swings and the block stance decelerate to zero on the same
-            // ramp Story uses; aerial swings keep full air drift.
+            // Only the block stance decelerates to zero (same ramp Story uses).
+            // Swings — grounded or aerial — keep full input steering; facing
+            // alone is committed through lockFacing.
             FP64 input = rooted || lockHorizontal ? FP64.Zero : FP64.FromInt(runtime.MoveX) / FP64.FromInt(127);
             FP64 maximumSpeed = tuning.MoveSpeed * statusMoveMultiplier * speedBuffMultiplier;
             FP64 targetSpeed = input * maximumSpeed;
@@ -544,8 +550,10 @@ namespace FTT.FighterSim {
         /// Advances the universal three-hit basic string
         /// (<see cref="FTT.Combat.BasicComboRules"/>) one tick: swing start, phase
         /// clock, input buffering, aerial landing cancel, and the recovery /
-        /// chain-hold cancels. Startup and active frames are committed; a held
-        /// approach direction must not self-cancel a fresh swing.
+        /// chain-hold cancels. Held horizontal movement steers the attacker but
+        /// never cancels the swing or resets the chain — the authored string
+        /// pace is the only pace. Jump/roll/block (and a special or the
+        /// ultimate, upstream) remain the cancel set.
         /// </summary>
         private static void ProcessBasicAttackPhase(
             ref FighterStateComponent fighter,
@@ -581,10 +589,10 @@ namespace FTT.FighterSim {
             }
 
             if (phase is FighterBasicAttackRules.PhaseRecovery or FighterBasicAttackRules.PhaseChainHold) {
-                // Movement, jumping, dashing, rolling, or blocking cancels the
-                // recovery and resets the chain (design 752 / 3080).
-                bool cancels = (fighter.IsGrounded != 0 && runtime.MoveX != 0)
-                    || (runtime.PressedButtons & (JumpButton | DashButton | RollButton)) != 0
+                // Jumping, dashing, rolling, or blocking cancels the recovery
+                // and resets the chain (design 752 / 3080). Held movement does
+                // not — it steers the swing without touching the string.
+                bool cancels = (runtime.PressedButtons & (JumpButton | DashButton | RollButton)) != 0
                     || (runtime.HeldButtons & BlockButton) != 0;
                 if (cancels) {
                     FighterBasicAttackRules.CancelString(ref runtime);
@@ -882,6 +890,14 @@ namespace FTT.FighterSim {
         private static readonly FP64 AttackRange = FP64.FromInt(2);
         private static readonly FP64 AttackVerticalRange = FP64.FromDouble(1.6);
         private static readonly FP64 MaxInfluence = FP64.FromInt(100);
+        // The shared per-hit knockback table (BasicComboRules.KnockbackMultipliers),
+        // pre-converted once to fixed point. FromDouble of a process-constant is
+        // deterministic; no float math runs per tick.
+        private static readonly FP64[] BasicKnockbackMultipliers = {
+            FP64.FromDouble(FTT.Combat.BasicComboRules.KnockbackMultipliers[0]),
+            FP64.FromDouble(FTT.Combat.BasicComboRules.KnockbackMultipliers[1]),
+            FP64.FromDouble(FTT.Combat.BasicComboRules.KnockbackMultipliers[2])
+        };
 
         public void Update(ref Frame frame) {
             EntityRef first = default;
@@ -940,12 +956,8 @@ namespace FTT.FighterSim {
                 : step == 1
                     ? attackerTuning.BasicDamage
                     : attackerTuning.BasicDamage * 15 / 10;
-            // Story's authored knockback pattern: 1.0x / 1.2x / 2.0x.
-            FP64 knockback = step == 2
-                ? attackerTuning.BasicKnockback * FP64.FromInt(2)
-                : step == 1
-                    ? attackerTuning.BasicKnockback * FP64.FromInt(12) / FP64.FromInt(10)
-                    : attackerTuning.BasicKnockback;
+            // Shared knockback table (1.0x / 1.2x / 3.0x): the finisher launches.
+            FP64 knockback = attackerTuning.BasicKnockback * BasicKnockbackMultipliers[step];
             attackerRuntime.AttackFlags |= FighterBasicAttackRules.FlagHitResolved;
             FighterDamageRules.ApplyFighterHit(
                 ref attacker,

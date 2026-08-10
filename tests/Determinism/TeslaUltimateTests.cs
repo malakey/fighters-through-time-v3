@@ -40,7 +40,8 @@ public class TeslaUltimateTests {
     public void CataclysmConsumesTheMeterWithoutAGenericMeleeDoubleHit() {
         var simulation = NewSimulation(withCoils: false, seed: 71);
         int tick = FillMeter(simulation, 0);
-        // Long enough for the combo finisher's 18-frame hitstun to expire.
+        // FillMeter already settles swings and hitstun; a further pad keeps a
+        // clean gap before the ultimate press.
         tick = AdvanceNeutral(simulation, tick, 30);
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
@@ -223,10 +224,12 @@ public class TeslaUltimateTests {
             AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
             AssertThat(simulation.TryGetFighter(1, out FighterStateComponent defender)).IsTrue();
             sbyte toward = defender.Position.x >= attacker.Position.x ? (sbyte)127 : (sbyte)-127;
-            // Basics are phased swings: press only when the string is idle. The
-            // held approach direction cancels each swing's recovery, so every
-            // press is a fresh 0.8x opener; the mutual walk-in keeps the pair
-            // inside melee range across the attacker's swing deceleration.
+            // Basics are phased swings: press only when the string is idle.
+            // Held movement no longer cancels recovery — each swing runs its
+            // full length plus the chain-hold window, whose expiry resets the
+            // string, so every press is still a fresh 0.8x opener. The mutual
+            // walk-in (attackers steer freely mid-swing now) keeps the pair
+            // inside melee range.
             GameplayButtons buttons = runtime.AttackPhase == FighterBasicAttackRules.PhaseNone
                 ? GameplayButtons.BasicAttack
                 : GameplayButtons.None;
