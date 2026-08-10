@@ -8,6 +8,16 @@ A deep review of the current implementation against `design-godot.md`, the accep
 
 ---
 
+## Resolution record — 2026-08-10 fix round
+
+Eleven parallel worktree agents plus a serial stabilization pass implemented this audit's actionable findings (user-directed round; merged to `main` the same day; suite green at **1416/1416** across three consecutive full runs, up from the 1307 baseline).
+
+**Fixed:** C-1 and H-3 (pooled `_EnterTree` rebinding + regression tests), H-1 (single-award via the physical pickup; level tallies are wallet receipts), H-2 (legacy fallback debug-gated; binding restore filtered + capped), H-4 (Story ability interruption with the hyper-armor exception at hit resolution), H-8 (mirror in the freeze sweep; clone shots clearable), H-9 (all three snapshot triggers wired), H-10 (Settings focus authored incl. TabBar splice; openers restore focus), M-1, M-2 (Save/Restart/50%-retention Exit), M-3 (Block/Ultimate/movement-ability calibration steps), M-4, M-6, M-7 (per-match seed), M-8 (CPU projectile awareness per band), M-9, M-10, M-11, M-19, M-20, M-21, M-22, M-23, M-24, M-25, M-26, M-27, M-28 (full designed select flow), M-29, M-30, M-31, M-32, M-33, and the Low tier except as noted below — including the five re-pointed talent minors, cast-start cooldowns, `PlaceholderZone` rounding/meter/multiplier coherence, `ChronalOrbItem` wiring, StandGuard, knight stats, projectile mask/wall despawn, Root×dash, nearest-waypoint de-aggro, window-mode swap, slot-0 guard, orb-contest seeded pick, `TotalDraws`, dead `MatchManager` deletion, the guard-regex hole, and the three stale manifest rows.
+
+**Still open — needs a design decision (deliberately not done unilaterally):** H-11 (bottom-blast-zone pillar vs. solid-floor stage dossiers; Paris pit), M-5 (five orphaned elites vs. the locked E=0 economy rows), H-5 remainder (2.0s regen figure + 5s shatter lockout), checkpoint strike-to-activate, extractor idle hazard cycle, hazard/orb spawn-timing randomization, cross-mode pushbox unification, the eight widened-scope talent minors (accepted as-is for now), dual-portrait dialogue, and the HUD micro-behaviors (pulses/flashes/chimes). The deliberately-deferred cross-mode set (H-7, M-16, M-18, M-13 remainder) is unchanged per `AGENTS.md`.
+
+---
+
 ## Executive summary
 
 The foundations this repository is most worried about are in genuinely good shape: the deterministic simulation boundary is clean (no float math, no unseeded randomness, no Godot state feeding the sim; snapshot completeness spot-diffed), the save envelope's cryptographic core is correctly built (encrypt-then-MAC verified before any parse, constant-time compares, fresh IVs, CSPRNG keys), EventBus subscribe/unsubscribe is balanced repo-wide (88/88), `SceneTree.Paused` ownership is disciplined, Story→Fighter isolation holds, and there are zero TODO/FIXME markers in 234 scripts. The conventions in `AGENTS.md` are actually followed at roughly 99% of call sites.

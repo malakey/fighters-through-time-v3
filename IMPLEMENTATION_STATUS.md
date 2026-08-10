@@ -155,7 +155,7 @@ Package 6 (2026-08-08) closed this section. Plan of record: `docs/PACKAGE6_FIGHT
 | Atomic write + backup | Temp-swap and `.bak` recovery | **Implemented** |
 | Three story slots | Create, resume, delete with confirmation | **Implemented** |
 | Corruption preservation | `.corrupt` extension preservation for recovery | **Implemented** |
-| Legacy migration | Forward migration from older schemas | **Implemented** |
+| Legacy migration | Forward migration from older schemas | **Implemented, debug-builds only** (audit 2026-08-08 H-2) - the plain/Base64 JSON fallback was an unauthenticated bypass of the HMAC envelope, so it is gated behind `OS.IsDebugBuild()`; release builds surface unrecognized formats as tamper notices |
 | Future schema rejection | Reject newer saves without rewriting | **Implemented** |
 | Autosave at checkpoints/level completion | Silent background saves | **Implemented** |
 | Slot summaries in save select | Character portrait, level, playtime, timestamp display | **Implemented** |
@@ -185,8 +185,8 @@ Package 6 (2026-08-08) closed this section. Plan of record: `docs/PACKAGE6_FIGHT
 | Feature | Design Spec | Implementation Status |
 |---------|-------------|----------------------|
 | 3-hit basic combo | Frame timings, damage multipliers (0.8×/1.0×/1.5×) | **Implemented** |
-| Block system (3 charges) | Basic consumes 1, special shatters all 3, 5s cooldown on break | **Implemented** |
-| Block charge regeneration | 1 charge per 2.0s in all states except Blocking and Dead | **Implemented** |
+| Block system (3 charges) | Basic consumes 1, special shatters all 3, 5s cooldown on break | **Partially implemented** - charges/shatter/guard-break exist in both modes; the designed 5s post-shatter lockout exists in neither (open design question, audit 2026-08-08 H-5) |
+| Block charge regeneration | 1 charge per 2.0s in all states except Blocking and Dead | **Implemented at 3.0s** - both modes regenerate one charge per `BasicComboRules.BlockChargeRegenFrames` (180 frames); the design's 2.0s figure remains an open tuning question (audit H-5) |
 | Ultimate meter (0-100) | Build rates (1.0 per dealt, 0.25 per taken), death carryover (75%) | **Implemented** |
 | Status effects (5 types) | TimeDilation, Venom, StaticCharge, RadiantBurn, Root | **Implemented** - Strategy pattern with newest-overwrite |
 | Knockback formula | `baseKnockback / (1 + weight)` | **Implemented** |
@@ -471,7 +471,7 @@ migrated, and every ambient tone clears a readability floor — none of them can
 | Stage hazards | Off/Low/Medium/High frequency with warning/active phases | **Implemented** |
 | Pre-match countdown | 3-2-1-GO before inputs are live | **Implemented** (Package 6) - deterministic `MatchState = 0` for 180 frames plus a 30-frame GO window; the state ticks and enters every snapshot and hash, but gameplay input is discarded until the match goes live |
 | Respawn platform | 5s dissolve timer, all inputs disabled, invulnerability on drop | **Implemented** (Package 6) - deterministic simulation state: 300 frames at (0, +3.0) with all inputs locked, a 30-frame grace window, then 180 frames of invulnerability counted from the drop. Roll i-frames stay distinct. This replaced an instant ground teleport plus a flat 120 i-frames |
-| Bottom-fall stock loss | Falling through the bottom blast zone costs a stock | **Implemented** (Package 6) - this was **unreachable** before: on any stage whose floor spans the full width the ground snap ran before the blast-zone check and teleported the fighter back up. The end condition was nominal until the movement system's tail was reordered |
+| Bottom-fall stock loss | Falling through the bottom blast zone costs a stock | **Implemented in the simulation, unreachable on the production catalog** (audit 2026-08-08 H-11, open design decision) - Package 6 reordered the check correctly, but every authored stage clamps at its solid full-width floor (`groundIsSolid`), so only the legacy no-platform TestArena geometry can actually trigger it; Paris's designed central pit was authored as a sealed floor |
 | KO sequence | Hit-freeze, slow-motion, spotlight, KO stamp, victory pose | **Implemented, placeholder art** (Package 6) - driver-side hit-freeze, slow motion (paced `Advance` calls, never `Engine.TimeScale`), camera focus, localized KO/DRAW stamp, winner-pose hold, then the results transition, published as `EventBus` phases so Package 8 can restyle without touching flow. A test advances an identical simulation without the driver and compares hashes, proving deterministic state is untouched. Cinematic art and the fanfare stems are Package 8 |
 | Pause and controller disconnect | Forced pause naming the disconnected player, reconnect assignment, safe exit | **Implemented** (Package 6) - authored `LocalFighterPause.tscn` with `SceneTree.Paused` released in `_ExitTree`; `InputManager` no longer reshuffles both fighters' pads when any device is plugged in mid-match |
 | Results screen | Per-end-condition treatment | **Implemented** (Package 6) - authored `MatchResults.tscn` replacing the code-built panel; the raw `ui_cancel` instant-exit is gone |
