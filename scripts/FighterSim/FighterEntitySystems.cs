@@ -1143,7 +1143,18 @@ namespace FTT.FighterSim {
                         in fighter.Position, in FighterHalfExtents)) continue;
 
                 // The dampening beam is pure meter denial: no damage, no impulse.
+                // The drain honours the same pre-effect gates ApplyFighterHit
+                // applies (audit M-11): a fighter pinned on the respawn platform is
+                // "completely invulnerable" (design-godot.md ~1570) and loses
+                // nothing, a dead fighter is skipped, and an Aegis charge absorbs
+                // the tick exactly as it absorbs any other incoming effect.
                 if (type == FighterHazardTypeID.ParisDampeningBeam) {
+                    if (fighter.InvulnerabilityFrames > 0 || fighter.Stocks <= 0) continue;
+                    ref FighterRuntimeComponent beamRuntime = ref frame.Get<FighterRuntimeComponent>(fighterEntity);
+                    if (beamRuntime.AegisHits > 0) {
+                        beamRuntime.AegisHits--;
+                        continue;
+                    }
                     fighter.Influence = FP64.Max(FP64.Zero, fighter.Influence - InfluenceDrainPerTick);
                     continue;
                 }
@@ -1410,7 +1421,7 @@ namespace FTT.FighterSim {
                     continue;
                 }
 
-                int picker = FindPicker(ref frame, in orb);
+                int picker = FindPicker(ref frame, ref match, in orb);
                 if (picker < 0 || !FighterEntityQueries.TryFindFighter(ref frame, picker, out EntityRef fighterEntity)) continue;
                 ref FighterStateComponent fighter = ref frame.Get<FighterStateComponent>(fighterEntity);
                 ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(fighterEntity);
@@ -1442,7 +1453,7 @@ namespace FTT.FighterSim {
             });
         }
 
-        private static int FindPicker(ref Frame frame, in FighterOrbComponent orb) {
+        private static int FindPicker(ref Frame frame, ref FighterMatchComponent match, in FighterOrbComponent orb) {
             bool playerOne = false;
             bool playerTwo = false;
             var filter = frame.Filter<FighterStateComponent>();
@@ -1454,10 +1465,26 @@ namespace FTT.FighterSim {
                 if (fighter.PlayerID == 0) playerOne = true;
                 else if (fighter.PlayerID == 1) playerTwo = true;
             }
-            if (playerOne && playerTwo) return orb.EntityID % 2;
+            if (playerOne && playerTwo) return ResolveContestedPicker(ref match);
             if (playerOne) return 0;
             if (playerTwo) return 1;
             return -1;
+        }
+
+        /// <summary>
+        /// Design ~3134: a same-tick contested orb resolves by a seeded coin flip,
+        /// not the old <c>EntityID % 2</c> parity (with the first orb entity ID
+        /// fixed, that parity always awarded the same slot). The draw threads
+        /// <c>FighterMatchComponent.RandomState0/1</c> through
+        /// <see cref="DeterministicRandom"/> like every other match draw, so it is
+        /// random per contest yet bit-identical under rollback resimulation.
+        /// </summary>
+        internal static int ResolveContestedPicker(ref FighterMatchComponent match) {
+            var random = new DeterministicRandom(1);
+            random.SetFullState(match.RandomState0, match.RandomState1);
+            int picker = random.NextInt(0, 2);
+            (match.RandomState0, match.RandomState1) = random.GetFullState();
+            return picker;
         }
 
         private static void ApplyEffect(

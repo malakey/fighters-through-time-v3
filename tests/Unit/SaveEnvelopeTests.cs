@@ -104,6 +104,34 @@ public class SaveEnvelopeTests {
         AssertThat(restored.InputBindings.For("gameplay_jump")[1].Code).IsEqual((int)JoyButton.X);
     }
 
+    /// <summary>
+    /// Audit §4 Fighter Low (true-draw tally): <see cref="GlobalSaveData.TotalDraws"/>
+    /// is additive on the existing v4 schema — no bump — so it must both survive a
+    /// full envelope round trip and default to zero when an older payload written
+    /// before the field existed is deserialized (Newtonsoft leaves a missing
+    /// member at the C# default).
+    /// </summary>
+    [TestCase]
+    public void DrawTallyRoundTripsAndDefaultsToZeroOnOlderPayloads() {
+        var data = new GlobalSaveData { TotalWins = 3, TotalLosses = 1, TotalDraws = 2 };
+        data.Normalize();
+
+        byte[] envelope = SaveEnvelopeCodec.Encode(
+            "global", data.SaveVersion, JsonConvert.SerializeObject(data), TestKey, 7L, TestIV);
+        AssertThat(SaveEnvelopeCodec.TryDecode(envelope, TestKey, out DecodedSaveEnvelope decoded, out _)).IsTrue();
+        GlobalSaveData restored = SaveSchemaMigrator.DeserializeGlobal(decoded.Json);
+        AssertThat(restored.TotalDraws).IsEqual(2);
+        AssertThat(restored.TotalWins).IsEqual(3);
+        AssertThat(restored.TotalLosses).IsEqual(1);
+
+        // A current-version payload from before the field existed: missing
+        // member tolerated, tally starts at zero.
+        GlobalSaveData legacy = SaveSchemaMigrator.DeserializeGlobal(
+            $"{{\"SaveVersion\":{SaveSchemaMigrator.CurrentVersion},\"TotalWins\":5}}");
+        AssertThat(legacy.TotalDraws).IsEqual(0);
+        AssertThat(legacy.TotalWins).IsEqual(5);
+    }
+
     [TestCase]
     public void AtomicWriteKeepsLastKnownGoodBackup() {
         string directory = ProjectSettings.GlobalizePath($"user://test-saves/{Guid.NewGuid():N}");

@@ -75,6 +75,12 @@ namespace FTT.Core {
         public int TotalPlayTime;
         public int TotalWins;
         public int TotalLosses;
+        /// <summary>
+        /// True ties logged as played matches (design Section 11: a draw is a
+        /// match, not a win or loss). Additive field: Newtonsoft leaves it at its
+        /// default 0 on payloads written before it existed, so no schema bump.
+        /// </summary>
+        public int TotalDraws;
         public Dictionary<string, int> CharacterWins = new();
         public Dictionary<string, int> CharacterLosses = new();
         public float MasterVolume = 1.0f;
@@ -111,6 +117,7 @@ namespace FTT.Core {
             }
             CharacterWins ??= new Dictionary<string, int>();
             CharacterLosses ??= new Dictionary<string, int>();
+            TotalDraws = Math.Max(0, TotalDraws);
             InputBindings ??= new InputBindingSet();
             InputBindings.Normalize();
             MasterVolume = Math.Clamp(MasterVolume, 0f, 1f);
@@ -166,7 +173,10 @@ namespace FTT.Core {
         /// Records one concluded local match. The overall tallies stay
         /// profile-centric (player one is the local profile, unchanged from the
         /// pre-Package-6 behaviour) while the character tallies are per-character
-        /// for both fighters. A true tie counts in neither.
+        /// for both fighters. A true tie counts in neither win/loss tally but is
+        /// logged as a played match in <see cref="GlobalSaveData.TotalDraws"/>
+        /// (design Section 11 "Draw/Tie Resolution"; audit §4 Low — previously a
+        /// draw was recorded nowhere).
         /// </summary>
         public static void Record(
             GlobalSaveData data,
@@ -174,7 +184,11 @@ namespace FTT.Core {
             string playerTwoCharacterID,
             int winnerPlayerID,
             bool isTrueTie) {
-            if (data == null || isTrueTie) return;
+            if (data == null) return;
+            if (isTrueTie) {
+                data.TotalDraws++;
+                return;
+            }
             data.CharacterWins ??= new Dictionary<string, int>();
             data.CharacterLosses ??= new Dictionary<string, int>();
             if (winnerPlayerID == 0) {

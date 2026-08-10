@@ -182,16 +182,28 @@ namespace FTT.Networking {
         public void Poll() {
             if (_disposed) return;
             while (_socket.Available > 0) {
-                byte[] buffer = new byte[RollbackInputPacket.SerializedSize];
+                // One byte of slack over the wire size: on platforms that truncate
+                // an oversized datagram instead of faulting (POSIX), the read then
+                // returns SerializedSize + 1 and fails the exact-length check, so
+                // an oversized datagram can never smuggle a valid 47-byte prefix
+                // through (audit M-33).
+                byte[] buffer = new byte[RollbackInputPacket.SerializedSize + 1];
                 EndPoint sender = new IPEndPoint(IPAddress.Any, 0);
                 try {
                     int count = _socket.ReceiveFrom(buffer, SocketFlags.None, ref sender);
-                    if (count != buffer.Length) continue;
+                    if (count != RollbackInputPacket.SerializedSize) continue;
                     if (_remoteEndpoint == null && _acceptFirstPeer) _remoteEndpoint = sender;
                     if (_remoteEndpoint is IPEndPoint expected && sender is IPEndPoint actual && !expected.Equals(actual)) continue;
-                    _received.Enqueue(buffer);
+                    byte[] packet = new byte[RollbackInputPacket.SerializedSize];
+                    Array.Copy(buffer, packet, RollbackInputPacket.SerializedSize);
+                    _received.Enqueue(packet);
                 } catch (SocketException exception) when (exception.SocketErrorCode == SocketError.WouldBlock) {
                     break;
+                } catch (SocketException exception) when (exception.SocketErrorCode == SocketError.MessageSize) {
+                    // Windows faults a receive whose datagram exceeds the buffer
+                    // and discards the datagram (audit M-33: this previously threw
+                    // out of Poll and took the whole receive path down). Drop it
+                    // and keep draining the queue.
                 }
             }
         }
@@ -290,6 +302,13 @@ namespace FTT.Networking {
         /// <summary>Upper bound on <see cref="RetainedCorrectedTickCount"/>.</summary>
         public static int CorrectedTickCapacity => CorrectedTickSlots;
 
+        /// <summary>
+        /// Future remote inputs received but not yet consumed. Diagnostics and
+        /// tests only; bounded by the future-tick window enforced in
+        /// <see cref="PumpNetwork"/>.
+        /// </summary>
+        public int PendingRemoteInputCount => _remoteInputs.Count;
+
         public long Advance(PlayerInputFrame localInput) {
             int tick = _simulation.CurrentTick;
             localInput.Tick = (uint)tick;
@@ -314,6 +333,12 @@ namespace FTT.Networking {
                 CheckRemoteHash(in packet);
                 int currentTick = _simulation.CurrentTick;
                 if (packet.Tick >= currentTick) {
+                    // Bound the future-input window (audit §4 Networking): a
+                    // hostile or badly desynced peer must not grow this map
+                    // without limit. Anything more than a full input-history
+                    // window ahead of the local clock cannot represent honest
+                    // one-tick-per-frame play and is dropped outright.
+                    if (packet.Tick > currentTick + FighterSimulation.RollbackHistoryTicks) continue;
                     _remoteInputs[packet.Tick] = packet.Input;
                     continue;
                 }

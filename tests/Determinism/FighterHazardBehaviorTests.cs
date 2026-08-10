@@ -145,6 +145,70 @@ public class FighterHazardBehaviorTests {
         AssertThat(harness.Fighter(0).CurrentHP).IsEqual(hpBefore);
     }
 
+    /// <summary>
+    /// Audit M-11 / design-godot.md ~1570 ("completely invulnerable while
+    /// standing on the respawn platform"): the beam's meter drain must honour
+    /// the same invulnerability gate as every damaging effect. The legacy flat
+    /// arena is the one geometry whose bottom blast zone is reachable, so the
+    /// script builds meter, rides the bottom blast zone just before the
+    /// 1800-frame hazard boundary, and then sits pinned at (0, 3) — inside the
+    /// full-height beam column — through the platform hold and the post-drop
+    /// invulnerability window. The beam always crosses stage centre within its
+    /// first 140 active frames (it ignites moving toward the far wall), so the
+    /// overlap the assertion depends on is guaranteed, not seed luck.
+    /// </summary>
+    [TestCase]
+    public void ParisBeamCannotDrainMeterFromAnInvulnerableRespawningFighter() {
+        var harness = new HazardHarness(null, FighterHazardTypeID.ParisDampeningBeam, 6112);
+
+        // Build a visible meter, then stop swinging so timing stays scripted.
+        for (int frame = 0; frame < 500 && harness.Fighter(0).Influence < FP64.FromInt(10); frame++) {
+            GameplayButtons buttons = frame % 40 == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None;
+            harness.StepToward(harness.Fighter(1).Position.x, buttons);
+        }
+        AssertThat(harness.Fighter(0).Influence >= FP64.FromInt(10)).IsTrue();
+
+        // Idle to just before the hazard boundary, then drop through the legacy
+        // floor and ride the fall to a stock loss.
+        while (harness.Tick < 1560) harness.Step();
+        bool onPlatform = false;
+        for (int frame = 0; frame < 200 && !onPlatform; frame++) {
+            harness.Step(0, frame == 0
+                ? GameplayButtons.Jump | GameplayButtons.Down
+                : GameplayButtons.Down);
+            FighterStateComponent state = harness.Fighter(0);
+            onPlatform = FighterMatchFlowRules.IsOnRespawnPlatform(in state);
+        }
+        AssertThat(onPlatform).IsTrue();
+
+        // Stock loss retains 75% meter, so there is something to protect.
+        FP64 protectedMeter = harness.Fighter(0).Influence;
+        AssertThat(protectedMeter > FP64.Zero).IsTrue();
+
+        bool sawInvulnerableOverlap = false;
+        for (int guard = 0; guard < 900; guard++) {
+            FighterStateComponent before = harness.Fighter(0);
+            if (before.InvulnerabilityFrames <= 0 && !FighterMatchFlowRules.IsOnRespawnPlatform(in before)) break;
+            harness.Step();
+            FighterStateComponent fighter = harness.Fighter(0);
+            if (fighter.InvulnerabilityFrames <= 0) continue;
+            if (harness.HasHazard()) {
+                FighterHazardComponent hazard = harness.Hazard();
+                if (hazard.Phase == FighterHazardSystem.ActivePhase
+                    && FP64.Abs(hazard.Position.x - fighter.Position.x) <= hazard.HalfExtents.x + FP64.FromDouble(0.5)
+                    && FP64.Abs(hazard.Position.y - fighter.Position.y) <= hazard.HalfExtents.y + FP64.One) {
+                    sawInvulnerableOverlap = true;
+                }
+            }
+            if (fighter.Influence.RawValue != protectedMeter.RawValue) {
+                AssertThat($"meter moved at tick {harness.Tick} while invulnerable").IsEqual("");
+            }
+        }
+
+        AssertThat(sawInvulnerableOverlap).IsTrue();
+        AssertThat(harness.Fighter(0).Influence.RawValue).IsEqual(protectedMeter.RawValue);
+    }
+
     [TestCase]
     public void VesuviusRockFallsFromTheCeilingThenLeavesATimeDilationPool() {
         var harness = new HazardHarness(FighterStageGeometry.Vesuvius, FighterHazardTypeID.VesuviusRockfall, 6105);
@@ -531,6 +595,8 @@ public class FighterHazardBehaviorTests {
                 else Step();
             }
         }
+
+        public int Tick => _tick;
 
         public bool HasHazard() => _simulation.TryGetFirstHazard(out _);
 

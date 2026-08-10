@@ -50,6 +50,32 @@ public class FighterMatchStatisticsTests {
         AssertThat(FighterMatchStatistics.LossesFor(data, "tesla")).IsEqual(0);
     }
 
+    /// <summary>
+    /// Audit §4 Fighter Low: a true draw used to be recorded nowhere — the
+    /// design's "total matches played" was unrecoverable. It now lands in the
+    /// additive <see cref="GlobalSaveData.TotalDraws"/> tally, decided matches
+    /// leave it untouched, and Normalize preserves it.
+    /// </summary>
+    [TestCase]
+    public void ATrueDrawIncrementsTheDrawTallyAndDecidedMatchesDoNot() {
+        var data = new GlobalSaveData();
+        FighterMatchStatistics.Record(data, "joan", "tesla", winnerPlayerID: -1, isTrueTie: true);
+        FighterMatchStatistics.Record(data, "joan", "tesla", winnerPlayerID: -1, isTrueTie: true);
+        FighterMatchStatistics.Record(data, "joan", "tesla", winnerPlayerID: 0, isTrueTie: false);
+
+        AssertThat(data.TotalDraws).IsEqual(2);
+        AssertThat(data.TotalWins).IsEqual(1);
+        AssertThat(data.TotalLosses).IsEqual(0);
+
+        data.Normalize();
+        AssertThat(data.TotalDraws).IsEqual(2);
+
+        // A hand-edited negative tally is clamped rather than trusted.
+        data.TotalDraws = -5;
+        data.Normalize();
+        AssertThat(data.TotalDraws).IsEqual(0);
+    }
+
     [TestCase]
     public void CharacterTalliesAccumulateAcrossMatchesAndSurviveNormalize() {
         var data = new GlobalSaveData();

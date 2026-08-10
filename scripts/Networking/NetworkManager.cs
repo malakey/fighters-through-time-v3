@@ -108,6 +108,10 @@ namespace FTT.Networking {
 
         public override void _Ready() => Instance = this;
 
+        public override void _ExitTree() {
+            if (Instance == this) Instance = null;
+        }
+
         public string CreatePrivateRoomCode() {
             const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
             Span<byte> random = stackalloc byte[6];
