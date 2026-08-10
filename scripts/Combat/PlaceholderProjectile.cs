@@ -61,7 +61,12 @@ namespace FTT.Combat {
             _hitbox.CollisionLayer = CollisionLayers.Projectile;
             _hitbox.CollisionMask = CollisionLayers.ProjectileMask;
             _hitbox.Monitorable = true;
-            if (ownerIndex < 0) AddToGroup("enemy_projectile");
+            // Hostile-to-player shots clear with enemy projectiles on a Chronal
+            // Rewind. Owner index alone is not enough: the Level 13 Mirror clone
+            // fires with a non-negative player index, so the firing controller's
+            // hostility flag is consulted at grouping time (audit H-8).
+            bool hostileToPlayer = ownerIndex < 0 || (sourcePlayer?.IsStoryHostile ?? false);
+            if (hostileToPlayer) AddToGroup("enemy_projectile");
             else RemoveFromGroup("enemy_projectile");
             _hitbox.Activate();
         }

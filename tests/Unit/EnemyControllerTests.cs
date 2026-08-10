@@ -320,6 +320,224 @@ public class EnemyControllerTests {
         }
     }
 
+    [TestCase]
+    public void CommittedAttacksLockFacingWhileTheReactionDelayStillAims() {
+        // Audit M-19: the sprite re-aimed every telegraph frame while the executor
+        // resolved the hitbox on the facing captured at commit, so a roll-through
+        // made the telegraph lie. Facing may track during the pre-commit reaction
+        // delay only; from the telegraph on it is locked.
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var host = new Node2D { Name = "FacingLockHost" };
+        tree.Root.AddChild(host);
+        EnemyController phantom = null;
+        try {
+            FTT.Characters.PlayerController player =
+                FTT.Characters.CharacterFactory.CreateCharacter("einstein", 0);
+            host.AddChild(player);
+            player.GlobalPosition = new Vector2(80f, 0f);
+
+            // Flying, so a floorless test tree adds no gravity drift.
+            phantom = CreateEnemy("rift_phantom");
+            phantom.GlobalPosition = Vector2.Zero;
+
+            // Patrol -> Chase -> Attacking (reaction delay aims) -> committed telegraph.
+            int guard = 0;
+            while (phantom.AbilityPhase != EnemyAbilityPhase.Telegraph && guard++ < 240) {
+                phantom._PhysicsProcess(Step);
+            }
+            AssertThat(phantom.AbilityPhase).IsEqual(EnemyAbilityPhase.Telegraph);
+            AssertThat(phantom.IsFacingRight).IsTrue();
+
+            // The player crosses over mid-telegraph; the sprite must not flip.
+            player.GlobalPosition = new Vector2(-80f, phantom.GlobalPosition.Y);
+            for (int frame = 0; frame < 5; frame++) {
+                phantom._PhysicsProcess(Step);
+                AssertThat(phantom.IsFacingRight).IsTrue();
+            }
+
+            // And the hit resolves on the committed side.
+            var hitbox = phantom.GetNode<Hitbox>("Hitbox");
+            guard = 0;
+            while (phantom.AbilityPhase != EnemyAbilityPhase.Active && guard++ < 60) {
+                phantom._PhysicsProcess(Step);
+            }
+            AssertThat(phantom.AbilityPhase).IsEqual(EnemyAbilityPhase.Active);
+            AssertThat(phantom.IsFacingRight).IsTrue();
+            AssertThat(hitbox.IsActive).IsTrue();
+            AssertThat(hitbox.Position.X > 0f).IsTrue();
+        } finally {
+            phantom?.Free();
+            host.Free();
+        }
+    }
+
+    [TestCase]
+    public void TheDesignTableStandGuardRowsAuthorStandGuard() {
+        // design-godot.md:1157-1161: Tech-Enforcer, Steam Automaton v2, and the
+        // Neural-Linked Knight are the concrete table's three StandGuard rows.
+        foreach (string enemyID in new[] { "tech_enforcer", "steam_automaton", "neural_linked_knight" }) {
+            EnemyData data = FTT.Core.AuthoredResources.Load<EnemyData>(
+                $"res://resources/Enemies/{enemyID}.tres");
+            AssertThat(data.Behavior).IsEqual(DefaultBehavior.StandGuard);
+        }
+    }
+
+    [TestCase]
+    public void StandGuardEnemiesHoldTheirPostInsteadOfPacing() {
+        EnemyController guard = CreateEnemy("tech_enforcer");
+        try {
+            AssertThat(guard.Data.Behavior).IsEqual(DefaultBehavior.StandGuard);
+            float postX = guard.GlobalPosition.X;
+            for (int frame = 0; frame < 120; frame++) guard._PhysicsProcess(Step);
+            AssertThat(guard.CurrentState).IsEqual(EnemyState.Patrol);
+            AssertThat(guard.GlobalPosition.X).IsEqualApprox(postX, 1f);
+
+            // Control on the duplicated data: the same body with the design's
+            // Patrol behavior paces its authored waypoints immediately.
+            guard.Data.Behavior = DefaultBehavior.Ground;
+            for (int frame = 0; frame < 30; frame++) guard._PhysicsProcess(Step);
+            AssertThat(Mathf.Abs(guard.GlobalPosition.X - postX) > 50f).IsTrue();
+        } finally {
+            guard.Free();
+        }
+    }
+
+    [TestCase]
+    public void StandGuardChasesNormallyAndReturnsToItsPostOnDeAggro() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var host = new Node2D { Name = "StandGuardReturnHost" };
+        tree.Root.AddChild(host);
+        EnemyController knight = null;
+        try {
+            FTT.Characters.PlayerController player =
+                FTT.Characters.CharacterFactory.CreateCharacter("einstein", 0);
+            host.AddChild(player);
+            player.GlobalPosition = new Vector2(400f, 0f);
+
+            knight = CreateEnemy("neural_linked_knight");
+            knight.GlobalPosition = Vector2.Zero;
+
+            // Aggro and chase work exactly like a patroller's.
+            for (int frame = 0; frame < 30; frame++) knight._PhysicsProcess(Step);
+            AssertThat(knight.CurrentState).IsEqual(EnemyState.Chase);
+            AssertThat(knight.GlobalPosition.X > 50f).IsTrue();
+
+            // De-aggro: the guard walks back to its post, not to a waypoint pace.
+            player.GlobalPosition = new Vector2(5000f, 0f);
+            int guardFrames = 0;
+            while (knight.CurrentState != EnemyState.Patrol && guardFrames++ < 300) {
+                knight._PhysicsProcess(Step);
+            }
+            AssertThat(knight.CurrentState).IsEqual(EnemyState.Patrol);
+            AssertThat(Mathf.Abs(knight.GlobalPosition.X) < 16f).IsTrue();
+
+            // Back on post it stands guard again rather than resuming a pace.
+            float postX = knight.GlobalPosition.X;
+            for (int frame = 0; frame < 60; frame++) knight._PhysicsProcess(Step);
+            AssertThat(knight.GlobalPosition.X).IsEqualApprox(postX, 1f);
+        } finally {
+            knight?.Free();
+            host.Free();
+        }
+    }
+
+    [TestCase]
+    public void DeAggroReturnsToTheNearestWaypointAndResumesPatrol() {
+        // design-godot.md:2298: "the mob returns to its nearest waypoint and
+        // resumes patrol" — previously it steered to the spawn midpoint.
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var host = new Node2D { Name = "NearestWaypointHost" };
+        tree.Root.AddChild(host);
+        EnemyController slasher = null;
+        try {
+            FTT.Characters.PlayerController player =
+                FTT.Characters.CharacterFactory.CreateCharacter("einstein", 0);
+            host.AddChild(player);
+            player.GlobalPosition = new Vector2(300f, 0f);
+
+            slasher = CreateEnemy("chrono_slasher");
+            slasher.GlobalPosition = Vector2.Zero;
+
+            // Chase right, past the authored +150 waypoint's near side.
+            for (int frame = 0; frame < 25; frame++) slasher._PhysicsProcess(Step);
+            AssertThat(slasher.CurrentState).IsEqual(EnemyState.Chase);
+            AssertThat(slasher.GlobalPosition.X > 100f).IsTrue();
+
+            // De-aggro: the nearest waypoint is Right (+150), not the spawn (0).
+            player.GlobalPosition = new Vector2(5000f, 0f);
+            int guardFrames = 0;
+            while (slasher.CurrentState != EnemyState.Patrol && guardFrames++ < 120) {
+                slasher._PhysicsProcess(Step);
+            }
+            AssertThat(slasher.CurrentState).IsEqual(EnemyState.Patrol);
+            AssertThat(slasher.GlobalPosition.X > 130f).IsTrue();
+
+            // And patrol resumes toward the opposite waypoint, no fresh idle hold.
+            float resumeX = slasher.GlobalPosition.X;
+            for (int frame = 0; frame < 30; frame++) slasher._PhysicsProcess(Step);
+            AssertThat(slasher.GlobalPosition.X < resumeX - 50f).IsTrue();
+        } finally {
+            slasher?.Free();
+            host.Free();
+        }
+    }
+
+    [TestCase]
+    public void DeadEnemiesAreNotResurrectedByARewindRestore() {
+        // Audit M-6: Die() zeroed collision/hurtbox/pushbox and paid the kill's
+        // dust; a rewind restore must skip the corpse rather than stand up an
+        // invulnerable ghost.
+        EnemyController enemy = CreateEnemy("chrono_slasher");
+        try {
+            enemy.RewindPolicy = StoryRewindPolicy.ResetToInitialState;
+            enemy.TakeDamage(enemy.ScaledMaxHP);
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Dead);
+
+            enemy.ApplyStoryRewind();
+
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Dead);
+            AssertThat(enemy.CurrentHP).IsEqual(0);
+            AssertThat(enemy.CollisionLayer).IsEqual(0u);
+            var hurtbox = enemy.GetNode<Hurtbox>("Hurtbox");
+            AssertThat(hurtbox.Monitoring).IsFalse();
+        } finally {
+            enemy.Free();
+        }
+    }
+
+    [TestCase]
+    public void ChargeDashTravelObeysTheStatusMoveMultiplier() {
+        // Audit Low: the controller wrote the raw executor DashVelocity, so a
+        // Rooted enemy still crossed the room at full dash speed.
+        EnemyController enemy = CreateEnemy("chrono_slasher");
+        try {
+            var dash = new EnemyAbilityData {
+                AbilityID = "test.status_dash",
+                Archetype = EnemyAbilityArchetype.ChargeDash,
+                RangeClass = EnemyAbilityRangeClass.Melee,
+                TelegraphFrames = 1,
+                ActiveFrames = 30,
+                RecoveryFrames = 4,
+                Damage = 5f,
+                DashSpeed = 600f,
+                DashDurationFrames = 30,
+                HitboxSize = new Vector2(40f, 40f)
+            };
+            enemy.BeginAttack(dash);
+            enemy._PhysicsProcess(Step); // telegraph -> active
+            AssertThat(enemy.AbilityPhase).IsEqual(EnemyAbilityPhase.Active);
+            AssertThat(enemy.StatusScaledDashVelocityX).IsEqualApprox(600f, 0.001f);
+
+            enemy.ApplyStatusEffect(StatusType.Root, 2f, 1f);
+            AssertThat(enemy.StatusScaledDashVelocityX).IsEqualApprox(0f, 0.0001f);
+
+            enemy.ApplyStatusEffect(StatusType.TimeDilation, 2f, 1f);
+            AssertThat(enemy.StatusScaledDashVelocityX).IsEqualApprox(300f, 0.001f);
+        } finally {
+            enemy.Free();
+        }
+    }
+
     /// <summary>
     /// Instantiates the authored tier scene with a duplicated data resource so a
     /// test may retune fields without leaking into the shared canonical .tres.

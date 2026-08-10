@@ -475,6 +475,13 @@ namespace FTT.Environment {
             };
             _mirrorEncounter.MirrorRevealed += OnMirrorRevealed;
             _mirrorEncounter.MirrorDefeated += OnMirrorDefeated;
+            // Package 8 B5 climax wiring, mirroring StoryLevelControllerBase's
+            // BuildBossEncounter: the music layer binds to the encounter directly
+            // rather than to the flow callbacks above, so the Act III opener's
+            // boss fight escalates over the ambient stem like every other boss and
+            // no override of the flow handlers can silence it (audit M-20).
+            _mirrorEncounter.MirrorRevealed += () => Audio?.SetBossEngaged(true);
+            _mirrorEncounter.MirrorDefeated += _ => Audio?.SetBossEngaged(false);
             AddChild(_mirrorEncounter);
         }
 

@@ -431,6 +431,84 @@ public class MirrorParadoxTests {
         }
     }
 
+    // === Rewind world-freeze wiring (audit H-8) ===
+
+    [TestCase]
+    public void MirrorFiredProjectilesJoinTheEnemyProjectileGroup() {
+        MirrorParadoxController mirror = CreateMirror();
+        var projectile = new FTT.Combat.PlaceholderProjectile { Name = "MirrorShotUnderTest" };
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(projectile);
+        try {
+            // The controller marks its clone hostile at spawn...
+            AssertThat(mirror.Clone.IsStoryHostile).IsTrue();
+
+            // ...so a shot fired with the clone's non-negative player index still
+            // groups as an enemy projectile and a rewind's world clear removes it.
+            projectile.Setup(10f, new Vector2(3f, -2f), 400f, movingRight: true,
+                ownerIndex: mirror.Clone.PlayerIndex, color: Colors.White,
+                sourcePlayer: mirror.Clone);
+            AssertThat(projectile.IsInGroup("enemy_projectile")).IsTrue();
+
+            // Control: the campaign avatar's shots keep player-projectile
+            // semantics — owner 0 with no hostile source never joins the group.
+            projectile.Setup(10f, new Vector2(3f, -2f), 400f, movingRight: true,
+                ownerIndex: 0, color: Colors.White);
+            AssertThat(projectile.IsInGroup("enemy_projectile")).IsFalse();
+        } finally {
+            DetachAndFree(projectile);
+            FreeMirror(mirror);
+        }
+    }
+
+    [TestCase]
+    public void ARealRewindFreezesTheMirrorAndClearsItsShots() {
+        // The wiring, not the mechanism: a rewind through the real
+        // ChronalRewindManager must reach the mirror's SetStoryRewindFrozen via
+        // the world-freeze group sweep and clear the clone's live shots — the
+        // audit found the mechanism tested but nothing calling it (H-8).
+        var tree = (SceneTree)Engine.GetMainLoop();
+        var host = new Node2D { Name = "MirrorRewindWiringHost" };
+        tree.Root.AddChild(host);
+        MirrorParadoxController mirror = null;
+        try {
+            StoryManager.Instance?.SetRewinds(3);
+            PlayerController player = CharacterFactory.CreateCharacter(MirroredCharacter, 0);
+            host.AddChild(player);
+            player.GlobalPosition = new Vector2(400f, 850f);
+            var manager = new ChronalRewindManager { Name = "MirrorRewindManager" };
+            host.AddChild(manager);
+            for (int frame = 0; frame < 10; frame++) manager._PhysicsProcess(1.0 / 60.0);
+
+            mirror = CreateMirror();
+            mirror.BeginEncounter();
+            AssertThat(mirror.Clone.IsPhysicsProcessing()).IsTrue();
+
+            var shot = new FTT.Combat.PlaceholderProjectile { Name = "LiveMirrorShot" };
+            host.AddChild(shot);
+            shot.Setup(10f, new Vector2(3f, -2f), 400f, movingRight: true,
+                ownerIndex: mirror.Clone.PlayerIndex, color: Colors.White,
+                sourcePlayer: mirror.Clone);
+            AssertThat(shot.IsInGroup("enemy_projectile")).IsTrue();
+
+            AssertThat(manager.TriggerScriptedRewind()).IsTrue();
+            // The freeze reached the mirror through the group sweep...
+            AssertThat(mirror.IsStoryRewindFrozen).IsTrue();
+            AssertThat(mirror.Clone.IsPhysicsProcessing()).IsFalse();
+            // ...and the projectile clear removed the clone's live shot.
+            AssertThat(!GodotObject.IsInstanceValid(shot) || shot.IsQueuedForDeletion()).IsTrue();
+
+            for (int i = 0; i < 600 && manager.IsRewinding; i++) manager._PhysicsProcess(1.0 / 60.0);
+            AssertThat(manager.IsRewinding).IsFalse();
+            // The resume hands the encounter back exactly as the freeze found it.
+            AssertThat(mirror.IsStoryRewindFrozen).IsFalse();
+            AssertThat(mirror.Clone.IsPhysicsProcessing()).IsTrue();
+        } finally {
+            if (mirror != null) FreeMirror(mirror);
+            host.Free();
+            StoryManager.Instance?.SetRewinds(3);
+        }
+    }
+
     // === Helpers ===
 
     private static MirrorParadoxController CreateMirror(ulong seed = 4242) {

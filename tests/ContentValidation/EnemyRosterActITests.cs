@@ -172,6 +172,27 @@ public class EnemyRosterActITests {
     }
 
     [TestCase]
+    public void NeuralLinkedKnightMatchesTheDesignStatTableRow() {
+        // design-godot.md:1161 — the one row of the six-row concrete enemy stat
+        // table that had drifted (audit Low): 200 HP / 1.40 weight / 4.2 m/s /
+        // 8.0 jump / 24 dmg / 4.2 KB / 2.2 m range / 2.8 s CD / 0.60 stun res /
+        // StandGuard. The other five rows already matched to the digit.
+        EnemyData knight = Load("neural_linked_knight");
+        AssertThat(knight.MaxHP).IsEqual(200);
+        AssertThat(knight.Weight).IsEqualApprox(1.4f, 0.0001f);
+        AssertThat(knight.MoveSpeed).IsEqualApprox(4.2f, 0.0001f);
+        AssertThat(knight.JumpForce).IsEqualApprox(8.0f, 0.0001f);
+        AssertThat(knight.AttackDamage).IsEqualApprox(24f, 0.0001f);
+        AssertThat(knight.AttackKnockback).IsEqualApprox(4.2f, 0.0001f);
+        AssertThat(knight.AttackRange).IsEqualApprox(2.2f, 0.0001f);
+        AssertThat(knight.AttackCooldown).IsEqualApprox(2.8f, 0.0001f);
+        AssertThat(knight.StunResistance).IsEqualApprox(0.6f, 0.0001f);
+        AssertThat(knight.ReactionDelayMinFrames).IsEqual(15);
+        AssertThat(knight.ReactionDelayMaxFrames).IsEqual(25);
+        AssertThat(knight.Behavior).IsEqual(DefaultBehavior.StandGuard);
+    }
+
+    [TestCase]
     public void RangedPrimariesMirrorTheirScalarFallbackFields() {
         // Convention from the Phase A migration: when an EnemyData authors a
         // PrimaryAttack, the legacy scalar fields mirror it so HUD/tuning reads

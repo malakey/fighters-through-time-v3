@@ -176,22 +176,28 @@ namespace FTT.Environment {
             StoryManager.Instance?.BeginTimelineCollapse(GetCheckpointID());
         }
 
+        /// <summary>
+        /// Scene-tree groups swept for <see cref="IStoryRewindSimulation"/> members
+        /// when a rewind freezes the world. The Level 13 Mirror Paradox joins its
+        /// own group rather than "Enemies" (its clone is a PlayerController, not an
+        /// EnemyController), so the sweep names that group explicitly — audit H-8.
+        /// </summary>
+        private static readonly string[] FrozenSimulationGroups = {
+            "Enemies",
+            "persistent_construct",
+            FTT.Enemies.MirrorParadoxController.MirrorGroup
+        };
+
         private void FreezeWorldForRewind() {
             _frozenSimulations.Clear();
-            Godot.Collections.Array<Node> enemies = GetTree().GetNodesInGroup("Enemies");
-            using var enemiesLifetime = enemies.AsDisposable();
-            foreach (Node node in enemies) {
-                if (node is IStoryRewindSimulation simulation) {
-                    simulation.SetStoryRewindFrozen(true);
-                    _frozenSimulations.Add(simulation);
-                }
-            }
-            Godot.Collections.Array<Node> constructs = GetTree().GetNodesInGroup("persistent_construct");
-            using var constructsLifetime = constructs.AsDisposable();
-            foreach (Node node in constructs) {
-                if (node is IStoryRewindSimulation simulation && !_frozenSimulations.Contains(simulation)) {
-                    simulation.SetStoryRewindFrozen(true);
-                    _frozenSimulations.Add(simulation);
+            foreach (string groupName in FrozenSimulationGroups) {
+                Godot.Collections.Array<Node> members = GetTree().GetNodesInGroup(groupName);
+                using var membersLifetime = members.AsDisposable();
+                foreach (Node node in members) {
+                    if (node is IStoryRewindSimulation simulation && !_frozenSimulations.Contains(simulation)) {
+                        simulation.SetStoryRewindFrozen(true);
+                        _frozenSimulations.Add(simulation);
+                    }
                 }
             }
             ClearEnemyProjectiles();

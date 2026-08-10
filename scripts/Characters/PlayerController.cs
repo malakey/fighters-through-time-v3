@@ -166,6 +166,14 @@ namespace FTT.Characters {
 		/// Resonance bonus and never participates in Story stat resolution.
 		/// </summary>
 		public int EncounterMaxHPOverride { get; set; }
+		/// <summary>
+		/// Story-side opponent marker, set only by encounters that reuse a character
+		/// body as a hostile (the Level 13 Mirror Paradox clone). Projectiles this
+		/// controller fires join the <c>enemy_projectile</c> group so a Chronal
+		/// Rewind's world clear removes them like any other hostile shot (audit
+		/// H-8). Never set on the campaign avatar; Fighter Mode never reads it.
+		/// </summary>
+		public bool IsStoryHostile { get; set; }
 		public int MaximumHP => EncounterMaxHPOverride > 0
 			? EncounterMaxHPOverride
 			: (Data?.MaxHP ?? 100) + StoryMaxHPBonus;
