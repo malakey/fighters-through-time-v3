@@ -45,13 +45,6 @@ namespace FTT.Characters.Abilities {
                 projectile.DetonateOnImpact = true;
                 projectile.Impacted += OnProjectileImpacted;
             }
-
-            Owner.SpecialOneCooldownTimer = Data?.CooldownDuration ?? 10f;
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.Special1,
-                Duration = Data?.CooldownDuration ?? 10f
-            });
         }
 
         private void OnProjectileImpacted(Vector2 impactPosition) {

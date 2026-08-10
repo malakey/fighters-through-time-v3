@@ -29,7 +29,11 @@ namespace FTT.Characters.Abilities {
         private float _tickTimer;
         private int _ticksRemaining;
         private float _radius;
+        private float _maxRadius = MaxRadiusPixels;
         private float _growthPerSecond;
+
+        /// <summary>The expanding spiral's current radius after Story minors (test observable).</summary>
+        public float ActiveSpiralRadiusPixels => _radius;
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
@@ -38,12 +42,6 @@ namespace FTT.Characters.Abilities {
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
             BeginSpiral();
-            Owner.SpecialOneCooldownTimer = Data?.CooldownDuration ?? 10f;
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.Special1,
-                Duration = Data?.CooldownDuration ?? 10f
-            });
         }
 
         protected override void OnRecovery() {
@@ -56,12 +54,17 @@ namespace FTT.Characters.Abilities {
             _tickInterval = (Data?.DamageTickIntervalFrames ?? 30) / 60f;
             if (_tickInterval <= 0f) _tickInterval = 0.5f;
             _ticksRemaining = Data?.IsMultiHit == true ? Mathf.Max(1, Data.HitCount) : 3;
+            // Story-only ZoneRadius minor ("Spiral Range +10%", leonardo_a2)
+            // widens the whole expansion; neutral 1f outside Story Mode.
+            float radiusScale = Owner.StoryZoneRadiusMultiplier;
+            float maxRadius = MaxRadiusPixels * radiusScale;
             // First tick lands immediately (next physics step); the spiral reaches
             // full radius by the final tick.
             _tickTimer = 0f;
-            _radius = StartRadiusPixels;
+            _radius = StartRadiusPixels * radiusScale;
+            _maxRadius = maxRadius;
             _growthPerSecond = _ticksRemaining > 1
-                ? (MaxRadiusPixels - StartRadiusPixels) / ((_ticksRemaining - 1) * _tickInterval)
+                ? (maxRadius - _radius) / ((_ticksRemaining - 1) * _tickInterval)
                 : 0f;
             _spiralActive = true;
 
@@ -70,7 +73,7 @@ namespace FTT.Characters.Abilities {
             SpawnPlaceholderZone(
                 _spiralCenter, 0f,
                 Data?.Lifetime > 0f ? Data.Lifetime : 1.5f, 1f,
-                new Color(0.85f, 0.7f, 0.25f), MaxRadiusPixels);
+                new Color(0.85f, 0.7f, 0.25f), maxRadius);
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -79,7 +82,7 @@ namespace FTT.Characters.Abilities {
             if (Owner == null || !IsInstanceValid(Owner)) { _spiralActive = false; return; }
 
             float dt = (float)delta;
-            _radius = Mathf.Min(_radius + _growthPerSecond * dt, MaxRadiusPixels);
+            _radius = Mathf.Min(_radius + _growthPerSecond * dt, _maxRadius);
             _tickTimer -= dt;
             if (_tickTimer > 0f) return;
             _tickTimer = _tickInterval;
@@ -176,12 +179,6 @@ namespace FTT.Characters.Abilities {
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
             DeployTurret();
-            Owner.SpecialTwoCooldownTimer = Data?.CooldownDuration ?? 10f;
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.Special2,
-                Duration = Data?.CooldownDuration ?? 10f
-            });
         }
 
         protected override void OnRecovery() {
@@ -272,19 +269,25 @@ namespace FTT.Characters.Abilities {
             UseAuthoredPhaseFrames();
             _isGliding = true;
             _glideTimer = _glideDuration;
-            float cooldown = Data?.CooldownDuration ?? 5f;
-            Owner.MovementAbilityCooldownTimer = cooldown;
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 AbilityName = Data?.AbilityName ?? "Ornithopter Flight",
                 StartPosition = Owner.GlobalPosition,
                 EndPosition = Owner.GlobalPosition
             });
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.MovementAbility,
-                Duration = cooldown
-            });
+        }
+
+        /// <summary>
+        /// H-4: a stun/death mid-cast releases the wing glide/dive steering and
+        /// deactivates the Daedalus dive hitbox the dive path would otherwise
+        /// leave live.
+        /// </summary>
+        protected override void OnInterrupted() {
+            _isGliding = false;
+            if (_isDiving) {
+                _isDiving = false;
+                GetNodeOrNull<Hitbox>("DaedalusDiveHitbox")?.Deactivate();
+            }
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -398,6 +401,15 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
+            _matrixActive = false;
+        }
+
+        /// <summary>
+        /// H-4: interrupting the channel stops the remaining bombardment ticks —
+        /// the matrix is Leonardo conducting the trap, not a fire-and-forget
+        /// construct (its normal recovery already shuts it down early).
+        /// </summary>
+        protected override void OnInterrupted() {
             _matrixActive = false;
         }
 

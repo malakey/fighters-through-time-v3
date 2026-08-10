@@ -89,6 +89,9 @@ namespace FTT.Environment {
             float projectileSpeed = 1f;
             float projectileDamage = 1f;
             float glideSpeed = 1f;
+            float glideDuration = 1f;
+            float zoneRadius = 1f;
+            float zoneDuration = 1f;
             float persistentDuration = 1f;
             float persistentRange = 1f;
             float persistentHealth = 1f;
@@ -111,6 +114,13 @@ namespace FTT.Environment {
                     case "ProjectileSpeed": projectileSpeed += PercentValue(node); break;
                     case "ProjectileDamage": projectileDamage += PercentValue(node); break;
                     case "GlideSpeed": glideSpeed += PercentValue(node); break;
+                    // Ability-scoped minors (audit Low "Kits/talents"): glide
+                    // windows and authored ability zones, so re-pointed talents
+                    // like "Rift Range +10%" reach their designed target instead
+                    // of a kit-wide stat.
+                    case "GlideDuration": glideDuration += PercentValue(node); break;
+                    case "ZoneRadius": zoneRadius += PercentValue(node); break;
+                    case "ZoneDuration": zoneDuration += PercentValue(node); break;
                     case "PersistentDuration": persistentDuration += PercentValue(node); break;
                     case "PersistentRange": persistentRange += PercentValue(node); break;
                     case "PersistentHealth": persistentHealth += PercentValue(node); break;
@@ -136,7 +146,10 @@ namespace FTT.Environment {
                 persistentRangeMultiplier: persistentRange,
                 persistentHealthMultiplier: persistentHealth,
                 statusDurationMultiplier: statusDuration,
-                statusIntensityMultiplier: statusIntensity);
+                statusIntensityMultiplier: statusIntensity,
+                glideDurationMultiplier: glideDuration,
+                zoneRadiusMultiplier: zoneRadius,
+                zoneDurationMultiplier: zoneDuration);
         }
 
         public static float GetUnlockedStatTotal(

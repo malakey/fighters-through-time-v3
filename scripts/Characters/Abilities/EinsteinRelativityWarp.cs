@@ -43,8 +43,6 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
-            float cooldown = Data?.CooldownDuration ?? 5f;
-            Owner.MovementAbilityCooldownTimer = cooldown;
 
             // The design allows canceling the warp into a brief float glide; hold
             // jump as the warp ends to trigger it in the air.
@@ -57,11 +55,6 @@ namespace FTT.Characters.Abilities {
                 AbilityName = Data?.AbilityName ?? "Relativity Warp",
                 StartPosition = _startPosition,
                 EndPosition = Owner.GlobalPosition
-            });
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.MovementAbility,
-                Duration = cooldown
             });
         }
 

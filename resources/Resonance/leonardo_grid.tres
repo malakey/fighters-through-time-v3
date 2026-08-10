@@ -21,7 +21,7 @@ DisplayNameKey = "resonance_leonardo_a2_name"
 DescriptionKey = "resonance_leonardo_a2_description"
 UnlockCost = 75
 PrerequisiteNodeIDs = PackedStringArray("leonardo_a1")
-StatModifierKey = "AttackRange"
+StatModifierKey = "ZoneRadius"
 StatModifierValue = 0.1
 StatModifierIsPercent = true
 

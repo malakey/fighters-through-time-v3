@@ -22,12 +22,6 @@ namespace FTT.Characters.Abilities {
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
             DeployNest();
-            Owner.SpecialOneCooldownTimer = Data?.CooldownDuration ?? 10f;
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.Special1,
-                Duration = Data?.CooldownDuration ?? 10f
-            });
         }
 
         protected override void OnRecovery() {
@@ -93,9 +87,15 @@ namespace FTT.Characters.Abilities {
 
         private bool _vortexActive;
         private Vector2 _vortexCenter;
+        private float _vortexRadius = VortexRadiusPixels;
         private float _vortexLifetime;
         private float _vortexTickInterval;
         private float _vortexTickTimer;
+
+        /// <summary>Whether the deployed vortex is still churning (test observable).</summary>
+        public bool VortexActive => _vortexActive;
+        /// <summary>The deployed vortex's effective radius after Story minors (test observable).</summary>
+        public float ActiveVortexRadiusPixels => _vortexRadius;
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
@@ -104,12 +104,6 @@ namespace FTT.Characters.Abilities {
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
             SpawnVortex();
-            Owner.SpecialTwoCooldownTimer = Data?.CooldownDuration ?? 10f;
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.Special2,
-                Duration = Data?.CooldownDuration ?? 10f
-            });
         }
 
         protected override void OnRecovery() {
@@ -119,7 +113,12 @@ namespace FTT.Characters.Abilities {
         private void SpawnVortex() {
             if (Owner == null) return;
             _vortexCenter = Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 100f : -100f, 0f);
-            _vortexLifetime = Data?.Lifetime > 0f ? Data.Lifetime : 2f;
+            // Story-only minors: "Sand Radius +15%" (cleopatra_dm1, ZoneRadius)
+            // widens the vortex; "Sand Duration +20%" (cleopatra_dm2,
+            // ZoneDuration) lengthens it. Neutral 1f outside Story Mode.
+            _vortexRadius = VortexRadiusPixels * Owner.StoryZoneRadiusMultiplier;
+            _vortexLifetime = (Data?.Lifetime > 0f ? Data.Lifetime : 2f)
+                * Owner.StoryZoneDurationMultiplier;
             _vortexTickInterval = (Data?.DamageTickIntervalFrames ?? 24) / 60f;
             if (_vortexTickInterval <= 0f) _vortexTickInterval = 0.4f;
             _vortexTickTimer = _vortexTickInterval;
@@ -133,7 +132,7 @@ namespace FTT.Characters.Abilities {
                 _vortexLifetime,
                 1f,
                 new Color(0.8f, 0.7f, 0.3f),
-                VortexRadiusPixels);
+                _vortexRadius);
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -235,7 +234,7 @@ namespace FTT.Characters.Abilities {
                 ? FTT.Core.CollisionLayers.EnemyHurtbox
                 : FTT.Core.CollisionLayers.PlayerHurtbox;
             var query = new PhysicsShapeQueryParameters2D {
-                Shape = new CircleShape2D { Radius = VortexRadiusPixels },
+                Shape = new CircleShape2D { Radius = _vortexRadius },
                 Transform = new Transform2D(0f, _vortexCenter),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
@@ -298,18 +297,11 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
-            float cooldown = Data?.CooldownDuration ?? 5f;
-            Owner.MovementAbilityCooldownTimer = cooldown;
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 AbilityName = Data?.AbilityName ?? "Desert Mirage",
                 StartPosition = _startPosition,
                 EndPosition = Owner.GlobalPosition
-            });
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.MovementAbility,
-                Duration = cooldown
             });
         }
 

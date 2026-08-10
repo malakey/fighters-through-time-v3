@@ -195,12 +195,15 @@ public class ResonanceProgressionTests {
                 MinorNode("n6", "PersistentHealth", 0.15f),
                 MinorNode("n7", "GlideSpeed", 0.1f),
                 MinorNode("n8", "BlockRecovery", 0.1f),
-                MinorNode("n9", "StatusDamage", 0.15f)
+                MinorNode("n9", "StatusDamage", 0.15f),
+                MinorNode("n10", "GlideDuration", 0.2f),
+                MinorNode("n11", "ZoneRadius", 0.1f),
+                MinorNode("n12", "ZoneDuration", 0.2f)
             }
         };
         StorySaveData save = BuildSave(0);
         save.GridProgress["einstein"] = new List<string> {
-            "n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8", "n9"
+            "n1", "n2", "n3", "n4", "n5", "n6", "n7", "n8", "n9", "n10", "n11", "n12"
         };
 
         StoryStatProfile profile = ResonanceProgression.Resolve(grid, save);
@@ -213,6 +216,9 @@ public class ResonanceProgressionTests {
         AssertThat(profile.GlideSpeedMultiplier).IsEqual(1.1f);
         AssertThat(profile.BlockRecoveryMultiplier).IsEqual(1.1f);
         AssertThat(profile.StatusIntensityMultiplier).IsEqual(1.15f);
+        AssertThat(profile.GlideDurationMultiplier).IsEqual(1.2f);
+        AssertThat(profile.ZoneRadiusMultiplier).IsEqual(1.1f);
+        AssertThat(profile.ZoneDurationMultiplier).IsEqual(1.2f);
     }
 
     [TestCase]
@@ -245,6 +251,9 @@ public class ResonanceProgressionTests {
         AssertThat(profile.ProjectileSpeedMultiplier).IsEqual(neutral.ProjectileSpeedMultiplier);
         AssertThat(profile.ProjectileDamageMultiplier).IsEqual(neutral.ProjectileDamageMultiplier);
         AssertThat(profile.GlideSpeedMultiplier).IsEqual(neutral.GlideSpeedMultiplier);
+        AssertThat(profile.GlideDurationMultiplier).IsEqual(neutral.GlideDurationMultiplier);
+        AssertThat(profile.ZoneRadiusMultiplier).IsEqual(neutral.ZoneRadiusMultiplier);
+        AssertThat(profile.ZoneDurationMultiplier).IsEqual(neutral.ZoneDurationMultiplier);
         AssertThat(profile.PersistentDurationMultiplier).IsEqual(neutral.PersistentDurationMultiplier);
         AssertThat(profile.PersistentRangeMultiplier).IsEqual(neutral.PersistentRangeMultiplier);
         AssertThat(profile.PersistentHealthMultiplier).IsEqual(neutral.PersistentHealthMultiplier);
@@ -262,6 +271,7 @@ public class ResonanceProgressionTests {
             "BasicAttackDamage", "SpecialDamage",
             "CooldownReduction", "AttackRange", "ComboSpeed", "BlockRecovery",
             "KnockbackForce", "ProjectileSpeed", "ProjectileDamage", "GlideSpeed",
+            "GlideDuration", "ZoneRadius", "ZoneDuration",
             "PersistentDuration", "PersistentRange", "PersistentHealth",
             "StatusDuration", "StatusDamage"
         };
@@ -276,6 +286,33 @@ public class ResonanceProgressionTests {
                     || documentedUnresolvedKeys.Contains(node.StatModifierKey)).IsTrue();
             }
         }
+    }
+
+    [TestCase]
+    public void RePointedTalentMinorsCarryTheirDesignedAbilityScopedKeys() {
+        // Audit Low "Kits/talents": these five minors were silently re-pointed
+        // at different abilities than designed. Design section 5 names them
+        // Rift Range +10% (einstein_u2), Spiral Range +10% (leonardo_a2),
+        // Sand Radius +15% (cleopatra_dm1), Sand Duration +20% (cleopatra_dm2),
+        // and Glide Duration +20% (pocahontas_wr2).
+        AssertNodeKey("einstein", "einstein_u2", "ZoneRadius", 0.1f);
+        AssertNodeKey("leonardo", "leonardo_a2", "ZoneRadius", 0.1f);
+        AssertNodeKey("cleopatra", "cleopatra_dm1", "ZoneRadius", 0.15f);
+        AssertNodeKey("cleopatra", "cleopatra_dm2", "ZoneDuration", 0.2f);
+        AssertNodeKey("pocahontas", "pocahontas_wr2", "GlideDuration", 0.2f);
+    }
+
+    private static void AssertNodeKey(string characterID, string nodeID, string expectedKey, float expectedValue) {
+        ResonanceGridData grid = FTT.Core.AuthoredResources.Load<ResonanceGridData>(
+            $"res://resources/Resonance/{characterID}_grid.tres");
+        ResonanceNodeData found = null;
+        foreach (ResonanceNodeData node in grid.Nodes) {
+            if (node.NodeID == nodeID) { found = node; break; }
+        }
+        AssertObject(found).IsNotNull();
+        AssertThat(found.StatModifierKey).IsEqual(expectedKey);
+        AssertThat(found.StatModifierValue).IsEqual(expectedValue);
+        AssertThat(found.StatModifierIsPercent).IsTrue();
     }
 
     private static ResonanceNodeData MinorNode(string nodeID, string statKey, float value) => new() {

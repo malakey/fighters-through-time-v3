@@ -53,10 +53,67 @@ namespace FTT.Combat {
             if (!Validate()) return false;
 
             CurrentPhase = AbilityPhase.Startup;
+            StartCooldown();
             OnStartup();
             EmitCastVfx();
             return true;
         }
+
+        /// <summary>
+        /// Design 776: the cooldown starts on the first frame of the cast action,
+        /// matching the Fighter sim's press-time cooldown start. Centralized here
+        /// so no kit re-authors the timing; the authored
+        /// <c>AbilityData.CooldownDuration</c> stays the canonical number, and an
+        /// interrupted cast (H-4) still burns its cooldown. Ultimates are
+        /// meter-gated and carry no cooldown timer.
+        /// </summary>
+        private void StartCooldown() {
+            if (Owner == null || Data == null) return;
+            float cooldown = Data.CooldownDuration;
+            switch (Data.Slot) {
+                case FTT.Core.AbilitySlot.Special1:
+                    Owner.SpecialOneCooldownTimer = cooldown;
+                    break;
+                case FTT.Core.AbilitySlot.Special2:
+                    Owner.SpecialTwoCooldownTimer = cooldown;
+                    break;
+                case FTT.Core.AbilitySlot.MovementAbility:
+                    Owner.MovementAbilityCooldownTimer = cooldown;
+                    break;
+                default:
+                    return;
+            }
+            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
+                PlayerIndex = Owner.PlayerIndex,
+                Slot = Data.Slot,
+                Duration = cooldown
+            });
+        }
+
+        /// <summary>
+        /// H-4: stops an executing cast cold — no further phase advancement, no
+        /// remaining multi-hit ticks, no steering — WITHOUT the state-transition
+        /// side effect of <see cref="OnCleanup"/>, so an interrupting Stunned/Dead
+        /// state is never stomped. Invoked by the owner when a stun lands or the
+        /// owner dies; hyper-armor gating happens at the hit-resolution site
+        /// (<c>PlayerController.OnHurtboxHit</c>), which never applies the stun
+        /// while an armor window is active. Deployed world objects (zones,
+        /// constructs, fired projectiles) deliberately survive — interruption
+        /// cancels the cast, not what it already put into the world.
+        /// </summary>
+        public void Interrupt() {
+            if (!IsExecuting) return;
+            CurrentPhase = AbilityPhase.Inactive;
+            _phaseFramesRemaining = 0;
+            OnInterrupted();
+        }
+
+        /// <summary>
+        /// Subclass hook for <see cref="Interrupt"/>: release any steering flags,
+        /// live hitboxes, or owner physics overrides the cast was holding. Never
+        /// transition the owner's state from here.
+        /// </summary>
+        protected virtual void OnInterrupted() { }
 
         /// <summary>
         /// Package 8 A3: spawns the authored cast effect from the pooled VFX
@@ -105,12 +162,21 @@ namespace FTT.Combat {
 
         protected virtual void OnCleanup() {
             CurrentPhase = AbilityPhase.Inactive;
+            // H-4: only hand the FSM back when the owner is still in the state
+            // this cast put it in. An expiring phase timer must never stomp an
+            // interposed Stunned/Dazed/Dead (or any other) state.
+            if (Owner == null || !OwnerIsInAbilityDrivenState()) return;
             if (Owner.IsOnFloor()) {
                 Owner.TransitionTo(CharacterState.Idle);
             } else {
                 Owner.TransitionTo(CharacterState.Airborne);
             }
         }
+
+        private bool OwnerIsInAbilityDrivenState() => Owner.CurrentState is
+            CharacterState.UsingSpecial or
+            CharacterState.UsingUltimate or
+            CharacterState.UsingMovementAbility;
 
         public void AdvanceToActive() {
             CurrentPhase = AbilityPhase.Active;

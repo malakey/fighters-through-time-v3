@@ -105,7 +105,10 @@ namespace FTT.Combat {
             if (Data == null) return;
             switch (Data.Effect) {
                 case OrbEffect.HPRestore:
-                    player.CurrentHP = Mathf.Min(player.CurrentHP + (int)Data.Value, player.Data?.MaxHP ?? 100);
+                    // HealStory caps against MaximumHP (Resonance bonus /
+                    // encounter override included, unlike raw Data.MaxHP) and
+                    // raises the HP-changed event so the HUD follows.
+                    player.HealStory((int)Data.Value);
                     break;
                 case OrbEffect.MeterBoost:
                     var meter = player.GetNodeOrNull<UltimateMeter>("UltimateMeter");
@@ -117,7 +120,16 @@ namespace FTT.Combat {
                     }
                     break;
                 case OrbEffect.ShieldRestore:
-                    player.CurrentBlockCharges = player.Data?.MaxBlockCharges ?? 3;
+                    // Restore through the authoritative BlockSystem; the
+                    // controller field is a stale display mirror that nothing
+                    // combat-side reads.
+                    var blockSystem = player.GetNodeOrNull<BlockSystem>("BlockSystem");
+                    if (blockSystem != null) {
+                        blockSystem.RestoreAllCharges();
+                        player.CurrentBlockCharges = blockSystem.CurrentCharges;
+                    } else {
+                        player.CurrentBlockCharges = player.MaximumBlockCharges;
+                    }
                     break;
             }
             ReturnToPool();

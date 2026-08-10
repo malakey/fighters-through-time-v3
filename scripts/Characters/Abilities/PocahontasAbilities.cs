@@ -24,12 +24,6 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
-            Owner.SpecialOneCooldownTimer = Data?.CooldownDuration ?? 10f;
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.Special1,
-                Duration = Data?.CooldownDuration ?? 10f
-            });
         }
 
         protected override void OnRecovery() {
@@ -53,6 +47,11 @@ namespace FTT.Characters.Abilities {
             }
             base._PhysicsProcess(delta);
         }
+
+        /// <summary>H-4: interruption mid-swoop must not leave the eagle hitbox live.</summary>
+        protected override void OnInterrupted() {
+            GetNodeOrNull<Hitbox>("EagleHitbox")?.Deactivate();
+        }
     }
 
     /// <summary>
@@ -73,12 +72,6 @@ namespace FTT.Characters.Abilities {
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
             DeploySnare();
-            Owner.SpecialTwoCooldownTimer = Data?.CooldownDuration ?? 10f;
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.Special2,
-                Duration = Data?.CooldownDuration ?? 10f
-            });
         }
 
         protected override void OnRecovery() {
@@ -155,7 +148,11 @@ namespace FTT.Characters.Abilities {
             UseAuthoredPhaseFrames();
             _isGliding = false;
             _dashSpeed = MovementData?.MovementSpeed > 0f ? MovementData.MovementSpeed : 350f;
-            _maxGlideDuration = MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : 3f;
+            // Story-only GlideDuration minor ("Glide Duration +20%",
+            // pocahontas_wr2) lengthens the glide window; neutral 1f outside
+            // Story Mode.
+            _maxGlideDuration = (MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : 3f)
+                * Owner.StoryGlideDurationMultiplier;
 
             float hDir = Owner.IsFacingRight ? 1f : -1f;
             Owner.Velocity = new Vector2(hDir * _dashSpeed, Owner.Velocity.Y);
@@ -174,19 +171,17 @@ namespace FTT.Characters.Abilities {
             UseAuthoredPhaseFrames();
             _isGliding = true;
             _glideTimer = _maxGlideDuration;
-            float cooldown = Data?.CooldownDuration ?? 5f;
-            Owner.MovementAbilityCooldownTimer = cooldown;
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 AbilityName = Data?.AbilityName ?? "Breeze Glide",
                 StartPosition = Owner.GlobalPosition,
                 EndPosition = Owner.GlobalPosition
             });
-            FTT.Core.EventBus.Instance?.RaiseCooldownStarted(new FTT.Core.CooldownPayload {
-                PlayerIndex = Owner.PlayerIndex,
-                Slot = FTT.Core.AbilitySlot.MovementAbility,
-                Duration = cooldown
-            });
+        }
+
+        /// <summary>H-4: a stun/death mid-cast releases the glide's velocity steering.</summary>
+        protected override void OnInterrupted() {
+            _isGliding = false;
         }
 
         public override void _PhysicsProcess(double delta) {
