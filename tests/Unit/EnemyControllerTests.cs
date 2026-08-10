@@ -1,3 +1,4 @@
+using FTT.Characters;
 using FTT.Combat;
 using FTT.Core;
 using FTT.Enemies;
@@ -320,6 +321,141 @@ public class EnemyControllerTests {
         }
     }
 
+    // === Stand-off band (approach stops at attack range instead of pushbox contact) ===
+
+    [TestCase]
+    public void ChasingEnemyHaltsAtItsAttackRangeStandOffWithoutDisplacingThePlayer() {
+        StaticBody2D floor = CreateStandOffFloor();
+        PlayerController player = CreateTargetPlayer(new Vector2(300f, 0f));
+        EnemyController enemy = CreateEnemy("chrono_slasher");
+        try {
+            // Park the attack after its opener so the run ends in the hold, not mid-swing.
+            enemy.Data.AttackCooldown = 999f;
+            Vector2 playerBefore = player.GlobalPosition;
+
+            for (int frame = 0; frame < 400; frame++) enemy._PhysicsProcess(Step);
+
+            float dist = enemy.GlobalPosition.DistanceTo(player.GlobalPosition);
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Chase);
+            AssertThat(enemy.IsStandOffEngaged).IsTrue();
+            AssertThat(enemy.Velocity.X).IsEqualApprox(0f, 0.001f);
+            // Halted at the engage line (85% of the authored attack range), which
+            // must sit outside pushbox contact distance - the boxes never touch.
+            AssertThat(dist <= enemy.AttackRangePixels * EnemyController.StandOffEngageFraction).IsTrue();
+            var enemyPushbox = enemy.GetNode<CombatantPushbox>("Pushbox");
+            var playerPushbox = player.GetNode<CombatantPushbox>("Pushbox");
+            AssertThat(dist > (enemyPushbox.BoxSize.X + playerPushbox.BoxSize.X) * 0.5f).IsTrue();
+            AssertThat(enemyPushbox.GetHorizontalOverlap(playerPushbox)).IsEqual(0f);
+            // The approach never displaced the stationary target.
+            AssertThat(player.GlobalPosition).IsEqual(playerBefore);
+        } finally {
+            enemy.Free();
+            player.Free();
+            floor.Free();
+        }
+    }
+
+    [TestCase]
+    public void EnemyStillLaunchesAttacksFromTheStandOffBandOnItsCooldownCadence() {
+        StaticBody2D floor = CreateStandOffFloor();
+        PlayerController player = CreateTargetPlayer(new Vector2(300f, 0f));
+        EnemyController enemy = CreateEnemy("chrono_slasher");
+        try {
+            enemy.Data.AttackCooldown = 0.5f;
+            var commitDistances = new System.Collections.Generic.List<float>();
+            EnemyState previous = enemy.CurrentState;
+
+            for (int frame = 0; frame < 900; frame++) {
+                enemy._PhysicsProcess(Step);
+                if (enemy.CurrentState == EnemyState.Attacking && previous != EnemyState.Attacking) {
+                    commitDistances.Add(enemy.GlobalPosition.DistanceTo(player.GlobalPosition));
+                }
+                previous = enemy.CurrentState;
+            }
+
+            // The cadence survives the stand-off: repeated attacks keep committing.
+            AssertThat(commitDistances.Count >= 3).IsTrue();
+            var enemyPushbox = enemy.GetNode<CombatantPushbox>("Pushbox");
+            var playerPushbox = player.GetNode<CombatantPushbox>("Pushbox");
+            float contact = (enemyPushbox.BoxSize.X + playerPushbox.BoxSize.X) * 0.5f;
+            // Every follow-up attack launches from inside striking distance but
+            // outside pushbox contact - from the band, not from body overlap.
+            for (int index = 1; index < commitDistances.Count; index++) {
+                AssertThat(commitDistances[index] <= enemy.AttackRangePixels).IsTrue();
+                AssertThat(commitDistances[index] > contact).IsTrue();
+            }
+            AssertThat(player.GlobalPosition).IsEqual(new Vector2(300f, 0f));
+        } finally {
+            enemy.Free();
+            player.Free();
+            floor.Free();
+        }
+    }
+
+    [TestCase]
+    public void SmallTargetShuffleInsideTheBandDoesNotRestartTheApproach() {
+        StaticBody2D floor = CreateStandOffFloor();
+        PlayerController player = CreateTargetPlayer(new Vector2(300f, 0f));
+        EnemyController enemy = CreateEnemy("chrono_slasher");
+        try {
+            enemy.Data.AttackCooldown = 999f;
+            for (int frame = 0; frame < 400; frame++) enemy._PhysicsProcess(Step);
+            AssertThat(enemy.IsStandOffEngaged).IsTrue();
+            float heldX = enemy.GlobalPosition.X;
+
+            // A 25 px shuffle keeps the target inside the 110% release line
+            // (chrono_slasher range 90 px, release 99 px): the enemy must not move.
+            player.GlobalPosition += new Vector2(25f, 0f);
+            for (int frame = 0; frame < 120; frame++) enemy._PhysicsProcess(Step);
+            AssertThat(enemy.IsStandOffEngaged).IsTrue();
+            AssertThat(enemy.Velocity.X).IsEqualApprox(0f, 0.001f);
+            AssertThat(enemy.GlobalPosition.X).IsEqualApprox(heldX, 0.01f);
+
+            // Beyond the release line the approach resumes.
+            player.GlobalPosition += new Vector2(200f, 0f);
+            for (int frame = 0; frame < 30; frame++) enemy._PhysicsProcess(Step);
+            AssertThat(enemy.IsStandOffEngaged).IsFalse();
+            AssertThat(enemy.GlobalPosition.X > heldX + 50f).IsTrue();
+        } finally {
+            enemy.Free();
+            player.Free();
+            floor.Free();
+        }
+    }
+
+    [TestCase]
+    public void FlyingChaserHoversAtItsProjectileRangeStandOffInsteadOfPressingIn() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var pools = new PoolManager { Name = "StandOffDronePools" };
+        tree.Root.AddChild(pools);
+        PlayerController player = CreateTargetPlayer(new Vector2(360f, 0f));
+        EnemyController drone = CreateEnemy("hologram_drone");
+        try {
+            drone.GlobalPosition = new Vector2(0f, -80f);
+            drone.Data.AttackCooldown = 999f;
+            Vector2 playerBefore = player.GlobalPosition;
+
+            for (int frame = 0; frame < 400; frame++) drone._PhysicsProcess(Step);
+
+            // The projectile primary widens AttackRangePixels to 90% of the aggro
+            // radius (360 px), so the drone holds far out instead of at melee reach.
+            AssertThat(drone.AttackRangePixels).IsEqualApprox(360f, 0.001f);
+            AssertThat(drone.CurrentState).IsEqual(EnemyState.Chase);
+            AssertThat(drone.IsStandOffEngaged).IsTrue();
+            // Flying hold decelerates both axes: the hover-approach fully stops.
+            AssertThat(drone.Velocity.Length()).IsEqualApprox(0f, 0.001f);
+            float dist = drone.GlobalPosition.DistanceTo(player.GlobalPosition);
+            AssertThat(dist > 250f).IsTrue();
+            AssertThat(dist <= drone.AttackRangePixels * EnemyController.StandOffResumeFraction).IsTrue();
+            AssertThat(player.GlobalPosition).IsEqual(playerBefore);
+        } finally {
+            drone.Free();
+            player.Free();
+            pools.ClearAllPools();
+            pools.Free();
+        }
+    }
+
     /// <summary>
     /// Instantiates the authored tier scene with a duplicated data resource so a
     /// test may retune fields without leaking into the shared canonical .tres.
@@ -333,5 +469,45 @@ public class EnemyControllerTests {
         ((SceneTree)Engine.GetMainLoop()).Root.AddChild(enemy);
         enemy.OnSpawn();
         return enemy;
+    }
+
+    /// <summary>
+    /// A bare PlayerController (no hurtbox, so enemy attacks cannot knock it
+    /// around) carrying the factory-shaped pushbox, registered in the "Players"
+    /// group as a chase target. It never ticks its own physics in a synchronous
+    /// test, so any position change is displacement caused by the enemy.
+    /// </summary>
+    private static PlayerController CreateTargetPlayer(Vector2 position) {
+        var player = new PlayerController { Name = "StandOffTargetPlayer", Position = position };
+        var pushbox = new CombatantPushbox {
+            Name = "Pushbox",
+            BoxSize = new Vector2(30f, 48f),
+            Position = new Vector2(0f, -28f),
+            CollisionLayer = CollisionLayers.Player,
+            CollisionMask = CollisionLayers.Enemy,
+            Monitoring = false,
+            Monitorable = false
+        };
+        pushbox.AddChild(new CollisionShape2D { Shape = new RectangleShape2D { Size = pushbox.BoxSize } });
+        player.AddChild(pushbox);
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(player);
+        player.AddToGroup("Players");
+        return player;
+    }
+
+    /// <summary>Environment-layer floor with its top surface at y = 0 so grounded
+    /// bodies (feet on the node origin) stand still while a test drives frames.</summary>
+    private static StaticBody2D CreateStandOffFloor() {
+        var floor = new StaticBody2D {
+            Name = "StandOffFloor",
+            CollisionLayer = CollisionLayers.Environment,
+            CollisionMask = 0
+        };
+        floor.AddChild(new CollisionShape2D {
+            Shape = new RectangleShape2D { Size = new Vector2(4000f, 40f) },
+            Position = new Vector2(0f, 20f)
+        });
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(floor);
+        return floor;
     }
 }
