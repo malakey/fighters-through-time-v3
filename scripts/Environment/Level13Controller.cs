@@ -641,8 +641,9 @@ namespace FTT.Environment {
             if (_mirrorDefeated) return;
             _mirrorDefeated = true;
             SetObjective(CompletionObjectiveKey);
-            // MirrorParadoxEncounterController already raised the dust award; only tally.
-            TallyDust(payload.ChronalDustDrop);
+            // MirrorParadoxEncounterController already raised the dust award (which
+            // the base's wallet-receipt tally banked); only label it for the results.
+            AttributeBossDust(payload.ChronalDustDrop);
             StartExitSequence();
         }
 

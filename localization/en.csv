@@ -1075,3 +1075,7 @@ timeline_restart_level_confirm,Restarting from the beginning discards the Timeli
 fighter_cpu_difficulty,CPU Difficulty
 # Audit 2026-08-08 core-services fixes
 save_notice_key_error,Save data is unavailable: the local save key could not be read. Progress will not be saved this session; existing save files were left untouched.
+# Audit M-1: itemized dust lines on the level results overlay
+results_dust_mobs,Mob kills: {0}
+results_dust_extractors,Chronal Extractors: {0}
+results_dust_boss,Boss reward: {0}

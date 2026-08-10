@@ -88,6 +88,43 @@ public class LevelResultsStatsTests {
     }
 
     [TestCase]
+    public void ItemizedDustLinesRenderAndSumIntoTheTotal() {
+        // Audit M-1 / design "Level Results Overlay": the dust total is itemized
+        // into mob kills, Chronal Extractors, and the boss reward, and the printed
+        // total is exactly the sum of the three lines.
+        Node host = CreateHost("LevelResultsItemizedHost");
+        try {
+            LevelResultsPanel panel = AddPanel(host);
+            panel.ShowResults("orleans_level_title", 18, 30, 50, 120f, 1);
+
+            var total = panel.GetNodeOrNull<Label>("Shade/Panel/Layout/DustEarned");
+            var mobs = panel.GetNodeOrNull<Label>("Shade/Panel/Layout/DustMobs");
+            var extractors = panel.GetNodeOrNull<Label>("Shade/Panel/Layout/DustExtractors");
+            var boss = panel.GetNodeOrNull<Label>("Shade/Panel/Layout/DustBoss");
+            AssertObject(mobs).IsNotNull();
+            AssertObject(extractors).IsNotNull();
+            AssertObject(boss).IsNotNull();
+
+            AssertThat(total.Text.Contains("98")).IsTrue();
+            AssertThat(mobs.Visible).IsTrue();
+            AssertThat(mobs.Text.Contains("18")).IsTrue();
+            AssertThat(extractors.Visible).IsTrue();
+            AssertThat(extractors.Text.Contains("30")).IsTrue();
+            AssertThat(boss.Visible).IsTrue();
+            AssertThat(boss.Text.Contains("50")).IsTrue();
+
+            // The legacy single-total form hides the itemization rather than
+            // leaving stale lines from an earlier render on screen.
+            panel.ShowResults("orleans_level_title", 240, 187f, 3);
+            AssertThat(mobs.Visible).IsFalse();
+            AssertThat(extractors.Visible).IsFalse();
+            AssertThat(boss.Visible).IsFalse();
+        } finally {
+            host.Free();
+        }
+    }
+
+    [TestCase]
     public void ANegativeRewindCountIsFlooredRatherThanShown() {
         Node host = CreateHost("LevelResultsNegativeHost");
         try {

@@ -45,6 +45,27 @@ theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
 theme_override_font_sizes/font_size = 16
 horizontal_alignment = 1
 
+[node name="DustMobs" type="Label" parent="Shade/Panel/Layout"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.72, 0.35, 1)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+
+[node name="DustExtractors" type="Label" parent="Shade/Panel/Layout"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.72, 0.35, 1)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+
+[node name="DustBoss" type="Label" parent="Shade/Panel/Layout"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.85, 0.72, 0.35, 1)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+
 [node name="CompletionTime" type="Label" parent="Shade/Panel/Layout"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)

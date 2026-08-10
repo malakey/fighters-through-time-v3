@@ -26,7 +26,13 @@ namespace FTT.Environment {
         private bool _bossIntroShown;
         private bool _bossDefeated;
         private bool _levelComplete;
+        // Wallet-receipt tally (audit H-1): every OnChronalDustCollected award
+        // raised while Florence is live, so the results total always equals what
+        // the wallet was actually paid. _bossDustEarned labels the boss's share
+        // for the itemized overlay; Florence authors no extractors (the open
+        // docs/DUST_ECONOMY.md §4 gap), so its extractor line is zero.
         private int _dustEarnedThisLevel;
+        private int _bossDustEarned;
 
         private const float LevelWidth = 11520f;
         private const float LevelHeight = 1080f;
@@ -59,7 +65,7 @@ namespace FTT.Environment {
             }
 
             if (EventBus.Instance != null) {
-                EventBus.Instance.OnEnemyKilled += OnEnemyKilled;
+                EventBus.Instance.OnChronalDustCollected += OnDustAwarded;
                 EventBus.Instance.OnDialogueComplete += OnDialogueComplete;
             }
 
@@ -69,7 +75,7 @@ namespace FTT.Environment {
 
         public override void _ExitTree() {
             if (EventBus.Instance != null) {
-                EventBus.Instance.OnEnemyKilled -= OnEnemyKilled;
+                EventBus.Instance.OnChronalDustCollected -= OnDustAwarded;
                 EventBus.Instance.OnDialogueComplete -= OnDialogueComplete;
             }
             // Pooled wave enemies are parented here; hand them back or the pool keeps
@@ -648,17 +654,20 @@ namespace FTT.Environment {
             _services?.Dialogue?.StartSequence("level_01.boss_intro");
         }
 
-        private void OnEnemyKilled(EnemyKilledPayload payload) {
-            _dustEarnedThisLevel += payload.ChronalDustDrop;
-            EventBus.Instance?.RaiseChronalDustCollected(payload.ChronalDustDrop);
-        }
+        /// <summary>
+        /// Wallet-receipt tally (audit H-1): kill dust is awarded solely by the
+        /// physical pickup <see cref="StoryDropSystem"/> spawns, so the level must
+        /// not re-raise a kill's drop; it only listens to what the wallet was paid.
+        /// </summary>
+        private void OnDustAwarded(int amount) => _dustEarnedThisLevel += Mathf.Max(0, amount);
 
         private void OnBossDefeated(BossDefeatedPayload payload) {
             if (_bossDefeated) return;
             _bossDefeated = true;
             _services?.HUD?.SetObjective("florence_objective_complete");
-            // Dust is raised once by the encounter controller; the level only tallies.
-            _dustEarnedThisLevel += payload.ChronalDustDrop;
+            // Dust is raised once by the encounter controller (which the wallet
+            // tally banked); this only labels the boss's share for the results.
+            _bossDustEarned += Mathf.Max(0, payload.ChronalDustDrop);
 
             var timer = GetTree().CreateTimer(1.5);
             timer.Timeout += () => _services?.Dialogue?.StartSequence("level_01.exit");
@@ -674,7 +683,11 @@ namespace FTT.Environment {
             var results = LevelResultsPanel.CreateDefault();
             results.ReturnRequested += () => StoryManager.Instance?.ReturnToHub();
             AddChild(results);
-            results.ShowResults("florence_level_title", _dustEarnedThisLevel);
+            results.ShowResults(
+                "florence_level_title",
+                Mathf.Max(0, _dustEarnedThisLevel - _bossDustEarned),
+                0,
+                _bossDustEarned);
         }
     }
 }

@@ -104,18 +104,28 @@ namespace FTT.Core {
         }
 
         public void StartCampaign(string characterID) {
-            CurrentLevel = CampaignLevel.Tutorial;
-            ChronalDustCollected = 0;
-            ChronalRewindsRemaining = 3;
-            TutorialComplete = false;
-
             var session = GameManager.Instance.CurrentSession;
             session.SelectedCharacterID = characterID;
             GameManager.Instance.CurrentSession = session;
 
+            ResetCampaignState(session.Difficulty);
             SaveManager.Instance?.CreateStorySlot(session.ActiveSaveSlot, characterID, session.Difficulty);
 
             LoadCurrentLevel();
+        }
+
+        /// <summary>
+        /// Fresh-campaign runtime state. The rewind pool starts at the difficulty's
+        /// authored maximum (Easy 5 / Normal 3 / Hard 1) — the same 5/3/1
+        /// <see cref="SaveManager.CreateStorySlot"/> writes to the slot, which was
+        /// previously only honored on resume while a new campaign hardcoded 3
+        /// (audit M-4: Easy started two rewinds short).
+        /// </summary>
+        public void ResetCampaignState(Difficulty difficulty) {
+            CurrentLevel = CampaignLevel.Tutorial;
+            ChronalDustCollected = 0;
+            ChronalRewindsRemaining = FTT.Environment.ChronalRewindManager.GetMaximumRewinds(difficulty);
+            TutorialComplete = false;
         }
 
         public void ResumeCampaign(int slot, StorySaveData save) {
@@ -273,10 +283,29 @@ namespace FTT.Core {
                 : null;
         }
 
-        private int GetSelectedCharacterMaximumHP() {
+        /// <summary>
+        /// The selected character's Story maximum HP, used to refill the save when
+        /// a Timeline Collapse restarts a level. Prefers the live player, whose
+        /// <c>MaximumHP</c> already folds in the Resonance MaxHP bonus; with no
+        /// player in the tree it falls back to the authored resource (loaded
+        /// through the pinning cache — a bare <c>GD.Load</c> here was the
+        /// documented crash-class violation) plus the bonus resolved from the
+        /// active save. The roster check keeps an unknown or empty character ID
+        /// from fabricating a resource path.
+        /// </summary>
+        public int GetSelectedCharacterMaximumHP() {
+            if (GetTree()?.GetFirstNodeInGroup("StoryPlayer") is FTT.Characters.PlayerController player) {
+                return player.MaximumHP;
+            }
             string characterID = GameManager.Instance?.CurrentSession.SelectedCharacterID ?? "";
-            FTT.Characters.CharacterData data = GD.Load<FTT.Characters.CharacterData>($"res://resources/Characters/{characterID}_data.tres");
-            return data?.MaxHP ?? 100;
+            if (!FTT.Characters.CharacterFactory.IsKnownCharacter(characterID)) return 100;
+            FTT.Characters.CharacterData data = AuthoredResources.Load<FTT.Characters.CharacterData>(
+                $"res://resources/Characters/{characterID}_data.tres");
+            int resonanceBonus =
+                FTT.Environment.ResonanceProgression.TryResolveActive(characterID, out FTT.Environment.StoryStatProfile profile)
+                    ? profile.MaxHPBonus
+                    : 0;
+            return (data?.MaxHP ?? 100) + resonanceBonus;
         }
 
         public int DepositDustToActiveSave() {

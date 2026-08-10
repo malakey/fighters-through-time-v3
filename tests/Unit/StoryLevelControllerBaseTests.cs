@@ -62,7 +62,8 @@ internal partial class FrameworkTestLevelController : StoryLevelControllerBase {
         CompletedDialogues.Add(dialogueID);
 
     public LevelResultsPanel CompleteForTest() => ShowCompletionResults();
-    public void TallyForTest(int amount) => TallyDust(amount);
+    public ChronalExtractor BuildExtractorForTest(string extractorID, Vector2 position) =>
+        BuildExtractor(extractorID, position);
 }
 
 /// <summary>
@@ -97,8 +98,13 @@ internal partial class PostBossChainTestLevelController : StoryLevelControllerBa
     protected override void OnDialogueSequenceComplete(string dialogueID) =>
         RoutedToSubclass.Add(dialogueID);
 
-    public void DefeatBossForTest(int dust = 50) =>
+    public void DefeatBossForTest(int dust = 50) {
+        // Mirrors BossEncounterController's real defeat flow: the encounter raises
+        // the single wallet award (which the base's wallet-receipt tally banks),
+        // then hands the payload to the level's defeat bookkeeping.
+        EventBus.Instance?.RaiseChronalDustCollected(dust);
         OnBossDefeated(null, new BossDefeatedPayload { BossID = "test_boss", ChronalDustDrop = dust });
+    }
 }
 
 /// <summary>
@@ -231,29 +237,90 @@ public class StoryLevelControllerBaseTests {
     // === Dust tally and completion ===
 
     [TestCase]
-    public void KilledEnemiesTallyForTheResultsPanelAndReRaiseTheDustAward() {
+    public void AKillPaysTheWalletExactlyOnceThroughThePhysicalPickup() {
+        // Audit H-1: the controller used to tally AND re-raise the award while the
+        // drop system's pickup carried the same amount and raised the same event
+        // again on collection — every kill paid the wallet twice. The physical
+        // pickup is the single awarding path; the controller only tallies what the
+        // wallet was actually paid.
         using var fixture = new LevelFixture(null);
+        FrameworkTestLevelController level = fixture.Level;
+        var drops = new StoryDropSystem { Name = "StoryDropSystem", RandomSeed = 12345UL };
+        level.AddChild(drops);
+
+        int awards = 0;
         int awarded = 0;
-        void OnDust(int amount) => awarded += amount;
+        void OnDust(int amount) { awards++; awarded += amount; }
         EventBus.Instance.OnChronalDustCollected += OnDust;
         try {
             EventBus.Instance.RaiseEnemyKilled(new EnemyKilledPayload {
-                EnemyID = "chrono_slasher", ChronalDustDrop = 5
-            });
-            EventBus.Instance.RaiseEnemyKilled(new EnemyKilledPayload {
-                EnemyID = "tech_enforcer", ChronalDustDrop = 10
+                EnemyID = "chrono_slasher",
+                Position = level.Player.GlobalPosition,
+                ChronalDustDrop = 5
             });
 
-            AssertThat(fixture.Level.DustEarnedThisLevel).IsEqual(15);
-            AssertThat(awarded).IsEqual(15);
+            // The kill itself must not touch the wallet or the tally...
+            AssertThat(awards).IsEqual(0);
+            AssertThat(level.DustEarnedThisLevel).IsEqual(0);
 
-            // Boss and extractor tallies add to the panel without a second award.
-            fixture.Level.TallyForTest(35);
-            AssertThat(fixture.Level.DustEarnedThisLevel).IsEqual(50);
-            AssertThat(awarded).IsEqual(15);
+            // ...only collecting the physical pickup does. It spawned on top of the
+            // player, so the magnet resolves on the first stepped frame.
+            ChronalDustPickup pickup = FindPickupUnder(level);
+            AssertObject(pickup)
+                .OverrideFailureMessage("StoryDropSystem spawned no ChronalDustPickup for the kill.")
+                .IsNotNull();
+            AssertThat(pickup.DustAmount).IsEqual(5);
+            for (int frame = 0; frame < 10 && awards == 0; frame++) {
+                pickup._PhysicsProcess(1.0 / 60.0);
+            }
+
+            AssertThat(awards).IsEqual(1);
+            AssertThat(awarded).IsEqual(5);
+            AssertThat(level.DustEarnedThisLevel).IsEqual(5);
+            AssertThat(level.MobDustEarned).IsEqual(5);
+            AssertThat(level.BossDustEarned).IsEqual(0);
+            AssertThat(level.ExtractorDustEarned).IsEqual(0);
         } finally {
             EventBus.Instance.OnChronalDustCollected -= OnDust;
         }
+    }
+
+    [TestCase]
+    public void ExtractorDestructionEntersTheTallyOnceAndItemizes() {
+        // Audit M-1: extractor income never entered DustEarnedThisLevel at all —
+        // the award reached the wallet while the results overlay under-reported.
+        using var fixture = new LevelFixture(null);
+        FrameworkTestLevelController level = fixture.Level;
+        ChronalExtractor extractor = level.BuildExtractorForTest("orleans_test_extractor", new Vector2(500, 850));
+        AssertObject(extractor).IsNotNull();
+
+        int awards = 0;
+        int awarded = 0;
+        void OnDust(int amount) { awards++; awarded += amount; }
+        EventBus.Instance.OnChronalDustCollected += OnDust;
+        try {
+            extractor.TakeEnvironmentDamage(extractor.MaxHP);
+            AssertThat(extractor.IsDestroyed).IsTrue();
+
+            // One wallet award, banked into the total AND labeled on its line.
+            AssertThat(awards).IsEqual(1);
+            AssertThat(awarded).IsEqual(extractor.DustReward);
+            AssertThat(level.DustEarnedThisLevel).IsEqual(extractor.DustReward);
+            AssertThat(level.ExtractorDustEarned).IsEqual(extractor.DustReward);
+            AssertThat(level.MobDustEarned).IsEqual(0);
+            AssertThat(level.BossDustEarned).IsEqual(0);
+        } finally {
+            EventBus.Instance.OnChronalDustCollected -= OnDust;
+        }
+    }
+
+    private static ChronalDustPickup FindPickupUnder(Node level) {
+        Godot.Collections.Array<Node> children = level.GetChildren();
+        using var lifetime = children.AsDisposable();
+        foreach (Node child in children) {
+            if (child is ChronalDustPickup pickup) return pickup;
+        }
+        return null;
     }
 
     [TestCase]
@@ -306,7 +373,11 @@ public class StoryLevelControllerBaseTests {
         level.DefeatBossForTest(50);
 
         AssertThat(level.IsBossDefeated).IsTrue();
+        // The encounter's single award is the total; the defeat labels it as boss
+        // income for the itemized results without adding it a second time.
         AssertThat(level.DustEarnedThisLevel).IsEqual(50);
+        AssertThat(level.BossDustEarned).IsEqual(50);
+        AssertThat(level.MobDustEarned).IsEqual(0);
         AssertThat(level.StartedDialogues).ContainsExactly("level_02.exit");
         AssertString(level.ActivePostBossDialogueID).IsEqual("");
     }

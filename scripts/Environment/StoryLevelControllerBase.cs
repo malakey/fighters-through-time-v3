@@ -137,8 +137,27 @@ namespace FTT.Environment {
         /// <summary>Scene music and environment cues (Package 8 B5).</summary>
         public StoryAudioDirector Audio => Services?.Audio;
 
-        /// <summary>Dust tallied for the results overlay (the EventBus award is separate).</summary>
+        /// <summary>
+        /// Dust the wallet actually received while this level was live (the results
+        /// total). Tallied from <c>OnChronalDustCollected</c> — the same event
+        /// <see cref="StoryManager"/> banks — so this number can never disagree with
+        /// what the player was paid (audit H-1/M-1).
+        /// </summary>
         public int DustEarnedThisLevel { get; private set; }
+
+        /// <summary>Boss-defeat portion of <see cref="DustEarnedThisLevel"/> (results itemization).</summary>
+        public int BossDustEarned { get; private set; }
+
+        /// <summary>Extractor-destruction portion of <see cref="DustEarnedThisLevel"/>.</summary>
+        public int ExtractorDustEarned { get; private set; }
+
+        /// <summary>
+        /// Mob-kill remainder of the total: every wallet award that was not a boss
+        /// or extractor payout — pickup collections from kills, plus rare chest
+        /// finds. Derived rather than counted so the three lines always sum to the
+        /// exact wallet total even if an award lands out of order.
+        /// </summary>
+        public int MobDustEarned => Mathf.Max(0, DustEarnedThisLevel - BossDustEarned - ExtractorDustEarned);
 
         /// <summary>True when the run resumed at a saved checkpoint rather than the entrance.</summary>
         public bool ResumedMidLevel { get; private set; }
@@ -226,7 +245,7 @@ namespace FTT.Environment {
         private void BindEvents() {
             if (_eventsBound || EventBus.Instance == null) return;
             _eventsBound = true;
-            EventBus.Instance.OnEnemyKilled += OnEnemyKilled;
+            EventBus.Instance.OnChronalDustCollected += OnDustAwarded;
             EventBus.Instance.OnDialogueComplete += HandleDialogueComplete;
         }
 
@@ -234,7 +253,7 @@ namespace FTT.Environment {
             if (!_eventsBound) return;
             _eventsBound = false;
             if (EventBus.Instance == null) return;
-            EventBus.Instance.OnEnemyKilled -= OnEnemyKilled;
+            EventBus.Instance.OnChronalDustCollected -= OnDustAwarded;
             EventBus.Instance.OnDialogueComplete -= HandleDialogueComplete;
         }
 
@@ -262,14 +281,28 @@ namespace FTT.Environment {
             if (finishedPostBossBeat) AdvancePostBossChain();
         }
 
-        /// <summary>Level dust tally. The award itself is re-raised for StoryManager.</summary>
-        private void OnEnemyKilled(EnemyKilledPayload payload) {
-            DustEarnedThisLevel += payload.ChronalDustDrop;
-            EventBus.Instance?.RaiseChronalDustCollected(payload.ChronalDustDrop);
-        }
+        /// <summary>
+        /// Wallet-receipt tally (audit H-1). The physical <see cref="ChronalDustPickup"/>
+        /// is the single awarding path for kill dust — <see cref="StoryDropSystem"/>
+        /// spawns it and collection raises the award — so the level controller must
+        /// never re-raise a kill's drop; it only listens to what the wallet was paid.
+        /// Boss and extractor awards flow through the same event (raised once by
+        /// <see cref="BossEncounterController"/> / <see cref="ChronalExtractor"/>),
+        /// so the total needs no per-source special cases.
+        /// </summary>
+        private void OnDustAwarded(int amount) => DustEarnedThisLevel += Mathf.Max(0, amount);
 
-        /// <summary>Adds to the results tally without re-raising a dust award.</summary>
-        protected void TallyDust(int amount) => DustEarnedThisLevel += Mathf.Max(0, amount);
+        /// <summary>
+        /// Attributes an already-awarded amount to the boss line of the results
+        /// itemization. Attribution only — the wallet award itself was raised by the
+        /// encounter controller and entered <see cref="DustEarnedThisLevel"/> through
+        /// the shared <c>OnChronalDustCollected</c> subscription; adding it to the
+        /// total here as well would recreate the H-1 double-pay on the results screen.
+        /// </summary>
+        protected void AttributeBossDust(int amount) => BossDustEarned += Mathf.Max(0, amount);
+
+        /// <summary>Extractor sibling of <see cref="AttributeBossDust"/>; wired by <see cref="BuildExtractor"/>.</summary>
+        protected void AttributeExtractorDust(int amount) => ExtractorDustEarned += Mathf.Max(0, amount);
 
         // === Player, camera, and checkpoint resume ===
 
@@ -708,6 +741,11 @@ namespace FTT.Environment {
             extractor.Name = $"Extractor_{extractorID}";
             extractor.ObjectID = extractorID;
             extractor.Position = position;
+            // Itemization hook (audit M-1): the extractor raises its own wallet
+            // award in OnDestroyed (no physical pickup), which the shared dust
+            // subscription banks into the total; this attributes it to the
+            // extractor line of the results overlay.
+            extractor.Destroyed += () => AttributeExtractorDust(extractor.DustReward);
             AddChild(extractor);
             _extractors.Add(extractor);
             return extractor;
@@ -796,8 +834,9 @@ namespace FTT.Environment {
             if (_bossDefeated) return;
             _bossDefeated = true;
             SetObjective(CompletionObjectiveKey);
-            // The encounter controller already raised the dust award; only tally.
-            TallyDust(payload.ChronalDustDrop);
+            // The encounter controller already raised the dust award (which the
+            // wallet-receipt tally banked); this only labels it for the results.
+            AttributeBossDust(payload.ChronalDustDrop);
             StartPostBossSequence();
         }
 
@@ -898,7 +937,7 @@ namespace FTT.Environment {
             var results = LevelResultsPanel.CreateDefault();
             results.ReturnRequested += () => StoryManager.Instance?.ReturnToHub();
             AddChild(results);
-            results.ShowResults(LevelTitleKey, DustEarnedThisLevel);
+            results.ShowResults(LevelTitleKey, MobDustEarned, ExtractorDustEarned, BossDustEarned);
             return results;
         }
     }
