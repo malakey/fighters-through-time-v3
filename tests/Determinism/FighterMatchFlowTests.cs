@@ -370,6 +370,50 @@ public class FighterMatchFlowTests {
         AssertThat(match.WinnerPlayerID).IsEqual(-1);
     }
 
+    /// <summary>
+    /// Audit M-10: the driver's per-knockout presentation beat keys off
+    /// <c>FighterRuntimeComponent.KnockoutsSuffered</c>, because a TimeLimit match
+    /// runs <c>UsesStocks = 0</c> and a stock diff never sees its knockouts. This
+    /// pins the counter the driver observes: a TimeLimit fall increments it,
+    /// scores the opponent's KO tally, leaves <c>Stocks</c> untouched, and the
+    /// fighter still lands on the respawn platform for the visual beat.
+    /// </summary>
+    [TestCase]
+    public void ATimeLimitKnockoutRaisesTheKnockoutCounterWithoutTouchingStocks() {
+        var simulation = new FighterSimulation(
+            stocks: 3,
+            matchSeconds: 60,
+            rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, false, 0));
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
+        int startingStocks = before.Stocks;
+
+        DriveOffTheBottom(simulation, 1);
+
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
+        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(runtime.KnockoutsSuffered).IsEqual(1);
+        AssertThat(after.Stocks).IsEqual(startingStocks);
+        AssertThat(simulation.GetMatchState().PlayerOneKOs).IsEqual(1);
+        AssertThat(simulation.GetMatchState().MatchState).IsEqual(FighterMatchStates.InProgress);
+        AssertThat(FighterMatchFlowRules.IsOnRespawnPlatform(in after)).IsTrue();
+    }
+
+    /// <summary>
+    /// And in a stock-bearing mode the same counter moves in lockstep with the
+    /// stock, so keying the beat off knockouts loses nothing on the old path.
+    /// </summary>
+    [TestCase]
+    public void AStockModeKnockoutMovesTheCounterAndTheStockTogether() {
+        var simulation = new FighterSimulation(
+            stocks: 3, rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0));
+        DriveOffTheBottom(simulation, 1);
+
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
+        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(runtime.KnockoutsSuffered).IsEqual(1);
+        AssertThat(after.Stocks).IsEqual(2);
+    }
+
     // === Presentation cannot touch deterministic state ===
 
     [TestCase]
@@ -396,6 +440,52 @@ public class FighterMatchFlowTests {
         AssertThat(consumed > 0).IsTrue();
         for (int tick = 0; tick < consumed; tick++) plain.Advance(Neutral(tick), Neutral(tick));
 
+        AssertThat(paced.CurrentTick).IsEqual(plain.CurrentTick);
+        AssertThat(paced.CurrentHash).IsEqual(plain.CurrentHash);
+    }
+
+    /// <summary>
+    /// Audit M-10: TimeLimit knockouts now trigger the same driver-side
+    /// presentation beat (hit-freeze deferral, paced slow motion), so the purity
+    /// proof must hold on the TimeLimit path too — including through a real
+    /// knockout, when the beat actually fires. One fighter is driven off the
+    /// bottom mid-schedule; the paced run and the back-to-back run must still
+    /// land on the identical hash.
+    /// </summary>
+    [TestCase]
+    public void PacedAdvanceCallsArePureOnTheTimeLimitKnockoutPath() {
+        FighterMatchRules timeLimitRules = new FighterMatchRules(
+            (int)MatchMode.TimeLimit, false, 0, false, 0);
+        var paced = new FighterSimulation(seed: 91, matchSeconds: 60, rules: timeLimitRules);
+        var plain = new FighterSimulation(seed: 91, matchSeconds: 60, rules: timeLimitRules);
+
+        // The input stream drops player two through the floor and holds Down so
+        // they ride out the bottom blast zone — a TimeLimit KO with no stock loss.
+        static PlayerInputFrame FallInput(int tick) => tick == 0
+            ? Frame(tick, 0, GameplayButtons.Jump | GameplayButtons.Down)
+            : Frame(tick, 0, GameplayButtons.Down);
+
+        int consumed = 0;
+        double slowMotionCredit = 0.0;
+        for (int presentationFrame = 0; presentationFrame < 500; presentationFrame++) {
+            // The driver's stock-loss freeze defers frames outright; slow motion
+            // then consumes them at a fractional rate.
+            bool hitFreeze = presentationFrame is >= 200 and < 212;
+            if (hitFreeze) continue;
+            slowMotionCredit += 0.75;
+            while (slowMotionCredit >= 1.0) {
+                slowMotionCredit -= 1.0;
+                paced.Advance(Neutral(consumed), FallInput(consumed));
+                consumed++;
+            }
+        }
+        AssertThat(consumed > 0).IsTrue();
+        for (int tick = 0; tick < consumed; tick++) plain.Advance(Neutral(tick), FallInput(tick));
+
+        // The knockout really happened on this schedule...
+        AssertThat(paced.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(runtime.KnockoutsSuffered >= 1).IsTrue();
+        // ...and pacing the ticks changed nothing about their content.
         AssertThat(paced.CurrentTick).IsEqual(plain.CurrentTick);
         AssertThat(paced.CurrentHash).IsEqual(plain.CurrentHash);
     }

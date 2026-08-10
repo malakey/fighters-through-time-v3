@@ -94,23 +94,130 @@ namespace FTT.Core {
             LoadPlaceholderCues();
             ApplySavedVolumes();
 
-            if (EventBus.Instance != null) EventBus.Instance.OnEnemyPresentation += OnEnemyPresentation;
+            if (EventBus.Instance != null) {
+                EventBus.Instance.OnEnemyPresentation += OnEnemyPresentation;
+                EventBus.Instance.OnPlayerHPChanged += OnPlayerHPChangedForSnapshot;
+                EventBus.Instance.OnUltimateActivation += OnUltimateActivatedForSnapshot;
+            }
         }
 
         public override void _ExitTree() {
-            if (EventBus.Instance != null) EventBus.Instance.OnEnemyPresentation -= OnEnemyPresentation;
+            if (EventBus.Instance != null) {
+                EventBus.Instance.OnEnemyPresentation -= OnEnemyPresentation;
+                EventBus.Instance.OnPlayerHPChanged -= OnPlayerHPChangedForSnapshot;
+                EventBus.Instance.OnUltimateActivation -= OnUltimateActivatedForSnapshot;
+            }
         }
 
-        public override void _Process(double delta) => AdvanceFades(delta);
+        public override void _Process(double delta) {
+            // GamePaused snapshot (audit H-9): this autoload runs at
+            // ProcessMode.Always, so it observes SceneTree.Paused transitions from
+            // both sides of a pause without PauseMenuBase having to know audio
+            // exists. Any tree pause ducks — the pause menus and a
+            // PausesGameplay dialogue sequence alike — and the release follows the
+            // pause owner's own teardown contract.
+            ObservePauseState(GetTree()?.Paused ?? false);
+            AdvanceFades(delta);
+        }
 
         /// <summary>
         /// Single pump point for every in-flight audio blend. Tests step it directly
-        /// instead of waiting on engine frames.
+        /// instead of waiting on engine frames. Also retires the timed
+        /// UltimateCinematic window so the duck cannot outlive its cinematic.
         /// </summary>
         public void AdvanceFades(double delta) {
             Stems?.AdvanceFades(delta);
             _mixer?.AdvanceFades(delta);
+            if (_ultimateWindowRemaining > 0.0) {
+                _ultimateWindowRemaining -= delta;
+                if (_ultimateWindowRemaining <= 0.0) {
+                    _ultimateWindowRemaining = 0.0;
+                    ReleaseSnapshot(AudioSnapshot.Ultimate);
+                }
+            }
         }
+
+        // === Snapshot triggers (audit H-9) ===
+        // The mixer machinery predates these; H-9 was the finding that three of its
+        // four designed triggers were never wired. Pause is observed in _Process
+        // above; LowHealth and Ultimate are driven here for Story (EventBus) and by
+        // FighterSimulationDriver for Fighter (sim HP fraction / meter edge).
+
+        /// <summary>Fraction of maximum HP below which the LowHealth snapshot engages
+        /// (design-godot.md:2812 "low-health state (&lt;20% HP)"). The Fighter side
+        /// shares the integer form in <see cref="FighterAudioRules.LowHealthClimaxPercent"/>.</summary>
+        public const float LowHealthFraction = FighterAudioRules.LowHealthClimaxPercent / 100f;
+
+        /// <summary>Seconds the UltimateCinematic duck holds after an activation.
+        /// Sized to cover the longest authored ultimate window (Einstein's 90-frame
+        /// Cosmological Constant) plus its impact beat.</summary>
+        public const float UltimateSnapshotSeconds = 2.0f;
+
+        private bool _pauseSnapshotHeld;
+        private bool _lowHealthHeld;
+        private double _ultimateWindowRemaining;
+
+        /// <summary>
+        /// Applies or releases the GamePaused snapshot on a pause-state edge.
+        /// Public so tests can drive the transition without pausing the real tree
+        /// (a leaked tree pause hangs the whole GdUnit session).
+        /// </summary>
+        public void ObservePauseState(bool paused) {
+            if (_pauseSnapshotHeld == paused) return;
+            _pauseSnapshotHeld = paused;
+            if (paused) ApplySnapshot(AudioSnapshot.Pause);
+            else ReleaseSnapshot(AudioSnapshot.Pause);
+        }
+
+        /// <summary>True below the design's 20% threshold. Zero HP counts as low —
+        /// the tension holds until a rewind/respawn restore raises HP again.</summary>
+        public static bool IsLowHealthState(float currentHP, float maxHP) =>
+            maxHP > 0f && currentHP < maxHP * LowHealthFraction;
+
+        /// <summary>
+        /// Level-triggered LowHealth snapshot state. Story feeds it from HP events;
+        /// the Fighter driver feeds it from the deterministic HP fraction each
+        /// frame. Idempotent, so callers just report the state they see.
+        /// </summary>
+        public void SetLowHealth(bool active) {
+            if (_lowHealthHeld == active) return;
+            _lowHealthHeld = active;
+            if (active) ApplySnapshot(AudioSnapshot.LowHealth);
+            else ReleaseSnapshot(AudioSnapshot.LowHealth);
+        }
+
+        /// <summary>
+        /// Opens (or re-arms) the timed UltimateCinematic duck. Re-activation
+        /// extends rather than stacks: the snapshot is applied idempotently and the
+        /// window keeps the later deadline.
+        /// </summary>
+        public void BeginUltimateWindow(float seconds = UltimateSnapshotSeconds) {
+            _ultimateWindowRemaining = System.Math.Max(_ultimateWindowRemaining, seconds);
+            ApplySnapshot(AudioSnapshot.Ultimate);
+        }
+
+        /// <summary>
+        /// Clears the transient gameplay snapshots on a scene transition. The scene
+        /// being left is what made the player low or cinematic; the next scene
+        /// starts from its own truth. Called by <c>GameManager.LoadScene</c>.
+        /// </summary>
+        public void OnSceneTransitionStarted() {
+            SetLowHealth(false);
+            _ultimateWindowRemaining = 0.0;
+            ReleaseSnapshot(AudioSnapshot.Ultimate);
+        }
+
+        private void OnPlayerHPChangedForSnapshot(PlayerHPPayload payload) {
+            // Story's hero slot only. The Mirror Paradox clone reports as player 1
+            // and must not muffle the mix, and in Fighter Mode the presentation
+            // bodies are process-disabled so no HP events fire at all — the driver
+            // calls SetLowHealth directly from simulation state.
+            if (payload.PlayerIndex != 0) return;
+            SetLowHealth(IsLowHealthState(payload.CurrentHP, payload.MaxHP));
+        }
+
+        private void OnUltimateActivatedForSnapshot(UltimateActivationPayload payload) =>
+            BeginUltimateWindow();
 
         // === Volume (settings sliders + boot restore) ===
 

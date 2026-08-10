@@ -65,4 +65,49 @@ public class FighterAudioRulesTests {
     public void AOneStockMatchIsAClimaxFromTheStart() {
         AssertThat(FighterAudioRules.ShouldEnterClimax((int)MatchMode.Stock, 1, 1)).IsTrue();
     }
+
+    // === The low-health branch (design-godot.md:2832, audit M-32) ===
+
+    [TestCase]
+    public void FallingStrictlyBelowTwentyPercentHealthIsAClimax() {
+        AssertThat(FighterAudioRules.IsLowHealthClimax(19, 100)).IsTrue();
+        AssertThat(FighterAudioRules.IsLowHealthClimax(1, 100)).IsTrue();
+        // Exactly 20% is not "below 20% health".
+        AssertThat(FighterAudioRules.IsLowHealthClimax(20, 100)).IsFalse();
+        AssertThat(FighterAudioRules.IsLowHealthClimax(100, 100)).IsFalse();
+    }
+
+    /// <summary>
+    /// Zero HP is a knockout in flight, not a tension state: the stock-loss beat or
+    /// the KO sequence owns that moment, mirroring the zero-stocks rule above. A
+    /// zeroed max pool (defensive) can never be a climax either.
+    /// </summary>
+    [TestCase]
+    public void AKnockedOutOrDegenerateHealthPoolIsNotAClimax() {
+        AssertThat(FighterAudioRules.IsLowHealthClimax(0, 100)).IsFalse();
+        AssertThat(FighterAudioRules.IsLowHealthClimax(0, 0)).IsFalse();
+        AssertThat(FighterAudioRules.IsLowHealthClimax(5, 0)).IsFalse();
+    }
+
+    /// <summary>
+    /// The full trigger: the HP branch fires in every mode — it is what gives a
+    /// pure TimeLimit match a climax at all — while the stock branch stays gated
+    /// on stock-bearing modes.
+    /// </summary>
+    [TestCase]
+    public void TheFullTriggerAcceptsLowHealthInAnyModeAndStocksOnlyInStockModes() {
+        // TimeLimit can never climax on stocks, but low health gets it there.
+        AssertThat(FighterAudioRules.ShouldEnterClimax(
+            (int)MatchMode.TimeLimit, 1, 1, 100, 100, 100, 100)).IsFalse();
+        AssertThat(FighterAudioRules.ShouldEnterClimax(
+            (int)MatchMode.TimeLimit, 3, 3, 100, 100, 19, 100)).IsTrue();
+        // Either fighter's HP qualifies.
+        AssertThat(FighterAudioRules.ShouldEnterClimax(
+            (int)MatchMode.Stock, 3, 3, 15, 100, 100, 100)).IsTrue();
+        // Healthy HP falls back to the stock branch.
+        AssertThat(FighterAudioRules.ShouldEnterClimax(
+            (int)MatchMode.Stock, 1, 3, 100, 100, 100, 100)).IsTrue();
+        AssertThat(FighterAudioRules.ShouldEnterClimax(
+            (int)MatchMode.Stock, 2, 2, 100, 100, 100, 100)).IsFalse();
+    }
 }

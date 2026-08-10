@@ -27,8 +27,39 @@ namespace FTT.Core {
         public static bool IsLastStockClimax(int playerOneStocks, int playerTwoStocks) =>
             playerOneStocks == LastStockThreshold || playerTwoStocks == LastStockThreshold;
 
-        /// <summary>The full test: mode plus stock state, as the driver evaluates it.</summary>
+        /// <summary>
+        /// Percentage of maximum HP below which the design's second climax trigger
+        /// fires ("drops to their last stock life <em>or falls below 20% health</em>",
+        /// design-godot.md:2832). Shared with the LowHealth audio snapshot so the
+        /// two ears of the same tension cue cannot drift apart.
+        /// </summary>
+        public const int LowHealthClimaxPercent = 20;
+
+        /// <summary>
+        /// True when a fighter has fallen strictly below 20% of maximum HP. Integer
+        /// arithmetic, matching how the driver reads deterministic HP fields. Zero
+        /// HP is not a climax — that fighter is mid-knockout and the stock-loss
+        /// beat or the KO sequence owns the moment.
+        /// </summary>
+        public static bool IsLowHealthClimax(int currentHP, int maxHP) =>
+            maxHP > 0 && currentHP > 0 && currentHP * 100 < maxHP * LowHealthClimaxPercent;
+
+        /// <summary>The stock half of the test: mode plus stock state.</summary>
         public static bool ShouldEnterClimax(int matchMode, int playerOneStocks, int playerTwoStocks) =>
             ModeUsesStocks(matchMode) && IsLastStockClimax(playerOneStocks, playerTwoStocks);
+
+        /// <summary>
+        /// The full design trigger (audit M-32): last stock in a stock-bearing mode,
+        /// or either fighter below 20% health in <em>any</em> mode — the HP branch is
+        /// what gives a pure TimeLimit match a climax at all.
+        /// </summary>
+        public static bool ShouldEnterClimax(
+            int matchMode,
+            int playerOneStocks, int playerTwoStocks,
+            int playerOneHP, int playerOneMaxHP,
+            int playerTwoHP, int playerTwoMaxHP) =>
+            ShouldEnterClimax(matchMode, playerOneStocks, playerTwoStocks)
+            || IsLowHealthClimax(playerOneHP, playerOneMaxHP)
+            || IsLowHealthClimax(playerTwoHP, playerTwoMaxHP);
     }
 }
