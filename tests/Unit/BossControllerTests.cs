@@ -1,4 +1,6 @@
 using System;
+using FTT.Characters;
+using FTT.Combat;
 using FTT.Core;
 using FTT.Enemies;
 using GdUnit4;
@@ -321,7 +323,85 @@ public class BossControllerTests {
         }
     }
 
+    [TestCase]
+    public void RestWindowTrackingHoldsAtTheMeleeBandStandOffAndNeverShovesThePlayer() {
+        // Chase already stops short (it attacks from EngagementRangePixels, the full
+        // authored band); the shove risk is rest-window tracking, which previously
+        // crept into the player without a floor. The stand-off is keyed to the
+        // boss's shortest-range attack band: MeleeRangeThreshold (3u -> 180 px).
+        EnemyAbilityData swing = Ability("a.rest_standoff", EnemyAbilityRangeClass.Any, weight: 1f);
+        BossController boss = CreateBoss(BossResource(swing), seed: 21);
+        StaticBody2D floor = CreateStandOffFloor();
+        PlayerController player = CreateTargetPlayer(new Vector2(100f, 0f));
+        try {
+            // 100 px is inside the 85% engage line (153 px): tracking must hold.
+            bool sawRestWindow = false;
+            for (int frame = 0; frame < 300; frame++) {
+                boss._PhysicsProcess(Step);
+                if (boss.CurrentState == BossState.RestWindow) {
+                    sawRestWindow = true;
+                    AssertThat(boss.Velocity.X).IsEqualApprox(0f, 0.001f);
+                }
+            }
+            AssertThat(sawRestWindow).IsTrue();
+            AssertThat(boss.GlobalPosition.X).IsEqualApprox(0f, 0.01f);
+            AssertThat(player.GlobalPosition).IsEqual(new Vector2(100f, 0f));
+
+            // Beyond the 110% release line (198 px) rest tracking still closes in,
+            // but re-latches at the band instead of reaching pushbox contact.
+            player.GlobalPosition = new Vector2(300f, 0f);
+            for (int frame = 0; frame < 400; frame++) boss._PhysicsProcess(Step);
+            AssertThat(boss.GlobalPosition.X > 50f).IsTrue();
+            AssertThat(boss.GlobalPosition.DistanceTo(player.GlobalPosition) > 140f).IsTrue();
+            AssertThat(player.GlobalPosition).IsEqual(new Vector2(300f, 0f));
+        } finally {
+            player.Free();
+            floor.Free();
+            FreeBoss(boss);
+        }
+    }
+
     // === Helpers ===
+
+    /// <summary>
+    /// A bare PlayerController (no hurtbox, so boss attacks cannot knock it
+    /// around) carrying the factory-shaped pushbox, registered in "Players" as
+    /// the boss's target. It never ticks its own physics in a synchronous test,
+    /// so any position change is displacement caused by the boss.
+    /// </summary>
+    private static PlayerController CreateTargetPlayer(Vector2 position) {
+        var player = new PlayerController { Name = "BossStandOffTargetPlayer", Position = position };
+        var pushbox = new CombatantPushbox {
+            Name = "Pushbox",
+            BoxSize = new Vector2(30f, 48f),
+            Position = new Vector2(0f, -28f),
+            CollisionLayer = CollisionLayers.Player,
+            CollisionMask = CollisionLayers.Enemy,
+            Monitoring = false,
+            Monitorable = false
+        };
+        pushbox.AddChild(new CollisionShape2D { Shape = new RectangleShape2D { Size = pushbox.BoxSize } });
+        player.AddChild(pushbox);
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(player);
+        player.AddToGroup("Players");
+        return player;
+    }
+
+    /// <summary>Environment-layer floor with its top surface at y = 0 so the boss
+    /// (feet on the node origin) stands still while a test drives frames.</summary>
+    private static StaticBody2D CreateStandOffFloor() {
+        var floor = new StaticBody2D {
+            Name = "BossStandOffFloor",
+            CollisionLayer = CollisionLayers.Environment,
+            CollisionMask = 0
+        };
+        floor.AddChild(new CollisionShape2D {
+            Shape = new RectangleShape2D { Size = new Vector2(4000f, 40f) },
+            Position = new Vector2(0f, 20f)
+        });
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(floor);
+        return floor;
+    }
 
     private static EnemyAbilityData Ability(string id, EnemyAbilityRangeClass rangeClass, float weight) => new() {
         AbilityID = id,

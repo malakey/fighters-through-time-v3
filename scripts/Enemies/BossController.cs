@@ -36,6 +36,7 @@ namespace FTT.Enemies {
         private float _deathTimer;
         private int _reactionFramesRemaining;
         private bool _attackCommitted;
+        private bool _restStandOffEngaged;
         private int _scaledMaxHP;
         private bool _facingRight = true;
         private bool _rewindFrozen;
@@ -225,6 +226,22 @@ namespace FTT.Enemies {
         private float EngagementRangePixels =>
             Mathf.Max(Data?.MeleeRangeThreshold ?? 3f, Data?.RangedRangeThreshold ?? 8f) * PixelsPerUnit;
 
+        /// <summary>
+        /// The authored melee band — the boss's shortest-range attack distance.
+        /// Single source for both attack selection's melee filter and the
+        /// rest-window tracking stand-off.
+        /// </summary>
+        private float MeleeBandPixels => (Data?.MeleeRangeThreshold ?? 3f) * PixelsPerUnit;
+
+        /// <summary>
+        /// Deceleration bringing the rest-window tracking speed to rest across
+        /// <see cref="EnemyController.StandOffDecelerationFrames"/> frames, from the
+        /// unscaled authored speed so a status slow can never stall the stop-out.
+        /// </summary>
+        private float RestStandOffDecelerationPerSecond =>
+            (Data?.MoveSpeed ?? 4f) * PixelsPerUnit * RestTrackingSpeedFactor
+            * 60f / EnemyController.StandOffDecelerationFrames;
+
         private void ProcessChase(float dt) {
             if (_target == null) {
                 Velocity = new Vector2(0f, Velocity.Y);
@@ -282,7 +299,7 @@ namespace FTT.Enemies {
 
         private void ProcessRest(float dt) {
             _restTimer -= dt;
-            TrackPlayer();
+            TrackPlayer(dt);
             if (_restTimer <= 0f) CurrentState = BossState.Chase;
         }
 
@@ -302,13 +319,34 @@ namespace FTT.Enemies {
             _deathTimer = Mathf.Max(0f, _deathTimer - dt);
         }
 
-        private void TrackPlayer() {
+        private void TrackPlayer(float dt) {
             if (_target == null) {
                 Velocity = new Vector2(0f, Velocity.Y);
                 return;
             }
             float sign = Mathf.Sign(_target.GlobalPosition.X - GlobalPosition.X);
             SetFacing(sign >= 0f);
+
+            // Rest-window stand-off keyed to the boss's shortest-range attack (the
+            // authored melee band): tracking repositions at range but must not
+            // press into the player's pushbox while the boss waits out its rest.
+            // Chase needs no equivalent — it already stops at EngagementRangePixels,
+            // the full authored band. Same engage/release hysteresis as EnemyController.
+            float dist = GlobalPosition.DistanceTo(_target.GlobalPosition);
+            if (dist <= MeleeBandPixels * EnemyController.StandOffEngageFraction) {
+                _restStandOffEngaged = true;
+            } else if (dist > MeleeBandPixels * EnemyController.StandOffResumeFraction) {
+                _restStandOffEngaged = false;
+            }
+
+            if (_restStandOffEngaged) {
+                Velocity = new Vector2(
+                    Mathf.MoveToward(Velocity.X, 0f, RestStandOffDecelerationPerSecond * dt),
+                    Velocity.Y);
+                PlayAnimation("idle");
+                return;
+            }
+
             Velocity = new Vector2(sign * MoveSpeedPixels * RestTrackingSpeedFactor, Velocity.Y);
             PlayAnimation("move");
         }
@@ -326,7 +364,7 @@ namespace FTT.Enemies {
 
             _selectionBuffer.Clear();
             var unlocked = new List<int>();
-            bool inMelee = distancePixels <= (Data?.MeleeRangeThreshold ?? 3f) * PixelsPerUnit;
+            bool inMelee = distancePixels <= MeleeBandPixels;
             for (int index = 0; index < abilities.Length; index++) {
                 EnemyAbilityData ability = abilities[index];
                 if (ability == null) continue;
@@ -597,6 +635,7 @@ namespace FTT.Enemies {
             _deathTimer = 0f;
             _reactionFramesRemaining = 0;
             _attackCommitted = false;
+            _restStandOffEngaged = false;
             SelectedAbilityIndex = -1;
             SelectedAbility = null;
             LastTelegraphInterrupted = false;
@@ -630,6 +669,7 @@ namespace FTT.Enemies {
             }
             _target = null;
             _rewindFrozen = false;
+            _restStandOffEngaged = false;
             _spawnAnnounced = false;
             Velocity = Vector2.Zero;
             CollisionLayer = 0;
@@ -662,6 +702,7 @@ namespace FTT.Enemies {
             _restTimer = 0f;
             _transitionTimer = 0f;
             _attackCommitted = false;
+            _restStandOffEngaged = false;
             _reactionFramesRemaining = 0;
             Velocity = Vector2.Zero;
             ClearStatusEffect();

@@ -19,6 +19,26 @@ namespace FTT.Enemies {
         private const float GravityPixelsPerSecond = 980f;
         private const float PixelsPerUnit = 60f;
 
+        /// <summary>
+        /// Stand-off engagement threshold as a fraction of <see cref="AttackRangePixels"/>:
+        /// chase stops advancing once the target is inside 85% of striking distance,
+        /// so an enemy waits out its attack cooldown at range instead of pressing
+        /// into the target's pushbox. Shared with <see cref="BossController"/>.
+        /// </summary>
+        public const float StandOffEngageFraction = 0.85f;
+        /// <summary>
+        /// Stand-off release threshold as a fraction of <see cref="AttackRangePixels"/>:
+        /// the approach only resumes once the target drifts beyond 110% of striking
+        /// distance, so a small shuffle inside the band cannot restart the walk
+        /// (hysteresis). Shared with <see cref="BossController"/>.
+        /// </summary>
+        public const float StandOffResumeFraction = 1.10f;
+        /// <summary>
+        /// Frames to decelerate from full chase speed to rest at the stand-off line,
+        /// mirroring the universal eight-frame ground run ramp.
+        /// </summary>
+        public const float StandOffDecelerationFrames = 8f;
+
         private static int _spawnCounter;
 
         [Export] public EnemyData Data;
@@ -35,6 +55,7 @@ namespace FTT.Enemies {
         private bool _patrolForward = true;
         private int _reactionFramesRemaining;
         private bool _attackCommitted;
+        private bool _standOffEngaged;
         private int _eliteAbilityIndex = -1;
         private bool _lastAttackWasElite;
 
@@ -96,6 +117,13 @@ namespace FTT.Enemies {
         public EnemyAbilityData ActiveAbility => Executor.ActiveAbility;
         public bool LastAttackWasElite => _lastAttackWasElite;
         public bool IsFacingRight => _facingRight;
+
+        /// <summary>
+        /// True while chase holds at the stand-off band: the target came inside
+        /// <see cref="StandOffEngageFraction"/> of striking distance and has not
+        /// yet drifted beyond <see cref="StandOffResumeFraction"/> of it.
+        /// </summary>
+        public bool IsStandOffEngaged => _standOffEngaged;
 
         private EnemyAbilityExecutor Executor => _executor ??= new EnemyAbilityExecutor(this) { Rng = _rng };
 
@@ -334,6 +362,26 @@ namespace FTT.Enemies {
             Vector2 toTarget = _target.GlobalPosition - GlobalPosition;
             float sign = Mathf.Sign(toTarget.X);
             if (sign != 0) SetFacing(sign > 0);
+
+            // Stand-off band: once inside striking distance of the enemy's own
+            // primary attack, stop approaching instead of pressing into the
+            // target's pushbox while the attack cooldown runs. Engage and release
+            // use different thresholds (hysteresis) so a target drifting at the
+            // edge of the band cannot make the enemy oscillate between walking
+            // and stopping. The CombatantPushbox stays as the overlap safety net;
+            // chase simply no longer feeds it.
+            if (dist <= AttackRangePixels * StandOffEngageFraction) _standOffEngaged = true;
+            else if (dist > AttackRangePixels * StandOffResumeFraction) _standOffEngaged = false;
+
+            if (_standOffEngaged) {
+                float decel = StandOffDecelerationPerSecond * dt;
+                Velocity = new Vector2(
+                    Mathf.MoveToward(Velocity.X, 0f, decel),
+                    IsFlying ? Mathf.MoveToward(Velocity.Y, 0f, decel) : Velocity.Y);
+                PlayAnimation("idle");
+                return;
+            }
+
             float verticalVelocity = IsFlying
                 ? Mathf.Clamp(toTarget.Y, -MoveSpeedPixels, MoveSpeedPixels)
                 : Velocity.Y;
@@ -341,7 +389,12 @@ namespace FTT.Enemies {
             PlayAnimation("patrol");
         }
 
-        private float AttackRangePixels {
+        /// <summary>
+        /// Pixel striking distance of the enemy's own primary attack — the single
+        /// source both the attack trigger and the stand-off band derive from.
+        /// Projectile primaries extend it to most of the aggro radius.
+        /// </summary>
+        public float AttackRangePixels {
             get {
                 float range = (Data?.AttackRange ?? 1.5f) * PixelsPerUnit;
                 EnemyAbilityData primary = Data?.PrimaryAttack;
@@ -351,6 +404,14 @@ namespace FTT.Enemies {
                 return range;
             }
         }
+
+        /// <summary>
+        /// Deceleration that brings the full base chase speed to rest across
+        /// <see cref="StandOffDecelerationFrames"/> frames. Derived from the
+        /// unscaled authored speed so a status slow can never stall the stop-out.
+        /// </summary>
+        private float StandOffDecelerationPerSecond =>
+            (Data?.MoveSpeed ?? 3f) * PixelsPerUnit * 60f / StandOffDecelerationFrames;
 
         private void EnterAttacking() {
             CurrentState = EnemyState.Attacking;
@@ -490,6 +551,7 @@ namespace FTT.Enemies {
 
         private void StartReturning() {
             _target = null;
+            _standOffEngaged = false;
             CurrentState = EnemyState.Returning;
         }
 
@@ -738,6 +800,7 @@ namespace FTT.Enemies {
             _patrolForward = true;
             _reactionFramesRemaining = 0;
             _attackCommitted = false;
+            _standOffEngaged = false;
             _eliteAbilityIndex = -1;
             _lastAttackWasElite = false;
             _target = null;
@@ -777,6 +840,7 @@ namespace FTT.Enemies {
             _rewindFrozen = false;
             _deathTimer = 0f;
             _attackCommitted = false;
+            _standOffEngaged = false;
             _reactionFramesRemaining = 0;
             Velocity = Vector2.Zero;
             CollisionLayer = 0;
@@ -817,6 +881,7 @@ namespace FTT.Enemies {
             _stunTimer = 0f;
             _deathTimer = 0f;
             _attackCommitted = false;
+            _standOffEngaged = false;
             _reactionFramesRemaining = 0;
             _lastAttackWasElite = false;
             Velocity = Vector2.Zero;
