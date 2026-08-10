@@ -56,6 +56,8 @@ namespace FTT.FighterSim {
         public int TargetHitstunFrames;
         /// <summary>Opponent buttons pressed this tick, as a <c>GameplayButtons</c> bit mask.</summary>
         public int TargetPressedButtons;
+        /// <summary>Opponent Ultimate meter, raw <c>FP64</c> on the 0–100 scale.</summary>
+        public long TargetInfluenceRaw;
 
         // === Stage bounds (absent when HasStageBounds == 0) ===
         public int HasStageBounds;
@@ -88,6 +90,20 @@ namespace FTT.FighterSim {
         public long HazardPositionYRaw;
         public long HazardHalfWidthRaw;
 
+        // === Nearest hostile projectile (absent when HasHostileProjectile == 0) ===
+        public int HasHostileProjectile;
+        /// <summary>Projectile position minus self position, raw <c>FP64</c> world units (+Y up).</summary>
+        public long ProjectileRelativeXRaw;
+        public long ProjectileRelativeYRaw;
+        /// <summary>
+        /// Projectile velocity, raw <c>FP64</c> world units per second (+Y up). The
+        /// decision table derives "closing" from the relative-position sign against
+        /// the X velocity sign, so an adapter that only knows a travel direction can
+        /// supply any magnitude with the correct sign.
+        /// </summary>
+        public long ProjectileVelocityXRaw;
+        public long ProjectileVelocityYRaw;
+
         // === Gating ===
         /// <summary>
         /// Non-zero while the match is not accepting gameplay input (countdown,
@@ -119,6 +135,14 @@ namespace FTT.FighterSim {
         /// the first damage tick.
         /// </summary>
         bool TryGetRelevantHazard(in FPVector2 selfPosition, out FighterHazardComponent hazard);
+
+        /// <summary>
+        /// Nearest live projectile owned by any <i>other</i> fighter — the shot the
+        /// CPU may need to block or blink through (M-8). Own projectiles are never
+        /// reported.
+        /// </summary>
+        bool TryGetNearestHostileProjectile(
+            int selfPlayerID, in FPVector2 selfPosition, out FighterProjectileComponent projectile);
     }
 
     /// <summary>
@@ -131,6 +155,7 @@ namespace FTT.FighterSim {
         private readonly FighterSimulation _simulation;
         private readonly List<FighterOrbComponent> _orbs = new(16);
         private readonly List<FighterHazardComponent> _hazards = new(16);
+        private readonly List<FighterProjectileComponent> _projectiles = new(16);
 
         public FighterSimulationWorldObserver(FighterSimulation simulation) {
             _simulation = simulation;
@@ -170,6 +195,25 @@ namespace FTT.FighterSim {
                 if (found && (gap > best || (gap == best && candidate.Phase != 0))) continue;
                 best = gap;
                 hazard = candidate;
+                found = true;
+            }
+            return found;
+        }
+
+        public bool TryGetNearestHostileProjectile(
+            int selfPlayerID, in FPVector2 selfPosition, out FighterProjectileComponent projectile) {
+            projectile = default;
+            if (_simulation == null) return false;
+            _simulation.CopyProjectilesTo(_projectiles);
+            bool found = false;
+            FP64 best = FP64.Zero;
+            for (int index = 0; index < _projectiles.Count; index++) {
+                if (_projectiles[index].OwnerPlayerID == selfPlayerID) continue;
+                FP64 distance = FP64.Abs(_projectiles[index].Position.x - selfPosition.x)
+                    + FP64.Abs(_projectiles[index].Position.y - selfPosition.y);
+                if (found && distance >= best) continue;
+                best = distance;
+                projectile = _projectiles[index];
                 found = true;
             }
             return found;

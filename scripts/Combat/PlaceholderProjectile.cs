@@ -22,6 +22,12 @@ namespace FTT.Combat {
         /// <summary>Raised once at the impact position when a detonating projectile connects.</summary>
         public event System.Action<Vector2> Impacted;
 
+        /// <summary>Owning local player slot (mirrors the hitbox); -1 marks an enemy shot.</summary>
+        public int OwnerPlayerIndex => _hitbox?.OwnerPlayerIndex ?? -1;
+
+        /// <summary>Current horizontal travel velocity in pixels per second (+X right).</summary>
+        public float HorizontalVelocity => _movingRight ? _speed : -_speed;
+
         public override void _Ready() {
             AddToGroup("story_projectile");
         }

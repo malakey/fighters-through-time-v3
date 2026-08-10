@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using FTT.Characters;
+using FTT.Combat;
 using FTT.Core;
 using FTT.Environment;
 using FTT.FighterSim;
@@ -399,7 +400,7 @@ namespace FTT.Enemies {
             bool alive = _self.CurrentState != CharacterState.Dead
                 && _self.CurrentState != CharacterState.Respawning;
 
-            return new CpuDecisionObservation {
+            var observation = new CpuDecisionObservation {
                 SelfPositionXRaw = FP64.FromFloat(selfUnitsX).RawValue,
                 SelfPositionYRaw = FP64.FromFloat(selfUnitsY).RawValue,
                 SelfVelocityXRaw = FP64.FromFloat(_self.Velocity.X / StoryPixelsPerUnit).RawValue,
@@ -420,11 +421,53 @@ namespace FTT.Enemies {
                 TargetCurrentHP = targetValid ? Target.CurrentHP : 0,
                 TargetMaxHP = targetValid ? Target.MaximumHP : 0,
                 TargetHitstunFrames = targetValid && Target.CurrentState == CharacterState.Stunned ? 1 : 0,
-                TargetPressedButtons = targetValid ? (int)Target.CurrentInputFrame.Pressed : 0
+                TargetPressedButtons = targetValid ? (int)Target.CurrentInputFrame.Pressed : 0,
+                TargetInfluenceRaw = targetValid
+                    ? FP64.FromFloat(Math.Max(0f, Target.CurrentUltimateMeter)).RawValue
+                    : 0
                 // HasStageBounds / HasOrb / HasHazard / SuppressGameplayInput stay 0:
                 // Story has no Fighter stage, no orbs, no stage hazards, and the
                 // encounter's own reveal gate owns whether the clone acts at all.
             };
+            ProjectNearestHostileProjectile(ref observation);
+            return observation;
+        }
+
+        /// <summary>
+        /// M-8 mirror of <c>FighterSimulationWorldObserver.TryGetNearestHostileProjectile</c>:
+        /// the nearest live Story projectile owned by another player slot (the
+        /// campaign player's shots), projected into world units with +Y up. Enemy
+        /// shots (owner &lt; 0) are not hostile to the mirror, which fights on the
+        /// Enemy side. Story projectiles travel horizontally, so the Y velocity is
+        /// zero and the X sign carries the closing direction the decision table
+        /// reads.
+        /// </summary>
+        private void ProjectNearestHostileProjectile(ref CpuDecisionObservation observation) {
+            if (!_self.IsInsideTree()) return;
+            Godot.Collections.Array<Node> projectiles =
+                _self.GetTree().GetNodesInGroup("story_projectile");
+            using var projectilesLifetime = projectiles.AsDisposable();
+            bool found = false;
+            float best = 0f;
+            foreach (Node node in projectiles) {
+                if (node is not PlaceholderProjectile projectile
+                    || !GodotObject.IsInstanceValid(projectile)) continue;
+                if (projectile.OwnerPlayerIndex < 0
+                    || projectile.OwnerPlayerIndex == _self.PlayerIndex) continue;
+                Vector2 delta = projectile.GlobalPosition - _self.GlobalPosition;
+                float distance = Mathf.Abs(delta.X) + Mathf.Abs(delta.Y);
+                if (found && distance >= best) continue;
+                best = distance;
+                found = true;
+                observation.HasHostileProjectile = 1;
+                observation.ProjectileRelativeXRaw =
+                    FP64.FromFloat(delta.X / StoryPixelsPerUnit).RawValue;
+                observation.ProjectileRelativeYRaw =
+                    FP64.FromFloat(-delta.Y / StoryPixelsPerUnit).RawValue;
+                observation.ProjectileVelocityXRaw =
+                    FP64.FromFloat(projectile.HorizontalVelocity / StoryPixelsPerUnit).RawValue;
+                observation.ProjectileVelocityYRaw = 0;
+            }
         }
 
         private static int ToFrames(float seconds) =>
