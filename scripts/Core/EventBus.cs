@@ -250,6 +250,15 @@ namespace FTT.Core {
         public event Action<int> OnBlockBroken;
         public void RaiseBlockBroken(int playerIndex) => OnBlockBroken?.Invoke(playerIndex);
 
+        /// <summary>
+        /// A block stance absorbed a hit without breaking. Args: player index,
+        /// remaining shield charges. The tutorial's block calibration counts these;
+        /// feedback layers (haptics per design Guard Impact) can bind here too.
+        /// </summary>
+        public event Action<int, int> OnBlockAbsorbed;
+        public void RaiseBlockAbsorbed(int playerIndex, int remainingCharges) =>
+            OnBlockAbsorbed?.Invoke(playerIndex, remainingCharges);
+
         // === Ability & Cooldown Events ===
         public event Action<CooldownPayload> OnCooldownStarted;
         public void RaiseCooldownStarted(CooldownPayload payload) => OnCooldownStarted?.Invoke(payload);

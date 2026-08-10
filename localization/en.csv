@@ -247,7 +247,6 @@ fighter_state_respawning,Respawning
 fighter_state_dazed,Dazed
 fighter_state_stunned,Stunned
 fighter_state_blocking,Blocking
-fighter_state_dashing,Dashing
 fighter_state_rolling,Rolling
 fighter_state_grounded,Grounded
 fighter_state_airborne,Airborne
@@ -260,7 +259,7 @@ status_root,Root
 test_arena_state,{0} | State: {1} | Facing: {2} | Jumps: {3} | Tick: {4} | Hash: {5}
 test_arena_vitals,P1 HP: {0}/{1} | Stocks: {2} | Influence: {3:F0}/100 | Block: {4} || P2 HP: {5}/{6} | Stocks: {7} | Influence: {8:F0}/100 | Block: {9}
 test_arena_cooldowns,Special 1: {0} | Special 2: {1} | Status: {2}
-test_arena_controls,A/D Move | Double-tap A/D Dash | Space/W Jump | O Roll | J Attack | K/L Specials | Shift Movement | I Block | U Ultimate | ESC Menu
+test_arena_controls,A/D Move | Space/W Jump | O Roll | J Attack | K/L Specials | Shift Movement | I Block | U Ultimate | ESC Menu
 common_back,Back
 fighter_select_title,SELECT YOUR FIGHTER
 fighter_start_match,FIGHT!
@@ -322,7 +321,7 @@ story_select_difficulty,SELECT DIFFICULTY
 difficulty_easy_description,5 rewinds; full HP restoration; checkpoints refill the pool.
 difficulty_normal_description,3 rewinds; 50% HP restoration; checkpoints restore one rewind.
 difficulty_hard_description,1 rewind; 30% HP restoration; no checkpoint refill.
-resonance_joan_r1_name,Minor Dash Speed +5%
+resonance_joan_r1_name,Minor Move Speed +5%
 resonance_joan_r1_description,Increase Story Mode movement speed by 5%.
 resonance_joan_r2_name,Minor Jump Height +5%
 resonance_joan_r2_description,Increase Story Mode jump force by 5%.
@@ -523,7 +522,7 @@ tutorial_objective_wave_one,Defeat the hologram drones! (Wave 1)
 tutorial_objective_wave_two,Defeat the remaining holograms! (Wave 2)
 tutorial_objective_progress,Enemies defeated: {0}/{1}
 tutorial_objective_complete,CALIBRATION COMPLETE! Returning to Time-Ship...
-tutorial_controls,Move: A/D | Dash: Double-tap A/D | Roll: O + Direction | Jump: Space | Attack: J | Specials: K/L | Block: I
+tutorial_controls,Move: A/D | Roll: O + Direction | Jump: Space | Attack: J | Specials: K/L | Block: I
 checkpoint,CHECKPOINT
 florence_room_entry,ENTRY COURTYARD
 florence_room_print_shop,PRINT SHOP BASEMENT
@@ -591,10 +590,8 @@ tutorial_step_attack,Calibration: land basic attacks on the dummy ({0}/{1})
 tutorial_step_special,Calibration: use a Special ability (K or L)
 tutorial_step_rewind,Calibration: stand by - Chronal Rewind demonstration
 tutorial_step_double_jump,Mobility: reach the green marker with a double jump
-tutorial_step_dash,Mobility: cross the amber corridor while dashing
 tutorial_step_roll,Mobility: cross the blue strip while rolling
 tutorial_gate_double_jump,DOUBLE JUMP
-tutorial_gate_dash,DASH THROUGH
 tutorial_gate_roll,ROLL THROUGH
 florence_objective_defeat_boss,Defeat the Borgia Inquisitor!
 florence_objective_gears,Align both print-press gears to open the workshop door
@@ -1009,7 +1006,7 @@ fighter_disconnect_modal,"Controller Disconnected: Player {0} controller was los
 fighter_disconnect_rebind,Bind Connected Controller
 fighter_disconnect_forfeit,Forfeit and Exit
 # Package 8 A1
-pause_quit_confirm,Quit to the main menu? Progress since the last checkpoint will be lost.
+pause_quit_confirm,Exit to the main menu? You will lose 50% of your undeposited Chronal Dust.
 loading_rift,OPENING CHRONAL RIFT
 loading_versus,VS
 # Package 8 A4
@@ -1036,7 +1033,6 @@ controls_binding_mouse,Mouse {0}
 controls_binding_joy_button,Pad Button {0}
 controls_binding_joy_axis,Pad Axis {0}{1}
 controls_ultimate_readonly,"Ultimate is fixed to the U key, and to the LB + RB shoulder chord on a controller. It cannot be rebound."
-controls_dash_readonly,"Dash is a gesture rather than a button: double-tap a direction, or flick the left stick. It cannot be rebound."
 controls_action_move_left,Move Left
 controls_action_move_right,Move Right
 controls_action_jump,Jump
@@ -1077,3 +1073,14 @@ results_rewinds_used,Chronal Rewinds used: {0}
 timeline_restart_level_confirm,Restarting from the beginning discards the Timeline Anchor you reached. Continue?
 # Package 8 B4
 fighter_cpu_difficulty,CPU Difficulty
+# Audit M-2/M-3: Story pause Save/Restart/Exit and tutorial block/ultimate/movement calibration
+pause_save_done,Progress saved
+pause_restart_confirm,Are you sure? Unsaved progress will be lost.
+tutorial_step_block,Calibration: hold Block to absorb the dummy's telegraphed swipes ({0}/{1})
+tutorial_step_ultimate,Calibration: Influence Meter charged - unleash your Ultimate!
+tutorial_step_movement,Mobility: cross the violet corridor using your Movement Ability
+tutorial_gate_movement,MOVEMENT ABILITY
+dlg_l00_block_1,Attacks calibrated. Now defense. The dummy will telegraph slow swipes - hold Block to absorb them and watch your shield charges fall with each impact.
+dlg_l00_block_2,"Careful: three absorbed hits exhaust your shield entirely and break your guard, leaving you dazed. Absorb the swipes to continue."
+dlg_l00_ultimate_1,I am flooding your Influence Meter to full for the final combat test. Trigger your Ultimate - your History Maker - and let history itself answer.
+dlg_l00_mobility_2,First: your unique Movement Ability. It recharges in seconds and works in the air - use it to cross the marked corridor no ordinary jump can clear.

@@ -129,8 +129,16 @@ public class StoryPauseTests {
             AssertObject(title).IsNotNull();
             AssertThat(title.Text).IsEqual("menu_paused");
 
+            // The designed five options (audit M-2): Resume / Settings / Save /
+            // Restart Level / Exit (quit to menu).
             AssertObject(pause.GetNodeOrNull<Button>("Root/Center/Panel/Layout/ResumeButton")).IsNotNull();
             AssertObject(pause.GetNodeOrNull<Button>("Root/Center/Panel/Layout/SettingsButton")).IsNotNull();
+            var save = pause.GetNodeOrNull<Button>("Root/Center/Panel/Layout/SaveButton");
+            AssertObject(save).IsNotNull();
+            AssertThat(save.Text).IsEqual("menu_save");
+            var restart = pause.GetNodeOrNull<Button>("Root/Center/Panel/Layout/RestartButton");
+            AssertObject(restart).IsNotNull();
+            AssertThat(restart.Text).IsEqual("menu_restart");
             AssertObject(pause.GetNodeOrNull<Button>("Root/Center/Panel/Layout/QuitButton")).IsNotNull();
 
             // The screen adopts the shared theme rather than per-node overrides.
@@ -140,6 +148,101 @@ public class StoryPauseTests {
             tree.Paused = false;
             scene.QueueFree();
         }
+    }
+
+    [TestCase]
+    public void RestartOpensItsOwnConfirmationAndCancelReturnsToTheMenu() {
+        var scene = new Node { Name = "StoryPauseRestartHost" };
+        AddToTree(scene);
+        PauseMenu pause = AddPause(scene);
+        SceneTree tree = scene.GetTree();
+        try {
+            pause.SetPaused(true);
+            var modal = pause.FindChild("RestartConfirmModal", recursive: true, owned: false) as ConfirmModal;
+            AssertObject(modal).IsNotNull();
+            AssertThat(modal.IsOpen).IsFalse();
+
+            var restart = pause.GetNodeOrNull<Button>("Root/Center/Panel/Layout/RestartButton");
+            AssertObject(restart).IsNotNull();
+            restart.EmitSignal(BaseButton.SignalName.Pressed);
+            AssertThat(modal.IsOpen).IsTrue();
+
+            // Cancel backs out without restarting anything and without
+            // releasing the pause.
+            modal.Cancel();
+            AssertThat(modal.IsOpen).IsFalse();
+            AssertThat(pause.IsPaused).IsTrue();
+
+            // Resuming closes a stale restart confirmation, like the quit one.
+            restart.EmitSignal(BaseButton.SignalName.Pressed);
+            AssertThat(modal.IsOpen).IsTrue();
+            pause.SetPaused(false);
+            AssertThat(modal.IsOpen).IsFalse();
+        } finally {
+            tree.Paused = false;
+            scene.QueueFree();
+        }
+    }
+
+    [TestCase]
+    public void SaveFeedbackFlipsTheLabelAndResetsOnTheNextPause() {
+        var scene = new Node { Name = "StoryPauseSaveHost" };
+        AddToTree(scene);
+        PauseMenu pause = AddPause(scene);
+        SceneTree tree = scene.GetTree();
+
+        // Point the session at no slot so the checkpoint write is a no-op:
+        // this test pins the menu feedback contract, not the save envelope.
+        var gameManager = FTT.Core.GameManager.Instance;
+        int previousSlot = gameManager != null ? gameManager.CurrentSession.ActiveSaveSlot : -1;
+        if (gameManager != null) {
+            var session = gameManager.CurrentSession;
+            session.ActiveSaveSlot = -1;
+            gameManager.CurrentSession = session;
+        }
+        try {
+            pause.SetPaused(true);
+            var save = pause.GetNodeOrNull<Button>("Root/Center/Panel/Layout/SaveButton");
+            AssertObject(save).IsNotNull();
+            AssertThat(save.Text).IsEqual("menu_save");
+
+            save.EmitSignal(BaseButton.SignalName.Pressed);
+            AssertThat(save.Text).IsEqual("pause_save_done");
+
+            // A fresh pause offers a fresh save.
+            pause.SetPaused(false);
+            pause.SetPaused(true);
+            AssertThat(save.Text).IsEqual("menu_save");
+        } finally {
+            if (gameManager != null) {
+                var session = gameManager.CurrentSession;
+                session.ActiveSaveSlot = previousSlot;
+                gameManager.CurrentSession = session;
+            }
+            tree.Paused = false;
+            scene.QueueFree();
+        }
+    }
+
+    [TestCase]
+    public void TheExitPenaltyRetainsHalfTheUnbankedDustRoundedDown() {
+        // docs/DUST_ECONOMY.md §2 / design "Pause Screen Rules": exit keeps 50%
+        // of undeposited level dust, rounded down.
+        AssertThat(PauseMenu.CalculateExitRetainedDust(40)).IsEqual(20);
+        AssertThat(PauseMenu.CalculateExitRetainedDust(41)).IsEqual(20);
+        AssertThat(PauseMenu.CalculateExitRetainedDust(1)).IsEqual(0);
+        AssertThat(PauseMenu.CalculateExitRetainedDust(0)).IsEqual(0);
+        AssertThat(PauseMenu.CalculateExitRetainedDust(-5)).IsEqual(0);
+
+        // Whole wallet earned this level: 40 unbanked -> 20 retained.
+        AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(40, 40)).IsEqual(20);
+        // Only the level's share of the wallet is penalized.
+        AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(100, 40)).IsEqual(80);
+        // A tally larger than the wallet clamps to the wallet.
+        AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(30, 40)).IsEqual(15);
+        // Odd amounts round the retained half down (the forfeit rounds up).
+        AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(41, 41)).IsEqual(20);
+        AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(0, 0)).IsEqual(0);
     }
 
     private static PauseMenu AddPause(Node scene) {

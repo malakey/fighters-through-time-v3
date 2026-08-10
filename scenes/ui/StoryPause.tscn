@@ -59,6 +59,16 @@ custom_minimum_size = Vector2(320, 44)
 layout_mode = 2
 text = "menu_settings"
 
+[node name="SaveButton" type="Button" parent="Root/Center/Panel/Layout"]
+custom_minimum_size = Vector2(320, 44)
+layout_mode = 2
+text = "menu_save"
+
+[node name="RestartButton" type="Button" parent="Root/Center/Panel/Layout"]
+custom_minimum_size = Vector2(320, 44)
+layout_mode = 2
+text = "menu_restart"
+
 [node name="QuitButton" type="Button" parent="Root/Center/Panel/Layout"]
 custom_minimum_size = Vector2(320, 44)
 layout_mode = 2

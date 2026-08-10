@@ -66,6 +66,7 @@ namespace FTT.Combat {
             _regenTimer = 0f;
             if (CurrentCharges > 0) {
                 GrantHenrysBastion();
+                FTT.Core.EventBus.Instance?.RaiseBlockAbsorbed(_owner.PlayerIndex, CurrentCharges);
                 return BlockResult.Blocked;
             }
 
