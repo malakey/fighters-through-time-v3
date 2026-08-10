@@ -1,40 +1,90 @@
+using System;
 using System.Collections.Generic;
 using FTT.Characters;
+using FTT.Core;
 using FTT.Environment;
 using Godot;
 
 namespace FTT.UI {
 
+    /// <summary>The character-select flow states (audit M-28).</summary>
+    public enum SelectScreenPhase {
+        /// <summary>Players move selection tokens on the roster grid.</summary>
+        Selection,
+        /// <summary>All tokens locked; the designed 3.0 s cancelable countdown runs.</summary>
+        Countdown,
+        /// <summary>Stage catalog + match rules; Fight routes the match.</summary>
+        StageSelect
+    }
+
     /// <summary>
-    /// Package 8 B4. The Fighter Mode character/stage/rules screen, converted from
-    /// a fully code-built shell to an authored, themed scene.
+    /// Package 8 B4 authored screen, reworked for audit M-28: the designed
+    /// select-screen mechanics from design-godot.md:2586-2599.
     ///
-    /// <para>The nine character tiles used to be <see cref="PanelContainer"/>s with
-    /// a <c>GuiInput</c> mouse handler — not focusable, so a controller or keyboard
-    /// player could not select a fighter at all. They are now real
-    /// <see cref="Button"/>s in the authored grid, chained by
-    /// <see cref="FocusChainBuilder"/> and drawing the theme's focus ring. The
-    /// character colour identity survives as a per-tile stylebox override on
-    /// normal/hover/pressed only; <c>focus</c> is deliberately left to the theme so
-    /// the ring is never painted over.</para>
+    /// <para><b>Two selection tokens, per-device.</b> Token 0 is Player 1's pick;
+    /// token 1 is the opponent (Player 2 in local-human mode, the CPU pick in CPU
+    /// mode). Each human player's token is driven only by that player's assigned
+    /// device, polled through <see cref="InputManager.GetFrame(int)"/> — never
+    /// through global focus navigation, which any device can steer. Movement uses
+    /// the gameplay move axis plus Jump/Down; BasicAttack (or Interact) confirms;
+    /// Block (or Roll) cancels. The roster tiles stay clickable buttons for the
+    /// mouse (clicks act as Player 1: first click hovers, second confirms) but are
+    /// deliberately excluded from the focus chain so a pad in Player 2's hands
+    /// cannot move Player 1's token.</para>
     ///
-    /// <para>All session writes, stage routing through the catalog, and the four
-    /// frequency bands are unchanged from the pre-conversion behaviour.</para>
+    /// <para><b>Reserved/Occupied and duplicate prevention.</b> A hovered tile is
+    /// painted with the hovering token's colour (Reserved); a confirmed tile is
+    /// locked with a thick border and glow (Occupied). Confirming a tile another
+    /// token has locked is blocked with the designed unavailable buzz (the
+    /// placeholder cue is currently silent by directive) and a localized flash.</para>
+    ///
+    /// <para><b>Ready → countdown → stage.</b> Confirm toggles READY (banner per
+    /// player); once every required token is locked, a 3.0-second countdown runs
+    /// that any ready player's cancel aborts back to selection. At zero the screen
+    /// swaps to a distinct full-screen stage-select state reusing the existing
+    /// catalog population, ProductionReady gating, and preview-plate rendering,
+    /// with the match rules alongside. All session writes are unchanged from the
+    /// pre-rework behaviour (<see cref="ApplySelectionToSession"/>).</para>
     /// </summary>
     public partial class CharacterSelectScreen : Control {
 
-        private int _selectedIndex;
-        private int _opponentIndex = 1;
+        private const string SelectRoot = "SelectPhase/Root/";
+        private const string StageRoot = "StagePhase/Root/";
+        private const int GridColumns = 3;
+        private const float CountdownSeconds = 3.0f;
+        private const float FeedbackSeconds = 1.2f;
+        private const float AxisThreshold = 0.5f;
+
+        private sealed class SelectionToken {
+            public int Cursor;
+            public int LockedIndex = -1;
+            public bool Ready => LockedIndex >= 0;
+        }
 
         private readonly string[] _characterIDs = {
             "einstein", "joan", "leonardo", "lincoln", "cleopatra",
             "tesla", "shakespeare", "mozart", "pocahontas"
         };
 
+        /// <summary>Token 0 = Player 1; token 1 = Player 2 or the CPU pick.</summary>
+        private readonly SelectionToken[] _tokens = { new(), new() { Cursor = 1 } };
+        private readonly float[] _previousHorizontal = new float[2];
+
+        private SelectScreenPhase _phase = SelectScreenPhase.Selection;
+        private float _countdownRemaining;
+        private float _feedbackRemaining;
+
         private Button[] _characterButtons;
-        private Label _statsLabel;
-        private Label _selectedNameLabel;
-        private Label _opponentLabel;
+        private Control _selectPhase;
+        private Control _stagePhase;
+        private Label _p1Name;
+        private Label _p1Ready;
+        private Label _p1Stats;
+        private Label _p2Name;
+        private Label _p2Ready;
+        private Label _p2Stats;
+        private Label _feedbackLabel;
+        private Label _countdownLabel;
         private CheckButton _localHumanToggle;
         private OptionButton _cpuDifficulty;
         private SpinBox _stockCount;
@@ -47,104 +97,417 @@ namespace FTT.UI {
         private FighterStageCatalog _stageCatalog;
         private readonly List<string> _stageIDs = new();
 
-        /// <summary>The tile index currently chosen for player one.</summary>
-        public int SelectedIndex => _selectedIndex;
+        /// <summary>The current flow state.</summary>
+        public SelectScreenPhase Phase => _phase;
 
-        /// <summary>The tile index currently chosen for player two.</summary>
-        public int OpponentIndex => _opponentIndex;
+        /// <summary>Seconds left on the ready countdown (valid in Countdown phase).</summary>
+        public float CountdownRemaining => _countdownRemaining;
+
+        /// <summary>The tile index currently chosen for player one (lock wins over hover).</summary>
+        public int SelectedIndex => EffectiveIndex(_tokens[0]);
+
+        /// <summary>The tile index currently chosen for the opponent (lock wins over hover).</summary>
+        public int OpponentIndex => EffectiveIndex(_tokens[1]);
+
+        /// <summary>Whether the given token (0 = P1, 1 = P2/CPU) has confirmed its pick.</summary>
+        public bool IsSlotReady(int token) => _tokens[token].Ready;
+
+        /// <summary>The given token's hover cursor.</summary>
+        public int GetCursor(int token) => _tokens[token].Cursor;
+
+        /// <summary>True while Player 1, already locked, is choosing the CPU's character.</summary>
+        public bool IsPickingCpu =>
+            _phase == SelectScreenPhase.Selection && !IsLocalHumanMode
+            && _tokens[0].Ready && !_tokens[1].Ready;
+
+        /// <summary>True while the localized unavailable flash is showing.</summary>
+        public bool UnavailableFeedbackVisible => _feedbackLabel != null && _feedbackLabel.Visible;
+
+        private bool IsLocalHumanMode => _localHumanToggle != null && _localHumanToggle.ButtonPressed;
 
         public override void _Ready() {
             UIPalette.ApplyTheme(this);
 
-            const string root = "Center/Root/";
-            _selectedNameLabel = GetNode<Label>(root + "SelectedName");
-            _statsLabel = GetNode<Label>(root + "Stats");
-            _opponentLabel = GetNode<Label>(root + "OpponentRow/OpponentLabel");
-            _localHumanToggle = GetNode<CheckButton>(root + "ModeRow/LocalHumanToggle");
-            _cpuDifficulty = GetNode<OptionButton>(root + "ModeRow/CpuDifficulty");
-            _stageSelect = GetNode<OptionButton>(root + "StageRow/StageSelect");
-            _stagePreview = GetNode<TextureRect>(root + "StageRow/StagePreview");
-            _matchMode = GetNode<OptionButton>(root + "RulesRow/MatchMode");
-            _stockCount = GetNode<SpinBox>(root + "RulesRow/StockCount");
-            _timeLimit = GetNode<SpinBox>(root + "RulesRow/TimeLimit");
-            _itemFrequency = GetNode<OptionButton>(root + "RulesRow/ItemFrequency");
-            _hazardFrequency = GetNode<OptionButton>(root + "RulesRow/HazardFrequency");
+            _selectPhase = GetNode<Control>("SelectPhase");
+            _stagePhase = GetNode<Control>("StagePhase");
+            _p1Name = GetNode<Label>(SelectRoot + "PlayersRow/P1Panel/P1Name");
+            _p1Ready = GetNode<Label>(SelectRoot + "PlayersRow/P1Panel/P1Ready");
+            _p1Stats = GetNode<Label>(SelectRoot + "PlayersRow/P1Panel/P1Stats");
+            _p2Name = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Name");
+            _p2Ready = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Ready");
+            _p2Stats = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Stats");
+            _feedbackLabel = GetNode<Label>(SelectRoot + "FeedbackLabel");
+            _countdownLabel = GetNode<Label>(SelectRoot + "CountdownLabel");
+            _localHumanToggle = GetNode<CheckButton>(SelectRoot + "ModeRow/LocalHumanToggle");
+            _cpuDifficulty = GetNode<OptionButton>(SelectRoot + "ModeRow/CpuDifficulty");
+            _stageSelect = GetNode<OptionButton>(StageRoot + "StageRow/StageSelect");
+            _stagePreview = GetNode<TextureRect>(StageRoot + "StageRow/StagePreview");
+            _matchMode = GetNode<OptionButton>(StageRoot + "RulesRow/MatchMode");
+            _stockCount = GetNode<SpinBox>(StageRoot + "RulesRow/StockCount");
+            _timeLimit = GetNode<SpinBox>(StageRoot + "RulesRow/TimeLimit");
+            _itemFrequency = GetNode<OptionButton>(StageRoot + "RulesRow/ItemFrequency");
+            _hazardFrequency = GetNode<OptionButton>(StageRoot + "RulesRow/HazardFrequency");
 
             BindCharacterGrid();
-            BindOpponentAndRules();
+            BindModeAndRules();
 
-            GetNode<Button>(root + "ButtonRow/BackButton").Pressed += OnBack;
-            GetNode<Button>(root + "ButtonRow/FightButton").Pressed += OnFight;
+            GetNode<Button>(SelectRoot + "ButtonRow/BackButton").Pressed += OnBack;
+            GetNode<Button>(StageRoot + "StageButtonRow/StageBackButton").Pressed += ReturnToSelection;
+            GetNode<Button>(StageRoot + "StageButtonRow/FightButton").Pressed += OnFight;
 
-            SelectCharacter(0);
-            UpdateOpponentLabel();
+            // Returning here from a match ("Change Fighters") keeps the session's
+            // opponent mode instead of silently resetting local-human to CPU.
+            if (GameManager.Instance != null) {
+                _localHumanToggle.ButtonPressed =
+                    GameManager.Instance.CurrentSession.FighterOpponentType == FighterOpponentType.LocalHuman;
+            }
+            _cpuDifficulty.Disabled = IsLocalHumanMode;
 
+            RefreshPanels();
+            RepaintTiles();
+            BuildFocusChain();
+        }
+
+        // === Flow: polled per-player input ===================================
+
+        /// <summary>
+        /// Per-player token input, polled at 60 Hz. Each player's frame comes from
+        /// that player's assigned device only (<see cref="InputManager"/> owns the
+        /// device→player mapping), which is what keeps Player 2's token off
+        /// Player 1's keyboard and vice versa. The stage phase is focus-driven
+        /// authored UI, so token polling stops there.
+        /// </summary>
+        public override void _PhysicsProcess(double delta) {
+            if (InputManager.Instance == null) return;
+            if (_phase == SelectScreenPhase.StageSelect) return;
+            int players = Math.Min(2, InputManager.Instance.MaxPlayers);
+            for (int playerIndex = 0; playerIndex < players; playerIndex++) {
+                PlayerInputFrame frame = InputManager.Instance.GetFrame(playerIndex);
+                HandleFrame(playerIndex, frame);
+            }
+        }
+
+        private void HandleFrame(int playerIndex, in PlayerInputFrame frame) {
+            float previousHorizontal = _previousHorizontal[playerIndex];
+            _previousHorizontal[playerIndex] = frame.Horizontal;
+
+            if (frame.IsPressed(GameplayButtons.Block) || frame.IsPressed(GameplayButtons.Roll)) {
+                TryCancel(playerIndex);
+                return;
+            }
+            if (_phase != SelectScreenPhase.Selection) return;
+
+            if (frame.IsPressed(GameplayButtons.BasicAttack) || frame.IsPressed(GameplayButtons.Interact)) {
+                TryConfirm(playerIndex);
+                return;
+            }
+
+            int dx = AxisStep(previousHorizontal, frame.Horizontal);
+            int dy = 0;
+            if (frame.IsPressed(GameplayButtons.Down)) dy = 1;
+            else if (frame.IsPressed(GameplayButtons.Jump)) dy = -1;
+            if (dx != 0 || dy != 0) TryMoveCursor(playerIndex, dx, dy);
+        }
+
+        /// <summary>One grid step when the axis crosses the threshold from neutral.</summary>
+        private static int AxisStep(float previous, float current) {
+            if (MathF.Abs(current) < AxisThreshold || MathF.Abs(previous) >= AxisThreshold) return 0;
+            return current > 0f ? 1 : -1;
+        }
+
+        // === Flow: token mechanics ===========================================
+
+        /// <summary>
+        /// Which token the given player currently drives: in local-human mode each
+        /// player drives their own; in CPU mode Player 1 drives their own token
+        /// until it locks, then drives the CPU pick. -1 when the player drives none
+        /// (Player 2 in CPU mode).
+        /// </summary>
+        private int TokenDrivenBy(int playerIndex) {
+            if (IsLocalHumanMode) return playerIndex is 0 or 1 ? playerIndex : -1;
+            if (playerIndex != 0) return -1;
+            return _tokens[0].Ready ? 1 : 0;
+        }
+
+        /// <summary>Which token this player's cancel unlocks, or -1.</summary>
+        private int TokenToUnlockFor(int playerIndex) {
+            if (IsLocalHumanMode) {
+                if (playerIndex is not (0 or 1)) return -1;
+                return _tokens[playerIndex].Ready ? playerIndex : -1;
+            }
+            if (playerIndex != 0) return -1;
+            if (_tokens[1].Ready) return 1;
+            return _tokens[0].Ready ? 0 : -1;
+        }
+
+        /// <summary>
+        /// Moves the token the player drives by one grid step with wraparound.
+        /// Locked tokens do not move — cancel first.
+        /// </summary>
+        public bool TryMoveCursor(int playerIndex, int dx, int dy) {
+            if (_phase != SelectScreenPhase.Selection) return false;
+            int tokenIndex = TokenDrivenBy(playerIndex);
+            if (tokenIndex < 0) return false;
+            SelectionToken token = _tokens[tokenIndex];
+            if (token.Ready) return false;
+
+            int rows = (_characterIDs.Length + GridColumns - 1) / GridColumns;
+            int column = ((token.Cursor % GridColumns) + dx + GridColumns) % GridColumns;
+            int row = ((token.Cursor / GridColumns) + dy + rows) % rows;
+            token.Cursor = Math.Min(row * GridColumns + column, _characterIDs.Length - 1);
+            RefreshPanels();
+            RepaintTiles();
+            return true;
+        }
+
+        /// <summary>
+        /// Confirms the driven token on its hovered tile. Blocked with the designed
+        /// unavailable feedback when another token already occupies that tile
+        /// (duplicate prevention). Locking the last required token starts the
+        /// countdown.
+        /// </summary>
+        public bool TryConfirm(int playerIndex) {
+            if (_phase != SelectScreenPhase.Selection) return false;
+            int tokenIndex = TokenDrivenBy(playerIndex);
+            if (tokenIndex < 0) return false;
+            SelectionToken token = _tokens[tokenIndex];
+            if (token.Ready) return false;
+
+            if (IsTileLockedByOther(tokenIndex, token.Cursor)) {
+                PlayUnavailableFeedback();
+                return false;
+            }
+
+            token.LockedIndex = token.Cursor;
+            // Selection-confirmed cue (character vocal SFX is Package 10 content;
+            // the placeholder UI cue is the wiring).
+            AudioManager.Instance?.PlayUISound();
+            RefreshPanels();
+            RepaintTiles();
+            TryStartCountdown();
+            return true;
+        }
+
+        /// <summary>
+        /// Cancels for the given player: during the countdown any ready player's
+        /// cancel aborts the timer and unlocks their token, returning to selection;
+        /// during selection it unlocks that player's most recent lock (in CPU mode,
+        /// first the CPU pick, then Player 1's own). Returns false when there was
+        /// nothing to unwind (the caller may then leave the screen).
+        /// </summary>
+        public bool TryCancel(int playerIndex) {
+            if (_phase == SelectScreenPhase.Countdown) {
+                int abortToken = TokenToUnlockFor(playerIndex);
+                if (abortToken < 0) return false;
+                _tokens[abortToken].LockedIndex = -1;
+                _phase = SelectScreenPhase.Selection;
+                _countdownLabel.Visible = false;
+                RefreshPanels();
+                RepaintTiles();
+                return true;
+            }
+            if (_phase != SelectScreenPhase.Selection) return false;
+            int unlockToken = TokenToUnlockFor(playerIndex);
+            if (unlockToken < 0) return false;
+            _tokens[unlockToken].LockedIndex = -1;
+            RefreshPanels();
+            RepaintTiles();
+            return true;
+        }
+
+        private bool IsTileLockedByOther(int tokenIndex, int tile) {
+            for (int index = 0; index < _tokens.Length; index++) {
+                if (index != tokenIndex && _tokens[index].LockedIndex == tile) return true;
+            }
+            return false;
+        }
+
+        private void TryStartCountdown() {
+            if (!_tokens[0].Ready || !_tokens[1].Ready) return;
+            _phase = SelectScreenPhase.Countdown;
+            _countdownRemaining = CountdownSeconds;
+            _countdownLabel.Text = string.Format(Tr("fighter_select_countdown"), _countdownRemaining);
+            _countdownLabel.Visible = true;
+        }
+
+        /// <summary>
+        /// Ticks the ready countdown. Called from <c>_Process</c>; public so tests
+        /// can drive the 3.0 s window deterministically.
+        /// </summary>
+        public void AdvanceCountdown(float seconds) {
+            if (_phase != SelectScreenPhase.Countdown) return;
+            int previousWhole = Mathf.CeilToInt(_countdownRemaining);
+            _countdownRemaining -= seconds;
+            if (_countdownRemaining <= 0f) {
+                _countdownRemaining = 0f;
+                EnterStagePhase();
+                return;
+            }
+            if (Mathf.CeilToInt(_countdownRemaining) < previousWhole) {
+                AudioManager.Instance?.PlayCountdownBlip();
+            }
+            _countdownLabel.Text = string.Format(Tr("fighter_select_countdown"), _countdownRemaining);
+        }
+
+        public override void _Process(double delta) {
+            if (_phase == SelectScreenPhase.Countdown) AdvanceCountdown((float)delta);
+            if (_feedbackRemaining > 0f) {
+                _feedbackRemaining -= (float)delta;
+                if (_feedbackRemaining <= 0f) _feedbackLabel.Visible = false;
+            }
+        }
+
+        private void PlayUnavailableFeedback() {
+            _feedbackLabel.Visible = true;
+            _feedbackRemaining = FeedbackSeconds;
+            // The designed unavailable buzz. The whole placeholder audio kit is
+            // digital silence by directive (2026-08-10); the low-pitch UI cue is
+            // the wiring, and Package 10's real buzz asset drops in here.
+            AudioManager.Instance?.PlayUISound(null, 0.55f);
+        }
+
+        // === Flow: stage phase ===============================================
+
+        private void EnterStagePhase() {
+            _phase = SelectScreenPhase.StageSelect;
+            _countdownLabel.Visible = false;
+            _selectPhase.Visible = false;
+            _stagePhase.Visible = true;
+            UpdateStagePreview();
             BuildFocusChain();
         }
 
         /// <summary>
-        /// Chains every interactive control in authored reading order.
-        ///
-        /// <para>The chain is assembled explicitly rather than through
-        /// <c>FocusChainBuilder.Apply</c> because <see cref="SpinBox"/> keeps its
-        /// editable <see cref="LineEdit"/> as an *internal* child: the collector
-        /// walks <c>GetChild</c> and therefore cannot see it, which would leave the
-        /// stock count and time limit unreachable by keyboard or controller — the
-        /// exact class of gap this workstream exists to close.</para>
-        ///
-        /// <para>Focus starts on the roster, so the first thing a controller player
-        /// touches is the choice the screen exists to make.</para>
+        /// Backs out of stage select. Everyone returns to selection unreadied
+        /// (cursors keep their picks) so a re-confirm restarts the countdown
+        /// rather than instantly re-entering the stage phase.
         /// </summary>
-        private void BuildFocusChain() {
-            FocusChainBuilder.Chain(FocusChain);
-            _characterButtons[0]?.GrabFocus();
+        public void ReturnToSelection() {
+            if (_phase != SelectScreenPhase.StageSelect) return;
+            foreach (SelectionToken token in _tokens) token.LockedIndex = -1;
+            _phase = SelectScreenPhase.Selection;
+            _stagePhase.Visible = false;
+            _selectPhase.Visible = true;
+            RefreshPanels();
+            RepaintTiles();
+            BuildFocusChain();
         }
 
-        /// <summary>The authored focus order, exposed so a test can walk it.</summary>
-        public IReadOnlyList<Control> FocusChain => new List<Control>(_characterButtons) {
-            GetNode<Button>("Center/Root/OpponentRow/PreviousButton"),
-            GetNode<Button>("Center/Root/OpponentRow/NextButton"),
-            _localHumanToggle,
-            _cpuDifficulty,
-            _stageSelect,
-            _matchMode,
-            _stockCount.GetLineEdit(),
-            _timeLimit.GetLineEdit(),
-            _itemFrequency,
-            _hazardFrequency,
-            GetNode<Button>("Center/Root/ButtonRow/BackButton"),
-            GetNode<Button>("Center/Root/ButtonRow/FightButton")
-        };
+        // === Presentation ====================================================
+
+        /// <summary>
+        /// The authored focus order for the active phase, exposed so a test can
+        /// walk it. The roster tiles are deliberately absent: they are driven by
+        /// the per-player polled cursors (and the mouse), never by focus, so one
+        /// player's pad cannot steer the other player's token.
+        /// </summary>
+        public IReadOnlyList<Control> FocusChain => _phase == SelectScreenPhase.StageSelect
+            ? new List<Control> {
+                _stageSelect,
+                _matchMode,
+                _stockCount.GetLineEdit(),
+                _timeLimit.GetLineEdit(),
+                _itemFrequency,
+                _hazardFrequency,
+                GetNode<Button>(StageRoot + "StageButtonRow/StageBackButton"),
+                GetNode<Button>(StageRoot + "StageButtonRow/FightButton")
+            }
+            : new List<Control> {
+                _localHumanToggle,
+                _cpuDifficulty,
+                GetNode<Button>(SelectRoot + "ButtonRow/BackButton")
+            };
+
+        /// <summary>Rebuilt on every phase change, per the focus-authoring convention.</summary>
+        private void BuildFocusChain() {
+            IReadOnlyList<Control> chain = FocusChain;
+            FocusChainBuilder.Chain(chain);
+            chain[0]?.GrabFocus();
+        }
 
         private void BindCharacterGrid() {
-            var grid = GetNode<GridContainer>("Center/Root/Grid");
+            var grid = GetNode<GridContainer>(SelectRoot + "Grid");
             _characterButtons = new Button[_characterIDs.Length];
             for (int index = 0; index < _characterIDs.Length; index++) {
                 int captured = index;
                 var button = grid.GetNode<Button>($"CharacterButton{index}");
                 button.Text = GetCharacterName(index);
                 button.Icon = GetCharacterPortrait(index);
-                button.Pressed += () => SelectCharacter(captured);
+                // Cursor-driven, not focus-driven: see FocusChain.
+                button.FocusMode = FocusModeEnum.None;
+                button.AddToGroup(FocusChainBuilder.SkipGroup);
+                button.Pressed += () => OnTilePressed(captured);
                 _characterButtons[index] = button;
             }
         }
 
         /// <summary>
-        /// Paints one tile. Selection is a thick cyan border over the character's
-        /// colour; the theme's focus ring is layered on top by the <c>focus</c>
-        /// stylebox, which is never overridden here.
+        /// Mouse path, acting as Player 1: a click on a new tile moves the driven
+        /// token there (hover/Reserved); a click on the hovered tile confirms it —
+        /// the same hover-then-confirm sequencing the polled cursors use.
         /// </summary>
-        private void StyleTile(int index, bool selected) {
-            // The canonical nine-colour identity table lives in CharacterFactory;
-            // a duplicated copy here was audit Low "select-screen colour dedupe".
+        private void OnTilePressed(int index) {
+            if (_phase != SelectScreenPhase.Selection) return;
+            int tokenIndex = TokenDrivenBy(0);
+            if (tokenIndex < 0 || _tokens[tokenIndex].Ready) return;
+            if (_tokens[tokenIndex].Cursor != index) {
+                _tokens[tokenIndex].Cursor = index;
+                RefreshPanels();
+                RepaintTiles();
+                return;
+            }
+            TryConfirm(0);
+        }
+
+        private void RepaintTiles() {
+            if (_characterButtons == null) return;
+            for (int index = 0; index < _characterButtons.Length; index++) StyleTile(index);
+        }
+
+        /// <summary>
+        /// Paints one tile from the token states. Occupied (locked) tiles carry a
+        /// thick border and glow in the owning token's colour; Reserved (hovered)
+        /// tiles a thinner border; overlapping hovers blend the two colours. The
+        /// theme's focus stylebox is never overridden.
+        /// </summary>
+        private void StyleTile(int index) {
             Color color = CharacterFactory.GetCharacterColor(_characterIDs[index]);
+            Color opponentAccent = IsLocalHumanMode ? UIPalette.Gold : UIPalette.Warning;
+
+            Color borderColor = new(0.2f, 0.2f, 0.25f);
+            int borderWidth = 2;
+            bool occupied = false;
+
+            if (_tokens[0].LockedIndex == index) {
+                borderColor = UIPalette.Cyan;
+                borderWidth = 5;
+                occupied = true;
+            } else if (_tokens[1].LockedIndex == index) {
+                borderColor = opponentAccent;
+                borderWidth = 5;
+                occupied = true;
+            } else {
+                bool p1Hover = !_tokens[0].Ready && _tokens[0].Cursor == index;
+                bool opponentHover = OpponentCursorActive && !_tokens[1].Ready && _tokens[1].Cursor == index;
+                if (p1Hover && opponentHover) {
+                    borderColor = UIPalette.Cyan.Lerp(opponentAccent, 0.5f);
+                    borderWidth = 4;
+                } else if (p1Hover) {
+                    borderColor = UIPalette.Cyan;
+                    borderWidth = 4;
+                } else if (opponentHover) {
+                    borderColor = opponentAccent;
+                    borderWidth = 4;
+                }
+            }
+
             var style = new StyleBoxFlat {
                 BgColor = color,
-                BorderColor = selected ? UIPalette.Cyan : new Color(0.2f, 0.2f, 0.25f),
-                ShadowSize = selected ? 8 : 0,
-                ShadowColor = selected ? new Color(UIPalette.Cyan, 0.5f) : Colors.Transparent
+                BorderColor = borderColor,
+                ShadowSize = occupied ? 8 : 0,
+                ShadowColor = occupied ? new Color(borderColor, 0.5f) : Colors.Transparent
             };
-            style.SetBorderWidthAll(selected ? 5 : 2);
+            style.SetBorderWidthAll(borderWidth);
             style.SetCornerRadiusAll(6);
             style.SetContentMarginAll(8);
 
@@ -164,36 +527,63 @@ namespace FTT.UI {
             button.AddThemeColorOverride("font_focus_color", textColor);
         }
 
-        private void SelectCharacter(int index) {
-            _selectedIndex = index;
-            for (int i = 0; i < _characterButtons.Length; i++) StyleTile(i, i == index);
-            _selectedNameLabel.Text = string.Format(Tr("fighter_player_selection"), 1, GetCharacterName(index));
-            UpdateStatsDisplay(_characterIDs[index]);
+        private bool OpponentCursorActive => IsLocalHumanMode || IsPickingCpu || _tokens[1].Ready;
+
+        private void RefreshPanels() {
+            if (_p1Name == null) return;
+
+            int p1Index = EffectiveIndex(_tokens[0]);
+            _p1Name.Text = string.Format(Tr("fighter_player_selection"), 1, GetCharacterName(p1Index));
+            _p1Ready.Visible = _tokens[0].Ready;
+            _p1Stats.Text = StatsText(_characterIDs[p1Index]);
+
+            int p2Index = EffectiveIndex(_tokens[1]);
+            string opponentName = GetCharacterName(p2Index);
+            _p2Name.Text = IsLocalHumanMode
+                ? string.Format(Tr("fighter_player_selection"), 2, opponentName)
+                : string.Format(Tr("fighter_cpu_selection"), opponentName);
+            _p2Ready.Visible = _tokens[1].Ready;
+            _p2Stats.Text = IsPickingCpu
+                ? $"{Tr("fighter_pick_cpu_prompt")}\n{StatsText(_characterIDs[p2Index])}"
+                : StatsText(_characterIDs[p2Index]);
         }
 
-        private void BindOpponentAndRules() {
-            const string root = "Center/Root/";
-            GetNode<Button>(root + "OpponentRow/PreviousButton").Pressed += () => CycleOpponent(-1);
-            GetNode<Button>(root + "OpponentRow/NextButton").Pressed += () => CycleOpponent(1);
-
-            _localHumanToggle.Toggled += enabled => _cpuDifficulty.Disabled = enabled;
-            _cpuDifficulty.AddItem(Tr("difficulty_easy"), (int)FTT.Core.CpuDifficulty.Easy);
-            _cpuDifficulty.AddItem(Tr("difficulty_normal"), (int)FTT.Core.CpuDifficulty.Normal);
-            _cpuDifficulty.AddItem(Tr("difficulty_hard"), (int)FTT.Core.CpuDifficulty.Hard);
+        private void BindModeAndRules() {
+            _localHumanToggle.Toggled += enabled => {
+                _cpuDifficulty.Disabled = enabled;
+                ResetSelection();
+            };
+            _cpuDifficulty.AddItem(Tr("difficulty_easy"), (int)CpuDifficulty.Easy);
+            _cpuDifficulty.AddItem(Tr("difficulty_normal"), (int)CpuDifficulty.Normal);
+            _cpuDifficulty.AddItem(Tr("difficulty_hard"), (int)CpuDifficulty.Hard);
             _cpuDifficulty.Select(1);
 
             _stageSelect.ItemSelected += _ => UpdateStagePreview();
             PopulateStages();
             UpdateStagePreview();
 
-            _matchMode.AddItem(Tr("fighter_mode_stock"), (int)FTT.Core.MatchMode.Stock);
-            _matchMode.AddItem(Tr("fighter_mode_time"), (int)FTT.Core.MatchMode.TimeLimit);
-            _matchMode.AddItem(Tr("fighter_mode_hybrid"), (int)FTT.Core.MatchMode.Hybrid);
+            _matchMode.AddItem(Tr("fighter_mode_stock"), (int)MatchMode.Stock);
+            _matchMode.AddItem(Tr("fighter_mode_time"), (int)MatchMode.TimeLimit);
+            _matchMode.AddItem(Tr("fighter_mode_hybrid"), (int)MatchMode.Hybrid);
 
             // Off/Low/Medium/High, matching the deterministic spawn-interval bands
             // the simulation actually consumes rather than a binary on/off.
-            FillFrequencySelect(_itemFrequency, (int)FTT.Core.ChronalOrbFrequency.High);
-            FillFrequencySelect(_hazardFrequency, (int)FTT.Core.HazardTriggerFrequency.High);
+            FillFrequencySelect(_itemFrequency, (int)ChronalOrbFrequency.High);
+            FillFrequencySelect(_hazardFrequency, (int)HazardTriggerFrequency.High);
+        }
+
+        /// <summary>Opponent-mode change invalidates every lock; back to a clean selection.</summary>
+        private void ResetSelection() {
+            foreach (SelectionToken token in _tokens) token.LockedIndex = -1;
+            if (_phase != SelectScreenPhase.Selection) {
+                _phase = SelectScreenPhase.Selection;
+                _countdownLabel.Visible = false;
+                _stagePhase.Visible = false;
+                _selectPhase.Visible = true;
+                BuildFocusChain();
+            }
+            RefreshPanels();
+            RepaintTiles();
         }
 
         private static void FillFrequencySelect(OptionButton select, int selectedID) {
@@ -210,8 +600,8 @@ namespace FTT.UI {
             _stageIDs.Clear();
             _stageSelect.Clear();
             if (_stageCatalog == null) return;
-            List<string> unlocked = FTT.Core.SaveManager.Instance?.GlobalData?.UnlockedStages
-                ?? new List<string>(FTT.Core.GlobalSaveData.InitialStageIDs);
+            List<string> unlocked = SaveManager.Instance?.GlobalData?.UnlockedStages
+                ?? new List<string>(GlobalSaveData.InitialStageIDs);
             foreach (FighterStageData stage in _stageCatalog.Stages) {
                 if (stage == null || !stage.IsPlayable || !unlocked.Contains(stage.StageID)) continue;
                 int itemID = _stageIDs.Count;
@@ -255,56 +645,50 @@ namespace FTT.UI {
             _stagePreview.Visible = true;
         }
 
-        private void CycleOpponent(int direction) {
-            _opponentIndex = (_opponentIndex + direction + _characterIDs.Length) % _characterIDs.Length;
-            UpdateOpponentLabel();
-        }
-
-        private void UpdateOpponentLabel() {
-            if (_opponentLabel != null) {
-                _opponentLabel.Text = string.Format(Tr("fighter_player_selection"), 2, GetCharacterName(_opponentIndex));
-            }
-        }
-
         private Texture2D GetCharacterPortrait(int index) {
-            CharacterData data = FTT.Core.AuthoredResources.Load<CharacterData>($"res://resources/Characters/{_characterIDs[index]}_data.tres");
+            CharacterData data = AuthoredResources.Load<CharacterData>($"res://resources/Characters/{_characterIDs[index]}_data.tres");
             return data?.CharacterPortrait;
         }
 
         private string GetCharacterName(int index) {
-            CharacterData data = FTT.Core.AuthoredResources.Load<CharacterData>($"res://resources/Characters/{_characterIDs[index]}_data.tres");
+            CharacterData data = AuthoredResources.Load<CharacterData>($"res://resources/Characters/{_characterIDs[index]}_data.tres");
             return data == null || string.IsNullOrWhiteSpace(data.DisplayNameKey)
                 ? Tr("common_unknown")
                 : Tr(data.DisplayNameKey);
         }
 
-        private void UpdateStatsDisplay(string characterID) {
-            var data = FTT.Core.AuthoredResources.Load<CharacterData>($"res://resources/Characters/{characterID}_data.tres");
-            if (data == null) {
-                _statsLabel.Text = Tr("fighter_stats_unavailable");
-                return;
-            }
-
-            _statsLabel.Text = string.Format(
+        private string StatsText(string characterID) {
+            var data = AuthoredResources.Load<CharacterData>($"res://resources/Characters/{characterID}_data.tres");
+            if (data == null) return Tr("fighter_stats_unavailable");
+            return string.Format(
                 Tr("fighter_stats_summary"),
                 data.MaxHP, data.MaxMoveSpeed, data.BasicAttackDamage, data.BasicAttackKnockback,
                 data.Weight, data.MaxBlockCharges, data.Style, data.MaxJumpForce, data.MaxJumpCount);
         }
 
+        private static int EffectiveIndex(SelectionToken token) =>
+            token.LockedIndex >= 0 ? token.LockedIndex : token.Cursor;
+
         /// <summary>
-        /// Uniform cancel: from this screen, back means leave it, exactly as the
-        /// Back button does. The screen has no sub-states to unwind.
+        /// Uniform cancel, one step at a time: stage select backs to selection, a
+        /// running countdown aborts, a lock unwinds; only with nothing left to
+        /// unwind does cancel leave the screen (exactly as the Back button does).
         /// </summary>
         public override void _UnhandledInput(InputEvent @event) {
             if (@event == null || !@event.IsActionPressed("ui_cancel")) return;
             GetViewport()?.SetInputAsHandled();
+            if (_phase == SelectScreenPhase.StageSelect) {
+                ReturnToSelection();
+                return;
+            }
+            if (TryCancel(0)) return;
             OnBack();
         }
 
         private void OnFight() {
             FighterStageData stage = ApplySelectionToSession();
             if (stage == null || !ResourceLoader.Exists(stage.ScenePath)) return;
-            FTT.Core.GameManager.Instance.LoadScene(stage.ScenePath);
+            GameManager.Instance.LoadScene(stage.ScenePath);
         }
 
         /// <summary>
@@ -317,38 +701,47 @@ namespace FTT.UI {
         /// later.</para>
         /// </summary>
         public FighterStageData ApplySelectionToSession() {
-            if (FTT.Core.GameManager.Instance == null) return null;
+            if (GameManager.Instance == null) return null;
 
-            var session = FTT.Core.GameManager.Instance.CurrentSession;
-            session.SelectedCharacterID = _characterIDs[_selectedIndex];
-            session.OpponentCharacterID = _characterIDs[_opponentIndex];
+            var session = GameManager.Instance.CurrentSession;
+            session.SelectedCharacterID = _characterIDs[EffectiveIndex(_tokens[0])];
+            session.OpponentCharacterID = _characterIDs[EffectiveIndex(_tokens[1])];
             int selectedStageIndex = (int)_stageSelect.GetSelectedId();
             if (selectedStageIndex < 0 || selectedStageIndex >= _stageIDs.Count) return null;
             session.SelectedStageID = _stageIDs[selectedStageIndex];
             session.FighterOpponentType = _localHumanToggle.ButtonPressed
-                ? FTT.Core.FighterOpponentType.LocalHuman
-                : FTT.Core.FighterOpponentType.Cpu;
-            session.CpuDifficulty = (FTT.Core.CpuDifficulty)_cpuDifficulty.GetSelectedId();
-            FTT.Core.MatchSettings settings = session.MatchSettings;
-            settings.Mode = (FTT.Core.MatchMode)_matchMode.GetSelectedId();
+                ? FighterOpponentType.LocalHuman
+                : FighterOpponentType.Cpu;
+            session.CpuDifficulty = (CpuDifficulty)_cpuDifficulty.GetSelectedId();
+            MatchSettings settings = session.MatchSettings;
+            settings.Mode = (MatchMode)_matchMode.GetSelectedId();
             settings.StockCount = (int)_stockCount.Value;
             settings.TimeLimit = (float)_timeLimit.Value;
-            var itemRate = (FTT.Core.ChronalOrbFrequency)_itemFrequency.GetSelectedId();
-            var hazardRate = (FTT.Core.HazardTriggerFrequency)_hazardFrequency.GetSelectedId();
+            var itemRate = (ChronalOrbFrequency)_itemFrequency.GetSelectedId();
+            var hazardRate = (HazardTriggerFrequency)_hazardFrequency.GetSelectedId();
             settings.ItemSpawnRate = itemRate;
-            settings.ItemsEnabled = itemRate != FTT.Core.ChronalOrbFrequency.Off;
+            settings.ItemsEnabled = itemRate != ChronalOrbFrequency.Off;
             settings.HazardRate = hazardRate;
-            settings.StageHazardsEnabled = hazardRate != FTT.Core.HazardTriggerFrequency.Off;
+            settings.StageHazardsEnabled = hazardRate != HazardTriggerFrequency.Off;
             session.MatchSettings = settings;
-            FTT.Core.GameManager.Instance.CurrentSession = session;
+            GameManager.Instance.CurrentSession = session;
             return _stageCatalog?.Find(session.SelectedStageID);
         }
 
-        private void OnBack() {
-            bool holodeck = FTT.Core.GameManager.Instance?.CurrentSession.ReturnToHubAfterFighterMatch == true;
-            FTT.Core.GameManager.Instance?.LoadScene(holodeck
+        /// <summary>
+        /// Where Back routes: the hub for a Holodeck practice session, the main
+        /// menu otherwise. Exposed so the Holodeck regression test can assert the
+        /// route without a real scene change.
+        /// </summary>
+        public string ResolveBackScenePath() {
+            bool holodeck = GameManager.Instance?.CurrentSession.ReturnToHubAfterFighterMatch == true;
+            return holodeck
                 ? "res://scenes/campaign/HubWorld.tscn"
-                : "res://scenes/menus/MainMenu.tscn");
+                : "res://scenes/menus/MainMenu.tscn";
+        }
+
+        private void OnBack() {
+            GameManager.Instance?.LoadScene(ResolveBackScenePath());
         }
     }
 }

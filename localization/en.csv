@@ -1092,3 +1092,11 @@ dlg_l00_ultimate_1,I am flooding your Influence Meter to full for the final comb
 dlg_l00_mobility_2,First: your unique Movement Ability. It recharges in seconds and works in the air - use it to cross the marked corridor no ordinary jump can clear.
 # Audit fixes 2026-08-10 (M-30)
 menu_quit_confirm,Are you sure you want to quit?
+# M-28 designed select-screen mechanics (two-player tokens, ready/countdown, stage step)
+fighter_ready_banner,READY!
+fighter_slot_unavailable,That fighter is already taken!
+fighter_select_countdown,Match starts in {0:0.0}
+fighter_stage_select_title,SELECT YOUR STAGE
+fighter_cpu_selection,CPU Opponent: {0}
+fighter_pick_cpu_prompt,Choose the CPU opponent and confirm.
+fighter_select_hint,Move your token with the movement controls. Attack confirms; Block cancels.
