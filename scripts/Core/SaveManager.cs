@@ -213,6 +213,29 @@ namespace FTT.Core {
         private ISaveKeyProvider _keyProvider;
         private byte[] _masterKey;
 
+        /// <summary>
+        /// Test seam for the legacy-migration gate (audit H-2). The gate decision
+        /// is exercised directly through this override rather than by faking a
+        /// release build. Always reset to null in a test's finally block.
+        /// </summary>
+        internal static bool? LegacyMigrationOverrideForTesting;
+
+        /// <summary>
+        /// True when the unauthenticated legacy-save fallback may run. ADR 0004
+        /// frames the Base64/plain-JSON migration as a one-time development
+        /// measure; in release builds an unrecognized file surfaces the existing
+        /// tamper/corrupt notice instead of loading unauthenticated data and
+        /// laundering it into a validly signed envelope (audit H-2).
+        /// </summary>
+        public static bool IsLegacyMigrationEnabled => LegacyMigrationOverrideForTesting ?? OS.IsDebugBuild();
+
+        /// <summary>
+        /// False when the per-install save key could not be provisioned (audit
+        /// M-22): the manager is then in an explicit no-save state — loads report
+        /// empty, saves refuse with a warning, and no save or key file is touched.
+        /// </summary>
+        public bool IsSaveSystemAvailable => _masterKey != null;
+
         public StorySaveData[] SaveSlots = new StorySaveData[3];
         public GlobalSaveData GlobalData = new();
 
@@ -254,7 +277,7 @@ namespace FTT.Core {
             string saveDirectory = ProjectSettings.GlobalizePath(SaveDir);
             Directory.CreateDirectory(saveDirectory);
             _keyProvider = new FileSaveKeyProvider(Path.Combine(saveDirectory, ".savekey"));
-            _masterKey = _keyProvider.GetOrCreateKey();
+            TryProvisionMasterKey(_keyProvider);
             // Snapshot project.godot's bindings before anything can mutate the map,
             // then push the saved overrides in. InputManager is an earlier autoload
             // and polls InputMap.ActionGetEvents live, so this lands before any
@@ -278,6 +301,31 @@ namespace FTT.Core {
             }
             if (_masterKey != null) System.Security.Cryptography.CryptographicOperations.ZeroMemory(_masterKey);
             if (Instance == this) Instance = null;
+        }
+
+        /// <summary>
+        /// Provisions the per-install master key, entering the explicit no-save
+        /// state on failure (audit M-22). A malformed or unreadable
+        /// <c>.savekey</c> previously threw out of <see cref="_Ready"/>, silently
+        /// skipping every load and the EventBus wiring — slots presented as empty
+        /// and a new campaign could overwrite intact files. Now the failure
+        /// surfaces a recoverable notice for the main menu, and neither the key
+        /// file nor any save file is deleted or overwritten.
+        /// </summary>
+        internal bool TryProvisionMasterKey(ISaveKeyProvider provider) {
+            try {
+                _masterKey = provider?.GetOrCreateKey();
+            } catch (Exception exception) when (
+                exception is IOException
+                || exception is InvalidDataException
+                || exception is UnauthorizedAccessException) {
+                _masterKey = null;
+                GD.PushWarning($"Save key provisioning failed: {exception.Message}");
+            }
+            if (_masterKey != null && _masterKey.Length == 32) return true;
+            _masterKey = null;
+            SetNotice("save_notice_key_error");
+            return false;
         }
 
         public StorySaveData CreateStorySlot(int slotIndex, string characterID, Difficulty difficulty) {
@@ -327,6 +375,12 @@ namespace FTT.Core {
 
         public bool LoadStorySlot(int slotIndex) {
             ValidateSlot(slotIndex);
+            // No-save state (M-22): never touch, migrate, or corrupt-flag files we
+            // cannot decode for lack of a key.
+            if (_masterKey == null) {
+                SaveSlots[slotIndex] = null;
+                return false;
+            }
             string path = GetStoryPath(slotIndex);
             if (!File.Exists(path) && !File.Exists(path + ".bak")) {
                 SaveSlots[slotIndex] = null;
@@ -369,6 +423,11 @@ namespace FTT.Core {
         }
 
         public bool LoadGlobalData() {
+            // No-save state (M-22): keep defaults, leave the files alone.
+            if (_masterKey == null) {
+                GlobalData = new GlobalSaveData();
+                return false;
+            }
             string path = GetGlobalPath();
             if (!File.Exists(path) && !File.Exists(path + ".bak")) {
                 GlobalData = new GlobalSaveData();
@@ -438,7 +497,12 @@ namespace FTT.Core {
         public void SaveCheckpoint(string checkpointID) {
             if (GameManager.Instance == null) return;
             int slot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
-            if (slot < 0 || slot >= SaveSlots.Length) return;
+            if (slot < 0 || slot >= SaveSlots.Length) {
+                // ActiveSaveSlot boots as -1 (audit Low): a checkpoint outside a
+                // story session must never fabricate a slot-0 save.
+                GD.PushWarning($"Checkpoint '{checkpointID}' ignored: no active story save slot.");
+                return;
+            }
             SaveSlots[slot] ??= new StorySaveData {
                 SelectedCharacterID = GameManager.Instance.CurrentSession.SelectedCharacterID ?? "",
                 Difficulty = GameManager.Instance.CurrentSession.Difficulty
@@ -511,7 +575,13 @@ namespace FTT.Core {
         private StorySaveData GetActiveStorySave(bool createIfMissing = false) {
             if (GameManager.Instance == null) return null;
             int slot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
-            if (slot < 0 || slot >= SaveSlots.Length) return null;
+            if (slot < 0 || slot >= SaveSlots.Length) {
+                if (createIfMissing) {
+                    // Same fabrication guard as SaveCheckpoint: -1 is "no session".
+                    GD.PushWarning("No active story save slot; refusing to fabricate one.");
+                }
+                return null;
+            }
             if (SaveSlots[slot] == null && createIfMissing) {
                 SaveSlots[slot] = new StorySaveData {
                     SelectedCharacterID = GameManager.Instance.CurrentSession.SelectedCharacterID ?? "",
@@ -536,6 +606,12 @@ namespace FTT.Core {
         }
 
         private bool WritePayload(string path, string payloadType, int schemaVersion, string json) {
+            if (_masterKey == null) {
+                // Explicit no-save state (M-22): refuse loudly rather than fail
+                // silently, and never write anything without a verified key.
+                GD.PushWarning($"Refusing to save {payloadType} data: the save system is unavailable (save key error).");
+                return false;
+            }
             try {
                 long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 byte[] encoded = SaveEnvelopeCodec.Encode(payloadType, schemaVersion, json, _masterKey, timestamp);
@@ -565,8 +641,15 @@ namespace FTT.Core {
             return false;
         }
 
-        private static bool TryLoadLegacyStory(string path, out StorySaveData data) {
+        /// <summary>
+        /// One-time development migration of the pre-envelope Base64 JSON format.
+        /// Gated to debug builds (audit H-2): in release this is a standing
+        /// authentication bypass — plain data loads unauthenticated and is
+        /// re-signed under the real key. Internal for the gate's unit test.
+        /// </summary>
+        internal static bool TryLoadLegacyStory(string path, out StorySaveData data) {
             data = null;
+            if (!IsLegacyMigrationEnabled) return false;
             try {
                 if (!File.Exists(path)) return false;
                 string encoded = File.ReadAllText(path);
@@ -578,8 +661,10 @@ namespace FTT.Core {
             }
         }
 
-        private static bool TryLoadLegacyGlobal(string path, out GlobalSaveData data) {
+        /// <summary>Raw plain-JSON legacy global load; same debug-only gate as the story path (H-2).</summary>
+        internal static bool TryLoadLegacyGlobal(string path, out GlobalSaveData data) {
             data = null;
+            if (!IsLegacyMigrationEnabled) return false;
             try {
                 if (!File.Exists(path)) return false;
                 data = SaveSchemaMigrator.DeserializeGlobal(File.ReadAllText(path));

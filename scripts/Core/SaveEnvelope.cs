@@ -216,7 +216,21 @@ namespace FTT.Core {
             if (validator != null && !validator(written)) {
                 throw new InvalidDataException("Temporary save verification failed; the previous save was preserved.");
             }
-            if (File.Exists(path)) File.Copy(path, backupPath, true);
+            // M-21: rotate the backup only when the outgoing primary verifies.
+            // Unconditional rotation copied an unverifiable primary over the
+            // last-known-good backup — right after a backup-based recovery, one
+            // more corruption in that window lost the slot. ADR 0004 promises
+            // "last-known-good" rotation; verification is cheap at save cadence.
+            if (File.Exists(path)) {
+                bool primaryVerifies;
+                try {
+                    byte[] currentPrimary = File.ReadAllBytes(path);
+                    primaryVerifies = validator == null || validator(currentPrimary);
+                } catch (IOException) {
+                    primaryVerifies = false;
+                }
+                if (primaryVerifies) File.Copy(path, backupPath, true);
+            }
             File.Move(temporaryPath, path, true);
         }
 

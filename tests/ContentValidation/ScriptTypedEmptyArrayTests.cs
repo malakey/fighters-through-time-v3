@@ -100,7 +100,7 @@ public class ScriptTypedEmptyArrayTests {
 
     [TestCase]
     public void TheMirrorParadoxResourceStillLoadsAndReportsNoAbilities() {
-        var data = ResourceLoader.Load<FTT.Enemies.BossData>(
+        var data = FTT.Core.AuthoredResources.Load<FTT.Enemies.BossData>(
             "res://resources/Bosses/mirror_paradox.tres");
         AssertObject(data).IsNotNull();
         // Omitted in the .tres, so the C# default (null) stands. Consumers already

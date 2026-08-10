@@ -69,19 +69,22 @@ public class PoolManagerTests {
     }
 
     [TestCase]
-    public void GrowPolicyStopsAtConfiguredMaximum() {
+    public void GrowPolicyCreatesBeyondTheConfiguredMaximum() {
         (PoolManager manager, Node parent, PackedScene template) = CreateSubject();
         manager.RegisterPool(template, 0, 2, PoolOverflowPolicy.Grow);
 
         Node first = manager.Spawn(template, Vector2.Zero, parent);
         Node second = manager.Spawn(template, Vector2.Zero, parent);
-        Node rejected = manager.Spawn(template, Vector2.Zero, parent);
+        // Audit M-25: Grow used to behave exactly like Reject, silently returning
+        // null at MaxCapacity. Real growth treats MaxCapacity as the warm-up /
+        // budget hint, not a hard cap.
+        Node grown = manager.Spawn(template, Vector2.Zero, parent);
 
         AssertObject(first).IsNotNull();
         AssertObject(second).IsNotNull();
-        AssertObject(rejected).IsNull();
+        AssertObject(grown).IsNotNull();
         PoolStats stats = manager.GetStats(template).Value;
-        AssertThat(stats.Active).IsEqual(2);
+        AssertThat(stats.Active).IsEqual(3);
         AssertThat(stats.MaxCapacity).IsEqual(2);
         Cleanup(manager, parent);
     }

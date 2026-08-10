@@ -90,6 +90,10 @@ namespace FTT.Core {
         public override void _Ready() {
             Instance = this;
             CurrentSession = new SessionData {
+                // -1 = no story session. Booting at the struct default 0 let any
+                // autosave path outside a story session fabricate a slot-0 save
+                // (audit Low); menu flows set a real slot before campaign start.
+                ActiveSaveSlot = -1,
                 OpponentCharacterID = "joan",
                 SelectedStageID = "florence_workshop",
                 Difficulty = Difficulty.Normal,
@@ -135,7 +139,35 @@ namespace FTT.Core {
             AddChild(_loadingScreen);
             _loadingScreen.Configure(scenePath, CurrentSession);
 
-            ResourceLoader.LoadThreadedRequest(scenePath);
+            Error requestError = ResourceLoader.LoadThreadedRequest(scenePath);
+            if (requestError != Error.Ok) {
+                AbortLoad($"Threaded scene load request failed for '{scenePath}': {requestError}.");
+            }
+        }
+
+        private const string MainMenuScenePath = "res://scenes/menus/MainMenu.tscn";
+
+        /// <summary>
+        /// Failure path for a threaded scene load (audit M-23). Previously a
+        /// <c>Failed</c>/<c>InvalidResource</c> status left <c>_isLoading</c> set
+        /// forever: the loading screen never dismissed and every later
+        /// <see cref="LoadScene"/> call was swallowed by the re-entrancy guard.
+        /// Clears the loading state and, as a last resort, returns to the main
+        /// menu so the player is never soft-locked on a dead screen.
+        /// </summary>
+        private void AbortLoad(string reason) {
+            GD.PushError(reason);
+            string failedPath = _pendingScenePath;
+            DismissLoadingScreen();
+            _isLoading = false;
+            _pendingScenePath = null;
+            string currentScenePath = GetTree().CurrentScene?.SceneFilePath ?? "";
+            if (failedPath != MainMenuScenePath && currentScenePath != MainMenuScenePath) {
+                Error recovery = GetTree().ChangeSceneToFile(MainMenuScenePath);
+                if (recovery != Error.Ok) {
+                    GD.PushError($"Main-menu recovery after a failed scene load also failed: {recovery}.");
+                }
+            }
         }
 
         private void DismissLoadingScreen() {
@@ -153,12 +185,19 @@ namespace FTT.Core {
             _loadingDisplayTimer += delta;
 
             var status = ResourceLoader.LoadThreadedGetStatus(_pendingScenePath);
+            if (status == ResourceLoader.ThreadLoadStatus.Failed
+                || status == ResourceLoader.ThreadLoadStatus.InvalidResource) {
+                AbortLoad($"Threaded scene load failed for '{_pendingScenePath}' ({status}).");
+                return;
+            }
             if (status == ResourceLoader.ThreadLoadStatus.Loaded && _loadingDisplayTimer >= MinLoadingDisplayTime) {
                 var packedScene = ResourceLoader.LoadThreadedGet(_pendingScenePath) as PackedScene;
-                if (packedScene != null) {
-                    WarmPoolsForScene(_pendingScenePath);
-                    GetTree().ChangeSceneToPacked(packedScene);
+                if (packedScene == null) {
+                    AbortLoad($"Threaded scene load for '{_pendingScenePath}' did not produce a PackedScene.");
+                    return;
                 }
+                WarmPoolsForScene(_pendingScenePath);
+                GetTree().ChangeSceneToPacked(packedScene);
                 DismissLoadingScreen();
                 _isLoading = false;
                 _pendingScenePath = null;

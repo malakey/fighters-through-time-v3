@@ -208,6 +208,21 @@ namespace FTT.Core {
     public static class InputBindingService {
         private static InputBindingSet _projectDefaults;
 
+        /// <summary>
+        /// Hard cap on events applied per action from a saved payload (audit H-2
+        /// blast radius). The largest authored default (move left/right) ships
+        /// four events; anything far beyond that is tampered or corrupt data.
+        /// </summary>
+        public const int MaxEventsPerAction = 8;
+
+        /// <summary>
+        /// The only actions the restore path may touch. Mirrors the write-path
+        /// filter: a tampered global payload must not rebind <c>ui_*</c>
+        /// navigation or the deliberately read-only <c>gameplay_ultimate</c> chord.
+        /// </summary>
+        private static readonly HashSet<string> RestorableActions =
+            new(InputManager.RemappableActions, StringComparer.Ordinal);
+
         /// <summary>The project.godot bindings, snapshotted before any override applied.</summary>
         public static InputBindingSet ProjectDefaults {
             get {
@@ -264,14 +279,24 @@ namespace FTT.Core {
             }
         }
 
-        /// <summary>Erase-and-add for a single action. Unknown actions are ignored.</summary>
+        /// <summary>
+        /// Erase-and-add for a single action. Unknown actions are ignored, and so
+        /// is anything outside <see cref="InputManager.RemappableActions"/> — the
+        /// restore path previously trusted any action name in the saved payload
+        /// (audit §5.2). Events beyond <see cref="MaxEventsPerAction"/> are dropped.
+        /// </summary>
         public static void ApplyAction(string action, IReadOnlyList<InputBindingEvent> events) {
             if (string.IsNullOrWhiteSpace(action) || !InputMap.HasAction(action)) return;
+            if (!RestorableActions.Contains(action)) return;
             if (events == null || events.Count == 0) return;
             InputMap.ActionEraseEvents(action);
+            int applied = 0;
             foreach (InputBindingEvent binding in events) {
+                if (applied >= MaxEventsPerAction) break;
                 InputEvent inputEvent = ToInputEvent(binding);
-                if (inputEvent != null) InputMap.ActionAddEvent(action, inputEvent);
+                if (inputEvent == null) continue;
+                InputMap.ActionAddEvent(action, inputEvent);
+                applied++;
             }
         }
 

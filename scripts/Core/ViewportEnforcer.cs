@@ -38,12 +38,7 @@ namespace FTT.Core {
                 ? DisplayServer.VSyncMode.Enabled
                 : DisplayServer.VSyncMode.Disabled);
 
-            DisplayServer.WindowMode mode = data.WindowMode switch {
-                WindowModeSetting.Fullscreen => DisplayServer.WindowMode.Fullscreen,
-                WindowModeSetting.BorderlessFullscreen => DisplayServer.WindowMode.ExclusiveFullscreen,
-                _ => DisplayServer.WindowMode.Windowed
-            };
-            DisplayServer.WindowSetMode(mode);
+            DisplayServer.WindowSetMode(ResolveWindowMode(data.WindowMode));
 
             // A window size only means anything in windowed mode; a fullscreen
             // window owns the display's size.
@@ -51,5 +46,19 @@ namespace FTT.Core {
                 DisplayServer.WindowSetSize(new Vector2I(data.ResolutionWidth, data.ResolutionHeight));
             }
         }
+
+        /// <summary>
+        /// Maps the persisted setting onto the engine's window modes. Godot's
+        /// naming is the trap the audit's window-mode Low found crossed here:
+        /// <see cref="DisplayServer.WindowMode.Fullscreen"/> is the <i>borderless</i>
+        /// fullscreen window, while <c>ExclusiveFullscreen</c> is true fullscreen.
+        /// So the "Fullscreen" setting maps to ExclusiveFullscreen and the
+        /// "Borderless" setting maps to Fullscreen.
+        /// </summary>
+        public static DisplayServer.WindowMode ResolveWindowMode(WindowModeSetting setting) => setting switch {
+            WindowModeSetting.Fullscreen => DisplayServer.WindowMode.ExclusiveFullscreen,
+            WindowModeSetting.BorderlessFullscreen => DisplayServer.WindowMode.Fullscreen,
+            _ => DisplayServer.WindowMode.Windowed
+        };
     }
 }

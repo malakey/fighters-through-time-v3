@@ -38,8 +38,11 @@ public class AuthoredResourceLoadRuleTests {
         "EnemyData|DustVisualTierSet|FighterStageCatalog|FighterStageData|ResonanceGridData|" +
         "ResonanceNodeData|StoryDropProfile|StoryDropTable|DialogueSequenceData|DialogueSetData";
 
+    // The optional (?:\w+\s*\.\s*)* admits namespace-qualified generic arguments:
+    // GD.Load<FTT.Characters.CharacterData> evaded the unqualified form (audit Low).
     private static readonly Regex DirectLoad =
-        new(@"\b(?:GD|ResourceLoader)\.Load<\s*(" + PinnedTypes + @")\s*>\s*\(", RegexOptions.Compiled);
+        new(@"\b(?:GD|ResourceLoader)\.Load<\s*(?:\w+\s*\.\s*)*(" + PinnedTypes + @")\s*>\s*\(",
+            RegexOptions.Compiled);
 
     /// <summary>AuthoredResources itself is the one place allowed to call ResourceLoader.</summary>
     private const string CacheImplementation = "res://scripts/Core/AuthoredResources.cs";
