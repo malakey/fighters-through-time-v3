@@ -3,6 +3,7 @@ using FTT.Characters;
 using FTT.Combat;
 using FTT.Core;
 using FTT.Enemies;
+using FTT.Environment;
 using GdUnit4;
 using Godot;
 using static GdUnit4.Assertions;
@@ -357,6 +358,56 @@ public class BossControllerTests {
         } finally {
             player.Free();
             floor.Free();
+            FreeBoss(boss);
+        }
+    }
+
+    [TestCase]
+    public void DeadBossesAreNotResurrectedByARewindRestore() {
+        // Audit M-6: Die() zeroed collision/hurtbox/pushbox and already raised the
+        // defeat payload with its dust; a rewind restore must skip the corpse
+        // rather than stand up an invulnerable ghost whose re-kill double-pays.
+        BossData data = BossResource();
+        data.MaxHP = 80;
+        BossController boss = CreateBoss(data, seed: 21);
+        boss.RewindPolicy = StoryRewindPolicy.ResetToInitialState;
+        try {
+            boss.TakeDamage(boss.ScaledMaxHP);
+            AssertThat(boss.CurrentState).IsEqual(BossState.Dead);
+
+            boss.ApplyStoryRewind();
+
+            AssertThat(boss.CurrentState).IsEqual(BossState.Dead);
+            AssertThat(boss.CurrentHP).IsEqual(0);
+            AssertThat(boss.CollisionLayer).IsEqual(0u);
+        } finally {
+            FreeBoss(boss);
+        }
+    }
+
+    [TestCase]
+    public void ChargeDashTravelObeysTheStatusMoveMultiplier() {
+        // Audit Low: the controller wrote the raw executor DashVelocity, so a
+        // Rooted boss still crossed the arena at full dash speed.
+        EnemyAbilityData dash = Ability("a.status_dash", EnemyAbilityRangeClass.Any, weight: 1f);
+        dash.Archetype = EnemyAbilityArchetype.ChargeDash;
+        dash.TelegraphFrames = 1;
+        dash.ActiveFrames = 30;
+        dash.DashSpeed = 600f;
+        dash.DashDurationFrames = 30;
+        BossController boss = CreateBoss(BossResource(dash), seed: 9);
+        try {
+            AssertThat(boss.BeginAbility(dash, new Vector2(300f, 0f))).IsTrue();
+            boss.TickAbility(Step); // telegraph -> active
+            AssertThat(boss.AbilityPhase).IsEqual(EnemyAbilityPhase.Active);
+            AssertThat(boss.StatusScaledDashVelocityX).IsEqualApprox(600f, 0.001f);
+
+            boss.ApplyStatusEffect(StatusType.Root, 2f, 1f);
+            AssertThat(boss.StatusScaledDashVelocityX).IsEqualApprox(0f, 0.0001f);
+
+            boss.ApplyStatusEffect(StatusType.TimeDilation, 2f, 1f);
+            AssertThat(boss.StatusScaledDashVelocityX).IsEqualApprox(300f, 0.001f);
+        } finally {
             FreeBoss(boss);
         }
     }

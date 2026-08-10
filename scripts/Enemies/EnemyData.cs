@@ -3,7 +3,12 @@ using Godot;
 namespace FTT.Enemies {
 
     public enum EnemyTier { Standard, Elite, Boss }
-    public enum DefaultBehavior { Ground, Flying }
+    /// <summary>
+    /// design-godot.md:1144 behavior triple. <c>Ground</c> is the design's Patrol;
+    /// <c>StandGuard</c> holds its post with no waypoint pacing but aggros, chases,
+    /// and returns to the post normally. Appended so authored 0/1 values keep meaning.
+    /// </summary>
+    public enum DefaultBehavior { Ground, Flying, StandGuard }
 
     [GlobalClass]
     public partial class EnemyData : Resource {

@@ -161,6 +161,66 @@ public class EnemyAbilityExecutorTests {
     }
 
     [TestCase]
+    public void EnemyShotsUseTheCentralProjectileMaskAndDespawnOnTerrain() {
+        // Audit Low: the hand-rolled mask dropped Environment, contradicting
+        // CollisionLayers.ProjectileMask, and no enemy shot despawned on terrain —
+        // ranged mobs hit through walls in room-based levels.
+        (PoolManager pools, Node parent) = CreatePools();
+        (Node2D owner, EnemyAbilityExecutor executor, _, _) = CreateSubject(parent);
+        var ability = MeleeAbility(telegraph: 0, active: 3, recovery: 0);
+        ability.AbilityID = "test.wall_shot";
+        ability.Archetype = EnemyAbilityArchetype.Projectile;
+        ability.ProjectileCount = 1;
+        ability.ProjectileSpeed = 300f;
+
+        executor.Begin(ability, owner.GlobalPosition + new Vector2(400f, 0f), facingRight: true);
+        var projectile = (EnemyProjectile)pools.GetActiveNodes(EnemyAbilityExecutor.ProjectilePoolID)[0];
+        var hitbox = projectile.GetNode<Hitbox>("Hitbox");
+        AssertThat(hitbox.CollisionMask).IsEqual(CollisionLayers.ProjectileMask);
+        AssertThat((hitbox.CollisionMask & CollisionLayers.Environment) != 0u).IsTrue();
+
+        // A body on a non-Environment layer is ignored (a construct, say)...
+        var construct = new StaticBody2D { CollisionLayer = CollisionLayers.PersistentObject };
+        parent.AddChild(construct);
+        projectile.HandleBodyContact(construct);
+        AssertThat(pools.GetStats(EnemyAbilityExecutor.ProjectilePoolID).Value.Active).IsEqual(1);
+
+        // ...while terrain contact returns the shot to its pool.
+        var wall = new StaticBody2D { CollisionLayer = CollisionLayers.Environment };
+        parent.AddChild(wall);
+        projectile.HandleBodyContact(wall);
+        AssertThat(pools.GetStats(EnemyAbilityExecutor.ProjectilePoolID).Value.Active).IsEqual(0);
+
+        owner.Free();
+        CleanupPools(pools, parent);
+    }
+
+    [TestCase]
+    public void EvenPiercingShotsStopAtAWall() {
+        // Piercing is about targets, not terrain: a shot that passes through
+        // fighters still cannot leave the room.
+        (PoolManager pools, Node parent) = CreatePools();
+        (Node2D owner, EnemyAbilityExecutor executor, _, _) = CreateSubject(parent);
+        var ability = MeleeAbility(telegraph: 0, active: 3, recovery: 0);
+        ability.AbilityID = "test.pierce_wall_shot";
+        ability.Archetype = EnemyAbilityArchetype.Projectile;
+        ability.ProjectileCount = 1;
+        ability.PiercesTargets = true;
+
+        executor.Begin(ability, owner.GlobalPosition + new Vector2(400f, 0f), facingRight: true);
+        var projectile = (EnemyProjectile)pools.GetActiveNodes(EnemyAbilityExecutor.ProjectilePoolID)[0];
+        AssertThat(projectile.PiercesTargets).IsTrue();
+
+        var wall = new StaticBody2D { CollisionLayer = CollisionLayers.Environment };
+        parent.AddChild(wall);
+        projectile.HandleBodyContact(wall);
+        AssertThat(pools.GetStats(EnemyAbilityExecutor.ProjectilePoolID).Value.Active).IsEqual(0);
+
+        owner.Free();
+        CleanupPools(pools, parent);
+    }
+
+    [TestCase]
     public void SummonArchetypeSpawnsMinionsThroughTheSharedStandardEnemyPool() {
         (PoolManager pools, Node parent) = CreatePools();
         (Node2D owner, EnemyAbilityExecutor executor, _, _) = CreateSubject(parent);

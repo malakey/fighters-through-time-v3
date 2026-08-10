@@ -223,6 +223,13 @@ namespace FTT.Enemies {
             (Data?.MoveSpeed ?? 4f) * PixelsPerUnit * StatusMoveMultiplier
             * (Data?.GetPhaseSpeedMultiplier(CurrentPhase) ?? 1f);
 
+        /// <summary>
+        /// ChargeDash travel obeys the same status multiplier as ordinary movement:
+        /// a Rooted boss stays pinned and TimeDilation slows the crossing, instead
+        /// of the raw executor velocity covering the arena at full speed (audit Low).
+        /// </summary>
+        public float StatusScaledDashVelocityX => Executor.DashVelocity.X * StatusMoveMultiplier;
+
         private float EngagementRangePixels =>
             Mathf.Max(Data?.MeleeRangeThreshold ?? 3f, Data?.RangedRangeThreshold ?? 8f) * PixelsPerUnit;
 
@@ -287,7 +294,7 @@ namespace FTT.Enemies {
 
             if (Executor.Phase == EnemyAbilityPhase.Active &&
                 Executor.ActiveAbility?.Archetype == EnemyAbilityArchetype.ChargeDash) {
-                Velocity = new Vector2(Executor.DashVelocity.X, Velocity.Y);
+                Velocity = new Vector2(StatusScaledDashVelocityX, Velocity.Y);
             }
 
             if (!Executor.IsBusy) {
@@ -692,6 +699,11 @@ namespace FTT.Enemies {
         }
 
         public void ApplyStoryRewind() {
+            // Dead bosses stay dead (audit M-6, mirroring CaptureCheckpointState):
+            // Die() zeroed collision/hurtbox/pushbox and already raised the defeat
+            // payload with its dust, so a restore would stand up an invulnerable
+            // ghost whose second defeat double-pays. Skip the restore entirely.
+            if (CurrentState == BossState.Dead) return;
             if (RewindPolicy == StoryRewindPolicy.PreserveCurrentState) return;
             bool useCheckpoint = RewindPolicy == StoryRewindPolicy.RestoreCheckpointState && _checkpointCaptured;
             GlobalPosition = useCheckpoint ? _checkpointPosition : _spawnPosition;

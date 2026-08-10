@@ -85,6 +85,11 @@ namespace FTT.Enemies {
 
         public override void _Ready() {
             _spawnPosition = GlobalPosition + SpawnOffset;
+            // The controller joins the mirror group itself so ChronalRewindManager's
+            // world-freeze sweep finds this IStoryRewindSimulation: the clone is a
+            // PlayerController and never joins "Enemies", which is exactly how the
+            // Mirror escaped the rewind freeze (audit H-8).
+            AddToGroup(MirrorGroup);
             BindEvents();
             if (SpawnOnReady) SpawnMirror();
         }
@@ -161,6 +166,9 @@ namespace FTT.Enemies {
                 MirroredCharacterID, MirrorPlayerIndex, applyStoryProgression: false);
             Clone.Name = "MirrorParadox";
             Clone.EncounterMaxHPOverride = ScaledMaxHP;
+            // Hostile marker: the clone's projectiles join the enemy_projectile
+            // group so a rewind's world clear removes them (audit H-8).
+            Clone.IsStoryHostile = true;
             Clone.Position = SpawnOffset;
             AddChild(Clone);
 

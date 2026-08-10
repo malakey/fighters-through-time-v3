@@ -63,6 +63,7 @@ namespace FTT.Enemies {
         private Vector2 _patrolPointA;
         private Vector2 _patrolPointB;
         private bool _patrolPointsSet;
+        private Vector2 _returnTarget;
         private AnimatedSprite2D _sprite;
         private FTT.Combat.GlowPresentationController _glow;
         private FTT.Combat.PresentationVisibilitySuspender _presentationSuspender;
@@ -131,6 +132,7 @@ namespace FTT.Enemies {
             ResolveNodes();
             ApplyData(Data);
             _spawnPosition = GlobalPosition;
+            _returnTarget = _spawnPosition;
             CaptureWaypointsFromScene();
             CollisionLayer = CollisionLayers.Enemy;
             CollisionMask = CollisionLayers.EnemyBodyMask;
@@ -278,6 +280,16 @@ namespace FTT.Enemies {
 
         private bool IsFlying => Data?.Behavior == DefaultBehavior.Flying;
 
+        /// <summary>StandGuard holds its post: no patrol pacing, normal aggro/chase/return.</summary>
+        private bool IsStandGuard => Data?.Behavior == DefaultBehavior.StandGuard;
+
+        /// <summary>
+        /// ChargeDash travel obeys the same status multiplier as ordinary movement:
+        /// Root pins the dasher in place and TimeDilation slows it, instead of the
+        /// raw executor velocity crossing the room at full speed (audit Low).
+        /// </summary>
+        public float StatusScaledDashVelocityX => Executor.DashVelocity.X * StatusMoveMultiplier;
+
         private void ApplyGravity(float dt) {
             if (IsFlying) return;
             if (!IsOnFloor()) {
@@ -312,7 +324,9 @@ namespace FTT.Enemies {
                 return;
             }
 
-            if (!_patrolPointsSet) {
+            // StandGuard posts hold position (design-godot.md:1144): no waypoint
+            // pacing, but the aggro check above still runs every frame.
+            if (IsStandGuard || !_patrolPointsSet) {
                 Velocity = new Vector2(0, IsFlying ? 0f : Velocity.Y);
                 PlayAnimation("idle");
                 return;
@@ -431,10 +445,15 @@ namespace FTT.Enemies {
 
         private void ProcessAttacking(float dt) {
             Velocity = new Vector2(0, IsFlying ? 0f : Velocity.Y);
-            if (_target != null) SetFacing(_target.GlobalPosition.X >= GlobalPosition.X);
 
             if (_reactionFramesRemaining > 0) {
                 _reactionFramesRemaining--;
+                // Aim only during the pre-commit reaction delay. The facing locks
+                // the moment the attack commits, because the executor resolves the
+                // hitbox and dash direction on the facing captured at Begin — a
+                // sprite that kept tracking would telegraph a hit that then lands
+                // behind the enemy (audit M-19; BossController has the same rule).
+                if (_target != null) SetFacing(_target.GlobalPosition.X >= GlobalPosition.X);
                 return;
             }
 
@@ -446,7 +465,7 @@ namespace FTT.Enemies {
 
             if (Executor.Phase == EnemyAbilityPhase.Active &&
                 Executor.ActiveAbility?.Archetype == EnemyAbilityArchetype.ChargeDash) {
-                Velocity = new Vector2(Executor.DashVelocity.X, Velocity.Y);
+                Velocity = new Vector2(StatusScaledDashVelocityX, Velocity.Y);
             }
 
             if (!Executor.IsBusy) {
@@ -525,7 +544,7 @@ namespace FTT.Enemies {
                 return;
             }
 
-            float dirX = _spawnPosition.X - GlobalPosition.X;
+            float dirX = _returnTarget.X - GlobalPosition.X;
             if (Mathf.Abs(dirX) < 15f) {
                 CurrentState = EnemyState.Patrol;
                 _target = null;
@@ -553,6 +572,26 @@ namespace FTT.Enemies {
             _target = null;
             _standOffEngaged = false;
             CurrentState = EnemyState.Returning;
+            _returnTarget = ResolveReturnTarget();
+        }
+
+        /// <summary>
+        /// design-godot.md:2298: a de-aggroed mob "returns to its nearest waypoint
+        /// and resumes patrol" — not to the spawn midpoint. Heading to a waypoint
+        /// also seeds the patrol direction so the resumed pace continues toward the
+        /// other waypoint instead of instantly reversing. StandGuard posts (and
+        /// mobs without waypoints) return to the post itself.
+        /// </summary>
+        private Vector2 ResolveReturnTarget() {
+            if (IsStandGuard || !_patrolPointsSet) return _spawnPosition;
+            float toA = Mathf.Abs(_patrolPointA.X - GlobalPosition.X);
+            float toB = Mathf.Abs(_patrolPointB.X - GlobalPosition.X);
+            if (toA <= toB) {
+                _patrolForward = true; // arriving at A, next leg heads to B
+                return _patrolPointA;
+            }
+            _patrolForward = false; // arriving at B, next leg heads to A
+            return _patrolPointB;
         }
 
         public int TakeDamage(int damage) => TakeDamage(damage, null);
@@ -815,6 +854,7 @@ namespace FTT.Enemies {
             _rewindFrozen = false;
             _checkpointCaptured = false;
             _spawnPosition = GlobalPosition;
+            _returnTarget = _spawnPosition;
             ClearStatusEffect();
             Executor.Reset();
             Velocity = Vector2.Zero;
@@ -878,6 +918,11 @@ namespace FTT.Enemies {
         /// Chronal Rewind; PreserveCurrentState (the default) leaves mobs mid-fight.
         /// </summary>
         public void ApplyStoryRewind() {
+            // Dead actors stay dead (audit M-6, mirroring CaptureCheckpointState):
+            // Die() zeroed collision/hurtbox/pushbox and already paid the kill's
+            // dust, so a restore here would resurrect an invulnerable ghost whose
+            // second death double-pays. The safest policy is to skip the restore.
+            if (CurrentState == EnemyState.Dead) return;
             if (RewindPolicy == StoryRewindPolicy.PreserveCurrentState) return;
             bool useCheckpoint = RewindPolicy == StoryRewindPolicy.RestoreCheckpointState && _checkpointCaptured;
             GlobalPosition = useCheckpoint ? _checkpointPosition : _spawnPosition;

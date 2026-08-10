@@ -79,7 +79,11 @@ namespace FTT.Enemies {
             _hitbox.OwnerPlayerIndex = -1;
             _hitbox.SourcePlayer = null;
             _hitbox.CollisionLayer = CollisionLayers.Projectile;
-            _hitbox.CollisionMask = CollisionLayers.PlayerHurtbox | CollisionLayers.PersistentObject;
+            // The centralized projectile mask (audit Low: the hand-rolled mask
+            // dropped Environment, letting ranged mobs shoot through walls). The
+            // EnemyHurtbox bit is harmless: Hitbox skips hurtboxes sharing the -1
+            // owner index, so enemy shots still never damage enemies.
+            _hitbox.CollisionMask = CollisionLayers.ProjectileMask;
             _hitbox.Monitorable = true;
             _hitbox.Activate();
         }
@@ -102,10 +106,26 @@ namespace FTT.Enemies {
             _hitbox.AddChild(_shape);
             AddChild(_hitbox);
             _hitbox.HitConfirmed += OnHitConfirmed;
+            _hitbox.BodyEntered += HandleBodyContact;
         }
 
         private void OnHitConfirmed(FTT.Combat.HitPayload payload, float damageApplied) {
             if (_pierces) return;
+            ReturnToPool();
+        }
+
+        /// <summary>
+        /// Terrain contact: an enemy shot despawns on level geometry instead of
+        /// travelling through walls (audit Low; distance-only aggro made ranged
+        /// mobs hit through room dividers). The hitbox's ProjectileMask includes
+        /// the Environment layer, so static level bodies report here; any body on
+        /// another layer (a PersistentObject construct, say) is ignored — hurtbox
+        /// hits keep their own confirmed-hit path. Even piercing shots stop at a
+        /// wall: piercing is about targets, not terrain.
+        /// </summary>
+        public void HandleBodyContact(Node2D body) {
+            if (body is not CollisionObject2D collider) return;
+            if ((collider.CollisionLayer & CollisionLayers.Environment) == 0) return;
             ReturnToPool();
         }
 
