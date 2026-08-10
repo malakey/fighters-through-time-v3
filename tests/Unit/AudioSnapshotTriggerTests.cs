@@ -146,20 +146,31 @@ public class AudioSnapshotTriggerTests {
     }
 
     /// <summary>
-    /// Runs the body against the live autoload and hands every snapshot back in a
-    /// finally block; a leaked duck would quietly follow the rest of the suite.
+    /// Runs the body against the live autoload with a clean snapshot slate on both
+    /// sides. The trigger layer is deliberately event-driven, so ANY earlier suite
+    /// that raised a low-HP player-0 event or an ultimate activation on the
+    /// EventBus has legitimately left a snapshot active on the shared autoload —
+    /// the count assertions here are only meaningful from a clean baseline. The
+    /// finally hands every snapshot back so a leaked duck cannot follow the rest
+    /// of the session either.
     /// </summary>
     private static void RunWithCleanSnapshots(System.Action<AudioManager> body) {
         AudioManager audio = AudioManager.Instance;
         AssertObject(audio).IsNotNull();
         try {
+            ResetSnapshots(audio);
             body(audio);
         } finally {
-            audio.ObservePauseState(false);
-            audio.OnSceneTransitionStarted();
-            audio.ReleaseSnapshot(AudioSnapshot.Rewind);
-            audio.Snapshots.SettleImmediately();
+            ResetSnapshots(audio);
             audio.ApplySavedVolumes();
         }
+    }
+
+    /// <summary>Releases all four snapshot kinds and settles the mixer.</summary>
+    internal static void ResetSnapshots(AudioManager audio) {
+        audio.ObservePauseState(false);
+        audio.OnSceneTransitionStarted();
+        audio.ReleaseSnapshot(AudioSnapshot.Rewind);
+        audio.Snapshots.SettleImmediately();
     }
 }

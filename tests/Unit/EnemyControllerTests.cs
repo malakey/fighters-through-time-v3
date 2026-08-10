@@ -382,7 +382,12 @@ public class EnemyControllerTests {
             enemy.Data.AttackCooldown = 999f;
             Vector2 playerBefore = player.GlobalPosition;
 
-            for (int frame = 0; frame < 400; frame++) enemy._PhysicsProcess(Step);
+            // Approach until the band engages, then let the halt settle: per-step
+            // displacement rides the engine's out-of-band MoveAndSlide process
+            // delta, so a fixed frame count is not a fixed travel distance.
+            int approachFrames = 0;
+            while (!enemy.IsStandOffEngaged && approachFrames++ < 2000) enemy._PhysicsProcess(Step);
+            for (int frame = 0; frame < 30; frame++) enemy._PhysicsProcess(Step);
 
             float dist = enemy.GlobalPosition.DistanceTo(player.GlobalPosition);
             AssertThat(enemy.CurrentState).IsEqual(EnemyState.Chase);
@@ -448,8 +453,13 @@ public class EnemyControllerTests {
         EnemyController enemy = CreateEnemy("chrono_slasher");
         try {
             enemy.Data.AttackCooldown = 999f;
-            for (int frame = 0; frame < 400; frame++) enemy._PhysicsProcess(Step);
+            // Approach until the band engages and the halt settles: per-step
+            // displacement rides the engine's out-of-band MoveAndSlide process
+            // delta, so a fixed frame count is not a fixed travel distance.
+            int approachFrames = 0;
+            while (!enemy.IsStandOffEngaged && approachFrames++ < 2000) enemy._PhysicsProcess(Step);
             AssertThat(enemy.IsStandOffEngaged).IsTrue();
+            for (int frame = 0; frame < 30; frame++) enemy._PhysicsProcess(Step);
             float heldX = enemy.GlobalPosition.X;
 
             // A 25 px shuffle keeps the target inside the 110% release line
@@ -460,10 +470,16 @@ public class EnemyControllerTests {
             AssertThat(enemy.Velocity.X).IsEqualApprox(0f, 0.001f);
             AssertThat(enemy.GlobalPosition.X).IsEqualApprox(heldX, 0.01f);
 
-            // Beyond the release line the approach resumes.
+            // Beyond the release line the approach resumes: the next stepped frame
+            // already carries chase velocity, and the walk clearly leaves the hold.
             player.GlobalPosition += new Vector2(200f, 0f);
-            for (int frame = 0; frame < 30; frame++) enemy._PhysicsProcess(Step);
+            enemy._PhysicsProcess(Step);
             AssertThat(enemy.IsStandOffEngaged).IsFalse();
+            AssertThat(enemy.Velocity.X > 0f).IsTrue();
+            int resumeFrames = 0;
+            while (enemy.GlobalPosition.X <= heldX + 50f && resumeFrames++ < 600) {
+                enemy._PhysicsProcess(Step);
+            }
             AssertThat(enemy.GlobalPosition.X > heldX + 50f).IsTrue();
         } finally {
             enemy.Free();
@@ -474,9 +490,11 @@ public class EnemyControllerTests {
 
     [TestCase]
     public void FlyingChaserHoversAtItsProjectileRangeStandOffInsteadOfPressingIn() {
-        SceneTree tree = (SceneTree)Engine.GetMainLoop();
-        var pools = new PoolManager { Name = "StandOffDronePools" };
-        tree.Root.AddChild(pools);
+        // NOTE: never instantiate a second PoolManager here. Its _Ready hijacks
+        // the static Instance from the autoload, and freeing it nulls Instance
+        // for the remainder of the session — every later suite's pooled spawn
+        // (dust pickups, projectiles, story mobs) then silently degrades. The
+        // autoload is running and serves any projectile the drone might pool.
         PlayerController player = CreateTargetPlayer(new Vector2(360f, 0f));
         EnemyController drone = CreateEnemy("hologram_drone");
         try {
@@ -484,7 +502,12 @@ public class EnemyControllerTests {
             drone.Data.AttackCooldown = 999f;
             Vector2 playerBefore = player.GlobalPosition;
 
-            for (int frame = 0; frame < 400; frame++) drone._PhysicsProcess(Step);
+            // Hover-approach until the band engages, then let the deceleration
+            // settle (the velocity ramp is stepped-dt deterministic; per-step
+            // displacement rides the out-of-band MoveAndSlide process delta).
+            int approachFrames = 0;
+            while (!drone.IsStandOffEngaged && approachFrames++ < 2000) drone._PhysicsProcess(Step);
+            for (int frame = 0; frame < 30; frame++) drone._PhysicsProcess(Step);
 
             // The projectile primary widens AttackRangePixels to 90% of the aggro
             // radius (360 px), so the drone holds far out instead of at melee reach.
@@ -500,8 +523,6 @@ public class EnemyControllerTests {
         } finally {
             drone.Free();
             player.Free();
-            pools.ClearAllPools();
-            pools.Free();
         }
     }
 
@@ -578,9 +599,18 @@ public class EnemyControllerTests {
             AssertThat(guard.GlobalPosition.X).IsEqualApprox(postX, 1f);
 
             // Control on the duplicated data: the same body with the design's
-            // Patrol behavior paces its authored waypoints immediately.
+            // Patrol behavior paces its authored waypoints immediately — the very
+            // next stepped frame carries pacing velocity, and the walk clearly
+            // leaves the post. (Displacement per manual step rides the engine's
+            // out-of-band MoveAndSlide delta, so distance is walked to, not
+            // assumed from a fixed frame count.)
             guard.Data.Behavior = DefaultBehavior.Ground;
-            for (int frame = 0; frame < 30; frame++) guard._PhysicsProcess(Step);
+            guard._PhysicsProcess(Step);
+            AssertThat(Mathf.Abs(guard.Velocity.X) > 0f).IsTrue();
+            int paceFrames = 0;
+            while (Mathf.Abs(guard.GlobalPosition.X - postX) <= 50f && paceFrames++ < 600) {
+                guard._PhysicsProcess(Step);
+            }
             AssertThat(Mathf.Abs(guard.GlobalPosition.X - postX) > 50f).IsTrue();
         } finally {
             guard.Free();
@@ -602,8 +632,16 @@ public class EnemyControllerTests {
             knight = CreateEnemy("neural_linked_knight");
             knight.GlobalPosition = Vector2.Zero;
 
-            // Aggro and chase work exactly like a patroller's.
+            // Aggro and chase work exactly like a patroller's. (Distance is walked
+            // to under a step-count cap rather than assumed from a fixed frame
+            // count: an out-of-band MoveAndSlide uses the engine's process delta.)
             for (int frame = 0; frame < 30; frame++) knight._PhysicsProcess(Step);
+            AssertThat(knight.CurrentState).IsEqual(EnemyState.Chase);
+            AssertThat(knight.Velocity.X > 0f).IsTrue();
+            int chaseFrames = 0;
+            while (knight.GlobalPosition.X <= 50f && chaseFrames++ < 600) {
+                knight._PhysicsProcess(Step);
+            }
             AssertThat(knight.CurrentState).IsEqual(EnemyState.Chase);
             AssertThat(knight.GlobalPosition.X > 50f).IsTrue();
 
@@ -643,23 +681,39 @@ public class EnemyControllerTests {
             slasher = CreateEnemy("chrono_slasher");
             slasher.GlobalPosition = Vector2.Zero;
 
-            // Chase right, past the authored +150 waypoint's near side.
+            // Chase right, past the authored +150 waypoint's near side. Velocity is
+            // deterministic; per-step displacement is not (an out-of-band
+            // MoveAndSlide uses the engine's process delta, not the stepped 1/60),
+            // so walk until the chase has clearly crossed the midpoint.
             for (int frame = 0; frame < 25; frame++) slasher._PhysicsProcess(Step);
+            AssertThat(slasher.CurrentState).IsEqual(EnemyState.Chase);
+            AssertThat(slasher.Velocity.X > 0f).IsTrue();
+            int chaseFrames = 0;
+            while (slasher.GlobalPosition.X <= 100f && chaseFrames++ < 600) {
+                slasher._PhysicsProcess(Step);
+            }
             AssertThat(slasher.CurrentState).IsEqual(EnemyState.Chase);
             AssertThat(slasher.GlobalPosition.X > 100f).IsTrue();
 
             // De-aggro: the nearest waypoint is Right (+150), not the spawn (0).
             player.GlobalPosition = new Vector2(5000f, 0f);
             int guardFrames = 0;
-            while (slasher.CurrentState != EnemyState.Patrol && guardFrames++ < 120) {
+            while (slasher.CurrentState != EnemyState.Patrol && guardFrames++ < 300) {
                 slasher._PhysicsProcess(Step);
             }
             AssertThat(slasher.CurrentState).IsEqual(EnemyState.Patrol);
             AssertThat(slasher.GlobalPosition.X > 130f).IsTrue();
 
-            // And patrol resumes toward the opposite waypoint, no fresh idle hold.
+            // And patrol resumes toward the opposite waypoint, no fresh idle hold:
+            // the very next stepped frame is already pacing left (an idle hold
+            // would leave Velocity.X at zero for its full second).
             float resumeX = slasher.GlobalPosition.X;
-            for (int frame = 0; frame < 30; frame++) slasher._PhysicsProcess(Step);
+            slasher._PhysicsProcess(Step);
+            AssertThat(slasher.Velocity.X < 0f).IsTrue();
+            int resumeFrames = 0;
+            while (slasher.GlobalPosition.X >= resumeX - 50f && resumeFrames++ < 600) {
+                slasher._PhysicsProcess(Step);
+            }
             AssertThat(slasher.GlobalPosition.X < resumeX - 50f).IsTrue();
         } finally {
             slasher?.Free();

@@ -53,7 +53,18 @@ namespace FTT.Core {
         }
 
         public override void _ExitTree() {
-            if (Instance == this) Instance = null;
+            if (Instance != this) return;
+            Instance = null;
+            // A locally-instantiated manager (tests build scoped ones) takes over
+            // the singleton in _Ready; when it leaves the tree, hand the singleton
+            // back to the project autoload instead of leaving it null — otherwise
+            // every later pooled spawn (dust pickups, projectiles, story mobs)
+            // silently degrades for the rest of the session.
+            if (GetTree()?.Root is Node root
+                && root.GetNodeOrNull("PoolManager") is PoolManager autoload
+                && autoload != this) {
+                Instance = autoload;
+            }
         }
 
         public void RegisterPool(PackedScene template, int warmUpCount, int maxCapacity, PoolOverflowPolicy overflowPolicy) {

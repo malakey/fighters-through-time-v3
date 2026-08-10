@@ -426,7 +426,7 @@ namespace FTT.UI {
         }
 
         private void BindCharacterGrid() {
-            var grid = GetNode<GridContainer>(SelectRoot + "Grid");
+            var grid = GetNode<GridContainer>(SelectRoot + "PlayersRow/Grid");
             _characterButtons = new Button[_characterIDs.Length];
             for (int index = 0; index < _characterIDs.Length; index++) {
                 int captured = index;

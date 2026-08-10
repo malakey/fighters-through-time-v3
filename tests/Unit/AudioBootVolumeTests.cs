@@ -34,6 +34,11 @@ public class AudioBootVolumeTests {
         float sfx = data.SFXVolume;
         float ui = data.UIVolume;
         try {
+            // The raw-bus assertions below read base + snapshot offset. The H-9
+            // trigger layer reacts to EventBus HP/ultimate events other suites
+            // legitimately raise, so settle a clean snapshot slate first — the
+            // test is about the boot volume path, not the mixer stack.
+            AudioSnapshotTriggerTests.ResetSnapshots(audio);
             data.MasterVolume = 0.5f;
             data.MusicVolume = 0.25f;
             data.SFXVolume = 0.75f;
