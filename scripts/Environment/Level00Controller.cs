@@ -8,15 +8,14 @@ namespace FTT.Environment {
 
     /// <summary>
     /// Level 0 - Chronal Integration tutorial. Three documented parts: the
-    /// fracture presentation, guided calibration (attacks, special, Chronal
-    /// Rewind) against a training dummy, and advanced mobility gates (double
-    /// jump, roll) followed by the holographic combat trial.
+    /// fracture presentation, guided calibration (attacks, block, specials,
+    /// forced-meter ultimate, Chronal Rewind demonstration) against a training
+    /// dummy, and advanced mobility gates (double jump, movement ability, roll)
+    /// followed by the holographic combat trial. The calibration step order and
+    /// gating live in <see cref="TutorialCalibrationScript"/> (audit M-3).
     /// </summary>
     public partial class Level00Controller : Node2D {
         private enum TutorialPhase { Fracture, Calibration, Mobility, CombatTrial, Complete }
-        private enum CalibrationStep { BasicHits, UseSpecial, UseRewind, Done }
-
-        private const int RequiredBasicHits = 3;
 
         private PlayerController _player;
         private TrainingDummy _dummy;
@@ -24,13 +23,16 @@ namespace FTT.Environment {
         private LevelManager _levelManager;
 
         private TutorialPhase _phase = TutorialPhase.Fracture;
-        private CalibrationStep _calibrationStep = CalibrationStep.BasicHits;
-        private int _basicHitsLanded;
+        private readonly TutorialCalibrationScript _calibration = new();
 
         private Area2D _doubleJumpGate;
+        private Area2D _movementGate;
         private Area2D _rollGate;
         private bool _doubleJumpGateCleared;
+        private bool _movementGateCleared;
         private bool _rollGateCleared;
+        /// <summary>-1 until the movement ability fires; then frames since it fired.</summary>
+        private int _framesSinceMovementAbility = -1;
 
         private int _enemiesKilled;
         private int _totalEnemies;
@@ -59,6 +61,10 @@ namespace FTT.Environment {
                 EventBus.Instance.OnDialogueComplete += OnDialogueComplete;
                 EventBus.Instance.OnCooldownStarted += OnCooldownStarted;
                 EventBus.Instance.OnRewindTriggered += OnRewindTriggered;
+                EventBus.Instance.OnBlockAbsorbed += OnBlockAbsorbed;
+                EventBus.Instance.OnBlockBroken += OnBlockBroken;
+                EventBus.Instance.OnUltimateActivation += OnUltimateActivation;
+                EventBus.Instance.OnMovementAbilityUsed += OnMovementAbilityUsed;
             }
 
             // Defer one frame so the dialogue UI is fully in the tree before pausing.
@@ -71,6 +77,10 @@ namespace FTT.Environment {
                 EventBus.Instance.OnDialogueComplete -= OnDialogueComplete;
                 EventBus.Instance.OnCooldownStarted -= OnCooldownStarted;
                 EventBus.Instance.OnRewindTriggered -= OnRewindTriggered;
+                EventBus.Instance.OnBlockAbsorbed -= OnBlockAbsorbed;
+                EventBus.Instance.OnBlockBroken -= OnBlockBroken;
+                EventBus.Instance.OnUltimateActivation -= OnUltimateActivation;
+                EventBus.Instance.OnMovementAbilityUsed -= OnMovementAbilityUsed;
             }
             if (_dummy != null && IsInstanceValid(_dummy)) _dummy.HitLanded -= OnDummyHit;
             // Pooled combat-trial enemies are parented here; hand them back or the
@@ -89,6 +99,12 @@ namespace FTT.Environment {
                 case "level_00.intro":
                     BeginCalibration();
                     break;
+                case "level_00.block_intro":
+                    BeginBlockLesson();
+                    break;
+                case "level_00.ultimate_intro":
+                    BeginUltimateLesson();
+                    break;
                 case "level_00.mobility_intro":
                     BeginMobilityGates();
                     break;
@@ -102,28 +118,73 @@ namespace FTT.Environment {
 
         private void BeginCalibration() {
             _phase = TutorialPhase.Calibration;
-            _calibrationStep = CalibrationStep.BasicHits;
 
             _dummy = new TrainingDummy { Name = "CalibrationDummy", Position = new Vector2(1000, 850) };
             _dummy.HitLanded += OnDummyHit;
             AddChild(_dummy);
 
-            _services.HUD?.SetObjective("tutorial_step_attack", 0, RequiredBasicHits);
+            _services.HUD?.SetObjective("tutorial_step_attack", 0, TutorialCalibrationScript.RequiredBasicHits);
         }
 
         private void OnDummyHit(int damage) {
-            if (_phase != TutorialPhase.Calibration || _calibrationStep != CalibrationStep.BasicHits) return;
-            _basicHitsLanded++;
-            _services.HUD?.SetObjective("tutorial_step_attack", _basicHitsLanded, RequiredBasicHits);
-            if (_basicHitsLanded >= RequiredBasicHits) {
-                _calibrationStep = CalibrationStep.UseSpecial;
-                _services.HUD?.SetObjective("tutorial_step_special");
+            if (_phase != TutorialPhase.Calibration) return;
+            bool advanced = _calibration.RegisterBasicHit();
+            if (_calibration.Step == TutorialCalibrationStep.BasicHits) {
+                _services.HUD?.SetObjective("tutorial_step_attack",
+                    _calibration.BasicHitsLanded, TutorialCalibrationScript.RequiredBasicHits);
             }
+            if (advanced) _services.Dialogue?.StartSequence("level_00.block_intro");
+        }
+
+        /// <summary>Arms the dummy's telegraphed swipe so the player can practice blocking.</summary>
+        private void BeginBlockLesson() {
+            if (_dummy != null && IsInstanceValid(_dummy)) _dummy.BeginScriptedAttacks(_player);
+            _services.HUD?.SetObjective("tutorial_step_block",
+                _calibration.HitsBlocked, TutorialCalibrationScript.RequiredBlockedHits);
+        }
+
+        private void OnBlockAbsorbed(int playerIndex, int remainingCharges) {
+            if (_phase != TutorialPhase.Calibration || playerIndex != 0) return;
+            bool advanced = _calibration.RegisterBlockedHit();
+            if (_calibration.Step == TutorialCalibrationStep.Block) {
+                _services.HUD?.SetObjective("tutorial_step_block",
+                    _calibration.HitsBlocked, TutorialCalibrationScript.RequiredBlockedHits);
+            }
+            if (advanced) CompleteBlockLesson();
+        }
+
+        private void OnBlockBroken(int playerIndex) {
+            if (_phase != TutorialPhase.Calibration || playerIndex != 0) return;
+            // A guard break is the complete depletion lesson in one stroke.
+            if (_calibration.RegisterGuardBreak()) CompleteBlockLesson();
+        }
+
+        private void CompleteBlockLesson() {
+            if (_dummy != null && IsInstanceValid(_dummy)) _dummy.EndScriptedAttacks();
+            _services.HUD?.SetObjective("tutorial_step_special");
         }
 
         private void OnCooldownStarted(CooldownPayload payload) {
-            if (_phase != TutorialPhase.Calibration || _calibrationStep != CalibrationStep.UseSpecial) return;
-            _calibrationStep = CalibrationStep.UseRewind;
+            if (_phase != TutorialPhase.Calibration) return;
+            // Only the two special slots satisfy the specials lesson; movement or
+            // ultimate cooldowns must not skip it (audit M-3).
+            if (_calibration.RegisterSpecialUsed(payload.Slot)) {
+                _services.Dialogue?.StartSequence("level_00.ultimate_intro");
+            }
+        }
+
+        /// <summary>
+        /// The simulation fills the Influence Meter to 100% and asks for the
+        /// History Maker, per the designed ultimate calibration.
+        /// </summary>
+        private void BeginUltimateLesson() {
+            _player?.AddInfluenceFromDamageDealt(FTT.Combat.UltimateMeter.MaxValue);
+            _services.HUD?.SetObjective("tutorial_step_ultimate");
+        }
+
+        private void OnUltimateActivation(UltimateActivationPayload payload) {
+            if (_phase != TutorialPhase.Calibration || payload.PlayerIndex != 0) return;
+            if (!_calibration.RegisterUltimateUsed()) return;
             _services.HUD?.SetObjective("tutorial_step_rewind");
             // Rewind is a death-save, not an input the player can perform, so the
             // tutorial demonstrates it: hold the objective on screen briefly, then
@@ -136,7 +197,7 @@ namespace FTT.Environment {
         private int _rewindDemoAttempts;
 
         private void ProcessRewindDemo() {
-            if (_phase != TutorialPhase.Calibration || _calibrationStep != CalibrationStep.UseRewind) return;
+            if (_phase != TutorialPhase.Calibration || _calibration.Step != TutorialCalibrationStep.UseRewind) return;
             if (_rewindDemoCountdownFrames < 0) return;
             if (_rewindDemoCountdownFrames > 0) {
                 _rewindDemoCountdownFrames--;
@@ -151,7 +212,7 @@ namespace FTT.Environment {
             if (_services.RewindManager == null || _rewindDemoAttempts >= 3) {
                 // Never strand the tutorial: skip the demonstration if it cannot run.
                 _rewindDemoCountdownFrames = -1;
-                _calibrationStep = CalibrationStep.Done;
+                _calibration.SkipRewindDemonstration();
                 _mobilityIntroPending = true;
             } else {
                 _rewindDemoCountdownFrames = 60;
@@ -161,8 +222,8 @@ namespace FTT.Environment {
         private bool _mobilityIntroPending;
 
         private void OnRewindTriggered(Vector2 _) {
-            if (_phase != TutorialPhase.Calibration || _calibrationStep != CalibrationStep.UseRewind) return;
-            _calibrationStep = CalibrationStep.Done;
+            if (_phase != TutorialPhase.Calibration) return;
+            if (!_calibration.RegisterRewindComplete()) return;
             // The guided demonstration never spends the player's real pool.
             _services.RewindManager?.RefundRewind();
             // Wait for rewind playback to finish before pausing for dialogue.
@@ -191,9 +252,21 @@ namespace FTT.Environment {
             _doubleJumpGate = BuildGateZone("DoubleJumpGate", new Vector2(1900, 400), new Vector2(160, 140),
                 new Color(0.2f, 0.9f, 0.5f, 0.25f), "tutorial_gate_double_jump");
 
+            // Movement-ability gate: a marked corridor crossed with the
+            // character's unique movement ability. The gate reads ability usage
+            // (state or the freshness window in TutorialMobilityRules), not
+            // character-specific geometry, so all nine kits clear the same gate.
+            _movementGate = BuildGateZone("MovementAbilityGate", new Vector2(2500, 830), new Vector2(220, 140),
+                new Color(0.9f, 0.5f, 0.9f, 0.25f), "tutorial_gate_movement");
+
             // Roll gate: a marked strip the player must cross while rolling.
             _rollGate = BuildGateZone("RollGate", new Vector2(3100, 850), new Vector2(200, 110),
                 new Color(0.4f, 0.6f, 1f, 0.25f), "tutorial_gate_roll");
+        }
+
+        private void OnMovementAbilityUsed(MovementAbilityPayload payload) {
+            if (payload.PlayerIndex != 0) return;
+            _framesSinceMovementAbility = 0;
         }
 
         private Area2D BuildGateZone(string name, Vector2 position, Vector2 size, Color color, string labelKey) {
@@ -231,14 +304,27 @@ namespace FTT.Environment {
 
         public override void _PhysicsProcess(double delta) {
             ProcessRewindDemo();
+            if (_framesSinceMovementAbility >= 0
+                && _framesSinceMovementAbility <= TutorialMobilityRules.MovementAbilityFreshnessFrames) {
+                _framesSinceMovementAbility++;
+            }
             if (_phase != TutorialPhase.Mobility || _player == null || !IsInstanceValid(_player)) return;
 
             if (!_doubleJumpGateCleared && ZoneContainsPlayer(_doubleJumpGate)) {
                 _doubleJumpGateCleared = true;
                 MarkGateCleared(_doubleJumpGate);
+                _services.HUD?.SetObjective("tutorial_step_movement");
+            }
+            if (_doubleJumpGateCleared && !_movementGateCleared
+                && TutorialMobilityRules.MovementGateSatisfied(
+                    ZoneContainsPlayer(_movementGate),
+                    _player.CurrentState == CharacterState.UsingMovementAbility,
+                    _framesSinceMovementAbility)) {
+                _movementGateCleared = true;
+                MarkGateCleared(_movementGate);
                 _services.HUD?.SetObjective("tutorial_step_roll");
             }
-            if (_doubleJumpGateCleared && !_rollGateCleared && ZoneContainsPlayer(_rollGate)
+            if (_movementGateCleared && !_rollGateCleared && ZoneContainsPlayer(_rollGate)
                 && _player.CurrentState == CharacterState.Rolling) {
                 _rollGateCleared = true;
                 MarkGateCleared(_rollGate);

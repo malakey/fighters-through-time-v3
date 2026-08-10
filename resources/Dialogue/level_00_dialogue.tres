@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="DialogueSetData" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
@@ -12,12 +12,30 @@ EmotionKeys = PackedStringArray("emotion_neutral", "emotion_confused", "emotion_
 PausesGameplay = true
 AutoAdvance = false
 
+[sub_resource type="Resource" id="BlockIntro"]
+script = ExtResource("2")
+DialogueID = "level_00.block_intro"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_block_1", "dlg_l00_block_2")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="UltimateIntro"]
+script = ExtResource("2")
+DialogueID = "level_00.ultimate_intro"
+SpeakerNameKeys = PackedStringArray("speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_ultimate_1")
+EmotionKeys = PackedStringArray("emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
 [sub_resource type="Resource" id="MobilityIntro"]
 script = ExtResource("2")
 DialogueID = "level_00.mobility_intro"
-SpeakerNameKeys = PackedStringArray("speaker_sarah")
-LineKeys = PackedStringArray("dlg_l00_mobility_1")
-EmotionKeys = PackedStringArray("emotion_neutral")
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_mobility_1", "dlg_l00_mobility_2")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral")
 PausesGameplay = true
 AutoAdvance = false
 
@@ -33,4 +51,4 @@ AutoAdvance = false
 [resource]
 script = ExtResource("1")
 DialogueSetID = "dialogue_level_00"
-Sequences = [SubResource("Intro"), SubResource("MobilityIntro"), SubResource("Complete")]
+Sequences = [SubResource("Intro"), SubResource("BlockIntro"), SubResource("UltimateIntro"), SubResource("MobilityIntro"), SubResource("Complete")]

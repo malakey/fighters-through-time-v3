@@ -73,8 +73,8 @@ public class UnusedTranslationKeyTests {
     /// toggle with the three-value <c>settings_window_*</c> family).</para>
     /// </summary>
     private static readonly HashSet<string> RecordedOrphans = new(StringComparer.Ordinal) {
-        "menu_save",
-        "menu_restart",
+        // menu_save and menu_restart left this roster with the audit M-2 pause
+        // pass (2026-08-10): the Story pause menu now uses both keys.
         "menu_exit",
         "hud_ultimate",
         "hud_block_charges",
@@ -87,9 +87,10 @@ public class UnusedTranslationKeyTests {
         "boss_defeated"
     };
 
-    /// <summary>The cap stated in the Package 8 closeout. Informational alongside the
+    /// <summary>The cap stated in the Package 8 closeout, lowered as orphans are
+    /// retired (12 → 10 with the audit M-2 pause pass). Informational alongside the
     /// roster rule above: if both ever disagree, the roster is the authority.</summary>
-    private const int RecordedOrphanCeiling = 12;
+    private const int RecordedOrphanCeiling = 10;
 
     [TestCase]
     public void NoTranslationKeyGoesUnusedBeyondTheRecordedOrphans() {
