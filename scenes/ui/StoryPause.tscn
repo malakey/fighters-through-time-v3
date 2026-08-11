@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/PauseMenu.cs" id="1_script"]
 [ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
+[ext_resource type="Texture2D" path="res://assets/backgrounds/menu/temporal_glass_submenu_background.png" id="3_temporal_submenu"]
 
 [node name="StoryPause" type="CanvasLayer"]
 layer = 99
@@ -26,6 +27,19 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.02, 0.03, 0.08, 0.85)
 
+[node name="TemporalGlassArt" type="TextureRect" parent="Root/Shade"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("3_temporal_submenu")
+modulate = Color(1, 1, 1, 0.3)
+expand_mode = 1
+stretch_mode = 6
+
 [node name="Center" type="CenterContainer" parent="Root"]
 anchors_preset = 15
 anchor_right = 1.0
@@ -37,6 +51,7 @@ mouse_filter = 2
 [node name="Panel" type="PanelContainer" parent="Root/Center"]
 custom_minimum_size = Vector2(420, 0)
 layout_mode = 2
+theme_type_variation = &"DialogueGlassPanel"
 
 [node name="Layout" type="VBoxContainer" parent="Root/Center/Panel"]
 layout_mode = 2
@@ -44,32 +59,37 @@ theme_override_constants/separation = 14
 
 [node name="Title" type="Label" parent="Root/Center/Panel/Layout"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(0.914, 0.933, 0.973, 1)
+theme_override_font_sizes/font_size = 36
 text = "menu_paused"
 horizontal_alignment = 1
 
 [node name="ResumeButton" type="Button" parent="Root/Center/Panel/Layout"]
 custom_minimum_size = Vector2(320, 44)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 text = "menu_resume"
 
 [node name="SettingsButton" type="Button" parent="Root/Center/Panel/Layout"]
 custom_minimum_size = Vector2(320, 44)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 text = "menu_settings"
 
 [node name="SaveButton" type="Button" parent="Root/Center/Panel/Layout"]
 custom_minimum_size = Vector2(320, 44)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 text = "menu_save"
 
 [node name="RestartButton" type="Button" parent="Root/Center/Panel/Layout"]
 custom_minimum_size = Vector2(320, 44)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 text = "menu_restart"
 
 [node name="QuitButton" type="Button" parent="Root/Center/Panel/Layout"]
 custom_minimum_size = Vector2(320, 44)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 text = "pause_quit_to_menu"

@@ -1,0 +1,319 @@
+{
+  "jobs": [
+    {
+      "type": "svg_dir",
+      "group": "einstein",
+      "src_dir": "res://tools/asset_src/einstein/generated",
+      "out_dir": "res://assets/sprites/characters/einstein",
+      "width": 96,
+      "height": 128,
+      "supersample": 4,
+      "sheet_out": "res://tools/asset_src/preview/einstein_sheet.png",
+      "sheet_columns": 10
+    },
+    {
+      "type": "svg",
+      "group": "einstein",
+      "src": "res://assets/placeholders/characters/einstein_portrait.svg",
+      "out": "res://tools/asset_src/preview/einstein_portrait_preview.png",
+      "width": 512,
+      "height": 512,
+      "supersample": 2
+    },
+    {
+      "type": "atmosphere",
+      "group": "pompeii",
+      "out": "res://assets/environments/pompeii/pompeii_sky.png",
+      "width": 1920,
+      "height": 1080,
+      "seed": 79,
+      "gradient": [[0.0, "#131018"], [0.42, "#251410"], [0.66, "#45210f"], [0.84, "#7a3a16"], [1.0, "#2a140b"]],
+      "noise_layers": [
+        {"color": "#4a3226", "frequency": 0.0038, "octaves": 5, "threshold": 0.42, "curve": 1.6, "alpha": 0.55, "seed_offset": 1, "stretch_x": 1.6},
+        {"color": "#191019", "frequency": 0.0062, "octaves": 4, "threshold": 0.5, "curve": 1.9, "alpha": 0.5, "seed_offset": 2, "stretch_x": 0.8},
+        {"color": "#5a2c14", "frequency": 0.0024, "octaves": 4, "threshold": 0.55, "curve": 2.0, "alpha": 0.35, "seed_offset": 3, "stretch_x": 2.2}
+      ],
+      "particles": [
+        {"count": 250, "colors": ["#ff9a40", "#ffb060", "#ffd890"], "size_min": 0.5, "size_max": 1.5, "streak": 3.0, "angle_degrees": -72, "band_top": 0.12, "band_bottom": 0.92, "glow": 2.2, "seed_offset": 4, "margin_x": 10},
+        {"count": 130, "colors": ["#6a5a50", "#8a7a68"], "size_min": 0.4, "size_max": 1.1, "glow": 1.8, "band_top": 0.05, "band_bottom": 0.75, "seed_offset": 5, "margin_x": 10}
+      ],
+      "vignette": {"strength": 0.3, "power": 2.4}
+    },
+    {
+      "type": "svg",
+      "group": "pompeii",
+      "src": "res://tools/asset_src/pompeii/vesuvius_overlay.svg",
+      "out": "res://assets/environments/pompeii/pompeii_vesuvius.png",
+      "width": 2600,
+      "height": 1080,
+      "supersample": 2
+    },
+    {
+      "type": "svg",
+      "group": "pompeii",
+      "src": "res://tools/asset_src/pompeii/skyline_burning.svg",
+      "out": "res://assets/environments/pompeii/pompeii_skyline.png",
+      "width": 1920,
+      "height": 600,
+      "supersample": 2
+    },
+    {
+      "type": "svg",
+      "group": "pompeii",
+      "src": "res://tools/asset_src/pompeii/ruins_near.svg",
+      "out": "res://assets/environments/pompeii/pompeii_ruins.png",
+      "width": 1920,
+      "height": 460,
+      "supersample": 2
+    },
+    {
+      "type": "svg",
+      "group": "pompeii",
+      "src": "res://tools/asset_src/pompeii/platform_stone.svg",
+      "out": "res://assets/environments/pompeii/platform_stone.png",
+      "width": 220,
+      "height": 28,
+      "supersample": 4
+    },
+    {
+      "type": "svg",
+      "group": "pompeii",
+      "src": "res://tools/asset_src/pompeii/floor_stone.svg",
+      "out": "res://assets/environments/pompeii/floor_stone.png",
+      "width": 220,
+      "height": 48,
+      "supersample": 4
+    },
+    {
+      "type": "svg",
+      "group": "pompeii",
+      "src": "res://tools/asset_src/pompeii/oneway_planks.svg",
+      "out": "res://assets/environments/pompeii/oneway_planks.png",
+      "width": 200,
+      "height": 20,
+      "supersample": 4
+    },
+    {
+      "type": "svg",
+      "group": "pompeii",
+      "src": "res://tools/asset_src/pompeii/wall_stone.svg",
+      "out": "res://assets/environments/pompeii/wall_stone.png",
+      "width": 48,
+      "height": 220,
+      "supersample": 4
+    },
+    {
+      "type": "blend",
+      "group": "pompeii",
+      "base": "res://assets/environments/pompeii/pompeii_sky.png",
+      "overlay": "res://assets/environments/pompeii/pompeii_vesuvius.png",
+      "x": -340,
+      "y": 0,
+      "out": "res://tools/asset_src/preview/pompeii_step1.png"
+    },
+    {
+      "type": "blend",
+      "group": "pompeii",
+      "base": "res://tools/asset_src/preview/pompeii_step1.png",
+      "overlay": "res://assets/environments/pompeii/pompeii_skyline.png",
+      "x": 0,
+      "y": 480,
+      "out": "res://tools/asset_src/preview/pompeii_step2.png"
+    },
+    {
+      "type": "blend",
+      "group": "pompeii",
+      "base": "res://tools/asset_src/preview/pompeii_step2.png",
+      "overlay": "res://assets/environments/pompeii/pompeii_ruins.png",
+      "x": 0,
+      "y": 620,
+      "out": "res://tools/asset_src/preview/pompeii_composed.png"
+    },
+    {
+      "type": "svg",
+      "group": "probe",
+      "src": "res://tools/asset_src/test/thorvg_probe.svg",
+      "out": "res://tools/asset_src/preview/thorvg_probe.png",
+      "width": 480,
+      "height": 240,
+      "supersample": 3
+    },
+    {
+      "type": "atmosphere",
+      "group": "menu",
+      "out": "res://tools/asset_src/preview/starfield_base.png",
+      "width": 1920,
+      "height": 1080,
+      "seed": 20260810,
+      "gradient": [[0.0, "#03040f"], [0.45, "#070c26"], [0.8, "#0d1538"], [1.0, "#111c48"]],
+      "noise_layers": [
+        {"color": "#232f6e", "frequency": 0.0032, "octaves": 5, "threshold": 0.42, "curve": 1.7, "alpha": 0.5, "seed_offset": 1},
+        {"color": "#3a2a68", "frequency": 0.0058, "octaves": 4, "threshold": 0.5, "curve": 2.0, "alpha": 0.4, "seed_offset": 2, "stretch_x": 0.65},
+        {"color": "#0c1c3c", "frequency": 0.0021, "octaves": 4, "threshold": 0.46, "curve": 1.6, "alpha": 0.45, "seed_offset": 3, "stretch_x": 1.4}
+      ],
+      "particles": [
+        {"count": 520, "colors": ["#ffffff", "#cfe4ff", "#b8c9f4"], "size_min": 0.4, "size_max": 1.3, "glow": 2.2, "seed_offset": 4},
+        {"count": 90, "colors": ["#ffffff", "#dfe9ff", "#ffe9c9"], "size_min": 1.2, "size_max": 2.2, "glow": 2.6, "seed_offset": 5},
+        {"count": 16, "colors": ["#eef6ff", "#cfe9ff"], "size_min": 2.2, "size_max": 3.2, "glow": 3.2, "seed_offset": 6}
+      ],
+      "vignette": {"strength": 0.46, "power": 2.3}
+    },
+    {
+      "type": "svg",
+      "group": "menu",
+      "src": "res://tools/asset_src/menu/clock_etch.svg",
+      "out": "res://tools/asset_src/preview/clock_etch.png",
+      "width": 1920,
+      "height": 1080,
+      "supersample": 2
+    },
+    {
+      "type": "blend",
+      "group": "menu",
+      "base": "res://tools/asset_src/preview/starfield_base.png",
+      "overlay": "res://tools/asset_src/preview/clock_etch.png",
+      "out": "res://assets/backgrounds/menu/menu_starfield.png"
+    },
+    {
+      "type": "svg",
+      "group": "menu",
+      "src": "res://tools/asset_src/menu/glass_shards.svg",
+      "out": "res://assets/backgrounds/menu/menu_glass_shards.png",
+      "width": 1920,
+      "height": 1080,
+      "supersample": 2
+    },
+    {
+      "type": "svg",
+      "group": "menu",
+      "src": "res://tools/asset_src/menu/glass_button_normal.svg",
+      "out": "res://assets/sprites/ui/glass_button_normal.png",
+      "width": 480,
+      "height": 64,
+      "supersample": 3
+    },
+    {
+      "type": "svg",
+      "group": "menu",
+      "src": "res://tools/asset_src/menu/glass_button_focus.svg",
+      "out": "res://assets/sprites/ui/glass_button_focus.png",
+      "width": 480,
+      "height": 64,
+      "supersample": 3
+    },
+    {
+      "type": "svg",
+      "group": "menu",
+      "src": "res://tools/asset_src/menu/glass_button_pressed.svg",
+      "out": "res://assets/sprites/ui/glass_button_pressed.png",
+      "width": 480,
+      "height": 64,
+      "supersample": 3
+    },
+    {
+      "type": "svg",
+      "group": "menu",
+      "src": "res://tools/asset_src/menu/glass_button_disabled.svg",
+      "out": "res://assets/sprites/ui/glass_button_disabled.png",
+      "width": 480,
+      "height": 64,
+      "supersample": 3
+    },
+    {
+      "type": "svg",
+      "group": "menu",
+      "src": "res://tools/asset_src/menu/glass_button_focus_ring.svg",
+      "out": "res://assets/sprites/ui/glass_button_focus_ring.png",
+      "width": 480,
+      "height": 64,
+      "supersample": 3
+    },
+    {
+      "type": "svg",
+      "group": "menu",
+      "src": "res://tools/asset_src/menu/title_flourish.svg",
+      "out": "res://assets/sprites/ui/title_flourish.png",
+      "width": 640,
+      "height": 72,
+      "supersample": 3
+    },
+    {
+      "type": "svg",
+      "group": "menu",
+      "src": "res://tools/asset_src/menu/card_frame.svg",
+      "out": "res://assets/sprites/ui/card_frame.png",
+      "width": 220,
+      "height": 260,
+      "supersample": 3
+    },
+    {
+      "type": "svg",
+      "group": "menu",
+      "src": "res://tools/asset_src/menu/card_frame_p1.svg",
+      "out": "res://assets/sprites/ui/card_frame_p1.png",
+      "width": 220,
+      "height": 260,
+      "supersample": 3
+    },
+    {
+      "type": "svg",
+      "group": "menu",
+      "src": "res://tools/asset_src/menu/card_frame_p2.svg",
+      "out": "res://assets/sprites/ui/card_frame_p2.png",
+      "width": 220,
+      "height": 260,
+      "supersample": 3
+    },
+    {
+      "type": "blend",
+      "group": "menu",
+      "base": "res://assets/backgrounds/menu/menu_starfield.png",
+      "overlay": "res://assets/backgrounds/menu/menu_glass_shards.png",
+      "out": "res://tools/asset_src/preview/menu_step1.png"
+    },
+    {
+      "type": "blend",
+      "group": "menu",
+      "base": "res://tools/asset_src/preview/menu_step1.png",
+      "overlay": "res://assets/sprites/ui/glass_button_focus.png",
+      "x": 140,
+      "y": 470,
+      "out": "res://tools/asset_src/preview/menu_step2.png"
+    },
+    {
+      "type": "blend",
+      "group": "menu",
+      "base": "res://tools/asset_src/preview/menu_step2.png",
+      "overlay": "res://assets/sprites/ui/glass_button_normal.png",
+      "x": 140,
+      "y": 552,
+      "out": "res://tools/asset_src/preview/menu_step3.png"
+    },
+    {
+      "type": "blend",
+      "group": "menu",
+      "base": "res://tools/asset_src/preview/menu_step3.png",
+      "overlay": "res://assets/sprites/ui/glass_button_normal.png",
+      "x": 140,
+      "y": 634,
+      "out": "res://tools/asset_src/preview/menu_composed.png"
+    },
+    {
+      "type": "atmosphere",
+      "group": "probe",
+      "out": "res://tools/asset_src/preview/atmosphere_probe.png",
+      "width": 480,
+      "height": 270,
+      "seed": 20260810,
+      "gradient": [[0.0, "#05081c"], [0.55, "#0a1130"], [1.0, "#131c4a"]],
+      "noise_layers": [
+        {"color": "#2a2f6e", "frequency": 0.004, "octaves": 4, "threshold": 0.5, "curve": 1.8, "alpha": 0.5, "seed_offset": 1},
+        {"color": "#41265e", "frequency": 0.007, "octaves": 4, "threshold": 0.58, "curve": 2.2, "alpha": 0.4, "seed_offset": 2, "stretch_x": 0.6}
+      ],
+      "particles": [
+        {"count": 140, "colors": ["#ffffff", "#cfe4ff", "#ffe9c9"], "size_min": 0.5, "size_max": 1.6, "glow": 2.4, "seed_offset": 3}
+      ],
+      "vignette": {"strength": 0.4, "power": 2.4}
+    }
+  ]
+}

@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/CharacterSelectScreen.cs" id="1_script"]
 [ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
+[ext_resource type="Texture2D" path="res://assets/backgrounds/menu/temporal_glass_fighter_select_background.png" id="3_temporal_fighter"]
 
 [node name="CharacterSelect" type="Control"]
 layout_mode = 3
@@ -21,7 +22,19 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.06, 0.06, 0.12, 1)
+color = Color(0.012, 0.016, 0.06, 1)
+
+[node name="TemporalGlassArt" type="TextureRect" parent="Background"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("3_temporal_fighter")
+expand_mode = 1
+stretch_mode = 6
 
 [node name="SelectPhase" type="CenterContainer" parent="."]
 layout_mode = 1
@@ -38,8 +51,8 @@ theme_override_constants/separation = 14
 
 [node name="Title" type="Label" parent="SelectPhase/Root"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 32
+theme_override_colors/font_color = Color(0.914, 0.933, 0.973, 1)
+theme_override_font_sizes/font_size = 42
 text = "fighter_select_title"
 horizontal_alignment = 1
 
@@ -140,14 +153,14 @@ theme_override_constants/separation = 8
 
 [node name="P2Name" type="Label" parent="SelectPhase/Root/PlayersRow/P2Panel"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
+theme_override_colors/font_color = Color(0.75, 0.42, 1, 1)
 theme_override_font_sizes/font_size = 22
 horizontal_alignment = 1
 
 [node name="P2Ready" type="Label" parent="SelectPhase/Root/PlayersRow/P2Panel"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
+theme_override_colors/font_color = Color(0.75, 0.42, 1, 1)
 theme_override_font_sizes/font_size = 26
 text = "fighter_ready_banner"
 horizontal_alignment = 1
@@ -206,6 +219,7 @@ alignment = 1
 [node name="BackButton" type="Button" parent="SelectPhase/Root/ButtonRow"]
 custom_minimum_size = Vector2(180, 48)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 text = "common_back"
 
 [node name="StagePhase" type="CenterContainer" parent="."]
@@ -224,8 +238,8 @@ theme_override_constants/separation = 18
 
 [node name="StageTitle" type="Label" parent="StagePhase/Root"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 32
+theme_override_colors/font_color = Color(0.914, 0.933, 0.973, 1)
+theme_override_font_sizes/font_size = 42
 text = "fighter_stage_select_title"
 horizontal_alignment = 1
 
@@ -310,10 +324,12 @@ alignment = 1
 [node name="StageBackButton" type="Button" parent="StagePhase/Root/StageButtonRow"]
 custom_minimum_size = Vector2(180, 48)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 text = "common_back"
 
 [node name="FightButton" type="Button" parent="StagePhase/Root/StageButtonRow"]
 custom_minimum_size = Vector2(180, 48)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
 text = "fighter_start_match"

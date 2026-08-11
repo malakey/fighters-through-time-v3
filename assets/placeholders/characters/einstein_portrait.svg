@@ -1,6 +1,63 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
-  <rect x="8" y="8" width="496" height="496" rx="48" fill="#10142b" stroke="#999999" stroke-width="16"/>
-  <circle cx="256" cy="180" r="92" fill="#E6E6B3" stroke="#3380E6" stroke-width="12"/>
-  <path d="M92 470 Q112 300 256 300 Q400 300 420 470 Z" fill="#3380E6" stroke="#E6E6B3" stroke-width="12"/>
-  <path d="M170 468 L256 340 L342 468" fill="#999999"/>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#0d1330"/><stop offset="1" stop-color="#171f4a"/>
+</linearGradient>
+<radialGradient id="field" cx="0.5" cy="0.42" r="0.62">
+<stop offset="0" stop-color="#233a6e"/><stop offset="0.7" stop-color="#101838"/><stop offset="1" stop-color="#0a0f28"/>
+</radialGradient>
+<linearGradient id="brass" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#e8d49a"/><stop offset="0.5" stop-color="#a8854a"/><stop offset="1" stop-color="#6e5426"/>
+</linearGradient>
+<linearGradient id="jacket" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#7a5836"/><stop offset="1" stop-color="#4a3018"/>
+</linearGradient>
+</defs>
+<rect x="8" y="8" width="496" height="496" rx="42" fill="url(#bg)" stroke="#2a355e" stroke-width="6"/>
+<circle cx="256" cy="252" r="212" fill="url(#field)"/>
+<circle cx="256" cy="252" r="212" fill="none" stroke="url(#brass)" stroke-width="13"/>
+<circle cx="256" cy="252" r="199" fill="none" stroke="#3a2c14" stroke-width="3"/>
+<circle cx="256" cy="252" r="220" fill="none" stroke="#8a6a34" stroke-width="2.5" stroke-opacity="0.6"/>
+<path d="M256 32 L262 44 L256 56 L250 44 Z" fill="#e8d49a"/>
+<path d="M256 448 L262 460 L256 472 L250 460 Z" fill="#e8d49a"/>
+<!-- shoulders / jacket -->
+<path d="M96 452 Q118 336 200 318 L312 318 Q394 336 416 452 Z" fill="url(#jacket)" stroke="#241708" stroke-width="7"/>
+<path d="M214 322 L256 452 L298 322 L282 318 L256 372 L230 318 Z" fill="#d8c9a0" stroke="#241708" stroke-width="5"/>
+<path d="M245 330 L256 372 L267 330 L256 338 Z" fill="#7a2e22" stroke="#241708" stroke-width="4"/>
+<path d="M214 322 L188 360 L206 388" fill="none" stroke="#241708" stroke-width="6"/>
+<path d="M298 322 L324 360 L306 388" fill="none" stroke="#241708" stroke-width="6"/>
+<!-- neck -->
+<path d="M226 282 L232 330 Q256 344 280 330 L286 282 Z" fill="#d4a878" stroke="#241708" stroke-width="6"/>
+<!-- head -->
+<path d="M182 214 Q180 132 256 126 Q332 132 330 214 Q330 262 306 292 Q282 316 256 316 Q230 316 206 292 Q182 262 182 214 Z" fill="#e8c49a" stroke="#241708" stroke-width="7"/>
+<path d="M306 292 Q282 312 256 312 L256 316 Q282 316 306 292 Z" fill="#c09a6e"/>
+<!-- age lines -->
+<path d="M196 196 Q256 178 316 196" fill="none" stroke="#c09a6e" stroke-width="4" stroke-linecap="round" stroke-opacity="0.7"/>
+<path d="M204 176 Q256 160 308 176" fill="none" stroke="#c09a6e" stroke-width="3.4" stroke-linecap="round" stroke-opacity="0.55"/>
+<path d="M214 262 Q222 272 218 282 M298 262 Q290 272 294 282" fill="none" stroke="#c09a6e" stroke-width="3.4" stroke-opacity="0.7"/>
+<!-- eyes -->
+<path d="M202 221 Q220 211 239 220 Q221 230 202 221 Z" fill="#f6f2e8" stroke="#3a2a16" stroke-width="3.4"/>
+<path d="M273 220 Q292 211 310 221 Q291 230 273 220 Z" fill="#f6f2e8" stroke="#3a2a16" stroke-width="3.4"/>
+<circle cx="221" cy="220" r="6.4" fill="#4a3620"/><circle cx="223.5" cy="217.5" r="2.2" fill="#ffffff"/>
+<circle cx="291" cy="220" r="6.4" fill="#4a3620"/><circle cx="293.5" cy="217.5" r="2.2" fill="#ffffff"/>
+<path d="M203 214 Q221 206 238 213 M274 213 Q291 206 309 214" fill="none" stroke="#3a2a16" stroke-width="3.4" stroke-linecap="round"/>
+<path d="M200 229 Q220 236 241 228 M271 228 Q292 236 312 229" fill="none" stroke="#c09a6e" stroke-width="3.2" stroke-opacity="0.8"/>
+<!-- brows -->
+<path d="M194 203 Q219 191 245 200" fill="none" stroke="#d8dfe8" stroke-width="9" stroke-linecap="round"/>
+<path d="M267 200 Q293 191 318 203" fill="none" stroke="#d8dfe8" stroke-width="9" stroke-linecap="round"/>
+<!-- nose -->
+<path d="M251 216 Q247 244 243 256" fill="none" stroke="#241708" stroke-width="4.6" stroke-linecap="round"/>
+<path d="M243 256 Q250 262 259 260" fill="none" stroke="#241708" stroke-width="4.2" stroke-linecap="round"/>
+<path d="M261 258 Q266 259 268 255" fill="none" stroke="#c09a6e" stroke-width="3.6" stroke-linecap="round"/>
+<!-- walrus moustache -->
+<path d="M202 282 Q228 260 256 266 Q284 260 310 282 Q314 296 300 304 Q286 310 272 302 Q263 297 256 297 Q249 297 240 302 Q226 310 212 304 Q198 296 202 282 Z" fill="#dfe4ec" stroke="#8e9ab0" stroke-width="4"/>
+<path d="M212 300 Q206 308 210 314 M300 300 Q306 308 302 314" fill="none" stroke="#dfe4ec" stroke-width="7" stroke-linecap="round"/>
+<path d="M228 274 Q238 270 248 272 M264 272 Q276 269 288 274" fill="none" stroke="#b8c2d4" stroke-width="3" stroke-opacity="0.8"/>
+<!-- hair -->
+<g fill="#ecf1f8" stroke="#241708" stroke-width="6" stroke-linejoin="round">
+<path d="M176 216 Q140 208 148 168 Q118 156 150 122 Q140 84 186 88 Q196 52 240 66 Q268 40 296 68 Q342 52 344 96 Q382 100 368 140 Q396 168 362 186 Q372 214 336 216 Q330 160 300 142 Q262 122 216 138 Q186 152 182 190 Z"/>
+<path d="M148 236 Q120 238 128 210 Q150 202 166 214 Q160 230 148 236 Z"/>
+<path d="M364 236 Q392 238 384 210 Q362 202 346 214 Q352 230 364 236 Z"/>
+</g>
+<path d="M196 108 Q220 92 248 98 M284 92 Q312 92 330 112 M166 150 Q180 134 202 132" fill="none" stroke="#b8c4d8" stroke-width="5" stroke-linecap="round" stroke-opacity="0.9"/>
 </svg>

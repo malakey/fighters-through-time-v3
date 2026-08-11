@@ -68,8 +68,8 @@ public class CharacterPresentationTests {
             AssertThat(framePaths.Add(character.SpriteFramesResource.ResourcePath)).IsTrue();
 
             AssertObject(character.CharacterPortrait).IsNotNull();
-            AssertThat(character.CharacterPortrait.ResourcePath
-                .Contains($"{characterID}_portrait")).IsTrue();
+            AssertThat(character.CharacterPortrait.ResourcePath).IsEqual(
+                $"res://assets/sprites/characters/portraits/{characterID}_portrait.png");
             AssertThat(portraitPaths.Add(character.CharacterPortrait.ResourcePath)).IsTrue();
         }
 
@@ -109,7 +109,11 @@ public class CharacterPresentationTests {
         AssertThat(sprite.SpriteFrames.ResourcePath
             .Contains("einstein_frames")).IsTrue();
         AssertThat(sprite.SpriteFrames.HasAnimation("idle")).IsTrue();
+        AssertThat(sprite.SpriteFrames.GetFrameCount("basic_attack_1")).IsEqual(3);
+        AssertThat(sprite.SpriteFrames.GetFrameCount("basic_attack_2")).IsEqual(3);
+        AssertThat(sprite.SpriteFrames.GetFrameCount("basic_attack_3")).IsEqual(3);
         AssertObject(player.GetNodeOrNull("PlaceholderBody")).IsNull();
+        AssertObject(player.GetNodeOrNull("MeleeHitVisual")).IsNull();
         player.Free();
     }
 }

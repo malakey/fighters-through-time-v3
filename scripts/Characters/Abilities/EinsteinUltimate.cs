@@ -46,6 +46,9 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
+            EmitCharacterVfx(
+                "res://scenes/vfx/einstein/EinsteinCosmologicalConstantVfx.tscn",
+                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 120f : -120f, -70f));
             _hitsDone = 0;
             Owner.Velocity = Vector2.Zero;
             _meter?.Consume();

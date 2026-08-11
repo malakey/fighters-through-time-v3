@@ -421,6 +421,45 @@ namespace FTT.Environment {
 
         // === Geometry builders (graybox; Package 2 TileMap conversion is separate) ===
 
+        /// <summary>
+        /// Optional per-level surface textures (Package 10). Null keeps the flat
+        /// ColorRect graybox visuals; see <see cref="LevelSurfaceTextures"/>.
+        /// </summary>
+        protected virtual LevelSurfaceTextures SurfaceTextures => null;
+
+        /// <summary>
+        /// The "Visual" child every surface builder attaches: a nine-patch when the
+        /// level supplies a texture for that surface and the caller did not force an
+        /// explicit fill colour, the original ColorRect otherwise.
+        /// </summary>
+        private static Control BuildSurfaceVisual(LevelSurfaceTextures.Entry entry, bool hasExplicitFill,
+            Vector2 size, Vector2 position, Color fallback) {
+            if (entry?.Texture == null || hasExplicitFill) {
+                return new ColorRect {
+                    Name = "Visual",
+                    Size = size,
+                    Position = position,
+                    Color = fallback,
+                    MouseFilter = Control.MouseFilterEnum.Ignore
+                };
+            }
+            return new NinePatchRect {
+                Name = "Visual",
+                Size = size,
+                Position = position,
+                Texture = entry.Texture,
+                PatchMarginLeft = entry.MarginLeft,
+                PatchMarginRight = entry.MarginRight,
+                PatchMarginTop = entry.MarginTop,
+                PatchMarginBottom = entry.MarginBottom,
+                AxisStretchHorizontal = entry.TileHorizontal
+                    ? NinePatchRect.AxisStretchMode.Tile : NinePatchRect.AxisStretchMode.Stretch,
+                AxisStretchVertical = entry.TileVertical
+                    ? NinePatchRect.AxisStretchMode.Tile : NinePatchRect.AxisStretchMode.Stretch,
+                MouseFilter = Control.MouseFilterEnum.Ignore
+            };
+        }
+
         protected ColorRect BuildRoomBackground(string name, float x, float width, float height, Color color) {
             var background = new ColorRect {
                 Name = name,
@@ -448,20 +487,19 @@ namespace FTT.Environment {
             };
             floor.AddChild(collision);
 
-            floor.AddChild(new ColorRect {
-                Name = "Visual",
-                Size = new Vector2(width, thickness),
-                Position = new Vector2(-width / 2f, 0),
-                Color = fill ?? FloorColor,
-                MouseFilter = Control.MouseFilterEnum.Ignore
-            });
-            floor.AddChild(new ColorRect {
-                Name = "TopLine",
-                Size = new Vector2(width, 3),
-                Position = new Vector2(-width / 2f, 0),
-                Color = FloorEdgeColor,
-                MouseFilter = Control.MouseFilterEnum.Ignore
-            });
+            Control floorVisual = BuildSurfaceVisual(SurfaceTextures?.Floor, fill != null,
+                new Vector2(width, thickness), new Vector2(-width / 2f, 0), fill ?? FloorColor);
+            floor.AddChild(floorVisual);
+            if (floorVisual is ColorRect) {
+                // The textured surface carries its own lit top edge.
+                floor.AddChild(new ColorRect {
+                    Name = "TopLine",
+                    Size = new Vector2(width, 3),
+                    Position = new Vector2(-width / 2f, 0),
+                    Color = FloorEdgeColor,
+                    MouseFilter = Control.MouseFilterEnum.Ignore
+                });
+            }
 
             AddChild(floor);
             return floor;
@@ -478,15 +516,10 @@ namespace FTT.Environment {
             platform.AddChild(new CollisionShape2D {
                 Shape = new RectangleShape2D { Size = new Vector2(width, thickness) }
             });
-            platform.AddChild(new ColorRect {
-                Name = "Visual",
-                Size = new Vector2(width, thickness),
-                Position = new Vector2(-width / 2f, -thickness / 2f),
-                Color = fill ?? PlatformColor,
-                MouseFilter = Control.MouseFilterEnum.Ignore
-            });
+            platform.AddChild(BuildSurfaceVisual(SurfaceTextures?.Platform, fill != null,
+                new Vector2(width, thickness), new Vector2(-width / 2f, -thickness / 2f), fill ?? PlatformColor));
 
-            AddChild(platform);
+    AddChild(platform);
             return platform;
         }
 
@@ -507,13 +540,8 @@ namespace FTT.Environment {
                 OneWayCollision = true,
                 OneWayCollisionMargin = 12f
             });
-            platform.AddChild(new ColorRect {
-                Name = "Visual",
-                Size = new Vector2(width, thickness),
-                Position = new Vector2(-width / 2f, -thickness / 2f),
-                Color = fill ?? PlatformColor,
-                MouseFilter = Control.MouseFilterEnum.Ignore
-            });
+            platform.AddChild(BuildSurfaceVisual(SurfaceTextures?.OneWay, fill != null,
+                new Vector2(width, thickness), new Vector2(-width / 2f, -thickness / 2f), fill ?? PlatformColor));
 
             AddChild(platform);
             return platform;
@@ -531,12 +559,8 @@ namespace FTT.Environment {
                 Shape = new RectangleShape2D { Size = new Vector2(thickness, height) },
                 Position = new Vector2(thickness / 2f, height / 2f)
             });
-            wall.AddChild(new ColorRect {
-                Name = "Visual",
-                Size = new Vector2(thickness, height),
-                Color = fill ?? WallColor,
-                MouseFilter = Control.MouseFilterEnum.Ignore
-            });
+            wall.AddChild(BuildSurfaceVisual(SurfaceTextures?.Wall, fill != null,
+                new Vector2(thickness, height), Vector2.Zero, fill ?? WallColor));
 
             AddChild(wall);
             return wall;

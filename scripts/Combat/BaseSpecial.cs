@@ -140,6 +140,18 @@ namespace FTT.Combat {
                 VfxAccentPalette.ForAbility(Data, VfxAccentPalette.ImpactAlpha));
         }
 
+        /// <summary>
+        /// Emits an optional character-specific presentation scene without moving
+        /// the AbilityData resource outside the six-family shared VFX taxonomy.
+        /// Gameplay remains independent of this best-effort visual layer.
+        /// </summary>
+        protected void EmitCharacterVfx(string scenePath, Vector2 position) {
+            if (Owner == null || string.IsNullOrWhiteSpace(scenePath)) return;
+            PackedScene scene = ResourceLoader.Load<PackedScene>(scenePath);
+            if (scene == null) return;
+            VfxEmitter.EmitScene(scene, position, Owner.GetParent(), Colors.White);
+        }
+
         private void OnAbilityHitConfirmed(HitPayload payload, float damageApplied) {
             if (damageApplied <= 0f) return;
             EmitImpactVfx(payload.HitOrigin);
@@ -241,7 +253,7 @@ namespace FTT.Combat {
                 24);
             if (zone == null) return null;
             zone.Setup(damage, lifetime, tickInterval, Owner?.PlayerIndex ?? 0, color, radius,
-                appliedStatus, statusDuration, statusIntensity, Owner, ownerSpeedMultiplier);
+                appliedStatus, statusDuration, statusIntensity, Owner, ownerSpeedMultiplier, Data);
             return zone;
         }
 

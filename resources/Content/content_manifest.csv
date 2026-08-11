@@ -130,8 +130,8 @@ Boss,mirror_paradox,6,res://resources/Bosses/mirror_paradox.tres,FighterCpuContr
 Boss,archive_prime,6,res://resources/Bosses/archive_prime.tres,BossController,Implemented,ReadyForReplacement,Valid,true
 Boss,apex_eraser,6,res://resources/Bosses/apex_eraser.tres,BossController,Implemented,ReadyForReplacement,Valid,true
 # Dialogue sets: one per level plus hub
-DialogueSet,dialogue_level_00,4|16,res://resources/Dialogue/level_00_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true
-DialogueSet,dialogue_level_01,4|16,res://resources/Dialogue/level_01_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true
+DialogueSet,dialogue_level_00,4|16,res://resources/Dialogue/level_00_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
+DialogueSet,dialogue_level_01,4|16,res://resources/Dialogue/level_01_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
 DialogueSet,dialogue_level_02,16,res://resources/Dialogue/level_02_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
 DialogueSet,dialogue_level_03,16,res://resources/Dialogue/level_03_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
 DialogueSet,dialogue_level_04,16,res://resources/Dialogue/level_04_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
@@ -146,7 +146,7 @@ DialogueSet,dialogue_level_12,16,res://resources/Dialogue/level_12_dialogue.tres
 DialogueSet,dialogue_level_13,16,res://resources/Dialogue/level_13_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
 DialogueSet,dialogue_level_14,16,res://resources/Dialogue/level_14_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
 DialogueSet,dialogue_level_15,16,res://resources/Dialogue/level_15_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
-DialogueSet,dialogue_hub,3|16,res://resources/Dialogue/hub_dialogue.tres,DialogueManager,Planned,Placeholder,Pending,true
+DialogueSet,dialogue_hub,3|16,res://resources/Dialogue/hub_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
 # Initial-release UI screens/components
 UIScreen,main_menu,7,res://scenes/menus/MainMenu.tscn,MainMenu,Implemented,ReadyForReplacement,Valid,true
 UIScreen,save_select,7,res://scenes/menus/MainMenu.tscn,MainMenu,Implemented,Placeholder,Valid,true
@@ -224,7 +224,7 @@ VisualSet,visual_level_02,9|17,res://assets/placeholders/parallax_far.svg,LevelM
 VisualSet,visual_level_03,9|17,res://assets/placeholders/parallax_far.svg,LevelManager,Prototype,Placeholder,Valid,true
 VisualSet,visual_level_04,9|17,res://assets/placeholders/parallax_far.svg,LevelManager,Prototype,Placeholder,Valid,true
 VisualSet,visual_level_05,9|17,res://assets/placeholders/parallax_far.svg,LevelManager,Prototype,Placeholder,Valid,true
-VisualSet,visual_level_06,9|17,res://assets/placeholders/parallax_far.svg,LevelManager,Prototype,Placeholder,Valid,true
+VisualSet,visual_level_06,9|17,res://assets/environments/pompeii/pompeii_sky.png,LevelManager,Prototype,Placeholder,Valid,true
 VisualSet,visual_level_07,9|17,res://assets/placeholders/parallax_far.svg,LevelManager,Prototype,Placeholder,Valid,true
 VisualSet,visual_level_08,9|17,res://assets/placeholders/parallax_far.svg,LevelManager,Prototype,Placeholder,Valid,true
 VisualSet,visual_level_09,9|17,res://assets/placeholders/parallax_far.svg,LevelManager,Prototype,Placeholder,Valid,true

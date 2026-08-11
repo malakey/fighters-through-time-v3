@@ -418,7 +418,6 @@ namespace FTT.FighterSim {
         private readonly bool[] _presentedInvulnerable = { false, false };
         private readonly int[] _presentedHP = { -1, -1 };
         private readonly int[] _presentedDazeFrames = { 0, 0 };
-        private readonly bool[] _presentedMeleeActive = { false, false };
         private readonly int[] _presentedBlockCharges = { -1, -1 };
         private readonly bool[] _presentedInfluenceFull = { false, false };
         private readonly bool[] _fallTracking = { false, false };
@@ -603,16 +602,6 @@ namespace FTT.FighterSim {
             player.MovementAbilityCooldownTimer = runtime.MovementCooldownFrames / (float)FighterSimulation.TickRate;
             player.PlayPresentationAnimation(ResolvePresentationAnimation(in state, in runtime));
 
-            // The melee active window shows the same yellow flash Story's
-            // authored callbacks produce.
-            bool meleeActive = runtime.AttackPhase == FighterBasicAttackRules.PhaseActive;
-            if (_presentedMeleeActive[playerID] != meleeActive) {
-                _presentedMeleeActive[playerID] = meleeActive;
-                player.SetMeleePresentation(
-                    meleeActive,
-                    runtime.ComboIndex,
-                    (runtime.AttackFlags & FighterBasicAttackRules.FlagAerial) != 0);
-            }
             SyncPresentationFeedback(player, playerID, in state, in runtime);
         }
 
@@ -645,6 +634,12 @@ namespace FTT.FighterSim {
 
         private static void DisableNativeGameplay(PlayerController player) {
             player.ProcessMode = ProcessModeEnum.Disabled;
+            // Fighter bodies are simulation-owned and stay disabled, but their
+            // authored sprite animation still needs a presentation clock. Pausable
+            // keeps the frames advancing during play and correctly freezes them
+            // when the local match pause owns SceneTree.Paused.
+            AnimatedSprite2D sprite = player.GetNodeOrNull<AnimatedSprite2D>("AnimatedSprite2D");
+            if (sprite != null) sprite.ProcessMode = ProcessModeEnum.Pausable;
             DisableCollisionTree(player);
         }
 

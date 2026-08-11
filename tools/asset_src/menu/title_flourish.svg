@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="72" viewBox="0 0 640 72">
+<defs><linearGradient id="silver" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8d99b8" stop-opacity="0"/><stop offset="0.2" stop-color="#c9d4e8" stop-opacity="0.85"/><stop offset="0.5" stop-color="#eef4ff" stop-opacity="1"/><stop offset="0.8" stop-color="#c9d4e8" stop-opacity="0.85"/><stop offset="1" stop-color="#8d99b8" stop-opacity="0"/></linearGradient><radialGradient id="gemglow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#d8fbff" stop-opacity="0.9"/><stop offset="0.6" stop-color="#35c4e8" stop-opacity="0.35"/><stop offset="1" stop-color="#35c4e8" stop-opacity="0"/></radialGradient></defs>
+<path d="M40 36.0 L260.0 36.0" stroke="url(#silver)" stroke-width="2.4"/>
+<path d="M380.0 36.0 L600 36.0" stroke="url(#silver)" stroke-width="2.4"/>
+<path d="M70 31.0 L240.0 31.0" stroke="url(#silver)" stroke-width="1" stroke-opacity="0.5"/>
+<path d="M400.0 31.0 L570 31.0" stroke="url(#silver)" stroke-width="1" stroke-opacity="0.5"/>
+<circle cx="320.0" cy="36.0" r="30" fill="url(#gemglow)"/>
+<path d="M320.0 20.0 L331.0 36.0 L320.0 52.0 L309.0 36.0 Z" fill="#eef8ff" stroke="#9fd8f4" stroke-width="1.6"/>
+<path d="M320.0 27.0 L326.0 36.0 L320.0 45.0 L314.0 36.0 Z" fill="#35c4e8" fill-opacity="0.8"/>
+<path d="M278.0 29.0 L288.0 36.0 L278.0 43.0 L268.0 36.0 Z" fill="#c9d4e8" fill-opacity="0.9"/>
+<path d="M362.0 29.0 L372.0 36.0 L362.0 43.0 L352.0 36.0 Z" fill="#c9d4e8" fill-opacity="0.9"/>
+</svg>

@@ -22,6 +22,7 @@ namespace FTT.UI {
     /// </summary>
     public partial class LocalFighterPause : PauseMenuBase {
         private Control _panel;
+        private Control _pauseBackdrop;
         private Control _disconnectModal;
         private Label _disconnectLabel;
         private ConfirmModal _exitConfirm;
@@ -58,6 +59,7 @@ namespace FTT.UI {
             _disconnectedPlayer < 0 && _exitConfirm?.IsOpen != true;
 
         protected override void OnPauseStateChanged(bool paused) {
+            if (_pauseBackdrop != null) _pauseBackdrop.Visible = paused;
             if (_panel != null) _panel.Visible = paused && _disconnectedPlayer < 0;
 
             if (!paused) {
@@ -100,8 +102,35 @@ namespace FTT.UI {
         }
 
         private void BuildPanel() {
+            var shade = new ColorRect {
+                Name = "Shade",
+                Color = UIPalette.Shade,
+                MouseFilter = Control.MouseFilterEnum.Stop,
+                Visible = false
+            };
+            shade.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            UIPalette.ApplyTheme(shade);
+            AddChild(shade);
+            _pauseBackdrop = shade;
+
+            const string artPath =
+                "res://assets/backgrounds/menu/temporal_glass_submenu_background.png";
+            if (ResourceLoader.Exists(artPath)) {
+                var art = new TextureRect {
+                    Name = "TemporalGlassArt",
+                    Texture = ResourceLoader.Load<Texture2D>(artPath),
+                    ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+                    StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered,
+                    MouseFilter = Control.MouseFilterEnum.Ignore,
+                    Modulate = new Color(1f, 1f, 1f, 0.24f)
+                };
+                art.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+                shade.AddChild(art);
+            }
+
             _panel = new PanelContainer { Name = "PausePanel", Visible = false };
             _panel.SetAnchorsPreset(Control.LayoutPreset.Center);
+            _panel.ThemeTypeVariation = "DialogueGlassPanel";
             UIPalette.ApplyTheme(_panel);
             AddChild(_panel);
 
@@ -207,7 +236,8 @@ namespace FTT.UI {
         private static Button MakeButton(string name, string textKey) => new() {
             Name = name,
             Text = textKey,
-            CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight)
+            CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight),
+            ThemeTypeVariation = "TemporalGlassButton"
         };
     }
 }

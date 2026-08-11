@@ -1,141 +1,454 @@
-[gd_resource type="SpriteFrames" load_steps=2 format=3]
+[gd_resource type="SpriteFrames" load_steps=84 format=3]
 
-[ext_resource type="Texture2D" path="res://assets/placeholders/characters/einstein_silhouette.svg" id="1_character"]
+[ext_resource type="Texture2D" path="res://assets/sprites/characters/einstein/retro/einstein_locomotion_atlas.png" id="1_locomotion"]
+[ext_resource type="Texture2D" path="res://assets/sprites/characters/einstein/retro/einstein_traversal_atlas.png" id="2_traversal"]
+[ext_resource type="Texture2D" path="res://assets/sprites/characters/einstein/retro/einstein_combat_atlas.png" id="3_combat"]
+[ext_resource type="Texture2D" path="res://assets/sprites/characters/einstein/retro/einstein_states_atlas.png" id="4_states"]
+[ext_resource type="Texture2D" path="res://assets/sprites/characters/einstein/retro/einstein_abilities_atlas.png" id="5_abilities"]
+
+[sub_resource type="AtlasTexture" id="idle_0"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(0, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="idle_1"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(96, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="idle_2"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(192, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="run_0"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(0, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="run_1"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(96, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="run_2"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(192, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="jump_0"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(0, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="jump_1"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(96, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="jump_2"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(192, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="fall_0"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(0, 384, 96, 128)
+
+[sub_resource type="AtlasTexture" id="fall_1"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(96, 384, 96, 128)
+
+[sub_resource type="AtlasTexture" id="fall_2"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(192, 384, 96, 128)
+
+[sub_resource type="AtlasTexture" id="skid_0"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(0, 512, 96, 128)
+
+[sub_resource type="AtlasTexture" id="skid_1"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(96, 512, 96, 128)
+
+[sub_resource type="AtlasTexture" id="skid_2"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(192, 512, 96, 128)
+
+[sub_resource type="AtlasTexture" id="crouch_0"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(0, 640, 96, 128)
+
+[sub_resource type="AtlasTexture" id="crouch_1"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(96, 640, 96, 128)
+
+[sub_resource type="AtlasTexture" id="crouch_2"]
+atlas = ExtResource("1_locomotion")
+region = Rect2(192, 640, 96, 128)
+
+[sub_resource type="AtlasTexture" id="roll_startup_0"]
+atlas = ExtResource("2_traversal")
+region = Rect2(0, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="roll_startup_1"]
+atlas = ExtResource("2_traversal")
+region = Rect2(96, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="roll_startup_2"]
+atlas = ExtResource("2_traversal")
+region = Rect2(192, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="roll_0"]
+atlas = ExtResource("2_traversal")
+region = Rect2(0, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="roll_1"]
+atlas = ExtResource("2_traversal")
+region = Rect2(96, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="roll_2"]
+atlas = ExtResource("2_traversal")
+region = Rect2(192, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="roll_recovery_0"]
+atlas = ExtResource("2_traversal")
+region = Rect2(0, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="roll_recovery_1"]
+atlas = ExtResource("2_traversal")
+region = Rect2(96, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="roll_recovery_2"]
+atlas = ExtResource("2_traversal")
+region = Rect2(192, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="ledge_hang_0"]
+atlas = ExtResource("2_traversal")
+region = Rect2(0, 384, 96, 128)
+
+[sub_resource type="AtlasTexture" id="ledge_hang_1"]
+atlas = ExtResource("2_traversal")
+region = Rect2(96, 384, 96, 128)
+
+[sub_resource type="AtlasTexture" id="ledge_hang_2"]
+atlas = ExtResource("2_traversal")
+region = Rect2(192, 384, 96, 128)
+
+[sub_resource type="AtlasTexture" id="ledge_pull_up_0"]
+atlas = ExtResource("2_traversal")
+region = Rect2(0, 512, 96, 128)
+
+[sub_resource type="AtlasTexture" id="ledge_pull_up_1"]
+atlas = ExtResource("2_traversal")
+region = Rect2(96, 512, 96, 128)
+
+[sub_resource type="AtlasTexture" id="ledge_pull_up_2"]
+atlas = ExtResource("2_traversal")
+region = Rect2(192, 512, 96, 128)
+
+[sub_resource type="AtlasTexture" id="ledge_drop_0"]
+atlas = ExtResource("2_traversal")
+region = Rect2(0, 640, 96, 128)
+
+[sub_resource type="AtlasTexture" id="ledge_drop_1"]
+atlas = ExtResource("2_traversal")
+region = Rect2(96, 640, 96, 128)
+
+[sub_resource type="AtlasTexture" id="ledge_drop_2"]
+atlas = ExtResource("2_traversal")
+region = Rect2(192, 640, 96, 128)
+
+[sub_resource type="AtlasTexture" id="basic_attack_1_0"]
+atlas = ExtResource("3_combat")
+region = Rect2(0, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="basic_attack_1_1"]
+atlas = ExtResource("3_combat")
+region = Rect2(96, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="basic_attack_1_2"]
+atlas = ExtResource("3_combat")
+region = Rect2(192, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="basic_attack_2_0"]
+atlas = ExtResource("3_combat")
+region = Rect2(0, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="basic_attack_2_1"]
+atlas = ExtResource("3_combat")
+region = Rect2(96, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="basic_attack_2_2"]
+atlas = ExtResource("3_combat")
+region = Rect2(192, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="basic_attack_3_0"]
+atlas = ExtResource("3_combat")
+region = Rect2(0, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="basic_attack_3_1"]
+atlas = ExtResource("3_combat")
+region = Rect2(96, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="basic_attack_3_2"]
+atlas = ExtResource("3_combat")
+region = Rect2(192, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="block_0"]
+atlas = ExtResource("3_combat")
+region = Rect2(0, 384, 96, 128)
+
+[sub_resource type="AtlasTexture" id="block_1"]
+atlas = ExtResource("3_combat")
+region = Rect2(96, 384, 96, 128)
+
+[sub_resource type="AtlasTexture" id="block_2"]
+atlas = ExtResource("3_combat")
+region = Rect2(192, 384, 96, 128)
+
+[sub_resource type="AtlasTexture" id="hitstun_0"]
+atlas = ExtResource("3_combat")
+region = Rect2(0, 512, 96, 128)
+
+[sub_resource type="AtlasTexture" id="hitstun_1"]
+atlas = ExtResource("3_combat")
+region = Rect2(96, 512, 96, 128)
+
+[sub_resource type="AtlasTexture" id="hitstun_2"]
+atlas = ExtResource("3_combat")
+region = Rect2(192, 512, 96, 128)
+
+[sub_resource type="AtlasTexture" id="dazed_0"]
+atlas = ExtResource("4_states")
+region = Rect2(0, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="dazed_1"]
+atlas = ExtResource("4_states")
+region = Rect2(96, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="dazed_2"]
+atlas = ExtResource("4_states")
+region = Rect2(192, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="death_0"]
+atlas = ExtResource("4_states")
+region = Rect2(0, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="death_1"]
+atlas = ExtResource("4_states")
+region = Rect2(96, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="death_2"]
+atlas = ExtResource("4_states")
+region = Rect2(192, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="respawn_0"]
+atlas = ExtResource("4_states")
+region = Rect2(0, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="respawn_1"]
+atlas = ExtResource("4_states")
+region = Rect2(96, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="respawn_2"]
+atlas = ExtResource("4_states")
+region = Rect2(192, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="victory_0"]
+atlas = ExtResource("4_states")
+region = Rect2(0, 384, 96, 128)
+
+[sub_resource type="AtlasTexture" id="victory_1"]
+atlas = ExtResource("4_states")
+region = Rect2(96, 384, 96, 128)
+
+[sub_resource type="AtlasTexture" id="victory_2"]
+atlas = ExtResource("4_states")
+region = Rect2(192, 384, 96, 128)
+
+[sub_resource type="AtlasTexture" id="defeat_0"]
+atlas = ExtResource("4_states")
+region = Rect2(0, 512, 96, 128)
+
+[sub_resource type="AtlasTexture" id="defeat_1"]
+atlas = ExtResource("4_states")
+region = Rect2(96, 512, 96, 128)
+
+[sub_resource type="AtlasTexture" id="defeat_2"]
+atlas = ExtResource("4_states")
+region = Rect2(192, 512, 96, 128)
+
+[sub_resource type="AtlasTexture" id="special_1_0"]
+atlas = ExtResource("5_abilities")
+region = Rect2(0, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="special_1_1"]
+atlas = ExtResource("5_abilities")
+region = Rect2(96, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="special_1_2"]
+atlas = ExtResource("5_abilities")
+region = Rect2(192, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="special_2_0"]
+atlas = ExtResource("5_abilities")
+region = Rect2(0, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="special_2_1"]
+atlas = ExtResource("5_abilities")
+region = Rect2(96, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="special_2_2"]
+atlas = ExtResource("5_abilities")
+region = Rect2(192, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="movement_ability_0"]
+atlas = ExtResource("5_abilities")
+region = Rect2(0, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="movement_ability_1"]
+atlas = ExtResource("5_abilities")
+region = Rect2(96, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="movement_ability_2"]
+atlas = ExtResource("5_abilities")
+region = Rect2(192, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="ultimate_0"]
+atlas = ExtResource("5_abilities")
+region = Rect2(0, 384, 96, 128)
+
+[sub_resource type="AtlasTexture" id="ultimate_1"]
+atlas = ExtResource("5_abilities")
+region = Rect2(96, 384, 96, 128)
+
+[sub_resource type="AtlasTexture" id="ultimate_2"]
+atlas = ExtResource("5_abilities")
+region = Rect2(192, 384, 96, 128)
 
 [resource]
-animations = [{
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+animations = [
+{
+"frames": [{"duration": 1.0, "texture": SubResource("idle_0")}, {"duration": 1.0, "texture": SubResource("idle_1")}, {"duration": 1.0, "texture": SubResource("idle_2")}],
 "loop": true,
 "name": &"idle",
 "speed": 6.0
 }, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"frames": [{"duration": 1.0, "texture": SubResource("run_0")}, {"duration": 1.0, "texture": SubResource("run_1")}, {"duration": 1.0, "texture": SubResource("run_2")}],
 "loop": true,
 "name": &"run",
-"speed": 8.0
-}, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": false,
-"name": &"dash",
 "speed": 12.0
 }, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": false,
-"name": &"roll_startup",
-"speed": 12.0
-}, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": false,
-"name": &"roll",
-"speed": 12.0
-}, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": false,
-"name": &"roll_recovery",
-"speed": 12.0
-}, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"frames": [{"duration": 1.0, "texture": SubResource("jump_0")}, {"duration": 1.0, "texture": SubResource("jump_1")}, {"duration": 1.0, "texture": SubResource("jump_2")}],
 "loop": false,
 "name": &"jump",
-"speed": 6.0
-}, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": true,
-"name": &"fall",
-"speed": 6.0
-}, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": false,
-"name": &"basic_attack_1",
-"speed": 12.0
-}, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": false,
-"name": &"basic_attack_2",
-"speed": 12.0
-}, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": false,
-"name": &"basic_attack_3",
-"speed": 12.0
-}, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": false,
-"name": &"special_1",
-"speed": 10.0
-}, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": false,
-"name": &"special_2",
-"speed": 10.0
-}, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": false,
-"name": &"movement_ability",
-"speed": 10.0
-}, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": false,
-"name": &"ultimate",
-"speed": 10.0
-}, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": true,
-"name": &"block",
-"speed": 3.0
-}, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": true,
-"name": &"dazed",
-"speed": 4.0
-}, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": false,
-"name": &"hitstun",
 "speed": 8.0
 }, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
-"loop": false,
-"name": &"death",
-"speed": 6.0
+"frames": [{"duration": 1.0, "texture": SubResource("fall_0")}, {"duration": 1.0, "texture": SubResource("fall_1")}, {"duration": 1.0, "texture": SubResource("fall_2")}],
+"loop": true,
+"name": &"fall",
+"speed": 8.0
 }, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"frames": [{"duration": 1.0, "texture": SubResource("skid_0")}, {"duration": 1.0, "texture": SubResource("skid_1")}, {"duration": 1.0, "texture": SubResource("skid_2")}],
 "loop": false,
 "name": &"skid",
 "speed": 12.0
 }, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"frames": [{"duration": 1.0, "texture": SubResource("crouch_0")}, {"duration": 1.0, "texture": SubResource("crouch_1")}, {"duration": 1.0, "texture": SubResource("crouch_2")}],
 "loop": true,
 "name": &"crouch",
 "speed": 4.0
 }, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"frames": [{"duration": 1.0, "texture": SubResource("roll_startup_0")}, {"duration": 1.0, "texture": SubResource("roll_startup_1")}, {"duration": 1.0, "texture": SubResource("roll_startup_2")}],
+"loop": false,
+"name": &"roll_startup",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("roll_0")}, {"duration": 1.0, "texture": SubResource("roll_1")}, {"duration": 1.0, "texture": SubResource("roll_2")}],
+"loop": false,
+"name": &"roll",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("roll_recovery_0")}, {"duration": 1.0, "texture": SubResource("roll_recovery_1")}, {"duration": 1.0, "texture": SubResource("roll_recovery_2")}],
+"loop": false,
+"name": &"roll_recovery",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("ledge_hang_0")}, {"duration": 1.0, "texture": SubResource("ledge_hang_1")}, {"duration": 1.0, "texture": SubResource("ledge_hang_2")}],
 "loop": true,
 "name": &"ledge_hang",
 "speed": 3.0
 }, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"frames": [{"duration": 1.0, "texture": SubResource("ledge_pull_up_0")}, {"duration": 1.0, "texture": SubResource("ledge_pull_up_1")}, {"duration": 1.0, "texture": SubResource("ledge_pull_up_2")}],
 "loop": false,
 "name": &"ledge_pull_up",
 "speed": 8.0
 }, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"frames": [{"duration": 1.0, "texture": SubResource("ledge_drop_0")}, {"duration": 1.0, "texture": SubResource("ledge_drop_1")}, {"duration": 1.0, "texture": SubResource("ledge_drop_2")}],
 "loop": false,
 "name": &"ledge_drop",
 "speed": 8.0
 }, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"frames": [{"duration": 1.0, "texture": SubResource("basic_attack_1_0")}, {"duration": 1.0, "texture": SubResource("basic_attack_1_1")}, {"duration": 1.0, "texture": SubResource("basic_attack_1_2")}],
+"loop": false,
+"name": &"basic_attack_1",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("basic_attack_2_0")}, {"duration": 1.0, "texture": SubResource("basic_attack_2_1")}, {"duration": 1.0, "texture": SubResource("basic_attack_2_2")}],
+"loop": false,
+"name": &"basic_attack_2",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("basic_attack_3_0")}, {"duration": 1.0, "texture": SubResource("basic_attack_3_1")}, {"duration": 1.0, "texture": SubResource("basic_attack_3_2")}],
+"loop": false,
+"name": &"basic_attack_3",
+"speed": 7.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("block_0")}, {"duration": 1.0, "texture": SubResource("block_1")}, {"duration": 1.0, "texture": SubResource("block_2")}],
+"loop": true,
+"name": &"block",
+"speed": 3.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("hitstun_0")}, {"duration": 1.0, "texture": SubResource("hitstun_1")}, {"duration": 1.0, "texture": SubResource("hitstun_2")}],
+"loop": false,
+"name": &"hitstun",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("dazed_0")}, {"duration": 1.0, "texture": SubResource("dazed_1")}, {"duration": 1.0, "texture": SubResource("dazed_2")}],
+"loop": true,
+"name": &"dazed",
+"speed": 4.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("death_0")}, {"duration": 1.0, "texture": SubResource("death_1")}, {"duration": 1.0, "texture": SubResource("death_2")}],
+"loop": false,
+"name": &"death",
+"speed": 6.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("respawn_0")}, {"duration": 1.0, "texture": SubResource("respawn_1")}, {"duration": 1.0, "texture": SubResource("respawn_2")}],
 "loop": false,
 "name": &"respawn",
 "speed": 8.0
 }, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"frames": [{"duration": 1.0, "texture": SubResource("victory_0")}, {"duration": 1.0, "texture": SubResource("victory_1")}, {"duration": 1.0, "texture": SubResource("victory_2")}],
 "loop": true,
 "name": &"victory",
 "speed": 6.0
 }, {
-"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"frames": [{"duration": 1.0, "texture": SubResource("defeat_0")}, {"duration": 1.0, "texture": SubResource("defeat_1")}, {"duration": 1.0, "texture": SubResource("defeat_2")}],
 "loop": true,
 "name": &"defeat",
 "speed": 4.0
-}]
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("special_1_0")}, {"duration": 1.0, "texture": SubResource("special_1_1")}, {"duration": 1.0, "texture": SubResource("special_1_2")}],
+"loop": false,
+"name": &"special_1",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("special_2_0")}, {"duration": 1.0, "texture": SubResource("special_2_1")}, {"duration": 1.0, "texture": SubResource("special_2_2")}],
+"loop": false,
+"name": &"special_2",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("movement_ability_0")}, {"duration": 1.0, "texture": SubResource("movement_ability_1")}, {"duration": 1.0, "texture": SubResource("movement_ability_2")}],
+"loop": false,
+"name": &"movement_ability",
+"speed": 10.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("ultimate_0")}, {"duration": 1.0, "texture": SubResource("ultimate_1")}, {"duration": 1.0, "texture": SubResource("ultimate_2")}],
+"loop": false,
+"name": &"ultimate",
+"speed": 8.0
+}
+]

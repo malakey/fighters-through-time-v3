@@ -1,96 +1,10 @@
-[gd_resource type="Theme" load_steps=22 format=3]
+[gd_resource type="Theme" format=3 uid="uid://c3ajip41tplop"]
 
-; Package 8 A1 - the single shared UI Theme.
-;
-; Every colour here is a named constant in scripts/UI/UIPalette.cs and
-; UIThemeTests pins the two together, so the palette cannot drift from what the
-; theme actually paints. Screens adopt this by setting Theme on their root
-; Control; Godot propagates it down the subtree.
-;
-; No font resource is referenced on purpose. assets/fonts/ is empty, so the
-; theme must work against Godot's built-in default font and simply pick up a
-; production face later by adding default_font here. Sizes are set, faces are
-; not.
-
-[sub_resource type="StyleBoxFlat" id="PanelBG"]
-content_margin_left = 22.0
-content_margin_top = 18.0
-content_margin_right = 22.0
-content_margin_bottom = 18.0
-bg_color = Color(0.06, 0.06, 0.12, 0.94)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0, 0.55, 0.6, 0.9)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
-[sub_resource type="StyleBoxFlat" id="PopupBG"]
-content_margin_left = 10.0
-content_margin_top = 10.0
-content_margin_right = 10.0
-content_margin_bottom = 10.0
-bg_color = Color(0.06, 0.06, 0.12, 0.94)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0, 0.55, 0.6, 0.9)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
-[sub_resource type="StyleBoxFlat" id="BtnNormal"]
-content_margin_left = 18.0
-content_margin_top = 8.0
-content_margin_right = 18.0
-content_margin_bottom = 8.0
-bg_color = Color(0.1, 0.12, 0.2, 0.95)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0, 0.55, 0.6, 0.9)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
-[sub_resource type="StyleBoxFlat" id="BtnHover"]
-content_margin_left = 18.0
-content_margin_top = 8.0
-content_margin_right = 18.0
-content_margin_bottom = 8.0
-bg_color = Color(0.14, 0.2, 0.3, 0.98)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0, 0.9, 0.9, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
-[sub_resource type="StyleBoxFlat" id="BtnPressed"]
-content_margin_left = 18.0
-content_margin_top = 8.0
-content_margin_right = 18.0
-content_margin_bottom = 8.0
-bg_color = Color(0, 0.3, 0.34, 1)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0, 0.9, 0.9, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+[ext_resource type="Texture2D" uid="uid://dip475waolya8" path="res://assets/sprites/ui/glass_button_normal.png" id="1_glass_normal"]
+[ext_resource type="Texture2D" uid="uid://4exy7dy1xtwi" path="res://assets/sprites/ui/glass_button_focus.png" id="2_glass_hover"]
+[ext_resource type="Texture2D" uid="uid://c12iv4pgd4tk1" path="res://assets/sprites/ui/glass_button_pressed.png" id="3_glass_pressed"]
+[ext_resource type="Texture2D" uid="uid://clki77t1o0rvu" path="res://assets/sprites/ui/glass_button_disabled.png" id="4_glass_disabled"]
+[ext_resource type="Texture2D" uid="uid://cjn68h623dbh7" path="res://assets/sprites/ui/glass_button_focus_ring.png" id="5_glass_focus"]
 
 [sub_resource type="StyleBoxFlat" id="BtnDisabled"]
 content_margin_left = 18.0
@@ -128,6 +42,90 @@ expand_margin_top = 3.0
 expand_margin_right = 3.0
 expand_margin_bottom = 3.0
 
+[sub_resource type="StyleBoxFlat" id="BtnHover"]
+content_margin_left = 18.0
+content_margin_top = 8.0
+content_margin_right = 18.0
+content_margin_bottom = 8.0
+bg_color = Color(0.14, 0.2, 0.3, 0.98)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0.9, 0.9, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="BtnNormal"]
+content_margin_left = 18.0
+content_margin_top = 8.0
+content_margin_right = 18.0
+content_margin_bottom = 8.0
+bg_color = Color(0.1, 0.12, 0.2, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0.55, 0.6, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="BtnPressed"]
+content_margin_left = 18.0
+content_margin_top = 8.0
+content_margin_right = 18.0
+content_margin_bottom = 8.0
+bg_color = Color(0, 0.3, 0.34, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0.9, 0.9, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="DialogueGlass"]
+content_margin_left = 24.0
+content_margin_top = 18.0
+content_margin_right = 24.0
+content_margin_bottom = 18.0
+bg_color = Color(0.06, 0.06, 0.12, 0.72)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0.9, 0.9, 0.55)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+shadow_color = Color(0, 0.02, 0.04, 0.45)
+shadow_size = 12
+
+[sub_resource type="StyleBoxLine" id="SeparatorLine"]
+color = Color(0, 0.55, 0.6, 0.9)
+thickness = 2
+
+[sub_resource type="StyleBoxFlat" id="GrabberArea"]
+bg_color = Color(0, 0.55, 0.6, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="GrabberHighlight"]
+bg_color = Color(0, 0.9, 0.9, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
 [sub_resource type="StyleBoxFlat" id="SliderTrack"]
 content_margin_left = 0.0
 content_margin_top = 4.0
@@ -144,15 +142,65 @@ corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[sub_resource type="StyleBoxFlat" id="GrabberArea"]
-bg_color = Color(0, 0.55, 0.6, 0.9)
+[sub_resource type="StyleBoxFlat" id="LineFocus"]
+content_margin_left = 10.0
+content_margin_top = 6.0
+content_margin_right = 10.0
+content_margin_bottom = 6.0
+bg_color = Color(0.03, 0.04, 0.08, 0.95)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0, 0.9, 0.9, 1)
 corner_radius_top_left = 4
 corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
 
-[sub_resource type="StyleBoxFlat" id="GrabberHighlight"]
-bg_color = Color(0, 0.9, 0.9, 1)
+[sub_resource type="StyleBoxFlat" id="LineNormal"]
+content_margin_left = 10.0
+content_margin_top = 6.0
+content_margin_right = 10.0
+content_margin_bottom = 6.0
+bg_color = Color(0.03, 0.04, 0.08, 0.95)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0.55, 0.6, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="PanelBG"]
+content_margin_left = 22.0
+content_margin_top = 18.0
+content_margin_right = 22.0
+content_margin_bottom = 18.0
+bg_color = Color(0.06, 0.06, 0.12, 0.94)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0.55, 0.6, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="PopupBG"]
+content_margin_left = 10.0
+content_margin_top = 10.0
+content_margin_right = 10.0
+content_margin_bottom = 10.0
+bg_color = Color(0.06, 0.06, 0.12, 0.94)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0.55, 0.6, 0.9)
 corner_radius_top_left = 4
 corner_radius_top_right = 4
 corner_radius_bottom_right = 4
@@ -176,6 +224,33 @@ corner_radius_top_left = 4
 corner_radius_top_right = 4
 corner_radius_bottom_right = 4
 corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="TabPanel"]
+content_margin_left = 18.0
+content_margin_top = 18.0
+content_margin_right = 18.0
+content_margin_bottom = 18.0
+bg_color = Color(0.06, 0.06, 0.12, 0.94)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0.55, 0.6, 0.9)
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="TabHovered"]
+content_margin_left = 18.0
+content_margin_top = 8.0
+content_margin_right = 18.0
+content_margin_bottom = 8.0
+bg_color = Color(0.14, 0.2, 0.3, 0.98)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_color = Color(0, 0.9, 0.9, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
 
 [sub_resource type="StyleBoxFlat" id="TabSelected"]
 content_margin_left = 18.0
@@ -203,93 +278,58 @@ border_color = Color(0, 0.55, 0.6, 0.9)
 corner_radius_top_left = 4
 corner_radius_top_right = 4
 
-[sub_resource type="StyleBoxFlat" id="TabHovered"]
-content_margin_left = 18.0
-content_margin_top = 8.0
-content_margin_right = 18.0
-content_margin_bottom = 8.0
-bg_color = Color(0.14, 0.2, 0.3, 0.98)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_color = Color(0, 0.9, 0.9, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-
-[sub_resource type="StyleBoxFlat" id="TabPanel"]
-content_margin_left = 18.0
-content_margin_top = 18.0
-content_margin_right = 18.0
-content_margin_bottom = 18.0
-bg_color = Color(0.06, 0.06, 0.12, 0.94)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0, 0.55, 0.6, 0.9)
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
-
 [sub_resource type="StyleBoxEmpty" id="TabBarBG"]
 
-[sub_resource type="StyleBoxFlat" id="LineNormal"]
-content_margin_left = 10.0
-content_margin_top = 6.0
-content_margin_right = 10.0
-content_margin_bottom = 6.0
-bg_color = Color(0.03, 0.04, 0.08, 0.95)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0, 0.55, 0.6, 0.9)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+[sub_resource type="StyleBoxTexture" id="TemporalGlassBtnDisabled"]
+content_margin_left = 42.0
+content_margin_top = 8.0
+content_margin_right = 32.0
+content_margin_bottom = 8.0
+texture = ExtResource("4_glass_disabled")
+texture_margin_left = 60.0
+texture_margin_top = 20.0
+texture_margin_right = 34.0
+texture_margin_bottom = 20.0
 
-[sub_resource type="StyleBoxFlat" id="LineFocus"]
-content_margin_left = 10.0
-content_margin_top = 6.0
-content_margin_right = 10.0
-content_margin_bottom = 6.0
-bg_color = Color(0.03, 0.04, 0.08, 0.95)
-border_width_left = 3
-border_width_top = 3
-border_width_right = 3
-border_width_bottom = 3
-border_color = Color(0, 0.9, 0.9, 1)
-corner_radius_top_left = 4
-corner_radius_top_right = 4
-corner_radius_bottom_right = 4
-corner_radius_bottom_left = 4
+[sub_resource type="StyleBoxTexture" id="TemporalGlassBtnFocus"]
+texture = ExtResource("5_glass_focus")
+texture_margin_left = 60.0
+texture_margin_top = 20.0
+texture_margin_right = 34.0
+texture_margin_bottom = 20.0
 
-[sub_resource type="StyleBoxLine" id="SeparatorLine"]
-color = Color(0, 0.55, 0.6, 0.9)
-thickness = 2
+[sub_resource type="StyleBoxTexture" id="TemporalGlassBtnHover"]
+content_margin_left = 42.0
+content_margin_top = 8.0
+content_margin_right = 32.0
+content_margin_bottom = 8.0
+texture = ExtResource("2_glass_hover")
+texture_margin_left = 60.0
+texture_margin_top = 20.0
+texture_margin_right = 34.0
+texture_margin_bottom = 20.0
 
-; Package 8 B3 - the dialogue box's glass treatment, as a PanelContainer type
-; variation so the box adopts it with theme_type_variation and nothing else in
-; the UI changes. Translucent fill + soft shadow + accent border is as close to
-; frosted glass as gl_compatibility gets without a backbuffer blur pass; the
-; numbers are pinned to scripts/UI/DialogueTheme.cs by DialoguePresentationTests.
-[sub_resource type="StyleBoxFlat" id="DialogueGlass"]
-content_margin_left = 24.0
-content_margin_top = 18.0
-content_margin_right = 24.0
-content_margin_bottom = 18.0
-bg_color = Color(0.06, 0.06, 0.12, 0.72)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0, 0.9, 0.9, 0.55)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
-shadow_color = Color(0, 0.02, 0.04, 0.45)
-shadow_size = 12
+[sub_resource type="StyleBoxTexture" id="TemporalGlassBtnNormal"]
+content_margin_left = 42.0
+content_margin_top = 8.0
+content_margin_right = 32.0
+content_margin_bottom = 8.0
+texture = ExtResource("1_glass_normal")
+texture_margin_left = 60.0
+texture_margin_top = 20.0
+texture_margin_right = 34.0
+texture_margin_bottom = 20.0
+
+[sub_resource type="StyleBoxTexture" id="TemporalGlassBtnPressed"]
+content_margin_left = 42.0
+content_margin_top = 8.0
+content_margin_right = 32.0
+content_margin_bottom = 8.0
+texture = ExtResource("3_glass_pressed")
+texture_margin_left = 60.0
+texture_margin_top = 20.0
+texture_margin_right = 34.0
+texture_margin_bottom = 20.0
 
 [resource]
 default_font_size = 18
@@ -351,6 +391,18 @@ TabContainer/styles/tab_hovered = SubResource("TabHovered")
 TabContainer/styles/tab_selected = SubResource("TabSelected")
 TabContainer/styles/tab_unselected = SubResource("TabUnselected")
 TabContainer/styles/tabbar_background = SubResource("TabBarBG")
+TemporalGlassButton/base_type = &"Button"
+TemporalGlassButton/colors/font_color = Color(0.78, 0.83, 0.94, 1)
+TemporalGlassButton/colors/font_disabled_color = Color(0.4, 0.42, 0.5, 1)
+TemporalGlassButton/colors/font_focus_color = Color(0.92, 0.96, 1, 1)
+TemporalGlassButton/colors/font_hover_color = Color(0.92, 0.96, 1, 1)
+TemporalGlassButton/colors/font_pressed_color = Color(0.92, 0.96, 1, 1)
+TemporalGlassButton/font_sizes/font_size = 20
+TemporalGlassButton/styles/disabled = SubResource("TemporalGlassBtnDisabled")
+TemporalGlassButton/styles/focus = SubResource("TemporalGlassBtnFocus")
+TemporalGlassButton/styles/hover = SubResource("TemporalGlassBtnHover")
+TemporalGlassButton/styles/normal = SubResource("TemporalGlassBtnNormal")
+TemporalGlassButton/styles/pressed = SubResource("TemporalGlassBtnPressed")
 VSlider/styles/grabber_area = SubResource("GrabberArea")
 VSlider/styles/grabber_area_highlight = SubResource("GrabberHighlight")
 VSlider/styles/slider = SubResource("SliderTrack")

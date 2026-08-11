@@ -259,7 +259,6 @@ namespace FTT.Characters {
 		private CollisionShape2D _hurtboxShape;
 		private FTT.Combat.CombatantPushbox _pushbox;
 		private FTT.Combat.Hitbox _meleeHitbox;
-		private ColorRect _meleeHitVisual;
 		private uint _rewindCollisionLayer;
 		private uint _rewindCollisionMask;
 		private bool _rewindSuspended;
@@ -397,7 +396,6 @@ namespace FTT.Characters {
 			_hurtbox = GetNodeOrNull<FTT.Combat.Hurtbox>("Hurtbox");
 			_pushbox = GetNodeOrNull<FTT.Combat.CombatantPushbox>("Pushbox");
 			_meleeHitbox = GetNodeOrNull<FTT.Combat.Hitbox>("MeleeHitbox");
-			_meleeHitVisual = GetNodeOrNull<ColorRect>("MeleeHitVisual");
 
 			if (_meleeHitbox != null) {
 				// Guard against double subscription: InitializeCombatNodes can run
@@ -1351,27 +1349,6 @@ namespace FTT.Characters {
 		/// </summary>
 		public void SyncPresentationFacing() => UpdateSpriteFlip();
 
-		/// <summary>
-		/// Fighter-mode presentation of the melee active window: the same yellow
-		/// flash Story's authored callbacks draw, sized from the shared combo
-		/// hitbox tables, without touching the real Hitbox or any collision.
-		/// </summary>
-		public void SetMeleePresentation(bool active, int comboIndex, bool aerial) {
-			if (_meleeHitVisual == null) return;
-			if (!active) {
-				_meleeHitVisual.Color = new Color(1, 1, 0.3f, 0f);
-				return;
-			}
-			int index = Mathf.Clamp(comboIndex, 0, 2);
-			Vector2 size = aerial ? AerialComboHitboxSizes[index] : ComboHitboxSizes[index];
-			Vector2 offset = aerial ? AerialComboHitboxOffsets[index] : ComboHitboxOffsets[index];
-			float facing = IsFacingRight ? 1f : -1f;
-			Vector2 resolved = new(offset.X * facing, offset.Y);
-			_meleeHitVisual.Size = size;
-			_meleeHitVisual.Position = new Vector2(resolved.X - size.X * 0.5f, resolved.Y - size.Y * 0.5f);
-			_meleeHitVisual.Color = new Color(1, 1, 0.3f, 0.5f);
-		}
-
 		public void SetRewindSuspended(bool suspended) {
 			if (_rewindSuspended == suspended) return;
 			_rewindSuspended = suspended;
@@ -1598,6 +1575,7 @@ namespace FTT.Characters {
 			}
 
 			TransitionTo(CharacterState.Attacking);
+			PlayAnimation($"basic_attack_{comboIdx + 1}");
 			string animationName = $"basic_{(_attackStartedAerial ? "air" : "ground")}_{comboIdx + 1}";
 			_attackAnimationDriven = _combatAnimationPlayer?.HasAnimation(animationName) == true;
 			if (_attackAnimationDriven) {
@@ -1631,14 +1609,6 @@ namespace FTT.Characters {
 			}
 			_meleeHitbox?.Activate();
 
-			if (_meleeHitVisual != null) {
-				_meleeHitVisual.Size = hitboxSize;
-				_meleeHitVisual.Position = HitShapePosition(resolvedOffset, hitboxSize);
-				_meleeHitVisual.Color = new Color(1, 1, 0.3f, 0.5f);
-			}
-
-			Vector2 HitShapePosition(Vector2 offset, Vector2 size) =>
-				new(offset.X - size.X * 0.5f, offset.Y - size.Y * 0.5f);
 		}
 
 		public void OnAttackActiveEnded() {
@@ -1647,7 +1617,6 @@ namespace FTT.Characters {
 			if (_attackHitActive && CurrentState == CharacterState.Attacking) _attackInRecovery = true;
 			_attackHitActive = false;
 			_meleeHitbox?.Deactivate();
-			if (_meleeHitVisual != null) _meleeHitVisual.Color = new Color(1, 1, 0.3f, 0f);
 		}
 
 		private void OnCombatAnimationFinished(StringName animationName) {

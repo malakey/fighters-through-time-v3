@@ -56,6 +56,29 @@ namespace FTT.Environment {
         public const string RockfallPuzzleID = "level_06.clear_rockfall";
         public const string BalanceConditionID = "weights_balanced";
 
+        // === Surface textures (Package 10 pass 1) ===
+
+        private LevelSurfaceTextures _surfaceTextures;
+
+        protected override LevelSurfaceTextures SurfaceTextures => _surfaceTextures ??= new LevelSurfaceTextures {
+            Floor = new LevelSurfaceTextures.Entry {
+                Texture = GD.Load<Texture2D>("res://assets/environments/pompeii/floor_stone.png"),
+                MarginTop = 10, MarginBottom = 10
+            },
+            Platform = new LevelSurfaceTextures.Entry {
+                Texture = GD.Load<Texture2D>("res://assets/environments/pompeii/platform_stone.png")
+            },
+            OneWay = new LevelSurfaceTextures.Entry {
+                Texture = GD.Load<Texture2D>("res://assets/environments/pompeii/oneway_planks.png"),
+                MarginLeft = 12, MarginRight = 12, MarginTop = 6, MarginBottom = 6
+            },
+            Wall = new LevelSurfaceTextures.Entry {
+                Texture = GD.Load<Texture2D>("res://assets/environments/pompeii/wall_stone.png"),
+                MarginLeft = 8, MarginRight = 8, MarginTop = 12, MarginBottom = 12,
+                TileHorizontal = false, TileVertical = true
+            }
+        };
+
         public override string LevelID => ID;
         public override CampaignLevel Level => CampaignLevel.Pompeii;
         public override string LevelTitleKey => "pompeii_level_title";

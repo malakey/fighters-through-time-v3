@@ -91,6 +91,7 @@ namespace FTT.UI {
 
             var panel = new PanelContainer { Name = "Panel" };
             panel.CustomMinimumSize = new Vector2(420, 0);
+            panel.ThemeTypeVariation = "DialogueGlassPanel";
             center.AddChild(panel);
             _menuPanel = panel;
 
@@ -119,7 +120,8 @@ namespace FTT.UI {
             var button = new Button {
                 Name = name,
                 Text = textKey,
-                CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight)
+                CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight),
+                ThemeTypeVariation = "TemporalGlassButton"
             };
             button.Pressed += handler;
             return button;

@@ -10,7 +10,11 @@ namespace FTT.Combat {
         private Hitbox _hitbox;
         private ColorRect _visual;
         private ColorRect _trail;
+        private AnimatedSprite2D _authoredVisual;
         private CollisionShape2D _shape;
+
+        private const string EinsteinVfxFramesPath =
+            "res://resources/SpriteFrames/einstein_ability_vfx_frames.tres";
 
         /// <summary>
         /// When true, the projectile despawns on its first confirmed contact and
@@ -41,12 +45,15 @@ namespace FTT.Combat {
             _lifetime = lifetime;
 
             EnsureNodes();
+            bool usesAuthoredVisual = ApplyAuthoredVisual(data, movingRight);
             _visual.Size = size;
             _visual.Position = -size / 2;
             _visual.Color = color;
+            _visual.Visible = !usesAuthoredVisual;
             _trail.Size = new Vector2(size.X * 0.6f, size.Y * 0.5f);
             _trail.Position = new Vector2(movingRight ? -size.X * 0.6f : size.X * 0.5f, -size.Y * 0.25f);
             _trail.Color = new Color(color.R, color.G, color.B, 0.4f);
+            _trail.Visible = !usesAuthoredVisual;
             ((RectangleShape2D)_shape.Shape).Size = size;
 
             _hitbox.AttackID = data?.AbilityID ?? "placeholder_projectile";
@@ -83,6 +90,12 @@ namespace FTT.Combat {
             AddChild(_visual);
             _trail = new ColorRect { Name = "Trail", MouseFilter = Control.MouseFilterEnum.Ignore };
             AddChild(_trail);
+            _authoredVisual = new AnimatedSprite2D {
+                Name = "AuthoredVisual",
+                Visible = false,
+                ZIndex = 2
+            };
+            AddChild(_authoredVisual);
             _hitbox = new Hitbox { Name = "Hitbox" };
             _shape = new CollisionShape2D {
                 Name = "CollisionShape2D",
@@ -91,6 +104,22 @@ namespace FTT.Combat {
             _hitbox.AddChild(_shape);
             AddChild(_hitbox);
             _hitbox.HitConfirmed += OnHitConfirmed;
+        }
+
+        private bool ApplyAuthoredVisual(AbilityData data, bool movingRight) {
+            if (_authoredVisual == null) return false;
+            _authoredVisual.Visible = false;
+            _authoredVisual.Stop();
+            if (data?.AbilityID != "einstein_mass_energy_conversion") return false;
+            SpriteFrames frames = ResourceLoader.Load<SpriteFrames>(EinsteinVfxFramesPath);
+            if (frames == null || !frames.HasAnimation("mass_energy_projectile")) return false;
+            _authoredVisual.SpriteFrames = frames;
+            _authoredVisual.Animation = "mass_energy_projectile";
+            _authoredVisual.FlipH = !movingRight;
+            _authoredVisual.Scale = new Vector2(0.38f, 0.38f);
+            _authoredVisual.Visible = true;
+            _authoredVisual.Play();
+            return true;
         }
 
         private void OnHitConfirmed(HitPayload payload, float damageApplied) {
@@ -125,6 +154,13 @@ namespace FTT.Combat {
             _movingRight = true;
             DetonateOnImpact = false;
             Impacted = null;
+            if (_authoredVisual != null) {
+                _authoredVisual.Stop();
+                _authoredVisual.Visible = false;
+                _authoredVisual.FlipH = false;
+            }
+            if (_visual != null) _visual.Visible = true;
+            if (_trail != null) _trail.Visible = true;
             Modulate = Colors.White;
         }
     }

@@ -65,6 +65,21 @@ public class FighterPresentationSyncTests {
     }
 
     [TestCase]
+    public void FighterDriverKeepsAuthoredSpritesOnAPausablePresentationClock() {
+        (FighterSimulationDriver _, Node host, PlayerController one, PlayerController two) =
+            CreateDriver("SpritePresentationClockHost", attachGlow: true);
+
+        AssertThat(one.ProcessMode).IsEqual(Node.ProcessModeEnum.Disabled);
+        AssertThat(two.ProcessMode).IsEqual(Node.ProcessModeEnum.Disabled);
+        AssertThat(one.GetNode<AnimatedSprite2D>("AnimatedSprite2D").ProcessMode)
+            .IsEqual(Node.ProcessModeEnum.Pausable);
+        AssertThat(two.GetNode<AnimatedSprite2D>("AnimatedSprite2D").ProcessMode)
+            .IsEqual(Node.ProcessModeEnum.Pausable);
+
+        host.Free();
+    }
+
+    [TestCase]
     public void PresentationAttachmentDoesNotPerturbTheSimulationHash() {
         (FighterSimulationDriver withGlow, Node hostA, PlayerController _, PlayerController _) =
             CreateDriver("PresentationHostWithGlow", attachGlow: true);

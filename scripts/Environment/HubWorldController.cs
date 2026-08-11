@@ -80,7 +80,9 @@ namespace FTT.Environment {
             bg.Name = "Background";
             bg.Size = new Vector2(3840, 1080);
             bg.Position = new Vector2(0, 0);
-            bg.Color = new Color(0.05f, 0.08f, 0.15f);
+            bg.Color = new Color(0.025f, 0.05f, 0.11f, 0.24f);
+            bg.ZIndex = -250;
+            bg.MouseFilter = Control.MouseFilterEnum.Ignore;
             AddChild(bg);
 
             BuildFloor(0, 900, 3840);

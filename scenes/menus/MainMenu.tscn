@@ -1,7 +1,70 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/MainMenu.cs" id="1_script"]
 [ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
+[ext_resource type="Texture2D" path="res://assets/backgrounds/menu/menu_starfield.png" id="3_starfield"]
+[ext_resource type="Texture2D" path="res://assets/backgrounds/menu/menu_glass_shards.png" id="4_shards"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/title_flourish.png" id="5_flourish"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/glass_button_normal.png" id="6_btn_normal"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/glass_button_focus.png" id="7_btn_focus"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/glass_button_pressed.png" id="8_btn_pressed"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/glass_button_disabled.png" id="9_btn_disabled"]
+[ext_resource type="Texture2D" path="res://assets/sprites/ui/glass_button_focus_ring.png" id="10_btn_ring"]
+[ext_resource type="Texture2D" path="res://assets/backgrounds/menu/temporal_glass_main_menu_background.png" id="11_temporal_main"]
+[ext_resource type="Texture2D" path="res://assets/backgrounds/menu/temporal_glass_submenu_background.png" id="12_temporal_submenu"]
+
+[sub_resource type="StyleBoxEmpty" id="PanelClear"]
+
+[sub_resource type="StyleBoxTexture" id="GlassBtnNormal"]
+content_margin_left = 64.0
+content_margin_top = 10.0
+content_margin_right = 44.0
+content_margin_bottom = 10.0
+texture = ExtResource("6_btn_normal")
+texture_margin_left = 60.0
+texture_margin_top = 20.0
+texture_margin_right = 34.0
+texture_margin_bottom = 20.0
+
+[sub_resource type="StyleBoxTexture" id="GlassBtnHover"]
+content_margin_left = 64.0
+content_margin_top = 10.0
+content_margin_right = 44.0
+content_margin_bottom = 10.0
+texture = ExtResource("7_btn_focus")
+texture_margin_left = 60.0
+texture_margin_top = 20.0
+texture_margin_right = 34.0
+texture_margin_bottom = 20.0
+
+[sub_resource type="StyleBoxTexture" id="GlassBtnPressed"]
+content_margin_left = 64.0
+content_margin_top = 10.0
+content_margin_right = 44.0
+content_margin_bottom = 10.0
+texture = ExtResource("8_btn_pressed")
+texture_margin_left = 60.0
+texture_margin_top = 20.0
+texture_margin_right = 34.0
+texture_margin_bottom = 20.0
+
+[sub_resource type="StyleBoxTexture" id="GlassBtnDisabled"]
+content_margin_left = 64.0
+content_margin_top = 10.0
+content_margin_right = 44.0
+content_margin_bottom = 10.0
+texture = ExtResource("9_btn_disabled")
+texture_margin_left = 60.0
+texture_margin_top = 20.0
+texture_margin_right = 34.0
+texture_margin_bottom = 20.0
+
+[sub_resource type="StyleBoxTexture" id="GlassBtnFocusRing"]
+texture = ExtResource("10_btn_ring")
+texture_margin_left = 60.0
+texture_margin_top = 20.0
+texture_margin_right = 34.0
+texture_margin_bottom = 20.0
 
 [node name="MainMenu" type="Control"]
 layout_mode = 3
@@ -21,7 +84,56 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.06, 0.06, 0.12, 1)
+color = Color(0.012, 0.016, 0.06, 1)
+
+[node name="Starfield" type="TextureRect" parent="Background"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("3_starfield")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="GlassShards" type="TextureRect" parent="Background"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("4_shards")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="TemporalMainArt" type="TextureRect" parent="Background"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("11_temporal_main")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="TemporalSubmenuArt" type="TextureRect" parent="Background"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("12_temporal_submenu")
+expand_mode = 1
+stretch_mode = 6
 
 [node name="RootScreen" type="Control" parent="."]
 layout_mode = 1
@@ -34,33 +146,49 @@ mouse_filter = 2
 
 [node name="Center" type="CenterContainer" parent="RootScreen"]
 layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
+anchors_preset = -1
+anchor_right = 0.44
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="RootScreen/Center"]
-custom_minimum_size = Vector2(420, 0)
+custom_minimum_size = Vector2(440, 0)
 layout_mode = 2
+theme_override_styles/panel = SubResource("PanelClear")
 
 [node name="Layout" type="VBoxContainer" parent="RootScreen/Center/Panel"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
+[node name="TitleFlourishTop" type="TextureRect" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("5_flourish")
+stretch_mode = 5
+
 [node name="Title" type="Label" parent="RootScreen/Center/Panel/Layout"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 28
+theme_override_colors/font_color = Color(0.914, 0.933, 0.973, 1)
+theme_override_font_sizes/font_size = 46
 text = "game_title"
 horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="RootScreen/Center/Panel/Layout"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
+theme_override_colors/font_color = Color(0.55, 0.61, 0.73, 1)
 text = "menu_subtitle"
 horizontal_alignment = 1
+
+[node name="TitleFlourishBottom" type="TextureRect" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+mouse_filter = 2
+texture = ExtResource("5_flourish")
+flip_v = true
+stretch_mode = 5
 
 [node name="NoticeSlot" type="VBoxContainer" parent="RootScreen/Center/Panel/Layout"]
 layout_mode = 2
@@ -70,32 +198,72 @@ theme_override_constants/separation = 14
 layout_mode = 2
 
 [node name="QuickPlayButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
-custom_minimum_size = Vector2(360, 44)
+custom_minimum_size = Vector2(380, 56)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+theme_override_font_sizes/font_size = 22
+theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_override_styles/disabled = SubResource("GlassBtnDisabled")
+theme_override_styles/hover = SubResource("GlassBtnHover")
+theme_override_styles/pressed = SubResource("GlassBtnPressed")
+theme_override_styles/normal = SubResource("GlassBtnNormal")
 text = "menu_quick_play"
+alignment = 0
 
 [node name="StoryButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
-custom_minimum_size = Vector2(360, 44)
+custom_minimum_size = Vector2(380, 56)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+theme_override_font_sizes/font_size = 22
+theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_override_styles/disabled = SubResource("GlassBtnDisabled")
+theme_override_styles/hover = SubResource("GlassBtnHover")
+theme_override_styles/pressed = SubResource("GlassBtnPressed")
+theme_override_styles/normal = SubResource("GlassBtnNormal")
 text = "menu_story_mode"
+alignment = 0
 
 [node name="FighterButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
-custom_minimum_size = Vector2(360, 44)
+custom_minimum_size = Vector2(380, 56)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+theme_override_font_sizes/font_size = 22
+theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_override_styles/disabled = SubResource("GlassBtnDisabled")
+theme_override_styles/hover = SubResource("GlassBtnHover")
+theme_override_styles/pressed = SubResource("GlassBtnPressed")
+theme_override_styles/normal = SubResource("GlassBtnNormal")
 text = "menu_fighter_mode"
+alignment = 0
 
 [node name="SettingsButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
-custom_minimum_size = Vector2(360, 44)
+custom_minimum_size = Vector2(380, 56)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+theme_override_font_sizes/font_size = 22
+theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_override_styles/disabled = SubResource("GlassBtnDisabled")
+theme_override_styles/hover = SubResource("GlassBtnHover")
+theme_override_styles/pressed = SubResource("GlassBtnPressed")
+theme_override_styles/normal = SubResource("GlassBtnNormal")
 text = "menu_settings"
+alignment = 0
 
 [node name="BottomSeparator" type="HSeparator" parent="RootScreen/Center/Panel/Layout"]
 layout_mode = 2
 
 [node name="QuitButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
-custom_minimum_size = Vector2(360, 44)
+custom_minimum_size = Vector2(380, 56)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+theme_override_font_sizes/font_size = 22
+theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_override_styles/disabled = SubResource("GlassBtnDisabled")
+theme_override_styles/hover = SubResource("GlassBtnHover")
+theme_override_styles/pressed = SubResource("GlassBtnPressed")
+theme_override_styles/normal = SubResource("GlassBtnNormal")
 text = "menu_quit"
+alignment = 0
 
 [node name="SlotScreen" type="Control" parent="."]
 visible = false
@@ -118,6 +286,7 @@ mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="SlotScreen/Center"]
 layout_mode = 2
+theme_type_variation = &"DialogueGlassPanel"
 
 [node name="Layout" type="VBoxContainer" parent="SlotScreen/Center/Panel"]
 layout_mode = 2
@@ -138,10 +307,12 @@ theme_override_constants/separation = 10
 custom_minimum_size = Vector2(600, 84)
 layout_mode = 2
 size_flags_horizontal = 3
+theme_type_variation = &"TemporalGlassButton"
 
 [node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow0"]
 custom_minimum_size = Vector2(120, 84)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 text = "save_delete"
 
 [node name="SlotRow1" type="HBoxContainer" parent="SlotScreen/Center/Panel/Layout"]
@@ -152,10 +323,12 @@ theme_override_constants/separation = 10
 custom_minimum_size = Vector2(600, 84)
 layout_mode = 2
 size_flags_horizontal = 3
+theme_type_variation = &"TemporalGlassButton"
 
 [node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow1"]
 custom_minimum_size = Vector2(120, 84)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 text = "save_delete"
 
 [node name="SlotRow2" type="HBoxContainer" parent="SlotScreen/Center/Panel/Layout"]
@@ -166,15 +339,18 @@ theme_override_constants/separation = 10
 custom_minimum_size = Vector2(600, 84)
 layout_mode = 2
 size_flags_horizontal = 3
+theme_type_variation = &"TemporalGlassButton"
 
 [node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow2"]
 custom_minimum_size = Vector2(120, 84)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 text = "save_delete"
 
 [node name="BackButton" type="Button" parent="SlotScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(240, 44)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 text = "common_back"
 
 [node name="CharacterScreen" type="Control" parent="."]
@@ -198,6 +374,7 @@ mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="CharacterScreen/Center"]
 layout_mode = 2
+theme_type_variation = &"DialogueGlassPanel"
 
 [node name="Layout" type="VBoxContainer" parent="CharacterScreen/Center/Panel"]
 layout_mode = 2
@@ -261,6 +438,7 @@ layout_mode = 2
 [node name="BackButton" type="Button" parent="CharacterScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(240, 44)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 text = "common_back"
 
 [node name="DifficultyScreen" type="Control" parent="."]
@@ -284,6 +462,7 @@ mouse_filter = 2
 
 [node name="Panel" type="PanelContainer" parent="DifficultyScreen/Center"]
 layout_mode = 2
+theme_type_variation = &"DialogueGlassPanel"
 
 [node name="Layout" type="VBoxContainer" parent="DifficultyScreen/Center/Panel"]
 layout_mode = 2
@@ -299,16 +478,20 @@ horizontal_alignment = 1
 [node name="EasyButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(620, 76)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 
 [node name="NormalButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(620, 76)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 
 [node name="HardButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(620, 76)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 
 [node name="BackButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(400, 44)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
 text = "common_back"

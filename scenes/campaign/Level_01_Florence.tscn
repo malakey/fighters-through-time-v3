@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/Level01Controller.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Environment/PuzzleManager.cs" id="2_puzzle"]
@@ -7,9 +7,39 @@
 [ext_resource type="PackedScene" path="res://scenes/templates/CrumblingPlatformTemplate.tscn" id="5_crumble"]
 [ext_resource type="PackedScene" path="res://scenes/templates/CyclicHazardTemplate.tscn" id="6_hazard"]
 [ext_resource type="Script" path="res://scripts/Environment/StoryDropSystem.cs" id="7_drops"]
+[ext_resource type="Texture2D" path="res://assets/environments/florence/florence_far_layer.png" id="8_far"]
+[ext_resource type="Texture2D" path="res://assets/environments/florence/florence_mid_layer.png" id="9_mid"]
 
 [node name="Level_01_Florence" type="Node2D"]
 script = ExtResource("1")
+
+[node name="FlorenceBackdrop" type="Node2D" parent="."]
+z_index = -200
+
+[node name="BackdropBase" type="ColorRect" parent="FlorenceBackdrop"]
+mouse_filter = 2
+offset_right = 11520.0
+offset_bottom = 1080.0
+color = Color(0.12, 0.07, 0.035, 1)
+
+[node name="FarLayer" type="Parallax2D" parent="FlorenceBackdrop"]
+scroll_scale = Vector2(0.08, 0.025)
+repeat_size = Vector2(1920, 0)
+repeat_times = 8
+
+[node name="FarSkyline" type="Sprite2D" parent="FlorenceBackdrop/FarLayer"]
+centered = false
+texture = ExtResource("8_far")
+
+[node name="MidLayer" type="Parallax2D" parent="FlorenceBackdrop"]
+scroll_scale = Vector2(0.32, 0.1)
+repeat_size = Vector2(1920, 0)
+repeat_times = 8
+
+[node name="MidRooftops" type="Sprite2D" parent="FlorenceBackdrop/MidLayer"]
+modulate = Color(1, 1, 1, 0.82)
+centered = false
+texture = ExtResource("9_mid")
 
 [node name="StoryDropSystem" type="Node" parent="."]
 script = ExtResource("7_drops")

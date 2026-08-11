@@ -6,7 +6,7 @@
 [ext_resource type="Resource" path="res://resources/Abilities/einstein/movement.tres" id="4"]
 [ext_resource type="Resource" path="res://resources/Abilities/einstein/ultimate.tres" id="5"]
 [ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/einstein_frames.tres" id="6"]
-[ext_resource type="Texture2D" path="res://assets/placeholders/characters/einstein_portrait.svg" id="7"]
+[ext_resource type="Texture2D" path="res://assets/sprites/characters/portraits/einstein_portrait.png" id="7"]
 
 [resource]
 script = ExtResource("1")

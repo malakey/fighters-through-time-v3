@@ -24,6 +24,9 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
+            EmitCharacterVfx(
+                "res://scenes/vfx/einstein/EinsteinRelativityWarpVfx.tscn",
+                Owner.GlobalPosition + new Vector2(0f, -28f));
             _warpDuration = MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : 0.2f;
             _warpDistance = MovementData?.DistanceMoved > 0f ? MovementData.DistanceMoved : 150f;
 

@@ -90,8 +90,11 @@ public class StoryCombatRulesTests {
             SendInput(player, GameplayButtons.BasicAttack);
 
             var animationPlayer = player.GetNode<AnimationPlayer>("CombatAnimationPlayer");
+            var sprite = player.GetNode<AnimatedSprite2D>("AnimatedSprite2D");
             var hitbox = player.GetNode<Hitbox>("MeleeHitbox");
             AssertThat(player.CurrentState).IsEqual(CharacterState.Attacking);
+            AssertThat(sprite.Animation.ToString()).IsEqual("basic_attack_1");
+            AssertThat(sprite.IsPlaying()).IsTrue();
             AssertThat(hitbox.IsActive).IsFalse();
 
             animationPlayer.Advance(0.1);

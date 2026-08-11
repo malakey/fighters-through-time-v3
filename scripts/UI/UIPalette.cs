@@ -35,6 +35,9 @@ namespace FTT.UI {
         /// <summary>Chronal Dust and reward emphasis.</summary>
         public static readonly Color Gold = new(0.95f, 0.8f, 0.3f);
 
+        /// <summary>Player-two and future-echo accent in the Temporal Glass menu system.</summary>
+        public static readonly Color TemporalViolet = new(0.75f, 0.42f, 1f);
+
         /// <summary>Brighter gold used by the Dust tiers and hyper-armor shell.</summary>
         public static readonly Color GoldBright = new(1f, 0.92f, 0.35f);
 

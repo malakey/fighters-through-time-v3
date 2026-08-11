@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="220" viewBox="0 0 48 220">
+<defs><linearGradient id="wallstone" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#6a4a2c"/><stop offset="0.5" stop-color="#4c3520"/><stop offset="1" stop-color="#2e1c10"/></linearGradient></defs>
+<rect x="0" y="0" width="48" height="220" fill="url(#wallstone)" stroke="#241708" stroke-width="2.4"/>
+<path d="M2 32 L46 32" stroke="#241708" stroke-width="1.8" stroke-opacity="0.8"/>
+<path d="M20 2 L20 30" stroke="#241708" stroke-width="1.5" stroke-opacity="0.6"/>
+<path d="M2 61 L46 61" stroke="#241708" stroke-width="1.8" stroke-opacity="0.8"/>
+<path d="M19 34 L19 59" stroke="#241708" stroke-width="1.5" stroke-opacity="0.6"/>
+<path d="M2 93 L46 93" stroke="#241708" stroke-width="1.8" stroke-opacity="0.8"/>
+<path d="M28 63 L28 91" stroke="#241708" stroke-width="1.5" stroke-opacity="0.6"/>
+<path d="M2 130 L46 130" stroke="#241708" stroke-width="1.8" stroke-opacity="0.8"/>
+<path d="M23 95 L23 128" stroke="#241708" stroke-width="1.5" stroke-opacity="0.6"/>
+<path d="M2 164 L46 164" stroke="#241708" stroke-width="1.8" stroke-opacity="0.8"/>
+<path d="M18 132 L18 162" stroke="#241708" stroke-width="1.5" stroke-opacity="0.6"/>
+<path d="M2 196 L46 196" stroke="#241708" stroke-width="1.8" stroke-opacity="0.8"/>
+<path d="M32 166 L32 194" stroke="#241708" stroke-width="1.5" stroke-opacity="0.6"/>
+<path d="M2 222 L46 222" stroke="#241708" stroke-width="1.8" stroke-opacity="0.8"/>
+<path d="M17 198 L17 220" stroke="#241708" stroke-width="1.5" stroke-opacity="0.6"/>
+<rect x="1.5" y="1.5" width="3" height="217" fill="#c99a5e" fill-opacity="0.5"/>
+</svg>

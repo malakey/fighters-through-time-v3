@@ -6,7 +6,7 @@
 [ext_resource type="Resource" path="res://resources/Abilities/joan/movement.tres" id="4"]
 [ext_resource type="Resource" path="res://resources/Abilities/joan/ultimate.tres" id="5"]
 [ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/joan_frames.tres" id="6"]
-[ext_resource type="Texture2D" path="res://assets/placeholders/characters/joan_portrait.svg" id="7"]
+[ext_resource type="Texture2D" path="res://assets/sprites/characters/portraits/joan_portrait.png" id="7"]
 
 [resource]
 script = ExtResource("1")

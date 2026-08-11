@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="48" viewBox="0 0 220 48">
+<defs><linearGradient id="road" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6a4a2c"/><stop offset="0.4" stop-color="#4c3520"/><stop offset="1" stop-color="#2a1a0e"/></linearGradient></defs>
+<rect x="0" y="0" width="220" height="48" fill="url(#road)" stroke="#241708" stroke-width="2.6"/>
+<rect x="1.5" y="1.5" width="217" height="3.6" fill="#c99a5e" fill-opacity="0.85"/>
+<path d="M4 12 L31 12" stroke="#241708" stroke-width="1.8" stroke-opacity="0.75"/>
+<path d="M48 12 L78 12" stroke="#241708" stroke-width="1.8" stroke-opacity="0.75"/>
+<path d="M92 12 L119 12" stroke="#241708" stroke-width="1.8" stroke-opacity="0.75"/>
+<path d="M136 12 L169 12" stroke="#241708" stroke-width="1.8" stroke-opacity="0.75"/>
+<path d="M180 12 L210 12" stroke="#241708" stroke-width="1.8" stroke-opacity="0.75"/>
+<path d="M22 24 L50 24" stroke="#241708" stroke-width="1.8" stroke-opacity="0.75"/>
+<path d="M66 24 L98 24" stroke="#241708" stroke-width="1.8" stroke-opacity="0.75"/>
+<path d="M110 24 L137 24" stroke="#241708" stroke-width="1.8" stroke-opacity="0.75"/>
+<path d="M154 24 L182 24" stroke="#241708" stroke-width="1.8" stroke-opacity="0.75"/>
+<path d="M198 24 L225 24" stroke="#241708" stroke-width="1.8" stroke-opacity="0.75"/>
+<path d="M4 36 L35 36" stroke="#241708" stroke-width="1.8" stroke-opacity="0.75"/>
+<path d="M48 36 L76 36" stroke="#241708" stroke-width="1.8" stroke-opacity="0.75"/>
+<path d="M92 36 L124 36" stroke="#241708" stroke-width="1.8" stroke-opacity="0.75"/>
+<path d="M136 36 L169 36" stroke="#241708" stroke-width="1.8" stroke-opacity="0.75"/>
+<path d="M180 36 L208 36" stroke="#241708" stroke-width="1.8" stroke-opacity="0.75"/>
+<path d="M58 8 L66 20 L60 30" fill="none" stroke="#1c0f08" stroke-width="1.8"/>
+<path d="M168 10 L158 22" fill="none" stroke="#1c0f08" stroke-width="1.8"/>
+<circle cx="120" cy="30" r="4" fill="#ff9a40" fill-opacity="0.25"/>
+</svg>

@@ -206,12 +206,6 @@ namespace FTT.Characters {
 			shape.Shape = new RectangleShape2D { Size = new Vector2(50, 45) };
 			hitbox.AddChild(shape);
 			player.AddChild(hitbox);
-			player.AddChild(new ColorRect {
-				Name = "MeleeHitVisual",
-				Size = new Vector2(50, 45),
-				Position = new Vector2(5, -55),
-				Color = new Color(1, 1, 0.3f, 0.0f)
-			});
 		}
 
 		private static void BuildCombatAnimationPlayer(PlayerController player) {

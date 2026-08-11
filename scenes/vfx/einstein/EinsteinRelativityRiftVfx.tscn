@@ -1,0 +1,27 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/VfxEffect.cs" id="1_effect"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/einstein_ability_vfx_frames.tres" id="2_frames"]
+[ext_resource type="Script" path="res://scripts/Combat/PresentationVisibilitySuspender.cs" id="3_suspend"]
+
+[sub_resource type="CanvasItemMaterial" id="Additive"]
+blend_mode = 1
+
+[node name="EinsteinRelativityRiftVfx" type="Node2D" groups=["pooled_vfx"]]
+script = ExtResource("1_effect")
+ContentID = "vfx_einstein_relativity_rift"
+Category = 2
+LifetimeFrames = 36
+ParticleBudgetCost = 12
+Family = 3
+BaseVisualScale = Vector2(0.52, 0.52)
+
+[node name="Visual" type="AnimatedSprite2D" parent="."]
+material = SubResource("Additive")
+sprite_frames = ExtResource("2_frames")
+animation = &"relativity_rift"
+autoplay = "relativity_rift"
+
+[node name="PresentationVisibility" type="VisibleOnScreenNotifier2D" parent="."]
+rect = Rect2(-120, -120, 240, 240)
+script = ExtResource("3_suspend")

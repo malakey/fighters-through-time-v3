@@ -17,7 +17,11 @@ namespace FTT.Combat {
         private Area2D _area;
         private ColorRect _visual;
         private ColorRect _border;
+        private AnimatedSprite2D _authoredVisual;
         private CollisionShape2D _shape;
+
+        private const string EinsteinVfxFramesPath =
+            "res://resources/SpriteFrames/einstein_ability_vfx_frames.tres";
 
         // Refresh window slightly longer than one frame so the buff persists while
         // the owner remains inside and lapses right after leaving.
@@ -31,7 +35,8 @@ namespace FTT.Combat {
                           float statusDuration = 0f,
                           float statusIntensity = 1f,
                           FTT.Characters.PlayerController ownerPlayer = null,
-                          float ownerSpeedMultiplier = 1f) {
+                          float ownerSpeedMultiplier = 1f,
+                          AbilityData data = null) {
             _lifetime = lifetime;
             _tickInterval = tickInterval;
             _damage = damage;
@@ -43,12 +48,15 @@ namespace FTT.Combat {
             _ownerSpeedMultiplier = ownerSpeedMultiplier;
 
             EnsureNodes();
+            bool usesAuthoredVisual = ApplyAuthoredVisual(data, radius);
             _visual.Size = new Vector2(radius * 2, radius * 2);
             _visual.Position = new Vector2(-radius, -radius);
             _visual.Color = new Color(color.R, color.G, color.B, 0.3f);
+            _visual.Visible = !usesAuthoredVisual;
             _border.Size = new Vector2(radius * 2, 4);
             _border.Position = new Vector2(-radius, -radius);
             _border.Color = color;
+            _border.Visible = !usesAuthoredVisual;
             ((CircleShape2D)_shape.Shape).Radius = radius;
             // The zone applies effects directly to overlapping combatant bodies,
             // so it monitors body layers rather than hitbox/hurtbox area layers.
@@ -64,6 +72,12 @@ namespace FTT.Combat {
             AddChild(_visual);
             _border = new ColorRect { Name = "Border", MouseFilter = Control.MouseFilterEnum.Ignore };
             AddChild(_border);
+            _authoredVisual = new AnimatedSprite2D {
+                Name = "AuthoredVisual",
+                Visible = false,
+                ZIndex = 2
+            };
+            AddChild(_authoredVisual);
             _area = new Area2D { Name = "Area" };
             _shape = new CollisionShape2D {
                 Name = "CollisionShape2D",
@@ -71,6 +85,30 @@ namespace FTT.Combat {
             };
             _area.AddChild(_shape);
             AddChild(_area);
+        }
+
+        private bool ApplyAuthoredVisual(AbilityData data, float radius) {
+            if (_authoredVisual == null) return false;
+            _authoredVisual.Visible = false;
+            _authoredVisual.Stop();
+            string animation = data?.AbilityID switch {
+                "einstein_mass_energy_conversion" => "mass_energy_projectile",
+                "einstein_relativity_rift" => "relativity_rift",
+                "einstein_cosmological_constant" => "cosmological_constant",
+                _ => ""
+            };
+            if (animation.Length == 0) return false;
+            SpriteFrames frames = ResourceLoader.Load<SpriteFrames>(EinsteinVfxFramesPath);
+            if (frames == null || !frames.HasAnimation(animation)) return false;
+            _authoredVisual.SpriteFrames = frames;
+            _authoredVisual.Animation = animation;
+            float scale = data.AbilityID == "einstein_cosmological_constant"
+                ? 2.15f
+                : Mathf.Max(0.35f, radius / 96f);
+            _authoredVisual.Scale = new Vector2(scale, scale);
+            _authoredVisual.Visible = true;
+            _authoredVisual.Play();
+            return true;
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -189,6 +227,12 @@ namespace FTT.Combat {
             _statusIntensity = 1f;
             _ownerSpeedMultiplier = 1f;
             _ownerPlayer = null;
+            if (_authoredVisual != null) {
+                _authoredVisual.Stop();
+                _authoredVisual.Visible = false;
+            }
+            if (_visual != null) _visual.Visible = true;
+            if (_border != null) _border.Visible = true;
             Modulate = Colors.White;
         }
     }

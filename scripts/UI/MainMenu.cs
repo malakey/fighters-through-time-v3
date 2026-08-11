@@ -46,6 +46,8 @@ namespace FTT.UI {
         private Control _slotScreen;
         private Control _characterScreen;
         private Control _difficultyScreen;
+        private TextureRect _temporalMainArt;
+        private TextureRect _temporalSubmenuArt;
 
         private readonly Button[] _slotButtons = new Button[StorySlotCount];
         private readonly Button[] _deleteButtons = new Button[StorySlotCount];
@@ -73,6 +75,8 @@ namespace FTT.UI {
             _slotScreen = GetNode<Control>("SlotScreen");
             _characterScreen = GetNode<Control>("CharacterScreen");
             _difficultyScreen = GetNode<Control>("DifficultyScreen");
+            _temporalMainArt = GetNodeOrNull<TextureRect>("Background/TemporalMainArt");
+            _temporalSubmenuArt = GetNodeOrNull<TextureRect>("Background/TemporalSubmenuArt");
 
             BindRootScreen();
             BindSlotScreen();
@@ -129,6 +133,7 @@ namespace FTT.UI {
             for (int index = 0; index < RosterIDs.Length; index++) {
                 string characterID = RosterIDs[index];
                 var button = grid.GetNode<Button>($"CharacterButton{index}");
+                button.ThemeTypeVariation = "TemporalGlassButton";
                 button.Text = CharacterName(characterID);
                 button.Pressed += () => OnCharacterPressed(characterID);
             }
@@ -178,6 +183,8 @@ namespace FTT.UI {
             _slotScreen.Visible = screen == MainMenuScreen.SlotSelect;
             _characterScreen.Visible = screen == MainMenuScreen.CharacterSelect;
             _difficultyScreen.Visible = screen == MainMenuScreen.DifficultySelect;
+            if (_temporalMainArt != null) _temporalMainArt.Visible = screen == MainMenuScreen.Root;
+            if (_temporalSubmenuArt != null) _temporalSubmenuArt.Visible = screen != MainMenuScreen.Root;
 
             if (screen == MainMenuScreen.SlotSelect) RefreshSlotRows();
             FocusChainBuilder.Apply(ScreenRoot(screen));

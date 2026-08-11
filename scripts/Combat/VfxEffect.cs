@@ -44,6 +44,13 @@ namespace FTT.Combat {
     public partial class VfxEffect : FTT.Core.PooledPlaceholder, FTT.Core.IPoolable {
         [Export] public VfxEffectFamily Family = VfxEffectFamily.Burst;
 
+        /// <summary>
+        /// Authored size of the source art before the family presentation curve.
+        /// The placeholder orb scenes use one; bespoke raster effects can keep
+        /// their atlas resolution without forcing every family curve to change.
+        /// </summary>
+        [Export] public Vector2 BaseVisualScale = Vector2.One;
+
         /// <summary>Upward drift applied to <c>Summon</c>, in pixels per second.</summary>
         [Export(PropertyHint.Range, "0,400,1")] public float SummonRiseSpeed = 90f;
 
@@ -58,6 +65,10 @@ namespace FTT.Combat {
             ResolveChildren();
             _ageFrames = 0;
             _active = true;
+            if (_visual is AnimatedSprite2D animated) {
+                animated.Frame = 0;
+                animated.Play();
+            }
             if (Family == VfxEffectFamily.Summon) RuntimeVelocity = new Vector2(0f, -SummonRiseSpeed);
             ApplyCurve(0f);
         }
@@ -67,7 +78,7 @@ namespace FTT.Combat {
             base.OnDespawn();
             ResolveChildren();
             if (_visual != null) {
-                _visual.Scale = Vector2.One;
+                _visual.Scale = BaseVisualScale;
                 _visual.Rotation = 0f;
                 _visual.SelfModulate = Colors.White;
             }
@@ -123,7 +134,7 @@ namespace FTT.Combat {
             ResolveChildren();
             float alpha = AlphaAt(Family, t);
             if (_visual != null) {
-                _visual.Scale = ScaleAt(Family, t);
+                _visual.Scale = BaseVisualScale * ScaleAt(Family, t);
                 _visual.Rotation = RotationAt(Family, t);
                 _visual.SelfModulate = new Color(1f, 1f, 1f, alpha);
             }

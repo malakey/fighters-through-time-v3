@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="260" viewBox="0 0 220 260">
+<defs><linearGradient id="metal" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d9c9a3"/><stop offset="0.5" stop-color="#8a7952"/><stop offset="1" stop-color="#5c4f34"/></linearGradient><linearGradient id="inner_shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0a0e20" stop-opacity="0.55"/><stop offset="1" stop-color="#0a0e20" stop-opacity="0.25"/></linearGradient></defs>
+<path d="M23.0 7.0 L197.0 7.0 L213.0 23.0 L213.0 237.0 L197.0 253.0 L23.0 253.0 L7.0 237.0 L7.0 23.0 Z" fill="none" stroke="#35b8ff" stroke-opacity="0.12" stroke-width="13.0"/>
+<path d="M23.0 7.0 L197.0 7.0 L213.0 23.0 L213.0 237.0 L197.0 253.0 L23.0 253.0 L7.0 237.0 L7.0 23.0 Z" fill="none" stroke="#35b8ff" stroke-opacity="0.28" stroke-width="7.0"/>
+<path d="M23.0 7.0 L197.0 7.0 L213.0 23.0 L213.0 237.0 L197.0 253.0 L23.0 253.0 L7.0 237.0 L7.0 23.0 Z" fill="none" stroke="#35b8ff" stroke-opacity="0.8" stroke-width="3.5"/>
+<path d="M23.0 7.0 L197.0 7.0 L213.0 23.0 L213.0 237.0 L197.0 253.0 L23.0 253.0 L7.0 237.0 L7.0 23.0 Z" fill="none" stroke="url(#metal)" stroke-width="8.0"/>
+<path d="M23.0 7.0 L197.0 7.0 L213.0 23.0 L213.0 237.0 L197.0 253.0 L23.0 253.0 L7.0 237.0 L7.0 23.0 Z" fill="none" stroke="#2e2618" stroke-width="1.4"/>
+<path d="M27.8 15.0 L192.2 15.0 L205.0 27.8 L205.0 232.2 L192.2 245.0 L27.8 245.0 L15.0 232.2 L15.0 27.8 Z" fill="none" stroke="#e8dcb8" stroke-opacity="0.55" stroke-width="1.4"/>
+<path d="M15.0 23.0 L27.0 23.0 M23.0 15.0 L23.0 27.0" stroke="#e8dcb8" stroke-opacity="0.8" stroke-width="2"/>
+<circle cx="23.0" cy="23.0" r="2.6" fill="#e8dcb8" fill-opacity="0.9"/>
+<path d="M205.0 23.0 L193.0 23.0 M197.0 15.0 L197.0 27.0" stroke="#e8dcb8" stroke-opacity="0.8" stroke-width="2"/>
+<circle cx="197.0" cy="23.0" r="2.6" fill="#e8dcb8" fill-opacity="0.9"/>
+<path d="M205.0 237.0 L193.0 237.0 M197.0 245.0 L197.0 233.0" stroke="#e8dcb8" stroke-opacity="0.8" stroke-width="2"/>
+<circle cx="197.0" cy="237.0" r="2.6" fill="#e8dcb8" fill-opacity="0.9"/>
+<path d="M15.0 237.0 L27.0 237.0 M23.0 245.0 L23.0 233.0" stroke="#e8dcb8" stroke-opacity="0.8" stroke-width="2"/>
+<circle cx="23.0" cy="237.0" r="2.6" fill="#e8dcb8" fill-opacity="0.9"/>
+<path d="M27.8 15.0 L192.2 15.0 L205.0 27.8 L205.0 232.2 L192.2 245.0 L27.8 245.0 L15.0 232.2 L15.0 27.8 Z" fill="url(#inner_shade)" fill-opacity="0.35"/>
+</svg>

@@ -23,6 +23,9 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
+            EmitCharacterVfx(
+                "res://scenes/vfx/einstein/EinsteinMassEnergyVfx.tscn",
+                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 38f : -38f, -28f));
         }
 
         protected override void OnActive() {

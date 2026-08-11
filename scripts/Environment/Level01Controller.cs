@@ -94,30 +94,10 @@ namespace FTT.Environment {
         // === Level construction ===
 
         private void BuildLevel() {
-            BuildFarBackground();
             BuildRoom1();
             BuildRoom2();
             BuildRoom3();
             BuildRoom4BossArena();
-        }
-
-        private void BuildFarBackground() {
-            Texture2D texture = ResourceLoader.Load<Texture2D>(
-                "res://assets/environments/florence/florence_far_background.png");
-            if (texture == null) return;
-            Vector2 textureSize = texture.GetSize();
-            Vector2 scale = new(1920f / textureSize.X, LevelHeight / textureSize.Y);
-            for (int index = 0; index < 6; index++) {
-                var background = new Sprite2D {
-                    Name = $"FlorenceFarBackground_{index}",
-                    Texture = texture,
-                    Position = new Vector2(index * 1920f + 960f, LevelHeight / 2f),
-                    Scale = scale,
-                    ZIndex = -20,
-                    TextureFilter = CanvasItem.TextureFilterEnum.Linear
-                };
-                AddChild(background);
-            }
         }
 
         private void BuildRoom1() {

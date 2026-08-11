@@ -76,9 +76,29 @@ public class CharacterSelectSceneTests {
                 AssertThat(tile != null)
                     .OverrideFailureMessage($"Tile {index} is not a Button")
                     .IsTrue();
-                AssertThat(tile.Text.Length > 0)
+                var nameLabel = tile.GetNodeOrNull<Label>("CharacterName");
+                AssertObject(nameLabel)
+                    .OverrideFailureMessage($"Tile {index} has no dedicated name label")
+                    .IsNotNull();
+                AssertThat(nameLabel.Text.Trim().Length > 0)
                     .OverrideFailureMessage($"Tile {index} has no name")
                     .IsTrue();
+                AssertThat(nameLabel.MouseFilter)
+                    .OverrideFailureMessage($"Tile {index} name intercepts tile input")
+                    .IsEqual(Control.MouseFilterEnum.Ignore);
+                var portrait = tile.GetNodeOrNull<TextureRect>("Portrait");
+                AssertObject(portrait)
+                    .OverrideFailureMessage($"Tile {index} has no portrait")
+                    .IsNotNull();
+                AssertObject(portrait.Texture)
+                    .OverrideFailureMessage($"Tile {index} portrait texture is missing")
+                    .IsNotNull();
+                AssertThat(portrait.Size)
+                    .OverrideFailureMessage($"Tile {index} portrait does not have a dedicated 72px layer")
+                    .IsEqual(new Vector2(72f, 72f));
+                AssertThat(portrait.MouseFilter)
+                    .OverrideFailureMessage($"Tile {index} portrait intercepts tile input")
+                    .IsEqual(Control.MouseFilterEnum.Ignore);
                 // Tiles are driven by the per-player polled cursors (and mouse
                 // clicks), never by global focus navigation: any device can steer
                 // focus, which would let Player 2's pad move Player 1's token.

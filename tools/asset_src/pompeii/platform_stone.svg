@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="28" viewBox="0 0 220 28">
+<defs><linearGradient id="stone" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7a5a38"/><stop offset="0.55" stop-color="#5c4226"/><stop offset="1" stop-color="#3a2716"/></linearGradient></defs>
+<rect x="0" y="2" width="220" height="26" rx="3" fill="url(#stone)" stroke="#241708" stroke-width="2.4"/>
+<rect x="2" y="2.6" width="216" height="3.4" rx="1.6" fill="#c99a5e" fill-opacity="0.9"/>
+<rect x="2" y="23" width="216" height="3.4" rx="1.6" fill="#1c0f08" fill-opacity="0.7"/>
+<path d="M74 4 L72 25" stroke="#33200f" stroke-width="2.4"/>
+<path d="M76 4 L74 25" stroke="#8a6844" stroke-width="1" stroke-opacity="0.5"/>
+<path d="M148 4 L146 25" stroke="#33200f" stroke-width="2.4"/>
+<path d="M150 4 L148 25" stroke="#8a6844" stroke-width="1" stroke-opacity="0.5"/>
+<path d="M30 8 L44 14 L38 22" fill="none" stroke="#33200f" stroke-width="1.6"/>
+<path d="M182 7 L172 15 L180 21" fill="none" stroke="#33200f" stroke-width="1.6"/>
+<path d="M104 24 q 6 -3 12 0" fill="none" stroke="#4a5a2c" stroke-width="2.4" stroke-opacity="0.6"/>
+</svg>

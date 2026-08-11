@@ -83,6 +83,7 @@ namespace FTT.UI {
 
             var panel = new PanelContainer { Name = "Panel" };
             panel.CustomMinimumSize = new Vector2(520, 0);
+            panel.ThemeTypeVariation = "DialogueGlassPanel";
             center.AddChild(panel);
 
             var layout = new VBoxContainer { Name = "Layout" };
@@ -116,7 +117,8 @@ namespace FTT.UI {
             _cancelButton = new Button {
                 Name = "CancelButton",
                 Text = cancelKey,
-                CustomMinimumSize = new Vector2(180, UIPalette.ButtonMinHeight)
+                CustomMinimumSize = new Vector2(180, UIPalette.ButtonMinHeight),
+                ThemeTypeVariation = "TemporalGlassButton"
             };
             _cancelButton.Pressed += Cancel;
             buttons.AddChild(_cancelButton);
@@ -124,7 +126,8 @@ namespace FTT.UI {
             _confirmButton = new Button {
                 Name = "ConfirmButton",
                 Text = confirmKey,
-                CustomMinimumSize = new Vector2(180, UIPalette.ButtonMinHeight)
+                CustomMinimumSize = new Vector2(180, UIPalette.ButtonMinHeight),
+                ThemeTypeVariation = "TemporalGlassButton"
             };
             _confirmButton.Pressed += Confirm;
             buttons.AddChild(_confirmButton);

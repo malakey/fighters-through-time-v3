@@ -6,7 +6,7 @@
 [ext_resource type="Resource" path="res://resources/Abilities/leonardo/movement.tres" id="4"]
 [ext_resource type="Resource" path="res://resources/Abilities/leonardo/ultimate.tres" id="5"]
 [ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/leonardo_frames.tres" id="6"]
-[ext_resource type="Texture2D" path="res://assets/placeholders/characters/leonardo_portrait.svg" id="7"]
+[ext_resource type="Texture2D" path="res://assets/sprites/characters/portraits/leonardo_portrait.png" id="7"]
 
 [resource]
 script = ExtResource("1")

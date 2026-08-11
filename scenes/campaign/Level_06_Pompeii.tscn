@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/Level06Controller.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/Environment/StoryDropSystem.cs" id="2_drops"]
@@ -12,9 +12,58 @@
 [ext_resource type="PackedScene" path="res://scenes/templates/RescuableNPCTemplate.tscn" id="10_civilian"]
 [ext_resource type="PackedScene" path="res://scenes/templates/CyclicHazardTemplate.tscn" id="11_geyser"]
 [ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="12_lighting"]
+[ext_resource type="Texture2D" path="res://assets/environments/pompeii/pompeii_sky.png" id="13_sky"]
+[ext_resource type="Texture2D" path="res://assets/environments/pompeii/pompeii_vesuvius.png" id="14_vesuvius"]
+[ext_resource type="Texture2D" path="res://assets/environments/pompeii/pompeii_skyline.png" id="15_skyline"]
+[ext_resource type="Texture2D" path="res://assets/environments/pompeii/pompeii_ruins.png" id="16_ruins"]
 
 [node name="Level_06_Pompeii" type="Node2D"]
 script = ExtResource("1_controller")
+
+[node name="PompeiiBackdrop" type="Node2D" parent="."]
+z_index = -200
+
+[node name="BackdropBase" type="ColorRect" parent="PompeiiBackdrop"]
+mouse_filter = 2
+offset_left = -400.0
+offset_top = -400.0
+offset_right = 11000.0
+offset_bottom = 1520.0
+color = Color(0.05, 0.028, 0.038, 1)
+
+[node name="SkyLayer" type="Parallax2D" parent="PompeiiBackdrop"]
+scroll_scale = Vector2(0.05, 0.02)
+repeat_size = Vector2(1920, 0)
+repeat_times = 3
+
+[node name="Sky" type="Sprite2D" parent="PompeiiBackdrop/SkyLayer"]
+position = Vector2(960, 540)
+texture = ExtResource("13_sky")
+
+[node name="VolcanoLayer" type="Parallax2D" parent="PompeiiBackdrop"]
+scroll_scale = Vector2(0.09, 0.04)
+
+[node name="Vesuvius" type="Sprite2D" parent="PompeiiBackdrop/VolcanoLayer"]
+position = Vector2(1250, 520)
+texture = ExtResource("14_vesuvius")
+
+[node name="SkylineLayer" type="Parallax2D" parent="PompeiiBackdrop"]
+scroll_scale = Vector2(0.26, 0.08)
+repeat_size = Vector2(1920, 0)
+repeat_times = 3
+
+[node name="Skyline" type="Sprite2D" parent="PompeiiBackdrop/SkylineLayer"]
+position = Vector2(960, 690)
+texture = ExtResource("15_skyline")
+
+[node name="RuinsLayer" type="Parallax2D" parent="PompeiiBackdrop"]
+scroll_scale = Vector2(0.5, 0.16)
+repeat_size = Vector2(1920, 0)
+repeat_times = 3
+
+[node name="Ruins" type="Sprite2D" parent="PompeiiBackdrop/RuinsLayer"]
+position = Vector2(960, 850)
+texture = ExtResource("16_ruins")
 
 [node name="StoryDropSystem" type="Node" parent="."]
 script = ExtResource("2_drops")

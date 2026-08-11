@@ -1,0 +1,76 @@
+[gd_resource type="SpriteFrames" load_steps=14 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/sprites/vfx/einstein/einstein_ability_vfx_atlas.png" id="1_vfx"]
+
+[sub_resource type="AtlasTexture" id="mass_energy_projectile_0"]
+atlas = ExtResource("1_vfx")
+region = Rect2(0, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="mass_energy_projectile_1"]
+atlas = ExtResource("1_vfx")
+region = Rect2(192, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="mass_energy_projectile_2"]
+atlas = ExtResource("1_vfx")
+region = Rect2(384, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="relativity_rift_0"]
+atlas = ExtResource("1_vfx")
+region = Rect2(0, 192, 192, 192)
+
+[sub_resource type="AtlasTexture" id="relativity_rift_1"]
+atlas = ExtResource("1_vfx")
+region = Rect2(192, 192, 192, 192)
+
+[sub_resource type="AtlasTexture" id="relativity_rift_2"]
+atlas = ExtResource("1_vfx")
+region = Rect2(384, 192, 192, 192)
+
+[sub_resource type="AtlasTexture" id="relativity_warp_0"]
+atlas = ExtResource("1_vfx")
+region = Rect2(0, 384, 192, 192)
+
+[sub_resource type="AtlasTexture" id="relativity_warp_1"]
+atlas = ExtResource("1_vfx")
+region = Rect2(192, 384, 192, 192)
+
+[sub_resource type="AtlasTexture" id="relativity_warp_2"]
+atlas = ExtResource("1_vfx")
+region = Rect2(384, 384, 192, 192)
+
+[sub_resource type="AtlasTexture" id="cosmological_constant_0"]
+atlas = ExtResource("1_vfx")
+region = Rect2(0, 576, 192, 192)
+
+[sub_resource type="AtlasTexture" id="cosmological_constant_1"]
+atlas = ExtResource("1_vfx")
+region = Rect2(192, 576, 192, 192)
+
+[sub_resource type="AtlasTexture" id="cosmological_constant_2"]
+atlas = ExtResource("1_vfx")
+region = Rect2(384, 576, 192, 192)
+
+[resource]
+animations = [
+{
+"frames": [{"duration": 1.0, "texture": SubResource("mass_energy_projectile_0")}, {"duration": 1.0, "texture": SubResource("mass_energy_projectile_1")}, {"duration": 1.0, "texture": SubResource("mass_energy_projectile_2")}],
+"loop": false,
+"name": &"mass_energy_projectile",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("relativity_rift_0")}, {"duration": 1.0, "texture": SubResource("relativity_rift_1")}, {"duration": 1.0, "texture": SubResource("relativity_rift_2")}],
+"loop": true,
+"name": &"relativity_rift",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("relativity_warp_0")}, {"duration": 1.0, "texture": SubResource("relativity_warp_1")}, {"duration": 1.0, "texture": SubResource("relativity_warp_2")}],
+"loop": false,
+"name": &"relativity_warp",
+"speed": 12.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("cosmological_constant_0")}, {"duration": 1.0, "texture": SubResource("cosmological_constant_1")}, {"duration": 1.0, "texture": SubResource("cosmological_constant_2")}],
+"loop": true,
+"name": &"cosmological_constant",
+"speed": 8.0
+}
+]

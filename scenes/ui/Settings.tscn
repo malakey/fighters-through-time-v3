@@ -1,4 +1,7 @@
-[gd_scene load_steps=1 format=3]
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="1_theme"]
+[ext_resource type="Texture2D" path="res://assets/backgrounds/menu/temporal_glass_submenu_background.png" id="2_temporal_submenu"]
 
 [node name="SettingsRoot" type="Control"]
 anchors_preset = 15
@@ -7,6 +10,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 0
+theme = ExtResource("1_theme")
 
 [node name="Backdrop" type="ColorRect" parent="."]
 anchors_preset = 15
@@ -14,7 +18,20 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0.02, 0.03, 0.08, 0.88)
+color = Color(0.012, 0.016, 0.06, 0.96)
+
+[node name="TemporalGlassArt" type="TextureRect" parent="Backdrop"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2_temporal_submenu")
+modulate = Color(1, 1, 1, 0.62)
+expand_mode = 1
+stretch_mode = 6
 
 [node name="Margin" type="MarginContainer" parent="."]
 anchors_preset = 15
@@ -29,6 +46,7 @@ theme_override_constants/margin_bottom = 80
 
 [node name="Panel" type="PanelContainer" parent="Margin"]
 layout_mode = 2
+theme_type_variation = &"DialogueGlassPanel"
 
 [node name="Body" type="VBoxContainer" parent="Margin/Panel"]
 layout_mode = 2
@@ -36,8 +54,8 @@ theme_override_constants/separation = 14
 
 [node name="Title" type="Label" parent="Margin/Panel/Body"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 32
+theme_override_colors/font_color = Color(0.914, 0.933, 0.973, 1)
+theme_override_font_sizes/font_size = 40
 horizontal_alignment = 1
 
 [node name="Tabs" type="TabContainer" parent="Margin/Panel/Body"]
@@ -192,6 +210,7 @@ autowrap_mode = 3
 custom_minimum_size = Vector2(280, 40)
 layout_mode = 2
 size_flags_horizontal = 0
+theme_type_variation = &"TemporalGlassButton"
 
 [node name="Footer" type="HBoxContainer" parent="Margin/Panel/Body"]
 layout_mode = 2
@@ -200,3 +219,4 @@ alignment = 2
 [node name="BackButton" type="Button" parent="Margin/Panel/Body/Footer"]
 custom_minimum_size = Vector2(220, 46)
 layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"

@@ -6,7 +6,7 @@
 [ext_resource type="Resource" path="res://resources/Abilities/pocahontas/movement.tres" id="4"]
 [ext_resource type="Resource" path="res://resources/Abilities/pocahontas/ultimate.tres" id="5"]
 [ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/pocahontas_frames.tres" id="6"]
-[ext_resource type="Texture2D" path="res://assets/placeholders/characters/pocahontas_portrait.svg" id="7"]
+[ext_resource type="Texture2D" path="res://assets/sprites/characters/portraits/pocahontas_portrait.png" id="7"]
 
 [resource]
 script = ExtResource("1")

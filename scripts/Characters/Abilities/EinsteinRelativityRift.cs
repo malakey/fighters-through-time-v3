@@ -18,6 +18,9 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
+            EmitCharacterVfx(
+                "res://scenes/vfx/einstein/EinsteinRelativityRiftVfx.tscn",
+                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 72f : -72f, -26f));
         }
 
         protected override void OnActive() {

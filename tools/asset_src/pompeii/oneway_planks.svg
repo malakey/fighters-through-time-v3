@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="200" height="20" viewBox="0 0 200 20">
+<defs><linearGradient id="plank" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5c3a1c"/><stop offset="1" stop-color="#33200f"/></linearGradient></defs>
+<rect x="0" y="3" width="200" height="15" rx="2.5" fill="url(#plank)" stroke="#1c0e06" stroke-width="2"/>
+<rect x="2" y="3.5" width="196" height="2.6" fill="#a86a34" fill-opacity="0.9"/>
+<path d="M66 4 L66 17" stroke="#1c0e06" stroke-width="2.2"/>
+<path d="M134 4 L134 17" stroke="#1c0e06" stroke-width="2.2"/>
+<path d="M10 11 q 21.0 -2.5 42 0" fill="none" stroke="#241206" stroke-width="1.1" stroke-opacity="0.8"/>
+<path d="M76 13 q 22.0 -2.5 44 0" fill="none" stroke="#241206" stroke-width="1.1" stroke-opacity="0.8"/>
+<path d="M146 10 q 21.0 -2.5 42 0" fill="none" stroke="#241206" stroke-width="1.1" stroke-opacity="0.8"/>
+<rect x="4" y="4.5" width="4" height="12" fill="#6a6a72" fill-opacity="0.8"/>
+<rect x="192" y="4.5" width="4" height="12" fill="#6a6a72" fill-opacity="0.8"/>
+</svg>

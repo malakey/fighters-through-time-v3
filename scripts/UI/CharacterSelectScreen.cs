@@ -431,14 +431,53 @@ namespace FTT.UI {
             for (int index = 0; index < _characterIDs.Length; index++) {
                 int captured = index;
                 var button = grid.GetNode<Button>($"CharacterButton{index}");
-                button.Text = GetCharacterName(index);
-                button.Icon = GetCharacterPortrait(index);
+                // Button icons share a horizontal row with their text, so long
+                // names such as "Wolfgang Amadeus Mozart" can squeeze the icon
+                // down to a sliver. Keep the full name and give every portrait a
+                // dedicated layer above it instead.
+                button.Text = string.Empty;
+                AddPortraitLayer(button, GetCharacterPortrait(index), GetCharacterName(index));
                 // Cursor-driven, not focus-driven: see FocusChain.
                 button.FocusMode = FocusModeEnum.None;
                 button.AddToGroup(FocusChainBuilder.SkipGroup);
                 button.Pressed += () => OnTilePressed(captured);
                 _characterButtons[index] = button;
             }
+        }
+
+        private static void AddPortraitLayer(Button button, Texture2D portrait, string characterName) {
+            var portraitRect = new TextureRect {
+                Name = "Portrait",
+                Texture = portrait,
+                ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+                StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+                MouseFilter = MouseFilterEnum.Ignore,
+                AnchorLeft = 0.5f,
+                AnchorRight = 0.5f,
+                OffsetLeft = -36f,
+                OffsetTop = 5f,
+                OffsetRight = 36f,
+                OffsetBottom = 77f
+            };
+            button.AddChild(portraitRect);
+
+            var nameLabel = new Label {
+                Name = "CharacterName",
+                Text = characterName,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                MouseFilter = MouseFilterEnum.Ignore,
+                AnchorRight = 1f,
+                AnchorTop = 1f,
+                AnchorBottom = 1f,
+                OffsetLeft = 4f,
+                OffsetTop = -42f,
+                OffsetRight = -4f,
+                OffsetBottom = -3f
+            };
+            nameLabel.AddThemeFontSizeOverride("font_size", 16);
+            button.AddChild(nameLabel);
         }
 
         /// <summary>
@@ -472,7 +511,7 @@ namespace FTT.UI {
         /// </summary>
         private void StyleTile(int index) {
             Color color = CharacterFactory.GetCharacterColor(_characterIDs[index]);
-            Color opponentAccent = IsLocalHumanMode ? UIPalette.Gold : UIPalette.Warning;
+            Color opponentAccent = IsLocalHumanMode ? UIPalette.TemporalViolet : UIPalette.Warning;
 
             Color borderColor = new(0.2f, 0.2f, 0.25f);
             int borderWidth = 2;
@@ -501,8 +540,12 @@ namespace FTT.UI {
                 }
             }
 
+            Color cardColor = color.Lerp(UIPalette.Navy, 0.62f);
             var style = new StyleBoxFlat {
-                BgColor = color,
+                // Keep each fighter's identity colour, but sink it into the
+                // midnight glass palette so portraits read as layered time cards
+                // instead of opaque placeholder blocks.
+                BgColor = new Color(cardColor, 0.86f),
                 BorderColor = borderColor,
                 ShadowSize = occupied ? 8 : 0,
                 ShadowColor = occupied ? new Color(borderColor, 0.5f) : Colors.Transparent
@@ -517,7 +560,8 @@ namespace FTT.UI {
             button.AddThemeStyleboxOverride("pressed", style);
 
             // Readable text on top of an arbitrary character colour.
-            float luminance = 0.299f * color.R + 0.587f * color.G + 0.114f * color.B;
+            float luminance =
+                0.299f * cardColor.R + 0.587f * cardColor.G + 0.114f * cardColor.B;
             Color textColor = luminance > 0.55f
                 ? new Color(0.1f, 0.1f, 0.15f)
                 : new Color(0.95f, 0.95f, 0.98f);
