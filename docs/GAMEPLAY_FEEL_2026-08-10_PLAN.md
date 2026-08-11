@@ -393,3 +393,15 @@ minimal geometry change.
    same `--import` pass rewrote ~170 `.import` sidecars and
    `resources/Audio/default_bus_layout.tres` with line-ending-only churn; all of
    that was reverted too.
+
+8. **Interaction found at the A1 merge — a down-air can only be thrown from
+   height.** §2.9's fast-fall clamps any airborne Down-held fighter straight to
+   16 units/s downward, so "jump, then hold Down and attack" lands the fighter
+   before the 6-frame startup can finish; the move has to be thrown at or after
+   the apex. That *is* §2.9's intended "down-air + fast-fall stack" reading (a
+   falling downward strike) and no production code changed for it, but it makes
+   the down-air noticeably harder to land than the pre-merge behaviour implied,
+   and it is worth a human look during the playtest. `DirectionalAttackTests`
+   now throws every down-air from a `JumpToApex` helper that advances until the
+   fighter stops rising, so the suite re-derives the timing instead of pinning
+   the numbers A1 happened to land on.

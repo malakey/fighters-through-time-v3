@@ -116,12 +116,14 @@ public class DirectionalAttackTests {
             .IsEqual(0);
         AssertThat(chain.AttackPhaseFrames).IsEqual(BasicComboRules.GroundStartupFrames[0]);
 
-        // Airborne Down + BasicAttack: the down-air. Jump first so Down+Jump on
-        // the same tick cannot read as a platform drop-through.
+        // Airborne Down + BasicAttack: the down-air. Thrown from the apex — the
+        // jump goes up first (Down held on the rise would fast-fall instantly),
+        // which also keeps Down+Jump off the same tick so it cannot read as a
+        // platform drop-through.
         var airborne = NewOverlappingSimulation(seed: 504);
         AssertThat(airborne.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
-        Advance(airborne, 0, p1Buttons: GameplayButtons.Jump);
-        Advance(airborne, 1,
+        int diveTick = JumpToApex(airborne, 0);
+        Advance(airborne, diveTick,
             p1Buttons: GameplayButtons.BasicAttack | GameplayButtons.Down,
             p1Held: GameplayButtons.Down);
         AssertThat(airborne.TryGetFighterRuntime(0, out FighterRuntimeComponent dive)).IsTrue();
@@ -130,7 +132,7 @@ public class DirectionalAttackTests {
             .IsEqual(FighterBasicAttackRules.FlagDownAir);
         AssertThat(dive.AttackPhaseFrames).IsEqual(BasicComboRules.DownAirStartupFrames);
 
-        for (int tick = 2; tick <= BasicComboRules.DownAirStartupFrames + 1; tick++) {
+        for (int tick = diveTick + 1; tick <= diveTick + BasicComboRules.DownAirStartupFrames; tick++) {
             Advance(airborne, tick, p1Held: GameplayButtons.Down);
         }
         AssertThat(airborne.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();
@@ -159,10 +161,12 @@ public class DirectionalAttackTests {
         AssertThat(launched.HitstunFrames).IsEqual(BasicComboRules.DirectionalAttackHitstunFrames);
 
         var down = NewOverlappingSimulation(seed: 506);
-        Advance(down, 0, p1Buttons: GameplayButtons.Jump);
-        for (int tick = 1; tick <= BasicComboRules.DownAirStartupFrames + 1; tick++) {
+        int diveTick = JumpToApex(down, 0);
+        for (int tick = diveTick; tick <= diveTick + BasicComboRules.DownAirStartupFrames; tick++) {
             Advance(down, tick,
-                p1Buttons: tick == 1 ? GameplayButtons.BasicAttack | GameplayButtons.Down : GameplayButtons.None,
+                p1Buttons: tick == diveTick
+                    ? GameplayButtons.BasicAttack | GameplayButtons.Down
+                    : GameplayButtons.None,
                 p1Held: GameplayButtons.Down);
         }
         AssertThat(down.TryGetFighter(1, out FighterStateComponent spiked)).IsTrue();
@@ -221,14 +225,11 @@ public class DirectionalAttackTests {
 
     [TestCase]
     public void LandingCancelsTheDownAirWithNoLag() {
-        // A default jump is airborne for roughly 51 ticks and the down-air runs
-        // 32, so the swing has to start late in the fall for the landing to be
-        // what ends it — starting it on the way up would let it finish in the
-        // air and prove nothing.
-        const int diveTick = 30;
+        // Thrown from the apex, and §2.9's fast-fall drags the attacker down at
+        // 16 units/s while the 32-frame swing runs — so the fall finishes first
+        // and the landing is genuinely what ends the swing.
         var simulation = NewOverlappingSimulation(seed: 508);
-        Advance(simulation, 0, p1Buttons: GameplayButtons.Jump);
-        for (int tick = 1; tick < diveTick; tick++) Advance(simulation, tick);
+        int diveTick = JumpToApex(simulation, 0);
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent falling)).IsTrue();
         AssertThat(falling.IsGrounded)
             .OverrideFailureMessage("The attacker must still be airborne when the dive starts.")
@@ -295,8 +296,10 @@ public class DirectionalAttackTests {
         for (int tick = 0; tick < 360; tick++) {
             // A deterministic script that cycles jump, up-attack and down-air so
             // both variant bits, their hit application, and the launch impulse
-            // all pass through the snapshot and the state hash.
-            int phase = tick % 45;
+            // all pass through the snapshot and the state hash. The down-air is
+            // thrown ~22 frames after the jump (near the apex) because §2.9's
+            // fast-fall makes a Down-held rise impossible.
+            int phase = tick % 90;
             sbyte moveY = 0;
             GameplayButtons pressed = GameplayButtons.None;
             GameplayButtons held = GameplayButtons.None;
@@ -305,12 +308,12 @@ public class DirectionalAttackTests {
                 moveY = UpAxis;
             } else if (phase < 12) {
                 moveY = UpAxis;
-            } else if (phase == 20) {
+            } else if (phase == 40) {
                 pressed = GameplayButtons.Jump;
-            } else if (phase == 23) {
+            } else if (phase == 62) {
                 pressed = GameplayButtons.BasicAttack | GameplayButtons.Down;
                 held = GameplayButtons.Down;
-            } else if (phase < 34) {
+            } else if (phase > 62 && phase < 76) {
                 held = GameplayButtons.Down;
             }
 
@@ -350,6 +353,26 @@ public class DirectionalAttackTests {
     /// 0.8-unit minimum — inside the up-attack's 1.2 and the down-air's 1.0
     /// horizontal reach, which the 2-unit chain range would otherwise mask.
     /// </summary>
+    /// <summary>
+    /// Jumps player one and advances, without holding Down, to the top of the
+    /// arc. §2.9's fast-fall clamps a Down-held airborne fighter straight to
+    /// 16 units/s downward, so a down-air cannot be thrown on the way up at
+    /// all — it has to come from height. Returns the tick the caller should
+    /// press on; the fighter is airborne and no longer rising.
+    /// </summary>
+    private static int JumpToApex(FighterSimulation simulation, int startTick) {
+        Advance(simulation, startTick, p1Buttons: GameplayButtons.Jump);
+        for (int tick = startTick + 1; tick < startTick + 120; tick++) {
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent fighter)).IsTrue();
+            if (fighter.IsGrounded == 0 && fighter.Velocity.y <= FP64.Zero) return tick;
+            Advance(simulation, tick);
+        }
+        AssertThat(false)
+            .OverrideFailureMessage("The jump never reached its apex.")
+            .IsTrue();
+        return startTick;
+    }
+
     private static FighterSimulation NewOverlappingSimulation(int seed) => new(
         FighterCharacterID.Einstein,
         FighterCharacterID.Joan,
