@@ -457,10 +457,10 @@ minimal geometry change.
    sits within ~0.25 px of the 110% release line. Re-runs were green (611/611). Worth tightening
    independently of this batch.
 
-### 2026-08-10 â€” B1 ledge-grab (Â§2.11)
+### 2026-08-10 — B1 ledge-grab (§2.11)
 
 1. **Grabs are resolved last in the movement tick, so landing and the ground snap
-   always win.** Â§2.11 says "after gravity/velocity, around the landing checks"
+   always win.** §2.11 says "after gravity/velocity, around the landing checks"
    without fixing the order. Running the capture *before* `TryLandOnPlatform`
    would have turned every landing within half a unit of a platform end into a
    hang; running it after both the landing and the `y <= 0` ground snap means only
@@ -469,8 +469,8 @@ minimal geometry change.
    just implied by the call site.
 
 2. **Consequence of the locked capture conditions: walking off a platform end
-   grabs it.** The condition list in Â§2.11 is closed â€” airborne, no drop-through,
-   no hitstun/daze, no lockout, `vy <= 2`, inside the capture box â€” and a fighter
+   grabs it.** The condition list in §2.11 is closed — airborne, no drop-through,
+   no hitstun/daze, no lockout, `vy <= 2`, inside the capture box — and a fighter
    who walks off an edge satisfies every one of them (`vy == 0`, `y == SurfaceY`,
    `x` a hair past the edge). This is standard platform-fighter behaviour and was
    implemented as specified rather than adding an unlisted "must be falling from
@@ -479,27 +479,27 @@ minimal geometry change.
    its cheapest deterministic route onto a ledge. Flag it for the playtest: if it
    reads badly, the fix is one added condition, not a redesign.
 
-3. **Two extra release paths Â§2.11 did not enumerate, both required for the state
+3. **Two extra release paths §2.11 did not enumerate, both required for the state
    to be safe.** Being struck out of a hang (`HitstunFrames`/`DazeFrames`) drops
-   the hang *without* zeroing velocity â€” the combat system has already written the
-   knockback â€” and arms the lockout so the victim does not instantly re-catch the
+   the hang *without* zeroing velocity — the combat system has already written the
+   knockback — and arms the lockout so the victim does not instantly re-catch the
    anchor it is still standing in. Losing a stock clears both the hang and the
    lockout in `ApplyStockLoss`, so the respawn platform cannot inherit either.
    Without the first, a hanging fighter was effectively immortal on the ledge: the
    hang short-circuit runs ahead of the hitstun branch and consumes the tick.
 
-4. **`LedgeAnchor` is written to âˆ’1 at fighter creation.** Klotho zero-initializes
+4. **`LedgeAnchor` is written to −1 at fighter creation.** Klotho zero-initializes
    components and `0` is a valid anchor (platform 0's left edge), so the "none"
-   sentinel Â§2.11 locks has to be authored in `FighterWorldSystem` rather than
+   sentinel §2.11 locks has to be authored in `FighterWorldSystem` rather than
    inherited from the default. Anything that builds a `FighterRuntimeComponent` by
-   hand â€” tests included â€” must do the same.
+   hand — tests included — must do the same.
 
 5. **The hang pose is the existing `ledge_hang` animation, not a borrowed one.**
-   Â§2.11 said "hang pose from existing placeholder set" and the dossier suggested
+   §2.11 said "hang pose from existing placeholder set" and the dossier suggested
    crouch or hitstun; all nine character `SpriteFrames` already carry a real
    `ledge_hang` clip (Story's `LedgeHanging` state uses it), so the Fighter driver
    reuses that. No new art and no compromise pose. `GetStateLabel` gained a
-   matching `"Ledge Hang"` â†’ `fighter_state_ledge` row.
+   matching `"Ledge Hang"` → `fighter_state_ledge` row.
 
 6. **The CPU's ledge branch is checked ahead of off-stage recovery.** A hanging
    fighter is by definition already holding the stage edge, so recovery's
@@ -507,9 +507,9 @@ minimal geometry change.
    answers `Jump` and nothing else while `IsLedgeHanging` is set.
 
 7. **The component budget is now exactly full.** `FighterRuntimeComponent` moved
-   from 116 to 128 of Klotho's 128 bytes with the three ints, as Â§2.11 predicted.
-   There is no packing room left in it â€” the next piece of sim state needs its own
-   component. Â§2.10's fallback (no double-tap Down in the sim) therefore stands;
+   from 116 to 128 of Klotho's 128 bytes with the three ints, as §2.11 predicted.
+   There is no packing room left in it — the next piece of sim state needs its own
+   component. §2.10's fallback (no double-tap Down in the sim) therefore stands;
    A1 already recorded it and nothing here reopens it.
 
 8. **`FighterStageGeometry` gained pure helpers, not state.** `EdgeX`,
@@ -521,7 +521,7 @@ minimal geometry change.
    before right, so overlapping capture boxes resolve identically on every peer.
 
 9. **`en.en.translation` was regenerated locally by the `--import` this worktree
-   needed, but is deliberately not committed.** Per Â§3 only the orchestrator
+   needed, but is deliberately not committed.** Per §3 only the orchestrator
    regenerates it. `FighterLocalizationTests` and `UnusedTranslationKeyTests`
    resolve through the *compiled* resource, so `fighter_state_ledge` will fail
    there in any checkout that has not reimported since this branch merged.
@@ -534,4 +534,3 @@ minimal geometry change.
     with `AuthoredResources.Load` returning null. All three passed after
     `--headless --import` warmed the `.tres` cache. Worth knowing for the other
     Phase B worktree.
-
