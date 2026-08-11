@@ -280,6 +280,10 @@ namespace FTT.FighterSim {
                 if (fighter.Stocks <= 0
                     || fighter.HitstunFrames > 0
                     || fighter.DazeFrames > 0
+                    // A hanging fighter has no specials and no movement ability
+                    // (§2.11) — the hang suppresses ability intent the way
+                    // hitstun does.
+                    || FighterLedgeRules.IsHanging(in runtime)
                     || FighterUniversalMovementRules.IsCombatLocked(in runtime)) continue;
 
                 // Story's Blocking state ignores ability inputs entirely; specials

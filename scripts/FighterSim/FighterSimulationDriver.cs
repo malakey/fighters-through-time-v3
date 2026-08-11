@@ -244,6 +244,7 @@ namespace FTT.FighterSim {
             if (runtime.UniversalMovementState is (int)UniversalMovementPhase.RollStartup
                 or (int)UniversalMovementPhase.RollTravel
                 or (int)UniversalMovementPhase.RollRecovery) return "Rolling";
+            if (FighterLedgeRules.IsHanging(in runtime)) return "Ledge Hang";
             if (state.InvulnerabilityFrames > 0) return "Respawning";
             if (state.DazeFrames > 0) return "Dazed";
             if (state.HitstunFrames > 0) return "Stunned";
@@ -615,6 +616,10 @@ namespace FTT.FighterSim {
             if (state.RespawnFramesRemaining > 0) return "respawn";
             if (state.HitstunFrames > 0) return "hitstun";
             if (state.DazeFrames > 0) return "dazed";
+            // §2.11 — the placeholder set already carries a real ledge_hang pose
+            // for all nine characters (Story's LedgeHanging state uses it), so the
+            // Fighter hang reuses it rather than borrowing crouch or hitstun.
+            if (FighterLedgeRules.IsHanging(in runtime)) return "ledge_hang";
             if (FighterBasicAttackRules.IsSwinging(in runtime)) {
                 int step = runtime.ComboIndex < 0 ? 0 : runtime.ComboIndex > 2 ? 2 : runtime.ComboIndex;
                 return BasicAttackAnimationNames[step];

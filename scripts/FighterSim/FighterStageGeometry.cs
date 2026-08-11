@@ -18,6 +18,33 @@ namespace FTT.FighterSim {
         }
 
         public bool Supports(FP64 x) => FP64.Abs(x - CenterX) <= HalfWidth;
+
+        /// <summary>The platform's left (side 0) or right (side 1) end, in world units.</summary>
+        public FP64 EdgeX(int side) => side == 0 ? CenterX - HalfWidth : CenterX + HalfWidth;
+
+        /// <summary>
+        /// Where a fighter hangs off <paramref name="side"/>: the edge nudged
+        /// <see cref="FighterLedgeRules.HangOutwardOffset"/> units away from the
+        /// platform, one unit below the surface (gameplay-feel plan §2.11).
+        /// </summary>
+        public FPVector2 HangPosition(int side) => new(
+            side == 0
+                ? EdgeX(0) - FighterLedgeRules.HangOutwardOffset
+                : EdgeX(1) + FighterLedgeRules.HangOutwardOffset,
+            SurfaceY - FighterLedgeRules.HangDepth);
+
+        /// <summary>
+        /// True when a fighter at <paramref name="position"/> is inside the capture
+        /// box of <paramref name="side"/>: within
+        /// <see cref="FighterLedgeRules.CaptureHalfWidth"/> horizontally of the edge
+        /// and in the <see cref="FighterLedgeRules.CaptureDepth"/> band just under
+        /// the surface. Geometry only — the fighter-state conditions live in
+        /// <see cref="FighterLedgeRules.CanGrab"/>.
+        /// </summary>
+        public bool IsInCaptureBox(in FPVector2 position, int side) =>
+            FP64.Abs(position.x - EdgeX(side)) <= FighterLedgeRules.CaptureHalfWidth
+            && position.y <= SurfaceY
+            && position.y >= SurfaceY - FighterLedgeRules.CaptureDepth;
     }
 
     /// <summary>
@@ -336,5 +363,39 @@ namespace FTT.FighterSim {
             "gettysburg_ridge" => Gettysburg,
             _ => Default
         };
+
+        /// <summary>
+        /// Finds the ledge whose capture box contains <paramref name="position"/>
+        /// and returns its encoded anchor (<c>platformIndex * 2 + side</c>). Search
+        /// order is platform index ascending, left edge before right, so overlapping
+        /// capture boxes resolve identically on every peer. The legacy flat arena
+        /// has no platforms and therefore no ledges.
+        /// </summary>
+        public bool TryFindLedge(in FPVector2 position, out int anchor) {
+            for (int index = 0; index < Platforms.Length; index++) {
+                for (int side = 0; side < 2; side++) {
+                    if (!Platforms[index].IsInCaptureBox(in position, side)) continue;
+                    anchor = index * 2 + side;
+                    return true;
+                }
+            }
+            anchor = FighterLedgeRules.NoAnchor;
+            return false;
+        }
+
+        /// <summary>
+        /// Re-derives a hang position from a snapshotted anchor. Geometry never
+        /// enters a snapshot, so this is how a rolled-back or restored frame gets
+        /// its pinned position back. An anchor from a different stage's platform
+        /// count is rejected rather than clamped.
+        /// </summary>
+        public bool TryGetHangPosition(int anchor, out FPVector2 position) {
+            position = FPVector2.Zero;
+            if (anchor < 0) return false;
+            int index = anchor / 2;
+            if (index >= Platforms.Length) return false;
+            position = Platforms[index].HangPosition(anchor % 2);
+            return true;
+        }
     }
 }

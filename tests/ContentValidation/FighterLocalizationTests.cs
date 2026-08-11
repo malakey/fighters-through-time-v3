@@ -42,7 +42,7 @@ public class FighterLocalizationTests {
     private static readonly (string Label, string Prefix, int Minimum)[] Families = {
         // Four keys per stage (name, layout, hazard name, hazard description) x 10.
         ("stage_*", "stage_", 40),
-        ("fighter_*", "fighter_", 25),
+        ("fighter_*", "fighter_", 26),
         ("match_*", "match_", 3),
         // Package 6 A2's new match-flow copy.
         ("fighter_countdown_*", "fighter_countdown_", 2),
@@ -50,8 +50,8 @@ public class FighterLocalizationTests {
         ("fighter_disconnect_*", "fighter_disconnect_", 3),
         ("fighter_pause_*", "fighter_pause_", 2),
         // 10 since the universal dash's removal retired fighter_state_dashing
-        // (2026-08-09 user directive).
-        ("fighter_state_*", "fighter_state_", 10),
+        // (2026-08-09 user directive); 11 with the gameplay-feel §2.11 ledge hang.
+        ("fighter_state_*", "fighter_state_", 11),
         ("fighter_results_*", "fighter_results_", 3)
     };
 
