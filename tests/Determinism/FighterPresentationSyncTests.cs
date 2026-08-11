@@ -80,6 +80,55 @@ public class FighterPresentationSyncTests {
     }
 
     [TestCase]
+    public void AcceptedFighterSpecialHoldsTheAuthoredAbilityPose() {
+        if (InputManager.Instance == null) return;
+        (FighterSimulationDriver driver, Node host, PlayerController one, PlayerController _) =
+            CreateDriver("AbilityPoseHost", attachGlow: true);
+        var playerOneInput = new BufferedInputSource();
+        var playerTwoInput = new BufferedInputSource();
+        try {
+            InputManager.Instance.SetInputSource(0, playerOneInput);
+            InputManager.Instance.SetInputSource(1, playerTwoInput);
+            for (uint frame = 0; frame < FighterMatchFlowRules.CountdownFrames + 2; frame++) {
+                playerOneInput.SetNextFrame(PlayerInputFrame.Create(
+                    frame, 0f, 0f, GameplayButtons.None));
+                playerTwoInput.SetNextFrame(PlayerInputFrame.Create(
+                    frame, 0f, 0f, GameplayButtons.None));
+                driver._PhysicsProcess(Step);
+            }
+
+            uint attackFrame = (uint)driver.CurrentTick;
+            playerOneInput.SetNextFrame(PlayerInputFrame.Create(
+                attackFrame, 0f, 0f, GameplayButtons.Special1));
+            playerTwoInput.SetNextFrame(PlayerInputFrame.Create(
+                attackFrame, 0f, 0f, GameplayButtons.None));
+            // Manual _PhysicsProcess calls share one Engine physics-frame ID in
+            // this harness. Re-registering invalidates InputManager's per-frame
+            // cache so the authored attack edge is actually sampled.
+            InputManager.Instance.SetInputSource(0, playerOneInput);
+            InputManager.Instance.SetInputSource(1, playerTwoInput);
+            driver._PhysicsProcess(Step);
+
+            var sprite = one.GetNode<AnimatedSprite2D>("AnimatedSprite2D");
+            AssertThat(sprite.Animation).IsEqual(new StringName("special_1"));
+            AssertThat(sprite.IsPlaying()).IsTrue();
+
+            // The deterministic ability resolves immediately, but presentation
+            // keeps the three-frame pose long enough to be seen.
+            playerOneInput.SetNextFrame(PlayerInputFrame.Create(
+                attackFrame + 1, 0f, 0f, GameplayButtons.None,
+                GameplayButtons.Special1));
+            InputManager.Instance.SetInputSource(0, playerOneInput);
+            driver._PhysicsProcess(Step);
+            AssertThat(sprite.Animation).IsEqual(new StringName("special_1"));
+        } finally {
+            InputManager.Instance.ClearInputSource(0);
+            InputManager.Instance.ClearInputSource(1);
+            host.Free();
+        }
+    }
+
+    [TestCase]
     public void PresentationAttachmentDoesNotPerturbTheSimulationHash() {
         (FighterSimulationDriver withGlow, Node hostA, PlayerController _, PlayerController _) =
             CreateDriver("PresentationHostWithGlow", attachGlow: true);

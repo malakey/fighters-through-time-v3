@@ -125,8 +125,8 @@ namespace FTT.Combat {
             // Package 8 B6: the 36 abilities share six placeholder scenes, so the
             // per-character accent is what distinguishes them. A3 provided the tint
             // parameter for exactly this and left it unused pending the content.
-            VfxEmitter.EmitScene(Data.CastVFXScene, Owner.GlobalPosition, Owner.GetParent(),
-                VfxAccentPalette.ForAbility(Data));
+            VfxEmitter.EmitAbilityScene(Data.CastVFXScene, Data, Owner.GlobalPosition,
+                Owner.GetParent(), VfxAccentPalette.ForAbility(Data));
         }
 
         /// <summary>
@@ -136,8 +136,8 @@ namespace FTT.Combat {
         public void EmitImpactVfx(Vector2 position) {
             if (Data?.ImpactVFXScene == null) return;
             Node parent = Owner?.GetParent() ?? GetParent();
-            VfxEmitter.EmitScene(Data.ImpactVFXScene, position, parent,
-                VfxAccentPalette.ForAbility(Data, VfxAccentPalette.ImpactAlpha));
+            VfxEmitter.EmitAbilityScene(Data.ImpactVFXScene, Data, position, parent,
+                VfxAccentPalette.ForAbility(Data, VfxAccentPalette.ImpactAlpha), impact: true);
         }
 
         /// <summary>

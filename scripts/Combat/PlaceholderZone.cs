@@ -20,9 +20,6 @@ namespace FTT.Combat {
         private AnimatedSprite2D _authoredVisual;
         private CollisionShape2D _shape;
 
-        private const string EinsteinVfxFramesPath =
-            "res://resources/SpriteFrames/einstein_ability_vfx_frames.tres";
-
         // Refresh window slightly longer than one frame so the buff persists while
         // the owner remains inside and lapses right after leaving.
         private const float OwnerBuffRefreshSeconds = 0.05f;
@@ -91,24 +88,10 @@ namespace FTT.Combat {
             if (_authoredVisual == null) return false;
             _authoredVisual.Visible = false;
             _authoredVisual.Stop();
-            string animation = data?.AbilityID switch {
-                "einstein_mass_energy_conversion" => "mass_energy_projectile",
-                "einstein_relativity_rift" => "relativity_rift",
-                "einstein_cosmological_constant" => "cosmological_constant",
-                _ => ""
-            };
-            if (animation.Length == 0) return false;
-            SpriteFrames frames = ResourceLoader.Load<SpriteFrames>(EinsteinVfxFramesPath);
-            if (frames == null || !frames.HasAnimation(animation)) return false;
-            _authoredVisual.SpriteFrames = frames;
-            _authoredVisual.Animation = animation;
-            float scale = data.AbilityID == "einstein_cosmological_constant"
+            float scale = data?.AbilityID == "einstein_cosmological_constant"
                 ? 2.15f
                 : Mathf.Max(0.35f, radius / 96f);
-            _authoredVisual.Scale = new Vector2(scale, scale);
-            _authoredVisual.Visible = true;
-            _authoredVisual.Play();
-            return true;
+            return AbilityVisualLibrary.Apply(_authoredVisual, data?.AbilityID, scale);
         }
 
         public override void _PhysicsProcess(double delta) {

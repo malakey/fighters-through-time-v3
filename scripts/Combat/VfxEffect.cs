@@ -60,6 +60,45 @@ namespace FTT.Combat {
         private bool _resolved;
         private bool _active;
 
+        /// <summary>
+        /// Replaces this pooled taxonomy scene's placeholder art with one ability
+        /// animation. Ability pools are keyed by ability ID, so the replacement
+        /// remains stable for the lifetime of the pool and cannot leak into enemy
+        /// effects that happen to use the same base scene.
+        /// </summary>
+        public bool UseAnimatedVisual(SpriteFrames frames, StringName animation,
+            float visualScale = 0.55f) {
+            if (frames == null || !frames.HasAnimation(animation)) return false;
+            ResolveChildren();
+
+            AnimatedSprite2D animated = _visual as AnimatedSprite2D;
+            if (animated == null) {
+                Material material = (_visual as CanvasItem)?.Material;
+                if (_visual != null) {
+                    _visual.Visible = false;
+                    _visual.Name = "PlaceholderVisual";
+                }
+                animated = new AnimatedSprite2D {
+                    Name = "Visual",
+                    Centered = true,
+                    Material = material
+                };
+                AddChild(animated);
+                _visual = animated;
+            }
+
+            if (_particles != null) _particles.Visible = false;
+            BaseVisualScale = new Vector2(visualScale, visualScale);
+            animated.SpriteFrames = frames;
+            animated.Animation = animation;
+            animated.Frame = 0;
+            animated.FlipH = false;
+            animated.Visible = true;
+            animated.Play();
+            ApplyCurve(0f);
+            return true;
+        }
+
         public new void OnSpawn() {
             base.OnSpawn();
             ResolveChildren();

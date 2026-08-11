@@ -72,6 +72,44 @@ namespace FTT.Combat {
         }
 
         /// <summary>
+        /// Spawns one of the six shared ability-family scenes through an
+        /// ability-specific pool, then replaces its placeholder shape with the
+        /// ability's authored retro atlas animation. The distinct pool key keeps
+        /// that replacement from leaking into another ability or an enemy effect
+        /// that shares the same base PackedScene.
+        /// </summary>
+        public static Node2D EmitAbilityScene(PackedScene scene, AbilityData data,
+            Vector2 position, Node parent, Color fallbackTint = default, bool impact = false) {
+            PoolManager pools = PoolManager.Instance;
+            if (scene == null || data == null || pools == null || parent == null
+                    || !IsInstanceUsable(parent)) return null;
+
+            string sceneKey = string.IsNullOrEmpty(scene.ResourcePath)
+                ? scene.GetInstanceId().ToString()
+                : scene.ResourcePath;
+            string poolID = $"{sceneKey}::{data.AbilityID}::{(impact ? "impact" : "cast")}";
+            if (!pools.IsRegistered(poolID)) {
+                pools.RegisterPool(poolID, scene, 1, FallbackCapacity, PoolOverflowPolicy.RecycleOldest);
+            }
+            if (pools.Spawn(poolID, position, parent) is not Node2D spawned) return null;
+
+            bool authored = false;
+            if (spawned is VfxEffect effect
+                    && AbilityVisualLibrary.TryResolve(data.AbilityID,
+                        out SpriteFrames frames, out StringName animation)) {
+                float scale = data.Slot switch {
+                    AbilitySlot.Ultimate => impact ? 0.8f : 1.05f,
+                    AbilitySlot.MovementAbility => 0.5f,
+                    _ => impact ? 0.44f : 0.58f
+                };
+                authored = effect.UseAnimatedVisual(frames, animation, scale);
+            }
+
+            spawned.Modulate = authored || fallbackTint.A <= 0f ? Colors.White : fallbackTint;
+            return spawned;
+        }
+
+        /// <summary>
         /// Maps an authored <c>PresentationEventID</c> to a pooled effect. The roster
         /// convention is <c>{sourceID}.{telegraph|active|recovery|death}</c>; B6
         /// refines the per-suffix mappings on top of this default routing.

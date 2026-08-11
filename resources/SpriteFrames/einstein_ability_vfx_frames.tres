@@ -2,75 +2,75 @@
 
 [ext_resource type="Texture2D" path="res://assets/sprites/vfx/einstein/einstein_ability_vfx_atlas.png" id="1_vfx"]
 
-[sub_resource type="AtlasTexture" id="mass_energy_projectile_0"]
+[sub_resource type="AtlasTexture" id="ability_0_0"]
 atlas = ExtResource("1_vfx")
 region = Rect2(0, 0, 192, 192)
 
-[sub_resource type="AtlasTexture" id="mass_energy_projectile_1"]
+[sub_resource type="AtlasTexture" id="ability_0_1"]
 atlas = ExtResource("1_vfx")
 region = Rect2(192, 0, 192, 192)
 
-[sub_resource type="AtlasTexture" id="mass_energy_projectile_2"]
+[sub_resource type="AtlasTexture" id="ability_0_2"]
 atlas = ExtResource("1_vfx")
 region = Rect2(384, 0, 192, 192)
 
-[sub_resource type="AtlasTexture" id="relativity_rift_0"]
+[sub_resource type="AtlasTexture" id="ability_1_0"]
 atlas = ExtResource("1_vfx")
 region = Rect2(0, 192, 192, 192)
 
-[sub_resource type="AtlasTexture" id="relativity_rift_1"]
+[sub_resource type="AtlasTexture" id="ability_1_1"]
 atlas = ExtResource("1_vfx")
 region = Rect2(192, 192, 192, 192)
 
-[sub_resource type="AtlasTexture" id="relativity_rift_2"]
+[sub_resource type="AtlasTexture" id="ability_1_2"]
 atlas = ExtResource("1_vfx")
 region = Rect2(384, 192, 192, 192)
 
-[sub_resource type="AtlasTexture" id="relativity_warp_0"]
+[sub_resource type="AtlasTexture" id="ability_2_0"]
 atlas = ExtResource("1_vfx")
 region = Rect2(0, 384, 192, 192)
 
-[sub_resource type="AtlasTexture" id="relativity_warp_1"]
+[sub_resource type="AtlasTexture" id="ability_2_1"]
 atlas = ExtResource("1_vfx")
 region = Rect2(192, 384, 192, 192)
 
-[sub_resource type="AtlasTexture" id="relativity_warp_2"]
+[sub_resource type="AtlasTexture" id="ability_2_2"]
 atlas = ExtResource("1_vfx")
 region = Rect2(384, 384, 192, 192)
 
-[sub_resource type="AtlasTexture" id="cosmological_constant_0"]
+[sub_resource type="AtlasTexture" id="ability_3_0"]
 atlas = ExtResource("1_vfx")
 region = Rect2(0, 576, 192, 192)
 
-[sub_resource type="AtlasTexture" id="cosmological_constant_1"]
+[sub_resource type="AtlasTexture" id="ability_3_1"]
 atlas = ExtResource("1_vfx")
 region = Rect2(192, 576, 192, 192)
 
-[sub_resource type="AtlasTexture" id="cosmological_constant_2"]
+[sub_resource type="AtlasTexture" id="ability_3_2"]
 atlas = ExtResource("1_vfx")
 region = Rect2(384, 576, 192, 192)
 
 [resource]
 animations = [
 {
-"frames": [{"duration": 1.0, "texture": SubResource("mass_energy_projectile_0")}, {"duration": 1.0, "texture": SubResource("mass_energy_projectile_1")}, {"duration": 1.0, "texture": SubResource("mass_energy_projectile_2")}],
+"frames": [{"duration": 1.0, "texture": SubResource("ability_0_0")}, {"duration": 1.0, "texture": SubResource("ability_0_1")}, {"duration": 1.0, "texture": SubResource("ability_0_2")}],
 "loop": false,
 "name": &"mass_energy_projectile",
-"speed": 12.0
+"speed": 10.0
 }, {
-"frames": [{"duration": 1.0, "texture": SubResource("relativity_rift_0")}, {"duration": 1.0, "texture": SubResource("relativity_rift_1")}, {"duration": 1.0, "texture": SubResource("relativity_rift_2")}],
+"frames": [{"duration": 1.0, "texture": SubResource("ability_1_0")}, {"duration": 1.0, "texture": SubResource("ability_1_1")}, {"duration": 1.0, "texture": SubResource("ability_1_2")}],
 "loop": true,
 "name": &"relativity_rift",
-"speed": 8.0
+"speed": 10.0
 }, {
-"frames": [{"duration": 1.0, "texture": SubResource("relativity_warp_0")}, {"duration": 1.0, "texture": SubResource("relativity_warp_1")}, {"duration": 1.0, "texture": SubResource("relativity_warp_2")}],
+"frames": [{"duration": 1.0, "texture": SubResource("ability_2_0")}, {"duration": 1.0, "texture": SubResource("ability_2_1")}, {"duration": 1.0, "texture": SubResource("ability_2_2")}],
 "loop": false,
 "name": &"relativity_warp",
-"speed": 12.0
+"speed": 10.0
 }, {
-"frames": [{"duration": 1.0, "texture": SubResource("cosmological_constant_0")}, {"duration": 1.0, "texture": SubResource("cosmological_constant_1")}, {"duration": 1.0, "texture": SubResource("cosmological_constant_2")}],
+"frames": [{"duration": 1.0, "texture": SubResource("ability_3_0")}, {"duration": 1.0, "texture": SubResource("ability_3_1")}, {"duration": 1.0, "texture": SubResource("ability_3_2")}],
 "loop": true,
 "name": &"cosmological_constant",
-"speed": 8.0
+"speed": 10.0
 }
 ]

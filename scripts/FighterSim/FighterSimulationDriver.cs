@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using FTT.Characters;
+using FTT.Combat;
 using FTT.Core;
 using Godot;
 
@@ -283,6 +284,9 @@ namespace FTT.FighterSim {
                 ConfigureProxy(
                     proxy, projectile.Position, projectile.HalfExtents,
                     new Color(1f, 0.72f, 0.16f, 0.9f));
+                ConfigureAbilityProxy(proxy,
+                    AbilityForEncodedSlot(projectile.OwnerPlayerID, projectile.ProjectileTypeID),
+                    0.38f, projectile.Velocity.x < xpTURN.Klotho.Deterministic.Math.FP64.Zero);
                 _seenProxyIDs.Add(projectile.EntityID);
             }
             ReleaseMissing(_projectileProxies);
@@ -294,6 +298,7 @@ namespace FTT.FighterSim {
                 ConfigureProxy(
                     proxy, persistent.Position, persistent.HalfExtents,
                     new Color(0.1f, 0.9f, 0.95f, 0.82f));
+                ConfigureAbilityProxy(proxy, PersistentAbilityForPlayer(persistent.OwnerPlayerID), 0.48f);
                 _seenProxyIDs.Add(persistent.EntityID);
             }
             ReleaseMissing(_persistentProxies);
@@ -335,6 +340,10 @@ namespace FTT.FighterSim {
                 ConfigureProxy(
                     proxy, zone.Position, zone.HalfExtents,
                     new Color(0.45f, 0.3f, 1f, FighterProxyStyle.ZoneAlpha(_proxyStyleFrame)));
+                float zoneScale = Mathf.Clamp(
+                    zone.HalfExtents.x.ToFloat() * PixelsPerUnit / 96f, 0.42f, 1.8f);
+                ConfigureAbilityProxy(proxy,
+                    AbilityForEncodedSlot(zone.OwnerPlayerID, zone.ZoneTypeID), zoneScale);
                 _seenProxyIDs.Add(zone.EntityID);
             }
             ReleaseMissing(_zoneProxies);
@@ -388,11 +397,62 @@ namespace FTT.FighterSim {
             proxy.Size = size;
             proxy.Position = center - size / 2f;
             proxy.Color = color;
+            AnimatedSprite2D authored = proxy.GetNodeOrNull<AnimatedSprite2D>("AuthoredVisual");
+            if (authored != null) {
+                authored.Stop();
+                authored.Visible = false;
+            }
             // Package 8 B6 silhouette identity. Rotation is about the rect's centre,
             // so the proxy still occupies the position the simulation reported.
             proxy.PivotOffset = size / 2f;
             proxy.Rotation = rotationRadians;
         }
+
+        private static void ConfigureAbilityProxy(ColorRect proxy, AbilityData ability,
+            float scale, bool flipH = false) {
+            if (proxy == null || ability == null) return;
+            AnimatedSprite2D authored = proxy.GetNodeOrNull<AnimatedSprite2D>("AuthoredVisual");
+            if (authored == null) {
+                authored = new AnimatedSprite2D {
+                    Name = "AuthoredVisual",
+                    Centered = true,
+                    ZIndex = 1,
+                    ProcessMode = ProcessModeEnum.Pausable
+                };
+                proxy.AddChild(authored);
+            }
+            if (!AbilityVisualLibrary.Apply(authored, ability.AbilityID, scale, flipH)) return;
+            authored.Position = proxy.Size / 2f;
+            proxy.Color = new Color(0f, 0f, 0f, 0f);
+        }
+
+        private AbilityData AbilityForEncodedSlot(int playerID, int encodedTypeID) {
+            CharacterData data = CharacterDataForPlayer(playerID);
+            if (data == null) return null;
+            return (Math.Abs(encodedTypeID) % 10) switch {
+                1 => data.SpecialAttackOne,
+                2 => data.SpecialAttackTwo,
+                3 => data.UltimateAttack,
+                _ => null
+            };
+        }
+
+        private AbilityData PersistentAbilityForPlayer(int playerID) {
+            CharacterData data = CharacterDataForPlayer(playerID);
+            if (data == null) return null;
+            foreach (AbilityData ability in new AbilityData[] {
+                         data.SpecialAttackOne, data.SpecialAttackTwo,
+                         data.MovementAbility, data.UltimateAttack }) {
+                if (ability != null && !string.IsNullOrWhiteSpace(ability.PersistentObjectID)) return ability;
+            }
+            return null;
+        }
+
+        private CharacterData CharacterDataForPlayer(int playerID) => playerID switch {
+            0 => _playerOne?.Data,
+            1 => _playerTwo?.Data,
+            _ => null
+        };
 
         private void ReleaseMissing(Dictionary<int, ColorRect> active) {
             _releaseProxyIDs.Clear();
@@ -421,6 +481,11 @@ namespace FTT.FighterSim {
         private readonly int[] _presentedDazeFrames = { 0, 0 };
         private readonly int[] _presentedBlockCharges = { -1, -1 };
         private readonly bool[] _presentedInfluenceFull = { false, false };
+        private readonly string[] _presentedAbilityAnimation = { "", "" };
+        private readonly int[] _presentedAbilityAnimationFrames = { 0, 0 };
+        private readonly int[] _presentedSpecialOneCooldown = { 0, 0 };
+        private readonly int[] _presentedSpecialTwoCooldown = { 0, 0 };
+        private readonly int[] _presentedMovementCooldown = { 0, 0 };
         private readonly bool[] _fallTracking = { false, false };
         private readonly float[] _fallPeakY = { 0f, 0f };
         private bool _lowHealthPresented;
@@ -438,6 +503,12 @@ namespace FTT.FighterSim {
         private static readonly string[] BasicAttackAnimationNames = {
             "basic_attack_1", "basic_attack_2", "basic_attack_3"
         };
+
+        private const int SpecialOneButton = 1 << 3;
+        private const int SpecialTwoButton = 1 << 4;
+        private const int MovementAbilityButton = 1 << 5;
+        private const int UltimateButton = 1 << 7;
+        private const int AbilityPresentationFrames = 18;
 
         private const float FighterHitShakeScale = 0.35f;
         private const float FighterHitShakeDuration = 0.12f;
@@ -601,7 +672,7 @@ namespace FTT.FighterSim {
             player.SpecialOneCooldownTimer = runtime.SpecialOneCooldownFrames / (float)FighterSimulation.TickRate;
             player.SpecialTwoCooldownTimer = runtime.SpecialTwoCooldownFrames / (float)FighterSimulation.TickRate;
             player.MovementAbilityCooldownTimer = runtime.MovementCooldownFrames / (float)FighterSimulation.TickRate;
-            player.PlayPresentationAnimation(ResolvePresentationAnimation(in state, in runtime));
+            player.PlayPresentationAnimation(ResolvePresentationAnimation(playerID, in state, in runtime));
 
             SyncPresentationFeedback(player, playerID, in state, in runtime);
         }
@@ -610,8 +681,7 @@ namespace FTT.FighterSim {
         /// Maps deterministic fighter state onto the shared placeholder animation
         /// set, one branch chain in priority order. Read-only over sim state.
         /// </summary>
-        private static string ResolvePresentationAnimation(
-            in FighterStateComponent state,
+        private string ResolvePresentationAnimation(int playerID, in FighterStateComponent state,
             in FighterRuntimeComponent runtime) {
             if (state.RespawnFramesRemaining > 0) return "respawn";
             if (state.HitstunFrames > 0) return "hitstun";
@@ -620,6 +690,10 @@ namespace FTT.FighterSim {
             // for all nine characters (Story's LedgeHanging state uses it), so the
             // Fighter hang reuses it rather than borrowing crouch or hitstun.
             if (FighterLedgeRules.IsHanging(in runtime)) return "ledge_hang";
+
+            string abilityAnimation = ResolveAbilityPresentation(playerID, in state, in runtime);
+            if (!string.IsNullOrEmpty(abilityAnimation)) return abilityAnimation;
+
             if (FighterBasicAttackRules.IsSwinging(in runtime)) {
                 int step = runtime.ComboIndex < 0 ? 0 : runtime.ComboIndex > 2 ? 2 : runtime.ComboIndex;
                 return BasicAttackAnimationNames[step];
@@ -635,6 +709,48 @@ namespace FTT.FighterSim {
                 > xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(0.1)
                 ? "run"
                 : "idle";
+        }
+
+        /// <summary>
+        /// Fighter abilities resolve immediately in deterministic state, so their
+        /// presentation pose needs a cosmetic hold clock. It is driven only from
+        /// accepted button/cooldown edges and never feeds back into simulation.
+        /// </summary>
+        private string ResolveAbilityPresentation(int playerID, in FighterStateComponent state,
+            in FighterRuntimeComponent runtime) {
+            // PressedButtons is an input-system scratch value and may already be
+            // consumed by the time presentation synchronizes. A cooldown rising
+            // from its prior presented value is the stable, accepted-cast edge.
+            bool specialOneStarted = runtime.SpecialOneCooldownFrames
+                > _presentedSpecialOneCooldown[playerID];
+            bool specialTwoStarted = runtime.SpecialTwoCooldownFrames
+                > _presentedSpecialTwoCooldown[playerID];
+            bool movementStarted = runtime.MovementCooldownFrames
+                > _presentedMovementCooldown[playerID];
+            _presentedSpecialOneCooldown[playerID] = runtime.SpecialOneCooldownFrames;
+            _presentedSpecialTwoCooldown[playerID] = runtime.SpecialTwoCooldownFrames;
+            _presentedMovementCooldown[playerID] = runtime.MovementCooldownFrames;
+
+            string started = "";
+            if ((runtime.PressedButtons & UltimateButton) != 0
+                    && _presentedInfluenceFull[playerID]
+                    && state.Influence == xpTURN.Klotho.Deterministic.Math.FP64.Zero) {
+                started = "ultimate";
+            } else if (specialOneStarted) {
+                started = "special_1";
+            } else if (specialTwoStarted) {
+                started = "special_2";
+            } else if (movementStarted) {
+                started = "movement_ability";
+            }
+
+            if (!string.IsNullOrEmpty(started)) {
+                _presentedAbilityAnimation[playerID] = started;
+                _presentedAbilityAnimationFrames[playerID] = AbilityPresentationFrames;
+            }
+            if (_presentedAbilityAnimationFrames[playerID] <= 0) return "";
+            _presentedAbilityAnimationFrames[playerID]--;
+            return _presentedAbilityAnimation[playerID];
         }
 
         private static void DisableNativeGameplay(PlayerController player) {

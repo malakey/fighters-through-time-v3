@@ -1834,6 +1834,7 @@ namespace FTT.Characters {
 				if (_special1 != null && _special1.TryExecute()) {
 					_pendingSpecialSlot = 1;
 					_specialStartedAerial = !IsOnFloor();
+					PlayAnimation("special_1");
 					TransitionTo(CharacterState.UsingSpecial);
 					return true;
 				}
@@ -1842,6 +1843,7 @@ namespace FTT.Characters {
 				if (_special2 != null && _special2.TryExecute()) {
 					_pendingSpecialSlot = 2;
 					_specialStartedAerial = !IsOnFloor();
+					PlayAnimation("special_2");
 					TransitionTo(CharacterState.UsingSpecial);
 					return true;
 				}
@@ -1854,6 +1856,7 @@ namespace FTT.Characters {
 				bool meterReady = _ultimateMeter != null ? _ultimateMeter.IsFull : CurrentUltimateMeter >= 100f;
 				if (meterReady && _ultimate != null && _ultimate.TryExecute()) {
 					_ultimateStartedAerial = !IsOnFloor();
+					PlayAnimation("ultimate");
 					TransitionTo(CharacterState.UsingUltimate);
 					FTT.Core.EventBus.Instance?.RaiseUltimateActivation(new FTT.Core.UltimateActivationPayload {
 						PlayerIndex = PlayerIndex,
@@ -1878,6 +1881,7 @@ namespace FTT.Characters {
 			if (IsMovementRooted) return false;
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.MovementAbility) && MovementAbilityCooldownTimer <= 0) {
 				if (_movementAbility != null && _movementAbility.TryExecute()) {
+					PlayAnimation("movement_ability");
 					TransitionTo(CharacterState.UsingMovementAbility);
 					return true;
 				}

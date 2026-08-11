@@ -13,9 +13,6 @@ namespace FTT.Combat {
         private AnimatedSprite2D _authoredVisual;
         private CollisionShape2D _shape;
 
-        private const string EinsteinVfxFramesPath =
-            "res://resources/SpriteFrames/einstein_ability_vfx_frames.tres";
-
         /// <summary>
         /// When true, the projectile despawns on its first confirmed contact and
         /// raises <see cref="Impacted"/> with the impact position (heavy detonating
@@ -110,16 +107,8 @@ namespace FTT.Combat {
             if (_authoredVisual == null) return false;
             _authoredVisual.Visible = false;
             _authoredVisual.Stop();
-            if (data?.AbilityID != "einstein_mass_energy_conversion") return false;
-            SpriteFrames frames = ResourceLoader.Load<SpriteFrames>(EinsteinVfxFramesPath);
-            if (frames == null || !frames.HasAnimation("mass_energy_projectile")) return false;
-            _authoredVisual.SpriteFrames = frames;
-            _authoredVisual.Animation = "mass_energy_projectile";
-            _authoredVisual.FlipH = !movingRight;
-            _authoredVisual.Scale = new Vector2(0.38f, 0.38f);
-            _authoredVisual.Visible = true;
-            _authoredVisual.Play();
-            return true;
+            return AbilityVisualLibrary.Apply(_authoredVisual, data?.AbilityID, 0.38f,
+                flipH: !movingRight);
         }
 
         private void OnHitConfirmed(HitPayload payload, float damageApplied) {
