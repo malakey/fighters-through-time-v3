@@ -126,13 +126,19 @@ namespace FTT.Environment {
         /// Authored pockets. Spans are strictly disjoint in X: two overlapping fields
         /// would multiply through <see cref="EnvironmentPlayerModifiers"/> into a
         /// scale nobody authored.
+        ///
+        /// The three scales were 0.34 / 0.30 / 0.26 and were scaled x0.8 by the
+        /// 2026-08-10 movement retune, which cut jump height about 20%. Every shaft rung
+        /// below is sized against its own pocket's reach, so the field carries the
+        /// compensation and the geometry stays put; the deepening 17:15:13 ratio between
+        /// the three pockets is preserved exactly (gameplay-feel plan section 9, B2).
         /// </summary>
         public static readonly (string ID, Rect2 Area, float Scale, string LabelKey)[] ContainmentPockets = {
-            ("level_14.containment_alpha", new Rect2(3250f, 720f, 630f, LevelHeight - 720f), 0.34f,
+            ("level_14.containment_alpha", new Rect2(3250f, 720f, 630f, LevelHeight - 720f), 0.272f,
                 "neo_earth_pocket_alpha"),
-            ("level_14.containment_beta", new Rect2(5120f, 640f, 620f, LevelHeight - 640f), 0.30f,
+            ("level_14.containment_beta", new Rect2(5120f, 640f, 620f, LevelHeight - 640f), 0.24f,
                 "neo_earth_pocket_beta"),
-            ("level_14.containment_gamma", new Rect2(8400f, 540f, 610f, LevelHeight - 540f), 0.26f,
+            ("level_14.containment_gamma", new Rect2(8400f, 540f, 610f, LevelHeight - 540f), 0.208f,
                 "neo_earth_pocket_gamma")
         };
 
@@ -157,10 +163,12 @@ namespace FTT.Environment {
         /// The Breach Gallery's portal scaffold. Deliberately NOT inside a pocket:
         /// its rungs are short enough for the heaviest character at Earth-normal
         /// gravity, so the level reads the difference between an ordinary climb and
-        /// a containment shaft.
+        /// a containment shaft. There is no field here to absorb a movement retune, so
+        /// the 2026-08-10 jump-height cut moved the step itself 100 -> 80 px, holding the
+        /// same ~85% of the heaviest character's reach (gameplay-feel plan section 9, B2).
         /// </summary>
         public static readonly (float X, float Y, float Width)[] PortalScaffold = {
-            (860f, 1600f, 200f), (1120f, 1500f, 200f), (860f, 1400f, 200f), (1120f, 1300f, 200f)
+            (860f, 1620f, 200f), (1120f, 1540f, 200f), (860f, 1460f, 200f), (1120f, 1380f, 200f)
         };
 
         private readonly List<GravityFieldZone> _pockets = new();
@@ -175,16 +183,28 @@ namespace FTT.Environment {
         public static float BeamContactHalfWidth => BeamHalfWidth + PlayerHalfWidth;
 
         /// <summary>
-        /// Lincoln's ground speed (`MaxMoveSpeed` 5.5 x 60 px/s), the slowest in the
+        /// Lincoln's ground speed (`MaxMoveSpeed` 4.75 x 60 px/s), the slowest in the
         /// roster. Every grid's phase offsets are derived from it, and the safe-walk
         /// proof runs at it - a faster character can always choose to walk slower,
         /// but nobody can choose to walk faster than their cap. The content test
-        /// re-derives this from the nine CharacterData resources.
+        /// re-derives this from the nine CharacterData resources, so a roster retune
+        /// that changes the slowest speed must move this constant with it (it went
+        /// 330 -> 285 with the 2026-08-10 movement retune).
         /// </summary>
-        public const float ReferenceWalkSpeed = 330f;
+        public const float ReferenceWalkSpeed = 285f;
 
-        /// <summary>Beam spacing is one reference-walk second, so the wave and the walker agree.</summary>
+        /// <summary>Authored corridor stride between adjacent beams, in pixels.</summary>
         public const float BeamSpacing = 330f;
+
+        /// <summary>
+        /// Phase delay between adjacent beams: exactly the time the reference walker
+        /// spends covering one <see cref="BeamSpacing"/>. Derived rather than authored,
+        /// so the travelling safe window keeps pace with the slowest character through
+        /// any future speed retune without the corridor geometry having to move.
+        /// </summary>
+        public static float BeamPhaseStrideSeconds => BeamSpacing / ReferenceWalkSpeed;
+
+        private static float BeamPhase(int index) => index * BeamPhaseStrideSeconds;
 
         /// <summary>Every corridor beam must be readable before it fires.</summary>
         public const float MinTelegraphSeconds = 0.9f;
@@ -193,9 +213,9 @@ namespace FTT.Environment {
             GridID = "level_14.perimeter_grid",
             WarningSeconds = 1.4f, ActiveSeconds = 0.9f, CooldownSeconds = 1.9f,
             Beams = new[] {
-                ("PerimeterBeam1", 1500f, 0f),
-                ("PerimeterBeam2", 1830f, 1f),
-                ("PerimeterBeam3", 2160f, 2f)
+                ("PerimeterBeam1", 1500f, BeamPhase(0)),
+                ("PerimeterBeam2", 1830f, BeamPhase(1)),
+                ("PerimeterBeam3", 2160f, BeamPhase(2))
             }
         };
 
@@ -203,10 +223,10 @@ namespace FTT.Environment {
             GridID = "level_14.containment_grid",
             WarningSeconds = 1.2f, ActiveSeconds = 0.9f, CooldownSeconds = 1.5f,
             Beams = new[] {
-                ("ContainmentBeam1", 3980f, 0f),
-                ("ContainmentBeam2", 4310f, 1f),
-                ("ContainmentBeam3", 4640f, 2f),
-                ("ContainmentBeam4", 4970f, 3f)
+                ("ContainmentBeam1", 3980f, BeamPhase(0)),
+                ("ContainmentBeam2", 4310f, BeamPhase(1)),
+                ("ContainmentBeam3", 4640f, BeamPhase(2)),
+                ("ContainmentBeam4", 4970f, BeamPhase(3))
             }
         };
 
@@ -214,22 +234,27 @@ namespace FTT.Environment {
             GridID = "level_14.core_grid",
             WarningSeconds = 1.0f, ActiveSeconds = 0.9f, CooldownSeconds = 1.1f,
             Beams = new[] {
-                ("CoreBeam1", 6900f, 0f),
-                ("CoreBeam2", 7230f, 1f),
-                ("CoreBeam3", 7560f, 2f),
-                ("CoreBeam4", 7890f, 3f),
-                ("CoreBeam5", 8220f, 4f)
+                ("CoreBeam1", 6900f, BeamPhase(0)),
+                ("CoreBeam2", 7230f, BeamPhase(1)),
+                ("CoreBeam3", 7560f, BeamPhase(2)),
+                ("CoreBeam4", 7890f, BeamPhase(3)),
+                ("CoreBeam5", 8220f, BeamPhase(4))
             }
         };
 
         /// <summary>Deepening corridors: more beams, less slack, the further in you go.</summary>
         public static readonly LaserGridPattern[] CorridorGrids = { PerimeterGrid, ContainmentGrid, CoreGrid };
 
+        /// <summary>
+        /// The arena lanes stand two corridor strides apart, so their phase offsets are
+        /// two <see cref="BeamPhaseStrideSeconds"/> apart and the same travelling wave
+        /// reads at the same walking speed.
+        /// </summary>
         private static readonly (string BeamName, float X, float PhaseOffsetSeconds)[] ArenaBeamLayout = {
-            ("SecurityCoreBeam1", 9600f, 0f),
-            ("SecurityCoreBeam2", 10260f, 2f),
-            ("SecurityCoreBeam3", 10920f, 4f),
-            ("SecurityCoreBeam4", 11580f, 6f)
+            ("SecurityCoreBeam1", 9600f, BeamPhase(0)),
+            ("SecurityCoreBeam2", 10260f, BeamPhase(2)),
+            ("SecurityCoreBeam3", 10920f, BeamPhase(4)),
+            ("SecurityCoreBeam4", 11580f, BeamPhase(6))
         };
 
         /// <summary>Armed when Archive Prime drops into phase 2. Slow, generous, readable.</summary>

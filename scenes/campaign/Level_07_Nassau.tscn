@@ -15,7 +15,7 @@ script = ExtResource("2_drops")
 [node name="RopeSwingA" parent="." instance=ExtResource("3_rope")]
 position = Vector2(3950, 400)
 AnchorID = "level_07.rope_swing_a"
-AmplitudeDegrees = 45.0
+AmplitudeDegrees = 52.0
 PeriodSeconds = 2.4
 PhaseOffset = 0.0
 ReleaseLaunchAssist = 1.0
@@ -24,7 +24,7 @@ MaxLaunchSpeed = 900.0
 [node name="RopeSwingB" parent="." instance=ExtResource("3_rope")]
 position = Vector2(4570, 400)
 AnchorID = "level_07.rope_swing_b"
-AmplitudeDegrees = 45.0
+AmplitudeDegrees = 52.0
 PeriodSeconds = 2.4
 PhaseOffset = 0.25
 ReleaseLaunchAssist = 1.0
@@ -33,7 +33,7 @@ MaxLaunchSpeed = 900.0
 [node name="RopeSwingC" parent="." instance=ExtResource("3_rope")]
 position = Vector2(5190, 400)
 AnchorID = "level_07.rope_swing_c"
-AmplitudeDegrees = 45.0
+AmplitudeDegrees = 52.0
 PeriodSeconds = 2.4
 PhaseOffset = 0.5
 ReleaseLaunchAssist = 1.0

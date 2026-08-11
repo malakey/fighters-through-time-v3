@@ -116,10 +116,19 @@ namespace FTT.Environment {
 
         // === Low gravity ===
 
-        /// <summary>Sea of Tranquility. Roughly doubled hang time without floating the controls away.</summary>
-        public const float RegolithGravityScale = 0.45f;
-        /// <summary>The pad's inertial dampers: firmer, so the Overseer's pull stays escapable.</summary>
-        public const float PadGravityScale = 0.6f;
+        /// <summary>
+        /// Sea of Tranquility. Roughly doubled hang time without floating the controls
+        /// away. Scaled 0.45 -> 0.36 (x0.8) by the 2026-08-10 movement retune, which cut
+        /// jump height about 20%: every authored rung, lift and curtain altitude on this
+        /// level was sized against the lunar reach, so the field carries the compensation
+        /// instead of the geometry (gameplay-feel plan section 9, B2).
+        /// </summary>
+        public const float RegolithGravityScale = 0.36f;
+        /// <summary>
+        /// The pad's inertial dampers: firmer, so the Overseer's pull stays escapable.
+        /// Scaled by the same x0.8, which keeps the pad/regolith contrast at exactly 4:3.
+        /// </summary>
+        public const float PadGravityScale = 0.48f;
 
         /// <summary>
         /// Authored gravity tiling. Contiguous (every span's end is the next span's

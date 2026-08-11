@@ -99,14 +99,22 @@ namespace FTT.Environment {
         /// <summary>
         /// Anchor pivot line. The template hangs its grab area 320 px below the pivot
         /// and its hang marker 360 px below, so at rest the player hangs at y = 760
-        /// and the arc tops out at y = 654 at the swing extremes.
+        /// and the arc tops out at y = 622 at the swing extremes.
         /// </summary>
         public const float AnchorPivotY = 400f;
         /// <summary>Template rope length from pivot to the LedgeGrabPoint centre.</summary>
         public const float AnchorGrabRadius = 320f;
         /// <summary>Template rope length from pivot to the HangAnchor the occupant is pinned to.</summary>
         public const float AnchorHangRadius = 360f;
-        public const float AnchorAmplitudeDegrees = 45f;
+        /// <summary>
+        /// Swing amplitude. A rope's horizontal reach is <c>radius * sin(amplitude)</c>,
+        /// so this decides how much of the 1,950 px launch-yard-to-receiving-yard span
+        /// the three ropes cover and how much is left over as player hops. Raised
+        /// 45 -> 52 by the 2026-08-10 movement retune: the roster's jump height dropped
+        /// about 20%, so the ropes reach further to keep every hop inside the weakest
+        /// character's budget (gameplay-feel plan section 9, B2).
+        /// </summary>
+        public const float AnchorAmplitudeDegrees = 52f;
 
         /// <summary>Authored pivot X of each rope, west to east. Scene positions are pinned to these.</summary>
         public static readonly float[] AnchorPivotsX = { 3950f, 4570f, 5190f };
