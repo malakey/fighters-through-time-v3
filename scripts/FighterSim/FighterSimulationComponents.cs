@@ -226,8 +226,11 @@ namespace FTT.FighterSim {
             (int)FTT.Core.StatusType.None,
             0,
             FP64.One,
-            FP64.FromInt(8),
-            FP64.FromInt(13),
+            // Movement feel batch 2026-08-10 §2.1/§2.2: synthetic default kit
+            // moves at the roster's post-retune mid speed (8 → 7) and jumps to
+            // the post-retune envelope (13 → 11.5; apex ≈2.11, double ≈4.21).
+            FP64.FromInt(7),
+            FP64.FromDouble(11.5),
             FP64.FromInt(3),
             FP64.FromInt(4),
             FP64.FromInt(4),

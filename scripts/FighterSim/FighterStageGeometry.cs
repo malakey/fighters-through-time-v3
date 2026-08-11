@@ -261,6 +261,12 @@ namespace FTT.FighterSim {
         /// <summary>
         /// Globe Theatre: a flat wooden stage with two tiered gallery balconies and
         /// a high central canopy. Hecklers pelt from the three gallery anchors.
+        ///
+        /// <para>The tiring-house balcony sat at 4.4 until the 2026-08-10 feel
+        /// batch cut jump force 20% (§2.2): the post-retune double-jump ceiling is
+        /// ≈4.21, so 4.4 became the one authored platform nobody could reach. It
+        /// is 4.0 now — the same height as the Orléans centre platform, which
+        /// keeps ≈0.2 units of clearance.</para>
         /// </summary>
         public static FighterStageGeometry Globe { get; } = new(
             stageID: "globe_theatre",
@@ -272,13 +278,13 @@ namespace FTT.FighterSim {
             platforms: new[] {
                 new FighterStagePlatform(FP64.FromInt(-5), FP64.FromDouble(2.4), FP64.FromDouble(1.4)),
                 new FighterStagePlatform(FP64.FromInt(5), FP64.FromDouble(2.4), FP64.FromDouble(1.4)),
-                new FighterStagePlatform(FP64.Zero, FP64.FromDouble(4.4), FP64.FromDouble(1.2))
+                new FighterStagePlatform(FP64.Zero, FP64.FromDouble(4.0), FP64.FromDouble(1.2))
             },
             hazardAnchorXs: new[] { FP64.FromInt(-5), FP64.Zero, FP64.FromInt(5) },
             orbAnchors: new[] {
                 new FPVector2(FP64.FromInt(-5), FP64.FromDouble(2.9)),
                 new FPVector2(FP64.FromInt(5), FP64.FromDouble(2.9)),
-                new FPVector2(FP64.Zero, FP64.FromDouble(4.9))
+                new FPVector2(FP64.Zero, FP64.FromDouble(4.5))
             });
 
         /// <summary>

@@ -247,9 +247,19 @@ namespace FTT.Environment {
 
             // Double-jump gate: a marker above a platform stack only reachable
             // with a full jump chain.
-            BuildPlatform(1700, 720, 200);
-            BuildPlatform(1900, 480, 180);
-            _doubleJumpGate = BuildGateZone("DoubleJumpGate", new Vector2(1900, 400), new Vector2(160, 140),
+            //
+            // Both hops are sized against Lincoln, the roster's floor: he clears
+            // 93.75 px on one jump and 187.5 px on two (force 10.0 × 54 px/s
+            // against 18 × (0.8 + 0.4 × 1.6) base gravity), so a 128 px step
+            // demands the second jump and still leaves ~46% headroom. The stack
+            // used to ask for 188 px from the floor and another 240 px on top,
+            // which no character has ever cleared — the five single-jump kits
+            // could not even reach the lower platform, and the 2026-08-10 jump
+            // retune (feel batch §2.2) would have left it unclearable for
+            // everyone. See that plan's §9.
+            BuildPlatform(1700, 780, 200);
+            BuildPlatform(1900, 650, 180);
+            _doubleJumpGate = BuildGateZone("DoubleJumpGate", new Vector2(1900, 570), new Vector2(160, 140),
                 new Color(0.2f, 0.9f, 0.5f, 0.25f), "tutorial_gate_double_jump");
 
             // Movement-ability gate: a marked corridor crossed with the
