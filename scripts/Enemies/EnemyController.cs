@@ -665,8 +665,15 @@ namespace FTT.Enemies {
             if (CurrentState == EnemyState.Dead) return;
             float weight = Data?.Weight ?? 1.0f;
             // Knockback replaces velocity, matching the player and the Fighter
-            // sim — a hit imparts the same impulse regardless of prior motion.
-            Velocity = FTT.Combat.DamageCalculator.CalculateKnockback(knockback, weight, attackerFacingRight) * 60f;
+            // sim — a hit imparts the same impulse regardless of prior motion —
+            // and scales with the victim's missing HP after the hit
+            // (gameplay-feel plan §2.5), the same rule both other combatants use.
+            Velocity = FTT.Combat.DamageCalculator.CalculateKnockback(
+                knockback,
+                weight,
+                attackerFacingRight,
+                CurrentHP,
+                ScaledMaxHP) * 60f;
         }
 
         public void ApplyStun(float duration) => ApplyStun(duration, 0f);

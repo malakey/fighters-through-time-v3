@@ -103,8 +103,8 @@ public class FighterSimulationTests {
         AssertThat(loadout.CharacterID).IsEqual((int)FighterCharacterID.Joan);
         AssertThat(loadout.MaxHP).IsEqual(110);
         AssertThat(loadout.MaxBlockCharges).IsEqual(3);
-        AssertThat(loadout.BasicDamage).IsEqual(12);
-        AssertThat(loadout.SpecialOneDamage).IsEqual(14);
+        AssertThat(loadout.BasicDamage).IsEqual(6);
+        AssertThat(loadout.SpecialOneDamage).IsEqual(28);
         AssertThat(loadout.SpecialOneStatusType).IsEqual((int)StatusType.RadiantBurn);
         AssertThat(loadout.SpecialOneStatusFrames).IsEqual(180);
     }

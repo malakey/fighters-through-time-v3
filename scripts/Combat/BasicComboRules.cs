@@ -25,20 +25,47 @@ namespace FTT.Combat {
 
         /// <summary>
         /// Victim hitstun per hit (0.5 / 0.667 / 0.4 s at 60 Hz). Hits one and
-        /// two hold the victim through the gap to the next chain hit (roughly
-        /// 28 frames from hit one's connect to hit two's, 38 from hit two's to
-        /// the finisher's, on the buffered grounded string); the finisher's
-        /// shorter stun hands off to its launch knockback, which creates the
-        /// separation that ends the exchange.
+        /// two cover the gap to the next chain hit (roughly 28 frames from hit
+        /// one's connect to hit two's, 38 from hit two's to the finisher's, on
+        /// the buffered grounded string); the finisher's shorter stun hands off
+        /// to its launch knockback, which creates the separation that ends the
+        /// exchange. A *grounded* victim is no longer held helpless through the
+        /// string: holding Block exits hitstun into the block stance in both
+        /// modes (gameplay-feel plan §2.4). Daze and airborne hitstun stay
+        /// uncancelable.
         /// </summary>
         public static readonly int[] HitstunFrames = { 30, 40, 24 };
 
         /// <summary>
         /// Knockback multipliers per hit, applied to the character's base
-        /// basic-attack knockback in both modes. The 3x finisher visibly
-        /// launches the target away.
+        /// basic-attack knockback in both modes. The finisher is deliberately
+        /// far above the first two: at 4.5x it launches even the lightest
+        /// knockback kit (Cleopatra, base 2.0 into weight 0.7) past the 2-unit
+        /// melee range with margin by the time the victim's hitstun ends, so
+        /// the string always ends in separation rather than an unbroken loop
+        /// (gameplay-feel plan §2.5; pinned by
+        /// <c>FighterFinisherSeparationTests</c> across all nine kits).
+        /// The effective impulse is additionally scaled by the victim's missing
+        /// HP — see <see cref="LowHealthKnockbackScale"/>.
         /// </summary>
-        public static readonly float[] KnockbackMultipliers = { 1f, 1.2f, 3f };
+        public static readonly float[] KnockbackMultipliers = { 1f, 1.2f, 4.5f };
+
+        /// <summary>
+        /// Low-health knockback scaling (gameplay-feel plan §2.5), shared by
+        /// every damage source in both modes: the impulse is multiplied by
+        /// <c>1 + missingHPFraction</c> of the victim measured *after* the
+        /// hit's damage is applied — a linear 1.0x at full HP to 2.0x at 0 HP.
+        /// The Fighter sim applies the same ratio in fixed point inside
+        /// <c>FighterDamageRules.ApplyFighterHit</c>, which is the single
+        /// chokepoint for basics, specials, ultimates, projectiles, zones,
+        /// constructs and hazards; Story applies it through
+        /// <c>DamageCalculator.CalculateKnockback</c>'s victim-HP overload.
+        /// </summary>
+        public static float LowHealthKnockbackScale(float currentHP, float maxHP) {
+            if (maxHP <= 0f) return 1f;
+            float clamped = currentHP < 0f ? 0f : currentHP > maxHP ? maxHP : currentHP;
+            return (2f * maxHP - clamped) / maxHP;
+        }
 
         /// <summary>
         /// Story-enemy floor on post-<c>StunResistance</c> hitstun for the

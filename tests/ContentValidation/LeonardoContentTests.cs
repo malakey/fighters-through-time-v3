@@ -21,7 +21,7 @@ public class LeonardoContentTests {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/leonardo/special_1.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Area);
-        AssertThat(data.BaseDamage).IsEqual(10f);
+        AssertThat(data.BaseDamage).IsEqual(20f);
         AssertThat(data.IsMultiHit).IsTrue();
         AssertThat(data.HitCount).IsEqual(3);
         AssertThat(data.DamageTickIntervalFrames).IsEqual(30);
@@ -33,7 +33,7 @@ public class LeonardoContentTests {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/leonardo/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.PersistentObject);
-        AssertThat(data.BaseDamage).IsEqual(5f);
+        AssertThat(data.BaseDamage).IsEqual(10f);
         AssertThat(data.DamageTickIntervalFrames).IsEqual(120);
         AssertThat(data.Lifetime).IsEqual(15f);
         AssertThat(data.MaxActiveObjects).IsEqual(1);

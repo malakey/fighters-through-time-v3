@@ -1,4 +1,4 @@
-using FTT.Characters;
+﻿using FTT.Characters;
 using FTT.Combat;
 using FTT.Core;
 using FTT.Environment;
@@ -283,6 +283,191 @@ public class StoryCombatRulesTests {
             pauseMenu.Free();
         }
     }
+
+    [TestCase]
+    public void StoryBlockCancelsGroundedHitstunButNotAirborneHitstunOrDaze() {
+        // Gameplay-feel plan §2.4, Story half. The Fighter sim clears
+        // HitstunFrames on exactly the same condition; the two must not drift.
+        StaticBody2D floor = CreateFlatFloor();
+        PlayerController grounded = CreateGroundedPlayer();
+        PlayerController airborne = CreateGroundedPlayer();
+        PlayerController control = CreateGroundedPlayer();
+        try {
+            // Grounded: the launch is dropped so the victim is standing again,
+            // then Block is held while plenty of hitstun is still left.
+            StunOnTheFloor(grounded);
+            AssertThat(grounded.CurrentState).IsEqual(CharacterState.Stunned);
+            HoldInput(grounded, GameplayButtons.Block, frames: 2);
+            AssertThat(grounded.CurrentState)
+                .OverrideFailureMessage("A grounded victim holding Block must leave hitstun into the stance.")
+                .IsEqual(CharacterState.Blocking);
+
+            // Control: the same victim without Block rides the stun out.
+            StunOnTheFloor(control);
+            HoldInput(control, GameplayButtons.None, frames: 2);
+            AssertThat(control.CurrentState)
+                .OverrideFailureMessage("Without Block the victim must still be stunned at the same frame.")
+                .IsEqual(CharacterState.Stunned);
+
+            // Airborne: the block stance is grounded-only, so nothing happens.
+            // The two neutral frames clear the cached MoveAndSlide floor flag
+            // that a bare teleport leaves behind.
+            airborne.GlobalPosition = new Vector2(0f, -600f);
+            airborne.TransitionTo(CharacterState.Airborne);
+            HoldInput(airborne, GameplayButtons.None, frames: 2);
+            AssertThat(airborne.IsOnFloor())
+                .OverrideFailureMessage("The airborne harness player must be off the floor before the hit.")
+                .IsFalse();
+            airborne.GetNode<Hurtbox>("Hurtbox").TakeHit(Hit(AttackClass.Basic));
+            AssertThat(airborne.CurrentState).IsEqual(CharacterState.Stunned);
+            HoldInput(airborne, GameplayButtons.Block, frames: 2);
+            AssertThat(airborne.IsOnFloor()).IsFalse();
+            AssertThat(airborne.CurrentState)
+                .OverrideFailureMessage("An airborne victim holding Block must stay in hitstun.")
+                .IsEqual(CharacterState.Stunned);
+
+            // Daze: the guard-break punish window is deliberately uncancelable.
+            grounded.TransitionTo(CharacterState.Dazed);
+            HoldInput(grounded, GameplayButtons.Block, frames: 10);
+            AssertThat(grounded.CurrentState)
+                .OverrideFailureMessage("Holding Block must not shorten the guard-break daze.")
+                .IsEqual(CharacterState.Dazed);
+        } finally {
+            InputManager.Instance?.ClearInputSource(grounded.PlayerIndex);
+            grounded.Free();
+            airborne.Free();
+            control.Free();
+            floor.Free();
+        }
+    }
+
+    [TestCase]
+    public void StoryKnockbackScalesWithTheVictimsMissingHPAfterTheHit() {
+        // Gameplay-feel plan §2.5, Story half: the same hit pushes a wounded
+        // victim further, using the post-damage HP and the shared ramp.
+        StaticBody2D floor = CreateFlatFloor();
+        PlayerController player = CreateGroundedPlayer();
+        try {
+            Hurtbox hurtbox = player.GetNode<Hurtbox>("Hurtbox");
+            HitPayload hit = Hit(AttackClass.Basic);
+            float weight = player.Data?.Weight ?? 1f;
+            int maxHP = player.MaximumHP;
+
+            hurtbox.TakeHit(hit);
+            int hpAfterFirst = player.CurrentHP;
+            Vector2 firstImpulse = player.Velocity;
+
+            hurtbox.TakeHit(hit);
+            int hpAfterSecond = player.CurrentHP;
+            Vector2 secondImpulse = player.Velocity;
+
+            AssertThat(hpAfterSecond < hpAfterFirst)
+                .OverrideFailureMessage("The second hit must actually have landed.")
+                .IsTrue();
+            Vector2 expectedFirst = DamageCalculator.CalculateKnockback(hit.Knockback, weight, true)
+                * BasicComboRules.LowHealthKnockbackScale(hpAfterFirst, maxHP) * 60f;
+            Vector2 expectedSecond = DamageCalculator.CalculateKnockback(hit.Knockback, weight, true)
+                * BasicComboRules.LowHealthKnockbackScale(hpAfterSecond, maxHP) * 60f;
+            AssertThat(firstImpulse.X).IsEqualApprox(expectedFirst.X, 0.01f);
+            AssertThat(secondImpulse.X).IsEqualApprox(expectedSecond.X, 0.01f);
+            AssertThat(secondImpulse.X > firstImpulse.X)
+                .OverrideFailureMessage("A wounded victim must be knocked back further by the same hit.")
+                .IsTrue();
+        } finally {
+            InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+            player.Free();
+            floor.Free();
+        }
+    }
+
+    [TestCase]
+    public void StoryFacingFollowsHeldMovementDuringASwing() {
+        // Gameplay-feel plan §2.12, superseding the 2026-08-09 "facing committed
+        // for the whole string" rule. The sim drops its lockFacing on the same
+        // change; hitbox placement still reads facing at active-start.
+        StaticBody2D floor = CreateFlatFloor();
+        PlayerController player = CreateGroundedPlayer();
+        try {
+            AssertThat(player.IsFacingRight).IsTrue();
+            SendInput(player, GameplayButtons.BasicAttack);
+            AssertThat(player.CurrentState).IsEqual(CharacterState.Attacking);
+
+            var source = new BufferedInputSource();
+            source.SetNextFrame(PlayerInputFrame.Create(0, -1f, 0f, GameplayButtons.None));
+            InputManager.Instance.SetInputSource(player.PlayerIndex, source);
+            player._PhysicsProcess(1.0 / 60.0);
+
+            AssertThat(player.IsFacingRight)
+                .OverrideFailureMessage("Steering backward mid-swing must turn the attacker around.")
+                .IsFalse();
+            AssertThat(player.CurrentState)
+                .OverrideFailureMessage("Turning around must not cancel the swing.")
+                .IsEqual(CharacterState.Attacking);
+        } finally {
+            InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+            player.Free();
+            floor.Free();
+        }
+    }
+
+    /// <summary>Environment floor with its top surface at y = 0.</summary>
+    private static StaticBody2D CreateFlatFloor() {
+        var floor = new StaticBody2D {
+            Name = "StoryCombatFeelFloor",
+            CollisionLayer = CollisionLayers.Environment,
+            CollisionMask = 0
+        };
+        floor.AddChild(new CollisionShape2D {
+            Shape = new RectangleShape2D { Size = new Vector2(4000f, 40f) },
+            Position = new Vector2(0f, 20f)
+        });
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(floor);
+        return floor;
+    }
+
+    private static PlayerController CreateGroundedPlayer() {
+        PlayerController player = CharacterFactory.CreateCharacter("einstein");
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(player);
+        player.GlobalPosition = new Vector2(0f, -8f);
+        var neutral = new BufferedInputSource();
+        neutral.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, GameplayButtons.None));
+        InputManager.Instance.SetInputSource(player.PlayerIndex, neutral);
+        for (int frame = 0; frame < 120 && !player.IsOnFloor(); frame++) {
+            player.Velocity = new Vector2(player.Velocity.X, 400f);
+            player._PhysicsProcess(1.0 / 60.0);
+        }
+        AssertThat(player.IsOnFloor())
+            .OverrideFailureMessage("The harness player must be standing on the floor.")
+            .IsTrue();
+        // The landing frame only leaves Airborne on the *next* tick, and an
+        // Airborne dispatch swallows the tick's action input on its way to
+        // Idle - settle the state machine before a test scripts an input.
+        for (int frame = 0; frame < 10 && player.CurrentState != CharacterState.Idle; frame++) {
+            player._PhysicsProcess(1.0 / 60.0);
+        }
+        AssertThat(player.CurrentState)
+            .OverrideFailureMessage("The harness player must settle to Idle before a test scripts input.")
+            .IsEqual(CharacterState.Idle);
+        return player;
+    }
+
+    /// <summary>
+    /// Lands a stunning hit and drops the launch so the victim is back on the
+    /// floor for the escape check, with most of the hitstun still to run.
+    /// </summary>
+    private static void StunOnTheFloor(PlayerController player) {
+        player.GetNode<Hurtbox>("Hurtbox").TakeHit(Hit(AttackClass.Basic));
+        player.Velocity = Vector2.Zero;
+        HoldInput(player, GameplayButtons.None, frames: 1);
+    }
+
+    private static void HoldInput(PlayerController player, GameplayButtons buttons, int frames) {
+        var source = new BufferedInputSource();
+        source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, buttons));
+        InputManager.Instance.SetInputSource(player.PlayerIndex, source);
+        for (int frame = 0; frame < frames; frame++) player._PhysicsProcess(1.0 / 60.0);
+    }
+
 
     /// <summary>
     /// Gameplay feel §2.8: Story routes Up + BasicAttack and airborne

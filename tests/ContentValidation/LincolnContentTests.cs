@@ -21,7 +21,7 @@ public class LincolnContentTests {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/lincoln/special_1.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Area);
-        AssertThat(data.BaseDamage).IsEqual(20f);
+        AssertThat(data.BaseDamage).IsEqual(40f);
         AssertThat(data.CooldownDuration).IsEqual(10f);
         // Single-pulse Fighter zone lifetime plus a dominant upward launch.
         AssertThat(data.Lifetime).IsEqual(0.25f);
@@ -33,11 +33,11 @@ public class LincolnContentTests {
     }
 
     [TestCase]
-    public void SplittingStrikeResourceDealsEighteenMeleeDamage() {
+    public void SplittingStrikeResourceDealsThirtySixMeleeDamage() {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/lincoln/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Melee);
-        AssertThat(data.BaseDamage).IsEqual(18f);
+        AssertThat(data.BaseDamage).IsEqual(36f);
     }
 
     [TestCase]

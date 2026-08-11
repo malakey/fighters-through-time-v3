@@ -16,23 +16,23 @@ namespace FTT.Tests.ContentValidation;
 public class JoanContentTests {
 
     [TestCase]
-    public void RighteousSmiteResourceIsAFourteenDamageRadiantBurnShockwave() {
+    public void RighteousSmiteResourceIsATwentyEightDamageRadiantBurnShockwave() {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/joan/special_1.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Projectile);
-        AssertThat(data.BaseDamage).IsEqual(14f);
+        AssertThat(data.BaseDamage).IsEqual(28f);
         AssertThat(data.AppliedStatus).IsEqual(StatusType.RadiantBurn);
         AssertThat(data.StatusDuration).IsEqual(3f);
         AssertThat(data.ProjectileSpeed > 0f).IsTrue();
     }
 
     [TestCase]
-    public void DivinePiercingResourceTotalsTwelveDamageAcrossItsThrusts() {
+    public void DivinePiercingResourceTotalsTwentyFourDamageAcrossItsThrusts() {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/joan/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Melee);
         AssertThat(data.IsMultiHit).IsTrue();
-        AssertThat(data.BaseDamage * data.HitCount).IsEqual(12f);
+        AssertThat(data.BaseDamage * data.HitCount).IsEqual(24f);
     }
 
     [TestCase]

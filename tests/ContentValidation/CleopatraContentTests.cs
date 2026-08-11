@@ -35,7 +35,7 @@ public class CleopatraContentTests {
     public void SandstormVortexResourceMatchesDesignSpecification() {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/cleopatra/special_2.tres");
         AssertObject(data).IsNotNull();
-        AssertThat(data.BaseDamage).IsEqual(2f);
+        AssertThat(data.BaseDamage).IsEqual(4f);
         AssertThat(data.HitCount).IsEqual(5);
         AssertThat(data.DamageTickIntervalFrames).IsEqual(24);
         AssertThat(data.Lifetime).IsEqual(2f);

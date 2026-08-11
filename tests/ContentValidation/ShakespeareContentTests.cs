@@ -21,7 +21,7 @@ public class ShakespeareContentTests {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/shakespeare/special_1.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Projectile);
-        AssertThat(data.BaseDamage).IsEqual(14f);
+        AssertThat(data.BaseDamage).IsEqual(28f);
         AssertThat(data.AppliedStatus).IsEqual(StatusType.TimeDilation);
         AssertThat(data.StatusDuration).IsEqual(2.5f);
         // The shared TimeDilation formula in both modes is

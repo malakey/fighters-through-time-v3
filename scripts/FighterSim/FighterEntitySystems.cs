@@ -131,7 +131,15 @@ namespace FTT.FighterSim {
             }
 
 			if (carriesImpulse && (target.HyperArmorFrames <= 0 || attackClass == UltimateAttackClass)) {
-                FP64 force = knockback / (FP64.One + target.Weight);
+                // Gameplay-feel plan §2.5 — low-health knockback scaling. The
+                // impulse is multiplied by 1 + the victim's missing-HP fraction
+                // measured *after* this hit's damage, a linear 1x at full HP to
+                // 2x at 0 HP. This is the one chokepoint every Fighter-side
+                // source funnels through (basics, specials, ultimates,
+                // projectiles, zones, constructs, and — via
+                // ApplyEnvironmentHit — stage hazards), so the rule needs no
+                // second copy. Story mirrors it in DamageCalculator.
+                FP64 force = ScaleByMissingHP(knockback, in target) / (FP64.One + target.Weight);
                 // Launcher-class impulses (Nassau's mortar) bias the impulse
                 // upward; everything else keeps the symmetric 1:1 pulse.
                 FP64 verticalScale = verticalKnockbackScale > FP64.Zero ? verticalKnockbackScale : FP64.One;
@@ -152,6 +160,21 @@ namespace FTT.FighterSim {
                 FighterSimulationRules.ApplyStockLoss(ref target, ref targetRuntime, in targetTuning);
             }
             return true;
+        }
+
+        /// <summary>
+        /// The fixed-point half of <c>BasicComboRules.LowHealthKnockbackScale</c>:
+        /// <c>knockback * (2 * MaxHP - CurrentHP) / MaxHP</c>. The ratio is
+        /// formed first so the intermediate never leaves the [1, 2] band, and
+        /// the whole computation stays in FP64 — no float math on the
+        /// deterministic path.
+        /// </summary>
+        internal static FP64 ScaleByMissingHP(FP64 knockback, in FighterStateComponent target) {
+            int maxHP = target.MaxHP;
+            if (maxHP <= 0) return knockback;
+            int currentHP = target.CurrentHP < 0 ? 0 : target.CurrentHP > maxHP ? maxHP : target.CurrentHP;
+            FP64 scale = FP64.FromInt(2 * maxHP - currentHP) / FP64.FromInt(maxHP);
+            return knockback * scale;
         }
 
         public static bool ApplyEnvironmentHit(

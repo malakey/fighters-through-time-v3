@@ -19,7 +19,7 @@ public class PocahontasContentTests {
     public void SpiritStrikeResourceMatchesDesignSpecification() {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/pocahontas/special_1.tres");
         AssertObject(data).IsNotNull();
-        AssertThat(data.BaseDamage).IsEqual(14f);
+        AssertThat(data.BaseDamage).IsEqual(28f);
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Melee);
         AssertThat(data.HitstunDuration > 0f).IsTrue();
     }

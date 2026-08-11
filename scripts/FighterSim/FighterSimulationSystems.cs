@@ -234,6 +234,18 @@ namespace FTT.FighterSim {
                 }
 
                 if (fighter.InvulnerabilityFrames > 0) fighter.InvulnerabilityFrames--;
+                // Gameplay-feel plan §2.4 — Block cancels hitstun. A *grounded*
+                // victim holding Block leaves hitstun immediately and flows into
+                // the normal stance through IsBlockStance on this same tick.
+                // Daze (the guard-break punish window) is never cancelable, and
+                // an airborne victim cannot block at all, so neither escapes.
+                if (fighter.HitstunFrames > 0
+                    && fighter.DazeFrames <= 0
+                    && fighter.IsGrounded != 0
+                    && fighter.Stocks > 0
+                    && (runtime.HeldButtons & BlockButton) != 0) {
+                    fighter.HitstunFrames = 0;
+                }
                 if (fighter.HitstunFrames > 0 || fighter.DazeFrames > 0) {
                     FighterUniversalMovementRules.Cancel(ref runtime);
                     fighter.Velocity.y += Gravity * FixedDelta;
@@ -286,10 +298,13 @@ namespace FTT.FighterSim {
                             // Swings never lock steering — an attacker keeps
                             // full horizontal control at normal run
                             // acceleration; only the block stance roots.
-                            // Facing stays committed for the whole swing so
-                            // the hitbox direction cannot flip mid-string.
+                            // Facing follows the held direction through a swing
+                            // too (gameplay-feel plan §2.12, superseding the
+                            // 2026-08-09 "committed for the whole string"
+                            // decision); hitbox placement still reads facing at
+                            // active-start, so there is no mid-active migration.
                             lockHorizontal: blockStance,
-                            lockFacing: attacking || blockStance,
+                            lockFacing: blockStance,
                             allowJump: !attacking && !blockStance);
                     }
                     if (fighter.IsGrounded == 0) {
