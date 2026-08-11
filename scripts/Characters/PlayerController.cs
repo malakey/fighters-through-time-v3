@@ -454,10 +454,15 @@ namespace FTT.Characters {
 
 			bool hasHyperArmor = HasActiveHyperArmorAgainst(hit.AttackClass);
 			if (!hasHyperArmor) {
+				// Low-health knockback scaling (gameplay-feel plan §2.5): the
+				// impulse scales with the victim's missing HP *after* this
+				// hit's damage, exactly as the Fighter sim scales it.
 				Vector2 knockback = FTT.Combat.DamageCalculator.CalculateKnockback(
 					hit.Knockback,
 					Data?.Weight ?? 1f,
-					hit.AttackerFacingRight);
+					hit.AttackerFacingRight,
+					CurrentHP,
+					MaximumHP);
 				// Knockback replaces velocity, as the Fighter sim resolves it —
 				// a hit imparts the same impulse regardless of prior motion.
 				Velocity = knockback * 60f;
@@ -879,13 +884,16 @@ namespace FTT.Characters {
 			if (IsOnFloor()) {
 				// Swings never stop the attacker: full horizontal steering at
 				// the normal run ramp through startup/active/recovery/hold
-				// (mirrors the Fighter sim's unlocked swing movement). Facing
-				// stays committed — no UpdateFacing in the attack states — so
-				// the hitbox direction cannot flip mid-swing.
+				// (mirrors the Fighter sim's unlocked swing movement).
 				ApplyHorizontalMovement(GetHorizontalInput(), dt);
 			} else {
 				ApplyAirControl(dt);
 			}
+			// Gameplay-feel plan §2.12 — facing follows movement during a swing,
+			// superseding the 2026-08-09 "committed for the whole string" rule.
+			// Hitbox placement still reads facing when the active window opens
+			// (OnAttackActiveStarted), so nothing migrates mid-active.
+			UpdateFacing(GetHorizontalInput());
 
 			// Design 1051 — a special (or the ultimate) cancels a basic at any
 			// point in the swing and resets the chain; shared rule with the
@@ -943,6 +951,11 @@ namespace FTT.Characters {
 			}
 		}
 
+		/// <summary>
+		/// The post-recovery chain window. Reached only from
+		/// <see cref="ProcessAttacking"/>, which has already applied this tick's
+		/// movement and §2.12 facing update before dispatching here.
+		/// </summary>
 		private void ProcessRecoveryHold(float dt) {
 			_comboBufferFramesRemaining--;
 
@@ -1055,6 +1068,16 @@ namespace FTT.Characters {
 
 		private void ProcessStunned(float dt) {
 			ApplyGravity(dt);
+			// Gameplay-feel plan §2.4 — Block cancels hitstun. A grounded victim
+			// holding Block leaves hitstun straight into the block stance; an
+			// airborne one cannot (the stance is grounded-only), and Dazed is a
+			// separate state so the guard-break punish window is untouched. The
+			// Fighter sim clears HitstunFrames on the same condition.
+			if (IsOnFloor() && CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)) {
+				_stunTimer = 0f;
+				TransitionTo(CharacterState.Blocking);
+				return;
+			}
 			_stunTimer -= dt;
 			if (_stunTimer <= 0) {
 				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
@@ -1561,7 +1584,12 @@ namespace FTT.Characters {
 				_meleeHitbox.HitstunDuration = FTT.Combat.BasicComboRules.HitstunFrames[comboIdx] / 60f;
 				float kbMultiplier = FTT.Combat.BasicComboRules.KnockbackMultipliers[comboIdx];
 				if (comboIdx == 2) {
-					_meleeHitbox.KnockbackForce = new Vector2(baseKB * kbMultiplier, -6f);
+					// Gameplay-feel plan §2.5 raised the shared finisher
+					// multiplier from 3x to 4.5x; the launch's vertical
+					// component is scaled by the same factor (-6 -> -9) so the
+					// Story finisher keeps its launch angle and gains the same
+					// separation the Fighter sim now produces.
+					_meleeHitbox.KnockbackForce = new Vector2(baseKB * kbMultiplier, -9f);
 				} else if (comboIdx == 1) {
 					_meleeHitbox.KnockbackForce = new Vector2(baseKB * kbMultiplier, -1.5f);
 				} else {
