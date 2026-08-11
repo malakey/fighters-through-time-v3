@@ -130,7 +130,7 @@ Build (verified: succeeds with 1 pre-existing vendored warning — `CS8632` in `
 dotnet build FightersThroughTime.csproj --nologo
 ```
 
-Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-10 on `net10.0` (implementation-audit fix round: eleven merged worktree branches closing `docs/IMPLEMENTATION_AUDIT_2026-08-08.md` findings, three consecutive green runs): **1416 passed, 0 failed, Total 1416**, in about 48 seconds after a warm build. Read the `Total:` count in the summary, not just the exit code — see the failure signatures above:
+Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-11 on `net10.0` (gameplay-feel batch closeout: five merged worktree branches per `docs/GAMEPLAY_FEEL_2026-08-10_PLAN.md`, three consecutive green runs): committed baseline **1457**; the verifying runs reported **Total 1460** because three uncommitted parallel-session test additions (retro roster sprite pass) were present in the tree — always reconcile the delta before accepting a total. Read the `Total:` count in the summary, not just the exit code — see the failure signatures above:
 
 ```bash
 dotnet test FightersThroughTime.csproj --settings .runsettings
@@ -204,6 +204,7 @@ enemy/boss display names.
 | `docs/PACKAGE5_CAMPAIGN_PLAN.md` | The campaign plan for levels 2–15: per-level dossiers with the locked encounter economy, the authored boss stat table (§4.1), the shared-file conflict policy, crash hygiene (§2.8), and a long per-level deviation log (§9). Complete; read §9 before touching a campaign level. |
 | `docs/PACKAGE6_FIGHTER_PLAN.md` | The ten-stage local Fighter Mode plan: standing decisions (§2), the per-stage geometry dossiers and the ten era-hazard specs (§4/§4.1), the Phase A/B/C workstream split, and a long per-workstream deviation log (§9). Complete; read §9 before touching Fighter stages, hazards, match flow, the CPU, or the rollback harness. |
 | `docs/DUST_ECONOMY.md` | The Chronal Dust reward/cost model. Locked by `tests/ContentValidation/DustEconomyTests.cs`. |
+| `docs/GAMEPLAY_FEEL_2026-08-10_PLAN.md` | The 2026-08-10 gameplay-feel batch: locked movement/combat retune decisions (run/jump/damage numbers, block-cancel, HP-scaled knockback, directional attacks, fast-fall, sim ledge grab) and its §9 deviation log. Read §2/§9 before touching movement or basic-combat feel. |
 | `docs/architecture/000*.md` | Accepted ADRs. Supersede rather than silently rewrite one. |
 | `docs/BUILDING.md`, `docs/PERFORMANCE_BASELINE.md` | Build/validation procedure and the Package 0 performance baseline. |
 | `resources/**/*.tres` | Canonical runtime tuning. Numbers in code or docs never override a resource. |
