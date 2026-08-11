@@ -86,7 +86,10 @@ namespace FTT.FighterSim {
             });
             frame.Add(entity, new FighterRuntimeComponent {
                 StatusIntensity = FP64.One,
-                UsesStocks = _rules.MatchMode == (int)FTT.Core.MatchMode.TimeLimit ? 0 : 1
+                UsesStocks = _rules.MatchMode == (int)FTT.Core.MatchMode.TimeLimit ? 0 : 1,
+                // Klotho zero-initializes components, and 0 is a valid anchor
+                // (platform 0's left edge), so "not hanging" must be written in.
+                LedgeAnchor = FighterLedgeRules.NoAnchor
             });
             frame.Add(entity, new FighterTuningComponent {
                 BasicDamage = loadout.BasicDamage,
@@ -234,6 +237,32 @@ namespace FTT.FighterSim {
                 }
 
                 if (fighter.InvulnerabilityFrames > 0) fighter.InvulnerabilityFrames--;
+
+                // Gameplay-feel plan §2.11 — a hanging fighter is short-circuited
+                // exactly the way hitstun short-circuits input: no gravity, no
+                // movement, no attack phase, no pushbox. Jump climbs, Down drops,
+                // and the hang auto-releases at five seconds; whichever ends it,
+                // the resulting velocity is integrated on the next tick.
+                if (FighterLedgeRules.IsHanging(in runtime)) {
+                    if (fighter.HitstunFrames > 0 || fighter.DazeFrames > 0) {
+                        // Struck off the ledge. The hang ends without zeroing
+                        // velocity — the combat system already wrote the knockback
+                        // — and the lockout stops an instant regrab at the anchor
+                        // the fighter is still standing in.
+                        FighterLedgeRules.ClearHang(ref runtime);
+                        runtime.LedgeRegrabLockoutFrames = FighterLedgeRules.RegrabLockoutFrames;
+                    } else if (_geometry.TryGetHangPosition(runtime.LedgeAnchor, out FPVector2 hangPosition)) {
+                        FighterLedgeRules.Process(ref fighter, ref runtime, in tuning, in hangPosition);
+                        continue;
+                    } else {
+                        // Defensive: an anchor that no longer resolves (a stage
+                        // swap under a restored snapshot) drops the hang rather
+                        // than pinning the fighter to a platform that is not there.
+                        FighterLedgeRules.ClearHang(ref runtime);
+                        continue;
+                    }
+                }
+
                 // Gameplay-feel plan §2.4 — Block cancels hitstun. A *grounded*
                 // victim holding Block leaves hitstun immediately and flows into
                 // the normal stance through IsBlockStance on this same tick.
@@ -366,7 +395,29 @@ namespace FTT.FighterSim {
                     fighter.IsGrounded = 1;
                     fighter.RemainingJumps = tuning.MaxJumpCount;
                 }
+
+                // §2.11 ledge capture, resolved last so landing and the ground snap
+                // both win: a fighter who reached a surface is standing on it, not
+                // hanging off it. Only fighters still airborne after the whole
+                // resolve are candidates.
+                TryGrabLedge(ref fighter, ref runtime, in tuning);
             }
+        }
+
+        /// <summary>
+        /// Catches a platform end when the fighter's state and position both allow
+        /// it (gameplay-feel plan §2.11). The legacy flat arena has no platforms and
+        /// therefore no ledges, which <see cref="FighterStageGeometry.TryFindLedge"/>
+        /// handles by finding nothing.
+        /// </summary>
+        private void TryGrabLedge(
+            ref FighterStateComponent fighter,
+            ref FighterRuntimeComponent runtime,
+            in FighterTuningComponent tuning) {
+            if (!FighterLedgeRules.CanGrab(in fighter, in runtime)) return;
+            if (!_geometry.TryFindLedge(in fighter.Position, out int anchor)) return;
+            if (!_geometry.TryGetHangPosition(anchor, out FPVector2 hangPosition)) return;
+            FighterLedgeRules.Grab(ref fighter, ref runtime, in tuning, anchor, in hangPosition);
         }
 
         /// <summary>
@@ -690,6 +741,10 @@ namespace FTT.FighterSim {
             if (fighter.DazeFrames > 0) fighter.DazeFrames--;
             if (fighter.HyperArmorFrames > 0) fighter.HyperArmorFrames--;
             if (fighter.DropThroughFrames > 0) fighter.DropThroughFrames--;
+            // §2.11 regrab lockout. It only runs down while off a ledge, which is
+            // the whole point: releasing pins the fighter inside the capture box
+            // they just left, and the lockout is what lets them fall out of it.
+            if (runtime.LedgeRegrabLockoutFrames > 0) runtime.LedgeRegrabLockoutFrames--;
             if (runtime.BasicCooldownFrames > 0) runtime.BasicCooldownFrames--;
             // Block-charge regeneration, mirroring Story's BlockSystem: one charge
             // per interval, timer held at full while the stance is up and re-armed
@@ -751,6 +806,145 @@ namespace FTT.FighterSim {
             runtime.UniversalMovementState = (int)UniversalMovementPhase.None;
             runtime.UniversalMovementFramesRemaining = 0;
             runtime.UniversalMovementDirection = 0;
+        }
+    }
+
+    /// <summary>
+    /// Deterministic ledge grab (gameplay-feel plan §2.11), the sim's first slice
+    /// of audit M-16. Only one-way platform ends are grabbable: a stage's base
+    /// floor spans wall to wall and its side walls are solid, so there is no other
+    /// edge to catch. The whole feature is three snapshotted ints in
+    /// <see cref="FighterRuntimeComponent"/> — the hang position is re-derived from
+    /// the stage geometry every tick, since geometry is constant for the match and
+    /// never enters a snapshot.
+    /// </summary>
+    internal static class FighterLedgeRules {
+        /// <summary><see cref="FighterRuntimeComponent.LedgeAnchor"/> for "not hanging".</summary>
+        public const int NoAnchor = -1;
+        /// <summary>Hang ends on its own after five seconds, with the regrab lockout.</summary>
+        public const int AutoReleaseFrames = 300;
+        /// <summary>Half a second of no regrab after a Down release or an auto-release.</summary>
+        public const int RegrabLockoutFrames = 30;
+
+        /// <summary>Capture box half-width around the platform end.</summary>
+        public static readonly FP64 CaptureHalfWidth = FP64.FromDouble(0.5);
+        /// <summary>Capture box depth below the platform surface.</summary>
+        public static readonly FP64 CaptureDepth = FP64.FromDouble(1.2);
+        /// <summary>How far outside the platform the hang position sits.</summary>
+        public static readonly FP64 HangOutwardOffset = FP64.FromDouble(0.25);
+        /// <summary>How far below the surface the hang position sits.</summary>
+        public static readonly FP64 HangDepth = FP64.One;
+        /// <summary>
+        /// Vertical-speed ceiling for a grab. Positive so a fighter still rising
+        /// slowly near the apex catches the ledge they jumped up to; anything
+        /// faster than this is a jump that clears the edge, not a grab.
+        /// </summary>
+        public static readonly FP64 MaxGrabVerticalSpeed = FP64.FromInt(2);
+        /// <summary>The climb jump is nine-tenths of a ground jump.</summary>
+        public static readonly FP64 ClimbJumpMultiplier = FP64.FromDouble(0.9);
+
+        private const int JumpButton = 1 << 0;
+        private const int DownButton = 1 << 1;
+
+        public static bool IsHanging(in FighterRuntimeComponent runtime) => runtime.LedgeAnchor >= 0;
+
+        public static void ClearHang(ref FighterRuntimeComponent runtime) {
+            runtime.LedgeAnchor = NoAnchor;
+            runtime.LedgeStateFrames = 0;
+        }
+
+        /// <summary>
+        /// The fighter-state half of the grab test. Geometry is the caller's job
+        /// (<see cref="FighterStageGeometry.TryFindLedge"/>) so the two halves stay
+        /// independently testable.
+        /// </summary>
+        public static bool CanGrab(
+            in FighterStateComponent fighter,
+            in FighterRuntimeComponent runtime) =>
+            fighter.Stocks > 0
+            && fighter.IsGrounded == 0
+            && fighter.RespawnFramesRemaining <= 0
+            && fighter.DropThroughFrames == 0
+            && fighter.HitstunFrames <= 0
+            && fighter.DazeFrames <= 0
+            && runtime.LedgeRegrabLockoutFrames <= 0
+            && !IsHanging(in runtime)
+            && fighter.Velocity.y <= MaxGrabVerticalSpeed;
+
+        /// <summary>
+        /// Latches the hang: pinned position, zeroed velocity, refilled jumps, and
+        /// a cancelled swing/roll. Gravity is skipped for as long as the anchor is
+        /// set, so nothing else has to know about the state.
+        /// </summary>
+        public static void Grab(
+            ref FighterStateComponent fighter,
+            ref FighterRuntimeComponent runtime,
+            in FighterTuningComponent tuning,
+            int anchor,
+            in FPVector2 hangPosition) {
+            runtime.LedgeAnchor = anchor;
+            runtime.LedgeStateFrames = 0;
+            fighter.Position = hangPosition;
+            fighter.Velocity = FPVector2.Zero;
+            // Jumps refill on the grab, which is what makes the climb jump the
+            // ground-jump equivalent rather than an air jump.
+            fighter.RemainingJumps = tuning.MaxJumpCount;
+            // The fighter faces the stage they are about to climb onto: side 0 is
+            // the platform's left edge, so the platform is to their right.
+            fighter.FacingRight = anchor % 2 == 0 ? 1 : 0;
+            FighterUniversalMovementRules.Cancel(ref runtime);
+            FighterBasicAttackRules.CancelString(ref runtime);
+            runtime.FloatFrames = 0;
+        }
+
+        /// <summary>
+        /// Advances one hang tick. Returns true while the fighter is still hanging,
+        /// which is the movement system's signal to skip gravity, movement, and the
+        /// attack phase machine entirely — the same short-circuit hitstun gets.
+        /// </summary>
+        public static bool Process(
+            ref FighterStateComponent fighter,
+            ref FighterRuntimeComponent runtime,
+            in FighterTuningComponent tuning,
+            in FPVector2 hangPosition) {
+            fighter.Position = hangPosition;
+            fighter.Velocity = FPVector2.Zero;
+            fighter.IsGrounded = 0;
+
+            // Jump climbs. It does not spend a jump: the grab refilled them and the
+            // climb is the ground-jump equivalent, so the fighter leaves with the
+            // same budget a jump off the floor would have left.
+            if ((runtime.PressedButtons & JumpButton) != 0) {
+                ClearHang(ref runtime);
+                fighter.Velocity.y = tuning.JumpSpeed * ClimbJumpMultiplier;
+                fighter.RemainingJumps = tuning.MaxJumpCount - 1;
+                return false;
+            }
+
+            // Down drops off. Fast-fall (§2.9) never fights this: release wins, and
+            // because Down is still held the fighter fast-falls immediately after,
+            // which is the intended "drop fast off the ledge" input.
+            if ((runtime.HeldButtons & DownButton) != 0) {
+                Release(ref fighter, ref runtime);
+                return false;
+            }
+
+            runtime.LedgeStateFrames++;
+            if (runtime.LedgeStateFrames >= AutoReleaseFrames) {
+                Release(ref fighter, ref runtime);
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>Drops off into a fall and arms the regrab lockout.</summary>
+        public static void Release(
+            ref FighterStateComponent fighter,
+            ref FighterRuntimeComponent runtime) {
+            ClearHang(ref runtime);
+            runtime.LedgeRegrabLockoutFrames = RegrabLockoutFrames;
+            fighter.Velocity = FPVector2.Zero;
+            fighter.IsGrounded = 0;
         }
     }
 
@@ -919,6 +1113,11 @@ namespace FTT.FighterSim {
             if (FighterMatchFlowRules.IsOnRespawnPlatform(in first)
                 || FighterMatchFlowRules.IsOnRespawnPlatform(in second)) return;
             if (IsRollTravel(in firstRuntime) || IsRollTravel(in secondRuntime)) return;
+            // A hanging fighter is pinned to its ledge anchor by the movement
+            // system; jostling it would fight that pin for a frame, and both
+            // fighters are explicitly allowed to hang the same edge (§2.11).
+            if (FighterLedgeRules.IsHanging(in firstRuntime)
+                || FighterLedgeRules.IsHanging(in secondRuntime)) return;
             if (FP64.Abs(first.Position.y - second.Position.y) >= MaximumVerticalDistance) return;
 
             FP64 delta = second.Position.x - first.Position.x;
@@ -1143,6 +1342,7 @@ namespace FTT.FighterSim {
                 || attacker.HitstunFrames > 0
                 || attacker.DazeFrames > 0
                 || attacker.Stocks <= 0
+                || FighterLedgeRules.IsHanging(in attackerRuntime)
                 || FighterUniversalMovementRules.IsCombatLocked(in attackerRuntime)) return;
 
             if (FighterUltimateRules.TryExecute(
@@ -1162,6 +1362,9 @@ namespace FTT.FighterSim {
             if (attacker.HitstunFrames > 0
                 || attacker.DazeFrames > 0
                 || attacker.Stocks <= 0
+                // Hanging suppresses the intent the way hitstun does (§2.11):
+                // attacks, specials and the ultimate are all unavailable off a ledge.
+                || FighterLedgeRules.IsHanging(in attackerRuntime)
                 || FighterUniversalMovementRules.IsCombatLocked(in attackerRuntime)) return default;
             // The block stance ignores attack inputs, exactly as Story's Blocking
             // state does.
@@ -1390,6 +1593,10 @@ namespace FTT.FighterSim {
             // Stock loss ends any swing and resets the chain and shield regen.
             FighterBasicAttackRules.CancelString(ref runtime);
             runtime.BlockRegenFrames = 0;
+            // A fighter knocked off a ledge is no longer on it, and the respawn
+            // platform must not inherit a regrab lockout from the last life.
+            FighterLedgeRules.ClearHang(ref runtime);
+            runtime.LedgeRegrabLockoutFrames = 0;
         }
     }
 }

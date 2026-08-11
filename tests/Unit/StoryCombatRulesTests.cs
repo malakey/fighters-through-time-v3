@@ -251,6 +251,38 @@ public class StoryCombatRulesTests {
         }
     }
 
+    /// <summary>
+    /// Gameplay-feel plan §2.11: Story ledge capture widened from "falling only"
+    /// to "falling, or rising slowly", so jumping up to a ledge catches it the way
+    /// the Fighter simulation now does. Godot screen space is +Y down, so the
+    /// rising side of the band is negative.
+    /// </summary>
+    [TestCase]
+    public void LedgeCaptureAllowsASlowRiseButNotAFastOne() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        PackedScene ledgeScene = ResourceLoader.Load<PackedScene>("res://scenes/templates/LedgeGrabPointTemplate.tscn");
+        var ledge = ledgeScene.Instantiate<LedgeGrabPoint>();
+        var player = CharacterFactory.CreateCharacter("einstein");
+        tree.Root.AddChild(ledge);
+        tree.Root.AddChild(player);
+        try {
+            // Rising fast, well past the band: no capture.
+            player.TransitionTo(CharacterState.Airborne);
+            player.Velocity = new Vector2(0f, PlayerController.LedgeGrabMaximumRiseSpeed - 1f);
+            AssertThat(player.TryGrabLedge(ledge)).IsFalse();
+            AssertObject(ledge.Occupant).IsNull();
+
+            // Exactly at the band's rising edge: captured.
+            player.Velocity = new Vector2(0f, PlayerController.LedgeGrabMaximumRiseSpeed);
+            AssertThat(player.TryGrabLedge(ledge)).IsTrue();
+            AssertThat(player.CurrentState).IsEqual(CharacterState.LedgeHanging);
+        } finally {
+            InputManager.Instance?.ClearInputSource(0);
+            if (GodotObject.IsInstanceValid(player)) player.Free();
+            ledge.Free();
+        }
+    }
+
     [TestCase]
     public void DeathRespawnAndPausePathsEnforceTheirStateContracts() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();

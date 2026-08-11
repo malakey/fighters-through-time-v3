@@ -1102,3 +1102,5 @@ fighter_pick_cpu_prompt,Choose the CPU opponent and confirm.
 fighter_select_hint,Move your token with the movement controls. Attack confirms; Block cancels.
 # Gameplay feel A3 (2026-08-10) - new gameplay_up action and the directional attacks
 controls_action_up,Up
+# Gameplay feel B1 (2026-08-10) - Fighter-side ledge grab
+fighter_state_ledge,Ledge Hang

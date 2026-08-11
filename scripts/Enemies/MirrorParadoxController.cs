@@ -419,6 +419,7 @@ namespace FTT.Enemies {
                 HitstunFrames = _self.CurrentState == CharacterState.Stunned ? 1 : 0,
                 DazeFrames = _self.CurrentState == CharacterState.Dazed ? 1 : 0,
                 IsGrounded = _self.IsOnFloor() ? 1 : 0,
+                IsLedgeHanging = _self.CurrentState == CharacterState.LedgeHanging ? 1 : 0,
                 RemainingJumps = _self.RemainingJumps,
                 SelfCurrentHP = _self.CurrentHP,
                 SelfMaxHP = _self.MaximumHP,

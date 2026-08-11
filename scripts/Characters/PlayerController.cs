@@ -2037,8 +2037,18 @@ namespace FTT.Characters {
 			if (area is FTT.Environment.LedgeGrabPoint ledge) TryGrabLedge(ledge);
 		}
 
+		/// <summary>
+		/// Story ledge capture. Gameplay-feel plan §2.11 widened the vertical gate
+		/// from "falling only" to "falling, or rising slowly", so jumping up to a
+		/// ledge catches it the way the Fighter simulation now does. Godot screen
+		/// space is +Y down, so -150 px/s is the rising side of the band.
+		/// </summary>
+		public const float LedgeGrabMaximumRiseSpeed = -150f;
+
 		public bool TryGrabLedge(FTT.Environment.LedgeGrabPoint ledge) {
-			if (ledge == null || CurrentState != CharacterState.Airborne || Velocity.Y < 0) return false;
+			if (ledge == null
+				|| CurrentState != CharacterState.Airborne
+				|| Velocity.Y < LedgeGrabMaximumRiseSpeed) return false;
 			if (!ledge.IsInGroup("Ledge") || !ledge.TryAcquire(this)) return false;
 
 			_activeLedge = ledge;

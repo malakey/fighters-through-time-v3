@@ -39,6 +39,14 @@ namespace FTT.FighterSim {
         public int HitstunFrames;
         public int DazeFrames;
         public int IsGrounded;
+        /// <summary>
+        /// Non-zero while the fighter hangs off a one-way platform end
+        /// (gameplay-feel plan §2.11). A hang suppresses every attack and ability,
+        /// so the decision table's only useful answer is "climb": Jump exits the
+        /// hang without spending an air jump. Story fills this from
+        /// <c>CharacterState.LedgeHanging</c>.
+        /// </summary>
+        public int IsLedgeHanging;
         /// <summary>Air jumps still available this airtime.</summary>
         public int RemainingJumps;
         public int SelfCurrentHP;

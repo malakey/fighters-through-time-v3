@@ -304,9 +304,10 @@ namespace FTT.FighterSim {
         /// <summary>
         /// Basic-combo phase machine (FighterBasicAttackRules): 0 none, 1 startup,
         /// 2 active, 3 recovery, 4 chain hold. Timings come from
-        /// FTT.Combat.BasicComboRules so both modes run the same string. The four
-        /// attack/block fields bring this component to 116 of Klotho's 128-byte
-        /// budget.
+        /// FTT.Combat.BasicComboRules so both modes run the same string. With the
+        /// four attack/block fields and §2.11's three ledge fields this component
+        /// sits at exactly 128 bytes — Klotho's whole per-component budget. Any
+        /// further sim state needs its own component, not another int here.
         /// </summary>
         public int AttackPhase;
         public int AttackPhaseFrames;
@@ -314,6 +315,19 @@ namespace FTT.FighterSim {
         public int AttackFlags;
         /// <summary>Countdown to the next block-charge regeneration.</summary>
         public int BlockRegenFrames;
+        /// <summary>
+        /// Ledge hang anchor (gameplay-feel plan §2.11), encoded as
+        /// <c>platformIndex * 2 + side</c> where side 0 is the platform's left edge
+        /// and 1 its right edge. <c>-1</c> means "not hanging" and is the only
+        /// "am I hanging" test in the simulation. The anchor position itself is
+        /// re-derived from the stage geometry every tick, because geometry is
+        /// constant for the match and never enters a snapshot.
+        /// </summary>
+        public int LedgeAnchor;
+        /// <summary>Frames spent on the current hang; auto-release fires at 300.</summary>
+        public int LedgeStateFrames;
+        /// <summary>Regrab lockout after a Down release or an auto-release.</summary>
+        public int LedgeRegrabLockoutFrames;
         public FP64 StatusIntensity;
     }
 

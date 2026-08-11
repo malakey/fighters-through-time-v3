@@ -215,6 +215,7 @@ namespace FTT.FighterSim {
                 HitstunFrames = self.HitstunFrames,
                 DazeFrames = self.DazeFrames,
                 IsGrounded = self.IsGrounded,
+                IsLedgeHanging = FighterLedgeRules.IsHanging(in selfRuntime) ? 1 : 0,
                 RemainingJumps = self.RemainingJumps,
                 SelfCurrentHP = self.CurrentHP,
                 SelfMaxHP = self.MaxHP,
@@ -309,6 +310,13 @@ namespace FTT.FighterSim {
                 || observation.DazeFrames > 0) {
                 return GameplayButtons.None;
             }
+
+            // Hanging off a ledge (§2.11) suppresses every attack and ability, so
+            // the only meaningful action is the climb jump. It is checked ahead of
+            // off-stage recovery because a hanging fighter is by definition already
+            // holding the stage edge — recovery's drift-and-jump would just spend
+            // the jump budget the grab refilled.
+            if (observation.IsLedgeHanging != 0) return GameplayButtons.Jump;
 
             if (IsOffStage(in observation)) return DecideRecovery(in observation, out moveX, out moveY);
             if (TryDecideHazardEvasion(in observation, out GameplayButtons evasion, out moveX)) return evasion;
