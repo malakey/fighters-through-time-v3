@@ -354,8 +354,9 @@ public class Level14ContentTests {
                 .IsTrue();
         }
 
-        // Beams are spaced one reference-walk second apart, which is what makes the
-        // travelling safe window line up with a walking player at all.
+        // Beam phase offsets step by exactly the time the reference walker spends
+        // covering one beam spacing, which is what makes the travelling safe window
+        // line up with a walking player at all.
         foreach (LaserGridPattern grid in grids) {
             for (int index = 1; index < grid.Beams.Length; index++) {
                 AssertFloat(grid.Beams[index].X - grid.Beams[index - 1].X)

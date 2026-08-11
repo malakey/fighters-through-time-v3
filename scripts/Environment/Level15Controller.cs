@@ -112,16 +112,19 @@ namespace FTT.Environment {
         public const float FloorY = 1400f;
 
         /// <summary>
-        /// Gallery altitudes. Every step is 100 px because Lincoln - the heaviest
-        /// character, single-jump only - clears about 113 px at Earth gravity, and
-        /// this level has no gravity mechanic to lift him.
+        /// Gallery altitudes. Every step is 80 px because Lincoln - the heaviest
+        /// character, single jump only - clears about 94 px at Earth gravity, and this
+        /// level has no gravity mechanic to lift him. The step was 100 px against his
+        /// pre-retune 113 px; the 2026-08-10 movement retune cut jump height about 20%
+        /// and the tiers came down with it, holding the same ~85% of his reach
+        /// (gameplay-feel plan section 9, B2).
         /// </summary>
-        public const float Tier1Y = 1300f;
-        public const float Tier2Y = 1200f;
-        public const float Tier3Y = 1100f;
-        public const float Tier4Y = 1000f;
+        public const float Tier1Y = 1320f;
+        public const float Tier2Y = 1240f;
+        public const float Tier3Y = 1160f;
+        public const float Tier4Y = 1080f;
         /// <summary>The scriptorium balcony: the top of the level's vertical section.</summary>
-        public const float Tier5Y = 900f;
+        public const float Tier5Y = 1000f;
 
         public const float Room2StartX = 3000f;
         public const float Room3StartX = 6400f;

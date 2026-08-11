@@ -456,3 +456,114 @@ minimal geometry change.
    delta, so where the enemy stops depends on wall-clock timing, and the 25 px shuffle in the test
    sits within ~0.25 px of the 110% release line. Re-runs were green (611/611). Worth tightening
    independently of this batch.
+
+### 2026-08-10 — B2 campaign-reachability (fallout of §2.1–2.3 on Story content)
+
+**Every repair is geometry, not test text.** All seven failures were fixed by moving the level's own
+numbers so the authored assertion — including both sides of every two-sided one — still holds with
+margin. No helper's meaning was changed, no assertion was loosened, no `singleJumpOnly` conservatism
+was traded for the new universal double jump, and the test delta is **0 added / 0 removed**. The
+reference values the repairs are sized against, all re-derived from the retuned `.tres` files:
+worst single-jump rise (Lincoln) **93.75 px** (was 113.4), best single rise (Pocahontas) 219.7,
+best total rise 439.4, weakest single-jump *distance* (Lincoln) **174.0 px** (was 223.8), best full
+jump distance 965.1 (was 1285.8), slowest ground speed (Lincoln) **285 px/s** (was 330).
+
+1. **Two compensation shapes, chosen per level by whether the level owns a gravity mechanic.**
+   Where a level authors its own gravity field (L12's regolith/pad, L14's containment pockets), the
+   *field* absorbed the retune — every scale scaled **×0.8**, exactly the jump-height reduction — so
+   not one authored rung, lift, curtain or shaft altitude had to move and every internal contrast
+   ratio is preserved bit-for-bit. Where the level runs at Earth-normal gravity (L13's arena
+   platform, L14's portal scaffold, L15's tiers), the *step* came down instead, each re-sized to the
+   same percentage of the heaviest character's reach it was originally authored at. L07 has neither,
+   so its rope reach moved. Recorded because "scale the field, not the geometry" is the cheaper and
+   more faithful repair whenever a level has a field to scale, and later movement passes should
+   reach for it first.
+
+2. **L07 Nassau — `AnchorAmplitudeDegrees` 45 → 52; nothing else moved.** The chain failed on hops
+   two and three (139.2 px against a budget that fell from 167.8 to 130.5). The span from the launch
+   yard to the receiving yard is fixed at 1,950 px and the three ropes consume `3 × 680 × sin(amp)`
+   of it, so the *only* levers are rope reach, channel width and rope count — pivot spacing is
+   zero-sum, and evening the pivots out at 45° would have left every hop at 97% of budget. Amplitude
+   is the one lever the level owns outright (the plan records rope length as fixed by
+   `PendulumAnchorTemplate` and not overridable). At 52° the pivots stay exactly where they were
+   (3950 / 4570 / 5190) and the four hops become 97.8 / 84.2 / 84.2 / 76.3 px — worst case 75% of
+   budget, against 107% before. Both yard clearances still hold (first grab 3697.8 > 3600, last hang
+   5473.7 < 5550), the arc sweep rises 509 → 567 px (test floor 400), and peak tangential speed
+   rises 740 → 855 px/s, still under the scene's authored `MaxLaunchSpeed` 900. The uncrossable-
+   channel claim got *stronger*, not weaker: 2,000 px is now 2.07× the best full jump where it was
+   1.56×. The Globe contrast the orchestrator adjudicated on 2026-08-08 survives — Nassau moves
+   further outside Globe's ≤34° cap, not closer to it. Scene: three `AmplitudeDegrees` 45 → 52; the
+   `AnchorPivotY` doc comment's arc extreme corrected 654 → 622 px.
+
+3. **L12 Lunar — `RegolithGravityScale` 0.45 → 0.36 and `PadGravityScale` 0.6 → 0.48.** The pad
+   gantries were the hard failure (`padJump` 156.3 < the authored 170 px rise); the rung contract
+   passed only by 4.2% (200 px rungs against a 208.3 px lunar reach), which is not a climb a player
+   can actually make. Both are the same cause and take the same ×0.8. Every authored altitude stays:
+   rungs now use 76.8% of the 260.4 px lunar reach (was 79.4% pre-batch — restored, not merely
+   fixed), the Earth-side half of the two-sided assertion is *stronger* than before (200 px is now
+   2.13× the heaviest Earth jump, was 1.76×), `padJump` is 195.3 against the 170 px gantry, the two
+   lifts and the curtain slot all still out-reach the best multi-jump (spire 1500 > 1220.4, curtain
+   1350 > 1220.4), and the pad/regolith contrast stays at exactly 4:3.
+
+4. **L13 Chronal Void — `ArenaPlatformY` 1810 → 1825.** Earth-normal arena, no field to scale, so
+   the 90 px rise came down to 75 px: 80% of the heaviest character's 93.75 px reach, against the
+   79.4% it was authored at and the 90% the test caps it at. Mirror symmetry, offset, width and the
+   unbroken-floor node name are untouched.
+
+5. **L14 Neo-Earth — three separate repairs, all in the controller.**
+   - **Pocket scales ×0.8** (0.34/0.30/0.26 → 0.272/0.24/0.208). All nine shaft rungs stay exactly
+     where they are and both sides of the two-sided contract widen: alpha's 300 px rungs use 87% of
+     its 344.7 px in-pocket reach *and* are 1.37× the best Earth-normal single jump (the floor the
+     shaft must beat), beta 84.5% / 1.50×, gamma 75.4% / 1.55×; every shaft's total climb still
+     out-reaches the best Earth multi-jump by more than 2×. The deepening 17:15:13 ratio between the
+     three pockets is preserved exactly.
+   - **`PortalScaffold` step 100 → 80 px** (rungs 1620/1540/1460/1380). This one is deliberately
+     *outside* every pocket — that contrast is the test's whole point — so there is no field to
+     scale and the step had to move. 85.3% of the heaviest reach, against 88.2% as authored. Still
+     clear of all three pocket rects.
+   - **`ReferenceWalkSpeed` 330 → 285**, and the beam phase offsets are now **derived** rather than
+     authored. The constant is defined as the slowest ground speed in the roster and the test
+     re-derives it, so it had to follow Lincoln. Rather than hand-editing sixteen literals I added
+     `BeamPhaseStrideSeconds => BeamSpacing / ReferenceWalkSpeed` plus a `BeamPhase(i)` helper and
+     expressed every beam as `BeamPhase(n)` — the corridor grids at stride 1, the arena lanes at
+     stride 2. **Beam X positions did not move**: `BeamSpacing` stays 330 px because it is authored
+     corridor geometry, and the invariant the puzzle actually depends on (phase stride ==
+     spacing ÷ walk speed, so the safe window travels with the walker) is now structural instead of
+     coincidental. The stride is no longer a round 1.0 s but 1.158 s, so the one test comment and
+     the one doc comment that said "one reference-walk second" were corrected to say what the code
+     does. Solvability re-checked by hand as well as by the suite: contact time rises 0.485 → 0.561 s
+     against dark windows of 2.1–4.7 s.
+
+6. **L15 Alexandria — gallery tier step 100 → 80 px** (`Tier1..5Y` 1320/1240/1160/1080/1000). No
+   gravity mechanic in this level at all, by design, so the tiers themselves came down: 85.3% of the
+   heaviest character's reach against 88.2% as authored. The scriptorium's vertical section is now
+   400 px rather than 500, still 4.27× the heaviest single jump (the test's bar is 3×; it read 4.41×
+   before), and the three extractors ride the tier constants automatically. One scene edit follows
+   the balcony: `FireScriptorium` moved (5330, 900) → (5330, 1000), because the hazard is authored on
+   the scriptorium balcony and would otherwise have been left floating 100 px above it. No test pins
+   that position — it would have been a silent visual break.
+
+7. **Nothing else in Story content proved movement-sensitive.** Swept the full `ContentValidation`
+   namespace plus `FTT.Tests.Integration` and `FTT.Tests.Unit`; the tutorial gate (A1's), the hub,
+   Florence, levels 2–11 and the character-select stat card all pass untouched. No non-movement
+   failure was observed in any of the three namespaces, so nothing was left unfixed and nothing
+   outside scope was touched.
+
+8. **Test delta 0 (0 added, 0 removed).** The five level suites report exactly their authored case
+   counts — L07 21, L12 19, L13 22, L14 25, L15 21 = **108/108**. Namespace runs:
+   `ContentValidation` **558/558**, `FTT.Tests.Integration` **16/16**, `FTT.Tests.Unit` **615/615**,
+   all 0 failed. Build clean (1 known vendored `CS8632`). `--headless --quit` clean, and all five
+   edited levels smoke-run 240 frames with no script errors (the `N resources still in use at exit`
+   line is the `AuthoredResources` cache pin and appears identically on an untouched control level).
+   Expected suite total after B2 is unchanged from whatever A1+A2+A3 leave it at.
+
+9. **One run hit CLAUDE.md failure signature 5** (`GodotRuntimeTestRunner ends with exit code: 100`,
+   `Failed to connect: Connection timeout`, then `No test matches the given testcase filter` on a
+   filter that plainly matched) while B1 was validating in its sibling worktree. Polling
+   `Get-Process testhost,Godot*` to zero and re-running was clean. Not a regression; recorded because
+   the narrow-filter variant reports *zero* matches rather than a partial total.
+
+10. **`--import` churn reverted.** The worktree was cold, so the first `--quit` failed on unimported
+    menu textures and needed a `--import` pass; that rewrote ~180 `.import` sidecars plus
+    `localization/en.en.translation` and `resources/Audio/default_bus_layout.tres`. All of it was
+    reverted — §3 leaves the compiled translation to the orchestrator, and B2 added no keys.

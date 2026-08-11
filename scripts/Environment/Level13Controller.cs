@@ -108,11 +108,13 @@ namespace FTT.Environment {
         public const float ArenaPlatformOffsetX = 620f;
         /// <summary>
         /// Low, because the arena runs at Earth-normal gravity and Story physics caps
-        /// the heaviest single-jump character at about 113 px of rise. A side platform
+        /// the heaviest single-jump character at about 94 px of rise. A side platform
         /// nobody can stand on is dead geometry, so this is sized against the roster
-        /// rather than against how a Fighter stage looks.
+        /// rather than against how a Fighter stage looks. Lowered 1810 -> 1825 (a 90 px
+        /// rise to 75 px) by the 2026-08-10 movement retune, holding the same ~80% of the
+        /// heaviest character's reach it was authored at (gameplay-feel plan section 9, B2).
         /// </summary>
-        public const float ArenaPlatformY = 1810f;
+        public const float ArenaPlatformY = 1825f;
         public const float ArenaPlatformWidth = 340f;
         public const float MirrorRevealDistance = 700f;
 
