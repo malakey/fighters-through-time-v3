@@ -1,0 +1,272 @@
+# Gameplay feel batch — 2026-08-10 plan
+
+User-directed gameplay-mechanics batch (David, 2026-08-10). Twelve changes to movement and
+combat feel, applied to **both modes** (Story `PlayerController` + deterministic Fighter sim)
+per the same-move-same-behavior pillar. This document is the working agreement for the
+worktree agents implementing it; §9 is the append-only deviation log.
+
+## 1. Authority order
+
+1. Explicit decisions in §2 of this document (they encode the user's directives).
+2. `AGENTS.md` / `CLAUDE.md` working agreements (determinism boundary, resources own numbers,
+   localization, shared-rulebook rule, `.tres` load discipline, no `Dispose()` on Resources).
+3. Existing code conventions at the edit site.
+
+Where a §2 decision supersedes an earlier locked design decision, that is deliberate and
+recorded in §2.13. Do not re-litigate; do record any *further* deviation in §9.
+
+## 2. Standing decisions (locked)
+
+### 2.1 Run speed −15%, longer accel and decel
+
+- All nine `resources/Characters/*_data.tres` `MaxMoveSpeed` ×0.85, rounded to nearest 0.25:
+  lincoln 5.5→4.75, tesla 7.0→6.0, leonardo 7.5→6.5, shakespeare 7.5→6.5, einstein 8.0→6.75,
+  mozart 8.0→6.75, cleopatra 8.5→7.25, joan 9.0→7.75, pocahontas 9.0→7.75.
+- `FighterLoadout.Default.MoveSpeed` 8→7 (`FighterSimulationComponents.cs:230`).
+- `UniversalMovementRules.RunAccelerationFrames` 8→**14**. Add new
+  `UniversalMovementRules.RunDecelerationFrames = 12`; grounded stop ramps (target speed zero
+  or sign reversal against current velocity) use the decel constant in **both** modes: the sim
+  `ApplyNormalMovement` step selection, and Story's five inline grounded stop sites
+  (`ProcessIdle`, `DecelerateHorizontal`, `ProcessSkidding`, `ProcessCrouching`,
+  `ProcessBlocking`). Air ramps (4 accel / 8 decel Story, 4 sim) unchanged.
+- `FighterSimulationTests.GroundRunAcceleratesOverEightFrames` is rewritten for the new
+  constants (14-frame ramp to `FP64` 7) and a companion decel assertion added.
+
+### 2.2 Jump height −20%
+
+- Height ∝ force², so `MaxJumpForce` ×√0.8≈0.894, rounded to nearest 0.5:
+  cleopatra 14.5→13.0, einstein 14.0→12.5, joan 13.5→12.0, leonardo 13.0→11.5,
+  lincoln 11.0→10.0, mozart 14.0→12.5, pocahontas 15.0→13.5, shakespeare 13.5→12.0,
+  tesla 13.0→11.5. (Rounding lands −17%…−22% per character; "about 20%".)
+- `FighterLoadout.Default.JumpSpeed` 13→11.5 (default-loadout apex 2.82→2.20 units;
+  double-jump ceiling ≈4.4).
+- **Stage geometry consequence (locked):** lower the Globe Theatre canopy platform
+  `SurfaceY` 4.4→**4.0** — the only platform outside the new double-jump envelope with
+  margin. Orléans 4.0 and Berlin 3.6 stay. The edit must land in all four places together:
+  `FighterStageGeometry.cs`, the `FighterStageGeometryTests.Dossiers` table, the
+  `scenes/fighter/FighterStage_Globe*.tscn` markers/colliders (conformance validator,
+  62.5 px/unit, 1 px tolerance), and the stage's orb anchor (0.5 above supporting surface).
+- Story gravity model is untouched (H-7 stays open; only the shared force numbers move).
+
+### 2.3 Double jump for everyone
+
+- `MaxJumpCount` 1→2 for joan, leonardo, lincoln, shakespeare, tesla (others already 2).
+  No character goes above 2. `FighterLoadout.Default` already 2.
+- `Level00Controller` tutorial double-jump gate and any Story reachability math must be
+  re-verified against the *reduced* jump force (§2.2) — the gate teaches double jump, which
+  every character now has, but the geometry was sized for old forces.
+
+### 2.4 Block cancels hitstun
+
+- While in hitstun (not daze), **grounded**, stocks remaining: holding Block exits hitstun
+  into the normal block stance. Airborne victims cannot (grounded-stance rule stands).
+  Daze (guard break) is NOT cancelable — the guard-break punish window stays.
+- Sim: clear `HitstunFrames` in `FighterMovementSystem.Update` when
+  `HitstunFrames > 0 && DazeFrames <= 0 && IsGrounded != 0 && (HeldButtons & Block)`,
+  before the hitstun gate, so the same tick enters the stance through `IsBlockStance`.
+- Story: `ProcessStunned` polls `IsHeld(Block) && IsOnFloor()` → clear `_stunTimer`,
+  `TransitionTo(Blocking)`.
+- **Supersedes** the 2026-08-09 "hits one and two hold the victim through the chain" design:
+  a victim holding block now escapes the string after hit one. Parity tests pinning the
+  hold-through-chain behavior are rewritten to pin the escape (and to pin that an *airborne*
+  or dazed victim still cannot escape).
+
+### 2.5 Finisher separation + low-HP knockback scaling
+
+- **HP scaling (all hits, both modes):** effective knockback ×`(1 + missingHPFraction)` of
+  the **victim after the hit's damage is applied** — linear 1.0× at full HP to 2.0× at 0 HP.
+  Sim: single insertion in `FighterDamageRules.ApplyFighterHit` (fixed-point:
+  `knockback * (max*2 - hp) / max`). Story: `DamageCalculator.CalculateKnockback` gains the
+  victim-HP overload; `EnemyController.OnHurtboxHit` and `PlayerController.OnHurtboxHit`
+  pass post-damage HP. Environmental/hazard hits included (they route through the same
+  chokepoints).
+- **Finisher must create separation:** raise `BasicComboRules.KnockbackMultipliers[2]` from
+  3 to a value (start at 4.5; tune) such that a mirror-match finisher at full victim HP
+  produces **≥ 2.5 units horizontal separation** (attack range 2 + margin) measured when the
+  victim's hitstun ends — pinned by a new determinism test across all nine kits. Story hit-3
+  knockback Y component retuned in step.
+
+### 2.6 Damage rebalance: basics −50%, specials +100%
+
+- Nine `.tres` `BasicAttackDamage` ×0.5: cleopatra 4, einstein 5, joan 6, leonardo 4.5,
+  lincoln 7.5, mozart 4, pocahontas 4.5, shakespeare 5, tesla 4.5. (The sim's
+  `RoundDamage` rounds x.5 up — a known ±0.5 sim/Story divergence that already exists.)
+- All 18 **Special1/Special2** `AbilityData.BaseDamage` ×2 in `resources/Abilities/`.
+  **Ultimates unchanged. Movement abilities unchanged** (Lincoln's Rail Charge 5 stays;
+  Shakespeare's Tempest stays 0). `FighterLoadout.Default.BasicDamage` stays 10 (synthetic).
+- All content-pin assertions updated to the new numbers (≈18 assertions across 15 files,
+  plus `LoadoutFactoryUsesNormalizedCharacterResources` and
+  `RollbackReadinessKitShapeTests`).
+- Known consequences, accepted: Story encounters take ~2× longer on basics (worse on Hard's
+  1.5× enemy HP); special-heavy play charges ultimate meter faster; Resonance "+8% basic
+  damage" minors are relatively weaker. No compensating retune in this batch.
+
+### 2.7 New inputs: `gameplay_up`
+
+- New InputMap action `gameplay_up`: W key, joypad axis 1 = −1 (stick up), joypad button 11
+  (dpad-up). Edits land together in: `project.godot [input]`, `InputManager.Actions`,
+  `RemappableActions`, `ActionLabelKey` (+ `controls_action_up` en.csv key), and the
+  vertical-axis synthesis.
+- **Vertical synthesis change:** `vertical = (down ? 1 : 0) − (up ? 1 : 0)`. Jump is
+  **removed** from the vertical axis. Consequence: Warp-style up-direction reads
+  (`MoveY < −30`, `Vertical` in Story movement abilities) are now driven by the Up input
+  instead of held Jump — this is an intended improvement (stick-up now works on gamepad).
+  Tests that set `MoveY` directly are unaffected; anything simulating "hold jump to warp up"
+  through the sampler is updated to hold Up.
+- No wire/protocol change: `MoveY` is already serialized; packet stays 47 bytes, protocol
+  v2, `Dash` bit stays inert.
+
+### 2.8 Up-attack and down-air
+
+- **Selection at swing start** (sim `StartSwing` / Story `CheckAttackInput`):
+  - Up held (`MoveY < −30` / `Vertical < −0.25`) + BasicAttack → **up-attack**, available
+    grounded AND airborne.
+  - Else airborne + Down held + BasicAttack → **down-air**.
+  - Else grounded + Down held + BasicAttack → **normal string** (explicit: grounded
+    down-attack is just a standard attack).
+- Both are **single strikes outside the three-hit chain**: no chain-hold, no buffering into
+  the string, combo index resets. Landing cancels a down-air with no lag (aerial-string
+  rule). Frame data lives in `BasicComboRules` (new shared arrays — one source, both modes):
+  - Up-attack: startup 7 / active 8 / recovery 18. Hitbox above the fighter (sim: ±1.2
+    horizontal, up to 2.4 above origin; Story mirrors with its pixel hitbox family).
+  - Down-air: startup 6 / active 10 / recovery 16, aerial only. Hitbox below (±1.0
+    horizontal, 2.0 below origin).
+- Damage: 1.0 × (post-§2.6) `BasicAttackDamage`. Hitstun 30 frames.
+- **Knockback: both launch the victim upward** (sim `verticalKnockbackScale` 2.5 with a
+  small 0.3 horizontal component; Story equivalent). "Distance depends on damage taken" is
+  delivered by the §2.5 HP scaling — no separate mechanism.
+- Attack-variant state: `FighterRuntimeComponent.AttackFlags` free bits 8 (up-attack) and
+  16 (down-air). **No new component fields for attacks.**
+- CPU: does not use the new attacks in this batch (its combat table emits `MoveY = 0`);
+  recorded as an accepted gap, revisit with a CPU pass.
+- Control-legend strings (`test_arena_controls`, `tutorial_controls`) updated; run
+  `--import` and commit `en.en.translation` (integrator only).
+
+### 2.9 Fast-fall
+
+- **Stateless rule, both modes:** while airborne, not in hitstun, Down held → vertical
+  velocity is clamped down to at least `UniversalMovementRules.FastFallSpeed = 16` units/s
+  downward, immediately (sim: `if (vy > −16) vy = −16`; Story: px equivalent 960 px/s,
+  bypassing the 600 px/s terminal clamp for this case). Fast-fall also cancels the Warp
+  float window (`FloatFrames = 0`). No snapshot field — derived from held input each tick.
+- Interactions (locked): drop-through then hold Down = immediate fast drop (intended);
+  down-air + fast-fall stack (intended — a falling downward strike); Pocahontas glide and
+  other ability floats are NOT modified in this batch beyond the Warp float cancel.
+
+### 2.10 Platform drop-through everywhere
+
+- Sim already supports Down+Jump drop-through on every one-way platform; **add double-tap
+  Down** as a second trigger in the sim (18-frame tap window, matching
+  `StoryCombatRules.DownDoubleTapFrames`), closing audit M-18 in the sim→Story direction.
+  Requires one new sim counter — reuse: encode the tap timer in the existing
+  `FighterRuntimeComponent` spare int budget ONLY if §2.11's allocation leaves room;
+  otherwise Down+Jump stays the sim's only trigger and M-18 stays open (record in §9).
+- Story already drop-throughs on double-tap Down from grounded states; no change beyond
+  verifying every campaign one-way platform is in the `OneWayPlatform` group (spot-check,
+  no sweep).
+
+### 2.11 Ledge grab (Fighter sim)
+
+- Platforms only (the base floor spans wall to wall; side walls are solid). A fighter
+  grabs when: airborne, `DropThroughFrames == 0`, not in hitstun/daze, regrab lockout
+  expired, vertical velocity ≤ 2 (falling, or rising slowly near apex — covers "jumping up
+  to it"), and within the capture box of a platform end: `|x − edgeX| ≤ 0.5` and
+  `SurfaceY − 1.2 ≤ y ≤ SurfaceY`.
+- Hanging: position pinned at (edgeX nudged 0.25 outside the platform, SurfaceY − 1.0),
+  velocity zeroed, gravity off, jumps refilled on grab. Actions: Jump → climb jump
+  (`JumpSpeed × 0.9` upward, exits hang); Down → release with a 30-frame regrab lockout;
+  auto-release at 300 frames. Both fighters may hang the same edge (no occupancy — keeps
+  determinism simple).
+- **Snapshot allocation (locked):** the three free ints in `FighterRuntimeComponent` become
+  `LedgeAnchor` (platform index ×2 + side, −1 = none), `LedgeStateFrames`,
+  `LedgeRegrabLockoutFrames`. This exactly fills the 128-byte budget — §2.10's tap timer
+  only fits if the implementer can pack it into `LedgeRegrabLockoutFrames`' upper bits or
+  another existing field without breaking clarity; otherwise see §2.10 fallback.
+- `CpuDecisionObservation` gains `IsLedgeHanging` — added **field-for-field in both**
+  `FighterCpuController.Observe` and `MirrorParadoxDecisionAdapter.Observe` (Package 6 §2.5
+  alignment rule). CPU escape: a hanging CPU jumps (its recovery already emits Jump); add a
+  behaviour test proving a hanging CPU is off the ledge within 120 frames.
+- Presentation: driver animation branch (hang pose from existing placeholder set) + new
+  `fighter_state_ledge` key — bump `FighterLocalizationTests` family counters
+  (`fighter_* 25→26`, `fighter_state_* 10→11`).
+- Story: existing marker-based `LedgeGrabPoint` system stays; one change — allow capture
+  while rising slowly (`Velocity.Y ≥ −150` px/s instead of `≥ 0`) to match "jumping up to
+  it". Story ledge authoring coverage is NOT expanded in this batch.
+
+### 2.12 Facing follows movement during attacks
+
+- Sim: `lockFacing` becomes `blockStance` only (drop `attacking`) —
+  `FighterSimulationSystems.cs:290`. Story: `ProcessAttacking` and `ProcessRecoveryHold`
+  call `UpdateFacing(GetHorizontalInput())` each frame. Hitbox placement continues to read
+  facing at active-start (existing code) — the fix is orientation, not mid-active hitbox
+  migration. **Supersedes** the 2026-08-09 "facing committed for the whole string" decision.
+
+### 2.13 Superseded prior decisions (record, do not re-litigate)
+
+| Prior decision (2026-08-09 parity pass) | Superseded by |
+|---|---|
+| Facing committed for the whole basic string | §2.12 |
+| Hits 1–2 hold the victim through the chain (hitstun table margins) | §2.4 (block escape) |
+| Sim drop-through is Down+Jump only (M-18 deliberate divergence) | §2.10 (best-effort) |
+| No fast-fall (design-godot.md 1019) | §2.9 |
+| Sim has no ledge (M-16 deferred) | §2.11 (partial M-16 close: ledge only) |
+
+## 3. Workstreams and file ownership
+
+Two phases. Phase A: three parallel Opus worktree agents. Phase B: two parallel Opus
+worktree agents after A merges. Phase C: serial closeout in the main checkout
+(orchestrator). Merge order within A: **A1 → A3 → A2**.
+
+**Shared-file conflict policy:** `FighterSimulationSystems.cs`, `BasicComboRules.cs`,
+`UniversalMovementRules.cs`, `PlayerController.cs`, and `localization/en.csv` are
+multi-agent files. Each agent edits ONLY the regions its dossier names, keeps edits
+additive where possible, and ends its final commit message body with a `SHARED-REGIONS:`
+list naming every shared file + function it touched. en.csv additions go under a
+`# Gameplay feel <WS>` comment marker, appended at end of file. Only the orchestrator
+regenerates/commits `en.en.translation`. Nobody edits `AGENTS.md`/`CLAUDE.md` except the
+orchestrator at closeout.
+
+| WS | Scope (§) | Owns exclusively | Shared regions |
+|---|---|---|---|
+| A1 movement-feel | 2.1, 2.2, 2.3, 2.9, 2.10(sim tap timer decision) | nine `resources/Characters/*_data.tres`, `FighterStageGeometry.cs`, `scenes/fighter/FighterStage_Globe*.tscn`, `FighterStageGeometryTests.cs`, `Level00Controller` gate re-verify | `UniversalMovementRules.cs` (constants), sim movement region (`ApplyNormalMovement`, gravity/jump/drop-through blocks), `PlayerController` movement region (ramps, `ProcessAirborne` fast-fall, jump), `FighterSimulationComponents.cs` (Default loadout), movement determinism tests |
+| A2 combat-rebalance | 2.4, 2.5, 2.6, 2.12 | 18 `resources/Abilities/*_special*.tres`, `DamageCalculator.cs`, `FighterEntitySystems.cs` (`ApplyFighterHit`), content damage-pin tests, `FighterBasicStringParityTests.cs` rewrite, new finisher-separation test | `BasicComboRules.cs` (KnockbackMultipliers), sim hitstun gate + `IsBlockStance` + `lockFacing` (`FighterSimulationSystems.cs`), `PlayerController` (`ProcessStunned`, `ProcessAttacking` facing, `StartComboHit` knockback), `EnemyController.OnHurtboxHit` |
+| A3 attacks-and-inputs | 2.7, 2.8 | `project.godot [input]`, `InputManager.cs`, warp-direction call-site updates, new attack tests, control-legend en.csv edits | `BasicComboRules.cs` (new frame arrays — append), sim attack region (`StartSwing`, `ProcessBasicAttackPhase`, `ApplyBasicSwing`), `PlayerController` attack region (`CheckAttackInput`, timelines, hitboxes), `PlayerInputFrame.cs` (no new bits — comment updates only) |
+| B1 ledge-grab | 2.11 | sim ledge implementation, `CpuDecisionObservation` + both Observe sites, driver hang presentation, `fighter_state_ledge` + counter bumps, CPU ledge-escape test, Story rising-capture tweak | `FighterSimulationSystems.cs` (movement update), `FighterRuntimeComponent` (the three ints), `PlayerController.TryGrabLedge` |
+| B2 campaign-reachability | fallout of 2.1–2.3 on Story content | `tests/ContentValidation/Level{07,12,13,14,15}ContentTests.cs` + the level scenes/controllers they check, character-select stat card sanity | none expected |
+| C closeout | — | `AGENTS.md`, `CLAUDE.md` baseline, this doc §9, `en.en.translation`, final ledger | — |
+
+**B2 ground rule:** prefer retuning level geometry (keep the test's intent) over loosening
+a test, and never weaken a two-sided assertion into a one-sided one; if a level's design
+intent can't survive the new movement numbers, record the conflict in §9 and pick the
+minimal geometry change.
+
+## 4. Validation gates
+
+- Every agent: `dotnet build FightersThroughTime.csproj --nologo` clean (1 known vendored
+  warning), then **filtered** `dotnet test --settings .runsettings --filter ...` for its own
+  suites ONLY, and only after polling `Get-Process testhost,Godot*` to zero (cross-worktree
+  pipe contention, CLAUDE.md signature 5; the main checkout may have the GUI editor open —
+  a non-console Godot process there is benign). Never a full suite in a worktree.
+- Scene/`.tscn`/`.tres` edits: headless import check in the agent's own worktree.
+- Orchestrator (phase C): the only full-suite runs — three consecutive greens with the
+  exact expected `Total:`, plus `--import` regeneration of `en.en.translation` once per
+  merge wave.
+- Baseline entering this batch: **1417** passing. Each agent's report must state its exact
+  expected test delta (added − removed).
+
+## 5. Agent operating rules
+
+- Worktrees fork from `main` HEAD — if this plan file is missing in your worktree, merge
+  main first.
+- Load authored `.tres` through `FTT.Core.AuthoredResources.Load<T>()`; never `Dispose()`
+  a Resource; never author an empty Script-typed array in a `.tres`; keep `.uid` sidecars.
+- Determinism boundary: no float math, no Godot state, no unseeded randomness in
+  `scripts/FighterSim/`. All new sim state must live in snapshotted components.
+- Reserved and untouchable: `GameplayButtons.Dash` (1<<11), `UniversalMovementPhase.Dash`,
+  `CharacterState.Dashing`. New input needs no new bits (§2.7).
+- Commit early, commit often on your branch; final commit message ends with the
+  `SHARED-REGIONS:` list.
+
+## 9. Deviation log (append-only)
+
+(Agents append dated entries here — one per deviation from §2/§3, with the reason.)
