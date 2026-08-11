@@ -23,16 +23,16 @@ public class MozartContentTests {
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Projectile);
         AssertThat(data.IsMultiHit).IsTrue();
         AssertThat(data.HitCount).IsEqual(3);
-        AssertThat(data.BaseDamage).IsEqual(4f);
+        AssertThat(data.BaseDamage).IsEqual(8f);
         AssertThat(data.CooldownDuration).IsEqual(10f);
     }
 
     [TestCase]
-    public void FortissimoWaveResourceDealsTwelveWithHeavyFullScreenPushback() {
+    public void FortissimoWaveResourceDealsTwentyFourWithHeavyFullScreenPushback() {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/mozart/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Projectile);
-        AssertThat(data.BaseDamage).IsEqual(12f);
+        AssertThat(data.BaseDamage).IsEqual(24f);
         AssertThat(data.KnockbackForce.X).IsEqual(8f);
         // Full-screen sweep: at the authored speed the wave must outlive a full
         // arena crossing (250 px/s x 6 s = 25 world units > the 24-unit arena).

@@ -270,3 +270,54 @@ minimal geometry change.
 ## 9. Deviation log (append-only)
 
 (Agents append dated entries here — one per deviation from §2/§3, with the reason.)
+
+### 2026-08-10 — A2 combat-rebalance (§2.4, §2.5, §2.6, §2.12)
+
+1. **Finisher multiplier landed at 4.5x** (§2.5's suggested starting point, kept). Measured
+   mirror-match separation at **full victim HP**, read when the victim's hitstun ends, over all
+   nine authored kits: cleopatra 3.06, leonardo 3.31, tesla 3.39, pocahontas 3.46, mozart 3.52,
+   einstein 3.66, shakespeare 3.82, joan 4.01, lincoln 4.64 units — every one clears the 2.5-unit
+   requirement, the tightest (cleopatra, base knockback 2.0 into weight 0.7) by 0.56. Pinned by
+   `tests/Determinism/FighterKnockbackScalingTests.TheFinisherSeparatesEveryKitBeyondMeleeRangeAtFullVictimHP`.
+   The test's protocol whiffs hits one and two from outside the 2-unit melee range so the finisher
+   is the *only* hit that lands — otherwise "full victim HP" is unreachable, since §2.5's HP scaling
+   would already be helping by the third hit. The analytic floor of that protocol (both fighters at
+   the 0.8 pushbox minimum when the finisher connects) is 2.92 for cleopatra, so the pin has margin
+   against A1's reduced move speeds changing where the two fighters meet.
+
+2. **Story finisher knockback Y scaled with the multiplier, not re-derived.** `PlayerController`
+   hit three went from `(baseKB * 3, -6)` to `(baseKB * 4.5, -9)` — the same 1.5x the horizontal
+   multiplier took, preserving the authored launch angle. §2.5 only said "retuned in step"; a full
+   1:1 X:Y match with the sim would have needed a per-character Y (the sim's vertical component
+   equals its horizontal one), which is a larger change than this batch calls for.
+
+3. **`BossController.ApplyKnockback` deliberately left unscaled.** §2.5's Story sentence names
+   `DamageCalculator.CalculateKnockback`, `EnemyController.OnHurtboxHit` and
+   `PlayerController.OnHurtboxHit` only, and the boss path is already divergent (it *adds* to
+   velocity rather than replacing it, uses a hardcoded weight of 2, and most bosses are
+   `IsKnockbackImmune`). Scaling it would also have moved the `BossControllerTests` velocity pins,
+   which are outside this workstream's file list. Recorded as an open inconsistency rather than
+   silently normalized.
+
+4. **`RollbackHarnessKits` damage fields left at their synthetic values.** The A2 dossier listed
+   them, but `RollbackReadinessKitShapeTests` pins only the *shape* fields (execution types,
+   construct IDs) against the authored resources — it never asserts damage — and the harness is
+   explicitly a synthetic engine-free kit, the same category as `FighterLoadout.Default`, which
+   §2.6 keeps at 10. Changing them would have moved nothing but the numbers themselves.
+
+5. **`ProcessRecoveryHold` does not call `UpdateFacing` itself.** §2.12 names both it and
+   `ProcessAttacking`; the hold window is reached *only* through `ProcessAttacking`, which now
+   applies the facing update before dispatching, so a second call would be redundant. Noted at the
+   method with a comment so a future direct caller knows to re-check.
+
+6. **Environment/hazard hits inherit the HP scaling structurally, not by a second edit.**
+   `FighterDamageRules.ApplyEnvironmentHit` already delegates to `ApplyFighterHit`, so the single
+   insertion covers hazards exactly as §2.5 requires. No separate hazard pin was added.
+
+7. **Observed flake, not caused by this workstream:**
+   `EnemyControllerTests.SmallTargetShuffleInsideTheBandDoesNotRestartTheApproach` failed once in a
+   full-namespace unit run and passed in isolation, on the pre-change commit *and* after. Its own
+   comment records why — the approach halts on the engine's out-of-band `MoveAndSlide` process
+   delta, so where the enemy stops depends on wall-clock timing, and the 25 px shuffle in the test
+   sits within ~0.25 px of the 110% release line. Re-runs were green (611/611). Worth tightening
+   independently of this batch.

@@ -19,7 +19,7 @@ public class TeslaContentTests {
     public void TeslaCoilResourceMatchesDesignSpecification() {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/tesla/special_1.tres");
         AssertObject(data).IsNotNull();
-        AssertThat(data.BaseDamage).IsEqual(5f);
+        AssertThat(data.BaseDamage).IsEqual(10f);
         AssertThat(data.DamageTickIntervalFrames).IsEqual(120);
         AssertThat(data.Lifetime).IsEqual(30f);
         AssertThat(data.MaxActiveObjects).IsEqual(2);
