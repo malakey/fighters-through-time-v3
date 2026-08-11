@@ -12,6 +12,13 @@ namespace FTT.Core {
             public const string MoveRight = "gameplay_move_right";
             public const string Jump = "gameplay_jump";
             public const string Down = "gameplay_down";
+            /// <summary>
+            /// Vertical "up" intent (gameplay feel batch §2.7). It carries no
+            /// <see cref="GameplayButtons"/> bit by design: it exists purely as
+            /// the negative half of <see cref="PlayerInputFrame.MoveY"/>, which
+            /// both the up-attack selection and the directional Warp read.
+            /// </summary>
+            public const string Up = "gameplay_up";
             public const string BasicAttack = "gameplay_basic_attack";
             public const string Special1 = "gameplay_special1";
             public const string Special2 = "gameplay_special2";
@@ -31,7 +38,7 @@ namespace FTT.Core {
         /// read-only instead.
         /// </summary>
         public static readonly string[] RemappableActions = {
-            Actions.MoveLeft, Actions.MoveRight, Actions.Jump, Actions.Down,
+            Actions.MoveLeft, Actions.MoveRight, Actions.Jump, Actions.Down, Actions.Up,
             Actions.BasicAttack, Actions.Special1, Actions.Special2, Actions.MovementAbility,
             Actions.Block, Actions.Roll, Actions.Interact, Actions.Pause
         };
@@ -45,6 +52,7 @@ namespace FTT.Core {
             Actions.MoveRight => "controls_action_move_right",
             Actions.Jump => "controls_action_jump",
             Actions.Down => "controls_action_down",
+            Actions.Up => "controls_action_up",
             Actions.BasicAttack => "controls_action_basic_attack",
             Actions.Special1 => "controls_action_special1",
             Actions.Special2 => "controls_action_special2",
@@ -262,7 +270,12 @@ namespace FTT.Core {
                 - ReadActionStrength(Actions.MoveLeft, deviceId);
             bool jump = ReadActionPressed(Actions.Jump, deviceId);
             bool down = ReadActionPressed(Actions.Down, deviceId);
-            float vertical = (down ? 1.0f : 0.0f) - (jump ? 1.0f : 0.0f);
+            // Gameplay feel §2.7: the vertical axis is Down minus Up. Jump was
+            // removed from it — holding Jump no longer reads as "up", so the
+            // directional Warp and the new up-attack are driven by a real Up
+            // input (W, stick up, dpad-up) instead of the jump button.
+            bool up = ReadActionPressed(Actions.Up, deviceId);
+            float vertical = (down ? 1.0f : 0.0f) - (up ? 1.0f : 0.0f);
 
             GameplayButtons held = GameplayButtons.None;
             AddIfHeld(ref held, GameplayButtons.Jump, jump);

@@ -284,9 +284,97 @@ public class StoryCombatRulesTests {
         }
     }
 
-    private static void SendInput(PlayerController player, GameplayButtons buttons, double delta = 1.0 / 60.0) {
+    /// <summary>
+    /// Gameplay feel §2.8: Story routes Up + BasicAttack and airborne
+    /// Down + BasicAttack to their own single-strike hitboxes, off the chain,
+    /// using the frame data and knockback components in
+    /// <see cref="BasicComboRules"/> — the same table the Fighter simulation
+    /// reads. Neither move has an authored animation, so both must run on the
+    /// frame clock rather than arming the animation-driven path.
+    /// </summary>
+    [TestCase]
+    public void DirectionalAttacksRouteToTheirOwnSingleStrikeOutsideTheChain() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        PlayerController player = CharacterFactory.CreateCharacter("einstein");
+        tree.Root.AddChild(player);
+        try {
+            var hitbox = player.GetNode<Hitbox>("MeleeHitbox");
+            var hitShape = hitbox.GetChild<CollisionShape2D>(0);
+            float baseKnockback = player.Data.BasicAttackKnockback;
+
+            // No direction held: the ordinary string opener.
+            player.TransitionTo(CharacterState.Airborne);
+            player.Velocity = Vector2.Down;
+            SendInput(player, GameplayButtons.BasicAttack);
+            AssertThat(hitbox.HitboxID).IsEqual("combo_1");
+            player.TransitionTo(CharacterState.Airborne);
+
+            // Up held: the up-attack.
+            SendInput(player, GameplayButtons.BasicAttack, vertical: -1f);
+            AssertThat(player.CurrentState).IsEqual(CharacterState.Attacking);
+            AssertThat(hitbox.HitboxID).IsEqual(BasicComboRules.UpAttackHitboxID);
+            AssertThat(hitbox.AttackClass).IsEqual(AttackClass.Basic);
+            AssertThat(hitbox.Damage)
+                .IsEqualApprox(
+                    player.Data.BasicAttackDamage * BasicComboRules.DirectionalAttackDamageMultiplier,
+                    0.001f);
+            AssertThat(hitbox.HitstunDuration)
+                .IsEqualApprox(BasicComboRules.DirectionalAttackHitstunFrames / 60f, 0.001f);
+            AssertThat(hitbox.KnockbackForce.X)
+                .IsEqualApprox(baseKnockback * BasicComboRules.DirectionalAttackHorizontalKnockback, 0.001f);
+            AssertThat(hitbox.KnockbackForce.Y)
+                .OverrideFailureMessage("The up-attack launches upward (Godot 2D Y is down).")
+                .IsEqualApprox(-baseKnockback * BasicComboRules.DirectionalAttackVerticalKnockback, 0.001f);
+
+            // The box opens on the authored startup frame, above the origin.
+            // The press frame itself runs no attack tick, so the Nth call after
+            // it is elapsed frame N-1.
+            for (int frame = 0; frame < BasicComboRules.UpAttackStartupFrames; frame++) {
+                SendInput(player, GameplayButtons.None, vertical: -1f);
+                AssertThat(hitbox.IsActive)
+                    .OverrideFailureMessage($"The up-attack box opened during startup (elapsed frame {frame}).")
+                    .IsFalse();
+            }
+            SendInput(player, GameplayButtons.None, vertical: -1f);
+            AssertThat(hitbox.IsActive).IsTrue();
+            AssertThat(hitShape.Position.Y < 0f)
+                .OverrideFailureMessage("The up-attack box must sit above the fighter's origin.")
+                .IsTrue();
+
+            // It exits straight out — no chain-hold, no advanced counter.
+            int remaining = BasicComboRules.UpAttackActiveFrames + BasicComboRules.UpAttackRecoveryFrames;
+            for (int frame = 0; frame < remaining; frame++) SendInput(player, GameplayButtons.None, vertical: -1f);
+            AssertThat(player.CurrentState).IsNotEqual(CharacterState.Attacking);
+            AssertThat(player.AerialComboCounter)
+                .OverrideFailureMessage("A directional attack never advances the chain.")
+                .IsEqual(0);
+            AssertThat(player.GroundComboCounter).IsEqual(0);
+
+            // Airborne Down held: the down-air, with its box below the origin.
+            player.TransitionTo(CharacterState.Airborne);
+            player.Velocity = Vector2.Down;
+            SendInput(player, GameplayButtons.BasicAttack | GameplayButtons.Down);
+            AssertThat(hitbox.HitboxID).IsEqual(BasicComboRules.DownAirHitboxID);
+            for (int frame = 0; frame <= BasicComboRules.DownAirStartupFrames; frame++) {
+                SendInput(player, GameplayButtons.Down);
+            }
+            AssertThat(hitbox.IsActive).IsTrue();
+            AssertThat(hitShape.Position.Y > 0f)
+                .OverrideFailureMessage("The down-air box must sit below the fighter's origin.")
+                .IsTrue();
+        } finally {
+            InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+            player.Free();
+        }
+    }
+
+    private static void SendInput(
+        PlayerController player,
+        GameplayButtons buttons,
+        double delta = 1.0 / 60.0,
+        float vertical = 0f) {
         var source = new BufferedInputSource();
-        source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, buttons));
+        source.SetNextFrame(PlayerInputFrame.Create(0, 0f, vertical, buttons));
         InputManager.Instance.SetInputSource(player.PlayerIndex, source);
         player._PhysicsProcess(delta);
     }

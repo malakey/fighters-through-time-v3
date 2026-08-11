@@ -259,7 +259,7 @@ status_root,Root
 test_arena_state,{0} | State: {1} | Facing: {2} | Jumps: {3} | Tick: {4} | Hash: {5}
 test_arena_vitals,P1 HP: {0}/{1} | Stocks: {2} | Influence: {3:F0}/100 | Block: {4} || P2 HP: {5}/{6} | Stocks: {7} | Influence: {8:F0}/100 | Block: {9}
 test_arena_cooldowns,Special 1: {0} | Special 2: {1} | Status: {2}
-test_arena_controls,A/D Move | Space/W Jump | O Roll | J Attack | K/L Specials | Shift Movement | I Block | U Ultimate | ESC Menu
+test_arena_controls,A/D Move | W/S Up/Down | Space Jump | O Roll | J Attack | W+J Up-Attack | S+J Down-Air (in air) | K/L Specials | Shift Movement | I Block | U Ultimate | ESC Menu
 common_back,Back
 fighter_select_title,SELECT YOUR FIGHTER
 fighter_start_match,FIGHT!
@@ -522,7 +522,7 @@ tutorial_objective_wave_one,Defeat the hologram drones! (Wave 1)
 tutorial_objective_wave_two,Defeat the remaining holograms! (Wave 2)
 tutorial_objective_progress,Enemies defeated: {0}/{1}
 tutorial_objective_complete,CALIBRATION COMPLETE! Returning to Time-Ship...
-tutorial_controls,Move: A/D | Roll: O + Direction | Jump: Space | Attack: J | Specials: K/L | Block: I
+tutorial_controls,Move: A/D | Roll: O + Direction | Jump: Space | Attack: J | Up-Attack: W+J | Down-Air: S+J while airborne | Specials: K/L | Block: I
 checkpoint,CHECKPOINT
 florence_room_entry,ENTRY COURTYARD
 florence_room_print_shop,PRINT SHOP BASEMENT
@@ -1100,3 +1100,5 @@ fighter_stage_select_title,SELECT YOUR STAGE
 fighter_cpu_selection,CPU Opponent: {0}
 fighter_pick_cpu_prompt,Choose the CPU opponent and confirm.
 fighter_select_hint,Move your token with the movement controls. Attack confirms; Block cancels.
+# Gameplay feel A3 (2026-08-10) - new gameplay_up action and the directional attacks
+controls_action_up,Up

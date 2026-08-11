@@ -31,6 +31,9 @@ namespace FTT.Characters.Abilities {
             _warpDistance = MovementData?.DistanceMoved > 0f ? MovementData.DistanceMoved : 150f;
 
             float hInput = Owner.CurrentInputFrame.Horizontal;
+            // Godot 2D Y is down and the vertical axis is Down minus Up, so a
+            // negative value warps upward. Since §2.7 that comes from the real
+            // Up input (W / stick up / dpad-up), not from a held Jump.
             float vInput = Owner.CurrentInputFrame.Vertical;
             _warpDirection = new Vector2(hInput, vInput);
             if (_warpDirection == Vector2.Zero) {

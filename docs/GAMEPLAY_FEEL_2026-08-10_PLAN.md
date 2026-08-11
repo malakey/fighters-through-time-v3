@@ -270,3 +270,60 @@ minimal geometry change.
 ## 9. Deviation log (append-only)
 
 (Agents append dated entries here — one per deviation from §2/§3, with the reason.)
+
+### A3 attacks-and-inputs (2026-08-10)
+
+1. **Directional knockback reaches 2.5 / 0.3 through the existing
+   `verticalKnockbackScale` parameter, not a new one.** `ApplyFighterHit` derives
+   *both* impulse axes from a single magnitude (`Velocity.x = ±force`,
+   `Velocity.y = force * verticalScale`), so a separate horizontal factor is not
+   expressible without changing that signature — and `FighterEntitySystems.cs`
+   (`ApplyFighterHit`) is A2's exclusive region. A3 therefore folds the 0.3
+   horizontal factor into the magnitude it passes and sends
+   `DirectionalAttackVerticalKnockback / DirectionalAttackHorizontalKnockback`
+   (2.5 / 0.3) as the scale. The delivered impulse is exactly §2.8's numbers:
+   0.3x base horizontal, 2.5x base vertical. Both constants live in
+   `BasicComboRules`; Story authors the two components directly on its hitbox.
+
+2. **A directional input out of the chain-hold window starts the variant rather
+   than continuing the string.** §2.8 specifies selection "at swing start"; a
+   chain-hold continuation *is* a swing start, so Up + BasicAttack out of the
+   hold window abandons the string and opens an up-attack with the combo index
+   reset. Recorded because the plan text does not say so explicitly. Buffered
+   continuations out of recovery are unaffected — they carry no recorded
+   direction and always continue the chain.
+
+3. **The Story enemy stun floor was extended to the two new hitbox IDs** (the
+   A3 dossier's recommendation). `EnemyController.OnHurtboxHit`'s `combo_`
+   prefix test — an A2 shared region — now calls a new shared predicate
+   `BasicComboRules.IsBasicStringHitbox`, so `up_attack` and `down_air` hold a
+   high-`StunResistance` enemy exactly as a chain hit does. One expression
+   changed; no other line of that method was touched.
+
+4. **Selection is a pure static helper**, `BasicComboRules.SelectAttackVariant(
+   upHeld, downHeld, airborne)`, consumed verbatim by both modes and pinned
+   directly by `DirectionalAttackTests`. The sim supplies `MoveY < -30` /
+   the Down button bit; Story supplies `Vertical < -0.25` (the threshold is
+   `BasicComboRules.StoryUpInputThreshold`) / `IsHeld(Down)`.
+
+5. **Story pixel hitboxes** mirror the simulation's world-unit reaches at the
+   repository's 62.5 px/unit convention: `up_attack` 150x150 centred at
+   (0, -75), `down_air` 125x125 centred at (0, +62.5). Both are
+   facing-independent (X offset zero), unlike the facing-mirrored chain boxes.
+   Neither has an authored `basic_{ground|air}_N` animation, so both
+   deliberately run on the frame clock with the opener's placeholder sprite
+   animation as presentation scaffolding.
+
+6. **`gameplay_up` carries no `GameplayButtons` bit and no arrow-key alias.**
+   §2.7's default list is exactly W / stick-up / dpad-up; `gameplay_down`'s
+   arrow-key alias was not mirrored. The action reaches gameplay only through
+   `MoveY`, which is why `PlayerInputFrame.SerializedSize` stays 12 and the
+   protocol is untouched. It is remappable (the Settings controls tab is
+   data-driven off `RemappableActions`) and needs no save-schema migration,
+   because only actions that differ from `project.godot` are stored.
+
+7. **`en.en.translation` was regenerated locally to run the filtered suites and
+   then reverted**, per §3's rule that only the orchestrator commits it. The
+   same `--import` pass rewrote ~170 `.import` sidecars and
+   `resources/Audio/default_bus_layout.tres` with line-ending-only churn; all of
+   that was reverted too.

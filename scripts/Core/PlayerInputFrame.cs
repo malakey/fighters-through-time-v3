@@ -37,6 +37,14 @@ namespace FTT.Core {
 
         public uint Tick;
         public sbyte MoveX;
+        /// <summary>
+        /// Vertical intent, positive = down. Synthesized as Down minus Up
+        /// (gameplay feel §2.7); Jump is deliberately NOT part of it, so a
+        /// negative value means the player is really holding Up. The up-attack
+        /// selection and the directional Warp/Blink/Mirage both read it, and
+        /// <c>gameplay_up</c> has no button bit precisely because this axis is
+        /// its only channel — the wire layout is unchanged.
+        /// </summary>
         public sbyte MoveY;
         public GameplayButtons Held;
         public GameplayButtons Pressed;

@@ -275,6 +275,8 @@ namespace FTT.Characters.Abilities {
             _blinkDistance = MovementData?.DistanceMoved > 0f ? MovementData.DistanceMoved : 160f;
 
             float hInput = Owner.CurrentInputFrame.Horizontal;
+            // Negative vertical aims upward (Godot 2D Y is down); since §2.7 it
+            // comes from the Up input rather than a held Jump.
             float vInput = Owner.CurrentInputFrame.Vertical;
             _blinkDirection = new Vector2(hInput, vInput);
             if (_blinkDirection == Vector2.Zero) {

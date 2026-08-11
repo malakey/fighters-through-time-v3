@@ -953,14 +953,15 @@ namespace FTT.Enemies {
             int damageApplied = TakeDamage(Mathf.Max(0, (int)Mathf.Round(hit.Damage)), hit.HitOrigin);
             ApplyKnockback(hit.Knockback, hit.AttackerFacingRight);
             if (hit.HitstunDuration > 0f) {
-                // Basic-class STRING hits (the melee combo's "combo_N" hitboxes,
+                // Basic-class STRING hits (the melee combo's "combo_N" hitboxes
+                // plus the §2.8 directional strikes "up_attack" / "down_air";
                 // the idiom Joan's Zealous Vigor also keys on) floor the
-                // post-resistance stun so the three-hit chain holds every roster
-                // enemy (max StunResistance 0.65) through its gaps. Other
+                // post-resistance stun so the universal basic set holds every
+                // roster enemy (max StunResistance 0.65) through its gaps. Other
                 // Basic-class sources — Leonardo's turret, Tesla's coil arcs —
                 // keep their authored short stuns.
                 bool basicStringHit = hit.AttackClass == FTT.Combat.AttackClass.Basic
-                    && hit.HitboxID?.StartsWith("combo_", System.StringComparison.Ordinal) == true;
+                    && FTT.Combat.BasicComboRules.IsBasicStringHitbox(hit.HitboxID);
                 float minimumSeconds = basicStringHit
                     ? FTT.Combat.BasicComboRules.EnemyBasicStunFloorFrames / 60f
                     : 0f;

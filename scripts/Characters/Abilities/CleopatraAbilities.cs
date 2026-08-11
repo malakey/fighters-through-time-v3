@@ -281,6 +281,8 @@ namespace FTT.Characters.Abilities {
             _mirageDistance = MovementData?.DistanceMoved > 0f ? MovementData.DistanceMoved : 180f;
 
             float hInput = Owner.CurrentInputFrame.Horizontal;
+            // Negative vertical aims upward (Godot 2D Y is down); since §2.7 it
+            // comes from the Up input rather than a held Jump.
             float vInput = Owner.CurrentInputFrame.Vertical;
             _mirageDirection = new Vector2(hInput, vInput);
             if (_mirageDirection == Vector2.Zero) {
