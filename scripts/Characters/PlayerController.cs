@@ -200,8 +200,17 @@ namespace FTT.Characters {
 		private const float DirectionReversalPenalty = 0.7f;
 		private const float TerminalVelocity = 600.0f;
 		private const float GroundRampFrames = FTT.Core.UniversalMovementRules.RunAccelerationFrames;
+		/// <summary>
+		/// Grounded stop ramp (2026-08-10 feel batch §2.1). Every site that bleeds
+		/// horizontal speed toward zero on the ground — idle/skid/crouch settling,
+		/// the block stance, roll startup/recovery, and a released or reversed
+		/// stick while running — uses this instead of the accel ramp.
+		/// </summary>
+		private const float GroundDecelRampFrames = FTT.Core.UniversalMovementRules.RunDecelerationFrames;
 		private const float AirAccelRampFrames = 4.0f;
 		private const float AirDecelRampFrames = 8.0f;
+		/// <summary>Story pixel-space fast-fall floor: <c>FastFallSpeed</c> units/s × 60.</summary>
+		private const float FastFallSpeedPixels = FTT.Core.UniversalMovementRules.FastFallSpeed * 60f;
 
 		// Timers
 		private float _coyoteTimer;
@@ -685,7 +694,7 @@ namespace FTT.Characters {
 		private void ProcessIdle(float dt) {
 			ApplyGravity(dt);
 			float maxSpeed = EffectiveMoveSpeed * StatusMovementMultiplier * 60f;
-			float step = maxSpeed / GroundRampFrames * dt * 60f;
+			float step = maxSpeed / GroundDecelRampFrames * dt * 60f;
 			var idleVel = Velocity;
 			idleVel.X = Mathf.MoveToward(idleVel.X, 0, step);
 			Velocity = idleVel;
@@ -813,14 +822,14 @@ namespace FTT.Characters {
 
 		private void DecelerateHorizontal(float dt) {
 			float maxSpeed = EffectiveMoveSpeed * StatusMovementMultiplier * 60f;
-			float step = maxSpeed / GroundRampFrames * dt * 60f;
+			float step = maxSpeed / GroundDecelRampFrames * dt * 60f;
 			Velocity = new Vector2(Mathf.MoveToward(Velocity.X, 0f, step), Velocity.Y);
 		}
 
 		private void ProcessSkidding(float dt) {
 			ApplyGravity(dt);
 			float maxSpeed = EffectiveMoveSpeed * StatusMovementMultiplier * 60f;
-			float step = maxSpeed / GroundRampFrames * dt * 60f;
+			float step = maxSpeed / GroundDecelRampFrames * dt * 60f;
 			var skidVel = Velocity;
 			skidVel.X = Mathf.MoveToward(skidVel.X, 0, step);
 			Velocity = skidVel;
@@ -838,7 +847,7 @@ namespace FTT.Characters {
 		private void ProcessCrouching(float dt) {
 			ApplyGravity(dt);
 			float maxSpeed = EffectiveMoveSpeed * StatusMovementMultiplier * 60f;
-			float step = maxSpeed / GroundRampFrames * dt * 60f;
+			float step = maxSpeed / GroundDecelRampFrames * dt * 60f;
 			var crouchVel = Velocity;
 			crouchVel.X = Mathf.MoveToward(crouchVel.X, 0, step);
 			Velocity = crouchVel;
@@ -868,6 +877,16 @@ namespace FTT.Characters {
 			float step = maxSpeed / rampFrames * dt * 60f;
 			var vel = Velocity;
 			vel.X = Mathf.MoveToward(vel.X, targetSpeed, step);
+
+			// Fast-fall (§2.9, 2026-08-10): stateless — held Down while airborne
+			// pins the descent to at least FastFallSpeedPixels and cancels the
+			// Warp float window. Applied after ApplyGravity so it deliberately
+			// overrides that method's 600 px/s terminal clamp for this case.
+			// ProcessStunned/ProcessDazed own hitstun and never route here.
+			if (CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down)) {
+				StoryFloatTimer = 0f;
+				vel.Y = Mathf.Max(vel.Y, FastFallSpeedPixels);
+			}
 			Velocity = vel;
 
 			UpdateFacing(hAxis);
@@ -1057,7 +1076,7 @@ namespace FTT.Characters {
 		private void ProcessBlocking(float dt) {
 			ApplyGravity(dt);
 			float maxSpeed = EffectiveMoveSpeed * StatusMovementMultiplier * 60f;
-			float step = maxSpeed / GroundRampFrames * dt * 60f;
+			float step = maxSpeed / GroundDecelRampFrames * dt * 60f;
 			var blockVel = Velocity;
 			blockVel.X = Mathf.MoveToward(blockVel.X, 0, step);
 			Velocity = blockVel;
@@ -1473,7 +1492,15 @@ namespace FTT.Characters {
 		private void ApplyHorizontalMovement(float hAxis, float dt) {
 			float maxSpeed = EffectiveMoveSpeed * StatusMovementMultiplier * 60f;
 			float targetSpeed = hAxis * maxSpeed;
-			float step = maxSpeed / GroundRampFrames * dt * 60f;
+			// Grounded movement runs two ramps (§2.1): the 14-frame accel ramp
+			// when building speed toward a same-signed target, the 12-frame
+			// decel ramp when the target is zero or reverses against current
+			// velocity. Mirrors the Fighter sim's ApplyNormalMovement selection.
+			bool decelerating = Mathf.IsZeroApprox(targetSpeed)
+				|| (targetSpeed > 0f && Velocity.X < 0f)
+				|| (targetSpeed < 0f && Velocity.X > 0f);
+			float rampFrames = decelerating ? GroundDecelRampFrames : GroundRampFrames;
+			float step = maxSpeed / rampFrames * dt * 60f;
 			var vel = Velocity;
 			vel.X = Mathf.MoveToward(vel.X, targetSpeed, step);
 			Velocity = vel;

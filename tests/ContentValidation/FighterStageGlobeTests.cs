@@ -16,7 +16,9 @@ namespace FTT.Tests.ContentValidation;
 /// <para>The scene is a pixel mirror of <see cref="FighterStageGeometry.Globe"/>
 /// through <c>pixel = (950 + x·62.5, 700 − y·62.5)</c>: an open wooden stage with
 /// two tiered audience galleries (the ±5 one-way platforms) and the balcony above
-/// the tiring-house (the high centre platform at 4.4). The three hazard anchors are
+/// the tiring-house (the high centre platform, lowered 4.4 → 4.0 by the 2026-08-10
+/// feel batch §2.2 so it stays inside the reduced double-jump envelope). The three
+/// hazard anchors are
 /// the gallery boxes the hecklers pelt from.</para>
 ///
 /// <para>The determinism case matters more here than on a static-hazard stage:

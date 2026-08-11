@@ -271,6 +271,72 @@ minimal geometry change.
 
 (Agents append dated entries here — one per deviation from §2/§3, with the reason.)
 
+### 2026-08-10 — A1 movement-feel
+
+1. **§2.10 sim double-tap Down: SKIPPED, M-18 stays open in the sim→Story
+   direction.** `FighterRuntimeComponent` sits at 116 of Klotho's 128 bytes and
+   §2.11 locks its three remaining ints to B1's ledge state. The only packing
+   sites available were `AttackFlags`' upper bits (A3 owns that field this
+   batch — bits 8/16 for the new attacks) and `LedgeRegrabLockoutFrames`, which
+   does not exist yet in this worktree and belongs to B1. Neither is a clean,
+   non-conflicting home for an 18-frame tap timer, so the sim keeps Down+Jump as
+   its only drop-through trigger, per §2.10's stated fallback. Nothing was added
+   to either component.
+
+2. **§2.1 roll decel: the roll's startup/recovery ramp switched to the decel
+   constant.** `ProcessUniversalMovement`'s `runStep` (roll startup and roll
+   recovery) only ever moves velocity toward zero, so it now derives from
+   `RunDecelerationFrames` with every other grounded stop site rather than the
+   accel constant it historically borrowed. Behaviourally this only touches roll
+   startup — recovery begins with velocity already zeroed by the travel phase —
+   and it shortens the roll's total ground travel from 2.2 to 1.925 units purely
+   through the −15% move speed, not through this choice.
+
+3. **§2.2 stage geometry: no platform beyond the Globe canopy needed lowering.**
+   The reachability walker (`EveryAuthoredPlatformIsReachableAndLandableByJumping`)
+   passes on all ten stages at `JumpSpeed` 11.5. Measured double-jump ceiling is
+   ≈4.21 units (apex 2.108 per jump, second jump spent the tick velocity turns
+   negative), so Orléans' 4.0 centre platform clears by ≈0.21 and Berlin's 3.6 by
+   ≈0.61. Globe's canopy went 4.4 → 4.0 with its orb anchor 4.9 → 4.5 in all four
+   places (`FighterStageGeometry.cs`, the `Dossiers` table, the scene's
+   `Geometry/Balcony` body at pixel y 425 → 450, and `OrbSpawnPoints/Balcony` at
+   393.75 → 418.75).
+
+4. **§2.3 tutorial gate: the double-jump stack was rebuilt, and it was already
+   broken before this batch.** `Level00Controller`'s mobility stack asked for a
+   188 px hop from the floor to the first platform and another 240 px to the
+   gate platform. No character has ever cleared 240 px, and before §2.3 the five
+   single-jump kits could not clear even the first hop — Lincoln reached 113 px
+   on his only jump. Both hops are now 128 px (`BuildPlatform(1700, 780, 200)`,
+   `BuildPlatform(1900, 650, 180)`, gate at `(1900, 570)`), sized against
+   Lincoln's post-retune 93.75 px single / 187.5 px double jump: the second jump
+   is required and ~46% of headroom remains. Note the gate cannot *force* a
+   double jump for the whole roster — Pocahontas clears 219.7 px on one jump,
+   more than Lincoln manages on two — so it teaches rather than gates on the
+   input.
+
+5. **Movement determinism tests re-tuned rather than weakened.** Three Florence
+   platform cases (`FighterLandsOnAFlorencePlatformAfterAJump`,
+   `DropThroughLeavesThePlatformAndLandsOnTheSolidBaseFloor`,
+   `WalkingOffAPlatformEdgeRemovesGroundSupport`) climbed 2.4 units on one jump,
+   which is now above the 2.108 single-jump apex; they share a new
+   `RiseOntoPlatform` helper that spends the second jump, keeping every original
+   assertion. `RollPassesThroughOpponentAndIgnoresHitsOnlyDuringInvulnerableFrames`
+   now walks the pair into pushbox contact (0.8 units) before rolling, because
+   the 1.925-unit roll no longer crosses the full 2-unit spawn gap.
+   `FighterCpuBehaviorTests.SimulateRecovery` re-aligned its integrator literals
+   to the new default loadout (jump 13 → 11.5, move 8 → 7) **and** its modelled
+   `remainingJumps` 1 → 2, since §2.3 means no single-jump kit exists any more;
+   with one jump the Normal band's 15–20-frame reaction delay no longer fits
+   inside the reduced apex from that starting depth.
+
+6. **Test delta +3, no removals.** Added `ReleasedStickDeceleratesOverTheAuthoredStopRamp`,
+   `HoldingDownInTheAirFastFallsImmediatelyButNeverDuringHitstun`, and
+   `EveryAuthoredKitCarriesASecondJump`; `GroundRunAcceleratesOverEightFrames`
+   was rewritten in place as `GroundRunAcceleratesOverTheAuthoredRunRamp`.
+   Expected suite total after A1 alone: **1420**. Levels 07/12/13/14/15 content
+   suites fail in this worktree (7 cases) — B2's scope, deliberately untouched.
+
 ### A3 attacks-and-inputs (2026-08-10)
 
 1. **Directional knockback reaches 2.5 / 0.3 through the existing

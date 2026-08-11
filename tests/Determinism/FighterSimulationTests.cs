@@ -256,20 +256,173 @@ public class FighterSimulationTests {
         AssertThat(hybrid.GetMatchState().MatchState).IsEqual(2);
     }
 
+    /// <summary>
+    /// The grounded run ramp: <c>UniversalMovementRules.RunAccelerationFrames</c>
+    /// frames from a standstill to the default loadout's full move speed, and not
+    /// a frame sooner. Both constants moved with the 2026-08-10 feel batch
+    /// (§2.1: ramp 8 → 14 frames, default move speed 8 → 7 u/s), so the ramp
+    /// length is read from the rulebook and only the terminal speed is a literal.
+    /// </summary>
     [TestCase]
-    public void GroundRunAcceleratesOverEightFrames() {
+    public void GroundRunAcceleratesOverTheAuthoredRunRamp() {
         var simulation = new FighterSimulation(spawnDistance: 8, rules: FighterMatchRules.Disabled);
+        xpTURN.Klotho.Deterministic.Math.FP64 fullSpeed =
+            xpTURN.Klotho.Deterministic.Math.FP64.FromInt(7);
 
-        simulation.Advance(Frame(0, 127, GameplayButtons.None), Frame(0, 0, GameplayButtons.None));
-        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent firstFrame)).IsTrue();
-        AssertThat(firstFrame.Velocity.x > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
-        AssertThat(firstFrame.Velocity.x < xpTURN.Klotho.Deterministic.Math.FP64.FromInt(8)).IsTrue();
+        // Every frame short of the ramp length must still be below full speed —
+        // that is what rejects a shorter ramp sneaking back in.
+        for (int tick = 0; tick < UniversalMovementRules.RunAccelerationFrames - 1; tick++) {
+            simulation.Advance(Frame(tick, 127, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent midRamp)).IsTrue();
+            AssertThat(midRamp.Velocity.x > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
+            AssertThat(midRamp.Velocity.x < fullSpeed).OverrideFailureMessage(
+                $"the run ramp topped out on frame {tick + 1} of "
+                + $"{UniversalMovementRules.RunAccelerationFrames}.").IsTrue();
+        }
 
-        for (int tick = 1; tick < UniversalMovementRules.RunAccelerationFrames; tick++) {
+        int lastRampTick = UniversalMovementRules.RunAccelerationFrames - 1;
+        simulation.Advance(
+            Frame(lastRampTick, 127, GameplayButtons.None),
+            Frame(lastRampTick, 0, GameplayButtons.None));
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent accelerated)).IsTrue();
+        AssertThat(accelerated.Velocity.x.RawValue).IsEqual(fullSpeed.RawValue);
+    }
+
+    /// <summary>
+    /// The companion grounded stop ramp (§2.1): releasing the stick at full speed
+    /// bleeds to a standstill over <c>RunDecelerationFrames</c>, a separate and
+    /// deliberately shorter constant than the accel ramp. The one-frame slack on
+    /// the terminal assertion is fixed-point rounding on <c>speed / 12</c>, not
+    /// tolerance for a wrong constant — the "still moving" assertion two frames
+    /// earlier is what rejects the old shared 8-frame ramp.
+    /// </summary>
+    [TestCase]
+    public void ReleasedStickDeceleratesOverTheAuthoredStopRamp() {
+        var simulation = new FighterSimulation(spawnDistance: 8, rules: FighterMatchRules.Disabled);
+        xpTURN.Klotho.Deterministic.Math.FP64 fullSpeed =
+            xpTURN.Klotho.Deterministic.Math.FP64.FromInt(7);
+
+        for (int tick = 0; tick <= UniversalMovementRules.RunAccelerationFrames; tick++) {
             simulation.Advance(Frame(tick, 127, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
-        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent accelerated)).IsTrue();
-        AssertThat(accelerated.Velocity.x.RawValue).IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.FromInt(8).RawValue);
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent running)).IsTrue();
+        AssertThat(running.Velocity.x.RawValue).IsEqual(fullSpeed.RawValue);
+
+        int released = UniversalMovementRules.RunAccelerationFrames + 1;
+        for (int step = 0; step < UniversalMovementRules.RunDecelerationFrames - 2; step++) {
+            simulation.Advance(
+                Frame(released + step, 0, GameplayButtons.None),
+                Frame(released + step, 0, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent slowing)).IsTrue();
+        AssertThat(slowing.Velocity.x > xpTURN.Klotho.Deterministic.Math.FP64.Zero)
+            .OverrideFailureMessage("the stop ramp is shorter than RunDecelerationFrames.").IsTrue();
+        AssertThat(slowing.Velocity.x < fullSpeed).IsTrue();
+
+        for (int step = UniversalMovementRules.RunDecelerationFrames - 2;
+             step <= UniversalMovementRules.RunDecelerationFrames;
+             step++) {
+            simulation.Advance(
+                Frame(released + step, 0, GameplayButtons.None),
+                Frame(released + step, 0, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent stopped)).IsTrue();
+        AssertThat(stopped.Velocity.x.RawValue)
+            .IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.Zero.RawValue);
+    }
+
+    /// <summary>
+    /// Fast-fall (§2.9): stateless, derived from held Down every airborne tick.
+    /// The clamp lands on the same tick the input arrives — no ramp — and it is
+    /// suppressed while the victim is in hitstun so a launch cannot be cut short
+    /// by a player who happens to be holding Down.
+    /// </summary>
+    [TestCase]
+    public void HoldingDownInTheAirFastFallsImmediatelyButNeverDuringHitstun() {
+        var simulation = new FighterSimulation(spawnDistance: 8, rules: FighterMatchRules.Disabled);
+        xpTURN.Klotho.Deterministic.Math.FP64 floor =
+            -xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(UniversalMovementRules.FastFallSpeed);
+
+        // Rise on a plain jump, confirm the fighter is genuinely climbing.
+        simulation.Advance(Frame(0, 0, GameplayButtons.Jump), Frame(0, 0, GameplayButtons.None));
+        for (int tick = 1; tick < 6; tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent rising)).IsTrue();
+        AssertThat(rising.IsGrounded).IsEqual(0);
+        AssertThat(rising.Velocity.y > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
+
+        simulation.Advance(Frame(6, 0, GameplayButtons.Down), Frame(6, 0, GameplayButtons.None));
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent falling)).IsTrue();
+        AssertThat(falling.Velocity.y.RawValue).OverrideFailureMessage(
+            "fast-fall did not pin vertical velocity on the first tick Down was held.")
+            .IsEqual(floor.RawValue);
+
+        // Hitstun owns the victim. Player two holds Down for the whole run while
+        // player one lands one basic: every basic launches (Velocity.y = force,
+        // IsGrounded = 0), so the victim spends its hitstun airborne with Down
+        // held — exactly the case the rule must ignore.
+        var stunned = new FighterSimulation(spawnDistance: 1, rules: FighterMatchRules.Disabled);
+        bool sawAirborneHitstun = false;
+        bool clampedDuringHitstun = false;
+        for (int tick = 0; tick < 140; tick++) {
+            stunned.Advance(
+                Frame(tick, 0, tick == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None),
+                Frame(tick, 0, GameplayButtons.Down));
+            AssertThat(stunned.TryGetFighter(1, out FighterStateComponent victim)).IsTrue();
+            if (victim.HitstunFrames <= 0) continue;
+            if (victim.IsGrounded == 0) sawAirborneHitstun = true;
+            if (victim.Velocity.y.RawValue == floor.RawValue) clampedDuringHitstun = true;
+        }
+        AssertThat(sawAirborneHitstun).OverrideFailureMessage(
+            "the scenario never put the victim into airborne hitstun.").IsTrue();
+        AssertThat(clampedDuringHitstun).OverrideFailureMessage(
+            "fast-fall engaged while the victim was in hitstun.").IsFalse();
+    }
+
+    /// <summary>
+    /// §2.3 gave the whole roster two jumps. Tesla's authored kit is the check
+    /// that matters: it shipped at <c>MaxJumpCount = 1</c>, so a loadout built
+    /// from its resource must now grant a real second airborne jump.
+    /// </summary>
+    [TestCase]
+    public void EveryAuthoredKitCarriesASecondJump() {
+        foreach (string id in new[] {
+                     "einstein", "joan", "leonardo", "lincoln", "cleopatra",
+                     "tesla", "shakespeare", "mozart", "pocahontas" }) {
+            CharacterData data =
+                FTT.Core.AuthoredResources.Load<CharacterData>($"res://resources/Characters/{id}_data.tres");
+            AssertObject(data).IsNotNull();
+            AssertThat(FighterLoadoutFactory.FromCharacterData(data).MaxJumpCount)
+                .OverrideFailureMessage($"{id} does not have the universal double jump.").IsEqual(2);
+        }
+
+        CharacterData tesla =
+            FTT.Core.AuthoredResources.Load<CharacterData>("res://resources/Characters/tesla_data.tres");
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(tesla),
+            FighterLoadout.Default(FighterCharacterID.Einstein),
+            seed: 7,
+            spawnDistance: 8);
+
+        simulation.Advance(Frame(0, 0, GameplayButtons.Jump), Frame(0, 0, GameplayButtons.None));
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent afterFirst)).IsTrue();
+        AssertThat(afterFirst.RemainingJumps).IsEqual(1);
+
+        // Wait for the rise to stall, then spend the second jump.
+        for (int tick = 1; tick < 40; tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            if (simulation.TryGetFighter(0, out FighterStateComponent airborne)
+                && airborne.Velocity.y < xpTURN.Klotho.Deterministic.Math.FP64.Zero) break;
+        }
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent descending)).IsTrue();
+        AssertThat(descending.IsGrounded).IsEqual(0);
+
+        simulation.Advance(Frame(40, 0, GameplayButtons.Jump), Frame(40, 0, GameplayButtons.None));
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent doubleJumped)).IsTrue();
+        AssertThat(doubleJumped.Velocity.y > xpTURN.Klotho.Deterministic.Math.FP64.Zero)
+            .OverrideFailureMessage("the second jump did not launch the fighter.").IsTrue();
+        AssertThat(doubleJumped.RemainingJumps).IsEqual(0);
     }
 
     [TestCase]
@@ -366,12 +519,26 @@ public class FighterSimulationTests {
     [TestCase]
     public void RollPassesThroughOpponentAndIgnoresHitsOnlyDuringInvulnerableFrames() {
         var simulation = new FighterSimulation(spawnDistance: 1, rules: FighterMatchRules.Disabled);
+        // Walk the pair into pushbox contact (0.8 units) before rolling. The roll
+        // covers 11 travel frames at 1.5x move speed — 1.925 units since the
+        // 2026-08-10 −15% move-speed retune (feel batch §2.1), down from 2.2 —
+        // so the pass-through is now exercised from the contact range a real
+        // match actually produces rather than across the full 2-unit spawn gap.
+        for (int approach = 0; approach < 40; approach++) {
+            simulation.Advance(
+                Frame(approach, 127, GameplayButtons.None),
+                Frame(approach, -127, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent beforeRoll)).IsTrue();
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent blocker)).IsTrue();
+        AssertThat(beforeRoll.Position.x < blocker.Position.x).IsTrue();
+
         for (int tick = 0; tick < UniversalMovementRules.RollTotalFrames; tick++) {
             GameplayButtons playerOne = tick == 0 ? GameplayButtons.Roll : GameplayButtons.None;
             GameplayButtons playerTwo = tick == UniversalMovementRules.RollStartupFrames
                 ? GameplayButtons.BasicAttack
                 : GameplayButtons.None;
-            simulation.Advance(Frame(tick, 127, playerOne), Frame(tick, 0, playerTwo));
+            simulation.Advance(Frame(40 + tick, 127, playerOne), Frame(40 + tick, 0, playerTwo));
         }
 
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent roller)).IsTrue();
@@ -381,7 +548,7 @@ public class FighterSimulationTests {
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
         AssertThat(runtime.UniversalMovementState).IsEqual((int)UniversalMovementPhase.None);
 
-        int recoveryCompleteTick = UniversalMovementRules.RollTotalFrames;
+        int recoveryCompleteTick = 40 + UniversalMovementRules.RollTotalFrames;
         simulation.Advance(
             Frame(recoveryCompleteTick, 0, GameplayButtons.None),
             Frame(recoveryCompleteTick, 0, GameplayButtons.BasicAttack));
