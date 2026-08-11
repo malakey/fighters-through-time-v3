@@ -304,6 +304,13 @@ namespace FTT.Characters {
 		private bool _attackStartedAerial;
 		private bool _attackStartedCrouched;
 		private bool _attackAnimationDriven;
+		/// <summary>
+		/// Which basic the running swing is (gameplay feel §2.8):
+		/// <c>BasicComboRules.VariantChain</c>, <c>VariantUpAttack</c>, or
+		/// <c>VariantDownAir</c>. The two directional strikes are single swings
+		/// outside the chain — they never buffer, hold, or advance a counter.
+		/// </summary>
+		private int _attackVariant = FTT.Combat.BasicComboRules.VariantChain;
 		private bool _specialStartedAerial;
 		private bool _ultimateStartedAerial;
 
@@ -347,6 +354,24 @@ namespace FTT.Characters {
 			new(42f, -50f),
 			new(20f, -12f)
 		};
+
+		// Directional attacks (§2.8). Frames come from the shared rulebook; the
+		// pixel boxes mirror the simulation's world-unit reaches at the
+		// repository's 62.5 px/unit convention (up-attack |dx| <= 1.2 and 2.4
+		// above the origin; down-air |dx| <= 1.0 and 2.0 below). Offsets are
+		// facing-independent — these strikes are centred on the fighter.
+		private static readonly FTT.Combat.CombatFrameTimeline UpAttackTimeline = new(
+			FTT.Combat.BasicComboRules.UpAttackStartupFrames,
+			FTT.Combat.BasicComboRules.UpAttackActiveFrames,
+			FTT.Combat.BasicComboRules.UpAttackRecoveryFrames);
+		private static readonly FTT.Combat.CombatFrameTimeline DownAirTimeline = new(
+			FTT.Combat.BasicComboRules.DownAirStartupFrames,
+			FTT.Combat.BasicComboRules.DownAirActiveFrames,
+			FTT.Combat.BasicComboRules.DownAirRecoveryFrames);
+		private static readonly Vector2 UpAttackHitboxSize = new(150f, 150f);
+		private static readonly Vector2 UpAttackHitboxOffset = new(0f, -75f);
+		private static readonly Vector2 DownAirHitboxSize = new(125f, 125f);
+		private static readonly Vector2 DownAirHitboxOffset = new(0f, 62.5f);
 
 		public override void _Ready() {
 			AddToGroup("StoryPlayer");
@@ -926,7 +951,11 @@ namespace FTT.Characters {
 
 			CheckDropThrough();
 
-			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack) && !_attackHitActive) {
+			// Directional attacks are single strikes: they never buffer into the
+			// three-hit string (§2.8).
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)
+				&& !_attackHitActive
+				&& _attackVariant == FTT.Combat.BasicComboRules.VariantChain) {
 				_nextAttackBuffered = true;
 			}
 
@@ -1018,6 +1047,7 @@ namespace FTT.Characters {
 			GroundComboCounter = 0;
 			AerialComboCounter = 0;
 			ComboCounter = 0;
+			_attackVariant = FTT.Combat.BasicComboRules.VariantChain;
 		}
 
 		private void ProcessUsingSpecial(float dt) {
@@ -1545,6 +1575,13 @@ namespace FTT.Characters {
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)) {
 				_attackStartedAerial = !IsOnFloor() || CurrentState == CharacterState.Airborne;
 				_attackStartedCrouched = CurrentState == CharacterState.Crouching;
+				// Gameplay feel §2.8 — one shared selection rule with the Fighter
+				// simulation. Up wins; airborne Down is the down-air; grounded
+				// Down (including the Crouching state) is the normal string.
+				_attackVariant = FTT.Combat.BasicComboRules.SelectAttackVariant(
+					upHeld: CurrentInputFrame.Vertical < FTT.Combat.BasicComboRules.StoryUpInputThreshold,
+					downHeld: CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down),
+					airborne: _attackStartedAerial);
 				if (_attackStartedAerial) {
 					AerialComboCounter = 0;
 					GroundComboCounter = 0;
@@ -1566,6 +1603,11 @@ namespace FTT.Characters {
 			_attackInRecovery = false;
 			_nextAttackBuffered = false;
 			_inRecoveryHold = false;
+
+			if (_attackVariant != FTT.Combat.BasicComboRules.VariantChain) {
+				StartDirectionalAttack();
+				return;
+			}
 
 			if (_meleeHitbox != null) {
 				float baseDmg = (Data?.BasicAttackDamage ?? 10f) * StoryBasicDamageMultiplier;
@@ -1614,19 +1656,63 @@ namespace FTT.Characters {
 			_attackFrameProgress = 0f;
 		}
 
+		/// <summary>
+		/// Arms the up-attack or down-air (§2.8): a single strike outside the
+		/// three-hit chain. Damage, hitstun and both knockback components come
+		/// from <see cref="FTT.Combat.BasicComboRules"/>, the same table the
+		/// Fighter simulation reads. There is no authored animation for either
+		/// move, so these always run on the frame clock; the placeholder sprite
+		/// animation is the opener's, reused as presentation scaffolding.
+		/// </summary>
+		private void StartDirectionalAttack() {
+			bool upAttack = _attackVariant == FTT.Combat.BasicComboRules.VariantUpAttack;
+			if (_meleeHitbox != null) {
+				float baseDmg = (Data?.BasicAttackDamage ?? 10f) * StoryBasicDamageMultiplier;
+				_meleeHitbox.Damage = baseDmg * FTT.Combat.BasicComboRules.DirectionalAttackDamageMultiplier;
+				_meleeHitbox.AttackID = $"{Data?.CharacterID ?? "fighter"}.basic";
+				_meleeHitbox.HitboxID = upAttack
+					? FTT.Combat.BasicComboRules.UpAttackHitboxID
+					: FTT.Combat.BasicComboRules.DownAirHitboxID;
+				_meleeHitbox.AttackClass = FTT.Combat.AttackClass.Basic;
+				_meleeHitbox.HitstunDuration =
+					FTT.Combat.BasicComboRules.DirectionalAttackHitstunFrames / 60f;
+				// Both strikes launch: a small horizontal nudge and a strong
+				// upward component (Godot 2D Y is down, so upward is negative).
+				float baseKB = Data?.BasicAttackKnockback ?? 3f;
+				_meleeHitbox.KnockbackForce = new Vector2(
+					baseKB * FTT.Combat.BasicComboRules.DirectionalAttackHorizontalKnockback,
+					-baseKB * FTT.Combat.BasicComboRules.DirectionalAttackVerticalKnockback);
+			}
+
+			TransitionTo(CharacterState.Attacking);
+			PlayAnimation("basic_attack_1");
+			// No `basic_{ground|air}_N` animation exists for the directional
+			// attacks, so the authored-animation path must not be armed here.
+			_attackAnimationDriven = false;
+			_attackFrameProgress = 0f;
+		}
+
 		public void OnAttackActiveStarted() {
 			if (CurrentState != CharacterState.Attacking || _attackHitActive) return;
 			_attackHitActive = true;
 			int comboIdx = GetActiveComboIndex();
+			bool directional = _attackVariant != FTT.Combat.BasicComboRules.VariantChain;
+			bool upAttack = _attackVariant == FTT.Combat.BasicComboRules.VariantUpAttack;
 			// Story-only AttackRange minors extend basic-attack melee reach.
-			Vector2 hitboxSize = (_attackStartedAerial
-				? AerialComboHitboxSizes[comboIdx]
-				: ComboHitboxSizes[comboIdx]) * StoryAttackRangeMultiplier;
-			Vector2 hitboxOffset = _attackStartedAerial
-				? (_aerialHitboxMarker?.Position ?? AerialComboHitboxOffsets[comboIdx])
-				: ComboHitboxOffsets[comboIdx];
+			Vector2 hitboxSize = (directional
+				? (upAttack ? UpAttackHitboxSize : DownAirHitboxSize)
+				: _attackStartedAerial
+					? AerialComboHitboxSizes[comboIdx]
+					: ComboHitboxSizes[comboIdx]) * StoryAttackRangeMultiplier;
+			Vector2 hitboxOffset = directional
+				? (upAttack ? UpAttackHitboxOffset : DownAirHitboxOffset)
+				: _attackStartedAerial
+					? (_aerialHitboxMarker?.Position ?? AerialComboHitboxOffsets[comboIdx])
+					: ComboHitboxOffsets[comboIdx];
 			float facingMul = IsFacingRight ? 1f : -1f;
-			Vector2 resolvedOffset = _attackStartedAerial
+			// The directional boxes are centred on the fighter, so facing does
+			// not mirror them (their X offset is zero by construction).
+			Vector2 resolvedOffset = directional || _attackStartedAerial
 				? hitboxOffset
 				: new Vector2(hitboxOffset.X * facingMul, hitboxOffset.Y);
 
@@ -1657,6 +1743,17 @@ namespace FTT.Characters {
 			_attackAnimationDriven = false;
 			int comboIndex = GetActiveComboIndex();
 
+			// A directional attack exits straight out: no buffered continuation,
+			// no chain-hold window, chain reset (§2.8).
+			if (_attackVariant != FTT.Combat.BasicComboRules.VariantChain) {
+				_attackVariant = FTT.Combat.BasicComboRules.VariantChain;
+				ResetActiveCombo();
+				_nextAttackBuffered = false;
+				_inRecoveryHold = false;
+				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
+				return;
+			}
+
 			if (comboIndex < 2 && _nextAttackBuffered) {
 				AdvanceActiveCombo();
 				StartComboHit();
@@ -1677,6 +1774,7 @@ namespace FTT.Characters {
 			_attackAnimationDriven = false;
 			_inRecoveryHold = false;
 			_nextAttackBuffered = false;
+			_attackVariant = FTT.Combat.BasicComboRules.VariantChain;
 			OnAttackActiveEnded();
 			_attackInRecovery = false;
 		}
@@ -1687,7 +1785,9 @@ namespace FTT.Characters {
 			2);
 
 		private FTT.Combat.CombatFrameTimeline GetActiveComboTimeline() =>
-			(_attackStartedAerial ? AerialComboTimelines : ComboTimelines)[GetActiveComboIndex()];
+			_attackVariant == FTT.Combat.BasicComboRules.VariantUpAttack ? UpAttackTimeline
+			: _attackVariant == FTT.Combat.BasicComboRules.VariantDownAir ? DownAirTimeline
+			: (_attackStartedAerial ? AerialComboTimelines : ComboTimelines)[GetActiveComboIndex()];
 
 		private void AdvanceActiveCombo() {
 			if (_attackStartedAerial) AerialComboCounter = Mathf.Min(2, AerialComboCounter + 1);

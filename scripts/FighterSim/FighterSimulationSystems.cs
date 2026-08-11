@@ -575,21 +575,34 @@ namespace FTT.FighterSim {
                 if (basicPressed
                     && !FighterUniversalMovementRules.IsCombatLocked(in runtime)
                     && !FighterBasicAttackRules.IsBlockStance(in fighter, in runtime)) {
-                    FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, 0);
+                    FighterBasicAttackRules.StartSwing(
+                        ref fighter,
+                        ref runtime,
+                        0,
+                        FighterBasicAttackRules.SelectVariant(in fighter, in runtime));
                 }
                 return;
             }
 
             bool aerial = (runtime.AttackFlags & FighterBasicAttackRules.FlagAerial) != 0;
+            bool variantSwing = FighterBasicAttackRules.IsVariantSwing(in runtime);
             if (aerial && fighter.IsGrounded != 0) {
                 // Landing cancels an aerial string with no landing lag.
                 FighterBasicAttackRules.CancelString(ref runtime);
                 return;
             }
 
-            if (basicPressed) {
+            // Directional attacks stand outside the chain: they neither buffer
+            // into the string nor continue it.
+            if (basicPressed && !variantSwing) {
                 if (phase == FighterBasicAttackRules.PhaseChainHold) {
-                    if (runtime.ComboIndex < FTT.Combat.BasicComboRules.ComboHits - 1) {
+                    // A fresh direction re-selects at this swing start, so
+                    // Up + BasicAttack out of the hold window starts an
+                    // up-attack (chain reset) rather than continuing the string.
+                    int variant = FighterBasicAttackRules.SelectVariant(in fighter, in runtime);
+                    if (variant != FTT.Combat.BasicComboRules.VariantChain) {
+                        FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, 0, variant);
+                    } else if (runtime.ComboIndex < FTT.Combat.BasicComboRules.ComboHits - 1) {
                         FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, runtime.ComboIndex + 1);
                     }
                     return;
@@ -617,18 +630,20 @@ namespace FTT.FighterSim {
             switch (phase) {
                 case FighterBasicAttackRules.PhaseStartup:
                     runtime.AttackPhase = FighterBasicAttackRules.PhaseActive;
-                    runtime.AttackPhaseFrames = aerial
-                        ? FTT.Combat.BasicComboRules.AerialActiveFrames[step]
-                        : FTT.Combat.BasicComboRules.GroundActiveFrames[step];
+                    runtime.AttackPhaseFrames =
+                        FighterBasicAttackRules.ActiveFramesFor(runtime.AttackFlags, step);
                     break;
                 case FighterBasicAttackRules.PhaseActive:
                     runtime.AttackPhase = FighterBasicAttackRules.PhaseRecovery;
-                    runtime.AttackPhaseFrames = aerial
-                        ? FTT.Combat.BasicComboRules.AerialRecoveryFrames[step]
-                        : FTT.Combat.BasicComboRules.GroundRecoveryFrames[step];
+                    runtime.AttackPhaseFrames =
+                        FighterBasicAttackRules.RecoveryFramesFor(runtime.AttackFlags, step);
                     break;
                 case FighterBasicAttackRules.PhaseRecovery:
-                    if ((runtime.AttackFlags & FighterBasicAttackRules.FlagBuffered) != 0
+                    // A directional attack exits straight out — no chain hold,
+                    // no buffered continuation, combo index already zero.
+                    if (variantSwing) {
+                        FighterBasicAttackRules.CancelString(ref runtime);
+                    } else if ((runtime.AttackFlags & FighterBasicAttackRules.FlagBuffered) != 0
                         && step < FTT.Combat.BasicComboRules.ComboHits - 1) {
                         FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, step + 1);
                     } else if (step >= FTT.Combat.BasicComboRules.ComboHits - 1) {
@@ -742,11 +757,59 @@ namespace FTT.FighterSim {
         public const int FlagAerial = 1;
         public const int FlagHitResolved = 2;
         public const int FlagBuffered = 4;
+        /// <summary>Directional-attack variant latch (§2.8): up-attack.</summary>
+        public const int FlagUpAttack = 8;
+        /// <summary>Directional-attack variant latch (§2.8): down-air.</summary>
+        public const int FlagDownAir = 16;
+        /// <summary>Either variant bit — a swing outside the three-hit chain.</summary>
+        public const int VariantMask = FlagUpAttack | FlagDownAir;
 
         private const int BlockButton = 1 << 6;
 
         public static bool IsSwinging(in FighterRuntimeComponent runtime) =>
             runtime.AttackPhase is PhaseStartup or PhaseActive or PhaseRecovery;
+
+        /// <summary>True while the running swing is an up-attack or a down-air.</summary>
+        public static bool IsVariantSwing(in FighterRuntimeComponent runtime) =>
+            (runtime.AttackFlags & VariantMask) != 0;
+
+        /// <summary>
+        /// Reads the swing variant out of the held input, through the shared
+        /// selection rule. Quantized MoveY &lt; -30 is the sim's "Up held"
+        /// (Story uses the float equivalent, -0.25); Down is the button bit,
+        /// as everywhere else in the simulation.
+        /// </summary>
+        public static int SelectVariant(
+            in FighterStateComponent fighter,
+            in FighterRuntimeComponent runtime) =>
+            FTT.Combat.BasicComboRules.SelectAttackVariant(
+                upHeld: runtime.MoveY < -30,
+                downHeld: (runtime.HeldButtons & (1 << 1)) != 0,
+                airborne: fighter.IsGrounded == 0);
+
+        public static int StartupFramesFor(int attackFlags, int comboStep) {
+            if ((attackFlags & FlagUpAttack) != 0) return FTT.Combat.BasicComboRules.UpAttackStartupFrames;
+            if ((attackFlags & FlagDownAir) != 0) return FTT.Combat.BasicComboRules.DownAirStartupFrames;
+            return (attackFlags & FlagAerial) != 0
+                ? FTT.Combat.BasicComboRules.AerialStartupFrames[comboStep]
+                : FTT.Combat.BasicComboRules.GroundStartupFrames[comboStep];
+        }
+
+        public static int ActiveFramesFor(int attackFlags, int comboStep) {
+            if ((attackFlags & FlagUpAttack) != 0) return FTT.Combat.BasicComboRules.UpAttackActiveFrames;
+            if ((attackFlags & FlagDownAir) != 0) return FTT.Combat.BasicComboRules.DownAirActiveFrames;
+            return (attackFlags & FlagAerial) != 0
+                ? FTT.Combat.BasicComboRules.AerialActiveFrames[comboStep]
+                : FTT.Combat.BasicComboRules.GroundActiveFrames[comboStep];
+        }
+
+        public static int RecoveryFramesFor(int attackFlags, int comboStep) {
+            if ((attackFlags & FlagUpAttack) != 0) return FTT.Combat.BasicComboRules.UpAttackRecoveryFrames;
+            if ((attackFlags & FlagDownAir) != 0) return FTT.Combat.BasicComboRules.DownAirRecoveryFrames;
+            return (attackFlags & FlagAerial) != 0
+                ? FTT.Combat.BasicComboRules.AerialRecoveryFrames[comboStep]
+                : FTT.Combat.BasicComboRules.GroundRecoveryFrames[comboStep];
+        }
 
         /// <summary>
         /// The grounded block stance, mirroring Story's Blocking state: grounded,
@@ -776,14 +839,18 @@ namespace FTT.FighterSim {
         public static void StartSwing(
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
-            int comboStep) {
+            int comboStep,
+            int variant = FTT.Combat.BasicComboRules.VariantChain) {
             bool aerial = fighter.IsGrounded == 0;
-            runtime.ComboIndex = comboStep;
+            // A directional attack is a single strike outside the chain: the
+            // combo index resets to zero and never advances from here.
+            runtime.ComboIndex = variant == FTT.Combat.BasicComboRules.VariantChain ? comboStep : 0;
             runtime.AttackPhase = PhaseStartup;
-            runtime.AttackFlags = aerial ? FlagAerial : 0;
-            runtime.AttackPhaseFrames = aerial
-                ? FTT.Combat.BasicComboRules.AerialStartupFrames[comboStep]
-                : FTT.Combat.BasicComboRules.GroundStartupFrames[comboStep];
+            int flags = aerial ? FlagAerial : 0;
+            if (variant == FTT.Combat.BasicComboRules.VariantUpAttack) flags |= FlagUpAttack;
+            else if (variant == FTT.Combat.BasicComboRules.VariantDownAir) flags |= FlagDownAir;
+            runtime.AttackFlags = flags;
+            runtime.AttackPhaseFrames = StartupFramesFor(flags, runtime.ComboIndex);
             // Defensive: universal movement is provably None at every current call
             // site (IsCombatLocked gates fresh swings, and no roll can start while
             // a string is active), so this cancel is a no-op today. It stays so a
@@ -791,13 +858,9 @@ namespace FTT.FighterSim {
             FighterUniversalMovementRules.Cancel(ref runtime);
             // Legacy "busy" mirror for observers (HUD, CPU pacing): the remaining
             // swing length. No gameplay system reads it any more.
-            runtime.BasicCooldownFrames = aerial
-                ? FTT.Combat.BasicComboRules.AerialStartupFrames[comboStep]
-                    + FTT.Combat.BasicComboRules.AerialActiveFrames[comboStep]
-                    + FTT.Combat.BasicComboRules.AerialRecoveryFrames[comboStep]
-                : FTT.Combat.BasicComboRules.GroundStartupFrames[comboStep]
-                    + FTT.Combat.BasicComboRules.GroundActiveFrames[comboStep]
-                    + FTT.Combat.BasicComboRules.GroundRecoveryFrames[comboStep];
+            runtime.BasicCooldownFrames = StartupFramesFor(flags, runtime.ComboIndex)
+                + ActiveFramesFor(flags, runtime.ComboIndex)
+                + RecoveryFramesFor(flags, runtime.ComboIndex);
         }
     }
 
@@ -897,6 +960,19 @@ namespace FTT.FighterSim {
             FP64.FromDouble(FTT.Combat.BasicComboRules.KnockbackMultipliers[1]),
             FP64.FromDouble(FTT.Combat.BasicComboRules.KnockbackMultipliers[2])
         };
+        // Directional attacks (§2.8). Boxes are authored in world units around the
+        // attacker's origin; the Story pixel hitboxes mirror these proportions.
+        private static readonly FP64 UpAttackHorizontalReach = FP64.FromDouble(1.2);
+        private static readonly FP64 UpAttackVerticalReach = FP64.FromDouble(2.4);
+        private static readonly FP64 DownAirHorizontalReach = FP64.One;
+        private static readonly FP64 DownAirVerticalReach = FP64.FromInt(2);
+        private static readonly FP64 DirectionalDamageMultiplier =
+            FP64.FromDouble(FTT.Combat.BasicComboRules.DirectionalAttackDamageMultiplier);
+        private static readonly FP64 DirectionalHorizontalKnockback =
+            FP64.FromDouble(FTT.Combat.BasicComboRules.DirectionalAttackHorizontalKnockback);
+        private static readonly FP64 DirectionalVerticalKnockbackScale = FP64.FromDouble(
+            FTT.Combat.BasicComboRules.DirectionalAttackVerticalKnockback
+                / FTT.Combat.BasicComboRules.DirectionalAttackHorizontalKnockback);
 
         public void Update(ref Frame frame) {
             EntityRef first = default;
@@ -946,6 +1022,15 @@ namespace FTT.FighterSim {
             if (attackerRuntime.AttackPhase != FighterBasicAttackRules.PhaseActive) return;
             if ((attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagHitResolved) != 0) return;
             if (attacker.Stocks <= 0) return;
+
+            // Directional attacks (§2.8) own their own boxes and launch upward.
+            if (FighterBasicAttackRules.IsVariantSwing(in attackerRuntime)) {
+                ApplyDirectionalSwing(
+                    ref attacker, ref attackerRuntime, in attackerTuning,
+                    ref target, ref targetRuntime, in targetTuning);
+                return;
+            }
+
             if (FP64.Abs(target.Position.x - attacker.Position.x) > AttackRange) return;
             if (FP64.Abs(target.Position.y - attacker.Position.y) > AttackVerticalRange) return;
 
@@ -974,6 +1059,61 @@ namespace FTT.FighterSim {
                 attacker.Position.x,
                 true,
                 0);
+        }
+
+        /// <summary>
+        /// The two directional strikes (§2.8). Up-attack reaches above the
+        /// attacker's origin, down-air below it; both deal a flat 1.0x basic and
+        /// launch the victim upward through <c>verticalKnockbackScale</c>. Same
+        /// one-attempt-per-swing rule, same meter/status/block flow as the chain.
+        /// </summary>
+        private static void ApplyDirectionalSwing(
+            ref FighterStateComponent attacker,
+            ref FighterRuntimeComponent attackerRuntime,
+            in FighterTuningComponent attackerTuning,
+            ref FighterStateComponent target,
+            ref FighterRuntimeComponent targetRuntime,
+            in FighterTuningComponent targetTuning) {
+            bool upAttack = (attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagUpAttack) != 0;
+            FP64 horizontalReach = upAttack ? UpAttackHorizontalReach : DownAirHorizontalReach;
+            if (FP64.Abs(target.Position.x - attacker.Position.x) > horizontalReach) return;
+
+            // World Y is up: the up-attack box sits above the attacker's origin,
+            // the down-air box below it. Neither reaches past the origin plane.
+            FP64 verticalOffset = upAttack
+                ? target.Position.y - attacker.Position.y
+                : attacker.Position.y - target.Position.y;
+            FP64 verticalReach = upAttack ? UpAttackVerticalReach : DownAirVerticalReach;
+            if (verticalOffset < FP64.Zero || verticalOffset > verticalReach) return;
+
+            int damage = ScaleDamage(attackerTuning.BasicDamage, DirectionalDamageMultiplier);
+            // ApplyFighterHit derives both impulse axes from one magnitude, so the
+            // small horizontal factor is folded into the magnitude and the
+            // vertical scale carries the ratio back up to the authored 2.5x.
+            FP64 knockback = attackerTuning.BasicKnockback * DirectionalHorizontalKnockback;
+            attackerRuntime.AttackFlags |= FighterBasicAttackRules.FlagHitResolved;
+            FighterDamageRules.ApplyFighterHit(
+                ref attacker,
+                ref attackerRuntime,
+                ref target,
+                ref targetRuntime,
+                in targetTuning,
+                FighterDamageRules.BasicAttackClass,
+                damage,
+                knockback,
+                FTT.Combat.BasicComboRules.DirectionalAttackHitstunFrames,
+                (int)FTT.Core.StatusType.None,
+                0,
+                FP64.One,
+                attacker.Position.x,
+                true,
+                0,
+                DirectionalVerticalKnockbackScale);
+        }
+
+        private static int ScaleDamage(int value, FP64 scale) {
+            long numerator = (long)value * scale.RawValue + FP64.One.RawValue / 2;
+            return (int)(numerator / FP64.One.RawValue);
         }
 
         private static void TryCharacterUltimate(
