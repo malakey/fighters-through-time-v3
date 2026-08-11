@@ -61,10 +61,12 @@ public class FighterStageGeometryTests {
             new[] { (-6.5, 3.6, 1.3), (6.5, 3.6, 1.3) },
             new[] { -4.0, 0.0, 4.0 },
             new[] { (-6.5, 4.1), (6.5, 4.1), (0.0, 0.5) }),
+        // The tiring-house balcony dropped 4.4 → 4.0 with the 2026-08-10 jump
+        // retune (feel batch §2.2): the double-jump ceiling is ≈4.21 now.
         new("globe_theatre", 9,
-            new[] { (-5.0, 2.4, 1.4), (5.0, 2.4, 1.4), (0.0, 4.4, 1.2) },
+            new[] { (-5.0, 2.4, 1.4), (5.0, 2.4, 1.4), (0.0, 4.0, 1.2) },
             new[] { -5.0, 0.0, 5.0 },
-            new[] { (-5.0, 2.9), (5.0, 2.9), (0.0, 4.9) }),
+            new[] { (-5.0, 2.9), (5.0, 2.9), (0.0, 4.5) }),
         new("gettysburg_ridge", 10,
             new[] { (-4.5, 1.8, 1.2), (4.5, 1.8, 1.2) },
             new[] { -5.0, 0.0, 5.0 },
@@ -292,30 +294,16 @@ public class FighterStageGeometryTests {
     public void FighterLandsOnAFlorencePlatformAfterAJump() {
         var simulation = new FighterSimulation(seed: 11, stageGeometry: FighterStageGeometry.Florence);
         // Player one spawns at x = -4, directly under the left gear platform.
-        simulation.Advance(Frame(0, 0, GameplayButtons.Jump), Frame(0, 0, GameplayButtons.None));
-
-        bool landedOnPlatform = false;
-        for (int tick = 1; tick < 120; tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent fighter)).IsTrue();
-            if (fighter.IsGrounded != 0 && fighter.Position.y.RawValue == FP64.FromDouble(2.4).RawValue) {
-                landedOnPlatform = true;
-                break;
-            }
-        }
-        AssertThat(landedOnPlatform).IsTrue();
+        int landedTick = RiseOntoPlatform(simulation, FP64.FromDouble(2.4), 0);
+        AssertThat(landedTick >= 0).OverrideFailureMessage(
+            "the fighter never came to rest on the Florence gear platform.").IsTrue();
     }
 
     [TestCase]
     public void DropThroughLeavesThePlatformAndLandsOnTheSolidBaseFloor() {
         var simulation = new FighterSimulation(seed: 12, stageGeometry: FighterStageGeometry.Florence);
-        simulation.Advance(Frame(0, 0, GameplayButtons.Jump), Frame(0, 0, GameplayButtons.None));
-        int tick = 1;
-        for (; tick < 120; tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-            simulation.TryGetFighter(0, out FighterStateComponent state);
-            if (state.IsGrounded != 0 && state.Position.y > FP64.Zero) break;
-        }
+        int tick = RiseOntoPlatform(simulation, FP64.FromDouble(2.4), 0);
+        AssertThat(tick >= 0).IsTrue();
         simulation.TryGetFighter(0, out FighterStateComponent onPlatform);
         AssertThat(onPlatform.Position.y.RawValue).IsEqual(FP64.FromDouble(2.4).RawValue);
 
@@ -347,13 +335,8 @@ public class FighterStageGeometryTests {
     [TestCase]
     public void WalkingOffAPlatformEdgeRemovesGroundSupport() {
         var simulation = new FighterSimulation(seed: 13, stageGeometry: FighterStageGeometry.Florence);
-        simulation.Advance(Frame(0, 0, GameplayButtons.Jump), Frame(0, 0, GameplayButtons.None));
-        int tick = 1;
-        for (; tick < 120; tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-            simulation.TryGetFighter(0, out FighterStateComponent state);
-            if (state.IsGrounded != 0 && state.Position.y > FP64.Zero) break;
-        }
+        int tick = RiseOntoPlatform(simulation, FP64.FromDouble(2.4), 0);
+        AssertThat(tick >= 0).IsTrue();
 
         bool becameAirborne = false;
         for (tick++; tick < 400; tick++) {
@@ -421,6 +404,35 @@ public class FighterStageGeometryTests {
             PlayerInputFrame p2 = InputFor(1, tick);
             AssertThat(first.Advance(p1, p2)).IsEqual(second.Advance(p1, p2));
         }
+    }
+
+    /// <summary>
+    /// Climbs player one from the base floor onto the surface directly overhead,
+    /// spending the second jump the instant the first stalls, and returns the tick
+    /// it came to rest there (−1 if it never did). The 2026-08-10 jump retune
+    /// (feel batch §2.2) put the default loadout's single-jump apex at ≈2.11
+    /// units, below Florence's 2.4 gear platforms, so these platform cases climb
+    /// with the jump chain every kit now carries rather than one hop.
+    /// </summary>
+    private static int RiseOntoPlatform(FighterSimulation simulation, FP64 surfaceY, int startTick) {
+        bool spentAirJump = false;
+        for (int tick = startTick; tick < startTick + 200; tick++) {
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent fighter)).IsTrue();
+            if (fighter.IsGrounded != 0 && fighter.Position.y.RawValue == surfaceY.RawValue) return tick;
+
+            GameplayButtons buttons = GameplayButtons.None;
+            if (fighter.IsGrounded != 0) {
+                spentAirJump = false;
+                buttons = GameplayButtons.Jump;
+            } else if (!spentAirJump
+                       && fighter.Velocity.y < FP64.Zero
+                       && fighter.RemainingJumps > 0) {
+                buttons = GameplayButtons.Jump;
+                spentAirJump = true;
+            }
+            simulation.Advance(Frame(tick, 0, buttons), Frame(tick, 0, GameplayButtons.None));
+        }
+        return -1;
     }
 
     /// <summary>

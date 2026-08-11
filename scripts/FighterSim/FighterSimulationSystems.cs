@@ -208,6 +208,8 @@ namespace FTT.FighterSim {
         private const int RollButton = 1 << 10;
         private static readonly FP64 FixedDelta = FP64.One / FP64.FromInt(60);
         private static readonly FP64 Gravity = FP64.FromInt(-30);
+        /// <summary>Signed floor for fast-fall: -<c>UniversalMovementRules.FastFallSpeed</c>.</summary>
+        private static readonly FP64 FastFallSpeed = -FP64.FromDouble(UniversalMovementRules.FastFallSpeed);
         private static readonly FP64 RollSpeedMultiplier = FP64.FromDouble(UniversalMovementRules.RollSpeedMultiplier);
 
         private readonly FighterStageGeometry _geometry;
@@ -291,11 +293,25 @@ namespace FTT.FighterSim {
                             allowJump: !attacking && !blockStance);
                     }
                     if (fighter.IsGrounded == 0) {
+                        // Fast-fall (§2.9, 2026-08-10): a stateless rule derived
+                        // from held input every tick — no snapshot field. Holding
+                        // Down in the air cancels the warp float window and pins
+                        // vertical velocity to at least FastFallSpeed downward.
+                        // Hitstun and daze are handled by the branch above, which
+                        // never reaches here; the guard is kept explicit so the
+                        // rule survives a future restructure of the gate.
+                        bool fastFalling = (runtime.HeldButtons & DownButton) != 0
+                            && fighter.HitstunFrames <= 0
+                            && fighter.DazeFrames <= 0;
+                        if (fastFalling) runtime.FloatFrames = 0;
                         // Float glide (post-warp cancel) heavily reduces gravity.
                         FP64 gravityStep = runtime.FloatFrames > 0
                             ? Gravity * FixedDelta / FP64.FromInt(5)
                             : Gravity * FixedDelta;
                         fighter.Velocity.y += gravityStep;
+                        if (fastFalling && fighter.Velocity.y > FastFallSpeed) {
+                            fighter.Velocity.y = FastFallSpeed;
+                        }
                     }
                 }
 
@@ -436,7 +452,10 @@ namespace FTT.FighterSim {
             UniversalMovementPhase phase = (UniversalMovementPhase)runtime.UniversalMovementState;
             if (phase == UniversalMovementPhase.None) return false;
             FP64 direction = FP64.FromInt(runtime.UniversalMovementDirection == 0 ? 1 : runtime.UniversalMovementDirection);
-            FP64 runStep = tuning.MoveSpeed / FP64.FromInt(UniversalMovementRules.RunAccelerationFrames);
+            // Roll startup and recovery only ever bleed speed toward zero, so they
+            // take the grounded decel ramp with every other stop site (§2.1),
+            // not the accel ramp they historically borrowed.
+            FP64 runStep = tuning.MoveSpeed / FP64.FromInt(UniversalMovementRules.RunDecelerationFrames);
 
             switch (phase) {
                 case UniversalMovementPhase.RollStartup:
@@ -493,9 +512,23 @@ namespace FTT.FighterSim {
             FP64 input = rooted || lockHorizontal ? FP64.Zero : FP64.FromInt(runtime.MoveX) / FP64.FromInt(127);
             FP64 maximumSpeed = tuning.MoveSpeed * statusMoveMultiplier * speedBuffMultiplier;
             FP64 targetSpeed = input * maximumSpeed;
-            int accelerationFrames = fighter.IsGrounded != 0
-                ? UniversalMovementRules.RunAccelerationFrames
-                : 4;
+            // Grounded movement runs two ramps (2026-08-10 feel batch §2.1):
+            // accelerating toward a same-signed target uses the 14-frame run
+            // ramp, while bleeding speed off — a released stick, a rooted or
+            // block-locked zero target, or a reversal against current
+            // velocity — uses the 12-frame decel ramp. Air control keeps its
+            // single 4-frame constant in both modes.
+            int accelerationFrames;
+            if (fighter.IsGrounded == 0) {
+                accelerationFrames = 4;
+            } else {
+                bool decelerating = targetSpeed == FP64.Zero
+                    || (targetSpeed > FP64.Zero && fighter.Velocity.x < FP64.Zero)
+                    || (targetSpeed < FP64.Zero && fighter.Velocity.x > FP64.Zero);
+                accelerationFrames = decelerating
+                    ? UniversalMovementRules.RunDecelerationFrames
+                    : UniversalMovementRules.RunAccelerationFrames;
+            }
             fighter.Velocity.x = MoveToward(
                 fighter.Velocity.x,
                 targetSpeed,

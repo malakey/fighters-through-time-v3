@@ -735,9 +735,10 @@ public class FighterCpuBehaviorTests {
     /// <summary>
     /// Feeds the CPU's own commands through a point-mass proxy of
     /// <c>FighterMovementSystem</c>'s airborne rules — gravity −30 u/s² at a
-    /// 1/60 s step, a jump impulse equal to the default loadout's 13 u/s jump
+    /// 1/60 s step, a jump impulse equal to the default loadout's 11.5 u/s jump
     /// speed, and horizontal air control toward <c>MoveX</c> over four frames at
-    /// the default 8 u/s move speed — and reports whether the fighter climbs back
+    /// the default 7 u/s move speed (both retuned by the 2026-08-10 feel batch
+    /// §2.1/§2.2) — and reports whether the fighter climbs back
     /// over the floor plane while still inside the walls. It deliberately models
     /// only what the recovery decision can influence; the authoritative movement
     /// rules stay in the simulation.
@@ -746,8 +747,8 @@ public class FighterCpuBehaviorTests {
         var cpu = new FighterCpuController(band, seed);
         FP64 step = FP64.One / FP64.FromInt(60);
         FP64 gravity = FP64.FromInt(-30);
-        FP64 jumpSpeed = FP64.FromInt(13);
-        FP64 moveSpeed = FP64.FromInt(8);
+        FP64 jumpSpeed = FP64.FromDouble(11.5);
+        FP64 moveSpeed = FP64.FromInt(7);
         FP64 leftWall = FP64.FromInt(-9);
         FP64 rightWall = FP64.FromInt(9);
         FP64 blastZone = FP64.FromInt(-5);
@@ -756,7 +757,12 @@ public class FighterCpuBehaviorTests {
         FP64 y = FP64.FromDouble(-0.5);
         FP64 velocityX = FP64.Zero;
         FP64 velocityY = FP64.FromInt(-4);
-        int remainingJumps = 1;
+        // §2.3 gave the whole roster two jumps, so an off-stage fighter that
+        // walked or was knocked off the ledge carries both into its recovery.
+        // The harness modelled a single-jump kit, which no longer exists — and
+        // with the §2.2 jump cut (apex 2.82 → 2.20 units) one jump can no longer
+        // cover a Normal-band reaction delay from this depth.
+        int remainingJumps = 2;
         int movementCooldown = 0;
         PlayerInputFrame previous = default;
 
