@@ -241,22 +241,28 @@ public class DirectionalAttackTests {
         AssertThat(diving.AttackFlags & FighterBasicAttackRules.FlagDownAir)
             .IsEqual(FighterBasicAttackRules.FlagDownAir);
 
-        bool landed = false;
+        int landingTick = -1;
         bool swingRanUntilLanding = false;
-        for (int tick = diveTick + 1; tick <= diveTick + 200 && !landed; tick++) {
-            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent before)).IsTrue();
-            bool swingingBefore = before.AttackPhase != FighterBasicAttackRules.PhaseNone;
+        for (int tick = diveTick + 1; tick <= diveTick + 200 && landingTick < 0; tick++) {
             Advance(simulation, tick, p1Held: GameplayButtons.Down);
             AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
-            landed = attacker.IsGrounded != 0;
-            if (landed) swingRanUntilLanding = swingingBefore;
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
+            if (attacker.IsGrounded != 0) {
+                landingTick = tick;
+                swingRanUntilLanding = runtime.AttackPhase != FighterBasicAttackRules.PhaseNone;
+            }
         }
-        AssertThat(landed)
+        AssertThat(landingTick >= 0)
             .OverrideFailureMessage("The down-air attacker never returned to the ground.")
             .IsTrue();
         AssertThat(swingRanUntilLanding)
             .OverrideFailureMessage("The down-air finished in the air — the landing cancel was not exercised.")
             .IsTrue();
+
+        // The ground snap happens after the phase machine has already run for
+        // that tick, so the cancel lands on the very next tick — which is what
+        // "no landing lag" means here, and is the aerial string's behaviour too.
+        Advance(simulation, landingTick + 1, p1Held: GameplayButtons.Down);
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent onLanding)).IsTrue();
         AssertThat(onLanding.AttackPhase)
             .OverrideFailureMessage("Landing must cancel the down-air with no lag.")
