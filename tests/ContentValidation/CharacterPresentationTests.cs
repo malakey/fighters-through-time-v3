@@ -172,6 +172,8 @@ public class CharacterPresentationTests {
         AssertThat(sprite.SpriteFrames.GetFrameCount("basic_attack_1")).IsEqual(3);
         AssertThat(sprite.SpriteFrames.GetFrameCount("basic_attack_2")).IsEqual(3);
         AssertThat(sprite.SpriteFrames.GetFrameCount("basic_attack_3")).IsEqual(3);
+        AssertThat(sprite.SpriteFrames.GetFrameCount("up_attack")).IsEqual(3);
+        AssertThat(sprite.SpriteFrames.GetFrameCount("down_attack")).IsEqual(3);
         AssertObject(player.GetNodeOrNull("PlaceholderBody")).IsNull();
         AssertObject(player.GetNodeOrNull("MeleeHitVisual")).IsNull();
         player.Free();

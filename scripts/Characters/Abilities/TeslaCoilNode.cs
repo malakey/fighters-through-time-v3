@@ -18,8 +18,10 @@ namespace FTT.Characters.Abilities {
         public const float LinkRangePixels = 480f;   // 8 world units at 60 px/unit.
         private const float ArcRangePixels = 300f;   // 5 world units; mirrors the Fighter sim AttackRange.
         private const int MaxCoilHP = 25;
-        private const float FenceTickInterval = 0.5f;
-        private const float FenceDamage = 8f;
+        // 2026-08-11 construct rebalance: fence cadence halved and damage halved
+        // alongside the .tres arc retune; construct hits carry no knockback.
+        private const float FenceTickInterval = 1.0f;
+        private const float FenceDamage = 4f;
         private const float FenceHalfHeightPixels = 60f;
         private const float FenceStaticChargeDuration = 1.0f;
         private const float ExplosionRadiusPixels = 150f;
@@ -40,6 +42,7 @@ namespace FTT.Characters.Abilities {
         private bool _rewindFrozen;
         private Hurtbox _hurtbox;
         private bool _hurtboxBound;
+        private ProgressBar _hpBar;
         // Story-only Resonance minors captured at deploy time (1f in Fighter Mode).
         private float _rangeMultiplier = 1f;
         private float _statusDurationMultiplier = 1f;
@@ -87,6 +90,15 @@ namespace FTT.Characters.Abilities {
             _fenceTimer = FenceTickInterval;
             _partner = null;
             _drivesFence = false;
+            UpdateHPBar();
+        }
+
+        private void UpdateHPBar() {
+            _hpBar ??= GetNodeOrNull<ProgressBar>("HPBar");
+            if (_hpBar == null) return;
+            _hpBar.MaxValue = MaxCoilHP;
+            _hpBar.Value = Mathf.Max(0, _currentHP);
+            _hpBar.Visible = !IsCoilDestroyed;
         }
 
         public void LinkPartner(TeslaCoilNode partner, bool drivesFence) {
@@ -148,6 +160,7 @@ namespace FTT.Characters.Abilities {
             if (IsCoilDestroyed || payload.AttackerIndex == OwnerIndex) return 0f;
             int applied = Mathf.Clamp(Mathf.RoundToInt(payload.Damage), 0, _currentHP);
             _currentHP -= applied;
+            UpdateHPBar();
             if (_currentHP <= 0) DestroyCoil();
             return applied;
         }
@@ -164,7 +177,7 @@ namespace FTT.Characters.Abilities {
             foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(GlobalPosition, ExplosionRadiusPixels)) {
                 float dealt = hurtbox.TakeHit(BuildHitPayload(
                     ArcDamage * 2f, AttackClass.Special, GlobalPosition,
-                    FTT.Core.StatusType.None, 0f, new Vector2(3f, -3f)));
+                    FTT.Core.StatusType.None, 0f, Vector2.Zero));
                 CreditOwnerInfluence(dealt);
             }
             DestroyCoil();
@@ -184,7 +197,7 @@ namespace FTT.Characters.Abilities {
             if (nearest == null) return;
             float dealt = nearest.TakeHit(BuildHitPayload(
                 ArcDamage, AttackClass.Basic, GlobalPosition,
-                FTT.Core.StatusType.None, 0f, new Vector2(1f, -0.5f)));
+                FTT.Core.StatusType.None, 0f, _data?.KnockbackForce ?? Vector2.Zero));
             CreditOwnerInfluence(dealt);
         }
 
@@ -199,7 +212,8 @@ namespace FTT.Characters.Abilities {
             foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(center, shape)) {
                 float dealt = hurtbox.TakeHit(BuildHitPayload(
                     FenceDamage, AttackClass.Basic, center,
-                    FTT.Core.StatusType.StaticCharge, FenceStaticChargeDuration, new Vector2(1f, -0.5f)));
+                    FTT.Core.StatusType.StaticCharge, FenceStaticChargeDuration,
+                    _data?.KnockbackForce ?? Vector2.Zero));
                 CreditOwnerInfluence(dealt);
             }
         }

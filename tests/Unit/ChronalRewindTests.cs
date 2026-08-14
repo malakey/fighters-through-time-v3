@@ -10,16 +10,54 @@ namespace FTT.Tests.Unit;
 [RequireGodotRuntime]
 public class ChronalRewindTests {
     [TestCase]
-    public void RingKeepsFiveSecondsAndFindsMostRecentGroundedFrame() {
+    public void RingKeepsFifteenSecondsOfHistory() {
+        // 2026-08-11: raised from 300 frames (5 s) by user direction.
         var buffer = new ChronalRewindBuffer();
-        for (int frame = 0; frame < 400; frame++) {
-            bool grounded = frame == 350;
-            buffer.Record(new RewindFrame(new Vector2(frame, 10), grounded, true, "run"));
+        for (int frame = 0; frame < 1000; frame++) {
+            buffer.Record(new RewindFrame(new Vector2(frame, 10), frame == 350, true, "run"));
         }
 
-        AssertThat(buffer.Count).IsEqual(300);
+        AssertThat(buffer.Count).IsEqual(900);
         AssertThat(buffer.TryFindSafeLanding(Vector2.Zero, out RewindFrame landing)).IsTrue();
         AssertThat(landing.Position).IsEqual(new Vector2(350, 10));
+    }
+
+    [TestCase]
+    public void AGroundedDeathRewindsTheFullRecordedHistoryNotZeroFrames() {
+        // Regression: the playback used to stop at the FIRST grounded frame
+        // walking backward, so any death on solid ground rewound zero distance
+        // — the character froze into the death pose and "the rewind never
+        // occurred". The landing must be the grounded frame nearest the target
+        // depth instead.
+        var buffer = new ChronalRewindBuffer();
+        for (int frame = 0; frame < 900; frame++) {
+            buffer.Record(new RewindFrame(new Vector2(frame, 10), true, true, "run"));
+        }
+
+        var path = buffer.BuildPlaybackPath(Vector2.Zero, 12, ChronalRewindBuffer.DefaultCapacity);
+        AssertThat(path.Count > 60).IsTrue();
+        AssertThat(path[0].Position).IsEqual(new Vector2(899, 10));
+        AssertThat(path[path.Count - 1].Position).IsEqual(new Vector2(0, 10));
+    }
+
+    [TestCase]
+    public void AnAirborneRingTailTrimsThePathBackToTheDeepestGroundedFrame() {
+        // Ring wrapped mid-jump: the oldest surviving frames are airborne, so
+        // the landing is the deepest grounded frame and the path must not run
+        // past it into the airborne tail.
+        var buffer = new ChronalRewindBuffer(120);
+        for (int frame = 0; frame < 20; frame++) {
+            buffer.Record(new RewindFrame(new Vector2(1000 + frame, 60), false, true, "fall"));
+        }
+        for (int frame = 0; frame < 100; frame++) {
+            buffer.Record(new RewindFrame(new Vector2(frame, 10), true, true, "run"));
+        }
+
+        var path = buffer.BuildPlaybackPath(Vector2.Zero, 12, ChronalRewindBuffer.DefaultCapacity);
+        AssertThat(path[path.Count - 1].Position).IsEqual(new Vector2(0, 10));
+        foreach (RewindFrame frame in path) {
+            AssertThat(frame.Position.Y).IsEqual(10f);
+        }
     }
 
     [TestCase]

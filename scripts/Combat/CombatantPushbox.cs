@@ -38,7 +38,12 @@ namespace FTT.Combat {
                 if (node is CombatantPushbox other
                     && other != this
                     && other.PushEnabled
-                    && other.Body != null
+                    && other.Body is CharacterBody2D otherCandidate
+                    // A pool-parked combatant is still in the tree (under the
+                    // pool's inactive container) and still in this group, but
+                    // its processing is disabled and its body must not be
+                    // jostled — MoveAndCollide on it errors with a null space.
+                    && otherCandidate.CanProcess()
                     && CanInteractWith(other)) {
                     candidates.Add(other);
                 }
@@ -83,6 +88,8 @@ namespace FTT.Combat {
                     || other == this
                     || !other.PushEnabled
                     || !other.BlocksRollThrough
+                    || other.Body is not CharacterBody2D otherBlocking
+                    || !otherBlocking.CanProcess()
                     || !CanInteractWith(other)) continue;
                 float overlap = GetHorizontalOverlap(other);
                 if (overlap <= 0f) continue;
@@ -122,7 +129,7 @@ namespace FTT.Combat {
         }
 
         private static float MoveHorizontal(CharacterBody2D body, float amount) {
-            if (body == null || Mathf.IsZeroApprox(amount)) return 0f;
+            if (body == null || !body.IsInsideTree() || Mathf.IsZeroApprox(amount)) return 0f;
             float before = body.GlobalPosition.X;
             body.MoveAndCollide(new Vector2(amount, 0f), false, 0.001f, false);
             return body.GlobalPosition.X - before;

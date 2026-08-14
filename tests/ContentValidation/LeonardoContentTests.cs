@@ -33,8 +33,9 @@ public class LeonardoContentTests {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/leonardo/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.PersistentObject);
-        AssertThat(data.BaseDamage).IsEqual(10f);
-        AssertThat(data.DamageTickIntervalFrames).IsEqual(120);
+        // 2026-08-11 construct rebalance: bolt damage halved, cadence halved.
+        AssertThat(data.BaseDamage).IsEqual(5f);
+        AssertThat(data.DamageTickIntervalFrames).IsEqual(240);
         AssertThat(data.Lifetime).IsEqual(15f);
         AssertThat(data.MaxActiveObjects).IsEqual(1);
         AssertThat(data.PersistentObjectID).IsEqual("clockwork_turret");

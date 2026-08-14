@@ -36,7 +36,16 @@ namespace FTT.Environment {
             return true;
         }
 
-        private void OnBodyEntered(Node2D body) { if (body is PlayerController player) ActivateRoom(player); }
+        private void OnBodyEntered(Node2D body) {
+            if (body is not PlayerController player) return;
+            // Room activation cascades into wave spawns and encounter
+            // re-enabling, which the engine forbids during the in/out flush
+            // this signal runs in; activate right after the flush. Direct
+            // ActivateRoom calls (tests, resume restore) stay synchronous.
+            Callable.From(() => {
+                if (IsInstanceValid(player)) ActivateRoom(player);
+            }).CallDeferred();
+        }
 
         private void SetEncounterActive(bool active) {
             Node encounter = GetNodeOrNull<Node>(EncounterRootPath);

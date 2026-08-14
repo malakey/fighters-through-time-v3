@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using FTT.Core;
 
 namespace FTT.Characters {
 
@@ -488,18 +489,23 @@ namespace FTT.Characters {
 
 			bool hasHyperArmor = HasActiveHyperArmorAgainst(hit.AttackClass);
 			if (!hasHyperArmor) {
-				// Low-health knockback scaling (gameplay-feel plan §2.5): the
-				// impulse scales with the victim's missing HP *after* this
-				// hit's damage, exactly as the Fighter sim scales it.
-				Vector2 knockback = FTT.Combat.DamageCalculator.CalculateKnockback(
-					hit.Knockback,
-					Data?.Weight ?? 1f,
-					hit.AttackerFacingRight,
-					CurrentHP,
-					MaximumHP);
-				// Knockback replaces velocity, as the Fighter sim resolves it —
-				// a hit imparts the same impulse regardless of prior motion.
-				Velocity = knockback * 60f;
+				// An impulse-free hit (construct arcs/bites carry zero
+				// knockback) must not replace the velocity — a zero vector
+				// would freeze the victim mid-motion.
+				if (hit.Knockback != Vector2.Zero) {
+					// Low-health knockback scaling (gameplay-feel plan §2.5): the
+					// impulse scales with the victim's missing HP *after* this
+					// hit's damage, exactly as the Fighter sim scales it.
+					Vector2 knockback = FTT.Combat.DamageCalculator.CalculateKnockback(
+						hit.Knockback,
+						Data?.Weight ?? 1f,
+						hit.AttackerFacingRight,
+						CurrentHP,
+						MaximumHP);
+					// Knockback replaces velocity, as the Fighter sim resolves it —
+					// a hit imparts the same impulse regardless of prior motion.
+					Velocity = knockback * 60f;
+				}
 
 				if (hit.HitstunDuration > 0f && CurrentState != CharacterState.Dead) {
 					ApplyStun(hit.HitstunDuration);
@@ -1430,21 +1436,24 @@ namespace FTT.Characters {
 				CollisionLayer = 0;
 				CollisionMask = 0;
 				if (_hurtbox != null) {
-					_hurtbox.Monitoring = false;
-					_hurtbox.Monitorable = false;
+					// Safe setters: a lethal-hit rewind suspends the player from
+					// inside the hit signal's physics flush, where the direct
+					// writes are engine-blocked.
+					_hurtbox.SetMonitoringSafe(false);
+					_hurtbox.SetMonitorableSafe(false);
 				}
 				_pushbox?.SetPushEnabled(false);
 				Velocity = Vector2.Zero;
-				ProcessMode = ProcessModeEnum.Disabled;
+				this.SetProcessModeSafe(ProcessModeEnum.Disabled);
 			} else {
 				CollisionLayer = _rewindCollisionLayer;
 				CollisionMask = _rewindCollisionMask;
 				if (_hurtbox != null) {
-					_hurtbox.Monitoring = true;
-					_hurtbox.Monitorable = true;
+					_hurtbox.SetMonitoringSafe(true);
+					_hurtbox.SetMonitorableSafe(true);
 				}
 				_pushbox?.SetPushEnabled(true);
-				ProcessMode = ProcessModeEnum.Inherit;
+				this.SetProcessModeSafe(ProcessModeEnum.Inherit);
 			}
 		}
 
@@ -1688,9 +1697,8 @@ namespace FTT.Characters {
 		/// Arms the up-attack or down-air (§2.8): a single strike outside the
 		/// three-hit chain. Damage, hitstun and both knockback components come
 		/// from <see cref="FTT.Combat.BasicComboRules"/>, the same table the
-		/// Fighter simulation reads. There is no authored animation for either
-		/// move, so these always run on the frame clock; the placeholder sprite
-		/// animation is the opener's, reused as presentation scaffolding.
+		/// Fighter simulation reads. Both variants have dedicated retro sprite
+		/// animations; gameplay timing remains on the frame clock.
 		/// </summary>
 		private void StartDirectionalAttack() {
 			bool upAttack = _attackVariant == FTT.Combat.BasicComboRules.VariantUpAttack;
@@ -1713,9 +1721,9 @@ namespace FTT.Characters {
 			}
 
 			TransitionTo(CharacterState.Attacking);
-			PlayAnimation("basic_attack_1");
-			// No `basic_{ground|air}_N` animation exists for the directional
-			// attacks, so the authored-animation path must not be armed here.
+			PlayAnimation(upAttack ? "up_attack" : "down_attack");
+			// Directional gameplay timing is fixed by BasicComboRules rather than
+			// animation callbacks, so only presentation uses the authored sheet.
 			_attackAnimationDriven = false;
 			_attackFrameProgress = 0f;
 		}

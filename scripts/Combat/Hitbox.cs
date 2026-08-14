@@ -41,12 +41,12 @@ namespace FTT.Combat {
 
         public void Activate() {
             IsActive = true;
-            Monitoring = true;
+            this.SetMonitoringSafe(true);
         }
 
         public void Deactivate() {
             IsActive = false;
-            Monitoring = false;
+            this.SetMonitoringSafe(false);
         }
 
         // Pooled owners re-enter the tree on every spawn/release cycle but _Ready
@@ -101,6 +101,11 @@ namespace FTT.Combat {
             if (!IsActive || area is not Hurtbox hurtbox) return;
             if (hurtbox.OwnerPlayerIndex == OwnerPlayerIndex) return;
 
+            // Everything a landed hit cascades into (kills, drop spawns,
+            // lethal-hit rewinds, pool releases) runs inside the engine's
+            // in/out signal flush here; the guard lets those systems defer the
+            // writes the engine would otherwise reject mid-flush.
+            using var scope = PhysicsCallbackGuard.Enter();
             HitPayload payload = CreatePayload(hurtbox.OwnerPlayerIndex);
             float damageApplied = hurtbox.TakeHit(payload);
             if (damageApplied > 0f) SourcePlayer?.AddInfluenceFromDamageDealt(damageApplied);

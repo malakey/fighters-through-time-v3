@@ -1,12 +1,15 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
 [ext_resource type="Resource" path="res://resources/Enemies/Abilities/plasma_spear_ward/energy_javelin.tres" id="2"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Enemies/plasma_spear_ward_frames.tres" id="3"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 EnemyID = "plasma_spear_ward"
+SpriteFramesResource = ExtResource("3")
 DisplayName = "Plasma-Spear Ward"
 DisplayNameKey = "enemy_plasma_spear_ward_name"
 Tier = 0

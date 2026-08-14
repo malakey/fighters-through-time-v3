@@ -23,7 +23,8 @@ public class CleopatraContentTests {
         AssertThat(data.MaxActiveObjects).IsEqual(1);
         AssertThat(data.PersistentObjectID).IsEqual("serpent_nest");
         AssertObject(data.PersistentObjectScene).IsNotNull();
-        AssertThat(data.DamageTickIntervalFrames).IsEqual(120);
+        // 2026-08-11 construct rebalance: bite cadence halved.
+        AssertThat(data.DamageTickIntervalFrames).IsEqual(240);
         AssertThat(data.CooldownDuration).IsEqual(10f);
         // The bite carries Venom for 4 s; the design's brief Root is delivered
         // as bite hitstun because the newest status replaces the previous one.

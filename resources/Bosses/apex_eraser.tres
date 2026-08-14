@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BossData" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="BossData" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
@@ -7,11 +7,14 @@
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/apex_eraser/chronal_collapse.tres" id="5"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/apex_eraser/blink_erasure.tres" id="6"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/apex_eraser/archive_remnants.tres" id="7"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Bosses/apex_eraser_frames.tres" id="8"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 BossID = "apex_eraser"
+SpriteFramesResource = ExtResource("8")
 DisplayName = "The Apex Eraser"
 DisplayNameKey = "boss_apex_eraser_name"
 MaxHP = 1200

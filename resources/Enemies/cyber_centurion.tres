@@ -1,13 +1,16 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
 [ext_resource type="Resource" path="res://resources/Enemies/Abilities/cyber_centurion/mortar_flare_volley.tres" id="3"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Enemies/cyber_centurion_frames.tres" id="4"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 EnemyID = "cyber_centurion"
+SpriteFramesResource = ExtResource("4")
 DisplayName = "Cyber-Centurion"
 DisplayNameKey = "enemy_cyber_centurion_name"
 Tier = 1

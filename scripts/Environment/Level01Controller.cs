@@ -358,7 +358,11 @@ namespace FTT.Environment {
             col.Shape = new RectangleShape2D { Size = new Vector2(60, 400) };
             trigger.AddChild(col);
             trigger.BodyEntered += body => {
-                if (body is PlayerController) onEntered();
+                if (body is not PlayerController) return;
+                // Wave callbacks spawn collision bodies, which the engine
+                // forbids during the in/out flush this signal runs in; fire
+                // the callback right after the flush.
+                Callable.From(() => onEntered()).CallDeferred();
             };
             AddChild(trigger);
         }
@@ -457,6 +461,10 @@ namespace FTT.Environment {
 
             hazard.BodyEntered += (body) => {
                 if (body is PlayerController pc) {
+                    // Hazard damage can cascade into a lethal-hit rewind; mark
+                    // the physics callback so those systems defer the
+                    // engine-blocked writes.
+                    using var scope = PhysicsCallbackGuard.Enter();
                     pc.ApplyDamage(15);
                 }
             };

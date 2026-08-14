@@ -35,6 +35,7 @@ namespace FTT.Characters.Abilities {
         private bool _rewindFrozen;
         private Hurtbox _hurtbox;
         private bool _hurtboxBound;
+        private ProgressBar _hpBar;
 
         // Pooled constructs re-enter the tree on every spawn cycle but _Ready runs
         // once, so the hurtbox subscription lives on the enter/exit pair (audit
@@ -68,6 +69,15 @@ namespace FTT.Characters.Abilities {
             // damage to airborne targets; the potency doubles at bite time.
             _aspsBite = aspsBite;
             _biteTimer = _biteInterval;
+            UpdateHPBar();
+        }
+
+        private void UpdateHPBar() {
+            _hpBar ??= GetNodeOrNull<ProgressBar>("HPBar");
+            if (_hpBar == null) return;
+            _hpBar.MaxValue = MaxNestHP;
+            _hpBar.Value = Mathf.Max(0, _currentHP);
+            _hpBar.Visible = !IsNestDestroyed;
         }
 
         public void OnSpawn() { }
@@ -107,6 +117,7 @@ namespace FTT.Characters.Abilities {
             if (IsNestDestroyed || payload.AttackerIndex == OwnerIndex) return 0f;
             int applied = Mathf.Clamp(Mathf.RoundToInt(payload.Damage), 0, _currentHP);
             _currentHP -= applied;
+            UpdateHPBar();
             if (_currentHP <= 0) DestroyNest();
             return applied;
         }

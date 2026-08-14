@@ -82,10 +82,12 @@ namespace FTT.Environment {
 
         protected virtual void ApplyStatePresentation() {
             if (GetNodeOrNull<CanvasItem>("Visual") is CanvasItem visual) visual.Visible = !IsDestroyed;
-            if (GetNodeOrNull<CollisionShape2D>("CollisionShape2D") is CollisionShape2D bodyShape) bodyShape.Disabled = IsDestroyed;
+            // Safe setters: a destroying hit arrives inside the hit signal's
+            // physics flush, where the direct writes are engine-blocked.
+            if (GetNodeOrNull<CollisionShape2D>("CollisionShape2D") is CollisionShape2D bodyShape) bodyShape.SetShapeDisabledSafe(IsDestroyed);
             if (Hurtbox != null) {
-                Hurtbox.Monitorable = !IsDestroyed;
-                Hurtbox.Monitoring = !IsDestroyed;
+                Hurtbox.SetMonitorableSafe(!IsDestroyed);
+                Hurtbox.SetMonitoringSafe(!IsDestroyed);
             }
         }
 

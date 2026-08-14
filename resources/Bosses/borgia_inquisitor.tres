@@ -1,14 +1,17 @@
-[gd_resource type="Resource" script_class="BossData" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="BossData" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/borgia_inquisitor/combo_slash.tres" id="3"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/borgia_inquisitor/cross_slash_dash.tres" id="4"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Bosses/borgia_inquisitor_frames.tres" id="5"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 BossID = "borgia_inquisitor"
+SpriteFramesResource = ExtResource("5")
 DisplayName = "The Borgia Inquisitor"
 DisplayNameKey = "boss_borgia_inquisitor_name"
 MaxHP = 500

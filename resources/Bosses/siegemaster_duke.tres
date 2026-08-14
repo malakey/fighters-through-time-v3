@@ -1,15 +1,18 @@
-[gd_resource type="Resource" script_class="BossData" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="BossData" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/siegemaster_duke/siege_smash.tres" id="3"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/siegemaster_duke/tremor_wave.tres" id="4"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/siegemaster_duke/lance_charge.tres" id="5"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Bosses/siegemaster_duke_frames.tres" id="6"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 BossID = "siegemaster_duke"
+SpriteFramesResource = ExtResource("6")
 DisplayName = "The Siegemaster Duke"
 DisplayNameKey = "boss_siegemaster_duke_name"
 MaxHP = 540

@@ -1,0 +1,25 @@
+[gd_resource type="SpriteFrames" load_steps=5 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/sprites/enemies/chrono_chariot_raider/retro/chrono_chariot_raider_ability_vfx_atlas.png" id="1_atlas"]
+
+[sub_resource type="AtlasTexture" id="frame_0_0"]
+atlas = ExtResource("1_atlas")
+region = Rect2(0, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="frame_0_1"]
+atlas = ExtResource("1_atlas")
+region = Rect2(192, 0, 192, 192)
+
+[sub_resource type="AtlasTexture" id="frame_0_2"]
+atlas = ExtResource("1_atlas")
+region = Rect2(384, 0, 192, 192)
+
+[resource]
+animations = [
+{
+"frames": [{"duration": 1.0, "texture": SubResource("frame_0_0")}, {"duration": 1.0, "texture": SubResource("frame_0_1")}, {"duration": 1.0, "texture": SubResource("frame_0_2")}],
+"loop": false,
+"name": &"enemy.chrono_chariot_raider.repulsor_charge",
+"speed": 10.0
+}
+]

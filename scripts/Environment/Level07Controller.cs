@@ -453,7 +453,12 @@ namespace FTT.Environment {
                 });
                 Vector2 anchor = rescue;
                 sea.BodyEntered += body => {
-                    if (body is PlayerController player) HaulOutOfTheWater(player, anchor);
+                    if (body is not PlayerController player) return;
+                    // The haul-out damages the player, which can cascade into
+                    // a lethal-hit rewind; mark the physics callback so those
+                    // systems defer the engine-blocked writes.
+                    using var scope = PhysicsCallbackGuard.Enter();
+                    HaulOutOfTheWater(player, anchor);
                 };
                 AddChild(sea);
             }

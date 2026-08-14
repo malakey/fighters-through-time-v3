@@ -124,6 +124,8 @@ namespace FTT.Enemies {
                     this, _sprite, ownerPlayerIndex: -1, subscribeToStoryEvents: false);
                 Executor.Glow = _glow;
                 _presentationSuspender = FTT.Combat.PresentationVisibilitySuspender.AttachTo(this, _sprite);
+                FTT.Combat.RetroSpriteScaleNormalizer.Attach(
+                    _sprite, FTT.Combat.RetroSpriteScaleNormalizer.FigureKind.Boss);
             }
         }
 
@@ -156,8 +158,9 @@ namespace FTT.Enemies {
             Executor.SourceID = Data?.BossID ?? "";
             Executor.DamageMultiplier = StoryDifficultyTuning.GetEnemyDamageMultiplier(difficulty);
             if (_sprite != null) {
-                if (Data?.SpriteFramesResource != null) _sprite.SpriteFrames = Data.SpriteFramesResource;
-                Color tint = Data?.PlaceholderTint ?? Colors.White;
+                bool hasAuthoredFrames = Data?.SpriteFramesResource != null;
+                if (hasAuthoredFrames) _sprite.SpriteFrames = Data.SpriteFramesResource;
+                Color tint = hasAuthoredFrames ? Colors.White : Data?.PlaceholderTint ?? Colors.White;
                 if (tint.A <= 0f) tint = Colors.White;
                 Executor.SetBaseModulate(tint);
                 if (_glow == null) _sprite.Modulate = tint;
@@ -497,8 +500,10 @@ namespace FTT.Enemies {
             CollisionLayer = 0;
             CollisionMask = 0;
             if (_hurtbox != null) {
-                _hurtbox.Monitoring = false;
-                _hurtbox.Monitorable = false;
+                // Safe setters: a killing blow arrives inside the hit signal's
+                // physics flush, where the direct writes are engine-blocked.
+                _hurtbox.SetMonitoringSafe(false);
+                _hurtbox.SetMonitorableSafe(false);
             }
             _pushbox?.SetPushEnabled(false);
             _deathTimer = DeathAnimationSeconds;
@@ -523,6 +528,8 @@ namespace FTT.Enemies {
         /// <summary>Knockback-immune bosses still take HP damage; only the shove is denied.</summary>
         public void ApplyKnockback(Vector2 knockback, bool attackerFacingRight) {
             if (CurrentState == BossState.Dead || Data?.IsKnockbackImmune == true) return;
+            // Impulse-free hits (construct arcs/bites carry zero knockback).
+            if (knockback == Vector2.Zero) return;
             Velocity += FTT.Combat.DamageCalculator.CalculateKnockback(knockback, 2f, attackerFacingRight) * 60f;
         }
 

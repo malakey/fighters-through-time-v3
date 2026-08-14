@@ -299,6 +299,7 @@ namespace FTT.FighterSim {
                     proxy, persistent.Position, persistent.HalfExtents,
                     new Color(0.1f, 0.9f, 0.95f, 0.82f));
                 ConfigureAbilityProxy(proxy, PersistentAbilityForPlayer(persistent.OwnerPlayerID), 0.48f);
+                ConfigureProxyHPBar(proxy, persistent.CurrentHP, persistent.MaxHP);
                 _seenProxyIDs.Add(persistent.EntityID);
             }
             ReleaseMissing(_persistentProxies);
@@ -379,6 +380,28 @@ namespace FTT.FighterSim {
             proxy.Visible = true;
             active[entityID] = proxy;
             return proxy;
+        }
+
+        /// <summary>
+        /// Constructs are destroyable (2026-08-11), so their proxies carry a
+        /// small overhead HP bar like enemies do. Presentation-only children of
+        /// the proxy rect; sized against the proxy each sync pass.
+        /// </summary>
+        private static void ConfigureProxyHPBar(ColorRect proxy, int currentHP, int maxHP) {
+            const float barHeight = 4f;
+            ColorRect back = proxy.GetNodeOrNull<ColorRect>("HPBack");
+            if (back == null) {
+                back = new ColorRect { Name = "HPBack", Color = new Color(0f, 0f, 0f, 0.6f) };
+                proxy.AddChild(back);
+                back.AddChild(new ColorRect { Name = "HPFill", Color = new Color(0.35f, 0.9f, 0.4f, 0.95f) });
+            }
+            back.Size = new Vector2(proxy.Size.X, barHeight);
+            back.Position = new Vector2(0f, -barHeight - 2f);
+            float fraction = maxHP > 0 ? Mathf.Clamp(currentHP / (float)maxHP, 0f, 1f) : 0f;
+            if (back.GetNodeOrNull<ColorRect>("HPFill") is ColorRect fill) {
+                fill.Size = new Vector2(proxy.Size.X * fraction, barHeight);
+                fill.Position = Vector2.Zero;
+            }
         }
 
         private static void ConfigureProxy(
@@ -695,6 +718,12 @@ namespace FTT.FighterSim {
             if (!string.IsNullOrEmpty(abilityAnimation)) return abilityAnimation;
 
             if (FighterBasicAttackRules.IsSwinging(in runtime)) {
+                if ((runtime.AttackFlags & FighterBasicAttackRules.FlagUpAttack) != 0) {
+                    return "up_attack";
+                }
+                if ((runtime.AttackFlags & FighterBasicAttackRules.FlagDownAir) != 0) {
+                    return "down_attack";
+                }
                 int step = runtime.ComboIndex < 0 ? 0 : runtime.ComboIndex > 2 ? 2 : runtime.ComboIndex;
                 return BasicAttackAnimationNames[step];
             }

@@ -247,6 +247,7 @@ namespace FTT.Environment {
             _eventsBound = true;
             EventBus.Instance.OnChronalDustCollected += OnDustAwarded;
             EventBus.Instance.OnDialogueComplete += HandleDialogueComplete;
+            EventBus.Instance.OnRewindTriggered += OnRewindLanded;
         }
 
         private void UnbindEvents() {
@@ -255,6 +256,19 @@ namespace FTT.Environment {
             if (EventBus.Instance == null) return;
             EventBus.Instance.OnChronalDustCollected -= OnDustAwarded;
             EventBus.Instance.OnDialogueComplete -= HandleDialogueComplete;
+            EventBus.Instance.OnRewindTriggered -= OnRewindLanded;
+        }
+
+        /// <summary>
+        /// A 15 s rewind routinely lands in an earlier room, whose forward-only
+        /// transition trigger will not re-fire; without this the camera stays
+        /// confined to the room the player died in and the landing is
+        /// off-screen. Mirrors <see cref="ApplyResumeCameraBounds"/>.
+        /// </summary>
+        private void OnRewindLanded(Vector2 landingPosition) {
+            if (Camera == null) return;
+            RoomTransitionTrigger room = FindRoomTriggerContaining(landingPosition.X);
+            if (room != null) Camera.SetBounds(room.CameraBounds);
         }
 
         private void StartEntranceDialogue() {
@@ -586,7 +600,12 @@ namespace FTT.Environment {
             });
 
             hazard.BodyEntered += body => {
-                if (body is PlayerController player) player.ApplyDamage(damage);
+                if (body is not PlayerController player) return;
+                // Hazard damage can cascade into a lethal-hit rewind or a
+                // guard break; mark the physics callback so those systems
+                // defer the engine-blocked writes.
+                using var scope = PhysicsCallbackGuard.Enter();
+                player.ApplyDamage(damage);
             };
 
             AddChild(hazard);
@@ -644,7 +663,11 @@ namespace FTT.Environment {
                 Shape = new RectangleShape2D { Size = size ?? new Vector2(60, 400) }
             });
             trigger.BodyEntered += body => {
-                if (body is PlayerController) onEntered?.Invoke();
+                if (body is not PlayerController) return;
+                // Wave callbacks spawn collision bodies, which the engine
+                // forbids during the in/out flush this signal runs in; fire
+                // the callback right after the flush.
+                Callable.From(() => onEntered?.Invoke()).CallDeferred();
             };
             AddChild(trigger);
             return trigger;

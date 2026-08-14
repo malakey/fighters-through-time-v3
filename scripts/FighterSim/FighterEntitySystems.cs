@@ -131,21 +131,25 @@ namespace FTT.FighterSim {
             }
 
 			if (carriesImpulse && (target.HyperArmorFrames <= 0 || attackClass == UltimateAttackClass)) {
-                // Gameplay-feel plan §2.5 — low-health knockback scaling. The
-                // impulse is multiplied by 1 + the victim's missing-HP fraction
-                // measured *after* this hit's damage, a linear 1x at full HP to
-                // 2x at 0 HP. This is the one chokepoint every Fighter-side
-                // source funnels through (basics, specials, ultimates,
-                // projectiles, zones, constructs, and — via
-                // ApplyEnvironmentHit — stage hazards), so the rule needs no
-                // second copy. Story mirrors it in DamageCalculator.
-                FP64 force = ScaleByMissingHP(knockback, in target) / (FP64.One + target.Weight);
-                // Launcher-class impulses (Nassau's mortar) bias the impulse
-                // upward; everything else keeps the symmetric 1:1 pulse.
-                FP64 verticalScale = verticalKnockbackScale > FP64.Zero ? verticalKnockbackScale : FP64.One;
-                target.Velocity.x = hitOriginX <= target.Position.x ? force : -force;
-                target.Velocity.y = force * verticalScale;
-                target.IsGrounded = 0;
+                if (knockback > FP64.Zero) {
+                    // Gameplay-feel plan §2.5 — low-health knockback scaling. The
+                    // impulse is multiplied by 1 + the victim's missing-HP fraction
+                    // measured *after* this hit's damage, a linear 1x at full HP to
+                    // 2x at 0 HP. This is the one chokepoint every Fighter-side
+                    // source funnels through (basics, specials, ultimates,
+                    // projectiles, zones, constructs, and — via
+                    // ApplyEnvironmentHit — stage hazards), so the rule needs no
+                    // second copy. Story mirrors it in DamageCalculator.
+                    FP64 force = ScaleByMissingHP(knockback, in target) / (FP64.One + target.Weight);
+                    // Launcher-class impulses (Nassau's mortar) bias the impulse
+                    // upward; everything else keeps the symmetric 1:1 pulse.
+                    FP64 verticalScale = verticalKnockbackScale > FP64.Zero ? verticalKnockbackScale : FP64.One;
+                    target.Velocity.x = hitOriginX <= target.Position.x ? force : -force;
+                    target.Velocity.y = force * verticalScale;
+                    target.IsGrounded = 0;
+                }
+                // A zero-knockback hit with hitstun (a construct arc/bite) stuns
+                // without replacing the victim's velocity with a zero vector.
                 target.HitstunFrames = hitstunFrames;
             }
 
@@ -451,7 +455,11 @@ namespace FTT.FighterSim {
                 StatusFrames = statusFrames,
                 AttackRange = attackRange,
                 Knockback = resolvedKnockback,
-                Position = owner.Position,
+                // Bottom-anchored: the fighter's grounded position is its feet
+                // on the floor line, so a box centered there rendered (and read
+                // as) half-buried. Raising the center by the half height sets
+                // the construct's base on the ground.
+                Position = owner.Position + new FPVector2(FP64.Zero, FP64.FromDouble(0.6)),
                 HalfExtents = new FPVector2(FP64.FromDouble(0.6), FP64.FromDouble(0.6))
             });
         }
@@ -479,14 +487,18 @@ namespace FTT.FighterSim {
                 ? 5
                 : objectTypeID == 5 ? 0
                 : requestedDamage > 0 ? requestedDamage : 4;
-            actionCooldown = objectTypeID == 4 ? 30 : 120;
+            // 2026-08-11 construct rebalance: attack cadence halved across the
+            // board (mirrors the doubled DamageTickIntervalFrames in the .tres).
+            actionCooldown = objectTypeID == 4 ? 60 : 240;
             remainingAttacks = objectTypeID == 2 ? 3 : -1;
             // Clockwork Turret (type 2) targets at the design's 30-unit range,
             // bounded by the visible arena (half-width 10 units).
             attackRange = objectTypeID == 4 ? FP64.FromInt(2)
                 : objectTypeID == 2 ? FP64.FromInt(10)
                 : FP64.FromInt(5);
-            knockback = requestedKnockback > FP64.Zero ? requestedKnockback : FP64.FromInt(2);
+            // Construct attacks carry whatever the resource authors — the zeroed
+            // KnockbackForce means impulse-free hits (no legacy 2-unit fallback).
+            knockback = requestedKnockback > FP64.Zero ? requestedKnockback : FP64.Zero;
         }
 
         private static readonly FP64 TempestLiftSpeed = FP64.FromInt(10);
@@ -803,8 +815,10 @@ namespace FTT.FighterSim {
         // tick and applying a brief StaticCharge to the fighter caught between
         // them. The lower-EntityID coil of the pair drives the tick.
         private const int CoilObjectTypeID = 1;
-        private const int FenceTickFrames = 30;
-        private const int FenceDamage = 8;
+        // 2026-08-11 construct rebalance: fence cadence and damage halved,
+        // impulse removed (mirrors the Story TeslaCoilNode fence retune).
+        private const int FenceTickFrames = 60;
+        private const int FenceDamage = 4;
         private const int FenceHitstunFrames = 8;
         private const int FenceStaticChargeFrames = 30;
         // Cleopatra's Serpent Nest bite delivers the design's brief Root (1 s) as
@@ -911,7 +925,7 @@ namespace FTT.FighterSim {
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
                 FighterDamageRules.ApplyFighterHit(
                     ref owner, ref ownerRuntime, ref target, ref targetRuntime, in targetTuning,
-                    FighterDamageRules.BasicAttackClass, FenceDamage, FP64.One, FenceHitstunFrames,
+                    FighterDamageRules.BasicAttackClass, FenceDamage, FP64.Zero, FenceHitstunFrames,
                     (int)StatusType.StaticCharge, FenceStaticChargeFrames, FP64.FromDouble(0.5),
                     fenceCenter.x);
             }

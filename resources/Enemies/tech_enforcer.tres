@@ -1,14 +1,17 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
 [ext_resource type="Resource" path="res://resources/Enemies/Abilities/tech_enforcer/plasma_rifle.tres" id="3"]
 [ext_resource type="Resource" path="res://resources/Enemies/Abilities/tech_enforcer/bubble_shield.tres" id="4"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Enemies/tech_enforcer_frames.tres" id="5"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 EnemyID = "tech_enforcer"
+SpriteFramesResource = ExtResource("5")
 DisplayName = "Tech-Enforcer"
 DisplayNameKey = "enemy_tech_enforcer_name"
 Tier = 1

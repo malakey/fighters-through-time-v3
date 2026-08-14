@@ -1,15 +1,18 @@
-[gd_resource type="Resource" script_class="BossData" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="BossData" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/vulcan_decimator/ash_mortar.tres" id="3"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/vulcan_decimator/magma_wave.tres" id="4"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/vulcan_decimator/pyroclast_smash.tres" id="5"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Bosses/vulcan_decimator_frames.tres" id="6"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 BossID = "vulcan_decimator"
+SpriteFramesResource = ExtResource("6")
 DisplayName = "The Vulcan Decimator"
 DisplayNameKey = "boss_vulcan_decimator_name"
 MaxHP = 660

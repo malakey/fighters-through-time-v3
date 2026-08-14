@@ -110,7 +110,9 @@ namespace FTT.Environment {
         private void ApplyState(TrapdoorState state, bool notify = true) {
             State = state;
             if (GetNodeOrNull<CollisionShape2D>(CollisionShapePath) is CollisionShape2D shape) {
-                shape.Disabled = state == TrapdoorState.Open;
+                // Safe setter: puzzle conditions can flip this from a pressure
+                // plate's BodyEntered, inside the physics flush.
+                shape.SetShapeDisabledSafe(state == TrapdoorState.Open);
             }
             if (GetNodeOrNull<Node2D>(VisualPath) is Node2D visual) {
                 visual.Position = state == TrapdoorState.Open

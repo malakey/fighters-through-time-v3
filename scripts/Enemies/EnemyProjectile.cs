@@ -1,4 +1,5 @@
 using Godot;
+using FTT.Combat;
 using FTT.Core;
 
 namespace FTT.Enemies {
@@ -14,6 +15,7 @@ namespace FTT.Enemies {
 
         private FTT.Combat.Hitbox _hitbox;
         private ColorRect _visual;
+        private AnimatedSprite2D _authoredVisual;
         private CollisionShape2D _shape;
 
         private Vector2 _velocity;
@@ -58,6 +60,9 @@ namespace FTT.Enemies {
             _visual.Size = size;
             _visual.Position = -size / 2f;
             _visual.Color = ability?.TelegraphTint ?? new Color(0.95f, 0.4f, 0.2f);
+            bool hasAuthoredVisual = EnemyAbilityVisualLibrary.Apply(
+                _authoredVisual, ability?.PresentationEventID, 0.38f, velocity.X < 0f);
+            _visual.Visible = !hasAuthoredVisual;
             if (_shape.Shape is RectangleShape2D rect) rect.Size = size;
 
             // Travel direction owns the knockback sign; a pull ability (negative
@@ -98,6 +103,13 @@ namespace FTT.Enemies {
             };
             AddChild(_visual);
 
+            _authoredVisual = new AnimatedSprite2D {
+                Name = "AuthoredVisual",
+                Centered = true,
+                Visible = false
+            };
+            AddChild(_authoredVisual);
+
             _hitbox = new FTT.Combat.Hitbox { Name = "Hitbox" };
             _shape = new CollisionShape2D {
                 Name = "CollisionShape2D",
@@ -106,12 +118,22 @@ namespace FTT.Enemies {
             _hitbox.AddChild(_shape);
             AddChild(_hitbox);
             _hitbox.HitConfirmed += OnHitConfirmed;
-            _hitbox.BodyEntered += HandleBodyContact;
+            _hitbox.BodyEntered += OnBodyEnteredSignal;
         }
 
         private void OnHitConfirmed(FTT.Combat.HitPayload payload, float damageApplied) {
             if (_pierces) return;
+            // The release is deferred past the physics flush this handler runs
+            // in; stop the hitbox now so no second target is hit meanwhile.
+            _hitbox?.Deactivate();
             ReturnToPool();
+        }
+
+        // Signal wrapper: engine BodyEntered arrives mid-flush and must run
+        // guarded; tests call HandleBodyContact directly and stay synchronous.
+        private void OnBodyEnteredSignal(Node2D body) {
+            using var scope = PhysicsCallbackGuard.Enter();
+            HandleBodyContact(body);
         }
 
         /// <summary>
@@ -126,6 +148,7 @@ namespace FTT.Enemies {
         public void HandleBodyContact(Node2D body) {
             if (body is not CollisionObject2D collider) return;
             if ((collider.CollisionLayer & CollisionLayers.Environment) == 0) return;
+            _hitbox?.Deactivate();
             ReturnToPool();
         }
 
@@ -166,6 +189,12 @@ namespace FTT.Enemies {
             Rotation = 0f;
             Scale = Vector2.One;
             Modulate = Colors.White;
+            _visual.Visible = true;
+            if (_authoredVisual != null) {
+                _authoredVisual.Stop();
+                _authoredVisual.Visible = false;
+                _authoredVisual.SpriteFrames = null;
+            }
             SetPhysicsProcess(false);
         }
 

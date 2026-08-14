@@ -1,11 +1,14 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Enemies/chrono_slasher_frames.tres" id="2"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 EnemyID = "chrono_slasher"
+SpriteFramesResource = ExtResource("2")
 DisplayName = "Chrono-Slasher"
 DisplayNameKey = "enemy_chrono_slasher_name"
 Tier = 0

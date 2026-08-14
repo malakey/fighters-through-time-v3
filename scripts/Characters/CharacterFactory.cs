@@ -114,13 +114,18 @@ namespace FTT.Characters {
 			var sprite = new AnimatedSprite2D {
 				Name = "AnimatedSprite2D",
 				SpriteFrames = frames,
-				// 128 px frame at 0.5 scale spans 64 px; -32 keeps the drawn feet on the
-				// body origin, which is what rests on the floor in both modes.
-				Position = new Vector2(0, -32),
-				Scale = new Vector2(0.5f, 0.5f)
+				// 128 px frame at 0.845 scale spans 108.2 px; -54.08 keeps the drawn feet
+				// on the body origin, which is what rests on the floor in both modes.
+				// (0.845 is the second 2026-08-11 +30% size pass: 0.5 -> 0.65 -> 0.845.)
+				Position = new Vector2(0, -54.08f),
+				Scale = new Vector2(0.845f, 0.845f)
 			};
 			player.AddChild(sprite);
 			if (frames != null && frames.HasAnimation("idle")) sprite.Play("idle");
+			// Per-animation figure-scale correction for the generated sheets;
+			// must attach after the idle base pose/scale is established.
+			FTT.Combat.RetroSpriteScaleNormalizer.Attach(
+				sprite, FTT.Combat.RetroSpriteScaleNormalizer.FigureKind.Character);
 			// Package 8 A3: the gold ChronalArmorOverlay ColorRect is replaced by the
 			// shader-driven hyper-armor shell on the shared glow arbiter, which also
 			// owns status/spawn-invulnerability outlines and the sprite tint.

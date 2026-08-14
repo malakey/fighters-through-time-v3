@@ -1,13 +1,16 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
 [ext_resource type="Resource" path="res://resources/Enemies/Abilities/steam_automaton/piston_shockwave.tres" id="3"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Enemies/steam_automaton_frames.tres" id="4"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 EnemyID = "steam_automaton"
+SpriteFramesResource = ExtResource("4")
 DisplayName = "Steam Automaton v2"
 DisplayNameKey = "enemy_steam_automaton_name"
 Tier = 1

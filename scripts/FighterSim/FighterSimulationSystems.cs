@@ -972,6 +972,8 @@ namespace FTT.FighterSim {
         public const int FlagDownAir = 16;
         /// <summary>Either variant bit — a swing outside the three-hit chain.</summary>
         public const int VariantMask = FlagUpAttack | FlagDownAir;
+        /// <summary>One construct sweep per swing (2026-08-11: basics damage enemy constructs).</summary>
+        public const int FlagConstructHitResolved = 32;
 
         private const int BlockButton = 1 << 6;
 
@@ -1219,6 +1221,50 @@ namespace FTT.FighterSim {
             ApplyIntent(ref fighterTwo, ref runtimeTwo, ref fighterOne, ref runtimeOne, in tuningOne, in secondIntent);
             ApplyBasicSwing(ref fighterOne, ref runtimeOne, in tuningOne, ref fighterTwo, ref runtimeTwo, in tuningTwo);
             ApplyBasicSwing(ref fighterTwo, ref runtimeTwo, in tuningTwo, ref fighterOne, ref runtimeOne, in tuningOne);
+            ApplyConstructSwing(ref frame, ref fighterOne, ref runtimeOne, in tuningOne);
+            ApplyConstructSwing(ref frame, ref fighterTwo, ref runtimeTwo, in tuningTwo);
+        }
+
+        /// <summary>
+        /// A basic swing also damages the opponent's deployed constructs in
+        /// reach — mirroring Story, where the active hitbox overlaps construct
+        /// hurtboxes on the PersistentObject layer (2026-08-11: without this,
+        /// nothing in the simulation could ever damage a construct). One sweep
+        /// per swing; constructs have no block or armor, so damage applies
+        /// directly, and the sweep is independent of the fighter-target hit.
+        /// </summary>
+        private static void ApplyConstructSwing(
+            ref Frame frame,
+            ref FighterStateComponent attacker,
+            ref FighterRuntimeComponent attackerRuntime,
+            in FighterTuningComponent attackerTuning) {
+            if (attackerRuntime.AttackPhase != FighterBasicAttackRules.PhaseActive) return;
+            if ((attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagConstructHitResolved) != 0) return;
+            if (attacker.Stocks <= 0) return;
+
+            int step = attackerRuntime.ComboIndex < 0 ? 0 : attackerRuntime.ComboIndex > 2 ? 2 : attackerRuntime.ComboIndex;
+            int damage = FighterBasicAttackRules.IsVariantSwing(in attackerRuntime)
+                ? attackerTuning.BasicDamage
+                : step == 0
+                    ? attackerTuning.BasicDamage * 8 / 10
+                    : step == 1 ? attackerTuning.BasicDamage : attackerTuning.BasicDamage * 15 / 10;
+            if (damage <= 0) return;
+
+            FPVector2 reach = new(AttackRange, AttackVerticalRange);
+            bool hitAny = false;
+            var constructs = frame.Filter<FighterPersistentObjectComponent>();
+            while (constructs.Next(out EntityRef entity)) {
+                ref FighterPersistentObjectComponent persistent =
+                    ref frame.Get<FighterPersistentObjectComponent>(entity);
+                if (persistent.OwnerPlayerID == attacker.PlayerID || persistent.CurrentHP <= 0) continue;
+                if (!FighterEntityQueries.Overlaps(
+                        in attacker.Position, in reach,
+                        in persistent.Position, in persistent.HalfExtents)) continue;
+                int remaining = persistent.CurrentHP - damage;
+                persistent.CurrentHP = remaining > 0 ? remaining : 0;
+                hitAny = true;
+            }
+            if (hitAny) attackerRuntime.AttackFlags |= FighterBasicAttackRules.FlagConstructHitResolved;
         }
 
         /// <summary>

@@ -1,0 +1,110 @@
+[gd_resource type="SpriteFrames" load_steps=20 format=3]
+
+[ext_resource type="Texture2D" path="res://assets/sprites/bosses/jackal_priest/retro/jackal_priest_animation_atlas.png" id="1_atlas"]
+
+[sub_resource type="AtlasTexture" id="frame_0_0"]
+atlas = ExtResource("1_atlas")
+region = Rect2(0, 0, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_0_1"]
+atlas = ExtResource("1_atlas")
+region = Rect2(192, 0, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_0_2"]
+atlas = ExtResource("1_atlas")
+region = Rect2(384, 0, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_1_0"]
+atlas = ExtResource("1_atlas")
+region = Rect2(0, 256, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_1_1"]
+atlas = ExtResource("1_atlas")
+region = Rect2(192, 256, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_1_2"]
+atlas = ExtResource("1_atlas")
+region = Rect2(384, 256, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_2_0"]
+atlas = ExtResource("1_atlas")
+region = Rect2(0, 512, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_2_1"]
+atlas = ExtResource("1_atlas")
+region = Rect2(192, 512, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_2_2"]
+atlas = ExtResource("1_atlas")
+region = Rect2(384, 512, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_3_0"]
+atlas = ExtResource("1_atlas")
+region = Rect2(0, 768, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_3_1"]
+atlas = ExtResource("1_atlas")
+region = Rect2(192, 768, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_3_2"]
+atlas = ExtResource("1_atlas")
+region = Rect2(384, 768, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_4_0"]
+atlas = ExtResource("1_atlas")
+region = Rect2(0, 1024, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_4_1"]
+atlas = ExtResource("1_atlas")
+region = Rect2(192, 1024, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_4_2"]
+atlas = ExtResource("1_atlas")
+region = Rect2(384, 1024, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_5_0"]
+atlas = ExtResource("1_atlas")
+region = Rect2(0, 1280, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_5_1"]
+atlas = ExtResource("1_atlas")
+region = Rect2(192, 1280, 192, 256)
+
+[sub_resource type="AtlasTexture" id="frame_5_2"]
+atlas = ExtResource("1_atlas")
+region = Rect2(384, 1280, 192, 256)
+
+[resource]
+animations = [
+{
+"frames": [{"duration": 1.0, "texture": SubResource("frame_0_0")}, {"duration": 1.0, "texture": SubResource("frame_0_1")}, {"duration": 1.0, "texture": SubResource("frame_0_2")}],
+"loop": true,
+"name": &"idle",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("frame_1_0")}, {"duration": 1.0, "texture": SubResource("frame_1_1")}, {"duration": 1.0, "texture": SubResource("frame_1_2")}],
+"loop": true,
+"name": &"move",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("frame_2_0")}, {"duration": 1.0, "texture": SubResource("frame_2_1")}, {"duration": 1.0, "texture": SubResource("frame_2_2")}],
+"loop": false,
+"name": &"melee_attack",
+"speed": 10.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("frame_3_0")}, {"duration": 1.0, "texture": SubResource("frame_3_1")}, {"duration": 1.0, "texture": SubResource("frame_3_2")}],
+"loop": false,
+"name": &"ranged_attack",
+"speed": 10.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("frame_4_0")}, {"duration": 1.0, "texture": SubResource("frame_4_1")}, {"duration": 1.0, "texture": SubResource("frame_4_2")}],
+"loop": false,
+"name": &"phase_transition",
+"speed": 10.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("frame_5_0")}, {"duration": 1.0, "texture": SubResource("frame_5_1")}, {"duration": 1.0, "texture": SubResource("frame_5_2")}],
+"loop": false,
+"name": &"death",
+"speed": 10.0
+}
+]

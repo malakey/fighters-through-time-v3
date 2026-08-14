@@ -144,11 +144,8 @@ namespace FTT.Core {
         private Node SpawnFromPool(Pool pool, Vector2 position, Node parent) {
             PackedScene template = pool.Template;
 
-            Node node;
-            if (pool.Inactive.Count > 0) {
-                node = pool.Inactive.Dequeue();
-                pool.InactiveContainer.RemoveChild(node);
-            } else {
+            Node node = TryDequeueValid(pool);
+            if (node == null) {
                 // The pool looks exhausted. Stale entries - nodes freed behind the
                 // pool's back - would otherwise count against capacity forever, so
                 // reconcile before deciding. Off the hot path: only reached once the
@@ -166,12 +163,7 @@ namespace FTT.Core {
                             Release(oldest);
                             // Release only enqueues when the node really belonged to
                             // this pool; fall back to a fresh instance if it did not.
-                            if (pool.Inactive.Count > 0) {
-                                node = pool.Inactive.Dequeue();
-                                pool.InactiveContainer.RemoveChild(node);
-                            } else {
-                                node = CreateInstance(template);
-                            }
+                            node = TryDequeueValid(pool) ?? CreateInstance(template);
                         } else {
                             node = CreateInstance(template);
                         }
@@ -208,6 +200,26 @@ namespace FTT.Core {
 
         public void Release(Node node) {
             if (node == null || !IsInstanceValid(node)) return;
+
+            // A release triggered inside a physics in/out callback (a
+            // projectile detonating in its own AreaEntered, a construct dying
+            // to a hit) cannot reparent the node while the space is flushing
+            // queries; finish the release right after the flush instead.
+            // Double releases stay harmless: the re-entrant call finds the
+            // node absent from its active list and returns.
+            if (PhysicsCallbackGuard.IsInPhysicsCallback) {
+                Callable.From(() => Release(node)).CallDeferred();
+                return;
+            }
+
+            // A node someone already QueueFree'd still passes IsInstanceValid
+            // until the deletion is processed; parking it would poison the
+            // inactive queue and crash a later spawn with
+            // ObjectDisposedException. Drop it from the books instead.
+            if (node.IsQueuedForDeletion()) {
+                foreach (Pool tracked in _pools.Values) tracked.Active.Remove(node);
+                return;
+            }
 
             string key = null;
             if (node is PooledNode pooledNode &&
@@ -305,6 +317,21 @@ namespace FTT.Core {
 
         private static Node CreateInstance(PackedScene template) {
             return template.Instantiate();
+        }
+
+        /// <summary>
+        /// Dequeues the next usable inactive node, silently dropping entries
+        /// that were freed behind the pool's back (scene teardown, a stray
+        /// QueueFree) — handing one of those out crashes the spawn.
+        /// </summary>
+        private static Node TryDequeueValid(Pool pool) {
+            while (pool.Inactive.Count > 0) {
+                Node candidate = pool.Inactive.Dequeue();
+                if (!IsInstanceValid(candidate) || candidate.IsQueuedForDeletion()) continue;
+                pool.InactiveContainer.RemoveChild(candidate);
+                return candidate;
+            }
+            return null;
         }
 
         public void ClearPool(PackedScene template) {

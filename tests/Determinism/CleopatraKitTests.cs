@@ -56,11 +56,12 @@ public class CleopatraKitTests {
             spawnDistance: 1,
             rules: FighterMatchRules.Disabled);
 
-        // Deploy at the owner's feet; the first bite lands after the nest's 2 s
-        // action cooldown against the opponent standing in range.
+        // Deploy at the owner's feet; the first bite lands after the nest's 4 s
+        // action cooldown (2026-08-11 construct rebalance) against the opponent
+        // standing in range.
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
         int maxHitstunObserved = 0;
-        for (int tick = 1; tick <= 125; tick++) {
+        for (int tick = 1; tick <= 250; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             if (simulation.TryGetFighter(1, out FighterStateComponent observed)
                 && observed.HitstunFrames > maxHitstunObserved) {

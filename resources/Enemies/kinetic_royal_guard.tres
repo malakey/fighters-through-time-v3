@@ -1,13 +1,16 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
 [ext_resource type="Resource" path="res://resources/Enemies/Abilities/kinetic_royal_guard/kinetic_shockwave.tres" id="3"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Enemies/kinetic_royal_guard_frames.tres" id="4"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 EnemyID = "kinetic_royal_guard"
+SpriteFramesResource = ExtResource("4")
 DisplayName = "Kinetic Royal Guard"
 DisplayNameKey = "enemy_kinetic_royal_guard_name"
 Tier = 1

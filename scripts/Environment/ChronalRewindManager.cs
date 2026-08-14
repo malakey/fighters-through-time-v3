@@ -118,11 +118,21 @@ namespace FTT.Environment {
             return true;
         }
 
+        /// <summary>
+        /// Every 12th buffered frame plays back per physics tick, so the full
+        /// 900-frame (15 s) history scrubs past in ~1.25 s of cinematic — the
+        /// same pace the original 300-frame buffer had at stride 4.
+        /// </summary>
+        private const int PlaybackStride = 12;
+
         private void BeginRewind() {
             RemainingRewinds--;
             StoryManager.Instance?.SetRewinds(RemainingRewinds);
             Vector2 checkpoint = GetCheckpointPosition();
-            _playbackPath = _buffer.BuildPlaybackPath(checkpoint, 4);
+            // Target the full buffer depth: the rewind lands as far back as the
+            // recorded history allows (up to 15 s), on a grounded frame.
+            _playbackPath = _buffer.BuildPlaybackPath(
+                checkpoint, PlaybackStride, ChronalRewindBuffer.DefaultCapacity);
             _playbackIndex = 0;
             _isRewinding = true;
             FreezeWorldForRewind();

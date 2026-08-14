@@ -50,7 +50,8 @@ namespace FTT.Combat {
 
             PackedScene scene = VfxLibrary.Load(mapping.Family);
             if (scene != null &&
-                VfxEmitter.EmitScene(scene, payload.Position, parent, tint) != null) {
+                VfxEmitter.EmitEnemyAbilityScene(scene, payload.PresentationEventID,
+                    payload.Phase, payload.Position, parent, tint) != null) {
                 return;
             }
             VfxEmitter.EmitForPresentationEvent(

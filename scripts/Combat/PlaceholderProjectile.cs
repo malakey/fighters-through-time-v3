@@ -113,6 +113,11 @@ namespace FTT.Combat {
 
         private void OnHitConfirmed(HitPayload payload, float damageApplied) {
             if (!DetonateOnImpact) return;
+            // One detonation per flight: the release below is deferred past the
+            // physics flush this handler runs in, so go logically inert now or a
+            // second hurtbox in the same flush would detonate again.
+            DetonateOnImpact = false;
+            _hitbox?.Deactivate();
             Vector2 impactPosition = GlobalPosition;
             Impacted?.Invoke(impactPosition);
             ReturnToPool();

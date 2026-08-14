@@ -78,9 +78,10 @@ public class LeonardoKitTests {
         AssertThat(turret.RemainingAttacks).IsEqual(3);
         AssertThat(turret.MaxDeployLimit).IsEqual(1);
 
-        // Bolts land every 2 s (frames ~120/241/362); after the third bolt the
-        // turret self-destructs well before its 15 s lifespan.
-        for (int tick = 1; tick <= 400; tick++) {
+        // Bolts land every 4 s after the 2026-08-11 construct rebalance
+        // (frames ~240/481/722); after the third bolt the turret
+        // self-destructs before its 15 s lifespan.
+        for (int tick = 1; tick <= 800; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.PersistentObjectCount).IsEqual(0);

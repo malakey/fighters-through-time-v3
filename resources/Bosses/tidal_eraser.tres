@@ -1,15 +1,18 @@
-[gd_resource type="Resource" script_class="BossData" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="BossData" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/tidal_eraser/tidal_surge.tres" id="3"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/tidal_eraser/brine_burst.tres" id="4"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/tidal_eraser/undertow_pulse.tres" id="5"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Bosses/tidal_eraser_frames.tres" id="6"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 BossID = "tidal_eraser"
+SpriteFramesResource = ExtResource("6")
 DisplayName = "The Tidal Eraser"
 DisplayNameKey = "boss_tidal_eraser_name"
 MaxHP = 640

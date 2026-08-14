@@ -165,6 +165,8 @@ namespace FTT.Enemies {
                     this, _sprite, ownerPlayerIndex: -1, subscribeToStoryEvents: false);
                 Executor.Glow = _glow;
                 _presentationSuspender = FTT.Combat.PresentationVisibilitySuspender.AttachTo(this, _sprite);
+                FTT.Combat.RetroSpriteScaleNormalizer.Attach(
+                    _sprite, FTT.Combat.RetroSpriteScaleNormalizer.FigureKind.Enemy);
             }
         }
 
@@ -215,8 +217,9 @@ namespace FTT.Enemies {
 
         private void ApplyPresentation() {
             if (_sprite != null) {
-                if (Data?.SpriteFramesResource != null) _sprite.SpriteFrames = Data.SpriteFramesResource;
-                Color tint = Data?.PlaceholderTint ?? Colors.White;
+                bool hasAuthoredFrames = Data?.SpriteFramesResource != null;
+                if (hasAuthoredFrames) _sprite.SpriteFrames = Data.SpriteFramesResource;
+                Color tint = hasAuthoredFrames ? Colors.White : Data?.PlaceholderTint ?? Colors.White;
                 if (tint.A <= 0f) tint = Colors.White;
                 // SetBaseModulate routes through the arbiter when one is attached.
                 Executor.SetBaseModulate(tint);
@@ -637,8 +640,10 @@ namespace FTT.Enemies {
             CollisionLayer = 0;
             CollisionMask = 0;
             if (_hurtbox != null) {
-                _hurtbox.Monitoring = false;
-                _hurtbox.Monitorable = false;
+                // Safe setters: a killing blow arrives inside the hit signal's
+                // physics flush, where the direct writes are engine-blocked.
+                _hurtbox.SetMonitoringSafe(false);
+                _hurtbox.SetMonitorableSafe(false);
             }
             _pushbox?.SetPushEnabled(false);
             PlayAnimation("death");
@@ -663,6 +668,9 @@ namespace FTT.Enemies {
 
         public void ApplyKnockback(Vector2 knockback, bool attackerFacingRight) {
             if (CurrentState == EnemyState.Dead) return;
+            // Impulse-free hits (construct arcs/bites carry zero knockback)
+            // must not replace the velocity with a zero vector.
+            if (knockback == Vector2.Zero) return;
             float weight = Data?.Weight ?? 1.0f;
             // Knockback replaces velocity, matching the player and the Fighter
             // sim — a hit imparts the same impulse regardless of prior motion —

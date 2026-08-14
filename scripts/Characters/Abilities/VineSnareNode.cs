@@ -36,6 +36,7 @@ namespace FTT.Characters.Abilities {
         private bool _rewindFrozen;
         private Hurtbox _hurtbox;
         private bool _hurtboxBound;
+        private ProgressBar _hpBar;
 
         // Pooled constructs re-enter the tree on every spawn cycle but _Ready runs
         // once, so the hurtbox subscription lives on the enter/exit pair (audit
@@ -67,6 +68,15 @@ namespace FTT.Characters.Abilities {
             if (_biteInterval <= 0f) _biteInterval = 0.5f;
             _biteTimer = 0f;
             _thornSnare = thornSnare;
+            UpdateHPBar();
+        }
+
+        private void UpdateHPBar() {
+            _hpBar ??= GetNodeOrNull<ProgressBar>("HPBar");
+            if (_hpBar == null) return;
+            _hpBar.MaxValue = MaxSnareHP;
+            _hpBar.Value = Mathf.Max(0, _currentHP);
+            _hpBar.Visible = !IsSnareDestroyed;
         }
 
         public void OnSpawn() { }
@@ -106,6 +116,7 @@ namespace FTT.Characters.Abilities {
             if (IsSnareDestroyed || payload.AttackerIndex == OwnerIndex) return 0f;
             int applied = Mathf.Clamp(Mathf.RoundToInt(payload.Damage), 0, _currentHP);
             _currentHP -= applied;
+            UpdateHPBar();
             if (_currentHP <= 0) DestroySnare();
             return applied;
         }

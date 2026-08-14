@@ -1,15 +1,18 @@
-[gd_resource type="Resource" script_class="BossData" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="BossData" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/chronal_inventor/arc_volley.tres" id="3"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/chronal_inventor/resonator_pulse.tres" id="4"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/chronal_inventor/wrench_swipe.tres" id="5"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Bosses/chronal_inventor_frames.tres" id="6"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 BossID = "chronal_inventor"
+SpriteFramesResource = ExtResource("6")
 DisplayName = "The Chronal Inventor"
 DisplayNameKey = "boss_chronal_inventor_name"
 MaxHP = 560

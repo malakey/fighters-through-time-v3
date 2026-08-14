@@ -1,6 +1,7 @@
 using Godot;
 using System.Collections.Generic;
 using FTT.Characters;
+using FTT.Core;
 
 namespace FTT.Environment {
 
@@ -19,14 +20,29 @@ namespace FTT.Environment {
 
         public override void _Ready() {
             AddToGroup("puzzle_object");
-            BodyEntered += RegisterBody;
-            BodyExited += UnregisterBody;
+            BodyEntered += OnBodyEnteredSignal;
+            BodyExited += OnBodyExitedSignal;
             ApplyPresentation();
         }
 
         public override void _ExitTree() {
-            BodyEntered -= RegisterBody;
-            BodyExited -= UnregisterBody;
+            BodyEntered -= OnBodyEnteredSignal;
+            BodyExited -= OnBodyExitedSignal;
+        }
+
+        // Signal wrappers: a weight change can flip puzzle conditions that
+        // toggle collision shapes (trapdoors, barriers), which the engine
+        // blocks during the in/out flush these signals run in. The guard makes
+        // those toggles defer; direct RegisterBody/UnregisterBody calls (tests)
+        // stay synchronous.
+        private void OnBodyEnteredSignal(Node2D body) {
+            using var scope = PhysicsCallbackGuard.Enter();
+            RegisterBody(body);
+        }
+
+        private void OnBodyExitedSignal(Node2D body) {
+            using var scope = PhysicsCallbackGuard.Enter();
+            UnregisterBody(body);
         }
 
         public void RegisterBody(Node2D body) {

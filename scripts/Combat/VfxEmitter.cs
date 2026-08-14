@@ -110,6 +110,49 @@ namespace FTT.Combat {
         }
 
         /// <summary>
+        /// Spawns a roster presentation effect through an event-specific pool and
+        /// replaces the taxonomy placeholder with the owning enemy or boss atlas.
+        /// Resolution happens before spawn and the visual is reapplied on every
+        /// checkout because PoolManager aliases IDs sharing one taxonomy scene.
+        /// </summary>
+        public static Node2D EmitEnemyAbilityScene(PackedScene scene, string presentationEventID,
+            EnemyPresentationPhase phase, Vector2 position, Node parent,
+            Color fallbackTint = default) {
+            PoolManager pools = PoolManager.Instance;
+            if (scene == null || string.IsNullOrWhiteSpace(presentationEventID)
+                    || pools == null || parent == null || !IsInstanceUsable(parent)) return null;
+
+            // PoolManager aliases IDs that share one PackedScene to the same
+            // underlying pool. Do not spawn first and resolve later: an unresolved
+            // beat (notably "{enemyID}.death", which has no ability-atlas row)
+            // could otherwise reuse a VfxEffect whose AnimatedSprite2D still holds
+            // a previous ability's frames instead of taking the generic fallback.
+            if (!EnemyAbilityVisualLibrary.TryResolve(presentationEventID,
+                    out SpriteFrames frames, out StringName animation, out bool isBoss)) {
+                return null;
+            }
+
+            string sceneKey = string.IsNullOrEmpty(scene.ResourcePath)
+                ? scene.GetInstanceId().ToString()
+                : scene.ResourcePath;
+            string poolID = $"{sceneKey}::{presentationEventID}::{phase}";
+            if (!pools.IsRegistered(poolID)) {
+                pools.RegisterPool(poolID, scene, 1, FallbackCapacity,
+                    PoolOverflowPolicy.RecycleOldest);
+            }
+            if (pools.Spawn(poolID, position, parent) is not Node2D spawned) return null;
+
+            bool authored = false;
+            if (spawned is VfxEffect effect) {
+                float scale = isBoss ? 0.9f : 0.62f;
+                if (phase == EnemyPresentationPhase.Telegraph) scale *= 0.82f;
+                authored = effect.UseAnimatedVisual(frames, animation, scale);
+            }
+            spawned.Modulate = authored || fallbackTint.A <= 0f ? Colors.White : fallbackTint;
+            return spawned;
+        }
+
+        /// <summary>
         /// Maps an authored <c>PresentationEventID</c> to a pooled effect. The roster
         /// convention is <c>{sourceID}.{telegraph|active|recovery|death}</c>; B6
         /// refines the per-suffix mappings on top of this default routing.

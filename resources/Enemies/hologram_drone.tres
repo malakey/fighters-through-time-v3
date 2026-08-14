@@ -1,12 +1,15 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
 [ext_resource type="Resource" path="res://resources/Enemies/Abilities/hologram_drone/holo_bolt.tres" id="2"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Enemies/hologram_drone_frames.tres" id="3"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 EnemyID = "hologram_drone"
+SpriteFramesResource = ExtResource("3")
 DisplayName = "Hologram Drone"
 DisplayNameKey = "enemy_hologram_drone_name"
 Tier = 0

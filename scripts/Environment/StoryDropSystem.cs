@@ -27,6 +27,18 @@ namespace FTT.Environment {
         }
 
         private void OnEnemyKilled(EnemyKilledPayload payload) {
+            // A kill landed by a hit raises this inside the physics in/out
+            // flush, where the pooled pickups' Area2Ds cannot enter the tree;
+            // spawn right after the flush. Direct raises (tests, script kills)
+            // stay synchronous.
+            if (PhysicsCallbackGuard.IsInPhysicsCallback) {
+                Callable.From(() => SpawnDrops(payload)).CallDeferred();
+                return;
+            }
+            SpawnDrops(payload);
+        }
+
+        private void SpawnDrops(EnemyKilledPayload payload) {
             if (PoolManager.Instance == null) return;
             ChronalDustPickup dust = PoolManager.Instance.Spawn(DustPoolID, payload.Position, GetParent()) as ChronalDustPickup;
             dust?.Setup(Mathf.Max(1, payload.ChronalDustDrop));

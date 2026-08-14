@@ -19,11 +19,13 @@ namespace FTT.Environment {
     }
 
     /// <summary>
-    /// Fixed five-second history plus a retained last-known grounded frame. The
-    /// retained frame prevents long falls from erasing every valid rewind anchor.
+    /// Fixed fifteen-second history plus a retained last-known grounded frame.
+    /// The retained frame prevents long falls from erasing every valid rewind
+    /// anchor. (2026-08-11: raised from five seconds by user direction — the
+    /// short window produced barely any visible travel.)
     /// </summary>
     public sealed class ChronalRewindBuffer {
-        public const int DefaultCapacity = 300;
+        public const int DefaultCapacity = 900;
         private readonly RewindFrame[] _frames;
         private int _nextIndex;
         private int _count;
@@ -65,23 +67,52 @@ namespace FTT.Environment {
             return false;
         }
 
-        public List<RewindFrame> BuildPlaybackPath(Vector2 checkpointFallback, int stride = 4) {
+        /// <summary>
+        /// Builds the newest-to-oldest playback path, landing on the grounded
+        /// frame nearest <paramref name="targetDepthFrames"/>: the first
+        /// grounded frame at or beyond the target, or failing that the deepest
+        /// grounded frame recorded at all. The original rule — stop at the
+        /// FIRST grounded frame walking backward — degenerated to a
+        /// zero-distance rewind for any death on solid ground (the frame one
+        /// tick before death is grounded), which read in game as the character
+        /// freezing with no rewind ever happening.
+        /// </summary>
+        public List<RewindFrame> BuildPlaybackPath(
+            Vector2 checkpointFallback, int stride = 4, int targetDepthFrames = int.MaxValue) {
             if (stride <= 0) throw new ArgumentOutOfRangeException(nameof(stride));
             var path = new List<RewindFrame>(_count / stride + 2);
             RewindFrame landing = default;
-            bool foundLandingInRing = false;
+            bool foundLanding = false;
+            RewindFrame deepestGrounded = default;
+            int deepestGroundedPathCount = 0;
+            bool hasDeepestGrounded = false;
             for (int offset = 1; offset <= _count; offset++) {
                 int index = PositiveModulo(_nextIndex - offset, _frames.Length);
                 RewindFrame frame = _frames[index];
                 if ((offset - 1) % stride == 0) path.Add(frame);
                 if (frame.IsGrounded) {
-                    landing = frame;
-                    foundLandingInRing = true;
-                    break;
+                    deepestGrounded = frame;
+                    deepestGroundedPathCount = path.Count;
+                    hasDeepestGrounded = true;
+                    if (offset >= targetDepthFrames) {
+                        landing = frame;
+                        foundLanding = true;
+                        break;
+                    }
                 }
             }
 
-            if (!foundLandingInRing) {
+            if (!foundLanding && hasDeepestGrounded) {
+                // The ring never reached the target depth (young buffer, or an
+                // airborne tail past the last grounded frame): land on the
+                // deepest grounded frame and trim the path past it.
+                landing = deepestGrounded;
+                if (path.Count > deepestGroundedPathCount) {
+                    path.RemoveRange(deepestGroundedPathCount, path.Count - deepestGroundedPathCount);
+                }
+                foundLanding = true;
+            }
+            if (!foundLanding) {
                 landing = _hasLastKnownGrounded
                     ? _lastKnownGrounded
                     : new RewindFrame(checkpointFallback, true, true, "idle");

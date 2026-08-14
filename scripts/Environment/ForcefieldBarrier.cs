@@ -27,7 +27,9 @@ namespace FTT.Environment {
 
         public void SetActive(bool active) {
             IsActive = active;
-            if (GetNodeOrNull<CollisionShape2D>(CollisionShapePath) is CollisionShape2D shape) shape.Disabled = !active;
+            // Safe setter: a hit destroying the generator tower toggles this
+            // barrier from inside the hit signal's physics flush.
+            if (GetNodeOrNull<CollisionShape2D>(CollisionShapePath) is CollisionShape2D shape) shape.SetShapeDisabledSafe(!active);
             if (GetNodeOrNull<CanvasItem>(VisualPath) is CanvasItem visual) visual.Visible = active;
             EmitSignal(SignalName.ActiveChanged, active);
         }

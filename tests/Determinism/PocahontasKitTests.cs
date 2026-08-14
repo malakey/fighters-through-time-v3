@@ -55,8 +55,9 @@ public class PocahontasKitTests {
         AssertThat(snare.LifetimeFrames <= 600).IsTrue();
 
         // The adjacent opponent is bitten once the snare's proximity trigger
-        // re-arms: light damage plus Root for the authored 1.5 s (90 frames).
-        for (int tick = 5; tick <= 45; tick++) {
+        // re-arms (60 frames after the 2026-08-11 construct rebalance): light
+        // damage plus Root for the authored 1.5 s (90 frames).
+        for (int tick = 5; tick <= 105; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();

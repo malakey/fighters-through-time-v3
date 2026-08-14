@@ -1,12 +1,15 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
 [ext_resource type="Resource" path="res://resources/Enemies/Abilities/laser_pistol_deckhand/pulse_flintlock.tres" id="2"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Enemies/laser_pistol_deckhand_frames.tres" id="3"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 EnemyID = "laser_pistol_deckhand"
+SpriteFramesResource = ExtResource("3")
 DisplayName = "Laser-Pistol Deckhand"
 DisplayNameKey = "enemy_laser_pistol_deckhand_name"
 Tier = 0

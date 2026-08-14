@@ -1,13 +1,16 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
 [ext_resource type="Resource" path="res://resources/Enemies/Abilities/chrono_chariot_raider/repulsor_charge.tres" id="3"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Enemies/chrono_chariot_raider_frames.tres" id="4"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 EnemyID = "chrono_chariot_raider"
+SpriteFramesResource = ExtResource("4")
 DisplayName = "Chrono-Chariot Raider"
 DisplayNameKey = "enemy_chrono_chariot_raider_name"
 Tier = 1

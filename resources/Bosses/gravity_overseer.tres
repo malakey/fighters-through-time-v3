@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BossData" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="BossData" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
@@ -6,11 +6,14 @@
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/gravity_overseer/singularity_bolt.tres" id="4"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/gravity_overseer/orbital_lunge.tres" id="5"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/gravity_overseer/gravity_well.tres" id="6"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Bosses/gravity_overseer_frames.tres" id="7"]
+
 
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
 BossID = "gravity_overseer"
+SpriteFramesResource = ExtResource("7")
 DisplayName = "The Gravity Overseer"
 DisplayNameKey = "boss_gravity_overseer_name"
 MaxHP = 950

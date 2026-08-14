@@ -96,7 +96,15 @@ def write_character_resource(character_id: str) -> None:
         sheet: f"res://assets/sprites/characters/{character_id}/retro/{character_id}_{sheet}_atlas.png"
         for sheet in ("locomotion", "traversal", "combat", "states", "abilities")
     }
-    lines = ['[gd_resource type="SpriteFrames" load_steps=84 format=3]', ""]
+    sheets["directional_attacks"] = (
+        f"res://assets/sprites/characters/{character_id}/retro/"
+        f"{character_id}_directional_attacks_atlas.png"
+    )
+    animations = CHARACTER_ANIMATIONS + [
+        ("up_attack", "directional_attacks", 0, 8.0, False),
+        ("down_attack", "directional_attacks", 1, 8.0, False),
+    ]
+    lines = ['[gd_resource type="SpriteFrames" load_steps=91 format=3]', ""]
     sheet_ids = {sheet: str(index + 1) for index, sheet in enumerate(sheets)}
     for sheet, path in sheets.items():
         lines.append(
@@ -105,7 +113,7 @@ def write_character_resource(character_id: str) -> None:
     lines.append("")
 
     frame_ids: dict[str, list[str]] = {}
-    for animation, sheet, row, _, _ in CHARACTER_ANIMATIONS:
+    for animation, sheet, row, _, _ in animations:
         frame_ids[animation] = []
         for column in range(3):
             frame_id = f"{animation}_{column}"
@@ -120,7 +128,7 @@ def write_character_resource(character_id: str) -> None:
     lines.extend(["[resource]", "animations = ["])
     lines.append(", ".join(
         animation_block(animation, frame_ids[animation], speed, loop)
-        for animation, _, _, speed, loop in CHARACTER_ANIMATIONS
+        for animation, _, _, speed, loop in animations
     ))
     lines.append("]")
     (SPRITE_FRAMES / f"{character_id}_frames.tres").write_text(

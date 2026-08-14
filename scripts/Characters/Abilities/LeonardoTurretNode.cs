@@ -35,6 +35,8 @@ namespace FTT.Characters.Abilities {
         private bool _rewindFrozen;
         private Hurtbox _hurtbox;
         private bool _hurtboxBound;
+        private ProgressBar _hpBar;
+        private int _maxHP = MaxTurretHP;
 
         // Pooled constructs re-enter the tree on every spawn cycle but _Ready runs
         // once, so the hurtbox subscription lives on the enter/exit pair (audit
@@ -61,6 +63,7 @@ namespace FTT.Characters.Abilities {
             // PersistentHealth reinforces the chassis. Both 1f outside Story Mode.
             BoltDamage = (data?.BaseDamage ?? 5f) * (owner?.StoryProjectileDamageMultiplier ?? 1f);
             _currentHP = Mathf.RoundToInt(MaxTurretHP * (owner?.StoryPersistentHealthMultiplier ?? 1f));
+            _maxHP = _currentHP;
             IsTurretDestroyed = false;
             _lifetime = data?.Lifetime > 0f ? data.Lifetime : 15f;
             _fireInterval = (data?.DamageTickIntervalFrames ?? 120) / 60f;
@@ -73,6 +76,15 @@ namespace FTT.Characters.Abilities {
                 _fireInterval *= OverdriveIntervalMultiplier;
             }
             _fireTimer = _fireInterval;
+            UpdateHPBar();
+        }
+
+        private void UpdateHPBar() {
+            _hpBar ??= GetNodeOrNull<ProgressBar>("HPBar");
+            if (_hpBar == null) return;
+            _hpBar.MaxValue = Mathf.Max(1, _maxHP);
+            _hpBar.Value = Mathf.Max(0, _currentHP);
+            _hpBar.Visible = !IsTurretDestroyed;
         }
 
         public void OnSpawn() { }
@@ -114,6 +126,7 @@ namespace FTT.Characters.Abilities {
             if (IsTurretDestroyed || payload.AttackerIndex == OwnerIndex) return 0f;
             int applied = Mathf.Clamp(Mathf.RoundToInt(payload.Damage), 0, _currentHP);
             _currentHP -= applied;
+            UpdateHPBar();
             if (_currentHP <= 0) DestroyTurret();
             return applied;
         }
@@ -149,7 +162,7 @@ namespace FTT.Characters.Abilities {
                 HitboxID = "turret_bolt",
                 AttackClass = AttackClass.Basic,
                 Damage = BoltDamage,
-                Knockback = _data?.KnockbackForce ?? new Vector2(2, -1),
+                Knockback = _data?.KnockbackForce ?? Vector2.Zero,
                 HitstunDuration = 0.15f,
                 HitOrigin = GlobalPosition,
                 AttackerFacingRight = targetIsRight,
