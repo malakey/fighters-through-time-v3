@@ -9,7 +9,9 @@ namespace FTT.UI {
         Root,
         SlotSelect,
         CharacterSelect,
-        DifficultySelect
+        DifficultySelect,
+        /// <summary>Developer level select (temporary, debug builds only).</summary>
+        LevelSelect
     }
 
     /// <summary>
@@ -22,6 +24,12 @@ namespace FTT.UI {
     /// shown and hidden rather than instantiated and freed, which is what makes a
     /// uniform back stack possible: <c>ui_cancel</c> walks one screen back from
     /// wherever the player is, and the root screen is the floor.</para>
+    ///
+    /// <para>A fifth screen, the developer level select (2026-08-15), is a
+    /// temporary debug-build affordance: root "Level Select (Dev)" → the shared
+    /// character screen → a sixteen-level grid → the shared difficulty screen →
+    /// <see cref="FTT.Core.StoryManager.StartLevelDirect"/>. It never creates or
+    /// writes a save slot. Retire it with <see cref="ShowDeveloperLevelSelect"/>.</para>
     ///
     /// <para>Static copy is stored in the scene as raw translation keys and
     /// resolved by Godot's automatic control translation (the A1 convention).
@@ -37,6 +45,21 @@ namespace FTT.UI {
         };
 
         private const int StorySlotCount = 3;
+        private const int CampaignLevelCount = 16;
+
+        /// <summary>
+        /// Test seam for the developer level-select gate: null defers to
+        /// <c>OS.IsDebugBuild()</c> (the <c>SaveManager.IsLegacyMigrationEnabled</c> idiom).
+        /// </summary>
+        internal static bool? DeveloperLevelSelectOverrideForTesting;
+
+        /// <summary>
+        /// Temporary development affordance (2026-08-15): the root-screen "Level
+        /// Select (Dev)" button and its screen exist only in debug builds. Remove
+        /// the button, the screen, and this gate together when it is retired.
+        /// </summary>
+        public static bool ShowDeveloperLevelSelect =>
+            DeveloperLevelSelectOverrideForTesting ?? OS.IsDebugBuild();
 
         private SettingsMenu _settingsMenu;
         private ConfirmModal _confirmModal;
@@ -46,6 +69,7 @@ namespace FTT.UI {
         private Control _slotScreen;
         private Control _characterScreen;
         private Control _difficultyScreen;
+        private Control _levelSelectScreen;
         private TextureRect _temporalMainArt;
         private TextureRect _temporalSubmenuArt;
 
@@ -55,6 +79,20 @@ namespace FTT.UI {
 
         private string _pendingCharacterID = "";
         private int _pendingDeleteSlot = -1;
+
+        /// <summary>
+        /// True while the developer level-select flow is borrowing the character and
+        /// difficulty screens; routes their confirmations to the direct level launch
+        /// instead of the new-campaign path.
+        /// </summary>
+        private bool _developerLevelFlow;
+        private FTT.Core.CampaignLevel _pendingLevel = FTT.Core.CampaignLevel.Tutorial;
+
+        /// <summary>Whether the developer level-select flow is active. Test surface.</summary>
+        public bool IsDeveloperLevelFlow => _developerLevelFlow;
+
+        /// <summary>The level chosen in the developer flow. Test surface.</summary>
+        public FTT.Core.CampaignLevel PendingLevel => _pendingLevel;
 
         /// <summary>The screen currently showing. Test surface for the back walk.</summary>
         public MainMenuScreen CurrentScreen => _stack[^1];
@@ -75,6 +113,7 @@ namespace FTT.UI {
             _slotScreen = GetNode<Control>("SlotScreen");
             _characterScreen = GetNode<Control>("CharacterScreen");
             _difficultyScreen = GetNode<Control>("DifficultyScreen");
+            _levelSelectScreen = GetNode<Control>("LevelSelectScreen");
             _temporalMainArt = GetNodeOrNull<TextureRect>("Background/TemporalMainArt");
             _temporalSubmenuArt = GetNodeOrNull<TextureRect>("Background/TemporalSubmenuArt");
 
@@ -82,6 +121,7 @@ namespace FTT.UI {
             BindSlotScreen();
             BindCharacterScreen();
             BindDifficultyScreen();
+            BindLevelSelectScreen();
 
             AddSaveLoadNotice(GetNode<Control>("RootScreen/Center/Panel/Layout/NoticeSlot"));
             ShowScreen(MainMenuScreen.Root, resetStack: true);
@@ -93,6 +133,9 @@ namespace FTT.UI {
             const string layout = "RootScreen/Center/Panel/Layout/";
             GetNode<Button>(layout + "QuickPlayButton").Pressed += OnQuickPlayPressed;
             GetNode<Button>(layout + "StoryButton").Pressed += OnStoryModePressed;
+            var levelSelect = GetNode<Button>(layout + "LevelSelectButton");
+            levelSelect.Visible = ShowDeveloperLevelSelect;
+            levelSelect.Pressed += OnLevelSelectPressed;
             GetNode<Button>(layout + "FighterButton").Pressed += () =>
                 FTT.Core.GameManager.Instance?.LoadScene("res://scenes/menus/CharacterSelect.tscn");
             GetNode<Button>(layout + "SettingsButton").Pressed += OpenSettings;
@@ -162,7 +205,26 @@ namespace FTT.UI {
             // Two lines with different emphasis cannot be one raw key, so this one
             // resolves here rather than through automatic control translation.
             button.Text = $"{Tr(nameKey)}\n{Tr(descriptionKey)}";
-            button.Pressed += () => BeginNewStory(_pendingCharacterID, difficulty);
+            button.Pressed += () => OnDifficultyPressed(difficulty);
+        }
+
+        /// <summary>
+        /// Developer level select. Sixteen authored buttons, one per
+        /// <see cref="FTT.Core.CampaignLevel"/>, labelled with the level index plus
+        /// the hub's <c>campaign_level_*</c> mission name (the scene stores the raw
+        /// key; the numbered prefix is why the text is composed here).
+        /// </summary>
+        private void BindLevelSelectScreen() {
+            const string layout = "LevelSelectScreen/Center/Panel/Layout/";
+            var grid = GetNode<GridContainer>(layout + "Grid");
+            for (int index = 0; index < CampaignLevelCount; index++) {
+                var level = (FTT.Core.CampaignLevel)index;
+                var button = grid.GetNode<Button>($"LevelButton{index}");
+                button.ThemeTypeVariation = "TemporalGlassButton";
+                button.Text = $"{index:00}  {Tr(FTT.Environment.HubWorldController.CampaignLevelNameKey(level))}";
+                button.Pressed += () => OnLevelPressed(level);
+            }
+            GetNode<Button>(layout + "BackButton").Pressed += GoBack;
         }
 
         // ---- Screen stack ----------------------------------------------------
@@ -183,6 +245,8 @@ namespace FTT.UI {
             _slotScreen.Visible = screen == MainMenuScreen.SlotSelect;
             _characterScreen.Visible = screen == MainMenuScreen.CharacterSelect;
             _difficultyScreen.Visible = screen == MainMenuScreen.DifficultySelect;
+            _levelSelectScreen.Visible = screen == MainMenuScreen.LevelSelect;
+            if (screen == MainMenuScreen.Root) _developerLevelFlow = false;
             if (_temporalMainArt != null) _temporalMainArt.Visible = screen == MainMenuScreen.Root;
             if (_temporalSubmenuArt != null) _temporalSubmenuArt.Visible = screen != MainMenuScreen.Root;
 
@@ -194,6 +258,7 @@ namespace FTT.UI {
             MainMenuScreen.SlotSelect => _slotScreen,
             MainMenuScreen.CharacterSelect => _characterScreen,
             MainMenuScreen.DifficultySelect => _difficultyScreen,
+            MainMenuScreen.LevelSelect => _levelSelectScreen,
             _ => _rootScreen
         };
 
@@ -241,7 +306,19 @@ namespace FTT.UI {
 
         private void OnStoryModePressed() {
             if (FTT.Core.GameManager.Instance == null) return;
+            _developerLevelFlow = false;
             PushScreen(MainMenuScreen.SlotSelect);
+        }
+
+        /// <summary>
+        /// Developer level select: character → level → difficulty → direct launch.
+        /// Borrows the authored character and difficulty screens; the flag decides
+        /// where their confirmations go.
+        /// </summary>
+        private void OnLevelSelectPressed() {
+            if (FTT.Core.GameManager.Instance == null || !ShowDeveloperLevelSelect) return;
+            _developerLevelFlow = true;
+            PushScreen(MainMenuScreen.CharacterSelect);
         }
 
         private void OpenSettings() {
@@ -390,7 +467,36 @@ namespace FTT.UI {
 
         private void OnCharacterPressed(string characterID) {
             _pendingCharacterID = characterID;
+            PushScreen(_developerLevelFlow ? MainMenuScreen.LevelSelect : MainMenuScreen.DifficultySelect);
+        }
+
+        private void OnLevelPressed(FTT.Core.CampaignLevel level) {
+            _pendingLevel = level;
             PushScreen(MainMenuScreen.DifficultySelect);
+        }
+
+        private void OnDifficultyPressed(FTT.Core.Difficulty difficulty) {
+            if (_developerLevelFlow) {
+                BeginDirectLevel(_pendingCharacterID, _pendingLevel, difficulty);
+            } else {
+                BeginNewStory(_pendingCharacterID, difficulty);
+            }
+        }
+
+        /// <summary>
+        /// Developer level select launch. No save slot is created or touched
+        /// (<see cref="FTT.Core.StoryManager.PrepareDirectLevel"/> clears the
+        /// session slot to <c>-1</c>), so a dev launch can never overwrite a real
+        /// campaign; autosave inside the level silently no-ops.
+        /// </summary>
+        private void BeginDirectLevel(
+            string characterID,
+            FTT.Core.CampaignLevel level,
+            FTT.Core.Difficulty difficulty) {
+            if (string.IsNullOrEmpty(characterID) || FTT.Core.GameManager.Instance == null) return;
+            FTT.Core.StoryManager storyMgr = FTT.Core.StoryManager.Instance;
+            if (storyMgr == null) return;
+            storyMgr.StartLevelDirect(level, characterID, difficulty);
         }
 
         private void BeginNewStory(string characterID, FTT.Core.Difficulty difficulty) {

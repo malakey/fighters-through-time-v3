@@ -38,6 +38,14 @@ recorded in §2.13. Do not re-litigate; do record any *further* deviation in §9
   cleopatra 14.5→13.0, einstein 14.0→12.5, joan 13.5→12.0, leonardo 13.0→11.5,
   lincoln 11.0→10.0, mozart 14.0→12.5, pocahontas 15.0→13.5, shakespeare 13.5→12.0,
   tesla 13.0→11.5. (Rounding lands −17%…−22% per character; "about 20%".)
+- **2026-08-15 follow-up (user directive: heavies felt too low):** the roster spread was
+  compressed from 10.0–13.5 to **11.5–13.0**, linear in force with the ordering preserved:
+  lincoln 10.0→11.5, leonardo 11.5→12.0, tesla 11.5→12.0, joan 12.0→12.25,
+  shakespeare 12.0→12.25, einstein 12.5 (unchanged), mozart 12.5 (unchanged),
+  cleopatra 13.0→12.75, pocahontas 13.5→13.0. Only the two floatiest characters lost any
+  height, so every platform reachable before is still reachable; the reachability suites
+  bound on the lowest jumper, which rose. Weight is unchanged and still carries the
+  heavy/light knockback identity.
 - `FighterLoadout.Default.JumpSpeed` 13→11.5 (default-loadout apex 2.82→2.20 units;
   double-jump ceiling ≈4.4).
 - **Stage geometry consequence (locked):** lower the Globe Theatre canopy platform

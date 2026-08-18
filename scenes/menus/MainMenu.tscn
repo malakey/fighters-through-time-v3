@@ -66,6 +66,7 @@ texture_margin_top = 20.0
 texture_margin_right = 34.0
 texture_margin_bottom = 20.0
 
+
 [node name="MainMenu" type="Control"]
 layout_mode = 3
 anchors_preset = 15
@@ -76,6 +77,7 @@ grow_vertical = 2
 theme = ExtResource("2_theme")
 script = ExtResource("1_script")
 
+
 [node name="Background" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -85,6 +87,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 color = Color(0.012, 0.016, 0.06, 1)
+
 
 [node name="Starfield" type="TextureRect" parent="Background"]
 layout_mode = 1
@@ -98,6 +101,7 @@ texture = ExtResource("3_starfield")
 expand_mode = 1
 stretch_mode = 6
 
+
 [node name="GlassShards" type="TextureRect" parent="Background"]
 layout_mode = 1
 anchors_preset = 15
@@ -110,6 +114,7 @@ texture = ExtResource("4_shards")
 expand_mode = 1
 stretch_mode = 6
 
+
 [node name="TemporalMainArt" type="TextureRect" parent="Background"]
 layout_mode = 1
 anchors_preset = 15
@@ -121,6 +126,7 @@ mouse_filter = 2
 texture = ExtResource("11_temporal_main")
 expand_mode = 1
 stretch_mode = 6
+
 
 [node name="TemporalSubmenuArt" type="TextureRect" parent="Background"]
 visible = false
@@ -135,6 +141,7 @@ texture = ExtResource("12_temporal_submenu")
 expand_mode = 1
 stretch_mode = 6
 
+
 [node name="RootScreen" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -143,6 +150,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
+
 
 [node name="Center" type="CenterContainer" parent="RootScreen"]
 layout_mode = 1
@@ -153,14 +161,17 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
+
 [node name="Panel" type="PanelContainer" parent="RootScreen/Center"]
 custom_minimum_size = Vector2(440, 0)
 layout_mode = 2
 theme_override_styles/panel = SubResource("PanelClear")
 
+
 [node name="Layout" type="VBoxContainer" parent="RootScreen/Center/Panel"]
 layout_mode = 2
 theme_override_constants/separation = 14
+
 
 [node name="TitleFlourishTop" type="TextureRect" parent="RootScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(0, 44)
@@ -169,6 +180,7 @@ mouse_filter = 2
 texture = ExtResource("5_flourish")
 stretch_mode = 5
 
+
 [node name="Title" type="Label" parent="RootScreen/Center/Panel/Layout"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.914, 0.933, 0.973, 1)
@@ -176,11 +188,13 @@ theme_override_font_sizes/font_size = 46
 text = "game_title"
 horizontal_alignment = 1
 
+
 [node name="Subtitle" type="Label" parent="RootScreen/Center/Panel/Layout"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.55, 0.61, 0.73, 1)
 text = "menu_subtitle"
 horizontal_alignment = 1
+
 
 [node name="TitleFlourishBottom" type="TextureRect" parent="RootScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(0, 44)
@@ -190,12 +204,15 @@ texture = ExtResource("5_flourish")
 flip_v = true
 stretch_mode = 5
 
+
 [node name="NoticeSlot" type="VBoxContainer" parent="RootScreen/Center/Panel/Layout"]
 layout_mode = 2
 theme_override_constants/separation = 14
 
+
 [node name="TopSeparator" type="HSeparator" parent="RootScreen/Center/Panel/Layout"]
 layout_mode = 2
+
 
 [node name="QuickPlayButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(380, 56)
@@ -210,6 +227,7 @@ theme_override_styles/normal = SubResource("GlassBtnNormal")
 text = "menu_quick_play"
 alignment = 0
 
+
 [node name="StoryButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(380, 56)
 layout_mode = 2
@@ -222,6 +240,21 @@ theme_override_styles/pressed = SubResource("GlassBtnPressed")
 theme_override_styles/normal = SubResource("GlassBtnNormal")
 text = "menu_story_mode"
 alignment = 0
+
+
+[node name="LevelSelectButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(380, 56)
+layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+theme_override_font_sizes/font_size = 22
+theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_override_styles/disabled = SubResource("GlassBtnDisabled")
+theme_override_styles/hover = SubResource("GlassBtnHover")
+theme_override_styles/pressed = SubResource("GlassBtnPressed")
+theme_override_styles/normal = SubResource("GlassBtnNormal")
+text = "menu_level_select"
+alignment = 0
+
 
 [node name="FighterButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(380, 56)
@@ -236,6 +269,7 @@ theme_override_styles/normal = SubResource("GlassBtnNormal")
 text = "menu_fighter_mode"
 alignment = 0
 
+
 [node name="SettingsButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(380, 56)
 layout_mode = 2
@@ -249,8 +283,10 @@ theme_override_styles/normal = SubResource("GlassBtnNormal")
 text = "menu_settings"
 alignment = 0
 
+
 [node name="BottomSeparator" type="HSeparator" parent="RootScreen/Center/Panel/Layout"]
 layout_mode = 2
+
 
 [node name="QuitButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(380, 56)
@@ -265,6 +301,7 @@ theme_override_styles/normal = SubResource("GlassBtnNormal")
 text = "menu_quit"
 alignment = 0
 
+
 [node name="SlotScreen" type="Control" parent="."]
 visible = false
 layout_mode = 1
@@ -275,6 +312,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
+
 [node name="Center" type="CenterContainer" parent="SlotScreen"]
 layout_mode = 1
 anchors_preset = 15
@@ -284,13 +322,16 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
+
 [node name="Panel" type="PanelContainer" parent="SlotScreen/Center"]
 layout_mode = 2
 theme_type_variation = &"DialogueGlassPanel"
 
+
 [node name="Layout" type="VBoxContainer" parent="SlotScreen/Center/Panel"]
 layout_mode = 2
 theme_override_constants/separation = 14
+
 
 [node name="Title" type="Label" parent="SlotScreen/Center/Panel/Layout"]
 layout_mode = 2
@@ -299,9 +340,11 @@ theme_override_font_sizes/font_size = 28
 text = "save_select_title"
 horizontal_alignment = 1
 
+
 [node name="SlotRow0" type="HBoxContainer" parent="SlotScreen/Center/Panel/Layout"]
 layout_mode = 2
 theme_override_constants/separation = 10
+
 
 [node name="SlotButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow0"]
 custom_minimum_size = Vector2(600, 84)
@@ -309,15 +352,18 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"TemporalGlassButton"
 
+
 [node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow0"]
 custom_minimum_size = Vector2(120, 84)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 text = "save_delete"
 
+
 [node name="SlotRow1" type="HBoxContainer" parent="SlotScreen/Center/Panel/Layout"]
 layout_mode = 2
 theme_override_constants/separation = 10
+
 
 [node name="SlotButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow1"]
 custom_minimum_size = Vector2(600, 84)
@@ -325,15 +371,18 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"TemporalGlassButton"
 
+
 [node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow1"]
 custom_minimum_size = Vector2(120, 84)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 text = "save_delete"
 
+
 [node name="SlotRow2" type="HBoxContainer" parent="SlotScreen/Center/Panel/Layout"]
 layout_mode = 2
 theme_override_constants/separation = 10
+
 
 [node name="SlotButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow2"]
 custom_minimum_size = Vector2(600, 84)
@@ -341,17 +390,20 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"TemporalGlassButton"
 
+
 [node name="DeleteButton" type="Button" parent="SlotScreen/Center/Panel/Layout/SlotRow2"]
 custom_minimum_size = Vector2(120, 84)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 text = "save_delete"
 
+
 [node name="BackButton" type="Button" parent="SlotScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(240, 44)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 text = "common_back"
+
 
 [node name="CharacterScreen" type="Control" parent="."]
 visible = false
@@ -363,6 +415,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
+
 [node name="Center" type="CenterContainer" parent="CharacterScreen"]
 layout_mode = 1
 anchors_preset = 15
@@ -372,13 +425,16 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
+
 [node name="Panel" type="PanelContainer" parent="CharacterScreen/Center"]
 layout_mode = 2
 theme_type_variation = &"DialogueGlassPanel"
 
+
 [node name="Layout" type="VBoxContainer" parent="CharacterScreen/Center/Panel"]
 layout_mode = 2
 theme_override_constants/separation = 14
+
 
 [node name="Title" type="Label" parent="CharacterScreen/Center/Panel/Layout"]
 layout_mode = 2
@@ -387,8 +443,10 @@ theme_override_font_sizes/font_size = 22
 text = "story_select_character"
 horizontal_alignment = 1
 
+
 [node name="TopSeparator" type="HSeparator" parent="CharacterScreen/Center/Panel/Layout"]
 layout_mode = 2
+
 
 [node name="Grid" type="GridContainer" parent="CharacterScreen/Center/Panel/Layout"]
 layout_mode = 2
@@ -396,50 +454,62 @@ theme_override_constants/h_separation = 10
 theme_override_constants/v_separation = 10
 columns = 3
 
+
 [node name="CharacterButton0" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
 custom_minimum_size = Vector2(210, 46)
 layout_mode = 2
+
 
 [node name="CharacterButton1" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
 custom_minimum_size = Vector2(210, 46)
 layout_mode = 2
 
+
 [node name="CharacterButton2" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
 custom_minimum_size = Vector2(210, 46)
 layout_mode = 2
+
 
 [node name="CharacterButton3" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
 custom_minimum_size = Vector2(210, 46)
 layout_mode = 2
 
+
 [node name="CharacterButton4" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
 custom_minimum_size = Vector2(210, 46)
 layout_mode = 2
+
 
 [node name="CharacterButton5" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
 custom_minimum_size = Vector2(210, 46)
 layout_mode = 2
 
+
 [node name="CharacterButton6" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
 custom_minimum_size = Vector2(210, 46)
 layout_mode = 2
+
 
 [node name="CharacterButton7" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
 custom_minimum_size = Vector2(210, 46)
 layout_mode = 2
 
+
 [node name="CharacterButton8" type="Button" parent="CharacterScreen/Center/Panel/Layout/Grid"]
 custom_minimum_size = Vector2(210, 46)
 layout_mode = 2
 
+
 [node name="BottomSeparator" type="HSeparator" parent="CharacterScreen/Center/Panel/Layout"]
 layout_mode = 2
+
 
 [node name="BackButton" type="Button" parent="CharacterScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(240, 44)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 text = "common_back"
+
 
 [node name="DifficultyScreen" type="Control" parent="."]
 visible = false
@@ -451,6 +521,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
+
 [node name="Center" type="CenterContainer" parent="DifficultyScreen"]
 layout_mode = 1
 anchors_preset = 15
@@ -460,13 +531,16 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
+
 [node name="Panel" type="PanelContainer" parent="DifficultyScreen/Center"]
 layout_mode = 2
 theme_type_variation = &"DialogueGlassPanel"
 
+
 [node name="Layout" type="VBoxContainer" parent="DifficultyScreen/Center/Panel"]
 layout_mode = 2
 theme_override_constants/separation = 14
+
 
 [node name="Title" type="Label" parent="DifficultyScreen/Center/Panel/Layout"]
 layout_mode = 2
@@ -475,23 +549,175 @@ theme_override_font_sizes/font_size = 26
 text = "story_select_difficulty"
 horizontal_alignment = 1
 
+
 [node name="EasyButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(620, 76)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
+
 
 [node name="NormalButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(620, 76)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 
+
 [node name="HardButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(620, 76)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 
+
 [node name="BackButton" type="Button" parent="DifficultyScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(400, 44)
+layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+text = "common_back"
+
+[node name="LevelSelectScreen" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Center" type="CenterContainer" parent="LevelSelectScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="LevelSelectScreen/Center"]
+layout_mode = 2
+theme_type_variation = &"DialogueGlassPanel"
+
+[node name="Layout" type="VBoxContainer" parent="LevelSelectScreen/Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="LevelSelectScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 22
+text = "dev_level_select_title"
+horizontal_alignment = 1
+
+[node name="TopSeparator" type="HSeparator" parent="LevelSelectScreen/Center/Panel/Layout"]
+layout_mode = 2
+
+[node name="Grid" type="GridContainer" parent="LevelSelectScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 8
+columns = 2
+
+[node name="LevelButton0" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_tutorial"
+alignment = 0
+
+[node name="LevelButton1" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_florence"
+alignment = 0
+
+[node name="LevelButton2" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_orleans"
+alignment = 0
+
+[node name="LevelButton3" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_chicago"
+alignment = 0
+
+[node name="LevelButton4" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_paris"
+alignment = 0
+
+[node name="LevelButton5" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_titanic"
+alignment = 0
+
+[node name="LevelButton6" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_pompeii"
+alignment = 0
+
+[node name="LevelButton7" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_nassau"
+alignment = 0
+
+[node name="LevelButton8" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_egypt"
+alignment = 0
+
+[node name="LevelButton9" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_berlin"
+alignment = 0
+
+[node name="LevelButton10" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_globe"
+alignment = 0
+
+[node name="LevelButton11" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_gettysburg"
+alignment = 0
+
+[node name="LevelButton12" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_lunar"
+alignment = 0
+
+[node name="LevelButton13" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_chronal_void"
+alignment = 0
+
+[node name="LevelButton14" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_neo_earth"
+alignment = 0
+
+[node name="LevelButton15" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_alexandria"
+alignment = 0
+
+[node name="BottomSeparator" type="HSeparator" parent="LevelSelectScreen/Center/Panel/Layout"]
+layout_mode = 2
+
+[node name="BackButton" type="Button" parent="LevelSelectScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(240, 44)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 text = "common_back"

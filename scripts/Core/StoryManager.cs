@@ -128,6 +128,36 @@ namespace FTT.Core {
             TutorialComplete = false;
         }
 
+        /// <summary>
+        /// Developer level select (2026-08-15, temporary while in development).
+        /// Puts the campaign runtime into the state a fresh run of <paramref name="level"/>
+        /// would have — selected character, difficulty, a full rewind pool, zero
+        /// dust, tutorial marked complete for anything past level 0 — and clears
+        /// <see cref="SessionData.ActiveSaveSlot"/> to <c>-1</c> so nothing in the
+        /// level can autosave over a real slot (every save site tolerates no slot).
+        /// Deliberately does <b>not</b> call <see cref="SaveManager.CreateStorySlot"/>.
+        /// Split from <see cref="StartLevelDirect"/> so tests can pin the state
+        /// without loading a scene.
+        /// </summary>
+        public void PrepareDirectLevel(CampaignLevel level, string characterID, Difficulty difficulty) {
+            if (GameManager.Instance != null) {
+                SessionData session = GameManager.Instance.CurrentSession;
+                session.SelectedCharacterID = characterID;
+                session.Difficulty = difficulty;
+                session.ActiveSaveSlot = -1;
+                GameManager.Instance.CurrentSession = session;
+            }
+            ResetCampaignState(difficulty);
+            CurrentLevel = level;
+            TutorialComplete = level != CampaignLevel.Tutorial;
+        }
+
+        /// <summary>Developer level select: prepare and load a level directly. See <see cref="PrepareDirectLevel"/>.</summary>
+        public void StartLevelDirect(CampaignLevel level, string characterID, Difficulty difficulty) {
+            PrepareDirectLevel(level, characterID, difficulty);
+            LoadCurrentLevel();
+        }
+
         public void ResumeCampaign(int slot, StorySaveData save) {
             if (save == null || GameManager.Instance == null) return;
             int levelIndex = 0;

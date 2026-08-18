@@ -63,9 +63,27 @@ public class DeathTriggeredRewindTests {
                 .OverrideFailureMessage("The death did not start a rewind — the player is stranded dead.")
                 .IsTrue();
 
+            // 2026-08-15 pacing: the mechanic opens with a hold in which nothing
+            // plays back — the player stays where they died — and the whole
+            // thing then takes exactly hold + playback ticks for this history.
+            Vector2 deathPosition = player.GlobalPosition;
+            AssertThat(manager.IsInPreRewindHold).IsTrue();
+            for (int i = 0; i < ChronalRewindManager.PreRewindHoldFrames - 1; i++) {
+                manager._PhysicsProcess(1.0 / 60.0);
+                AssertThat(manager.IsInPreRewindHold).IsTrue();
+                AssertThat(player.GlobalPosition).IsEqual(deathPosition);
+            }
+            manager._PhysicsProcess(1.0 / 60.0);
+            AssertThat(manager.IsInPreRewindHold).IsFalse();
+            AssertThat(manager.IsRewinding).IsTrue();
+
+            int playbackTicks = 0;
             for (int i = 0; i < 900 && manager.IsRewinding; i++) {
                 manager._PhysicsProcess(1.0 / 60.0);
+                playbackTicks++;
             }
+            // 60 recorded frames → 30-tick playback floor.
+            AssertThat(playbackTicks).IsEqual(ChronalRewindManager.ComputePlaybackTicks(60));
 
             AssertThat(manager.IsRewinding)
                 .OverrideFailureMessage("The rewind never completed — playback stalled.")

@@ -8,16 +8,18 @@
 
 | Tool | Location / version | Notes |
 |---|---|---|
-| Godot editor (Mono) | `D:\Projects\Godot_v4.7.1-stable_mono_win64.exe` | GUI editor. Verified `4.7.1.stable.mono.official`. |
-| Godot console (Mono) | `D:\Projects\Godot_v4.7.1-stable_mono_win64_console.exe` | Use this one for headless/CLI work and for `GODOT_BIN`. It writes to stdout; the non-console build does not. |
+| Godot editor (Mono) | `C:\Users\DavidMcClelland\Documents\FTT\Godot_v4.7.1-stable_mono_win64.exe` | GUI editor. Verified `4.7.1.stable.mono.official`. |
+| Godot console (Mono) | `C:\Users\DavidMcClelland\Documents\FTT\Godot_v4.7.1-stable_mono_win64_console.exe` | Use this one for headless/CLI work and for `GODOT_BIN`. It writes to stdout; the non-console build does not. |
 | .NET SDK | `10.0.302` (`global.json` pins it, `rollForward: latestFeature`) | 8.0.423 is also installed; `global.json` selects 10. The project targets `net10.0`. |
-| Repository root | `D:\Projects\Fighters Through Time - V3` | Path contains spaces — always quote it. |
+| Repository root | `C:\Users\DavidMcClelland\Documents\FTT\Fighters Through Time - V3` | Path contains spaces — always quote it. |
+
+**Location moved 2026-08-15.** The repository and both Godot executables now live under `C:\Users\DavidMcClelland\Documents\FTT\` (previously `D:\Projects\`, which no longer exists on this machine). Every `D:\Projects\...` path in the command examples below and in the older `docs/` prose should be read as `C:\Users\DavidMcClelland\Documents\FTT\...`. If `dotnet test` reports `The Godot executable was not found at path: D:\Projects\...` and `No test is available`, that is a stale `GODOT_BIN`, not a broken suite.
 
 `GODOT_BIN` is set to the console executable by `.claude/settings.json`, so `dotnet test` picks it up without extra setup in a Claude Code session. Outside a Claude session it must be exported manually.
 
-Both Godot executables live one directory above the repository, in `D:\Projects\`. They are not in the repo and not on `PATH`.
+Both Godot executables live one directory above the repository, in `C:\Users\DavidMcClelland\Documents\FTT\`. They are not in the repo and not on `PATH`.
 
-`D:\Projects\GodotSharp\` must stay next to the executables — it is the .NET API assembly directory that ships with the Godot Mono build, and Godot resolves it relative to the binary, not the project.
+`GodotSharp\` must stay next to the executables — it is the .NET API assembly directory that ships with the Godot Mono build, and Godot resolves it relative to the binary, not the project.
 
 ### Failure signature 1: a silently partial test run (Godot never launched)
 

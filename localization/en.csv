@@ -311,6 +311,8 @@ resonance_result_unavailable,That node cannot be unlocked.
 game_title,FIGHTERS THROUGH TIME
 menu_subtitle,Temporal Resonance Prototype
 menu_quick_play,Quick Play (Einstein vs CPU)
+menu_level_select,Level Select (Dev)
+dev_level_select_title,DEV — SELECT LEVEL
 save_select_title,SELECT STORY SAVE
 save_slot_empty,Slot {0}: New Game
 save_slot_summary,"Slot {0}: {1} — {2}\n{3} | Last saved: {4}"

@@ -28,6 +28,8 @@ public class MainMenuSceneTests {
     private const string RootLayout = "RootScreen/Center/Panel/Layout/";
     private const string SlotLayout = "SlotScreen/Center/Panel/Layout/";
     private const string CharacterLayout = "CharacterScreen/Center/Panel/Layout/";
+    private const string LevelLayout = "LevelSelectScreen/Center/Panel/Layout/";
+    private const string DifficultyLayout = "DifficultyScreen/Center/Panel/Layout/";
 
     [TestCase]
     public void TheAuthoredSceneCarriesEveryScreenAndControlTheScriptBindsByPath() {
@@ -43,7 +45,7 @@ public class MainMenuSceneTests {
             }
 
             foreach (string button in new[] {
-                         "QuickPlayButton", "StoryButton", "FighterButton",
+                         "QuickPlayButton", "StoryButton", "LevelSelectButton", "FighterButton",
                          "SettingsButton", "QuitButton" }) {
                 AssertThat(menu.GetNodeOrNull<Button>(RootLayout + button) != null)
                     .OverrideFailureMessage($"Missing authored root button {button}")
@@ -62,6 +64,9 @@ public class MainMenuSceneTests {
 
             // Nine authored roster tiles, matching the locked nine-character roster.
             AssertThat(menu.GetNode<GridContainer>(CharacterLayout + "Grid").GetChildCount()).IsEqual(9);
+
+            // Sixteen authored developer level-select tiles, one per CampaignLevel.
+            AssertThat(menu.GetNode<GridContainer>(LevelLayout + "Grid").GetChildCount()).IsEqual(16);
 
             // The A4 save-notice slot must survive the conversion, whether or not a
             // notice is actually pending in this session.
@@ -86,7 +91,7 @@ public class MainMenuSceneTests {
                          "game_title", "menu_subtitle", "menu_quick_play", "menu_story_mode",
                          "menu_fighter_mode", "menu_settings", "menu_quit", "save_select_title",
                          "save_delete", "common_back", "story_select_character",
-                         "story_select_difficulty" }) {
+                         "story_select_difficulty", "menu_level_select", "dev_level_select_title" }) {
                 AssertThat(TranslationServer.Translate(key).ToString())
                     .OverrideFailureMessage($"{key} does not resolve through the compiled translation")
                     .IsNotEqual(key);
@@ -127,8 +132,9 @@ public class MainMenuSceneTests {
         StorySaveData[] originals = ClearAllSlots();
         MainMenu menu = Open(out Node host);
         try {
-            // Root screen: five buttons, all chained and all reachable.
-            AssertChainCoversScreen(menu, "RootScreen", 5);
+            // Root screen: five production buttons plus the debug-build developer
+            // level select (the test host is a debug build), all chained and reachable.
+            AssertChainCoversScreen(menu, "RootScreen", 6);
 
             Press(menu, RootLayout + "StoryButton");
             AssertThat(menu.CurrentScreen).IsEqual(MainMenuScreen.SlotSelect);
@@ -367,10 +373,123 @@ public class MainMenuSceneTests {
         }
     }
 
+    // ---- developer level select (temporary, 2026-08-15) ----------------------
+
+    [TestCase]
+    public void DeveloperLevelSelectWalksCharacterThenLevelThenDifficultyAndBacksOutCleanly() {
+        StorySaveData[] originals = ClearAllSlots();
+        MainMenu menu = Open(out Node host);
+        try {
+            AssertThat(menu.GetNode<Button>(RootLayout + "LevelSelectButton").Visible).IsTrue();
+
+            Press(menu, RootLayout + "LevelSelectButton");
+            AssertThat(menu.IsDeveloperLevelFlow).IsTrue();
+            AssertThat(menu.CurrentScreen).IsEqual(MainMenuScreen.CharacterSelect);
+            AssertVisibleScreenCount(menu, 1);
+
+            // Character first (user-specified order), then the level grid — not the
+            // difficulty screen the campaign flow would go to from here.
+            Press(menu, CharacterLayout + "Grid/CharacterButton3");
+            AssertThat(menu.CurrentScreen).IsEqual(MainMenuScreen.LevelSelect);
+            AssertChainCoversScreen(menu, "LevelSelectScreen", 17);
+
+            // Every tile carries a numbered, localized mission name, not a raw key.
+            var grid = menu.GetNode<GridContainer>(LevelLayout + "Grid");
+            for (int index = 0; index < 16; index++) {
+                string text = grid.GetNode<Button>($"LevelButton{index}").Text;
+                AssertThat(text.StartsWith($"{index:00}  "))
+                    .OverrideFailureMessage($"Level tile {index} is not numbered: '{text}'")
+                    .IsTrue();
+                AssertThat(text.Contains("campaign_level_"))
+                    .OverrideFailureMessage($"Level tile {index} shows a raw key: '{text}'")
+                    .IsFalse();
+            }
+
+            Press(menu, LevelLayout + "Grid/LevelButton10");
+            AssertThat(menu.PendingLevel).IsEqual(CampaignLevel.London);
+            AssertThat(menu.CurrentScreen).IsEqual(MainMenuScreen.DifficultySelect);
+            AssertThat(menu.ScreenDepth).IsEqual(4);
+
+            // Cancel walks back through the borrowed screens in reverse.
+            menu.GoBack();
+            AssertThat(menu.CurrentScreen).IsEqual(MainMenuScreen.LevelSelect);
+            menu.GoBack();
+            AssertThat(menu.CurrentScreen).IsEqual(MainMenuScreen.CharacterSelect);
+            menu.GoBack();
+            AssertThat(menu.CurrentScreen).IsEqual(MainMenuScreen.Root);
+            // Returning to the root drops the developer flag, so Story Mode from
+            // here is the ordinary slot → character → difficulty campaign path.
+            AssertThat(menu.IsDeveloperLevelFlow).IsFalse();
+            Press(menu, RootLayout + "StoryButton");
+            Press(menu, SlotLayout + "SlotRow0/SlotButton");
+            Press(menu, CharacterLayout + "Grid/CharacterButton0");
+            AssertThat(menu.CurrentScreen).IsEqual(MainMenuScreen.DifficultySelect);
+        } finally {
+            Teardown(host);
+            RestoreSlots(originals);
+        }
+    }
+
+    [TestCase]
+    public void DeveloperLevelSelectButtonIsHiddenAndSkippedByTheFocusChainOutsideDebugBuilds() {
+        MainMenu.DeveloperLevelSelectOverrideForTesting = false;
+        try {
+            MainMenu menu = Open(out Node host);
+            try {
+                AssertThat(menu.GetNode<Button>(RootLayout + "LevelSelectButton").Visible).IsFalse();
+                AssertChainCoversScreen(menu, "RootScreen", 5);
+            } finally {
+                Teardown(host);
+            }
+        } finally {
+            MainMenu.DeveloperLevelSelectOverrideForTesting = null;
+        }
+    }
+
+    [TestCase]
+    public void PreparingADirectLevelSetsTheSessionAndCampaignStateWithoutTouchingASaveSlot() {
+        if (StoryManager.Instance == null || GameManager.Instance == null || SaveManager.Instance == null) return;
+        StorySaveData[] originals = ClearAllSlots();
+        SessionData before = GameManager.Instance.CurrentSession;
+        try {
+            SessionData primed = before;
+            primed.ActiveSaveSlot = 1;
+            GameManager.Instance.CurrentSession = primed;
+
+            StoryManager.Instance.PrepareDirectLevel(CampaignLevel.Nassau, "pocahontas", Difficulty.Hard);
+
+            SessionData session = GameManager.Instance.CurrentSession;
+            AssertThat(session.SelectedCharacterID).IsEqual("pocahontas");
+            AssertThat(session.Difficulty).IsEqual(Difficulty.Hard);
+            // The dev launch clears the slot so nothing in the level can autosave
+            // over a real campaign.
+            AssertThat(session.ActiveSaveSlot).IsEqual(-1);
+            AssertThat(StoryManager.Instance.CurrentLevel).IsEqual(CampaignLevel.Nassau);
+            AssertThat(StoryManager.Instance.GetCurrentLevelPath())
+                .IsEqual("res://scenes/campaign/Level_07_Nassau.tscn");
+            AssertThat(StoryManager.Instance.ChronalDustCollected).IsEqual(0);
+            AssertThat(StoryManager.Instance.ChronalRewindsRemaining).IsEqual(1);
+            AssertThat(StoryManager.Instance.TutorialComplete).IsTrue();
+            for (int slot = 0; slot < 3; slot++) {
+                AssertThat(SaveManager.Instance.SaveSlots[slot] == null)
+                    .OverrideFailureMessage($"Direct level launch created a save in slot {slot}")
+                    .IsTrue();
+            }
+
+            StoryManager.Instance.PrepareDirectLevel(CampaignLevel.Tutorial, "einstein", Difficulty.Easy);
+            AssertThat(StoryManager.Instance.TutorialComplete).IsFalse();
+            AssertThat(StoryManager.Instance.ChronalRewindsRemaining).IsEqual(5);
+        } finally {
+            StoryManager.Instance.ResetCampaignState(before.Difficulty);
+            GameManager.Instance.CurrentSession = before;
+            RestoreSlots(originals);
+        }
+    }
+
     // ---- helpers ------------------------------------------------------------
 
     private static string[] ScreenNames() =>
-        new[] { "RootScreen", "SlotScreen", "CharacterScreen", "DifficultyScreen" };
+        new[] { "RootScreen", "SlotScreen", "CharacterScreen", "DifficultyScreen", "LevelSelectScreen" };
 
     private static void Press(MainMenu menu, string path) =>
         menu.GetNode<Button>(path).EmitSignal(BaseButton.SignalName.Pressed);

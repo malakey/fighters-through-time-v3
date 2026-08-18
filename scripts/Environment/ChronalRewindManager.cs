@@ -15,7 +15,9 @@ namespace FTT.Environment {
         private Difficulty _difficulty;
         private PlayerController _player;
         private List<RewindFrame> _playbackPath;
-        private int _playbackIndex;
+        private int _playbackTick;
+        private int _playbackTicks;
+        private int _holdTicksRemaining;
         private bool _isRewinding;
         private readonly List<IStoryRewindSimulation> _frozenSimulations = new();
 
@@ -118,39 +120,94 @@ namespace FTT.Environment {
             return true;
         }
 
+        // ---- Pacing (2026-08-15 rework, user direction) ------------------------
+        //
+        // The old playback scrubbed every 12th buffered frame per physics tick:
+        // fifteen seconds of history flew past in ~1.25 s, the character
+        // teleported 12 frames at a time (the "glitchy" read), and it began on
+        // the very tick of the lethal hit. Now:
+        //   * the whole mechanic lasts HALF the duration it rewinds (an 8 s
+        //     history takes 4 s; a 3 s history takes 1.5 s),
+        //   * it opens with a hold — world frozen, player suspended in the death
+        //     pose, presentation live — before any frame plays back,
+        //   * playback then walks the FULL-resolution history (stride 1) at the
+        //     pace that fills the remaining time, so motion is continuous
+        //     rather than stepped.
+
+        /// <summary>Hold before playback begins: 0.75 s at 60 Hz.</summary>
+        public const int PreRewindHoldFrames = 45;
+
+        /// <summary>The whole mechanic (hold + playback) takes this fraction of the rewound duration.</summary>
+        public const float MechanicDurationFraction = 0.5f;
+
+        /// <summary>Playback never compresses below half a second, even for a very young buffer.</summary>
+        public const int MinimumPlaybackFrames = 30;
+
         /// <summary>
-        /// Every 12th buffered frame plays back per physics tick, so the full
-        /// 900-frame (15 s) history scrubs past in ~1.25 s of cinematic — the
-        /// same pace the original 300-frame buffer had at stride 4.
+        /// Physics ticks of playback for a history of <paramref name="rewoundFrames"/>
+        /// frames: half the rewound duration less the opening hold, floored at
+        /// <see cref="MinimumPlaybackFrames"/>. A full 480-frame (8 s) buffer
+        /// gives 45 + 195 = 240 ticks, exactly 4 s.
         /// </summary>
-        private const int PlaybackStride = 12;
+        public static int ComputePlaybackTicks(int rewoundFrames) {
+            int mechanic = Mathf.RoundToInt(Math.Max(0, rewoundFrames) * MechanicDurationFraction);
+            return Math.Max(MinimumPlaybackFrames, mechanic - PreRewindHoldFrames);
+        }
+
+        /// <summary>Total physics ticks the mechanic occupies for a history of the given depth. Test surface.</summary>
+        public static int ComputeTotalMechanicTicks(int rewoundFrames) =>
+            PreRewindHoldFrames + ComputePlaybackTicks(rewoundFrames);
+
+        /// <summary>
+        /// Which full-resolution history frame plays on playback tick
+        /// <paramref name="tick"/> (1-based) of <paramref name="playbackTicks"/>:
+        /// linear progress across the path, so the last tick lands on the last frame.
+        /// </summary>
+        public static int PathIndexForTick(int tick, int playbackTicks, int pathCount) {
+            if (pathCount <= 1 || playbackTicks <= 0) return Math.Max(0, pathCount - 1);
+            float progress = Mathf.Clamp((float)tick / playbackTicks, 0f, 1f);
+            return Math.Min(pathCount - 1, Mathf.FloorToInt(progress * (pathCount - 1) + 0.0001f));
+        }
+
+        /// <summary>True while the opening hold is running (rewinding, but no frame has played back yet). Test surface.</summary>
+        public bool IsInPreRewindHold => _isRewinding && _holdTicksRemaining > 0;
 
         private void BeginRewind() {
             RemainingRewinds--;
             StoryManager.Instance?.SetRewinds(RemainingRewinds);
             Vector2 checkpoint = GetCheckpointPosition();
             // Target the full buffer depth: the rewind lands as far back as the
-            // recorded history allows (up to 15 s), on a grounded frame.
+            // recorded history allows (up to 8 s), on a grounded frame. Stride 1
+            // — the pacing below decides how fast the path is walked.
             _playbackPath = _buffer.BuildPlaybackPath(
-                checkpoint, PlaybackStride, ChronalRewindBuffer.DefaultCapacity);
-            _playbackIndex = 0;
+                checkpoint, 1, ChronalRewindBuffer.DefaultCapacity);
+            _playbackTick = 0;
+            _playbackTicks = ComputePlaybackTicks(_playbackPath.Count);
+            _holdTicksRemaining = PreRewindHoldFrames;
             _isRewinding = true;
             FreezeWorldForRewind();
             _player.SetRewindSuspended(true);
             RaisePresentation(RewindPresentationPhase.Started, checkpoint, active: true);
-            RaisePresentation(RewindPresentationPhase.Playback, checkpoint, active: true);
         }
 
         private void AdvancePlayback() {
-            if (_playbackPath == null || _playbackIndex >= _playbackPath.Count) {
+            if (_playbackPath == null || _playbackPath.Count == 0) {
                 CompleteRewind(GetCheckpointPosition());
                 return;
             }
-            RewindFrame frame = _playbackPath[_playbackIndex++];
+            if (_holdTicksRemaining > 0) {
+                _holdTicksRemaining--;
+                if (_holdTicksRemaining == 0) {
+                    RaisePresentation(RewindPresentationPhase.Playback, _playbackPath[^1].Position, active: true);
+                }
+                return;
+            }
+            _playbackTick++;
+            RewindFrame frame = _playbackPath[PathIndexForTick(_playbackTick, _playbackTicks, _playbackPath.Count)];
             _player.GlobalPosition = frame.Position;
             _player.IsFacingRight = frame.IsFacingRight;
             _player.PlayPresentationAnimation(frame.AnimationName);
-            if (_playbackIndex >= _playbackPath.Count) CompleteRewind(frame.Position);
+            if (_playbackTick >= _playbackTicks) CompleteRewind(_playbackPath[^1].Position);
         }
 
         private void CompleteRewind(Vector2 landingPosition) {
@@ -162,7 +219,9 @@ namespace FTT.Environment {
             _player.CompleteStoryRewind(landingPosition, restoredHP);
             _isRewinding = false;
             _playbackPath = null;
-            _playbackIndex = 0;
+            _playbackTick = 0;
+            _playbackTicks = 0;
+            _holdTicksRemaining = 0;
             _buffer.Clear();
             EventBus.Instance?.RaiseRewindTriggered(landingPosition);
             ResumeWorldAfterRewind();
