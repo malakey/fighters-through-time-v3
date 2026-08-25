@@ -56,17 +56,41 @@ public class StatusControllerTests {
     }
 
     [TestCase]
-    public void EnemyMinimalStatusFollowsNewestReplacesSemantics() {
+    public void PlayerDamageAndControlStatusesCoexistInSeparateSlots() {
+        (PlayerController player, StatusController status) = CreateSubject();
+
+        // V7 two-slot rule: a DoT and a slow occupy different slots, so a
+        // trapper's Venom survives landing a follow-up control status.
+        status.ApplyStatus(StatusType.Venom, 3f);
+        status.ApplyStatus(StatusType.TimeDilation, 2f);
+
+        AssertThat(status.HasStatus(StatusType.Venom)).IsTrue();
+        AssertThat(status.HasStatus(StatusType.TimeDilation)).IsTrue();
+        AssertThat(player.StatusMovementMultiplier).IsEqual(0.5f);
+        status._PhysicsProcess(1.05);
+        AssertThat(player.CurrentHP).IsEqual(98);
+
+        // The control slot expiring restores movement without touching the DoT.
+        status._PhysicsProcess(1.0);
+        AssertThat(player.StatusMovementMultiplier).IsEqual(1f);
+        AssertThat(status.HasStatus(StatusType.Venom)).IsTrue();
+        player.Free();
+    }
+
+    [TestCase]
+    public void EnemyMinimalStatusFollowsTwoSlotSemantics() {
         var enemy = new FTT.Enemies.EnemyController { CurrentHP = 100 };
 
         enemy.ApplyStatusEffect(StatusType.TimeDilation, 3f, 1f);
         AssertThat(enemy.ActiveStatusType).IsEqual(StatusType.TimeDilation);
         AssertThat(enemy.StatusMoveMultiplier).IsEqual(0.5f);
 
-        // The newest status completely replaces the previous one.
+        // V7 two-slot rule: the burn occupies the damage slot while the slow
+        // keeps its control slot — both apply at once.
         enemy.ApplyStatusEffect(StatusType.RadiantBurn, 3f, 1f);
-        AssertThat(enemy.ActiveStatusType).IsEqual(StatusType.RadiantBurn);
-        AssertThat(enemy.StatusMoveMultiplier).IsEqual(1f);
+        AssertThat(enemy.HasStatusEffect(StatusType.TimeDilation)).IsTrue();
+        AssertThat(enemy.HasStatusEffect(StatusType.RadiantBurn)).IsTrue();
+        AssertThat(enemy.StatusMoveMultiplier).IsEqual(0.5f);
         AssertThat(enemy.StatusDamageTakenMultiplier).IsEqual(1.25f);
 
         // RadiantBurn amplifies incoming damage (Einstein's Critical Mass burst).

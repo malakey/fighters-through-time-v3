@@ -27,6 +27,12 @@ namespace FTT.UI {
         private Label _levelTitleLabel;
         private Label _objectiveLabel;
         private ProgressBar _hpBar;
+        private ColorRect _echoBand;
+        private FTT.Characters.PlayerController _echoPlayer;
+        private Label _integrityLabel;
+        private float _lastIntegrityShown = -1f;
+        private Label _bossIntroCard;
+        private float _bossIntroCardTimer;
         private Label _hpText;
         private ProgressBar _meterBar;
         private Label _rewindLabel;
@@ -42,6 +48,7 @@ namespace FTT.UI {
 
         private readonly HudAbilityIndicatorModel _indicators = new();
         private readonly HudOpacityBinder _opacity = new();
+        private readonly UiScaleBinder _uiScale = new();
 
         private float _checkpointToastTimer;
         private int _lastRewinds = int.MinValue;
@@ -109,6 +116,7 @@ namespace FTT.UI {
             RefreshCounters(force: true);
             RefreshIndicators();
             _opacity.Apply(_root, force: true);
+            _uiScale.Apply(_root, force: true);
         }
 
         public override void _ExitTree() {
@@ -131,12 +139,74 @@ namespace FTT.UI {
             // Polled rather than event-driven: there is no settings-changed event,
             // and SettingsMenu belongs to another workstream this package.
             _opacity.Apply(_root);
+            _uiScale.Apply(_root);
             _indicators.Tick((float)delta);
             RefreshIndicators();
+            RefreshEchoBand();
+            RefreshIntegrity();
+            if (_bossIntroCardTimer > 0f) {
+                _bossIntroCardTimer -= (float)delta;
+                if (_bossIntroCardTimer <= 0f && _bossIntroCard != null) _bossIntroCard.Visible = false;
+            }
             if (_checkpointToastTimer > 0f) {
                 _checkpointToastTimer -= (float)delta;
                 if (_checkpointToastTimer <= 0f && _checkpointToast != null) _checkpointToast.Visible = false;
             }
+        }
+
+        /// <summary>
+        /// V7.1 Siphon Clock readout: the percentage ticks red while any
+        /// Extractor is draining it (detected as a falling value), steady cyan
+        /// otherwise.
+        /// </summary>
+        private void RefreshIntegrity() {
+            if (_integrityLabel == null) return;
+            var story = FTT.Core.StoryManager.Instance;
+            if (story == null) {
+                _integrityLabel.Visible = false;
+                return;
+            }
+            float percent = story.TimelineIntegrityPercent;
+            _integrityLabel.Visible = true;
+            _integrityLabel.Text = string.Format(Tr("hud_integrity"), Mathf.FloorToInt(percent));
+            bool draining = _lastIntegrityShown >= 0f && percent < _lastIntegrityShown;
+            _integrityLabel.AddThemeColorOverride(
+                "font_color", draining ? UIPalette.BossRed : UIPalette.Cyan);
+            _lastIntegrityShown = percent;
+        }
+
+        /// <summary>V7 boss intro ritual: the localized name card over the
+        /// establishing beat, before the bar sweeps in.</summary>
+        public void ShowBossIntroCard(string nameKey, float seconds) {
+            if (_bossIntroCard == null) return;
+            _bossIntroCard.Text = Tr(string.IsNullOrWhiteSpace(nameKey) ? "boss" : nameKey);
+            _bossIntroCard.Visible = true;
+            _bossIntroCardTimer = Mathf.Max(0.5f, seconds);
+        }
+
+        /// <summary>
+        /// Positions the Rally echo band from the live player's pool each frame
+        /// (the drain is continuous, so events would spam). Reuses the shared
+        /// FighterHudModel band arithmetic so both modes agree on the geometry.
+        /// </summary>
+        private void RefreshEchoBand() {
+            if (_echoBand == null) return;
+            if (_echoPlayer == null || !IsInstanceValid(_echoPlayer)) {
+                _echoPlayer = GetTree()?.GetFirstNodeInGroup("StoryPlayer") as FTT.Characters.PlayerController;
+            }
+            if (_echoPlayer == null) {
+                _echoBand.Visible = false;
+                return;
+            }
+            float band = FighterHudModel.EchoBandFraction(
+                _echoPlayer.CurrentHP, _echoPlayer.EchoPool, _echoPlayer.MaximumHP);
+            _echoBand.Visible = band > 0f;
+            if (band <= 0f) return;
+            float fill = FighterHudModel.BarFraction(_echoPlayer.CurrentHP, _echoPlayer.MaximumHP);
+            _echoBand.AnchorLeft = fill;
+            _echoBand.AnchorRight = fill + band;
+            _echoBand.OffsetLeft = 0f;
+            _echoBand.OffsetRight = 0f;
         }
 
         // === Public API used by level controllers ===
@@ -374,16 +444,59 @@ namespace FTT.UI {
         private void ResolveUI() {
             _root = GetNodeOrNull<Control>("Root");
             if (_root == null) return;
-            UIPalette.ApplyTheme(_root);
+            // Unscaled fonts: the whole HUD layout scales through _uiScale
+            // instead, so the shared (scale-mutated) theme would double-scale.
+            _root.Theme ??= UIPalette.NewUnscaledTheme();
             _portrait = GetNodeOrNull<TextureRect>("Root/Portrait");
             _blockPipRow = GetNodeOrNull<HBoxContainer>("Root/Vitals/BlockCharges");
             _levelTitleLabel = GetNodeOrNull<Label>("Root/TopLeft/LevelTitle");
             _objectiveLabel = GetNodeOrNull<Label>("Root/TopLeft/Objective");
             _hpBar = GetNodeOrNull<ProgressBar>("Root/Vitals/HPBar");
+            // Rally echo band (V7.1): a gold inner sliver above the current HP
+            // fill — the HP the player wins back by landing a direct hit before
+            // the drain empties it. Built in code so the authored scene stays
+            // untouched; polled in _Process because the pool drains every frame.
+            if (_hpBar != null && _echoBand == null) {
+                Color echoTint = UIPalette.GoldBright;
+                echoTint.A = 0.55f;
+                _echoBand = new ColorRect {
+                    Name = "EchoBand",
+                    Color = echoTint,
+                    Visible = false,
+                    MouseFilter = Control.MouseFilterEnum.Ignore
+                };
+                _echoBand.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+                _hpBar.AddChild(_echoBand);
+            }
             _hpText = GetNodeOrNull<Label>("Root/Vitals/HPText");
             _meterBar = GetNodeOrNull<ProgressBar>("Root/Vitals/MeterBar");
             _rewindLabel = GetNodeOrNull<Label>("Root/Vitals/RewindLabel");
             _dustLabel = GetNodeOrNull<Label>("Root/Vitals/DustLabel");
+            // V7.1 Timeline Integrity readout, beside the dust counter: red
+            // while a siphon drains it, steady cyan otherwise. Built in code so
+            // the authored scene stays untouched.
+            if (_dustLabel != null && _integrityLabel == null) {
+                _integrityLabel = new Label {
+                    Name = "IntegrityLabel",
+                    Text = "",
+                    MouseFilter = Control.MouseFilterEnum.Ignore
+                };
+                _dustLabel.GetParent()?.AddChild(_integrityLabel);
+            }
+            // V7 boss intro name card: a centered stamp shown for the 1.5 s
+            // establishing beat before the boss bar sweeps in.
+            if (_root != null && _bossIntroCard == null) {
+                _bossIntroCard = new Label {
+                    Name = "BossIntroCard",
+                    Visible = false,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    MouseFilter = Control.MouseFilterEnum.Ignore
+                };
+                _bossIntroCard.SetAnchorsPreset(Control.LayoutPreset.Center);
+                _bossIntroCard.AddThemeFontSizeOverride("font_size", 40);
+                _root.AddChild(_bossIntroCard);
+            }
             _statusIndicator = GetNodeOrNull<Label>("Root/Vitals/StatusIndicator");
             if (_statusIndicator != null) _statusIndicator.Visible = false;
             for (int index = 0; index < IndicatorSlots.Length; index++) {

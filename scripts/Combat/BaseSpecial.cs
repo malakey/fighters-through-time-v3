@@ -73,9 +73,12 @@ namespace FTT.Combat {
             switch (Data.Slot) {
                 case FTT.Core.AbilitySlot.Special1:
                     Owner.SpecialOneCooldownTimer = cooldown;
+                    // A fresh cooldown cycle re-arms its Resonance Momentum refunds.
+                    Owner.OnSpecialCooldownArmed(FTT.Core.AbilitySlot.Special1);
                     break;
                 case FTT.Core.AbilitySlot.Special2:
                     Owner.SpecialTwoCooldownTimer = cooldown;
+                    Owner.OnSpecialCooldownArmed(FTT.Core.AbilitySlot.Special2);
                     break;
                 case FTT.Core.AbilitySlot.MovementAbility:
                     Owner.MovementAbilityCooldownTimer = cooldown;

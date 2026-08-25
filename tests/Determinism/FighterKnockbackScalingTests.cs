@@ -211,7 +211,7 @@ public class FighterKnockbackScalingTests {
 
     /// <summary>Basic damage 10, knockback 4, so the opener deals 8 and pushes 4 / (1 + weight).</summary>
     private static CharacterData BuildAttacker() => new() {
-        CharacterID = "einstein",
+        CharacterID = "tesla",
         MaxHP = 100,
         Weight = 1f,
         MaxBlockCharges = 3,

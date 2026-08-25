@@ -44,16 +44,20 @@ public class MozartKitTests {
 
     [TestCase]
     public void FortissimoWaveDealsTwelveWithHeavyForwardKnockback() {
+        // V7: the wave is a lobbed arc that rises past a point-blank target and
+        // crashes down ~4.5-6 units of travel out, so the opponent stands in the
+        // landing zone (fighters spawn at +/-spawnDistance = 6 units apart)
+        // rather than at melee range.
         var simulation = new FighterSimulation(
             FighterLoadoutFactory.FromCharacterData(BuildMozart()),
             FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 72,
-            spawnDistance: 2,
+            spawnDistance: 3,
             rules: FighterMatchRules.Disabled);
 
         simulation.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
         int hitTick = -1;
-        for (int tick = 1; tick <= 60; tick++) {
+        for (int tick = 1; tick <= 120; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             if (simulation.TryGetFighter(1, out FighterStateComponent probe) && probe.CurrentHP < 100) {
                 hitTick = tick;

@@ -47,6 +47,9 @@ namespace FTT.Characters.Abilities {
                 new Vector2(18, 18), Data?.ProjectileLifetime ?? 5f, contactDamage);
             if (projectile != null) {
                 projectile.DetonateOnImpact = true;
+                // The wave owns the TimeDilation; without this the skull's contact
+                // hit applied the same slow a second time (V7 tuning batch).
+                projectile.ClearContactStatus();
                 projectile.Impacted += OnProjectileImpacted;
             }
         }
@@ -107,11 +110,10 @@ namespace FTT.Characters.Abilities {
 
         /// <summary>
         /// Macbeth's Curse (Story-only): the wave also applies the Tragic Poison
-        /// Venom tick. The single-status rule means only one effect can survive,
-        /// and Venom is applied after the wave's TimeDilation so the poison — the
-        /// perk's explicit promise — is the status that sticks. The trade-off
-        /// (perk sacrifices the slow) is a deliberate reading of the design's
-        /// one-active-status contract, noted in docs/PACKAGE3_KIT_AUDIT.md.
+        /// Venom tick. Under the V7 two-slot status rule the poison rides the
+        /// damage slot while the wave's TimeDilation holds the control slot, so
+        /// the perk now stacks the DoT on top of the slow instead of trading one
+        /// for the other.
         /// </summary>
         private static void ApplyMacbethVenom(Hurtbox hurtbox) {
             Node current = hurtbox.GetParent();

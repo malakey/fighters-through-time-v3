@@ -182,7 +182,7 @@ namespace FTT.Characters.Abilities {
                     HitstunDuration = Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = Owner.GlobalPosition,
                     AttackerFacingRight = Owner.IsFacingRight,
-                    AppliedStatus = FTT.Core.StatusType.Root,
+                    AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.Root,
                     StatusDuration = rootDuration,
                     StatusIntensity = Data?.StatusIntensity ?? 1f,
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
@@ -239,10 +239,10 @@ namespace FTT.Characters.Abilities {
             while (current != null) {
                 if (current is PlayerController player) {
                     var status = player.GetNodeOrNull<StatusController>("StatusController");
-                    return status?.ActiveType == FTT.Core.StatusType.StaticCharge;
+                    return status?.HasStatus(FTT.Core.StatusType.StaticCharge) == true;
                 }
                 if (current is FTT.Enemies.EnemyController enemy) {
-                    return enemy.ActiveStatusType == FTT.Core.StatusType.StaticCharge;
+                    return enemy.HasStatusEffect(FTT.Core.StatusType.StaticCharge);
                 }
                 current = current.GetParent();
             }

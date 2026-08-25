@@ -23,6 +23,30 @@ namespace FTT.Combat {
         /// <summary>Raised once at the impact position when a detonating projectile connects.</summary>
         public event System.Action<Vector2> Impacted;
 
+        private float _verticalVelocity;
+        private float _arcGravity;
+
+        /// <summary>
+        /// Turns the flat shot into a lobbed arc: an initial vertical velocity in
+        /// px/s (negative = up) pulled down by the given gravity in px/s². Used by
+        /// slow space-holding lobs (Mozart's Fortissimo Wave); cleared on despawn.
+        /// </summary>
+        public void ConfigureArc(float initialVerticalVelocity, float gravity) {
+            _verticalVelocity = initialVerticalVelocity;
+            _arcGravity = gravity;
+        }
+
+        /// <summary>
+        /// Strips the authored on-contact status so a two-stage projectile
+        /// (e.g. Yorick's skull + wave) applies its status once, from the stage
+        /// that owns it, instead of on both contact and detonation.
+        /// </summary>
+        public void ClearContactStatus() {
+            if (_hitbox == null) return;
+            _hitbox.AppliedStatus = FTT.Core.StatusType.None;
+            _hitbox.StatusDuration = 0f;
+        }
+
         /// <summary>Owning local player slot (mirrors the hitbox); -1 marks an enemy shot.</summary>
         public int OwnerPlayerIndex => _hitbox?.OwnerPlayerIndex ?? -1;
 
@@ -130,6 +154,10 @@ namespace FTT.Combat {
 
             var pos = GlobalPosition;
             pos.X += (_movingRight ? _speed : -_speed) * dt;
+            if (_arcGravity != 0f || _verticalVelocity != 0f) {
+                pos.Y += _verticalVelocity * dt;
+                _verticalVelocity += _arcGravity * dt;
+            }
             GlobalPosition = pos;
 
             Modulate = new Color(1, 1, 1, Mathf.Min(1f, _lifetime * 2f));
@@ -146,6 +174,8 @@ namespace FTT.Combat {
             _speed = 0f;
             _lifetime = 0f;
             _movingRight = true;
+            _verticalVelocity = 0f;
+            _arcGravity = 0f;
             DetonateOnImpact = false;
             Impacted = null;
             if (_authoredVisual != null) {

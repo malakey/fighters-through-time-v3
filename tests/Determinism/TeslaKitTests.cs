@@ -102,11 +102,10 @@ public class TeslaKitTests {
             spawnDistance: 1,
             rules: FighterMatchRules.Disabled);
 
-        // Deploy one coil; its first arc fires after its 4 s action cooldown
-        // (2026-08-11 construct rebalance) and primes the target with
-        // StaticCharge.
+        // Deploy one coil; its first arc fires after its 2 s action cooldown
+        // (V7 tuning batch) and primes the target with StaticCharge.
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
-        for (int tick = 1; tick <= 250; tick++) {
+        for (int tick = 1; tick <= 125; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent primed)).IsTrue();
@@ -116,7 +115,7 @@ public class TeslaKitTests {
 
         // The pulse against a StaticCharge-primed target adds one chain strike
         // per live coil: 12 base + 5 chain = 17.
-        simulation.Advance(Frame(251, 0, GameplayButtons.Special2), Frame(251, 0, GameplayButtons.None));
+        simulation.Advance(Frame(126, 0, GameplayButtons.Special2), Frame(126, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent chained)).IsTrue();
         AssertThat(chained.CurrentHP).IsEqual(78);
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent chainedRuntime)).IsTrue();

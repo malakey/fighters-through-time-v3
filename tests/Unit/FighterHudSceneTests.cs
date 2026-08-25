@@ -187,25 +187,27 @@ public class FighterHudSceneTests {
     }
 
     [TestCase]
-    public void TheMatchClockIsHiddenInStockModeAndFormattedInTimedModes() {
+    public void TheMatchClockFollowsTheTimerFlagAndFormatsTimedModes() {
         FighterHUD hud = Mount();
         try {
             TranslationServer.SetLocale("en");
 
-            hud.ApplyMatchState(MatchMode.Stock, 480 * TickRate, TickRate);
+            // V7: a disabled timer hides the clock in any mode; an enabled one
+            // shows it — including Stock, which now defaults to 8:00.
+            hud.ApplyMatchState(timerEnabled: false, 480 * TickRate, TickRate);
             AssertThat(hud.TimerVisible).IsFalse();
 
-            hud.ApplyMatchState(MatchMode.TimeLimit, 480 * TickRate, TickRate);
+            hud.ApplyMatchState(timerEnabled: true, 480 * TickRate, TickRate);
             AssertThat(hud.TimerVisible).IsTrue();
             AssertThat(hud.TimerText).IsEqual("8:00");
 
-            hud.ApplyMatchState(MatchMode.Hybrid, 65 * TickRate, TickRate);
+            hud.ApplyMatchState(timerEnabled: true, 65 * TickRate, TickRate);
             AssertThat(hud.TimerVisible).IsTrue();
             // Seconds are zero-padded, so 1:05 never renders as "1:5".
             AssertThat(hud.TimerText).IsEqual("1:05");
 
-            // Switching back to a stock match takes the clock away again.
-            hud.ApplyMatchState(MatchMode.Stock, 65 * TickRate, TickRate);
+            // Timer Off takes the clock away again.
+            hud.ApplyMatchState(timerEnabled: false, 65 * TickRate, TickRate);
             AssertThat(hud.TimerVisible).IsFalse();
         } finally {
             hud.Free();

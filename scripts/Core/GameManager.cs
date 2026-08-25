@@ -31,7 +31,10 @@ namespace FTT.Core {
 
     public enum FighterOpponentType {
         Cpu,
-        LocalHuman
+        LocalHuman,
+        /// <summary>V7 initial release: direct-IP LAN 1v1 over the rollback
+        /// session — the exact code path online will use.</summary>
+        Lan
     }
 
     public enum CpuDifficulty {
@@ -73,6 +76,9 @@ namespace FTT.Core {
         public CpuDifficulty CpuDifficulty;
         /// <summary>Set by the hub Holodeck so Fighter flows return to the Time-Ship instead of the main menu.</summary>
         public bool ReturnToHubAfterFighterMatch;
+        /// <summary>Post-match "New Stage" (V7): re-enter CharacterSelect with both
+        /// characters kept and jump straight to the stage phase. Consumed on read.</summary>
+        public bool ResumeAtStageSelect;
     }
 
     public partial class GameManager : Node {
@@ -102,6 +108,47 @@ namespace FTT.Core {
                 MatchSettings = MatchSettings.GetDefault()
             };
             _scenePoolCatalog = ScenePoolCatalog.LoadDefault();
+        }
+
+        private bool _matchSettingsLoaded;
+
+        /// <summary>
+        /// V7 "Match Settings Persist": pre-loads the last-used Fighter
+        /// MatchSettings from the global save the first time the Fighter flow
+        /// asks — lazy so the SaveManager autoload order never matters.
+        /// </summary>
+        public void EnsureMatchSettingsLoaded() {
+            if (_matchSettingsLoaded) return;
+            _matchSettingsLoaded = true;
+            SavedMatchSettings saved = SaveManager.Instance?.GlobalData?.LastMatchSettings;
+            if (saved == null || !saved.Saved) return;
+            var itemRate = (ChronalOrbFrequency)saved.ItemSpawnRate;
+            var hazardRate = (HazardTriggerFrequency)saved.HazardRate;
+            CurrentSession.MatchSettings = new MatchSettings {
+                Mode = (MatchMode)saved.Mode,
+                StockCount = Mathf.Max(1, saved.StockCount),
+                TimeLimit = Mathf.Max(0f, saved.TimeLimit),
+                ItemSpawnRate = itemRate,
+                ItemsEnabled = itemRate != ChronalOrbFrequency.Off,
+                HazardRate = hazardRate,
+                StageHazardsEnabled = hazardRate != HazardTriggerFrequency.Off
+            };
+        }
+
+        /// <summary>Writes the session's MatchSettings back to the global save.</summary>
+        public void PersistMatchSettings() {
+            SaveManager save = SaveManager.Instance;
+            if (save?.GlobalData == null) return;
+            MatchSettings settings = CurrentSession.MatchSettings;
+            save.GlobalData.LastMatchSettings = new SavedMatchSettings {
+                Saved = true,
+                Mode = (int)settings.Mode,
+                StockCount = settings.StockCount,
+                TimeLimit = settings.TimeLimit,
+                ItemSpawnRate = (int)settings.ItemSpawnRate,
+                HazardRate = (int)settings.HazardRate
+            };
+            save.SaveGlobalData();
         }
 
         public override void _ExitTree() {

@@ -48,8 +48,8 @@ namespace FTT.Environment {
         public void RemovePlayer(PlayerController player) {
             if (player == null || !_insideDurations.Remove(player)) return;
             _entryPositions.Remove(player);
-            StatusController status = player.GetNodeOrNull<StatusController>("StatusController");
-            if (status?.ActiveType == StatusType.TimeDilation) status.ClearStatus();
+            player.GetNodeOrNull<StatusController>("StatusController")
+                ?.ClearStatus(StatusType.TimeDilation);
         }
 
         public Vector2 TriggerTimeLoopSnap(PlayerController player) {

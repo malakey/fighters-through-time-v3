@@ -126,6 +126,7 @@ namespace FTT.Core {
             ChronalDustCollected = 0;
             ChronalRewindsRemaining = FTT.Environment.ChronalRewindManager.GetMaximumRewinds(difficulty);
             TutorialComplete = false;
+            ClearRestorationFonts();
         }
 
         /// <summary>
@@ -204,6 +205,10 @@ namespace FTT.Core {
             LevelElapsedSeconds = 0f;
             LevelRewindsUsed = 0;
             IsLevelTimerRunning = true;
+            // V7.1 Timeline Integrity: every attempt opens at 100%; the level's
+            // secret has not been found in this attempt.
+            TimelineIntegrityPercent = TimelineIntegrityRules.StartPercent;
+            LevelSecretsFound = 0;
         }
 
         /// <summary>Stops the clock without publishing a completion result.</summary>
@@ -220,6 +225,49 @@ namespace FTT.Core {
             IsLevelTimerRunning = false;
             LastLevelCompletionSeconds = LevelElapsedSeconds;
             LastLevelRewindsUsed = LevelRewindsUsed;
+            LastLevelIntegrityPercent = TimelineIntegrityPercent;
+            LastLevelSecretsFound = LevelSecretsFound;
+            LastLevelChronalRating = ChronalRatingRules.Compute(
+                TimelineIntegrityPercent,
+                LevelRewindsUsed,
+                LevelSecretsFound,
+                secretsTotal: 1,
+                LevelElapsedSeconds);
+        }
+
+        // === Timeline Integrity & secrets (V7.1) ============================
+
+        /// <summary>The Siphon Clock: this attempt's Timeline Integrity, 0-100.</summary>
+        public float TimelineIntegrityPercent { get; private set; } = TimelineIntegrityRules.StartPercent;
+
+        /// <summary>Secrets found in this level attempt.</summary>
+        public int LevelSecretsFound { get; private set; }
+
+        /// <summary>Frozen at completion for the results overlay.</summary>
+        public float LastLevelIntegrityPercent { get; private set; } = TimelineIntegrityRules.StartPercent;
+        public int LastLevelSecretsFound { get; private set; }
+        public string LastLevelChronalRating { get; private set; } = "";
+
+        /// <summary>
+        /// Drains the Siphon Clock: <paramref name="engagedExtractors"/> living,
+        /// engaged Extractors sipping for <paramref name="dt"/> seconds. The
+        /// level scene's controller (or the extractors' own processing) calls
+        /// this; the drain rate doubles on Hard.
+        /// </summary>
+        public void DrainTimelineIntegrity(int engagedExtractors, float dt) {
+            if (engagedExtractors <= 0 || dt <= 0f || !IsLevelTimerRunning) return;
+            Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
+            TimelineIntegrityPercent = Mathf.Max(0f,
+                TimelineIntegrityPercent
+                - TimelineIntegrityRules.DrainPerSecond(difficulty) * engagedExtractors * dt);
+        }
+
+        /// <summary>The level's secret restores +5% Integrity (capped at 100).</summary>
+        public void RegisterSecretFound() {
+            LevelSecretsFound++;
+            TimelineIntegrityPercent = Mathf.Min(
+                TimelineIntegrityRules.StartPercent,
+                TimelineIntegrityPercent + TimelineIntegrityRules.SecretRestorePercent);
         }
 
         /// <summary>
@@ -241,6 +289,8 @@ namespace FTT.Core {
             if ((int)CurrentLevel < 15) {
                 CurrentLevel = (CampaignLevel)((int)CurrentLevel + 1);
             }
+            // A fresh level entry resets the Restoration Font registry.
+            ClearRestorationFonts();
         }
 
         public string GetCurrentLevelPath() {
@@ -258,6 +308,45 @@ namespace FTT.Core {
 
         public void SetRewinds(int remaining) {
             ChronalRewindsRemaining = Mathf.Max(0, remaining);
+        }
+
+        /// <summary>
+        /// Overwrites the undeposited wallet — the V7.2 Restart Level path,
+        /// which clears everything earned in the level ("the attempt never
+        /// happened") before the scene reloads from the beginning.
+        /// </summary>
+        public void SetDust(int amount) {
+            ChronalDustCollected = Mathf.Max(0, amount);
+        }
+
+        // === Restoration Fonts (V7.2 healing loop) ==========================
+        // A font's spent state persists through rewinds and Timeline Collapse —
+        // it cannot be refilled by dying — so the consumed-use registry lives
+        // here, outside the level scene. It resets only on a full Restart
+        // Level, a fresh level entry, or a campaign reset.
+        private readonly System.Collections.Generic.Dictionary<string, int> _fontUsesConsumed = new();
+
+        public int GetFontUsesConsumed(string fontID) =>
+            !string.IsNullOrWhiteSpace(fontID) && _fontUsesConsumed.TryGetValue(fontID, out int used) ? used : 0;
+
+        public void RecordFontUse(string fontID) {
+            if (string.IsNullOrWhiteSpace(fontID)) return;
+            _fontUsesConsumed[fontID] = GetFontUsesConsumed(fontID) + 1;
+        }
+
+        public void ClearRestorationFonts() => _fontUsesConsumed.Clear();
+
+        // === Boss intro ritual (V7) =========================================
+        // The name-card/establishing-beat intro plays once per boss; repeat
+        // attempts after a Timeline Collapse (or a restart) skip it. The seen
+        // set lives here so it survives the level reload a collapse causes.
+        private readonly System.Collections.Generic.HashSet<string> _bossIntrosSeen = new();
+
+        public bool HasSeenBossIntro(string bossID) =>
+            !string.IsNullOrWhiteSpace(bossID) && _bossIntrosSeen.Contains(bossID);
+
+        public void RecordBossIntroSeen(string bossID) {
+            if (!string.IsNullOrWhiteSpace(bossID)) _bossIntrosSeen.Add(bossID);
         }
 
         public void ApplyTimelineCollapseDustPenalty() {
@@ -359,7 +448,26 @@ namespace FTT.Core {
 
         private void OnLevelComplete(string levelID) {
             CompleteLevelRun();
+            RecordLevelResultToSave(levelID);
             AdvanceToNextLevel();
+        }
+
+        /// <summary>
+        /// Records the completed level's Timeline Integrity, secrets, and
+        /// Chronal Rating on the active save slot (V7/V7.1: per-level records
+        /// feed the campaign-ending average and the save-select display).
+        /// </summary>
+        private void RecordLevelResultToSave(string levelID) {
+            var saveManager = SaveManager.Instance;
+            var gameManager = GameManager.Instance;
+            if (saveManager == null || gameManager == null || string.IsNullOrWhiteSpace(levelID)) return;
+            int slot = gameManager.CurrentSession.ActiveSaveSlot;
+            if (slot < 0 || slot >= saveManager.SaveSlots.Length || saveManager.SaveSlots[slot] == null) return;
+            StorySaveData save = saveManager.SaveSlots[slot];
+            save.IntegrityByLevel[levelID] = LastLevelIntegrityPercent;
+            save.RatingByLevel[levelID] = LastLevelChronalRating ?? "";
+            save.SecretsFoundByLevel[levelID] = LastLevelSecretsFound;
+            saveManager.SaveStorySlot(slot);
         }
 
         /// <summary>

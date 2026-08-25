@@ -70,7 +70,12 @@ public class AbilityInterruptionTests {
             AssertThat((int)ability.CurrentPhase).IsEqual((int)AbilityPhase.Inactive);
             AssertThat(player.CurrentState).IsEqual(CharacterState.Stunned);
 
-            // The stun itself runs its normal course afterwards.
+            // The V7.1 hitstop from the interrupting hit froze the player's
+            // clock; run the short freeze off in real 60 Hz steps first, then
+            // the stun itself runs its normal course.
+            for (int frame = 0; frame < BasicComboRules.HitstopFrames(10); frame++) {
+                SendInput(player, GameplayButtons.None);
+            }
             SendInput(player, GameplayButtons.None, 0.6);
             AssertThat(player.CurrentState).IsNotEqual(CharacterState.Stunned);
         } finally {

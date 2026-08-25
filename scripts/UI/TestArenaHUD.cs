@@ -147,7 +147,7 @@ namespace FTT.UI {
                     Tr("test_arena_cooldowns"),
                     CooldownText(runtime.SpecialOneCooldownFrames),
                     CooldownText(runtime.SpecialTwoCooldownFrames),
-                    Tr(FighterHudModel.StatusKey((StatusType)runtime.StatusType)));
+                    Tr(FighterHudModel.StatusKey((StatusType)runtime.PresentedStatusType)));
             }
 
             // No raw ui_cancel bail-out: leaving a live match goes through the

@@ -21,7 +21,10 @@ public class LeonardoContentTests {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/leonardo/special_1.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Area);
-        AssertThat(data.BaseDamage).IsEqual(20f);
+        // V7 named-outlier correction (design §5): 8x3 = 24 total on a
+        // shortened 8 s cooldown — a zoning tool, not the roster's biggest nuke.
+        AssertThat(data.BaseDamage).IsEqual(8f);
+        AssertThat(data.CooldownDuration).IsEqual(8f);
         AssertThat(data.IsMultiHit).IsTrue();
         AssertThat(data.HitCount).IsEqual(3);
         AssertThat(data.DamageTickIntervalFrames).IsEqual(30);
@@ -33,9 +36,11 @@ public class LeonardoContentTests {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/leonardo/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.PersistentObject);
-        // 2026-08-11 construct rebalance: bolt damage halved, cadence halved.
-        AssertThat(data.BaseDamage).IsEqual(5f);
-        AssertThat(data.DamageTickIntervalFrames).IsEqual(240);
+        // V7 tuning batch: 4 bolts of 6 every 2 s inside the 15 s life, so the
+        // turret is an active threat from t=2 instead of firing at t=4/8/12.
+        AssertThat(data.BaseDamage).IsEqual(6f);
+        AssertThat(data.HitCount).IsEqual(4);
+        AssertThat(data.DamageTickIntervalFrames).IsEqual(120);
         AssertThat(data.Lifetime).IsEqual(15f);
         AssertThat(data.MaxActiveObjects).IsEqual(1);
         AssertThat(data.PersistentObjectID).IsEqual("clockwork_turret");

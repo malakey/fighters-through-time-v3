@@ -72,8 +72,9 @@ namespace FTT.Characters.Abilities {
     /// <summary>
     /// Special 2 — Sandstorm Vortex: a swirling sand zone ahead of Cleopatra that
     /// pulls caught targets toward its center (a steady horizontal positional
-    /// drag that never zeroes velocity), deals the authored tick damage (2 per
-    /// 0.4 s across the 2 s lifetime = 5 ticks), and applies TimeDilation
+    /// drag that never zeroes velocity), deals the authored tick damage (5 ticks
+    /// at 0.4 s across the 2 s lifetime; the final tick carries the authored
+    /// launch so escaping the sand costs something), and applies TimeDilation
     /// (-40% speed at intensity 0.8) for 2 s. Targets are hit through the shared
     /// Hurtbox contract, so enemies and fighters both respond. Story-only
     /// Resonance perk Quicksand Grip roots vortex-caught targets when Cleopatra
@@ -148,7 +149,10 @@ namespace FTT.Characters.Abilities {
             _vortexTickTimer -= dt;
             if (_vortexTickTimer <= 0f) {
                 _vortexTickTimer += _vortexTickInterval;
-                TickVortexDamage();
+                // The last tick before the vortex dissipates carries the authored
+                // launch so escaping the sand costs something; earlier ticks stay
+                // impulse-free so the pull keeps its grip (V7 tuning batch).
+                TickVortexDamage(finalTick: _vortexLifetime <= _vortexTickInterval);
             }
 
             _vortexLifetime -= dt;
@@ -169,7 +173,7 @@ namespace FTT.Characters.Abilities {
             }
         }
 
-        private void TickVortexDamage() {
+        private void TickVortexDamage(bool finalTick) {
             foreach (Hurtbox hurtbox in QueryTargetHurtboxes()) {
                 float dealt = hurtbox.TakeHit(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
@@ -177,8 +181,8 @@ namespace FTT.Characters.Abilities {
                     HitboxID = "vortex_tick",
                     AttackClass = AttackClass.Special,
                     Damage = (Data?.BaseDamage ?? 2f) * Owner.StorySpecialDamageMultiplier,
-                    Knockback = Vector2.Zero,
-                    HitstunDuration = 0f,
+                    Knockback = finalTick ? Data?.KnockbackForce ?? Vector2.Zero : Vector2.Zero,
+                    HitstunDuration = finalTick ? Data?.HitstunDuration ?? 0.2f : 0f,
                     HitOrigin = _vortexCenter,
                     AttackerFacingRight = Owner.IsFacingRight,
                     AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.TimeDilation,

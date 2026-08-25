@@ -72,7 +72,8 @@ namespace FTT.FighterSim {
                     SpecialTwoProjectileSpeed = WorldSpeed(specialTwo?.ProjectileSpeed ?? 0f),
                     MovementDistance = WorldDistance(movement?.DistanceMoved ?? 0f),
                     MovementSpeed = WorldSpeed(movement?.MovementSpeed ?? 0f)
-                });
+                },
+                airControl: FP64.FromFloat(Math.Max(0.1f, data.AirControlMultiplier)));
         }
 
         public static bool TryGetCharacterID(string characterID, out FighterCharacterID value) {

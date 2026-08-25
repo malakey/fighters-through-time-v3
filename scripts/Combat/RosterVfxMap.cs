@@ -89,12 +89,12 @@ namespace FTT.Combat {
             (VfxEffectFamily.Shockwave, new[] {
                 "shockwave", "wave", "smash", "slam", "stomp", "tremor", "pulse",
                 "nova", "surge", "burst", "collapse", "well", "purge", "vent",
-                "veil", "storm", "sandstorm", "quake", "explosion"
+                "veil", "storm", "sandstorm", "quake", "explosion", "field"
             }),
             // Repositions, defensive pops, and everything else that reads as a flash.
             (VfxEffectFamily.Burst, new[] {
                 "blink", "rush", "dash", "charge", "step", "lunge", "teleport",
-                "exit", "left", "shield", "bubble", "warp", "drop"
+                "exit", "left", "shield", "bubble", "warp", "drop", "skip"
             })
         };
 

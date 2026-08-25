@@ -21,9 +21,11 @@ public class LincolnUltimateContentTests {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/lincoln/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.AbilityID).IsEqual("lincoln_union_indestructible");
-        // Per-hit damage x hit count on a 0.5 s cadence: 5 smashes of 8.
+        // Per-hit damage x hit count on a 0.5 s cadence: 5 smashes of 14 = 70
+        // (V7.1 retarget of the named data-error outlier — inside the roster's
+        // 70-84 band for the same 100 meter, keeping "highest burst per hit").
         AssertThat(data.IsMultiHit).IsTrue();
-        AssertThat(data.BaseDamage).IsEqual(8f);
+        AssertThat(data.BaseDamage).IsEqual(14f);
         AssertThat(data.HitCount).IsEqual(5);
         AssertThat(data.DamageTickIntervalFrames).IsEqual(30);
         // The smash cadence exactly fills the active trap window.

@@ -1,5 +1,6 @@
 using FTT.Core;
 using FTT.FighterSim;
+using xpTURN.Klotho.Deterministic.Math;
 using static GdUnit4.Assertions;
 
 namespace FTT.Tests.Determinism;
@@ -22,7 +23,7 @@ internal static class BasicStringTestDriver {
     /// range (zero-knockback attackers or adjacent spawns).
     /// </summary>
     public static int LandChainedBasics(FighterSimulation simulation, int startTick, int hits) {
-        int tick = startTick;
+        int tick = ApproachMeleeRange(simulation, startTick);
         int swingsStarted = 0;
         for (int limit = startTick + 600; tick < limit && swingsStarted < hits; tick++) {
             AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
@@ -39,19 +40,47 @@ internal static class BasicStringTestDriver {
     }
 
     /// <summary>
+    /// Walks player one toward player two until the gap sits inside the
+    /// shortest authored basic reach (V7.1 string profiles: Lincoln at 1.7
+    /// units), so suites that spawn at the template's 2-unit kiss range still
+    /// connect with every character's string. No-op when already close.
+    /// Returns the next free input tick.
+    /// </summary>
+    private static int ApproachMeleeRange(FighterSimulation simulation, int startTick) {
+        int tick = startTick;
+        for (int limit = startTick + 300; tick < limit; tick++) {
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
+            if (FP64.Abs(target.Position.x - attacker.Position.x) <= FP64.FromDouble(1.4)) return tick;
+            sbyte toward = target.Position.x >= attacker.Position.x ? (sbyte)127 : (sbyte)-127;
+            simulation.Advance(
+                new PlayerInputFrame { Tick = (uint)tick, MoveX = toward },
+                new PlayerInputFrame { Tick = (uint)tick });
+        }
+        return tick;
+    }
+
+    /// <summary>
     /// Advances neutral frames until player one's string is fully idle and
     /// neither fighter carries hitstun, so later assertions see only the
     /// scenario under test. Returns the next free input tick.
     /// </summary>
     public static int SettleToNeutral(FighterSimulation simulation, int startTick) {
         int tick = startTick;
-        for (int limit = startTick + 200; tick < limit; tick++) {
+        for (int limit = startTick + 300; tick < limit; tick++) {
             AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
             AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
             AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
+            AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent targetRuntime)).IsTrue();
             if (runtime.AttackPhase == FighterBasicAttackRules.PhaseNone
                 && attacker.HitstunFrames == 0
-                && target.HitstunFrames == 0) {
+                && target.HitstunFrames == 0
+                // V7.1 string riders: a charging finisher can leave a status on
+                // the target (Cleopatra's venom mark, Tesla's Static Charge);
+                // wait those out too so later HP assertions see only the
+                // scenario under test.
+                && targetRuntime.StatusFrames == 0
+                && targetRuntime.DamageStatusFrames == 0) {
                 return tick;
             }
             Advance(simulation, tick, press: false);

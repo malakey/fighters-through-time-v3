@@ -201,7 +201,8 @@ public class EnemyRosterContentTests {
                 .IsEqual(BossDustReward);
         }
 
-        AssertThat(standards + elites).IsEqual(27);
+        // 27 originals plus the V7.1 Chrono-Warden elite.
+        AssertThat(standards + elites).IsEqual(28);
         AssertThat(bosses).IsEqual(15);
     }
 

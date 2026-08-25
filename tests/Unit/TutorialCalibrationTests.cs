@@ -21,6 +21,8 @@ public class TutorialCalibrationTests {
         var script = new TutorialCalibrationScript();
         if (target == TutorialCalibrationStep.BasicHits) return script;
         for (int hit = 0; hit < TutorialCalibrationScript.RequiredBasicHits; hit++) script.RegisterBasicHit();
+        if (target == TutorialCalibrationStep.RallyReclaim) return script;
+        script.RegisterRallyReclaimHit();
         if (target == TutorialCalibrationStep.Block) return script;
         for (int hit = 0; hit < TutorialCalibrationScript.RequiredBlockedHits; hit++) script.RegisterBlockedHit();
         if (target == TutorialCalibrationStep.UseSpecial) return script;
@@ -29,17 +31,23 @@ public class TutorialCalibrationTests {
         script.RegisterUltimateUsed();
         if (target == TutorialCalibrationStep.UseRewind) return script;
         script.RegisterRewindComplete();
+        if (target == TutorialCalibrationStep.UseManualRewind) return script;
+        script.RegisterManualRewindComplete();
         return script;
     }
 
     [TestCase]
-    public void TheDesignedStepOrderRunsAttackBlockSpecialUltimateRewind() {
+    public void TheDesignedStepOrderRunsAttackRallyBlockSpecialUltimateRewindManual() {
         var script = new TutorialCalibrationScript();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.BasicHits);
 
         AssertThat(script.RegisterBasicHit()).IsFalse();
         AssertThat(script.RegisterBasicHit()).IsFalse();
         AssertThat(script.RegisterBasicHit()).IsTrue();
+        // V7.1: the dummy's scripted counter-hit teaches Rally, closed by
+        // striking back to reclaim the echo.
+        AssertThat(script.Step).IsEqual(TutorialCalibrationStep.RallyReclaim);
+        AssertThat(script.RegisterRallyReclaimHit()).IsTrue();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.Block);
 
         AssertThat(script.RegisterBlockedHit()).IsFalse();
@@ -52,7 +60,10 @@ public class TutorialCalibrationTests {
         AssertThat(script.RegisterUltimateUsed()).IsTrue();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseRewind);
 
+        // V7.2: the scripted death-rewind demo hands off to the manual scrub.
         AssertThat(script.RegisterRewindComplete()).IsTrue();
+        AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseManualRewind);
+        AssertThat(script.RegisterManualRewindComplete()).IsTrue();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.Done);
     }
 
@@ -114,29 +125,40 @@ public class TutorialCalibrationTests {
 
         // Blocking, specials, the ultimate and the rewind during the basic-hit
         // lesson are all inert.
+        AssertThat(script.RegisterRallyReclaimHit()).IsFalse();
         AssertThat(script.RegisterBlockedHit()).IsFalse();
         AssertThat(script.RegisterGuardBreak()).IsFalse();
         AssertThat(script.RegisterSpecialUsed(AbilitySlot.Special1)).IsFalse();
         AssertThat(script.RegisterUltimateUsed()).IsFalse();
         AssertThat(script.RegisterRewindComplete()).IsFalse();
+        AssertThat(script.RegisterManualRewindComplete()).IsFalse();
         AssertThat(script.SkipRewindDemonstration()).IsFalse();
+        AssertThat(script.SkipManualRewindLesson()).IsFalse();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.BasicHits);
         AssertThat(script.HitsBlocked).IsEqual(0);
     }
 
     [TestCase]
-    public void TheRewindStepIsStillReachedAndCompletableExactlyAsBefore() {
-        // The scripted rewind demonstration (ScriptedRewindTests) is preserved:
-        // the calibration still ends on the rewind step, completed by the
-        // OnRewindTriggered event, with the never-strand skip as fallback.
+    public void TheRewindStepsCompleteInSequenceWithNeverStrandFallbacks() {
+        // The scripted rewind demonstration (ScriptedRewindTests) is preserved
+        // and hands off to the V7.2 manual scrub lesson; both carry a
+        // never-strand skip.
         TutorialCalibrationScript script = AdvanceToStep(TutorialCalibrationStep.UseRewind);
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseRewind);
         AssertThat(script.RegisterRewindComplete()).IsTrue();
+        AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseManualRewind);
+        AssertThat(script.RegisterManualRewindComplete()).IsTrue();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.Done);
 
+        // The demonstration could not run at all: skip both rewind lessons.
         TutorialCalibrationScript stranded = AdvanceToStep(TutorialCalibrationStep.UseRewind);
         AssertThat(stranded.SkipRewindDemonstration()).IsTrue();
         AssertThat(stranded.Step).IsEqual(TutorialCalibrationStep.Done);
+
+        // The manual lesson alone could not run: its own skip closes it.
+        TutorialCalibrationScript manualStranded = AdvanceToStep(TutorialCalibrationStep.UseManualRewind);
+        AssertThat(manualStranded.SkipManualRewindLesson()).IsTrue();
+        AssertThat(manualStranded.Step).IsEqual(TutorialCalibrationStep.Done);
     }
 
     [TestCase]

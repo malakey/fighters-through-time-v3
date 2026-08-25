@@ -122,6 +122,20 @@ namespace FTT.Environment {
             return path;
         }
 
+        /// <summary>
+        /// The frame recorded <paramref name="depthFrames"/> ticks ago (clamped
+        /// to the recorded history) — the V7.2 manual scrub's preview read.
+        /// </summary>
+        public bool TryPeek(int depthFrames, out RewindFrame frame) {
+            if (_count == 0 || depthFrames < 1) {
+                frame = default;
+                return false;
+            }
+            int offset = Math.Min(depthFrames, _count);
+            frame = _frames[PositiveModulo(_nextIndex - offset, _frames.Length)];
+            return true;
+        }
+
         public void Clear() {
             Array.Clear(_frames, 0, _frames.Length);
             _nextIndex = 0;

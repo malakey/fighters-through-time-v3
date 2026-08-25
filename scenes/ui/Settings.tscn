@@ -178,6 +178,17 @@ max_value = 1.0
 step = 0.05
 value = 1.0
 
+[node name="UiScaleLabel" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
+layout_mode = 2
+
+[node name="UiScaleSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Gameplay"]
+custom_minimum_size = Vector2(360, 20)
+layout_mode = 2
+min_value = 0.9
+max_value = 1.4
+step = 0.05
+value = 1.0
+
 [node name="Controls" type="VBoxContainer" parent="Margin/Panel/Body/Tabs"]
 visible = false
 layout_mode = 2

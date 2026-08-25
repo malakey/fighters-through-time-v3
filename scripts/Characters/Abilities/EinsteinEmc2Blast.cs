@@ -112,10 +112,10 @@ namespace FTT.Characters.Abilities {
             while (current != null) {
                 if (current is PlayerController player) {
                     var status = player.GetNodeOrNull<StatusController>("StatusController");
-                    return status?.ActiveType == FTT.Core.StatusType.TimeDilation;
+                    return status?.HasStatus(FTT.Core.StatusType.TimeDilation) == true;
                 }
                 if (current is FTT.Enemies.EnemyController enemy) {
-                    return enemy.ActiveStatusType == FTT.Core.StatusType.TimeDilation;
+                    return enemy.HasStatusEffect(FTT.Core.StatusType.TimeDilation);
                 }
                 current = current.GetParent();
             }

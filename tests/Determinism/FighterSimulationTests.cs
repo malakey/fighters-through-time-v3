@@ -67,25 +67,19 @@ public class FighterSimulationTests {
 
     [TestCase]
     public void StockLossRetainsSeventyFivePercentOfInfluence() {
-        var simulation = new FighterSimulation(seed: 1, spawnDistance: 1);
-        int attackTick = 0;
-        while (simulation.TryGetFighter(1, out FighterStateComponent target) && target.Stocks == 3) {
-            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
-            sbyte attackerAxis = target.Position.x >= attacker.Position.x ? (sbyte)127 : (sbyte)-127;
-            simulation.Advance(
-                Frame(attackTick, attackerAxis, GameplayButtons.BasicAttack),
-                Frame(attackTick, (sbyte)-attackerAxis, GameplayButtons.None));
-            for (int cooldown = 0; cooldown < 18; cooldown++) {
-                attackTick++;
-                simulation.TryGetFighter(0, out attacker);
-                simulation.TryGetFighter(1, out target);
-                attackerAxis = target.Position.x >= attacker.Position.x ? (sbyte)127 : (sbyte)-127;
-                simulation.Advance(
-                    Frame(attackTick, attackerAxis, GameplayButtons.None),
-                    Frame(attackTick, (sbyte)-attackerAxis, GameplayButtons.None));
-            }
-            attackTick++;
-            AssertThat(attackTick < 400).IsTrue();
+        // One 100-damage opener (125 x tesla's 0.8 shape) fells the 100 HP
+        // victim outright. A lethal hit accrues no Rally echo (V7.1), so the
+        // victim's meter credit is exactly damage/4 = 25 — and the stock loss
+        // must retain 75% of it: 18.75.
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(BuildLethalOpenerAttacker()),
+            FighterLoadoutFactory.FromCharacterData(BuildHundredHpVictim()),
+            seed: 1,
+            spawnDistance: 1);
+        simulation.Advance(Frame(0, 0, GameplayButtons.BasicAttack), Frame(0, 0, GameplayButtons.None));
+        int settle = FTT.Combat.BasicComboRules.StringProfileFor("tesla").GroundStartupFrames[0] + 2;
+        for (int tick = 1; tick <= settle; tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent defeated)).IsTrue();
@@ -93,6 +87,39 @@ public class FighterSimulationTests {
         AssertThat(defeated.Influence.RawValue).IsEqual(
             xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(18.75).RawValue);
     }
+
+    private static CharacterData BuildLethalOpenerAttacker() => new() {
+        CharacterID = "tesla",
+        MaxHP = 100,
+        Weight = 1f,
+        MaxBlockCharges = 3,
+        MaxJumpCount = 1,
+        MaxMoveSpeed = 8f,
+        MaxJumpForce = 13f,
+        // 125 x tesla's 0.8 opener shape = exactly the victim's 100 HP.
+        BasicAttackDamage = 125f,
+        BasicAttackKnockback = 0f,
+        SpecialAttackOne = new AbilityData(),
+        SpecialAttackTwo = new AbilityData(),
+        MovementAbility = new MovementAbilityData(),
+        UltimateAttack = new AbilityData { BaseDamage = 20f }
+    };
+
+    private static CharacterData BuildHundredHpVictim() => new() {
+        CharacterID = "joan",
+        MaxHP = 100,
+        Weight = 1f,
+        MaxBlockCharges = 3,
+        MaxJumpCount = 1,
+        MaxMoveSpeed = 8f,
+        MaxJumpForce = 13f,
+        BasicAttackDamage = 10f,
+        BasicAttackKnockback = 3f,
+        SpecialAttackOne = new AbilityData(),
+        SpecialAttackTwo = new AbilityData(),
+        MovementAbility = new MovementAbilityData(),
+        UltimateAttack = new AbilityData { BaseDamage = 20f }
+    };
 
     [TestCase]
     public void LoadoutFactoryUsesNormalizedCharacterResources() {
@@ -110,7 +137,7 @@ public class FighterSimulationTests {
     }
 
     [TestCase]
-    public void NewSpecialStatusCompletelyReplacesPreviousStatus() {
+    public void NewSpecialStatusReplacesOnlyItsOwnSlot() {
         CharacterData character = BuildStatusTestCharacter();
         var simulation = new FighterSimulation(
             FighterLoadoutFactory.FromCharacterData(character),
@@ -122,15 +149,21 @@ public class FighterSimulationTests {
             Frame(0, 0, GameplayButtons.Special1),
             Frame(0, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent firstStatus)).IsTrue();
-        AssertThat(firstStatus.StatusType).IsEqual((int)StatusType.RadiantBurn);
+        // V7 two-slot rule: RadiantBurn is a damaging status and occupies the
+        // damage slot, leaving the control slot free.
+        AssertThat(firstStatus.DamageStatusType).IsEqual((int)StatusType.RadiantBurn);
+        AssertThat(firstStatus.StatusType).IsEqual((int)StatusType.None);
 
         simulation.Advance(
             Frame(1, 0, GameplayButtons.Special2),
             Frame(1, 0, GameplayButtons.None));
-        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent replacement)).IsTrue();
-        AssertThat(replacement.StatusType).IsEqual((int)StatusType.Root);
-        AssertThat(replacement.StatusFrames).IsEqual(120);
-        AssertThat(replacement.StatusTickFrames).IsEqual(0);
+        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent layered)).IsTrue();
+        // Root lands in the control slot while the burn keeps running — the
+        // two coexist instead of the newest deleting the previous.
+        AssertThat(layered.StatusType).IsEqual((int)StatusType.Root);
+        AssertThat(layered.StatusFrames).IsEqual(120);
+        AssertThat(layered.DamageStatusType).IsEqual((int)StatusType.RadiantBurn);
+        AssertThat(layered.StatusTickFrames).IsEqual(0);
     }
 
     [TestCase]
@@ -237,7 +270,12 @@ public class FighterSimulationTests {
 
     [TestCase]
     public void MatchModesApplyTheirDistinctEndConditions() {
+        // V7: Stock mode runs the match clock too when it is enabled — expiry
+        // compares stocks, then HP. A Stock match with the timer Off (0 match
+        // seconds) is the only untimed configuration.
         var stock = new FighterSimulation(matchSeconds: 1, rules: new FighterMatchRules(
+            (int)MatchMode.Stock, false, 0, false, 0));
+        var stockUntimed = new FighterSimulation(matchSeconds: 0, rules: new FighterMatchRules(
             (int)MatchMode.Stock, false, 0, false, 0));
         var timed = new FighterSimulation(matchSeconds: 1, rules: new FighterMatchRules(
             (int)MatchMode.TimeLimit, false, 0, false, 0));
@@ -246,14 +284,22 @@ public class FighterSimulationTests {
         for (int tick = 0; tick < 60; tick++) {
             PlayerInputFrame empty = Frame(tick, 0, GameplayButtons.None);
             stock.Advance(empty, empty);
+            stockUntimed.Advance(empty, empty);
             timed.Advance(empty, empty);
             hybrid.Advance(empty, empty);
         }
 
+        // V7.1: a true tie at expiry no longer records an immediate draw — the
+        // match enters Sudden Death (still live, first KO decides it). The
+        // untimed stock match simply keeps running.
         AssertThat(stock.GetMatchState().MatchState).IsEqual(1);
-        AssertThat(timed.GetMatchState().MatchState).IsEqual(2);
-        AssertThat(timed.GetMatchState().IsTrueTie).IsEqual(1);
-        AssertThat(hybrid.GetMatchState().MatchState).IsEqual(2);
+        AssertThat(stock.GetMatchState().SuddenDeathActive).IsEqual(1);
+        AssertThat(stockUntimed.GetMatchState().MatchState).IsEqual(1);
+        AssertThat(stockUntimed.GetMatchState().SuddenDeathActive).IsEqual(0);
+        AssertThat(timed.GetMatchState().MatchState).IsEqual(1);
+        AssertThat(timed.GetMatchState().SuddenDeathActive).IsEqual(1);
+        AssertThat(hybrid.GetMatchState().MatchState).IsEqual(1);
+        AssertThat(hybrid.GetMatchState().SuddenDeathActive).IsEqual(1);
     }
 
     /// <summary>
@@ -448,10 +494,12 @@ public class FighterSimulationTests {
             Velocity = xpTURN.Klotho.Deterministic.Math.FPVector2.Zero
         };
         FighterRuntimeComponent targetRuntime = default;
+        FighterVerbComponent attackerVerb = default;
+        FighterVerbComponent targetVerb = default;
         FighterTuningComponent tuning = new() { MaxBlockCharges = 3, MaxJumpCount = 1 };
 
         bool basicHit = FighterDamageRules.ApplyFighterHit(
-            ref attacker, ref attackerRuntime, ref target, ref targetRuntime, in tuning,
+            ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, in tuning,
             FighterDamageRules.BasicAttackClass, 10,
             xpTURN.Klotho.Deterministic.Math.FP64.FromInt(4), 15,
             0, 0, xpTURN.Klotho.Deterministic.Math.FP64.One,
@@ -463,7 +511,7 @@ public class FighterSimulationTests {
         AssertThat(target.HitstunFrames).IsEqual(0);
 
         bool ultimateHit = FighterDamageRules.ApplyFighterHit(
-            ref attacker, ref attackerRuntime, ref target, ref targetRuntime, in tuning,
+            ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, in tuning,
             FighterDamageRules.UltimateAttackClass, 10,
             xpTURN.Klotho.Deterministic.Math.FP64.FromInt(4), 15,
             0, 0, xpTURN.Klotho.Deterministic.Math.FP64.One,
@@ -549,9 +597,12 @@ public class FighterSimulationTests {
         AssertThat(runtime.UniversalMovementState).IsEqual((int)UniversalMovementPhase.None);
 
         int recoveryCompleteTick = 40 + UniversalMovementRules.RollTotalFrames;
+        // V7 normative boxes: a swing never hits behind the attacker's back,
+        // and the roller now stands on the opponent's OTHER side — so the
+        // attacker holds toward the roller, flipping facing before the swing.
         simulation.Advance(
             Frame(recoveryCompleteTick, 0, GameplayButtons.None),
-            Frame(recoveryCompleteTick, 0, GameplayButtons.BasicAttack));
+            Frame(recoveryCompleteTick, 127, GameplayButtons.BasicAttack));
         // Basics are real swings now (BasicComboRules): this press lands inside
         // the first swing's recovery, so it buffers and chains into hit two,
         // whose active window arrives a few dozen ticks later. Drain enough
@@ -559,7 +610,7 @@ public class FighterSimulationTests {
         for (int tick = 1; tick <= 60; tick++) {
             simulation.Advance(
                 Frame(recoveryCompleteTick + tick, 0, GameplayButtons.None),
-                Frame(recoveryCompleteTick + tick, 0, GameplayButtons.None));
+                Frame(recoveryCompleteTick + tick, 127, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent vulnerableAfterRoll)).IsTrue();
         AssertThat(vulnerableAfterRoll.CurrentHP < vulnerableAfterRoll.MaxHP).IsTrue();

@@ -17,7 +17,15 @@ namespace FTT.UI {
         private Control _panel;
         private Label _stamp;
         private Label _outcome;
+        private Button _rematchButton;
         private bool _shown;
+        // V7 "Rematch requires both": in local-human matches the Rematch press
+        // arms a vote and each player confirms with their own Attack press.
+        private bool _rematchPending;
+        private readonly bool[] _rematchReady = new bool[2];
+
+        /// <summary>True while the both-players Rematch vote is armed. Test seam.</summary>
+        public bool RematchVotePending => _rematchPending;
 
         /// <summary>True once a result has been presented. Test seam.</summary>
         public bool IsShowing => _shown;
@@ -120,8 +128,22 @@ namespace FTT.UI {
             layout.AddChild(_outcome);
 
             var rematch = MakeButton(Tr("fighter_rematch"));
-            rematch.Pressed += () => GameManager.Instance?.LoadScene(RematchScenePath());
+            rematch.Pressed += OnRematchPressed;
             layout.AddChild(rematch);
+            _rematchButton = rematch;
+
+            // V7 "New Stage": same characters, back to stage select only. Any
+            // player can trigger it (like Change Fighters); only Rematch votes.
+            var newStage = MakeButton(Tr("fighter_new_stage"));
+            newStage.Pressed += () => {
+                GameManager manager = GameManager.Instance;
+                if (manager == null) return;
+                SessionData session = manager.CurrentSession;
+                session.ResumeAtStageSelect = true;
+                manager.CurrentSession = session;
+                manager.LoadScene("res://scenes/menus/CharacterSelect.tscn");
+            };
+            layout.AddChild(newStage);
 
             var fighters = MakeButton(Tr("fighter_change_fighters"));
             fighters.Pressed += () => GameManager.Instance?.LoadScene("res://scenes/menus/CharacterSelect.tscn");
@@ -131,6 +153,39 @@ namespace FTT.UI {
             var menu = MakeButton(Tr(holodeck ? "fighter_return_to_ship" : "fighter_main_menu"));
             menu.Pressed += () => GameManager.Instance?.LoadScene(ExitScenePath());
             layout.AddChild(menu);
+        }
+
+        private void OnRematchPressed() {
+            bool localHuman = GameManager.Instance?.CurrentSession.FighterOpponentType
+                == FighterOpponentType.LocalHuman;
+            if (!localHuman) {
+                GameManager.Instance?.LoadScene(RematchScenePath());
+                return;
+            }
+            // Arm the vote (design Section 11: "Rematch requires both"); each
+            // player confirms on their own device, Interact cancels the vote.
+            _rematchPending = true;
+            _rematchReady[0] = false;
+            _rematchReady[1] = false;
+            if (_rematchButton != null) _rematchButton.Text = Tr("fighter_rematch_waiting");
+        }
+
+        public override void _Process(double delta) {
+            if (!_rematchPending || InputManager.Instance == null) return;
+            for (int player = 0; player < 2; player++) {
+                if (InputManager.Instance.IsActionJustPressed("gameplay_basic_attack", player)) {
+                    _rematchReady[player] = true;
+                }
+                if (InputManager.Instance.IsActionJustPressed("gameplay_interact", player)) {
+                    _rematchPending = false;
+                    if (_rematchButton != null) _rematchButton.Text = Tr("fighter_rematch");
+                    return;
+                }
+            }
+            if (_rematchReady[0] && _rematchReady[1]) {
+                _rematchPending = false;
+                GameManager.Instance?.LoadScene(RematchScenePath());
+            }
         }
 
         private static Button MakeButton(string text) => new() {

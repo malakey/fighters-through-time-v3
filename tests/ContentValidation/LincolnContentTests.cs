@@ -22,7 +22,10 @@ public class LincolnContentTests {
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Area);
         AssertThat(data.BaseDamage).IsEqual(40f);
-        AssertThat(data.CooldownDuration).IsEqual(10f);
+        // V7 band: the roster's biggest single hit sits at the top of the
+        // 6-14 s cooldown band with haymaker frames (design §5).
+        AssertThat(data.CooldownDuration).IsEqual(13f);
+        AssertThat(data.StartupFrames).IsEqual(16);
         // Single-pulse Fighter zone lifetime plus a dominant upward launch.
         AssertThat(data.Lifetime).IsEqual(0.25f);
         AssertThat(data.KnockbackForce.Y < 0f).IsTrue();
@@ -38,6 +41,7 @@ public class LincolnContentTests {
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Melee);
         AssertThat(data.BaseDamage).IsEqual(36f);
+        AssertThat(data.CooldownDuration).IsEqual(12f);
     }
 
     [TestCase]

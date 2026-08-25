@@ -225,23 +225,24 @@ public class StoryPauseTests {
     }
 
     [TestCase]
-    public void TheExitPenaltyRetainsHalfTheUnbankedDustRoundedDown() {
-        // docs/DUST_ECONOMY.md §2 / design "Pause Screen Rules": exit keeps 50%
-        // of undeposited level dust, rounded down.
-        AssertThat(PauseMenu.CalculateExitRetainedDust(40)).IsEqual(20);
-        AssertThat(PauseMenu.CalculateExitRetainedDust(41)).IsEqual(20);
+    public void TheExitPenaltyForfeitsTwentyPercentOfUnbankedDust() {
+        // V7 unified exit rule ("one rule, one number", enforced V7.2): any exit
+        // from an incomplete level forfeits 20% of undeposited dust — the player
+        // retains 80%, rounded down, matching StoryManager's collapse path.
+        AssertThat(PauseMenu.CalculateExitRetainedDust(40)).IsEqual(32);
+        AssertThat(PauseMenu.CalculateExitRetainedDust(41)).IsEqual(32);
         AssertThat(PauseMenu.CalculateExitRetainedDust(1)).IsEqual(0);
         AssertThat(PauseMenu.CalculateExitRetainedDust(0)).IsEqual(0);
         AssertThat(PauseMenu.CalculateExitRetainedDust(-5)).IsEqual(0);
 
-        // Whole wallet earned this level: 40 unbanked -> 20 retained.
-        AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(40, 40)).IsEqual(20);
+        // Whole wallet earned this level: 40 unbanked -> 32 retained.
+        AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(40, 40)).IsEqual(32);
         // Only the level's share of the wallet is penalized.
-        AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(100, 40)).IsEqual(80);
+        AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(100, 40)).IsEqual(92);
         // A tally larger than the wallet clamps to the wallet.
-        AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(30, 40)).IsEqual(15);
-        // Odd amounts round the retained half down (the forfeit rounds up).
-        AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(41, 41)).IsEqual(20);
+        AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(30, 40)).IsEqual(24);
+        // Odd amounts round the retained share down (the forfeit rounds up).
+        AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(41, 41)).IsEqual(32);
         AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(0, 0)).IsEqual(0);
     }
 

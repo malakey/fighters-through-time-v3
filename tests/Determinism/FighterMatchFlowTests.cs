@@ -359,15 +359,24 @@ public class FighterMatchFlowTests {
     }
 
     [TestCase]
-    public void TimerExpiryWithIdenticalStateIsATrueDrawAndNamesNoWinner() {
+    public void TimerExpiryWithIdenticalStateEntersSuddenDeathNotADraw() {
+        // V7.1: a true tie at the buzzer no longer records an immediate draw —
+        // the match enters Sudden Death (still live, both fighters respawned
+        // at 1 HP with no timer) and the first KO names the winner. The only
+        // remaining path to a recorded Draw is a double-KO inside Sudden Death.
         var simulation = new FighterSimulation(
             matchSeconds: 1, rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, false, 0));
         for (int tick = 0; tick < 60; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
 
         FighterMatchComponent match = simulation.GetMatchState();
-        AssertThat(match.MatchState).IsEqual(FighterMatchStates.Complete);
-        AssertThat(match.IsTrueTie).IsEqual(1);
+        AssertThat(match.MatchState).IsEqual(FighterMatchStates.InProgress);
+        AssertThat(match.SuddenDeathActive).IsEqual(1);
+        AssertThat(match.TimerEnabled).IsEqual(0);
         AssertThat(match.WinnerPlayerID).IsEqual(-1);
+        for (int playerID = 0; playerID < 2; playerID++) {
+            AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent fighter)).IsTrue();
+            AssertThat(fighter.CurrentHP).IsEqual(1);
+        }
     }
 
     /// <summary>

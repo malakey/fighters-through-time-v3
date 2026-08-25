@@ -11,10 +11,16 @@ namespace FTT.Environment {
     /// </summary>
     public enum TutorialCalibrationStep {
         BasicHits,
+        /// <summary>V7.1: the dummy lands one scripted hit, then the player
+        /// reclaims the Rally echo by striking back before it fades.</summary>
+        RallyReclaim,
         Block,
         UseSpecial,
         UseUltimate,
         UseRewind,
+        /// <summary>V7.2: one manual scrubbed rewind (free), which also leaves
+        /// the Stasis Echo the player can see.</summary>
+        UseManualRewind,
         Done
     }
 
@@ -50,6 +56,16 @@ namespace FTT.Environment {
             if (Step != TutorialCalibrationStep.BasicHits) return false;
             BasicHitsLanded++;
             if (BasicHitsLanded < RequiredBasicHits) return false;
+            Step = TutorialCalibrationStep.RallyReclaim;
+            return true;
+        }
+
+        /// <summary>
+        /// V7.1 Rally beat: the dummy landed its scripted hit and the player
+        /// struck back (reclaiming the echo). True when this advanced the step.
+        /// </summary>
+        public bool RegisterRallyReclaimHit() {
+            if (Step != TutorialCalibrationStep.RallyReclaim) return false;
             Step = TutorialCalibrationStep.Block;
             return true;
         }
@@ -94,19 +110,35 @@ namespace FTT.Environment {
             return true;
         }
 
-        /// <summary>The scripted rewind demonstration completed.</summary>
+        /// <summary>The scripted rewind demonstration completed; the manual
+        /// scrub lesson follows.</summary>
         public bool RegisterRewindComplete() {
             if (Step != TutorialCalibrationStep.UseRewind) return false;
+            Step = TutorialCalibrationStep.UseManualRewind;
+            return true;
+        }
+
+        /// <summary>V7.2: the player committed their own manual scrubbed rewind.</summary>
+        public bool RegisterManualRewindComplete() {
+            if (Step != TutorialCalibrationStep.UseManualRewind) return false;
             Step = TutorialCalibrationStep.Done;
             return true;
         }
 
         /// <summary>
         /// Never-strand fallback: the rewind demonstration could not run (no
-        /// manager, or repeated refusals), so the calibration finishes without it.
+        /// manager, or repeated refusals), so the calibration finishes without
+        /// either rewind lesson.
         /// </summary>
         public bool SkipRewindDemonstration() {
             if (Step != TutorialCalibrationStep.UseRewind) return false;
+            Step = TutorialCalibrationStep.Done;
+            return true;
+        }
+
+        /// <summary>Never-strand fallback for the manual lesson alone.</summary>
+        public bool SkipManualRewindLesson() {
+            if (Step != TutorialCalibrationStep.UseManualRewind) return false;
             Step = TutorialCalibrationStep.Done;
             return true;
         }

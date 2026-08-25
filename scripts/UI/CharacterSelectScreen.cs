@@ -127,6 +127,9 @@ namespace FTT.UI {
 
         public override void _Ready() {
             UIPalette.ApplyTheme(this);
+            // V7 "Match Settings Persist": the last-used rules pre-load from the
+            // global save before the rule controls bind their initial values.
+            GameManager.Instance?.EnsureMatchSettingsLoaded();
 
             _selectPhase = GetNode<Control>("SelectPhase");
             _stagePhase = GetNode<Control>("StagePhase");
@@ -166,6 +169,23 @@ namespace FTT.UI {
             RefreshPanels();
             RepaintTiles();
             BuildFocusChain();
+
+            // Post-match "New Stage" (V7): same characters, straight back to the
+            // stage phase. The flag is consumed on read so Back still works.
+            if (GameManager.Instance != null && GameManager.Instance.CurrentSession.ResumeAtStageSelect) {
+                SessionData session = GameManager.Instance.CurrentSession;
+                session.ResumeAtStageSelect = false;
+                GameManager.Instance.CurrentSession = session;
+                int p1 = System.Array.IndexOf(_characterIDs, session.SelectedCharacterID);
+                int p2 = System.Array.IndexOf(_characterIDs, session.OpponentCharacterID);
+                if (p1 >= 0 && p2 >= 0) {
+                    _tokens[0].LockedIndex = p1;
+                    _tokens[1].LockedIndex = p2;
+                    RefreshPanels();
+                    RepaintTiles();
+                    EnterStagePhase();
+                }
+            }
         }
 
         // === Flow: polled per-player input ===================================
@@ -610,10 +630,19 @@ namespace FTT.UI {
             _matchMode.AddItem(Tr("fighter_mode_time"), (int)MatchMode.TimeLimit);
             _matchMode.AddItem(Tr("fighter_mode_hybrid"), (int)MatchMode.Hybrid);
 
+            // V7 "Match Settings Persist": the rule controls initialize from the
+            // session settings (which EnsureMatchSettingsLoaded pre-loaded from
+            // the global save) instead of hardcoded defaults.
+            MatchSettings settings = GameManager.Instance?.CurrentSession.MatchSettings
+                ?? MatchSettings.GetDefault();
+            _matchMode.Select((int)settings.Mode);
+            if (_stockCount != null) _stockCount.Value = settings.StockCount;
+            if (_timeLimit != null) _timeLimit.Value = settings.TimeLimit;
+
             // Off/Low/Medium/High, matching the deterministic spawn-interval bands
             // the simulation actually consumes rather than a binary on/off.
-            FillFrequencySelect(_itemFrequency, (int)ChronalOrbFrequency.High);
-            FillFrequencySelect(_hazardFrequency, (int)HazardTriggerFrequency.High);
+            FillFrequencySelect(_itemFrequency, (int)settings.ItemSpawnRate);
+            FillFrequencySelect(_hazardFrequency, (int)settings.HazardRate);
         }
 
         /// <summary>Opponent-mode change invalidates every lock; back to a clean selection.</summary>
@@ -753,9 +782,13 @@ namespace FTT.UI {
             int selectedStageIndex = (int)_stageSelect.GetSelectedId();
             if (selectedStageIndex < 0 || selectedStageIndex >= _stageIDs.Count) return null;
             session.SelectedStageID = _stageIDs[selectedStageIndex];
-            session.FighterOpponentType = _localHumanToggle.ButtonPressed
-                ? FighterOpponentType.LocalHuman
-                : FighterOpponentType.Cpu;
+            // A LAN session set by the Network Select screen survives the
+            // character select — the toggle only distinguishes the local modes.
+            if (session.FighterOpponentType != FighterOpponentType.Lan) {
+                session.FighterOpponentType = _localHumanToggle.ButtonPressed
+                    ? FighterOpponentType.LocalHuman
+                    : FighterOpponentType.Cpu;
+            }
             session.CpuDifficulty = (CpuDifficulty)_cpuDifficulty.GetSelectedId();
             MatchSettings settings = session.MatchSettings;
             settings.Mode = (MatchMode)_matchMode.GetSelectedId();
@@ -769,6 +802,8 @@ namespace FTT.UI {
             settings.StageHazardsEnabled = hazardRate != HazardTriggerFrequency.Off;
             session.MatchSettings = settings;
             GameManager.Instance.CurrentSession = session;
+            // V7 "Match Settings Persist": set-and-forget for house rules.
+            GameManager.Instance.PersistMatchSettings();
             return _stageCatalog?.Find(session.SelectedStageID);
         }
 

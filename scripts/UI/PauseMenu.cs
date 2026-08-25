@@ -136,7 +136,7 @@ namespace FTT.UI {
 
             _restartConfirm = ConfirmModal.Create("pause_restart_confirm");
             _restartConfirm.Name = "RestartConfirmModal";
-            _restartConfirm.Confirmed += RestartFromCheckpoint;
+            _restartConfirm.Confirmed += RestartLevelFromBeginning;
             _restartConfirm.Cancelled += RestoreMenuFocus;
             _root.AddChild(_restartConfirm);
         }
@@ -166,20 +166,32 @@ namespace FTT.UI {
 
         private void ShowRestartConfirmation() {
             if (_restartConfirm == null) {
-                RestartFromCheckpoint();
+                RestartLevelFromBeginning();
                 return;
             }
             _restartConfirm.Open();
         }
 
         /// <summary>
-        /// Designed Restart Level option: back to the current level's
-        /// last-reached checkpoint with 100% HP and a full rewind pool, no dust
-        /// penalty. The save is stamped first, then the level scene reloads and
-        /// its controller restores from <c>LastCheckpointID</c> exactly as a
-        /// campaign resume does.
+        /// The post-restart wallet (V7.2 rule): ALL dust earned this level is
+        /// cleared — the attempt never happened — while residue that predates
+        /// the level survives. (The V7 free checkpoint-restart let players farm
+        /// full-strength boss attempts; checkpoint-resume now belongs
+        /// exclusively to the priced rewind/Collapse path.)
         /// </summary>
-        private void RestartFromCheckpoint() {
+        public static int CalculateRestartWallet(int walletDust, int earnedThisLevel) {
+            int wallet = Mathf.Max(0, walletDust);
+            return wallet - Mathf.Clamp(earnedThisLevel, 0, wallet);
+        }
+
+        /// <summary>
+        /// V7.2 Restart Level — a true restart, not a free heal: the whole
+        /// level restarts from its beginning (checkpoints cleared, every
+        /// enemy/Extractor/pickup/Font/puzzle back to initial state via the
+        /// scene reload), the player starts fresh at 100% HP with a full
+        /// rewind pool, and every point of dust earned this level is cleared.
+        /// </summary>
+        private void RestartLevelFromBeginning() {
             var story = FTT.Core.StoryManager.Instance;
             var saveManager = FTT.Core.SaveManager.Instance;
             var gameManager = FTT.Core.GameManager.Instance;
@@ -190,11 +202,21 @@ namespace FTT.UI {
             int maxRewinds = FTT.Environment.ChronalRewindManager.GetMaximumRewinds(difficulty);
             story.SetRewinds(maxRewinds);
 
+            int wallet = story.ChronalDustCollected;
+            int earned = GetTree()?.CurrentScene is FTT.Environment.StoryLevelControllerBase level
+                ? level.DustEarnedThisLevel
+                : wallet;
+            story.SetDust(CalculateRestartWallet(wallet, earned));
+            // A true restart also refills the Restoration Fonts.
+            story.ClearRestorationFonts();
+
             int slot = gameManager.CurrentSession.ActiveSaveSlot;
             if (slot >= 0 && slot < saveManager.SaveSlots.Length && saveManager.SaveSlots[slot] != null) {
                 FTT.Core.StorySaveData save = saveManager.SaveSlots[slot];
                 save.CurrentLives = maxRewinds;
                 save.LevelChronalDust = story.ChronalDustCollected;
+                // A true restart: no checkpoint survives the attempt.
+                save.LastCheckpointID = "";
                 if (GetTree()?.GetFirstNodeInGroup("StoryPlayer") is FTT.Characters.PlayerController player) {
                     save.CurrentHP = player.MaximumHP;
                 }
@@ -207,12 +229,13 @@ namespace FTT.UI {
         // === Exit to main menu =============================================
 
         /// <summary>
-        /// Designed Exit rule: the player retains 50% of undeposited Chronal
-        /// Dust, rounded down (design-godot.md "Pause Screen Rules";
-        /// docs/DUST_ECONOMY.md §2 models this penalty).
+        /// Unified exit rule (V7 "one rule, one number", enforced V7.2): any
+        /// exit from an incomplete level — Timeline Collapse, quit-to-hub, or
+        /// quit-to-menu — forfeits 20% of undeposited Chronal Dust; the player
+        /// retains 80%, rounded down. Matches StoryManager's collapse path.
         /// </summary>
         public static int CalculateExitRetainedDust(int unbankedDust) =>
-            Mathf.Max(0, unbankedDust) / 2;
+            Mathf.Max(0, unbankedDust) * 8 / 10;
 
         /// <summary>
         /// The wallet after the exit penalty: only dust earned in the current

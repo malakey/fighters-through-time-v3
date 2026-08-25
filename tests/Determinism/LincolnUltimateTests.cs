@@ -44,13 +44,13 @@ public class LincolnUltimateTests {
         simulation.Advance(Frame(nextTick, 0, GameplayButtons.Ultimate), Frame(nextTick, 0, GameplayButtons.None));
 
         // The bespoke dispatch replaced the generic melee ultimate: the meter is
-        // consumed and only the first impulse-free pen smash (8 damage, no
+        // consumed and only the first impulse-free pen smash (14 damage, no
         // hitstun) landed this frame — a generic double-fire would have set 30
         // hitstun frames and doubled the damage.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent lincoln)).IsTrue();
-        AssertThat(lincoln.Influence.RawValue).IsEqual(FP64.FromInt(8).RawValue);
+        AssertThat(lincoln.Influence.RawValue).IsEqual(FP64.FromInt(14).RawValue);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-        AssertThat(target.CurrentHP).IsEqual(292);
+        AssertThat(target.CurrentHP).IsEqual(286);
         AssertThat(target.HitstunFrames).IsEqual(0);
 
         AssertThat(simulation.ZoneCount).IsEqual(1);
@@ -92,10 +92,12 @@ public class LincolnUltimateTests {
                 Frame(nextTick + step, 0, GameplayButtons.None));
         }
 
-        // 5 smashes x 8 per-hit damage = the authored 40 total on top of the
-        // 100-damage meter-charging basic, and the 2.5 s zone is gone.
+        // 5 smashes x 14 per-hit damage (V7.1 retarget: ~70 total, closing the
+        // named data-error outlier against the roster's 70-84 for the same
+        // 100 meter) on top of the 100-damage meter-charging basic, and the
+        // 2.5 s zone is gone.
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-        AssertThat(target.CurrentHP).IsEqual(260);
+        AssertThat(target.CurrentHP).IsEqual(230);
         AssertThat(simulation.ZoneCount).IsEqual(0);
     }
 
@@ -119,7 +121,7 @@ public class LincolnUltimateTests {
             Frame(nextTick + 120, 0, GameplayButtons.None),
             Frame(nextTick + 120, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent launched)).IsTrue();
-        AssertThat(launched.CurrentHP).IsEqual(260);
+        AssertThat(launched.CurrentHP).IsEqual(230);
         AssertThat(launched.HitstunFrames).IsEqual(30);
         AssertThat(launched.IsGrounded).IsEqual(0);
         AssertThat(launched.Velocity.y > FP64.Zero).IsTrue();
@@ -150,7 +152,7 @@ public class LincolnUltimateTests {
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
         AssertThat(caster.Influence < FP64.FromInt(100)).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent smashed)).IsTrue();
-        AssertThat(smashed.CurrentHP).IsEqual(292);
+        AssertThat(smashed.CurrentHP).IsEqual(286);
     }
 
     [TestCase]
@@ -168,7 +170,7 @@ public class LincolnUltimateTests {
         }
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent blocked)).IsTrue();
-        AssertThat(blocked.CurrentHP).IsEqual(260);
+        AssertThat(blocked.CurrentHP).IsEqual(230);
         AssertThat(blocked.BlockCharges).IsEqual(3);
         AssertThat(blocked.HitstunFrames).IsEqual(30);
     }
@@ -204,10 +206,11 @@ public class LincolnUltimateTests {
     }
 
     /// <summary>
-    /// Builds a simulation with Lincoln's meter fully charged: the oversized
-    /// zero-knockback basic (125 x 0.8 = 100 damage) fills the meter in one hit
-    /// against the 400 HP opponent, then idle frames sized from the shared
-    /// tables (opener startup plus its hitstun, with a small pad) let the
+    /// Builds a simulation with Lincoln's meter fully charged: after walking
+    /// inside his authored 1.7-unit reach (V7.1 string profile), the oversized
+    /// zero-knockback opener (143 x 0.7 = 100 damage) fills the meter in one
+    /// hit against the 400 HP opponent, then idle frames sized from his
+    /// profile (opener startup plus its hitstun, with a small pad) let the
     /// hitstun lapse. Returns the next free input tick.
     /// </summary>
     private static FighterSimulation BuildChargedSimulation(int seed, out int nextTick) {
@@ -218,11 +221,27 @@ public class LincolnUltimateTests {
             spawnDistance: 1,
             rules: FighterMatchRules.Disabled);
 
-        simulation.Advance(Frame(0, 0, GameplayButtons.BasicAttack), Frame(0, 0, GameplayButtons.None));
-        int settleTicks = FTT.Combat.BasicComboRules.GroundStartupFrames[0]
+        int approachTick = 0;
+        for (int limit = 120; approachTick < limit; approachTick++) {
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent walker)).IsTrue();
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent standing)).IsTrue();
+            if (FP64.Abs(standing.Position.x - walker.Position.x) <= FP64.FromDouble(1.4)) break;
+            simulation.Advance(
+                Frame(approachTick, 64, GameplayButtons.None),
+                Frame(approachTick, 0, GameplayButtons.None));
+        }
+
+        simulation.Advance(
+            Frame(approachTick, 0, GameplayButtons.BasicAttack),
+            Frame(approachTick, 0, GameplayButtons.None));
+        int settleTicks = approachTick
+            + FTT.Combat.BasicComboRules.StringProfileFor("lincoln").GroundStartupFrames[0]
             + FTT.Combat.BasicComboRules.HitstunFrames[0]
+            // V7.1 hitstop: the 100-damage opener freezes the victim for the
+            // max window before their hitstun starts counting down.
+            + FTT.Combat.BasicComboRules.HitstopFrames(100)
             + 4;
-        for (int tick = 1; tick <= settleTicks; tick++) {
+        for (int tick = approachTick + 1; tick <= settleTicks; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
 
@@ -243,14 +262,15 @@ public class LincolnUltimateTests {
         MaxJumpCount = 1,
         MaxMoveSpeed = 5.5f,
         MaxJumpForce = 11f,
-        BasicAttackDamage = 125f,
+        // 143 x Lincoln's 0.7 opener shape (V7.1) = 100 = one full meter.
+        BasicAttackDamage = 143f,
         BasicAttackKnockback = 0f,
         SpecialAttackOne = new AbilityData { BaseDamage = 20f },
         SpecialAttackTwo = new AbilityData { BaseDamage = 18f },
         MovementAbility = new MovementAbilityData(),
         // Mirrors the authored lincoln/ultimate.tres numbers.
         UltimateAttack = new AbilityData {
-            BaseDamage = 8f,
+            BaseDamage = 14f,
             IsMultiHit = true,
             HitCount = 5,
             DamageTickIntervalFrames = 30,

@@ -462,9 +462,14 @@ public class EnemyControllerTests {
             for (int frame = 0; frame < 30; frame++) enemy._PhysicsProcess(Step);
             float heldX = enemy.GlobalPosition.X;
 
-            // A 25 px shuffle keeps the target inside the 110% release line
-            // (chrono_slasher range 90 px, release 99 px): the enemy must not move.
-            player.GlobalPosition += new Vector2(25f, 0f);
+            // Shuffle the target while staying safely inside the 110% release
+            // line (chrono_slasher range 90 px, release 99 px): the enemy must
+            // not move. The shuffle is computed from the actual settled gap —
+            // the halt position rides the engine's process delta, so a fixed
+            // 25 px sat within noise of the release line and flaked.
+            float settledGap = player.GlobalPosition.X - enemy.GlobalPosition.X;
+            float shuffle = Mathf.Max(5f, enemy.AttackRangePixels * 1.1f - settledGap - 6f);
+            player.GlobalPosition += new Vector2(shuffle, 0f);
             for (int frame = 0; frame < 120; frame++) enemy._PhysicsProcess(Step);
             AssertThat(enemy.IsStandOffEngaged).IsTrue();
             AssertThat(enemy.Velocity.X).IsEqualApprox(0f, 0.001f);

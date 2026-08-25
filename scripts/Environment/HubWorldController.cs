@@ -24,6 +24,7 @@ namespace FTT.Environment {
         private bool _playerInSarah;
         private ResonanceGridPanel _resonancePanel;
         private TimelineRestartPanel _timelineRestartPanel;
+        private HolodeckConsolePanel _holodeckPanel;
         private StorySceneServices _services;
 
         public override void _Ready() {
@@ -292,8 +293,9 @@ namespace FTT.Environment {
         }
 
         /// <summary>
-        /// Holodeck Arena Console: opens the Fighter lobby configured for a
-        /// human-vs-CPU practice match and flags the session to return here.
+        /// Holodeck Arena Console: opens the compact in-hub configuration panel
+        /// for a human-vs-CPU practice match (design Section 10.3); launching
+        /// flags the session to return here.
         /// </summary>
         private void BuildHolodeck() {
             _holodeckArea = new Area2D();
@@ -386,13 +388,21 @@ namespace FTT.Environment {
             AddChild(_sarahArea);
         }
 
-        private void OpenHolodeckLobby() {
-            if (GameManager.Instance == null) return;
-            SessionData session = GameManager.Instance.CurrentSession;
-            session.FighterOpponentType = FighterOpponentType.Cpu;
-            session.ReturnToHubAfterFighterMatch = true;
-            GameManager.Instance.CurrentSession = session;
-            GameManager.Instance.LoadScene("res://scenes/menus/CharacterSelect.tscn");
+        /// <summary>
+        /// Design Section 10.3 "In-Hub Configuration Surface": the console opens
+        /// a compact configuration panel in the hub — CPU difficulty, CPU
+        /// character, stage, rules — and launches straight into the match. It
+        /// deliberately does NOT route through the three-screen Fighter select.
+        /// </summary>
+        private void OpenHolodeckConsole() {
+            _holodeckPanel = new HolodeckConsolePanel { Name = "HolodeckConsolePanel" };
+            _holodeckPanel.Closed += () => {
+                _holodeckPanel?.QueueFree();
+                _holodeckPanel = null;
+                _player.ProcessMode = ProcessModeEnum.Inherit;
+            };
+            _player.ProcessMode = ProcessModeEnum.Disabled;
+            GetNode<CanvasLayer>("HubHUD").AddChild(_holodeckPanel);
         }
 
         private void BuildDecorations() {
@@ -541,9 +551,10 @@ namespace FTT.Environment {
             if (@event.IsActionPressed("gameplay_interact")) {
                 if (_resonancePanel != null && IsInstanceValid(_resonancePanel)) return;
                 if (_timelineRestartPanel != null && IsInstanceValid(_timelineRestartPanel)) return;
+                if (_holodeckPanel != null && IsInstanceValid(_holodeckPanel)) return;
                 if (_services?.Dialogue != null && _services.Dialogue.IsSequenceActive) return;
                 if (_playerInHolodeck) {
-                    OpenHolodeckLobby();
+                    OpenHolodeckConsole();
                     return;
                 }
                 if (_playerInSarah) {

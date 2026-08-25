@@ -54,6 +54,19 @@ namespace FTT.Enemies {
         [Export] public Vector2 KnockbackForce = new(3f, -1.5f);
         [Export] public float HitstunDuration = 0.2f;
 
+        [ExportGroup("Block Classification (V7.2)")]
+        /// <summary>
+        /// Guard-Crush: 2 charges when blocked (orange telegraph). Elite-tier
+        /// signature abilities are Guard-Crush implicitly regardless of this
+        /// flag; author it on boss abilities that threaten the stance.
+        /// </summary>
+        [Export] public bool IsGuardCrushing;
+        /// <summary>
+        /// Unblockable (red telegraph). Honored on bosses only — never authored
+        /// on standard or elite mobs; the executor ignores it for them.
+        /// </summary>
+        [Export] public bool IsUnblockable;
+
         [ExportGroup("Hitbox")]
         [Export] public Vector2 HitboxSize = new(48f, 48f);
         [Export] public Vector2 HitboxOffset = new(36f, -34f);

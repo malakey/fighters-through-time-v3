@@ -180,10 +180,10 @@ namespace FTT.Characters.Abilities {
             while (current != null) {
                 if (current is PlayerController player) {
                     var status = player.GetNodeOrNull<StatusController>("StatusController");
-                    return status?.ActiveType == FTT.Core.StatusType.Root;
+                    return status?.HasStatus(FTT.Core.StatusType.Root) == true;
                 }
                 if (current is FTT.Enemies.EnemyController enemy) {
-                    return enemy.ActiveStatusType == FTT.Core.StatusType.Root;
+                    return enemy.HasStatusEffect(FTT.Core.StatusType.Root);
                 }
                 current = current.GetParent();
             }
@@ -215,7 +215,8 @@ namespace FTT.Characters.Abilities {
 
         private void CreditOwnerInfluence(float dealt) {
             if (dealt > 0f && _ownerPlayer != null && IsInstanceValid(_ownerPlayer)) {
-                _ownerPlayer.AddInfluenceFromDamageDealt(dealt);
+                // Construct damage never reclaims Rally echo (V7.1: direct hits only).
+                _ownerPlayer.AddInfluenceFromDamageDealt(dealt, collectsEcho: false);
             }
         }
     }

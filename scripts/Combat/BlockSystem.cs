@@ -68,12 +68,18 @@ namespace FTT.Combat {
 
         public BlockResult ResolveHit(in HitPayload hit) {
             if (!_isBlocking || CurrentCharges <= 0 || _owner == null) return BlockResult.NotBlocked;
-            if (BlockRules.BypassesBlock(hit.AttackClass)) return BlockResult.NotBlocked;
+            // V7.2: boss-only red-telegraph attacks pierce the stance outright.
+            if (hit.Unblockable || BlockRules.BypassesBlock(hit.AttackClass)) return BlockResult.NotBlocked;
             if (!BlockRules.IsHitInFront(_owner.GlobalPosition, _owner.IsFacingRight, hit.HitOrigin)) {
                 return BlockResult.NotBlocked;
             }
 
-            int cost = BlockRules.ChargeCost(hit.AttackClass, CurrentCharges);
+            // V7.2 classification: an authored per-hit charge cost (Guard-Crush
+            // = 2) overrides the class default; no single enemy hit ever
+            // full-shatters — shatter comes only from chip or 2 + 2 pressure.
+            int cost = hit.BlockChargeCost > 0
+                ? Mathf.Min(hit.BlockChargeCost, CurrentCharges)
+                : BlockRules.ChargeCost(hit.AttackClass, CurrentCharges);
             if (cost <= 0) return BlockResult.NotBlocked;
 
             CurrentCharges = Mathf.Max(0, CurrentCharges - cost);

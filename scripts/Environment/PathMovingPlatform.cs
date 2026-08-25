@@ -12,7 +12,7 @@ namespace FTT.Environment {
     /// Waypoints are offsets from the platform's authored position, so a template
     /// instance can be dropped anywhere without rewriting them.
     /// </summary>
-    public partial class PathMovingPlatform : AnimatableBody2D, IStoryRewindable {
+    public partial class PathMovingPlatform : AnimatableBody2D, IStoryRewindable, IRewindScrubbable {
         [Signal] public delegate void WaypointReachedEventHandler(int waypointIndex);
 
         [Export] public string PlatformID = "";
@@ -35,6 +35,18 @@ namespace FTT.Environment {
         private int _checkpointTarget;
         private int _checkpointDirection = 1;
 
+        // === V7.2 rewind scrub (the world-interaction exemplar) ===============
+        // The platform records its own eight-second position history and scrubs
+        // back along it during any Chronal Rewind, preview included.
+        /// <summary>Scene group the rewind manager sweeps for scrubbables.</summary>
+        public const string ScrubGroup = "path_moving_platform";
+        private const int HistoryCapacity = 480;
+        private readonly Vector2[] _history = new Vector2[HistoryCapacity];
+        private int _historyNext;
+        private int _historyCount;
+        private bool _scrubbing;
+        private bool _skipNextRewindRestore;
+
         public int TargetWaypointIndex { get; private set; }
         public int LastWaypointIndex { get; private set; }
         public Vector2 PlatformVelocity { get; private set; }
@@ -42,6 +54,7 @@ namespace FTT.Environment {
 
         public override void _Ready() {
             AddToGroup("puzzle_object");
+            AddToGroup(ScrubGroup);
             // Manual movement inside _PhysicsProcess: Godot estimates the body's
             // linear velocity from the transform delta, which is what carries a
             // CharacterBody2D standing on it. sync_to_physics is deliberately off so
@@ -66,7 +79,35 @@ namespace FTT.Environment {
             }
         }
 
-        public override void _PhysicsProcess(double delta) => AdvancePath((float)delta);
+        public override void _PhysicsProcess(double delta) {
+            if (_scrubbing) return;
+            _history[_historyNext] = Position;
+            _historyNext = (_historyNext + 1) % HistoryCapacity;
+            if (_historyCount < HistoryCapacity) _historyCount++;
+            AdvancePath((float)delta);
+        }
+
+        // === IRewindScrubbable ================================================
+
+        public void BeginRewindScrub() => _scrubbing = true;
+
+        public void ApplyRewindScrub(int depthFrames) {
+            if (_historyCount == 0) return;
+            int offset = Mathf.Clamp(depthFrames, 1, _historyCount);
+            int index = _historyNext - offset;
+            if (index < 0) index += HistoryCapacity;
+            Position = _history[index];
+            PlatformVelocity = Vector2.Zero;
+        }
+
+        public void EndRewindScrub() {
+            _scrubbing = false;
+            _waitTimer = 0f;
+            PlatformVelocity = Vector2.Zero;
+            // The scrub already placed the platform where the rewound moment
+            // had it — the checkpoint-state snap at rewind end must not undo it.
+            _skipNextRewindRestore = true;
+        }
 
         public void AdvancePath(float dt) {
             if (!Enabled || Waypoints == null || Waypoints.Length < 2) {
@@ -130,6 +171,12 @@ namespace FTT.Environment {
             TargetWaypointIndex = Mathf.Clamp(TargetWaypointIndex + _direction, 0, Waypoints.Length - 1);
         }
 
-        private void OnRewind(Vector2 targetPosition) => ApplyStoryRewind();
+        private void OnRewind(Vector2 targetPosition) {
+            if (_skipNextRewindRestore) {
+                _skipNextRewindRestore = false;
+                return;
+            }
+            ApplyStoryRewind();
+        }
     }
 }

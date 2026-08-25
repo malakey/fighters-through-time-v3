@@ -58,6 +58,12 @@ namespace FTT.Enemies {
         /// <summary>Horizontal velocity a ChargeDash wants applied during its active phase.</summary>
         public Vector2 DashVelocity { get; private set; }
 
+        /// <summary>V7.2: the active ability is Guard-Crush (2 charges, orange telegraph).</summary>
+        public bool ActiveGuardCrush { get; private set; }
+
+        /// <summary>V7.2: the active ability is unblockable (boss-only, red telegraph).</summary>
+        public bool ActiveUnblockable { get; private set; }
+
         public float ShieldDamageReduction { get; private set; }
         public float ShieldSecondsRemaining { get; private set; }
         public bool HasActiveShield => ShieldSecondsRemaining > 0f && ShieldDamageReduction > 0f;
@@ -101,10 +107,23 @@ namespace FTT.Enemies {
             if (!_tintApplied && _sprite != null) _sprite.Modulate = modulate;
         }
 
-        public bool Begin(EnemyAbilityData ability, Vector2 targetPosition, bool facingRight) {
+        /// <summary>
+        /// V7.2 classification is passed by the caller: EnemyController marks
+        /// elite signature abilities Guard-Crush; BossController forwards the
+        /// ability's authored IsGuardCrushing/IsUnblockable flags. Unblockable
+        /// is boss-only by contract — mobs must always pass false.
+        /// </summary>
+        public bool Begin(
+            EnemyAbilityData ability,
+            Vector2 targetPosition,
+            bool facingRight,
+            bool guardCrush = false,
+            bool unblockable = false) {
             if (ability == null) return false;
             ClearActiveEffects();
             ActiveAbility = ability;
+            ActiveGuardCrush = guardCrush && !unblockable;
+            ActiveUnblockable = unblockable;
             _facingRight = facingRight;
             _targetPosition = targetPosition;
             Phase = EnemyAbilityPhase.Telegraph;
@@ -240,9 +259,13 @@ namespace FTT.Enemies {
 
             _hitbox.AttackID = ability.AbilityID;
             _hitbox.HitboxID = "primary";
-            _hitbox.AttackClass = ability.Archetype == EnemyAbilityArchetype.MeleeStrike
-                ? FTT.Combat.AttackClass.Basic
-                : FTT.Combat.AttackClass.Special;
+            // V7.2 classification: every enemy attack resolves Basic-class
+            // against the block (1 charge, never an instant shatter). Threat
+            // beyond that is explicit: Guard-Crush costs 2, and boss-only
+            // unblockables pierce the stance entirely.
+            _hitbox.AttackClass = FTT.Combat.AttackClass.Basic;
+            _hitbox.BlockChargeCost = ActiveGuardCrush ? 2 : 0;
+            _hitbox.Unblockable = ActiveUnblockable;
             _hitbox.Damage = Mathf.Max(0f, ability.Damage) * Mathf.Max(0f, DamageMultiplier);
             _hitbox.KnockbackForce = new Vector2(
                 knockbackSign * Mathf.Abs(ability.KnockbackForce.X),
@@ -283,7 +306,8 @@ namespace FTT.Enemies {
                 float fraction = count == 1 ? 0f : index / (count - 1f) - 0.5f;
                 Vector2 direction = spread > 0f ? baseDirection.Rotated(spread * fraction) : baseDirection;
                 var projectile = PoolManager.Instance.Spawn(ProjectilePoolID, origin, parent) as EnemyProjectile;
-                projectile?.Setup(ability, direction * Mathf.Max(1f, ability.ProjectileSpeed), damage, SourceID, lockVertical);
+                projectile?.Setup(ability, direction * Mathf.Max(1f, ability.ProjectileSpeed), damage, SourceID,
+                    lockVertical, ActiveGuardCrush, ActiveUnblockable);
             }
         }
 
@@ -321,13 +345,27 @@ namespace FTT.Enemies {
 
         // === Presentation ===
 
+        // V7.2 codified telegraph color language — the flash is a promise:
+        // white/yellow = blockable (1 charge), orange = Guard-Crush (2),
+        // red = Unblockable. Classification overrides the authored tint so the
+        // promise holds roster-wide.
+        private static readonly Color GuardCrushTelegraph = new(1f, 0.6f, 0.15f);
+        private static readonly Color UnblockableTelegraph = new(1f, 0.25f, 0.2f);
+
+        private Color TelegraphColor() {
+            if (ActiveUnblockable) return UnblockableTelegraph;
+            if (ActiveGuardCrush) return GuardCrushTelegraph;
+            return ActiveAbility?.TelegraphTint ?? Colors.White;
+        }
+
         private void ApplyTelegraphTint() {
             if (_sprite == null || ActiveAbility == null) return;
             _spriteBaseModulate = _tintApplied ? _spriteBaseModulate : _sprite.Modulate;
             // With an arbiter attached the telegraph lives on the tint-override
             // channel, so a status effect ending cannot erase it and vice versa.
-            if (Glow != null) Glow.SetTintOverride(ActiveAbility.TelegraphTint);
-            else _sprite.Modulate = ActiveAbility.TelegraphTint;
+            Color tint = TelegraphColor();
+            if (Glow != null) Glow.SetTintOverride(tint);
+            else _sprite.Modulate = tint;
             _tintApplied = true;
         }
 

@@ -82,7 +82,17 @@ namespace FTT.Enemies {
             return Boss;
         }
 
+        /// <summary>The intro's establishing beat, per the V7 boss directive.</summary>
+        public const float IntroBeatSeconds = 1.5f;
+
+        private float _introBeatSecondsRemaining = -1f;
+
+        /// <summary>True while the intro's establishing beat holds the boss. Test seam.</summary>
+        public bool IsIntroBeatRunning => _introBeatSecondsRemaining > 0f;
+
         public override void _Process(double delta) {
+            AdvanceFreeTelegraph();
+            if (AdvanceIntroBeat((float)delta)) return;
             if (IsRevealed || IsDefeated || Boss == null || !IsInstanceValid(Boss)) return;
             if (RevealDistance <= 0f) {
                 Reveal();
@@ -95,9 +105,69 @@ namespace FTT.Enemies {
             if (_player.GlobalPosition.DistanceTo(Boss.GlobalPosition) <= RevealDistance) Reveal();
         }
 
+        /// <summary>
+        /// V7 boss intro ritual: a name card over a 1.5 s establishing beat
+        /// (the boss held in place), the boss's signature telegraph shown once
+        /// for free, then the HUD bar sweeps in. Skipped on repeat attempts —
+        /// the seen-set lives on StoryManager and survives a Timeline Collapse.
+        /// </summary>
         private void Reveal() {
             if (IsRevealed) return;
             IsRevealed = true;
+            bool skipIntro = FTT.Core.StoryManager.Instance?.HasSeenBossIntro(Data?.BossID) == true;
+            if (!skipIntro && Data != null && Boss != null && IsInstanceValid(Boss)) {
+                FTT.Core.StoryManager.Instance?.RecordBossIntroSeen(Data.BossID);
+                _introBeatSecondsRemaining = IntroBeatSeconds;
+                Boss.SetStoryRewindFrozen(true);
+                HUD?.ShowBossIntroCard(
+                    string.IsNullOrWhiteSpace(Data.DisplayNameKey) ? "boss" : Data.DisplayNameKey,
+                    IntroBeatSeconds + 0.5f);
+                return;
+            }
+            ShowBar();
+        }
+
+        private bool AdvanceIntroBeat(float dt) {
+            if (_introBeatSecondsRemaining <= 0f) return false;
+            _introBeatSecondsRemaining -= dt;
+            if (_introBeatSecondsRemaining > 0f) return true;
+            _introBeatSecondsRemaining = -1f;
+            if (Boss != null && IsInstanceValid(Boss)) {
+                Boss.SetStoryRewindFrozen(false);
+                // The signature telegraph, shown once for free: the first
+                // authored ability winds up fully, then cancels into recovery
+                // with no payload — the player reads the pattern without paying.
+                if (Data?.BossAbilities is { Length: > 0 } && Data.BossAbilities[0] != null) {
+                    Boss.BeginAbility(Data.BossAbilities[0],
+                        _player?.GlobalPosition ?? Boss.GlobalPosition);
+                    _freeTelegraphPending = true;
+                }
+            }
+            ShowBar();
+            return true;
+        }
+
+        private bool _freeTelegraphPending;
+
+        /// <summary>Cuts the free intro telegraph at its last wind-up frame so
+        /// the full flash plays but the payload never fires.</summary>
+        private void AdvanceFreeTelegraph() {
+            if (!_freeTelegraphPending || Boss == null || !IsInstanceValid(Boss)) {
+                _freeTelegraphPending = false;
+                return;
+            }
+            if (Boss.IsTelegraphing) {
+                if (Boss.AbilityFramesRemaining <= 1) {
+                    Boss.CancelTelegraphIntoRecovery();
+                    _freeTelegraphPending = false;
+                }
+                return;
+            }
+            // Zero-frame telegraph or an interruption: nothing left to guard.
+            _freeTelegraphPending = false;
+        }
+
+        private void ShowBar() {
             // Package 8 B1: the authored phase thresholds travel with the reveal so
             // the HUD can notch the bar. They are the same array BossController
             // advances on, passed through rather than copied, so a notch cannot

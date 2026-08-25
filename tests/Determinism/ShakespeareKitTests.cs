@@ -50,9 +50,11 @@ public class ShakespeareKitTests {
 
         AssertThat(everSlowed).IsTrue();
         // Intensity 0.6 on the shared TimeDilation formula (speed x (1 - 0.5 x
-        // intensity)) is exactly the design's 30% slow.
+        // intensity)) is exactly the design's 30% slow. The value round-trips
+        // through the status slot's deterministic thousandths quantization.
         AssertThat(observedIntensity.RawValue)
-            .IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.FromFloat(0.6f).RawValue);
+            .IsEqual((xpTURN.Klotho.Deterministic.Math.FP64.FromInt(600)
+                / xpTURN.Klotho.Deterministic.Math.FP64.FromInt(1000)).RawValue);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(target.CurrentHP).IsEqual(86);
     }

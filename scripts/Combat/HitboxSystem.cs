@@ -31,5 +31,13 @@ namespace FTT.Combat {
         public float StatusIntensity;
         public float ScreenShakeIntensity;
         public float ScreenShakeDuration;
+        /// <summary>
+        /// V7.2 enemy-attack classification: charges a block spends for this
+        /// hit. 0 uses the class default (Basic/Hazard 1, Special full
+        /// shatter); Guard-Crush attacks author 2.
+        /// </summary>
+        public int BlockChargeCost;
+        /// <summary>V7.2: boss-only red-telegraph attacks that no block answers.</summary>
+        public bool Unblockable;
     }
 }

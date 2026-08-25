@@ -39,11 +39,12 @@ namespace FTT.UI {
         public const float HpDangerFraction = 0.25f;
 
         /// <summary>
-        /// Stock mode has no clock — the deterministic match component still counts
-        /// frames down in every mode, so a HUD that showed it unconditionally would
-        /// display a timer that decides nothing.
+        /// V7: the clock is visible whenever the match timer is enabled — Stock
+        /// mode defaults to the 8:00 timer too (configurable, including Off), so
+        /// visibility follows the deterministic match component's TimerEnabled
+        /// flag rather than the mode.
         /// </summary>
-        public static bool TimerIsVisible(MatchMode mode) => mode != MatchMode.Stock;
+        public static bool TimerIsVisible(bool timerEnabled) => timerEnabled;
 
         /// <summary>
         /// Whole minutes remaining, floored, never negative. Split from
@@ -89,6 +90,19 @@ namespace FTT.UI {
             if (fraction <= HpDangerFraction) return UIPalette.BossRed;
             if (fraction <= HpCautionFraction) return UIPalette.Warning;
             return UIPalette.Cyan;
+        }
+
+        /// <summary>
+        /// Rally echo band (V7.1): the draining "win it back" sliver rendered
+        /// directly above the current HP fill — the HP this fighter can reclaim
+        /// by landing a direct hit before the 2.5 s drain empties it. Returns
+        /// the band width in 0..1 of the bar, clamped so fill + band never
+        /// overflows the bar. Zero when dead or when nothing is stashed.
+        /// </summary>
+        public static float EchoBandFraction(int currentHP, float echoPool, int maximumHP) {
+            if (maximumHP <= 0 || echoPool <= 0f || currentHP <= 0) return 0f;
+            float fill = BarFraction(currentHP, maximumHP);
+            return Mathf.Clamp(echoPool / maximumHP, 0f, 1f - fill);
         }
 
         /// <summary>Pips lit, clamped into the authored capacity.</summary>

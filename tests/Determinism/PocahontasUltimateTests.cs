@@ -104,11 +104,16 @@ public class PocahontasUltimateTests {
         FighterSimulation simulation = BuildSimulation(seed: 85);
         int ultimatePressTick = ChargeMeterWithBasics(simulation);
 
-        // The target retreats out of the 2-unit melee attack range but stays
-        // inside the storm's 4-unit half-width; a generic melee ultimate would
-        // whiff from here.
-        for (int tick = ultimatePressTick; tick < ultimatePressTick + 12; tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 127, GameplayButtons.None));
+        // The target retreats out of melee attack range but stays inside the
+        // storm's 4-unit half-width; a generic melee ultimate would whiff from
+        // here. The retreat runs until the gap clears 2.5 units (the charge
+        // driver walks the fighters closer than the old fixed window assumed).
+        int retreatTick = ultimatePressTick;
+        for (int limit = ultimatePressTick + 90; retreatTick < limit; retreatTick++) {
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent chaser)).IsTrue();
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent runner)).IsTrue();
+            if (runner.Position.x.ToFloat() - chaser.Position.x.ToFloat() > 2.5f) break;
+            simulation.Advance(Frame(retreatTick, 0, GameplayButtons.None), Frame(retreatTick, 127, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent retreated)).IsTrue();
@@ -117,7 +122,7 @@ public class PocahontasUltimateTests {
         AssertThat(gap < 4.4f).IsTrue();
         int hpBeforeStorm = retreated.CurrentHP;
 
-        int pressTick = ultimatePressTick + 12;
+        int pressTick = retreatTick;
         simulation.Advance(Frame(pressTick, 0, GameplayButtons.Ultimate), Frame(pressTick, 0, GameplayButtons.None));
         for (int tick = pressTick + 1; tick <= pressTick + 170; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));

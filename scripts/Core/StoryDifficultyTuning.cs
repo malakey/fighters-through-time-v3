@@ -69,6 +69,55 @@ namespace FTT.Core {
             return Math.Max(1, result);
         }
 
+        /// <summary>
+        /// Rally echo fraction multiplier (V7.1, Story only): Hard halves the
+        /// reclaimable fraction of each hit taken; Easy and Normal keep the
+        /// full 20-50% curve.
+        /// </summary>
+        public static float GetRallyEchoMultiplier(Difficulty difficulty) => difficulty switch {
+            Difficulty.Hard => 0.5f,
+            _ => 1.0f
+        };
+
+        // === Story Mode healing loop (V7.2 — surviving must beat dying) ===
+        // Three authored recovery sources, all difficulty-scaled and capped at
+        // max HP. Nothing here exists in Fighter Mode (whose recovery is Rally).
+
+        /// <summary>Checkpoint Mending: fraction of max HP restored once when a
+        /// Chronal Fracture activates (Easy 100% / Normal 50% / Hard 25%).</summary>
+        public static float GetCheckpointMendingFraction(Difficulty difficulty) => difficulty switch {
+            Difficulty.Easy => 1.0f,
+            Difficulty.Hard => 0.25f,
+            _ => 0.5f
+        };
+
+        /// <summary>Restoration Font potency per use (Easy/Normal 50% / Hard 25%).</summary>
+        public static float GetRestorationFontFraction(Difficulty difficulty) =>
+            difficulty == Difficulty.Hard ? 0.25f : 0.5f;
+
+        /// <summary>Restoration Font uses per level (Easy 2 / Normal 1 / Hard 1).</summary>
+        public static int GetRestorationFontUses(Difficulty difficulty) =>
+            difficulty == Difficulty.Easy ? 2 : 1;
+
+        /// <summary>Chronal Feast instant heal (Easy 50% / Normal 35% / Hard 20%).</summary>
+        public static float GetChronalFeastFraction(Difficulty difficulty) => difficulty switch {
+            Difficulty.Easy => 0.5f,
+            Difficulty.Hard => 0.2f,
+            _ => 0.35f
+        };
+
+        /// <summary>Chronal Feasts populated per level (Easy 3 / Normal 2 / Hard 1).
+        /// The authored anchor spots exist once; difficulty selects how many fill.</summary>
+        public static int GetChronalFeastCount(Difficulty difficulty) => difficulty switch {
+            Difficulty.Easy => 3,
+            Difficulty.Hard => 1,
+            _ => 2
+        };
+
+        /// <summary>A fractional heal in HP, rounded, never negative.</summary>
+        public static int ScaleHeal(int maxHP, float fraction) =>
+            Math.Max(0, (int)MathF.Round(Math.Max(0, maxHP) * MathF.Max(0f, fraction)));
+
         public static Difficulty CurrentStoryDifficulty =>
             GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
     }

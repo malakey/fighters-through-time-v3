@@ -132,9 +132,10 @@ public class MainMenuSceneTests {
         StorySaveData[] originals = ClearAllSlots();
         MainMenu menu = Open(out Node host);
         try {
-            // Root screen: five production buttons plus the debug-build developer
+            // Root screen: six production buttons (Story, Fighter, the V7 LAN
+            // Match, Settings, Credits, Quit) plus the debug-build developer
             // level select (the test host is a debug build), all chained and reachable.
-            AssertChainCoversScreen(menu, "RootScreen", 6);
+            AssertChainCoversScreen(menu, "RootScreen", 7);
 
             Press(menu, RootLayout + "StoryButton");
             AssertThat(menu.CurrentScreen).IsEqual(MainMenuScreen.SlotSelect);
@@ -437,7 +438,7 @@ public class MainMenuSceneTests {
             MainMenu menu = Open(out Node host);
             try {
                 AssertThat(menu.GetNode<Button>(RootLayout + "LevelSelectButton").Visible).IsFalse();
-                AssertChainCoversScreen(menu, "RootScreen", 5);
+                AssertChainCoversScreen(menu, "RootScreen", 6);
             } finally {
                 Teardown(host);
             }

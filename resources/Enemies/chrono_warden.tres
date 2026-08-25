@@ -1,0 +1,43 @@
+[gd_resource type="Resource" script_class="EnemyData" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/chrono_warden/chrono_bolt.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/chrono_warden/dilation_field.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/chrono_warden/phase_skip.tres" id="5"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Enemies/chrono_guard_elite_frames.tres" id="6"]
+
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "chrono_warden"
+SpriteFramesResource = ExtResource("6")
+DisplayName = "Chrono-Warden"
+DisplayNameKey = "enemy_chrono_warden_name"
+Tier = 1
+MaxHP = 170
+Weight = 1.2
+MoveSpeed = 3.6
+JumpForce = 8.0
+AggroRadius = 640.0
+DeAggroRadius = 940.0
+AttackRange = 5.5
+AttackDamage = 14.0
+AttackKnockback = 2.5
+AttackCooldown = 2.8
+StunResistance = 0.5
+ReactionDelayMinFrames = 10
+ReactionDelayMaxFrames = 20
+EliteAbilityCooldown = 6.0
+Behavior = 2
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+PrimaryAttack = ExtResource("3")
+AttackTelegraphFrames = 24
+AttackActiveFrames = 6
+AttackRecoveryFrames = 26
+EliteAbilities = Array[ExtResource("2")]([ExtResource("4"), ExtResource("5")])
+ChronalDustDrop = 10
+ItemDropChance = 1.0
+PlaceholderTint = Color(0.6, 0.4, 1, 1)

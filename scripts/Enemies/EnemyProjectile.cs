@@ -44,7 +44,9 @@ namespace FTT.Enemies {
             Vector2 velocity,
             float scaledDamage,
             string sourceID,
-            bool lockVertical = false) {
+            bool lockVertical = false,
+            bool guardCrush = false,
+            bool unblockable = false) {
             EnsureNodes();
             SourceID = sourceID ?? "";
             _velocity = velocity;
@@ -72,7 +74,12 @@ namespace FTT.Enemies {
 
             _hitbox.AttackID = ability?.AbilityID ?? "enemy_projectile";
             _hitbox.HitboxID = "projectile";
-            _hitbox.AttackClass = FTT.Combat.AttackClass.Special;
+            // V7.2 classification: mob fire is ambient pressure — Basic-class
+            // against the block (1 charge, never a shatter). Guard-Crush and
+            // boss-only unblockables are explicit flags.
+            _hitbox.AttackClass = FTT.Combat.AttackClass.Basic;
+            _hitbox.BlockChargeCost = guardCrush ? 2 : 0;
+            _hitbox.Unblockable = unblockable;
             _hitbox.Damage = Mathf.Max(0f, scaledDamage);
             _hitbox.KnockbackForce = new Vector2(
                 knockbackSign * Mathf.Abs(ability?.KnockbackForce.X ?? 2f),

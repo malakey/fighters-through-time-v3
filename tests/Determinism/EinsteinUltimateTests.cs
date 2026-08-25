@@ -224,6 +224,9 @@ public class EinsteinUltimateTests {
         simulation.Advance(Frame(tick++, 0, GameplayButtons.BasicAttack), Frame(0, 0, GameplayButtons.None));
         int settleFrames = FTT.Combat.BasicComboRules.GroundStartupFrames[0]
             + FTT.Combat.BasicComboRules.HitstunFrames[0]
+            // V7.1 hitstop: the 100-damage fill hit freezes the victim for the
+            // max window before their hitstun starts counting down.
+            + FTT.Combat.BasicComboRules.HitstopFrames(100)
             + 4;
         for (int i = 0; i < settleFrames; i++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));

@@ -52,6 +52,7 @@ namespace FTT.UI {
         private CheckButton _damageNumbersToggle;
         private HSlider _hudOpacitySlider;
         private HSlider _screenShakeSlider;
+        private HSlider _uiScaleSlider;
 
         // Controls
         private TabContainer _tabs;
@@ -147,6 +148,7 @@ namespace FTT.UI {
             _damageNumbersToggle = _tabs.GetNode<CheckButton>("Gameplay/DamageNumbersToggle");
             _hudOpacitySlider = Slider("Gameplay/HudOpacitySlider");
             _screenShakeSlider = Slider("Gameplay/ScreenShakeSlider");
+            _uiScaleSlider = Slider("Gameplay/UiScaleSlider");
 
             _actionRows = _tabs.GetNode<VBoxContainer>("Controls/Scroll/ActionRows");
             _controlsStatus = _tabs.GetNode<Label>("Controls/Status");
@@ -178,6 +180,7 @@ namespace FTT.UI {
             _damageNumbersToggle.Text = Tr("settings_damage_numbers");
             _tabs.GetNode<Label>("Gameplay/HudOpacityLabel").Text = Tr("settings_hud_opacity");
             _tabs.GetNode<Label>("Gameplay/ScreenShakeLabel").Text = Tr("settings_screen_shake");
+            _tabs.GetNode<Label>("Gameplay/UiScaleLabel").Text = Tr("settings_ui_scale");
 
             _tabs.GetNode<Label>("Controls/Hint").Text = Tr("controls_hint");
             _tabs.GetNode<Label>("Controls/ReadOnlyInfo").Text = Tr("controls_ultimate_readonly");
@@ -207,6 +210,9 @@ namespace FTT.UI {
             _hapticToggle.Toggled += on => HapticFeedbackManager.Instance?.SetEnabled(on);
             _hapticSlider.ValueChanged += value => HapticFeedbackManager.Instance?.SetIntensity((float)value);
             _screenShakeSlider.ValueChanged += value => CameraShake.Instance?.SetIntensityScale((float)value);
+            // Live preview: rescaling the shared theme repaints every open
+            // screen (this one included) as the slider moves.
+            _uiScaleSlider.ValueChanged += value => UIPalette.ApplyUiScale((float)value);
 
             _root.GetNode<Button>("Margin/Panel/Body/Footer/BackButton").Pressed += Close;
             _tabs.GetNode<Button>("Controls/ResetAllButton").Pressed += OnResetAllBindings;
@@ -474,6 +480,7 @@ namespace FTT.UI {
             _damageNumbersToggle.ButtonPressed = data.DamageNumbersVisible;
             _hudOpacitySlider.Value = data.HudOpacity;
             _screenShakeSlider.Value = data.ScreenShakeScale;
+            _uiScaleSlider.Value = data.UiScale;
             _resolutionDropdown.Selected =
                 GlobalSaveData.ResolutionIndex(data.ResolutionWidth, data.ResolutionHeight);
             _windowModeDropdown.Selected = (int)data.WindowMode;
@@ -493,6 +500,7 @@ namespace FTT.UI {
             data.DamageNumbersVisible = _damageNumbersToggle.ButtonPressed;
             data.HudOpacity = (float)_hudOpacitySlider.Value;
             data.ScreenShakeScale = (float)_screenShakeSlider.Value;
+            data.UiScale = (float)_uiScaleSlider.Value;
             ReadDisplayInto(data);
             // PersistInputBindings writes the global payload itself.
             manager.PersistInputBindings(_workingBindings);

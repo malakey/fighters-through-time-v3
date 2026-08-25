@@ -42,7 +42,7 @@ public class FighterBasicStringParityTests {
         // opener hitstun in the same simulation tick.
         Advance(simulation, BasicComboRules.GroundStartupFrames[0]);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();
-        int expectedDamage = FighterLoadout.Default(FighterCharacterID.Einstein).BasicDamage * 8 / 10;
+        int expectedDamage = FighterLoadout.Default(FighterCharacterID.Tesla).BasicDamage * 8 / 10;
         AssertThat(before.CurrentHP - struck.CurrentHP).IsEqual(expectedDamage);
         AssertThat(struck.HitstunFrames).IsEqual(BasicComboRules.HitstunFrames[0]);
     }
@@ -141,7 +141,11 @@ public class FighterBasicStringParityTests {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
 
         Advance(simulation, 0, p1MoveX: 127, p1Buttons: GameplayButtons.BasicAttack);
-        int firstRecoveryTick = BasicComboRules.GroundStartupFrames[0] + BasicComboRules.GroundActiveFrames[0] + 1;
+        // Hit 1 connects (10 x 0.8 = 8 damage), so the attacker's own V7.1
+        // hitstop freeze delays every later phase milestone by the shared window.
+        int hitstop = BasicComboRules.HitstopFrames(8);
+        int firstRecoveryTick = BasicComboRules.GroundStartupFrames[0]
+            + BasicComboRules.GroundActiveFrames[0] + hitstop + 1;
         for (int tick = 1; tick <= firstRecoveryTick; tick++) {
             Advance(simulation, tick, p1MoveX: 127);
         }
@@ -153,7 +157,8 @@ public class FighterBasicStringParityTests {
         // Ride the held direction to the chain-hold window...
         int holdTick = BasicComboRules.GroundStartupFrames[0]
             + BasicComboRules.GroundActiveFrames[0]
-            + BasicComboRules.GroundRecoveryFrames[0];
+            + BasicComboRules.GroundRecoveryFrames[0]
+            + hitstop;
         for (int tick = firstRecoveryTick + 1; tick <= holdTick; tick++) {
             Advance(simulation, tick, p1MoveX: 127);
         }
@@ -325,6 +330,13 @@ public class FighterBasicStringParityTests {
             .IsEqual(60);
 
         int dazeAtBreak = dazed.DazeFrames;
+        // V7.1: the breaking (blocked) hit froze the victim for the flat
+        // blocked-hitstop window; run the freeze off first so all ten sampled
+        // frames below actually tick the daze counter.
+        for (int step = 1; step <= BasicComboRules.BlockedHitstopFrames; step++) {
+            Advance(simulation, tick + step, p2Held: GameplayButtons.Block);
+        }
+        tick += BasicComboRules.BlockedHitstopFrames;
         for (int step = 1; step <= 10; step++) {
             Advance(simulation, tick + step, p2Held: GameplayButtons.Block);
         }
@@ -456,7 +468,7 @@ public class FighterBasicStringParityTests {
     }
 
     private static FighterSimulation NewAdjacentSimulation(int seed, int spawnDistance = 1) => new(
-        FighterCharacterID.Einstein,
+        FighterCharacterID.Tesla,
         FighterCharacterID.Joan,
         seed: seed,
         spawnDistance: spawnDistance,
@@ -476,7 +488,7 @@ public class FighterBasicStringParityTests {
     /// authored numbers.
     /// </summary>
     private static CharacterData BuildZeroKnockbackAttacker() => new() {
-        CharacterID = "einstein",
+        CharacterID = "tesla",
         MaxHP = 100,
         Weight = 1f,
         MaxBlockCharges = 3,

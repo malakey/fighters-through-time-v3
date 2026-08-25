@@ -21,6 +21,11 @@ namespace FTT.FighterSim {
         private PlayerController _playerTwo;
         private FighterCpuController _cpuController;
         private PlayerInputFrame _previousCpuFrame;
+        // V7 LAN: the rollback session driving this match, when the session's
+        // opponent type is Lan and a transport is connected.
+        private FTT.Networking.OnlineRollbackSession _lanSession;
+        /// <summary>Fixed LAN session ID until the Package 7 handshake negotiates one.</summary>
+        public const uint LanSessionID = 27850;
         private bool _completionRaised;
         private FTT.Combat.FighterCamera _camera;
         private FTT.UI.LocalFighterPause _pauseMenu;
@@ -111,7 +116,16 @@ namespace FTT.FighterSim {
             // the Package 7 online handshake must agree on this value at match
             // start (design-godot.md ~3134, "shared seed synchronized at match
             // start") instead of each peer rolling its own.
-            int resolvedSeed = matchSeed ?? GenerateMatchSeed();
+            SessionData session = GameManager.Instance?.CurrentSession ?? default;
+            // LAN (V7): both peers must build the identical simulation, so the
+            // seed is a shared constant derived from the LAN session ID. A
+            // rematch therefore repeats the same orb/hazard schedule — a
+            // recorded limitation until the Package 7 handshake negotiates a
+            // per-match seed.
+            int resolvedSeed = matchSeed
+                ?? (session.FighterOpponentType == FighterOpponentType.Lan
+                    ? unchecked((int)(LanSessionID * 2654435761u))
+                    : GenerateMatchSeed());
             Simulation = new FighterSimulation(
                 FighterLoadoutFactory.FromCharacterData(_playerOne.Data),
                 FighterLoadoutFactory.FromCharacterData(_playerTwo.Data),
@@ -120,7 +134,9 @@ namespace FTT.FighterSim {
                 seed: resolvedSeed,
                 rules: RulesFor(settings, stageHazardTypeID),
                 stageGeometry: FighterStageGeometry.ForStage(stageID ?? ""));
-            SessionData session = GameManager.Instance?.CurrentSession ?? default;
+            if (session.FighterOpponentType == FighterOpponentType.Lan) {
+                AttachLanSession();
+            }
             if (session.FighterOpponentType == FighterOpponentType.Cpu) {
                 // Derive the CPU stream from the match seed plus its player slot, so
                 // the opponent's stream follows the per-match world seed (an explicit
@@ -174,6 +190,28 @@ namespace FTT.FighterSim {
                 _lowHealthPresented = false;
                 AudioManager.Instance?.SetLowHealth(false);
             }
+            // A LAN match ending (or the scene being torn down) releases the
+            // rollback session and the transport with it.
+            if (_lanSession != null) {
+                _lanSession = null;
+                FTT.Networking.NetworkManager.Instance?.Disconnect();
+            }
+        }
+
+        /// <summary>
+        /// V7 LAN: binds the connected transport's rollback session to this
+        /// simulation. Falls back to local play when no transport is up so a
+        /// mis-set opponent type can never strand the match.
+        /// </summary>
+        private void AttachLanSession() {
+            var network = FTT.Networking.NetworkManager.Instance;
+            if (network == null
+                || network.State is not (FTT.Networking.NetworkConnectionState.HostingLan
+                    or FTT.Networking.NetworkConnectionState.JoiningLan)) {
+                GD.PushWarning("LAN opponent type without a connected transport; falling back to local input.");
+                return;
+            }
+            _lanSession = network.BeginRollback(Simulation, LanSessionID);
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -192,6 +230,18 @@ namespace FTT.FighterSim {
             // that have not happened yet — no state is skipped or replayed.
             if (_stockLossFreezeFrames > 0) {
                 _stockLossFreezeFrames--;
+                return;
+            }
+
+            // LAN (V7): the rollback session owns tick pacing, remote input
+            // prediction, and corrections; the driver only feeds the local
+            // player's sampled frame each physics tick.
+            if (_lanSession != null) {
+                PlayerInputFrame localInput = InputManager.Instance?.GetFrame(0) ?? default;
+                _lanSession.Advance(localInput);
+                SyncPresentation();
+                PublishMatchFlowPresentation();
+                RaiseCompletionIfNeeded();
                 return;
             }
 
@@ -233,6 +283,12 @@ namespace FTT.FighterSim {
         public bool TryGetRuntime(int playerID, out FighterRuntimeComponent runtime) {
             if (Simulation != null) return Simulation.TryGetFighterRuntime(playerID, out runtime);
             runtime = default;
+            return false;
+        }
+
+        public bool TryGetVerb(int playerID, out FighterVerbComponent verb) {
+            if (Simulation != null) return Simulation.TryGetFighterVerb(playerID, out verb);
+            verb = default;
             return false;
         }
 
@@ -558,9 +614,9 @@ namespace FTT.FighterSim {
             in FighterStateComponent state, in FighterRuntimeComponent runtime) {
             FTT.Combat.GlowPresentationController glow = player.Glow;
             if (glow != null) {
-                if (_presentedStatus[playerID] != runtime.StatusType) {
-                    _presentedStatus[playerID] = runtime.StatusType;
-                    glow.SetStatus((StatusType)runtime.StatusType);
+                if (_presentedStatus[playerID] != runtime.PresentedStatusType) {
+                    _presentedStatus[playerID] = runtime.PresentedStatusType;
+                    glow.SetStatus((StatusType)runtime.PresentedStatusType);
                 }
                 bool hyperArmor = state.HyperArmorFrames > 0;
                 if (_presentedHyperArmor[playerID] != hyperArmor) {
@@ -867,8 +923,43 @@ namespace FTT.FighterSim {
             }
 
             DetectKnockouts(match);
+            PublishTimelineBeats(in match);
             UpdateClimax(in match);
             UpdateLowHealthSnapshot();
+        }
+
+        private bool _overtimeStampRaised;
+        private bool _suddenDeathStampRaised;
+
+        /// <summary>
+        /// V7.1 presentation beats: the "Timeline Destabilizing" stamp when the
+        /// final minute (Overtime) begins, and the Sudden Death stamp when a
+        /// true tie respawns both fighters at 1 HP. One-shot each; additive
+        /// presentation only — both states are decided in the simulation.
+        /// </summary>
+        private void PublishTimelineBeats(in FighterMatchComponent match) {
+            if (!_overtimeStampRaised
+                && match.SuddenDeathActive == 0
+                && match.TimerEnabled == 1
+                && match.RemainingFrames > 0
+                && match.RemainingFrames <= FighterMatchSystem.OvertimeFrames) {
+                _overtimeStampRaised = true;
+                Raise(new FighterPresentationPayload {
+                    Phase = FighterPresentationPhase.OvertimeStamp,
+                    WinnerPlayerID = -1,
+                    SubjectPlayerID = -1,
+                    DurationSeconds = 2f
+                });
+            }
+            if (!_suddenDeathStampRaised && match.SuddenDeathActive == 1) {
+                _suddenDeathStampRaised = true;
+                Raise(new FighterPresentationPayload {
+                    Phase = FighterPresentationPhase.SuddenDeathStamp,
+                    WinnerPlayerID = -1,
+                    SubjectPlayerID = -1,
+                    DurationSeconds = 2f
+                });
+            }
         }
 
         // === Package 8 B5: match music intensity ===

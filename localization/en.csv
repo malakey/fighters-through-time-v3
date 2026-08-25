@@ -28,6 +28,7 @@ settings_haptic_intensity,Haptic Intensity
 settings_damage_numbers,Show Damage Numbers
 settings_hud_opacity,HUD Opacity
 settings_screen_shake,Screen Shake
+settings_ui_scale,UI Scale
 difficulty_easy,Easy
 difficulty_normal,Normal
 difficulty_hard,Hard
@@ -189,6 +190,10 @@ enemy_ability_pressure_rocket_name,Pressurized Rocket
 enemy_ability_cold_gas_vent_name,Cold Gas Vent
 enemy_ability_temporal_blades_name,Dual Temporal Blades
 enemy_ability_blink_rush_name,Blink Rush
+enemy_chrono_warden_name,Chrono-Warden
+enemy_ability_chrono_bolt_name,Chrono Bolt
+enemy_ability_dilation_field_name,Dilation Field
+enemy_ability_phase_skip_name,Phase Skip
 boss_ability_siege_smash_name,Siege Maul Smash
 boss_ability_tremor_wave_name,Bombard Tremor
 boss_ability_lance_charge_name,Lance Charge
@@ -276,6 +281,8 @@ fighter_results_title,MATCH COMPLETE
 fighter_results_winner,Player {0} wins!
 fighter_results_draw,Draw
 fighter_rematch,Rematch
+fighter_new_stage,New Stage
+fighter_rematch_waiting,"Rematch: both players press Attack (Interact cancels)"
 fighter_change_fighters,Change Fighters
 fighter_main_menu,Main Menu
 resonance_einstein_u1_name,Minor Speed +2%
@@ -582,6 +589,10 @@ results_dust_earned,Chronal Dust earned this level: {0}
 results_return_hub,Return to Time-Ship
 hub_calibration_bay,CALIBRATION BAY
 hub_holodeck,HOLODECK ARENA CONSOLE
+holodeck_console_title,HOLODECK PRACTICE BOUT
+holodeck_cpu_character,CPU Opponent
+holodeck_rules,Match Mode
+holodeck_launch,Begin Practice Bout
 hub_npc_sarah,COMMANDER SARAH
 hub_dust_deposited_toast,Deposited {0} Chronal Dust into the Repository
 fighter_return_to_ship,Return to Time-Ship
@@ -589,8 +600,10 @@ tutorial_dummy_name,TRAINING DUMMY
 tutorial_fracture_label,CHRONAL FRACTURE
 tutorial_objective_fracture,Listen to Commander Sarah's briefing
 tutorial_step_attack,Calibration: land basic attacks on the dummy ({0}/{1})
+tutorial_step_rally,"Part of every blow lingers as an echo - strike back before it fades to reclaim it"
 tutorial_step_special,Calibration: use a Special ability (K or L)
 tutorial_step_rewind,Calibration: stand by - Chronal Rewind demonstration
+tutorial_step_manual_rewind,"Hold R to scrub time backward - release to commit, Jump to cancel"
 tutorial_step_double_jump,Mobility: reach the green marker with a double jump
 tutorial_step_roll,Mobility: cross the blue strip while rolling
 tutorial_gate_double_jump,DOUBLE JUMP
@@ -996,6 +1009,27 @@ common_cancel,Cancel
 fighter_countdown_digit,{0}
 fighter_countdown_go,GO!
 fighter_winner_pose,PLAYER {0} WINS!
+fighter_overtime_stamp,TIMELINE DESTABILIZING
+fighter_sudden_death_stamp,SUDDEN DEATH
+font_channel_prompt,Hold E to channel the wellspring
+hud_integrity,Integrity {0}%
+integrity_tier_restored,Restored
+integrity_tier_stabilized,Stabilized
+integrity_tier_fractured,Fractured
+results_integrity,Timeline Integrity: {0}% ({1})
+results_secrets,Secrets {0}/{1}
+results_rating,Chronal Rating: {0}
+menu_lan_match,LAN Match
+network_select_title,LAN Match (Direct IP)
+network_select_notice,"Both machines must pick the same characters, stage, and rules. Host on one machine, join from the other."
+network_host,Host Match
+network_join,Join by IP
+network_continue,Continue to Character Select
+network_address_placeholder,Host IP address
+network_status_offline,Offline
+network_status_hosting,Hosting on port {0} - waiting for the opponent
+network_status_joining,Joining {0}...
+network_status_need_address,Enter the host's IP address first
 fighter_state_countdown,Standing By
 fighter_state_respawn_platform,Respawn Platform
 fighter_frequency_off,Off
@@ -1047,6 +1081,7 @@ controls_action_block,Block
 controls_action_roll,Roll
 controls_action_ultimate,Ultimate
 controls_action_interact,Interact
+controls_action_rewind,Chronal Rewind
 controls_action_pause,Pause
 save_notice_slot_recovered,Story slot {0} was recovered from backup.
 save_notice_slot_migrated,Story slot {0} was migrated to the secure save format.
@@ -1083,9 +1118,9 @@ results_dust_extractors,Chronal Extractors: {0}
 results_dust_boss,Boss reward: {0}
 # Audit M-2/M-3: Story pause Save/Restart/Exit and tutorial block/ultimate/movement calibration
 pause_save_done,Progress saved
-pause_restart_confirm,Are you sure? Unsaved progress will be lost.
+pause_restart_confirm,Restart the level from the beginning? All Chronal Dust earned this level will be lost.
 tutorial_step_block,Calibration: hold Block to absorb the dummy's telegraphed swipes ({0}/{1})
-tutorial_step_ultimate,Calibration: Influence Meter charged - unleash your Ultimate!
+tutorial_step_ultimate,"Calibration: Influence Meter charged - unleash your Ultimate! (A full meter can also refuse death itself - once.)"
 tutorial_step_movement,Mobility: cross the violet corridor using your Movement Ability
 tutorial_gate_movement,MOVEMENT ABILITY
 dlg_l00_block_1,Attacks calibrated. Now defense. The dummy will telegraph slow swipes - hold Block to absorb them and watch your shield charges fall with each impact.

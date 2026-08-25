@@ -14,7 +14,7 @@ namespace FTT.Combat {
     public static class EnemyAbilityVisualLibrary {
         private static readonly HashSet<string> EnemyIDs = new(StringComparer.Ordinal) {
             "chrono_chariot_raider", "chrono_guard_elite", "chrono_rioter",
-            "chrono_slasher", "cyber_cavalry_commander", "cyber_centurion",
+            "chrono_slasher", "chrono_warden", "cyber_cavalry_commander", "cyber_centurion",
             "cyber_guard", "holo_page", "hologram_drone",
             "infrared_border_sentry", "kinetic_royal_guard", "laser_archer",
             "laser_pistol_deckhand", "laser_rifle_infantry",

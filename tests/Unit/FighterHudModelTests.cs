@@ -22,13 +22,12 @@ public class FighterHudModelTests {
     private const int TickRate = 60;
 
     [TestCase]
-    public void OnlyTimedModesShowTheMatchClock() {
-        // The deterministic match component counts frames down in every mode, so
-        // a HUD that showed the clock unconditionally would display a timer that
-        // decides nothing in a Stock match.
-        AssertThat(FighterHudModel.TimerIsVisible(MatchMode.Stock)).IsFalse();
-        AssertThat(FighterHudModel.TimerIsVisible(MatchMode.TimeLimit)).IsTrue();
-        AssertThat(FighterHudModel.TimerIsVisible(MatchMode.Hybrid)).IsTrue();
+    public void TheMatchClockFollowsTheTimerEnabledFlag() {
+        // V7: Stock mode defaults to the 8:00 timer too (configurable, including
+        // Off), so clock visibility follows the deterministic TimerEnabled flag
+        // rather than the match mode.
+        AssertThat(FighterHudModel.TimerIsVisible(timerEnabled: false)).IsFalse();
+        AssertThat(FighterHudModel.TimerIsVisible(timerEnabled: true)).IsTrue();
     }
 
     [TestCase]

@@ -65,10 +65,18 @@ namespace FTT.Environment {
 
         private void OnBodyEntered(Node2D body) {
             if (_activated) return;
-            if (body is FTT.Characters.PlayerController) {
+            if (body is FTT.Characters.PlayerController player) {
                 _activated = true;
                 var levelManager = GetTree().CurrentScene.GetNodeOrNull<LevelManager>("LevelManager");
                 levelManager?.SetCheckpointPosition(CheckpointID, GlobalPosition + RespawnOffset);
+                // V7.2 Checkpoint Mending: activating a Chronal Fracture
+                // restores HP once (Easy 100% / Normal 50% / Hard 25%). The
+                // one-shot _activated flag is the once-per-checkpoint rule.
+                int heal = FTT.Core.StoryDifficultyTuning.ScaleHeal(
+                    player.MaximumHP,
+                    FTT.Core.StoryDifficultyTuning.GetCheckpointMendingFraction(
+                        FTT.Core.StoryDifficultyTuning.CurrentStoryDifficulty));
+                if (heal > 0) player.HealStory(heal);
                 FTT.Core.EventBus.Instance?.RaiseCheckpointReached(CheckpointID);
             }
         }

@@ -11,7 +11,8 @@ namespace FTT.Tests.Determinism;
 /// <summary>
 /// Deterministic Fighter-side coverage for the canonical Cleopatra kit: the
 /// max-1 Serpent Nest construct with its Venom bite (the design's brief Root is
-/// delivered as one second of bite hitstun under the single-status rule), the
+/// delivered as one second of bite hitstun; the Venom itself rides the V7
+/// damage status slot, so later control statuses no longer erase it), the
 /// Sandstorm Vortex pull/tick/TimeDilation zone, the data-driven Desert Mirage
 /// teleport, and rollback safety across nest and vortex lifecycles.
 /// </summary>
@@ -56,12 +57,12 @@ public class CleopatraKitTests {
             spawnDistance: 1,
             rules: FighterMatchRules.Disabled);
 
-        // Deploy at the owner's feet; the first bite lands after the nest's 4 s
-        // action cooldown (2026-08-11 construct rebalance) against the opponent
-        // standing in range.
+        // Deploy at the owner's feet; the first bite lands after the nest's 1 s
+        // action cooldown (V7 tuning batch) against the opponent standing in
+        // range. The 70-frame window covers exactly one bite.
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
         int maxHitstunObserved = 0;
-        for (int tick = 1; tick <= 250; tick++) {
+        for (int tick = 1; tick <= 70; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             if (simulation.TryGetFighter(1, out FighterStateComponent observed)
                 && observed.HitstunFrames > maxHitstunObserved) {
@@ -75,7 +76,8 @@ public class CleopatraKitTests {
         // above the generic 10-frame persistent-object hitstun.
         AssertThat(maxHitstunObserved >= 55).IsTrue();
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
-        AssertThat(runtime.StatusType).IsEqual((int)StatusType.Venom);
+        // Venom occupies the V7 damage status slot.
+        AssertThat(runtime.DamageStatusType).IsEqual((int)StatusType.Venom);
     }
 
     [TestCase]

@@ -69,14 +69,19 @@ public class LincolnKitTests {
         // armored Lincoln takes no hitstun (design: damage yes, hitstun no).
         simulation.Advance(Frame(1, 0, GameplayButtons.None), Frame(1, 0, GameplayButtons.BasicAttack));
         // Basics are phased swings: the hit lands during the active window
-        // (6 startup frames), still deep inside the 180-frame armor.
+        // (Joan's V7.1 opener starts up in 5 frames and its damage shape is a
+        // full 1.0x), still deep inside the 180-frame armor.
         for (int tick = 2; tick <= 15; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent struck)).IsTrue();
-        AssertThat(struck.CurrentHP).IsEqual(92);
+        AssertThat(struck.CurrentHP).IsEqual(90);
         AssertThat(struck.HitstunFrames).IsEqual(0);
-        AssertThat(struck.HyperArmorFrames).IsEqual(165);
+        // 180 armed at tick 0, ticked once per un-frozen frame through tick 15;
+        // the V7.1 hitstop from the 10-damage connect suspends the armor timer
+        // for the shared window (armor outlives the freeze, it never shrinks by it).
+        AssertThat(struck.HyperArmorFrames)
+            .IsEqual(165 + FTT.Combat.BasicComboRules.HitstopFrames(10));
     }
 
     [TestCase]

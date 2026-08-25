@@ -128,12 +128,31 @@ namespace FTT.Environment {
 
         private void OnDummyHit(int damage) {
             if (_phase != TutorialPhase.Calibration) return;
+            // V7.1 Rally beat: striking back after the dummy's scripted hit
+            // reclaims the echo and closes the lesson.
+            if (_calibration.Step == TutorialCalibrationStep.RallyReclaim) {
+                if (_calibration.RegisterRallyReclaimHit()) {
+                    if (_dummy != null && IsInstanceValid(_dummy)) _dummy.EndScriptedAttacks();
+                    _services.Dialogue?.StartSequence("level_00.block_intro");
+                }
+                return;
+            }
             bool advanced = _calibration.RegisterBasicHit();
             if (_calibration.Step == TutorialCalibrationStep.BasicHits) {
                 _services.HUD?.SetObjective("tutorial_step_attack",
                     _calibration.BasicHitsLanded, TutorialCalibrationScript.RequiredBasicHits);
             }
-            if (advanced) _services.Dialogue?.StartSequence("level_00.block_intro");
+            if (advanced) BeginRallyLesson();
+        }
+
+        /// <summary>
+        /// V7.1 Rally calibration: the dummy lands one scripted hit so part of
+        /// the blow lingers as an echo, and the prompt teaches the reclaim —
+        /// "strike back before it fades to reclaim it."
+        /// </summary>
+        private void BeginRallyLesson() {
+            if (_dummy != null && IsInstanceValid(_dummy)) _dummy.BeginScriptedAttacks(_player);
+            _services.HUD?.SetObjective("tutorial_step_rally");
         }
 
         /// <summary>Arms the dummy's telegraphed swipe so the player can practice blocking.</summary>
@@ -178,7 +197,8 @@ namespace FTT.Environment {
         /// History Maker, per the designed ultimate calibration.
         /// </summary>
         private void BeginUltimateLesson() {
-            _player?.AddInfluenceFromDamageDealt(FTT.Combat.UltimateMeter.MaxValue);
+            // A scripted meter grant, not a landed hit — never a Rally reclaim.
+            _player?.AddInfluenceFromDamageDealt(FTT.Combat.UltimateMeter.MaxValue, collectsEcho: false);
             _services.HUD?.SetObjective("tutorial_step_ultimate");
         }
 
@@ -223,11 +243,21 @@ namespace FTT.Environment {
 
         private void OnRewindTriggered(Vector2 _) {
             if (_phase != TutorialPhase.Calibration) return;
-            if (!_calibration.RegisterRewindComplete()) return;
-            // The guided demonstration never spends the player's real pool.
-            _services.RewindManager?.RefundRewind();
-            // Wait for rewind playback to finish before pausing for dialogue.
-            _mobilityIntroPending = true;
+            if (_calibration.RegisterRewindComplete()) {
+                // The guided demonstration never spends the player's real pool.
+                _services.RewindManager?.RefundRewind();
+                // V7.2: the manual scrub lesson follows — scripted tutorial
+                // uses are free on every difficulty.
+                if (_services.RewindManager != null) _services.RewindManager.ScriptedFreeRewind = true;
+                _services.HUD?.SetObjective("tutorial_step_manual_rewind");
+                return;
+            }
+            // The second completed rewind is the player's own manual commit,
+            // which also leaves their first Stasis Echo behind them.
+            if (_calibration.RegisterManualRewindComplete()) {
+                if (_services.RewindManager != null) _services.RewindManager.ScriptedFreeRewind = false;
+                _mobilityIntroPending = true;
+            }
         }
 
         public override void _Process(double delta) {

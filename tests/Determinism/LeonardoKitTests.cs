@@ -62,7 +62,7 @@ public class LeonardoKitTests {
     }
 
     [TestCase]
-    public void ClockworkTurretFiresThreeBoltsThenSelfDestructs() {
+    public void ClockworkTurretFiresFourBoltsThenSelfDestructs() {
         var simulation = new FighterSimulation(
             FighterLoadoutFactory.FromCharacterData(BuildTurretCharacter()),
             FighterLoadout.Default(FighterCharacterID.Joan),
@@ -74,19 +74,19 @@ public class LeonardoKitTests {
         AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent turret)).IsTrue();
         AssertThat(turret.ObjectTypeID).IsEqual(2);
         AssertThat(turret.MaxHP).IsEqual(20);
-        AssertThat(turret.Damage).IsEqual(5);
-        AssertThat(turret.RemainingAttacks).IsEqual(3);
+        AssertThat(turret.Damage).IsEqual(6);
+        AssertThat(turret.RemainingAttacks).IsEqual(4);
         AssertThat(turret.MaxDeployLimit).IsEqual(1);
 
-        // Bolts land every 4 s after the 2026-08-11 construct rebalance
-        // (frames ~240/481/722); after the third bolt the turret
-        // self-destructs before its 15 s lifespan.
+        // V7 tuning batch: 4 bolts of 6 landing every 2 s (frames ~120/241/362/
+        // 483); after the fourth bolt the turret self-destructs well before its
+        // 15 s lifespan.
         for (int tick = 1; tick <= 800; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.PersistentObjectCount).IsEqual(0);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-        AssertThat(target.CurrentHP).IsEqual(85);
+        AssertThat(target.CurrentHP).IsEqual(76);
     }
 
     [TestCase]

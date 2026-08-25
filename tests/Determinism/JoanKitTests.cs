@@ -37,22 +37,25 @@ public class JoanKitTests {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent burned)).IsTrue();
         AssertThat(burned.CurrentHP).IsEqual(86);
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
-        AssertThat(runtime.StatusType).IsEqual((int)StatusType.RadiantBurn);
-        AssertThat(runtime.StatusFrames > 0).IsTrue();
+        // RadiantBurn occupies the V7 damage status slot.
+        AssertThat(runtime.DamageStatusType).IsEqual((int)StatusType.RadiantBurn);
+        AssertThat(runtime.DamageStatusFrames > 0).IsTrue();
 
-        // RadiantBurn amplifies damage taken by 25%: the first combo hit
-        // (10 * 0.8 = 8) resolves as 10 while the burn is active.
+        // RadiantBurn amplifies damage taken by 25%: Joan's V7.1 opener
+        // (10 x 1.0 = 10) resolves as 13 while the burn is active. The smite's
+        // shove plus Joan's shorter authored reach (1.8 units) mean she walks
+        // back into range first.
         for (int tick = 6; tick <= 25; tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            simulation.Advance(Frame(tick, 127, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         simulation.Advance(Frame(26, 0, GameplayButtons.BasicAttack), Frame(26, 0, GameplayButtons.None));
         // Basics are phased swings: the opener's hit lands during its active
-        // window (6 startup frames), still well inside the 3 s burn.
+        // window (Joan's 5 startup frames), still well inside the 3 s burn.
         for (int tick = 27; tick <= 40; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent amplified)).IsTrue();
-        AssertThat(amplified.CurrentHP).IsEqual(76);
+        AssertThat(amplified.CurrentHP).IsEqual(73);
     }
 
     [TestCase]

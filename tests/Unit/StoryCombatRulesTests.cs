@@ -82,7 +82,9 @@ public class StoryCombatRulesTests {
     [TestCase]
     public void AuthoredAnimationEventsActivateAndDeactivateTheRuntimeHitbox() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
-        PlayerController player = CharacterFactory.CreateCharacter("einstein");
+        // Tesla's V7.1 string profile is the exact template, so the shared
+        // placeholder animation timing stays authoritative for him.
+        PlayerController player = CharacterFactory.CreateCharacter("tesla");
         tree.Root.AddChild(player);
         try {
             player.TransitionTo(CharacterState.Airborne);
@@ -110,7 +112,8 @@ public class StoryCombatRulesTests {
     [TestCase]
     public void AerialComboUsesIndependentStateAndLandingResetDoesNotLeakIntoGroundCombo() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
-        PlayerController player = CharacterFactory.CreateCharacter("einstein");
+        // Template-profile character (see above): animation-driven chain timing.
+        PlayerController player = CharacterFactory.CreateCharacter("tesla");
         tree.Root.AddChild(player);
         try {
             player.TransitionTo(CharacterState.Airborne);
@@ -489,6 +492,10 @@ public class StoryCombatRulesTests {
     /// </summary>
     private static void StunOnTheFloor(PlayerController player) {
         player.GetNode<Hurtbox>("Hurtbox").TakeHit(Hit(AttackClass.Basic));
+        // V7.1: run the hit's short hitstop freeze off first — its expiry
+        // resolves the stashed DI launch, which the manual zero below then
+        // drops so the victim is standing on the floor again.
+        HoldInput(player, GameplayButtons.None, frames: BasicComboRules.HitstopFrames(10));
         player.Velocity = Vector2.Zero;
         HoldInput(player, GameplayButtons.None, frames: 1);
     }

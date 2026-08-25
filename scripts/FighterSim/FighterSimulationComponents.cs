@@ -150,6 +150,8 @@ namespace FTT.FighterSim {
         public readonly FP64 SpecialTwoStatusIntensity;
         public readonly FP64 UltimateStatusIntensity;
         public readonly FighterAbilityLoadout AbilityModes;
+        /// <summary>Aerial input responsiveness (CharacterData.AirControlMultiplier); 0 = unset, treated as 1.0.</summary>
+        public readonly FP64 AirControl;
 
         public FighterLoadout(
             int characterID,
@@ -178,7 +180,8 @@ namespace FTT.FighterSim {
             FP64 specialOneStatusIntensity,
             FP64 specialTwoStatusIntensity,
             FP64 ultimateStatusIntensity,
-            FighterAbilityLoadout abilityModes) {
+            FighterAbilityLoadout abilityModes,
+            FP64 airControl = default) {
             CharacterID = characterID;
             MaxHP = maxHP;
             MaxBlockCharges = maxBlockCharges;
@@ -206,6 +209,10 @@ namespace FTT.FighterSim {
             SpecialTwoStatusIntensity = specialTwoStatusIntensity;
             UltimateStatusIntensity = ultimateStatusIntensity;
             AbilityModes = abilityModes;
+            // V7.2 wiring of the previously dead CharacterData stat: aerial
+            // input responsiveness. Zero (older callers / Default) reads as 1.0
+            // at the consumption site.
+            AirControl = airControl;
         }
 
         public static FighterLoadout Default(FighterCharacterID characterID) => new(
@@ -283,8 +290,17 @@ namespace FTT.FighterSim {
         public int SpecialTwoCooldownFrames;
         public int MovementCooldownFrames;
         public int ComboIndex;
-        public int StatusType;
-        public int StatusFrames;
+        // V7 two-slot status (mirrors StatusController): a control status
+        // (TimeDilation / StaticCharge / Root) and a damage status (Venom /
+        // RadiantBurn) coexist. Both slots are bit-packed into the two ints
+        // below — low 16 bits control, high 16 bits damage — because this
+        // component sits at Klotho's full 128-byte budget and cannot grow.
+        // Read/write through the StatusType / DamageStatusType /
+        // StatusFrames / DamageStatusFrames properties at the end of the
+        // struct, never through these fields.
+        private int _statusTypesPacked;
+        private int _statusFramesPacked;
+        /// <summary>Venom's 1 s tick countdown; damage slot only.</summary>
         public int StatusTickFrames;
         public int MoveX;
         public int MoveY;
@@ -328,7 +344,46 @@ namespace FTT.FighterSim {
         public int LedgeStateFrames;
         /// <summary>Regrab lockout after a Down release or an auto-release.</summary>
         public int LedgeRegrabLockoutFrames;
-        public FP64 StatusIntensity;
+        // Per-slot status intensities in thousandths (the FP64 the single-slot
+        // system stored here split into two ints of the same total size). The
+        // milli quantization is deterministic: authored intensities round-trip
+        // through FP64.FromInt(n) / FP64.FromInt(1000) identically every frame.
+        private int _controlStatusIntensityMilli;
+        private int _damageStatusIntensityMilli;
+
+        /// <summary>Control-slot status type (TimeDilation / StaticCharge / Root).</summary>
+        public int StatusType {
+            readonly get => _statusTypesPacked & 0xFFFF;
+            set => _statusTypesPacked = (_statusTypesPacked & unchecked((int)0xFFFF0000)) | (value & 0xFFFF);
+        }
+        /// <summary>Damage-slot status type (Venom / RadiantBurn).</summary>
+        public int DamageStatusType {
+            readonly get => (_statusTypesPacked >> 16) & 0xFFFF;
+            set => _statusTypesPacked = (_statusTypesPacked & 0xFFFF) | ((value & 0xFFFF) << 16);
+        }
+        public int StatusFrames {
+            readonly get => _statusFramesPacked & 0xFFFF;
+            set => _statusFramesPacked = (_statusFramesPacked & unchecked((int)0xFFFF0000)) | (value & 0xFFFF);
+        }
+        public int DamageStatusFrames {
+            readonly get => (_statusFramesPacked >> 16) & 0xFFFF;
+            set => _statusFramesPacked = (_statusFramesPacked & 0xFFFF) | ((value & 0xFFFF) << 16);
+        }
+        public FP64 StatusIntensity {
+            readonly get => FP64.FromInt(_controlStatusIntensityMilli) / FP64.FromInt(1000);
+            set => _controlStatusIntensityMilli = QuantizeMilli(value);
+        }
+        public FP64 DamageStatusIntensity {
+            readonly get => FP64.FromInt(_damageStatusIntensityMilli) / FP64.FromInt(1000);
+            set => _damageStatusIntensityMilli = QuantizeMilli(value);
+        }
+        // Round-to-nearest so float-authored intensities that sit a hair below
+        // their decimal (0.7f = 0.69999998) still land on the intended value.
+        private static int QuantizeMilli(FP64 value) =>
+            (int)(((value * FP64.FromInt(1000)).RawValue + FP64.One.RawValue / 2) / FP64.One.RawValue);
+        /// <summary>Single-pip presentation: the control status leads; a lone DoT/vulnerability shows otherwise.</summary>
+        public readonly int PresentedStatusType =>
+            StatusType != (int)FTT.Core.StatusType.None ? StatusType : DamageStatusType;
     }
 
     [KlothoComponent(306, MaxCount = 2)]
@@ -357,6 +412,8 @@ namespace FTT.FighterSim {
         public FP64 SpecialOneStatusIntensity;
         public FP64 SpecialTwoStatusIntensity;
         public FP64 UltimateStatusIntensity;
+        /// <summary>Aerial input responsiveness (V7.2 wiring); 0 from hand-built tuning reads as 1.0.</summary>
+        public FP64 AirControl;
     }
 
     [KlothoComponent(307, MaxCount = 2)]
@@ -388,11 +445,79 @@ namespace FTT.FighterSim {
         public FP64 MovementSpeed;
     }
 
+    /// <summary>
+    /// V7/V7.1/V7.2 verb-layer snapshot state (design §4 "Recoverable Health" /
+    /// "Time Systems" / hitstop / grabs). FighterRuntimeComponent is exactly
+    /// full at its 128-byte budget, so this state lives on its own component,
+    /// exactly as the design mandates ("requires a new Klotho component,
+    /// ID 310+").
+    /// </summary>
+    [KlothoComponent(310, MaxCount = 2)]
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public partial struct FighterVerbComponent : IComponent {
+        // --- Hitstop (V7 universal rule) ---
+        /// <summary>Frames this fighter is fully suspended (timers, velocity, phases).</summary>
+        public int HitstopFrames;
+        /// <summary>1 while a launching hit's velocity awaits DI resolution at hitstop end.</summary>
+        public int PendingLaunchActive;
+        public FP64 PendingLaunchX;
+        public FP64 PendingLaunchY;
+        // --- Landing tech ---
+        /// <summary>1 while in launched hitstun (tumble); cleared on landing/tech/hitstun end.</summary>
+        public int Tumble;
+        /// <summary>Invulnerable in-place recovery after a successful tech (no actions, no movement).</summary>
+        public int TechLockoutFrames;
+        // --- Rally / Desperation / Defy History (V7.1) ---
+        public FP64 EchoPool;
+        public FP64 EchoDrainPerFrame;
+        public int DefyHistoryUsed;
+        /// <summary>1 while the match is in Overtime (final minute of a timed match).</summary>
+        public int OvertimeActive;
+        // --- Resonance Momentum (V7.1) ---
+        public int MomentumRefundsSlotOne;
+        public int MomentumRefundsSlotTwo;
+        // --- Echo Step (V7.1) ---
+        public int EchoStepCooldownFrames;
+        public int EchoStepWindupFrames;
+        public FP64 EchoStepDestX;
+        public FP64 EchoStepDestY;
+        // --- Grabs & Throws (V7.2) ---
+        /// <summary>0 none, 1 startup, 2 active, 3 whiff recovery, 4 holding, 5 throw animation.</summary>
+        public int GrabPhase;
+        public int GrabPhaseFrames;
+        /// <summary>Direction held when the throw resolves: 0 forward, 1 up, 2 back.</summary>
+        public int ThrowDirection;
+        /// <summary>1 while this fighter is held by the opponent's grab.</summary>
+        public int BeingHeld;
+        /// <summary>No-regrab window after being thrown.</summary>
+        public int ThrowImmunityFrames;
+    }
+
+    /// <summary>
+    /// Echo Step's per-fighter position ring (V7.1): 5 entries sampled every
+    /// 6 frames; the oldest sample approximates "30 frames ago". Snapshot state
+    /// — the ring is part of the rollback hash like everything else.
+    /// </summary>
+    [KlothoComponent(311, MaxCount = 2)]
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public partial struct FighterEchoRingComponent : IComponent {
+        public FP64 Sample0X; public FP64 Sample0Y;
+        public FP64 Sample1X; public FP64 Sample1Y;
+        public FP64 Sample2X; public FP64 Sample2Y;
+        public FP64 Sample3X; public FP64 Sample3Y;
+        public FP64 Sample4X; public FP64 Sample4Y;
+        public int RingIndex;
+        public int SampleCountdown;
+    }
+
     [KlothoComponent(301)]
     [KlothoSingletonComponent]
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
     public partial struct FighterMatchComponent : IComponent {
         public int RemainingFrames;
+        /// <summary>1 when the match clock is live (V7: Stock mode defaults to the
+        /// 8:00 timer too, configurable including Off = 0 matchSeconds).</summary>
+        public int TimerEnabled;
         public int MatchState;
         public int MatchMode;
         public int WinnerPlayerID;
@@ -414,6 +539,10 @@ namespace FTT.FighterSim {
         public int CountdownFramesRemaining;
         /// <summary>Frames left in the "GO!" banner window on the first live frames.</summary>
         public int GoBannerFramesRemaining;
+        /// <summary>V7.1: 1 while Sudden Death is live — a true tie at expiry
+        /// respawned both fighters at 1 HP, no timer, hazards accelerated,
+        /// first KO wins and a double-KO is the recorded Draw.</summary>
+        public int SuddenDeathActive;
         public ulong RandomState0;
         public ulong RandomState1;
     }
@@ -431,6 +560,8 @@ namespace FTT.FighterSim {
         public int StatusFrames;
         public int HitstunFrames;
         public FP64 StatusIntensity;
+        /// <summary>Downward pull in units/s² for lobbed arcs (Mozart's Fortissimo Wave); zero = flat flight.</summary>
+        public FP64 GravityPerSecond;
         public FPVector2 Position;
         public FPVector2 Velocity;
         public FPVector2 HalfExtents;

@@ -23,8 +23,10 @@ public class MozartContentTests {
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Projectile);
         AssertThat(data.IsMultiHit).IsTrue();
         AssertThat(data.HitCount).IsEqual(3);
-        AssertThat(data.BaseDamage).IsEqual(8f);
-        AssertThat(data.CooldownDuration).IsEqual(10f);
+        // V7: the bread-and-butter poke — light per-pulse damage on a short
+        // cooldown (design §5: fast/flat/cheap, opposite of Fortissimo's lob).
+        AssertThat(data.BaseDamage).IsEqual(4f);
+        AssertThat(data.CooldownDuration).IsEqual(7f);
     }
 
     [TestCase]
@@ -34,8 +36,11 @@ public class MozartContentTests {
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Projectile);
         AssertThat(data.BaseDamage).IsEqual(24f);
         AssertThat(data.KnockbackForce.X).IsEqual(8f);
-        // Full-screen sweep: at the authored speed the wave must outlive a full
-        // arena crossing (250 px/s x 6 s = 25 world units > the 24-unit arena).
+        // V7: the slow arcing lob that holds space — 180 px/s with committed
+        // haymaker frames and a top-band cooldown, never a Requiem duplicate.
+        AssertThat(data.ProjectileSpeed).IsEqual(180f);
+        AssertThat(data.CooldownDuration).IsEqual(12f);
+        AssertThat(data.StartupFrames).IsEqual(16);
         AssertThat(data.ProjectileLifetime).IsEqual(6f);
     }
 

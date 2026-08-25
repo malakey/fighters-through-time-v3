@@ -204,7 +204,11 @@ namespace FTT.Core {
         /// <summary>Winner victory-pose hold before the results screen.</summary>
         WinnerPose,
         /// <summary>Sequence finished; the results screen takes over.</summary>
-        Results
+        Results,
+        /// <summary>V7.1 Overtime entry at 1:00 — "Timeline Destabilizing".</summary>
+        OvertimeStamp,
+        /// <summary>V7.1 Sudden Death entry — both fighters at 1 HP, first hit wins.</summary>
+        SuddenDeathStamp
     }
 
     public struct FighterPresentationPayload {

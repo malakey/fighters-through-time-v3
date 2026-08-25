@@ -24,6 +24,12 @@ namespace FTT.Core {
         public float PlayTimeSeconds;
         public bool IsCompleted;
         public string LastSavedTimestamp = "";
+        // V7.1: Timeline Integrity per completed level (the campaign-ending
+        // average input). V7: the Chronal Rating stamp and secrets found per
+        // level — a second, better run should feel seen.
+        public Dictionary<string, float> IntegrityByLevel = new();
+        public Dictionary<string, string> RatingByLevel = new();
+        public Dictionary<string, int> SecretsFoundByLevel = new();
 
         public void Normalize() {
             SaveVersion = SaveSchemaMigrator.CurrentVersion;
@@ -36,6 +42,9 @@ namespace FTT.Core {
             GridProgress ??= new Dictionary<string, List<string>>();
             CompletedPuzzleIDs ??= new List<string>();
             LastSavedTimestamp ??= "";
+            IntegrityByLevel ??= new Dictionary<string, float>();
+            RatingByLevel ??= new Dictionary<string, string>();
+            SecretsFoundByLevel ??= new Dictionary<string, int>();
             CurrentHP = Math.Max(0, CurrentHP);
             CurrentLives = Math.Max(0, CurrentLives);
             CurrentUltimateMeter = Math.Clamp(CurrentUltimateMeter, 0f, 100f);
@@ -48,6 +57,21 @@ namespace FTT.Core {
         Windowed = 0,
         Fullscreen = 1,
         BorderlessFullscreen = 2
+    }
+
+    /// <summary>
+    /// V7 "Match Settings Persist": the last-used Fighter MatchSettings, stored
+    /// in the global save and pre-loaded on the next session. Additive class:
+    /// Newtonsoft leaves <see cref="Saved"/> false on older payloads, so no
+    /// schema bump — defaults apply until the first Fighter match is configured.
+    /// </summary>
+    public class SavedMatchSettings {
+        public bool Saved;
+        public int Mode;
+        public int StockCount = 3;
+        public float TimeLimit = 480f;
+        public int ItemSpawnRate = 3;
+        public int HazardRate = 3;
     }
 
     public class GlobalSaveData {
@@ -83,6 +107,7 @@ namespace FTT.Core {
         public int TotalDraws;
         public Dictionary<string, int> CharacterWins = new();
         public Dictionary<string, int> CharacterLosses = new();
+        public SavedMatchSettings LastMatchSettings = new();
         public float MasterVolume = 1.0f;
         public float MusicVolume = 0.8f;
         public float SFXVolume = 1.0f;
@@ -92,6 +117,18 @@ namespace FTT.Core {
         public bool DamageNumbersVisible = true;
         public float HudOpacity = 1f;
         public float ScreenShakeScale = 1f;
+
+        /// <summary>
+        /// Accessibility UI scale (design "Committed Accessibility Additions"):
+        /// multiplies the shared theme's font sizes and the HUD layout. 90%–140%;
+        /// additive field: payloads written before it existed keep the 1f
+        /// initializer, and <see cref="Normalize"/> clamps hand-edited values.
+        /// </summary>
+        public float UiScale = 1f;
+
+        /// <summary>Clamp domain for <see cref="UiScale"/> (90%–140% per design).</summary>
+        public const float MinUiScale = 0.9f;
+        public const float MaxUiScale = 1.4f;
 
         // Display (Package 8 A4). Applied at boot by ViewportEnforcer, which is the
         // last autoload and already owns window/viewport concerns.
@@ -127,6 +164,7 @@ namespace FTT.Core {
             HapticIntensity = Math.Clamp(HapticIntensity, 0f, 1f);
             HudOpacity = Math.Clamp(HudOpacity, 0.2f, 1f);
             ScreenShakeScale = Math.Clamp(ScreenShakeScale, 0f, 1f);
+            UiScale = Math.Clamp(UiScale, MinUiScale, MaxUiScale);
             NormalizeDisplay();
         }
 

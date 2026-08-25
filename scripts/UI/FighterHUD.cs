@@ -50,6 +50,7 @@ namespace FTT.UI {
             public Label Name;
             public Label Status;
             public ProgressBar HP;
+            public ColorRect EchoBand;
             public ProgressBar Meter;
             public HBoxContainer StockPips;
             public HBoxContainer ShieldPips;
@@ -75,6 +76,7 @@ namespace FTT.UI {
         private readonly PlayerPanel[] _panels = new PlayerPanel[2];
         private FighterSimulationDriver _driver;
         private float _appliedOpacity = -1f;
+        private readonly UiScaleBinder _uiScale = new();
 
         /// <summary>Opacity currently applied to the HUD root. Test seam.</summary>
         public float AppliedOpacity => _appliedOpacity;
@@ -88,7 +90,13 @@ namespace FTT.UI {
         public override void _Ready() {
             Layer = 12;
             _root = GetNodeOrNull<Control>("Root");
-            UIPalette.ApplyTheme(_root);
+            // The scene attaches the shared theme, but the whole HUD layout
+            // scales through _uiScale, so the shared (scale-mutated) theme
+            // would double-scale the HUD text: swap in an unscaled copy.
+            if (_root != null) {
+                Theme unscaled = UIPalette.NewUnscaledTheme();
+                if (unscaled != null) _root.Theme = unscaled;
+            }
             _timer = GetNodeOrNull<Label>("Root/MatchClock");
             _panels[0] = BindPanel("Root/PlayerOne");
             _panels[1] = BindPanel("Root/PlayerTwo");
@@ -98,12 +106,13 @@ namespace FTT.UI {
             }
             if (_timer != null) _timer.Visible = false;
             ApplyOpacity();
+            _uiScale.Apply(_root, force: true);
         }
 
         private PlayerPanel BindPanel(string path) {
             Control panelRoot = GetNodeOrNull<Control>(path);
             if (panelRoot == null) return null;
-            return new PlayerPanel {
+            var panel = new PlayerPanel {
                 Root = panelRoot,
                 Portrait = panelRoot.GetNodeOrNull<TextureRect>("Body/Portrait"),
                 Name = panelRoot.GetNodeOrNull<Label>("Body/Column/TopRow/Name"),
@@ -114,6 +123,23 @@ namespace FTT.UI {
                 ShieldPips = panelRoot.GetNodeOrNull<HBoxContainer>("Body/Column/PipRow/Shields"),
                 Cooldowns = panelRoot.GetNodeOrNull<HBoxContainer>("Body/Column/Cooldowns")
             };
+            // Rally echo band (V7.1): a gold sliver inside the HP bar, sitting
+            // directly above the current fill — the HP this player wins back by
+            // landing a direct hit before the drain empties it. Built in code so
+            // the authored scene stays untouched.
+            if (panel.HP != null) {
+                Color echoTint = UIPalette.GoldBright;
+                echoTint.A = 0.55f;
+                panel.EchoBand = new ColorRect {
+                    Name = "EchoBand",
+                    Color = echoTint,
+                    Visible = false,
+                    MouseFilter = Control.MouseFilterEnum.Ignore
+                };
+                panel.EchoBand.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+                panel.HP.AddChild(panel.EchoBand);
+            }
+            return panel;
         }
 
         /// <summary>
@@ -162,7 +188,8 @@ namespace FTT.UI {
             int playerIndex,
             in FighterStateComponent state,
             in FighterRuntimeComponent runtime,
-            int tickRate) {
+            int tickRate,
+            float echoPool = 0f) {
 
             PlayerPanel panel = PanelFor(playerIndex);
             if (panel == null) return;
@@ -171,6 +198,17 @@ namespace FTT.UI {
                 panel.HP.MaxValue = Mathf.Max(1, state.MaxHP);
                 panel.HP.Value = Mathf.Clamp(state.CurrentHP, 0, Mathf.Max(1, state.MaxHP));
                 TintFill(panel.HP, FighterHudModel.HpFillColor(state.CurrentHP, state.MaxHP));
+                if (panel.EchoBand != null) {
+                    float band = FighterHudModel.EchoBandFraction(state.CurrentHP, echoPool, state.MaxHP);
+                    panel.EchoBand.Visible = band > 0f;
+                    if (band > 0f) {
+                        float fill = FighterHudModel.BarFraction(state.CurrentHP, state.MaxHP);
+                        panel.EchoBand.AnchorLeft = fill;
+                        panel.EchoBand.AnchorRight = fill + band;
+                        panel.EchoBand.OffsetLeft = 0f;
+                        panel.EchoBand.OffsetRight = 0f;
+                    }
+                }
             }
             if (panel.Meter != null) {
                 panel.Meter.MaxValue = FighterHudModel.MaxInfluence;
@@ -180,9 +218,9 @@ namespace FTT.UI {
             SetPips(panel.Stocks, state.Stocks);
             SetPips(panel.Shields, state.BlockCharges);
 
-            if (panel.Status != null && panel.PresentedStatus != runtime.StatusType) {
-                panel.PresentedStatus = runtime.StatusType;
-                var status = (StatusType)runtime.StatusType;
+            if (panel.Status != null && panel.PresentedStatus != runtime.PresentedStatusType) {
+                panel.PresentedStatus = runtime.PresentedStatusType;
+                var status = (StatusType)runtime.PresentedStatusType;
                 panel.Status.Visible = status != StatusType.None;
                 panel.Status.Text = Tr(FighterHudModel.StatusKey(status));
                 // Same authored colour the glow arbiter puts on the fighter, so the
@@ -198,9 +236,9 @@ namespace FTT.UI {
         }
 
         /// <summary>Applies match-level state: clock visibility and remaining time.</summary>
-        public void ApplyMatchState(MatchMode mode, int remainingFrames, int tickRate) {
+        public void ApplyMatchState(bool timerEnabled, int remainingFrames, int tickRate) {
             if (_timer == null) return;
-            bool visible = FighterHudModel.TimerIsVisible(mode);
+            bool visible = FighterHudModel.TimerIsVisible(timerEnabled);
             _timer.Visible = visible;
             if (!visible) return;
             _timer.Text = string.Format(
@@ -211,17 +249,21 @@ namespace FTT.UI {
 
         public override void _Process(double delta) {
             ApplyOpacity();
+            _uiScale.Apply(_root);
             if (_driver == null || !IsInstanceValid(_driver) || _driver.Simulation == null) return;
 
             int tickRate = FighterSimulation.TickRate;
             for (int playerID = 0; playerID < 2; playerID++) {
                 if (!_driver.TryGetFighter(playerID, out FighterStateComponent state)
                     || !_driver.TryGetRuntime(playerID, out FighterRuntimeComponent runtime)) continue;
-                ApplyPlayerState(playerID, in state, in runtime, tickRate);
+                float echoPool = _driver.TryGetVerb(playerID, out FighterVerbComponent verb)
+                    ? verb.EchoPool.ToFloat()
+                    : 0f;
+                ApplyPlayerState(playerID, in state, in runtime, tickRate, echoPool);
             }
 
             FighterMatchComponent match = _driver.Simulation.GetMatchState();
-            ApplyMatchState((MatchMode)match.MatchMode, match.RemainingFrames, tickRate);
+            ApplyMatchState(match.TimerEnabled == 1, match.RemainingFrames, tickRate);
         }
 
         /// <summary>
@@ -244,6 +286,13 @@ namespace FTT.UI {
         public float HPFraction(int playerIndex) {
             ProgressBar bar = PanelFor(playerIndex)?.HP;
             return bar == null || bar.MaxValue <= 0 ? 0f : (float)(bar.Value / bar.MaxValue);
+        }
+
+        /// <summary>Rally echo band width in 0..1 of the HP bar, 0 when hidden. Test seam.</summary>
+        public float EchoBandWidth(int playerIndex) {
+            ColorRect band = PanelFor(playerIndex)?.EchoBand;
+            if (band == null || !band.Visible) return 0f;
+            return Mathf.Max(0f, band.AnchorRight - band.AnchorLeft);
         }
 
         /// <summary>Meter fill in 0..1 for a player. Test seam.</summary>

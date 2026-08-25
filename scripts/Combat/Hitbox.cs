@@ -25,6 +25,10 @@ namespace FTT.Combat {
         [Export] public float StatusIntensity = 1f;
         [Export] public float ScreenShakeIntensity = 0.2f;
         [Export] public float ScreenShakeDuration = 0.1f;
+        /// <summary>V7.2 classification: charges a block spends (0 = class default; Guard-Crush = 2).</summary>
+        [Export] public int BlockChargeCost;
+        /// <summary>V7.2: boss-only red-telegraph attacks no block answers.</summary>
+        [Export] public bool Unblockable;
 
         [ExportGroup("Runtime")]
         [Export] public bool IsActive;
@@ -93,7 +97,9 @@ namespace FTT.Combat {
                 StatusIntensity = (StatusIntensity <= 0f ? 1f : StatusIntensity)
                     * (damagingStatus ? SourcePlayer?.StoryStatusIntensityMultiplier ?? 1f : 1f),
                 ScreenShakeIntensity = Mathf.Max(0f, ScreenShakeIntensity),
-                ScreenShakeDuration = Mathf.Max(0f, ScreenShakeDuration)
+                ScreenShakeDuration = Mathf.Max(0f, ScreenShakeDuration),
+                BlockChargeCost = Mathf.Max(0, BlockChargeCost),
+                Unblockable = Unblockable
             };
         }
 

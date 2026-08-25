@@ -22,6 +22,10 @@ namespace FTT.Core {
             window.ContentScaleAspect = Window.ContentScaleAspectEnum.Keep;
             RenderingServer.SetDefaultClearColor(Colors.Black);
             ApplyDisplaySettings(SaveManager.Instance?.GlobalData);
+            // Accessibility UI scale: rescale the shared theme before the first
+            // screen adopts it. This is the last autoload, so the saved value
+            // is already loaded.
+            FTT.UI.UIPalette.ApplySavedUiScale();
         }
 
         /// <summary>

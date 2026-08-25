@@ -161,6 +161,28 @@ namespace FTT.UI {
                         WinnerFontSize,
                         showsPlate: true);
                     return true;
+
+                // V7.1: the final minute announces itself, and Sudden Death
+                // names its rule — both reuse the stamp treatment.
+                case FighterPresentationPhase.OvertimeStamp:
+                    beat = new FighterOverlayBeat(
+                        FighterBannerStyle.Stamp,
+                        "fighter_overtime_stamp",
+                        UIPalette.Warning,
+                        Duration(payload.DurationSeconds),
+                        StampFontSize,
+                        showsPlate: true);
+                    return true;
+
+                case FighterPresentationPhase.SuddenDeathStamp:
+                    beat = new FighterOverlayBeat(
+                        FighterBannerStyle.Stamp,
+                        "fighter_sudden_death_stamp",
+                        UIPalette.BossRed,
+                        Duration(payload.DurationSeconds),
+                        StampFontSize,
+                        showsPlate: true);
+                    return true;
             }
 
             beat = default;

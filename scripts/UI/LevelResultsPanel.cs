@@ -21,6 +21,9 @@ namespace FTT.UI {
         private Label _dustBossLabel;
         private Label _timeLabel;
         private Label _rewindsLabel;
+        private Label _integrityLabel;
+        private Label _secretsLabel;
+        private Label _ratingLabel;
         private Button _returnButton;
 
         /// <summary>
@@ -109,6 +112,39 @@ namespace FTT.UI {
             if (_rewindsLabel != null) {
                 _rewindsLabel.Text = string.Format(Tr("results_rewinds_used"), Mathf.Max(0, rewindsUsed));
             }
+            ShowTimelineLines();
+        }
+
+        /// <summary>
+        /// V7/V7.1 result lines: the Timeline Integrity percentage and tier,
+        /// the secrets counter, and the Chronal Rating stamp — read from the
+        /// statistics StoryManager froze at completion. Hidden when no story
+        /// run produced them (Fighter-adjacent tests, bare panels).
+        /// </summary>
+        private void ShowTimelineLines() {
+            FTT.Core.StoryManager story = FTT.Core.StoryManager.Instance;
+            if (story == null) {
+                SetLineVisible(_integrityLabel, false);
+                SetLineVisible(_secretsLabel, false);
+                SetLineVisible(_ratingLabel, false);
+                return;
+            }
+            float integrity = story.LastLevelIntegrityPercent;
+            if (_integrityLabel != null) {
+                _integrityLabel.Text = string.Format(
+                    Tr("results_integrity"),
+                    Mathf.FloorToInt(integrity),
+                    Tr(FTT.Core.TimelineIntegrityRules.TierKey(integrity)));
+                _integrityLabel.Visible = true;
+            }
+            if (_secretsLabel != null) {
+                _secretsLabel.Text = string.Format(Tr("results_secrets"), story.LastLevelSecretsFound, 1);
+                _secretsLabel.Visible = true;
+            }
+            if (_ratingLabel != null && !string.IsNullOrEmpty(story.LastLevelChronalRating)) {
+                _ratingLabel.Text = string.Format(Tr("results_rating"), story.LastLevelChronalRating);
+                _ratingLabel.Visible = true;
+            }
         }
 
         private void SetItemizedLine(Label label, string translationKey, int amount) {
@@ -132,6 +168,22 @@ namespace FTT.UI {
             _timeLabel = GetNodeOrNull<Label>("Shade/Panel/Layout/CompletionTime");
             _rewindsLabel = GetNodeOrNull<Label>("Shade/Panel/Layout/RewindsUsed");
             _returnButton = GetNodeOrNull<Button>("Shade/Panel/Layout/ReturnButton");
+            // V7/V7.1 lines are code-built so the authored scene stays untouched:
+            // inserted above the return button, hidden until populated.
+            if (GetNodeOrNull<Container>("Shade/Panel/Layout") is Container layout) {
+                _integrityLabel = AppendResultLine(layout, "IntegrityLine");
+                _secretsLabel = AppendResultLine(layout, "SecretsLine");
+                _ratingLabel = AppendResultLine(layout, "RatingLine");
+            }
+        }
+
+        private Label AppendResultLine(Container layout, string name) {
+            var label = new Label { Name = name, Visible = false };
+            layout.AddChild(label);
+            if (_returnButton != null && _returnButton.GetParent() == layout) {
+                layout.MoveChild(label, _returnButton.GetIndex());
+            }
+            return label;
         }
     }
 }

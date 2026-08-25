@@ -23,11 +23,13 @@ public class CleopatraContentTests {
         AssertThat(data.MaxActiveObjects).IsEqual(1);
         AssertThat(data.PersistentObjectID).IsEqual("serpent_nest");
         AssertObject(data.PersistentObjectScene).IsNotNull();
-        // 2026-08-11 construct rebalance: bite cadence halved.
-        AssertThat(data.DamageTickIntervalFrames).IsEqual(240);
+        // V7 tuning batch: the documented 1 s bite cadence at a lighter 6-damage
+        // bite, so standing on the nest is real area denial instead of one bite.
+        AssertThat(data.DamageTickIntervalFrames).IsEqual(60);
+        AssertThat(data.BaseDamage).IsEqual(6f);
         AssertThat(data.CooldownDuration).IsEqual(10f);
-        // The bite carries Venom for 4 s; the design's brief Root is delivered
-        // as bite hitstun because the newest status replaces the previous one.
+        // The bite carries Venom for 4 s alongside its brief hitstun; under the
+        // V7 two-slot status rule the DoT survives later control statuses.
         AssertThat(data.AppliedStatus).IsEqual(StatusType.Venom);
         AssertThat(data.StatusDuration).IsEqual(4f);
     }

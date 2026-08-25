@@ -355,6 +355,14 @@ public class CharacterSelectSceneTests {
 
     [TestCase]
     public void AllFourFrequencyBandsSurviveTheReworkAndDefaultToHigh() {
+        // V7 "Match Settings Persist": the rule controls now initialize from the
+        // session's settings, so normalize the session first — this test pins
+        // the first-run defaults, not another test's leftover house rules.
+        if (GameManager.Instance != null) {
+            SessionData normalized = GameManager.Instance.CurrentSession;
+            normalized.MatchSettings = MatchSettings.GetDefault();
+            GameManager.Instance.CurrentSession = normalized;
+        }
         CharacterSelectScreen screen = Open(out Node host);
         try {
             foreach (string path in new[] { StageRoot + "RulesRow/ItemFrequency", StageRoot + "RulesRow/HazardFrequency" }) {

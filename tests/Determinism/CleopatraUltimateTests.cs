@@ -96,9 +96,12 @@ public class CleopatraUltimateTests {
         // The heavy Venom survives the storm at the authored 5 s / 1.5
         // intensity and keeps ticking (3 HP per second) afterward.
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
-        AssertThat(runtime.StatusType).IsEqual((int)StatusType.Venom);
-        AssertThat(runtime.StatusIntensity.RawValue).IsEqual(
-            xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(1.5).RawValue);
+        // Venom occupies the V7 damage status slot; the intensity round-trips
+        // through the slot's deterministic thousandths quantization.
+        AssertThat(runtime.DamageStatusType).IsEqual((int)StatusType.Venom);
+        AssertThat(runtime.DamageStatusIntensity.RawValue).IsEqual(
+            (xpTURN.Klotho.Deterministic.Math.FP64.FromInt(1500)
+                / xpTURN.Klotho.Deterministic.Math.FP64.FromInt(1000)).RawValue);
         for (int i = 0; i < 70; i++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             tick++;

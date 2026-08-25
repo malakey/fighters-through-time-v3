@@ -53,7 +53,8 @@ public class EnemyRetroSpriteAssetTests {
             if (data == null) issues.Add($"{path}: failed to load");
             else CheckAnimations(data.SpriteFramesResource, EnemyAnimations, path, issues);
         }
-        AssertThat(inspected).IsEqual(27);
+        // 27 originals plus the V7.1 Chrono-Warden (V7 behaviour-variety elite).
+        AssertThat(inspected).IsEqual(28);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 
@@ -80,7 +81,8 @@ public class EnemyRetroSpriteAssetTests {
         foreach (string root in new[] { "res://resources/Enemies/Abilities", "res://resources/Bosses/Abilities" }) {
             Walk(root, pattern, issues, ref inspected);
         }
-        AssertThat(inspected).IsEqual(76);
+        // 76 originals plus the Chrono-Warden's three authored abilities.
+        AssertThat(inspected).IsEqual(79);
         foreach (string fallback in new[] {
             "chrono_rioter.basic", "chrono_slasher.basic",
             "rift_phantom.basic", "shock_shield_legionnaire.basic"

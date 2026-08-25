@@ -19,7 +19,10 @@ public class PocahontasContentTests {
     public void SpiritStrikeResourceMatchesDesignSpecification() {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/pocahontas/special_1.tres");
         AssertObject(data).IsNotNull();
-        AssertThat(data.BaseDamage).IsEqual(28f);
+        // V7: trimmed into the damage band — the dash is also mobility, so it
+        // cannot carry top-band damage on top of the escape.
+        AssertThat(data.BaseDamage).IsEqual(24f);
+        AssertThat(data.CooldownDuration).IsEqual(9f);
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Melee);
         AssertThat(data.HitstunDuration > 0f).IsTrue();
     }

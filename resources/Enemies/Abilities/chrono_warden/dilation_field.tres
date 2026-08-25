@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "enemy.chrono_warden.dilation_field"
+DisplayNameKey = "enemy_ability_dilation_field_name"
+Archetype = 5
+RangeClass = 2
+TelegraphFrames = 34
+ActiveFrames = 10
+RecoveryFrames = 30
+CooldownSeconds = 7.0
+SelectionWeight = 1.0
+Damage = 8.0
+KnockbackForce = Vector2(0.0, 0.0)
+HitstunDuration = 0.0
+HitboxSize = Vector2(0, 0)
+HitboxOffset = Vector2(0, -32)
+PulseRadius = 170.0
+AppliedStatus = 1
+StatusDuration = 2.5
+StatusIntensity = 1.0
+TelegraphTint = Color(0.55, 0.4, 1, 1)
+PresentationEventID = "enemy.chrono_warden.dilation_field"

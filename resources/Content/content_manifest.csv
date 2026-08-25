@@ -112,6 +112,7 @@ Enemy,vacuum_digger,6,res://resources/Enemies/vacuum_digger.tres,EnemyFactory,Im
 Enemy,void_enforcer,6,res://resources/Enemies/void_enforcer.tres,EnemyFactory,Implemented,ReadyForReplacement,Valid,true
 Enemy,rift_phantom,6,res://resources/Enemies/rift_phantom.tres,EnemyFactory,Implemented,ReadyForReplacement,Valid,true
 Enemy,chrono_guard_elite,6,res://resources/Enemies/chrono_guard_elite.tres,EnemyFactory,Implemented,ReadyForReplacement,Valid,true
+Enemy,chrono_warden,6,res://resources/Enemies/chrono_warden.tres,EnemyFactory,Implemented,ReadyForReplacement,Valid,true
 Enemy,hologram_drone,6,res://resources/Enemies/hologram_drone.tres,EnemyFactory,Implemented,ReadyForReplacement,Valid,true
 # Fifteen campaign bosses: fourteen scripted BossData kits plus the CPU-driven Mirror Paradox (Package 4)
 Boss,borgia_inquisitor,6,res://resources/Bosses/borgia_inquisitor.tres,BossController,Implemented,ReadyForReplacement,Valid,true

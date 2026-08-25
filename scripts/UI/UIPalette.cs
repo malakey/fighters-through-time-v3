@@ -116,5 +116,86 @@ namespace FTT.UI {
             Theme theme = LoadTheme();
             if (theme != null) root.Theme = theme;
         }
+
+        // ---- Accessibility UI scale ----------------------------------------
+        //
+        // Design "Committed Accessibility Additions": a 90%–140% UI scale
+        // applied to the shared theme's font sizes and the HUD layout. Eleven
+        // scenes attach the theme resource directly and the rest adopt it via
+        // ApplyTheme, so the scale is applied by mutating the one cached theme
+        // instance in place: every screen — scene-attached or code-applied,
+        // already open or not — picks the change up through Godot's theme
+        // change propagation, with no per-screen wiring. The authored sizes are
+        // captured on the first apply so repeated applies never compound.
+        // The HUDs are the exception: they scale their whole layout through
+        // UiScaleBinder and therefore use NewUnscaledTheme to avoid scaling
+        // their fonts twice.
+
+        /// <summary>The saved UI scale, clamped; 1 when no save is loaded.</summary>
+        public static float CurrentUiScale => Mathf.Clamp(
+            FTT.Core.SaveManager.Instance?.GlobalData?.UiScale ?? 1f,
+            FTT.Core.GlobalSaveData.MinUiScale, FTT.Core.GlobalSaveData.MaxUiScale);
+
+        /// <summary>The factor most recently applied to the shared theme.</summary>
+        public static float AppliedUiScale { get; private set; } = 1f;
+
+        private static System.Collections.Generic.Dictionary<(string Type, string Name), int> _authoredFontSizes;
+        private static int _authoredDefaultFontSize = -1;
+
+        /// <summary>Applies the persisted setting to the shared theme (boot and settings-change entry point).</summary>
+        public static void ApplySavedUiScale() => ApplyUiScale(CurrentUiScale);
+
+        /// <summary>
+        /// Rescales the shared theme's default font size and every per-type
+        /// font-size entry to <paramref name="factor"/> times the authored
+        /// value. Idempotent: always scales from the captured authored sizes,
+        /// never from the current ones.
+        /// </summary>
+        public static void ApplyUiScale(float factor) {
+            factor = Mathf.Clamp(factor,
+                FTT.Core.GlobalSaveData.MinUiScale, FTT.Core.GlobalSaveData.MaxUiScale);
+            Theme theme = LoadTheme();
+            if (theme == null) return;
+            CaptureAuthoredSizes(theme);
+            if (_authoredDefaultFontSize > 0) {
+                theme.DefaultFontSize = ScaleFontSize(_authoredDefaultFontSize, factor);
+            }
+            foreach (var entry in _authoredFontSizes) {
+                theme.SetFontSize(entry.Key.Name, entry.Key.Type, ScaleFontSize(entry.Value, factor));
+            }
+            AppliedUiScale = factor;
+        }
+
+        /// <summary>
+        /// A duplicate of the shared theme carrying the authored (unscaled)
+        /// font sizes, for surfaces that scale their whole layout through
+        /// <see cref="UiScaleBinder"/> instead. Null when the theme is missing.
+        /// </summary>
+        public static Theme NewUnscaledTheme() {
+            Theme theme = LoadTheme();
+            if (theme == null) return null;
+            var copy = (Theme)theme.Duplicate(true);
+            if (_authoredFontSizes == null) return copy;
+            if (_authoredDefaultFontSize > 0) copy.DefaultFontSize = _authoredDefaultFontSize;
+            foreach (var entry in _authoredFontSizes) {
+                copy.SetFontSize(entry.Key.Name, entry.Key.Type, entry.Value);
+            }
+            return copy;
+        }
+
+        private static void CaptureAuthoredSizes(Theme theme) {
+            if (_authoredFontSizes != null) return;
+            _authoredFontSizes = new System.Collections.Generic.Dictionary<(string, string), int>();
+            _authoredDefaultFontSize = theme.HasDefaultFontSize() ? theme.DefaultFontSize : -1;
+            foreach (string themeType in theme.GetFontSizeTypeList()) {
+                foreach (string sizeName in theme.GetFontSizeList(themeType)) {
+                    _authoredFontSizes[(themeType, sizeName)] = theme.GetFontSize(sizeName, themeType);
+                }
+            }
+        }
+
+        /// <summary>Rounds a scaled font size, never below 1 px.</summary>
+        public static int ScaleFontSize(int size, float factor) =>
+            Mathf.Max(1, Mathf.RoundToInt(size * factor));
     }
 }

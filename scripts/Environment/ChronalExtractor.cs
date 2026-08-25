@@ -10,11 +10,33 @@ namespace FTT.Environment {
         [Export(PropertyHint.Range, "0,100,1")] public int HazardDamage = 20;
         [Export] public Vector2 HazardKnockback = new(420f, -260f);
         [Export(PropertyHint.Range, "0,100,1")] public float UltimateDrain = 20f;
+        /// <summary>
+        /// The design targets 25 per break, but the shipped per-level ledger
+        /// (docs/DUST_ECONOMY.md) is balanced around 15 and the full dust
+        /// economy rebalance is explicitly deferred (V7.2 ruling) — the value
+        /// stays 15 until that pass retunes the ledger.
+        /// </summary>
         [Export(PropertyHint.Range, "1,100,1")] public int DustReward = 15;
+        /// <summary>V7 idle cycle: the visible charge-up before the burst.</summary>
+        [Export] public float TelegraphSeconds = 2.5f;
+        /// <summary>V7 idle cycle: the safe window in which attacks are free.</summary>
+        [Export] public float SafeWindowSeconds = 4.0f;
 
         private Area2D _hazardArea;
+        private bool _telegraphing;
+        private float _cycleTimer;
         public ChronalExtractorVisualState VisualState { get; private set; }
         public int DischargeCount { get; private set; }
+
+        /// <summary>Distance at which the machine notices the player and its
+        /// siphon starts draining Timeline Integrity (V7.1 Siphon Clock).</summary>
+        [Export] public float SiphonEngageDistancePixels = 600f;
+
+        /// <summary>True once the player has entered the machine's room. Test seam.</summary>
+        public bool SiphonEngaged { get; private set; }
+
+        /// <summary>True during the charge-up (red indicator) phase. Test seam.</summary>
+        public bool IsTelegraphing => _telegraphing;
 
         public override void _Ready() {
             MaxHP = 100;
@@ -22,7 +44,47 @@ namespace FTT.Environment {
             base._Ready();
             AddToGroup("chronal_extractor");
             _hazardArea = GetNodeOrNull<Area2D>("HazardArea");
+            _telegraphing = false;
+            _cycleTimer = SafeWindowSeconds;
             Publish();
+        }
+
+        /// <summary>
+        /// V7 redesign — the Extractor discharges on an IDLE CYCLE, not per
+        /// hit: a ~2.5 s visible charge-up, one burst, then a ~4 s safe window
+        /// in which attacks are free. Skilled play destroys one while eating
+        /// zero or one discharge; attacking no longer triggers anything.
+        /// </summary>
+        public override void _PhysicsProcess(double delta) {
+            if (IsDestroyed) return;
+            // V7.1 Siphon Clock: a living Extractor drains Timeline Integrity
+            // once its room is entered — leaving one standing has a cost
+            // beyond forgone dust.
+            if (!SiphonEngaged) {
+                if (GetTree()?.GetFirstNodeInGroup("StoryPlayer") is PlayerController player
+                    && player.GlobalPosition.DistanceTo(GlobalPosition) <= SiphonEngageDistancePixels) {
+                    SiphonEngaged = true;
+                }
+            } else {
+                StoryManager.Instance?.DrainTimelineIntegrity(1, (float)delta);
+            }
+            _cycleTimer -= (float)delta;
+            if (_cycleTimer > 0f) return;
+            if (_telegraphing) {
+                _telegraphing = false;
+                _cycleTimer = SafeWindowSeconds;
+                Discharge();
+            } else {
+                _telegraphing = true;
+                _cycleTimer = TelegraphSeconds;
+                // The warning phase drives the red indicator and the klaxon.
+                EventBus.Instance?.RaiseHazardStateChanged(new HazardStatePayload {
+                    HazardID = ObjectID,
+                    Phase = HazardPhase.Warning,
+                    Duration = TelegraphSeconds
+                });
+                ApplyStatePresentation();
+            }
         }
 
         public void Discharge() {
@@ -34,6 +96,7 @@ namespace FTT.Environment {
                 Duration = 0.25f
             });
             EmitDischargeVfx();
+            ApplyStatePresentation();
             if (_hazardArea == null) return;
             Godot.Collections.Array<Node2D> bodies = _hazardArea.GetOverlappingBodies();
             using var bodiesLifetime = bodies.AsDisposable();
@@ -51,10 +114,11 @@ namespace FTT.Environment {
         }
 
         protected override void OnDamaged(int appliedDamage) {
+            // V7: damage no longer triggers a discharge — the idle cycle owns
+            // the hazard; hits only advance the visual damage state.
             VisualState = CurrentHP <= MaxHP / 2
                 ? ChronalExtractorVisualState.Damaged
                 : ChronalExtractorVisualState.Idle;
-            Discharge();
             Publish();
         }
 
@@ -103,9 +167,13 @@ namespace FTT.Environment {
             }
             if (GetNodeOrNull<CanvasItem>("CoreGlow") is CanvasItem core) {
                 core.Visible = !IsDestroyed;
-                core.Modulate = VisualState == ChronalExtractorVisualState.Damaged
-                    ? new Color(1f, 0.45f, 0.2f, 1f)
-                    : Colors.White;
+                // The idle-cycle charge-up reads red — the promised warning —
+                // ahead of the damaged-state amber and the idle white.
+                core.Modulate = _telegraphing
+                    ? new Color(1f, 0.2f, 0.15f, 1f)
+                    : VisualState == ChronalExtractorVisualState.Damaged
+                        ? new Color(1f, 0.45f, 0.2f, 1f)
+                        : Colors.White;
             }
         }
 

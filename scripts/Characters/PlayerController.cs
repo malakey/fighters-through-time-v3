@@ -27,7 +27,10 @@ namespace FTT.Characters {
 		LedgeHanging,
 		Dead,
 		Respawning,
-		UsingMovementAbility
+		UsingMovementAbility,
+		/// <summary>V7.2 grab: startup, active window, hold, throw, and whiff
+		/// recovery all live here (a phase counter drives the sub-states).</summary>
+		Grabbing
 	}
 
 	public partial class PlayerController : CharacterBody2D {
@@ -235,6 +238,73 @@ namespace FTT.Characters {
 		private int _postRewindInvulnerabilityFrames;
 		private int _storyHyperArmorFrames;
 
+		// === V7.1 verb layer (hitstop / DI / landing tech) ===
+		// Numbers live in FTT.Combat.BasicComboRules; the deterministic sim's
+		// FighterVerbComponent carries the same state on the fighter side.
+		// The freeze counts physics frames (not seconds) so it can never drift
+		// against the 60 Hz clock the shared frame tables are authored in.
+		private int _hitstopFramesRemaining;
+		private Vector2 _pendingLaunch;
+		private bool _hasPendingLaunch;
+		private bool _stunTumble;
+		private float _techInvulnerabilitySeconds;
+
+		// === V7.1 Rally / Desperation Resonance / Defy History (Story side) ===
+		// The Fighter sim carries the identical state on FighterVerbComponent;
+		// fractions and the drain window live in BasicComboRules. Enemies do
+		// not rally — this state exists only on the player.
+		private float _echoPool;
+		private float _echoDrainPerFrame;
+		private bool _storyDefyHistoryUsed;
+		// Set by ApplyDamage when Defy History fires, read (and cleared) by
+		// OnHurtboxHit: a defied hit generates neither echo nor victim meter —
+		// the shattered meter consumed the entire blow.
+		private bool _defyFiredThisHit;
+
+		// === V7.1 Echo Step (Story side) ===
+		// A 5-entry position ring sampled every 6 frames (the oldest sample is
+		// ~30 frames back), mirroring the sim's FighterEchoRingComponent.
+		private readonly Vector2[] _echoStepRing = new Vector2[5];
+		private bool _echoStepRingInitialized;
+		private int _echoStepRingIndex;
+		private int _echoStepSampleCountdown = 6;
+		private int _echoStepWindupFrames;
+		private int _echoStepCooldownFrames;
+		private Vector2 _echoStepDestination;
+
+		/// <summary>Frames left on the Echo Step internal cooldown. Test seam.</summary>
+		public int EchoStepCooldownFramesRemaining => _echoStepCooldownFrames;
+
+		/// <summary>True while the Echo Step wind-up is running. Test seam.</summary>
+		public bool EchoStepWindingUp => _echoStepWindupFrames > 0;
+
+		// === V7.1 Resonance Momentum (Story side) ===
+		private int _momentumRefundsSlotOne;
+		private int _momentumRefundsSlotTwo;
+
+		// === V7.2 Grabs & Throws (Story side) ===
+		// Phase mirrors the sim's FighterGrabRules: 1 startup · 2 active ·
+		// 3 whiff recovery · 4 holding (decision window) · 5 throw animation.
+		private int _grabPhase;
+		private int _grabPhaseFrames;
+		private int _grabThrowDirection;
+		private FTT.Enemies.EnemyController _grabbedEnemy;
+
+		/// <summary>Grab reach in Story pixels (0.8 units at 62.5 px/unit).</summary>
+		private const float GrabReachPixels = FTT.Combat.BasicComboRules.GrabReachUnits * 62.5f;
+
+		/// <summary>Current grab phase (0 when not grabbing). Test seam.</summary>
+		public int GrabPhase => _grabPhase;
+
+		/// <summary>The mob currently held, or null. Test seam.</summary>
+		public FTT.Enemies.EnemyController GrabbedEnemy => _grabbedEnemy;
+
+		/// <summary>Reclaimable Rally echo remaining, in HP. Test seam / HUD.</summary>
+		public float EchoPool => _echoPool;
+
+		/// <summary>Whether Defy History already fired this level. Test seam.</summary>
+		public bool StoryDefyHistoryUsed => _storyDefyHistoryUsed;
+
 		// Jump tracking
 		private bool _jumpHeld;
 		private bool _wasGrounded;
@@ -334,7 +404,16 @@ namespace FTT.Characters {
 			}
 			return timelines;
 		}
-		private static readonly float[] ComboDamageMultipliers = { 0.8f, 1.0f, 1.5f };
+		// V7.1 per-character string profile (BasicComboRules.StringProfileFor):
+		// authored opener/finisher startups, damage shape (tenths, sum 33), and
+		// reach scale. Resolved from CharacterData in _Ready; the instance
+		// timelines swap the template startups for the authored ones while
+		// active/recovery frames stay universal. Damage multipliers come from
+		// the profile — do not author a second copy here.
+		private FTT.Combat.BasicStringProfile _stringProfile =
+			FTT.Combat.BasicComboRules.TemplateStringProfile;
+		private FTT.Combat.CombatFrameTimeline[] _groundComboTimelines = ComboTimelines;
+		private FTT.Combat.CombatFrameTimeline[] _aerialComboTimelines = AerialComboTimelines;
 		private static readonly Vector2[] ComboHitboxSizes = {
 			new(72f, 60f),
 			new(84f, 72f),
@@ -381,6 +460,15 @@ namespace FTT.Characters {
 				CurrentBlockCharges = MaximumBlockCharges;
 				RemainingJumps = Data.MaxJumpCount;
 			}
+			_stringProfile = FTT.Combat.BasicComboRules.StringProfileFor(Data?.CharacterID);
+			_groundComboTimelines = BuildComboTimelines(
+				_stringProfile.GroundStartupFrames,
+				FTT.Combat.BasicComboRules.GroundActiveFrames,
+				FTT.Combat.BasicComboRules.GroundRecoveryFrames);
+			_aerialComboTimelines = BuildComboTimelines(
+				_stringProfile.AerialStartupFrames,
+				FTT.Combat.BasicComboRules.AerialActiveFrames,
+				FTT.Combat.BasicComboRules.AerialRecoveryFrames);
 
 			_animatedSprite = GetNodeOrNull<AnimatedSprite2D>("AnimatedSprite2D");
 			_collisionShape = GetNodeOrNull<CollisionShape2D>("CollisionShape2D");
@@ -475,6 +563,8 @@ namespace FTT.Characters {
 						// OnBlockBroken event instead.
 						FTT.Core.HapticFeedbackManager.Instance?.OnGuardImpact(PlayerIndex);
 					}
+					// V7.1 hitstop: a blocked hit freezes for the flat 2 frames.
+					ApplyHitstop(FTT.Combat.BasicComboRules.BlockedHitstopFrames);
 					return 0f;
 				}
 			}
@@ -505,19 +595,56 @@ namespace FTT.Characters {
 					// Knockback replaces velocity, as the Fighter sim resolves it —
 					// a hit imparts the same impulse regardless of prior motion.
 					Velocity = knockback * 60f;
+					// V7.1 DI: a launching hit (impulse + hitstun) stashes its
+					// impulse; the held direction at hitstop end bends the angle
+					// up to ±15° (the pre-written velocity is inert while frozen).
+					if (hit.HitstunDuration > 0f && CurrentState != CharacterState.Dead) {
+						_pendingLaunch = Velocity;
+						_hasPendingLaunch = true;
+					}
 				}
 
 				if (hit.HitstunDuration > 0f && CurrentState != CharacterState.Dead) {
 					ApplyStun(hit.HitstunDuration);
+					// A launched stun is a tumble: the victim may tech the landing.
+					_stunTumble = hit.Knockback != Vector2.Zero;
 				}
+			}
+
+			// V7.1 hitstop (victim side): scaled by the damage that actually
+			// applied; a lethal hit skips — the death presentation owns it.
+			if (CurrentState != CharacterState.Dead) {
+				ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(damageApplied));
 			}
 
 			if (hit.AppliedStatus != FTT.Core.StatusType.None && CurrentState != CharacterState.Dead) {
 				_statusController?.ApplyStatus(hit.AppliedStatus, hit.StatusDuration, hit.StatusIntensity);
 			}
 
-			_ultimateMeter?.AddFromDamageTaken(damageApplied);
-			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
+			// V7.1 Rally: a fraction of the hit becomes a briefly reclaimable
+			// echo — 20% at full health sliding to 50% near death (evaluated
+			// after the damage), difficulty-scaled, never on a lethal hit. Each
+			// accrual restarts the 150-frame drain. Meter-from-damage-taken
+			// accrues only on the permanent (non-echo) portion here; the echo
+			// portion's meter accrues if and when it drains (no double-earning).
+			float echoAmount = 0f;
+			bool defied = _defyFiredThisHit;
+			_defyFiredThisHit = false;
+			if (!defied && CurrentState != CharacterState.Dead && CurrentHP > 0 && MaximumHP > 0) {
+				float missing = (MaximumHP - CurrentHP) / (float)MaximumHP;
+				float fraction = (FTT.Combat.BasicComboRules.EchoFractionBase
+						+ FTT.Combat.BasicComboRules.EchoFractionSlope * missing)
+					* FTT.Core.StoryDifficultyTuning.GetRallyEchoMultiplier(
+						FTT.Core.StoryDifficultyTuning.CurrentStoryDifficulty);
+				echoAmount = damageApplied * fraction;
+				_echoPool += echoAmount;
+				_echoDrainPerFrame = _echoPool / FTT.Combat.BasicComboRules.EchoDrainFrames;
+			}
+
+			if (!defied) {
+				_ultimateMeter?.AddFromDamageTaken(damageApplied - echoAmount);
+				CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
+			}
 			float shakeIntensity = hit.ScreenShakeIntensity > 0f
 				? hit.ScreenShakeIntensity * 12f
 				: damageApplied * 0.25f;
@@ -537,6 +664,13 @@ namespace FTT.Characters {
 		/// </summary>
 		private void OnMeleeHitConfirmed(FTT.Combat.HitPayload payload, float damageApplied) {
 			if (damageApplied > 0f) {
+				// V7.1 hitstop (attacker side): the same shared freeze the victim
+				// takes in their own hit handler — both parties suspend together.
+				ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(
+					Math.Max(0, (int)MathF.Round(damageApplied))));
+				// V7.1 Resonance Momentum: only the CONNECTING string finisher
+				// refunds — never hits 1-2 or the directional strikes.
+				if (payload.HitboxID == "combo_3") ApplyMomentumRefund();
 				// Package 8 A3: the attacker-side feedback hook. Haptics and impact
 				// VFX consume this; it carries no gameplay authority.
 				FTT.Core.EventBus.Instance?.RaiseHitConfirm(new FTT.Core.HitConfirmPayload {
@@ -556,8 +690,51 @@ namespace FTT.Characters {
 
 		public override void _PhysicsProcess(double delta) {
 			float dt = (float)delta;
-			UpdateStoryTemporaryEffects();
 			CurrentInputFrame = FTT.Core.InputManager.Instance?.GetFrame(PlayerIndex) ?? default;
+
+			// V7.1 hitstop: while frozen, every state timer, velocity, position,
+			// and the animation clock are suspended — only the input frame is
+			// read (it feeds DI below). At expiry a stashed launching hit
+			// resolves directional influence from the held direction.
+			if (_hitstopFramesRemaining > 0) {
+				_hitstopFramesRemaining--;
+				if (_animatedSprite != null) _animatedSprite.SpeedScale = 0f;
+				if (_hitstopFramesRemaining <= 0) {
+					if (_animatedSprite != null) _animatedSprite.SpeedScale = 1f;
+					if (_hasPendingLaunch) {
+						FTT.Combat.BasicComboRules.ResolveDirectionalInfluence(
+							_pendingLaunch.X, _pendingLaunch.Y,
+							CurrentInputFrame.Horizontal, CurrentInputFrame.Vertical,
+							out float launchX, out float launchY);
+						Velocity = new Vector2(launchX, launchY);
+						_hasPendingLaunch = false;
+					}
+				}
+				return;
+			}
+
+			if (_techInvulnerabilitySeconds > 0f) _techInvulnerabilitySeconds -= dt;
+
+			// V7.1 Echo Step bookkeeping: sample the position ring, tick the
+			// cooldown, and advance an armed wind-up (the snap fires at 0).
+			AdvanceEchoStep();
+
+			// V7.1 Rally drain: the Echo Pool empties linearly over 150 frames.
+			// Echo that finishes draining is permanently lost HP, so its
+			// deferred meter-from-damage-taken accrues now (the guardrail's
+			// other half — nothing was earned at hit time for this portion).
+			if (_echoPool > 0f && CurrentState != CharacterState.Dead) {
+				float drained = Mathf.Min(_echoPool, _echoDrainPerFrame);
+				_echoPool -= drained;
+				_ultimateMeter?.AddFromDamageTaken(drained);
+				CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
+				if (_echoPool <= 0.0001f) {
+					_echoPool = 0f;
+					_echoDrainPerFrame = 0f;
+				}
+			}
+
+			UpdateStoryTemporaryEffects();
 
 			UpdateCooldowns(dt);
 			UpdateDropThrough(dt);
@@ -611,6 +788,9 @@ namespace FTT.Characters {
 					break;
 				case CharacterState.UsingMovementAbility:
 					ProcessUsingMovementAbility(dt);
+					break;
+				case CharacterState.Grabbing:
+					ProcessGrabbing(dt);
 					break;
 			}
 
@@ -885,7 +1065,10 @@ namespace FTT.Characters {
 			// The 4-frame air ramp is the designed constant the Fighter sim uses;
 			// the 8-frame ground ramp was accidental here (audit M-17).
 			float rampFrames = isAccelerating ? AirAccelRampFrames : AirDecelRampFrames;
-			float step = maxSpeed / rampFrames * dt * 60f;
+			// V7.2 wiring: AirControlMultiplier was authored on all nine characters
+			// (0.4 Lincoln .. 0.75 Pocahontas) and read by nothing — it scales how
+			// quickly held input changes airborne velocity (aerial identity).
+			float step = maxSpeed / rampFrames * dt * 60f * (Data?.AirControlMultiplier ?? 1f);
 			var vel = Velocity;
 			vel.X = Mathf.MoveToward(vel.X, targetSpeed, step);
 
@@ -977,7 +1160,13 @@ namespace FTT.Characters {
 			// blocking cancels the swing and resets the chain. Held movement
 			// steers the attacker but never cancels: the authored string pace
 			// is the only pace.
-			if (_attackInRecovery && TryRecoveryCancel()) return;
+			if (_attackInRecovery) {
+				// V7.1 Echo Step: the Block+Roll chord in recovery frames arms
+				// the step first — the same chord then cancels the swing below
+				// (the wind-up owns the Roll press, so no roll starts).
+				TryStartEchoStep();
+				if (TryRecoveryCancel()) return;
+			}
 
 			if (_attackAnimationDriven) return;
 
@@ -1053,12 +1242,101 @@ namespace FTT.Characters {
 		/// Fighter sim applies the identical rule in its phase machine.
 		/// </summary>
 		private bool TryRecoveryCancel() {
-			if (CheckJumpInput() || CheckRollInput() || CheckBlockInput()) {
+			// An Echo Step wind-up owns the Roll press that armed it — the
+			// chord must not also start a roll.
+			if (CheckJumpInput()
+				|| (_echoStepWindupFrames <= 0 && CheckRollInput())
+				|| CheckBlockInput()) {
 				CancelActiveAttack();
 				ResetComboChain();
 				return true;
 			}
 			return false;
+		}
+
+		/// <summary>
+		/// V7.1 Echo Step bookkeeping: rolls the position ring (5 samples, one
+		/// every 6 frames — the oldest is ~30 frames back), ticks the internal
+		/// cooldown, and advances an armed wind-up. The snap moves position
+		/// only: velocity is zeroed, facing preserved, actionable immediately.
+		/// Being struck during the wind-up cancels it with no refund.
+		/// </summary>
+		private void AdvanceEchoStep() {
+			if (!_echoStepRingInitialized) {
+				_echoStepRingInitialized = true;
+				for (int index = 0; index < _echoStepRing.Length; index++) {
+					_echoStepRing[index] = GlobalPosition;
+				}
+			}
+			if (_echoStepCooldownFrames > 0) _echoStepCooldownFrames--;
+			if (--_echoStepSampleCountdown <= 0) {
+				_echoStepSampleCountdown = 6;
+				_echoStepRing[_echoStepRingIndex] = GlobalPosition;
+				_echoStepRingIndex = (_echoStepRingIndex + 1) % _echoStepRing.Length;
+			}
+
+			if (_echoStepWindupFrames <= 0) return;
+			if (CurrentState is CharacterState.Stunned or CharacterState.Dazed
+				or CharacterState.Dead or CharacterState.Respawning) {
+				_echoStepWindupFrames = 0;
+				return;
+			}
+			_echoStepWindupFrames--;
+			if (_echoStepWindupFrames == 0) {
+				GlobalPosition = _echoStepDestination;
+				Velocity = Vector2.Zero;
+			}
+		}
+
+		/// <summary>
+		/// V7.1 Echo Step initiation: the Block+Roll chord during the recovery
+		/// frames of the player's own swing (basic, directional, or special)
+		/// spends 30 meter and arms the 8-frame wind-up toward the position
+		/// ~30 frames back. Callers gate the "recovery frames" half; hitstop
+		/// cannot reach here (the frozen frame returns before any state
+		/// processing). 120-frame internal cooldown; never an escape.
+		/// </summary>
+		private bool TryStartEchoStep() {
+			if (_echoStepWindupFrames > 0 || _echoStepCooldownFrames > 0) return false;
+			if (!CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)
+				|| !CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Roll)) return false;
+			if (!CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Block)
+				&& !CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Roll)) return false;
+			if (CurrentUltimateMeter < FTT.Combat.BasicComboRules.EchoStepMeterCost) return false;
+
+			DrainUltimateMeter(FTT.Combat.BasicComboRules.EchoStepMeterCost);
+			_echoStepCooldownFrames = FTT.Combat.BasicComboRules.EchoStepCooldownFrames;
+			_echoStepWindupFrames = FTT.Combat.BasicComboRules.EchoStepWindupFrames;
+			// RingIndex points at the next slot to overwrite — the oldest sample.
+			_echoStepDestination = _echoStepRing[_echoStepRingIndex];
+			return true;
+		}
+
+		/// <summary>
+		/// V7.1 Resonance Momentum: a CONNECTING basic-string finisher refunds
+		/// 60 frames from each running special cooldown, at most twice per
+		/// cooldown cycle per slot (BaseSpecial re-arms the counters when a
+		/// slot's cooldown starts).
+		/// </summary>
+		private void ApplyMomentumRefund() {
+			const float refundSeconds = FTT.Combat.BasicComboRules.MomentumRefundFrames / 60f;
+			if (SpecialOneCooldownTimer > 0f
+				&& _momentumRefundsSlotOne < FTT.Combat.BasicComboRules.MomentumRefundCapPerCycle) {
+				SpecialOneCooldownTimer = Mathf.Max(0f, SpecialOneCooldownTimer - refundSeconds);
+				_momentumRefundsSlotOne++;
+			}
+			if (SpecialTwoCooldownTimer > 0f
+				&& _momentumRefundsSlotTwo < FTT.Combat.BasicComboRules.MomentumRefundCapPerCycle) {
+				SpecialTwoCooldownTimer = Mathf.Max(0f, SpecialTwoCooldownTimer - refundSeconds);
+				_momentumRefundsSlotTwo++;
+			}
+		}
+
+		/// <summary>Called by BaseSpecial when a slot's cooldown is armed: a fresh
+		/// cycle re-arms its Resonance Momentum refunds.</summary>
+		public void OnSpecialCooldownArmed(FTT.Core.AbilitySlot slot) {
+			if (slot == FTT.Core.AbilitySlot.Special1) _momentumRefundsSlotOne = 0;
+			else if (slot == FTT.Core.AbilitySlot.Special2) _momentumRefundsSlotTwo = 0;
 		}
 
 		/// <summary>Resets both surface counters — the whole chain, not one string.</summary>
@@ -1076,6 +1354,10 @@ namespace FTT.Characters {
 				? 0.5f
 				: 1f;
 			ApplyGravity(dt * gravityMultiplier);
+			// V7.1 Echo Step: a special's recovery frames also qualify.
+			if (ability?.CurrentPhase == FTT.Combat.AbilityPhase.Recovery) {
+				TryStartEchoStep();
+			}
 			if (ability == null || !ability.IsExecuting) {
 				_specialStartedAerial = false;
 				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
@@ -1092,6 +1374,199 @@ namespace FTT.Characters {
 			}
 		}
 
+		/// <summary>
+		/// V7.2 grab initiation (Story): grounded, from neutral or the block
+		/// stance. 10f startup / 4f active / 24f whiff recovery; a connect
+		/// holds a standard mob for the 30-frame decision window, then the held
+		/// direction throws. Elites and bosses are grab-immune (the attempt
+		/// whiffs into normal recovery).
+		/// </summary>
+		private bool TryStartGrab() {
+			if (!IsOnFloor()) return false;
+			if (CurrentState is CharacterState.Stunned or CharacterState.Dazed
+				or CharacterState.Dead or CharacterState.Respawning
+				or CharacterState.Grabbing or CharacterState.Rolling
+				or CharacterState.LedgeHanging) return false;
+			if (CurrentState == CharacterState.Attacking) CancelActiveAttack();
+			ResetComboChain();
+			_grabPhase = 1;
+			_grabPhaseFrames = FTT.Combat.BasicComboRules.GrabStartupFrames;
+			_grabThrowDirection = 0;
+			_grabbedEnemy = null;
+			PlayAnimation("grab");
+			TransitionTo(CharacterState.Grabbing);
+			return true;
+		}
+
+		private void ProcessGrabbing(float dt) {
+			ApplyGravity(dt);
+			var vel = Velocity;
+			vel.X = Mathf.MoveToward(vel.X, 0f, EffectiveMoveSpeed * 60f / GroundDecelRampFrames * dt * 60f);
+			Velocity = vel;
+
+			if (_grabPhase is 4 or 5) PinGrabbedEnemy();
+
+			_grabPhaseFrames--;
+			if (_grabPhaseFrames > 0) {
+				// The active window scans every frame it is open.
+				if (_grabPhase == 2 && TryConnectGrab()) return;
+				return;
+			}
+
+			switch (_grabPhase) {
+				case 1:
+					_grabPhase = 2;
+					_grabPhaseFrames = FTT.Combat.BasicComboRules.GrabActiveFrames;
+					if (TryConnectGrab()) return;
+					break;
+				case 2:
+					// Whiff — the most punishable committal in the kit.
+					_grabPhase = 3;
+					_grabPhaseFrames = FTT.Combat.BasicComboRules.GrabWhiffRecoveryFrames;
+					break;
+				case 3:
+					EndGrab(CharacterState.Idle);
+					break;
+				case 4:
+					// The decision window closed: the held direction picks the
+					// throw; both parties are invulnerable through the animation.
+					_grabThrowDirection = ResolveStoryThrowDirection();
+					_grabPhase = 5;
+					_grabPhaseFrames = FTT.Combat.BasicComboRules.ThrowAnimationFrames;
+					_techInvulnerabilitySeconds = Mathf.Max(
+						_techInvulnerabilitySeconds,
+						FTT.Combat.BasicComboRules.ThrowAnimationFrames / 60f);
+					break;
+				case 5:
+					ResolveStoryThrow();
+					break;
+				default:
+					EndGrab(CharacterState.Idle);
+					break;
+			}
+		}
+
+		private bool TryConnectGrab() {
+			FTT.Enemies.EnemyController target = FindGrabbableEnemy();
+			if (target == null) return false;
+			_grabPhase = 4;
+			_grabPhaseFrames = FTT.Combat.BasicComboRules.ThrowDecisionFrames;
+			_grabbedEnemy = target;
+			target.BeginHeld();
+			PinGrabbedEnemy();
+			return true;
+		}
+
+		private FTT.Enemies.EnemyController FindGrabbableEnemy() {
+			float facing = IsFacingRight ? 1f : -1f;
+			FTT.Enemies.EnemyController best = null;
+			float bestDistance = float.MaxValue;
+			foreach (Godot.Node node in GetTree().GetNodesInGroup("Enemies")) {
+				if (node is not FTT.Enemies.EnemyController enemy || !enemy.IsGrabbable) continue;
+				// Grabs are a neutral tool: they whiff against a victim already
+				// in hitstun or daze, exactly as the sim's rule reads.
+				if (enemy.CurrentState is FTT.Enemies.EnemyState.Stunned) continue;
+				Vector2 offset = enemy.GlobalPosition - GlobalPosition;
+				float front = offset.X * facing;
+				if (front < 0f || front > GrabReachPixels) continue;
+				if (Mathf.Abs(offset.Y) > 62.5f) continue;
+				if (front < bestDistance) {
+					bestDistance = front;
+					best = enemy;
+				}
+			}
+			return best;
+		}
+
+		private void PinGrabbedEnemy() {
+			if (_grabbedEnemy == null || !IsInstanceValid(_grabbedEnemy)
+				|| _grabbedEnemy.CurrentState == FTT.Enemies.EnemyState.Dead) {
+				// The held mob died or vanished mid-hold: let the grab go.
+				_grabbedEnemy = null;
+				EndGrab(CharacterState.Idle);
+				return;
+			}
+			float facing = IsFacingRight ? 1f : -1f;
+			_grabbedEnemy.PinHeldAt(GlobalPosition + new Vector2(facing * GrabReachPixels, 0f));
+		}
+
+		private int ResolveStoryThrowDirection() {
+			if (CurrentInputFrame.Vertical < -0.3f) return 1;
+			float horizontal = CurrentInputFrame.Horizontal;
+			float facing = IsFacingRight ? 1f : -1f;
+			if (horizontal * facing < -0.3f) return 2;
+			return 0;
+		}
+
+		private void ResolveStoryThrow() {
+			FTT.Enemies.EnemyController victim = _grabbedEnemy;
+			_grabbedEnemy = null;
+			if (victim == null || !IsInstanceValid(victim)) {
+				EndGrab(CharacterState.Idle);
+				return;
+			}
+
+			// The back throw is a positional reversal: the mob swings to the
+			// other side and the player turns around.
+			if (_grabThrowDirection == 2) {
+				IsFacingRight = !IsFacingRight;
+				UpdateSpriteFlip();
+				float newFacing = IsFacingRight ? 1f : -1f;
+				victim.PinHeldAt(GlobalPosition + new Vector2(newFacing * GrabReachPixels, 0f));
+			}
+
+			// 1.0x BasicAttackDamage — priced as position, meter accrues
+			// normally through the ordinary chokepoint (a direct hit).
+			int damage = Math.Max(0, (int)MathF.Round(
+				(Data?.BasicAttackDamage ?? 10f) * FTT.Combat.BasicComboRules.ThrowDamageMultiplier
+				* StoryTemporaryDamageMultiplier));
+			int dealt = victim.TakeDamage(damage);
+			if (dealt > 0) AddInfluenceFromDamageDealt(dealt);
+
+			float baseKnockback = Data?.BasicAttackKnockback ?? 3f;
+			Vector2 impulse = _grabThrowDirection == 1
+				? new Vector2(0.8f, -FTT.Combat.BasicComboRules.UpThrowKnockbackMultiplier) * baseKnockback
+				: new Vector2(
+					FTT.Combat.BasicComboRules.ForwardThrowKnockbackMultiplier,
+					-0.6f) * baseKnockback;
+			Vector2 launch = FTT.Combat.DamageCalculator.CalculateKnockback(
+				impulse,
+				victim.Data?.Weight ?? 1f,
+				IsFacingRight,
+				victim.CurrentHP,
+				victim.ScaledMaxHP) * 60f;
+			int bowling = Math.Max(1, (int)MathF.Round(
+				(Data?.BasicAttackDamage ?? 10f)
+				* FTT.Combat.BasicComboRules.ThrownMobCollisionDamageMultiplier));
+			victim.LaunchThrown(launch, bowling);
+			EndGrab(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
+		}
+
+		/// <summary>
+		/// Clears grab state without a state transition — for interruptions
+		/// (a landed stun, death, a rewind) where another state takes over.
+		/// Attack beats grab: the interrupted attempt releases its victim.
+		/// </summary>
+		private void ReleaseGrabState() {
+			if (_grabbedEnemy != null && IsInstanceValid(_grabbedEnemy)) {
+				_grabbedEnemy.ReleaseHeld();
+			}
+			_grabbedEnemy = null;
+			_grabPhase = 0;
+			_grabPhaseFrames = 0;
+		}
+
+		/// <summary>Ends the grab (any phase), releasing a still-held mob.</summary>
+		private void EndGrab(CharacterState nextState) {
+			if (_grabbedEnemy != null && IsInstanceValid(_grabbedEnemy)) {
+				_grabbedEnemy.ReleaseHeld();
+			}
+			_grabbedEnemy = null;
+			_grabPhase = 0;
+			_grabPhaseFrames = 0;
+			if (CurrentState == CharacterState.Grabbing) TransitionTo(nextState);
+		}
+
 		private void ProcessBlocking(float dt) {
 			ApplyGravity(dt);
 			float maxSpeed = EffectiveMoveSpeed * StatusMovementMultiplier * 60f;
@@ -1101,6 +1576,13 @@ namespace FTT.Characters {
 			Velocity = blockVel;
 
 			_blockSystem?.StartBlock();
+			// V7.2: from the stance, BasicAttack converts the stance into a
+			// grab attempt — the chord repurposes dead input space (attack
+			// inputs were ignored while blocking).
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack) && TryStartGrab()) {
+				_blockSystem?.EndBlock();
+				return;
+			}
 			if (CheckRollInput()) {
 				_blockSystem?.EndBlock();
 				return;
@@ -1123,6 +1605,22 @@ namespace FTT.Characters {
 
 		private void ProcessStunned(float dt) {
 			ApplyGravity(dt);
+			// V7.1 landing tech (ukemi): a launched victim (tumble) holding Block
+			// on the ground-contact frame techs — hitstun ends in place with a
+			// 12-frame invulnerable recovery. Checked before the grounded
+			// block-cancel below so the tech's invulnerability grant wins on the
+			// landing frame. The Fighter sim's TryLandingTech mirrors this.
+			if (_stunTumble && IsOnFloor() && !_wasGrounded
+				&& CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)) {
+				_stunTimer = 0f;
+				_stunTumble = false;
+				_hasPendingLaunch = false;
+				Velocity = Vector2.Zero;
+				_techInvulnerabilitySeconds =
+					FTT.Combat.BasicComboRules.LandingTechRecoveryFrames / 60f;
+				TransitionTo(CharacterState.Idle);
+				return;
+			}
 			// Gameplay-feel plan §2.4 — Block cancels hitstun. A grounded victim
 			// holding Block leaves hitstun straight into the block stance; an
 			// airborne one cannot (the stance is grounded-only), and Dazed is a
@@ -1130,11 +1628,13 @@ namespace FTT.Characters {
 			// Fighter sim clears HitstunFrames on the same condition.
 			if (IsOnFloor() && CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)) {
 				_stunTimer = 0f;
+				_stunTumble = false;
 				TransitionTo(CharacterState.Blocking);
 				return;
 			}
 			_stunTimer -= dt;
 			if (_stunTimer <= 0) {
+				_stunTumble = false;
 				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
 			}
 		}
@@ -1271,8 +1771,26 @@ namespace FTT.Characters {
 			// (OnHurtboxHit): while an armor window covers the incoming attack
 			// class, this method is never reached and the cast completes.
 			InterruptActiveAbilities();
+			// V7.2: attack beats grab — a landed stun interrupts a grab in any
+			// pre-throw phase and releases a held mob.
+			ReleaseGrabState();
 			_stunTimer = duration;
+			// Callers that stun without a launch get no tumble; OnHurtboxHit
+			// overrides this right after when the hit carried an impulse.
+			_stunTumble = false;
 			TransitionTo(CharacterState.Stunned);
+		}
+
+		/// <summary>
+		/// V7.1 hitstop: freezes this character's gameplay clock (state timers,
+		/// velocity, position, animation) for the given frames. Max-assign —
+		/// an active freeze is never shortened. Dead characters skip: the KO
+		/// presentation owns that moment. Numbers come from
+		/// <see cref="FTT.Combat.BasicComboRules"/>.
+		/// </summary>
+		public void ApplyHitstop(int frames) {
+			if (frames <= 0 || CurrentState == CharacterState.Dead) return;
+			if (frames > _hitstopFramesRemaining) _hitstopFramesRemaining = frames;
 		}
 
 		/// <summary>
@@ -1295,6 +1813,9 @@ namespace FTT.Characters {
 			if (CurrentState == CharacterState.Dead || CurrentState == CharacterState.Respawning) return 0;
 			if (_postRewindInvulnerabilityFrames > 0) return 0;
 			if (_rollInvulnerable && !ignoreRollInvulnerability) return 0;
+			// V7.1 landing tech: the 12-frame recovery is fully invulnerable,
+			// like the sim's InvulnerabilityFrames grant.
+			if (_techInvulnerabilitySeconds > 0f) return 0;
 			damage = Math.Max(0, (int)MathF.Round(damage * StatusDamageTakenMultiplier));
 			if (StoryShieldPoints > 0f && damage > 0) {
 				int absorbed = Math.Min(damage, (int)MathF.Floor(StoryShieldPoints));
@@ -1306,6 +1827,26 @@ namespace FTT.Characters {
 			int previousHP = CurrentHP;
 			CurrentHP = Math.Max(0, CurrentHP - damage);
 			int damageApplied = previousHP - CurrentHP;
+
+			// V7.1 Defy History: a lethal hit against a full Ultimate Meter does
+			// not kill — the meter shatters to 0 and the player survives at
+			// 1 HP. Once per level; fires before the Chronal Rewind would, so
+			// no rewind charge is spent. (Should a true blast-zone/pit death
+			// path ever be added, it must bypass this — falling is not a hit.)
+			if (CurrentHP <= 0 && !_storyDefyHistoryUsed
+				&& CurrentUltimateMeter >= FTT.Combat.UltimateMeter.MaxValue) {
+				_storyDefyHistoryUsed = true;
+				_defyFiredThisHit = true;
+				CurrentHP = 1;
+				damageApplied = previousHP - CurrentHP;
+				_ultimateMeter?.Consume();
+				CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? 0f;
+				// The saved life reads as a hard moment: an extended freeze and
+				// a heavy shake (the sim applies the same 12-frame hitstop).
+				ApplyHitstop(12);
+				FTT.Core.CameraShake.Instance?.Shake(10f, 0.35f);
+			}
+
 			FTT.Core.EventBus.Instance?.RaisePlayerHPChanged(new FTT.Core.PlayerHPPayload {
 				PlayerIndex = PlayerIndex,
 				CurrentHP = CurrentHP,
@@ -1320,15 +1861,31 @@ namespace FTT.Characters {
 				// multi-hit sequence survives into the Dead state.
 				if (CurrentState == CharacterState.Attacking) CancelActiveAttack();
 				InterruptActiveAbilities();
+				ReleaseGrabState();
 				TransitionTo(CharacterState.Dead);
 				FTT.Core.EventBus.Instance?.RaisePlayerDied(PlayerIndex);
 			}
 			return damageApplied;
 		}
 
-		public void AddInfluenceFromDamageDealt(float damageApplied) {
+		/// <summary>
+		/// The Story chokepoint every damage-dealer already routes through for
+		/// meter-from-damage-dealt. V7.1 Rally rides the same choke: a landed
+		/// *direct* hit (melee, directional, special, ultimate, projectile,
+		/// zone pulse) also reclaims the player's remaining Echo Pool as real
+		/// HP. Construct nodes (turret, nest, coil, snare) pass
+		/// <paramref name="collectsEcho"/> false — no passive farming —
+		/// mirroring the sim's collectsEcho flag on ApplyFighterHit.
+		/// </summary>
+		public void AddInfluenceFromDamageDealt(float damageApplied, bool collectsEcho = true) {
 			_ultimateMeter?.AddFromDamageDealt(damageApplied);
 			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
+			if (!collectsEcho || damageApplied <= 0f || _echoPool <= 0f) return;
+			// Reclaimed HP grants no meter to anyone (HealStory is HP-only).
+			int reclaim = (int)MathF.Round(_echoPool);
+			_echoPool = 0f;
+			_echoDrainPerFrame = 0f;
+			if (reclaim > 0) HealStory(reclaim);
 		}
 
 		public void DrainUltimateMeter(float points) {
@@ -1467,6 +2024,18 @@ namespace FTT.Characters {
 			GlobalPosition = landingPosition;
 			Velocity = Vector2.Zero;
 			CurrentHP = Math.Clamp(restoredHP, 1, MaximumHP);
+			// A rewind wipes any in-flight verb state (hitstop freeze, stashed
+			// launch, tumble, Rally echo) — the restored timeline never took
+			// that hit. The Defy History flag deliberately survives: once per
+			// level, not once per life.
+			_hitstopFramesRemaining = 0;
+			_hasPendingLaunch = false;
+			_stunTumble = false;
+			_techInvulnerabilitySeconds = 0f;
+			_echoPool = 0f;
+			_echoDrainPerFrame = 0f;
+			ReleaseGrabState();
+			if (_animatedSprite != null) _animatedSprite.SpeedScale = 1f;
 			SetRewindSuspended(false);
 			_postRewindInvulnerabilityFrames = StoryRewindInvulnerabilityFrames;
 			TransitionTo(CharacterState.Respawning);
@@ -1554,7 +2123,10 @@ namespace FTT.Characters {
 			// The 4-frame air ramp is the designed constant the Fighter sim uses;
 			// the 8-frame ground ramp was accidental here (audit M-17).
 			float rampFrames = isAccelerating ? AirAccelRampFrames : AirDecelRampFrames;
-			float step = maxSpeed / rampFrames * dt * 60f;
+			// V7.2 wiring: AirControlMultiplier was authored on all nine characters
+			// (0.4 Lincoln .. 0.75 Pocahontas) and read by nothing — it scales how
+			// quickly held input changes airborne velocity (aerial identity).
+			float step = maxSpeed / rampFrames * dt * 60f * (Data?.AirControlMultiplier ?? 1f);
 			var vel = Velocity;
 			vel.X = Mathf.MoveToward(vel.X, targetSpeed, step);
 			Velocity = vel;
@@ -1604,6 +2176,14 @@ namespace FTT.Characters {
 		}
 
 		private bool CheckAttackInput() {
+			// V7.2: BasicAttack while Block is held is the GRAB chord — from
+			// neutral the same-frame press grabs (no block rises, no swing
+			// fires). Grounded only, like the stance it answers.
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)
+				&& CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)
+				&& IsOnFloor()) {
+				return TryStartGrab();
+			}
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)) {
 				_attackStartedAerial = !IsOnFloor() || CurrentState == CharacterState.Airborne;
 				_attackStartedCrouched = CurrentState == CharacterState.Crouching;
@@ -1643,7 +2223,7 @@ namespace FTT.Characters {
 
 			if (_meleeHitbox != null) {
 				float baseDmg = (Data?.BasicAttackDamage ?? 10f) * StoryBasicDamageMultiplier;
-				_meleeHitbox.Damage = baseDmg * ComboDamageMultipliers[comboIdx];
+				_meleeHitbox.Damage = baseDmg * (_stringProfile.DamageTenths[comboIdx] / 10f);
 				_meleeHitbox.AttackID = $"{Data?.CharacterID ?? "fighter"}.basic";
 				_meleeHitbox.HitboxID = $"combo_{comboIdx + 1}";
 				// Kinetic Splitting (Story-only Resonance perk): Lincoln's third-hit
@@ -1658,21 +2238,40 @@ namespace FTT.Characters {
 				// Hitstun and the horizontal knockback multiplier both come from
 				// the shared rulebook, the same tables the Fighter sim applies.
 				// The stun holds the victim through the chain gap to the next
-				// hit; the 3x finisher launches them away.
+				// hit; the finisher launches them away.
 				_meleeHitbox.HitstunDuration = FTT.Combat.BasicComboRules.HitstunFrames[comboIdx] / 60f;
-				float kbMultiplier = FTT.Combat.BasicComboRules.KnockbackMultipliers[comboIdx];
-				if (comboIdx == 2) {
-					// Gameplay-feel plan §2.5 raised the shared finisher
-					// multiplier from 3x to 4.5x; the launch's vertical
-					// component is scaled by the same factor (-6 -> -9) so the
-					// Story finisher keeps its launch angle and gains the same
-					// separation the Fighter sim now produces.
-					_meleeHitbox.KnockbackForce = new Vector2(baseKB * kbMultiplier, -9f);
+				bool finisher = comboIdx == 2;
+				// V7.1 string riders: the finisher's authored knockback tenths
+				// (Mozart's 5.5x shove) and hit 2's vertical launch scale
+				// (Lincoln's heavy upward swing) come from the string profile;
+				// the vertical components track their multipliers so every
+				// profile keeps the template's launch angles.
+				float kbMultiplier = finisher
+					? _stringProfile.FinisherKnockbackTenths / 10f
+					: FTT.Combat.BasicComboRules.KnockbackMultipliers[comboIdx];
+				if (finisher) {
+					_meleeHitbox.KnockbackForce = new Vector2(baseKB * kbMultiplier, -2f * kbMultiplier);
 				} else if (comboIdx == 1) {
-					_meleeHitbox.KnockbackForce = new Vector2(baseKB * kbMultiplier, -1.5f);
+					_meleeHitbox.KnockbackForce = new Vector2(
+						baseKB * kbMultiplier,
+						-1.5f * (_stringProfile.Hit2VerticalLaunchTenths / 10f));
 				} else {
 					_meleeHitbox.KnockbackForce = new Vector2(baseKB * kbMultiplier, -1f);
 				}
+
+				// V7.1 string riders: only the authored finisher status (Tesla's
+				// priming Static Charge, Cleopatra's venom mark). Earlier hits
+				// always clear the shared hitbox's status fields so nothing
+				// leaks between swings.
+				_meleeHitbox.AppliedStatus = finisher
+					? (FTT.Core.StatusType)_stringProfile.FinisherStatusType
+					: FTT.Core.StatusType.None;
+				_meleeHitbox.StatusDuration = finisher
+					? _stringProfile.FinisherStatusFrames / 60f
+					: 0f;
+				_meleeHitbox.StatusIntensity = finisher
+					? _stringProfile.FinisherStatusIntensityMilli / 1000f
+					: 1f;
 			}
 
 			if (_aerialHitboxMarker != null && _attackStartedAerial) {
@@ -1683,7 +2282,17 @@ namespace FTT.Characters {
 			TransitionTo(CharacterState.Attacking);
 			PlayAnimation($"basic_attack_{comboIdx + 1}");
 			string animationName = $"basic_{(_attackStartedAerial ? "air" : "ground")}_{comboIdx + 1}";
-			_attackAnimationDriven = _combatAnimationPlayer?.HasAnimation(animationName) == true;
+			// The shared combat-animation library is authored to the template
+			// string; a hit whose authored startup deviates (V7.1 string
+			// profiles) runs on the frame clock so per-character timing stays
+			// authoritative while the sheet remains presentation.
+			bool templateTiming = _attackStartedAerial
+				? _stringProfile.AerialStartupFrames[comboIdx]
+					== FTT.Combat.BasicComboRules.AerialStartupFrames[comboIdx]
+				: _stringProfile.GroundStartupFrames[comboIdx]
+					== FTT.Combat.BasicComboRules.GroundStartupFrames[comboIdx];
+			_attackAnimationDriven = templateTiming
+				&& _combatAnimationPlayer?.HasAnimation(animationName) == true;
 			if (_attackAnimationDriven) {
 				// Story-only ComboSpeed minors run the basic string faster; the
 				// animation clock carries the hit-activation callbacks with it.
@@ -1712,6 +2321,11 @@ namespace FTT.Characters {
 				_meleeHitbox.AttackClass = FTT.Combat.AttackClass.Basic;
 				_meleeHitbox.HitstunDuration =
 					FTT.Combat.BasicComboRules.DirectionalAttackHitstunFrames / 60f;
+				// Directional strikes carry no rider status; clear the shared
+				// hitbox so a finisher's authored status cannot leak in.
+				_meleeHitbox.AppliedStatus = FTT.Core.StatusType.None;
+				_meleeHitbox.StatusDuration = 0f;
+				_meleeHitbox.StatusIntensity = 1f;
 				// Both strikes launch: a small horizontal nudge and a strong
 				// upward component (Godot 2D Y is down, so upward is negative).
 				float baseKB = Data?.BasicAttackKnockback ?? 3f;
@@ -1734,12 +2348,19 @@ namespace FTT.Characters {
 			int comboIdx = GetActiveComboIndex();
 			bool directional = _attackVariant != FTT.Combat.BasicComboRules.VariantChain;
 			bool upAttack = _attackVariant == FTT.Combat.BasicComboRules.VariantUpAttack;
-			// Story-only AttackRange minors extend basic-attack melee reach.
+			// Reach = template pixels x the authored V7.1 profile scale (chain
+			// hits only; directional strikes stay universal) x the Story-only
+			// AttackRange Resonance minor.
+			Vector2 profileScale = directional
+				? Vector2.One
+				: new Vector2(
+					_stringProfile.ReachWidthPercent / 100f,
+					_stringProfile.ReachHeightPercent / 100f);
 			Vector2 hitboxSize = (directional
 				? (upAttack ? UpAttackHitboxSize : DownAirHitboxSize)
 				: _attackStartedAerial
 					? AerialComboHitboxSizes[comboIdx]
-					: ComboHitboxSizes[comboIdx]) * StoryAttackRangeMultiplier;
+					: ComboHitboxSizes[comboIdx]) * profileScale * StoryAttackRangeMultiplier;
 			Vector2 hitboxOffset = directional
 				? (upAttack ? UpAttackHitboxOffset : DownAirHitboxOffset)
 				: _attackStartedAerial
@@ -1747,10 +2368,14 @@ namespace FTT.Characters {
 					: ComboHitboxOffsets[comboIdx];
 			float facingMul = IsFacingRight ? 1f : -1f;
 			// The directional boxes are centred on the fighter, so facing does
-			// not mirror them (their X offset is zero by construction).
-			Vector2 resolvedOffset = directional || _attackStartedAerial
+			// not mirror them (their X offset is zero by construction). Chain
+			// offsets scale with the profile width so a wider box extends the
+			// front edge instead of growing backward through the fighter.
+			Vector2 resolvedOffset = directional
 				? hitboxOffset
-				: new Vector2(hitboxOffset.X * facingMul, hitboxOffset.Y);
+				: _attackStartedAerial
+					? new Vector2(hitboxOffset.X * profileScale.X, hitboxOffset.Y)
+					: new Vector2(hitboxOffset.X * profileScale.X * facingMul, hitboxOffset.Y);
 
 			if (_meleeHitbox?.GetChildCount() > 0 && _meleeHitbox.GetChild(0) is CollisionShape2D hitShape) {
 				if (hitShape.Shape is RectangleShape2D rectShape) rectShape.Size = hitboxSize;
@@ -1823,7 +2448,7 @@ namespace FTT.Characters {
 		private FTT.Combat.CombatFrameTimeline GetActiveComboTimeline() =>
 			_attackVariant == FTT.Combat.BasicComboRules.VariantUpAttack ? UpAttackTimeline
 			: _attackVariant == FTT.Combat.BasicComboRules.VariantDownAir ? DownAirTimeline
-			: (_attackStartedAerial ? AerialComboTimelines : ComboTimelines)[GetActiveComboIndex()];
+			: (_attackStartedAerial ? _aerialComboTimelines : _groundComboTimelines)[GetActiveComboIndex()];
 
 		private void AdvanceActiveCombo() {
 			if (_attackStartedAerial) AerialComboCounter = Mathf.Min(2, AerialComboCounter + 1);

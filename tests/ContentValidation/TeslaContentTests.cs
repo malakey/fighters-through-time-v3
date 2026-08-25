@@ -19,9 +19,10 @@ public class TeslaContentTests {
     public void TeslaCoilResourceMatchesDesignSpecification() {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/tesla/special_1.tres");
         AssertObject(data).IsNotNull();
-        // 2026-08-11 construct rebalance: arc damage halved, cadence halved.
+        // V7 tuning batch: 5-damage arcs every 2 s so a lone coil is a real
+        // threat (the doc's 0.5 s figure predates the fence rebalance).
         AssertThat(data.BaseDamage).IsEqual(5f);
-        AssertThat(data.DamageTickIntervalFrames).IsEqual(240);
+        AssertThat(data.DamageTickIntervalFrames).IsEqual(120);
         AssertThat(data.Lifetime).IsEqual(30f);
         AssertThat(data.MaxActiveObjects).IsEqual(2);
         AssertThat(data.PersistentObjectID).IsEqual("tesla_coil");
@@ -35,6 +36,10 @@ public class TeslaContentTests {
         AssertThat(data.AppliedStatus).IsEqual(StatusType.Root);
         AssertThat(data.StatusDuration).IsEqual(2f);
         AssertThat(data.Lifetime).IsEqual(0.25f);
+        // V7: the unearned (coil-less) cast is trimmed out of the top band; the
+        // chain-lightning reward with coils primed makes up the difference.
+        AssertThat(data.BaseDamage).IsEqual(20f);
+        AssertThat(data.CooldownDuration).IsEqual(11f);
     }
 
     [TestCase]

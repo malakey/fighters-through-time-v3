@@ -195,7 +195,8 @@ namespace FTT.Characters.Abilities {
 
         private void CreditOwnerInfluence(float dealt) {
             if (dealt > 0f && _ownerPlayer != null && IsInstanceValid(_ownerPlayer)) {
-                _ownerPlayer.AddInfluenceFromDamageDealt(dealt);
+                // Construct damage never reclaims Rally echo (V7.1: direct hits only).
+                _ownerPlayer.AddInfluenceFromDamageDealt(dealt, collectsEcho: false);
             }
         }
     }

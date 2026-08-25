@@ -50,6 +50,87 @@ namespace FTT.Enemies {
         private float _attackCooldownTimer;
         private float _eliteCooldownTimer;
         private float _stunTimer;
+        // V7.1 hitstop freeze (BasicComboRules numbers); max-assigned, never
+        // shortened. Counted in physics frames so it cannot drift against the
+        // 60 Hz clock the shared frame tables are authored in.
+        private int _hitstopFramesRemaining;
+
+        // === V7.2 Grabs & Throws (Story: the beat-em-up payoff) ===
+        // A held mob is pinned by the player each frame; a thrown mob is a
+        // projectile — enemies it collides with in flight take the bowling
+        // fraction and are knocked down. Elites and bosses never enter these.
+        private bool _isHeldByPlayer;
+        private bool _thrownFlight;
+        private int _thrownBowlingDamage;
+        private readonly System.Collections.Generic.HashSet<ulong> _bowledVictims = new();
+
+        /// <summary>Standard mobs only; elites and bosses are grab-immune.</summary>
+        public bool IsGrabbable =>
+            Data?.Tier == EnemyTier.Standard
+            && CurrentState != EnemyState.Dead
+            && !_isHeldByPlayer
+            && !_thrownFlight;
+
+        /// <summary>True while pinned in the player's grab. Test seam.</summary>
+        public bool IsHeldByPlayer => _isHeldByPlayer;
+
+        /// <summary>True while flying as a thrown projectile. Test seam.</summary>
+        public bool IsThrownFlight => _thrownFlight;
+
+        public void BeginHeld() {
+            _isHeldByPlayer = true;
+            Velocity = Vector2.Zero;
+            Executor.Cancel();
+            _attackHitbox?.Deactivate();
+        }
+
+        public void PinHeldAt(Vector2 position) {
+            GlobalPosition = position;
+            Velocity = Vector2.Zero;
+        }
+
+        public void ReleaseHeld() => _isHeldByPlayer = false;
+
+        /// <summary>
+        /// The throw launch: the mob becomes a projectile. Enemies it hits in
+        /// flight take <paramref name="bowlingDamage"/> and are knocked down;
+        /// the flight ends on ground contact as a knockdown.
+        /// </summary>
+        public void LaunchThrown(Vector2 velocity, int bowlingDamage) {
+            _isHeldByPlayer = false;
+            _thrownFlight = true;
+            _thrownBowlingDamage = Mathf.Max(0, bowlingDamage);
+            _bowledVictims.Clear();
+            Velocity = velocity;
+            ApplyStun(1.2f);
+        }
+
+        /// <summary>
+        /// Thrown-projectile flight: gravity and motion only (no AI), sweeping
+        /// nearby standard enemies for the crowd-bowling hit. Ends as a
+        /// knockdown when the mob returns to the floor.
+        /// </summary>
+        private void ProcessThrownFlight(float dt) {
+            ApplyGravity(dt);
+            MoveAndSlide();
+            foreach (Node node in GetTree().GetNodesInGroup("Enemies")) {
+                if (node is not EnemyController other || other == this) continue;
+                if (other.CurrentState == EnemyState.Dead || other._thrownFlight || other._isHeldByPlayer) continue;
+                if (!_bowledVictims.Add(other.GetInstanceId())) continue;
+                if (other.GlobalPosition.DistanceTo(GlobalPosition) > 55f) {
+                    _bowledVictims.Remove(other.GetInstanceId());
+                    continue;
+                }
+                // Crowd bowling: 0.5x BasicAttackDamage and a knockdown.
+                other.TakeDamage(_thrownBowlingDamage, GlobalPosition);
+                other.ApplyKnockback(new Vector2(2.5f, -1.5f), Velocity.X >= 0f);
+                other.ApplyStun(1.0f);
+            }
+            if (IsOnFloor()) {
+                _thrownFlight = false;
+                Velocity = new Vector2(0f, Velocity.Y);
+            }
+        }
         private float _patrolIdleTimer;
         private float _deathTimer;
         private bool _patrolForward = true;
@@ -84,8 +165,10 @@ namespace FTT.Enemies {
         private bool _facingRight = true;
         private bool _rewindFrozen;
         private int _scaledMaxHP;
-        private float _statusTimer;
-        private float _statusIntensity = 1f;
+        private float _controlStatusTimer;
+        private float _controlStatusIntensity = 1f;
+        private float _damageStatusTimer;
+        private float _damageStatusIntensity = 1f;
         private float _venomTickTimer;
         private bool _nodesResolved;
         private bool _eventsBound;
@@ -101,7 +184,13 @@ namespace FTT.Enemies {
         public bool IsStoryRewindFrozen => _rewindFrozen;
 
         /// <summary>Active status effect (newest replaces; no stacking), Story-only.</summary>
-        public StatusType ActiveStatusType { get; private set; } = StatusType.None;
+        public StatusType ControlStatusType { get; private set; } = StatusType.None;
+        public StatusType DamageStatusType { get; private set; } = StatusType.None;
+        /// <summary>Control slot first, then damage — the compat view for single-status readers.</summary>
+        public StatusType ActiveStatusType =>
+            ControlStatusType != StatusType.None ? ControlStatusType : DamageStatusType;
+        public bool HasStatusEffect(StatusType type) =>
+            ControlStatusType == type || DamageStatusType == type;
         public float StatusMoveMultiplier { get; private set; } = 1f;
         public float StatusDamageTakenMultiplier { get; private set; } = 1f;
 
@@ -257,6 +346,25 @@ namespace FTT.Enemies {
 
             if (CurrentState == EnemyState.Dead) {
                 ProcessDead(dt);
+                return;
+            }
+
+            // V7.1 hitstop: a landed hit freezes this enemy's gameplay clock
+            // (state timers, velocity, position, animation) for the shared
+            // window; only presentation fades above keep running.
+            if (_hitstopFramesRemaining > 0) {
+                _hitstopFramesRemaining--;
+                if (_sprite != null) _sprite.SpeedScale = 0f;
+                if (_hitstopFramesRemaining <= 0 && _sprite != null) _sprite.SpeedScale = 1f;
+                return;
+            }
+
+            // V7.2 grabs: a held mob is fully owned by the player's grab (the
+            // player pins the position each frame); a thrown mob is a
+            // projectile until it lands.
+            if (_isHeldByPlayer) return;
+            if (_thrownFlight) {
+                ProcessThrownFlight(dt);
                 return;
             }
 
@@ -485,7 +593,11 @@ namespace FTT.Enemies {
         public void BeginAttack(EnemyAbilityData ability = null) {
             ability ??= SelectNextAttack();
             Vector2 targetPosition = _target?.GlobalPosition ?? GlobalPosition + new Vector2(_facingRight ? 100f : -100f, 0f);
-            Executor.Begin(ability, targetPosition, _facingRight);
+            // V7.2 classification: elite signature abilities are Guard-Crush
+            // (2 charges, orange telegraph); mobs never carry unblockables.
+            Executor.Begin(ability, targetPosition, _facingRight,
+                guardCrush: _lastAttackWasElite || (ability?.IsGuardCrushing ?? false),
+                unblockable: false);
             PlayAnimation(_lastAttackWasElite ? "elite_attack" : "attack");
         }
 
@@ -599,11 +711,16 @@ namespace FTT.Enemies {
 
         public int TakeDamage(int damage) => TakeDamage(damage, null);
 
-        private int TakeDamage(int damage, Vector2? hitOrigin) {
+        private int TakeDamage(int damage, Vector2? hitOrigin, bool ignoreDefenses = false) {
             if (CurrentState == EnemyState.Dead) return 0;
             float incoming = Math.Max(0, damage) * StatusDamageTakenMultiplier;
-            incoming *= 1f - Mathf.Clamp(ResolveFrontalReduction(hitOrigin), 0f, 0.95f);
-            if (Executor.HasActiveShield) incoming *= 1f - Mathf.Clamp(Executor.ShieldDamageReduction, 0f, 1f);
+            // V7.2 companion ruling: player Ultimate-class damage ignores enemy
+            // damage-reduction defenses (frontal shields, the bubble) — the
+            // ultimate is the authored answer to a shelled target.
+            if (!ignoreDefenses) {
+                incoming *= 1f - Mathf.Clamp(ResolveFrontalReduction(hitOrigin), 0f, 0.95f);
+                if (Executor.HasActiveShield) incoming *= 1f - Mathf.Clamp(Executor.ShieldDamageReduction, 0f, 1f);
+            }
 
             int applied = Math.Max(0, (int)MathF.Round(incoming));
             int previousHP = CurrentHP;
@@ -684,6 +801,16 @@ namespace FTT.Enemies {
                 ScaledMaxHP) * 60f;
         }
 
+        /// <summary>
+        /// V7.1 hitstop: freezes this enemy's gameplay clock for the given
+        /// frames (max-assign — an active freeze is never shortened). Dead
+        /// enemies skip; the death animation owns that moment.
+        /// </summary>
+        public void ApplyHitstop(int frames) {
+            if (frames <= 0 || CurrentState == EnemyState.Dead) return;
+            if (frames > _hitstopFramesRemaining) _hitstopFramesRemaining = frames;
+        }
+
         public void ApplyStun(float duration) => ApplyStun(duration, 0f);
 
         /// <summary>
@@ -706,59 +833,102 @@ namespace FTT.Enemies {
         }
 
         /// <summary>
-        /// Minimal Story status support mirroring StatusController semantics: one
-        /// active status at a time, the newest completely replaces the previous.
+        /// Minimal Story status support mirroring StatusController semantics: the
+        /// V7 two-slot rule. A damaging status (Venom, RadiantBurn) and a control
+        /// status (TimeDilation, StaticCharge, Root) coexist; a new application
+        /// replaces only the occupant of its own slot.
         /// </summary>
         public void ApplyStatusEffect(StatusType type, float duration, float intensity = 1f) {
             if (CurrentState == EnemyState.Dead || type == StatusType.None || duration <= 0f) return;
-            ClearStatusEffect();
 
             float potency = intensity <= 0f ? 1f : intensity;
-            ActiveStatusType = type;
-            _statusTimer = duration;
-            _statusIntensity = potency;
-            switch (type) {
-                case StatusType.TimeDilation:
-                    StatusMoveMultiplier = Mathf.Max(0.1f, 1f - 0.5f * potency);
-                    break;
-                case StatusType.RadiantBurn:
-                    StatusDamageTakenMultiplier = 1f + 0.25f * potency;
-                    break;
-                case StatusType.Root:
-                    StatusMoveMultiplier = 0f;
-                    Velocity = new Vector2(0f, Velocity.Y);
-                    break;
-                case StatusType.StaticCharge:
-                    ApplyStun(duration);
-                    break;
-                case StatusType.Venom:
-                    _venomTickTimer = 1f;
-                    break;
+            if (FTT.Combat.StatusController.IsDamageStatus(type)) {
+                ClearDamageStatusSlot();
+                DamageStatusType = type;
+                _damageStatusTimer = duration;
+                _damageStatusIntensity = potency;
+                switch (type) {
+                    case StatusType.RadiantBurn:
+                        StatusDamageTakenMultiplier = 1f + 0.25f * potency;
+                        break;
+                    case StatusType.Venom:
+                        _venomTickTimer = 1f;
+                        break;
+                }
+            } else {
+                ClearControlStatusSlot();
+                ControlStatusType = type;
+                _controlStatusTimer = duration;
+                _controlStatusIntensity = potency;
+                switch (type) {
+                    case StatusType.TimeDilation:
+                        StatusMoveMultiplier = Mathf.Max(0.1f, 1f - 0.5f * potency);
+                        break;
+                    case StatusType.Root:
+                        StatusMoveMultiplier = 0f;
+                        Velocity = new Vector2(0f, Velocity.Y);
+                        break;
+                    case StatusType.StaticCharge:
+                        ApplyStun(duration);
+                        break;
+                }
             }
             _glow?.SetStatus(type);
         }
 
-        private void ClearStatusEffect() {
-            ActiveStatusType = StatusType.None;
-            _statusTimer = 0f;
-            _statusIntensity = 1f;
-            _venomTickTimer = 0f;
+        private void ClearControlStatusSlot() {
+            ControlStatusType = StatusType.None;
+            _controlStatusTimer = 0f;
+            _controlStatusIntensity = 1f;
             StatusMoveMultiplier = 1f;
+        }
+
+        private void ClearDamageStatusSlot() {
+            DamageStatusType = StatusType.None;
+            _damageStatusTimer = 0f;
+            _damageStatusIntensity = 1f;
+            _venomTickTimer = 0f;
             StatusDamageTakenMultiplier = 1f;
+        }
+
+        // Single glow layer: the newest status paints it; when a slot falls the
+        // survivor repaints, and only an empty pair clears it.
+        private void RefreshStatusGlow() {
+            if (ActiveStatusType == StatusType.None) {
+                _glow?.ClearState(FTT.Combat.GlowLayer.Status);
+            } else {
+                _glow?.SetStatus(ActiveStatusType);
+            }
+        }
+
+        private void ClearStatusEffect() {
+            ClearControlStatusSlot();
+            ClearDamageStatusSlot();
             _glow?.ClearState(FTT.Combat.GlowLayer.Status);
         }
 
         private void TickStatus(float dt) {
-            if (ActiveStatusType == StatusType.None) return;
-            _statusTimer -= dt;
-            if (ActiveStatusType == StatusType.Venom) {
-                _venomTickTimer -= dt;
-                if (_venomTickTimer <= 0f) {
-                    _venomTickTimer += 1f;
-                    TakeDamage(Math.Max(1, (int)MathF.Round(2f * _statusIntensity)));
+            if (ControlStatusType != StatusType.None) {
+                _controlStatusTimer -= dt;
+                if (_controlStatusTimer <= 0f) {
+                    ClearControlStatusSlot();
+                    RefreshStatusGlow();
                 }
             }
-            if (_statusTimer <= 0f) ClearStatusEffect();
+            if (DamageStatusType != StatusType.None) {
+                _damageStatusTimer -= dt;
+                if (DamageStatusType == StatusType.Venom) {
+                    _venomTickTimer -= dt;
+                    if (_venomTickTimer <= 0f) {
+                        _venomTickTimer += 1f;
+                        TakeDamage(Math.Max(1, (int)MathF.Round(2f * _damageStatusIntensity)));
+                    }
+                }
+                if (_damageStatusTimer <= 0f) {
+                    ClearDamageStatusSlot();
+                    RefreshStatusGlow();
+                }
+            }
         }
 
         private void UpdateHPBar() {
@@ -947,6 +1117,10 @@ namespace FTT.Enemies {
             _attackCooldownTimer = 0f;
             _eliteCooldownTimer = 0f;
             _stunTimer = 0f;
+            _hitstopFramesRemaining = 0;
+            _isHeldByPlayer = false;
+            _thrownFlight = false;
+            if (_sprite != null) _sprite.SpeedScale = 1f;
             _deathTimer = 0f;
             _attackCommitted = false;
             _standOffEngaged = false;
@@ -965,7 +1139,14 @@ namespace FTT.Enemies {
         private void OnRewindTriggered(Vector2 targetPosition) => ApplyStoryRewind();
 
         private float OnHurtboxHit(FTT.Combat.HitPayload hit) {
-            int damageApplied = TakeDamage(Mathf.Max(0, (int)Mathf.Round(hit.Damage)), hit.HitOrigin);
+            int damageApplied = TakeDamage(
+                Mathf.Max(0, (int)Mathf.Round(hit.Damage)), hit.HitOrigin,
+                ignoreDefenses: hit.AttackClass == FTT.Combat.AttackClass.Ultimate);
+            // V7.1 hitstop (victim side): scaled by the damage that landed; a
+            // killing blow skips — the death animation owns that moment.
+            if (damageApplied > 0 && CurrentState != EnemyState.Dead) {
+                ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(damageApplied));
+            }
             ApplyKnockback(hit.Knockback, hit.AttackerFacingRight);
             if (hit.HitstunDuration > 0f) {
                 // Basic-class STRING hits (the melee combo's "combo_N" hitboxes

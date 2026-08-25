@@ -163,7 +163,7 @@ A cohesive narrative thread runs through each of these Acts (focusing on the res
 *   **Gameplay Objectives:**
     *   **Basic Attack Calibration:** The system prompts the player to perform standard attacks. Dynamic text boxes explain the basic 3-hit combo mechanics. The player must land three standard hits on a stationary hologram dummy.
     *   **Defense & Blocking Calibration:** The hologram dummy launches slow, glowing projectile rings. The player is prompted to hold the block button, learning how shield health decreases under impact and how a guard break occurs.
-    *   **Special Ability Calibration:** The system activates the character's unique Special 1 and Special 2 abilities (e.g., Einstein's E=mc² and Relativity Rift). The tutorial displays a description of each special, teaches the player about the flat 10-second cooldown, and requires the player to hit moving target shields with both abilities.
+    *   **Special Ability Calibration:** The system activates the character's unique Special 1 and Special 2 abilities (e.g., Einstein's E=mc² and Relativity Rift). The tutorial displays a description of each special, teaches the player that each ability has its own cooldown (differentiated per ability in a 7–13 second band), and requires the player to hit moving target shields with both abilities.
     *   **Ultimate Attack Calibration ("The History Maker"):** The simulation fills the player's Influence Meter to 100%. A dramatic screen prompt tells the player to trigger their Ultimate. Doing so executes their custom cinematic move, obliterating a group of combat holograms.
 
 #### **Part 3: Advanced Mobility Calibration**
@@ -659,14 +659,14 @@ public struct PersistentObjectData {
 - **Active Lifespan:** 30 seconds (activeDuration)
 - **Base Attack:** Shoots individual electrical arcs at the nearest enemy target, dealing **5 HP** basic damage (standard block cost: 1 charge) every 2.0 seconds.
 - **Alternating Current Link (Joined Coils):** When two coils are placed within a linking range of 8.0 units, a continuous electrical fence barrier connects them.
-  - The fence deals **8 HP** basic damage per tick (0.5-second interval) to any enemy crossing or standing in the barrier.
+  - The fence deals **4 HP** basic damage per tick (1.0-second interval) to any enemy crossing or standing in the barrier.
   - Applies a brief **Static Charge** status effect (slowing the enemy and priming them for Lorentz Pulse chains).
 
 #### **Leonardo da Vinci: Clockwork Turret Specification**
 - **Durability:** 20 HP (Max HP). Hurtbox enabled, takes damage from enemies, and is destroyed when HP hits 0.
-- **Active Lifespan:** 15 seconds (activeDuration), or until 3 bolts have been fired (whichever comes first). The turret self-destructs after firing its third bolt.
+- **Active Lifespan:** 15 seconds (activeDuration), or until 4 bolts have been fired (whichever comes first). The turret self-destructs after firing its fourth (final) bolt.
 - **Targeting Range:** 30.0 units (approx. 30 meters/yards) in line-of-sight. If in a small arena, targeting is bounded by visible screen edges.
-- **Base Attack:** Fires clockwork ballista bolts at the nearest enemy target within range, dealing **5 HP** basic damage (standard block cost: 1 charge) every 2.0 seconds. Maximum of **3 bolts** per deployment.
+- **Base Attack:** Fires clockwork ballista bolts at the nearest enemy target within range, dealing **6 HP** basic damage (standard block cost: 1 charge) every 2.0 seconds. Maximum of **4 bolts** per deployment.
 #### **Pickups & Loot Instantiation Defaults**
 *   **Chronal Dust Auto-Collect Radius:** `2.5 world units`. When the player character moves within 2.5 units of a dropped Chronal Dust orb, the orb automatically magnetizes and interpolates toward the player at `15.0 units/sec`, depositing currency on contact.
 *   **Enemy Death Loot Drop Timing:** Chronal Dust and item drops instantiate **instantly on the 0 HP KO frame** at the enemy's center transform coordinate (before playing the 0.5s death fade/collapse animation).
@@ -752,6 +752,37 @@ Hit detection is the lifeblood of the platform fighter. Instead of relying purel
     *   **Interruption:** Moving, jumping, blocking, or being hit immediately cancels the sequence and resets the chain.
 *   **Implementation:** The player's FSM manages a `comboCounter` integer (0, 1, or 2). Upon transitioning to `Attacking`, the FSM triggers the animation state corresponding to the active index. An `AnimatedSprite2D` frame callback activates the hitbox `Area2D` at the precise frame of impact to detect Hurtbox overlaps via `Area2D.GetOverlappingBodies()`. When the animation finishes, a `SceneTreeTimer` starts the buffer timer; if the timer runs out without a subsequent input, `comboCounter` is set back to 0.
 
+#### **Per-Character String Profiles (V7.1 — "Normals Are the Character", applied 2026-08-22)**
+The 3-hit chassis above (hit structure, hitstun, knockback, chain window, cancel rules, block interaction) is universal, but the authored timing, damage, and hitbox numbers of the string are the **template**, not the shipped values for every character. V7.1 authors three per-character axes in `BasicComboRules.StringProfiles` (the one shared rulebook, consumed by Story and the deterministic Fighter sim — never author a second copy):
+
+| Character | Opener startup (gnd/air) | Finisher startup (gnd/air) | Damage shape (×0.1, sums 33) | Reach W% | Reach H% |
+|---|---|---|---|---|---|
+| Joan | 5 / 4 | 14 / 11 | 10 · 10 · 13 | 90 | 110 |
+| Pocahontas | 5 / 4 | 14 / 11 | 8 · 10 · 15 | 95 | 100 |
+| Cleopatra | 6 / 5 | 15 / 12 | 8 · 10 · 15 | 120 | 100 |
+| Leonardo | 6 / 5 | 15 / 12 | 8 · 10 · 15 | 115 | 100 |
+| Mozart | 6 / 5 | 15 / 12 | 8 · 10 · 15 | 105 | 100 |
+| Tesla *(template)* | 6 / 5 | 15 / 12 | 8 · 10 · 15 | 100 | 100 |
+| Einstein | 7 / 6 | 16 / 13 | 8 · 10 · 15 | 110 | 100 |
+| Shakespeare | 7 / 6 | 16 / 13 | 8 · 10 · 15 | 105 | 100 |
+| Lincoln | 8 / 7 | 17 / 14 | 7 · 9 · 17 | 85 | 115 |
+
+*   **Damage shape:** per-hit multipliers in tenths whose sum is **pinned at 33** — a full string is always 3.3× `BasicAttackDamage`, so the special and ultimate damage anchors are untouched. Joan front-loads (pressure); Lincoln back-loads (payoff finisher).
+*   **Reach:** hitbox width ±20% of the template; Story hitbox pixels and the sim's world-unit melee reach scale by the same percents (the sim's 2-unit template range spans **1.7 units for Lincoln through 2.4 for Cleopatra**; 2.0 is the template). Joan and Lincoln are shorter-but-taller.
+*   **Universal, deliberately:** hit-2 startup, all active/recovery frames, hitstun (30/40/24), knockback multipliers (1.0/1.2/4.5), the chain window, all cancel rules, block interaction, the directional attacks, and the finisher-separation guarantee are unchanged for every profile.
+*   **Presentation note:** the shared placeholder combat-animation library is authored to the template; a hit whose authored startup deviates runs on the frame clock (gameplay-authoritative) until per-character animation timing is authored.
+
+**String riders (Tier 2, applied 2026-08-22).** Four characters carry one additional authored rule each — the rule their kit brief always promised — delivered through the ordinary hit payload (no rider gets bespoke collision or spawn logic; all live in the same `StringProfiles` table):
+
+| Character | Rider | Numbers | Why |
+|---|---|---|---|
+| Tesla | Finisher applies `Static Charge` | 0.4 s (24 frames, exactly the finisher's own hitstun) | Pure **Lorentz-chain priming** with zero extra lockdown — his normals literally load his special ("magnetizing them with a brief Static Charge"). |
+| Cleopatra | Finisher applies a light `Venom` mark | 2.0 s at 0.5 intensity (= 2 chip) | The brief's "marking the enemy"; rides the **damage status slot**, so it survives her own vortex slow into the nest loop. |
+| Lincoln | Hit 2 launches | 2.0× the template bridge's vertical lift | The brief's "heavy upward vertical swing that launches enemies". |
+| Mozart | Finisher shove | 5.5× knockback (vs the shared 4.5×) on his low 2.5 base | The brief's "pushes enemies away" — a spacing tool for the tempo character; the finisher-separation guarantee only grows. |
+
+Joan and Pocahontas already carry their string interactions on the movement-ability table (wings refresh on a finisher; attack-while-gliding); Einstein, Leonardo, and Shakespeare deliberately stay rider-free — the rider layer is seasoning, not a second mechanic per character.
+
 #### **Aerial Combat & Aerial Attacks**
 *   **Aerial Basic Attacks:** Basic attacks can be executed while in the `Airborne` state. They perform an aerial 3-hit combo string (`comboCounter` = 0, 1, or 2) utilizing character-specific mid-air animations (e.g., jump slash, spinning strike, downward lance thrust).
 *   **Separation of Combo Chains:** Ground basic combos and aerial basic combos maintain independent counters.
@@ -772,7 +803,7 @@ Hit detection is the lifeblood of the platform fighter. Instead of relying purel
     *   **Special 1:** Typically a signature projectile, trap, or mobility move.
     *   **Special 2:** Often a directional attack (e.g., anti-air or recovery move to get back on stage).
 *   **Cooldown System:** To prevent players from spamming Special 1 and Special 2, a cooldown mechanic is enforced.
-    *   **Baseline Duration:** A flat **10-second cooldown** is applied to both special abilities (Special 1 and Special 2). The cooldown timers run independently.
+    *   **Differentiated Durations (V7 specials tuning batch, applied 2026-08-22 — supersedes the flat 10 s):** each special ability carries its own authored cooldown in a **7–13 second band**, per `resources/Abilities/*.tres`: 7 s Mozart S1 · Shakespeare S1 · Shakespeare S2; 8 s Einstein S2 · Joan S2 · Leonardo S1 · Tesla S1; 9 s Cleopatra S2 · Pocahontas S1; 10 s Cleopatra S1 · Joan S1 · Leonardo S2 · Pocahontas S2; 11 s Einstein S1 · Tesla S2; 12 s Lincoln S2 · Mozart S2; 13 s Lincoln S1. The cooldown timers run independently per slot.
     *   **Cooldown Start Timing:** The cooldown timer begins counting down **immediately upon ability cast** (initiated on the first frame of the cast action, rather than waiting for the animation or damage frames to finish).
     *   **State Interactions (Stuns & Death):**
         *   *No Pausing on Stun:* Being placed in a `Stunned` or `Dazed` state does **not** pause active cooldown timers. They continue counting down in real-time.
@@ -926,10 +957,11 @@ namespace FTT.Combat {
 #### **Damage Calculation Formulas**
 All damage calculations use the following explicit formulas:
 
-*   **Basic Attack Damage (3-Hit Combo):**
+*   **Basic Attack Damage (3-Hit Combo — template shape):**
     *   Hit 1 (Starter): `damageDealt = basicAttackDamage * 0.8`
     *   Hit 2 (Bridge): `damageDealt = basicAttackDamage * 1.0`
     *   Hit 3 (Finisher): `damageDealt = basicAttackDamage * 1.5`
+    *   **V7.1:** the per-hit multipliers come from the character's `BasicComboRules.StringProfiles` damage shape (Joan 1.0/1.0/1.3, Lincoln 0.7/0.9/1.7, all others the 0.8/1.0/1.5 template); every shape sums to 3.3× `basicAttackDamage` for the full string.
 *   **Crouch & Aerial Attack Rule:** Pressing the Attack input while crouching or airborne executes the character's standard basic attack combo string (Hits 1–3). Crouch and aerial attacks share identical hitboxes, damage formulas, knockback vectors, and frame timing with grounded basic attacks.
 *   **Special Attack Damage:** `damageDealt = abilityData.baseDamage`
 *   **Ultimate Attack Damage:** `damageDealt = abilityData.baseDamage` (per hit, multiplied by `hitCount` if multi-hit)
@@ -953,6 +985,8 @@ All hitbox and hurtbox dimensions use world units (1 unit = 1 meter). Offsets ar
 | Hit 1 (Starter) | `1.2 × 1.0` | `(1.0, 0.0)` | Forward of character center |
 | Hit 2 (Bridge) | `1.4 × 1.2` | `(1.0, 0.2)` | Slightly larger, lifted |
 | Hit 3 (Finisher) | `1.8 × 1.4` | `(1.2, 0.0)` | Widest reach, heaviest impact |
+
+    *   **V7.1:** these boxes are the template; each character's boxes scale by their `BasicComboRules.StringProfiles` reach width/height percents (85–120% width, 100–115% height) in both modes — melee reach spans 1.7 (Lincoln) to 2.4 (Cleopatra) world units, with 2.0 as the template.
 
 *   **Ranged Projectile Colliders:** Default `Area2D` with `CollisionShape2D` (using `CircleShape2D`, radius `0.2 units`). Travel speed defined per-ability in `AbilityData.ProjectileSpeed` (typical range: 10–15 units/second). Projectiles auto-destroy after `ProjectileLifetime` seconds (default `5.0s`) if they have not collided with a target or gone out of bounds.
 *   **Special Ability Hitboxes:** Defined individually in each character's `AbilityData` Resource via `HitboxSize` and `HitboxOffset` fields.
@@ -1010,7 +1044,7 @@ Godot 2D physics collision layers (1–32) are configured to enforce clean colli
     *   If the shield loses all 3 block charges (either from 3 basic attacks or 1 special attack), the shield shatters.
     *   Upon shattering, the player is knocked back slightly and enters a **Daze (stun)** state for **1.0 second**, leaving them entirely vulnerable to follow-up attacks.
     *   *Cooldown:* Once shattered, the block ability is locked and cannot be used again for a cooldown duration of **5 seconds**.
-*   **Recharge:** If the player releases the block button before it shatters, the consumed charges regenerate at a rate of 1 charge every 2.0 seconds. Regeneration occurs in **all states except `Blocking` and `Dead`** — charges regenerate while Idle, Running, Jumping, Attacking, using Specials, or even while Stunned/Dazed. Only actively holding block or being dead pauses the regeneration timer.
+*   **Recharge:** If the player releases the block button before it shatters, the consumed charges regenerate at a rate of **1 charge every 3.0 seconds** (settled 2026-08-22: both modes had always shipped 3.0 s via `BasicComboRules.BlockChargeRegenFrames = 180`, and that value is now the design — the earlier 2.0 s prose ask is retired). Regeneration occurs in **all states except `Blocking` and `Dead`** — charges regenerate while Idle, Running, Jumping, Attacking, using Specials, or even while Stunned/Dazed. Only actively holding block or being dead pauses the regeneration timer.
 
 #### **Gravity & Fall Speed Physics Parameters**
 *   **Base Gravity Acceleration:** Constant downward gravity acceleration set to $g = 30.0\text{ m/s}^2$ ($30.0\text{ world units/s}^2$).
@@ -1040,8 +1074,8 @@ Godot 2D physics collision layers (1–32) are configured to enforce clean colli
 
 #### **Persistent Stage Objects Specification**
 *   **Tesla Coils (Tesla):** Duration 30s, 25 HP (destroyable by enemy/opponent attacks), max 2 active per Tesla. Persists after owner death/respawn.
-*   **Clockwork Turret (Da Vinci):** Duration 15s (or 3 bolts fired), 20 HP (destroyable), max 1 active. Persists after owner death/respawn.
-*   **Serpent Nest (Cleopatra):** Duration 12s, 15 HP (destroyable), max 1 active. Applies `Root` (1.0s) then `Venom` (4.0s) on contact. Persists after owner death/respawn.
+*   **Clockwork Turret (Da Vinci):** Duration 15s (or 4 bolts fired), 20 HP (destroyable), max 1 active. Persists after owner death/respawn.
+*   **Serpent Nest (Cleopatra):** Duration 12s, 15 HP (destroyable), max 1 active. Bites for 6 HP every 1.0 s and applies `Venom` (4.0s, damage slot) on contact — the "Root then Venom" sequence is retired under the two-slot status rule; the snare feel comes from the bite cadence. Persists after owner death/respawn.
 *   **Vine Snare (Pocahontas):** Duration 10s, 15 HP (destroyable), max 2 active. Applies `Root` (1.5s) + light damage on contact. Persists after owner death/respawn.
 *   **General Rules:** All persistent stage objects are destructible by enemy/opponent attacks, carry physical collision shapes (`CollisionShape2D` on `StaticBody2D`) that block horizontal movement and AI navigation pathing, persist across owner death/respawn (remaining active until destroyed or duration expires), and serialize in rollback netcode snapshots as stage entities.
 
@@ -1332,7 +1366,7 @@ To support up to **4 Players** in Local Multiplayer and Private Online Lobbies (
 ### **Status Effect Architecture**
 
 #### **Status Data Structures**
-Both player characters and enemies share a unified status structure. A character can hold only **one active status effect** at a time (debuffs/buffs do not stack).
+Both player characters and enemies share a unified status structure. A character holds up to **two active status effects — one per slot** (V7 two-slot rule, applied 2026-08-22): a **damage slot** (`Venom`, `RadiantBurn`) and a **control slot** (`TimeDilation`, `StaticCharge`, `Root`). Effects never stack within a slot.
 *   **Runtime Status Representation (`StatusEffectData.cs`):**
     ```csharp
     public struct StatusEffectData {
@@ -1354,9 +1388,9 @@ Both player characters and enemies share a unified status structure. A character
     ```
 
 #### **Status Effect Rules**
-*   **No Stacking:** Stacking is not supported. An entity can only have a single debuff active at a time.
-*   **Overwrite Rule:** If an entity receives a new status effect while already under another, the **latest status effect completely overwrites** the old one, resetting the active type and duration.
-*   **Cleanse & Immunity:** There are no cleanse or purge mechanics (the status must run its full duration or be overwritten). No temporary immunity rules exist after an effect expires.
+*   **Two Slots (V7, applied 2026-08-22):** An entity carries at most one **damage status** (`Venom`, `RadiantBurn`) and one **control status** (`TimeDilation`, `StaticCharge`, `Root`) simultaneously.
+*   **No Stacking Within a Slot:** Stacking is not supported inside a slot. A new status effect **completely overwrites** the current occupant *of its own slot only*, resetting that slot's type and duration; the other slot is untouched.
+*   **Cleanse & Immunity:** There are no cleanse or purge mechanics (the status must run its full duration or be overwritten within its slot). No temporary immunity rules exist after an effect expires.
 *   **Visual Feedback & Shader Indicators:**
     *   `TimeDilation`: Blue (`#3366ff`) `Sprite2D.Modulate` / `AnimatedSprite2D.Modulate` tint + cyan ghost trail sprites + 50% animation play speed.
     *   `Venom`: Shifting purple-green gradient `ShaderMaterial` tint (`#9900ff` to `#00ff66`) + rising venom bubble `GPUParticles2D`.
@@ -1814,7 +1848,7 @@ For the canonical baseline numeric values for every `CharacterData` Resource fie
 *   **Playstyle:** High mobility and stage control. He excels at keeping enemies at a distance and setting up traps that amplify his damage.
 *   **Standard Attack (Quantum Strikes):** A fast, mid-range 3-hit combo using a glowing piece of chalk to slash spacetime. The final hit creates a kinetic shockwave to push enemies back.
 *   **Special Attack 1 (Mass-Energy Conversion, E=mc²):** A heavy projectile attack with a brief wind-up. Einstein tosses a physical object (like an apple or pocket watch) that detonates into a massive, blinding flash of radiant energy upon impact. Minor physical damage on contact, followed by a massive energy burst.
-*   **Special Attack 2 (Relativity Rift):** A localized area-of-effect trap. Creates a spherical distortion field that inflicts Time Dilation, reducing enemy movement speed, jump height, and attack animations by 50% while dealing continuous chip damage (`damageTickInterval = 0.5s`, dealing 1.5 damage per 0.5s tick over its 3.0s duration). **Self-Buff:** If Einstein enters his own rift, his movement speed increases by **+25%** in all modes (Story Mode and Fighter Mode), allowing him to outmaneuver trapped opponents or escape edge-guarding.
+*   **Special Attack 2 (Relativity Rift):** A localized area-of-effect trap. Creates a spherical distortion field that inflicts Time Dilation, reducing enemy movement speed, jump height, and attack animations by 50% while dealing continuous chip damage (`damageTickInterval = 0.5s`, dealing 3.0 damage per 0.5s tick over its 3.0s duration, ≈18 total). **Self-Buff:** If Einstein enters his own rift, his movement speed increases by **+25%** in all modes (Story Mode and Fighter Mode), allowing him to outmaneuver trapped opponents or escape edge-guarding.
 *   **Movement Ability (Relativity Warp):** Einstein folds spacetime to warp/blink a short distance in the input direction (horizontal, vertical, or diagonal), usable in the air for horizontal or vertical recovery. The warp movement takes 0.2 seconds and can be canceled into a brief 1.0-second float glide (total duration limit 3 seconds).
 *   **Ultimate Attack (The Cosmological Constant):** A screen-clearing cinematic move. Freezes enemies in place, the background fades to a starfield, he scribbles an equation in the air out of light, and collapses it into a miniature black hole that sucks in enemies for massive multi-hit damage before a final explosive launch toward the blast zones.
 *   **Godot Implementation Notes:** Heavily utilize **GPUParticles2D** for energy bursts and **custom CanvasItem shaders** (specifically lens distortion and chromatic aberration effects via `BackBufferCopy` + `ShaderMaterial`) to give the Relativity Rift a warped, gravitational feel on screen.
@@ -1863,8 +1897,8 @@ graph TD
 * **Standard Attack (Martyr's Flurry):** A rapid, 3-hit melee combo using her broadsword. The first two hits are fast with low knockback designed to lock enemies in hitstun. The sword trails blinding golden light, with each consecutive hit growing brighter, culminating in a heavy downward cleave that slams the opponent into the ground (or floor-bounces them).
 
 
-* **Special Attack 1 (Righteous Smite):** Joan swings her broadsword downward, creating a holy shockwave along the ground that deals 14.0 damage and applies the "Radiant Burn" status effect (deals damage over time for 3.0 seconds).
-* **Special Attack 2 (Divine Piercing):** Joan executes a rapid series of thrust attacks with her broadsword in place, dealing 12.0 damage total and shredding enemy shields (depletes 2 block charges on block).
+* **Special Attack 1 (Righteous Smite):** Joan swings her broadsword downward, creating a holy shockwave along the ground that deals 28.0 damage and applies the "Radiant Burn" status effect (+25% damage taken for 3.0 seconds).
+* **Special Attack 2 (Divine Piercing):** Joan executes a rapid series of thrust attacks with her broadsword in place, dealing 24.0 damage total and shredding enemy shields (depletes 2 block charges on block).
 * **Movement Ability (Ascendant Wings):** A rising vertical leap used for recovery or platform grabbing. Leaps into the air with a sweeping upward slash, flashing ethereal burning wings at the apex. If the button is held, she glides downward for up to 3 seconds. Usable in the air.
 
 
@@ -1918,8 +1952,8 @@ graph TD
 * **Standard Attack (Renaissance Strikes):** A 3-hit combo blending art and engineering. Hits 1 & 2 are sweeping mid-range paintbrush strikes that leave arcing ink trails in the air (purely visual). Hit 3 is a heavy overhead compass slam (engineering) dealing bonus damage and higher knockback.
 
 
-* **Special Attack 1 (Golden Ratio):** Draws a glowing Fibonacci spiral that expands outward, dealing 10.0 damage and minor radial knockback per hit/tick (up to 3 hits for 30.0 total damage).
-* **Special Attack 2 (Clockwork Turret):** Deploys a miniature automated Clockwork Turret that fires crossbow bolts at the nearest target (3 bolts before self-destructing).
+* **Special Attack 1 (Golden Ratio):** Draws a glowing Fibonacci spiral that expands outward, dealing 8.0 damage and minor radial knockback per hit/tick (up to 3 hits for 24.0 total damage, on an 8-second cooldown).
+* **Special Attack 2 (Clockwork Turret):** Deploys a miniature automated Clockwork Turret that fires crossbow bolts of 6 at the nearest target every 2.0 seconds (4 bolts before self-destructing).
 * **Movement Ability (Ornithopter Flight):** Deploys mechanical bat wings for vertical boost and horizontal glide for up to 3 seconds. Usable in the air for recovery.
 
 
@@ -1954,7 +1988,7 @@ graph TD
 **Major Node Details:**
 
 * **Master Stroke (Artistry):** Golden Ratio's spiral deals 15% more damage and pulls enemies slightly toward its center on each tick.
-* **Clockwork Overdrive (Engineering):** The Clockwork Turret fires 5 bolts in a rapid burst instead of 3 before self-destructing.
+* **Clockwork Overdrive (Engineering):** The Clockwork Turret fires 5 bolts in a rapid burst instead of the standard 4 before self-destructing.
 * **Daedalus Wings (Aerial Innovation):** The Ornithopter Flight glides leave a trail of damaging steam in their wake, and Da Vinci can cancel the glide directly into a downward melee attack.
 
 ### **Nikola Tesla: The Storm Conductor**
@@ -1968,10 +2002,10 @@ graph TD
 * **Playstyle:** High stage control and zoning. Tesla excels at deploying nodes (Tesla Coils) to create electrical hazard zones, and manipulating magnetic fields to pull or hold enemies within his electrical nets.
 
 
-* **Standard Attack (Wardenclyffe Rod):** Tesla swings his copper-wound induction cane in a 3-hit melee combo. The first two strikes release quick electrical sparks, and the final strike is a forward thrust that discharges a localized electromagnetic blast, knocking the enemy back and magnetizing them with a brief "Static Charge" status effect.
+* **Standard Attack (Wardenclyffe Rod):** Tesla swings his copper-wound induction cane in a 3-hit melee combo. The first two strikes release quick electrical sparks, and the final strike is a forward thrust that discharges a localized electromagnetic blast, knocking the enemy back and magnetizing them with a brief "Static Charge" status effect. *(V7.1 rider — applied: 0.4 s Static Charge on the finisher, equal to its own hitstun, so it exists purely to prime Lorentz Pulse chains.)*
 
 
-* **Special Attack 1 (Tesla Coil / Chain Lightning):** Places a Tesla Coil on the stage that remains active for 30 seconds (max 2 active coils). The coil automatically fires high-voltage electrical arcs at any enemy entering its radius (`damageTickInterval = 0.5s`). If two coils are active and in proximity, a continuous curtain of alternating current links them, creating a barrier that deals constant damage (`damageTickInterval = 0.5s`) to passing enemies.
+* **Special Attack 1 (Tesla Coil / Chain Lightning):** Places a Tesla Coil on the stage that remains active for 30 seconds (max 2 active coils). The coil automatically fires high-voltage electrical arcs of 5 damage at any enemy entering its radius (`damageTickInterval = 2.0s`). If two coils are active and in proximity, a continuous curtain of alternating current links them, creating a barrier that deals 4 damage per tick (`damageTickInterval = 1.0s`) to passing enemies.
 * **Special Attack 2 (Lorentz Pulse):** Tesla charges his induction cane, releasing an electromagnetic pulse in a circle around him. Enemies caught in the blast are magnetized and immobilized by applying the **`Root`** status effect for 2.0 seconds. If an enemy has the "Static Charge" status effect, the pulse triggers a chain lightning strike between them and any active Tesla Coils.
 * **Movement Ability (Lightning Blink):** Tesla turns into pure electrical current and blinks a short distance in the input direction. Usable in the air for horizontal/vertical recovery. Leaves crackling spark particles at his starting and ending locations. Total blink duration is limited to 1 second.
 
@@ -2024,8 +2058,8 @@ graph TD
 * **Standard Attack (Quill Flourish):** Slashes with a giant feather quill, leaving glowing trails of cursive ink. A 3-hit combo: diagonal slash, horizontal sweep, and a heavy forward thrust that paints a punctuation strike, dealing light knockback.
 
 
-* **Special Attack 1 (Yorick’s Lament):** Throws a rolling skull that releases a wailing sonic wave on impact, applying the **`TimeDilation`** status effect (30% movement and animation speed reduction for 2.5 seconds). Runs on a flat 10-second cooldown.
-* **Special Attack 2 (The Tempest):** Spawns a localized wind storm around him, blowing away adjacent enemies and lifting Shakespeare into the air. Runs on a flat 10-second cooldown.
+* **Special Attack 1 (Yorick’s Lament):** Throws a rolling skull that releases a wailing sonic wave on impact, applying the **`TimeDilation`** status effect once (30% movement and animation speed reduction for 2.5 seconds; the skull's contact hit does not re-apply it). Runs on a 7-second cooldown.
+* **Special Attack 2 (The Tempest):** Spawns a localized wind storm around him, blowing away adjacent enemies and lifting Shakespeare into the air. Runs on a 7-second cooldown.
 * **Movement Ability (Prospero's Flight):** Shakespeare summons a magical gust of wind that propels him forward and upward, letting him glide horizontally for up to 3 seconds. Usable in the air for recovery or reaching far platforms.
 
 
@@ -2076,11 +2110,11 @@ graph TD
 * **Playstyle:** Ranged zoning and tempo-based spacing. Mozart fires musical notes that detonate and draws staff lines in the air to bypass obstacles and position himself dynamically.
 
 
-* **Standard Attack (Conductor's Strike):** Swings a conducting baton, firing quick treble clef pulses in a 3-hit combo that pushes enemies away.
+* **Standard Attack (Conductor's Strike):** Swings a conducting baton, firing quick treble clef pulses in a 3-hit combo that pushes enemies away. *(V7.1 rider — applied: the finisher shoves at 5.5× knockback against the shared 4.5×, a spacing tool on his low base.)*
 
 
-* **Special Attack 1 (Requiem Chord):** Shoots a projectile chord of musical notes that bursts into a multi-hit sonic shockwave on impact. Runs on a flat 10-second cooldown.
-* **Special Attack 2 (Fortissimo Wave):** Mozart conducts a massive wave of sound energy that sweeps forward across the screen, dealing 12.0 damage and pushing enemies back with heavy knockback.
+* **Special Attack 1 (Requiem Chord):** Shoots a fast, flat-trajectory projectile chord of musical notes that bursts into a multi-hit sonic shockwave on impact (4 damage per pulse). Runs on a 7-second cooldown.
+* **Special Attack 2 (Fortissimo Wave):** Mozart conducts a massive wave of sound energy launched as a slow, rising lob (180 px/s) that is pulled down by gravity and crashes ~4–6 units out, dealing 24.0 damage and pushing enemies back with heavy knockback. Runs on a 12-second cooldown.
 * **Movement Ability (Sonata Drift):** Deploys a floating musical staff platform in the air that Mozart can run on to recover or escape. Usable in the air for recovery, with the platform duration strictly limited to 3 seconds.
 
 
@@ -2133,11 +2167,11 @@ graph TD
 * **Playstyle:** Area denial and crowd control. Cleopatra controls the battlefield by creating shifting sand traps that slow enemies, and summoning spectral asps to poison targets.
 
 
-* **Standard Attack (Scepter Strike):** Swings a golden, asp-wrapped scepter, emitting quick sand waves. A 3-hit combo: diagonal swing, quick sweep, and a forward thrust that releases a small blast of sand, marking the enemy.
+* **Standard Attack (Scepter Strike):** Swings a golden, asp-wrapped scepter, emitting quick sand waves. A 3-hit combo: diagonal swing, quick sweep, and a forward thrust that releases a small blast of sand, marking the enemy. *(V7.1 rider — applied: the mark is a light `Venom`, 2 s at 0.5 intensity on the damage status slot, so it survives her own control statuses.)*
 
 
-* **Special Attack 1 (Serpent Nest):** Cleopatra summons a nest of spectral asps at a target location. Any enemy passing over the nest is bitten, taking light physical damage and receiving the **`Venom`** status effect (deals tick damage every `damageTickInterval = 1.0s` for 4 seconds). Additionally, the initial bite applies a brief **`Root`** status effect for 1.0 second, immobilizing the target while the venom takes hold. Runs on a flat 10-second cooldown.
-* **Special Attack 2 (Sandstorm Vortex):** Cleopatra summons a swirling vortex of sand at a target location that pulls adjacent enemies toward the center, dealing 2.0 damage per tick (`damageTickInterval = 0.4s`, 5 ticks total over 2.0s duration) and applying Time Dilation (reduces speed by 40% for 2.0s).
+* **Special Attack 1 (Serpent Nest):** Cleopatra summons a nest of spectral asps at a target location. Any enemy passing over the nest is bitten, taking light physical damage and receiving the **`Venom`** status effect (deals tick damage every `damageTickInterval = 1.0s` for 4 seconds). The bite lands every 1.0 s for 6 damage — the "Root then Venom" sequence is retired under the two-slot status rule: the bite applies `Venom` (damage slot) plus ordinary hitstun, and the poison survives her own vortex slow (control slot). Runs on a 10-second cooldown.
+* **Special Attack 2 (Sandstorm Vortex):** Cleopatra summons a swirling vortex of sand at a target location that pulls adjacent enemies toward the center, dealing 4.0 damage per tick (`damageTickInterval = 0.4s`, 5 ticks = 20 total over the 2.0s duration; the final tick carries the authored launch knockback) and applying Time Dilation (reduces speed by 40% for 2.0s).
 * **Movement Ability (Desert Mirage):** Cleopatra dissolves into a cloud of sand, rushing forward or teleporting a short distance in the input direction. Usable in the air for recovery, with a maximum travel time/duration of 3 seconds.
 
 
@@ -2185,15 +2219,15 @@ graph TD
 * **Playstyle:** High durability, high damage, and long-range melee sweeps. Lincoln dominates close quarters with heavy slams and sweeps his wooden rail to keep opponents away.
 
 
-* **Standard Attack (Rail Swing):** Swings a heavy split-rail log in a 3-hit combo. 1st hit: a wide horizontal swipe, 2nd hit: a heavy upward vertical swing that launches enemies, 3rd hit: a downward crush that slams opponents into the ground (causing ground-bounce).
+* **Standard Attack (Rail Swing):** Swings a heavy split-rail log in a 3-hit combo. 1st hit: a wide horizontal swipe, 2nd hit: a heavy upward vertical swing that launches enemies *(V7.1 rider — applied: 2× the template bridge's vertical lift)*, 3rd hit: a heavy downward crush. *(The V6 "ground-bounce" finisher clause is retired — the spike identity lives on Splitting Strike; his string's authored identity is the slow 8-frame opener, back-loaded 0.7/0.9/1.7 damage shape, and the launching hit 2.)*
 
 
-* **Special Attack 1 (The Emancipator):** Lincoln slams his massive wooden rail into the ground, triggering a shockwave that travels forward along the floor. Deals heavy damage, knocks enemies upward, and has high shield-stutter/depletes 2 block charges on contact. Runs on a flat 10-second cooldown.
-* **Special Attack 2 (Splitting Strike):** Lincoln swings his split-rail log in a massive downward overhead arc. Deals 18.0 damage, spikes airborne enemies directly downward, and shatters active blocking shields instantly.
+* **Special Attack 1 (The Emancipator):** Lincoln slams his massive wooden rail into the ground, triggering a shockwave that travels forward along the floor. Deals heavy damage (40.0), knocks enemies upward, and has high shield-stutter/depletes 2 block charges on contact. Runs on a 13-second cooldown.
+* **Special Attack 2 (Splitting Strike):** Lincoln swings his split-rail log in a massive downward overhead arc. Deals 36.0 damage, spikes airborne enemies directly downward, and shatters active blocking shields instantly. Runs on a 12-second cooldown.
 * **Movement Ability (Rail Charge):** Lincoln charges forward, shouldering his wooden rail like a ram. Usable in the air for horizontal recovery. Grants armor (takes damage but ignores hitstun) during the charge, limited to a maximum duration of 3 seconds.
 
 
-* **Ultimate Attack (Union Indestructible):** Lincoln slams his wooden rail into the ground, raising a massive line of split-rail fence barriers that trap enemies. He then leaps high into the air and delivers a cinematic, earth-shaking ground smash with his rail, shattering the barriers and dealing massive knockback.
+* **Ultimate Attack (Union Indestructible):** Lincoln slams his wooden rail into the ground, raising a massive line of split-rail fence barriers that trap enemies. He then leaps high into the air and delivers a cinematic, earth-shaking ground smash with his rail, shattering the barriers and dealing massive knockback. V7.1 retarget: **5 smashes × 14 = 70 total** for the 100-point meter (was the 40-total data error), inside the roster's 70–84 band.
 
 * **Godot Implementation Note:** Lincoln's heavy strikes should trigger `Camera2D` shake proportional to damage dealt. The shockwave should use a custom `Area2D` overlapping trigger to verify hits along the ground.
 
@@ -2241,8 +2275,8 @@ graph TD
 * **Standard Attack (Wind Staff):** A quick 3-hit combo using her walking staff. Hit 1: A forward thrust with the staff tip. Hit 2: An upward swing that launches the enemy slightly. Hit 3: A final staff strike that releases a gust of wind, pushing the opponent back.
 
 
-* **Special Attack 1 (Spirit Strike):** Pocahontas summons a spectral eagle that swoops down in a diagonal arc, dealing 14.0 damage and staggering enemies.
-* **Special Attack 2 (Vine Snare):** Pocahontas throws a seed pod at the ground or an enemy. Upon hitting the ground or a target, the pod grows into thick, thorny vines. Enemies who step on the vines are immobilized by applying the **`Root`** status effect for 1.5 seconds and take light damage. Runs on a flat 10-second cooldown.
+* **Special Attack 1 (Spirit Strike):** Pocahontas summons a spectral eagle that swoops down in a diagonal arc, dealing 24.0 damage and staggering enemies. Runs on a 9-second cooldown.
+* **Special Attack 2 (Vine Snare):** Pocahontas throws a seed pod at the ground or an enemy. Upon hitting the ground or a target, the pod grows into thick, thorny vines. Enemies who step on the vines are immobilized by applying the **`Root`** status effect for 1.5 seconds and take light damage. Runs on a 10-second cooldown.
 * **Movement Ability (Breeze Glide):** Pocahontas dashes forward, riding a swirling wind current. Usable in the air, resetting her double-jump and allowing a horizontal glide for up to 3 seconds for recovery.
 
 

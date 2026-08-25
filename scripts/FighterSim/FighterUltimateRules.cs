@@ -43,7 +43,7 @@ namespace FTT.FighterSim {
                     return SpawnUnionIndestructible(ref frame, ref attacker, in tuning);
                 case FighterCharacterID.Tesla:
                     return SpawnWardenclyffeCataclysm(
-                        ref frame, targetEntity, ref attacker, ref attackerRuntime, in tuning);
+                        ref frame, attackerEntity, targetEntity, ref attacker, ref attackerRuntime, in tuning);
                 case FighterCharacterID.Pocahontas:
                     return SpawnTidewaterTempest(ref frame, ref attacker, in tuning);
                 case FighterCharacterID.Mozart:
@@ -224,6 +224,7 @@ namespace FTT.FighterSim {
 
         private static bool SpawnWardenclyffeCataclysm(
             ref Frame frame,
+            EntityRef attackerEntity,
             EntityRef targetEntity,
             ref FighterStateComponent attacker,
             ref FighterRuntimeComponent attackerRuntime,
@@ -238,6 +239,8 @@ namespace FTT.FighterSim {
             // range — and the coil is destroyed.
             ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
             ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
+            ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
+            ref FighterVerbComponent attackerVerb = ref frame.Get<FighterVerbComponent>(attackerEntity);
             ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
             var filter = frame.Filter<FighterPersistentObjectComponent>();
             while (filter.Next(out EntityRef coilEntity)) {
@@ -248,10 +251,13 @@ namespace FTT.FighterSim {
                     || coil.CurrentHP <= 0
                     || coil.LifetimeFrames <= 0) continue;
                 if (FP64.Abs(target.Position.x - coil.Position.x) <= coil.AttackRange) {
+                    // The coil detonation is construct damage — no Rally echo
+                    // reclaim for the caster.
                     FighterDamageRules.ApplyFighterHit(
-                        ref attacker, ref attackerRuntime, ref target, ref targetRuntime, in targetTuning,
+                        ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, in targetTuning,
                         FighterDamageRules.UltimateAttackClass, CoilChainExplosionDamage, CoilChainKnockback,
-                        CoilChainHitstunFrames, (int)FTT.Core.StatusType.None, 0, FP64.One, coil.Position.x);
+                        CoilChainHitstunFrames, (int)FTT.Core.StatusType.None, 0, FP64.One, coil.Position.x,
+                        collectsEcho: false);
                 }
                 frame.DestroyEntity(coilEntity);
             }

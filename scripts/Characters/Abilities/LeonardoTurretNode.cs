@@ -6,9 +6,10 @@ namespace FTT.Characters.Abilities {
 
     /// <summary>
     /// Story-mode Clockwork Turret construct (design Section 4 specification):
-    /// 20 HP, 15 s lifespan, max 1 active per owner. Fires a 5 HP ballista bolt at
-    /// the nearest enemy within 30 world units (1800 px) every 2 s and
-    /// self-destructs after its third bolt (or when its lifespan/HP runs out).
+    /// 20 HP, 15 s lifespan, max 1 active per owner. Fires a ballista bolt at
+    /// the nearest enemy within 30 world units (1800 px) on the authored
+    /// interval (V7: every 2 s), and self-destructs after its final bolt — the
+    /// authored HitCount (V7: 4 bolts) — or when its lifespan/HP runs out.
     /// The turret is damageable/destroyable, persists across owner death, freezes
     /// during Chronal Rewind, and fully resets its pooled state. Story-only
     /// Resonance perk Clockwork Overdrive upgrades it to a rapid burst of 5 bolts.
@@ -65,10 +66,13 @@ namespace FTT.Characters.Abilities {
             _currentHP = Mathf.RoundToInt(MaxTurretHP * (owner?.StoryPersistentHealthMultiplier ?? 1f));
             _maxHP = _currentHP;
             IsTurretDestroyed = false;
-            _lifetime = data?.Lifetime > 0f ? data.Lifetime : 15f;
+            // Story-only PersistentDuration minors lengthen the deployment, the
+            // same rule the nest/coil/snare constructs already follow.
+            _lifetime = (data?.Lifetime > 0f ? data.Lifetime : 15f)
+                * (owner?.StoryPersistentDurationMultiplier ?? 1f);
             _fireInterval = (data?.DamageTickIntervalFrames ?? 120) / 60f;
             if (_fireInterval <= 0f) _fireInterval = 2f;
-            BoltsRemaining = BaseBoltLimit;
+            BoltsRemaining = data?.HitCount > 0 ? data.HitCount : BaseBoltLimit;
             // Clockwork Overdrive (Story-only Resonance major perk): the turret
             // fires 5 bolts in a rapid burst instead of 3 before self-destructing.
             if (clockworkOverdrive) {
@@ -173,7 +177,8 @@ namespace FTT.Characters.Abilities {
                 ScreenShakeDuration = 0.05f
             });
             if (dealt > 0f && _ownerPlayer != null && IsInstanceValid(_ownerPlayer)) {
-                _ownerPlayer.AddInfluenceFromDamageDealt(dealt);
+                // Construct damage never reclaims Rally echo (V7.1: direct hits only).
+                _ownerPlayer.AddInfluenceFromDamageDealt(dealt, collectsEcho: false);
             }
             return true;
         }

@@ -134,12 +134,14 @@ public class FighterLocalizationTests {
         foreach (string key in new[] {
             "fighter_stage_prototype", "fighter_stage", "fighter_start_match",
             "fighter_countdown_digit", "fighter_countdown_go", "fighter_winner_pose",
+            "fighter_overtime_stamp", "fighter_sudden_death_stamp",
             "fighter_state_countdown", "fighter_state_respawn_platform",
             "fighter_pause_exit", "fighter_pause_exit_confirm",
             "fighter_disconnect_modal", "fighter_disconnect_rebind", "fighter_disconnect_forfeit",
             "fighter_frequency_off", "fighter_frequency_low",
             "fighter_frequency_medium", "fighter_frequency_high",
-            "fighter_rematch", "fighter_change_fighters", "fighter_main_menu",
+            "fighter_rematch", "fighter_new_stage", "fighter_rematch_waiting",
+            "fighter_change_fighters", "fighter_main_menu",
             "fighter_return_to_ship", "fighter_results_title", "fighter_results_winner",
             "fighter_results_draw", "match_ko", "match_draw", "match_player_wins",
             "common_confirm", "common_cancel"

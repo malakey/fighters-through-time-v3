@@ -27,6 +27,10 @@ namespace FTT.Core {
             public const string Roll = "gameplay_roll";
             public const string Ultimate = "gameplay_ultimate";
             public const string Interact = "gameplay_interact";
+            /// <summary>V7.2 manual Chronal Rewind (Story only). Deliberately
+            /// carries no <see cref="GameplayButtons"/> bit — the verb never
+            /// reaches the deterministic input frame or the Fighter sim.</summary>
+            public const string Rewind = "gameplay_rewind";
             public const string Pause = "ui_pause";
         }
 
@@ -40,7 +44,7 @@ namespace FTT.Core {
         public static readonly string[] RemappableActions = {
             Actions.MoveLeft, Actions.MoveRight, Actions.Jump, Actions.Down, Actions.Up,
             Actions.BasicAttack, Actions.Special1, Actions.Special2, Actions.MovementAbility,
-            Actions.Block, Actions.Roll, Actions.Interact, Actions.Pause
+            Actions.Block, Actions.Roll, Actions.Interact, Actions.Rewind, Actions.Pause
         };
 
         /// <summary>Actions shown in the Controls tab but not rebindable.</summary>
@@ -61,6 +65,7 @@ namespace FTT.Core {
             Actions.Roll => "controls_action_roll",
             Actions.Ultimate => "controls_action_ultimate",
             Actions.Interact => "controls_action_interact",
+            Actions.Rewind => "controls_action_rewind",
             Actions.Pause => "controls_action_pause",
             _ => "common_unknown"
         };

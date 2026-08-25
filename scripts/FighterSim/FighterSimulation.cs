@@ -152,6 +152,19 @@ namespace FTT.FighterSim {
             return false;
         }
 
+        public bool TryGetFighterVerb(int playerID, out FighterVerbComponent verb) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterVerbComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID == playerID) {
+                    verb = _simulation.Frame.GetReadOnly<FighterVerbComponent>(entity);
+                    return true;
+                }
+            }
+            verb = default;
+            return false;
+        }
+
         public FighterMatchComponent GetMatchState() =>
             _simulation.Frame.GetReadOnlySingleton<FighterMatchComponent>();
 

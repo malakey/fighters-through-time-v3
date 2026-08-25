@@ -136,8 +136,30 @@ namespace FTT.UI {
             var levelSelect = GetNode<Button>(layout + "LevelSelectButton");
             levelSelect.Visible = ShowDeveloperLevelSelect;
             levelSelect.Pressed += OnLevelSelectPressed;
-            GetNode<Button>(layout + "FighterButton").Pressed += () =>
+            var fighterButton = GetNode<Button>(layout + "FighterButton");
+            fighterButton.Pressed += () => {
+                // Entering the local flow clears any lingering LAN opponent type.
+                var gameManager = FTT.Core.GameManager.Instance;
+                if (gameManager != null
+                    && gameManager.CurrentSession.FighterOpponentType == FTT.Core.FighterOpponentType.Lan) {
+                    FTT.Core.SessionData session = gameManager.CurrentSession;
+                    session.FighterOpponentType = FTT.Core.FighterOpponentType.Cpu;
+                    gameManager.CurrentSession = session;
+                }
                 FTT.Core.GameManager.Instance?.LoadScene("res://scenes/menus/CharacterSelect.tscn");
+            };
+            // V7 initial release: direct-IP LAN. Code-built next to the authored
+            // Fighter button so the scene file stays untouched.
+            var lanButton = new Button {
+                Name = "LanButton",
+                Text = Tr("menu_lan_match"),
+                CustomMinimumSize = fighterButton.CustomMinimumSize,
+                ThemeTypeVariation = "TemporalGlassButton"
+            };
+            lanButton.Pressed += () =>
+                FTT.Core.GameManager.Instance?.LoadScene(NetworkSelectScreen.ScenePath);
+            fighterButton.GetParent().AddChild(lanButton);
+            fighterButton.GetParent().MoveChild(lanButton, fighterButton.GetIndex() + 1);
             GetNode<Button>(layout + "SettingsButton").Pressed += OpenSettings;
             GetNode<Button>(layout + "QuitButton").Pressed += ConfirmQuit;
         }

@@ -32,6 +32,10 @@ namespace FTT.Enemies {
         public int CurrentPhase;
 
         private float _restTimer;
+        // V7.1 hitstop freeze (BasicComboRules numbers); max-assigned, never
+        // shortened. Counted in physics frames so it cannot drift against the
+        // 60 Hz clock the shared frame tables are authored in.
+        private int _hitstopFramesRemaining;
         private float _transitionTimer;
         private float _deathTimer;
         private int _reactionFramesRemaining;
@@ -57,8 +61,10 @@ namespace FTT.Enemies {
         private Random _rng;
         private readonly List<int> _selectionBuffer = new();
 
-        private float _statusTimer;
-        private float _statusIntensity = 1f;
+        private float _controlStatusTimer;
+        private float _controlStatusIntensity = 1f;
+        private float _damageStatusTimer;
+        private float _damageStatusIntensity = 1f;
         private float _venomTickTimer;
 
         private Vector2 _spawnPosition;
@@ -66,7 +72,13 @@ namespace FTT.Enemies {
         private int _checkpointHP;
         private bool _checkpointCaptured;
 
-        public StatusType ActiveStatusType { get; private set; } = StatusType.None;
+        public StatusType ControlStatusType { get; private set; } = StatusType.None;
+        public StatusType DamageStatusType { get; private set; } = StatusType.None;
+        /// <summary>Control slot first, then damage — the compat view for single-status readers.</summary>
+        public StatusType ActiveStatusType =>
+            ControlStatusType != StatusType.None ? ControlStatusType : DamageStatusType;
+        public bool HasStatusEffect(StatusType type) =>
+            ControlStatusType == type || DamageStatusType == type;
         public float StatusMoveMultiplier { get; private set; } = 1f;
         public float StatusDamageTakenMultiplier { get; private set; } = 1f;
 
@@ -80,6 +92,12 @@ namespace FTT.Enemies {
         public bool LastTelegraphInterrupted { get; private set; }
         public EnemyAbilityPhase AbilityPhase => Executor.Phase;
         public int ReactionFramesRemaining => _reactionFramesRemaining;
+
+        /// <summary>V7 boss intro: the encounter controller reads these to cut
+        /// the free intro telegraph off at its last wind-up frame.</summary>
+        public bool IsTelegraphing => Executor.IsTelegraphing;
+        public int AbilityFramesRemaining => Executor.FramesRemainingInPhase;
+        public void CancelTelegraphIntoRecovery() => Executor.CancelIntoRecovery();
 
         private EnemyAbilityExecutor Executor => _executor ??= CreateExecutor();
 
@@ -196,7 +214,18 @@ namespace FTT.Enemies {
                 return;
             }
 
+            // V7.1 hitstop: the boss freezes for the shared window like every
+            // other combatant (its knockback stays unscaled — bosses do not
+            // fly — but the hit-weight freeze is universal).
+            if (_hitstopFramesRemaining > 0) {
+                _hitstopFramesRemaining--;
+                if (_sprite != null) _sprite.SpeedScale = 0f;
+                if (_hitstopFramesRemaining <= 0 && _sprite != null) _sprite.SpeedScale = 1f;
+                return;
+            }
+
             TickStatus(dt);
+            TickAbilityCooldowns(dt);
             if (CurrentState == BossState.Dead) return;
 
             if (_target == null || !IsInstanceValid(_target)) _target = FindNearestPlayer();
@@ -363,10 +392,43 @@ namespace FTT.Enemies {
 
         // === Attack selection ===
 
+        // Per-ability cooldown timers, indexed like Data.BossAbilities. The
+        // authored EnemyAbilityData.CooldownSeconds was previously never read
+        // (design §6: "the data exists; the algorithm must read it") — an
+        // ability on cooldown is excluded from the weighted roll, which is what
+        // prevents a summon or a screen-wide ability from chaining back-to-back.
+        private float[] _abilityCooldownTimers;
+
+        private void TickAbilityCooldowns(float dt) {
+            if (_abilityCooldownTimers == null) return;
+            for (int index = 0; index < _abilityCooldownTimers.Length; index++) {
+                if (_abilityCooldownTimers[index] > 0f) _abilityCooldownTimers[index] -= dt;
+            }
+        }
+
+        /// <summary>Arms the authored cooldown for the ability at <paramref name="index"/>.</summary>
+        private void ArmAbilityCooldown(int index) {
+            EnemyAbilityData[] abilities = Data?.BossAbilities;
+            if (abilities == null || index < 0 || index >= abilities.Length) return;
+            _abilityCooldownTimers ??= new float[abilities.Length];
+            if (_abilityCooldownTimers.Length < abilities.Length) {
+                System.Array.Resize(ref _abilityCooldownTimers, abilities.Length);
+            }
+            _abilityCooldownTimers[index] = Mathf.Max(0f, abilities[index]?.CooldownSeconds ?? 0f);
+        }
+
+        private bool AbilityOnCooldown(int index) =>
+            _abilityCooldownTimers != null
+            && index < _abilityCooldownTimers.Length
+            && _abilityCooldownTimers[index] > 0f;
+
         /// <summary>
-        /// Weighted random over the phase-unlocked, distance-appropriate abilities.
-        /// If distance filtering leaves nothing selectable the full unlocked set is
-        /// used instead: a boss must never deadlock with no valid attack.
+        /// Weighted random over the phase-unlocked, off-cooldown,
+        /// distance-appropriate abilities. If distance filtering leaves nothing
+        /// selectable the full unlocked set is used instead: a boss must never
+        /// deadlock with no valid attack. If every unlocked ability is cooling,
+        /// selection returns -1 and the boss takes a rest window — a beat of
+        /// downtime, never a repeat cast.
         /// </summary>
         public int SelectAbilityIndex(float distancePixels) {
             EnemyAbilityData[] abilities = Data?.BossAbilities;
@@ -379,6 +441,7 @@ namespace FTT.Enemies {
                 EnemyAbilityData ability = abilities[index];
                 if (ability == null) continue;
                 if (CurrentPhase < Data.GetAbilityMinPhase(index)) continue;
+                if (AbilityOnCooldown(index)) continue;
                 unlocked.Add(index);
                 if (Data.AttackPattern != BossAttackPattern.DistanceBased) {
                     _selectionBuffer.Add(index);
@@ -411,7 +474,11 @@ namespace FTT.Enemies {
         public bool BeginAbility(EnemyAbilityData ability, Vector2 targetPosition) {
             SelectedAbility = ability;
             LastTelegraphInterrupted = false;
-            return Executor.Begin(ability, targetPosition, _facingRight);
+            // V7.2 classification: bosses forward their authored flags — the
+            // only tier where unblockable (red telegraph) is honored.
+            return Executor.Begin(ability, targetPosition, _facingRight,
+                guardCrush: ability?.IsGuardCrushing ?? false,
+                unblockable: ability?.IsUnblockable ?? false);
         }
 
         /// <summary>Advances the ability executor one 60 Hz frame (state machine and tests).</summary>
@@ -429,15 +496,27 @@ namespace FTT.Enemies {
             }
 
             SelectedAbility = Data.BossAbilities[SelectedAbilityIndex];
+            ArmAbilityCooldown(SelectedAbilityIndex);
             Vector2 targetPosition = _target?.GlobalPosition
                 ?? GlobalPosition + new Vector2(_facingRight ? 200f : -200f, 0f);
-            Executor.Begin(SelectedAbility, targetPosition, _facingRight);
+            Executor.Begin(SelectedAbility, targetPosition, _facingRight,
+                guardCrush: SelectedAbility?.IsGuardCrushing ?? false,
+                unblockable: SelectedAbility?.IsUnblockable ?? false);
             PlayAnimation(SelectedAbility.SpawnsProjectiles ? "ranged_attack" : "melee_attack");
         }
 
         // === Damage, phases, death ===
 
         public void TakeDamage(int damage) => ApplyBossDamage(damage);
+
+        /// <summary>
+        /// V7.1 hitstop: freezes the boss's gameplay clock for the given frames
+        /// (max-assign — an active freeze is never shortened). Dead bosses skip.
+        /// </summary>
+        public void ApplyHitstop(int frames) {
+            if (frames <= 0 || CurrentState == BossState.Dead) return;
+            if (frames > _hitstopFramesRemaining) _hitstopFramesRemaining = frames;
+        }
 
         private int ApplyBossDamage(int damage) {
             if (CurrentState == BossState.Dead || CurrentState == BossState.PhaseTransitioning) return 0;
@@ -533,61 +612,112 @@ namespace FTT.Enemies {
             Velocity += FTT.Combat.DamageCalculator.CalculateKnockback(knockback, 2f, attackerFacingRight) * 60f;
         }
 
+        /// <summary>
+        /// V7 two-slot status rule (mirrors StatusController): a damaging status
+        /// and a control status coexist; a new application replaces only the
+        /// occupant of its own slot.
+        /// </summary>
         public void ApplyStatusEffect(StatusType type, float duration, float intensity = 1f) {
             if (CurrentState == BossState.Dead || type == StatusType.None || duration <= 0f) return;
-            ClearStatusEffect();
             float potency = intensity <= 0f ? 1f : intensity;
-            ActiveStatusType = type;
-            _statusTimer = duration;
-            _statusIntensity = potency;
-            switch (type) {
-                case StatusType.TimeDilation:
-                    StatusMoveMultiplier = Mathf.Max(0.1f, 1f - 0.5f * potency);
-                    break;
-                case StatusType.RadiantBurn:
-                    StatusDamageTakenMultiplier = 1f + 0.25f * potency;
-                    break;
-                case StatusType.Root:
-                    // Movement denial is HP-unrelated, so knockback immunity does not block it.
-                    StatusMoveMultiplier = 0f;
-                    Velocity = new Vector2(0f, Velocity.Y);
-                    break;
-                case StatusType.StaticCharge:
-                    StatusMoveMultiplier = Mathf.Max(0.1f, 1f - 0.35f * potency);
-                    break;
-                case StatusType.Venom:
-                    _venomTickTimer = 1f;
-                    break;
+            if (FTT.Combat.StatusController.IsDamageStatus(type)) {
+                ClearDamageStatusSlot();
+                DamageStatusType = type;
+                _damageStatusTimer = duration;
+                _damageStatusIntensity = potency;
+                switch (type) {
+                    case StatusType.RadiantBurn:
+                        StatusDamageTakenMultiplier = 1f + 0.25f * potency;
+                        break;
+                    case StatusType.Venom:
+                        _venomTickTimer = 1f;
+                        break;
+                }
+            } else {
+                ClearControlStatusSlot();
+                ControlStatusType = type;
+                _controlStatusTimer = duration;
+                _controlStatusIntensity = potency;
+                switch (type) {
+                    case StatusType.TimeDilation:
+                        StatusMoveMultiplier = Mathf.Max(0.1f, 1f - 0.5f * potency);
+                        break;
+                    case StatusType.Root:
+                        // Movement denial is HP-unrelated, so knockback immunity does not block it.
+                        StatusMoveMultiplier = 0f;
+                        Velocity = new Vector2(0f, Velocity.Y);
+                        break;
+                    case StatusType.StaticCharge:
+                        StatusMoveMultiplier = Mathf.Max(0.1f, 1f - 0.35f * potency);
+                        break;
+                }
             }
             _glow?.SetStatus(type);
         }
 
-        private void ClearStatusEffect() {
-            ActiveStatusType = StatusType.None;
-            _statusTimer = 0f;
-            _statusIntensity = 1f;
-            _venomTickTimer = 0f;
+        private void ClearControlStatusSlot() {
+            ControlStatusType = StatusType.None;
+            _controlStatusTimer = 0f;
+            _controlStatusIntensity = 1f;
             StatusMoveMultiplier = 1f;
+        }
+
+        private void ClearDamageStatusSlot() {
+            DamageStatusType = StatusType.None;
+            _damageStatusTimer = 0f;
+            _damageStatusIntensity = 1f;
+            _venomTickTimer = 0f;
             StatusDamageTakenMultiplier = 1f;
+        }
+
+        // Single glow layer: the newest status paints it; when a slot falls the
+        // survivor repaints, and only an empty pair clears it.
+        private void RefreshStatusGlow() {
+            if (ActiveStatusType == StatusType.None) {
+                _glow?.ClearState(FTT.Combat.GlowLayer.Status);
+            } else {
+                _glow?.SetStatus(ActiveStatusType);
+            }
+        }
+
+        private void ClearStatusEffect() {
+            ClearControlStatusSlot();
+            ClearDamageStatusSlot();
             _glow?.ClearState(FTT.Combat.GlowLayer.Status);
         }
 
         private void TickStatus(float dt) {
-            if (ActiveStatusType == StatusType.None) return;
-            _statusTimer -= dt;
-            if (ActiveStatusType == StatusType.Venom) {
-                _venomTickTimer -= dt;
-                if (_venomTickTimer <= 0f) {
-                    _venomTickTimer += 1f;
-                    ApplyBossDamage(Math.Max(1, (int)MathF.Round(2f * _statusIntensity)));
+            if (ControlStatusType != StatusType.None) {
+                _controlStatusTimer -= dt;
+                if (_controlStatusTimer <= 0f) {
+                    ClearControlStatusSlot();
+                    RefreshStatusGlow();
                 }
             }
-            if (_statusTimer <= 0f) ClearStatusEffect();
+            if (DamageStatusType != StatusType.None) {
+                _damageStatusTimer -= dt;
+                if (DamageStatusType == StatusType.Venom) {
+                    _venomTickTimer -= dt;
+                    if (_venomTickTimer <= 0f) {
+                        _venomTickTimer += 1f;
+                        ApplyBossDamage(Math.Max(1, (int)MathF.Round(2f * _damageStatusIntensity)));
+                    }
+                }
+                if (_damageStatusTimer <= 0f) {
+                    ClearDamageStatusSlot();
+                    RefreshStatusGlow();
+                }
+            }
         }
 
         private float OnHurtboxHit(FTT.Combat.HitPayload hit) {
             int damageApplied = ApplyBossDamage(Mathf.Max(0, (int)Mathf.Round(hit.Damage)));
             if (damageApplied <= 0) return 0f;
+            // V7.1 hitstop (victim side): a killing blow skips — the death
+            // presentation owns that moment.
+            if (CurrentState != BossState.Dead) {
+                ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(damageApplied));
+            }
             ApplyKnockback(hit.Knockback, hit.AttackerFacingRight);
             if (hit.AppliedStatus != StatusType.None && hit.StatusDuration > 0f) {
                 ApplyStatusEffect(hit.AppliedStatus, hit.StatusDuration, hit.StatusIntensity);
@@ -719,6 +849,8 @@ namespace FTT.Enemies {
             CurrentState = BossState.Idle;
             _target = null;
             _restTimer = 0f;
+            _hitstopFramesRemaining = 0;
+            if (_sprite != null) _sprite.SpeedScale = 1f;
             _transitionTimer = 0f;
             _attackCommitted = false;
             _restStandOffEngaged = false;

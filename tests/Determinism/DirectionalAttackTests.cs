@@ -65,16 +65,19 @@ public class DirectionalAttackTests {
         }
         Advance(grounded, BasicComboRules.UpAttackStartupFrames, p1MoveY: UpAxis);
         AssertThat(grounded.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();
-        int expectedDamage = FighterLoadout.Default(FighterCharacterID.Einstein).BasicDamage;
+        int expectedDamage = FighterLoadout.Default(FighterCharacterID.Tesla).BasicDamage;
         AssertThat(before.CurrentHP - struck.CurrentHP)
             .OverrideFailureMessage("The up-attack deals a flat 1.0x basic.")
             .IsEqual(expectedDamage);
         AssertThat(struck.HitstunFrames).IsEqual(BasicComboRules.DirectionalAttackHitstunFrames);
 
-        // The whole swing is startup + active + recovery, then straight out.
+        // The whole swing is startup + active + recovery — plus the attacker's
+        // own V7.1 hitstop freeze from the connect, which holds the phase
+        // machine for the shared window before active/recovery resume.
         int total = BasicComboRules.UpAttackStartupFrames
             + BasicComboRules.UpAttackActiveFrames
-            + BasicComboRules.UpAttackRecoveryFrames;
+            + BasicComboRules.UpAttackRecoveryFrames
+            + BasicComboRules.HitstopFrames(expectedDamage);
         for (int tick = BasicComboRules.UpAttackStartupFrames + 1; tick < total; tick++) {
             Advance(grounded, tick, p1MoveY: UpAxis);
             AssertThat(grounded.TryGetFighterRuntime(0, out FighterRuntimeComponent midSwing)).IsTrue();
@@ -136,7 +139,7 @@ public class DirectionalAttackTests {
             Advance(airborne, tick, p1Held: GameplayButtons.Down);
         }
         AssertThat(airborne.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();
-        int expectedDamage = FighterLoadout.Default(FighterCharacterID.Einstein).BasicDamage;
+        int expectedDamage = FighterLoadout.Default(FighterCharacterID.Tesla).BasicDamage;
         AssertThat(before.CurrentHP - struck.CurrentHP)
             .OverrideFailureMessage("The down-air deals a flat 1.0x basic to the fighter below.")
             .IsEqual(expectedDamage);
@@ -188,9 +191,12 @@ public class DirectionalAttackTests {
         // an up-attack starts from a zeroed combo index.
         var simulation = NewZeroKnockbackSimulation(seed: 507);
         Advance(simulation, 0, p1Buttons: GameplayButtons.BasicAttack);
+        // Hit 1 connects (10 x 0.8 = 8 damage), so the attacker's own V7.1
+        // hitstop freeze delays the phase machine by the shared window.
         int holdTick = BasicComboRules.GroundStartupFrames[0]
             + BasicComboRules.GroundActiveFrames[0]
-            + BasicComboRules.GroundRecoveryFrames[0];
+            + BasicComboRules.GroundRecoveryFrames[0]
+            + BasicComboRules.HitstopFrames(8);
         for (int tick = 1; tick <= holdTick; tick++) {
             Advance(simulation, tick);
         }
@@ -374,7 +380,7 @@ public class DirectionalAttackTests {
     }
 
     private static FighterSimulation NewOverlappingSimulation(int seed) => new(
-        FighterCharacterID.Einstein,
+        FighterCharacterID.Tesla,
         FighterCharacterID.Joan,
         seed: seed,
         spawnDistance: 0,
@@ -388,7 +394,7 @@ public class DirectionalAttackTests {
         rules: FighterMatchRules.Disabled);
 
     private static CharacterData BuildZeroKnockbackAttacker() => new() {
-        CharacterID = "einstein",
+        CharacterID = "tesla",
         MaxHP = 100,
         Weight = 1f,
         MaxBlockCharges = 3,

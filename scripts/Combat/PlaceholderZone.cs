@@ -130,11 +130,30 @@ namespace FTT.Combat {
                 : 0;
             if (body is FTT.Characters.PlayerController pc) {
                 if (pc.PlayerIndex == _ownerIndex) return;
-                if (tickDamage > 0) CreditOwner(pc.ApplyDamage(tickDamage));
-                if (_appliedStatus != StatusType.None && _statusDuration > 0f) {
-                    pc.GetNodeOrNull<StatusController>("StatusController")
-                        ?.ApplyStatus(_appliedStatus, _statusDuration, _statusIntensity);
-                }
+                // V7 defense-contract fix: zone ticks reach players through the
+                // hurtbox like every other special, so block and invulnerability
+                // participate (this was the one damage source that hit through a
+                // raised shield). The Hazard class prices a blocked tick at one
+                // charge, the same rule persistent-object damage follows.
+                Hurtbox playerHurtbox = pc.GetNodeOrNull<Hurtbox>("Hurtbox");
+                if (playerHurtbox == null) return;
+                float playerDealt = playerHurtbox.TakeHit(new HitPayload {
+                    AttackerIndex = _ownerIndex,
+                    AttackID = "placeholder_zone",
+                    HitboxID = "tick",
+                    AttackClass = AttackClass.Hazard,
+                    Damage = tickDamage,
+                    Knockback = Vector2.Zero,
+                    HitstunDuration = 0f,
+                    HitOrigin = GlobalPosition,
+                    AttackerFacingRight = true,
+                    AppliedStatus = _appliedStatus,
+                    StatusDuration = _statusDuration,
+                    StatusIntensity = _statusIntensity,
+                    ScreenShakeIntensity = 0.1f,
+                    ScreenShakeDuration = 0.08f
+                });
+                CreditOwner(playerDealt);
             } else if (body is FTT.Enemies.EnemyController enemy) {
                 if (tickDamage > 0) CreditOwner(enemy.TakeDamage(tickDamage));
                 if (_appliedStatus != StatusType.None && _statusDuration > 0f) {

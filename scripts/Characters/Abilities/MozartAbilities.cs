@@ -177,12 +177,20 @@ namespace FTT.Characters.Abilities {
     }
 
     /// <summary>
-    /// Special 2 — Fortissimo Wave: a massive wave of sound energy that sweeps
-    /// forward across the screen, dealing the authored 12 damage and pushing
-    /// enemies back with heavy knockback. The wave is a tall piercing projectile
-    /// whose long authored lifetime lets it cross the full arena.
+    /// Special 2 — Fortissimo Wave: Mozart's haymaker, the deliberate opposite of
+    /// Requiem Chord's fast flat poke (V7 directive: the two projectiles must
+    /// never read as duplicates). A tall wave of sound energy lobbed on a slow
+    /// arc — rising first, then crashing down under its own gravity — that holds
+    /// space along its path, deals the authored damage, and shoves enemies back
+    /// with the roster's heaviest horizontal knockback.
     /// </summary>
     public partial class MozartFortissimoWave : BaseSpecial {
+
+        // The lob: launched rising at 200 px/s and pulled down at 350 px/s², the
+        // wave crests ~57 px up at ~0.57 s and returns to launch height ~205 px
+        // out at the authored 180 px/s travel speed, then keeps falling.
+        private const float LobLaunchVelocity = -200f;
+        private const float LobGravity = 350f;
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
@@ -200,10 +208,11 @@ namespace FTT.Characters.Abilities {
         private void EmitWave() {
             if (Owner == null) return;
             float damage = Mathf.Round((Data?.BaseDamage ?? 12f) * Owner.StorySpecialDamageMultiplier);
-            SpawnPlaceholderProjectile(
+            var wave = SpawnPlaceholderProjectile(
                 Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 50f : -50f, -40f),
-                Data?.ProjectileSpeed ?? 250f, Owner.IsFacingRight, new Color(0.8f, 0.6f, 0.9f),
+                Data?.ProjectileSpeed ?? 180f, Owner.IsFacingRight, new Color(0.8f, 0.6f, 0.9f),
                 new Vector2(30, 110), Data?.ProjectileLifetime ?? 6f, damage);
+            wave?.ConfigureArc(LobLaunchVelocity, LobGravity);
         }
     }
 

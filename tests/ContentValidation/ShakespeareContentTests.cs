@@ -21,14 +21,16 @@ public class ShakespeareContentTests {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/shakespeare/special_1.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Projectile);
-        AssertThat(data.BaseDamage).IsEqual(28f);
+        // V7: the design's cheap short-end poke whose payload is the slow —
+        // base 16 on a 7 s cooldown, no longer the roster's biggest projectile.
+        AssertThat(data.BaseDamage).IsEqual(16f);
         AssertThat(data.AppliedStatus).IsEqual(StatusType.TimeDilation);
         AssertThat(data.StatusDuration).IsEqual(2.5f);
         // The shared TimeDilation formula in both modes is
         // speed x (1 - 0.5 x intensity); the authored 0.6 intensity yields the
         // design's 30% movement/animation slow (0.5 x 0.6 = 0.3).
         AssertThat(data.StatusIntensity).IsEqual(0.6f);
-        AssertThat(data.CooldownDuration).IsEqual(10f);
+        AssertThat(data.CooldownDuration).IsEqual(7f);
     }
 
     [TestCase]
@@ -38,8 +40,11 @@ public class ShakespeareContentTests {
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Area);
         AssertThat(data.BaseDamage).IsEqual(0f);
         AssertThat(data.Lifetime).IsEqual(1.2f);
-        AssertThat(data.DamageTickIntervalFrames).IsEqual(30);
-        AssertThat(data.CooldownDuration).IsEqual(10f);
+        // V7: pure utility priced entirely in its cooldown (short end of the
+        // band); the unused damage-tick field is zeroed so the resource stays
+        // canonical.
+        AssertThat(data.DamageTickIntervalFrames).IsEqual(0);
+        AssertThat(data.CooldownDuration).IsEqual(7f);
         // The authored active window matches the storm's Fighter zone lifetime.
         AssertThat(data.ActiveFrames).IsEqual(72);
     }
