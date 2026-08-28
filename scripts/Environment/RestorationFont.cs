@@ -23,6 +23,14 @@ namespace FTT.Environment {
     public partial class RestorationFont : Node2D, IInteractable {
         [Export] public string FontID = "font";
 
+        /// <summary>
+        /// V7.3: the channel is anchored to the wellspring — a channeler who
+        /// moves (or is knocked) beyond this range interrupts, refunding the
+        /// use exactly like taking damage does. Without it a player could start
+        /// the channel and walk toward the boss with the heal in flight.
+        /// </summary>
+        [Export] public float ChannelRangePixels = 90f;
+
         /// <summary>Channel hold before the restore begins.</summary>
         public const float ChannelSeconds = 1.5f;
         /// <summary>The completed channel restores HP over this window.</summary>
@@ -99,6 +107,12 @@ namespace FTT.Environment {
                 return;
             }
             _hpBaseline = Mathf.Max(_hpBaseline, player.CurrentHP);
+            // V7.3 range anchor: leaving the wellspring interrupts (and, as
+            // with every interrupt, the use is refunded by never being spent).
+            if (player.GlobalPosition.DistanceTo(GlobalPosition) > ChannelRangePixels) {
+                InterruptChannel();
+                return;
+            }
             if (!player.CurrentInputFrame.IsHeld(GameplayButtons.Interact)) {
                 InterruptChannel();
                 return;

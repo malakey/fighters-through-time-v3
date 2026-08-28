@@ -491,6 +491,16 @@ namespace FTT.FighterSim {
         public int BeingHeld;
         /// <summary>No-regrab window after being thrown.</summary>
         public int ThrowImmunityFrames;
+        // --- Block model closure (V7.3) ---
+        /// <summary>Frames the blocker is locked into the stance after a non-shatter blocked hit.</summary>
+        public int ShieldStunFrames;
+        /// <summary>Shatter lockout: no stance and no regen while &gt; 0 (5 s).</summary>
+        public int BlockLockoutFrames;
+        /// <summary>1 while the current hitstun cannot be block-cancelled (string hit 1).</summary>
+        public int HitstunBlockCancelBlocked;
+        // --- Ledge V7 (consumed by the ledge-trump PR; snapshotted with the rest) ---
+        /// <summary>Ledge grabs taken since the fighter was last grounded.</summary>
+        public int LedgeGrabsThisAirtime;
     }
 
     /// <summary>

@@ -196,6 +196,7 @@ namespace FTT.Environment {
             BuildLevel();
             SpawnPlayer();
             SpawnInitialEnemies();
+            ApplyResumedAttemptState();
             AttachStoryServices();
             BindEvents();
             ApplyResumeCameraBounds();
@@ -246,6 +247,7 @@ namespace FTT.Environment {
             if (_eventsBound || EventBus.Instance == null) return;
             _eventsBound = true;
             EventBus.Instance.OnChronalDustCollected += OnDustAwarded;
+            EventBus.Instance.OnDustAwardCollected += OnDustAwardAttributed;
             EventBus.Instance.OnDialogueComplete += HandleDialogueComplete;
             EventBus.Instance.OnRewindTriggered += OnRewindLanded;
         }
@@ -255,6 +257,7 @@ namespace FTT.Environment {
             _eventsBound = false;
             if (EventBus.Instance == null) return;
             EventBus.Instance.OnChronalDustCollected -= OnDustAwarded;
+            EventBus.Instance.OnDustAwardCollected -= OnDustAwardAttributed;
             EventBus.Instance.OnDialogueComplete -= HandleDialogueComplete;
             EventBus.Instance.OnRewindTriggered -= OnRewindLanded;
         }
@@ -307,15 +310,32 @@ namespace FTT.Environment {
         private void OnDustAwarded(int amount) => DustEarnedThisLevel += Mathf.Max(0, amount);
 
         /// <summary>
+        /// V7.3 Single Icon Rule: boss/extractor awards are physical pickups,
+        /// so attribution now lands at COLLECTION time via this payload event —
+        /// the same moment the wallet event above banks the amount. The two can
+        /// therefore never disagree, and the double-pay invariant (audit H-1)
+        /// holds by construction: one wallet raise, one attribution, both at
+        /// the collection site.
+        /// </summary>
+        private void OnDustAwardAttributed(DustAwardCollectedPayload payload) {
+            switch (payload.Source) {
+                case DustAwardSource.Boss: AttributeBossDust(payload.Amount); break;
+                case DustAwardSource.Extractor: AttributeExtractorDust(payload.Amount); break;
+            }
+        }
+
+        /// <summary>
         /// Attributes an already-awarded amount to the boss line of the results
-        /// itemization. Attribution only — the wallet award itself was raised by the
-        /// encounter controller and entered <see cref="DustEarnedThisLevel"/> through
-        /// the shared <c>OnChronalDustCollected</c> subscription; adding it to the
-        /// total here as well would recreate the H-1 double-pay on the results screen.
+        /// itemization. Attribution only — the wallet award entered
+        /// <see cref="DustEarnedThisLevel"/> through the shared
+        /// <c>OnChronalDustCollected</c> subscription; adding it to the total here
+        /// as well would recreate the H-1 double-pay on the results screen. Kept
+        /// protected for callers outside the pickup path (Level 13's Mirror
+        /// Paradox pays wallet-direct and attributes explicitly).
         /// </summary>
         protected void AttributeBossDust(int amount) => BossDustEarned += Mathf.Max(0, amount);
 
-        /// <summary>Extractor sibling of <see cref="AttributeBossDust"/>; wired by <see cref="BuildExtractor"/>.</summary>
+        /// <summary>Extractor sibling of <see cref="AttributeBossDust"/>.</summary>
         protected void AttributeExtractorDust(int amount) => ExtractorDustEarned += Mathf.Max(0, amount);
 
         // === Player, camera, and checkpoint resume ===
@@ -413,6 +433,31 @@ namespace FTT.Environment {
                 MarkWavesClearedThrough(save.LastCheckpointID);
             }
             Player.RestoreStoryCheckpoint(position, save.CurrentHP, save.CurrentUltimateMeter);
+        }
+
+        /// <summary>
+        /// V7.3 mid-level resume: rebuilds the attempt's world-state on top of
+        /// the freshly constructed scene — extractors already destroyed this
+        /// attempt come back broken (no dust, no Integrity restore, no
+        /// re-registration) and secrets already found stay found (no double
+        /// count). StoryManager's registries were restored from the save by
+        /// <see cref="StoryManager.BeginLevelRun"/> before the scene loaded.
+        /// </summary>
+        protected virtual void ApplyResumedAttemptState() {
+            StoryManager story = StoryManager.Instance;
+            if (!ResumedMidLevel || story == null) return;
+            foreach (ChronalExtractor extractor in _extractors) {
+                if (IsInstanceValid(extractor) && story.IsExtractorDestroyed(extractor.ObjectID)) {
+                    extractor.RestoreDestroyedState();
+                }
+            }
+            Godot.Collections.Array<Node> caches = GetTree().GetNodesInGroup(SecretCache.Group);
+            using var cachesLifetime = caches.AsDisposable();
+            foreach (Node node in caches) {
+                if (node is SecretCache cache && story.IsSecretFound(cache.SecretID)) {
+                    cache.MarkAlreadyFound();
+                }
+            }
         }
 
         // === HUD helpers ===
@@ -605,12 +650,22 @@ namespace FTT.Environment {
                 // guard break; mark the physics callback so those systems
                 // defer the engine-blocked writes.
                 using var scope = PhysicsCallbackGuard.Enter();
-                player.ApplyDamage(damage);
+                ApplySpikeDamage(player, damage);
             };
 
             AddChild(hazard);
             return hazard;
         }
+
+        /// <summary>
+        /// V7.3: spike hazards route through the environmental-damage
+        /// chokepoint like every other environmental source (Defy flag
+        /// consumption, Rally echo, victim meter — never raw ApplyDamage).
+        /// Static and internal so the pin test can exercise the exact path
+        /// the BodyEntered lambda takes.
+        /// </summary>
+        internal static int ApplySpikeDamage(PlayerController player, int damage) =>
+            player?.ApplyEnvironmentalDamage(damage) ?? 0;
 
         protected CheckpointTrigger BuildCheckpoint(float x, float y, string id) {
             var checkpoint = new CheckpointTrigger {
@@ -618,6 +673,11 @@ namespace FTT.Environment {
                 CheckpointID = id,
                 Position = new Vector2(x, y),
                 RespawnOffset = new Vector2(0, -50),
+                // V7.3 strike-to-activate: only the entry checkpoint
+                // ("{levelID}_checkpoint_0") self-activates — the player just
+                // arrived through it (design exception); the mid and pre-boss
+                // fractures must be struck.
+                SelfActivating = id != null && id.EndsWith("_checkpoint_0", StringComparison.Ordinal),
                 CollisionLayer = CollisionLayers.Trigger,
                 CollisionMask = CollisionLayers.Player
             };
@@ -788,11 +848,10 @@ namespace FTT.Environment {
             extractor.Name = $"Extractor_{extractorID}";
             extractor.ObjectID = extractorID;
             extractor.Position = position;
-            // Itemization hook (audit M-1): the extractor raises its own wallet
-            // award in OnDestroyed (no physical pickup), which the shared dust
-            // subscription banks into the total; this attributes it to the
-            // extractor line of the results overlay.
-            extractor.Destroyed += () => AttributeExtractorDust(extractor.DustReward);
+            // Itemization (audit M-1, reworked by the V7.3 Single Icon Rule):
+            // destruction spawns a physical pickup; the wallet payment AND the
+            // extractor-line attribution both land at collection through
+            // OnDustAwardCollected — nothing to wire per instance here.
             AddChild(extractor);
             _extractors.Add(extractor);
             return extractor;
@@ -881,9 +940,10 @@ namespace FTT.Environment {
             if (_bossDefeated) return;
             _bossDefeated = true;
             SetObjective(CompletionObjectiveKey);
-            // The encounter controller already raised the dust award (which the
-            // wallet-receipt tally banked); this only labels it for the results.
-            AttributeBossDust(payload.ChronalDustDrop);
+            // V7.3 Single Icon Rule: the encounter spawned a physical pickup;
+            // the wallet payment and the boss-line attribution both land at
+            // collection (OnDustAwardCollected) — attributing here as well
+            // would label dust the wallet has not been paid.
             StartPostBossSequence();
         }
 

@@ -1141,3 +1141,56 @@ fighter_select_hint,Move your token with the movement controls. Attack confirms;
 controls_action_up,Up
 # Gameplay feel B1 (2026-08-10) - Fighter-side ledge grab
 fighter_state_ledge,Ledge Hang
+# V7.3 story/core/economy batch (2026-08-26)
+checkpoint_strike_prompt,Strike the fracture to stabilize it
+hud_rewind_cooldown,Rewind ready in {0}s
+collapse_transmission_line,"Sarah: We've lost the thread — pulling you out!"
+collapse_skip_prompt,Press Jump to skip
+resonance_respec_button,Respec (full refund)
+resonance_respec_title,Confirm Respec
+resonance_respec_confirm,Refund all {0} Chronal Dust spent on this grid and clear every unlocked node?
+resonance_respec_done,Respec complete: {0} Chronal Dust refunded.
+save_notice_abnormal_exit_fee,"Your last session ended unexpectedly — {0} undeposited Chronal Dust was lost to the fracture."
+movelist_title,Move List
+movelist_title_for,"Move List — {0}"
+movelist_section_string,Basic String
+movelist_string_hit,"Hit {0}: {1}/{2}/{3} frames — {4:0.#} damage"
+movelist_aerial_startups,"Aerial startups: {0}/{1}/{2}"
+movelist_reach,"Reach: {0}% wide × {1}% tall of the standard hitbox"
+movelist_up_attack,"Up attack: {0}/{1}/{2} frames — {3:0.#} damage, vertical launcher"
+movelist_down_air,"Down air: {0}/{1}/{2} frames — {3:0.#} damage, aerial only"
+movelist_section_grabs,Grabs & Throws
+movelist_grab_frames,"Grab: {0}/{1}/{2} frames — grounded, unblockable, whiffs on a stunned or shieldstunned target"
+movelist_throws,"Throws: forward {0:0.#}× / up {1:0.#}× / back {2:0.#}× knockback at {3:0.#}× basic damage"
+movelist_triangle_note,"The triangle: attacks beat grabs, grabs beat blocks, blocks beat attacks."
+movelist_section_abilities,Specials & Ultimate
+movelist_slot_special1,Special 1
+movelist_slot_special2,Special 2
+movelist_slot_movement,Movement
+movelist_slot_ultimate,Ultimate
+movelist_ability_stats,"Damage {0:0.#} — cooldown {1:0.#} s"
+movelist_section_movement,Universal Movement
+movelist_roll,"Roll: {0}/{1}/{2} frames — first {3} travel frames invulnerable"
+movelist_jumps,"Jumps: {0} (double jump)"
+movelist_fast_fall,"Fast fall: hold Down while airborne — {0:0.#} units/s"
+movelist_style_melee,Melee
+movelist_style_ranged,Ranged
+movelist_style_hybrid,Hybrid
+systems_card_title,Systems Card
+systems_card_block_title,Block & Shatter
+systems_card_block_body,"Three charges absorb Basic hits (8 frames of shieldstun each); any special shatters the stance and locks it out for 5 seconds."
+systems_card_triangle_title,The Triangle
+systems_card_triangle_body,"Attacks beat grabs, grabs beat blocks, blocks beat attacks — and a grab whiffs against a target in shieldstun."
+systems_card_di_title,Directional Influence
+systems_card_di_body,"Hold a direction during hitstop to bend a launch by up to 15 degrees."
+systems_card_tech_title,Landing Tech
+systems_card_tech_body,"Hold Block as a launch carries you into the ground for a 12-frame invulnerable recovery."
+systems_card_rally_title,Rally & Desperation
+systems_card_rally_body,"20–50% of damage taken lingers as a reclaimable echo; a direct hit reclaims up to 2× its damage before the echo drains."
+systems_card_defy_title,Defy History
+systems_card_defy_body,"At 100 meter, a lethal hit shatters the meter instead of you — survive at 1 HP, once per match."
+systems_card_echo_title,Echo Step & Resonance Momentum
+systems_card_echo_body,"Spend 30 meter during your own recovery to snap back 30 frames of position; a connecting finisher refunds 1 second of special cooldown."
+systems_card_overtime_title,Overtime
+systems_card_overtime_body,"The final 60 seconds of a timed match double the hazard cadence and raise the Rally echo by half."
+dialogue_hold_skip,"Hold {0} to skip"

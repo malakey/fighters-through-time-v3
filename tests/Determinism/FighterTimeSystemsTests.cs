@@ -158,6 +158,113 @@ public class FighterTimeSystemsTests {
     }
 
     [TestCase]
+    public void EchoStepNeverFiresDuringAGrabOrWhileThrown() {
+        // V7.3: being seized cancels an armed Echo Step wind-up outright — no
+        // snap, no refund, the cooldown stands — and a fighter inside any grab
+        // phase refuses to start one. Player one arms a wind-up on a whiffed
+        // swing away from the opponent; player two's grab connects inside the
+        // 8-frame wind-up.
+        var simulation = NewSimulation(
+            BuildCharacter("tesla", damage: 125f), BuildCharacter("joan", damage: 10f, maxHP: 400), seed: 953);
+        int tick = 0;
+
+        // Charge player one's meter with the big opener, then let the dust settle.
+        simulation.Advance(Frame(tick++, 0, GameplayButtons.BasicAttack), Frame(0, 0, GameplayButtons.None));
+        for (int step = 0; step < 60; step++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            tick++;
+        }
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent charged)).IsTrue();
+        AssertThat(charged.Influence.RawValue).IsEqual(FP64.FromInt(100).RawValue);
+
+        // Player one turns AWAY (the front-only swing will whiff); player two
+        // walks into contact so the later grab reach holds (the pushbox stops
+        // them at exactly the 0.8-unit grab reach).
+        simulation.Advance(
+            Frame(tick, -127, GameplayButtons.None),
+            Frame(tick, -127, GameplayButtons.None));
+        tick++;
+        for (int step = 0; step < 90; step++) {
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent one)).IsTrue();
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent two)).IsTrue();
+            if (FP64.Abs(two.Position.x - one.Position.x)
+                <= FP64.FromDouble(BasicComboRules.GrabReachUnits)) break;
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
+            tick++;
+        }
+        // A settle tick bleeds player two's walk speed off before the script.
+        simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        tick++;
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent turned)).IsTrue();
+        AssertThat(turned.FacingRight).IsEqual(0);
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent closed)).IsTrue();
+        AssertThat(FP64.Abs(closed.Position.x - turned.Position.x)
+                <= FP64.FromDouble(BasicComboRules.GrabReachUnits))
+            .OverrideFailureMessage("The fighters must stand inside grab reach before the script runs.")
+            .IsTrue();
+
+        // T+0: player one whiffs an opener leftward. T+5: player two chords a
+        // grab (active window T+15..18). T+13: player one chords Echo Step in
+        // the swing's recovery (wind-up T+13..21). The seize at ~T+15 lands
+        // inside the wind-up.
+        FTT.Combat.BasicStringProfile profile = BasicComboRules.StringProfileFor("tesla");
+        int swingTick = tick;
+        int grabTick = swingTick + 5;
+        int chordTick = swingTick + profile.GroundStartupFrames[0] + BasicComboRules.GroundActiveFrames[0] + 1;
+        bool windupArmed = false;
+        bool seized = false;
+        for (int step = 0; step < 40; step++, tick++) {
+            GameplayButtons p1Pressed = GameplayButtons.None;
+            GameplayButtons p1Held = GameplayButtons.None;
+            if (tick == swingTick) { p1Pressed = GameplayButtons.BasicAttack; p1Held = GameplayButtons.BasicAttack; }
+            if (tick == chordTick) {
+                p1Pressed = GameplayButtons.Roll;
+                p1Held = GameplayButtons.Block | GameplayButtons.Roll;
+            }
+            GameplayButtons p2Pressed = GameplayButtons.None;
+            GameplayButtons p2Held = GameplayButtons.None;
+            if (tick == grabTick) {
+                p2Pressed = GameplayButtons.BasicAttack;
+                p2Held = GameplayButtons.Block | GameplayButtons.BasicAttack;
+            }
+            simulation.Advance(
+                new PlayerInputFrame { Tick = (uint)tick, Held = p1Held, Pressed = p1Pressed },
+                new PlayerInputFrame { Tick = (uint)tick, Held = p2Held, Pressed = p2Pressed });
+
+            AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent verb)).IsTrue();
+            if (tick == chordTick) {
+                AssertThat(verb.EchoStepWindupFrames > 0)
+                    .OverrideFailureMessage("The Echo Step wind-up must arm on the recovery chord.")
+                    .IsTrue();
+                windupArmed = true;
+            }
+            if (verb.BeingHeld == 1) { seized = true; break; }
+        }
+        AssertThat(windupArmed).IsTrue();
+        AssertThat(seized)
+            .OverrideFailureMessage("The grab must seize player one inside the wind-up.")
+            .IsTrue();
+
+        // One more tick: the cancel (which runs BEFORE the movement loop's
+        // IsBusy short-circuit) clears the wind-up. No snap ever fires and the
+        // cooldown (and the spent meter) stand — the read was paid for.
+        simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        tick++;
+        AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent canceled)).IsTrue();
+        AssertThat(canceled.EchoStepWindupFrames)
+            .OverrideFailureMessage("Entering a grab must cancel the armed wind-up.")
+            .IsEqual(0);
+        AssertThat(canceled.EchoStepCooldownFrames > 0)
+            .OverrideFailureMessage("The cancel refunds nothing — the cooldown stands.")
+            .IsTrue();
+        AssertThat(canceled.BeingHeld).IsEqual(1);
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent held)).IsTrue();
+        AssertThat(held.Influence.RawValue)
+            .OverrideFailureMessage("The spent meter is not refunded.")
+            .IsEqual(FP64.FromInt(100 - BasicComboRules.EchoStepMeterCost).RawValue);
+    }
+
+    [TestCase]
     public void OvertimeFlagsBothFightersInsideTheFinalMinuteOnly() {
         // A 5-second match is inside the final minute from its first live
         // frame; an untimed match never flags.

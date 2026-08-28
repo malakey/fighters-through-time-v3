@@ -1,3 +1,5 @@
+using FTT.Characters;
+using FTT.Combat;
 using FTT.Core;
 using FTT.FighterSim;
 using GdUnit4;
@@ -423,6 +425,242 @@ public class FighterMatchFlowTests {
         AssertThat(after.Stocks).IsEqual(2);
     }
 
+    // === V7.3 timeout, Sudden Death, and dual-Defy rulings ===
+
+    /// <summary>
+    /// V7.3 ruling #8: the timer tie-break compares HP as a PERCENTAGE of max,
+    /// never absolute HP. The heavier fighter here holds more absolute HP
+    /// (150 vs 90) but a lower fraction (75% vs 90%) — the percentage rule
+    /// must name the lighter fighter the winner.
+    /// </summary>
+    [TestCase]
+    public void TimeoutComparesHPAsPercentageOfMax() {
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(TimeoutFighter(maxHP: 200, damage: 12.5f)),
+            FighterLoadoutFactory.FromCharacterData(TimeoutFighter(maxHP: 100, damage: 62.5f)),
+            stocks: 3,
+            matchSeconds: 8,
+            seed: 21,
+            spawnDistance: 1,
+            rules: new FighterMatchRules((int)MatchMode.Hybrid, false, 0, false, 0));
+
+        // P1 chips P2 for 10 (of 100); much later — after the Rally pools have
+        // fully drained, so no reclaim muddies the arithmetic — P2 answers
+        // with a 50 (of 200) opener.
+        int tick = 0;
+        simulation.Advance(Frame(tick, 0, GameplayButtons.BasicAttack), Neutral(tick));
+        for (tick = 1; tick <= 220; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+        simulation.Advance(Neutral(tick), Frame(tick, 0, GameplayButtons.BasicAttack));
+        for (tick++; tick <= 500; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+
+        FighterMatchComponent match = simulation.GetMatchState();
+        AssertThat(match.MatchState).IsEqual(FighterMatchStates.Complete);
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent first)).IsTrue();
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent second)).IsTrue();
+        AssertThat(first.Stocks).IsEqual(second.Stocks);
+        AssertThat(first.CurrentHP).IsEqual(150);
+        AssertThat(second.CurrentHP).IsEqual(90);
+        // Absolute HP favours player one; the percentage rule must not.
+        AssertThat(match.WinnerPlayerID)
+            .OverrideFailureMessage(
+                "Timeout must compare HP as a percentage of max (75% vs 90%), not absolute HP (150 vs 90).")
+            .IsEqual(1);
+        AssertThat(match.IsTrueTie).IsEqual(0);
+    }
+
+    /// <summary>
+    /// V7.3 ruling #8, second half: an un-reclaimed Echo Pool is not HP and
+    /// must not count at the buzzer. The loser's live pool would flip the
+    /// result if it were added to their HP.
+    /// </summary>
+    [TestCase]
+    public void UnreclaimedEchoDoesNotCountAtTimeout() {
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(TimeoutFighter(maxHP: 100, damage: 37.5f)),
+            FighterLoadoutFactory.FromCharacterData(TimeoutFighter(maxHP: 100, damage: 32f)),
+            stocks: 3,
+            matchSeconds: 6,
+            seed: 22,
+            spawnDistance: 1,
+            rules: new FighterMatchRules((int)MatchMode.Hybrid, false, 0, false, 0));
+
+        // P2 chips P1 for 25 early (its echo fully drains), then P1 lands a 30
+        // just before the buzzer so the victim's pool is still live at expiry.
+        int tick = 0;
+        simulation.Advance(Neutral(tick), Frame(tick, 0, GameplayButtons.BasicAttack));
+        for (tick = 1; tick <= 300; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+        simulation.Advance(Frame(tick, 0, GameplayButtons.BasicAttack), Neutral(tick));
+        for (tick++; tick <= 400; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+
+        FighterMatchComponent match = simulation.GetMatchState();
+        AssertThat(match.MatchState).IsEqual(FighterMatchStates.Complete);
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent first)).IsTrue();
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent second)).IsTrue();
+        AssertThat(first.CurrentHP).IsEqual(75);
+        AssertThat(second.CurrentHP).IsEqual(70);
+        // The loser's echo really was live at the buzzer...
+        AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent verb)).IsTrue();
+        AssertThat(verb.EchoPool > FP64.Zero)
+            .OverrideFailureMessage("Harness: the victim's Echo Pool must still be draining at expiry.")
+            .IsTrue();
+        AssertThat(verb.EchoPool.ToFloat() > 5f)
+            .OverrideFailureMessage("Harness: the live pool must be big enough to have flipped an HP+echo comparison.")
+            .IsTrue();
+        // ...and it counted for nothing: 75% beats 70% regardless of the pool.
+        AssertThat(match.WinnerPlayerID)
+            .OverrideFailureMessage("An un-reclaimed Echo Pool must not count at timeout.")
+            .IsEqual(0);
+    }
+
+    /// <summary>
+    /// V7.3 ruling #7: a simultaneous final-stock KO in regulation mirrors the
+    /// timer tie — Sudden Death, not a recorded draw.
+    /// </summary>
+    [TestCase]
+    public void SimultaneousFinalStockKOEntersSuddenDeath() {
+        var simulation = new FighterSimulation(
+            stocks: 1, rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0));
+
+        // Both fighters drop through the floor and ride out the bottom blast
+        // zone on the same tick.
+        bool suddenDeath = false;
+        for (int tick = 0; tick < 300 && !suddenDeath; tick++) {
+            PlayerInputFrame falling = tick == 0
+                ? Frame(tick, 0, GameplayButtons.Jump | GameplayButtons.Down)
+                : Frame(tick, 0, GameplayButtons.Down);
+            simulation.Advance(falling, falling);
+            suddenDeath = simulation.GetMatchState().SuddenDeathActive == 1;
+            AssertThat(simulation.GetMatchState().MatchState)
+                .OverrideFailureMessage("A dual final-stock KO must never record an immediate result.")
+                .IsEqual(FighterMatchStates.InProgress);
+        }
+        AssertThat(suddenDeath)
+            .OverrideFailureMessage("The simultaneous final-stock KO must enter Sudden Death.")
+            .IsTrue();
+
+        FighterMatchComponent match = simulation.GetMatchState();
+        AssertThat(match.TimerEnabled).IsEqual(0);
+        AssertThat(match.WinnerPlayerID).IsEqual(-1);
+        for (int playerID = 0; playerID < 2; playerID++) {
+            AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent fighter)).IsTrue();
+            AssertThat(fighter.CurrentHP).IsEqual(1);
+            AssertThat(fighter.Stocks).IsEqual(1);
+            AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
+            AssertThat(verb.DefyHistoryUsed)
+                .OverrideFailureMessage("Sudden Death pre-marks Defy History used on both fighters.")
+                .IsEqual(1);
+        }
+    }
+
+    /// <summary>
+    /// V7.3 ruling #7: a dual lethal trade with BOTH meters full fires BOTH
+    /// Defy History procs. The combat system builds both attack intents from
+    /// pre-hit state and applies them sequentially, so the first hit's Defy
+    /// cannot suppress the second hit — both survivors stand at 1 HP with
+    /// shattered meters, no echo, and no stock lost.
+    /// </summary>
+    [TestCase]
+    public void ADualLethalTradeAtFullMeterFiresBothDefyProcs() {
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(DefyTradeFighter()),
+            FighterLoadoutFactory.FromCharacterData(DefyTradeFighter()),
+            stocks: 3,
+            seed: 23,
+            spawnDistance: 1,
+            rules: FighterMatchRules.Disabled);
+
+        // Fill both meters with one 100-damage opener each, spaced so every
+        // Rally pool fully drains (no reclaim muddies the HP arithmetic).
+        int tick = 0;
+        simulation.Advance(Frame(tick, 0, GameplayButtons.BasicAttack), Neutral(tick));
+        for (tick = 1; tick <= 200; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+        simulation.Advance(Neutral(tick), Frame(tick, 0, GameplayButtons.BasicAttack));
+        for (tick++; tick <= 420; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+        for (int playerID = 0; playerID < 2; playerID++) {
+            AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent charged)).IsTrue();
+            AssertThat(charged.Influence.RawValue)
+                .OverrideFailureMessage($"Harness: player {playerID} must reach a full meter before the trade.")
+                .IsEqual(FP64.FromInt(100).RawValue);
+            AssertThat(charged.CurrentHP).IsEqual(300);
+        }
+
+        // The trade: both lethal melee specials on the same tick.
+        simulation.Advance(
+            Frame(tick, 0, GameplayButtons.Special1),
+            Frame(tick, 0, GameplayButtons.Special1));
+        for (tick++; tick <= 480; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+
+        for (int playerID = 0; playerID < 2; playerID++) {
+            AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent survivor)).IsTrue();
+            AssertThat(survivor.Stocks)
+                .OverrideFailureMessage($"Player {playerID}'s Defy proc must have refused the KO.")
+                .IsEqual(3);
+            AssertThat(survivor.CurrentHP).IsEqual(1);
+            AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
+            AssertThat(verb.DefyHistoryUsed).IsEqual(1);
+            AssertThat(verb.EchoPool.RawValue)
+                .OverrideFailureMessage("A defied hit generates no Rally echo (damage -> Defy -> no echo).")
+                .IsEqual(0L);
+        }
+        // Meter asymmetry is the sequential ordering made visible: player one's
+        // intent applies first (their pre-shatter meter was spent nowhere, and
+        // the second hit shatters it to zero); player two's OWN hit applies
+        // AFTER their shatter and legitimately re-earns meter from the ~300
+        // damage it dealt. Only the defied-victim guarantees are the ruling.
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent firstSurvivor)).IsTrue();
+        AssertThat(firstSurvivor.Influence.RawValue)
+            .OverrideFailureMessage("Player one's shattered meter earns nothing after its own earlier hit.")
+            .IsEqual(0L);
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent secondSurvivor)).IsTrue();
+        AssertThat(secondSurvivor.Influence.RawValue)
+            .OverrideFailureMessage(
+                "Player two's post-shatter hit re-earns full meter from its damage-dealt credit.")
+            .IsEqual(FP64.FromInt(100).RawValue);
+    }
+
+    /// <summary>
+    /// V7.3 ruling #9: Chronal Orbs are OFF in Sudden Death. A live orb at the
+    /// buzzer is cleared on entry, and no orb spawns or awards for the rest of
+    /// the match (hazards stay forced on, unchanged).
+    /// </summary>
+    [TestCase]
+    public void SuddenDeathSpawnsAndAwardsNoOrbs() {
+        // Florence's authored orb anchors sit on the platforms, away from two
+        // grounded neutral fighters — the pre-buzzer orb provably survives to
+        // the transition instead of being camped.
+        var simulation = new FighterSimulation(
+            matchSeconds: 13,
+            seed: 24,
+            rules: new FighterMatchRules((int)MatchMode.TimeLimit, true, 3, false, 0),
+            stageGeometry: FighterStageGeometry.Florence);
+
+        // High frequency spawns the first orb at 660 ticks; the buzzer is 780.
+        for (int tick = 0; tick < 700; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+        AssertThat(simulation.OrbCount)
+            .OverrideFailureMessage("Harness: an orb must be live before the buzzer.")
+            .IsEqual(1);
+        AssertThat(simulation.GetMatchState().SuddenDeathActive).IsEqual(0);
+
+        for (int tick = 700; tick < 790; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+        FighterMatchComponent match = simulation.GetMatchState();
+        AssertThat(match.SuddenDeathActive).IsEqual(1);
+        AssertThat(simulation.OrbCount)
+            .OverrideFailureMessage("Entering Sudden Death must clear every live orb.")
+            .IsEqual(0);
+
+        // Two more full spawn intervals: nothing spawns and nothing awards.
+        for (int tick = 790; tick < 2200; tick++) {
+            simulation.Advance(Neutral(tick), Neutral(tick));
+            if (tick % 100 == 0) {
+                AssertThat(simulation.OrbCount)
+                    .OverrideFailureMessage("No orb may spawn while Sudden Death runs.")
+                    .IsEqual(0);
+            }
+        }
+        AssertThat(simulation.OrbCount).IsEqual(0);
+        AssertThat(simulation.GetMatchState().SuddenDeathActive).IsEqual(1);
+    }
+
     // === Presentation cannot touch deterministic state ===
 
     [TestCase]
@@ -546,6 +784,45 @@ public class FighterMatchFlowTests {
     }
 
     // === Helpers ===
+
+    /// <summary>Zero-knockback fighters for the timeout pins: hits chip HP
+    /// without moving anyone out of range.</summary>
+    private static CharacterData TimeoutFighter(int maxHP, float damage) => new() {
+        CharacterID = "tesla",
+        MaxHP = maxHP,
+        Weight = 1f,
+        MaxBlockCharges = 3,
+        MaxJumpCount = 1,
+        MaxMoveSpeed = 8f,
+        MaxJumpForce = 13f,
+        BasicAttackDamage = damage,
+        BasicAttackKnockback = 0f,
+        SpecialAttackOne = new AbilityData(),
+        SpecialAttackTwo = new AbilityData(),
+        MovementAbility = new MovementAbilityData(),
+        UltimateAttack = new AbilityData { BaseDamage = 20f }
+    };
+
+    /// <summary>
+    /// The dual-Defy trade fighter: a 125-damage basic (hit one deals 100 —
+    /// one meter-filling opener) and a lethal 900-damage generic melee
+    /// Special1 for the trade itself. Zero knockback keeps both in range.
+    /// </summary>
+    private static CharacterData DefyTradeFighter() => new() {
+        CharacterID = "tesla",
+        MaxHP = 400,
+        Weight = 1f,
+        MaxBlockCharges = 3,
+        MaxJumpCount = 1,
+        MaxMoveSpeed = 8f,
+        MaxJumpForce = 13f,
+        BasicAttackDamage = 125f,
+        BasicAttackKnockback = 0f,
+        SpecialAttackOne = new AbilityData { BaseDamage = 900f },
+        SpecialAttackTwo = new AbilityData(),
+        MovementAbility = new MovementAbilityData(),
+        UltimateAttack = new AbilityData { BaseDamage = 20f }
+    };
 
     private static FighterMatchRules CountdownRules() =>
         FighterMatchRules.Disabled.WithCountdown(FighterMatchFlowRules.CountdownFrames);

@@ -120,7 +120,8 @@ namespace FTT.Environment {
                 _tickTimer[player] -= dt;
                 if (_tickTimer[player] > 0f) continue;
                 _tickTimer[player] = Mathf.Max(0.05f, DrownTickSeconds);
-                int applied = player.ApplyDamage(DrownDamage);
+                // V7.3: environmental chokepoint — Defy/echo/meter accounting.
+                int applied = player.ApplyEnvironmentalDamage(DrownDamage);
                 EmitSignal(SignalName.DrownTick, player.PlayerIndex, applied);
             }
         }

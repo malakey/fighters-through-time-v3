@@ -249,7 +249,25 @@ namespace FTT.Enemies {
                 case EnemyAbilityArchetype.Teleport:
                     Teleport(ability);
                     break;
+                case EnemyAbilityArchetype.PersistentFieldAtTarget:
+                    SpawnPersistentField(ability);
+                    break;
             }
+        }
+
+        /// <summary>
+        /// V7.3 Chrono-Warden rework: drops a <see cref="DilationFieldZone"/> at
+        /// the target position CAPTURED at cast (Begin's target — the player's
+        /// position when the telegraph started), so the telegraph is a promise
+        /// about a place: standing still eats the field, moving answers it.
+        /// </summary>
+        private void SpawnPersistentField(EnemyAbilityData ability) {
+            Node parent = _owner.GetParent();
+            if (parent == null) return;
+            var field = new DilationFieldZone { Name = "DilationFieldZone" };
+            field.Configure(ability);
+            parent.AddChild(field);
+            field.GlobalPosition = _targetPosition;
         }
 
         private void ActivateHitbox(EnemyAbilityData ability, Vector2 size, Vector2 offset, bool mirrored) {
@@ -348,14 +366,33 @@ namespace FTT.Enemies {
         // V7.2 codified telegraph color language — the flash is a promise:
         // white/yellow = blockable (1 charge), orange = Guard-Crush (2),
         // red = Unblockable. Classification overrides the authored tint so the
-        // promise holds roster-wide.
+        // promise holds roster-wide. V7.3 (ruling #11) makes the telegraph
+        // dual-channel: the same class flags also pick a drawn glyph shape
+        // (circle / diamond / X), so the promise reads without colour vision.
         private static readonly Color GuardCrushTelegraph = new(1f, 0.6f, 0.15f);
         private static readonly Color UnblockableTelegraph = new(1f, 0.25f, 0.2f);
+
+        /// <summary>The Basic-class white/yellow family default, shared with the
+        /// legacy scalar-melee fallback so no mob telegraph sits outside the
+        /// three-colour language.</summary>
+        public static readonly Color BasicTelegraph = new(1f, 0.95f, 0.6f);
+
+        private TelegraphGlyph _glyph;
+
+        /// <summary>The lazily-created glyph node, or null before the first telegraph. Test seam.</summary>
+        public TelegraphGlyph Glyph => _glyph;
+
+        /// <summary>The one shape rule — resolved from the SAME class flags as the
+        /// tint, so the two channels can never disagree.</summary>
+        public static TelegraphGlyphShape ResolveGlyphShape(bool guardCrush, bool unblockable) =>
+            unblockable ? TelegraphGlyphShape.Unblockable
+            : guardCrush ? TelegraphGlyphShape.GuardCrush
+            : TelegraphGlyphShape.Basic;
 
         private Color TelegraphColor() {
             if (ActiveUnblockable) return UnblockableTelegraph;
             if (ActiveGuardCrush) return GuardCrushTelegraph;
-            return ActiveAbility?.TelegraphTint ?? Colors.White;
+            return ActiveAbility?.TelegraphTint ?? BasicTelegraph;
         }
 
         private void ApplyTelegraphTint() {
@@ -367,6 +404,7 @@ namespace FTT.Enemies {
             if (Glow != null) Glow.SetTintOverride(tint);
             else _sprite.Modulate = tint;
             _tintApplied = true;
+            ShowGlyph(tint);
         }
 
         private void RestoreTint() {
@@ -374,6 +412,20 @@ namespace FTT.Enemies {
             if (Glow != null) Glow.ClearTintOverride();
             else if (_sprite != null) _sprite.Modulate = _spriteBaseModulate;
             _tintApplied = false;
+            if (_glyph != null && GodotObject.IsInstanceValid(_glyph)) _glyph.Visible = false;
+        }
+
+        /// <summary>Shows the class glyph over the owner for the telegraph window.</summary>
+        private void ShowGlyph(Color tint) {
+            if (_glyph == null || !GodotObject.IsInstanceValid(_glyph)) {
+                _glyph = new TelegraphGlyph {
+                    Name = "TelegraphGlyph",
+                    Position = new Vector2(0f, -64f),
+                    Visible = false
+                };
+                _owner.AddChild(_glyph);
+            }
+            _glyph.Present(ResolveGlyphShape(ActiveGuardCrush, ActiveUnblockable), tint);
         }
 
         private void RaisePresentation(EnemyPresentationPhase phase) {

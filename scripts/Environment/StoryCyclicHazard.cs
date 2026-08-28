@@ -52,7 +52,9 @@ namespace FTT.Environment {
 
         public bool ApplyToPlayer(PlayerController player) {
             if (player == null || Phase != HazardPhase.Active || !_hitThisCycle.Add(player.GetInstanceId())) return false;
-            player.ApplyDamage(Damage);
+            // V7.3: environmental chokepoint — Defy flag consumption, Rally
+            // echo, victim meter (never raw ApplyDamage).
+            player.ApplyEnvironmentalDamage(Damage);
             float direction = player.GlobalPosition.X >= GlobalPosition.X ? 1f : -1f;
             player.Velocity += new Vector2(Knockback.X * direction, Knockback.Y);
             return true;

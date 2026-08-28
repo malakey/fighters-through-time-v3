@@ -86,11 +86,27 @@ namespace FTT.UI {
         public static readonly Color TrackBackground = new(0.03f, 0.04f, 0.08f, 0.95f);
 
         // ---- Type scale -----------------------------------------------------
+        //
+        // V7.3: every non-HUD screen expresses these roles through the theme's
+        // Label type variations (below) rather than per-label
+        // AddThemeFontSizeOverride calls, because UIPalette.ApplyUiScale rescales
+        // the theme's font-size entries in place — an override is invisible to it
+        // and freezes that label out of the accessibility UI scale. The constants
+        // stay as the C# mirror UIThemeTests pins against the authored theme.
 
         public const int SmallFontSize = 14;
         public const int BodyFontSize = 18;
         public const int HeadingFontSize = 22;
+        public const int EmphasisFontSize = 26;
         public const int TitleFontSize = 28;
+
+        /// <summary>Label type variation names authored in the shared theme
+        /// (ftt_theme.tres), one per type-scale role. The body role is the
+        /// Label default (no variation).</summary>
+        public const string SmallLabelVariation = "SmallLabel";
+        public const string HeadingLabelVariation = "HeadingLabel";
+        public const string EmphasisLabelVariation = "EmphasisLabel";
+        public const string TitleLabelVariation = "TitleLabel";
 
         // ---- Layout metrics -------------------------------------------------
 

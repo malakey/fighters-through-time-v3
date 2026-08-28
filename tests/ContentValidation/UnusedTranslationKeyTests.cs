@@ -84,13 +84,18 @@ public class UnusedTranslationKeyTests {
         "tutorial_objective_wave_one",
         "tutorial_controls",
         "boss_hp",
-        "boss_defeated"
+        "boss_defeated",
+        // V7.3 LAN de-scope (2026-08-26): the main menu's code-built LanButton
+        // was removed; the key stays for the Package 7 netcode entry point.
+        "menu_lan_match"
     };
 
     /// <summary>The cap stated in the Package 8 closeout, lowered as orphans are
-    /// retired (12 → 10 with the audit M-2 pause pass). Informational alongside the
-    /// roster rule above: if both ever disagree, the roster is the authority.</summary>
-    private const int RecordedOrphanCeiling = 10;
+    /// retired (12 → 10 with the audit M-2 pause pass; 10 → 11 with the V7.3 LAN
+    /// de-scope, which orphaned <c>menu_lan_match</c> until Package 7). Informational
+    /// alongside the roster rule above: if both ever disagree, the roster is the
+    /// authority.</summary>
+    private const int RecordedOrphanCeiling = 11;
 
     [TestCase]
     public void NoTranslationKeyGoesUnusedBeyondTheRecordedOrphans() {

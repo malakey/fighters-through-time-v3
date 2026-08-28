@@ -246,6 +246,36 @@ public class StoryPauseTests {
         AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(0, 0)).IsEqual(0);
     }
 
+    /// <summary>
+    /// V7.3 UI-scale pass: the pause title rides the TitleLabel theme variation
+    /// on both the authored scene and the code-built fallback, with no
+    /// font-size override, so it follows the accessibility UI scale.
+    /// </summary>
+    [TestCase]
+    public void TheTitleUsesTheTitleVariationWithNoFontSizeOverrideOnBothBuildPaths() {
+        var scene = new Node { Name = "StoryPauseScalePinHost" };
+        AddToTree(scene);
+        PauseMenu authored = AddPause(scene);
+        var fallback = new PauseMenu { Name = "FallbackPauseMenu" };
+        scene.AddChild(fallback);
+        SceneTree tree = scene.GetTree();
+        try {
+            foreach (PauseMenu pause in new[] { authored, fallback }) {
+                var title = pause.GetNodeOrNull<Label>("Root/Center/Panel/Layout/Title");
+                AssertObject(title).IsNotNull();
+                AssertThat(title.ThemeTypeVariation.ToString())
+                    .IsEqual(UIPalette.TitleLabelVariation);
+                AssertThat(title.HasThemeFontSizeOverride("font_size"))
+                    .OverrideFailureMessage(
+                        $"{pause.Name}: a font-size override freezes the title out of the UI scale.")
+                    .IsFalse();
+            }
+        } finally {
+            tree.Paused = false;
+            scene.QueueFree();
+        }
+    }
+
     private static PauseMenu AddPause(Node scene) {
         PauseMenu pause = PauseMenu.CreateDefault();
         scene.AddChild(pause);

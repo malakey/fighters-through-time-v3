@@ -49,9 +49,9 @@ namespace FTT.UI {
             var title = new Label {
                 Name = "Title",
                 Text = Tr("timeline_collapse_title"),
-                HorizontalAlignment = HorizontalAlignment.Center
+                HorizontalAlignment = HorizontalAlignment.Center,
+                ThemeTypeVariation = UIPalette.TitleLabelVariation
             };
-            title.AddThemeFontSizeOverride("font_size", UIPalette.TitleFontSize);
             title.AddThemeColorOverride("font_color", UIPalette.TextAccent);
             layout.AddChild(title);
 

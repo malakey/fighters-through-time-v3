@@ -89,7 +89,13 @@ namespace FTT.Environment {
 
         // === IRewindScrubbable ================================================
 
-        public void BeginRewindScrub() => _scrubbing = true;
+        private Vector2 _scrubStartPosition;
+
+        public void BeginRewindScrub() {
+            _scrubbing = true;
+            // The present-moment position, restored if the scrub is cancelled.
+            _scrubStartPosition = Position;
+        }
 
         public void ApplyRewindScrub(int depthFrames) {
             if (_historyCount == 0) return;
@@ -107,6 +113,20 @@ namespace FTT.Environment {
             // The scrub already placed the platform where the rewound moment
             // had it — the checkpoint-state snap at rewind end must not undo it.
             _skipNextRewindRestore = true;
+        }
+
+        /// <summary>
+        /// V7.3 cancel path: the preview never happened, so the platform snaps
+        /// back to where the scrub found it and resumes from there. No
+        /// skip-next-restore flag — a cancel raises no rewind event, and the
+        /// old EndRewindScrub-on-cancel left the flag armed to wrongly swallow
+        /// the NEXT real rewind's restore.
+        /// </summary>
+        public void CancelRewindScrub() {
+            _scrubbing = false;
+            _waitTimer = 0f;
+            PlatformVelocity = Vector2.Zero;
+            Position = _scrubStartPosition;
         }
 
         public void AdvancePath(float dt) {

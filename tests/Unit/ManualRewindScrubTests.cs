@@ -10,8 +10,10 @@ namespace FTT.Tests.Unit;
 /// Pins the V7.2 manual-rewind building blocks that are drivable without live
 /// input: the history buffer's scrub peek, the commit's
 /// nearest-grounded-at-depth landing, the PathMovingPlatform's own recorded
-/// scrub (the world-interaction exemplar), and the Stasis Echo's lifetime,
-/// plate weight, and one-projectile absorb contract.
+/// scrub (the world-interaction exemplar) with its V7.3 cancel snap-back, and
+/// the V7.3 12-second manual-rewind cooldown. (The Stasis Echo's plate and
+/// beam interactions moved to StasisEchoPhysicsTests, which drive the REAL
+/// physics path instead of calling RegisterBody directly.)
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -79,28 +81,79 @@ public class ManualRewindScrubTests {
     }
 
     [TestCase]
-    public void TheStasisEchoWeighsPlatesTimesOutAndReplacesItsPredecessor() {
-        SceneTree tree = (SceneTree)Engine.GetMainLoop();
-        var echo = new StasisEcho { Name = "TestEcho" };
-        tree.Root.AddChild(echo);
-        var plate = new PressurePlate { Name = "TestPlate", RequiredWeight = 1f, PlayerWeight = 1f };
-        tree.Root.AddChild(plate);
+    public void ACancelledScrubSnapsThePlatformBackToThePresent() {
+        // V7.3: cancel is "the preview never happened". The old cancel path
+        // called EndRewindScrub, which left the platform at the scrubbed
+        // position AND armed the skip-next-restore flag with no rewind event
+        // coming — so the NEXT real rewind's restore was silently swallowed.
+        var platform = new PathMovingPlatform {
+            Name = "CancelScrubPlatform",
+            Waypoints = new[] { Vector2.Zero, new Vector2(400f, 0f) },
+            Speed = 120f,
+            EndpointWaitSeconds = 0f
+        };
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(platform);
         try {
-            // The Echo is the player's past self: it carries the player weight.
-            plate.RegisterBody(echo);
-            AssertThat(plate.IsPressed)
-                .OverrideFailureMessage("The Echo must weigh down pressure plates — the puzzle verb.")
-                .IsTrue();
-            plate.UnregisterBody(echo);
+            for (int frame = 0; frame < 90; frame++) platform._PhysicsProcess(1.0 / 60.0);
+            Vector2 present = platform.Position;
 
-            // Lifetime: pumped past its window, it frees itself.
-            float life = echo.LifeSecondsRemaining;
-            AssertThat(life <= 0f).IsTrue(); // spawned raw (no Spawn call), life unset
-            echo._PhysicsProcess(1.0 / 60.0);
-            AssertThat(echo.IsQueuedForDeletion()).IsTrue();
+            platform.BeginRewindScrub();
+            platform.ApplyRewindScrub(60);
+            AssertThat(platform.Position.X < present.X).IsTrue();
+
+            platform.CancelRewindScrub();
+            AssertThat(platform.Position)
+                .OverrideFailureMessage("A cancelled scrub must snap the platform back to the present.")
+                .IsEqual(present);
+
+            // And the next REAL rewind's checkpoint restore still lands (the
+            // cancel armed no skip flag). Checkpoint state was captured at
+            // the initial waypoint by default (_Ready position).
+            platform._PhysicsProcess(1.0 / 60.0);
+            EventBus.Instance?.RaiseRewindTriggered(Vector2.Zero);
+            AssertThat(platform.Position.X)
+                .OverrideFailureMessage("The rewind after a cancelled scrub must restore checkpoint state.")
+                .IsEqual(0f);
         } finally {
-            if (!echo.IsQueuedForDeletion()) echo.Free();
-            plate.Free();
+            platform.Free();
+        }
+    }
+
+    [TestCase]
+    public void TheManualRewindCooldownArmsOnCommitAndScriptedRewindsAreExempt() {
+        AssertThat(ChronalRewindManager.ManualRewindCooldownSeconds).IsEqual(12f);
+        var manager = new ChronalRewindManager { Name = "CooldownTestManager" };
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(manager);
+        try {
+            // Ready by default; committing arms the 12 s cooldown.
+            AssertThat(manager.IsManualRewindOffCooldown).IsTrue();
+            manager.StartManualRewindCooldown();
+            AssertThat(manager.ManualRewindCooldownRemaining).IsEqual(12f);
+            AssertThat(manager.IsManualRewindOffCooldown)
+                .OverrideFailureMessage("The verb must be gated while the cooldown ticks.")
+                .IsFalse();
+
+            // The cooldown ticks down in real play time (no player needed).
+            for (int frame = 0; frame < 60; frame++) manager._PhysicsProcess(1.0 / 60.0);
+            AssertThat(manager.ManualRewindCooldownRemaining).IsEqualApprox(11f, 0.05f);
+
+            // Scripted tutorial rewinds bypass the cooldown entirely: they
+            // neither honor a live one nor arm a new one.
+            manager.ScriptedFreeRewind = true;
+            AssertThat(manager.IsManualRewindOffCooldown).IsTrue();
+            manager.ScriptedFreeRewind = false;
+
+            for (int frame = 0; frame < 60 * 12; frame++) manager._PhysicsProcess(1.0 / 60.0);
+            AssertThat(manager.ManualRewindCooldownRemaining).IsEqual(0f);
+            AssertThat(manager.IsManualRewindOffCooldown).IsTrue();
+
+            manager.ScriptedFreeRewind = true;
+            manager.StartManualRewindCooldown();
+            AssertThat(manager.ManualRewindCooldownRemaining)
+                .OverrideFailureMessage("A scripted free rewind must not arm the cooldown.")
+                .IsEqual(0f);
+        } finally {
+            manager.Free();
         }
     }
 }

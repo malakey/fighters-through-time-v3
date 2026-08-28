@@ -115,6 +115,40 @@ public class UIThemeTests {
         if (drift.Count > 0) AssertThat(string.Join(" | ", drift)).IsEqual("");
     }
 
+    /// <summary>
+    /// V7.3: the four Label type variations are the theme half of UIPalette's
+    /// type scale. Screens set ThemeTypeVariation instead of font-size
+    /// overrides so UIPalette.ApplyUiScale (which rescales every per-type
+    /// font-size entry) reaches them; a missing or drifted variation silently
+    /// drops that label back to the body size.
+    /// </summary>
+    [TestCase]
+    public void LabelTypeVariationsMatchTheUIPaletteTypeScale() {
+        Theme theme = LoadTheme();
+        var drift = new List<string>();
+
+        void RequireVariation(string variation, int expectedSize) {
+            if (!theme.HasFontSize("font_size", variation)) {
+                drift.Add($"{variation}/font_sizes/font_size missing");
+                return;
+            }
+            if (theme.GetTypeVariationBase(variation) != "Label") {
+                drift.Add($"{variation} must be a Label variation");
+            }
+            int actual = theme.GetFontSize("font_size", variation);
+            if (actual != expectedSize) {
+                drift.Add($"{variation} is {actual} px but UIPalette says {expectedSize}");
+            }
+        }
+
+        RequireVariation(UIPalette.SmallLabelVariation, UIPalette.SmallFontSize);
+        RequireVariation(UIPalette.HeadingLabelVariation, UIPalette.HeadingFontSize);
+        RequireVariation(UIPalette.EmphasisLabelVariation, UIPalette.EmphasisFontSize);
+        RequireVariation(UIPalette.TitleLabelVariation, UIPalette.TitleFontSize);
+
+        if (drift.Count > 0) AssertThat(string.Join(" | ", drift)).IsEqual("");
+    }
+
     [TestCase]
     public void ThemeWorksWithoutAFontResource() {
         Theme theme = LoadTheme();

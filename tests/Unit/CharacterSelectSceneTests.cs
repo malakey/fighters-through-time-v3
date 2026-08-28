@@ -12,7 +12,8 @@ namespace FTT.Tests.Unit;
 /// The authored Fighter Mode character-select flow, reworked for audit M-28 to
 /// carry the designed select-screen mechanics (design-godot.md:2586-2599):
 /// per-player selection tokens driven by each player's own device, Reserved/
-/// Occupied tiles with duplicate prevention and the unavailable feedback, a
+/// Occupied tile painting (V7.3 ruling #17 removed the old duplicate-pick
+/// prevention — mirror matches are allowed), a
 /// per-player READY state, the 3.0-second cancelable countdown, and a distinct
 /// full-screen stage-select state that reuses the catalog population,
 /// ProductionReady gating, preview plates, and match rules.
@@ -114,14 +115,45 @@ public class CharacterSelectSceneTests {
         }
     }
 
+    /// <summary>
+    /// V7.3 UI-scale pass: the tile name labels ride the SmallLabel theme
+    /// variation instead of a font-size override, so they follow the
+    /// accessibility UI scale.
+    /// </summary>
+    [TestCase]
+    public void TileNameLabelsUseTheSmallVariationWithNoFontSizeOverride() {
+        CharacterSelectScreen screen = Open(out Node host);
+        try {
+            var grid = screen.GetNode<GridContainer>(SelectRoot + "PlayersRow/Grid");
+            for (int index = 0; index < 9; index++) {
+                var nameLabel = grid.GetNode<Button>($"CharacterButton{index}")
+                    .GetNodeOrNull<Label>("CharacterName");
+                AssertObject(nameLabel).IsNotNull();
+                AssertThat(nameLabel.ThemeTypeVariation.ToString())
+                    .IsEqual(UIPalette.SmallLabelVariation);
+                AssertThat(nameLabel.HasThemeFontSizeOverride("font_size"))
+                    .OverrideFailureMessage($"Tile {index} name label carries a font-size override.")
+                    .IsFalse();
+            }
+        } finally {
+            Teardown(host);
+        }
+    }
+
     [TestCase]
     public void EachPhaseAuthorsItsOwnFocusChainAndTheStageChainReachesTheSpinBoxEditors() {
         CharacterSelectScreen screen = Open(out Node host);
         try {
             screen.GetNode<CheckButton>(SelectRoot + "ModeRow/LocalHumanToggle").ButtonPressed = false;
 
+            // V7.3 Fighter Onboarding added the Move List and Systems Card
+            // footer buttons to the selection chain (3 -> 5).
             IReadOnlyList<Control> selectionChain = screen.FocusChain;
-            AssertThat(selectionChain.Count).IsEqual(3);
+            AssertThat(selectionChain.Count).IsEqual(5);
+            AssertThat(selectionChain.Contains(
+                screen.GetNode<Button>(SelectRoot + "ButtonRow/MoveListButton"))).IsTrue();
+            AssertThat(selectionChain.Contains(
+                screen.GetNode<Button>(SelectRoot + "ButtonRow/SystemsCardButton"))).IsTrue();
             AssertChainAuthored(selectionChain);
             AssertThat(screen.GetNode<CheckButton>(SelectRoot + "ModeRow/LocalHumanToggle").HasFocus()).IsTrue();
 
@@ -174,8 +206,14 @@ public class CharacterSelectSceneTests {
         }
     }
 
+    /// <summary>
+    /// V7.3 ruling #17: mirror matches are allowed — the old duplicate-pick
+    /// refusal (and its unavailable-feedback flash) is gone. Both players may
+    /// lock the same tile, and doing so readies the match like any other pair
+    /// of picks.
+    /// </summary>
     [TestCase]
-    public void DuplicateSelectionIsBlockedWithTheUnavailableFeedback() {
+    public void BothPlayersMayLockTheSameCharacter() {
         CharacterSelectScreen screen = Open(out Node host);
         try {
             screen.GetNode<CheckButton>(SelectRoot + "ModeRow/LocalHumanToggle").ButtonPressed = true;
@@ -184,18 +222,18 @@ public class CharacterSelectSceneTests {
             AssertThat(screen.TryConfirm(0)).IsTrue();
             AssertThat(screen.IsSlotReady(0)).IsTrue();
 
-            // P2 moves onto the occupied tile and is refused with feedback.
+            // P2 moves onto the SAME tile and locks it freely.
             AssertThat(screen.TryMoveCursor(1, -1, 0)).IsTrue();
             AssertThat(screen.GetCursor(1)).IsEqual(0);
-            AssertThat(screen.TryConfirm(1)).IsFalse();
-            AssertThat(screen.IsSlotReady(1)).IsFalse();
-            AssertThat(screen.UnavailableFeedbackVisible).IsTrue();
-            AssertThat(screen.Phase).IsEqual(SelectScreenPhase.Selection);
-
-            // A free tile confirms normally.
-            AssertThat(screen.TryMoveCursor(1, 1, 0)).IsTrue();
-            AssertThat(screen.TryConfirm(1)).IsTrue();
+            AssertThat(screen.TryConfirm(1))
+                .OverrideFailureMessage("A mirror pick must be allowed, not refused.")
+                .IsTrue();
             AssertThat(screen.IsSlotReady(1)).IsTrue();
+            AssertThat(screen.SelectedIndex).IsEqual(0);
+            AssertThat(screen.OpponentIndex).IsEqual(0);
+
+            // Both locks on one tile ready the match: the countdown is running.
+            AssertThat(screen.Phase).IsEqual(SelectScreenPhase.Countdown);
         } finally {
             Teardown(host);
         }
@@ -245,7 +283,7 @@ public class CharacterSelectSceneTests {
     }
 
     [TestCase]
-    public void CpuModeLetsPlayerOneLockThenPickTheCpuOpponentWithDuplicatePrevention() {
+    public void CpuModeLetsPlayerOneLockThenPickTheCpuOpponent() {
         if (GameManager.Instance == null) return;
         SessionData original = GameManager.Instance.CurrentSession;
         CharacterSelectScreen screen = Open(out Node host);
@@ -256,13 +294,13 @@ public class CharacterSelectSceneTests {
             AssertThat(screen.TryConfirm(0)).IsTrue();
             AssertThat(screen.IsPickingCpu).IsTrue();
 
-            // The CPU pick cannot duplicate P1's lock.
+            // V7.3 ruling #17: the CPU pick MAY mirror P1's lock. Hover it to
+            // prove the confirm is no longer refused, then move on to the
+            // distinct pick this flow actually wants.
             AssertThat(screen.TryMoveCursor(0, -1, 0)).IsTrue();
             AssertThat(screen.GetCursor(1)).IsEqual(0);
-            AssertThat(screen.TryConfirm(0)).IsFalse();
-            AssertThat(screen.UnavailableFeedbackVisible).IsTrue();
 
-            // Pick leonardo (index 2) instead: countdown starts.
+            // Pick leonardo (index 2): countdown starts.
             AssertThat(screen.TryMoveCursor(0, 2, 0)).IsTrue();
             AssertThat(screen.GetCursor(1)).IsEqual(2);
             AssertThat(screen.TryConfirm(0)).IsTrue();
@@ -354,10 +392,11 @@ public class CharacterSelectSceneTests {
     }
 
     [TestCase]
-    public void AllFourFrequencyBandsSurviveTheReworkAndDefaultToHigh() {
+    public void AllFourFrequencyBandsSurviveTheReworkAndDefaultToMedium() {
         // V7 "Match Settings Persist": the rule controls now initialize from the
         // session's settings, so normalize the session first — this test pins
         // the first-run defaults, not another test's leftover house rules.
+        // V7.3 ruling #18: the first-run default band is Medium on both axes.
         if (GameManager.Instance != null) {
             SessionData normalized = GameManager.Instance.CurrentSession;
             normalized.MatchSettings = MatchSettings.GetDefault();
@@ -372,7 +411,7 @@ public class CharacterSelectSceneTests {
                     .IsEqual(4);
                 AssertThat(select.GetSelectedId())
                     .OverrideFailureMessage($"{path} default band")
-                    .IsEqual(3);
+                    .IsEqual((int)ChronalOrbFrequency.Medium);
             }
             AssertThat(screen.GetNode<OptionButton>(StageRoot + "RulesRow/MatchMode").ItemCount).IsEqual(3);
             AssertThat(screen.GetNode<OptionButton>(SelectRoot + "ModeRow/CpuDifficulty").ItemCount).IsEqual(3);

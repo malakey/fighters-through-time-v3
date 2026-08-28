@@ -132,6 +132,88 @@ public class SaveEnvelopeTests {
         AssertThat(legacy.TotalWins).IsEqual(5);
     }
 
+    /// <summary>
+    /// V7.3 schema v5 is purely additive: a v4 story payload (written before
+    /// the per-attempt fields existed) must load with the documented defaults
+    /// — empty registries, Integrity 100, both flags false.
+    /// </summary>
+    [TestCase]
+    public void VersionFourStoryPayloadLoadsWithVersionFiveDefaults() {
+        StorySaveData migrated = SaveSchemaMigrator.DeserializeStory(
+            "{\"SaveVersion\":4,\"SelectedCharacterID\":\"joan\",\"LevelChronalDust\":42}");
+
+        AssertThat(SaveSchemaMigrator.CurrentVersion).IsEqual(5);
+        AssertThat(migrated.SaveVersion).IsEqual(5);
+        AssertThat(migrated.LevelChronalDust).IsEqual(42);
+        AssertObject(migrated.ActivatedCheckpointIDs).IsNotNull();
+        AssertThat(migrated.ActivatedCheckpointIDs.Count).IsEqual(0);
+        AssertObject(migrated.FontUsesConsumed).IsNotNull();
+        AssertThat(migrated.FontUsesConsumed.Count).IsEqual(0);
+        AssertObject(migrated.DestroyedExtractorIDs).IsNotNull();
+        AssertThat(migrated.DestroyedExtractorIDs.Count).IsEqual(0);
+        AssertObject(migrated.FoundSecretIDs).IsNotNull();
+        AssertThat(migrated.FoundSecretIDs.Count).IsEqual(0);
+        AssertObject(migrated.ViewedDialogueIDs).IsNotNull();
+        AssertThat(migrated.ViewedDialogueIDs.Count).IsEqual(0);
+        AssertThat(migrated.LevelIntegrityPercent).IsEqual(100f);
+        AssertThat(migrated.HasSeenCollapseBeat).IsFalse();
+
+        // A null-armed v5 payload (hand-edited) is normalized, not crashed on.
+        StorySaveData nulled = SaveSchemaMigrator.DeserializeStory(
+            "{\"SaveVersion\":5,\"ActivatedCheckpointIDs\":null,\"FontUsesConsumed\":null,"
+            + "\"DestroyedExtractorIDs\":null,\"FoundSecretIDs\":null,\"ViewedDialogueIDs\":null,"
+            + "\"LevelIntegrityPercent\":250.0}");
+        AssertObject(nulled.ActivatedCheckpointIDs).IsNotNull();
+        AssertObject(nulled.FontUsesConsumed).IsNotNull();
+        AssertObject(nulled.DestroyedExtractorIDs).IsNotNull();
+        AssertObject(nulled.FoundSecretIDs).IsNotNull();
+        AssertObject(nulled.ViewedDialogueIDs).IsNotNull();
+        AssertThat(nulled.LevelIntegrityPercent).IsEqual(100f);
+    }
+
+    [TestCase]
+    public void VersionFiveAttemptStateRoundTripsAndTheFutureIsStillRejected() {
+        var data = new StorySaveData {
+            SelectedCharacterID = "einstein",
+            ActivatedCheckpointIDs = new System.Collections.Generic.List<string> {
+                "level_02_orleans_checkpoint_0", "level_02_orleans_checkpoint_1"
+            },
+            FontUsesConsumed = new System.Collections.Generic.Dictionary<string, int> {
+                ["Orleans:font"] = 1
+            },
+            DestroyedExtractorIDs = new System.Collections.Generic.List<string> { "orleans_extractor_1" },
+            FoundSecretIDs = new System.Collections.Generic.List<string> { "orleans_secret" },
+            LevelIntegrityPercent = 87.5f,
+            ViewedDialogueIDs = new System.Collections.Generic.List<string> { "level_02.entrance" },
+            HasSeenCollapseBeat = true
+        };
+        data.Normalize();
+
+        byte[] envelope = SaveEnvelopeCodec.Encode(
+            "story", data.SaveVersion, JsonConvert.SerializeObject(data), TestKey, 11L, TestIV);
+        AssertThat(SaveEnvelopeCodec.TryDecode(envelope, TestKey, out DecodedSaveEnvelope decoded, out _)).IsTrue();
+        AssertThat(decoded.SchemaVersion).IsEqual(5);
+
+        StorySaveData restored = SaveSchemaMigrator.DeserializeStory(decoded.Json);
+        AssertThat(restored.ActivatedCheckpointIDs.Count).IsEqual(2);
+        AssertThat(restored.ActivatedCheckpointIDs[1]).IsEqual("level_02_orleans_checkpoint_1");
+        AssertThat(restored.FontUsesConsumed["Orleans:font"]).IsEqual(1);
+        AssertThat(restored.DestroyedExtractorIDs[0]).IsEqual("orleans_extractor_1");
+        AssertThat(restored.FoundSecretIDs[0]).IsEqual("orleans_secret");
+        AssertThat(restored.LevelIntegrityPercent).IsEqual(87.5f);
+        AssertThat(restored.ViewedDialogueIDs[0]).IsEqual("level_02.entrance");
+        AssertThat(restored.HasSeenCollapseBeat).IsTrue();
+
+        // The version fence still holds: v6 is the future and stays rejected.
+        bool rejected = false;
+        try {
+            SaveSchemaMigrator.DeserializeStory("{\"SaveVersion\":6}");
+        } catch (SaveVersionException) {
+            rejected = true;
+        }
+        AssertThat(rejected).IsTrue();
+    }
+
     [TestCase]
     public void AtomicWriteKeepsLastKnownGoodBackup() {
         string directory = ProjectSettings.GlobalizePath($"user://test-saves/{Guid.NewGuid():N}");

@@ -53,14 +53,16 @@ namespace FTT.Core {
         public HazardTriggerFrequency HazardRate;
 
         public static MatchSettings GetDefault() {
+            // V7.3 ruling #18: items and hazards default to Medium (still on;
+            // High remains a house-rule choice).
             return new MatchSettings {
                 Mode = MatchMode.Stock,
                 StockCount = 3,
                 TimeLimit = 480.0f,
                 ItemsEnabled = true,
-                ItemSpawnRate = ChronalOrbFrequency.High,
+                ItemSpawnRate = ChronalOrbFrequency.Medium,
                 StageHazardsEnabled = true,
-                HazardRate = HazardTriggerFrequency.High
+                HazardRate = HazardTriggerFrequency.Medium
             };
         }
     }

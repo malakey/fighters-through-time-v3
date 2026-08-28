@@ -296,6 +296,140 @@ public class EnemyAbilityExecutorTests {
         Cleanup(owner, ability);
     }
 
+    // === V7.3 Chrono-Warden rework: PersistentFieldAtTarget ===
+
+    [TestCase]
+    public void PersistentFieldSpawnsAtTheCapturedTargetPositionAndLivesTheAuthoredSeconds() {
+        (Node2D owner, EnemyAbilityExecutor executor, _, _) = CreateSubject();
+        var ability = MeleeAbility(telegraph: 0, active: 2, recovery: 0);
+        ability.AbilityID = "test.field";
+        ability.Archetype = EnemyAbilityArchetype.PersistentFieldAtTarget;
+        ability.PulseRadius = 170f;
+        ability.FieldDurationSeconds = 4f;
+        ability.AppliedStatus = StatusType.TimeDilation;
+        ability.StatusDuration = 2.5f;
+
+        var target = new Vector2(555f, -40f);
+        executor.Begin(ability, target, facingRight: true);
+
+        var field = owner.GetParent().GetNodeOrNull<DilationFieldZone>("DilationFieldZone");
+        try {
+            AssertObject(field)
+                .OverrideFailureMessage("The archetype must spawn a DilationFieldZone.")
+                .IsNotNull();
+            // The CAPTURED cast position, not the caster or the live target.
+            AssertThat(field.GlobalPosition).IsEqual(target);
+            AssertThat(field.RadiusPixels).IsEqualApprox(170f, 0.001f);
+            AssertThat(field.LifeSeconds).IsEqualApprox(4f, 0.001f);
+            AssertThat(field.IsInGroup("persistent_construct")).IsTrue();
+
+            // The rewind/scrub world freeze pauses the life timer.
+            field.SetStoryRewindFrozen(true);
+            for (int frame = 0; frame < 30; frame++) field._PhysicsProcess(Step);
+            AssertThat(field.LifeSeconds).IsEqualApprox(4f, 0.001f);
+            field.SetStoryRewindFrozen(false);
+
+            // 4 s of life, then the zone removes itself.
+            for (int frame = 0; frame < 239; frame++) field._PhysicsProcess(Step);
+            AssertThat(field.IsQueuedForDeletion()).IsFalse();
+            for (int frame = 0; frame < 3; frame++) field._PhysicsProcess(Step);
+            AssertThat(field.IsQueuedForDeletion()).IsTrue();
+        } finally {
+            if (field != null && GodotObject.IsInstanceValid(field)) field.Free();
+            owner.Free();
+        }
+    }
+
+    [TestCase]
+    public void TheFieldRefreshesTheSlowWhileThePlayerStaysInsideAndStopsWhenTheyLeave() {
+        (Node2D owner, EnemyAbilityExecutor executor, _, _) = CreateSubject();
+        var ability = MeleeAbility(telegraph: 0, active: 2, recovery: 0);
+        ability.AbilityID = "test.field_refresh";
+        ability.Archetype = EnemyAbilityArchetype.PersistentFieldAtTarget;
+        ability.PulseRadius = 170f;
+        ability.FieldDurationSeconds = 30f;
+        ability.AppliedStatus = StatusType.TimeDilation;
+        ability.StatusDuration = 0.5f;
+
+        var player = FTT.Characters.CharacterFactory.CreateCharacter("einstein");
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(player);
+        var status = player.GetNode<StatusController>("StatusController");
+        executor.Begin(ability, player.GlobalPosition, facingRight: true);
+        var field = owner.GetParent().GetNodeOrNull<DilationFieldZone>("DilationFieldZone");
+        try {
+            AssertObject(field).IsNotNull();
+
+            // 1.0 s inside a field applying a 0.5 s status: only the per-frame
+            // refresh keeps it alive past its own duration.
+            for (int frame = 0; frame < 60; frame++) {
+                field._PhysicsProcess(Step);
+                status._PhysicsProcess(Step);
+            }
+            AssertThat(status.HasStatus(StatusType.TimeDilation))
+                .OverrideFailureMessage("The Slow must be refreshed while the player stands inside.")
+                .IsTrue();
+
+            // Walking out ends the refresh; the last application runs out.
+            player.GlobalPosition = field.GlobalPosition + new Vector2(400f, 0f);
+            for (int frame = 0; frame < 45; frame++) {
+                field._PhysicsProcess(Step);
+                status._PhysicsProcess(Step);
+            }
+            AssertThat(status.HasStatus(StatusType.TimeDilation))
+                .OverrideFailureMessage("Outside the radius the Slow must expire on its own timer.")
+                .IsFalse();
+        } finally {
+            if (field != null && GodotObject.IsInstanceValid(field)) field.Free();
+            player.Free();
+            owner.Free();
+        }
+    }
+
+    // === V7.3 dual-channel telegraph: the class glyph ===
+
+    [TestCase]
+    public void TheTelegraphGlyphShowsTheClassShapeAndHidesWhenTheTelegraphEnds() {
+        (Node2D owner, EnemyAbilityExecutor executor, _, _) = CreateSubject();
+        var ability = MeleeAbility(telegraph: 6, active: 2, recovery: 2);
+        try {
+            // Basic: open circle, coloured like the tint channel.
+            executor.Begin(ability, new Vector2(100f, 0f), facingRight: true);
+            AssertObject(executor.Glyph).IsNotNull();
+            AssertThat(executor.Glyph.Visible).IsTrue();
+            AssertThat(executor.Glyph.Shape).IsEqual(TelegraphGlyphShape.Basic);
+            AssertThat(executor.Glyph.GlyphColor).IsEqual(ability.TelegraphTint);
+
+            // Telegraph ends -> the glyph hides with the tint restore.
+            for (int frame = 0; frame < 6; frame++) executor.Tick(Step);
+            AssertThat(executor.Phase).IsEqual(EnemyAbilityPhase.Active);
+            AssertThat(executor.Glyph.Visible).IsFalse();
+            for (int frame = 0; frame < 4; frame++) executor.Tick(Step);
+
+            // Guard-Crush: diamond. Unblockable: X. Same flags as the tint, so
+            // the two channels cannot disagree.
+            executor.Begin(ability, new Vector2(100f, 0f), facingRight: true, guardCrush: true);
+            AssertThat(executor.Glyph.Shape).IsEqual(TelegraphGlyphShape.GuardCrush);
+            executor.Cancel();
+            executor.Begin(ability, new Vector2(100f, 0f), facingRight: true,
+                guardCrush: true, unblockable: true);
+            AssertThat(executor.Glyph.Shape).IsEqual(TelegraphGlyphShape.Unblockable);
+            AssertThat(executor.Glyph.Visible).IsTrue();
+            executor.Cancel();
+            AssertThat(executor.Glyph.Visible)
+                .OverrideFailureMessage("A hard cancel must hide the glyph with the tint.")
+                .IsFalse();
+
+            AssertThat(EnemyAbilityExecutor.ResolveGlyphShape(false, false))
+                .IsEqual(TelegraphGlyphShape.Basic);
+            AssertThat(EnemyAbilityExecutor.ResolveGlyphShape(true, false))
+                .IsEqual(TelegraphGlyphShape.GuardCrush);
+            AssertThat(EnemyAbilityExecutor.ResolveGlyphShape(true, true))
+                .IsEqual(TelegraphGlyphShape.Unblockable);
+        } finally {
+            Cleanup(owner, ability);
+        }
+    }
+
     [TestCase]
     public void InterruptedTelegraphSkipsThePayloadAndKeepsTheRecoveryCost() {
         (Node2D owner, EnemyAbilityExecutor executor, Hitbox hitbox, _) = CreateSubject();

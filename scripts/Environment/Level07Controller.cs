@@ -467,7 +467,8 @@ namespace FTT.Environment {
         /// <summary>Fishes a player out of the sea onto the authored near-side deck.</summary>
         public void HaulOutOfTheWater(PlayerController player, Vector2 rescueAnchor) {
             if (player == null || !IsInstanceValid(player)) return;
-            player.ApplyDamage(UndertowDamage);
+            // V7.3: environmental chokepoint — Defy/echo/meter accounting.
+            player.ApplyEnvironmentalDamage(UndertowDamage);
             if (player.CurrentHP <= 0) return;
             player.GlobalPosition = rescueAnchor;
             player.Velocity = Vector2.Zero;

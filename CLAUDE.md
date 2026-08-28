@@ -196,7 +196,7 @@ enemy/boss display names.
 
 | Path | Role |
 |---|---|
-| `design-godot.md` (repository root) | The full product and technical specification. This is the canonical design document. |
+| `design-godot.md` (repository root) | The full product and technical specification. Since 2026-08-26 (V7.3) this file is a **synced mirror** — the canonical master lives at `D:/Projects/fighters-through-time-docs-3/design-godot-v7.md`; edit the master and re-copy it here. |
 | `AGENTS.md` | Durable architecture/context summary and repository map. |
 | `IMPLEMENTATION_PLAN.md` (root) | Ordered delivery plan and package sequencing. |
 | `IMPLEMENTATION_STATUS.md` (root) | Long-form implemented-vs-designed gap analysis. |

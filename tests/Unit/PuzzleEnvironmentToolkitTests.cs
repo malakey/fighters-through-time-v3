@@ -155,7 +155,17 @@ public class PuzzleEnvironmentToolkitTests {
             int startingHP = player.CurrentHP;
             extractor.ApplyDischargeToPlayer(player);
             AssertThat(player.CurrentHP).IsEqual(startingHP - extractor.HazardDamage);
-            AssertThat(player.CurrentUltimateMeter).IsEqualApprox(30f, 0.001f);
+            // V7.3: the discharge routes through the environmental chokepoint,
+            // so the victim meter first earns the permanent (non-echo) portion
+            // of the damage, then the extractor's authored drain applies.
+            float echoFraction = (FTT.Combat.BasicComboRules.EchoFractionBase
+                    + FTT.Combat.BasicComboRules.EchoFractionSlope
+                        * (extractor.HazardDamage / (float)player.MaximumHP))
+                * FTT.Core.StoryDifficultyTuning.GetRallyEchoMultiplier(
+                    FTT.Core.StoryDifficultyTuning.CurrentStoryDifficulty);
+            float earned = extractor.HazardDamage * (1f - echoFraction)
+                * FTT.Combat.UltimateMeter.PointsPerDamageTaken;
+            AssertThat(player.CurrentUltimateMeter).IsEqualApprox(30f + earned, 0.01f);
 
             extractor.TakeEnvironmentDamage(60f);
             AssertThat(extractor.CurrentHP).IsEqual(40);
@@ -163,7 +173,24 @@ public class PuzzleEnvironmentToolkitTests {
             extractor.TakeEnvironmentDamage(40f);
             AssertThat(extractor.IsDestroyed).IsTrue();
             AssertThat(extractor.VisualState).IsEqual(ChronalExtractorVisualState.Destroyed);
-            // 15 dust per the Package 3 economy balance pass (docs/DUST_ECONOMY.md Section 1).
+            // V7.3 Single Icon Rule: destruction spawns a physical pickup; the
+            // wallet is paid only when it is collected. 15 dust per the Package 3
+            // economy balance pass (docs/DUST_ECONOMY.md Section 1).
+            AssertThat(dustAwarded).IsEqual(0);
+            ChronalDustPickup pickup = null;
+            Godot.Collections.Array<Node> loot = tree.GetNodesInGroup("chronal_dust");
+            using (loot.AsDisposable()) {
+                foreach (Node node in loot) {
+                    if (node is ChronalDustPickup candidate && candidate.Source == DustAwardSource.Extractor) {
+                        pickup = candidate;
+                        break;
+                    }
+                }
+            }
+            AssertObject(pickup)
+                .OverrideFailureMessage("Extractor destruction spawned no dust pickup.")
+                .IsNotNull();
+            pickup.Collect();
             AssertThat(dustAwarded).IsEqual(15);
         } finally {
             EventBus.Instance.OnChronalDustCollected -= OnDust;

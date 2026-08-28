@@ -31,6 +31,23 @@ namespace FTT.Core {
         public Dictionary<string, string> RatingByLevel = new();
         public Dictionary<string, int> SecretsFoundByLevel = new();
 
+        // === Schema v5 (V7.3, purely additive) =============================
+        // Mid-level resume must restore the whole attempt, not just position:
+        // checkpoints already stabilized this attempt (Mending is
+        // once-per-checkpoint-per-attempt), Restoration Font uses consumed,
+        // extractors already destroyed, secrets already found, and the
+        // attempt's live Timeline Integrity. Plus two campaign presentation
+        // flags: dialogue sequences already viewed (hold-to-skip on completed
+        // saves) and whether the Timeline Collapse beat has played once
+        // (first viewing is unskippable).
+        public List<string> ActivatedCheckpointIDs = new();
+        public Dictionary<string, int> FontUsesConsumed = new();
+        public List<string> DestroyedExtractorIDs = new();
+        public List<string> FoundSecretIDs = new();
+        public float LevelIntegrityPercent = 100f;
+        public List<string> ViewedDialogueIDs = new();
+        public bool HasSeenCollapseBeat;
+
         public void Normalize() {
             SaveVersion = SaveSchemaMigrator.CurrentVersion;
             SelectedCharacterID ??= "";
@@ -45,6 +62,12 @@ namespace FTT.Core {
             IntegrityByLevel ??= new Dictionary<string, float>();
             RatingByLevel ??= new Dictionary<string, string>();
             SecretsFoundByLevel ??= new Dictionary<string, int>();
+            ActivatedCheckpointIDs ??= new List<string>();
+            FontUsesConsumed ??= new Dictionary<string, int>();
+            DestroyedExtractorIDs ??= new List<string>();
+            FoundSecretIDs ??= new List<string>();
+            ViewedDialogueIDs ??= new List<string>();
+            LevelIntegrityPercent = Math.Clamp(LevelIntegrityPercent, 0f, 100f);
             CurrentHP = Math.Max(0, CurrentHP);
             CurrentLives = Math.Max(0, CurrentLives);
             CurrentUltimateMeter = Math.Clamp(CurrentUltimateMeter, 0f, 100f);
@@ -338,8 +361,14 @@ namespace FTT.Core {
             LoadGlobalData();
             ApplySavedInputBindings();
             for (int slot = 0; slot < SaveSlots.Length; slot++) LoadStorySlot(slot);
+            ApplyAbnormalExitFeeIfMarked();
             if (EventBus.Instance != null) {
-                EventBus.Instance.OnCheckpointReached += SaveCheckpoint;
+                // V7.3 checkpoint save ordering: persistence listens to the
+                // COMMITTED half of the checkpoint event pair, which the
+                // trigger raises after every gameplay consumer (rewind-pool
+                // refresh included) has run — save.CurrentLives is always the
+                // post-refresh value.
+                EventBus.Instance.OnCheckpointCommitted += SaveCheckpoint;
                 EventBus.Instance.OnLevelComplete += SaveLevelCompletion;
                 EventBus.Instance.OnTalentNodeUnlocked += SaveTalentUnlock;
             }
@@ -347,12 +376,33 @@ namespace FTT.Core {
 
         public override void _ExitTree() {
             if (EventBus.Instance != null) {
-                EventBus.Instance.OnCheckpointReached -= SaveCheckpoint;
+                EventBus.Instance.OnCheckpointCommitted -= SaveCheckpoint;
                 EventBus.Instance.OnLevelComplete -= SaveLevelCompletion;
                 EventBus.Instance.OnTalentNodeUnlocked -= SaveTalentUnlock;
             }
+            // Clean shutdown: the session is settled, no abnormal-exit fee.
+            SessionExitGuard.ClearMarker();
             if (_masterKey != null) System.Security.Cryptography.CryptographicOperations.ZeroMemory(_masterKey);
             if (Instance == this) Instance = null;
+        }
+
+        /// <summary>
+        /// V7.3 boot check: a session marker surviving to the next launch means
+        /// the previous session ended abnormally (crash, process kill, power
+        /// loss). The identical 20% undeposited-dust fee the Exit button pays
+        /// applies to the marked slot, with a one-line notice — killing the
+        /// process is no longer strictly better than pressing Exit. A marker
+        /// left while parked at the hub costs nothing (the wallet is zero), and
+        /// costs nothing silently.
+        /// </summary>
+        internal void ApplyAbnormalExitFeeIfMarked() {
+            if (!SessionExitGuard.TryReadMarker(out int slot)) return;
+            SessionExitGuard.ClearMarker();
+            if (slot < 0 || slot >= SaveSlots.Length || SaveSlots[slot] == null) return;
+            int forfeited = SessionExitGuard.ApplyAbnormalExitFee(SaveSlots[slot]);
+            if (forfeited <= 0) return;
+            SaveStorySlot(slot);
+            SetNotice("save_notice_abnormal_exit_fee", forfeited.ToString());
         }
 
         /// <summary>
@@ -570,6 +620,12 @@ namespace FTT.Core {
                 SaveSlots[slot].CurrentHP = player.CurrentHP;
                 SaveSlots[slot].CurrentUltimateMeter = player.CurrentUltimateMeter;
             }
+            // V7.3 mid-level resume: the checkpoint save carries the whole
+            // attempt — activated checkpoints, font uses, destroyed
+            // extractors, found secrets, live Timeline Integrity.
+            StoryManager.Instance?.WriteAttemptStateToSave(SaveSlots[slot]);
+            // A live session at a checkpoint refreshes the exit-guard marker.
+            SessionExitGuard.WriteMarker(slot);
             SaveStorySlot(slot);
         }
 
@@ -654,6 +710,15 @@ namespace FTT.Core {
                 ?? SaveSlots[slot].CurrentLevelID;
             SaveSlots[slot].LevelChronalDust = StoryManager.Instance?.ChronalDustCollected
                 ?? SaveSlots[slot].LevelChronalDust;
+            // The completed attempt is over: the next level starts fresh. An
+            // empty LastCheckpointID is also what marks the next entry as
+            // fresh rather than a mid-level resume (V7.3).
+            SaveSlots[slot].LastCheckpointID = "";
+            SaveSlots[slot].ActivatedCheckpointIDs.Clear();
+            SaveSlots[slot].DestroyedExtractorIDs.Clear();
+            SaveSlots[slot].FoundSecretIDs.Clear();
+            SaveSlots[slot].FontUsesConsumed.Clear();
+            SaveSlots[slot].LevelIntegrityPercent = 100f;
             SaveStorySlot(slot);
         }
 

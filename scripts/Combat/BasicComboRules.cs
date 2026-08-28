@@ -237,6 +237,21 @@ namespace FTT.Combat {
         /// </summary>
         public const int BlockChargeRegenFrames = 180;
 
+        // === Block model closure (V7.3, applied 2026-08-26) ===
+        // The four locked V7 block rules: shieldstun locks the blocker into the
+        // stance on every non-shatter blocked hit; a shatter freezes both
+        // parties and locks the stance AND regen out for five seconds; the
+        // hitstun block-cancel only opens after string hit two connects; and an
+        // empty shield can never raise the stance. Both modes read these.
+
+        /// <summary>Frames a non-shatter blocked hit locks the blocker into the stance.</summary>
+        public const int ShieldstunFrames = 8;
+        /// <summary>A shatter replaces the blocked-hit hitstop with this shared freeze.</summary>
+        public const int ShatterFreezeFrames = 16;
+        /// <summary>Post-shatter lockout (5 s): no stance, regen held. With the
+        /// regen interval re-armed at expiry, charge #1 lands at shatter + 480f.</summary>
+        public const int BlockShatterLockoutFrames = 300;
+
         // === Hitstop / hitlag (V7 universal rule, applied 2026-08-23) ===
         // Every landed hit freezes BOTH the attacker and the victim for a shared
         // window scaled by the hit's damage; blocked hits use a flat 2 frames.
@@ -334,6 +349,9 @@ namespace FTT.Combat {
         public const float EchoFractionSlope = 0.30f;
         /// <summary>Linear drain window for the Echo Pool (2.5 s).</summary>
         public const int EchoDrainFrames = 150;
+        /// <summary>V7.3 reclaim rework: a connecting direct hit reclaims
+        /// min(pool, hitDamage × this) — the pool persists and keeps draining.</summary>
+        public const float RallyReclaimDamageMultiplier = 2.0f;
 
         // === Directional influence & landing tech (V7 pillar #4, applied 2026-08-23) ===
 
@@ -381,6 +399,12 @@ namespace FTT.Combat {
         /// the full hitstun out.
         /// </summary>
         public const int LandingTechRecoveryFrames = 12;
+
+        /// <summary>
+        /// Ledge V7.3: ledge grabs allowed per airtime — the fourth grab in one
+        /// airtime is refused; landing (or a stock loss) resets the budget.
+        /// </summary>
+        public const int LedgeRegrabsPerAirtime = 3;
 
         // === Directional attacks (gameplay feel batch §2.8) ===
         // Up-attack and down-air are SINGLE strikes outside the three-hit chain:

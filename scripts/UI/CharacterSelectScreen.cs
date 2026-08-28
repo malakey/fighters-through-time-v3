@@ -32,11 +32,11 @@ namespace FTT.UI {
     /// deliberately excluded from the focus chain so a pad in Player 2's hands
     /// cannot move Player 1's token.</para>
     ///
-    /// <para><b>Reserved/Occupied and duplicate prevention.</b> A hovered tile is
-    /// painted with the hovering token's colour (Reserved); a confirmed tile is
-    /// locked with a thick border and glow (Occupied). Confirming a tile another
-    /// token has locked is blocked with the designed unavailable buzz (the
-    /// placeholder cue is currently silent by directive) and a localized flash.</para>
+    /// <para><b>Reserved/Occupied.</b> A hovered tile is painted with the
+    /// hovering token's colour (Reserved); a confirmed tile is locked with a
+    /// thick border and glow (Occupied). V7.3 ruling #17: mirror matches are
+    /// allowed — both tokens may lock the same tile (the border blends the two
+    /// colours), and the old duplicate-pick refusal is gone.</para>
     ///
     /// <para><b>Ready → countdown → stage.</b> Confirm toggles READY (banner per
     /// player); once every required token is locked, a 3.0-second countdown runs
@@ -52,7 +52,6 @@ namespace FTT.UI {
         private const string StageRoot = "StagePhase/Root/";
         private const int GridColumns = 3;
         private const float CountdownSeconds = 3.0f;
-        private const float FeedbackSeconds = 1.2f;
         private const float AxisThreshold = 0.5f;
 
         private sealed class SelectionToken {
@@ -72,7 +71,6 @@ namespace FTT.UI {
 
         private SelectScreenPhase _phase = SelectScreenPhase.Selection;
         private float _countdownRemaining;
-        private float _feedbackRemaining;
 
         private Button[] _characterButtons;
         private Control _selectPhase;
@@ -83,7 +81,6 @@ namespace FTT.UI {
         private Label _p2Name;
         private Label _p2Ready;
         private Label _p2Stats;
-        private Label _feedbackLabel;
         private Label _countdownLabel;
         private CheckButton _localHumanToggle;
         private OptionButton _cpuDifficulty;
@@ -96,6 +93,8 @@ namespace FTT.UI {
         private TextureRect _stagePreview;
         private FighterStageCatalog _stageCatalog;
         private readonly List<string> _stageIDs = new();
+        private MoveListScreen _moveList;
+        private SystemsCardScreen _systemsCard;
 
         /// <summary>The current flow state.</summary>
         public SelectScreenPhase Phase => _phase;
@@ -120,9 +119,6 @@ namespace FTT.UI {
             _phase == SelectScreenPhase.Selection && !IsLocalHumanMode
             && _tokens[0].Ready && !_tokens[1].Ready;
 
-        /// <summary>True while the localized unavailable flash is showing.</summary>
-        public bool UnavailableFeedbackVisible => _feedbackLabel != null && _feedbackLabel.Visible;
-
         private bool IsLocalHumanMode => _localHumanToggle != null && _localHumanToggle.ButtonPressed;
 
         public override void _Ready() {
@@ -139,7 +135,6 @@ namespace FTT.UI {
             _p2Name = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Name");
             _p2Ready = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Ready");
             _p2Stats = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Stats");
-            _feedbackLabel = GetNode<Label>(SelectRoot + "FeedbackLabel");
             _countdownLabel = GetNode<Label>(SelectRoot + "CountdownLabel");
             _localHumanToggle = GetNode<CheckButton>(SelectRoot + "ModeRow/LocalHumanToggle");
             _cpuDifficulty = GetNode<OptionButton>(SelectRoot + "ModeRow/CpuDifficulty");
@@ -157,6 +152,14 @@ namespace FTT.UI {
             GetNode<Button>(SelectRoot + "ButtonRow/BackButton").Pressed += OnBack;
             GetNode<Button>(StageRoot + "StageButtonRow/StageBackButton").Pressed += ReturnToSelection;
             GetNode<Button>(StageRoot + "StageButtonRow/FightButton").Pressed += OnFight;
+
+            // V7.3 Fighter Onboarding: the footer's Move List opens for the tile
+            // Player 1's token currently points at (lock wins over hover — the
+            // roster tiles are cursor-driven, not focus-driven, so the footer
+            // button is the tile's "focused" Move List action); the Systems Card
+            // is the universal reference page.
+            GetNode<Button>(SelectRoot + "ButtonRow/MoveListButton").Pressed += OpenMoveList;
+            GetNode<Button>(SelectRoot + "ButtonRow/SystemsCardButton").Pressed += OpenSystemsCard;
 
             // Returning here from a match ("Change Fighters") keeps the session's
             // opponent mode instead of silently resetting local-human to CPU.
@@ -200,6 +203,9 @@ namespace FTT.UI {
         public override void _PhysicsProcess(double delta) {
             if (InputManager.Instance == null) return;
             if (_phase == SelectScreenPhase.StageSelect) return;
+            // An open onboarding overlay owns the player; the polled cursors
+            // must not keep steering tokens underneath it.
+            if (_moveList?.Visible == true || _systemsCard?.Visible == true) return;
             int players = Math.Min(2, InputManager.Instance.MaxPlayers);
             for (int playerIndex = 0; playerIndex < players; playerIndex++) {
                 PlayerInputFrame frame = InputManager.Instance.GetFrame(playerIndex);
@@ -281,9 +287,9 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// Confirms the driven token on its hovered tile. Blocked with the designed
-        /// unavailable feedback when another token already occupies that tile
-        /// (duplicate prevention). Locking the last required token starts the
+        /// Confirms the driven token on its hovered tile. V7.3 ruling #17:
+        /// mirror matches are allowed — a tile another token has locked is
+        /// freely confirmable. Locking the last required token starts the
         /// countdown.
         /// </summary>
         public bool TryConfirm(int playerIndex) {
@@ -292,11 +298,6 @@ namespace FTT.UI {
             if (tokenIndex < 0) return false;
             SelectionToken token = _tokens[tokenIndex];
             if (token.Ready) return false;
-
-            if (IsTileLockedByOther(tokenIndex, token.Cursor)) {
-                PlayUnavailableFeedback();
-                return false;
-            }
 
             token.LockedIndex = token.Cursor;
             // Selection-confirmed cue (character vocal SFX is Package 10 content;
@@ -335,13 +336,6 @@ namespace FTT.UI {
             return true;
         }
 
-        private bool IsTileLockedByOther(int tokenIndex, int tile) {
-            for (int index = 0; index < _tokens.Length; index++) {
-                if (index != tokenIndex && _tokens[index].LockedIndex == tile) return true;
-            }
-            return false;
-        }
-
         private void TryStartCountdown() {
             if (!_tokens[0].Ready || !_tokens[1].Ready) return;
             _phase = SelectScreenPhase.Countdown;
@@ -371,19 +365,6 @@ namespace FTT.UI {
 
         public override void _Process(double delta) {
             if (_phase == SelectScreenPhase.Countdown) AdvanceCountdown((float)delta);
-            if (_feedbackRemaining > 0f) {
-                _feedbackRemaining -= (float)delta;
-                if (_feedbackRemaining <= 0f) _feedbackLabel.Visible = false;
-            }
-        }
-
-        private void PlayUnavailableFeedback() {
-            _feedbackLabel.Visible = true;
-            _feedbackRemaining = FeedbackSeconds;
-            // The designed unavailable buzz. The whole placeholder audio kit is
-            // digital silence by directive (2026-08-10); the low-pitch UI cue is
-            // the wiring, and Package 10's real buzz asset drops in here.
-            AudioManager.Instance?.PlayUISound(null, 0.55f);
         }
 
         // === Flow: stage phase ===============================================
@@ -435,6 +416,8 @@ namespace FTT.UI {
             : new List<Control> {
                 _localHumanToggle,
                 _cpuDifficulty,
+                GetNode<Button>(SelectRoot + "ButtonRow/MoveListButton"),
+                GetNode<Button>(SelectRoot + "ButtonRow/SystemsCardButton"),
                 GetNode<Button>(SelectRoot + "ButtonRow/BackButton")
             };
 
@@ -496,7 +479,9 @@ namespace FTT.UI {
                 OffsetRight = -4f,
                 OffsetBottom = -3f
             };
-            nameLabel.AddThemeFontSizeOverride("font_size", 16);
+            // V7.3 UI-scale pass: the theme's SmallLabel role replaces the old
+            // 16 px override so the tile names follow the accessibility scale.
+            nameLabel.ThemeTypeVariation = UIPalette.SmallLabelVariation;
             button.AddChild(nameLabel);
         }
 
@@ -526,8 +511,10 @@ namespace FTT.UI {
         /// <summary>
         /// Paints one tile from the token states. Occupied (locked) tiles carry a
         /// thick border and glow in the owning token's colour; Reserved (hovered)
-        /// tiles a thinner border; overlapping hovers blend the two colours. The
-        /// theme's focus stylebox is never overridden.
+        /// tiles a thinner border; overlapping hovers blend the two colours, and
+        /// (V7.3, mirror matches) a tile BOTH tokens have locked blends the two
+        /// lock colours the same way. The theme's focus stylebox is never
+        /// overridden.
         /// </summary>
         private void StyleTile(int index) {
             Color color = CharacterFactory.GetCharacterColor(_characterIDs[index]);
@@ -537,7 +524,11 @@ namespace FTT.UI {
             int borderWidth = 2;
             bool occupied = false;
 
-            if (_tokens[0].LockedIndex == index) {
+            if (_tokens[0].LockedIndex == index && _tokens[1].LockedIndex == index) {
+                borderColor = UIPalette.Cyan.Lerp(opponentAccent, 0.5f);
+                borderWidth = 5;
+                occupied = true;
+            } else if (_tokens[0].LockedIndex == index) {
                 borderColor = UIPalette.Cyan;
                 borderWidth = 5;
                 occupied = true;
@@ -716,6 +707,28 @@ namespace FTT.UI {
             _stagePreview.Texture = texture;
             _stagePreview.TooltipText = Tr(stage.DisplayNameKey);
             _stagePreview.Visible = true;
+        }
+
+        /// <summary>Opens the Move List for Player 1's current tile (lock wins
+        /// over hover), returning focus to the footer button on close.</summary>
+        private void OpenMoveList() {
+            if (_moveList == null || !IsInstanceValid(_moveList)) {
+                _moveList = new MoveListScreen { Name = "MoveListScreen" };
+                AddChild(_moveList);
+                _moveList.Closed += () =>
+                    GetNodeOrNull<Button>(SelectRoot + "ButtonRow/MoveListButton")?.GrabFocus();
+            }
+            _moveList.Open(_characterIDs[EffectiveIndex(_tokens[0])]);
+        }
+
+        private void OpenSystemsCard() {
+            if (_systemsCard == null || !IsInstanceValid(_systemsCard)) {
+                _systemsCard = new SystemsCardScreen { Name = "SystemsCardScreen" };
+                AddChild(_systemsCard);
+                _systemsCard.Closed += () =>
+                    GetNodeOrNull<Button>(SelectRoot + "ButtonRow/SystemsCardButton")?.GrabFocus();
+            }
+            _systemsCard.Open();
         }
 
         private Texture2D GetCharacterPortrait(int index) {

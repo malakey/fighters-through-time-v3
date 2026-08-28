@@ -192,7 +192,14 @@ namespace FTT.Enemies {
             IsDefeated = true;
             HUD?.HideBossBar();
             // Boss dust is resource-authored (docs/DUST_ECONOMY.md Section 1).
-            if (AwardDustOnDefeat) EventBus.Instance?.RaiseChronalDustCollected(payload.ChronalDustDrop);
+            // V7.3 Single Icon Rule: the award is a physical pickup at the
+            // boss's fall position — the wallet is paid (and the boss results
+            // line attributed) at collection. Never expires; Large tier.
+            if (AwardDustOnDefeat) {
+                StoryDropSystem.SpawnDustAward(
+                    payload.ChronalDustDrop, payload.Position,
+                    GetParent() ?? this, DustAwardSource.Boss);
+            }
             BossDefeated?.Invoke(payload);
         }
 

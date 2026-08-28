@@ -15,6 +15,16 @@ namespace FTT.Environment {
     /// it), and death-rewinds leave no Echo. Strictly Story-side.
     /// </summary>
     public partial class StasisEcho : AnimatableBody2D {
+        /// <summary>
+        /// V7.3 body layer: Environment (the player stands on their past self)
+        /// PLUS PersistentObject, so pressure plates physically receive the
+        /// Echo through their authored mask (Player | PersistentObject) and
+        /// the searchlight occlusion ray can find it. Hitboxes stay
+        /// indifferent: the Hitbox pipeline reacts only to Hurtbox AREAS, and
+        /// the Echo's body is not one.
+        /// </summary>
+        public const uint BodyLayer = CollisionLayers.Environment | CollisionLayers.PersistentObject;
+
         /// <summary>The single live Echo, if any.</summary>
         public static StasisEcho Current { get; private set; }
 
@@ -48,9 +58,12 @@ namespace FTT.Environment {
         }
 
         public override void _Ready() {
-            // One-way platform body on the Environment layer: the player can
-            // stand on their past self; nothing collides against them sideways.
-            CollisionLayer = CollisionLayers.Environment;
+            // One-way platform body: the player can stand on their past self;
+            // nothing collides against them sideways. V7.3: the layer also
+            // carries PersistentObject so plates and the searchlight ray
+            // physically receive the Echo (the old Environment-only layer
+            // made the plate's authored mask unreachable).
+            CollisionLayer = BodyLayer;
             CollisionMask = 0;
             SyncToPhysics = false;
             var shape = new CollisionShape2D {
@@ -89,6 +102,10 @@ namespace FTT.Environment {
         public override void _ExitTree() {
             if (Current == this) Current = null;
         }
+
+        /// <summary>Physics-path tests need a live Echo without the full
+        /// manual-rewind commit that normally sets its lifetime.</summary>
+        internal void SetLifeSecondsForTesting(float seconds) => _lifeSeconds = seconds;
 
         public override void _PhysicsProcess(double delta) {
             _lifeSeconds -= (float)delta;

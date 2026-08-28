@@ -20,6 +20,8 @@ namespace FTT.UI {
         private Label _statusLabel;
         private GridContainer _nodeGrid;
         private ConfirmModal _confirmation;
+        private ConfirmModal _respecConfirmation;
+        private Button _respecButton;
         private ResonanceNodeData _pendingNode;
         private int _focusedIndex;
         private StyleBoxFlat _focusStyle;
@@ -31,6 +33,12 @@ namespace FTT.UI {
 
         /// <summary>The shared confirmation modal guarding a purchase.</summary>
         public ConfirmModal Confirmation => _confirmation;
+
+        /// <summary>The confirmation modal guarding the V7.3 free respec. Test surface.</summary>
+        public ConfirmModal RespecConfirmation => _respecConfirmation;
+
+        /// <summary>The "Respec (full refund)" button. Test surface.</summary>
+        public Button RespecButton => _respecButton;
 
         /// <summary>The node index the custom D-pad navigation is sitting on.</summary>
         public int FocusedIndex => _focusedIndex;
@@ -60,7 +68,9 @@ namespace FTT.UI {
             _balanceLabel = Root.GetNode<Label>("Center/Panel/Layout/Balance");
             _statusLabel = Root.GetNode<Label>("Center/Panel/Layout/Status");
             _nodeGrid = Root.GetNode<GridContainer>("Center/Panel/Layout/NodeGrid");
-            Root.GetNode<Button>("Center/Panel/Layout/CloseButton").Pressed += Close;
+            Button closeButton = Root.GetNode<Button>("Center/Panel/Layout/CloseButton");
+            closeButton.Pressed += Close;
+            BuildRespecButton(closeButton);
 
             _focusStyle = new StyleBoxFlat {
                 BgColor = new Color(0.05f, 0.14f, 0.2f),
@@ -80,7 +90,55 @@ namespace FTT.UI {
             _confirmation.Confirmed += ConfirmUnlock;
             _confirmation.Cancelled += () => _pendingNode = null;
             AddChild(_confirmation);
+
+            // V7.3 free respec: clearing the whole grid is destructive in
+            // shape (even with a full refund), so it rides the same modal
+            // idiom as a purchase.
+            _respecConfirmation = ConfirmModal.Create(
+                "resonance_respec_confirm",
+                "resonance_confirm_ok",
+                "resonance_confirm_cancel",
+                "resonance_respec_title");
+            _respecConfirmation.Name = "RespecConfirmModal";
+            _respecConfirmation.Confirmed += ConfirmRespec;
+            AddChild(_respecConfirmation);
             LoadActiveGrid();
+        }
+
+        /// <summary>
+        /// The node buttons are code-built from authored grid data, and this
+        /// button follows them (the scene stays script-less): inserted above
+        /// the Close button in the authored layout.
+        /// </summary>
+        private void BuildRespecButton(Button closeButton) {
+            _respecButton = new Button {
+                Name = "RespecButton",
+                Text = "resonance_respec_button",
+                ThemeTypeVariation = "TemporalGlassButton"
+            };
+            _respecButton.Pressed += ShowRespecConfirmation;
+            Node layout = closeButton.GetParent();
+            layout.AddChild(_respecButton);
+            layout.MoveChild(_respecButton, closeButton.GetIndex());
+        }
+
+        private void ShowRespecConfirmation() {
+            if (_grid == null || _save == null || _respecConfirmation == null) return;
+            int spent = ResonanceProgression.CalculateSpentDust(_grid, _save);
+            _respecConfirmation.SetPromptKey(string.Format(Tr("resonance_respec_confirm"), spent));
+            _respecConfirmation.Open();
+        }
+
+        private void ConfirmRespec() {
+            if (_grid == null || _save == null) return;
+            int refunded = ResonanceProgression.RespecAll(_grid, _save);
+            _statusLabel.Text = string.Format(Tr("resonance_respec_done"), refunded);
+            Refresh();
+            // Persist immediately, mirroring the unlock path's autosave.
+            if (refunded > 0 && SaveManager.Instance != null
+                && _slot >= 0 && _slot < SaveManager.Instance.SaveSlots.Length) {
+                SaveManager.Instance.SaveStorySlot(_slot);
+            }
         }
 
         private static Control InstantiateAuthoredScene() {
@@ -94,6 +152,7 @@ namespace FTT.UI {
         public override void _UnhandledInput(InputEvent @event) {
             if (@event == null) return;
             if (_confirmation != null && _confirmation.IsOpen) return;
+            if (_respecConfirmation != null && _respecConfirmation.IsOpen) return;
             if (@event.IsActionPressed("ui_cancel")) {
                 GetViewport().SetInputAsHandled();
                 Close();

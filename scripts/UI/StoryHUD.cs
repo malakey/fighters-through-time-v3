@@ -53,6 +53,9 @@ namespace FTT.UI {
         private float _checkpointToastTimer;
         private int _lastRewinds = int.MinValue;
         private int _lastDust = int.MinValue;
+        // V7.3 manual-rewind cooldown pip on the rewind counter.
+        private Label _rewindCooldownPip;
+        private FTT.Environment.ChronalRewindManager _rewindManager;
 
         /// <summary>The ability/status readiness model this HUD renders.</summary>
         public HudAbilityIndicatorModel Indicators => _indicators;
@@ -330,6 +333,40 @@ namespace FTT.UI {
             if ((force || dust != _lastDust) && _dustLabel != null) {
                 _dustLabel.Text = string.Format(Tr("hub_carried_dust"), dust);
                 _lastDust = dust;
+            }
+            RefreshRewindCooldownPip();
+        }
+
+        /// <summary>
+        /// V7.3: a pip on the rewind counter ticks down the manual-rewind
+        /// cooldown (12 s on every difficulty). Hidden while the verb is
+        /// ready or when no rewind manager is in the scene (the hub).
+        /// </summary>
+        private void RefreshRewindCooldownPip() {
+            if (_rewindLabel == null) return;
+            if (_rewindCooldownPip == null) {
+                _rewindCooldownPip = new Label {
+                    Name = "RewindCooldownPip",
+                    Visible = false,
+                    MouseFilter = Control.MouseFilterEnum.Ignore
+                };
+                _rewindCooldownPip.AddThemeColorOverride("font_color", UIPalette.TextDisabled);
+                _rewindLabel.GetParent()?.AddChild(_rewindCooldownPip);
+                _rewindLabel.GetParent()?.MoveChild(_rewindCooldownPip, _rewindLabel.GetIndex() + 1);
+            }
+            if (_rewindManager == null || !IsInstanceValid(_rewindManager)) {
+                _rewindManager = GetTree()?.GetFirstNodeInGroup(
+                        FTT.Environment.ChronalRewindManager.ManagerGroup)
+                    as FTT.Environment.ChronalRewindManager;
+            }
+            float remaining = _rewindManager != null && IsInstanceValid(_rewindManager)
+                ? _rewindManager.ManualRewindCooldownRemaining
+                : 0f;
+            bool cooling = remaining > 0f;
+            _rewindCooldownPip.Visible = cooling;
+            if (cooling) {
+                _rewindCooldownPip.Text = string.Format(
+                    Tr("hud_rewind_cooldown"), Mathf.CeilToInt(remaining));
             }
         }
 

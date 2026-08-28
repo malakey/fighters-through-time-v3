@@ -3,19 +3,42 @@ using System;
 namespace FTT.Core {
 
     /// <summary>
-    /// Timeline Integrity &amp; the Siphon Clock (V7.1, design Section 3):
-    /// each level opens at 100%; every living, engaged Chronal Extractor
-    /// drains it while it siphons; the level's secret restores +5%. The
-    /// level-end tier feeds the exit beat and the Chronal Rating.
+    /// Timeline Integrity &amp; the Siphon Clock (V7.1, rebalanced V7.3;
+    /// design Section 3): each level opens at 100%; every living, engaged
+    /// Chronal Extractor drains it while it siphons — after a 10 s drain-free
+    /// grace window, and never more than its 10% siphon share. Restoration is
+    /// earned through play: +3% per destroyed Extractor, +2% per ordinary
+    /// secret, +5% for the level's designated special secret, all capped at
+    /// 100. The level-end tier feeds the exit beat and the Chronal Rating.
     /// The tier's dust bonus (+10%/+5%/0) is authored here but deliberately
     /// NOT applied to the wallet yet — the dust economy rebalance is deferred
     /// (V7.2 ruling), and the ledger must be retuned before bonuses land.
     /// </summary>
     public static class TimelineIntegrityRules {
         public const float StartPercent = 100f;
-        public const float SecretRestorePercent = 5f;
+
+        /// <summary>V7.3: the hard cap on what one Extractor can ever steal —
+        /// its 10% siphon share, counted in integrity points actually drained.</summary>
+        public const float MaxSiphonSharePercent = 10f;
+
+        /// <summary>V7.3: drain-free window after a siphon engages, so peeking
+        /// into a room and retreating leaves no permanent scar.</summary>
+        public const float SiphonGraceSeconds = 10f;
+
+        /// <summary>V7.3 restoration paths (all capped at 100%).</summary>
+        public const float ExtractorDestroyRestorePercent = 3f;
+        public const float GenericSecretRestorePercent = 2f;
+        public const float SpecialSecretRestorePercent = 5f;
+
         public const float RestoredThreshold = 90f;
         public const float StabilizedThreshold = 70f;
+
+        /// <summary>
+        /// The campaign-ending good-restoration threshold on the campaign-wide
+        /// average Integrity — identical on every difficulty (V7.3 ruling).
+        /// Authored here now; its consumer lands with the Level 15 ending work.
+        /// </summary>
+        public const float EndingThresholdPercent = 85f;
 
         /// <summary>Drain per second per engaged living Extractor (Hard doubles it).</summary>
         public static float DrainPerSecond(Difficulty difficulty) =>

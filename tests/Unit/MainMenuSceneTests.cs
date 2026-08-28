@@ -132,10 +132,11 @@ public class MainMenuSceneTests {
         StorySaveData[] originals = ClearAllSlots();
         MainMenu menu = Open(out Node host);
         try {
-            // Root screen: six production buttons (Story, Fighter, the V7 LAN
-            // Match, Settings, Credits, Quit) plus the debug-build developer
-            // level select (the test host is a debug build), all chained and reachable.
-            AssertChainCoversScreen(menu, "RootScreen", 7);
+            // Root screen: five production buttons (Quick Play, Story, Fighter,
+            // Settings, Quit) plus the debug-build developer level select (the
+            // test host is a debug build), all chained and reachable. LAN was
+            // de-scoped to Package 7 (V7.3).
+            AssertChainCoversScreen(menu, "RootScreen", 6);
 
             Press(menu, RootLayout + "StoryButton");
             AssertThat(menu.CurrentScreen).IsEqual(MainMenuScreen.SlotSelect);
@@ -438,7 +439,7 @@ public class MainMenuSceneTests {
             MainMenu menu = Open(out Node host);
             try {
                 AssertThat(menu.GetNode<Button>(RootLayout + "LevelSelectButton").Visible).IsFalse();
-                AssertChainCoversScreen(menu, "RootScreen", 6);
+                AssertChainCoversScreen(menu, "RootScreen", 5);
             } finally {
                 Teardown(host);
             }
@@ -484,6 +485,20 @@ public class MainMenuSceneTests {
             StoryManager.Instance.ResetCampaignState(before.Difficulty);
             GameManager.Instance.CurrentSession = before;
             RestoreSlots(originals);
+        }
+    }
+
+    [TestCase]
+    public void TheRootScreenCarriesNoLanButton() {
+        // V7.3: LAN de-scoped to Package 7. The code-built LanButton is gone;
+        // NetworkSelectScreen and scripts/Networking/ remain for the later package.
+        MainMenu menu = Open(out Node host);
+        try {
+            AssertThat(menu.FindChild("LanButton", recursive: true, owned: false) == null)
+                .OverrideFailureMessage("The de-scoped LanButton is back on the main menu")
+                .IsTrue();
+        } finally {
+            Teardown(host);
         }
     }
 

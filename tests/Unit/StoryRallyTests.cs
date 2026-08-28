@@ -52,7 +52,10 @@ public class StoryRallyTests {
     }
 
     [TestCase]
-    public void DirectHitsReclaimTheEchoButConstructHitsDoNot() {
+    public void DirectHitReclaimIsCappedAtTwiceTheHitAndConstructHitsNeverReclaim() {
+        // V7.3 reclaim rework: a landed direct hit reclaims
+        // min(pool, hitDamage x RallyReclaimDamageMultiplier); the remainder
+        // persists and keeps draining. Constructs still never reclaim.
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
         PlayerController player = CharacterFactory.CreateCharacter("einstein");
         tree.Root.AddChild(player);
@@ -70,14 +73,29 @@ public class StoryRallyTests {
             AssertThat(player.CurrentHP).IsEqual(hpAfterHit);
             AssertThat(player.CurrentUltimateMeter > meterBefore).IsTrue();
 
-            // A direct hit: the remaining pool converts to real HP, no extra
-            // meter for the reclaim itself (only the damage-dealt credit).
+            // A small direct hit: the reclaim is capped at its damage x 2 —
+            // the remainder persists rather than cashing out in one poke.
             float pool = player.EchoPool;
-            player.AddInfluenceFromDamageDealt(10f);
+            float cap = 2f * BasicComboRules.RallyReclaimDamageMultiplier;
+            AssertThat(pool > cap)
+                .OverrideFailureMessage("The pool must exceed the cap for this pin to bind.")
+                .IsTrue();
+            player.AddInfluenceFromDamageDealt(2f);
+            AssertThat(player.EchoPool)
+                .OverrideFailureMessage("The unreclaimed remainder must persist in the pool.")
+                .IsEqualApprox(pool - cap, 0.001f);
+            AssertThat(player.CurrentHP)
+                .OverrideFailureMessage("The reclaim must restore exactly hitDamage x 2, never the whole pool.")
+                .IsEqual(hpAfterHit + Mathf.RoundToInt(cap));
+
+            // A hit big enough to cover the remainder drains the pool to zero.
+            float remainder = player.EchoPool;
+            int hpBeforeFinish = player.CurrentHP;
+            player.AddInfluenceFromDamageDealt(40f);
             AssertThat(player.EchoPool).IsEqual(0f);
             AssertThat(player.CurrentHP)
-                .OverrideFailureMessage("A landed direct hit must reclaim the echo as real HP.")
-                .IsEqual(hpAfterHit + Mathf.RoundToInt(pool));
+                .OverrideFailureMessage("A large enough hit reclaims whatever remains of the pool.")
+                .IsEqual(hpBeforeFinish + Mathf.RoundToInt(remainder));
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);
             player.Free();

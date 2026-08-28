@@ -59,7 +59,8 @@ namespace FTT.Environment {
             }
             player.GlobalPosition = destination;
             player.Velocity = Vector2.Zero;
-            player.ApplyDamage(SnapDamage);
+            // V7.3: environmental chokepoint — Defy/echo/meter accounting.
+            player.ApplyEnvironmentalDamage(SnapDamage);
             _insideDurations[player] = 0f;
             EmitSignal(SignalName.TimeLoopSnapped, player.PlayerIndex, destination);
             EventBus.Instance?.RaiseHazardStateChanged(new HazardStatePayload {

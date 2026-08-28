@@ -234,7 +234,9 @@ namespace FTT.Characters.Abilities {
             StatusDuration = statusDuration * _statusDurationMultiplier,
             StatusIntensity = 1f,
             ScreenShakeIntensity = 0.1f,
-            ScreenShakeDuration = 0.05f
+            ScreenShakeDuration = 0.05f,
+            // V7.3: construct ticks carry no hitstop.
+            ExemptFromHitstop = true
         };
 
         private System.Collections.Generic.List<Hurtbox> QueryEnemyHurtboxes(Vector2 center, float radius) =>

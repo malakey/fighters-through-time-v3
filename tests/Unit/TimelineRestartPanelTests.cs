@@ -28,6 +28,21 @@ public class TimelineRestartPanelTests {
         return (host, panel);
     }
 
+    /// <summary>V7.3 UI-scale pass: the title rides the TitleLabel theme
+    /// variation with no font-size override, so it follows the UI scale.</summary>
+    [TestCase]
+    public void TheTitleUsesTheTitleVariationWithNoFontSizeOverride() {
+        (Node host, TimelineRestartPanel panel) = CreatePanel("TimelineScalePinHost");
+        try {
+            var title = panel.GetNodeOrNull<Label>("Panel/Layout/Title");
+            AssertObject(title).IsNotNull();
+            AssertThat(title.ThemeTypeVariation.ToString()).IsEqual(UIPalette.TitleLabelVariation);
+            AssertThat(title.HasThemeFontSizeOverride("font_size")).IsFalse();
+        } finally {
+            host.QueueFree();
+        }
+    }
+
     [TestCase]
     public void ThePanelAdoptsTheSharedThemeAndAuthorsAFocusChain() {
         (Node host, TimelineRestartPanel panel) = CreatePanel("TimelineThemeHost");

@@ -50,8 +50,82 @@ namespace FTT.UI {
                 _scanlines.AddChild(line);
             }
 
+            BuildCollapseTreatment();
+
             if (FTT.Core.EventBus.Instance != null)
                 FTT.Core.EventBus.Instance.OnRewindPresentation += OnRewindPresentation;
+        }
+
+        // === Timeline Collapse beat treatment (V7.3) ========================
+        // The collapse phase reads differently from a rewind: the era
+        // desaturates toward Archive monochrome behind chronal crack lines,
+        // with the Sarah extraction line and — once the beat has been seen —
+        // a press-to-skip prompt. Placeholder visuals on the same event
+        // contract production post-processing will replace.
+
+        private Control _collapseTreatment;
+        private Label _collapseSkipPrompt;
+
+        /// <summary>The fracture treatment root. Test seam.</summary>
+        public Control CollapseTreatment => _collapseTreatment;
+
+        /// <summary>The press-to-skip prompt. Test seam.</summary>
+        public Label CollapseSkipPrompt => _collapseSkipPrompt;
+
+        private void BuildCollapseTreatment() {
+            _collapseTreatment = new Control {
+                Name = "CollapseTreatment",
+                MouseFilter = Control.MouseFilterEnum.Ignore,
+                Visible = false
+            };
+            _collapseTreatment.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            AddChild(_collapseTreatment);
+
+            // Archive-monochrome desaturation wash.
+            var wash = new ColorRect {
+                Name = "MonochromeWash",
+                Color = new Color(0.06f, 0.06f, 0.08f, 0.55f),
+                MouseFilter = Control.MouseFilterEnum.Ignore
+            };
+            wash.SetAnchorsPreset(Control.LayoutPreset.FullRect);
+            _collapseTreatment.AddChild(wash);
+
+            // Chronal crack lines radiating from the death point (placeholder:
+            // fixed diagonal shards).
+            for (int index = 0; index < 6; index++) {
+                var crack = new ColorRect {
+                    Name = $"CrackLine{index}",
+                    Color = new Color(0.95f, 0.45f, 0.25f, 0.5f),
+                    Position = new Vector2(160 + index * 300, 0),
+                    Size = new Vector2(4, 1080),
+                    Rotation = (index % 2 == 0 ? 1 : -1) * (0.2f + index * 0.06f),
+                    MouseFilter = Control.MouseFilterEnum.Ignore
+                };
+                _collapseTreatment.AddChild(crack);
+            }
+
+            var transmission = new Label {
+                Name = "TransmissionLine",
+                Text = Tr("collapse_transmission_line"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                MouseFilter = Control.MouseFilterEnum.Ignore
+            };
+            transmission.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
+            transmission.Position = new Vector2(-400, -180);
+            transmission.CustomMinimumSize = new Vector2(800, 30);
+            _collapseTreatment.AddChild(transmission);
+
+            _collapseSkipPrompt = new Label {
+                Name = "CollapseSkipPrompt",
+                Text = Tr("collapse_skip_prompt"),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                MouseFilter = Control.MouseFilterEnum.Ignore,
+                Visible = false
+            };
+            _collapseSkipPrompt.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
+            _collapseSkipPrompt.Position = new Vector2(-400, -130);
+            _collapseSkipPrompt.CustomMinimumSize = new Vector2(800, 24);
+            _collapseTreatment.AddChild(_collapseSkipPrompt);
         }
 
         public override void _ExitTree() {
@@ -66,9 +140,15 @@ namespace FTT.UI {
             bool active = payload.Phase == FTT.Core.RewindPresentationPhase.Started
                 || payload.Phase == FTT.Core.RewindPresentationPhase.Playback
                 || payload.Phase == FTT.Core.RewindPresentationPhase.TimelineCollapse;
+            bool collapse = payload.Phase == FTT.Core.RewindPresentationPhase.TimelineCollapse;
             Visible = active && (payload.ScreenTintEnabled || payload.ScanlinesEnabled);
             if (_tint != null) _tint.Visible = payload.ScreenTintEnabled && active;
-            if (_scanlines != null) _scanlines.Visible = payload.ScanlinesEnabled && active;
+            if (_scanlines != null) _scanlines.Visible = payload.ScanlinesEnabled && active && !collapse;
+            // V7.3 collapse beat: the fracture treatment replaces the rewind
+            // scanline read; the skip prompt shows only once the beat has
+            // been seen (the first viewing is unskippable).
+            if (_collapseTreatment != null) _collapseTreatment.Visible = collapse;
+            if (_collapseSkipPrompt != null) _collapseSkipPrompt.Visible = collapse && payload.CollapseSkipPromptEnabled;
             SetMusicDuck(active ? payload.MusicDuckDecibels : 0f);
 
             bool playSweep = _cues.Apply(payload);

@@ -1,13 +1,44 @@
-# **Fighters Through Time - Game Design Document V6-Godot**
+<!-- SYNCED MIRROR — DO NOT EDIT HERE. The canonical master of this document lives at
+     D:\Projects\fighters-through-time-docs-3\design-godot-v7.md (with HTML mirrors in that repo's docs\).
+     Edit the master and re-copy it over this file. Mirror synced 2026-08-26 (V7.3). -->
+
+# **Fighters Through Time - Game Design Document V7-Godot**
+
+> **V7 revision (2026-08-21).** This revision folds every locked decision from the implementation era into the design document — the 2026-08-10 gameplay-feel batch (`docs/GAMEPLAY_FEEL_2026-08-10_PLAN.md` §2), the package-plan deviation logs, and the 2026-08-15 retunes — and resolves the open design questions catalogued in `docs/DESIGN_ANALYSIS_2026-08-16.md`. The four pillar-level decisions made for V7:
+>
+> 1. **Stage-boundary model (resolves audit H-11):** Fighter Mode is a **platform fighter**. Stage floors are authored as *segments*; designated stages have open pits and true main-floor ledges, so the bottom blast zone is a real end condition. Sides and top remain solid. See Section 10.
+> 2. **Block model:** the full designed model is locked — 3 charges, specials shatter, ultimates bypass, 1 s daze on shatter, **5 s post-shatter lockout**, **3 s per-charge regen** (settled 2026-08-22 — the earlier 2 s ask is retired; `BasicComboRules.BlockChargeRegenFrames` is the one source), plus new **shieldstun**, and block-cancels-hitstun is restricted to **after hit 2** of the basic string. See Section 4 (Defense Mechanics).
+> 3. **Online scope:** the initial release is **local shared-screen + direct-IP LAN** *(superseded in V7.3: LAN is de-scoped to Package 7 — see the V7.3 block and the netcode chapter)*. GGPO-style online rollback is an explicit **post-launch pillar** (Package 7) with its missing design items now specified. Delay-based netcode remains unacceptable whenever online ships.
+> 4. **Hitstun agency:** both **directional influence (±15°)** and a **landing tech** are added, together with universal **hitstop**. See Section 4 (Combat Mechanics).
+>
+> **V7.1 addendum (2026-08-22) — the health-system remix.** Three mechanics remix the standard HP bar around the game's time fantasy, all deterministic and rollback-safe: **Rally** (a portion of each hit taken is temporarily recoverable by striking back), **Desperation Resonance** (that recoverable portion scales with missing HP, mirroring the low-HP knockback curve), and **Defy History** (a full ultimate meter absorbs one lethal hit per match). Specified in Section 4 under "Recoverable Health". A conditional low-health regen ("Second Wind") was considered and **rejected** — it rewarded disengaging at low health, which contradicts the aggression-forward identity; do not reintroduce it.
+>
+> **V7.1 time-systems pass (2026-08-22).** Six further time-themed systems were adopted: **Echo Step** (a meter-funded 30-frame position rewind usable only in your own recovery frames), **Resonance Momentum** (a connecting basic-string finisher refunds special cooldown), **Overtime** (the final minute of a timed match destabilizes hazards and the Desperation curve), **Timeline Integrity & the Siphon Clock** (a per-level integrity percentage that living Extractors drain, feeding level rewards and the ending), **Stasis Anchor** (a manual rewind leaves a frozen copy of the player for puzzles), and the **Chrono-Warden** (a time-casting cultist elite). Considered and **rejected**, recorded so they are not re-pitched: *Chronal Echo* / *Chronal Ghost* input-replay phantoms (an annoyance, and a replayed special or ultimate is overpowered), an *Echo Clone* that replays movement (it wanders, so it cannot hold a plate — Stasis Anchor is its fix), *Phase-Shift Rooms*, *Timeline Fracture* stages, and a *Liberation* finisher mechanic (handled as fiction instead: restoring the timeline revives everyone lost in the fractures).
+>
+> **V7.2 survivability & defense pass (2026-08-23).** Five design revisions from the full-design gap audit, all design-only until the next implementation pass: **Restart Level is a true restart** (whole level, all level dust cleared — it is no longer a free checkpoint heal), an **Enemy Attack Classification rule** (mob attacks are Basic-class vs block; only telegraphed Guard-Crush and Unblockable boss/elite attacks threaten more — blocking is never a trap), a **Story Mode healing loop** (Checkpoint Mending, the Restoration Font interactable, placed Chronal Feasts, all difficulty-scaled), a **reworked Manual Rewind** (dedicated input, player-scrubbed depth, and the Stasis Echo — fixing the V7.1 version whose forced 8-second depth made its own tutorial puzzle unsolvable), and **Grabs & Throws** (the third side of the attack/block/grab triangle, previously absent from both the game and this document's rejected/deferred ledger). Deferred from the same audit, on record: the open-stage floor-segment build-out (#1) and the full stage/Resonance-grid/dust-economy redesign (#3) are their own later phase; the design-authority cleanup (single canonical document) rides with the next implementation pass.
+>
+> **V7.3 review & correction pass (2026-08-26).** A five-track review (design, doc mirrors, combat implementation, story implementation, infrastructure) produced this revision. It has three parts.
+>
+> **(1) New rulings, all adopted** (each specified inline in its home section): grabs **whiff against a target in shieldstun** (closing the tick-throw the V7 shieldstun spec would otherwise have created); **Rally reclaim is damage-scaled** (reclaim = reclaiming hit's damage × 2.0, pool persists — the all-or-nothing reclaim is retired); a **defied hit generates no Rally echo**; **landing tech is charge-independent** and works during shatter lockout; **Echo Step and block-cancel are excluded from grab states** including grab whiff recovery; a **hitstop exemption list** (only direct player-authored hits freeze — construct/zone/DoT/hazard ticks never do); **simultaneous-KO rules** (dual lethal trade on final stocks → Sudden Death; a dual lethal trade with both meters full fires **both** Defy History procs; per-hit ordering is damage → Defy → no echo); **timeout compares HP as a percentage of max** and un-reclaimed echo pools do not count; **Sudden Death disables Chronal Orbs** (hazards stay forced on); **throws collect Rally echoes**; **Special-class attacks carry a universal visual signature** and all telegraphs become **dual-channel (class color + class glyph)**; **orb spawn positions and windows come from the seeded match PRNG**; **Manual Rewind gains a 12 s cooldown on all difficulties** (scripted tutorial rewinds exempt; scrub freeze and death-rewind projectile clear unchanged); **Timeline Integrity restoration paths** (+3% per destroyed Extractor, +2% per ordinary secret, 10 s drain-free grace on engagement; the 85% ending threshold is unchanged on every difficulty); a **free Resonance Grid respec** at the hub Repository; the **exit fee applies on load after an abnormal exit** (session-marker rule — Alt-F4 no longer beats the Exit button); **mirror matches are allowed** (character-select duplicate prevention removed); default `MatchSettings` are **items Medium / hazards Medium**; **dialogue is hold-to-skippable** for previously-seen sequences on completed-campaign saves.
+>
+> **(2) Spec additions:** a **Fighter Mode onboarding layer** (per-character Move List screen, a one-page universal Systems Card, and Holodeck guided drills — the drills are spec-only for a later pass), Section 7; and a **Package 7 addendum** folding in the items the 2026-08-24 LAN attempt proved missing (match-start barrier, desync abort UI, input redundancy, disconnect detection, fail-closed version/content check, synced pause), Section 4 netcode chapter.
+>
+> **(3) Considered and rejected, recorded so they are not re-pitched:** a *priced* respec and a *no-respec* ruling (free respec chosen — the tight economy's pressure lives in total dust earned, not in punishing partially-informed picks); *absolute-HP* timeout comparison (heavier fighters would win timeouts on identical play); retaining *all-or-nothing Rally reclaim* and its two softer variants (per-reclaim pool cap, ultimate-damage exemption) — damage-scaled reclaim keeps commitment, not contact, as the currency; an *unbounded Easy manual rewind* (the 12 s cooldown is the bound; Easy keeps zero charge cost); and a *live-world manual scrub* (the scrub keeps its world freeze — the cooldown alone bounds the panic button).
+>
+> Numbers in this document are design targets. Where a shipped `resources/**/*.tres` value or shared rulebook constant (`BasicComboRules`, `UniversalMovementRules`) differs, **the resource/rulebook is authoritative** — this document records the intended direction and must be amended, not silently diverged from.
+>
+> **Implementation status (2026-08-26, post-V7.3 pass).** The V7.1 verb layer (hitstop, DI, landing tech, Rally/Desperation/Defy, Echo Step, Resonance Momentum, Overtime, Sudden Death, per-character string profiles with front-only escalating hitboxes), the V7.2 batch (true Restart Level, enemy attack classification vs block, the Story healing loop, the scrubbed Manual Rewind + Stasis Echo, Grabs & Throws in both modes), Timeline Integrity/secrets/Chronal Rating, the boss intro ritual, the Chrono-Warden, the 90%–140% UI scale, and the Holodeck in-hub console are implemented and test-gated. **The V7.3 review found and the V7.3 implementation pass closed (full suite green, 1,622 tests):** the V7 block model (5 s lockout, shieldstun, hit-2 cancel gate, 0-charge ignore, plus the new grab-whiff-vs-shieldstun amendment), the broken grab triangle (a grabbing player kept a functioning shield), a stale pending-launch replay bug, the damage-scaled Rally reclaim, ledge trump + the regrab cap, the environmental-damage chokepoint (venom and hazards can no longer bypass Defy History or Rally accounting; the Story landing tech, which had never actually fired, now works and matches the sim's locked window), the per-extractor Siphon share cap + the new restoration paths, once-per-attempt Checkpoint Mending, strike-to-activate checkpoints, the dust-duplication and Alt-F4 loopholes, mid-level-resume attempt persistence, the free respec, the Stasis Echo's physical plate/beam interactions, the Single Icon dust pickups for bosses/extractors, the 12 s manual-rewind cooldown, the Move List + Systems Card onboarding screens, dialogue hold-to-skip, dual-channel telegraphs, the Chrono-Warden's persistent Dilation Field + reactive Phase Skip, and the full UI-scale reach (theme type variations). **De-scoped by V7.3:** the 2026-08-24 claim that direct-IP LAN was "implemented and test-gated" was wrong — the network manager was never wired into production and the session lacked a start barrier, so the feature was unreachable; **LAN is de-scoped to Package 7** and its menu route is removed. Known deliberate exceptions, each flagged inline where it applies: the extractor dust drop stays 15 and the Integrity tier dust bonus is authored-but-unapplied (both awaiting the deferred dust-economy rebalance); the Mirror Paradox's scripted dust award remains wallet-direct (its bespoke encounter scripting predates the pickup helper); the Chrono-Warden uses placeholder guard-elite art and awaits its Level 6+ placements; Restoration Font / Chronal Feast / Secret Cache nodes exist but need per-level scene placements; the open-stage floor-segment build-out remains deferred, so blast-zone falls are unreachable on the authored stages until that phase lands; Holodeck guided drills are spec-only (see Fighter Onboarding).
 
 ## **1. Game Overview & Core Philosophy**
-*   **Core Hook:** Play as iconic historical figures wielding exaggerated, context-specific abilities (e.g., Stephen Hawking manipulating gravity/black holes).
-*   **Genre Blend:** 2D Action-Adventure (Story) meets Platform Fighter (Versus/Online).
-*   **Design Pillar:** Abilities must feel cohesive across both modes. A move used to solve a puzzle or clear minions in Story Mode should translate naturally to ring-outs or damage-building in Fighting Mode.
+*   **Core Hook:** Play as iconic historical figures wielding exaggerated, context-specific abilities (e.g., Albert Einstein bending spacetime and gravity; Joan of Arc leading radiant spectral charges).
+*   **Genre Blend:** 2D Action-Adventure (Story) meets Platform Fighter (Versus).
+*   **Design Pillar:** Abilities must feel cohesive across both modes. A move used to solve a puzzle or clear minions in Story Mode should translate naturally to stock-taking knockouts or damage-building in Fighting Mode.
 
 ### **Health System**
 *   **Decision:** Standard Health Bar (HP) system over the Super Smash Bros. percentage-based knockback system.
 *   **Rationale:** Percentage-based knockback works well in a constrained arena with blast zones, but in an Action-Adventure mode, players fight mobs and bosses in sprawling levels—trying to "ring-out" a mob down a hallway doesn't work. Standard HP bars allow traditional boss fights and mob encounters for Story Mode, while still enabling thrilling HP-depleting combat in Fighter Mode (0 HP = knockout; falling off the bottom of the stage = deduction of one stock life).
+*   **Knockback still scales with damage taken (V7, shipped 2026-08-10):** although there is no accumulating percent, every hit's knockback is multiplied by `(1 + missingHPFraction)` of the victim *after* the hit's damage — linear from 1.0× at full HP to 2.0× at zero. Low fighters fly farther, so edge-guarding and pit threat grow across a stock exactly as the platform-fighter genre expects, without abandoning HP.
+*   **The health bar is temporal (V7.1):** three companion mechanics complete the remix — **Rally** (part of every hit taken becomes a briefly recoverable "echo", reclaimed by landing a hit), **Desperation Resonance** (the recoverable fraction grows with missing HP on the same linear curve as the knockback scale — the lower your bar, the higher the stakes in *both* directions: you fly farther, and you can claw back more), and **Defy History** (a full ultimate meter shatters instead of you on one lethal hit per match). All three are deterministic, condition-based, and aggression-forward: the only way back is *through* your opponent, never away from them. Full specification in Section 4.
 
 ### **Core Modes**
 
@@ -18,10 +49,12 @@
 *   **Progression:** All 9 characters are unlocked from the start for the initial build. Story Mode progression (Temporal Resonance Grid) is strictly isolated from Fighter Mode to preserve competitive balance. Ability upgrades apply only to Story Mode (there are no alternate costumes or cosmetic items).
 
 #### **Versus / Fighting Mode**
-*   **Inspiration:** Platform fighter in the style of Super Smash Bros.
-*   **Win Condition:** Players deplete their opponent's HP to 0 for a knockout. Falling off the bottom of the stage results in the loss of a stock life. Players have a set number of stock lives per match. The sides and top of the screen are bounded by solid physical boundaries.
-*   **Stage Design:** Dynamic, multi-tiered platforms based on historical events (e.g., the deck of the Titanic, the Apollo 11 moon landing, the signing of the Declaration of Independence).
-*   **Local & Online Multiplayer:** Fighter Mode supports **1v1 matches only** for initial release across both local shared-screen/LAN and online GGPO rollback netcode. Delay-based netcode is unacceptable. **Post-Launch Expansion:** 4-Player Free-For-All and 2v2 Team Mode are deferred to a dedicated post-launch expansion phase and must not be implemented during initial development.
+*   **Inspiration:** Platform fighter in the style of Super Smash Bros., with HP bars instead of percent.
+*   **Win Condition:** Players deplete their opponent's HP to 0 for a knockout. Falling through the **bottom blast zone** costs one stock life. Players have a set number of stock lives per match. The sides and top of the screen are bounded by solid physical boundaries.
+*   **Stage-Boundary Model (V7 pillar decision, resolves audit H-11; *build-out deferred — see note*):** stage floors are authored as **segments**, not a single sealed slab. Designated stages carry **open pits and true ledges at main-floor edges** (Paris's central lower pit, Pompeii's collapsed caldera shelf, Nassau's listing open deck end), making the bottom blast zone a real, reachable end condition; the remaining stages stay sealed as deliberate "arena" layouts. Far side walls and the ceiling are solid on every stage. This is what makes the ledge-grab system, recovery-flavored Special 2s, the respawn platform, and edge-guarding load-bearing rather than vestigial. ***Deferral flag (V7.3):** the floor-segment build-out is the deferred phase recorded in the V7.2 preamble — no shipped stage yet authors segments, so today the bottom blast zone is unreachable on all authored stages and this pillar is design-of-record, not shipped behavior.*
+*   **Stage Design:** Dynamic, multi-tiered platforms based on historical events (e.g., the deck of the Titanic, the Apollo 11 moon landing, the Globe Theatre stage).
+*   **Local Multiplayer (initial release; V7.3):** Fighter Mode supports **1v1 matches only** for initial release: **local shared-screen**. Direct-IP LAN rides with Package 7 (see the netcode chapter for the V7.3 de-scope rationale).
+*   **Online Multiplayer (post-launch pillar — V7 rescope):** GGPO-style rollback online is a committed **post-launch** milestone (Package 7), not an initial-release feature. The deterministic fixed-point simulation, snapshots, prediction, and bounded rollback that online requires are built and gated now, so the launch build banks the hard part; the remaining online-specific design (handshake/rules negotiation, input-delay setting, input redundancy, full-state resync, transport selection — Steam Networking Sockets vs. custom relay — and matchmaking UI) is specified in Section 4's netcode chapter and must be funded as its own milestone. **Delay-based netcode remains unacceptable** whenever online ships. 4-Player Free-For-All and 2v2 Team Mode remain a later expansion phase beyond that and must not be implemented during initial development.
 
 
 
@@ -148,6 +181,26 @@ A cohesive narrative thread runs through each of these Acts (focusing on the res
     *   **Level 14 (Special — Neo-Earth / Far Future):** Portal to the cult's actual home timeline. The players assault the Apex Archive's core laboratory, navigating laser security grids and anti-gravity containment fields.
     *   **Level 15 (Final Level — The Library of Alexandria Restoration):** The final stand. The player returns to Alexandria at the moment of the initial cataclysm to face the Leader of the Apex Archive, deposit all accumulated temporal energy back into the anchor, and repair the timeline.
 
+#### **The Mechanical Spine (V7): One New System Per Act, Taught Then Remixed**
+The campaign is a **Mega Man / Shovel Knight structure** — strictly linear sequential levels, no map, no backtracking, no level replay — and V7 removes the earlier "Metroid/Castlevania-style exploration" language, which contradicted that structure. What the linear structure demands instead is a **mechanical spine**: each act introduces one new interactive system, teaches it in isolation, then remixes it against combat and prior systems. The existing template toolkit already contains the parts; the spine assigns them:
+
+*   **Act I — the era-machine verb.** Each Act I level owns one signature interactive system introduced solo, then combined with waves: Florence's rotating gear platforms (Level 1), Orléans' shield-tower sabotage (Level 2), Chicago's mirror-coil beam routing — the campaign's first full **puzzle** level (Level 3), Paris's searchlights and prisoner-lock demolitions feeding its **open pit** rooms (Level 4), Titanic's rising-water room timer (Level 5).
+*   **Act II — pressure and combination.** Act II levels pair their new system with an Act I system under time or hazard pressure: Pompeii's weight-puzzle debris clearing during eruption cadence (6), Nassau's rope-swing traversal over open water (7), Alexandria's hieroglyph sequence locks (8), Berlin's searchlight *stealth* remix (9), the Globe's trapdoor stage and audience-hazard idle timer (10), Gettysburg's cover-based artillery lanes (11), and the Lunar Landing's low-gravity vacuum platforming (12).
+*   **Act III — the remix gauntlet.** Levels 13–15 re-present prior systems under Chronal Void rules (shifting gravity, era-collage platforms), Archive security (laser grids, anti-gravity fields), and the restored Library's combined finale.
+*   **Puzzles are a pillar, not a garnish:** every level from 3 onward carries at least one `PuzzleManager`-driven "Read, Plan, Execute" room (see Section 7); Levels 3, 6, and 8 are the dedicated puzzle showcases.
+*   **Secrets exist (V7):** each level from 2 onward hides **one optional secret room or cache** off the critical path — a `TreasureChest` (large dust or a Story item) or an out-of-the-way Chronal Extractor. The level-results screen counts secrets found (e.g., "Secrets 1/2"), and a found secret restores Timeline Integrity (below). This is the only exploration pressure the linear structure carries, and it is deliberately light.
+
+#### **Timeline Integrity & the Siphon Clock (V7.1)**
+Every campaign level from 2 onward carries a visible **Timeline Integrity** percentage — the era's health, and the narrative reason optional content exists. It is a *clock*, not a tally: the Archive is actively stealing the era while you play.
+
+*   **Start:** each level opens at **100%**.
+*   **The Siphon (drain):** each Chronal Extractor holds a **10% siphon share**. An Extractor begins draining at **0.1% per second** once the player first enters its room (its siphon spins up audibly) — after a **10-second drain-free grace window (V7.3)** so that peeking into a room and retreating leaves no permanent scar — and continues until it is destroyed or its share is exhausted (100 s of drain). The share is a hard cap: **no single Extractor can ever cost more than its 10%**. Destroying an Extractor stops its drain and **preserves whatever remains of its share permanently**. Ignoring one costs its full 10%; dawdling near one costs by the second. Extractors therefore have urgency without a level timer — the pressure is local and opt-in.
+*   **Restoration (V7.3 — restoration is now earned through play, not only the secret):** destroying an Extractor restores **+3%**; finding an ordinary secret restores **+2%**; finding the level's designated special secret restores **+5%**. All restoration is capped at 100%. This keeps Hard's doubled drain honest — the harsher clock comes with more ways to claw the era back — and softens the old asymmetry where one misplayed room permanently dropped a tier.
+*   **Level-end tiers:** **Restored ≥ 90%**, **Stabilized ≥ 70%**, **Fractured < 70%**. The tier selects the exit beat (a restored-era vignette and a tier-specific Sarah/hero line), applies a dust bonus to the level total (**+10% / +5% / 0** — *the bonus is authored in `ChronalRatingRules` but deliberately not applied to the wallet until the deferred dust-economy rebalance pass*), and is one of the inputs to the Chronal Rating. Integrity per level is recorded on the save slot.
+*   **Campaign ending:** the campaign-wide average Integrity picks the ending still and its final lines — at **≥ 85%** the timeline is fully restored and the ending states in fiction that **everyone lost in the fractures is revived** (this is how the brainwashed locals are "freed": by the restoration, not by a per-kill mechanic); below that, the restoration is partial and the Library's last shot carries a visible scar. No mechanical reward gates on the ending tier.
+*   **Difficulty:** Hard doubles the drain rate (0.2%/s). Easy/Normal use the base rate. The **85% good-ending threshold is identical on every difficulty (V7.3 ruling)** — Hard players contest it through the restoration paths above, not through a lowered bar.
+*   **HUD:** the percentage sits top-right beside the dust counter, ticking red with a siphon-hum while any Extractor is draining; steady cyan otherwise. Level results show the final percentage and tier.
+
 ### **Tutorial & Onboarding (Level 0: Chronal Integration)**
 
 #### **Part 1: The Cataclysmic Event (The Fracture)**
@@ -161,17 +214,18 @@ A cohesive narrative thread runs through each of these Acts (focusing on the res
 *   **Narrative Context:** The character wakes up in the Time-Ship's high-tech temporal bay. Commander Sarah, a leader of the Chrono-Resistance, welcomes them via on-screen dialogue boxes. She explains that they have been siphoned from their timeline and imbued with **Temporal Resonance**, and outlines the threat of the Apex Archive cultists and their altered thralls before initiating calibration.
 *   **Calibration Dialogue Script:** For the canonical script dialogue text, see the [Level 0 Calibration Dialogue Script in Section 16](#level-0-chronal-integration-calibration-bay).
 *   **Gameplay Objectives:**
-    *   **Basic Attack Calibration:** The system prompts the player to perform standard attacks. Dynamic text boxes explain the basic 3-hit combo mechanics. The player must land three standard hits on a stationary hologram dummy.
+    *   **Basic Attack Calibration:** The system prompts the player to perform standard attacks. Dynamic text boxes explain the basic 3-hit combo mechanics. The player must land three standard hits on a stationary hologram dummy. **(V7.1)** The dummy then lands one scripted hit on the player, and the prompt teaches Rally: *"Part of every blow lingers as an echo — strike back before it fades to reclaim it."* The player reclaims the echo by hitting the dummy.
     *   **Defense & Blocking Calibration:** The hologram dummy launches slow, glowing projectile rings. The player is prompted to hold the block button, learning how shield health decreases under impact and how a guard break occurs.
-    *   **Special Ability Calibration:** The system activates the character's unique Special 1 and Special 2 abilities (e.g., Einstein's E=mc² and Relativity Rift). The tutorial displays a description of each special, teaches the player that each ability has its own cooldown (differentiated per ability in a 7–13 second band), and requires the player to hit moving target shields with both abilities.
-    *   **Ultimate Attack Calibration ("The History Maker"):** The simulation fills the player's Influence Meter to 100%. A dramatic screen prompt tells the player to trigger their Ultimate. Doing so executes their custom cinematic move, obliterating a group of combat holograms.
+    *   **Special Ability Calibration:** The system activates the character's unique Special 1 and Special 2 abilities (e.g., Einstein's E=mc² and Relativity Rift). The tutorial displays a description of each special, teaches the player that **each ability has its own cooldown** (V7: cooldowns are differentiated per ability in a 6–14 second band — see Section 5), and requires the player to hit moving target shields with both abilities.
+    *   **Ultimate Attack Calibration ("The History Maker"):** The simulation fills the player's Influence Meter to 100%. A dramatic screen prompt tells the player to trigger their Ultimate. Doing so executes their custom cinematic move, obliterating a group of combat holograms. **(V7.1)** Before the meter is spent, a one-line tip notes its second use: *"A full meter can also refuse death itself — once."* (Defy History; taught by tooltip only, experienced naturally in play.)
 
 #### **Part 3: Advanced Mobility Calibration**
 *   **Narrative Context:** Commander Sarah remarks: *"Your combat resonance is calibrated. Now let's test your spatial awareness — you'll need every advantage to navigate the fractured timelines."* The Calibration Bay reconfigures into a vertical platforming section with floating platforms and ledges.
 *   **Gameplay Objectives:**
     *   **Movement Ability Calibration:** The system prompts the player to activate their unique Movement Ability (e.g., Einstein's Relativity Warp, Joan's Ascendant Wings). A text prompt explains the 5-second cooldown and aerial usability. The player must use the movement ability to cross a gap too wide for a standard jump.
-    *   **Ledge Grab Calibration:** The player encounters a platform positioned just out of normal jump reach. A text prompt instructs: *"Move toward the ledge while falling — you will grab and hang automatically. Press Up to pull up, or Down to drop."* The player must successfully grab a ledge, hang, and pull up to proceed.
+    *   **Ledge Grab Calibration:** The player encounters a platform positioned just out of normal jump reach. A text prompt instructs: *"Move toward the ledge while falling or rising slowly — you will grab and hang automatically. Press Jump to climb up, or Down to drop."* (Matches the locked ledge rules: Jump climbs at 0.9× jump speed; Down releases with a regrab lockout.) The player must successfully grab a ledge, hang, and climb to proceed.
     *   **Platform Drop-Through Calibration:** The player stands on a raised one-way platform with a target below. A text prompt instructs: *"Double-tap Down to drop through thin platforms."* The player must drop through the platform and land on the target zone below to complete the section.
+    *   **Chronal Rewind Calibration (V7):** the simulation stages a scripted lethal hit and plays the Chronal Rewind in full — the 0.75 s suspended-death hold, the continuous playback along the player's own history, and the grounded landing — while Sarah explains that lethal blows in the field trigger this automatically and that rewind charges are finite per difficulty. The prompt then teaches the **manual rewind** input (dedicated `gameplay_rewind` action — see Section 4, Chronal Rewind; available on every difficulty, and both tutorial uses are free) and requires one short scrubbed use — and, with it, the **Stasis Echo** it leaves behind: the player stands on a pressure plate that opens a gate, scrubs back a couple of seconds, and walks through the gate their frozen copy is still holding open (V7.2).
     *   **Hologram Combat Trial:** To complete Level 0, the player must defeat a small wave of active hologram enemies (synthetic drones) simulating a real PvE skirmish. Once defeated, the time portals unlock, and the player is cleared to select Act I levels from the Time-Ship deck.
 
 ### **Hub World: The Archive Time-Ship (Interactivity & Systems)**
@@ -180,7 +234,7 @@ The Archive Time-Ship acts as the central hub world between Story Mode missions.
 #### **Interactive Elements & Hub Systems**
 1.  **Chronal Repository (Upgrades Terminal):**
     *   *Interaction:* A high-tech physical terminal located in the ship's center command deck.
-    *   *Gameplay:* Interacting with the Repository prompts the player to deposit all **Chronal Dust** collected during their last campaign run. Once deposited, the player can spend this currency to unlock stat upgrades and major ability modifiers in their active character's **Temporal Resonance Grid** (skill tree).
+    *   *Deposit is automatic (V7 clarification):* undeposited dust is banked into the Repository automatically the moment the player returns to the Time-Ship — there is no manual deposit step to forget. The terminal's job is therefore **spending and reviewing**: it opens the active character's **Temporal Resonance Grid** (skill tree) and shows a deposit ledger for the last run (dust earned, itemized by mobs / extractors / boss, and anything forfeited on exit).
 2.  **Holodeck Arena Console (AI Combat Simulator):**
     *   *Interaction:* An holographic terminal in the training wing of the ship.
     *   *Gameplay:* Interacting with the console opens the **Arena Simulator** menu. The player can configure and start simulated matches against customizable AI opponents. These fights take place on any unlocked Fighter Mode stages, serving as a safe training environment to test character combos, block timing, and matchups in a single-player VS format.
@@ -190,25 +244,25 @@ The Archive Time-Ship acts as the central hub world between Story Mode missions.
 4.  **Temporal Portal & Sequential Campaign Progression:**
     *   *Interaction:* A massive glowing chronal gate situated at the front of the bridge.
     *   *Linear Sequential Portal:* Campaign progression is strictly **linear and sequential** (Level 0 $\rightarrow$ Level 1 $\rightarrow$ Level 2 $\rightarrow$ ... $\rightarrow$ Level 15). There is always only **one single active portal destination** available to select at any time on the Time-Ship bridge, pointing directly to the next sequential story level. Players cannot select non-linear branch paths or skip ahead.
-    *   *Level Activation:* The temporal portal remains inactive when the player first arrives in the hub. To activate it and unlock the next campaign level, the player must seek out and converse with key Resistance NPCs on the ship (e.g., Commander Sarah or Resistance officers).
-    *   *Travel:* Engaging in dialogue with these key Resistance NPCs triggers the narrative sequence that charges the portal. Once charged, stepping into the single active Temporal Portal immediately transports the player to the next sequential era. Level difficulty scales progressively along this fixed linear path.
+    *   *Level Activation (V7 — act-boundary gate only):* the portal is active by default for ordinary level-to-level progression, so the loop never stalls on a conversation. At the **three act boundaries** (before Level 1, after Level 5, and after Level 12) the portal instead requires one conversation with Commander Sarah, whose dialogue advances the tracing-the-Archive throughline and charges the portal as its final line. This keeps the narrative ritual where the narrative actually turns, without gating all sixteen transitions.
+    *   *Travel:* Stepping into the single active Temporal Portal immediately transports the player to the next sequential era. Level difficulty scales progressively along this fixed linear path.
 
-> **Interim Implementation Note:** For initial builds prior to NPC authoring completion, the Temporal Portal activates automatically upon hub entry (bypassing the NPC conversation requirement). NPC-gated portal activation will be integrated when dialogue content is authored.
+#### **Hub World Layout & NPC Specification (V7 — authored)**
+The V6 deferral is closed; the hub is specified as **three connected rooms** on one side-scrolling deck, replacing the current single flat corridor:
 
-#### **Hub World Layout & NPC Specifications (Deferred)**
-> **Status: Deferred to the level design and narrative authoring phases.**
-> The spatial layout of the Archive Time-Ship (room dimensions, area connections, walking paths between interactive stations) and individual NPC specifications (placement coordinates, dialogue trees, portrait art, and quest triggers) will be authored during dedicated hub world production.
->
-> **Hub World Design Checklist:**
-> - [ ] Total hub room count and interconnection map
-> - [ ] Chronal Repository station exact placement and visual design
-> - [ ] Holodeck Arena Console station exact placement and visual design
-> - [ ] Temporal Portal station exact placement and visual design
-> - [ ] Calibration Bay spawn anchor location
-> - [ ] NPC roster with assigned positions (Resistance commanders, engineers, medics, ship staff)
-> - [ ] NPC dialogue content and branching dialogue trees
-> - [ ] NPC portrait art specifications
-> - [ ] Walking path distances and transition trigger locations between rooms
+*   **Room 1 — The Bridge (center, spawn room):** Temporal Portal at the far end, Chronal Repository terminal mid-room, Commander Sarah stationed near the portal. The player arrives here after every level.
+*   **Room 2 — The Training Wing (aft):** Holodeck Arena Console, plus the Calibration Bay anchor used by Level 0 (the bay is the training wing reconfigured).
+*   **Room 3 — The Observation Deck (fore):** a short lore room looking out into the between-timelines void — era shards drift past matching the player's campaign progress. Crew NPCs rotate here.
+
+**NPC roster (minimum three speaking NPCs, per-act dialogue):**
+
+| NPC | Post | Dialogue contract |
+|---|---|---|
+| **Commander Sarah** | Bridge | One fresh dialogue set **per act** (minimum four across the campaign), plus the three act-boundary portal-charge conversations. Never repeats a prior act's lines. |
+| **Chief Engineer Wren** | Training Wing | Gameplay tips keyed to campaign progress: mechanics the *next* level introduces (the mechanical-spine system), one hint per act. |
+| **Medic Okafor** | Observation Deck | Lore and character texture: reacts to the player's chosen historical figure by name/era at each act boundary — the cheapest place to make the campaign feel like *this character's* story. |
+
+Portrait art, exact placement coordinates, and walk distances remain production details for the hub art pass, but room count, NPC roster, and dialogue cadence above are the design of record.
 
 ### **The Temporal Resonance Grid**
 *   **Purpose:** The primary power-scaling mechanic for Story Mode. Strictly isolated to Story Mode to preserve Fighter Mode balance.
@@ -219,19 +273,20 @@ The Archive Time-Ship acts as the central hub world between Story Mode missions.
     *   *Standard Mobs:* Defeating basic enemies yields a minor drop of **1–2 Chronal Dust** per kill.
     *   *Elite Mobs:* Defeating larger, elite enemies yields a significant drop of **20 Chronal Dust** per kill.
     *   *Level Bosses:* Defeating a campaign boss rewards a large drop of **50 Chronal Dust**.
-    *   *Chronal Extractors (Level Hazards/Caches):* Each side-scrolling campaign level contains **3 to 4** hidden, destructible environmental machines called "Chronal Extractors". Extractors possess **100 HP**. As they take damage and break, they trigger localized **Chronal Hazards** (erratic energy bursts and shockwaves around the machine) that deal heavy damage, high-velocity knockback, and **drain the player's Ultimate Meter by 20%** per discharge. Players must actively dodge while attacking. When completely shattered, a Chronal Extractor drops **25 Chronal Dust**.
-    *   *Balance Note:* These default drop rates serve as baseline placeholders. Overall total dust budgets per level and economy scaling are left open-ended for initial implementation and will be balanced and fine-tuned in a later phase of development.
-*   **Visual Pickups (Single Icon Rule):** Chronal Dust drops spawn as a single physical pickup object rendering an icon sprite matched to its quantity size tier:
+    *   *Chronal Extractors (V7 redesign — optional risk/reward, not a damage sponge):* campaign levels contain **2 to 3** destructible environmental machines called "Chronal Extractors", placed **off the critical path** (several double as the level's secret; see the Mechanical Spine). Extractors possess **100 HP** and discharge on an **idle cycle, not per hit**: a visible charge-up (≈2.5 s telegraph) followed by a localized **Chronal Hazard** burst (heavy damage, high knockback, **−20% Ultimate Meter**), then a **safe window (≈4 s)** in which attacks are free. Skilled play destroys one while eating zero or one discharge; careless play eats several. When shattered, an Extractor drops **25 Chronal Dust** as a physical pickup *(implementation note 2026-08-24: the shipped drop stays at the pre-V7 **15** until the deferred dust-economy rebalance pass retunes all sources together)*. **(V7.1)** A living Extractor also drains the level's **Timeline Integrity** once its room is entered (see the Siphon Clock below) — so leaving one standing has a cost beyond forgone dust.
+    *   *One loss rule (V7 — unifies the collapse/quit/crash split; V7.3 closes the Alt-F4 loophole):* **deposited dust is always safe; undeposited dust is at risk.** Any exit from a level before completing it — Timeline Collapse, quit-to-hub from the pause menu, or quit-to-menu — forfeits **20%** of the undeposited dust earned in that level (one rule, one number). **(V7.3)** An **abnormal exit pays the same fee**: the game writes a session marker at campaign start and clears it on clean shutdown; loading after an abnormal exit (crash, process kill, power loss) applies the identical 20% to the undeposited wallet, with a one-line notice on load. One rule now genuinely covers the Exit button, Alt-F4, and the power switch — killing the process is no longer strictly better than pressing Exit. (A marker left while parked at the hub costs nothing, because the hub auto-deposit zeroes the at-risk wallet.)
+*   **Visual Pickups (Single Icon Rule — applies to every source):** every Chronal Dust award, **including boss kills and extractor breaks**, spawns a single physical pickup object rendering an icon sprite matched to its quantity size tier — the boss's 50-dust Large pickup at the arena center is the campaign's recurring victory ritual, and the Large tier must actually appear in play:
     *   *Small Dust Sprite:* Drops containing **1 to 5 Dust** (e.g., standard mobs).
-    *   *Medium Dust Sprite:* Drops containing **6 to 24 Dust** (e.g., Chronal Extractors).
-    *   *Large Dust Sprite:* Drops containing **25+ Dust** (e.g., Elite mobs, Campaign Bosses).
+    *   *Medium Dust Sprite:* Drops containing **6 to 24 Dust** (e.g., elite mobs).
+    *   *Large Dust Sprite:* Drops containing **25+ Dust** (Chronal Extractors, Campaign Bosses).
 *   **No Level Replays / Dust Farming:** Previously completed campaign levels cannot be re-entered or replayed to farm Chronal Dust. The Archive Time-Ship features only a single active Temporal Portal on the bridge, which exclusively transports the player to their current active story level.
 *   **Character-Specific Pooling:** Chronal Dust collected during a campaign run belongs strictly to the **specific active character being played**. Dust is not shared between characters or across different playthroughs. Depositing dust into the Time-Ship Chronal Repository adds it exclusively to that character's personal pool.
 *   **Repository System:** Upon returning to the Archive Time-Ship from a mission, the player deposits all accumulated Chronal Dust into the ship's **Chronal Repository**.
 *   **Function:** Deposited dust is spent from the character's personal Repository pool to unlock adjacent nodes on their character-specific Resonance Grid.
 
 #### **Node Types**
-*   **Stat Nodes (Minor):** Small, incremental mathematical buffs. Examples: +10 Max HP, +2% Movement Speed, +5% Basic Attack Damage.
+*   **Stat Nodes (Minor):** Small, incremental mathematical buffs. Examples: +10 Max HP, +2% Movement Speed, +5% Basic Attack Damage. **V7 constraint:** every minor must use a stat key the Story stat resolver actually implements — the five dead nodes from the V6 grids (four `BlockDurability`, one `Armor`) are re-authored (`BlockDurability` → `BlockCharges` or `CooldownReduction`; `Armor` → `MaxHP`, since a damage-reducing armor stat is explicitly against the combat pillar), and the eight minors that were silently widened to roster-generic stats get character-flavored names even where the math is shared.
+*   **Traversal Nodes (V7 — the grid must change *how you play*, not only numbers):** each character's grid includes **at least one node that alters traversal or a core verb**, not a percentage: e.g., Einstein — Warp float window +20 frames; Joan — Ascendant Wings refresh on landing a finisher; Pocahontas — glide can be re-entered once per airtime; Lincoln — roll travel breaks one projectile; Tesla — blink gains 0.5 units of range; Cleopatra — sand pools no longer slow her; Mozart — one extra platform note; Shakespeare — barrier can be jumped from; Leonardo — turret can be picked up and re-placed once. These are Story-only, like every grid effect.
 *   **Major Perk Nodes:** Located at the end of specific grid branches. These fundamentally alter the mechanical properties of special abilities (e.g., granting Joan of Arc an extra jump, increasing the radius of Einstein's Relativity Rift by 15%).
 
 #### **Technical Implementation**
@@ -269,10 +324,10 @@ public enum StatType {
     *   **Tier 3 Major Perk Nodes:** 200 Chronal Dust
 *   **Adjacency Storage:** Each node stores its prerequisite IDs. The UI draws connections between prerequisite and dependent nodes. Unlocking a node requires all prerequisites to be unlocked and sufficient Chronal Dust balance.
 
-*   **Preliminary Economy Estimate:** A full 9-node Resonance Grid (3 Tier 1 Minor Nodes at 50 dust + 3 Tier 2 Minor Nodes at 75 dust + 3 Tier 3 Major Perks at 200 dust) costs approximately **975 Chronal Dust**. Estimated total dust per campaign playthrough is **1,200–1,800** (across 15 levels, accounting for mob drops, elite kills, boss rewards, and Chronal Extractors). This budget allows completion of one full tree per playthrough with surplus. Final economy tuning is deferred to the balance phase.
+*   **Economy Target (V7 — choice pressure restored):** A full 9-node Resonance Grid (3 Tier 1 Minor Nodes at 50 dust + 3 Tier 2 Minor Nodes at 75 dust + 3 Tier 3 Major Perks at 200 dust) costs approximately **975 Chronal Dust**. The V6 income estimate of 1,200–1,800 guaranteed a full clear with slack, which removed all spending decisions. V7 sets the income target so that choices matter: a **critical-path playthrough earns ≈700–800 dust (clears two branches)**; a thorough playthrough that breaks every Extractor and finds every secret earns **≈1,000–1,100 (clears the grid with little slack)**. The optional content *is* the third branch. `docs/DUST_ECONOMY.md` remains the per-level ledger and must be retuned to these totals.
 
 > [!NOTE]
-> **Resonance Grid Expansion (Deferred):** The current 3-path × 3-node grid structure is the baseline for initial implementation. Expanding the grid with additional nodes, branching paths, or deeper tier progressions is deferred to a later design phase.
+> **Resonance Grid Expansion (Deferred):** The current 3-path × 3-node grid structure is the baseline for initial implementation. Expanding the grid with additional nodes, branching paths, or deeper tier progressions is deferred to a later design phase; the V7 choice-pressure economy above is deliberately sized to today's 9-node grid.
 
 #### **Resonance Grid UI Flow**
 *   **Access Point:** The Resonance Grid is opened by interacting with the **Chronal Repository terminal** on the Archive Time-Ship hub. The standard interaction prompt (`[E]` / `[B]`) appears when the player is within range.
@@ -280,6 +335,7 @@ public enum StatType {
 *   **Navigation:** D-pad or left analog stick navigates between adjacent nodes. Hovering a node displays a tooltip panel showing: node name, description, Chronal Dust cost, stat effect values, and prerequisite status.
 *   **Purchase:** Pressing the Confirm button (`A` / `Cross`) on an eligible node (prerequisites met and sufficient dust balance) displays a brief purchase confirmation prompt: *"Unlock [Node Name] for [Cost] Chronal Dust?"* with Confirm/Cancel options. On confirmation, dust is deducted, the node activates with a visual unlock animation (expanding light ring), and stat modifiers are applied immediately.
 *   **Insufficient Funds:** Attempting to purchase a node without enough Chronal Dust triggers a "Not Enough Chronal Dust" tooltip shake animation on the cost indicator. No purchase prompt appears.
+*   **Respec (V7.3 — free, always available):** the grid screen carries a **"Respec (full refund)"** action. Confirming it (via the standard confirmation modal) refunds **every** Chronal Dust point spent on the active character's grid back into their Repository pool and clears all unlocked nodes. There is no fee and no cooldown: under the V7 choice-pressure economy a node bought at Level 2 is a partially-informed commitment, and the economy's pressure is meant to live in *total dust earned*, not in punishing a pick that turned out to feel bad. (A *priced* respec and a *no-respec* ruling were both considered and rejected — recorded in the V7.3 preamble ledger.)
 *   **Exit:** Pressing the Cancel/Back button (`B` / `Circle`) exits the Resonance Grid UI and returns the player to hub world navigation.
 
 ---
@@ -289,7 +345,7 @@ public enum StatType {
 ### **Project Setup & Configuration**
 
 #### **Godot Version & Render Pipeline**
-*   **Engine:** Godot 4.4+ with .NET (C# / .NET 8)
+*   **Engine:** Godot 4.7.1 with .NET (C# / **.NET 10**, `net10.0`, SDK pinned by `global.json`). The V6 ".NET 8" figure is superseded — the project migrated on 2026-08-06 and the full suite passes on `net10.0`.
 *   **Render Pipeline:** Godot's native 2D renderer (CanvasItem) with **Light2D** nodes, **CanvasModulate** for global tinting, and custom **CanvasItem shaders** for sprite-lit materials and visual effects. The 2D renderer provides sprite lighting, shadow casting via `LightOccluder2D`, and normal-mapped materials while maintaining performance budgets on low-end hardware.
 *   **Target Frame Rate:** 60 FPS (locked). Physics tick rate synchronized at 60Hz via Project Settings (`physics/common/physics_ticks_per_second = 60`).
 
@@ -298,7 +354,7 @@ public enum StatType {
 |---|---|---|
 | Klotho | Godot Asset Library / NuGet | Deterministic rollback netcode framework (FP64 fixed-point, ECS, physics, replay) |
 | GdUnit4 | Godot Asset Library | Automated unit and integration testing (Section 14) |
-| Steam Networking Sockets (Steamworks SDK) | Steamworks | NAT traversal, relay fallback, encrypted P2P transport |
+| Steam Networking Sockets (Steamworks SDK) | Steamworks | **Post-launch (Package 7):** NAT traversal, relay fallback, encrypted P2P transport for online rollback. Not installed in the initial-release build. |
 
 > [!NOTE]
 > Addon versions should be pinned in the project's `addons/` directory and `.csproj` NuGet references at development start to ensure reproducible builds. C# NuGet dependencies (e.g., Klotho, Newtonsoft.Json, K4os.Compression.LZ4, LiteNetLib) are managed via the project `.csproj` file and restore automatically on build.
@@ -340,7 +396,7 @@ project_root/
 │   ├── music/             (BGM stems per level)
 │   ├── sfx/               (Categorized sound effects)
 │   └── buses/             (AudioBusLayout resources)
-├── localization/          (en.json, es.json, fr.json, etc.)
+├── localization/          (en.csv → compiled en.en.translation; future languages add columns)
 ├── tests/
 │   ├── unit/              (Unit tests — FSM, status effects, damage calc)
 │   └── integration/       (Integration tests — gameplay scenarios)
@@ -438,9 +494,9 @@ The following singleton managers are registered as Godot **autoload** entries (P
                 StockCount = 3,
                 TimeLimit = 480.0f,
                 ItemsEnabled = true,
-                ItemSpawnRate = ChronalOrbFrequency.High,
+                ItemSpawnRate = ChronalOrbFrequency.Medium,   // V7.3: default was High; Medium is the sticky first impression
                 StageHazardsEnabled = true,
-                HazardRate = HazardTriggerFrequency.High
+                HazardRate = HazardTriggerFrequency.Medium    // V7.3: default was High
             };
         }
     }
@@ -476,7 +532,7 @@ The following singleton managers are registered as Godot **autoload** entries (P
 public enum CharacterState {
     Idle,                 // Default grounded state, accepting all inputs
     Running,              // Horizontal movement on ground
-    Dashing,              // Universal fast grounded burst; keeps combatant pushbox and has no invulnerability
+    Dashing,              // RESERVED — the universal dash was removed 2026-08-09 (see the Universal Dash removal note below); enum slot kept for serialization stability, never re-used
     Rolling,              // Universal evasive roll with startup, pass-through travel, and punishable recovery
     Skidding,             // Direction reversal skid on ground (3-frame turn lag)
     Crouching,            // Low-profile ducking on ground (-30% hurtbox height)
@@ -498,7 +554,6 @@ public enum CharacterState {
 | From State | To State | Trigger |
 |---|---|---|
 | `Idle` | `Running` | Horizontal input detected |
-| `Idle` | `Dashing` | Double-tap digital direction or flick analog direction on ground |
 | `Idle` | `Rolling` | Roll input on ground; held direction selects travel direction |
 | `Idle` | `Crouching` | Down input held on ground |
 | `Idle` | `Airborne` | Jump input (or walk off edge) |
@@ -508,11 +563,7 @@ public enum CharacterState {
 | `Idle` | `Blocking` | Block input held |
 | `Idle` | `UsingMovementAbility` | Movement Ability input (if off cooldown) |
 | `Running` | `Idle` | Horizontal input released |
-| `Running` | `Dashing` | Double-tap digital direction or flick analog direction |
 | `Running` | `Rolling` | Roll input on ground |
-| `Dashing` | `Idle` | 12-frame dash completes or meets an opposing pushbox/wall |
-| `Dashing` | `Airborne` | Jump cancel after the 4-frame commitment window |
-| `Dashing` | `Attacking` | Basic attack cancel after the 4-frame commitment window |
 | `Rolling` | `Idle` | Startup, travel, and recovery sequence completes while grounded |
 | `Rolling` | `Airborne` | Roll sequence completes after leaving a platform edge |
 | `Running` | `Skidding` | Reverse horizontal input detected on ground |
@@ -554,8 +605,9 @@ public enum CharacterState {
 | **Any State** | `Dead` | `currentHP` reaches 0 |
 
 #### **Player Movement & Feedback Defaults**
-*   **Run Acceleration:** Grounded movement reaches the character's normal maximum speed over 8 simulation frames. Air control retains its faster 4-frame acceleration response.
-*   **Universal Dash:** Digital controls double-tap Left/Right within 15 frames; analog controls flick from neutral past 85% magnitude. A dash lasts 12 frames at `1.35x` normal run speed, retains the combatant pushbox, grants no invulnerability, and may cancel into Jump or Basic Attack after a 4-frame commitment.
+*   **Run Acceleration & Deceleration (retuned 2026-08-10):** Grounded movement reaches the character's normal maximum speed over **14** simulation frames (`UniversalMovementRules.RunAccelerationFrames`), and grounded stops/reversals ramp down over **12** frames (`RunDecelerationFrames`) in both modes. Air control retains its faster 4-frame acceleration response (8-frame air decel in Story).
+*   **Universal Dash — REMOVED (2026-08-09 decision, supersedes the V6 12-frame `1.35x` dash):** the universal dash gesture was cut; the evasive roll and each character's movement ability are the mobility tools. `CharacterState.Dashing`, `UniversalMovementPhase.Dash`, and the protocol-v2 Dash button bit remain **reserved and must never be reused**. Enemy `ChargeDash` archetypes and character abilities that dash by name are unrelated and stay.
+*   **Fast-Fall (added 2026-08-10, supersedes V6's "no fast-fall" rule):** while airborne, not in hitstun, holding Down clamps vertical speed to at least `UniversalMovementRules.FastFallSpeed = 16` units/s downward, immediately, in both modes. Stateless — derived from held input each tick, no snapshot field. Fast-fall also cancels the Warp float window. Drop-through then hold Down chains into an immediate fast drop; down-air plus fast-fall stack into a falling strike (both intended).
 *   **Universal Evasive Roll:** The dedicated Roll action defaults to `O` on keyboard and Right Trigger on controller. Direction comes from horizontal input or falls back to facing direction. The roll uses 4 startup frames, 12 travel frames at `1.5x` run speed, and 10 recovery frames. Only the first 8 travel frames are invulnerable. The combatant pushbox is disabled during travel so the roller can cross ordinary enemies/fighters; terrain remains solid and explicitly immovable bosses can block crossing.
 *   **Coyote Time Window:** `0.1s` (6 frames at 60Hz). Allows a grounded jump up to 6 frames after walking off a platform edge.
 *   **Jump Buffer Window:** `0.1s` (6 frames at 60Hz). Buffers jump inputs pressed up to 6 frames prior to landing on ground.
@@ -642,9 +694,9 @@ public struct PersistentObjectData {
 ```
 
 #### **Object Lifecycle & Rules (Story & Fighter Modes)**
-1. **Durability and Damage:** Persistent objects carry their own hurtboxes and implement `IDamageable`. They can be targeted, damaged, and destroyed by enemies, opposing players, and **environmental stage hazards** (e.g., lava, steam vents, falling rocks) in both Story Mode and Fighter Mode. When `currentHP` reaches 0, the object plays a destruction effect (VFX/SFX) and is returned to the pool (or destroyed).
-2. **Movement & Pathing Obstacle:** Persistent objects carry physical collision shapes (`CollisionShape2D` on a `StaticBody2D`) that physically block horizontal movement and AI navigation pathing for enemies in Story Mode and opposing fighters in Fighter Mode.
-3. **Persistence Across Player Death:** When the deploying player character dies, is knocked out, or respawns, deployed persistent objects **do not despawn**. They remain fully active in the level/arena, continuing to block movement and execute attacks until they are destroyed by damage or their lifespan timer expires.
+1. **Durability and Damage:** Persistent objects carry their own hurtboxes and implement `IDamageable`. They can be targeted, damaged, and destroyed by enemies, opposing players, **basic attack swings** (constructs must be attackable in both modes — Fighter-sim basic swings damage opposing constructs), and **environmental stage hazards** (e.g., lava, steam vents, falling rocks). Every attack-capable construct renders an overhead HP bar. When `currentHP` reaches 0, the object plays a destruction effect (VFX/SFX) and is returned to the pool. In the deterministic sim, constructs spawn **bottom-anchored** at the deploying fighter's feet (never half-buried in the floor line).
+2. **No Body Collision (V7, supersedes the V6 "movement & pathing obstacle" rule per the 2026-08-11 construct rebalance):** persistent objects do **not** carry blocking collision shapes and do **not** obstruct movement or AI pathing. Their hits are **impulse-free** — `KnockbackForce` is zero, hitstun still applies, and a zero-knockback hit never replaces the victim's velocity. Constructs are area denial and chip pressure, not walls.
+3. **Persistence Across Player Death:** When the deploying player character dies, is knocked out, or respawns, deployed persistent objects **do not despawn**. They remain fully active in the level/arena, continuing to execute attacks (they never block movement — rule 2) until they are destroyed by damage or their lifespan timer expires.
 4. **Lifespan Expiration:** Each persistent object tracks its active lifespan. The object updates `currentLifetime` every frame. Once `currentLifetime >= activeDuration` (if `activeDuration > 0`), the object is automatically destroyed (released back to the object pool).
 5. **Deploy Limit and Queue Replacement:**
    - The spawning character's runtime controller tracks active persistent objects in a list: `public List<Node2D> ActivePersistentObjects`.
@@ -654,19 +706,20 @@ public struct PersistentObjectData {
 7. **Friendly Fire Immunity:** Deployed persistent objects do NOT apply friendly fire damage, hitstun, or status effects to their owner or allied teammates. Attacks and hazard zones strictly affect enemy units and opposing fighters.
 8. **Owner Visual Differentiation:** In multiplayer matches, deployed persistent objects render a floating 50% opacity owner indicator icon above the object and a ground aura ring tinted to the owner's player slot color (P1 Cyan `#00f0ff`, P2 Red `#ff3366`, P3 Yellow `#ffd700`, P4 Green `#00ff88`).
 
-#### **Nikola Tesla: Tesla Coil Specification**
+#### **Nikola Tesla: Tesla Coil Specification (V7 2026-08-22 tuning batch)**
 - **Durability:** 25 HP (Max HP)
 - **Active Lifespan:** 30 seconds (activeDuration)
-- **Base Attack:** Shoots individual electrical arcs at the nearest enemy target, dealing **5 HP** basic damage (standard block cost: 1 charge) every 2.0 seconds.
+- **Base Attack:** Shoots individual electrical arcs at the nearest enemy target, dealing **5 HP** basic damage (standard block cost: 1 charge) every **2.0 seconds**, impulse-free (no knockback; hitstun applies). The 2026-08-11 flat 4.0 s cadence left a lone coil ignorable; the old 0.5 s figure in the kit brief predates the fence rebalance and is retired.
 - **Alternating Current Link (Joined Coils):** When two coils are placed within a linking range of 8.0 units, a continuous electrical fence barrier connects them.
   - The fence deals **4 HP** basic damage per tick (1.0-second interval) to any enemy crossing or standing in the barrier.
   - Applies a brief **Static Charge** status effect (slowing the enemy and priming them for Lorentz Pulse chains).
 
-#### **Leonardo da Vinci: Clockwork Turret Specification**
+#### **Leonardo da Vinci: Clockwork Turret Specification (V7 2026-08-22 tuning batch)**
 - **Durability:** 20 HP (Max HP). Hurtbox enabled, takes damage from enemies, and is destroyed when HP hits 0.
-- **Active Lifespan:** 15 seconds (activeDuration), or until 4 bolts have been fired (whichever comes first). The turret self-destructs after firing its fourth (final) bolt.
+- **Active Lifespan:** 15 seconds (activeDuration), or until 4 bolts have been fired (whichever comes first). The turret self-destructs after firing its final bolt.
 - **Targeting Range:** 30.0 units (approx. 30 meters/yards) in line-of-sight. If in a small arena, targeting is bounded by visible screen edges.
-- **Base Attack:** Fires clockwork ballista bolts at the nearest enemy target within range, dealing **6 HP** basic damage (standard block cost: 1 charge) every 2.0 seconds. Maximum of **4 bolts** per deployment.
+- **Base Attack:** Fires clockwork ballista bolts at the nearest enemy target within range, dealing **6 HP** basic damage (standard block cost: 1 charge) every **2.0 seconds**, impulse-free. Maximum of **4 bolts** per deployment — the turret threatens from t=2 s instead of firing at t=4/8/12 inside a 15 s life.
+- **Companion cadences (same batch, recorded for the other two attack-capable constructs):** Cleopatra's serpent nest **6 HP per 1.0 s** (the documented bite cadence, restored from the 4.0 s interim); Pocahontas's vine snare 8 HP per 1.0 s (unchanged — the reference construct). The four `.tres` resources are the law.
 #### **Pickups & Loot Instantiation Defaults**
 *   **Chronal Dust Auto-Collect Radius:** `2.5 world units`. When the player character moves within 2.5 units of a dropped Chronal Dust orb, the orb automatically magnetizes and interpolates toward the player at `15.0 units/sec`, depositing currency on contact.
 *   **Enemy Death Loot Drop Timing:** Chronal Dust and item drops instantiate **instantly on the 0 HP KO frame** at the enemy's center transform coordinate (before playing the 0.5s death fade/collapse animation).
@@ -705,16 +758,18 @@ public struct PersistentObjectData {
 *   **Mechanic:** Character-specific aerial mobility (e.g., Double Jump, Float/Hover, Teleport, Glide).
 *   **Implementation:** Create an `IAerialMobility` C# interface. Each character implements their own variant. Example: Da Vinci implements a `Glide` class that overrides the character's downward Y velocity to a slow constant while held.
 
-#### **Ledge Grabbing & Edge Recovery**
-*   **Mechanic:** Characters falling or moving toward a stage platform edge can grab and hang from the ledge.
-    *   **Trigger:** If a character's hand-level collision box overlaps with a platform's designated Ledge grab trigger (and their vertical velocity is downward or neutral), they transition to the `LedgeHanging` state.
-    *   **Hang Time Limit:** A character can hang for a maximum of **5 seconds**. If they do not input an action before this timer expires, they automatically slip off, transitioning back to the falling state.
-    *   **Vulnerability:** Hanging characters do **not** gain invincibility frames. They remain fully targetable and can be hit off the ledge by opponent attacks.
-    *   **Single Occupancy:** Only one character can grab a specific ledge trigger at a time. If another character attempts to grab an occupied ledge, they will slip and continue falling.
+#### **Ledge Grabbing & Edge Recovery (V7 — aligned to the shipped `FighterLedgeRules` + platform-fighter additions)**
+*   **Mechanic:** Characters falling — or rising slowly near the apex — toward a platform edge can grab and hang from the ledge. With the V7 stage-boundary decision, main-floor ledges on open stages are the premier grab targets; every one-way platform end is also grabbable.
+    *   **Trigger:** airborne, not in hitstun/daze, drop-through not active, regrab lockout expired, vertical velocity downward or **slowly rising** (covers jumping up to it), within the edge capture box (sim: `|x − edgeX| ≤ 0.5` units, up to 1.2 units below the surface). Story uses its authored `LedgeGrabPoint` markers with the same rising-capture rule.
+    *   **Hang Refills Jumps:** grabbing a ledge restores the character's double jump — the ledge is a recovery resource.
+    *   **Hang Time Limit:** a character can hang for a maximum of **5 seconds** (300 frames), then automatically slips off.
+    *   **Vulnerability:** hanging characters do **not** gain invincibility frames. They remain fully targetable, and any hit knocks them off the hang.
+    *   **Ledge Trump (V7, replaces V6 single-occupancy slip):** grabbing an edge that an opponent already hangs **trumps** them — the earlier hanger is released outward with the standard 30-frame regrab lockout. Deterministic, and it gives the edge-guarder an answer to a stalling hanger.
+    *   **Regrab Cap (V7):** a character may grab ledges at most **3 times per airtime**; the counter resets on standing on ground or losing a stock. Prevents infinite climb-regrab stalling.
 *   **Edge Recovery Actions:** While hanging, the player can perform two inputs:
-    1.  **Pull Up (Up / Toward Stage):** The character plays a climbing animation and moves onto the solid platform, returning to the `Idle` state.
-    2.  **Drop Down (Down / Away):** The character releases the ledge, immediately entering the falling state (where they can double-jump or use recovery moves).
-*   **Implementation:** Platform corners feature narrow `Area2D` nodes with `CollisionShape2D` (using `RectangleShape2D`) placed at ledge positions. The character's controller script tracks state transitions; grabbing a ledge resets the character's velocity to zero, disables gravity processing, and sets the FSM state to `LedgeHanging`.
+    1.  **Climb (Jump):** the character climbs with an upward impulse at **0.9× jump speed**, exiting the hang onto or above the platform.
+    2.  **Drop Down (Down):** the character releases the ledge with a **30-frame regrab lockout**, entering the falling state (where the refilled double-jump and recovery moves are available).
+*   **Implementation:** Fighter Mode resolves ledges deterministically from `FighterStageGeometry` platform/floor-segment ends (`FighterLedgeRules`); Story Mode uses narrow `Area2D` ledge triggers at authored positions. Grabbing a ledge zeroes velocity, disables gravity processing, and sets the FSM state to `LedgeHanging`.
 
 #### **One-Way Platforms (Drop-Through)**
 *   **Mechanic:** Walkable from above, pass-through from below, and drop-through via **Double-tap Down** input.
@@ -737,25 +792,32 @@ public struct PersistentObjectData {
     *   *Allowed States:* Drop-through can only be initiated when the player is in `Idle`, `Running`, `Crouching`, `Blocking`, or `Attacking`.
     *   *Forbidden States (Lockout):* A player is locked out from dropping through a platform if their current state is `Stunned`, `Dazed`, or `Dead`. This prevents accidental drops or clipping during active combat stun.
     *   *Enemy Restriction:* Enemies and Bosses **cannot** drop through one-way platforms.
+*   **Fighter-Sim Input Divergence (recorded, audit M-18):** the deterministic Fighter sim triggers drop-through with **Down+Jump** (and supports edge walk-off); the double-tap-Down trigger is deferred there until a new Klotho component slot exists (`FighterRuntimeComponent` is exactly full at 128 bytes — new sim state requires a new component, ID 310+). Story uses double-tap Down as specified above. This is a known, deliberate divergence; close it in a dedicated sim pass, not opportunistically.
 
 ### **Combat Mechanics**
-Hit detection is the lifeblood of the platform fighter. Instead of relying purely on standard physics collisions (which can miss fast-moving frames), attacks use **Hitboxes** (damage dealing) and **Hurtboxes** (damage receiving) driven by **AnimatedSprite2D frame callbacks** for frame-perfect accuracy.
+Hit detection is the lifeblood of the platform fighter. Instead of relying purely on standard physics collisions (which can miss fast-moving frames), attacks use **Hitboxes** (damage dealing) and **Hurtboxes** (damage receiving) driven by **AnimatedSprite2D frame callbacks** for frame-perfect accuracy. Shared timing, damage-multiplier, hitstun, and knockback numbers live in one rulebook — **`FTT.Combat.BasicComboRules`** — consumed by both Story's timelines and the Fighter sim's phase machine; never author a second copy of these numbers.
+
+#### **Hitstop / Hitlag (V7 — new universal rule)**
+Every landed **direct, player-authored** hit freezes **both** the attacker and the victim for a shared window of **3–8 frames, scaled by the hit's damage** (3 frames at ≤5 damage, scaling linearly to 8 frames at ≥25 damage; blocked hits use a flat 2 frames). During hitstop both parties' animation, velocity, and timers are suspended; held movement input is preserved. In the deterministic sim, hitstop is a snapshotted counter decremented before movement integration — it must be identical across rollback resimulation. Hitstop is the single cheapest "weight" win in the game: without it no hit reads as landing, and it also creates the input window in which **directional influence** (below) is read.
+
+**Hitstop exemption list (V7.3 ruling, authored in `BasicComboRules`):** hitstop applies **only** to direct hits a player (or enemy/boss) authored this frame — basic strings, directional attacks, specials, ultimates, throws, and projectiles. **Construct/persistent-object ticks, coil-fence ticks, zone and DoT ticks (Venom, burn), and stage-hazard ticks apply zero hitstop** (their blocked hits also freeze nothing). Applied literally to sustained-damage sources, the universal rule would turn every fence, vortex, and lava pool into a stutter slideshow for both parties; ticks are pressure, not impacts.
 
 #### **Basic Attack & 3-Hit Combo String**
 *   **Mechanic:** Basic attacks are executed as a sequential 3-hit combo string. Rather than complex fighting-game links or cancels, the player inputs consecutive basic attacks within a specific buffer window to cycle through three distinct attacks:
-    *   **Hit 1 (Starter):** Fast startup, low damage, and minimal knockback. Designed to stagger the opponent.
-    *   **Hit 2 (Bridge):** Slightly different animation and swipe direction (e.g., diagonal slash transitioning from Hit 1's horizontal swing). Deals standard base damage and short knockback.
-    *   **Hit 3 (Finisher):** Slower wind-up with a highly distinct animation (e.g., heavy downward smash or thrust). Deals **50% bonus damage** and significant knockback to launch or push back enemies.
-*   **Combo Rules:**
-    *   **Input Buffering:** Subsequent attacks must be inputted within a **0.4-second buffer window** starting after the active frames of the previous strike.
-    *   **Combo Reset:** If the player fails to input the next attack before the buffer window expires, the state machine resets the combo counter to Hit 1.
-    *   **Interruption:** Moving, jumping, blocking, or being hit immediately cancels the sequence and resets the chain.
-*   **Implementation:** The player's FSM manages a `comboCounter` integer (0, 1, or 2). Upon transitioning to `Attacking`, the FSM triggers the animation state corresponding to the active index. An `AnimatedSprite2D` frame callback activates the hitbox `Area2D` at the precise frame of impact to detect Hurtbox overlaps via `Area2D.GetOverlappingBodies()`. When the animation finishes, a `SceneTreeTimer` starts the buffer timer; if the timer runs out without a subsequent input, `comboCounter` is set back to 0.
+    *   **Hit 1 (Starter):** `0.8×` BasicAttackDamage. Fast startup, minimal knockback (1.0× multiplier), 30 frames hitstun. Designed to stagger the opponent.
+    *   **Hit 2 (Bridge):** `1.0×` BasicAttackDamage, short knockback (1.2× multiplier), 40 frames hitstun. Slightly different animation and swipe direction (e.g., diagonal slash transitioning from Hit 1's horizontal swing).
+    *   **Hit 3 (Finisher):** `1.5×` BasicAttackDamage with a slower wind-up and a highly distinct animation. Knockback multiplier **4.5×** with 24 frames hitstun — the finisher **launches**: a mirror-match finisher at full victim HP must produce **≥ 2.5 units of horizontal separation** (attack range plus margin) by the time the victim's hitstun ends, and at low HP (via the low-HP knockback scale) it carries victims toward pits and blast-zone openings.
+*   **Combo Rules (per `BasicComboRules`, locked 2026-08-09/10):**
+    *   **Frame Data (template):** grounded string totals 27/30/45 frames (startup/active/recovery per hit); aerial totals 25/28/40. Per-character opener/finisher startups are authored in the V7.1 string profiles below; hit 2 and every active/recovery number stay universal.
+    *   **Input Buffering:** subsequent attacks chain through a **24-frame chain-hold/buffer window** following each hit's recovery. Holding the attack button through the window also continues the chain.
+    *   **Combo Reset:** if the window expires with no input, the combo counter resets to Hit 1. Whiffed swings chain only through the buffer/hold window.
+    *   **Attack on the Move (locked 2026-08-10, supersedes "moving cancels the string"):** swings keep **full input steering** — the grounded run ramp and aerial drift both apply mid-swing, and **facing follows held movement during a swing** (hitbox placement still reads facing at active-start). **Held movement never cancels or resets the chain.** Jump, roll, or block cancel the recovery and chain window and reset the chain; a special or the ultimate cancels a swing at any point; landing cancels an aerial string with no lag; being hit into hitstun cancels the string.
+*   **Implementation:** The player's FSM manages a `comboCounter` integer (0, 1, or 2). Upon transitioning to `Attacking`, the FSM triggers the animation state corresponding to the active index. An `AnimatedSprite2D` frame callback activates the hitbox `Area2D` at the authored active frames. The Fighter sim's `FighterBasicAttackRules` phase machine consumes the identical `BasicComboRules` constants.
 
 #### **Per-Character String Profiles (V7.1 — "Normals Are the Character", applied 2026-08-22)**
-The 3-hit chassis above (hit structure, hitstun, knockback, chain window, cancel rules, block interaction) is universal, but the authored timing, damage, and hitbox numbers of the string are the **template**, not the shipped values for every character. V7.1 authors three per-character axes in `BasicComboRules.StringProfiles` (the one shared rulebook, consumed by Story and the deterministic Fighter sim — never author a second copy):
+The three-hit chassis above is universal; what was NOT true until V7.1 is the pillar that a character *is* their basic string — all nine shipped the identical string apart from two scalars. V7.1 authors three per-character axes in `BasicComboRules.StringProfiles` (the one rulebook, consumed by Story and the deterministic sim; never author a second copy):
 
-| Character | Opener startup (gnd/air) | Finisher startup (gnd/air) | Damage shape (×0.1, sums 33) | Reach W% | Reach H% |
+| Character | Opener startup (gnd/air) | Finisher startup (gnd/air) | Damage shape (×0.1, sums 33) | Reach width % | Reach height % |
 |---|---|---|---|---|---|
 | Joan | 5 / 4 | 14 / 11 | 10 · 10 · 13 | 90 | 110 |
 | Pocahontas | 5 / 4 | 14 / 11 | 8 · 10 · 15 | 95 | 100 |
@@ -767,9 +829,10 @@ The 3-hit chassis above (hit structure, hitstun, knockback, chain window, cancel
 | Shakespeare | 7 / 6 | 16 / 13 | 8 · 10 · 15 | 105 | 100 |
 | Lincoln | 8 / 7 | 17 / 14 | 7 · 9 · 17 | 85 | 115 |
 
-*   **Damage shape:** per-hit multipliers in tenths whose sum is **pinned at 33** — a full string is always 3.3× `BasicAttackDamage`, so the special and ultimate damage anchors are untouched. Joan front-loads (pressure); Lincoln back-loads (payoff finisher).
-*   **Reach:** hitbox width ±20% of the template; Story hitbox pixels and the sim's world-unit melee reach scale by the same percents (the sim's 2-unit template range spans **1.7 units for Lincoln through 2.4 for Cleopatra**; 2.0 is the template). Joan and Lincoln are shorter-but-taller.
-*   **Universal, deliberately:** hit-2 startup, all active/recovery frames, hitstun (30/40/24), knockback multipliers (1.0/1.2/4.5), the chain window, all cancel rules, block interaction, the directional attacks, and the finisher-separation guarantee are unchanged for every profile.
+*   **Speed:** rushdown/scout kits open in 5 frames, the heavy in 8; finishers 14–17. Hit 2's startup and every active/recovery frame stay universal, so the guaranteed Hit 1 → Hit 2 link and the escapable Hit 2 → Finisher link survive for every profile (the slowest finisher, 17, keeps the link inside hit 2's 40-frame hitstun).
+*   **Damage shape:** per-hit multipliers in tenths whose sum is **pinned at 33** — a full string is always 3.3× `BasicAttackDamage`, so the special (≈1.5× string) and ultimate (≈4–5× string) anchors are untouched. Only archetype-demanding shapes deviate: Joan front-loads (pressure), Lincoln back-loads (payoff finisher).
+*   **Reach:** hitbox width ±20% of the template (Story pixels and the sim's world-unit melee reach scale together — the sim's 2-unit template range becomes 1.7 for Lincoln through 2.4 for Cleopatra), making the roster table's Close/Mid/Long column true in melee. Joan and Lincoln trade length for height (shorter but fatter boxes).
+*   **Universal, deliberately:** hitstun (30/40/24), knockback multipliers (1.0/1.2/4.5), launch components, the 24-frame chain window, all cancel rules, block interaction, the directional attacks, and the finisher-separation guarantee. The chassis is the readability contract; the profiles are the identity layer.
 *   **Presentation note:** the shared placeholder combat-animation library is authored to the template; a hit whose authored startup deviates runs on the frame clock (gameplay-authoritative) until per-character animation timing is authored.
 
 **String riders (Tier 2, applied 2026-08-22).** Four characters carry one additional authored rule each — the rule their kit brief always promised — delivered through the ordinary hit payload (no rider gets bespoke collision or spawn logic; all live in the same `StringProfiles` table):
@@ -791,6 +854,13 @@ Joan and Pocahontas already carry their string interactions on the movement-abil
 *   **Landing Cancel (No Lockout):**
     *   **Cancel Rule:** If the character touches the ground (`isGrounded` becomes true) while in the middle of an aerial basic attack (during startup, active hit, or recovery animation frames), the active attack is immediately cancelled, any active attack hitboxes are destroyed/aborted, and the `comboCounter` resets to 0.
     *   **Smooth Transition:** Landing from an aerial attack smoothly transitions the character from `Airborne` to `Idle` without any lockout frames. There is no landing lag penalty.
+    *   **Deliberate "arcade" choice (V7 record):** no landing lag, no jump squat, and no dash are **intentional** — this game reads faster and more forgiving than Melee-derivative fighters, and that is the identity. The compensating commitment costs that keep aerials honest are shieldstun on block (the defender is plus after blocking an aerial that lands high), hitstop (aerials no longer feel free on whiff-punish timing), and the aerial string's slightly shorter reach.
+
+#### **Directional Basic Attacks: Up-Attack & Down-Air (locked 2026-08-10)**
+Two single strikes exist alongside the 3-hit chain, selected at swing start by held direction (`BasicComboRules.SelectAttackVariant`; the dedicated `gameplay_up` action — W / stick-up / d-pad-up — feeds the vertical axis, and Jump no longer contributes to it):
+*   **Up-Attack (launcher):** Up held + attack, available **grounded and airborne**. Startup 7 / active 8 / recovery 18. Hitbox above the fighter (±1.2 units horizontal, up to 2.4 above origin). `1.0×` BasicAttackDamage, 30 frames hitstun, mostly-vertical launch knockback (2.5× vertical scale, 0.3 horizontal).
+*   **Down-Air (falling launcher):** Down held + attack while **airborne only**. Startup 6 / active 10 / recovery 16. Hitbox below (±1.0 horizontal, 2.0 below origin). Same damage/hitstun/launch profile; stacks with fast-fall into a falling strike; landing cancels it with no lag.
+*   Both **never chain**, never buffer into the string, and reset the combo index. Grounded Down + attack is explicitly just the normal string (crouch poke).
 *   **Mid-Air Specials & Ultimates:** Special 1, Special 2, and Ultimate abilities are fully usable while airborne.
     *   **Special 1 & Special 2:** Casting either Special 1 or Special 2 while airborne temporarily reduces the character's gravity scale by **50%** for the active startup and execution frames of the ability. Gravity returns to normal once the active cast completes.
     *   **Ultimate Attack:** When executed in the air, the character freezes in mid-air (gravity set to 0) during the wind-up and cinematic freeze-frame. If the Ultimate animation finishes while still in the air, gravity resumes and the character returns to the `Airborne` state.
@@ -803,7 +873,8 @@ Joan and Pocahontas already carry their string interactions on the movement-abil
     *   **Special 1:** Typically a signature projectile, trap, or mobility move.
     *   **Special 2:** Often a directional attack (e.g., anti-air or recovery move to get back on stage).
 *   **Cooldown System:** To prevent players from spamming Special 1 and Special 2, a cooldown mechanic is enforced.
-    *   **Differentiated Durations (V7 specials tuning batch, applied 2026-08-22 — supersedes the flat 10 s):** each special ability carries its own authored cooldown in a **7–13 second band**, per `resources/Abilities/*.tres`: 7 s Mozart S1 · Shakespeare S1 · Shakespeare S2; 8 s Einstein S2 · Joan S2 · Leonardo S1 · Tesla S1; 9 s Cleopatra S2 · Pocahontas S1; 10 s Cleopatra S1 · Joan S1 · Leonardo S2 · Pocahontas S2; 11 s Einstein S1 · Tesla S2; 12 s Lincoln S2 · Mozart S2; 13 s Lincoln S1. The cooldown timers run independently per slot.
+    *   **Differentiated Durations (V7, supersedes the flat 10 s):** each special ability is authored with its own cooldown in a **6–14 second band**, as a primary balance axis alongside damage and startup. Cheap, fast zoning and utility tools sit at 6–8 s; standard specials at 9–11 s; heavy burst tools (Lincoln's Emancipator, Leonardo's Golden Ratio) at 12–14 s. The V6 flat 10 s made every special interchangeable on the clock and let raw damage decide everything. Cooldown timers run independently per slot. **Applied 2026-08-22** — the authored band, per `resources/Abilities/*.tres`: 7 s Mozart S1 · Shakespeare S1 · Shakespeare S2; 8 s Einstein S2 · Joan S2 · Leonardo S1 · Tesla S1; 9 s Cleopatra S2 · Pocahontas S1; 10 s Cleopatra S1 · Joan S1 · Leonardo S2 · Pocahontas S2; 11 s Einstein S1 · Tesla S2; 12 s Lincoln S2 · Mozart S2; 13 s Lincoln S1.
+    *   **Resonance Momentum (V7.1 — cooldown is earned, not only waited out):** when the basic string's **Finisher (Hit 3) connects** with an opponent's hurtbox, both special cooldowns are refunded **60 frames (1.0 s)**. Only the finisher refunds — not Hits 1–2, not the up-attack or down-air, not a blocked finisher, not construct or hazard damage. Capped at **two refunds per cooldown cycle per slot** (at most 2 s off any one cooldown), so a 7 s tool cannot be cycled into a 3 s tool. Both modes; Story enemies are valid targets. The intent is narrow: completing the string — the most committed thing a character does — hands back a slice of their punctuation. "Resonance accelerates when you make history."
     *   **Cooldown Start Timing:** The cooldown timer begins counting down **immediately upon ability cast** (initiated on the first frame of the cast action, rather than waiting for the animation or damage frames to finish).
     *   **State Interactions (Stuns & Death):**
         *   *No Pausing on Stun:* Being placed in a `Stunned` or `Dazed` state does **not** pause active cooldown timers. They continue counting down in real-time.
@@ -852,7 +923,7 @@ Every special and ultimate ability is defined as a data-driven Resource (`.tres`
 | **Feedback** | `ScreenShakeDuration` | `float` | Camera shake duration in seconds (default `0.15`; Lincoln heavy strikes: `0.3`) |
 
 > [!TIP]
-> Complete baseline numeric overrides for all characters' special and ultimate abilities are documented in [ability_numeric_data.md](./ability_numeric_data.md).
+> Canonical numeric values for all characters' special and ultimate abilities live in `resources/Abilities/*.tres` — the 36 authored ability resources are the single source of truth. (The Unity-era `ability_numeric_data.md` reference is retired; that archive was removed from the repository.)
 
 #### **Movement Ability Data Schema (`MovementAbilityData` Resource)**
 Every character's unique Movement Ability is defined as a data-driven Resource (`.tres`), specifying mobility parameters and cooldown tracking:
@@ -939,10 +1010,12 @@ namespace FTT.Combat {
 *   **Mechanic:** A high-impact, cinematic move that deals massive damage or alters the stage.
 *   **Influence Meter Build-Up Rules:**
     *   **Meter Capacity:** The meter has a maximum capacity of **100 points**. Every character starts a match or level with **0 points**.
-    *   **Damage Dealt:** Dealing damage is the primary builder. Each **1 HP** of damage dealt to an opponent increases the meter by **1.0 point**.
-    *   **Damage Taken:** Taking damage also builds meter. Each **1 HP** of damage taken increases the meter by **0.25 points** (a quarter of the dealt rate).
+    *   **Damage Dealt:** Dealing damage is the primary builder. Each **1 HP** of damage dealt to an opponent increases the meter by **1.0 point** (accrued on the full damage at hit time, regardless of what the victim later reclaims through Rally).
+    *   **Damage Taken:** Taking damage also builds meter. Each **1 HP** of damage taken increases the meter by **0.25 points** (a quarter of the dealt rate). **V7.1:** this accrues at hit time only on the **permanent (non-echo) portion**; the echo portion's meter accrues only when that echo finishes draining. Reclaimed HP grants no meter — see "Recoverable Health".
+    *   **Defy History (V7.1):** a full meter is also a lifeline — a lethal hit against a fighter at 100 meter shatters the meter to 0 instead of KO'ing them (survive at 1 HP, once per match; once per level in Story, firing before the Chronal Rewind). Full rules under "Recoverable Health". Holding a full meter is therefore a strategic state, not just a pending ultimate.
+    *   **Echo Step (V7.1):** the meter's third use — spend **30 meter** during your own recovery frames to rewind your position 30 frames ("take back the whiff"). Full rules under "Time Systems". The meter is now a three-way economy: the ultimate (offense), Defy History (insurance), and Echo Step (tempo).
     *   **Death Carryover:** If a player dies (loses a stock life), their accumulated meter carries over to their next life but suffers a **25% penalty** (e.g., if a player dies at 80 points, they respawn with `80 * 0.75 = 60` points).
-    *   **Unstealable:** The meter cannot be interrupted, frozen, or stolen by opponent attacks or status effects.
+    *   **Unstealable by opponents (V7.3 wording fix):** the meter cannot be interrupted, frozen, or stolen **by opponent attacks or status effects**. Authored *environmental* drains are the deliberate exception and stay: the Extractor discharge's −20% and Paris's Neural Dampening Beam (5%/s) drain the meter by design.
 *   **Implementation:** A centralized `UltimateMeter` class tracking a float value from `0.0` to `100.0`. When the value reaches `100.0`, the Ultimate activation input is unlocked. Firing it resets the meter to `0.0` and pauses standard gameplay logic temporarily to execute the character's cinematic move.
 
 #### **Knockback & Launch Physics**
@@ -950,19 +1023,23 @@ namespace FTT.Combat {
     *   **Basic Attacks:** Apply minor, fixed horizontal knockback (just enough to stagger or interrupt, keeping the opponent within combo range).
     *   **Special/Ultimate Attacks:** Apply higher knockback force. The knockback velocity is proportional to the base damage of the special attack (higher damage = further knockback).
 *   **Weight Mitigation:** The target's `weight` stat dynamically dampens received knockback. The final knockback velocity is scaled inversely with weight (e.g., `FinalKnockback = BaseKnockback / (1 + weight)`). Heavy characters (like Abraham Lincoln) resist launch forces, while lighter characters (like Cleopatra) travel further when hit.
+*   **Low-HP Scaling (locked 2026-08-10):** after the weight division, knockback is multiplied by `(1 + missingHPFraction)` of the victim **after** the hit's damage applies — 1.0× at full HP, 2.0× at zero. Applies to every hit in both modes, environmental and hazard hits included; the single chokepoints are `FighterDamageRules.ApplyFighterHit` (sim) and the `DamageCalculator` victim-HP overload (Story). Boss knockback via `BossController.ApplyKnockback` is deliberately unscaled (bosses do not fly).
+*   **Knockback Replaces Velocity:** a knockback impulse **replaces** the victim's velocity rather than adding to it — with one exception: a zero-knockback hit (impulse-free construct ticks) never writes velocity at all.
+*   **Authored Launch Angles (V7 — closes the fixed-45° sim gap):** each hit authors its own launch angle. The basic string's per-hit vertical components, the up-attack/down-air vertical launch profiles, and every special's knockback vector are authored data (`BasicComboRules` for the string, `AbilityData` for specials) in **both** modes — the deterministic sim must consume the same authored angles instead of a universal 45° default.
+*   **Directional Influence — DI (V7 pillar decision):** during hitstop on a hit that launches (knockback above a stagger threshold), the victim's held direction bends the launch angle by up to **±15°**. Full deflection at full stick/key hold, proportional below; reads the same quantized input the sim already serializes, so it is rollback-safe. DI never changes knockback magnitude — only direction. This is the victim's first agency verb: DI toward the stage to survive an edge-launch, DI up to escape a pit trajectory.
+*   **Landing Tech / Ukemi (V7 pillar decision):** a victim in launched hitstun ("tumble") who **holds Block on ground contact** techs the landing: no bounce, hitstun ends, and they get a **12-frame invulnerable recovery** in place — **locked in place, no actions and no movement, in both modes** (the invulnerable-but-actionable Story variant is a defect against this rule). Missing the tech plays the full knockdown. **(V7.3 ruling)** Teching is **charge-independent**: it is an *input read*, not the block stance, so it works with **0 block charges and during the post-shatter lockout** — the shatter punish must never delete the victim's second agency verb. Teching is the second agency verb, and Story Mode teaches it (Sarah's calibration adds one scripted tech prompt when the design's tutorial pass next revisits Level 0).
 *   **Stage Boundaries:**
     *   **Sides and Top:** The sides and ceiling of stages are bounded by solid physical colliders (screen limits). Characters cannot be launched or walk through the sides or top of the screen.
-    *   **Bottom Void:** The bottom of the stage has a wide, open blast zone. Falling off the bottom of the screen (into a pit or void) results in the immediate loss of one stock life in Fighter Mode (or a major HP/checkpoint penalty in Story Mode).
+    *   **Bottom Void (V7 — Option A stage-boundary model):** designated Fighter stages author **open floor pits with true ledges** (see Section 10); falling through the bottom blast zone costs one stock. Sealed "arena" stages have no reachable bottom void by design. In Story Mode, authored pits deal a major HP penalty and checkpoint return (or trigger the Chronal Rewind on a lethal fall).
 
 #### **Damage Calculation Formulas**
 All damage calculations use the following explicit formulas:
 
-*   **Basic Attack Damage (3-Hit Combo — template shape):**
+*   **Basic Attack Damage (3-Hit Combo):**
     *   Hit 1 (Starter): `damageDealt = basicAttackDamage * 0.8`
     *   Hit 2 (Bridge): `damageDealt = basicAttackDamage * 1.0`
     *   Hit 3 (Finisher): `damageDealt = basicAttackDamage * 1.5`
-    *   **V7.1:** the per-hit multipliers come from the character's `BasicComboRules.StringProfiles` damage shape (Joan 1.0/1.0/1.3, Lincoln 0.7/0.9/1.7, all others the 0.8/1.0/1.5 template); every shape sums to 3.3× `basicAttackDamage` for the full string.
-*   **Crouch & Aerial Attack Rule:** Pressing the Attack input while crouching or airborne executes the character's standard basic attack combo string (Hits 1–3). Crouch and aerial attacks share identical hitboxes, damage formulas, knockback vectors, and frame timing with grounded basic attacks.
+*   **Crouch & Aerial Attack Rule:** Pressing the Attack input while crouching or airborne executes the character's standard basic attack combo string (Hits 1–3), subject to the directional-attack selection rules (Up held → up-attack; airborne Down held → down-air). Crouch attacks share grounded hitboxes and timing; the aerial string uses its own slightly faster frame totals (25/28/40 vs. grounded 27/30/45) with the same damage formulas.
 *   **Special Attack Damage:** `damageDealt = abilityData.baseDamage`
 *   **Ultimate Attack Damage:** `damageDealt = abilityData.baseDamage` (per hit, multiplied by `hitCount` if multi-hit)
 *   **Difficulty Scaling (Story Mode Only):** Enemy damage output, HP, spawn rates, rewind counts, and drop rates scale dynamically based on the campaign difficulty setting. All difficulty scaling parameters are defined authoritatively in the **Unified Difficulty Scaling Table** (Section 5). Combat damage and HP scaling formulas use: `enemyDamageDealt = enemyBaseDamage * difficultyDamageMultiplier` and `enemyHP = enemyBaseHP * difficultyHPMultiplier`.
@@ -970,6 +1047,60 @@ All damage calculations use the following explicit formulas:
 
 *   **Knockback Formula:** `finalKnockback = baseKnockback / (1.0 + target.weight)`
 *   **No Armor/Defense Stat:** There is no damage reduction or armor stat. Damage is applied directly as `currentHP -= damageDealt` (clamped to 0).
+
+#### **Recoverable Health: Rally, Desperation Resonance & Defy History (V7.1, 2026-08-22)**
+The HP bar itself is where the time fantasy lives. Three mechanics, one identity: **your recent past is briefly negotiable, and the only currency is aggression.** All three are fully deterministic (frame counters and snapshot fields; no wall-clock time, no unseeded randomness) and run identically in both modes.
+
+**1. Rally — "Reclaim the Moment."**
+*   On every hit taken, the full damage comes off `currentHP` immediately — **lethality is unchanged: 0 HP is a KO regardless of any echo**. Simultaneously, a fraction of that damage (the *echo fraction*, see Desperation Resonance below) is added to a single **Echo Pool**, rendered as a bright draining segment on the victim's HP bar.
+*   **Reclaim (V7.3 rework — damage-scaled, supersedes the all-or-nothing reclaim):** landing any *direct* hit on an opponent — basic string, directional attack, special, ultimate, **or a connecting throw** — restores **`min(pool, reclaimingHitDamage × 2.0)`** of the Echo Pool as real HP (`BasicComboRules.RallyReclaimDamageMultiplier` is the one source). The remainder of the pool **persists and keeps draining** on its unchanged timer. Sustained offense drains the pool across several hits; a single safe poke no longer cashes an entire ultimate's echo, so *commitment*, not mere contact, is the currency. Construct/persistent-object ticks do **not** collect (no passive farming), and a hit that is *blocked* does not collect (it must connect). *(Rejected variants recorded in the V7.3 preamble: keeping all-or-nothing, a per-reclaim pool cap, an ultimate-damage exemption.)*
+*   **Drain:** the Echo Pool drains linearly to zero over **150 frames (2.5 s)**. Each new hit taken adds its echo portion to the pool and **restarts** the drain window. Echo that finishes draining is permanently lost.
+*   **Blocked hits and shield damage** never generate echo (no HP was lost). Hazard and environmental damage generates echo normally (it routes through the same damage chokepoints); collection still requires striking the opponent.
+*   **Story Mode:** identical mechanic against enemies and bosses. Enemies themselves do **not** rally (their HP stays simple and readable). The echo fraction is difficulty-scaled — see the Unified Difficulty Scaling Table.
+*   **KO / stock loss** clears the Echo Pool. It does not transfer or persist across stocks.
+
+**2. Desperation Resonance — the echo fraction scales with missing HP.**
+*   The recoverable fraction of each hit is not flat: `echoFraction = 0.20 + 0.30 × missingHPFraction`, evaluated on the victim **after** the hit's damage applies — **20% recoverable at full health, sliding linearly to 50% near death.** This deliberately reuses the exact input the low-HP knockback scale already computes, so the sim adds one multiply, not one system.
+*   **Design intent:** the wounded player is at up to 2× launch distance (existing rule) *and* up to half of every further blow is reclaimable — but the only collection mechanism is landing a hit. Desperation makes you a glass cannon on the collection side instead of a track athlete. There is no threshold, no window, no once-per-stock flag, and therefore no edge cases: a player at 24% and a player at 5% both get exactly what the curve says.
+*   **Rejected alternative (recorded so it is not re-litigated):** a threshold-triggered low-health regen ("Second Wind") was cut in design review — a fixed regen line pays least to whoever crossed it hardest, a hit-cancels-the-window rule makes maximum-distance evasion optimal, and any stand-still-to-heal verb points the most dramatic moment of the match *away* from the fight.
+
+**3. Defy History — the meter refuses one death.**
+*   A hit that would reduce a fighter to 0 HP while their Influence Meter is **full (100)** does not KO: the meter **shatters to 0** instead and the fighter survives at **1 HP**. Once per **match** per fighter (Fighter Mode); once per **level** (Story Mode, where it fires *before* the Chronal Rewind would trigger, saving a rewind charge).
+*   **Lethal *hits* only:** falling through the bottom blast zone is not a hit and cannot be defied. Ultimates *can* be defied — a full meter answering a full meter is the intended climax case. Throws resolve through the ordinary hit chokepoint, so a lethal throw **can** be defied.
+*   **Not available during Sudden Death** (the first hit must end it — see Section 11).
+*   **A defied hit generates no Rally echo (V7.3 ruling):** the per-hit ordering is **damage → Defy → no echo**. The meter already paid for that survival; letting the defied blow also seed a reclaimable pool would double-pay the same resource.
+*   **Dual lethal trades (V7.3 ruling):** intents are applied from pre-frame state, so a same-frame lethal trade with **both** fighters at full meter fires **both** Defy procs — both survive at 1 HP, both `DefyHistoryUsed` flags set, neither hit seeds an echo, no stock is lost. *(Meter nuance, verified in implementation: because the two hits resolve sequentially, the second-resolving attacker legitimately re-earns meter from their own hit's damage-dealt credit after their shatter — the guarantee is both survivals and both spent procs, not symmetric post-trade meters.)* A same-frame lethal trade on final stocks with no Defy available sends the match to **Sudden Death**, mirroring the timer-tie rule (Section 11).
+*   **Presentation:** a hard hitstop extension, the world desaturates for ~1 s of 0.5× slow motion while the shattered meter's light snaps into the survivor, and the HUD meter ring visibly cracks. The opponent must *feel* which resource just paid.
+*   **Strategic identity:** "sitting on ult" becomes a real decision — insurance versus burst. Because the meter is public information, a full bar on a low-HP fighter is a visible tension state for both players: one is hunting a kill hit that will not kill, the other is deciding when to cash the ultimate before it gets spent for them.
+
+**Meter-economy guardrails (both mechanics):**
+*   **No double-earning:** meter-from-damage-taken (0.25/HP) accrues at hit time only on the **non-echo (permanent) portion**; the echo portion's meter accrues only if and when that echo finishes draining and becomes permanent. Reclaimed HP grants no meter to either player, and losing reclaimed HP again earns meter normally (it is real HP by then).
+*   The attacker's meter-from-damage-dealt (1.0/HP) accrues on the full damage at hit time, unchanged — their hit was real regardless of what the victim later reclaims.
+
+**Implementation & determinism notes:**
+*   New snapshot state: `EchoHealthPool` (FP64), `EchoDrainFrames` (int), `DefyHistoryUsed` (flag). `FighterRuntimeComponent` is exactly full at 128 bytes — this state **requires a new Klotho component (ID 310+)**; do not attempt to pack it into existing fields.
+*   Single chokepoints only: echo accrual lives in `FighterDamageRules.ApplyFighterHit` (sim) and the `DamageCalculator` path (Story); reclaim lives at hit-confirm. Never compute the echo fraction anywhere else.
+*   **HUD:** the echo segment renders as a bright inner band draining toward the current-HP edge (distinct from the enemy bars' lagging red underfill); Defy availability reuses the ultimate-ready flash — no new indicator, the full-meter state *is* the tell.
+*   **Tutorial:** one line each — the basic-attack calibration teaches rally ("strike back before the echo fades to reclaim it"), and the ultimate calibration mentions Defy History after the meter fills.
+
+#### **Time Systems: Echo Step, Resonance Momentum & Overtime (V7.1, 2026-08-22)**
+The game's identity is time and collective memory, but before V7.1 nothing in the moment-to-moment combat manipulated time except the rewind and Einstein's rift. These three systems put the theme into every match. All are deterministic and rollback-safe; none of them is a comeback coin-flip.
+
+**1. Echo Step — take back the whiff.**
+*   **Input & cost:** press **Block + Roll together** (a chord of existing actions — no new InputMap action and no new wire bit; the reserved Dash bit is *not* reused) during the **recovery frames of your own basic attack, directional attack, or special**. Costs **30 Influence Meter**.
+*   **Effect:** after an **8-frame wind-up** (a ghost of you materializes at the destination — the opponent can read it and attack the spot), you snap to the position you occupied **30 frames earlier**; velocity is zeroed on arrival, facing is preserved, and you are actionable immediately. **Only your position moves** — HP, cooldowns, the Echo Pool, the opponent, projectiles, and constructs are untouched. It is a repositioning verb, not a state rewind.
+*   **Restrictions:** not usable in hitstun, daze, the block stance, **shieldstun**, ledge hang, during hitstop, during an ultimate, while the respawn platform is active, or **in any grab state — grabbing, being held, being thrown, and grab whiff recovery are all excluded (V7.3; the 24-frame grab whiff is deliberately the kit's most punishable commitment, and 30 meter must not erase it)**. An armed wind-up entering a grab is cancelled with no snap (the meter and cooldown still spend). It can never be an *escape*, only an *undo*. Airborne recovery frames qualify. **120-frame internal cooldown** after use, so it cannot be chained. Available during Sudden Death (it cannot heal).
+*   **Why it is bounded:** the recovery-only rule means you are always cashing meter to erase a *mistake you already committed*, and the ghost telegraph gives the opponent a genuine read. It competes for the same meter as the ultimate and Defy History, so every use is a strategic concession.
+*   **Both modes.** In Story it is the same verb against enemies and bosses.
+*   **Determinism:** destination is read from a per-fighter **position ring** in the new Klotho component (a 5-entry ring sampled every 6 frames is sufficient; the nearest sample to 30 frames back is used — the sampling cadence is an implementation detail but the ring is snapshot state). An `EchoStepCooldownFrames` counter joins the snapshot.
+
+**2. Resonance Momentum — the finisher refunds cooldown.** Specified under Special Attacks (Cooldown System): a *connecting* Hit 3 refunds 60 frames on both special cooldowns, finisher-only, capped at two refunds per cooldown cycle per slot. Recorded here because it is the third leg of the time economy: meter is spent on tempo (Echo Step), cooldown is *earned* by completing strings (Momentum), and the match clock itself turns against stalling (Overtime).
+
+**3. Overtime — the timeline destabilizes as the sand runs out (Fighter Mode).**
+*   **Trigger:** the final **60 seconds (3,600 frames)** of any match with the timer enabled (Stock with timer, Time, Hybrid). Driven by the match frame count — deterministic and identical on both machines. Not applied in Sudden Death (already accelerated) or in untimed matches.
+*   **Effects:** stage hazard cadence **doubles** (idle/recovery phases halved; the 1.5 s warning phase is unchanged so readability survives), and the **Desperation Resonance echo fraction is multiplied by 1.5** (capped at 0.60) — wounded fighters reclaim more, so the last minute rewards the player willing to trade.
+*   **Presentation:** a "Timeline Destabilizing" stamp at 1:00, the stage palette begins to fracture at the edges, and the existing 00:10 pulse/chime closes it out.
+*   **Intent:** endings accelerate and time-outs get rarer without touching the timer or adding a sudden-death coin-flip; the last minute *feels* like a collapsing timeline.
 
 #### **Hitbox & Hurtbox Geometry**
 All hitbox and hurtbox dimensions use world units (1 unit = 1 meter). Offsets are relative to the character's pivot point and are automatically flipped horizontally based on `isFacingRight`.
@@ -986,7 +1117,7 @@ All hitbox and hurtbox dimensions use world units (1 unit = 1 meter). Offsets ar
 | Hit 2 (Bridge) | `1.4 × 1.2` | `(1.0, 0.2)` | Slightly larger, lifted |
 | Hit 3 (Finisher) | `1.8 × 1.4` | `(1.2, 0.0)` | Widest reach, heaviest impact |
 
-    *   **V7.1:** these boxes are the template; each character's boxes scale by their `BasicComboRules.StringProfiles` reach width/height percents (85–120% width, 100–115% height) in both modes — melee reach spans 1.7 (Lincoln) to 2.4 (Cleopatra) world units, with 2.0 as the template.
+> **Normative in both modes (V7):** these three escalating boxes apply to the deterministic Fighter sim as well as Story — the sim must author them as three distinct fixed-point boxes, offset **in front of the attacker only** (facing enforced; a swing never hits behind the attacker's back). The interim single 2.0×1.6 both-sides box is a defect against this specification, not an alternative.
 
 *   **Ranged Projectile Colliders:** Default `Area2D` with `CollisionShape2D` (using `CircleShape2D`, radius `0.2 units`). Travel speed defined per-ability in `AbilityData.ProjectileSpeed` (typical range: 10–15 units/second). Projectiles auto-destroy after `ProjectileLifetime` seconds (default `5.0s`) if they have not collided with a target or gone out of bounds.
 *   **Special Ability Hitboxes:** Defined individually in each character's `AbilityData` Resource via `HitboxSize` and `HitboxOffset` fields.
@@ -1032,38 +1163,57 @@ Godot 2D physics collision layers (1–32) are configured to enforce clean colli
 *   `Trigger` does NOT collide with any physics layer (overlay triggers only, detected via `Area2D.BodyEntered` signal)
 *   `Player` and `Enemy` body colliders remain excluded from one another's physical masks. Their child pushbox Areas detect the opposing body layer and resolve horizontal jostling explicitly, avoiding vertical standing, wall-surfing, and `MoveAndSlide()` order jitter.
 
-### **Defense Mechanics: Blocking**
-*   **Front-Facing Energy Barrier:** Holding the block button spawns a glowing, semi-transparent chronal energy barrier in front of the character. 
+### **Defense Mechanics: Blocking (V7 — the full model is locked; resolves audit H-5)**
+The V6 numbers below were left "open questions" while the build shipped a lighter interim block (3 s regen, no shatter lockout, blanket hitstun escape). **V7 locks the full designed model as the specification of record** — the interim values are divergences to be closed, and the shieldstun/turtle-answer additions below are new.
+
+*   **Front-Facing Energy Barrier:** Holding the block button spawns a glowing, semi-transparent chronal energy barrier in front of the character.
     *   *Directional Protection:* The shield only blocks attacks coming from the direction the player is facing (the front). Any attacks originating from behind the player bypass the shield entirely, dealing full damage, hitstun, and knockback.
     *   *Block Movement:* Movement speed is locked to zero while holding the block button.
+    *   *Grounded Stance Only:* the block stance exists **only on the ground** — no absorb while airborne, mid-swing, or mid-roll, in both modes. Attack and ability inputs are ignored while the stance is up.
+    *   *Zero Charges = No Stance:* holding Block with **0 charges remaining does not enter the stance** (and is never a self-inflicted daze) — the input is simply ignored until at least one charge exists. The daze belongs to the shatter moment only.
 *   **Block Capacity (3 Charges):**
     *   *Basic Attacks:* The shield can block up to **3 basic attacks**. Each blocked basic hit consumes exactly 1 block charge.
     *   *Special Attacks:* Blocking any Special attack immediately consumes **all 3 block charges**, shattering the shield instantly.
     *   *Ultimate Attacks:* Ultimate attacks are completely **unblockable**; they bypass the energy barrier entirely.
+*   **Shieldstun (V7 — attacker advantage on block):** each blocked basic hit locks the blocker in the stance for **8 frames** (specials that are absorbed by shatter: 16 frames of shatter-freeze folded into the daze). During shieldstun the blocker cannot drop block, move, counterattack, **grab, roll, jump, or drop through a platform** — the attacker recovers first and keeps their turn. Symmetrically, a target *in* shieldstun **cannot be grabbed (V7.3)** — see Grabs & Throws — so the attacker's advantage is pressure, not a throw confirm. Blocking is safety, not a free counter — this plus the shatter rules is the answer to turtling.
 *   **Guard Break (Shield Shatter):**
     *   If the shield loses all 3 block charges (either from 3 basic attacks or 1 special attack), the shield shatters.
     *   Upon shattering, the player is knocked back slightly and enters a **Daze (stun)** state for **1.0 second**, leaving them entirely vulnerable to follow-up attacks.
-    *   *Cooldown:* Once shattered, the block ability is locked and cannot be used again for a cooldown duration of **5 seconds**.
-*   **Recharge:** If the player releases the block button before it shatters, the consumed charges regenerate at a rate of **1 charge every 3.0 seconds** (settled 2026-08-22: both modes had always shipped 3.0 s via `BasicComboRules.BlockChargeRegenFrames = 180`, and that value is now the design — the earlier 2.0 s prose ask is retired). Regeneration occurs in **all states except `Blocking` and `Dead`** — charges regenerate while Idle, Running, Jumping, Attacking, using Specials, or even while Stunned/Dazed. Only actively holding block or being dead pauses the regeneration timer.
+    *   *Shatter Lockout:* Once shattered, the block ability is locked and cannot be used again for **5 seconds** (`BasicComboRules.BlockShatterLockoutFrames = 300`). Shattering must cost more than the 1 s daze — the lockout is the cost. **(V7.3 ordering)** Charge regeneration is **held during the lockout** and its countdown starts when the lockout expires — the first charge returns 3 s after that (8 s total from shatter to first usable charge). A **Chronal Shield-Restore orb ends the lockout** along with restoring charges (the orb is the authored fast exit). Landing tech remains available throughout the lockout (it is an input read, not the stance).
+*   **Recharge:** consumed charges regenerate at a rate of **1 charge every 3.0 seconds** (settled 2026-08-22: both modes had always shipped 3.0 s via `BasicComboRules.BlockChargeRegenFrames = 180`, and that value is now the design — the earlier 2.0 s prose ask is retired). Regeneration occurs in **all states except `Blocking` and `Dead`** — charges regenerate while Idle, Running, Jumping, Attacking, using Specials, or even while Stunned/Dazed. Only actively holding block or being dead pauses the regeneration timer.
+*   **Block-Cancels-Hitstun — restricted (V7, narrows the 2026-08-10 rule):** a grounded victim holding Block escapes hitstun into the stance **only after Hit 2 of the basic string has connected** (or after any non-string hit's hitstun). Hit 1 → Hit 2 is guaranteed on a standing victim; Hit 2 → Finisher is the escapable link — so the three-hit string is a real string with one authored escape decision, instead of a two-hit string against anyone holding a button. Airborne victims and the guard-break daze can never block-cancel. **(V7.3)** Block input — stance and cancel alike — is likewise dead **during any grab state** (grabbing, held, thrown, grab whiff recovery), matching the Echo Step exclusion.
+
+#### **Enemy Attack Classification vs Block (V7.2 — blocking is never a trap)**
+The special-shatter rule above was authored for player-vs-player *committal* specials. Applied unmodified to Story enemies — where most ranged mobs fired Special-class projectiles — it made blocking a 9-damage arrow cost a full shatter, a 1 s daze, and the 5 s lockout: the defense system punished its own use for most of the campaign. V7.2 classifies every enemy attack explicitly:
+
+*   **Standard rule:** **every standard- and elite-mob attack — melee, projectile, area pulse, or dash — resolves as Basic-class against the block**: 1 charge per blocked hit, normal shieldstun, never an instant shatter. Mob fire is ambient pressure; blocking it must be a sound, chip-priced answer. (This matches the rule persistent constructs already follow.)
+*   **Guard-Crush attacks (2 charges):** *elite abilities* (the elite tier's signature moves) and boss abilities flagged **`isGuardCrushing`** consume **2 charges** when blocked — the Joan/Lincoln shield-stutter precedent, now the standard way big enemies threaten a turtling player without deleting the shield outright. Always heavily telegraphed.
+*   **Unblockable attacks (boss-only):** a small authored set of boss abilities — typically phase finishers and arena-wide moves — are fully **unblockable** and must be avoided with movement, roll, or rewind. Never authored on standard or elite mobs.
+*   **Telegraph color language (codified; V7.3 makes it dual-channel):** attack flashes are a promise — **white/yellow = blockable (1 charge)**, **orange = Guard-Crush (2 charges)**, **red = Unblockable**. The same three colors apply everywhere an enemy winds up, including boss phases and stage-driven attacks, so the block decision is readable before the hit, roster-wide. **(V7.3)** Every telegraph additionally carries a **class glyph** drawn in the same tint — **open circle = Basic, diamond = Guard-Crush, X = Unblockable** — resolved from the same classification flags as the color so the two channels can never disagree. Hue must never be the *only* carrier of the block decision: this commits the accessibility structure now, while full colorblind filter modes remain deferred. Any legacy telegraph tint that visually collides with a different class's color (e.g., the old orange-ish legacy mob melee tint) is a defect against this rule.
+*   **PvP readability mirror (V7.3):** the same promise applies between players. In Fighter Mode, **Special-class attacks and projectiles carry a universal visual signature** (a distinct chromatic trail/aura shared across the roster) so a defender can distinguish a Basic-class projectile (1 charge) from a Special-class one (full shatter) *in flight*. The most punishing defensive mistake in the game must be readable before it lands — "blocking is never a trap" is a roster-wide rule, not just a PvE one.
+*   **No single enemy hit ever full-shatters.** Shatter in PvE comes only from chip (3 blocked hits) or Guard-Crush pressure (2 + 2) — the daze-and-lockout punish is something enemies earn across an exchange, not something one stray projectile buys.
+*   **Companion ruling — player Ultimates vs enemy shields:** the PvP rule "Ultimates bypass block" gets its PvE mirror: **player Ultimate-class damage ignores enemy damage-reduction defenses** (the Tech Enforcer's bubble, the Shock-Shield Legionnaire's frontal reduction, and any future `FrontalDamageReduction`/shield field). Player basics and specials remain subject to those reductions — the ultimate is the authored answer to a shelled target.
 
 #### **Gravity & Fall Speed Physics Parameters**
 *   **Base Gravity Acceleration:** Constant downward gravity acceleration set to $g = 30.0\text{ m/s}^2$ ($30.0\text{ world units/s}^2$).
 *   **Effective Gravity Formula:** $g_{\text{effective}} = g \times (0.8 + 0.4 \times \text{weight})$. Higher character `weight` increases downward gravity acceleration and fall speed.
 *   **Terminal Velocity:** Maximum downward fall speed is clamped to $v_{\text{term}} = 20.0\text{ m/s}$.
-*   **Fast Fall:** Disabled (no fast-fall input). Downward speed is governed strictly by character `weight` and gravity acceleration.
+*   **Fast Fall (V7, supersedes V6's "disabled"):** holding Down while airborne (and not in hitstun) clamps vertical speed to at least **16 units/s downward** immediately, in both modes; see Movement Mechanics. The fast-fall bypasses the terminal-velocity clamp path for this case only.
+*   **Known Cross-Mode Divergence (audit H-7, deliberately open):** Story runs this weight-coupled gravity model with fall/short-hop multipliers; the deterministic Fighter sim runs flat −30 gravity with fixed-height jumps and no short hop. Unifying them risks stage-geometry and campaign retunes, so it stays a recorded divergence pending its own dedicated pass. Do not close it opportunistically.
 
-#### **Ledge Hanging Mechanics**
-*   **Eligible Surfaces:** All platform edges (solid stage terrain and pass-through one-way platforms) can be grabbed.
-*   **Auto-Snap Range:** Character hand-level trigger grabs an edge when within **1.0–2.0 world units** while moving downward (`velocity.y < 0`).
-*   **Occupancy Rule:** Maximum **1 player** per ledge. If a second player attempts to grab an occupied ledge, the grab is rejected and they continue falling.
+#### **Ledge Hanging Mechanics (summary table — see Movement Mechanics for the full V7 rules)**
+*   **Eligible Surfaces:** All platform edges (one-way platform ends, and open-stage main-floor ledges per the V7 stage-boundary model).
+*   **Capture:** falling **or rising slowly near apex** into the edge capture box (sim: within 0.5 units horizontal of the edge, up to 1.2 below the surface).
+*   **Jump Refill:** grabbing a ledge restores the double jump.
+*   **Occupancy Rule (V7 — ledge trump):** a second character grabbing an occupied edge **trumps** the hanger, releasing them with the 30-frame regrab lockout.
+*   **Regrab Cap (V7):** maximum **3 grabs per airtime**; resets on grounding.
 *   **Invincibility:** **0 frames** (no invincibility on ledge grab or hang).
 *   **Damage Behavior:** Taking any damage while hanging forces the character off the ledge into `Stunned` / `Airborne` state.
 *   **Available Actions:**
-    *   *Pull Up:* Input Up or Direction toward stage -> Climbs onto platform (`Idle`).
-    *   *Drop Down:* Input Down -> Drops straight down (`Airborne`).
-    *   *Jump Off:* Input Jump -> Performs aerial jump off the ledge (`Airborne`).
-*   **Hang Time Limit:** Maximum **5.0 seconds** before automatically dropping (`Airborne`).
-*   **Mode Consistency:** Ledge mechanics are identical across Story Mode and Fighter Mode.
+    *   *Climb:* Input Jump → climbs with a 0.9× jump-speed impulse (exits hang upward).
+    *   *Drop Down:* Input Down → releases with a 30-frame regrab lockout (`Airborne`).
+*   **Hang Time Limit:** Maximum **5.0 seconds** (300 frames) before automatically dropping (`Airborne`).
+*   **Mode Consistency:** the rules are shared; Fighter Mode resolves edges deterministically from stage geometry (`FighterLedgeRules`), Story Mode from authored `LedgeGrabPoint` markers.
 
 #### **One-Way Platform Drop-Through Mechanics**
 *   **Trigger Input:** **Double-tap Down** (`S S` or D-Pad Down twice within 0.3s) while standing on a one-way platform.
@@ -1074,17 +1224,18 @@ Godot 2D physics collision layers (1–32) are configured to enforce clean colli
 
 #### **Persistent Stage Objects Specification**
 *   **Tesla Coils (Tesla):** Duration 30s, 25 HP (destroyable by enemy/opponent attacks), max 2 active per Tesla. Persists after owner death/respawn.
-*   **Clockwork Turret (Da Vinci):** Duration 15s (or 4 bolts fired), 20 HP (destroyable), max 1 active. Persists after owner death/respawn.
-*   **Serpent Nest (Cleopatra):** Duration 12s, 15 HP (destroyable), max 1 active. Bites for 6 HP every 1.0 s and applies `Venom` (4.0s, damage slot) on contact — the "Root then Venom" sequence is retired under the two-slot status rule; the snare feel comes from the bite cadence. Persists after owner death/respawn.
+*   **Clockwork Turret (Da Vinci):** Duration 15s (or 3 bolts fired), 20 HP (destroyable), max 1 active. Persists after owner death/respawn.
+*   **Serpent Nest (Cleopatra):** Duration 12s, 15 HP (destroyable), max 1 active. Applies `Venom` (4.0s) on contact — **V7 amendment (two-slot update):** the bite applies `Venom` (damage slot) plus brief hitstun; the snare fantasy is carried by its 6-per-1.0 s bite cadence, and the poison now survives her own vortex slow (see Status Effect Architecture). Persists after owner death/respawn.
 *   **Vine Snare (Pocahontas):** Duration 10s, 15 HP (destroyable), max 2 active. Applies `Root` (1.5s) + light damage on contact. Persists after owner death/respawn.
-*   **General Rules:** All persistent stage objects are destructible by enemy/opponent attacks, carry physical collision shapes (`CollisionShape2D` on `StaticBody2D`) that block horizontal movement and AI navigation pathing, persist across owner death/respawn (remaining active until destroyed or duration expires), and serialize in rollback netcode snapshots as stage entities.
+*   **General Rules (V7 — aligned to the 2026-08-11 construct rebalance):** All persistent stage objects are destructible by enemy/opponent attacks **including basic swings**, carry **no blocking body collision** (they never obstruct movement or AI pathing), deal **impulse-free** hits (zero knockback, hitstun applies), render overhead HP bars, spawn bottom-anchored in the sim, persist across owner death/respawn (remaining active until destroyed or duration expires), and serialize in rollback netcode snapshots as stage entities.
 
 #### **Combo & Ability Cancel Rules**
 *   **Sequential Attacks:** Basic attacks consist of 3 sequential attacks (Hit 1, Hit 2, Hit 3).
-*   **Input Buffer:** 0.4s input buffer window evaluated per hit.
-*   **Cancel into Specials:** Players can cancel a basic attack into Special 1 or Special 2 at any time if the special is off cooldown.
+*   **Input Buffer:** the 24-frame chain-hold/buffer window (`BasicComboRules`) follows each hit's recovery.
+*   **Cancel into Specials:** Players can cancel a basic attack into Special 1 or Special 2 at any time if the special is off cooldown; the Ultimate also cancels a swing at any point.
+*   **Cancel into Block:** Block may cancel a basic attack only during its **recovery frames**.
 *   **No Visual Counter:** No on-screen visual combo counter overlay.
-*   **No Juggling:** No juggle decay or juggle height mechanics.
+*   **No Juggling:** No juggle decay or juggle height mechanics; victim agency in extended hit sequences comes from DI, the landing tech, and the hit-2 block escape instead.
 
 #### **Story Mode Rewind Enemy & Projectile Rules**
 *   **Enemy State During Rewind:** All enemies in the level are **frozen in place** (`timeScale = 0` for AI/FSM) while the player performs the interpolated rewind animation.
@@ -1092,6 +1243,44 @@ Godot 2D physics collision layers (1–32) are configured to enforce clean colli
 *   **Post-Rewind Enemy Location:** Enemies remain at their current locations when play resumes.
 *   **Invincibility:** Player receives 2.0 seconds of spawn invincibility upon landing to safely react.
 
+
+### **Grabs & Throws (V7.2 — the third side of the triangle)**
+The gap audit found the attack/block/grab triangle missing its third side — absent from the game *and* from this document's rejected/deferred ledger. With a 3-charge block regenerating every 3 seconds and shieldstun favoring the attacker, a turtling player had nothing to fear but chip; that violates the standing principle that waiting must never beat playing neutral. V7.2 adds a deliberately arcade-simple universal grab, identical in shape for all nine characters (per-character throw flavor is a future axis, like the string profiles).
+
+#### **Input & FSM**
+*   **Input:** **BasicAttack pressed while Block is held.** This repurposes dead input space — attack inputs are currently *ignored* during the block stance, so the chord collides with nothing: from the stance it converts the stance into a grab attempt; from neutral, a same-frame Block+BasicAttack press also grabs (the grab consumes both inputs that frame — no block rises, no swing fires). An optional dedicated remappable action (`gameplay_grab`) maps to the same verb for players who prefer a single button.
+*   **FSM:** two new states — **`Grabbing`** (the attempt through throw resolution) and **`Thrown`** (the victim, from grab-connect through throw launch). Both are snapshot state in Fighter Mode and live on the same new Klotho component (ID 310+) as the V7.1 verbs — one more reason that component is the next architecture milestone.
+
+#### **The Grab**
+*   **Grounded only**, like the block stance it answers. There is no air grab.
+*   **Frames:** 10 startup / 4 active / **24 whiff recovery** — deliberately the most punishable committal in the kit. **Reach: 0.8 units** (under half of basic-string melee reach — you must be inside jab range).
+*   **Resolution:** a connecting grab **cannot be blocked** and **ignores hyper armor** (armor stops flinching, not being seized — this also gives the roster a clean answer to armored charges). It **whiffs against a victim in hitstun, daze, or shieldstun (V7.3)** — grabs are a *neutral* and *anti-block* tool, never a combo extender or a blockstring confirm. The shieldstun exclusion closes the tick-throw: with 8 frames of shieldstun into a 10-frame grab startup, a blocked jab would otherwise convert into a ~2-frame-escape throw, collapsing the triangle. Grab beats the *stance*; it never beats the *stun the attacker just imposed*. It also whiffs against airborne, rolling, and invulnerable targets.
+*   **Grab clash:** two grabs connecting on the same frame bounce both fighters back 8 frames — no grab, deterministic, no priority coin-flip.
+*   **The triangle, stated:** attack beats grab (10-frame startup, no armor, 24-frame whiff — **and the grabber's own block stance drops for the entire grab, startup through whiff recovery: a grabbing player has no shield, V7.3 clarification**), block beats attack, **grab beats block** — it takes the raised stance regardless of charges and pays no shieldstun, but whiffs against a target currently *in* shieldstun (above).
+
+#### **The Throws**
+On connect, the victim is held for a **30-frame decision window**; the direction held when the window resolves picks the throw (no input = Forward). No pummel, no grab-teching, no mash-out — one grab, one throw, arcade-legible.
+
+| Throw | Input | Damage | Impulse | Role |
+|---|---|---|---|---|
+| **Forward Throw** | toward / neutral | 1.0× BasicAttackDamage | 3.0× BasicAttackKnockback, horizontal | Spacing and edge-guard setup; KO-capable at low HP via the universal low-HP knockback scale |
+| **Up Throw** | up | 1.0× BasicAttackDamage | 2.5× BasicAttackKnockback, vertical | The launcher — feeds the up-attack/aerial game |
+| **Back Throw** | away | 1.0× BasicAttackDamage | 3.0× BasicAttackKnockback, horizontal, both fighters turn around | Positional reversal — throw them into the corner you were in |
+
+*   Throw impulses obey **weight mitigation and the low-HP knockback scale** like every other impulse; trajectories are fixed (no DI on throws — the throw *is* the decision).
+*   **Damage economy:** each throw = 1.0× BasicAttackDamage — below a full string, priced as position, not damage. The 3.3× string anchor and every derived special/ultimate anchor are untouched. Throw damage builds ultimate meter normally and applies no statuses.
+*   **Anti-loop rules:** a thrown victim has **20 frames of throw immunity** after release (no regrab chains), and since grabs whiff on hitstun, there is no throw → string → throw loop; the throw's knockback *is* the exit.
+*   Both fighters are fully invulnerable during the 12-frame throw animation (no third-party interruption in future multi-fighter modes; in Story, mobs cannot interrupt a throw in progress).
+
+#### **Story Mode: the beat-em-up payoff**
+*   **Standard mobs are grabbable.** The same three throws apply, and a **thrown mob is a projectile**: any enemy it collides with in flight takes **0.5× BasicAttackDamage and is knocked down**. Crowd bowling is the genre's signature grab reward and gives the verb a PvE identity beyond anti-block.
+*   **Elites and bosses are grab-immune** — the attempt whiffs into normal recovery. Grabs thin crowds; they do not trivialize the big targets (whose Guard-Crush attacks are, symmetrically, *their* answer to the player's block).
+*   Enemy grabs on the player are **not** in this design — enemies threaten block through Guard-Crush classification instead, keeping the player's defensive reads binary and readable.
+
+#### **Presentation & scope notes**
+*   **Animation budget:** within the 3-frame retro contract — one `grab` animation (reach + hold) and one `throw` animation per character on the existing atlas rows; the three throw directions reuse the single throw animation with launch-angle variation, exactly as the string reuses swings. Victims reuse existing hitstun/launch frames.
+*   **Fighter sim:** grab/throw state is deterministic snapshot state (component 310+); the grab box is an AABB like the basic swing; throw resolution runs through `ApplyFighterHit` with fixed vectors. Rollback cost is one more state block in the hash — no new architecture beyond the already-mandated component.
+*   **Rejected variants, recorded:** pummels and grab-mashing (execution noise against the low-execution identity), down throw (needs ground-bounce infrastructure that the no-juggle pillar deliberately excludes), air grabs (block is grounded; its counter is too), command grabs as specials (revisit per-character only after the universal verb proves out).
 
 ### **Character Data Architecture**
 
@@ -1119,20 +1308,22 @@ The unchangeable base stats defining the unique "feel" of each historical figure
 | **Abilities** | `movementAbility` | `MovementAbilityData` | Reference to Movement Ability module |
 | **Abilities** | `ultimateAttack` | `AbilityData` | Reference to Ultimate module |
 
-#### **Character Base Stat Values**
-Concrete baseline numeric values for each `CharacterData` Resource across the roster. See [character_base_stats.md](./character_base_stats.md) for complete archetype breakdown and rationale. Einstein serves as the 1.0x baseline reference. `maxBlockCharges` defaults to 3 for all characters.
+#### **Character Base Stat Values (V7 — matches the shipped `resources/Characters/*_data.tres` after the 2026-08-10 retunes and the 2026-08-15 jump-spread compression)**
+Concrete baseline numeric values for each `CharacterData` Resource across the roster. Einstein serves as the reference point. `maxBlockCharges` defaults to 3 for all characters. **Every character has a double jump** (2026-08-10); run speeds are the −15% retune; jump forces are the compressed 11.5–13.0 spread (ordering preserved, heavies raised); basic damages are the −50% rebalance (specials were doubled in step — see Section 5). The `.tres` files remain the law if this table ever drifts.
 
 | Character | Style | maxHP | Weight | maxMoveSpeed | Acceleration | GroundFriction | maxJumpForce | maxJumpCount | AirControl | BasicDamage | BasicKnockback |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| **Albert Einstein** | Hybrid | 100 | 1.00 | 8.0 m/s | 40.0 m/s² | 20.0 m/s² | 14.0 m/s | 2 | 0.60 | 10.0 | 3.0 |
-| **Joan of Arc** | Melee | 110 | 1.10 | 9.0 m/s | 50.0 m/s² | 22.0 m/s² | 13.5 m/s | 1 | 0.50 | 12.0 | 3.5 |
-| **Leonardo da Vinci** | Hybrid | 95 | 0.90 | 7.5 m/s | 35.0 m/s² | 18.0 m/s² | 13.0 m/s | 1 | 0.70 | 9.0 | 2.5 |
-| **Abraham Lincoln** | Melee | 130 | 1.60 | 5.5 m/s | 25.0 m/s² | 15.0 m/s² | 11.0 m/s | 1 | 0.40 | 15.0 | 5.0 |
-| **Cleopatra** | Ranged | 80 | 0.70 | 8.5 m/s | 45.0 m/s² | 24.0 m/s² | 14.5 m/s | 2 | 0.70 | 8.0 | 2.0 |
-| **Nikola Tesla** | Ranged | 90 | 0.85 | 7.0 m/s | 38.0 m/s² | 20.0 m/s² | 13.0 m/s | 1 | 0.55 | 9.0 | 2.5 |
-| **William Shakespeare** | Hybrid | 95 | 0.90 | 7.5 m/s | 36.0 m/s² | 19.0 m/s² | 13.5 m/s | 1 | 0.60 | 10.0 | 3.0 |
-| **Wolfgang Amadeus Mozart** | Ranged | 85 | 0.75 | 8.0 m/s | 42.0 m/s² | 22.0 m/s² | 14.0 m/s | 2 | 0.65 | 8.0 | 2.5 |
-| **Pocahontas** | Melee | 90 | 0.80 | 9.0 m/s | 48.0 m/s² | 22.0 m/s² | 15.0 m/s | 2 | 0.75 | 9.0 | 2.5 |
+| **Albert Einstein** | Hybrid | 100 | 1.00 | 6.75 m/s | 40.0 m/s² | 20.0 m/s² | 12.5 m/s | 2 | 0.60 | 5.0 | 3.0 |
+| **Joan of Arc** | Melee | 110 | 1.10 | 7.75 m/s | 50.0 m/s² | 22.0 m/s² | 12.25 m/s | 2 | 0.50 | 6.0 | 3.5 |
+| **Leonardo da Vinci** | Hybrid | 95 | 0.90 | 6.5 m/s | 35.0 m/s² | 18.0 m/s² | 12.0 m/s | 2 | 0.70 | 4.5 | 2.5 |
+| **Abraham Lincoln** | Melee | 130 | 1.60 | 4.75 m/s | 25.0 m/s² | 15.0 m/s² | 11.5 m/s | 2 | 0.40 | 7.5 | 5.0 |
+| **Cleopatra** | Ranged | 80 | 0.70 | 7.25 m/s | 45.0 m/s² | 24.0 m/s² | 12.75 m/s | 2 | 0.70 | 4.0 | 2.0 |
+| **Nikola Tesla** | Ranged | 90 | 0.85 | 6.0 m/s | 38.0 m/s² | 20.0 m/s² | 12.0 m/s | 2 | 0.55 | 4.5 | 2.5 |
+| **William Shakespeare** | Hybrid | 95 | 0.90 | 6.5 m/s | 36.0 m/s² | 19.0 m/s² | 12.25 m/s | 2 | 0.60 | 5.0 | 3.0 |
+| **Wolfgang Amadeus Mozart** | Ranged | 85 | 0.75 | 6.75 m/s | 42.0 m/s² | 22.0 m/s² | 12.5 m/s | 2 | 0.65 | 4.0 | 2.5 |
+| **Pocahontas** | Melee | 90 | 0.80 | 7.75 m/s | 48.0 m/s² | 22.0 m/s² | 13.0 m/s | 2 | 0.75 | 4.5 | 2.5 |
+
+> **Physical-identity axis (V7 design direction):** with universal double jump, the compressed jump spread, and shared fast-fall, aerial mobility is nearly homogeneous — **weight (0.7–1.6) and air control (0.40–0.75) are the identity axes** for how a character occupies the air. Future physical tuning should widen air control and (once the H-7 gravity unification lands) per-character fall speed, not jump height.
 
 #### **Runtime Data — PlayerController (CharacterBody2D)**
 Fluctuating values that change frame-by-frame during gameplay. The `PlayerController` is a C# script attached to a `CharacterBody2D` node.
@@ -1160,7 +1351,7 @@ Fluctuating values that change frame-by-frame during gameplay. The `PlayerContro
 |---|---|---|---|
 | **Identity** | `enemyName` | `string` | Display name (e.g., "Archive Shock-Trooper") |
 | **Stats** | `maxHP` | `int` | Lower than player HP, scaled by level |
-| **Stats** | `weight` | `float` | Determines how easily the player can juggle or knock them back |
+| **Stats** | `weight` | `float` | Determines knockback resistance (heavier = shorter launches); juggling does not exist — see the No Juggling pillar |
 | **Movement** | `moveSpeed` | `float` | Usually slower than the player to allow evasion |
 | **Movement** | `jumpForce` | `float` | For navigating platforms or obstacles |
 | **Combat** | `attackDamage` | `float` | HP deducted from the player on hit |
@@ -1183,7 +1374,7 @@ Fluctuating values that change frame-by-frame during gameplay. The `PlayerContro
 *   **Mob Hitbox Implementation:** Simple `Area2D` trigger nodes directly on their model (sword, fist, etc.) that activate during their attack animation via `AnimatedSprite2D` frame callbacks. Elites may instantiate custom projectile scenes or shockwaves for elite abilities.
 
 ##### **Enemy Base Stat Values**
-Concrete baseline numeric values for each `EnemyData` Resource across all 26 campaign mobs. See [enemy_and_boss_numeric_data.md](./enemy_and_boss_numeric_data.md) for complete mob profiles.
+Concrete baseline numeric values for each `EnemyData` Resource. The complete authored roster is **27 enemies and 15 bosses** in `resources/Enemies/` and `resources/Bosses/` with 76 `EnemyAbilityData` kits (the resources are canonical; the rows below are illustrative early examples). The V6 reference to the Unity-era `enemy_and_boss_numeric_data.md` is retired — that archive was removed from the repository and must not be cited.
 
 | Enemy Name | Tier | maxHP | Weight | MoveSpeed | JumpForce | AttackDmg | AttackKB | AttackRange | AttackCD | StunRes | ReactionFrames | DefaultBehavior |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -1218,7 +1409,7 @@ Concrete baseline numeric values for each `EnemyData` Resource across all 26 cam
 *   **Boss Hitbox Implementation:** Because bosses have multiple abilities, they use an **Attack Spawner** or **AnimatedSprite2D frame callback** system. For example: when a boss winds up a punch, a frame callback at the exact frame of impact activates an `Area2D` hitbox query on the fist. For ranged attacks, a separate projectile scene is instantiated.
 
 ##### **Boss Base Stat Values**
-Concrete baseline numeric values for each `BossData` Resource across all 15 campaign boss encounters. See [enemy_and_boss_numeric_data.md](./enemy_and_boss_numeric_data.md) for complete boss profile specifications.
+Concrete baseline numeric values for each `BossData` Resource across all 15 campaign boss encounters. The authored `resources/Bosses/*.tres` files are canonical (the Unity-era `enemy_and_boss_numeric_data.md` reference is retired); the Package 5 boss stat table (`docs/PACKAGE5_CAMPAIGN_PLAN.md` §4.1) records the shipped values.
 
 | Boss Name | Level | maxHP | KB Immune | Phases | Phase Marks | Rest CD | Melee Thresh | Ranged Thresh | Pattern |
 |---|---|---|---|---|---|---|---|---|---|
@@ -1284,6 +1475,19 @@ public struct PlayerSnapshot {
     public int RemainingJumps;
     public StatusType ActiveStatusType;
     public FP64 ActiveStatusDuration;
+    // V7 additions — all new victim-agency and ledge state is snapshotted:
+    public int HitstopFrames;          // shared hit-freeze counter (hitstop)
+    public int LedgeAnchor;            // platform index ×2 + side; −1 = none
+    public int LedgeStateFrames;       // hang duration counter
+    public int LedgeRegrabLockout;     // regrab lockout counter
+    // V7.1 additions — recoverable-health state (requires a new Klotho component, ID 310+):
+    public FP64 EchoHealthPool;        // Rally: reclaimable HP remaining
+    public int EchoDrainFrames;        // Rally: frames left in the 150-frame drain window
+    public bool DefyHistoryUsed;       // Defy History: once-per-match flag
+    public FPVector2[] PositionRing;   // Echo Step: 5 samples, one every 6 frames (30-frame lookback)
+    public int EchoStepCooldownFrames; // Echo Step: 120-frame internal cooldown
+    public int MomentumRefundsS1;      // Resonance Momentum: refunds used this cooldown cycle (cap 2)
+    public int MomentumRefundsS2;
 }
 
 public struct PersistentObjectSnapshot {
@@ -1326,6 +1530,8 @@ public struct GameStateSnapshot {
 *   If `LocalChecksum != RemoteChecksum` for frame $T$, the match pauses for up to 30 frames to allow the host to send an authoritative `FullStatePayload` packet to restore client sync.
 
 #### **Online Lobby UI & Match Flow Architecture**
+> **Status: Post-Launch (Package 7).** This flow ships with online rollback, not in the initial release. It is specified now so Package 7 starts from a real design.
+
 The online multiplayer match creation flow enforces streamlined, low-friction navigation for both Public Random Queues and Private Lobbies:
 
 *   **The Lobby Screen:** The **Character Select Screen (CSS)** acts as the online "Lobby". Upon pairing (public queue match found or private room code entered), both players enter the active CSS directly.
@@ -1388,11 +1594,13 @@ Both player characters and enemies share a unified status structure. A character
     ```
 
 #### **Status Effect Rules**
-*   **Two Slots (V7, applied 2026-08-22):** An entity carries at most one **damage status** (`Venom`, `RadiantBurn`) and one **control status** (`TimeDilation`, `StaticCharge`, `Root`) simultaneously.
-*   **No Stacking Within a Slot:** Stacking is not supported inside a slot. A new status effect **completely overwrites** the current occupant *of its own slot only*, resetting that slot's type and duration; the other slot is untouched.
-*   **Cleanse & Immunity:** There are no cleanse or purge mechanics (the status must run its full duration or be overwritten within its slot). No temporary immunity rules exist after an effect expires.
+*   **Two Slots (V7, applied 2026-08-22):** an entity carries at most one **damage status** (`Venom`, `RadiantBurn`) and one **control status** (`TimeDilation`, `StaticCharge`, `Root`) simultaneously. This replaces the V6 single-slot rule that let a follow-up slow erase a trapper's DoT — Cleopatra's vortex no longer deletes her nest's Venom, Tesla's Root lands on top of a burn, and Joan's RadiantBurn survives any control tool.
+*   **No Stacking Within a Slot:** stacking is not supported inside a slot. A new status **completely overwrites** the current occupant *of its own slot only*, resetting that slot's type and duration; the other slot is untouched.
+*   **Cleanse & Immunity:** There are no cleanse or purge mechanics (a status must run its full duration or be overwritten within its slot). No temporary immunity rules exist after an effect expires.
+*   **Design Consequence (V7 record, amended):** no ability may be designed around a *same-slot* status sequence ("Root then a later Root refresh-chain") — but cross-slot pairings (a DoT plus a control effect) are now legal, authored combo currency, within one kit or across characters. Each slot expiring resets only its own modifiers.
+*   **Intensity Is One Number (V7 decision):** `Intensity` scales every expression of an effect together. For `TimeDilation`, movement speed and animation playback slow by the **same** intensity-derived multiplier — the flat 50% animation figure below applies only at the standard 1.0 intensity.
 *   **Visual Feedback & Shader Indicators:**
-    *   `TimeDilation`: Blue (`#3366ff`) `Sprite2D.Modulate` / `AnimatedSprite2D.Modulate` tint + cyan ghost trail sprites + 50% animation play speed.
+    *   `TimeDilation`: Blue (`#3366ff`) `Sprite2D.Modulate` / `AnimatedSprite2D.Modulate` tint + cyan ghost trail sprites + intensity-scaled animation play speed (50% at standard intensity).
     *   `Venom`: Shifting purple-green gradient `ShaderMaterial` tint (`#9900ff` to `#00ff66`) + rising venom bubble `GPUParticles2D`.
     *   `StaticCharge`: Pulsing yellow outline `ShaderMaterial` (`#ffd700`) + crackling lightning sparks + brief stagger/daze (interrupts current action and prevents new inputs for the status duration).
     *   `RadiantBurn`: Glowing orange-red `ShaderMaterial` glow (`#ff4500`) + rising ember `GPUParticles2D` + 1.25x damage taken multiplier.
@@ -1555,9 +1763,9 @@ A completely seamless, zero-friction auto-save system. The player is never promp
 ### **Lives & Stock Systems**
 
 #### **1. Campaign (Story Mode): Chronal Rewind System**
-In Story Mode, the player's life count acts as a temporal safety net managed by the time-ship. When a character's HP drops to 0, instead of a standard game-over reload, the player's timeline rewinds to a safe platform state.
+In Story Mode, the player's life count acts as a temporal safety net managed by the time-ship. When a character's HP drops to 0, instead of a standard game-over reload, the player's timeline rewinds to a safe platform state. **(V7.1 ordering note:** if the lethal blow is a *hit* and the player's Ultimate Meter is full, **Defy History** fires first — the meter shatters, the player survives at 1 HP, and no rewind charge is spent. Once per level; see Section 4, "Recoverable Health".)
 *   **Chronal Rewinds (Difficulty-Based Pools):**
-    *   **Easy:** **5 rewinds** per checkpoint. On rewind, player HP is fully restored to **100%**.
+    *   **Easy:** **5 rewinds** per checkpoint. On rewind, player HP is restored to **70%** (V7.2, down from 100% — with Checkpoint Mending and Restoration Fonts in the loop, a full-heal death made deliberately dying strictly better than surviving; surviving to the next heal source must always be the better trade).
     *   **Normal:** **3 rewinds** per checkpoint. On rewind, player HP is restored to **50%**.
     *   **Hard:** **1 rewind** per checkpoint. On rewind, player HP is restored to **30%**.
 *   **Checkpoint Refresh Rules (Difficulty-Based):**
@@ -1574,22 +1782,42 @@ In Story Mode, the player's life count acts as a temporal safety net managed by 
             public string AnimationName; // Name of active SpriteFrames animation
         }
         ```
-    *   **Circular Buffer Capacity:** The buffer records character state in `_PhysicsProcess()` (synchronized with the 60Hz physics timestep). The baseline capacity is **300 frames** (exactly 5.0 seconds).
-    *   **Dynamic Safe Position Range:** If a player has been airborne or falling for more than 5.0 seconds (e.g., falling through a large pit or flying over a hazard zone), a standard circular buffer would lose all grounded frames. To prevent this, the buffer dynamically retains the **last known safe grounded frame** or dynamically expands its capacity beyond 300 frames until it contains at least one frame where `IsGrounded == true`.
-    *   **Search Path:** When rewind is triggered, the system scans the buffer in reverse order (most recent to oldest). The search goes back a minimum of 300 frames, and continues further back (utilizing the dynamically retained safe frame) until it confirms a frame where `IsGrounded` is true. The coordinates of this frame serve as the landing anchor. If no grounded frame is present in history (e.g., character spawned directly into air), the system falls back to the coordinates of the last physical level checkpoint.
-*   **Rewind Animation & Visual Effects:**
-    *   **Gameplay Suspension:** When HP reaches 0, standard physics, gravity, and player controls are disabled (`CharacterBody2D.Velocity = Vector2.Zero`, `ProcessMode = ProcessModeEnum.Disabled`, player collision triggers disabled). The player transitions to the `Dead` FSM state.
-    *   **Interpolated Rewind Animation:** Instead of an instant teleportation, the character plays a high-speed rewind sequence. The controller reads the recorded `RewindFrame` history in reverse, interpolating the character's transform position back through the path they traveled at **4x normal speed** (skipping 4 frames per playback frame).
+    *   **Circular Buffer Capacity (2026-08-15 retune):** The buffer records character state in `_PhysicsProcess()` (synchronized with the 60Hz physics timestep). Capacity is **480 frames (8.0 seconds)** — raised from V6's 5 s, then deliberately cut back from an interim 15 s that rewound players too far.
+    *   **Landing Anchor — deepest grounded frame, not the most recent:** when rewind triggers, the system lands on the grounded frame **nearest the full buffer depth** — i.e., it rewinds as far back as the buffer allows, not to the last place the player stood. (The V6 "most recent grounded frame" rule degenerated to a zero-distance rewind for any death on solid ground, which read as the character freezing in place.) A last-known grounded fallback survives beyond the buffer; if none exists, use the last physical checkpoint — and **the level entrance is always an implicit anchor**, so a rewind before the first checkpoint can never land at world origin.
+*   **Rewind Pacing & Presentation (2026-08-15 rework):**
+    *   **Gameplay Suspension:** When HP reaches 0, standard physics, gravity, and player controls are disabled and the world freezes. The player transitions to the `Dead` FSM state.
+    *   **Pre-Rewind Hold:** the mechanic opens with a **0.75 s (45-frame) hold** — world frozen, player suspended in the death pose, rewind presentation live, nothing played back yet. The moment must be legible before it reverses.
+    *   **Continuous Playback at Half Duration:** the whole mechanic lasts **half the rewound duration** (a full 8 s history plays back as a 4 s rewind; a 3 s history as 1.5 s, floored at half a second of playback for very young buffers). Playback walks the **full-resolution** frame history with linear pacing — continuous motion along the player's actual path, never the old frame-skipping scrub that read as a glitchy teleport.
     *   **Visual Aesthetics:** During the animation, the sprite renderer is set to a 50% opacity blue-tinted holographic ghost trail. Full-screen post-processing overlays are enabled (maximum Chromatic Aberration, high-frequency scanlines, and a retro cyan color-grading tint).
     *   **Audio Integration:** The BGM volume ducks by 12dB and is pitched downward, while a reverse tape-sweep audio effect and high-speed ticking clock sound play.
-    *   **Landing Sequence:** Upon reaching the target safe grounded frame, the animation stops. Physics are re-enabled (`isKinematic = false`, player collision re-enabled), the player's HP is restored according to the difficulty rules, and they enter the `Respawning` state with 2.0 seconds of spawn invincibility.
+    *   **Landing Sequence:** Upon reaching the landing anchor, the animation stops. Physics are re-enabled, the player's HP is restored according to the difficulty rules, and they enter the `Respawning` state with 2.0 seconds of spawn invincibility. The camera re-confines to the room containing the landing (an 8 s rewind can cross room transitions).
 *   **Post-Rewind Invincibility:** Upon resuming play, the character gains a glowing chronal aura representing **2.0 seconds of spawn invincibility**, during which they are completely immune to all environmental hazards, mob attacks, and stuns.
+*   **Manual Rewind (V7.2 rework — a scrubbed verb with its own input):**
+    *   The rewind is the campaign's signature mechanic, and V6 only let it happen *to* the player. The V7.1 version added a manual trigger but reused the death-rewind wholesale, which broke it three ways: the forced maximum-depth landing gave the verb no precision, the Interact + Block chord was an input the interaction FSM's own rules discard, and the 6-second anchor could not survive the rewind's own 4.75-second playback. V7.2 replaces all three.
+    *   **Input:** a dedicated `gameplay_rewind` action — Keyboard **R**, Gamepad **Back/Select** (both previously unbound; no chord, no FSM conflict). Hold for **0.5 s** to begin. Usable in any state except hitstun, daze, `Dead`, and mid-ability.
+    *   **Scrubbed depth (the precision fix):** on trigger, the world freezes and the player **scrubs backward through the 8-second position history at 4× speed for as long as the input is held** — a translucent preview ghost walks the path in reverse. **Releasing the input commits**: the player lands at the nearest grounded frame at or before the scrub point, and the standard rewind presentation plays at half the rewound span (floored at 0.5 s). A tap-length hold is a ~2-second hop back (retry the crossing you just missed); holding to the buffer end reproduces the old full-depth behavior. **Pressing Jump during the scrub cancels** — snap back to the present, no charge spent.
+    *   **Cost:** one rewind charge, spent **on commit** (never on cancel). *Easy:* manual rewinds are **free** — the learning sandbox. *Normal/Hard:* one charge. **Scripted tutorial uses are always free** regardless of difficulty (this formalizes the Level 0 refund and resolves Hard's pool-of-1 conflict with the mandatory tutorial use). Consequently the verb exists on **all** difficulties — only its cost varies; any older text conditioning the verb's *existence* on difficulty is superseded.
+    *   **Cooldown (V7.3):** committing a manual rewind starts a **12-second cooldown** shared by all difficulties (`ManualRewindCooldownSeconds = 12`; a HUD pip on the rewind counter shows it ticking). Easy keeps its zero *charge* cost but honors the cooldown — free was never meant to mean *continuous*. Scripted tutorial rewinds bypass the cooldown. Cancelling a scrub starts no cooldown. Death-triggered rewinds are unaffected. The scrub's world freeze and the death-rewind's projectile clear are unchanged — the cooldown alone is the bound on the panic button (a live-world scrub variant was considered and rejected, see the V7.3 preamble).
+    *   **No HP restore** on a voluntary rewind, unchanged.
+    *   *World Interaction Exemplar (V7 requirement, unchanged):* the `PathMovingPlatform` **rewinds with the player**, scrubbing back along its own recorded path during any rewind (scrub preview included). One visible world object rewinding is what sells the fantasy; enemies stay frozen (existing rule) so combat clarity is preserved.
+    *   *Stasis Echo (V7.2 — the rewind's constructive half, Story only; supersedes the V7.1 "Stasis Anchor" timings):* committing a manual rewind leaves a **frozen, translucent copy of the player at the rewind origin** (where the scrub began). The Echo persists for **10 seconds, counted from the moment playback ends** — never eaten by the rewind's own presentation — and **survives room transitions** (it is a temporal object; the camera rule is unaffected). It never moves (a replaying clone was considered and rejected — it wanders, so it cannot hold anything). It weighs down pressure plates and holds switches, blocks searchlight beams and enemy projectiles (it absorbs one hit, then shatters), and counts as a **one-way platform** the player can stand on. It has no hitbox, enemies ignore it, at most one exists at a time (a new manual rewind replaces it), and **death-rewinds leave no Echo** (the constructive half belongs to the deliberate verb only, and cannot be farmed by dying). "Be in two places" is the puzzle verb: stand on the plate, rewind a short scrub, walk through the door your past self is holding open — with scrubbed depth, the shortest useful loop (a ~2 s hop) costs ~1 s of playback against a 10 s Echo, so every authored Echo gate has at least ~9 seconds of walking time by construction. Strictly Story-side — it never exists in the deterministic Fighter sim.
+    *   *Tutorial:* Level 0's calibration demonstrates the scripted death-rewind, then requires one manual use — a short scrub — that also teaches the Stasis Echo (see Section 3). Both scripted uses are free on every difficulty.
 *   **Timeline Collapse:** If the player's rewinds pool reaches 0, the timeline collapses, triggering the following sequence:
+    *   **Collapse Presentation (V7 — the campaign's only failure state earns a beat):** the screen fractures along chronal crack lines from the death point, the era's palette desaturates to Archive monochrome as the fragments fall away, and a two-line Sarah transmission plays over the extraction ("*We've lost the thread — pulling you out!*"). Approximately 4 seconds; skippable after the first viewing. Never a bare scene cut to the hub.
     *   **Hub Respawn:** The player's active level session is aborted, and they respawn back in the Hub World (Archive Time-Ship Calibration Bay).
     *   **Level Restart Options:** Interacting with the Hub's portal console allows them to restart the failed level and select to resume from their last passed checkpoint (Timeline Anchor).
     *   **Enemy State Persistence:** Upon reloading the level from the last checkpoint, any enemies located prior to the checkpoint remain defeated, spawning only the enemies positioned after that checkpoint.
     *   **Player Health:** The player respawns at full health (100% max HP) and their rewind pool is reset.
-    *   **Chronal Dust Penalty:** The player takes a penalty of **20% of their unspent/undeposited Chronal Dust** (`levelChronalDust` is reduced by 20% and rounded down; the remaining 80% is retained on the player), while deposited dust in the ship is completely unaffected.
+    *   **Chronal Dust Penalty:** The unified exit rule applies (Section 3): **20% of unspent/undeposited Chronal Dust** is forfeited (`levelChronalDust` reduced by 20%, rounded down); deposited dust in the ship is completely unaffected. The same 20% figure applies to any voluntary mid-level exit — one rule, one number. (Pause-menu **Restart Level** is deliberately harsher — the whole level's undeposited dust is cleared; see Pause Screen Rules.)
+
+#### **Story Mode Healing Loop (V7.2 — surviving must beat dying)**
+The audit finding this answers: outside of death, the campaign had no deliberate recovery source — checkpoints recorded HP without restoring it, and random drops averaged ~6 HP per level on Hard, so dying was the best heal on every difficulty. V7.2 adds three authored healing sources, all difficulty-scaled, and re-prices the death heal (Easy rewind restore 100% → 70%) so the living path is always the better trade. All healing is capped at max HP; nothing here exists in Fighter Mode (whose recovery is Rally, by design).
+
+*   **Checkpoint Mending:** striking a Chronal Fracture to activate it **restores HP once** — **Easy 100% / Normal 50% / Hard 25%** of max HP. One-time per checkpoint per level attempt; re-touching an activated checkpoint heals nothing. This also puts a real reward on the strike-to-activate ritual (a missed checkpoint now costs both the respawn anchor *and* the heal).
+*   **Restoration Font (interactable):** a chronal wellspring — a cracked hourglass monument leaking golden sand — placed by level design, **one per level, authored between the mid checkpoint and the boss** (act finales may author two). Hold **Interact for 1.5 s** to channel (taking any damage interrupts the channel and refunds the use); on completion the font restores HP over 2 seconds. **Uses and potency scale by difficulty: Easy 2 uses × 50% / Normal 1 × 50% / Hard 1 × 25%.** The font's spent state **persists through rewinds and Timeline Collapse** — it cannot be refilled by dying — and resets only on a full Restart Level or fresh level entry. Remaining uses read at a glance: the glow dims per use, dark when spent.
+*   **Chronal Feast (placed pickup):** the beat-em-up meal, era-flavored (a banquet plate in Florence, sealed rations on the Titanic, a nutrient pack on the Lunar installation). Instant heal on touch: **Easy 50% / Normal 35% / Hard 20%** of max HP. Authored count per level: **Easy 3 / Normal 2 / Hard 1** (the Easy/Hard delta is placement — the authored spots exist once; difficulty selects how many are populated). Never respawns within an attempt.
+*   **Chronal Salve (drops, existing):** the random mob-drop heal already in the Unified Difficulty Scaling Table (drop chance 30/15/5%, restore 50/25/10 HP) is retitled the **Chronal Salve** and is unchanged — it remains the incidental trickle, not the loop.
+*   **The intended rhythm:** enter a fight roughly healthy → spend HP through the encounter → recover a meaningful chunk at the next checkpoint or font → arrive at the boss with the font as the last deliberate decision before committing. On Hard the total authored healing per level (~25% + 25% + 20% + salves) is survivable but never comfortable; on Easy the loop is generous enough that the rewind pool is for platforming mistakes, not attrition.
 
 ---
 
@@ -1604,9 +1832,9 @@ Fighter Mode replaces rewinds with traditional competitive platform-fighter stoc
     *   **Trigger:** The player is completely invulnerable while standing on the respawn platform.
     *   **Countdown:** The **3.0-second invincibility countdown starts the moment the player leaves the platform** (either by any input triggering the drop or when the 5.0-second platform timer expires and the platform automatically dissolves).
 *   **Match Modes (Lobby Settings):**
-    *   *Stock Mode:* Players fight until only one combatant has remaining stocks.
-    *   *Time Limit Mode:* Players have infinite stocks. The player with the most knockouts when the match timer runs out (default 8:00 minutes) wins the match. If knockout counts are tied when the timer expires, the match ends in a **Draw / Tie**.
-    *   *Stock + Time Mode (Hybrid):* Players have limited stocks and a match timer. The player who depletes all opponent stocks wins. If the timer runs out before all stocks are depleted, the player with the most remaining stocks (or highest remaining HP if stocks are tied) wins.
+    *   *Stock Mode:* Players fight until only one combatant has remaining stocks. **V7:** an 8:00 timer is on by default (configurable, including Off); expiry compares stocks, then HP, then Sudden Death. **(V7.3)** The HP comparison is **percentage of max HP** — remaining HP divided by the fighter's own maximum — so an 80-max and a 130-max fighter are judged on the same scale; **un-reclaimed Rally echo pools do not count** (echo is not real HP until reclaimed).
+    *   *Time Limit Mode:* Players have infinite stocks. The player with the most knockouts when the match timer runs out (default 8:00 minutes) wins the match. If knockout counts are tied when the timer expires, the match enters **Sudden Death** (Section 11).
+    *   *Stock + Time Mode (Hybrid):* Players have limited stocks and a match timer. The player who depletes all opponent stocks wins. If the timer runs out before all stocks are depleted, the player with the most remaining stocks (or highest remaining **HP percentage** if stocks are tied — the V7.3 percentage rule above) wins; a true tie enters **Sudden Death**. **(V7.3)** A same-frame loss of both fighters' final stocks in regulation is also a true tie and enters Sudden Death.
 
 ---
 
@@ -1626,7 +1854,7 @@ Fighter Mode replaces rewinds with traditional competitive platform-fighter stoc
 | `settingsData` | `SettingsData` | Master Volume, UI scaling, control mappings |
 | `saveVersion` | `int` | Save format version number for migration compatibility |
 
-**B. Story Save Profile Data (`StorySaveData.cs`)** — Per-playthrough (unlimited save profiles, loaded dynamically from the save folder).
+**B. Story Save Profile Data (`StorySaveData.cs`)** — Per-playthrough. **Three story slots** (the shipped slot model), plus the global settings/statistics payload. Shipped schema versions: **v3** for story slots, **v4** for the global payload (input bindings landed in v4).
 
 | Variable | Type | Description |
 |---|---|---|
@@ -1654,7 +1882,7 @@ On load, the `SaveManager` compares the `saveVersion` field against the current 
 
 #### **Security: AES Encryption + HMAC Checksums**
 *   **AES Encryption:** Scrambles JSON strings using **AES-256 in CBC (Cipher Block Chaining) mode** via the `System.Security.Cryptography` API. The compiled save file layout consists of `[HMAC Signature (32 bytes)] + [IV (16 bytes)] + [Ciphertext]`.
-*   **Key Obfuscation & Generation:** The 256-bit encryption key is dynamically assembled at runtime to prevent extraction via standard assembly strings inspectors. The key is built by taking a SHA-256 hash of a platform-specific hardware identifier (retrieved via `OS.GetUniqueId()` or equivalent platform API) combined with a hardcoded static salt phrase (`"ChronalTemporalResonanceGridSalt_X92!"`).
+*   **Key Strategy (V7 — matches the shipped schema-v3 system):** a **random per-install key** stored at `user://saves/.savekey`, with distinct derived encryption and authentication keys (encrypt-then-HMAC). The V6 hardcoded-salt scheme is retired and must never return — a static source secret is extractable from the binary and would invalidate the tamper protection. Never replace the per-install strategy with a hardcoded secret.
 *   **Tamper Protection (HMAC-SHA256):** Before encrypting, a cryptographic HMAC-SHA256 hash of the save data is calculated using the key. On load, this signature is recalculated. If any data modification occurred, the load is rejected as tampered.
 *   **Write-to-Temp and Swap:** To avoid write-interrupt corruptions, the game writes to a temporary file (`save_slot.tmp`). Once writing completes, the old save is replaced, producing a backup copy (`save_slot.bak`).
 *   **Backup Recovery:** If the main save file is corrupted or fails HMAC verification, the system automatically attempts to restore and load from the `.bak` file, alerting the player if a fallback occurred.
@@ -1667,9 +1895,18 @@ On load, the `SaveManager` compares the `saveVersion` field against the current 
 *   **Storage:** `user://` path (maps to `OS.GetUserDataDir()` — OS-approved user data directories: `%AppData%` on Windows, `~/Library/Application Support` on macOS).
 *   **SaveManager:** An autoload singleton persisting across all scene changes. Checkpoint scripts call `SaveManager.Instance.SaveCheckpoint(checkpointID)`. Writes are performed **asynchronously** via `Task.Run()` to prevent game stutter. File I/O uses `Godot.FileAccess` or `System.IO.File` for the `user://` directory.
 
-### **Fighter Mode Netcode**
-*   **1v1 Online Rollback Netcode (GGPO Architecture):** Online multiplayer utilizes 2-player Peer-to-Peer Rollback Netcode (GGPO-style) for initial release. State snapshots (`GameStateSnapshot`) serialize `Player1` and `Player2` positions, velocities, hitstun, block charges, ultimate meters, and active projectiles. Delay-based netcode is not acceptable.
-*   **4-Player Support:** Local Shared-Screen and LAN modes support up to 4 players simultaneously (Free-For-All or 2v2 Teams). Online 4-player rollback support is deferred to a post-launch host-relay architecture expansion.
+### **Fighter Mode Netcode (V7 rescope: deterministic core now, online post-launch)**
+*   **Initial Release (V7.3 correction — LAN de-scoped):** local shared-screen 1v1, running on the deterministic Klotho fixed-point simulation with the full rollback machinery (quantized inputs, snapshots, hashes, prediction, bounded resimulation) already active — local play exercises the exact code path online will use. The 2026-08-24 "direct-IP LAN ✅" claim is **withdrawn**: the review found the network manager was never instantiated in production (the feature was unreachable), and the session design lacked a match-start barrier, so two independently-loading machines would silently diverge within the 7-tick input window even with perfectly mirrored settings. Silent desync, undetected disconnects, and one-packet-loss divergence are not an acceptable failure profile at any scope. **Direct-IP LAN therefore ships with Package 7**, where the items below make it safe; the main-menu LAN route is removed. The transport, protocol, and session code remain in the tree, gated, as Package 7's starting point.
+*   **Package 7 addendum (V7.3 — requirements the LAN attempt proved, beyond the original handshake list):**
+    *   **Match-start barrier:** neither sim advances until both peers acknowledge a shared start tick — scene-load timing must never determine sync.
+    *   **Desync failure state:** on state-hash mismatch, the match **halts with a visible error** (offer rematch/disconnect); it must never play on silently. Full-state resync is the stretch goal; fail-closed is the floor.
+    *   **Input redundancy:** every input packet carries the last **N ≥ 4** frames of inputs so single packet loss is recoverable without retransmission latency.
+    *   **Disconnect detection:** keepalive with a timeout (~3 s) → freeze-and-notify, never an invisible match against a predicted statue; wins against a disconnected peer are recorded as disconnect wins, not played out.
+    *   **Fail-closed identity check:** protocol version **and a build/content hash** (rulebooks + `.tres` tuning) exchanged before start; any mismatch refuses the match with a clear message. The absence of *negotiation* never implies the absence of *verification*.
+    *   **Synced pause:** pause is a serialized input applied on a common tick (with an unpause countdown and a per-player pause budget); a local `SceneTree.Paused` freeze is structurally incompatible with a rollback session and must never ship. Until this exists, **pause is simply unavailable in networked matches**.
+    *   **Per-match seed:** negotiated at start (not a fixed session constant), so rematches reroll orb/hazard schedules.
+*   **Online 1v1 Rollback (Package 7, post-launch pillar):** 2-player Peer-to-Peer GGPO-style rollback. State snapshots (`GameStateSnapshot`) serialize both fighters, constructs, and projectiles. **Delay-based netcode is not acceptable.** The design work Package 7 still owes, specified here so the milestone is real: a connection **handshake** negotiating protocol version, rules, per-match seed, and input delay (0–3 frames, latency-derived); **input redundancy** (each packet carries the last N≥4 input frames so single packet loss never stalls); **full-state resync** as the desync recovery path; a transport decision (**Steam Networking Sockets with relay fallback** is the default recommendation vs. custom relay); and the jitter HUD, forfeit-by-hold, and reconnection-window flows in Section 11.
+*   **4-Player Support:** entirely post-launch, after online 1v1 — local, LAN, and online alike. The initial release is 1v1 everywhere.
 
 
 ### **Online Infrastructure & Matchmaking**
@@ -1712,17 +1949,19 @@ Online account management, authentication, player display names, friend lists, a
 | Action Name | Keyboard/Mouse Default | Gamepad (Xbox / PlayStation) Default | Description & Behavior |
 |---|---|---|---|
 | `Move` | `A` / `D` (or `Left` / `Right Arrow`) | `Left Stick` / `D-Pad Left/Right` | Horizontal character movement |
-| `Dash` | Double-tap `A` / `D` | Flick `Left Stick`; double-tap D-Pad Left/Right | Universal fast grounded approach; derived into a serialized one-tick action |
-| `Jump` | `Space` / `W` | `Button South` (`A` / `Cross`) | Jump, double jump |
-| `Down` | `S` / `Down Arrow` | `Left Stick Down` / `D-Pad Down` | Crouch; double-tap to drop through one-way platforms |
-| `BasicAttack` | `J` / `Left Mouse Button` | `Button West` (`X` / `Square`) | Execute 3-hit basic attack combo string |
-| `Special1` | `K` / `Right Mouse Button` | `Button North` (`Y` / `Triangle`) | Execute primary special ability (10s cooldown) |
-| `Special2` | `L` / `Middle Mouse Button` | `Right Bumper` (`RB` / `R1`) | Execute secondary special ability (10s cooldown) |
+| `Up` (`gameplay_up`) | `W` | `Left Stick Up` / `D-Pad Up` | Vertical-axis up: selects the up-attack, drives Warp-style upward ability reads. Jump does **not** feed the vertical axis. |
+| `Jump` | `Space` | `Button South` (`A` / `Cross`) | Jump, double jump; climbs from ledge hang |
+| `Down` | `S` / `Down Arrow` | `Left Stick Down` / `D-Pad Down` | Crouch; fast-fall while airborne; double-tap to drop through one-way platforms; selects the down-air; releases ledge hang |
+| `BasicAttack` | `J` / `Left Mouse Button` | `Button West` (`X` / `Square`) | Execute 3-hit basic attack combo string (or directional variant by held Up/Down) |
+| `Special1` | `K` / `Right Mouse Button` | `Button North` (`Y` / `Triangle`) | Execute primary special ability (per-ability cooldown, 6–14s) |
+| `Special2` | `L` / `Middle Mouse Button` | `Right Bumper` (`RB` / `R1`) | Execute secondary special ability (per-ability cooldown, 6–14s) |
 | `MovementAbility` | `Left Shift` | `Left Bumper` (`LB` / `L1`) | Execute unique mobility move (dash, blink, glide; 5s cooldown) |
 | `Block` | `I` | `Left Trigger` (`LT` / `L2`) | Hold to project energy block barrier (3 block charges) |
 | `Roll` | `O` + horizontal direction | `Right Trigger` (`RT` / `R2`) + Left Stick/D-Pad | Universal evasive roll; neutral input uses facing direction |
 | `Ultimate` | `U` | `LB + RB` (`L1 + R1`) | Activate Ultimate attack when Influence Meter = 100% |
-| `Interact` | `E` | `Button East` (`B` / `Circle`) | Interact with portals, NPCs, levers, chests, and Time-Ship consoles |
+| `Interact` | `E` | `Button East` (`B` / `Circle`) | Interact with portals, NPCs, levers, chests, Restoration Fonts, and Time-Ship consoles |
+| `Grab` (V7.2) | `BasicAttack` while `Block` held (optional dedicated bind) | `X` while `LT` held | Universal grab — takes the block stance, resolves into a directional throw |
+| `Rewind` (V7.2, Story only) | `R` (hold 0.5s, then hold to scrub) | `Back` / `Select` | Manual Chronal Rewind — scrub back through the 8s history; release to commit, Jump to cancel |
 | `Pause` | `Escape` | `Start` / `Menu` | Toggle in-game pause menu |
 
 #### **Interaction System Mechanics**
@@ -1742,14 +1981,24 @@ All difficulty-dependent parameters consolidated in a single reference:
 | Enemy attack damage multiplier | 0.5x | 1.0x | 1.5x |
 | Enemy spawn rate | -30% (fewer mobs) | Baseline | +25% (more mobs) |
 | Chronal Rewinds per checkpoint | 5 | 3 | 1 |
-| Rewind HP restore | 100% | 50% | 30% |
-| Item drop chance | 30% | 15% | 5% |
-| Healing pickup HP restore | 50 HP | 25 HP | 10 HP |
+| Rewind HP restore | 70% (V7.2, was 100%) | 50% | 30% |
+| Manual rewind cost (V7.2) | Free | 1 charge | 1 charge |
+| Checkpoint Mending heal (V7.2) | 100% | 50% | 25% |
+| Restoration Font uses × potency (V7.2) | 2 × 50% | 1 × 50% | 1 × 25% |
+| Chronal Feasts per level × potency (V7.2) | 3 × 50% | 2 × 35% | 1 × 20% |
+| Rally echo fraction (V7.1, Story only) | ×1.0 | ×1.0 | ×0.5 |
+| Siphon Clock drain rate (V7.1) | 0.1%/s per Extractor | 0.1%/s per Extractor | 0.2%/s per Extractor |
+| Item drop chance (Chronal Salve) | 30% | 15% | 5% |
+| Chronal Salve HP restore | 50 HP | 25 HP | 10 HP |
 | Temporary buff magnitude | +50% / 15s | +25% / 10s | None (no buff drops) |
 | Post-rewind invincibility | 2.0s | 2.0s | 2.0s |
 
 #### **Dialogue & Subtitles**
 *   **Dialogue Subtitles:** Not needed for this version of the design, as all character dialogues and narrative sequences are strictly text-based and displayed on-screen via UI dialogue panels.
+
+#### **Committed Accessibility Additions (V7 — pulled out of the deferred list)**
+*   **UI Scale / Text Size:** a UI scale setting (90%–140%) applied to the shared theme's font sizes and HUD layout. This was the one accessibility feature that gets structurally *harder* to retrofit the longer it waits, so it was committed for the initial release. ✅ applied 2026-08-24 — Settings → Gameplay slider (live preview, persisted in the global save); the shared theme's font sizes rescale in place so every screen picks the change up, and the Story/Fighter HUDs scale their whole layout (fonts included) through a root-scale binder.
+*   **Device-Appropriate Input Glyphs:** every interaction and tutorial prompt renders the bound input as a device-correct glyph (`[E]` keycap on keyboard, `Ⓑ` button face on gamepad), resolved live from the active device and current bindings — never a raw action name. Required before any controller-first playtest.
 
 #### **Future Expansion Accessibility Options (Placeholders)**
 These features are not planned for the initial release but are noted for future development cycles:
@@ -1836,9 +2085,35 @@ Hit detection relies on Hitboxes and Hurtboxes driven by Animation frame callbac
 | Pocahontas | Scout / Evasion Specialist | Close | Medium | Wind-gliding aerial mobility; vine root traps; nature spirit summons |
 
 ### **Character Stat Values**
-For the canonical baseline numeric values for every `CharacterData` Resource field, see the authoritative [Character Base Stat Values Table in Section 4](#character-base-stat-values) or [character_base_stats.md](./character_base_stats.md). Baseline numeric values for special and ultimate abilities are documented in [ability_numeric_data.md](./ability_numeric_data.md).
+For the canonical baseline numeric values for every `CharacterData` Resource field, see the authoritative [Character Base Stat Values Table in Section 4](#character-base-stat-values). Ability numbers live in `resources/Abilities/*.tres` — the resources are canonical over any number in this document's prose. (The V6 references to the Unity-era `character_base_stats.md` / `ability_numeric_data.md` are retired; those archives were removed from the repository.)
 
+### **V7 Kit Rebalance Directive: Normals Are the Character**
+The 2026-08-10 pass (basics −50%, specials +100%) fixed encounter pacing but left every kit in a state where **a single special out-damages an entire three-hit string on a flat shared cooldown** — neutral reduces to "land anything, wait ten seconds, land the special", which is the opposite of what rushdown/zoner/trapper archetypes need. V7 locks the following rebalance frame (the specials batch was applied 2026-08-22, and the directive's title was made literally true the same day by the **V7.1 per-character string profiles** — see Section 4's "Per-Character String Profiles": authored opener/finisher startups, damage shapes summing to the 3.3× anchor, and ±20% reach per character):
 
+*   **Damage anchors (per character, relative to their own full basic string = 3.3× BasicAttackDamage):**
+    *   A single **special** targets **≈1.5× a full string** (band 1.2–1.8×). Persistent-construct specials price the construct's total output, not the deploy hit.
+    *   The **ultimate** targets **≈4–5× a full string** for the 100-point meter.
+*   **Differentiate specials by clock and shape, not raw damage:** each of the 18 specials gets its own authored **startup**, **cooldown (6–14 s band — see Section 4)**, **hitstun**, and **knockback angle**. Fifteen of eighteen shared identical 12/6/18 frame data; that homogeneity was the actual balance bug. **Applied 2026-08-22:** cooldowns now span the full 7–13 s band, pokes start in 10 frames and recover in 14 (Joan S2, Mozart S1, Shakespeare S1), haymakers wind up in 14–18 and recover in 20–24 (Einstein S1, Lincoln S1/S2, Mozart S2). Fast cheap tools = low damage, short cooldown, low hitstun; haymakers = long startup, long cooldown, launch angles.
+*   **Named outlier corrections (all applied 2026-08-22):**
+    *   **Leonardo — Golden Ratio:** ✅ applied — 8×3 = 24 total on an 8 s cooldown, a zoning tool, no longer the roster's biggest nuke (was 60 at 4× his own string).
+    *   **Lincoln — Union Indestructible (ultimate):** ✅ applied 2026-08-22 — the 40-total data error is retargeted to **5 smashes × 14 = 70**, inside the roster's 70–84 band for the same 100 meter, keeping "highest burst per hit". His two specials sit at the top of the band (13 s / 12 s, with 16f/14f startups) so the burst cycle cannot repeat freely. ✅
+    *   **Shakespeare — The Tempest:** ✅ applied — pure utility Special 2 (0 damage) now actually priced at the short end (7 s). His Yorick's Lament is likewise now the cheap poke the brief describes: 16 base (skull contact 5 + wave 16 ≈ 21 real total) at 7 s, and the slow applies once (the skull no longer double-applied it).
+    *   **Mozart:** ✅ applied — Requiem Chord is the fast flat poke (4 per pulse, real total 16 with contact, 7 s, 10f startup); Fortissimo Wave is the slow arcing lob (180 px/s, launched rising and pulled down by gravity in both modes, 24 damage, 12 s, 16f startup). His movement ability re-specification below still stands.
+    *   **Hidden contact riders (found in implementation review):** Einstein's E=mc², Mozart's Requiem Chord, and Shakespeare's Yorick's Lament all deal a code-side contact hit *on top of* the authored `BaseDamage` burst. Their totals are now tuned as **contact + burst**: E=mc² ≈ 7 + 20 = 27 (was 10 + 30 = 40, hidden at 2.4× his string). Anyone retuning these three must count both stages.
+*   **Movement abilities need one distinguishing rule each (V7):** the roster's movement abilities collapse onto four shared behaviours (glide ×4, teleport ×3, dash ×1, float ×1), which is fine *mechanically* — the identity comes from one small authored rule per character:
+    | Character | Rule |
+    |---|---|
+    | Joan | Ascendant Wings **refresh on landing a finisher** (Hit 3 or Smite) |
+    | Leonardo | Ornithopter glide can **fire one turret bolt mid-flight** if a turret is deployed |
+    | Einstein | Warp float window steers with Up/Down (already shipped); warp is his identity as authored |
+    | Tesla | Blink **passes through projectiles** (they cannot hit him during the 0.2 s translation) |
+    | Cleopatra | Mirage Step **leaves a sand decoy** that enemies/CPU briefly target (1 s) |
+    | Shakespeare | Exit, Stage Left teleport **swaps facing** and grants 6 frames of invulnerability on reappear |
+    | Mozart | **Sonata Drift (re-specified):** a *directable* rising glissando, never a random pop — hold a direction to carve the ascent arc; landing on one of his own staff platforms refunds half the cooldown |
+    | Lincoln | Rail Charge **breaks one projectile** during travel |
+    | Pocahontas | Glide **can attack** — the basic string is usable mid-glide without ending it |
+*   **Kit-brief numbers below were synced to the applied batch on 2026-08-22.** Where a damage figure in the per-character briefs disagrees with `resources/Abilities/*.tres` or with the anchors above, the resource and this directive still govern; the briefs describe *shape and fantasy*.
+*   **Einstein's Warp float cap:** the V6 "total duration limit 3 seconds" on Warp float is **dropped** — the float window is frame-authored in the ability data and was never enforced as a wall-clock cap anywhere.
 
 ---
 
@@ -1849,7 +2124,7 @@ For the canonical baseline numeric values for every `CharacterData` Resource fie
 *   **Standard Attack (Quantum Strikes):** A fast, mid-range 3-hit combo using a glowing piece of chalk to slash spacetime. The final hit creates a kinetic shockwave to push enemies back.
 *   **Special Attack 1 (Mass-Energy Conversion, E=mc²):** A heavy projectile attack with a brief wind-up. Einstein tosses a physical object (like an apple or pocket watch) that detonates into a massive, blinding flash of radiant energy upon impact. Minor physical damage on contact, followed by a massive energy burst.
 *   **Special Attack 2 (Relativity Rift):** A localized area-of-effect trap. Creates a spherical distortion field that inflicts Time Dilation, reducing enemy movement speed, jump height, and attack animations by 50% while dealing continuous chip damage (`damageTickInterval = 0.5s`, dealing 3.0 damage per 0.5s tick over its 3.0s duration, ≈18 total). **Self-Buff:** If Einstein enters his own rift, his movement speed increases by **+25%** in all modes (Story Mode and Fighter Mode), allowing him to outmaneuver trapped opponents or escape edge-guarding.
-*   **Movement Ability (Relativity Warp):** Einstein folds spacetime to warp/blink a short distance in the input direction (horizontal, vertical, or diagonal), usable in the air for horizontal or vertical recovery. The warp movement takes 0.2 seconds and can be canceled into a brief 1.0-second float glide (total duration limit 3 seconds).
+*   **Movement Ability (Relativity Warp):** Einstein folds spacetime to warp/blink a short distance in the input direction (horizontal, vertical, or diagonal), usable in the air for horizontal or vertical recovery. The warp movement takes 0.2 seconds and can be canceled into a brief reduced-gravity float window (frame-authored in the ability data; fast-fall cancels it).
 *   **Ultimate Attack (The Cosmological Constant):** A screen-clearing cinematic move. Freezes enemies in place, the background fades to a starfield, he scribbles an equation in the air out of light, and collapses it into a miniature black hole that sucks in enemies for massive multi-hit damage before a final explosive launch toward the blast zones.
 *   **Godot Implementation Notes:** Heavily utilize **GPUParticles2D** for energy bursts and **custom CanvasItem shaders** (specifically lens distortion and chromatic aberration effects via `BackBufferCopy` + `ShaderMaterial`) to give the Relativity Rift a warped, gravitational feel on screen.
 
@@ -1897,8 +2172,8 @@ graph TD
 * **Standard Attack (Martyr's Flurry):** A rapid, 3-hit melee combo using her broadsword. The first two hits are fast with low knockback designed to lock enemies in hitstun. The sword trails blinding golden light, with each consecutive hit growing brighter, culminating in a heavy downward cleave that slams the opponent into the ground (or floor-bounces them).
 
 
-* **Special Attack 1 (Righteous Smite):** Joan swings her broadsword downward, creating a holy shockwave along the ground that deals 28.0 damage and applies the "Radiant Burn" status effect (+25% damage taken for 3.0 seconds).
-* **Special Attack 2 (Divine Piercing):** Joan executes a rapid series of thrust attacks with her broadsword in place, dealing 24.0 damage total and shredding enemy shields (depletes 2 block charges on block).
+* **Special Attack 1 (Righteous Smite):** Joan swings her broadsword downward, creating a holy shockwave along the ground that deals 28.0 damage and applies the "Radiant Burn" status effect (+25% damage taken for 3.0 seconds, riding the damage status slot so her follow-up string is always amplified).
+* **Special Attack 2 (Divine Piercing):** Joan executes a rapid series of thrust attacks with her broadsword in place, dealing 24.0 damage total and shredding enemy shields (depletes 2 block charges on block). Her fast pressure tool: 8 s cooldown, 10-frame startup.
 * **Movement Ability (Ascendant Wings):** A rising vertical leap used for recovery or platform grabbing. Leaps into the air with a sweeping upward slash, flashing ethereal burning wings at the apex. If the button is held, she glides downward for up to 3 seconds. Usable in the air.
 
 
@@ -1952,8 +2227,8 @@ graph TD
 * **Standard Attack (Renaissance Strikes):** A 3-hit combo blending art and engineering. Hits 1 & 2 are sweeping mid-range paintbrush strikes that leave arcing ink trails in the air (purely visual). Hit 3 is a heavy overhead compass slam (engineering) dealing bonus damage and higher knockback.
 
 
-* **Special Attack 1 (Golden Ratio):** Draws a glowing Fibonacci spiral that expands outward, dealing 8.0 damage and minor radial knockback per hit/tick (up to 3 hits for 24.0 total damage, on an 8-second cooldown).
-* **Special Attack 2 (Clockwork Turret):** Deploys a miniature automated Clockwork Turret that fires crossbow bolts of 6 at the nearest target every 2.0 seconds (4 bolts before self-destructing).
+* **Special Attack 1 (Golden Ratio):** Draws a glowing Fibonacci spiral that expands outward, dealing minor radial damage per hit/tick (8×3 = **24 total on an 8 s cooldown** — applied; it is a zoning tool, not the roster's biggest nuke).
+* **Special Attack 2 (Clockwork Turret):** Deploys a miniature automated Clockwork Turret that fires crossbow bolts of 6 at the nearest target every 2 seconds (4 bolts before self-destructing — an active threat from t=2 inside its 15 s life).
 * **Movement Ability (Ornithopter Flight):** Deploys mechanical bat wings for vertical boost and horizontal glide for up to 3 seconds. Usable in the air for recovery.
 
 
@@ -2005,7 +2280,7 @@ graph TD
 * **Standard Attack (Wardenclyffe Rod):** Tesla swings his copper-wound induction cane in a 3-hit melee combo. The first two strikes release quick electrical sparks, and the final strike is a forward thrust that discharges a localized electromagnetic blast, knocking the enemy back and magnetizing them with a brief "Static Charge" status effect. *(V7.1 rider — applied: 0.4 s Static Charge on the finisher, equal to its own hitstun, so it exists purely to prime Lorentz Pulse chains.)*
 
 
-* **Special Attack 1 (Tesla Coil / Chain Lightning):** Places a Tesla Coil on the stage that remains active for 30 seconds (max 2 active coils). The coil automatically fires high-voltage electrical arcs of 5 damage at any enemy entering its radius (`damageTickInterval = 2.0s`). If two coils are active and in proximity, a continuous curtain of alternating current links them, creating a barrier that deals 4 damage per tick (`damageTickInterval = 1.0s`) to passing enemies.
+* **Special Attack 1 (Tesla Coil / Chain Lightning):** Places a Tesla Coil on the stage that remains active for 30 seconds (max 2 active coils). The coil automatically fires high-voltage electrical arcs of 5 at any enemy entering its radius (`damageTickInterval = 2.0s` — see the Tesla Coil Specification in Section 4). If two coils are active and in proximity, a continuous curtain of alternating current links them, creating a barrier that deals 4 damage per 1.0 s tick and applies `Static Charge` to passing enemies.
 * **Special Attack 2 (Lorentz Pulse):** Tesla charges his induction cane, releasing an electromagnetic pulse in a circle around him. Enemies caught in the blast are magnetized and immobilized by applying the **`Root`** status effect for 2.0 seconds. If an enemy has the "Static Charge" status effect, the pulse triggers a chain lightning strike between them and any active Tesla Coils.
 * **Movement Ability (Lightning Blink):** Tesla turns into pure electrical current and blinks a short distance in the input direction. Usable in the air for horizontal/vertical recovery. Leaves crackling spark particles at his starting and ending locations. Total blink duration is limited to 1 second.
 
@@ -2058,8 +2333,8 @@ graph TD
 * **Standard Attack (Quill Flourish):** Slashes with a giant feather quill, leaving glowing trails of cursive ink. A 3-hit combo: diagonal slash, horizontal sweep, and a heavy forward thrust that paints a punctuation strike, dealing light knockback.
 
 
-* **Special Attack 1 (Yorick’s Lament):** Throws a rolling skull that releases a wailing sonic wave on impact, applying the **`TimeDilation`** status effect once (30% movement and animation speed reduction for 2.5 seconds; the skull's contact hit does not re-apply it). Runs on a 7-second cooldown.
-* **Special Attack 2 (The Tempest):** Spawns a localized wind storm around him, blowing away adjacent enemies and lifting Shakespeare into the air. Runs on a 7-second cooldown.
+* **Special Attack 1 (Yorick’s Lament):** Throws a rolling skull that releases a wailing sonic wave on impact, applying the **`TimeDilation`** status effect (30% movement and animation speed reduction for 2.5 seconds). Cooldown per the V7 band (a cheap poke — short end).
+* **Special Attack 2 (The Tempest):** **Pure utility (0 damage, by design):** spawns a localized wind storm around him, blowing away adjacent enemies and lifting Shakespeare into the air — spacing reset and vertical escape in one tool. Its value is priced entirely in its cooldown (short end of the 6–14 s band).
 * **Movement Ability (Prospero's Flight):** Shakespeare summons a magical gust of wind that propels him forward and upward, letting him glide horizontally for up to 3 seconds. Usable in the air for recovery or reaching far platforms.
 
 
@@ -2093,7 +2368,7 @@ graph TD
 
 **Major Node Details:**
 
-* **Macbeth's Curse:** Yorick's Lament now applies a "Tragic Poison" damage-over-time effect, applying the **`Venom`** status effect (dealing chip damage every 1.0s for 3 seconds).
+* **Macbeth's Curse:** Yorick's Lament now applies a "Tragic Poison" damage-over-time effect, applying the **`Venom`** status effect (dealing chip damage every 1.0s for 3 seconds). Under the two-slot status rule the poison rides the damage slot alongside the wave's TimeDilation — the perk stacks the DoT on top of the slow instead of trading one for the other.
 * **Midsummer Glide:** Prospero's Flight deals 8.0 damage to enemies Shakespeare glides through and increases his maximum glide speed by 20%.
 * **Henry's Bastion:** Successfully blocking an attack summons a temporary phantom royal shield guard that absorbs up to 10% of Shakespeare's maximum health in damage.
 
@@ -2113,9 +2388,9 @@ graph TD
 * **Standard Attack (Conductor's Strike):** Swings a conducting baton, firing quick treble clef pulses in a 3-hit combo that pushes enemies away. *(V7.1 rider — applied: the finisher shoves at 5.5× knockback against the shared 4.5×, a spacing tool on his low base.)*
 
 
-* **Special Attack 1 (Requiem Chord):** Shoots a fast, flat-trajectory projectile chord of musical notes that bursts into a multi-hit sonic shockwave on impact (4 damage per pulse). Runs on a 7-second cooldown.
-* **Special Attack 2 (Fortissimo Wave):** Mozart conducts a massive wave of sound energy launched as a slow, rising lob (180 px/s) that is pulled down by gravity and crashes ~4–6 units out, dealing 24.0 damage and pushing enemies back with heavy knockback. Runs on a 12-second cooldown.
-* **Movement Ability (Sonata Drift):** Deploys a floating musical staff platform in the air that Mozart can run on to recover or escape. Usable in the air for recovery, with the platform duration strictly limited to 3 seconds.
+* **Special Attack 1 (Requiem Chord):** Shoots a **fast, flat-trajectory** projectile chord of musical notes that bursts into a multi-hit sonic shockwave on impact. Short cooldown (6–8 s) — Mozart's bread-and-butter poke. (V7: his second projectile is deliberately its opposite — a slow, arcing lob that holds space; the two must never read as duplicates.)
+* **Special Attack 2 (Fortissimo Wave):** Mozart conducts a massive wave of sound energy launched as a **slow, rising lob** (180 px/s) that crests and crashes down under its own gravity ~4–6 units out, holding space along its landing arc. Deals 24.0 damage with the roster's heaviest horizontal pushback. His committed haymaker — top-band cooldown (12 s), 16-frame windup — never a Requiem duplicate.
+* **Movement Ability (Sonata Drift — V7 re-specification):** Mozart rides a **directable rising glissando** — an ascending run of glowing notes whose arc the player carves by holding a direction — and deploys a floating musical staff platform at his apex (platform stands for 3 seconds; any fighter can use it). Landing on one of his own staff platforms refunds half the ability's cooldown. Usable in the air for recovery. The V6/interim behaviour (an undirected upward pop) is explicitly not the design.
 
 
 * **Ultimate Attack (Symphony of Sorrow):** Mozart hovers and conducts a downpour of glowing piano keys that rain like meteors.
@@ -2170,8 +2445,8 @@ graph TD
 * **Standard Attack (Scepter Strike):** Swings a golden, asp-wrapped scepter, emitting quick sand waves. A 3-hit combo: diagonal swing, quick sweep, and a forward thrust that releases a small blast of sand, marking the enemy. *(V7.1 rider — applied: the mark is a light `Venom`, 2 s at 0.5 intensity on the damage status slot, so it survives her own control statuses.)*
 
 
-* **Special Attack 1 (Serpent Nest):** Cleopatra summons a nest of spectral asps at a target location. Any enemy passing over the nest is bitten, taking light physical damage and receiving the **`Venom`** status effect (deals tick damage every `damageTickInterval = 1.0s` for 4 seconds). The bite lands every 1.0 s for 6 damage — the "Root then Venom" sequence is retired under the two-slot status rule: the bite applies `Venom` (damage slot) plus ordinary hitstun, and the poison survives her own vortex slow (control slot). Runs on a 10-second cooldown.
-* **Special Attack 2 (Sandstorm Vortex):** Cleopatra summons a swirling vortex of sand at a target location that pulls adjacent enemies toward the center, dealing 4.0 damage per tick (`damageTickInterval = 0.4s`, 5 ticks = 20 total over the 2.0s duration; the final tick carries the authored launch knockback) and applying Time Dilation (reduces speed by 40% for 2.0s).
+* **Special Attack 1 (Serpent Nest):** Cleopatra summons a nest of spectral asps at a target location. Any enemy passing over the nest is bitten, taking light physical damage and receiving the **`Venom`** status effect (deals tick damage every `damageTickInterval = 1.0s` for 4 seconds). **V7 amendment (updated for the two-slot status rule):** the bite applies `Venom` (damage slot) plus ordinary hitstun; the snare *feel* comes from the 1.0 s bite cadence. Because `Venom` rides the damage slot, landing the vortex's slow on a bitten target no longer erases the poison — the nest-into-vortex loop is her authored combo. Mid-band cooldown.
+* **Special Attack 2 (Sandstorm Vortex):** Cleopatra summons a swirling vortex of sand at a target location that pulls adjacent enemies toward the center, dealing 4.0 damage per tick (`damageTickInterval = 0.4s`, 5 ticks = 20 total over the 2.0s duration; the final tick carries the authored launch so escaping the sand costs something) and applying Time Dilation (reduces speed by 40% for 2.0s).
 * **Movement Ability (Desert Mirage):** Cleopatra dissolves into a cloud of sand, rushing forward or teleporting a short distance in the input direction. Usable in the air for recovery, with a maximum travel time/duration of 3 seconds.
 
 
@@ -2222,8 +2497,8 @@ graph TD
 * **Standard Attack (Rail Swing):** Swings a heavy split-rail log in a 3-hit combo. 1st hit: a wide horizontal swipe, 2nd hit: a heavy upward vertical swing that launches enemies *(V7.1 rider — applied: 2× the template bridge's vertical lift)*, 3rd hit: a heavy downward crush. *(The V6 "ground-bounce" finisher clause is retired — the spike identity lives on Splitting Strike; his string's authored identity is the slow 8-frame opener, back-loaded 0.7/0.9/1.7 damage shape, and the launching hit 2.)*
 
 
-* **Special Attack 1 (The Emancipator):** Lincoln slams his massive wooden rail into the ground, triggering a shockwave that travels forward along the floor. Deals heavy damage (40.0), knocks enemies upward, and has high shield-stutter/depletes 2 block charges on contact. Runs on a 13-second cooldown.
-* **Special Attack 2 (Splitting Strike):** Lincoln swings his split-rail log in a massive downward overhead arc. Deals 36.0 damage, spikes airborne enemies directly downward, and shatters active blocking shields instantly. Runs on a 12-second cooldown.
+* **Special Attack 1 (The Emancipator):** Lincoln slams his massive wooden rail into the ground, triggering a shockwave that travels forward along the floor. Deals heavy damage, knocks enemies upward, and has high shield-stutter/depletes 2 block charges on contact. Sits at the **top of the cooldown band (12–14 s)** — the roster's biggest single hit must also be its longest wait.
+* **Special Attack 2 (Splitting Strike):** Lincoln swings his split-rail log in a massive downward overhead arc. Deals 36.0 damage, spikes airborne enemies directly downward, and shatters active blocking shields instantly. Top-band cooldown (12 s) with a 14-frame windup.
 * **Movement Ability (Rail Charge):** Lincoln charges forward, shouldering his wooden rail like a ram. Usable in the air for horizontal recovery. Grants armor (takes damage but ignores hitstun) during the charge, limited to a maximum duration of 3 seconds.
 
 
@@ -2275,8 +2550,8 @@ graph TD
 * **Standard Attack (Wind Staff):** A quick 3-hit combo using her walking staff. Hit 1: A forward thrust with the staff tip. Hit 2: An upward swing that launches the enemy slightly. Hit 3: A final staff strike that releases a gust of wind, pushing the opponent back.
 
 
-* **Special Attack 1 (Spirit Strike):** Pocahontas summons a spectral eagle that swoops down in a diagonal arc, dealing 24.0 damage and staggering enemies. Runs on a 9-second cooldown.
-* **Special Attack 2 (Vine Snare):** Pocahontas throws a seed pod at the ground or an enemy. Upon hitting the ground or a target, the pod grows into thick, thorny vines. Enemies who step on the vines are immobilized by applying the **`Root`** status effect for 1.5 seconds and take light damage. Runs on a 10-second cooldown.
+* **Special Attack 1 (Spirit Strike):** Pocahontas summons a spectral eagle that swoops down in a diagonal arc, dealing 24.0 damage and staggering enemies. The swoop doubles as mobility (a forced diagonal-up dash), which is why its damage sits mid-band rather than top: 9 s cooldown.
+* **Special Attack 2 (Vine Snare):** Pocahontas throws a seed pod at the ground or an enemy. Upon hitting the ground or a target, the pod grows into thick, thorny vines. Enemies who step on the vines are immobilized by applying the **`Root`** status effect for 1.5 seconds and take light damage. Mid-band cooldown.
 * **Movement Ability (Breeze Glide):** Pocahontas dashes forward, riding a swirling wind current. Usable in the air, resetting her double-jump and allowing a horizontal glide for up to 3 seconds for recovery.
 
 
@@ -2333,12 +2608,22 @@ graph TD
 *   **Stun/Death:** Being hit transitions the mob to `Stunned` (duration reduced by `stunResistance` for elites). Reaching 0 HP transitions to `Dead`, triggering loot drops and a death animation.
 
 #### **Elite Mob Additions**
-*   Elites alternate between standard attacks and `eliteAbilities` when within range and off cooldown. Elite ability selection is sequential (cycle through the `eliteAbilities` array).
+*   Elites alternate between standard attacks and `eliteAbilities` when within range and off cooldown. Elite ability selection is sequential (cycle through the `eliteAbilities` array). **V7 requirement:** every elite carries **two** elite abilities — with one, the designed cycle never cycles and every elite plays identically to a fat standard mob. Give each era's elite a second ability drawn from a *different* archetype than its first.
 *   Elites have `stunResistance` that reduces incoming hitstun durations (e.g., `0.5` cuts hitstun in half).
+*   **Stand-Off Band (locked 2026-08-10):** chasing enemies stop advancing at **85%** of their own authored attack range and resume only beyond **110%** — they attack from the band instead of pressing into the target's pushbox. Bosses' rest-window tracking obeys the same band.
+
+#### **Behaviour Variety Directive (V7 — 27 names must not be 8 behaviours)**
+The roster skews Ground ×21 / Projectile ×14 with no Summon or Teleport enemies anywhere. The archetype system already implements all eight ability archetypes; the roster must actually use them:
+*   At least one mob line uses **Teleport** (the Alexandria **Rift Phantom** — already a phasing wraith — is the natural owner) and at least one uses **SummonMinions** (an Archive drone-carrier variant).
+*   Author a true **shield-bearer** that must be hit from behind or have its guard broken (the frontal-reduction flag exists — Pompeii's **Shock-Shield Legionnaire** is the natural owner; roll-through and the launcher are the counterplay).
+*   Standard ground mobs do not jump, as specified — but **one deliberate exception per act** (e.g., the Globe's **Holo-Page** vaulting between galleries) so vertical space is never universally safe.
+*   **The Chrono-Warden (V7.1 — a time-casting elite):** a new Future Cultist elite introduced in Act II (first appearance Level 6, then salted through Levels 7–15 alongside the Tech-Enforcer). Its two elite abilities are the roster's only *time* kit: **Dilation Field** (`AreaPulse` + `TimeDilation`: a 45-frame telegraph, then a 3-unit-radius field at the player's position lasting 4 s that applies `TimeDilation` at standard intensity and refreshes while the player stands in it; cultist allies are unaffected per the mob-hazard-immunity rule) and **Phase Skip** (`Teleport`: a short blink away when the player closes within 2 units, 6 s cooldown). ~170 HP, stun resistance 0.5, `StandGuard`. Counterplay is the lesson: fight *out* of the field or bait the blink toward a hazard — it teaches players to respect dilation zones before they meet Einstein's rift in Fighter Mode. Requires a manifest row, `EnemyData` + two `EnemyAbilityData` resources, localization keys, pool budgets for Levels 6–15, and content-test coverage.
+*   The AI-spec rules that are design law and still unbuilt stay law: mob hazard immunity, "mobs cannot recover from pits", and elites/bosses bounded to platforms.
 
 #### **Boss Attack Selection Algorithm**
 *   **Weighted Random:** Each entry in `bossAbilities[]` has an associated `weight` value. The boss selects its next attack by normalized probability (e.g., ability weights `[3, 2, 1]` = 50%/33%/17% selection chance).
-*   **Distance-Based Override:** If `attackPattern = DistanceBased`, the boss filters abilities by range — using melee abilities when the player is close and ranged abilities when the player is far — before applying weighted random within the filtered set.
+*   **Distance-Based Override:** If `attackPattern = DistanceBased`, the boss filters abilities by range — using melee abilities when the player is close and ranged abilities when the player is far — before applying weighted random within the filtered set. An empty filtered set falls back to the full list (no deadlock).
+*   **Per-Ability Cooldowns (V7 — the data exists; the algorithm must read it):** each `bossAbilities[]` entry's own cooldown gates its re-selection — an ability on cooldown is excluded from the weighted roll. This is what prevents a summon or a screen-wide ability from chaining back-to-back.
 *   **Rest Window:** After executing any attack, a global `bossRestCooldown` of **1.5 seconds** (default) enforces a rest window before the next attack selection. During rest, the boss slowly tracks the player's position.
 *   **Phase Transitions:** When `currentHP` crosses a `phaseThreshold`, the boss enters `PhaseTransitioning` state, plays a scripted transition animation, and may unlock new abilities or increase attack speed. The rest cooldown is bypassed during transition.
 
@@ -2349,6 +2634,7 @@ All campaign levels feature a mixture of two distinct enemy factions working tog
     *   *Lore:* Foot soldiers and enforcers native to the future Apex Archive timeline. They have traveled back through the rifts.
     *   *Standard:* **Chrono-Slasher** (fast melee skirmisher with a glowing chronal blade).
     *   *Elite:* **Tech-Enforcer** (heavy guard with a high-impact plasma rifle and a localized energy bubble shield).
+    *   *Elite (Act II+, V7.1):* **Chrono-Warden** (a hooded Archive chronomancer casting localized time-dilation fields and blinking away from melee — see the Behaviour Variety Directive).
 2.  **Altered Present Mobs (Brainwashed Locals):**
     *   *Lore:* Historical soldiers, guards, and citizens native to that level's specific era. The Apex Archive uses neural-link siphons to brainwash and mind-control these locals, equipping them with futuristic enhancements (neon visors, cybernetic scepters, temporal gears) to defend their extraction zones.
 
@@ -2396,33 +2682,38 @@ Every level contains the default Future Cultists alongside these brainwashed, cy
 
 > **Special Narrative Levels (Cultist-Only Roster):** Level 5 (The Sinking Titanic, 1912) exclusively uses the base **Future Cultist mob roster** (Chrono-Slashers as standard mobs, Tech-Enforcers as elites). The Titanic is a civilian passenger vessel with no local military population for the Apex Archive to brainwash, so no era-altered local mobs are present. The cult deploys only its own operatives to defend the siphon during the ship's sinking.
 
-### **Level Bosses (Placeholder Designs)**
-> [!NOTE]
-> **Status: Deferred to the boss design phase.**
-> Phase shifts, damage profiles, attack frames, and visual patterns for the 15 campaign bosses will be fully authored at a later point in production. Currently, boss encounters use placeholder Resources based on `BossData` layouts.
->
-> **Per-Boss Authoring Checklist (to be completed for each of the 15 bosses):**
-> - [ ] Complete attack list with damage values, hitbox dimensions, and frame data
-> - [ ] Phase transition HP thresholds and behavior changes per phase
-> - [ ] Visual telegraph patterns and audio cues for each attack
-> - [ ] Unique stage hazard interactions (if applicable)
-> - [ ] Reward table (Chronal Dust drops, unique item drops)
+### **Level Bosses (V7 — encounters, not stat rows)**
+Bosses are the campaign's set-pieces, and V7 replaces the V6 "deferred" placeholder with three binding rules plus an authored **phase mechanic** per boss:
 
-*   *Level 1 (Florence):* **The Borgia Inquisitor** (Dual-blade swift assassin; 2 phases).
-*   *Level 2 (Orléans):* **The Siegemaster Duke** (Steam-mech heavy pilot; 2 phases).
-*   *Level 3 (Chicago):* **The Chronal Inventor** (High-voltage Tesla coil zoner; 2 phases).
-*   *Level 4 (Paris):* **The Revolutionary Tribunal** (Multi-summoner boss squad; 2 phases).
-*   *Level 5 (Titanic):* **The Tidal Eraser** (Drowning arena hazard boss; 2 phases).
-*   *Level 6 (Pompeii):* **The Vulcan Decimator** (Magma-slinging volcanic behemoth; 2 phases).
-*   *Level 7 (Nassau):* **The Dread Admiral** (Gatling gun pirate flagship battle; 2 phases).
-*   *Level 8 (Egypt):* **The Jackal Priest** (Sandstorm summoner, teleporting mage; 2 phases).
-*   *Level 9 (Berlin):* **The Iron Chancellor** (Heavy tank bunker defense battle; 2 phases).
-*   *Level 10 (London):* **The Tragedy King** (Illusion-summoning stage actor; 2 phases).
-*   *Level 11 (Gettysburg):* **The Siege Cannon** (High-firepower mechanical railcar; 2 phases).
-*   *Level 12 (Lunar Landing):* **The Gravity Overseer** (Low-gravity orbital mech pilot; 3 phases).
-*   *Level 13 (Chronal Void):* **The Mirror Paradox** — A mirror clone of the player's active character, driven by the Hard-difficulty CPU Fighter AI decision engine (Section 10). The clone uses the player's exact character model, basic attacks, special abilities, and movement ability. The clone has 1000 HP (as listed in BossData). Unlike standard bosses, the Mirror Paradox does not use phase transitions or the standard `BossData` attack pattern system — it uses the Hard CPU Utility AI Engine with 4–8 frame reaction delay. Single phase, no phase transition thresholds.
-*   *Level 14 (Neo-Earth):* **The Archive Prime** (Laser-grid security core supercomputer; 3 phases).
-*   *Level 15 (Alexandria):* **The Apex Eraser** (Time-manipulating final boss; 3 phases).
+1.  **Every phase transition changes a *rule*, never just a speed multiplier.** A phase 2 that only walks faster is a stat row, not an encounter. Each boss's authored phase mechanic below is the minimum; Level 14's Archive Prime (laser-grid arena changes per phase) is the template that already works.
+2.  **Every boss gets an intro ritual:** a name card (localized title + era subtitle) over a 1.5 s arena establishing beat, the boss's signature telegraph shown once for free, then the HUD bar sweeps in. Skippable on repeat attempts after a Timeline Collapse.
+3.  **Per-ability cooldowns and both distance bands** must be exercised by every scripted boss (see the selection algorithm above).
+
+| Boss | Level | Phases | **Authored Phase Mechanic (V7)** |
+|---|---|---|---|
+| **The Borgia Inquisitor** (dual-blade assassin) | 1 Florence | 2 | P2: the scaffolding burns away, shrinking the arena, and the Inquisitor gains an after-image dash — a third ability (he has only two, the roster's thinnest kit; the dash closes that gap). |
+| **The Siegemaster Duke** (steam-mech pilot) | 2 Orléans | 2 | P2: ruptured boiler — the mech vents scalding steam that turns both arena edges into hazard zones, forcing the fight center-stage while a mortar barrage falls. |
+| **The Chronal Inventor** (coil zoner) | 3 Chicago | 2 | P2: deploys two siphon coils at the arena corners that shield him until destroyed — the level's mirror-coil routing lesson, weaponized. |
+| **The Revolutionary Tribunal** (boss squad) | 4 Paris | 2 | P2 triggers on the first member's defeat: the survivor absorbs the fallen's ability set and the floor's central section collapses into the level's signature pit. |
+| **The Tidal Eraser** (flood arena) | 5 Titanic | 2 | P2: the water line rises to swallow the lowest platforms and a periodic wave surge sweeps the deck — the room timer mechanic made boss-sized. |
+| **The Vulcan Decimator** (volcanic behemoth) | 6 Pompeii | 2 | P2: floor sections crack into lava vents on a visible cadence; the eruption debris rains at double rate. Arena change, not speed change. |
+| **The Dread Admiral** (flagship battle) | 7 Nassau | 2 | P2: the ship lists — the deck tilts, loose cannonballs roll across the floor as moving hazards, and the Admiral's gatling arcs follow the tilt. |
+| **The Jackal Priest** (teleporting mage) | 8 Egypt | 2 | P2: the sandstorm veils him — each teleport leaves a sand decoy; only the true priest's staff glows on cast, and striking a decoy triggers its burst. |
+| **The Iron Chancellor** (bunker defense) | 9 Berlin | 2 | P2: bunker searchlights sweep the arena (the level's stealth system remixed) — being caught in a beam calls an artillery strike on the player's position. |
+| **The Tragedy King** (illusionist actor) | 10 Globe | 2 | P2: summons two spectral actors who perform scripted attack "scenes" while the stage trapdoors cycle; the King is invulnerable mid-soliloquy until both actors take their bow. |
+| **The Siege Cannon** (railcar artillery) | 11 Gettysburg | 2 | P2: the railcar relocates along its track after every volley and the cover fences become destructible — the level's cover lanes must be re-read each cycle. |
+| **The Gravity Overseer** (orbital mech) | 12 Lunar | 3 | P2: inverts gravity in marked zones; P3: hull breach — vacuum vents drag toward the arena edges between attack waves. |
+| **The Mirror Paradox** | 13 Void | 1 | A mirror clone of the player's active character, driven by the real Hard-difficulty CPU Fighter decision engine (4–8 frame reaction), 1000 HP, no phase system — the boss *is* the AI. **V7 additions:** the clone always mirrors the player's equipped ability VFX, and **on Hard it also mirrors the player's unlocked Resonance perks** (Story-side clone only; the normalized-kit rule for Fighter Mode is untouched). The campaign's best boss idea — lean into it. |
+| **The Archive Prime** (security core) | 14 Neo-Earth | 3 | The existing template: each phase reconfigures the laser grid and arena. Keep as authored. |
+| **The Apex Eraser** (final boss) | 15 Alexandria | 3 | P2: **rewinds itself** — on crossing the threshold it scrubs 3 seconds back through its own position/HP history once (the player's mechanic, stolen); P3: the arena fractures into floating era shards from earlier levels while the restored Library assembles behind the fight. |
+
+> **Per-Boss Authoring Checklist** (still to be discharged per boss, now *including* the phase mechanic above):
+> - [ ] Complete attack list with damage values, hitbox dimensions, and frame data
+> - [ ] Phase transition HP thresholds and the authored phase-mechanic implementation
+> - [ ] Visual telegraph patterns and audio cues for each attack
+> - [ ] Intro ritual (name card, establishing beat, free telegraph)
+> - [ ] Unique stage hazard interactions (if applicable)
+> - [ ] Reward table (Chronal Dust drops as physical pickups, unique item drops)
 
 ---
 
@@ -2435,7 +2726,7 @@ Every level contains the default Future Cultists alongside these brainwashed, cy
     *   *Dynamic Zooming:* The camera automatically pans and dynamically zooms based on the distance between the two combatants. If the characters are close together, it zooms in to focus closely on the action. If they move far apart, it zooms out to frame more (or all) of the level layout.
     *   *Clamping:* Camera movement and zooming out is bounded by the stage's physical blast zones and background boundaries, ensuring the viewport never exposes out-of-bounds space.
 *   **Grid & Layout:** Built using Godot's **`TileMapLayer`** system. Paint ground, platforms, and background layers with physics layers for terrain collision.
-*   **Scrolling:** Levels scroll both horizontally and vertically, creating expansive, exploration-heavy environments (Metroid/Castlevania style).
+*   **Scrolling:** Levels scroll both horizontally and vertically. **V7 language correction:** the campaign is a **linear stage sequence** (Mega Man / Shovel Knight structure) — the V6 "exploration-heavy, Metroid/Castlevania style" phrase contradicted the design's own no-map/no-backtracking/sequential-portal rules and is struck. Vertical scrolling serves room variety and platforming, not exploration; the light exploration pressure lives in the one-secret-per-level rule (Section 3).
 
 #### **Story Mode Camera2D Configuration**
 | Setting | Value | Description |
@@ -2506,11 +2797,11 @@ Campaign levels follow a standardized construction framework:
     *   **Foreground Decoration:** Non-collidable visual elements rendered in front of the player.
 
 #### **Chronal Rift Checkpoints**
-*   **Frequency:** Exactly **2 checkpoints per level** (or **3** if the level is exceptionally long). The first checkpoint is placed approximately halfway through the level progression, and the second checkpoint is placed immediately before the boss encounter.
+*   **Frequency (V7 — matches the shipped campaign):** **3 checkpoints per level** (`{levelID}_checkpoint_{0,1,2}`): one at the level entry, one approximately halfway, one immediately before the boss encounter. **Hard-difficulty wrinkle (V7):** on Hard, the *middle* checkpoint is inert (visibly fractured, cannot be stabilized) — death costs real ground on the difficulty that advertises it, without touching the pre-boss anchor.
 *   **Visual States:**
     *   *Inactive:* Appears as a floating, closed **Chronal Fracture** (a jagged, narrow tear in spacetime showing moving clock cogs and pixelated background static, glowing a dull orange/red).
     *   *Active:* Appears as a stable, open **Swirling Cyan Chronal Rift** (encircled by rotating clock rings, emitting light rays and particles).
-*   **Activation Trigger:** To activate the rift, the player must strike the inactive Chronal Fracture with a **Standard Attack or Special Move**. This discharges the player's localized chronal energy into the crack. The rift expands and stabilizes into its cyan active state, playing a dimensional tearing SFX, saving the player's progress (`SaveManager`), and displaying a HUD notification: "Timeline Anchor Stabilized".
+*   **Activation Trigger (V7 — strike-to-activate is confirmed, closing the open question):** To activate the rift, the player must strike the inactive Chronal Fracture with a **Standard Attack or Special Move**. This discharges the player's localized chronal energy into the crack. The rift expands and stabilizes into its cyan active state, playing a dimensional tearing SFX, saving the player's progress (`SaveManager`), and displaying a HUD notification: "Timeline Anchor Stabilized". The interim walk-through triggers are a divergence to close — the strike is the campaign's recurring ritual and ties the checkpoint to the resonance fantasy. (Exception: the entry checkpoint self-activates, since the player just arrived through it.)
 *   **Single Portal Hub Architecture (No Fast Travel / No Level Maps):** Fast travel between active rifts, timeline map overlays, and in-game level maps are completely absent. All campaign progression is linear within each stage. The Archive Time-Ship features a single active Temporal Portal on the bridge that exclusively loads the player's active current story level at their latest reached checkpoint.
 
 #### **Enemy Spawn Rules**
@@ -2550,19 +2841,14 @@ Room 4 (1 screen, boss arena):
     Phase 2 (50% HP): Gains a spinning blade whirlwind AoE + increased speed.
 ```
 
-#### **Remaining Level Layouts & Puzzle Specifications (Deferred)**
-> **Status: Deferred to the level design phase.**
-> Room-by-room layouts and puzzle designs for Levels 2–15 will be authored during dedicated level design production. The Level 1 Florence layout above serves as the structural template.
->
-> **Per-Level Design Checklist (to be completed for each of Levels 2–15):**
-> - [ ] Room count and approximate screen dimensions per room
-> - [ ] Checkpoint placement (minimum 2 per level; 3 for exceptionally long levels)
-> - [ ] Enemy population roster with spawn positions and patrol routes
-> - [ ] Puzzle type and mechanic description (if applicable)
-> - [ ] Environmental hazard placement and timing parameters
-> - [ ] One-way platform and vertical shaft layout
-> - [ ] Chronal Extractor placement (quantity and location)
-> - [ ] Boss arena geometry and platform layout
+#### **Remaining Level Layouts & Puzzle Specifications (V7 status update)**
+> **Status: Levels 2–15 are authored** (Package 5, 2026-08-08) — per-level dossiers, room graphs, the locked encounter economy, checkpoints, boss arenas, and extractors live in `docs/PACKAGE5_CAMPAIGN_PLAN.md`, which is the per-level authority. What remains against this design is the **V7 delta**, applied level-by-level:
+> - [ ] The mechanical-spine assignment per level (Section 3) — each level's signature system taught solo, then remixed; retire the copy-paste repeats (the same shield-tower gate in L2 *and* L11, the same searchlight in L4 *and* L9 — the second instance must remix, not repeat)
+> - [ ] At least one `PuzzleManager`-driven "Read, Plan, Execute" room per level from Level 3 onward (today puzzles exist in one level)
+> - [ ] One secret room/cache per level from Level 2 onward (`TreasureChest` or off-path Extractor), counted on the results screen
+> - [ ] Extractor placement moved off the critical path; idle-cycle discharge behaviour (Section 3)
+> - [ ] The authored boss phase mechanic (Section 6) and boss intro ritual
+> - [ ] Open-pit rooms where the era supports them (Paris's pit is authored in the dossier and must survive into the build — audit H-11's Story-side sibling)
 
 ### **Items & Power-Up System**
 
@@ -2587,7 +2873,8 @@ Defeating enemies triggers visual loot drops that aid the player's survival and 
 #### **2. Fighter Mode (Versus) Rules**
 *   **Lobby Setting Toggle:** Lobby settings contain a master **Items Toggle (On/Off)**.
 *   **Items Off:** No random power-ups or healing items spawn during the match.
-*   **Items On:** Chronal Orbs randomly materialize across the stage platforms. Breaking or capturing an orb yields one of four Chronal Orb types: **Temporal Restoration** (Healing, instantly restores 20% of the player's maximum HP), **Chronal Haste** (Speed Boost, increases horizontal movement speed by 40% and air control multiplier by 20% for 8 seconds), **Tectonic Uplift** (Jump Boost, increases jump force and double-jump height by 30% for 8 seconds), or **Temporal Aegis** (Special Shield, grants a glowing chronal shield bubble that absorbs the next incoming attack, negating all damage and knockback from that hit).
+*   **Items On:** Chronal Orbs materialize at authored stage anchors. Breaking or capturing an orb yields one of four Chronal Orb types: **Temporal Restoration** (Healing, instantly restores 20% of the player's maximum HP), **Chronal Haste** (Speed Boost, increases horizontal movement speed by 40% and air control multiplier by 20% for 8 seconds), **Tectonic Uplift** (Jump Boost, increases jump force and double-jump height by 30% for 8 seconds), or **Temporal Aegis** (Special Shield, grants a glowing chronal shield bubble that absorbs the next incoming attack, negating all damage and knockback from that hit).
+*   **One Orb Taxonomy Across Modes (V7):** the game has a **single Chronal Orb vocabulary** — the four Fighter types above plus a fifth, **Resonance Surge** (+15 Ultimate Meter), used where meter pickups are wanted. Story Mode pickups (`ChronalOrbItem`) and the hub Holodeck use the *same five names, icons, and effects* as Fighter stages; the V6 split into two parallel orb vocabularies (Heal/Haste/Uplift/Aegis vs. HP/Meter/Speed/Damage/Shield) is retired. Story-only "Damage" style buffs remain ordinary difficulty-scaled drop items (above), not orbs.
 
 ---
 
@@ -2608,17 +2895,17 @@ On application launch, the game executes the following initialization pipeline:
 *   **Quit Game Behavior:** Selecting "Quit Game" displays a confirmation modal: *"Are you sure you want to quit?"* with **Confirm** and **Cancel** buttons. Selecting Cancel returns to the Main Menu. Selecting Confirm immediately terminates the application process (`GetTree().Quit()`).
 
 #### **2. Story Mode Flow**
-1.  **Save Select Screen:** Dynamic scrolling list displaying all saved games (unlimited save profiles).
+1.  **Save Select Screen:** Displays the **three story save slots** with localized summaries (character portrait/name, level, playtime, last-saved timestamp).
     *   **New Game:** Selecting this option transitions the player to the **Character Select Screen** to select their character for the campaign run. After confirming a character, the player is presented with a **Difficulty Select Screen** (Easy / Normal / Hard) showing description tooltips for each difficulty tier. Confirming a difficulty locks it for the save profile, then plays a character-specific placeholder intro cinematic, which transitions into Level 0 (Intro/Tutorial Level).
     *   **Load Game:** Bypasses character selection and intro cinematics, loading the selected save profile. Each save file entry displays the selected character (portrait and name), the current level/location, current playtime, and the date/time of the last save. Selecting a save file loads the player directly into the Archive Time-Ship Hub (if between levels) or the start of the current level at the last checkpoint.
     *   **Delete Save:** Selecting an existing save file presents both "Load" and "Delete" options. Choosing "Delete" triggers a confirmation modal: *"Delete this save? This action cannot be undone."* with Confirm and Cancel buttons. Confirmed deletion permanently removes the save file and its `.bak` backup from disk.
 
 #### **3. Fighter Mode Flow**
-1.  **Network Select Screen:** Choose **Local Multiplayer** or **Online**.
+1.  **Network Select Screen:** Choose **Local Multiplayer** or **Online**. *(V7.3: the initial release routes straight to Local — the LAN/Online entries and this screen's network half return with Package 7.)*
     *   If Online: Lobby UI to search for matches, invite friends, or view ping/latency.
 2.  **Character Select Screen (CSS):**
     *   **Grid of character portraits:** For the initial build, all 9 characters are unlocked and display high-quality active portraits. Locked states, padlocks, and progressive unlock tooltips are deferred to a post-development balance phase. Confirming on a portrait selects it.
-    *   **Duplicate Selection Prevention:** Players are disallowed from selecting the same character. When a player hovers over or confirms a character, that slot is flagged as "Reserved/Occupied" by their Player ID. If another player attempts to place their selection token on the same character, the action is blocked, and an unavailable buzz SFX plays.
+    *   **Mirror Matches Allowed (V7.3 — duplicate prevention removed):** both players may select the **same character**. The old "Reserved/Occupied" duplicate-selection block is retired — it contradicted the mirror-match tint spec (Section 6: player-slot outline tints disambiguate mirrors) and the Mirror Paradox boss, and platform fighters allow mirrors as a rule. Slot-color tints carry the disambiguation.
     *   **Selection States & Visual Previews:** 
         *   *Hovering:* Moving the selection token renders a large 2D preview (idle animation or sprite preview) on that player's respective half of the screen, showing the character's playstyle archetype, speed/weight stat bars, and a difficulty rating (1 to 5 stars).
         *   *Ready Toggle:* Pressing the confirm button locks in the character, plays a character-specific selection vocal SFX, flashes the background card with their theme color, and locks the selection token in place with a "READY" banner overlay. Pressing the cancel button unlocks the state.
@@ -2631,6 +2918,16 @@ On application launch, the game executes the following initialization pipeline:
     *   Rotating carousel or grid of unlocked historical arenas.
     *   For the initial build, all 10 Fighter Mode stages are unlocked and available immediately. Detailed progressive stage unlocking is deferred to a post-development phase.
     *   GameManager stores chosen characters and stage, unloads menu scene, loads fight scene.
+
+### **Fighter Onboarding: Move List, Systems Card & Holodeck Drills (V7.3 — new)**
+Before V7.3 every mechanic tutorial lived in Story Level 0, and a player booting straight into Fighter Mode received zero instruction on Rally, Defy History, Echo Step, grabs, DI, teching, or the block-shatter rules — with no move list anywhere in the game. Fighter Mode is a pillar; it gets its own player-facing layer. Three pieces, in implementation order:
+
+1.  **Per-Character Move List screen (implemented with V7.3):**
+    *   **Entry points:** a **"Move List"** button on both pause menus (Story shows the campaign character; Fighter pause offers either active fighter) and a Move List action on the focused Character Select tile.
+    *   **Content, sourced live from the shipped data — never a second authored copy of any number:** basic string (per-character opener/finisher startup, damage shape, and reach from `BasicComboRules.StringProfiles`, plus the up/down directional variants), grabs & throws (universal 10/4/24 frames, the three throws, one triangle note), specials & movement ability & ultimate (name, description, damage, cooldown, and icon from the character's `.tres` resource), and universal movement (roll frames, double jump, fast fall from `UniversalMovementRules`).
+    *   **Layout:** character header (portrait/name/archetype), sections as above; frame numbers displayed in a consistent `startup/active/recovery` notation.
+2.  **Universal Systems Card (implemented with V7.3):** one static, localized page reachable from the Character Select footer and the Move List screen — eight short sections: block & shatter (charges, lockout, shieldstun), the attack/block/grab triangle, DI, landing tech, Rally & Desperation, Defy History, Echo Step & Resonance Momentum, Overtime. One sentence plus one number each; the card is a reference, not a lesson.
+3.  **Holodeck Guided Drills (spec'd now, implementation deferred):** the in-hub Holodeck console gains a "Calibration Drills" entry — short scripted drills for the universal verbs (block the string then escape after Hit 2; tech a launch; DI a finisher; grab a blocking dummy; Echo Step a whiffed special; reclaim a Rally echo). Each drill is pass/fail with a one-line coaching prompt, reusing the Level 0 calibration scripting. Deferred to its own pass — recorded here so the Fighter onboarding layer has a designed home for *practice*, not just reference.
 
 ### **In-Game HUD (Heads-Up Display)**
 
@@ -2755,18 +3052,20 @@ The HUD is structured with explicit Control node hierarchies (with anchors) to e
     *   Block Charges: `20 × 20 px` shield icons below the HP bar. Filled = available, dimmed = consumed. Icons render dynamically based on `maxBlockCharges` (default 3). If modified by Resonance Grid upgrades, additional shield icons are appended to the panel (maximum supported display: 5 icons).
     *   Status Effect Indicator: `28 × 28 px` status icon with radial duration timer, below block charges. Hidden when no status is active.
     *   Currency Counter: Top-right corner, fades in on pickup and fades out after `2.0 seconds`.
+    *   Timeline Integrity (V7.1): `%` readout beside the currency counter, top-right, always visible in Levels 2–15; ticks red with a siphon-hum while any Extractor is draining, steady cyan otherwise.
 *   **Fighter Mode HUD Sizing:**
     *   HP Bars: `400 × 28 px` each, anchored to bottom corners, depleting toward center.
     *   Block Charges: `20 × 20 px` shield icons below each player's HP bar. Filled = available, dimmed = consumed. Default 3 icons; renders dynamically if `maxBlockCharges` differs.
     *   Status Effect Indicator: `24 × 24 px` status icon with radial duration timer, adjacent to each player's HP bar. Hidden when no status is active.
     *   Stock Icons: `24 × 24 px`, displayed below each player's HP bar.
     *   Ultimate Meter: `48 × 48 px` circular indicator, adjacent to HP bar.
-    *   Match Timer: `48 px` font size, `MM:SS` format (e.g. `08:00`), top-center of screen. At `00:10` remaining, text pulses red with a 10s audio warning chime. At `00:00`, if stocks and HP are tied, the match terminates immediately in a **Draw / Tie**.
+    *   Match Timer: `48 px` font size, `MM:SS` format (e.g. `08:00`), top-center of screen. At `00:10` remaining, text pulses red with a 10s audio warning chime. At `00:00`, if stocks and HP are tied, the match enters **Sudden Death** (Section 11).
 *   **Dialogue Box:**
     *   Full-width (`1720 px`), `200 px` tall, bottom-anchored with `100 px` horizontal margin.
     *   Character Portrait: `160 × 160 px`, left-aligned within the box.
     *   Text Area: Remaining width, `28 px` font size, typewriter reveal at **30 characters/second**.
     *   Speaker Name Label: `22 px` bold, displayed above the text area.
+*   **HUD Micro-Behaviours (V7 — committed for initial release, no longer "open"):** these small motions are what make a HUD *read*, and they are cheap; the set is scheduled as one presentation work item: the rewind counter's red pulse at 1 remaining; the dust counter's top-right fade-in on pickup / fade-out after 2 s; the `00:10` match-timer pulse and warning chime; radial cooldown clocks with a completion blink on ready; an **ultimate-ready flash** (meter rim flare plus a one-shot chime when the meter first reaches 100 — which doubles as the public **Defy History** tell); the **Rally echo segment** (a bright inner band on the HP bar draining toward the current-HP edge over 2.5 s, flashing once on reclaim — visually distinct from enemy bars' lagging red underfill); and shield pips dimming with a crack flash on the charge that shatters. All respect the HUD-opacity setting live.
 
 ### **Cutscenes & Narrative Delivery**
 
@@ -2781,24 +3080,24 @@ The HUD is structured with explicit Control node hierarchies (with anchors) to e
 
 #### **In-Level Presentation (No Boss Cinematics)**
 *   **Rule:** There are no separate, cutaway cinematic sequences for boss encounters. All boss introductions, phase transitions, and defeats are rendered directly within the gameplay environment:
-    *   *Boss Introduction:* Upon entering the boss arena, the camera clamps, normal character control is temporarily locked, and the boss drops/marches into the arena. A brief dialogue exchange occurs using the in-game text box system, after which combat initiates immediately.
+    *   *Boss Introduction (V7 — the intro ritual, still in-engine):* Upon entering the boss arena, the camera clamps, normal character control is temporarily locked, and the boss drops/marches into the arena. The **boss name card** (localized title + era subtitle) presents over a 1.5 s establishing beat, the boss shows its signature telegraph once for free, a brief dialogue exchange occurs using the in-game text box system, and combat initiates. Skippable on repeat attempts.
     *   *Boss Defeat:* Upon reaching 0 HP, the boss enters a death animation. The game pauses combat frames, a short text-box dialogue exchange plays, and the portal/rift to return to the hub activates.
 *   **Why it works:** Keeps the players immersed in the action without interrupting gameplay momentum with heavy loading screens or separate cinematic renders.
 
-#### **Major Plot Cinematics**
-*   **Intro & Key Milestones:** Major cinematic sequences are reserved for the game's opening (Intro Level 0 transition to Act I) and key narrative milestones (e.g., Act finales and the ending sequence).
-*   **Technical Implementation:** These major events will be handled via:
-    *   *AnimationPlayer:* For in-engine, real-time animated sequences using sprite sheet character animations.
-    *   *VideoStreamPlayer:* For pre-rendered video playback of finished animatics.
-*   **Writing & Story Scripting:** The specific scripting of dialogue lines, character subplots, and detailed scene-by-scene script writing is deferred to a later production phase.
+#### **Major Plot Cinematics (V7 decision — illustrated dialogue sequences, not animated films)**
+*   **Format Decision:** the "cinematics" at the game's opening, act finales, and ending are **illustrated dialogue sequences**: full-screen hand-drawn stills (2–4 per beat, with slow pan/zoom via `AnimationPlayer`) layered under the standard dialogue box and the game's audio. No pre-rendered video and no `VideoStreamPlayer` path ships in the initial release — the game currently has zero cutscene surface, and this format is the honest, achievable one that matches the no-voice-acting presentation. The **character-specific intro** is this format: one nexus-point still per character (nine stills) over the shared Level 0 opening script, personalized by the character's opening lines (Section 16).
+*   **Writing & Story Scripting:** governed by the V7 character-specific narrative layer in Section 16.
 
 ### **Level Completion & Hub Return Flow**
 Upon defeating a campaign level's boss, the following sequence executes:
 1.  **Boss Defeat Animation:** The boss enters its death animation within the gameplay environment.
 2.  **Post-Boss Dialogue:** A brief text-box dialogue exchange plays in-game (boss defeat narrative delivery).
-3.  **Level Results Overlay:** A full-screen overlay appears displaying:
+3.  **Level Results Overlay (V7 — a mastery loop, not just a receipt):** A full-screen overlay appears displaying:
     *   Total **Chronal Dust earned** during the level (itemized: mob kills, Chronal Extractors, boss reward).
-    *   Total **level completion time**.
+    *   Total **level completion time**, **enemies defeated**, and **rewinds used**.
+    *   **Secrets found** (e.g., "Secrets 1/1" — the per-level secret from Section 3).
+    *   **Timeline Integrity** (V7.1): the final percentage and its tier — Restored / Stabilized / Fractured — with the tier's dust bonus applied to the total.
+    *   A **Chronal Rating** stamp — S / A / B / C, computed from time, rewinds used, secrets found, and Timeline Integrity (thresholds authored per level). The rating is recorded on the save slot per level; it feeds nothing mechanically (no rewards gate on it in the initial release) — it exists purely to make a second, better run feel *seen*.
 4.  **Auto-Deposit:** All accumulated `levelChronalDust` is automatically deposited into the character's `depositedChronalDust` pool in `StorySaveData`. The player does not need to manually interact with the Chronal Repository to deposit level earnings.
 5.  **Return Prompt:** A "Return to Time-Ship" button is displayed. Pressing it triggers the 1.0-second reverse portal fade-to-black transition.
 6.  **Hub Spawn:** The player spawns at the Calibration Bay spawn anchor directly in front of the Chronal Repository on the Archive Time-Ship. The deposited dust is now available for spending on the Temporal Resonance Grid.
@@ -2980,6 +3279,8 @@ Character and enemy sprite assets are produced using a three-step AI generation 
 *   **Step 3 — Sprite Sheet Assembly (Python Script):** A Python normalization script processes all generated individual frame images for each animation. The script performs: (a) background removal and alpha cleanup, (b) canvas normalization to uniform dimensions per animation category, (c) center-of-mass alignment to prevent character drift between frames, and (d) horizontal concatenation of all frames into a single sprite sheet image file. Output sprite sheets follow the naming convention `{character}_{animation}.png` (e.g., `einstein_idle.png`, `joan_basic_attack.png`).
 *   **Idle Animation Override:** The idle animation frames must depict the character in an **active fighting stance** (weight distributed, hands raised, slight bob/sway) rather than a passive standing or breathing pose, to convey combat readiness at all times.
 
+> **V7 style decision — the retro-pulp 3-frame contract supersedes the frame targets below.** The shipped art direction is **retro-pulp raster atlases: exactly 3 frames per animation across all 26 runtime animation names**, for all nine characters (plus per-character four-row ability-VFX atlases). This is a deliberate *style* choice — punchy, poster-like key poses over fluid in-betweens — not a shortfall against the table, and it pairs with the numeric active-frame combat model: hitbox timing is authored as frame *numbers* in `BasicComboRules`/`AbilityData`, *not* read off sprite frames, so 3-frame attacks and frame-perfect combat coexist. The V6 "exact impact frame callback" language describes the *timing contract*, not the sprite density. The table below is retained as the ceiling for any future high-frame-count art pass; any such pass must not change authored combat timing.
+
 **Required Sprite Sheets Per Character:**
 Each playable character requires the following animation sprite sheets (mapped to FSM states defined in Section 4):
 
@@ -3120,17 +3421,20 @@ Priority 1: Idle                (Lowest - default state)
 
 ### **Stage Architecture & Layout Guidelines**
 To keep combat fast, intensely legible, and focused, all Versus arenas adhere to the following stage design standards:
-*   **Single-Screen Viewport:** Unlike the scrolling, Metroidvania-style Story Mode levels, Fighter Mode stages are strictly single-screen. The camera employs a smart framing script that dynamically zooms slightly or pans to keep both combatants in frame on a single screen without scrolling the environment.
+*   **Single-Screen Viewport:** Unlike the scrolling Story Mode levels, Fighter Mode stages are strictly single-screen. The camera employs a smart framing script that dynamically zooms slightly or pans to keep both combatants in frame on a single screen without scrolling the environment.
 *   **Stage Width and Height:** Stages have a fixed width (matching standard viewport aspects, e.g., 16:9 widescreen coordinates). Side boundaries have invisible physical walls that prevent characters from walking or being launched off the left/right screen edges.
-*   **Platforms & Solid Ground Floor:** Every stage features a main ground floor and 2–3 floating, pass-through platforms arranged vertically:
-    *   *Floating Pass-Through Platforms:* Raised upper platforms use one-way colliders (`StaticBody2D` with `one_way_collision = true`), allowing combatants to jump through them from below or drop down (double-tap Down) to lower levels.
-    *   *Solid Ground Floor Rule (No Drop-Through):* The lowest/main platform level of every stage features a strictly solid, non-pass-through ground collider (`PlatformType.SolidGround`). Double-tap Down drop inputs are completely ignored on the ground floor, guaranteeing that players cannot accidentally drop through the main floor of the arena into bottomless pits or self-destruct.
-*   **Blast Zone:** The only hazard area that results in stock life loss is the bottomless pit at the bottom of the screen beyond the stage edges.
+*   **Floor Segments, Pits & Ledges (V7 pillar decision — Option A, resolves audit H-11):** `FighterStageGeometry` authors the main floor as **segments**, not one wall-to-wall slab:
+    *   *Open Stages:* **Paris Bastille** (central lower pit between the drawbridge walkways — its own dossier always said so), **Vesuvius Caldera** (a collapsed shelf on the slope's downhill end), and **Nassau Flagship** (the listing deck's stern simply ends over open water) author real gaps in the main floor. The main-floor edges at these gaps are **true ledges** (grabbable, trump-able, part of the recovery game), and falling through them reaches the bottom blast zone. Far side walls remain solid — the "sides and top are solid" pillar survives because the floor opens *inside* the stage, not at the screen edge.
+    *   *Sealed Stages:* the remaining seven stages keep an unbroken solid floor as deliberate arena layouts. Both stage archetypes are legitimate; the catalog labels each stage `Open` or `Sealed`, and stage select shows the label.
+    *   *Floating Pass-Through Platforms:* every stage keeps 2–3 raised one-way platforms (`one_way_collision = true`); jump through from below, drop through with the drop input, ledge-grab at their ends.
+    *   *Solid Floor Segments (No Drop-Through):* floor segments are strictly solid — drop inputs are ignored on the main floor. Falling into a pit requires being knocked, walking, or falling in; never a mis-input drop.
+*   **Blast Zone:** the bottom blast zone (reachable through open-stage pits) is the only boundary that costs a stock. On sealed stages no blast-zone loss is possible and matches resolve purely on HP/stocks-by-KO. *(V7.3 deferral flag: until the floor-segment build-out phase lands, every shipped stage is effectively sealed.)*
 
 ### **Stage Hazard Timing & Behavior**
 To keep matches competitive but dynamic, era-themed hazards trigger periodically during gameplay.
 
-*   **Activation Intervals:** Hazards activate randomly every **30 to 60 seconds** of active match time.
+*   **Activation Cadence (V7 decision — authored and learnable, not random):** each stage's hazard runs on a **fixed, authored cadence** with real warning/active/recovery phases. The V6 "randomly every 30–60 seconds" is superseded: a learnable-to-the-frame hazard is a *competitive feature* — it rewards stage knowledge the way Smash players learn Smashville's platform — and it is what the deterministic simulation already ships. Spectacle-flavored randomization, if ever wanted, belongs in a casual match-settings option, not the default.
+*   **Overtime (V7.1):** in the final 60 seconds of a timed match the authored cadence **doubles** — idle and recovery phases are halved, the 1.5 s warning phase is untouched. See Section 4, "Time Systems".
 *   **Warning Phase (0 Damage):** When a hazard triggers, it enters a visual warning phase for **1.5 seconds**. During this window, the hazard area is telegraphed (e.g., glowing red target outlines, laser sights, or steam valves venting harmless visual-only particles). The hazard deals **0 damage** during this phase, giving players time to react.
 *   **Active Phase & Tick Damage:** After the warning phase, the hazard becomes active, dealing **5 to 10 HP damage per tick** (with a tick rate of once every **0.5 seconds**). 
 *   **Pulsing Knockback:** Each damage tick pulses outward, applying a **standard knockback force** (base velocity of `Vector2(4.0f, 4.0f)` directed away from the hazard's epicenter) that pushes players out of the threat zone.
@@ -3162,7 +3466,7 @@ To add variety and tactical choices during local and online play, dynamic items 
     *   *Medium Frequency:* Spawns **2 to 3 orbs per minute** (approx. every 20–30 seconds).
     *   *High Frequency:* Spawns **5 to 6 orbs per minute** (approx. every 10–12 seconds).
 *   **Spawn & Despawn Rules:**
-    *   *Randomized Spawning:* Orbs materialize at random coordinates on active floating platforms. Spawns occur randomly within the frequency windows, but a strict **10-second minimum cooldown** is enforced between consecutive spawns to prevent items from clustering.
+    *   *Randomized Spawning:* Orbs materialize at random coordinates on active floating platforms. Spawns occur randomly within the frequency windows, but a strict **10-second minimum cooldown** is enforced between consecutive spawns to prevent items from clustering. **(V7.3)** Both the spawn *coordinates* and the *window timing* are drawn from the **seeded match PRNG** — the same deterministic stream the collection tie-break already uses — never from an unseeded source; identical seeds must produce identical orb schedules on both rollback peers.
     *   *Despawn Timer:* Once an orb spawns, it remains active for **15 seconds**. If no player collects it, the orb dissolves and despawns.
     *   *No Active Cap:* There is no limit on the maximum number of active orbs allowed on the screen simultaneously, bounded only by the 15-second individual lifetimes.
 *   **Collection:** A player collects the orb by walking or jumping through its volume. If two or more fighters overlap a Chronal Orb on the exact same frame, the system selects one of the overlapping players using a **seeded deterministic PRNG** (shared seed synchronized at match start) to ensure rollback-safe determinism.
@@ -3199,7 +3503,7 @@ To provide a compelling training experience in the Holodeck Arena Console, the C
 
 ##### **B. Medium (Level 4–7)**
 *   **Reaction Delay:** 15–20 frames (250–333ms latency).
-*   **Movement Pathing:** Performs simple vertical platform hopping, dashes to close distances, and actively attempts basic spatial zoning (moving backward when the player approaches with active hitboxes).
+*   **Movement Pathing:** Performs simple vertical platform hopping, runs to close distances, and actively attempts basic spatial zoning (moving backward when the player approaches with active hitboxes).
 *   **Offensive Kit:**
     *   **Attacks:** Regularly utilizes basic attack combos on ground and in mid-air.
     *   **Specials:** Uses Special 1 (zoning/projectiles) when at medium-to-long distance (cooldown permitting). Uses Special 2 for simple combo endings or anti-air setups.
@@ -3213,7 +3517,7 @@ To provide a compelling training experience in the Holodeck Arena Console, the C
 
 ##### **C. Hard (Level 8–10)**
 *   **Reaction Delay:** 4–8 frames (66–133ms latency), simulating high-level professional reflexes.
-*   **Movement Pathing:** Dynamic dash-dancing, ledge-cancellation, active wavelanding/slide-offs on platforms, and optimal positioning to control stage center.
+*   **Movement Pathing:** aggressive run-ramp spacing and roll usage (the universal dash no longer exists), platform drop-throughs, ledge play at open-stage edges, and optimal positioning to control stage center.
 *   **Offensive Kit:**
     *   **Attacks:** Executes frame-perfect basic attack strings, aerial follow-ups, and combo starters.
     *   **Specials (High Frequency & Efficiency):** Actively chains specials into combos (e.g., standard attack launches -> Special 1 -> Special 2 finisher). Spams Special 1 for pressure if the player zones. Employs Special 2 instantly as a high-damage anti-air or landing punisher.
@@ -3226,8 +3530,9 @@ To provide a compelling training experience in the Holodeck Arena Console, the C
 *   **Hazard Avoidance:** Immediately vacates hazard zones during the warning phase (before damage begins). Uses movement abilities to escape warning areas quickly when available. Will attempt to bait the opponent into hazard zones by positioning near them and dodging at the last moment.
 
 #### **3. Holodeck Arena Lobby Configuration**
-*   **Difficulty Selection:** The Holodeck Arena Console presents three CPU difficulty options via a dropdown: **Easy**, **Medium**, and **Hard**.
-*   **Character Selection:** The player selects the CPU opponent's character from the full roster of unlocked characters. The CPU character is displayed alongside the player's chosen character in the pre-match screen.
+*   **In-Hub Configuration Surface (V7 — must be its own console UI, not the Fighter select reused verbatim):** the Holodeck console opens a compact configuration panel *in the hub* — CPU difficulty, CPU character, stage, and rules — then launches straight into the match. The Holodeck is the interim training mode; a three-screen fighter-select round trip for a practice bout defeats its purpose. ✅ applied 2026-08-24 — the console opens `HolodeckConsolePanel` in the hub (difficulty / CPU roster / stage catalog / mode, stocks, timer, orbs, hazards, all initialized from the persisted house rules) and Launch routes directly to the stage scene with the return-to-hub flag set.
+*   **Difficulty Selection:** three CPU difficulty options: **Easy**, **Medium**, and **Hard**.
+*   **Character Selection:** The player selects the CPU opponent's character from the full roster. The CPU character is displayed alongside the player's chosen character in the pre-match screen.
 *   **Stage & Rules:** Standard Fighter Mode lobby settings apply (stage selection, stock count, time limit, Chronal Orb frequency, hazards toggle).
 
 #### **Training Mode (Deferred)**
@@ -3258,7 +3563,7 @@ To provide a compelling training experience in the Holodeck Arena Console, the C
     *   If a disconnect occurs after 50% match completion, the remaining connected player is awarded a default win (+rating), and the disconnected player receives a loss penalty.
 
 ### **Pause Screen Rules**
-The Pause Screen is available in **Campaign (Story) Mode** and **Local Fighter Mode** (shared-screen and LAN). Pausing is disabled in **Online Fighter Mode** to preserve real-time competitive gameplay. Pausing halts the gameplay frame update loop (`GetTree().Paused = true`, or `Engine.TimeScale = 0`). Pause menu UI nodes are set to `ProcessMode.WhenPaused` so they continue processing while gameplay nodes remain paused.
+The Pause Screen is available in **Campaign (Story) Mode** and **shared-screen Local Fighter Mode**. Pausing is disabled in **all networked matches** — LAN and online alike **(V7.3 correction:** a local `SceneTree.Paused` freeze halts only one peer's sim and permanently desyncs a rollback session; networked pause returns only when Package 7's *synced pause input* exists — see the netcode chapter**)**. Pausing halts the gameplay frame update loop (`GetTree().Paused = true`, or `Engine.TimeScale = 0`). Pause menu UI nodes are set to `ProcessMode.WhenPaused` so they continue processing while gameplay nodes remain paused.
 
 #### **Online Fighter Mode Forfeit Mechanism**
 Since pausing is disabled in Online Fighter Mode, a dedicated forfeit mechanism exists for players who wish to intentionally exit a match without incurring disconnect penalties:
@@ -3271,14 +3576,16 @@ Since pausing is disabled in Online Fighter Mode, a dedicated forfeit mechanism 
 *   **Resume:** Returns immediately to gameplay, restoring `GetTree().Paused = false` (or `Engine.TimeScale = 1`).
 *   **Settings:** Opens the Settings overlay (see Section 12).
 *   **Save:** Triggers a background auto-save to the player's active Story Save profile (writing progress to `StorySaveData.cs`).
-*   **Restart Level:** Resets the player to the start of the current level's last-reached checkpoint. The player respawns with 100% HP and a full rewind pool. Enemies located prior to the checkpoint remain defeated; only enemies after the checkpoint are respawned. A confirmation prompt ("Are you sure? Unsaved progress will be lost.") is displayed before executing the restart.
-*   **Exit:** Displays a confirmation prompt ("Exit to Main Menu? You will lose 50% of undeposited Chronal Dust."). On confirmation, the player retains **50% of their accumulated `levelChronalDust`** (rounded down) — the other 50% is forfeited. The retained dust is saved to the player's `StorySaveData` and available when the level is re-entered at the last checkpoint. The gameplay scene is then unloaded and the player returns to the Main Menu scene.
+*   **Move List (V7.3):** opens the campaign character's Move List overlay (see Fighter Onboarding, Section 7).
+*   **Restart Level (V7.2 — a true restart, not a free heal):** restarts the **entire level from its beginning**: all checkpoints are cleared, every enemy, Extractor, pickup, Restoration Font, and puzzle resets to its initial state, and the player begins fresh with 100% HP and a full rewind pool. **All undeposited Chronal Dust earned in the level is cleared to zero** — the attempt never happened. Confirmation prompt: *"Restart the level from the beginning? All Chronal Dust earned this level will be lost."* (The V7 rule — restart to the last checkpoint at full HP and full pool, free — let players farm infinite full-strength boss attempts from the pre-boss checkpoint, nullifying Hard's rewind pool, Timeline Collapse, and the death penalty. Checkpoint-resume now belongs exclusively to the rewind/Collapse path, where it is priced.)
+*   **Exit:** Displays a confirmation prompt ("Exit to Main Menu? You will lose 20% of undeposited Chronal Dust."). On confirmation, the unified exit rule applies (Section 3): the player forfeits **20% of their accumulated `levelChronalDust`** (rounded down) and retains the rest, saved to `StorySaveData` and available when the level is re-entered at the last checkpoint. The gameplay scene is then unloaded and the player returns to the Main Menu scene.
 
-> **Design Rationale (Graduated Penalty Structure):** The graduated penalty structure incentivizes checkpoint restarts (0% dust loss) over voluntary exit (50% loss) while ensuring Timeline Collapse (20% loss) is less punishing than quitting. This encourages players to attempt recovery rather than rage-quitting, rewarding persistence with preserved resources.
+> **Design Rationale (V7.2 — the priced recovery ladder):** the V6 graduated exit structure taught players to prefer a crash over the quit button, and the V7 "free checkpoint restart" taught them to prefer the pause menu over playing. V7.2 prices every recovery route so persistence is always cheapest: **a rewind costs a charge** (and heals only partially), **Timeline Collapse costs 20% of undeposited dust** and resumes at the checkpoint, **Restart Level costs the whole level's undeposited dust** and starts over, and **Exit costs 20% and leaves**. Deposited dust is always safe; no route is ever both free and restorative.
 
 #### **Local Fighter Mode Pause Menu**
 Any local player can trigger pause. The following options are displayed:
 *   **Resume:** Returns immediately to gameplay, restoring `GetTree().Paused = false` (or `Engine.TimeScale = 1`).
+*   **Move List (V7.3):** opens the Move List overlay for either active fighter (see Fighter Onboarding, Section 7) without leaving the pause state.
 *   **Settings:** Opens the Settings overlay (see Section 12).
 *   **Exit:** Unloads the gameplay scene and returns all players to the Fighter Mode character select lobby.
 
@@ -3299,16 +3606,17 @@ When a player loses their final stock (or the match timer expires with a decisiv
 *   **Post-Match Win/Loss Screen:** Bypasses detailed match stat sheets. Displays a simple victory/defeat animation screen featuring the winning character's portrait and victory stance alongside a "Player X Wins!" overlay.
 *   **Versus Statistics Logging:** The system updates global wins, overall losses, and character-specific win/loss tallies in `GlobalSaveData.cs` immediately upon match conclusion.
 
-#### **Draw/Tie Resolution**
-When a match ends in a Draw/Tie (timer expires with equal stocks and equal HP percentage), the following occurs:
-*   A **"DRAW"** text stamp replaces the standard KO text overlay at screen center.
-*   Neither player's victory or defeat animation plays. Both characters display their idle pose.
-*   The result is **NOT logged** as a win or loss in `GlobalSaveData` statistics. The match is counted in the "total matches played" tally but does not affect win/loss ratios.
-*   Players proceed to the same Return/Lobby Flow as a normal match conclusion.
+#### **Sudden Death & Draw Resolution (V7 — a tie is a climax, not a shrug)**
+*   **Stock-Mode Timer Default (V7):** Stock mode now defaults to the **8:00 timer as well** (configurable, including Off) — an infinite stock match with two turtling players needs a horizon. Timer expiry compares stocks, then HP.
+*   **Overtime (V7.1):** the final 60 seconds of any timed match are **Overtime** — hazard cadence doubles and the Desperation Resonance echo fraction is ×1.5 (cap 0.60), announced by a "Timeline Destabilizing" stamp at 1:00. Endings accelerate before any tie can happen; see Section 4, "Time Systems".
+*   **Sudden Death (V7, replaces the immediate draw):** if the comparison is a true tie, the match enters **Sudden Death**: both fighters respawn at their spawn points with **1 HP**, no timer, hazards forced on at an accelerated cadence, **Chronal Orbs disabled (V7.3** — a Temporal Restoration orb at 1 HP would decide the round by spawn luck**)** — first hit ends it. A double-KO within Sudden Death (simultaneous hazard kill) is the only path to a recorded **Draw**. **Defy History is disabled during Sudden Death** (the first hit must end it), and Rally is moot at 1 HP.
+*   **Draw handling (unchanged when it does occur):** a "DRAW" stamp replaces the KO text, both characters idle, and the result is NOT logged as a win or loss (counted only in total matches played).
 
-*   **Return and Lobby Flow:**
-    *   *Local / Private / LAN Match:* At the end of a match, both players are presented with a **"Rematch"** or **"Return to Character Select"** prompt. If both players select Rematch, the match restarts instantly with the same characters and stage. If either player selects Return to Character Select, both players return to the local Versus character select lobby to swap characters and start another match.
-    *   *Random Public Matchmaking:* Players are returned to the matchmaking queue screen. Character selection occurs immediately before entering a new match queue.
+*   **Return and Lobby Flow (V7 — expanded):**
+    *   *Local / Private / LAN Match:* At the end of a match, players are presented with three options: **"Rematch"** (same characters, same stage, instant restart — the per-match seed rerolls), **"New Stage"** (same characters, back to stage select only), or **"Change Fighters"** (back to character select). Any player can trigger New Stage / Change Fighters; Rematch requires both.
+    *   *Match Settings Persist (V7):* the last-used `MatchSettings` (stocks, timer, items, hazards) are stored in the global save and pre-loaded on the next session — set-and-forget for a household's house rules.
+    *   *Handicap (V7, local only):* an optional per-player damage-ratio handicap (0.8×–1.2× dealt damage, default 1.0) in local match settings. Excluded from any future online/ranked context.
+    *   *Random Public Matchmaking (post-launch):* Players are returned to the matchmaking queue screen. Character selection occurs immediately before entering a new match queue.
 
 ---
 
@@ -3324,17 +3632,20 @@ The Settings Menu is accessible from the Main Menu and the Story Mode Pause Menu
     *   *Screen Mode:* Fullscreen, Borderless Window, or Windowed toggle.
     *   *V-Sync Toggle:* Enables/disables vertical synchronization via `DisplayServer.WindowSetVsyncMode()` to prevent screen tearing (locked at 60 FPS).
 *   **Controls & Keybindings:**
-    *   *Input Remapping:* Allows keyboard and controller button rebindings for all basic moves (Left, Right, Jump, Roll, Block, Basic Attack, Special 1, Special 2, Movement Ability, Ultimate) via Godot's `InputMap` API. Remapped `InputMap` actions are serialized to JSON. Dash remains a gesture derived from the remapped horizontal actions.
+    *   *Input Remapping:* Allows keyboard and controller button rebindings for all remappable actions (Left, Right, Up, Down, Jump, Roll, Block, Basic Attack, Special 1, Special 2, Movement Ability, Interact) via Godot's `InputMap` API, with one binding slot per device kind, conflict detection that names the owning action, and per-action plus global reset-to-default. The `Ultimate` LB+RB chord is shown read-only (not expressible as a single-event remap). Bindings persist in the global payload (schema v4), storing only actions that differ from defaults.
 *   **Gameplay Settings:**
     *   *Damage Numbers Toggle:* Toggles the floating combat text display on/off.
-    *   *HUD Transparency Slider:* Adjusts alpha opacity of on-screen bars.
+    *   *HUD Transparency Slider:* Adjusts alpha opacity of on-screen bars (polled live).
     *   *Screen Shake Slider:* Scales camera shake intensity on heavy impacts (0.0 to 1.0 multiplier).
+    *   *UI Scale (V7):* 90%–140% scale applied to theme font sizes and HUD layout (see Accessibility).
+    *   *Match Settings Memory (V7):* the last-used Fighter `MatchSettings` persist here automatically (see Section 11).
 
 ---
 
 ## **13. Localization Strategy**
 *   **Architecture Setup (Day 1 Support):** All UI elements, menu items, HUD labels, and dialogue strings reference key-based string lookups (e.g. `TranslationServer.Translate("UI_CONFIRM")` or the built-in `Tr("UI_CONFIRM")`) rather than hardcoded string literals. This ensures the codebase is structurally ready for localization from day 1 without requiring code refactoring.
-*   **Deferred Implementation:** Full multi-language translation passes (Spanish, French, German, Japanese, etc.), localized JSON payload files (`es.json`, `de.json`, `ja.json`) or Godot native `.translation` resources loaded at runtime, language selection UI dropdowns, and CJK font fallback assets (via Godot's `Font` fallback system with `SystemFont` or imported `.ttf`/`.otf`) are **intentionally deferred to later stages of the development cycle**. Initial pre-alpha and alpha builds will run using only the default English string table (`en.json`).
+*   **Shipped Mechanism (V7):** English keys live in `localization/en.csv`, compiled by the Godot import into `localization/en.en.translation`, which is registered in `project.godot` with English fallback — `Node.Tr()` reads the **compiled** resource, so the CSV must be re-imported (and the regenerated `.translation` committed) whenever keys change. Authored `.tscn` controls store the raw key as their `text` and let Godot's automatic control translation resolve it, so a future language change follows without rebuilding surfaces. Automated gates sweep both directions (every `Tr()` literal and visible scene `text` resolves; orphaned keys are reported).
+*   **Deferred Implementation:** Full multi-language translation passes (Spanish, French, German, Japanese, etc.), language selection UI dropdowns, and CJK font fallback assets are **intentionally deferred to later stages of the development cycle**. Initial builds run English-only on the mechanism above.
 
 ---
 
@@ -3343,14 +3654,17 @@ The Settings Menu is accessible from the Main Menu and the Story Mode Pause Menu
     *   Core systems are designed as headless C# classes to enable rapid automated validation via **GdUnit4** (or NUnit for C# tests). Unit tests (formerly EditMode) run without the engine scene tree; integration tests (formerly PlayMode) run within a Godot scene tree context. Test methods use GdUnit4 `[TestCase]` or NUnit `[Test]` attributes.
     *   *FSM State Machine Validation:* Automated scripts instantiate character controller scripts, trigger simulated inputs (e.g., getting hit while attacking), and assert that the FSM transitions to the correct state (e.g., `Stunned`).
     *   *Status Effects Processing:* Tests apply buffs or debuffs (e.g., Slow, Venom) to a dummy target, verify that `currentHP` or speed multipliers adjust correctly, and check that durations expire after the designated ticks.
-    *   *Rewind Coordinate Buffer:* Unit tests populate a circular frame buffer with mock state frames (some marked grounded, some airborne) and verify that the rewind search successfully locates the latest grounded coordinates.
+    *   *Rewind Coordinate Buffer:* Unit tests populate a circular frame buffer with mock state frames (some marked grounded, some airborne) and verify that the rewind search lands on the grounded frame **nearest the full buffer depth** (the V7 semantics), that the last-known-grounded and checkpoint fallbacks fire in order, and that a death on solid ground still produces a non-zero rewind distance.
 *   **Playtesting & Continuous Tuning:**
     *   Playtesting methodology and user feedback collection procedures will be established when the game enters a fully playable test mode.
 
 ---
 
 ## **15. Character Balance Philosophy**
-*   **Tuning Placeholder:** Detailed balancing metrics, frame data tweaking, knockback adjustments, and character tier methodologies will be finalized in later production stages after sufficient internal and external playtesting.
+*   **Normals First (V7 principle):** a character *is* their basic string, movement stats, and one distinguishing movement-ability rule; specials are punctuation, not the sentence. Any tuning state where waiting on a cooldown beats playing neutral is a balance bug by definition — see the Section 5 rebalance directive (specials ≈1.5× a string, differentiated by startup/cooldown/hitstun/angle). **Made true in data by the V7.1 string profiles (2026-08-22):** every character now owns their string's speed, damage shape, and reach — see Section 4.
+*   **Identity Axes:** weight and air control carry physical identity (jump heights are deliberately compressed); archetype identity comes from ability *shape* — where a kit wants to stand, not how hard it hits.
+*   **Both Modes, One Kit:** every tuning change must be evaluated in Story (against the encounter economy and boss HP pools) and Fighter (against 1v1 neutral) before it lands; the shared resources make a single-mode "quick fix" impossible by design.
+*   **Tuning Process:** detailed frame-data tweaking and tier methodology follow internal and external playtesting; numbers land in `resources/**/*.tres` as auditable batches, never in prose first.
 
 ---
 
@@ -3360,10 +3674,15 @@ This section documents the core dialogue sequences and storyboard scripts that d
 ### **Dialogue Mechanics**
 *   **Typewriter Reveal:** 30 characters per second.
 *   **Portraits:** 2D hand-drawn character portraits showing emotional variations (Neutral, Determined, Shocked, Injured).
-*   **Interaction:** Pressing the confirm button instantly completes the typing effect if it is currently typing out. Pressing the confirm button after the text is fully typed out advances to the next dialogue slide. Completely skipping dialogue sequences is not allowed.
+*   **Interaction:** Pressing the confirm button instantly completes the typing effect if it is currently typing out. Pressing the confirm button after the text is fully typed out advances to the next dialogue slide. Completely skipping dialogue sequences is not allowed on a first viewing. **(V7.3)** On a save slot whose campaign is **completed**, any dialogue sequence the player has **previously seen** becomes hold-to-skippable: holding the confirm/Interact action for **0.75 s** fast-forwards the whole sequence, with a "hold to skip" hint shown. Nine per-character replays are the game's replay pitch; the second viewing of the same scene must respect the player's time. (This extends the boss-intro repeat-skip precedent to dialogue.)
 
-#### **Character-Specific Narrative Variations (Deferred)**
-Character-specific dialogue variations (unique lines when a character plays their "home" era level, e.g., Joan of Arc returning to Orléans or Einstein encountering his own timeline) and per-character narrative adaptations are deferred to the narrative authoring phase. The current dialogue scripts use generic player character lines that work for any selected character.
+#### **Character-Specific Narrative Layer (V7 — authored scope, no longer deferred)**
+The campaign locks one character for a whole playthrough; the writing must acknowledge who that is, or the lock is pure friction. The V7 layer is deliberately small and bounded — **≈50 short lines per character (≈450 total)** — and consists of exactly four families:
+
+1.  **Named address:** the hero's dialogue rows use their name and voice; "Traveler" survives only as Sarah's affectionate nickname in her opening line, never as the universal speaker label.
+2.  **Level 0 nexus opening (per character):** the Fracture opens at *this* character's historic nexus point, as Section 3 already specifies — one illustrated still plus 2–3 opening lines each (Einstein's Princeton study, Joan's Orléans vanguard, Mozart mid-concerto...). The shared tutorial script resumes after the personalized cold open.
+3.  **One hero line per level (16 per character):** a single entrance *or* exit line per level in the character's voice — Joan returning to Orléans, Lincoln at Gettysburg, and Cleopatra in Alexandria get the obvious home-era beats; everyone else gets an outsider's observation. One line is enough for presence; sixteen fully-branched scripts are not the scope.
+4.  **Per-act Sarah + crew refresh:** Sarah's dialogue set changes each act (see the hub NPC table in Section 3), and Medic Okafor's observation-deck lines react to the chosen character at each act boundary. Two lines for the whole game is the failure mode this rule exists to prevent.
 
 ---
 
@@ -3437,6 +3756,8 @@ Character-specific dialogue variations (unique lines when a character plays thei
 ## **17. Asset Generation Specifications**
 
 This section lists all visual, auditory, and environmental assets required to fully build the game, including characters, enemies, environments, and UI.
+
+> **V7 status & pipeline note.** The shipped asset pipeline is the **retro-pulp raster contract** (Section 9): per character, five transparent 96×128-cell atlases carrying **exactly 3 frames for each of the 26 runtime animation names**, one four-row 192×192 ability-VFX atlas, and a 512×512 transparent portrait — deterministically rebuilt by the `tools/` build scripts, with a headless SVG→PNG pipeline (`tools/generate_assets.gd`) for UI/backdrop plates. All nine characters, both enemy scene tiers, and the menu/backdrop surfaces are populated under this contract today. The per-animation frame ranges below are retained as the *future high-frame-count ceiling* only; any asset produced now must satisfy the 3-frame contract and the feet-on-origin convention, and must not alter authored combat timing.
 
 ### **Character Assets**
 Each of the 9 playable characters (Einstein, Joan of Arc, Da Vinci, Lincoln, Cleopatra, Tesla, Shakespeare, Mozart, Pocahontas) requires the following assets:

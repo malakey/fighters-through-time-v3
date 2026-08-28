@@ -295,6 +295,7 @@ namespace FTT.FighterSim {
         public string GetStateLabel(int playerID) {
             if (!TryGetFighter(playerID, out FighterStateComponent state)
                 || !TryGetRuntime(playerID, out FighterRuntimeComponent runtime)) return "Unavailable";
+            TryGetVerb(playerID, out FighterVerbComponent verb);
             if (state.Stocks <= 0) return "Knocked Out";
             if (FighterMatchFlowRules.IsOnRespawnPlatform(in state)) return "Respawn Platform";
             if (Simulation.GetMatchState().MatchState == FighterMatchStates.Countdown) return "Countdown";
@@ -306,7 +307,7 @@ namespace FTT.FighterSim {
             if (state.DazeFrames > 0) return "Dazed";
             if (state.HitstunFrames > 0) return "Stunned";
             if (FighterBasicAttackRules.IsSwinging(in runtime)) return "Attacking";
-            if (FighterBasicAttackRules.IsBlockStance(in state, in runtime)) return "Blocking";
+            if (FighterBasicAttackRules.IsBlockStance(in state, in runtime, in verb)) return "Blocking";
             return state.IsGrounded != 0 ? "Grounded" : "Airborne";
         }
 
@@ -786,7 +787,8 @@ namespace FTT.FighterSim {
             if (runtime.UniversalMovementState is (int)UniversalMovementPhase.RollStartup
                 or (int)UniversalMovementPhase.RollTravel
                 or (int)UniversalMovementPhase.RollRecovery) return "roll";
-            if (FighterBasicAttackRules.IsBlockStance(in state, in runtime)) return "block";
+            TryGetVerb(playerID, out FighterVerbComponent verb);
+            if (FighterBasicAttackRules.IsBlockStance(in state, in runtime, in verb)) return "block";
             if (state.IsGrounded == 0) {
                 return state.Velocity.y > xpTURN.Klotho.Deterministic.Math.FP64.Zero ? "jump" : "fall";
             }

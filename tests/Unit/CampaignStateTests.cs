@@ -49,6 +49,41 @@ public class CampaignStateTests {
     }
 
     [TestCase]
+    public void ResetCampaignStateClearsCollapseAndPerAttemptResidue() {
+        // V7.3: a fresh campaign must inherit nothing from the previous one —
+        // no pending collapse restart, no boss intros marked seen, no
+        // activated checkpoints/extractors/secrets, no collapse-beat flag.
+        StoryManager story = StoryManager.Instance;
+        AssertObject(story).IsNotNull();
+        try {
+            story.RecordBossIntroSeen("residue_boss");
+            story.TryActivateCheckpoint("residue_checkpoint");
+            story.RecordExtractorDestroyed("residue_extractor");
+            story.RegisterSecretFound("residue_secret");
+            story.RecordFontUse("Residue:font");
+            story.MarkCollapseBeatSeen();
+            story.DrainTimelineIntegrityAmount(1f); // no-op unless a run is live
+
+            story.ResetCampaignState(Difficulty.Normal);
+
+            AssertThat(story.HasPendingTimelineRestart).IsFalse();
+            AssertString(story.CollapsedCheckpointID).IsEqual("");
+            AssertThat(story.HasSeenBossIntro("residue_boss"))
+                .OverrideFailureMessage("Boss intros must replay for a fresh campaign.")
+                .IsFalse();
+            AssertThat(story.IsCheckpointActivated("residue_checkpoint")).IsFalse();
+            AssertThat(story.IsExtractorDestroyed("residue_extractor")).IsFalse();
+            AssertThat(story.IsSecretFound("residue_secret")).IsFalse();
+            AssertThat(story.GetFontUsesConsumed("Residue:font")).IsEqual(0);
+            AssertThat(story.HasSeenCollapseBeat).IsFalse();
+            AssertThat(story.TimelineIntegrityPercent).IsEqual(100f);
+            AssertThat(story.LevelSecretsFound).IsEqual(0);
+        } finally {
+            story.ResetCampaignState(Difficulty.Normal);
+        }
+    }
+
+    [TestCase]
     public void CollapseHPRefillPrefersTheLivePlayerIncludingItsResonanceBonus() {
         StoryManager story = StoryManager.Instance;
         var tree = (SceneTree)Engine.GetMainLoop();

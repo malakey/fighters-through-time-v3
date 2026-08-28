@@ -27,6 +27,7 @@ namespace FTT.UI {
         private Label _disconnectLabel;
         private ConfirmModal _exitConfirm;
         private SettingsMenu _settingsMenu;
+        private MoveListScreen _moveList;
         private List<Control> _focusChain = new();
         private int _disconnectedPlayer = -1;
 
@@ -56,7 +57,8 @@ namespace FTT.UI {
 
         /// <summary>A forced disconnect pause cannot be dismissed with the pause button.</summary>
         protected override bool CanTogglePause() =>
-            _disconnectedPlayer < 0 && _exitConfirm?.IsOpen != true;
+            _disconnectedPlayer < 0 && _exitConfirm?.IsOpen != true
+            && _moveList?.Visible != true;
 
         protected override void OnPauseStateChanged(bool paused) {
             if (_pauseBackdrop != null) _pauseBackdrop.Visible = paused;
@@ -64,6 +66,7 @@ namespace FTT.UI {
 
             if (!paused) {
                 _exitConfirm?.Close();
+                if (_moveList != null && IsInstanceValid(_moveList)) _moveList.Close();
                 return;
             }
 
@@ -140,10 +143,10 @@ namespace FTT.UI {
 
             var title = new Label {
                 Text = "menu_paused",
-                HorizontalAlignment = HorizontalAlignment.Center
+                HorizontalAlignment = HorizontalAlignment.Center,
+                ThemeTypeVariation = UIPalette.TitleLabelVariation
             };
             title.AddThemeColorOverride("font_color", UIPalette.TextAccent);
-            title.AddThemeFontSizeOverride("font_size", UIPalette.TitleFontSize);
             layout.AddChild(title);
 
             var resume = MakeButton("ResumeButton", "menu_resume");
@@ -153,6 +156,20 @@ namespace FTT.UI {
             var settings = MakeButton("SettingsButton", "menu_settings");
             settings.Pressed += OpenSettings;
             layout.AddChild(settings);
+
+            // V7.3 Fighter Onboarding: the Fighter pause offers the Move List
+            // for either active fighter. Raw format key + name key so a locale
+            // change re-resolves; names read from the session at build time.
+            SessionData session = GameManager.Instance?.CurrentSession ?? default;
+            var moveListP1 = MakeButton("MoveListP1Button", "movelist_title");
+            moveListP1.Text = FormatMoveListLabel(session.SelectedCharacterID);
+            moveListP1.Pressed += () => OpenMoveList(session.SelectedCharacterID);
+            layout.AddChild(moveListP1);
+
+            var moveListP2 = MakeButton("MoveListP2Button", "movelist_title");
+            moveListP2.Text = FormatMoveListLabel(session.OpponentCharacterID);
+            moveListP2.Pressed += () => OpenMoveList(session.OpponentCharacterID);
+            layout.AddChild(moveListP2);
 
             var exit = MakeButton("ExitButton", "fighter_pause_exit");
             exit.Pressed += ShowExitConfirm;
@@ -188,9 +205,9 @@ namespace FTT.UI {
                 Name = "DisconnectLabel",
                 HorizontalAlignment = HorizontalAlignment.Center,
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
-                CustomMinimumSize = new Vector2(720, 0)
+                CustomMinimumSize = new Vector2(720, 0),
+                ThemeTypeVariation = UIPalette.EmphasisLabelVariation
             };
-            _disconnectLabel.AddThemeFontSizeOverride("font_size", 26);
             _disconnectLabel.AddThemeColorOverride("font_color", UIPalette.Warning);
             layout.AddChild(_disconnectLabel);
 
@@ -220,6 +237,33 @@ namespace FTT.UI {
             GameManager.Instance?.LoadScene(holodeck
                 ? "res://scenes/campaign/HubWorld.tscn"
                 : "res://scenes/menus/CharacterSelect.tscn");
+        }
+
+        /// <summary>"Move List — {name}", degrading to the plain label when the
+        /// slot has no resolvable character (menu-hosted tests, empty session).</summary>
+        private string FormatMoveListLabel(string characterID) {
+            string path = $"res://resources/Characters/{characterID}_data.tres";
+            if (string.IsNullOrWhiteSpace(characterID) || !ResourceLoader.Exists(path)) {
+                return Tr("movelist_title");
+            }
+            var data = FTT.Core.AuthoredResources.Load<FTT.Characters.CharacterData>(path);
+            return data == null || string.IsNullOrWhiteSpace(data.DisplayNameKey)
+                ? Tr("movelist_title")
+                : string.Format(Tr("movelist_title_for"), Tr(data.DisplayNameKey));
+        }
+
+        /// <summary>
+        /// V7.3 Fighter Onboarding: the Move List opens as an overlay inside
+        /// this pause CanvasLayer — pause ownership stays here, and closing the
+        /// list hands focus back to the pause chain.
+        /// </summary>
+        private void OpenMoveList(string characterID) {
+            if (_moveList == null || !IsInstanceValid(_moveList)) {
+                _moveList = new MoveListScreen { Name = "MoveListScreen" };
+                AddChild(_moveList);
+                _moveList.Closed += () => FocusChainBuilder.GrabInitialFocus(_focusChain);
+            }
+            _moveList.Open(characterID);
         }
 
         private void OpenSettings() {

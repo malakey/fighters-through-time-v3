@@ -86,6 +86,24 @@ namespace FTT.Core {
         public int ChronalDustDrop;
     }
 
+    /// <summary>
+    /// V7.3 Single Icon Rule: which system produced a physical dust award.
+    /// Mob is the ordinary kill-drop path; Extractor and Boss awards never
+    /// expire and force the Large visual tier.
+    /// </summary>
+    public enum DustAwardSource {
+        Mob = 0,
+        Extractor = 1,
+        Boss = 2
+    }
+
+    /// <summary>Attribution companion to the wallet's OnChronalDustCollected,
+    /// raised once when a sourced dust pickup is actually collected.</summary>
+    public struct DustAwardCollectedPayload {
+        public int Amount;
+        public DustAwardSource Source;
+    }
+
     /// <summary>Phase of an enemy/boss ability the presentation layer can bind to.</summary>
     public enum EnemyPresentationPhase {
         Telegraph,
@@ -160,6 +178,16 @@ namespace FTT.Core {
         public bool IsDestroyed;
     }
 
+    /// <summary>
+    /// V7.3: checkpoint activation with the once-per-attempt flag.
+    /// FirstActivation gates the Mending heal and the rewind-pool refresh;
+    /// respawn anchor and save update on every activation regardless.
+    /// </summary>
+    public struct CheckpointReachedPayload {
+        public string CheckpointID;
+        public bool FirstActivation;
+    }
+
     public enum RewindPresentationPhase {
         Started,
         Playback,
@@ -176,6 +204,9 @@ namespace FTT.Core {
         public float MusicDuckDecibels;
         public bool ReverseSweepEnabled;
         public bool ClockTickEnabled;
+        /// <summary>V7.3 Timeline Collapse beat: true when the 4 s collapse
+        /// presentation may be skipped (not the first viewing).</summary>
+        public bool CollapseSkipPromptEnabled;
     }
 
     /// <summary>
@@ -353,6 +384,15 @@ namespace FTT.Core {
         public event Action<int> OnChronalDustCollected;
         public void RaiseChronalDustCollected(int amount) => OnChronalDustCollected?.Invoke(amount);
 
+        // V7.3 Single Icon Rule: boss/extractor dust awards spawn a physical
+        // pickup and the wallet is paid at COLLECTION (RaiseChronalDustCollected
+        // fires once, there). This companion payload carries the award's source
+        // so the level results can attribute the amount to the right line at
+        // that same moment — attribution without a second wallet payment.
+        public event Action<DustAwardCollectedPayload> OnDustAwardCollected;
+        public void RaiseDustAwardCollected(DustAwardCollectedPayload payload) =>
+            OnDustAwardCollected?.Invoke(payload);
+
         // === Level & Match Flow Events ===
         public event Action<MatchState> OnMatchStateChanged;
         public void RaiseMatchStateChanged(MatchState state) => OnMatchStateChanged?.Invoke(state);
@@ -360,8 +400,26 @@ namespace FTT.Core {
         public event Action<string> OnLevelComplete;
         public void RaiseLevelComplete(string levelID) => OnLevelComplete?.Invoke(levelID);
 
+        // V7.3 checkpoint save ordering: activation is a two-beat event pair.
+        // OnCheckpointReached (plus the payload flavor carrying the
+        // once-per-attempt FirstActivation flag) is the GAMEPLAY half — state
+        // capture, rewind-pool refresh, HUD toast. OnCheckpointCommitted
+        // follows and is the PERSISTENCE half, so the checkpoint save always
+        // captures post-refresh state (save.CurrentLives was captured
+        // pre-refresh under the single event).
         public event Action<string> OnCheckpointReached;
-        public void RaiseCheckpointReached(string checkpointID) => OnCheckpointReached?.Invoke(checkpointID);
+        public event Action<CheckpointReachedPayload> OnCheckpointActivated;
+        public event Action<string> OnCheckpointCommitted;
+
+        public void RaiseCheckpointReached(string checkpointID, bool firstActivation = true) {
+            OnCheckpointReached?.Invoke(checkpointID);
+            OnCheckpointActivated?.Invoke(new CheckpointReachedPayload {
+                CheckpointID = checkpointID,
+                FirstActivation = firstActivation
+            });
+        }
+
+        public void RaiseCheckpointCommitted(string checkpointID) => OnCheckpointCommitted?.Invoke(checkpointID);
 
         // === Enemy Events ===
         public event Action<EnemyKilledPayload> OnEnemyKilled;

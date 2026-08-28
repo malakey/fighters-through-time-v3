@@ -39,5 +39,9 @@ namespace FTT.Combat {
         public int BlockChargeCost;
         /// <summary>V7.2: boss-only red-telegraph attacks that no block answers.</summary>
         public bool Unblockable;
+        /// <summary>V7.3: construct/DoT ticks carry no hitstop — only direct
+        /// player-authored hits freeze. The four construct nodes (turret, coil,
+        /// nest, snare) set this; the victim's hit handler skips ApplyHitstop.</summary>
+        public bool ExemptFromHitstop;
     }
 }

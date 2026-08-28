@@ -174,7 +174,9 @@ namespace FTT.Characters.Abilities {
                 StatusDuration = 0f,
                 StatusIntensity = 1f,
                 ScreenShakeIntensity = 0.1f,
-                ScreenShakeDuration = 0.05f
+                ScreenShakeDuration = 0.05f,
+                // V7.3: construct ticks carry no hitstop.
+                ExemptFromHitstop = true
             });
             if (dealt > 0f && _ownerPlayer != null && IsInstanceValid(_ownerPlayer)) {
                 // Construct damage never reclaims Rally echo (V7.1: direct hits only).

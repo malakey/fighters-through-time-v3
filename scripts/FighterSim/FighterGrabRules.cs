@@ -54,6 +54,9 @@ namespace FTT.FighterSim {
             in FighterVerbComponent verb) =>
             verb.GrabPhase == PhaseNone
             && verb.BeingHeld == 0
+            // V7.3 shieldstun locks the stance up completely — including the
+            // grab chord out of it.
+            && verb.ShieldStunFrames <= 0
             && fighter.IsGrounded != 0
             && fighter.Stocks > 0
             && fighter.HitstunFrames <= 0
@@ -76,6 +79,9 @@ namespace FTT.FighterSim {
             in FighterVerbComponent targetVerb) {
             if (target.Stocks <= 0 || target.IsGrounded == 0) return false;
             if (target.HitstunFrames > 0 || target.DazeFrames > 0) return false;
+            // V7.3 amendment: grab beats the *stance*, never the *stun* — a
+            // target locked in shieldstun whiffs the grab.
+            if (targetVerb.ShieldStunFrames > 0) return false;
             if (target.InvulnerabilityFrames > 0) return false;
             if (targetVerb.ThrowImmunityFrames > 0 || targetVerb.BeingHeld != 0) return false;
             if (targetRuntime.UniversalMovementState != (int)UniversalMovementPhase.None) return false;

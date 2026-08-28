@@ -7,6 +7,19 @@ namespace FTT.Environment {
         [Export] public int DustAmount = 10;
         [Export] public DustVisualTierSet VisualTiers;
 
+        /// <summary>V7.3 Single Icon Rule: which system spawned this award.
+        /// Collection attributes the amount to the matching results line.</summary>
+        public DustAwardSource Source = DustAwardSource.Mob;
+
+        /// <summary>Boss/extractor awards never expire — a milestone payout
+        /// must not be lost to the 10 s kill-drop timer.</summary>
+        public bool NeverExpires;
+
+        /// <summary>Forces the Large visual tier regardless of amount (the
+        /// extractor's 15 sits under the 25 threshold until the deferred
+        /// economy rebalance; the icon must still read as a milestone).</summary>
+        public bool ForceLargeTier;
+
         private const float MagnetRadius = 150f;
         private const float MagnetSpeed = 900f;
         private const float ExpirationTime = 10f;
@@ -45,13 +58,18 @@ namespace FTT.Environment {
             DustAmount = 1;
             Rotation = 0f;
             _glowTimer = 0f;
+            Source = DustAwardSource.Mob;
+            NeverExpires = false;
+            ForceLargeTier = false;
             if (_glow != null) _glow.Scale = Vector2.One;
         }
 
         public override void _PhysicsProcess(double delta) {
             float dt = (float)delta;
-            _lifetime -= dt;
-            if (_lifetime <= 0) { ReturnToPool(); return; }
+            if (!NeverExpires) {
+                _lifetime -= dt;
+                if (_lifetime <= 0) { ReturnToPool(); return; }
+            }
 
             if (_magnetTarget == null) {
                 Godot.Collections.Array<Node> players = GetTree().GetNodesInGroup("Players");
@@ -68,13 +86,7 @@ namespace FTT.Environment {
                 var dir = (_magnetTarget.GlobalPosition - GlobalPosition).Normalized();
                 GlobalPosition += dir * MagnetSpeed * dt;
                 if (GlobalPosition.DistanceTo(_magnetTarget.GlobalPosition) < 20f) {
-                    FTT.Core.EventBus.Instance?.RaiseChronalDustCollected(DustAmount);
-                    // Package 8 B5. Keyed off the collection site, not
-                    // OnChronalDustCollected: that event is also re-raised for every
-                    // enemy kill and every extractor break, which would double up with
-                    // those cues instead of marking a pickup.
-                    EnvironmentAudioCues.PlayPickup(1.35f);
-                    ReturnToPool();
+                    Collect();
                 }
             }
             Rotation += dt * 1.5f;
@@ -86,9 +98,33 @@ namespace FTT.Environment {
             }
         }
 
+        /// <summary>
+        /// The collection site — the ONLY place a physical pickup pays the
+        /// wallet (audit H-1's single-award rule, extended by the V7.3 Single
+        /// Icon Rule to boss/extractor payouts). Fires the wallet event once,
+        /// then the attribution payload for the itemized results, then returns
+        /// to the pool. Public so tests and scripted collections can resolve a
+        /// pickup without simulating the magnet.
+        /// </summary>
+        public void Collect() {
+            FTT.Core.EventBus.Instance?.RaiseChronalDustCollected(DustAmount);
+            FTT.Core.EventBus.Instance?.RaiseDustAwardCollected(new FTT.Core.DustAwardCollectedPayload {
+                Amount = DustAmount,
+                Source = Source
+            });
+            // Package 8 B5. Keyed off the collection site, not
+            // OnChronalDustCollected: that event is also re-raised for every
+            // enemy kill and every extractor break, which would double up with
+            // those cues instead of marking a pickup.
+            EnvironmentAudioCues.PlayPickup(1.35f);
+            ReturnToPool();
+        }
+
         private void ApplyVisualTier() {
             if (_visual == null || VisualTiers == null) return;
-            _visual.Texture = VisualTiers.GetTexture(DustAmount);
+            _visual.Texture = ForceLargeTier && VisualTiers.LargeTexture != null
+                ? VisualTiers.LargeTexture
+                : VisualTiers.GetTexture(DustAmount);
         }
     }
 }

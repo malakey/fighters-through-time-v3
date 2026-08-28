@@ -465,7 +465,8 @@ namespace FTT.Environment {
                     // the physics callback so those systems defer the
                     // engine-blocked writes.
                     using var scope = PhysicsCallbackGuard.Enter();
-                    pc.ApplyDamage(15);
+                    // V7.3: environmental chokepoint — Defy/echo/meter.
+                    pc.ApplyEnvironmentalDamage(15);
                 }
             };
 
@@ -478,6 +479,9 @@ namespace FTT.Environment {
             checkpoint.CheckpointID = id;
             checkpoint.Position = new Vector2(x, y);
             checkpoint.RespawnOffset = new Vector2(0, -50);
+            // V7.3 strike-to-activate, uniform across the hand-built levels:
+            // only the entry checkpoint self-activates.
+            checkpoint.SelfActivating = id != null && id.EndsWith("_checkpoint_0", System.StringComparison.Ordinal);
             _levelManager.RegisterCheckpoint(id, checkpoint.Position + checkpoint.RespawnOffset);
 
             checkpoint.CollisionLayer = CollisionLayers.Trigger;

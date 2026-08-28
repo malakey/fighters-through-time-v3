@@ -146,6 +146,54 @@ public class FighterHazardBehaviorTests {
     }
 
     /// <summary>
+    /// V7.3 / design §10: the Dampening Beam drains 5% of the meter per
+    /// second — 2.5 points on each 30-frame tick (the doc's number; the old
+    /// 5-per-tick drained double the authored rate).
+    /// </summary>
+    [TestCase]
+    public void DampeningBeamDrainsFivePercentPerSecond() {
+        var harness = new HazardHarness(FighterStageGeometry.Paris, FighterHazardTypeID.ParisDampeningBeam, 6120);
+
+        // Build a meter worth measuring, then go passive.
+        for (int frame = 0; frame < 400; frame++) {
+            GameplayButtons buttons = frame % 40 == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None;
+            harness.StepToward(harness.Fighter(1).Position.x, buttons);
+        }
+        AssertThat(harness.Fighter(0).Influence > FP64.FromInt(20)).IsTrue();
+        AssertThat(harness.StepUntilHazardExists()).IsTrue();
+        harness.StepWhileWarning();
+
+        // Chase the beam through its active sweep, logging every meter drop.
+        var dropFrames = new System.Collections.Generic.List<int>();
+        var dropSizes = new System.Collections.Generic.List<long>();
+        FP64 previous = harness.Fighter(0).Influence;
+        for (int frame = 0; frame < 240 && harness.HasHazard()
+             && harness.Hazard().Phase == FighterHazardSystem.ActivePhase; frame++) {
+            harness.StepToward(harness.Hazard().Position.x);
+            FP64 current = harness.Fighter(0).Influence;
+            if (current < previous) {
+                dropFrames.Add(frame);
+                dropSizes.Add((previous - current).RawValue);
+            }
+            previous = current;
+        }
+
+        AssertThat(dropFrames.Count >= 3)
+            .OverrideFailureMessage("The tracked fighter must eat at least three drain ticks.")
+            .IsTrue();
+        foreach (long size in dropSizes) {
+            AssertThat(size)
+                .OverrideFailureMessage("Each 30-frame tick drains exactly 2.5 meter points (5%/s).")
+                .IsEqual(FP64.FromDouble(2.5).RawValue);
+        }
+        for (int index = 1; index < dropFrames.Count; index++) {
+            AssertThat(dropFrames[index] - dropFrames[index - 1])
+                .OverrideFailureMessage("Drain ticks land every 30 frames — two per second.")
+                .IsEqual(30);
+        }
+    }
+
+    /// <summary>
     /// Audit M-11 / design-godot.md ~1570 ("completely invulnerable while
     /// standing on the respawn platform"): the beam's meter drain must honour
     /// the same invulnerability gate as every damaging effect. The legacy flat

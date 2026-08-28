@@ -479,6 +479,10 @@ namespace FTT.Enemies {
                 return;
             }
 
+            // V7.3: a Teleport elite is reactive — the target closing to point
+            // blank triggers it ahead of the ordinary attack commit.
+            if (TryReactivePhaseSkip()) return;
+
             if (dist <= AttackRangePixels && _attackCooldownTimer <= 0) {
                 EnterAttacking();
                 return;
@@ -557,6 +561,11 @@ namespace FTT.Enemies {
         private void ProcessAttacking(float dt) {
             Velocity = new Vector2(0, IsFlying ? 0f : Velocity.Y);
 
+            // V7.3: the target closing to point blank during the pre-commit
+            // reaction delay fires the reactive Teleport instead of letting the
+            // committed attack whiff through a body already inside its arc.
+            if (!_attackCommitted && TryReactivePhaseSkip()) return;
+
             if (_reactionFramesRemaining > 0) {
                 _reactionFramesRemaining--;
                 // Aim only during the pre-commit reaction delay. The facing locks
@@ -604,12 +613,19 @@ namespace FTT.Enemies {
         /// <summary>
         /// Elites alternate standard attack and the next entry of EliteAbilities
         /// (sequential cycle per design Section 6) whenever the elite cooldown is up.
+        /// V7.3 (Chrono-Warden rework): Teleport-archetype elites are REACTIVE —
+        /// fired by <see cref="TryReactivePhaseSkip"/> when the target closes in —
+        /// and are excluded from this sequential cycle, which would otherwise
+        /// burn Phase Skip on schedule with nobody to skip away from.
         /// </summary>
         public EnemyAbilityData SelectNextAttack() {
             if (Data != null && Data.HasEliteAbilities && _eliteCooldownTimer <= 0f && !_lastAttackWasElite) {
-                _eliteAbilityIndex = (_eliteAbilityIndex + 1) % Data.EliteAbilities.Length;
-                EnemyAbilityData elite = Data.EliteAbilities[_eliteAbilityIndex];
-                if (elite != null) {
+                int count = Data.EliteAbilities.Length;
+                for (int step = 1; step <= count; step++) {
+                    int index = (_eliteAbilityIndex + step) % count;
+                    EnemyAbilityData elite = Data.EliteAbilities[index];
+                    if (elite == null || elite.Archetype == EnemyAbilityArchetype.Teleport) continue;
+                    _eliteAbilityIndex = index;
                     _lastAttackWasElite = true;
                     _eliteCooldownTimer = Mathf.Max(0f, Data.EliteAbilityCooldown);
                     return elite;
@@ -617,6 +633,44 @@ namespace FTT.Enemies {
             }
             _lastAttackWasElite = false;
             return Data?.PrimaryAttack ?? GetLegacyPrimaryAttack();
+        }
+
+        // === V7.3 reactive Phase Skip (Chrono-Warden rework) ================
+
+        /// <summary>Distance at which a Teleport elite fires reactively.</summary>
+        public const float ReactiveTeleportRangePixels = 125f;
+
+        /// <summary>The elite roster's Teleport ability, or null.</summary>
+        private EnemyAbilityData FindReactiveTeleport() {
+            if (Data?.HasEliteAbilities != true) return null;
+            foreach (EnemyAbilityData elite in Data.EliteAbilities) {
+                if (elite != null && elite.Archetype == EnemyAbilityArchetype.Teleport) return elite;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Fires the elite Teleport immediately — no reaction delay — when the
+        /// target closes within <see cref="ReactiveTeleportRangePixels"/> while
+        /// the elite cooldown is up and no attack is mid-execution, marking the
+        /// elite cooldown. Public so tests can pin the trigger geometry.
+        /// </summary>
+        public bool TryReactivePhaseSkip() {
+            if (_target == null || !IsInstanceValid(_target)) return false;
+            if (Executor.IsBusy || _eliteCooldownTimer > 0f) return false;
+            EnemyAbilityData teleport = FindReactiveTeleport();
+            if (teleport == null) return false;
+            if (GlobalPosition.DistanceTo(_target.GlobalPosition) > ReactiveTeleportRangePixels) return false;
+
+            _eliteCooldownTimer = Mathf.Max(0f, Data.EliteAbilityCooldown);
+            _lastAttackWasElite = true;
+            CurrentState = EnemyState.Attacking;
+            _attackCommitted = true;
+            _reactionFramesRemaining = 0;
+            Executor.Begin(teleport, _target.GlobalPosition, _facingRight,
+                guardCrush: true, unblockable: false);
+            PlayAnimation("elite_attack");
+            return true;
         }
 
         /// <summary>
@@ -637,7 +691,10 @@ namespace FTT.Enemies {
                 HitstunDuration = 0.15f,
                 HitboxSize = new Vector2(40f, 40f),
                 HitboxOffset = new Vector2(30f, -25f),
-                TelegraphTint = new Color(1f, 0.6f, 0.3f),
+                // V7.3 dual-channel telegraph: legacy mob melee is Basic-class,
+                // so its tint joins the white/yellow family (the old orange
+                // 1/0.6/0.3 read as Guard-Crush, breaking the colour promise).
+                TelegraphTint = EnemyAbilityExecutor.BasicTelegraph,
                 PresentationEventID = $"{Data?.EnemyID ?? "enemy"}.basic"
             };
             return _legacyPrimaryAttack;

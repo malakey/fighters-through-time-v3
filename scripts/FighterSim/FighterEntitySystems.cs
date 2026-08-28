@@ -62,6 +62,10 @@ namespace FTT.FighterSim {
             FP64.FromDouble(FTT.Combat.BasicComboRules.EchoFractionSlope);
         private static readonly FP64 OvertimeEchoMultiplier = FP64.FromDouble(1.5);
         private static readonly FP64 OvertimeEchoCap = FP64.FromDouble(0.60);
+        // V7.3 Rally reclaim cap: one connecting hit reclaims at most its own
+        // damage × this multiplier — no more one-poke full-pool cashouts.
+        private static readonly FP64 RallyReclaimMultiplier =
+            FP64.FromDouble(FTT.Combat.BasicComboRules.RallyReclaimDamageMultiplier);
 
         public static bool ApplyFighterHit(
             ref FighterStateComponent attacker,
@@ -82,7 +86,9 @@ namespace FTT.FighterSim {
             bool creditInfluence = true,
             int blockChargeCost = 0,
             FP64 verticalKnockbackScale = default,
-            bool collectsEcho = true) {
+            bool collectsEcho = true,
+            bool appliesHitstop = true,
+            bool blockCancelableHitstun = true) {
             if (target.InvulnerabilityFrames > 0 || target.Stocks <= 0) return false;
 
             if (targetRuntime.AegisHits > 0) {
@@ -98,7 +104,7 @@ namespace FTT.FighterSim {
             // Blocking state): no blocking while airborne, mid-swing, mid
             // roll, or inside hitstun/daze.
             bool targetBlocking = carriesImpulse
-                && FighterBasicAttackRules.IsBlockStance(in target, in targetRuntime);
+                && FighterBasicAttackRules.IsBlockStance(in target, in targetRuntime, in targetVerb);
             bool hitInFront = target.FacingRight != 0
                 ? hitOriginX >= target.Position.x
                 : hitOriginX <= target.Position.x;
@@ -113,14 +119,29 @@ namespace FTT.FighterSim {
                 // A spent charge re-arms the regeneration interval, as Story does.
                 targetRuntime.BlockRegenFrames = FTT.Combat.BasicComboRules.BlockChargeRegenFrames;
                 if (target.BlockCharges <= 0) {
+                    // V7.3 shatter: the 5 s lockout arms (no stance, regen held —
+                    // charge #1 at shatter + 480f) and the blocked-hit hitstop is
+                    // replaced by the longer shared shatter freeze.
                     target.BlockCharges = 0;
                     target.DazeFrames = 60;
+                    targetVerb.BlockLockoutFrames = FTT.Combat.BasicComboRules.BlockShatterLockoutFrames;
+                    targetVerb.ShieldStunFrames = 0;
                     target.Velocity.x = target.FacingRight != 0 ? FP64.FromInt(-2) : FP64.FromInt(2);
                     target.Velocity.y = FP64.One;
+                    if (appliesHitstop) {
+                        FighterVerbRules.ApplyHitstop(
+                            ref attackerVerb, ref targetVerb, FTT.Combat.BasicComboRules.ShatterFreezeFrames);
+                    }
+                    return false;
                 }
+                // V7.3 shieldstun: a non-shatter blocked hit locks the blocker
+                // into the stance — no grab, roll, jump, drop-through, or release.
+                targetVerb.ShieldStunFrames = FTT.Combat.BasicComboRules.ShieldstunFrames;
                 // V7 hitstop: blocked hits freeze both parties for a flat window.
-                FighterVerbRules.ApplyHitstop(
-                    ref attackerVerb, ref targetVerb, FTT.Combat.BasicComboRules.BlockedHitstopFrames);
+                if (appliesHitstop) {
+                    FighterVerbRules.ApplyHitstop(
+                        ref attackerVerb, ref targetVerb, FTT.Combat.BasicComboRules.BlockedHitstopFrames);
+                }
                 return false;
             }
 
@@ -183,20 +204,30 @@ namespace FTT.FighterSim {
                     target.Influence + (FP64.FromInt(actualDamage) - echoAmount) / FP64.FromInt(4));
             }
 
-            // Rally reclaim: a connecting *direct* hit (never a construct tick or
-            // hazard) instantly converts the attacker's own remaining Echo Pool
-            // back into real HP. Reclaimed HP grants no meter to either player.
+            // Rally reclaim (V7.3): a connecting *direct* hit (never a construct
+            // tick or hazard) converts the attacker's remaining Echo Pool back
+            // into real HP, capped at the reclaiming hit's own damage ×
+            // RallyReclaimDamageMultiplier. The unreclaimed remainder persists
+            // and keeps draining at the unchanged per-frame rate; the drain only
+            // zeroes when the pool empties. Reclaimed HP grants no meter to
+            // either player.
             if (collectsEcho && attackClass != HazardAttackClass
                 && attackerVerb.EchoPool > FP64.Zero && actualDamage > 0 && attacker.MaxHP > 0) {
-                long reclaimRaw = (attackerVerb.EchoPool.RawValue + FP64.One.RawValue / 2) / FP64.One.RawValue;
+                FP64 reclaimAmount = FP64.Min(
+                    attackerVerb.EchoPool,
+                    FP64.FromInt(actualDamage) * RallyReclaimMultiplier);
+                long reclaimRaw = (reclaimAmount.RawValue + FP64.One.RawValue / 2) / FP64.One.RawValue;
                 int reclaim = (int)reclaimRaw;
                 if (reclaim > 0) {
                     attacker.CurrentHP = attacker.CurrentHP + reclaim > attacker.MaxHP
                         ? attacker.MaxHP
                         : attacker.CurrentHP + reclaim;
                 }
-                attackerVerb.EchoPool = FP64.Zero;
-                attackerVerb.EchoDrainPerFrame = FP64.Zero;
+                attackerVerb.EchoPool -= reclaimAmount;
+                if (attackerVerb.EchoPool <= FP64.Zero) {
+                    attackerVerb.EchoPool = FP64.Zero;
+                    attackerVerb.EchoDrainPerFrame = FP64.Zero;
+                }
             }
 
             if (carriesImpulse) {
@@ -229,14 +260,29 @@ namespace FTT.FighterSim {
                 // A zero-knockback hit with hitstun (a construct arc/bite) stuns
                 // without replacing the victim's velocity with a zero vector.
                 target.HitstunFrames = hitstunFrames;
+                if (target.HitstunFrames > 0) {
+                    // Real hitstun replaces the stance outright: shieldstun ends,
+                    // and hit 1 of the string arms the V7.3 block-cancel gate
+                    // (only after hit two connects may Block escape hitstun).
+                    targetVerb.ShieldStunFrames = 0;
+                    targetVerb.HitstunBlockCancelBlocked = blockCancelableHitstun ? 0 : 1;
+                }
             }
 
             // V7 universal hitstop, scaled by the damage that landed. Lethal hits
-            // skip it — the KO presentation owns that moment.
-            if (target.CurrentHP > 0 && actualDamage > 0) {
+            // skip it — the KO presentation owns that moment. Construct, zone,
+            // and hazard ticks are exempt (V7.3: only direct player-authored
+            // hits carry hitstop).
+            if (appliesHitstop && target.CurrentHP > 0 && actualDamage > 0) {
                 FighterVerbRules.ApplyHitstop(
                     ref attackerVerb, ref targetVerb,
                     FTT.Combat.BasicComboRules.HitstopFrames(actualDamage));
+            }
+            // A launching hit whose victim ended up with no hitstop (an exempt
+            // source) resolves its DI immediately — a stashed launch must never
+            // sit armed waiting to replay under a later hit's hitstop.
+            if (targetVerb.HitstopFrames == 0) {
+                FighterVerbRules.ResolvePendingLaunch(ref target, in targetRuntime, ref targetVerb);
             }
 
             ApplyStatus(ref target, ref targetRuntime, statusType, statusFrames, statusIntensity);
@@ -250,6 +296,60 @@ namespace FTT.FighterSim {
                 FighterSimulationRules.ApplyStockLoss(ref target, ref targetRuntime, ref targetVerb, in targetTuning);
             }
             return true;
+        }
+
+        /// <summary>
+        /// V7.3 unattributed-damage chokepoint — DoT ticks (venom). Replicates
+        /// the victim-side pipeline of <see cref="ApplyFighterHit"/> with no
+        /// attacker: Defy History first (a lethal tick can no longer kill
+        /// through a full meter), then Rally echo accrual, victim meter on the
+        /// permanent portion, and finally the stock loss. No attacker credit,
+        /// no reclaim, no hitstop, no impulse, no block interaction.
+        /// </summary>
+        public static void ApplyUnattributedDamage(
+            ref FighterStateComponent target,
+            ref FighterRuntimeComponent targetRuntime,
+            ref FighterVerbComponent targetVerb,
+            in FighterTuningComponent targetTuning,
+            int damage) {
+            if (damage <= 0 || target.Stocks <= 0) return;
+
+            int previousHP = target.CurrentHP;
+            int remainingHP = target.CurrentHP - damage;
+            target.CurrentHP = remainingHP > 0 ? remainingHP : 0;
+
+            bool defied = false;
+            if (target.CurrentHP <= 0
+                && targetVerb.DefyHistoryUsed == 0
+                && target.Influence >= MaxInfluence) {
+                defied = true;
+                targetVerb.DefyHistoryUsed = 1;
+                target.Influence = FP64.Zero;
+                target.CurrentHP = 1;
+            }
+
+            int actualDamage = previousHP - target.CurrentHP;
+            FP64 echoAmount = FP64.Zero;
+            if (!defied && actualDamage > 0 && target.CurrentHP > 0 && target.MaxHP > 0) {
+                FP64 missing = FP64.FromInt(target.MaxHP - target.CurrentHP) / FP64.FromInt(target.MaxHP);
+                FP64 echoFraction = EchoFractionBase + EchoFractionSlope * missing;
+                if (targetVerb.OvertimeActive == 1) {
+                    echoFraction = FP64.Min(OvertimeEchoCap, echoFraction * OvertimeEchoMultiplier);
+                }
+                echoAmount = FP64.FromInt(actualDamage) * echoFraction;
+                targetVerb.EchoPool += echoAmount;
+                targetVerb.EchoDrainPerFrame =
+                    targetVerb.EchoPool / FP64.FromInt(FTT.Combat.BasicComboRules.EchoDrainFrames);
+            }
+            if (!defied) {
+                target.Influence = FP64.Min(
+                    MaxInfluence,
+                    target.Influence + (FP64.FromInt(actualDamage) - echoAmount) / FP64.FromInt(4));
+            }
+
+            if (target.CurrentHP <= 0) {
+                FighterSimulationRules.ApplyStockLoss(ref target, ref targetRuntime, ref targetVerb, in targetTuning);
+            }
         }
 
         /// <summary>
@@ -330,7 +430,10 @@ namespace FTT.FighterSim {
                 false,
                 HazardBlockChargeCost,
                 verticalKnockbackScale,
-                collectsEcho: false);
+                collectsEcho: false,
+                // V7.3: hazard ticks (and their blocked absorbs) carry no
+                // hitstop — only direct player-authored hits freeze.
+                appliesHitstop: false);
         }
 
         private static void ApplyStatus(
@@ -383,14 +486,15 @@ namespace FTT.FighterSim {
                 ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(entity);
                 ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(entity);
                 ref readonly FighterAbilityModeComponent modes = ref frame.GetReadOnly<FighterAbilityModeComponent>(entity);
+                ref readonly FighterVerbComponent verbState = ref frame.GetReadOnly<FighterVerbComponent>(entity);
                 if (fighter.Stocks <= 0
                     || fighter.HitstunFrames > 0
                     || fighter.DazeFrames > 0
                     // V7.1 hitstop / V7.2 grabs: a frozen, grabbing, or held
                     // fighter takes no ability action (their button presses are
                     // simply not consumed).
-                    || frame.GetReadOnly<FighterVerbComponent>(entity).HitstopFrames > 0
-                    || FighterGrabRules.IsBusy(frame.GetReadOnly<FighterVerbComponent>(entity))
+                    || verbState.HitstopFrames > 0
+                    || FighterGrabRules.IsBusy(in verbState)
                     // A hanging fighter has no specials and no movement ability
                     // (§2.11) — the hang suppresses ability intent the way
                     // hitstun does.
@@ -400,7 +504,7 @@ namespace FTT.FighterSim {
                 // Story's Blocking state ignores ability inputs entirely; specials
                 // remain usable mid-swing because they cancel the basic string
                 // (design 1051 — resolved below via the cooldown edge).
-                bool blockStance = FighterBasicAttackRules.IsBlockStance(in fighter, in runtime);
+                bool blockStance = FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verbState);
                 if (blockStance) continue;
                 int specialOneCooldownBefore = runtime.SpecialOneCooldownFrames;
                 int specialTwoCooldownBefore = runtime.SpecialTwoCooldownFrames;
@@ -996,13 +1100,15 @@ namespace FTT.FighterSim {
                 ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
                 // Construct hits never reclaim the owner's Rally echo (V7.1: only
-                // direct hits collect).
+                // direct hits collect), and never apply hitstop (V7.3: only
+                // direct player-authored hits carry the freeze).
                 FighterDamageRules.ApplyFighterHit(
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, in targetTuning,
                     FighterDamageRules.BasicAttackClass, persistent.Damage, persistent.Knockback,
                     persistent.ObjectTypeID == NestObjectTypeID ? NestBiteHitstunFrames : 10,
                     persistent.StatusType, persistent.StatusFrames, FP64.One, persistent.Position.x,
-                    collectsEcho: false);
+                    collectsEcho: false,
+                    appliesHitstop: false);
                 persistent.ActionCooldownFrames = persistent.BaseActionCooldownFrames;
                 if (persistent.RemainingAttacks > 0) persistent.RemainingAttacks--;
             }
@@ -1067,12 +1173,14 @@ namespace FTT.FighterSim {
                 ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
                 ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
-                // Fence ticks are construct damage — no Rally echo reclaim.
+                // Fence ticks are construct damage — no Rally echo reclaim,
+                // no hitstop (V7.3).
                 FighterDamageRules.ApplyFighterHit(
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, in targetTuning,
                     FighterDamageRules.BasicAttackClass, FenceDamage, FP64.Zero, FenceHitstunFrames,
                     (int)StatusType.StaticCharge, FenceStaticChargeFrames, FP64.FromDouble(0.5),
-                    fenceCenter.x, collectsEcho: false);
+                    fenceCenter.x, collectsEcho: false,
+                    appliesHitstop: false);
             }
         }
     }
@@ -1130,7 +1238,12 @@ namespace FTT.FighterSim {
         private static readonly FP64 DebrisSpeed = FP64.FromDouble(0.09);
         private static readonly FP64 BeamSweepSpeed = FP64.FromDouble(0.05);
         private static readonly FP64 RockFallSpeed = FP64.FromDouble(0.15);
-        private static readonly FP64 InfluenceDrainPerTick = FP64.FromInt(5);
+        /// <summary>
+        /// Paris Dampening Beam meter denial per 30-frame tick. 2.5 points x
+        /// 2 ticks/second = the doc's 5%/s (design §10; V7.3 halved the old 5
+        /// which drained double the authored rate).
+        /// </summary>
+        private static readonly FP64 InfluenceDrainPerTick = FP64.FromDouble(2.5);
         /// <summary>Below this |velocity.x| a grounded fighter counts as idle for the Globe crowd.</summary>
         private static readonly FP64 IdleSpeedThreshold = FP64.FromDouble(0.5);
         /// <summary>The mortar is a launcher: its vertical impulse is doubled.</summary>
@@ -1609,6 +1722,10 @@ namespace FTT.FighterSim {
         public void Update(ref Frame frame) {
             ref FighterMatchComponent match = ref frame.GetSingleton<FighterMatchComponent>();
             if (match.MatchState != 1 || match.ItemsEnabled == 0 || match.ItemFrequency <= 0) return;
+            // V7.3 ruling #9: Chronal Orbs are off in Sudden Death (hazards
+            // stay forced on). EnterSuddenDeath also clears any live orb, so
+            // nothing spawns, lingers, or awards past the transition.
+            if (match.SuddenDeathActive == 1) return;
 
             if (match.NextOrbSpawnFrames > 0) match.NextOrbSpawnFrames--;
             if (match.NextOrbSpawnFrames <= 0) {
@@ -1889,10 +2006,13 @@ namespace FTT.FighterSim {
                 int pulseAttackClass = zone.ZoneTypeID % 10 == FighterUltimateRules.UltimateSlot
                     ? FighterDamageRules.UltimateAttackClass
                     : FighterDamageRules.SpecialAttackClass;
+                // Zone pulses are construct-class damage: no hitstop (V7.3 —
+                // only direct player-authored hits carry the freeze).
                 FighterDamageRules.ApplyFighterHit(
                     ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, in targetTuning,
                     pulseAttackClass, pulseDamage, pulseKnockback, pulseHitstunFrames,
-                    zone.StatusType, zone.StatusFrames, zone.StatusIntensity, zone.Position.x);
+                    zone.StatusType, zone.StatusFrames, zone.StatusIntensity, zone.Position.x,
+                    appliesHitstop: false);
             }
         }
 
@@ -1953,7 +2073,8 @@ namespace FTT.FighterSim {
             FighterDamageRules.ApplyFighterHit(
                 ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, in targetTuning,
                 FighterDamageRules.SpecialAttackClass, 0, SpiralExpiryKnockback, SpiralExpiryHitstunFrames,
-                (int)StatusType.None, 0, FP64.One, zone.Position.x);
+                (int)StatusType.None, 0, FP64.One, zone.Position.x,
+                appliesHitstop: false);
         }
 
         // 0.08 world units per frame — a stronger drag than the sandstorm
@@ -2008,7 +2129,8 @@ namespace FTT.FighterSim {
             FighterDamageRules.ApplyFighterHit(
                 ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, in targetTuning,
                 FighterDamageRules.UltimateAttackClass, 0, launchKnockback, CosmologicalLaunchHitstunFrames,
-                (int)StatusType.None, 0, FP64.One, zone.Position.x);
+                (int)StatusType.None, 0, FP64.One, zone.Position.x,
+                appliesHitstop: false);
         }
 
         private const int MatrixExpiryHitstunFrames = 18;
@@ -2038,7 +2160,8 @@ namespace FTT.FighterSim {
             FighterDamageRules.ApplyFighterHit(
                 ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, in targetTuning,
                 FighterDamageRules.UltimateAttackClass, 0, explosionKnockback, MatrixExpiryHitstunFrames,
-                (int)StatusType.None, 0, FP64.One, zone.Position.x);
+                (int)StatusType.None, 0, FP64.One, zone.Position.x,
+                appliesHitstop: false);
         }
 
         private static int CountLiveCoils(ref Frame frame, int ownerPlayerID) {

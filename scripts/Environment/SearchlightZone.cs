@@ -90,6 +90,13 @@ namespace FTT.Environment {
         public void TickExposure(float dt) {
             foreach (PlayerController player in new List<PlayerController>(_exposure.Keys)) {
                 if (!GodotObject.IsInstanceValid(player)) { _exposure.Remove(player); continue; }
+                // V7.3: a Stasis Echo standing between the beam origin and the
+                // player blocks the light — exposure suspends and resets while
+                // the past self interposes ("blocks searchlight beams").
+                if (IsBeamOccludedForPlayer(player)) {
+                    _exposure[player] = 0f;
+                    continue;
+                }
                 float elapsed = _exposure[player] + dt;
                 _exposure[player] = elapsed;
                 if (Mode == SearchlightMode.UltimateDrain) {
@@ -98,6 +105,24 @@ namespace FTT.Environment {
                     TriggerStrike(player);
                 }
             }
+        }
+
+        /// <summary>
+        /// Ray from the beam origin to the player against PersistentObject
+        /// BODIES; only a Stasis Echo blocks the light. Headless/harness-safe:
+        /// with no world or space state the beam is treated as unoccluded.
+        /// </summary>
+        public bool IsBeamOccludedForPlayer(PlayerController player) {
+            if (player == null || !IsInsideTree()) return false;
+            PhysicsDirectSpaceState2D space = GetWorld2D()?.DirectSpaceState;
+            if (space == null) return false;
+            var query = PhysicsRayQueryParameters2D.Create(
+                GlobalPosition, player.GlobalPosition, CollisionLayers.PersistentObject);
+            query.CollideWithAreas = false;
+            query.CollideWithBodies = true;
+            using Godot.Collections.Dictionary result = space.IntersectRay(query);
+            if (result == null || result.Count == 0) return false;
+            return result["collider"].AsGodotObject() is StasisEcho;
         }
 
         public bool AddPlayer(PlayerController player) {
@@ -123,7 +148,8 @@ namespace FTT.Environment {
 
         public int TriggerStrike(PlayerController player) {
             if (player == null) return 0;
-            int applied = player.ApplyDamage(StrikeDamage);
+            // V7.3: environmental chokepoint — Defy/echo/meter accounting.
+            int applied = player.ApplyEnvironmentalDamage(StrikeDamage);
             float direction = player.GlobalPosition.X >= GlobalPosition.X ? 1f : -1f;
             player.Velocity += new Vector2(StrikeKnockback.X * direction, StrikeKnockback.Y);
             if (_exposure.ContainsKey(player)) _exposure[player] = 0f;

@@ -28,6 +28,7 @@ namespace FTT.UI {
         private ConfirmModal _quitConfirm;
         private ConfirmModal _restartConfirm;
         private SettingsMenu _settingsMenu;
+        private MoveListScreen _moveList;
         private List<Control> _focusChain = new();
 
         /// <summary>
@@ -61,6 +62,7 @@ namespace FTT.UI {
                 _menuPanel = _root.GetNodeOrNull<Control>("Center/Panel");
                 WireButton("Root/Center/Panel/Layout/ResumeButton", () => SetPaused(false));
                 WireButton("Root/Center/Panel/Layout/SettingsButton", OpenSettings);
+                WireButton("Root/Center/Panel/Layout/MoveListButton", OpenMoveList);
                 _saveButton = GetNodeOrNull<Button>("Root/Center/Panel/Layout/SaveButton");
                 if (_saveButton != null) _saveButton.Pressed += SaveProgress;
                 WireButton("Root/Center/Panel/Layout/RestartButton", ShowRestartConfirmation);
@@ -102,14 +104,15 @@ namespace FTT.UI {
             var title = new Label {
                 Name = "Title",
                 Text = "menu_paused",
-                HorizontalAlignment = HorizontalAlignment.Center
+                HorizontalAlignment = HorizontalAlignment.Center,
+                ThemeTypeVariation = UIPalette.TitleLabelVariation
             };
             title.AddThemeColorOverride("font_color", UIPalette.TextAccent);
-            title.AddThemeFontSizeOverride("font_size", UIPalette.TitleFontSize);
             layout.AddChild(title);
 
             layout.AddChild(MakeButton("ResumeButton", "menu_resume", () => SetPaused(false)));
             layout.AddChild(MakeButton("SettingsButton", "menu_settings", OpenSettings));
+            layout.AddChild(MakeButton("MoveListButton", "movelist_title", OpenMoveList));
             _saveButton = MakeButton("SaveButton", "menu_save", SaveProgress);
             layout.AddChild(_saveButton);
             layout.AddChild(MakeButton("RestartButton", "menu_restart", ShowRestartConfirmation));
@@ -207,8 +210,11 @@ namespace FTT.UI {
                 ? level.DustEarnedThisLevel
                 : wallet;
             story.SetDust(CalculateRestartWallet(wallet, earned));
-            // A true restart also refills the Restoration Fonts.
-            story.ClearRestorationFonts();
+            // A true restart clears the whole per-attempt registry family:
+            // Restoration Fonts refill, checkpoints de-stabilize (Mending
+            // pays again), destroyed extractors and found secrets reset with
+            // the scene reload (V7.3).
+            story.ClearLevelAttemptState();
 
             int slot = gameManager.CurrentSession.ActiveSaveSlot;
             if (slot >= 0 && slot < saveManager.SaveSlots.Length && saveManager.SaveSlots[slot] != null) {
@@ -217,6 +223,7 @@ namespace FTT.UI {
                 save.LevelChronalDust = story.ChronalDustCollected;
                 // A true restart: no checkpoint survives the attempt.
                 save.LastCheckpointID = "";
+                story.WriteAttemptStateToSave(save);
                 if (GetTree()?.GetFirstNodeInGroup("StoryPlayer") is FTT.Characters.PlayerController player) {
                     save.CurrentHP = player.MaximumHP;
                 }
@@ -232,22 +239,21 @@ namespace FTT.UI {
         /// Unified exit rule (V7 "one rule, one number", enforced V7.2): any
         /// exit from an incomplete level — Timeline Collapse, quit-to-hub, or
         /// quit-to-menu — forfeits 20% of undeposited Chronal Dust; the player
-        /// retains 80%, rounded down. Matches StoryManager's collapse path.
+        /// retains 80%, rounded down. V7.3 moved the math to the shared
+        /// <see cref="FTT.Core.SessionExitGuard"/> (the abnormal-exit boot
+        /// check lives in Core and must not reference UI); these wrappers keep
+        /// the existing call sites and pins working.
         /// </summary>
         public static int CalculateExitRetainedDust(int unbankedDust) =>
-            Mathf.Max(0, unbankedDust) * 8 / 10;
+            FTT.Core.SessionExitGuard.CalculateExitRetainedDust(unbankedDust);
 
         /// <summary>
         /// The wallet after the exit penalty: only dust earned in the current
         /// level is penalized, so any residue that predates the level (already
         /// counted in the wallet but not earned here) survives intact.
         /// </summary>
-        public static int CalculateExitWalletAfterPenalty(int walletDust, int unbankedLevelDust) {
-            int wallet = Mathf.Max(0, walletDust);
-            int unbanked = Mathf.Clamp(unbankedLevelDust, 0, wallet);
-            int forfeited = unbanked - CalculateExitRetainedDust(unbanked);
-            return wallet - forfeited;
-        }
+        public static int CalculateExitWalletAfterPenalty(int walletDust, int unbankedLevelDust) =>
+            FTT.Core.SessionExitGuard.CalculateExitWalletAfterPenalty(walletDust, unbankedLevelDust);
 
         private void ShowQuitConfirmation() {
             if (_quitConfirm == null) {
@@ -290,6 +296,9 @@ namespace FTT.UI {
 
             saveManager.SaveSlots[slot].LevelChronalDust = CalculateExitWalletAfterPenalty(wallet, unbanked);
             saveManager.SaveStorySlot(slot);
+            // V7.3: the exit fee is paid — the session is settled, so the
+            // abnormal-exit marker must not bill it a second time at boot.
+            FTT.Core.SessionExitGuard.ClearMarker();
         }
 
         private void RestoreMenuFocus() => FocusChainBuilder.GrabInitialFocus(_focusChain);
@@ -299,7 +308,8 @@ namespace FTT.UI {
         /// must not resume out from under it.
         /// </summary>
         protected override bool CanTogglePause() =>
-            _quitConfirm?.IsOpen != true && _restartConfirm?.IsOpen != true;
+            _quitConfirm?.IsOpen != true && _restartConfirm?.IsOpen != true
+            && _moveList?.Visible != true;
 
         protected override void OnPauseStateChanged(bool paused) {
             if (_root != null) _root.Visible = paused;
@@ -307,6 +317,7 @@ namespace FTT.UI {
             if (!paused) {
                 _quitConfirm?.Close();
                 _restartConfirm?.Close();
+                if (_moveList != null && IsInstanceValid(_moveList)) _moveList.Close();
                 return;
             }
 
@@ -318,6 +329,23 @@ namespace FTT.UI {
             // visible now, and the modal's buttons must not join the menu's chain.
             _focusChain = FocusChainBuilder.Build(_menuPanel);
             FocusChainBuilder.GrabInitialFocus(_focusChain);
+        }
+
+        /// <summary>
+        /// V7.3 Fighter Onboarding: opens the Move List for the campaign's
+        /// locked character as an overlay inside this pause CanvasLayer — the
+        /// pause menu keeps ownership of SceneTree.Paused, and closing the list
+        /// hands focus back to the menu's chain.
+        /// </summary>
+        private void OpenMoveList() {
+            if (_moveList == null || !IsInstanceValid(_moveList)) {
+                _moveList = new MoveListScreen { Name = "MoveListScreen" };
+                AddChild(_moveList);
+                _moveList.Closed += RestoreMenuFocus;
+            }
+            string characterID =
+                FTT.Core.GameManager.Instance?.CurrentSession.SelectedCharacterID ?? "";
+            _moveList.Open(characterID);
         }
 
         private void OpenSettings() {

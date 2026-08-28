@@ -11,7 +11,6 @@ namespace FTT.Environment {
         public bool IsRewinding => _isRewinding;
 
         private readonly ChronalRewindBuffer _buffer = new();
-        private readonly HashSet<string> _activatedCheckpoints = new(StringComparer.Ordinal);
         private Difficulty _difficulty;
         private PlayerController _player;
         private List<RewindFrame> _playbackPath;
@@ -21,26 +20,43 @@ namespace FTT.Environment {
         private bool _isRewinding;
         private readonly List<IStoryRewindSimulation> _frozenSimulations = new();
 
+        /// <summary>Scene-tree group the HUD resolves the live manager through.</summary>
+        public const string ManagerGroup = "chronal_rewind_manager";
+
         public override void _Ready() {
             _difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
             int maximum = GetMaximumRewinds(_difficulty);
             RemainingRewinds = StoryManager.Instance != null
                 ? Math.Clamp(StoryManager.Instance.ChronalRewindsRemaining, 0, maximum)
                 : maximum;
+            AddToGroup(ManagerGroup);
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnPlayerDied += OnPlayerDied;
-                EventBus.Instance.OnCheckpointReached += OnCheckpointReached;
+                EventBus.Instance.OnCheckpointActivated += OnCheckpointActivated;
             }
         }
 
         public override void _ExitTree() {
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnPlayerDied -= OnPlayerDied;
-                EventBus.Instance.OnCheckpointReached -= OnCheckpointReached;
+                EventBus.Instance.OnCheckpointActivated -= OnCheckpointActivated;
             }
         }
 
         public override void _PhysicsProcess(double delta) {
+            // The manual-rewind cooldown ticks in real play time — never
+            // while the world is frozen for a rewind, a scrub, or the
+            // collapse beat.
+            if (!_isRewinding && !_isScrubbing && !_collapseBeatActive && _manualCooldownRemaining > 0f) {
+                _manualCooldownRemaining = Math.Max(0f, _manualCooldownRemaining - (float)delta);
+            }
+            if (_collapseBeatActive) {
+                AdvanceCollapseBeat(
+                    (float)delta,
+                    Input.IsActionJustPressed(InputManager.Actions.Jump)
+                        || Input.IsActionJustPressed(InputManager.Actions.Interact));
+                return;
+            }
             ResolvePlayer();
             if (_player == null || !IsInstanceValid(_player)) return;
             if (_isRewinding) {
@@ -71,6 +87,29 @@ namespace FTT.Environment {
 
         /// <summary>The Stasis Echo persists this long, counted from playback end.</summary>
         public const float StasisEchoSeconds = 10f;
+
+        /// <summary>
+        /// V7.3: committing a manual rewind starts a 12-second cooldown shared
+        /// by ALL difficulties — Easy keeps its zero charge cost but honors
+        /// the cooldown (free was never meant to mean continuous). Scripted
+        /// tutorial rewinds bypass it, cancelling a scrub starts none, and
+        /// death-triggered rewinds are unaffected.
+        /// </summary>
+        public const float ManualRewindCooldownSeconds = 12f;
+
+        private float _manualCooldownRemaining;
+
+        /// <summary>Seconds left before the manual verb is available again. HUD pip surface.</summary>
+        public float ManualRewindCooldownRemaining => _manualCooldownRemaining;
+
+        /// <summary>True when the cooldown does not block a manual rewind.</summary>
+        public bool IsManualRewindOffCooldown => _manualCooldownRemaining <= 0f || ScriptedFreeRewind;
+
+        /// <summary>Arms the cooldown; called on commit (never on cancel). Test seam.</summary>
+        internal void StartManualRewindCooldown() {
+            if (ScriptedFreeRewind) return;
+            _manualCooldownRemaining = ManualRewindCooldownSeconds;
+        }
 
         private float _manualHoldSeconds;
         private bool _isScrubbing;
@@ -110,7 +149,8 @@ namespace FTT.Environment {
 
         /// <summary>
         /// Usable in any state except hitstun, daze, Dead, and mid-ability —
-        /// and only when a charge is available (or the rewind is free) and
+        /// and only when a charge is available (or the rewind is free), the
+        /// V7.3 cooldown has expired (scripted tutorial uses are exempt), and
         /// there is real history to scrub.
         /// </summary>
         private bool CanBeginManualRewind() =>
@@ -119,6 +159,7 @@ namespace FTT.Environment {
                 or CharacterState.UsingSpecial or CharacterState.UsingUltimate
                 or CharacterState.UsingMovementAbility or CharacterState.Grabbing)
             && (IsManualRewindFree || RemainingRewinds > 0)
+            && IsManualRewindOffCooldown
             && _buffer.Count > MinimumPlaybackFrames;
 
         private void BeginScrub() {
@@ -158,7 +199,12 @@ namespace FTT.Environment {
         private void CancelScrub() {
             _isScrubbing = false;
             _scrubDepthFrames = 0;
-            EndPlatformScrub();
+            // V7.3: a cancel snaps the world back to the present — the
+            // scrub-preview never happened, so the platforms return to where
+            // the scrub found them (EndPlatformScrub would leave them at the
+            // scrubbed position and arm the skip-next-restore flag with no
+            // rewind event ever coming to consume it).
+            CancelPlatformScrub();
             _player.SetRewindSuspended(false);
             ResumeWorldAfterRewind();
             RaisePresentation(RewindPresentationPhase.Landed, _player.GlobalPosition, active: false);
@@ -176,6 +222,9 @@ namespace FTT.Environment {
                 RemainingRewinds--;
                 StoryManager.Instance?.SetRewinds(RemainingRewinds);
             }
+            // V7.3: the cooldown arms on COMMIT — on every difficulty — and
+            // never on cancel; scripted tutorial uses are exempt.
+            StartManualRewindCooldown();
             _manualCommit = true;
             _spawnEchoOnComplete = true;
             _pendingEchoOrigin = _scrubOrigin;
@@ -214,6 +263,15 @@ namespace FTT.Environment {
             foreach (IRewindScrubbable scrubbable in _scrubbables) {
                 if (scrubbable is GodotObject godotObject && !IsInstanceValid(godotObject)) continue;
                 scrubbable.EndRewindScrub();
+            }
+            _scrubbables.Clear();
+        }
+
+        /// <summary>V7.3 cancel path: every scrubbed object snaps back to the present.</summary>
+        private void CancelPlatformScrub() {
+            foreach (IRewindScrubbable scrubbable in _scrubbables) {
+                if (scrubbable is GodotObject godotObject && !IsInstanceValid(godotObject)) continue;
+                scrubbable.CancelRewindScrub();
             }
             _scrubbables.Clear();
         }
@@ -412,8 +470,14 @@ namespace FTT.Environment {
             _spawnEchoOnComplete = false;
         }
 
-        private void OnCheckpointReached(string checkpointID) {
-            if (string.IsNullOrWhiteSpace(checkpointID) || !_activatedCheckpoints.Add(checkpointID)) return;
+        /// <summary>
+        /// V7.3: the once-per-attempt gate is the checkpoint event's own
+        /// FirstActivation flag (backed by StoryManager's persisted registry),
+        /// so a collapse resume-from-anchor can no longer re-pay the refresh
+        /// the way the old per-scene local set did.
+        /// </summary>
+        private void OnCheckpointActivated(CheckpointReachedPayload payload) {
+            if (string.IsNullOrWhiteSpace(payload.CheckpointID) || !payload.FirstActivation) return;
             RemainingRewinds = ApplyCheckpointRefresh(_difficulty, RemainingRewinds);
             StoryManager.Instance?.SetRewinds(RemainingRewinds);
         }
@@ -423,10 +487,76 @@ namespace FTT.Environment {
             return manager?.GetRespawnPosition() ?? Vector2.Zero;
         }
 
+        // === Timeline Collapse beat (V7.3 — the campaign's only failure state
+        // earns a beat) =======================================================
+        // The old collapse was a bare cut: presentation event, then straight to
+        // the hub. Now the fracture presentation holds the frozen world for
+        // ~4 seconds — skippable once the beat has been seen, never on the
+        // first viewing — before the extraction to the hub runs.
+
+        /// <summary>The collapse presentation's authored length.</summary>
+        public const float CollapseBeatSeconds = 4f;
+
+        private bool _collapseBeatActive;
+        private float _collapseBeatRemaining;
+
+        /// <summary>True while the collapse presentation is holding the world. Test seam.</summary>
+        public bool IsCollapseBeatActive => _collapseBeatActive;
+
+        /// <summary>Seconds of collapse presentation left. Test seam.</summary>
+        public float CollapseBeatSecondsRemaining => _collapseBeatRemaining;
+
+        /// <summary>True when this viewing may be skipped (not the first).</summary>
+        public bool IsCollapseBeatSkippable { get; private set; }
+
+        /// <summary>Test seam: replaces the hub-extraction side effect.</summary>
+        internal Action CollapseCompletionOverrideForTesting;
+
         private void CollapseTimeline() {
-            Vector2 checkpoint = GetCheckpointPosition();
-            RaisePresentation(RewindPresentationPhase.TimelineCollapse, checkpoint, active: true);
+            if (_collapseBeatActive) return;
+            BeginCollapseBeat();
+        }
+
+        /// <summary>Starts the fracture presentation over the frozen world.</summary>
+        internal void BeginCollapseBeat() {
+            _collapseBeatActive = true;
+            _collapseBeatRemaining = CollapseBeatSeconds;
+            IsCollapseBeatSkippable = StoryManager.Instance?.HasSeenCollapseBeat ?? false;
+            FreezeWorldForRewind();
+            EventBus.Instance?.RaiseRewindPresentation(CreateCollapsePayload(
+                GetCheckpointPosition(), IsCollapseBeatSkippable));
+        }
+
+        /// <summary>
+        /// The pure countdown rule: a skip press only lands once the beat has
+        /// been seen before; the first viewing always runs its full length.
+        /// </summary>
+        public static float TickCollapseBeat(float remaining, float dt, bool skipPressed, bool skippable) =>
+            skipPressed && skippable ? 0f : Math.Max(0f, remaining - dt);
+
+        /// <summary>Advances the beat; on completion marks it seen and extracts to the hub.</summary>
+        internal bool AdvanceCollapseBeat(float dt, bool skipPressed) {
+            if (!_collapseBeatActive) return false;
+            _collapseBeatRemaining = TickCollapseBeat(
+                _collapseBeatRemaining, dt, skipPressed, IsCollapseBeatSkippable);
+            if (_collapseBeatRemaining > 0f) return false;
+            _collapseBeatActive = false;
+            // The viewing is complete (or skipped): later collapses may skip.
+            StoryManager.Instance?.MarkCollapseBeatSeen();
+            if (CollapseCompletionOverrideForTesting != null) {
+                CollapseCompletionOverrideForTesting();
+                return true;
+            }
             StoryManager.Instance?.BeginTimelineCollapse(GetCheckpointID());
+            return true;
+        }
+
+        /// <summary>Collapse presentation payload: fracture treatment plus the skip prompt.</summary>
+        public static RewindPresentationPayload CreateCollapsePayload(Vector2 target, bool skippable) {
+            RewindPresentationPayload payload = CreatePresentationPayload(
+                RewindPresentationPhase.TimelineCollapse, target, active: true);
+            payload.CollapseSkipPromptEnabled = skippable;
+            return payload;
         }
 
         /// <summary>
@@ -434,10 +564,14 @@ namespace FTT.Environment {
         /// when a rewind freezes the world. The Level 13 Mirror Paradox joins its
         /// own group rather than "Enemies" (its clone is a PlayerController, not an
         /// EnemyController), so the sweep names that group explicitly — audit H-8.
+        /// V7.3 adds Chronal Extractors: their discharge cycle, siphon drain, and
+        /// grace timer all pause while the world is frozen for a rewind or scrub.
+        /// Internal for the freeze-membership pin in TimelineIntegrityTests.
         /// </summary>
-        private static readonly string[] FrozenSimulationGroups = {
+        internal static readonly string[] FrozenSimulationGroups = {
             "Enemies",
             "persistent_construct",
+            "chronal_extractor",
             FTT.Enemies.MirrorParadoxController.MirrorGroup
         };
 

@@ -109,22 +109,29 @@ namespace FTT.UI {
             layout.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
             panel.AddChild(layout);
 
+            // V7.3 UI-scale pass: the stamp rides the TitleLabel role — its old
+            // 56 px override froze it out of the accessibility scale, and the
+            // type scale deliberately has no display size beyond Title. The
+            // outline keeps the stamp reading as a stamp.
             _stamp = new Label { Name = "Stamp", HorizontalAlignment = HorizontalAlignment.Center };
-            _stamp.AddThemeFontSizeOverride("font_size", 56);
+            _stamp.ThemeTypeVariation = UIPalette.TitleLabelVariation;
             _stamp.AddThemeColorOverride("font_outline_color", UIPalette.NavyDeep);
             _stamp.AddThemeConstantOverride("outline_size", 6);
             layout.AddChild(_stamp);
 
             var title = new Label {
                 Text = Tr("fighter_results_title"),
-                HorizontalAlignment = HorizontalAlignment.Center
+                HorizontalAlignment = HorizontalAlignment.Center,
+                ThemeTypeVariation = UIPalette.TitleLabelVariation
             };
-            title.AddThemeFontSizeOverride("font_size", UIPalette.TitleFontSize);
             title.AddThemeColorOverride("font_color", UIPalette.TextAccent);
             layout.AddChild(title);
 
-            _outcome = new Label { Name = "Outcome", HorizontalAlignment = HorizontalAlignment.Center };
-            _outcome.AddThemeFontSizeOverride("font_size", UIPalette.HeadingFontSize);
+            _outcome = new Label {
+                Name = "Outcome",
+                HorizontalAlignment = HorizontalAlignment.Center,
+                ThemeTypeVariation = UIPalette.HeadingLabelVariation
+            };
             layout.AddChild(_outcome);
 
             var rematch = MakeButton(Tr("fighter_rematch"));

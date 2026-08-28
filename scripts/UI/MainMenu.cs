@@ -148,18 +148,8 @@ namespace FTT.UI {
                 }
                 FTT.Core.GameManager.Instance?.LoadScene("res://scenes/menus/CharacterSelect.tscn");
             };
-            // V7 initial release: direct-IP LAN. Code-built next to the authored
-            // Fighter button so the scene file stays untouched.
-            var lanButton = new Button {
-                Name = "LanButton",
-                Text = Tr("menu_lan_match"),
-                CustomMinimumSize = fighterButton.CustomMinimumSize,
-                ThemeTypeVariation = "TemporalGlassButton"
-            };
-            lanButton.Pressed += () =>
-                FTT.Core.GameManager.Instance?.LoadScene(NetworkSelectScreen.ScenePath);
-            fighterButton.GetParent().AddChild(lanButton);
-            fighterButton.GetParent().MoveChild(lanButton, fighterButton.GetIndex() + 1);
+            // V7.3: LAN de-scoped to Package 7 — no LanButton on the root screen.
+            // NetworkSelectScreen and scripts/Networking/ stay for the later package.
             GetNode<Button>(layout + "SettingsButton").Pressed += OpenSettings;
             GetNode<Button>(layout + "QuitButton").Pressed += ConfirmQuit;
         }

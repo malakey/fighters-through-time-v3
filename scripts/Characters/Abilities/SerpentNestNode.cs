@@ -155,7 +155,9 @@ namespace FTT.Characters.Abilities {
                     StatusDuration = _data?.StatusDuration > 0f ? _data.StatusDuration : VenomDurationFallback,
                     StatusIntensity = venomIntensity,
                     ScreenShakeIntensity = 0.1f,
-                    ScreenShakeDuration = 0.05f
+                    ScreenShakeDuration = 0.05f,
+                    // V7.3: construct ticks carry no hitstop.
+                    ExemptFromHitstop = true
                 });
                 CreditOwnerInfluence(dealt);
             }

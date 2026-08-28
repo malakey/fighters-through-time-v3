@@ -75,7 +75,7 @@ namespace FTT.UI {
                 Text = Tr("holodeck_console_title"),
                 HorizontalAlignment = HorizontalAlignment.Center
             };
-            title.AddThemeFontSizeOverride("font_size", UIPalette.HeadingFontSize);
+            title.ThemeTypeVariation = UIPalette.HeadingLabelVariation;
             title.AddThemeColorOverride("font_color", UIPalette.TemporalViolet);
             layout.AddChild(title);
 

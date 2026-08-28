@@ -16,8 +16,18 @@ namespace FTT.Environment {
             AddToGroup("Ledge");
         }
 
+        /// <summary>
+        /// V7.3 ledge trump: the edge is contested, not first-come-first-served.
+        /// A second grabber forces the current occupant off through its normal
+        /// release path (which arms the regrab lockout) and takes the ledge.
+        /// The Fighter sim resolves the same rule in its end-of-update trump
+        /// pass.
+        /// </summary>
         public bool TryAcquire(PlayerController player) {
-            if (player == null || (Occupant != null && IsInstanceValid(Occupant))) return false;
+            if (player == null || Occupant == player) return false;
+            if (Occupant != null && IsInstanceValid(Occupant)) {
+                Occupant.ForceLedgeTrumpRelease();
+            }
             Occupant = player;
             return true;
         }

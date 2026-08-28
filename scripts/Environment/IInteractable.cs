@@ -21,6 +21,10 @@ namespace FTT.Environment {
     public interface IRewindScrubbable {
         void BeginRewindScrub();
         void ApplyRewindScrub(int depthFrames);
+        /// <summary>The scrub committed: resume from the scrubbed position.</summary>
         void EndRewindScrub();
+        /// <summary>V7.3: the scrub was cancelled — snap back to the present
+        /// (where the scrub found the object), because the preview never happened.</summary>
+        void CancelRewindScrub();
     }
 }

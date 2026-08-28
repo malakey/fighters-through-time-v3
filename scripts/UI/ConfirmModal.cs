@@ -96,8 +96,8 @@ namespace FTT.UI {
                     Text = titleKey,
                     HorizontalAlignment = HorizontalAlignment.Center
                 };
+                title.ThemeTypeVariation = UIPalette.HeadingLabelVariation;
                 title.AddThemeColorOverride("font_color", UIPalette.TextAccent);
-                title.AddThemeFontSizeOverride("font_size", UIPalette.HeadingFontSize);
                 layout.AddChild(title);
             }
 

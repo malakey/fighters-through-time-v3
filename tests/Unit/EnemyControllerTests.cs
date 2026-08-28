@@ -196,8 +196,73 @@ public class EnemyControllerTests {
             AssertThat(fallback.TelegraphFrames).IsEqual(enemy.Data.AttackTelegraphFrames);
             AssertThat(fallback.ActiveFrames).IsEqual(enemy.Data.AttackActiveFrames);
             AssertThat(fallback.RecoveryFrames).IsEqual(enemy.Data.AttackRecoveryFrames);
+            // V7.3 dual-channel telegraph: a legacy mob melee is Basic-class,
+            // so its tint sits in the shared white/yellow family — the old
+            // orange (1, 0.6, 0.3) read as Guard-Crush and broke the promise.
+            AssertThat(fallback.TelegraphTint).IsEqual(EnemyAbilityExecutor.BasicTelegraph);
+            AssertThat(fallback.TelegraphTint.R).IsEqualApprox(1f, 0.001f);
+            AssertThat(fallback.TelegraphTint.G >= 0.9f)
+                .OverrideFailureMessage("Basic telegraphs are white/yellow: green must stay high.")
+                .IsTrue();
+            AssertThat(fallback.TelegraphTint.B >= 0.5f)
+                .OverrideFailureMessage("Basic telegraphs are white/yellow, not orange.")
+                .IsTrue();
         } finally {
             enemy.Free();
+        }
+    }
+
+    // === V7.3 Chrono-Warden rework: reactive Phase Skip ===
+
+    [TestCase]
+    public void ClosingInsidePhaseSkipRangeFiresTheTeleportOffCycleAndMarksTheEliteCooldown() {
+        StaticBody2D floor = CreateStandOffFloor();
+        EnemyController warden = CreateEnemy("chrono_warden");
+        PlayerController player = CreateTargetPlayer(new Vector2(100f, 0f));
+        try {
+            warden.GlobalPosition = Vector2.Zero;
+            AssertThat(player.GlobalPosition.DistanceTo(warden.GlobalPosition)
+                    <= EnemyController.ReactiveTeleportRangePixels).IsTrue();
+
+            // Frame 1 aggros into Chase; frame 2's chase step fires the
+            // reactive teleport immediately — no reaction delay, no cycle.
+            for (int frame = 0; frame < 5; frame++) {
+                warden._PhysicsProcess(Step);
+                if (warden.AbilityPhase != EnemyAbilityPhase.Idle) break;
+            }
+            AssertThat(warden.CurrentState).IsEqual(EnemyState.Attacking);
+            AssertThat(warden.AbilityPhase).IsEqual(EnemyAbilityPhase.Telegraph);
+            AssertObject(warden.ActiveAbility).IsNotNull();
+            AssertThat(warden.ActiveAbility.Archetype).IsEqual(EnemyAbilityArchetype.Teleport);
+            AssertThat(warden.LastAttackWasElite).IsTrue();
+
+            // The elite cooldown was marked: a second reactive fire is refused.
+            AssertThat(warden.TryReactivePhaseSkip()).IsFalse();
+        } finally {
+            warden.Free();
+            player.Free();
+            floor.Free();
+        }
+    }
+
+    [TestCase]
+    public void TheSequentialEliteCycleNeverSelectsATeleportAbility() {
+        EnemyController warden = CreateEnemy("chrono_warden");
+        try {
+            warden.Data.EliteAbilityCooldown = 0f;
+            for (int pick = 0; pick < 8; pick++) {
+                EnemyAbilityData attack = warden.SelectNextAttack();
+                AssertObject(attack).IsNotNull();
+                AssertThat(attack.Archetype != EnemyAbilityArchetype.Teleport)
+                    .OverrideFailureMessage(
+                        "Phase Skip is reactive-only (V7.3): the sequential cycle must never select it.")
+                    .IsTrue();
+            }
+
+            // Beyond reactive range nothing fires off-cycle either.
+            AssertThat(warden.TryReactivePhaseSkip()).IsFalse();
+        } finally {
+            warden.Free();
         }
     }
 

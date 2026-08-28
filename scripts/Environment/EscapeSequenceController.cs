@@ -122,7 +122,8 @@ namespace FTT.Environment {
             if (_catchCooldowns.ContainsKey(player)) return false;
             _catchCooldowns[player] = CatchCooldownSeconds;
             CatchCount++;
-            int applied = player.ApplyDamage(CatchDamage);
+            // V7.3: environmental chokepoint — Defy/echo/meter accounting.
+            int applied = player.ApplyEnvironmentalDamage(CatchDamage);
             float direction = player.GlobalPosition.X >= FrontX ? 1f : -1f;
             player.Velocity += new Vector2(CatchKnockback.X * direction, CatchKnockback.Y);
             EmitSignal(SignalName.PlayerCaught, player.PlayerIndex, applied);

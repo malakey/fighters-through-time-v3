@@ -53,6 +53,28 @@ namespace FTT.UI {
         public DialogueEmotionTreatment.Treatment ActiveEmotion { get; private set; } =
             DialogueEmotionTreatment.Resolve(DialogueEmotion.Neutral);
 
+        // === V7.3 hold-to-skip (ruling #19) ================================
+        // On a completed-campaign save, a sequence the save has already seen
+        // (save.ViewedDialogueIDs) can be fast-forwarded by holding the
+        // confirm/Interact action; EndSequence runs through the ordinary
+        // pause-release path. First viewings are never skippable.
+
+        /// <summary>Seconds the confirm action must be held to skip a seen sequence.</summary>
+        public const float HoldToSkipSeconds = 0.75f;
+
+        /// <summary>True while the active sequence is eligible for hold-to-skip.</summary>
+        public bool CanHoldToSkip => _isActive && _skipEligible;
+
+        /// <summary>Skip-hold fill, 0..1 — drives the hint's progress affordance.</summary>
+        public float SkipHoldProgress =>
+            Mathf.Clamp(_skipHoldSeconds / HoldToSkipSeconds, 0f, 1f);
+
+        private bool _skipEligible;
+        private float _skipHoldSeconds;
+        private Control _skipHintRow;
+        private Label _skipHintLabel;
+        private ProgressBar _skipProgressBar;
+
         private PanelContainer _dialoguePanel;
         private PanelContainer _portraitFrame;
         private StyleBoxFlat _portraitFrameStyle;
@@ -172,25 +194,28 @@ namespace FTT.UI {
             var speakerRow = new HBoxContainer { Name = "SpeakerRow" };
             content.AddChild(speakerRow);
 
-            _speakerLabel = new Label { Name = "SpeakerLabel" };
-            _speakerLabel.AddThemeFontSizeOverride("font_size", UIPalette.HeadingFontSize);
+            _speakerLabel = new Label {
+                Name = "SpeakerLabel",
+                ThemeTypeVariation = UIPalette.HeadingLabelVariation
+            };
             _speakerLabel.AddThemeColorOverride("font_color", UIPalette.TextAccent);
             speakerRow.AddChild(_speakerLabel);
 
+            // Body copy rides the theme's default font size (no override) so
+            // the accessibility UI scale reaches the dialogue text.
             _textLabel = new RichTextLabel {
                 Name = "TextLabel",
                 BbcodeEnabled = true,
                 SizeFlagsVertical = Control.SizeFlags.ExpandFill
             };
-            _textLabel.AddThemeFontSizeOverride("normal_font_size", 20);
             content.AddChild(_textLabel);
 
             _continueHint = new Label {
                 Name = "ContinueHint",
                 HorizontalAlignment = HorizontalAlignment.Right,
-                Visible = false
+                Visible = false,
+                ThemeTypeVariation = UIPalette.SmallLabelVariation
             };
-            _continueHint.AddThemeFontSizeOverride("font_size", 12);
             _continueHint.AddThemeColorOverride("font_color", UIPalette.SlateDim);
             content.AddChild(_continueHint);
         }
@@ -269,6 +294,14 @@ namespace FTT.UI {
                 GetTree().Paused = true;
                 _pausedGameplay = true;
             }
+            // V7.3 hold-to-skip: eligible only when the active save's campaign
+            // is completed AND this exact sequence was seen before this run.
+            _skipHoldSeconds = 0f;
+            FTT.Core.StorySaveData save = ActiveStorySave();
+            _skipEligible = save != null && save.IsCompleted
+                && save.ViewedDialogueIDs != null
+                && save.ViewedDialogueIDs.Contains(sequence.DialogueID);
+            RefreshSkipHint();
             BeginBoxAnimation(opening: true);
             ShowCurrentLine();
         }
@@ -308,7 +341,11 @@ namespace FTT.UI {
         /// <see cref="FTT.Core.InputBindingService"/>. Rebuilt on every line show,
         /// so a mid-scene rebind or device change is picked up at the next line.
         /// </summary>
-        private string BuildContinueHint() {
+        private string BuildContinueHint() =>
+            string.Format(Tr("dialogue_continue"), DescribeInteractBinding());
+
+        /// <summary>The actual bound Interact event for the active device kind.</summary>
+        private static string DescribeInteractBinding() {
             List<FTT.Core.InputBindingEvent> events =
                 FTT.Core.InputBindingService.CaptureAction(FTT.Core.InputManager.Actions.Interact);
             bool joypad = FTT.Core.InputManager.Instance?.IsJoypadConnected(0) == true;
@@ -322,7 +359,7 @@ namespace FTT.UI {
             }
             if (match == null && events.Count > 0) match = events[0];
 
-            return string.Format(Tr("dialogue_continue"), FTT.Core.InputBindingService.Describe(match));
+            return FTT.Core.InputBindingService.Describe(match);
         }
 
         /// <summary>Paints the portrait frame and tint for an emotion, and keeps the localized name as its tooltip.</summary>
@@ -371,6 +408,14 @@ namespace FTT.UI {
         public override void _Process(double delta) {
             AdvanceBoxAnimation((float)delta);
             if (!_isActive) return;
+            if (CanHoldToSkip) {
+                bool held = Input.IsActionPressed(FTT.Core.InputManager.Actions.Interact)
+                    || Input.IsActionPressed("ui_accept");
+                if (held) AdvanceSkipHold((float)delta);
+                else if (_skipHoldSeconds > 0f) ResetSkipHold();
+                // The hold may have fast-forwarded the whole sequence.
+                if (!_isActive) return;
+            }
             if (IsTyping) {
                 int chirps = Reveal.Advance((float)delta);
                 for (int index = 0; index < chirps; index++) {
@@ -401,10 +446,85 @@ namespace FTT.UI {
             string completedID = _currentSequence?.DialogueID ?? "";
             _isActive = false;
             _currentSequence = null;
+            _skipEligible = false;
+            _skipHoldSeconds = 0f;
+            if (_skipHintRow != null) _skipHintRow.Visible = false;
             BeginBoxAnimation(opening: false);
             ReleaseGameplayPause();
             RecordLastViewedDialogue(completedID);
             FTT.Core.EventBus.Instance?.RaiseDialogueComplete(completedID);
+        }
+
+        /// <summary>
+        /// Advances the skip hold. Called from <c>_Process</c> while the confirm
+        /// action is held; public so tests can drive the 0.75 s window
+        /// deterministically. Reaching the threshold fast-forwards to
+        /// <see cref="EndSequence"/> — the existing pause-release path.
+        /// </summary>
+        public void AdvanceSkipHold(float delta) {
+            if (!CanHoldToSkip) return;
+            _skipHoldSeconds += delta;
+            if (_skipProgressBar != null) _skipProgressBar.Value = SkipHoldProgress;
+            if (_skipHoldSeconds >= HoldToSkipSeconds) EndSequence();
+        }
+
+        /// <summary>Releasing the confirm action resets the fill.</summary>
+        public void ResetSkipHold() {
+            _skipHoldSeconds = 0f;
+            if (_skipProgressBar != null) _skipProgressBar.Value = 0;
+        }
+
+        /// <summary>Shows/hides the "hold to skip" affordance for this sequence.</summary>
+        private void RefreshSkipHint() {
+            EnsureSkipHintUI();
+            if (_skipHintRow == null) return;
+            _skipHintRow.Visible = _skipEligible;
+            if (_skipProgressBar != null) _skipProgressBar.Value = 0;
+            if (_skipEligible && _skipHintLabel != null) {
+                _skipHintLabel.Text = string.Format(Tr("dialogue_hold_skip"), DescribeInteractBinding());
+            }
+        }
+
+        /// <summary>
+        /// Builds the hint row (label + fill bar) lazily under the box's Content
+        /// column. Code-built in both the authored and fallback trees so the two
+        /// stay identical without a scene edit per variant.
+        /// </summary>
+        private void EnsureSkipHintUI() {
+            if (_skipHintRow != null || _textLabel == null) return;
+            if (_textLabel.GetParent() is not Control content) return;
+            var row = new HBoxContainer {
+                Name = "SkipHintRow",
+                Visible = false,
+                Alignment = BoxContainer.AlignmentMode.End
+            };
+            row.AddThemeConstantOverride("separation", 8);
+            _skipHintLabel = new Label {
+                Name = "SkipHintLabel",
+                ThemeTypeVariation = UIPalette.SmallLabelVariation
+            };
+            _skipHintLabel.AddThemeColorOverride("font_color", UIPalette.SlateDim);
+            row.AddChild(_skipHintLabel);
+            _skipProgressBar = new ProgressBar {
+                Name = "SkipHoldProgress",
+                MinValue = 0,
+                MaxValue = 1,
+                Value = 0,
+                ShowPercentage = false,
+                CustomMinimumSize = new Vector2(120, 10),
+                SizeFlagsVertical = Control.SizeFlags.ShrinkCenter
+            };
+            row.AddChild(_skipProgressBar);
+            content.AddChild(row);
+            _skipHintRow = row;
+        }
+
+        private static FTT.Core.StorySaveData ActiveStorySave() {
+            var saveManager = FTT.Core.SaveManager.Instance;
+            var gameManager = FTT.Core.GameManager.Instance;
+            if (saveManager == null || gameManager == null) return null;
+            int slot = gameManager.CurrentSession.ActiveSaveSlot;
+            return slot >= 0 && slot < saveManager.SaveSlots.Length ? saveManager.SaveSlots[slot] : null;
         }
 
         // === Box in/out animation ===
@@ -452,13 +572,17 @@ namespace FTT.UI {
 
         private static void RecordLastViewedDialogue(string dialogueID) {
             if (string.IsNullOrWhiteSpace(dialogueID)) return;
-            var saveManager = FTT.Core.SaveManager.Instance;
-            var gameManager = FTT.Core.GameManager.Instance;
-            if (saveManager == null || gameManager == null) return;
-            int slot = gameManager.CurrentSession.ActiveSaveSlot;
-            if (slot < 0 || slot >= saveManager.SaveSlots.Length) return;
-            var save = saveManager.SaveSlots[slot];
-            if (save != null) save.LastViewedDialogueID = dialogueID;
+            FTT.Core.StorySaveData save = ActiveStorySave();
+            if (save == null) return;
+            save.LastViewedDialogueID = dialogueID;
+            // V7.3 hold-to-skip consumer: the seen-set (deduplicated) is what
+            // makes a sequence skippable on a completed-campaign save. Persisted
+            // with the save at the next checkpoint/level write, like the
+            // last-viewed ID above.
+            save.ViewedDialogueIDs ??= new List<string>();
+            if (!save.ViewedDialogueIDs.Contains(dialogueID)) {
+                save.ViewedDialogueIDs.Add(dialogueID);
+            }
         }
 
         public override void _UnhandledInput(InputEvent @event) {

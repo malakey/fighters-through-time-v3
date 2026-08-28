@@ -110,6 +110,9 @@ namespace FTT.Core {
 
             ResetCampaignState(session.Difficulty);
             SaveManager.Instance?.CreateStorySlot(session.ActiveSaveSlot, characterID, session.Difficulty);
+            // V7.3 quit-fee rule: a live campaign session is marked on disk;
+            // an abnormal exit leaves the marker for the boot check to bill.
+            SessionExitGuard.WriteMarker(session.ActiveSaveSlot);
 
             LoadCurrentLevel();
         }
@@ -120,13 +123,25 @@ namespace FTT.Core {
         /// <see cref="SaveManager.CreateStorySlot"/> writes to the slot, which was
         /// previously only honored on resume while a new campaign hardcoded 3
         /// (audit M-4: Easy started two rewinds short).
+        ///
+        /// V7.3: also clears every piece of stale singleton residue a previous
+        /// campaign could leak into this one — the pending Timeline Collapse
+        /// restart, the collapsed-level anchor, the boss-intro seen set, the
+        /// collapse-beat flag, and the whole per-attempt registry family
+        /// (activated checkpoints, destroyed extractors, found secrets, font
+        /// uses, live Integrity).
         /// </summary>
         public void ResetCampaignState(Difficulty difficulty) {
             CurrentLevel = CampaignLevel.Tutorial;
             ChronalDustCollected = 0;
             ChronalRewindsRemaining = FTT.Environment.ChronalRewindManager.GetMaximumRewinds(difficulty);
             TutorialComplete = false;
-            ClearRestorationFonts();
+            HasPendingTimelineRestart = false;
+            CollapsedLevel = CampaignLevel.Tutorial;
+            CollapsedCheckpointID = "";
+            HasSeenCollapseBeat = false;
+            _bossIntrosSeen.Clear();
+            ClearLevelAttemptState();
         }
 
         /// <summary>
@@ -172,22 +187,39 @@ namespace FTT.Core {
             ChronalDustCollected = Mathf.Max(0, save.LevelChronalDust);
             ChronalRewindsRemaining = Mathf.Max(0, save.CurrentLives);
             TutorialComplete = save.CompletedLevels.Contains("level_00_tutorial");
+            HasSeenCollapseBeat = save.HasSeenCollapseBeat;
             SessionData session = GameManager.Instance.CurrentSession;
             session.ActiveSaveSlot = slot;
             session.SelectedCharacterID = save.SelectedCharacterID;
             session.Difficulty = save.Difficulty;
             GameManager.Instance.CurrentSession = session;
+            // V7.3 quit-fee rule: the resumed session is live again.
+            SessionExitGuard.WriteMarker(slot);
             ReturnToHub();
         }
 
         public void LoadCurrentLevel() {
             string path = GetCurrentLevelPath();
             if (!string.IsNullOrWhiteSpace(path) && ResourceLoader.Exists(path)) {
-                BeginLevelRun();
+                BeginLevelRun(resumeAttempt: IsMidLevelResume(path));
                 GameManager.Instance.LoadScene(path);
             } else {
                 GD.PushError($"Campaign scene is not authored yet: {path}");
             }
+        }
+
+        /// <summary>
+        /// V7.3: a level entry resumes the parked attempt (rather than starting
+        /// a fresh one) exactly when the active save is parked mid-level on
+        /// THIS scene with a reached checkpoint. Level completion and Restart
+        /// both clear <c>LastCheckpointID</c>, so a stale id can never promote
+        /// a fresh entry into a resume.
+        /// </summary>
+        private bool IsMidLevelResume(string scenePath) {
+            StorySaveData save = GetActiveSave();
+            return save != null
+                && save.CurrentLevelID == scenePath
+                && !string.IsNullOrWhiteSpace(save.LastCheckpointID);
         }
 
         public void ReturnToHub() {
@@ -200,15 +232,23 @@ namespace FTT.Core {
         /// including a Timeline Collapse restart — a restarted level is a fresh
         /// attempt, and carrying the abandoned attempt's clock into it would report
         /// a completion time the player never experienced.
+        ///
+        /// V7.3: a FRESH entry clears the per-attempt registries, opens
+        /// Integrity at 100, and refills the rewind pool to the difficulty
+        /// maximum; a mid-level RESUME restores all of it from the active save
+        /// and leaves the pool exactly where the save parked it.
         /// </summary>
-        public void BeginLevelRun() {
+        public void BeginLevelRun(bool resumeAttempt = false) {
             LevelElapsedSeconds = 0f;
             LevelRewindsUsed = 0;
             IsLevelTimerRunning = true;
-            // V7.1 Timeline Integrity: every attempt opens at 100%; the level's
-            // secret has not been found in this attempt.
-            TimelineIntegrityPercent = TimelineIntegrityRules.StartPercent;
-            LevelSecretsFound = 0;
+            if (resumeAttempt) {
+                RestoreAttemptStateFromSave(GetActiveSave());
+                return;
+            }
+            ClearLevelAttemptState();
+            Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
+            ChronalRewindsRemaining = FTT.Environment.ChronalRewindManager.GetMaximumRewinds(difficulty);
         }
 
         /// <summary>Stops the clock without publishing a completion result.</summary>
@@ -249,25 +289,123 @@ namespace FTT.Core {
         public string LastLevelChronalRating { get; private set; } = "";
 
         /// <summary>
-        /// Drains the Siphon Clock: <paramref name="engagedExtractors"/> living,
-        /// engaged Extractors sipping for <paramref name="dt"/> seconds. The
-        /// level scene's controller (or the extractors' own processing) calls
-        /// this; the drain rate doubles on Hard.
+        /// V7.3 Siphon Clock: the drain accounting lives on each engaged
+        /// Extractor (which owns its 10% share cap and 10 s grace window);
+        /// this is the single sink they draw through. Returns the integrity
+        /// actually drained, so the caller's share ledger only counts what
+        /// was really stolen. Replaces the old unbounded per-extractor-count
+        /// entry point.
         /// </summary>
-        public void DrainTimelineIntegrity(int engagedExtractors, float dt) {
-            if (engagedExtractors <= 0 || dt <= 0f || !IsLevelTimerRunning) return;
-            Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
-            TimelineIntegrityPercent = Mathf.Max(0f,
-                TimelineIntegrityPercent
-                - TimelineIntegrityRules.DrainPerSecond(difficulty) * engagedExtractors * dt);
+        public float DrainTimelineIntegrityAmount(float amountPercent) {
+            if (amountPercent <= 0f || !IsLevelTimerRunning) return 0f;
+            float applied = Mathf.Min(amountPercent, TimelineIntegrityPercent);
+            TimelineIntegrityPercent -= applied;
+            return applied;
         }
 
-        /// <summary>The level's secret restores +5% Integrity (capped at 100).</summary>
-        public void RegisterSecretFound() {
-            LevelSecretsFound++;
+        /// <summary>V7.3 restoration paths: +3% per destroyed Extractor, +2%
+        /// per ordinary secret, +5% for the special secret — capped at 100.</summary>
+        public void RestoreTimelineIntegrity(float percent) {
             TimelineIntegrityPercent = Mathf.Min(
                 TimelineIntegrityRules.StartPercent,
-                TimelineIntegrityPercent + TimelineIntegrityRules.SecretRestorePercent);
+                TimelineIntegrityPercent + Mathf.Max(0f, percent));
+        }
+
+        /// <summary>
+        /// Counts a secret once per attempt and pays its restoration
+        /// (+2% ordinary / +5% special). Returns false when this secret was
+        /// already found this attempt (including via a mid-level resume).
+        /// </summary>
+        public bool RegisterSecretFound(string secretID, bool isSpecialSecret = true) {
+            if (!string.IsNullOrWhiteSpace(secretID) && !_foundSecrets.Add(secretID)) return false;
+            LevelSecretsFound++;
+            RestoreTimelineIntegrity(isSpecialSecret
+                ? TimelineIntegrityRules.SpecialSecretRestorePercent
+                : TimelineIntegrityRules.GenericSecretRestorePercent);
+            return true;
+        }
+
+        // === Per-attempt registries (V7.3 mid-level resume) =================
+        // Once-per-attempt facts that must survive a quit-and-resume and a
+        // Timeline Collapse resume-from-anchor, and reset on a fresh entry or
+        // a Restart Level: checkpoints stabilized (gates Mending + rewind
+        // refresh), extractors destroyed, secrets found.
+
+        private readonly HashSet<string> _activatedCheckpoints = new(System.StringComparer.Ordinal);
+        private readonly HashSet<string> _destroyedExtractors = new(System.StringComparer.Ordinal);
+        private readonly HashSet<string> _foundSecrets = new(System.StringComparer.Ordinal);
+
+        /// <summary>The collapse beat has played once on this save (skippable after).</summary>
+        public bool HasSeenCollapseBeat { get; private set; }
+
+        public void MarkCollapseBeatSeen() => HasSeenCollapseBeat = true;
+
+        /// <summary>
+        /// Authoritative once-per-attempt checkpoint activation. Returns true
+        /// only on the FIRST activation this attempt — the caller gates the
+        /// Mending heal and the rewind-pool refresh on it, while respawn
+        /// anchor and save still update on every activation.
+        /// </summary>
+        public bool TryActivateCheckpoint(string checkpointID) {
+            if (string.IsNullOrWhiteSpace(checkpointID)) return false;
+            return _activatedCheckpoints.Add(checkpointID);
+        }
+
+        public bool IsCheckpointActivated(string checkpointID) =>
+            !string.IsNullOrWhiteSpace(checkpointID) && _activatedCheckpoints.Contains(checkpointID);
+
+        public void RecordExtractorDestroyed(string extractorID) {
+            if (!string.IsNullOrWhiteSpace(extractorID)) _destroyedExtractors.Add(extractorID);
+        }
+
+        public bool IsExtractorDestroyed(string extractorID) =>
+            !string.IsNullOrWhiteSpace(extractorID) && _destroyedExtractors.Contains(extractorID);
+
+        public bool IsSecretFound(string secretID) =>
+            !string.IsNullOrWhiteSpace(secretID) && _foundSecrets.Contains(secretID);
+
+        /// <summary>Fresh entry / Restart Level: no per-attempt fact survives.</summary>
+        public void ClearLevelAttemptState() {
+            _activatedCheckpoints.Clear();
+            _destroyedExtractors.Clear();
+            _foundSecrets.Clear();
+            ClearRestorationFonts();
+            TimelineIntegrityPercent = TimelineIntegrityRules.StartPercent;
+            LevelSecretsFound = 0;
+        }
+
+        /// <summary>Checkpoint saves (and the collapse save) carry the attempt.</summary>
+        public void WriteAttemptStateToSave(StorySaveData save) {
+            if (save == null) return;
+            save.ActivatedCheckpointIDs = new List<string>(_activatedCheckpoints);
+            save.DestroyedExtractorIDs = new List<string>(_destroyedExtractors);
+            save.FoundSecretIDs = new List<string>(_foundSecrets);
+            save.FontUsesConsumed = new Dictionary<string, int>(_fontUsesConsumed);
+            save.LevelIntegrityPercent = TimelineIntegrityPercent;
+            save.HasSeenCollapseBeat = HasSeenCollapseBeat;
+        }
+
+        /// <summary>Mid-level resume: the parked attempt comes back whole.</summary>
+        public void RestoreAttemptStateFromSave(StorySaveData save) {
+            ClearLevelAttemptState();
+            if (save == null) return;
+            foreach (string id in save.ActivatedCheckpointIDs ?? new List<string>()) {
+                if (!string.IsNullOrWhiteSpace(id)) _activatedCheckpoints.Add(id);
+            }
+            foreach (string id in save.DestroyedExtractorIDs ?? new List<string>()) {
+                if (!string.IsNullOrWhiteSpace(id)) _destroyedExtractors.Add(id);
+            }
+            foreach (string id in save.FoundSecretIDs ?? new List<string>()) {
+                if (!string.IsNullOrWhiteSpace(id)) _foundSecrets.Add(id);
+            }
+            if (save.FontUsesConsumed != null) {
+                foreach (KeyValuePair<string, int> entry in save.FontUsesConsumed) {
+                    if (!string.IsNullOrWhiteSpace(entry.Key)) _fontUsesConsumed[entry.Key] = entry.Value;
+                }
+            }
+            TimelineIntegrityPercent = Mathf.Clamp(save.LevelIntegrityPercent, 0f, TimelineIntegrityRules.StartPercent);
+            LevelSecretsFound = _foundSecrets.Count;
+            HasSeenCollapseBeat = save.HasSeenCollapseBeat;
         }
 
         /// <summary>
@@ -289,8 +427,9 @@ namespace FTT.Core {
             if ((int)CurrentLevel < 15) {
                 CurrentLevel = (CampaignLevel)((int)CurrentLevel + 1);
             }
-            // A fresh level entry resets the Restoration Font registry.
-            ClearRestorationFonts();
+            // The finished attempt's registries (fonts, checkpoints,
+            // extractors, secrets) never leak into the next level.
+            ClearLevelAttemptState();
         }
 
         public string GetCurrentLevelPath() {
@@ -370,6 +509,9 @@ namespace FTT.Core {
                 save.CurrentLives = ChronalRewindsRemaining;
                 save.CurrentHP = GetSelectedCharacterMaximumHP();
                 if (!string.IsNullOrWhiteSpace(CollapsedCheckpointID)) save.LastCheckpointID = CollapsedCheckpointID;
+                // A collapse resume-from-anchor keeps the attempt's registries
+                // (checkpoints stay Mended-out, extractors stay broken).
+                WriteAttemptStateToSave(save);
                 SaveManager.Instance.SaveStorySlot(GameManager.Instance.CurrentSession.ActiveSaveSlot);
             }
             ReturnToHub();
@@ -380,6 +522,9 @@ namespace FTT.Core {
             CurrentLevel = CollapsedLevel;
             Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
             ChronalRewindsRemaining = FTT.Environment.ChronalRewindManager.GetMaximumRewinds(difficulty);
+            // V7.3: resuming from the Timeline Anchor keeps the attempt's
+            // per-attempt state; restarting from the beginning clears it.
+            if (!resumeFromTimelineAnchor) ClearLevelAttemptState();
             StorySaveData save = GetActiveSave();
             if (save != null) {
                 save.CurrentLevelID = GetCurrentLevelPath();
@@ -387,6 +532,7 @@ namespace FTT.Core {
                 save.CurrentHP = GetSelectedCharacterMaximumHP();
                 save.CurrentLives = ChronalRewindsRemaining;
                 save.LevelChronalDust = ChronalDustCollected;
+                WriteAttemptStateToSave(save);
                 SaveManager.Instance.SaveStorySlot(GameManager.Instance.CurrentSession.ActiveSaveSlot);
             }
             HasPendingTimelineRestart = false;
@@ -436,6 +582,11 @@ namespace FTT.Core {
             int deposited = FTT.Environment.ResonanceProgression.DepositActiveDust(save, characterID, ChronalDustCollected);
             if (deposited <= 0) return 0;
             ChronalDustCollected -= deposited;
+            // V7.3 dust-dup fix: the deposit and the wallet-zero must persist
+            // in ONE atomic envelope write. The save's undeposited wallet was
+            // never updated here, so a process kill after the deposit landed
+            // re-materialized the deposited dust into the wallet on relaunch.
+            save.LevelChronalDust = ChronalDustCollected;
             EventBus.Instance?.RaiseChronalDustDeposited(
                 save.DepositedChronalDust.GetValueOrDefault(characterID));
             SaveManager.Instance.SaveStorySlot(slot);

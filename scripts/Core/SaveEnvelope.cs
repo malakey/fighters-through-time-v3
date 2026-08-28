@@ -265,8 +265,13 @@ namespace FTT.Core {
         /// <b>global</b> payload has ever needed: <c>InputBindings</c> changed from a
         /// dead <c>Dictionary&lt;string,string&gt;</c> to a structured
         /// <see cref="InputBindingSet"/>. Story saves have no v3→v4 work.
+        /// v5 (V7.3) is purely additive on the story payload — per-attempt
+        /// mid-level resume state (activated checkpoints, Restoration Font
+        /// uses, destroyed extractors, found secrets, live Timeline Integrity)
+        /// plus the viewed-dialogue and collapse-beat flags — so v4 payloads
+        /// load with field-initializer defaults and need no migration step.
         /// </summary>
-        public const int CurrentVersion = 4;
+        public const int CurrentVersion = 5;
 
         public static StorySaveData DeserializeStory(string json) {
             JObject root = JObject.Parse(string.IsNullOrWhiteSpace(json) ? "{}" : json);

@@ -497,6 +497,17 @@ public class Level15ContentTests {
 
         // The base kept its own bookkeeping (Level 8's lesson) ...
         AssertThat(level.IsBossDefeated).IsTrue();
+        // V7.3 Single Icon Rule: the defeat spawns a physical pickup; the
+        // wallet (and the boss line) is paid when it is collected.
+        AssertThat(level.DustEarnedThisLevel).IsEqual(0);
+        ChronalDustPickup bossDust = null;
+        for (int index = 0; index < level.GetChildCount() && bossDust == null; index++) {
+            bossDust = level.GetChild(index) as ChronalDustPickup;
+        }
+        AssertObject(bossDust)
+            .OverrideFailureMessage("The Eraser's defeat spawned no dust pickup.")
+            .IsNotNull();
+        bossDust.Collect();
         AssertThat(level.DustEarnedThisLevel).IsGreaterEqual(50);
         // ... the gate opened on the defeat itself, not at the end of a beat chain ...
         AssertThat(level.PrimeAnchor.IsArmed)

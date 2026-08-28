@@ -63,6 +63,39 @@ namespace FTT.Environment {
             return ResonanceUnlockResult.Unlocked;
         }
 
+        /// <summary>
+        /// V7.3 free respec (design "Respec — free, always available"): the sum
+        /// of every unlocked node's cost on the active character's grid — what
+        /// a respec would refund. Zero for a wrong-character pairing.
+        /// </summary>
+        public static int CalculateSpentDust(ResonanceGridData grid, StorySaveData save) {
+            if (grid == null || save == null || grid.CharacterID != save.SelectedCharacterID) return 0;
+            List<string> unlocked = GetUnlockedNodes(save, grid.CharacterID);
+            int spent = 0;
+            foreach (ResonanceNodeData node in grid.Nodes ?? Array.Empty<ResonanceNodeData>()) {
+                if (node != null && unlocked.Contains(node.NodeID)) spent += node.UnlockCost;
+            }
+            return spent;
+        }
+
+        /// <summary>
+        /// V7.3 free respec: refunds EVERY Chronal Dust point spent on the
+        /// active character's grid back into their Repository pool and clears
+        /// all unlocked nodes. No fee, no cooldown. Returns the refunded
+        /// amount — zero for a wrong-character pairing, an empty grid, or a
+        /// second respec in a row.
+        /// </summary>
+        public static int RespecAll(ResonanceGridData grid, StorySaveData save) {
+            int refund = CalculateSpentDust(grid, save);
+            if (grid == null || save == null || grid.CharacterID != save.SelectedCharacterID) return 0;
+            List<string> unlocked = GetUnlockedNodes(save, grid.CharacterID);
+            if (unlocked.Count == 0) return 0;
+            int balance = save.DepositedChronalDust.GetValueOrDefault(grid.CharacterID);
+            save.DepositedChronalDust[grid.CharacterID] = checked(balance + refund);
+            unlocked.Clear();
+            return refund;
+        }
+
         public static int DepositActiveDust(StorySaveData save, string characterID, int carriedDust) {
             if (save == null || characterID != save.SelectedCharacterID || carriedDust <= 0) return 0;
             int balance = save.DepositedChronalDust.GetValueOrDefault(characterID);

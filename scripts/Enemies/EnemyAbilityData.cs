@@ -16,7 +16,16 @@ namespace FTT.Enemies {
         ShieldBubble,
         AreaPulse,
         SummonMinions,
-        Teleport
+        Teleport,
+        /// <summary>
+        /// V7.3 (Chrono-Warden rework): spawns a persistent zone at the target
+        /// position CAPTURED at cast (the player's position when the telegraph
+        /// began), radius <see cref="EnemyAbilityData.PulseRadius"/>, living
+        /// <see cref="EnemyAbilityData.FieldDurationSeconds"/>, applying and
+        /// refreshing the authored status while a player stands inside.
+        /// APPEND-ONLY enum: resources serialize the ordinal — never reorder.
+        /// </summary>
+        PersistentFieldAtTarget
     }
 
     /// <summary>Distance band a boss may select this ability from.</summary>
@@ -95,6 +104,9 @@ namespace FTT.Enemies {
         [Export] public float PulseRadius = 140f;
         [Export] public float TeleportRangeMin = 160f;
         [Export] public float TeleportRangeMax = 320f;
+        /// <summary>V7.3: lifetime of a PersistentFieldAtTarget zone. Additive
+        /// export — older resources load the 4 s default with no schema bump.</summary>
+        [Export] public float FieldDurationSeconds = 4f;
 
         [ExportGroup("Presentation")]
         [Export] public Color TelegraphTint = new(1f, 0.55f, 0.2f);
@@ -140,6 +152,8 @@ namespace FTT.Enemies {
                     !string.IsNullOrWhiteSpace(SummonEnemyID) && SummonCount >= 1,
                 EnemyAbilityArchetype.Teleport =>
                     TeleportRangeMax >= TeleportRangeMin && TeleportRangeMax > 0f,
+                EnemyAbilityArchetype.PersistentFieldAtTarget =>
+                    PulseRadius > 0f && FieldDurationSeconds > 0f,
                 _ => HitboxSize.X > 0f && HitboxSize.Y > 0f
             };
         }

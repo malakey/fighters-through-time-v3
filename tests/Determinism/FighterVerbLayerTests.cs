@@ -132,6 +132,35 @@ public class FighterVerbLayerTests {
     }
 
     [TestCase]
+    public void LandingTechFiresAtZeroChargesAndDuringTheShatterLockout() {
+        // V7.3 ruling: the tech reads the raw Block INPUT, not the stance — an
+        // empty shield and a running shatter lockout must not disable it.
+        var fighter = new FighterStateComponent {
+            PlayerID = 1,
+            Stocks = 3,
+            MaxHP = 100,
+            CurrentHP = 60,
+            BlockCharges = 0,
+            IsGrounded = 1,
+            HitstunFrames = 20
+        };
+        var runtime = new FighterRuntimeComponent { HeldButtons = (int)GameplayButtons.Block };
+        var verb = new FighterVerbComponent {
+            Tumble = 1,
+            BlockLockoutFrames = BasicComboRules.BlockShatterLockoutFrames
+        };
+
+        AssertThat(FighterVerbRules.TryLandingTech(ref fighter, in runtime, ref verb))
+            .OverrideFailureMessage("The tech must fire with zero charges and the lockout running.")
+            .IsTrue();
+        AssertThat(fighter.HitstunFrames).IsEqual(0);
+        AssertThat(verb.TechLockoutFrames).IsEqual(BasicComboRules.LandingTechRecoveryFrames);
+        // The tech consumed neither the lockout nor a phantom charge.
+        AssertThat(verb.BlockLockoutFrames).IsEqual(BasicComboRules.BlockShatterLockoutFrames);
+        AssertThat(fighter.BlockCharges).IsEqual(0);
+    }
+
+    [TestCase]
     public void RallyEchoAccruesDrainsAndDefersTheVictimMeter() {
         var simulation = NewSimulation(
             BuildAttacker(damage: 10f, knockback: 0f), BuildVictim(maxHP: 400), seed: 904);
@@ -162,22 +191,24 @@ public class FighterVerbLayerTests {
     }
 
     [TestCase]
-    public void RallyReclaimRestoresTheRemainingEchoOnADirectHit() {
-        // Both fighters carry the zero-knockback opener; the victim of the
-        // first hit answers with their own and instantly reclaims the pool.
+    public void RallyReclaimIsCappedAtTwiceTheReclaimingHitsDamage() {
+        // V7.3 rework: a heavy opener stashes a big echo on the victim; their
+        // light counter-hit reclaims only min(pool, hitDamage x 2). The
+        // remainder persists and keeps draining — no more one-poke cashouts.
         var simulation = NewSimulation(
-            BuildAttacker(damage: 10f, knockback: 0f),
+            BuildAttacker(damage: 300f, knockback: 0f),
             BuildAttacker(damage: 10f, knockback: 0f),
             seed: 905);
-        int connectTick = LandOpener(simulation, out _);
+        int connectTick = LandOpener(simulation, out int openerDamage);
+        AssertThat(openerDamage).IsEqual(240);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent wounded)).IsTrue();
         int hpAfterHit = wounded.CurrentHP;
         AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent pool)).IsTrue();
         AssertThat(pool.EchoPool > FP64.Zero).IsTrue();
 
-        // Ride out hitstop + hitstun, then the victim swings back. Their
-        // opener connects within its startup; the drain (150f) is still far
-        // from empty.
+        // Ride out hitstop + hitstun, then the victim swings back with their
+        // own 8-damage opener. Its cap is 8 x 2 = 16 — far below the pool even
+        // after the drain that ran in between.
         int tick = connectTick + 1;
         for (; tick <= connectTick + 45; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
@@ -189,16 +220,60 @@ public class FighterVerbLayerTests {
         }
 
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent struck)).IsTrue();
-        AssertThat(struck.CurrentHP < struck.MaxHP)
-            .OverrideFailureMessage("The counter-hit must have landed for the reclaim to trigger.")
-            .IsTrue();
+        int counterDamage = struck.MaxHP - struck.CurrentHP;
+        AssertThat(counterDamage)
+            .OverrideFailureMessage("The 8-damage counter-hit must have landed for the reclaim to trigger.")
+            .IsEqual(8);
+        int expectedReclaim = (int)(counterDamage * FTT.Combat.BasicComboRules.RallyReclaimDamageMultiplier);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent healed)).IsTrue();
-        AssertThat(healed.CurrentHP > hpAfterHit)
-            .OverrideFailureMessage("A landed direct hit must reclaim the remaining echo as real HP.")
+        AssertThat(healed.CurrentHP)
+            .OverrideFailureMessage("The reclaim must restore exactly hitDamage x 2 — never the whole pool.")
+            .IsEqual(hpAfterHit + expectedReclaim);
+        AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent remainder)).IsTrue();
+        AssertThat(remainder.EchoPool > FP64.Zero)
+            .OverrideFailureMessage("The unreclaimed remainder must persist in the pool.")
             .IsTrue();
-        AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent cleared)).IsTrue();
-        AssertThat(cleared.EchoPool.RawValue)
-            .OverrideFailureMessage("The reclaim empties the pool.")
+        AssertThat(remainder.EchoDrainPerFrame > FP64.Zero)
+            .OverrideFailureMessage("The persisting remainder must keep draining at the unchanged rate.")
+            .IsTrue();
+    }
+
+    [TestCase]
+    public void ADefiedHitGeneratesNoRallyEcho() {
+        // V7.3 guardrail pin: the meter consumed the entire defied blow —
+        // "shatters to 0" must read as exactly that, so the survivor gets
+        // neither a Rally echo nor victim meter from the hit.
+        var simulation = NewSimulation(
+            BuildAttacker(damage: 125f, knockback: 0f, maxHP: 400),
+            BuildAttacker(damage: 125f, knockback: 0f, maxHP: 100),
+            seed: 907);
+
+        // Victim (player 1) lands first: +100 influence, full meter.
+        int tick = 0;
+        simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.BasicAttack));
+        for (int step = 0; step < 60; step++) {
+            tick++;
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent charged)).IsTrue();
+        AssertThat(charged.Influence.RawValue).IsEqual(FP64.FromInt(100).RawValue);
+
+        // The lethal answer: Defy History fires instead of the KO.
+        tick++;
+        simulation.Advance(Frame(tick, 0, GameplayButtons.BasicAttack), Frame(tick, 0, GameplayButtons.None));
+        for (int step = 0; step < 60; step++) {
+            tick++;
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent survivor)).IsTrue();
+        AssertThat(survivor.CurrentHP).IsEqual(1);
+        AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent verb)).IsTrue();
+        AssertThat(verb.DefyHistoryUsed).IsEqual(1);
+        AssertThat(verb.EchoPool.RawValue)
+            .OverrideFailureMessage("A defied hit must stash no Rally echo.")
+            .IsEqual(0L);
+        AssertThat(survivor.Influence.RawValue)
+            .OverrideFailureMessage("A defied hit must accrue no victim meter — the meter shattered to zero.")
             .IsEqual(0L);
     }
 

@@ -172,7 +172,9 @@ namespace FTT.Characters.Abilities {
             StatusDuration = statusDuration,
             StatusIntensity = _data?.StatusIntensity ?? 1f,
             ScreenShakeIntensity = 0.1f,
-            ScreenShakeDuration = 0.05f
+            ScreenShakeDuration = 0.05f,
+            // V7.3: construct ticks carry no hitstop.
+            ExemptFromHitstop = true
         };
 
         private static bool TargetIsRooted(Hurtbox hurtbox) {

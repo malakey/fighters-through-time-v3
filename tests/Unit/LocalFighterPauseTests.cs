@@ -142,6 +142,41 @@ public class LocalFighterPauseTests {
         AssertThat(manager.GetDeviceForPlayer(0)).IsEqual(3);
     }
 
+    /// <summary>
+    /// V7.3 UI-scale pass: the pause title and the disconnect modal's message
+    /// ride theme Label variations (TitleLabel / EmphasisLabel) instead of
+    /// font-size overrides, so they follow the accessibility UI scale.
+    /// </summary>
+    [TestCase]
+    public void TitleAndDisconnectLabelUseThemeVariationsWithNoFontSizeOverride() {
+        var scene = new Node { Name = "PauseScalePinHost" };
+        AddToTree(scene);
+        var pause = new LocalFighterPause { Name = "LocalFighterPause" };
+        scene.AddChild(pause);
+        SceneTree tree = scene.GetTree();
+        try {
+            var panel = pause.FindChild("PausePanel", recursive: true, owned: false) as Control;
+            AssertObject(panel).IsNotNull();
+            Node layout = panel.GetChild(0);
+            Label title = null;
+            for (int index = 0; index < layout.GetChildCount() && title == null; index++) {
+                title = layout.GetChild(index) as Label;
+            }
+            AssertObject(title).IsNotNull();
+            AssertThat(title.ThemeTypeVariation.ToString()).IsEqual(UIPalette.TitleLabelVariation);
+            AssertThat(title.HasThemeFontSizeOverride("font_size")).IsFalse();
+
+            var disconnect = pause.FindChild("DisconnectLabel", recursive: true, owned: false) as Label;
+            AssertObject(disconnect).IsNotNull();
+            AssertThat(disconnect.ThemeTypeVariation.ToString())
+                .IsEqual(UIPalette.EmphasisLabelVariation);
+            AssertThat(disconnect.HasThemeFontSizeOverride("font_size")).IsFalse();
+        } finally {
+            tree.Paused = false;
+            scene.QueueFree();
+        }
+    }
+
     private static void AddToTree(Node node) {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
         tree.Root.AddChild(node);

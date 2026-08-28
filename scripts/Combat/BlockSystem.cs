@@ -33,7 +33,11 @@ namespace FTT.Combat {
 
         private float _regenTimer;
         private const float RegenInterval = BasicComboRules.BlockChargeRegenFrames / 60f;
+        private const float LockoutSeconds = BasicComboRules.BlockShatterLockoutFrames / 60f;
+        private const float ShieldStunSeconds = BasicComboRules.ShieldstunFrames / 60f;
         private bool _isBlocking;
+        private float _lockoutTimer;
+        private float _shieldStunTimer;
         private PlayerController _owner;
 
         public override void _Ready() {
@@ -57,8 +61,19 @@ namespace FTT.Combat {
 
         public bool IsBlocking => _isBlocking;
 
+        /// <summary>
+        /// V7.3: whether the stance may rise at all — at least one charge and
+        /// no running shatter lockout. CheckBlockInput and the hitstun
+        /// block-cancel both gate on this, mirroring the sim's IsBlockStance.
+        /// </summary>
+        public bool CanRaiseStance => CurrentCharges > 0 && _lockoutTimer <= 0f;
+
+        /// <summary>V7.3 shieldstun: the blocker is locked into the stance —
+        /// no grab, roll, drop-through, or release until it expires.</summary>
+        public bool IsInShieldStun => _shieldStunTimer > 0f;
+
         public void StartBlock() {
-            _isBlocking = CurrentCharges > 0;
+            _isBlocking = CanRaiseStance;
             if (_isBlocking) _regenTimer = 0f;
         }
 
@@ -86,6 +101,9 @@ namespace FTT.Combat {
             _regenTimer = 0f;
             RaiseChargesChanged();
             if (CurrentCharges > 0) {
+                // V7.3 shieldstun: every non-shatter blocked hit locks the
+                // stance up for the shared window (the sim mirrors this).
+                _shieldStunTimer = ShieldStunSeconds;
                 GrantHenrysBastion();
                 FTT.Core.EventBus.Instance?.RaiseBlockAbsorbed(_owner.PlayerIndex, CurrentCharges);
                 return BlockResult.Blocked;
@@ -117,6 +135,8 @@ namespace FTT.Combat {
             CurrentCharges = Mathf.Max(0, MaxCharges);
             _regenTimer = 0f;
             _isBlocking = false;
+            _lockoutTimer = 0f;
+            _shieldStunTimer = 0f;
             RaiseChargesChanged();
         }
 
@@ -124,11 +144,14 @@ namespace FTT.Combat {
         /// Restores every charge without touching the blocking stance — the
         /// Chronal Orb shield-restore pickup's entry point. Writing here keeps
         /// this system authoritative; the PlayerController.CurrentBlockCharges
-        /// field is only a display mirror.
+        /// field is only a display mirror. V7.3 ruling: a shield restore also
+        /// ends a running shatter lockout — a full shield with no stance would
+        /// read as a bug.
         /// </summary>
         public void RestoreAllCharges() {
             CurrentCharges = Mathf.Max(0, MaxCharges);
             _regenTimer = 0f;
+            _lockoutTimer = 0f;
             RaiseChargesChanged();
         }
 
@@ -160,6 +183,10 @@ namespace FTT.Combat {
 
         private void BreakGuard() {
             _isBlocking = false;
+            // V7.3: the shatter arms the five-second lockout — no stance and no
+            // regen until it expires (charge #1 lands at shatter + 480f).
+            _lockoutTimer = LockoutSeconds;
+            _shieldStunTimer = 0f;
             _owner.TransitionTo(CharacterState.Dazed);
 
             if (_owner.HasStoryPerk(QuantumEntanglementPerkKey)) {
@@ -177,6 +204,18 @@ namespace FTT.Combat {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // Shieldstun and the lockout share the owner's hitstop suspension:
+            // a frozen fighter's timers do not tick (mirrors the sim, where
+            // TickCounters is skipped during hitstop).
+            if (_owner != null && _owner.IsInHitstop) return;
+            if (_shieldStunTimer > 0f) _shieldStunTimer -= (float)delta;
+            // V7.3 shatter lockout: regen is held (interval re-armed) while it
+            // runs, so the first charge lands one interval after it expires.
+            if (_lockoutTimer > 0f) {
+                _lockoutTimer -= (float)delta;
+                _regenTimer = 0f;
+                return;
+            }
             if (_isBlocking || CurrentCharges >= MaxCharges) return;
             // Story-only BlockRecovery minors regenerate charges faster (1f
             // outside Story Mode).

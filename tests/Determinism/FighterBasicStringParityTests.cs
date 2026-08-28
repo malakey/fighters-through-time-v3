@@ -222,47 +222,56 @@ public class FighterBasicStringParityTests {
     }
 
     [TestCase]
-    public void AGroundedVictimHoldingBlockEscapesHitstunIntoTheStance() {
-        // Gameplay-feel plan §2.4. The opener launches the victim briefly, so
-        // the escape can only fire once they are back on the floor — and it
-        // fires well inside the opener's 30-frame hitstun, which the control
-        // run below rides all the way out.
-        var escaping = NewAdjacentSimulation(seed: 120);
-        var control = NewAdjacentSimulation(seed: 120);
-        int connectTick = BasicComboRules.GroundStartupFrames[0];
-        for (int tick = 0; tick <= connectTick; tick++) {
-            Advance(escaping, tick, p1Buttons: tick == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None);
-            Advance(control, tick, p1Buttons: tick == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None);
-        }
-        AssertThat(escaping.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();
-        AssertThat(struck.HitstunFrames)
-            .OverrideFailureMessage("The opener must have landed with its full hitstun.")
-            .IsEqual(BasicComboRules.HitstunFrames[0]);
-
+    public void BlockEscapesHitstunOnlyAfterHitTwoConnects() {
+        // V7.3 hit-2 cancel gate (rewrites the superseded §2.4 always-escapable
+        // rule): string hit ONE's hitstun cannot be block-cancelled — the victim
+        // rides it until hit two connects — and from hit two on, a grounded
+        // victim holding Block leaves hitstun immediately into the stance. The
+        // zero-knockback attacker keeps the victim grounded throughout.
+        var simulation = NewZeroKnockbackSimulation(seed: 120);
+        int hits = 0;
+        int hitTwoTick = -1;
         int escapeTick = -1;
-        int controlHitstun = 0;
-        for (int tick = connectTick + 1; tick < connectTick + BasicComboRules.HitstunFrames[0]; tick++) {
-            Advance(escaping, tick, p2Held: GameplayButtons.Block);
-            Advance(control, tick);
-            AssertThat(escaping.TryGetFighter(1, out FighterStateComponent blocking)).IsTrue();
-            AssertThat(control.TryGetFighter(1, out FighterStateComponent riding)).IsTrue();
-            controlHitstun = riding.HitstunFrames;
-            if (escapeTick < 0 && blocking.HitstunFrames == 0) escapeTick = tick;
-            // While still airborne from the launch the escape must not fire.
-            if (escapeTick < 0) {
-                AssertThat(blocking.HitstunFrames > 0).IsTrue();
+        for (int tick = 0; tick <= 150 && escapeTick < 0; tick++) {
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent attacker)).IsTrue();
+            bool press = hits == 0
+                ? attacker.AttackPhase == FighterBasicAttackRules.PhaseNone
+                : attacker.AttackPhase == FighterBasicAttackRules.PhaseChainHold;
+            // The victim holds Block from the moment hit one has landed.
+            Advance(
+                simulation,
+                tick,
+                p1Buttons: press ? GameplayButtons.BasicAttack : GameplayButtons.None,
+                p2Held: hits > 0 ? GameplayButtons.Block : GameplayButtons.None);
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
+            if (after.CurrentHP < before.CurrentHP) {
+                hits++;
+                if (hits == 2) hitTwoTick = tick;
+            } else if (hits == 1) {
+                // Between hit one and hit two, holding Block must not clear the
+                // hitstun — hit one is never escapable.
+                AssertThat(after.HitstunFrames > 0)
+                    .OverrideFailureMessage($"Hit one's hitstun must not be block-cancelable (tick {tick}).")
+                    .IsTrue();
             }
+            if (hits >= 2 && after.HitstunFrames == 0) escapeTick = tick;
         }
 
-        AssertThat(escapeTick >= 0)
-            .OverrideFailureMessage("A grounded victim holding Block must leave hitstun early.")
+        AssertThat(hitTwoTick > 0)
+            .OverrideFailureMessage("Hit two of the string must have connected.")
             .IsTrue();
-        AssertThat(controlHitstun > 0)
-            .OverrideFailureMessage("A victim who does not block must still be in hitstun at the same tick.")
+        // The escape fires on the first tick after hit two's shared hitstop
+        // releases the victim — far inside hit two's 40-frame hitstun.
+        int hitTwoHitstop = BasicComboRules.HitstopFrames(10);
+        AssertThat(escapeTick > 0 && escapeTick <= hitTwoTick + hitTwoHitstop + 1)
+            .OverrideFailureMessage(
+                $"From hit two on, the escape must fire immediately (hit two at {hitTwoTick}, escape at {escapeTick}).")
             .IsTrue();
-        AssertThat(escaping.TryGetFighter(1, out FighterStateComponent escaped)).IsTrue();
-        AssertThat(escaping.TryGetFighterRuntime(1, out FighterRuntimeComponent escapedRuntime)).IsTrue();
-        AssertThat(FighterBasicAttackRules.IsBlockStance(in escaped, in escapedRuntime))
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent escaped)).IsTrue();
+        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent escapedRuntime)).IsTrue();
+        AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent escapedVerb)).IsTrue();
+        AssertThat(FighterBasicAttackRules.IsBlockStance(in escaped, in escapedRuntime, in escapedVerb))
             .OverrideFailureMessage("The escape must land straight in the grounded block stance.")
             .IsTrue();
     }
@@ -330,22 +339,23 @@ public class FighterBasicStringParityTests {
             .IsEqual(60);
 
         int dazeAtBreak = dazed.DazeFrames;
-        // V7.1: the breaking (blocked) hit froze the victim for the flat
-        // blocked-hitstop window; run the freeze off first so all ten sampled
-        // frames below actually tick the daze counter.
-        for (int step = 1; step <= BasicComboRules.BlockedHitstopFrames; step++) {
+        // V7.3: the breaking hit froze the victim for the shared shatter
+        // freeze; run it off first so all ten sampled frames below actually
+        // tick the daze counter.
+        for (int step = 1; step <= BasicComboRules.ShatterFreezeFrames; step++) {
             Advance(simulation, tick + step, p2Held: GameplayButtons.Block);
         }
-        tick += BasicComboRules.BlockedHitstopFrames;
+        tick += BasicComboRules.ShatterFreezeFrames;
         for (int step = 1; step <= 10; step++) {
             Advance(simulation, tick + step, p2Held: GameplayButtons.Block);
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent stillDazed)).IsTrue();
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent stillDazedRuntime)).IsTrue();
+        AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent stillDazedVerb)).IsTrue();
         AssertThat(stillDazed.DazeFrames)
             .OverrideFailureMessage("Holding Block must not shorten the daze by a single frame.")
             .IsEqual(dazeAtBreak - 10);
-        AssertThat(FighterBasicAttackRules.IsBlockStance(in stillDazed, in stillDazedRuntime))
+        AssertThat(FighterBasicAttackRules.IsBlockStance(in stillDazed, in stillDazedRuntime, in stillDazedVerb))
             .OverrideFailureMessage("A dazed fighter is never in the block stance.")
             .IsFalse();
     }
@@ -403,7 +413,10 @@ public class FighterBasicStringParityTests {
     [TestCase]
     public void BlockStanceIsGroundedAbsorbsInFrontAndSuppressesActions() {
         // Grounded stance: the swing is absorbed for one charge, no damage,
-        // and the blocker cannot move or start their own swing.
+        // and the blocker cannot move or start their own swing. (BasicAttack
+        // while Block is held is deliberately NOT pressed here — since V7.2
+        // that chord is a grab, and V7.3 rules that a grabbing fighter has no
+        // shield; FighterGrabTests owns that triangle.)
         var grounded = NewAdjacentSimulation(seed: 96);
         AssertThat(grounded.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
         FP64 xBefore = before.Position.x;
@@ -411,7 +424,6 @@ public class FighterBasicStringParityTests {
         for (int tick = 1; tick <= 12; tick++) {
             Advance(grounded, tick,
                 p2MoveX: 127,
-                p2Buttons: GameplayButtons.Block | GameplayButtons.BasicAttack,
                 p2Held: GameplayButtons.Block);
         }
         AssertThat(grounded.TryGetFighter(1, out FighterStateComponent blocked)).IsTrue();
@@ -459,12 +471,63 @@ public class FighterBasicStringParityTests {
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent waiting)).IsTrue();
         AssertThat(waiting.BlockCharges).IsEqual(before.BlockCharges - 1);
-        int fullInterval = tick + BasicComboRules.BlockChargeRegenFrames / 2 + 4;
+        // V7.3: the blocked hit's shared hitstop and shieldstun hold the victim
+        // in the stance (regen re-armed) before the interval starts counting.
+        int fullInterval = tick + BasicComboRules.BlockChargeRegenFrames / 2 + 4
+            + BasicComboRules.BlockedHitstopFrames + BasicComboRules.ShieldstunFrames;
         for (; tick < fullInterval; tick++) {
             Advance(simulation, tick);
         }
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent regenerated)).IsTrue();
         AssertThat(regenerated.BlockCharges).IsEqual(before.BlockCharges);
+    }
+
+    [TestCase]
+    public void ABlockedHitLocksTheBlockerIntoTheStanceForShieldstun() {
+        // V7.3 shieldstun: a non-shatter blocked hit locks the blocker into the
+        // stance for the shared window — releasing Block, attacking, rolling,
+        // and jumping all do nothing until it expires.
+        var simulation = NewAdjacentSimulation(seed: 123);
+        Advance(simulation, 0, p1Buttons: GameplayButtons.BasicAttack, p2Buttons: GameplayButtons.Block);
+        int tick = 1;
+        int blockTick = -1;
+        for (; tick <= 12 && blockTick < 0; tick++) {
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
+            Advance(simulation, tick, p2Held: GameplayButtons.Block);
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
+            if (after.BlockCharges < before.BlockCharges) blockTick = tick;
+        }
+        AssertThat(blockTick > 0)
+            .OverrideFailureMessage("The opener must have been blocked.")
+            .IsTrue();
+        AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent stunned)).IsTrue();
+        AssertThat(stunned.ShieldStunFrames)
+            .OverrideFailureMessage("A blocked hit must arm the shared shieldstun window.")
+            .IsEqual(BasicComboRules.ShieldstunFrames);
+
+        // Through hitstop + shieldstun the victim RELEASES Block and mashes
+        // attack/roll/jump: the stance holds and no action comes out. The last
+        // locked tick is excluded — shieldstun expires inside it.
+        int lockedTicks = BasicComboRules.BlockedHitstopFrames + BasicComboRules.ShieldstunFrames - 1;
+        for (int step = 1; step <= lockedTicks; step++) {
+            Advance(simulation, blockTick + step,
+                p2Buttons: GameplayButtons.BasicAttack | GameplayButtons.Roll | GameplayButtons.Jump);
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent locked)).IsTrue();
+            AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent lockedRuntime)).IsTrue();
+            AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent lockedVerb)).IsTrue();
+            AssertThat(FighterBasicAttackRules.IsBlockStance(in locked, in lockedRuntime, in lockedVerb))
+                .OverrideFailureMessage($"Shieldstun must hold the stance up with Block released (step {step}).")
+                .IsTrue();
+            AssertThat(lockedRuntime.AttackPhase)
+                .OverrideFailureMessage($"No swing may start during shieldstun (step {step}).")
+                .IsEqual(FighterBasicAttackRules.PhaseNone);
+            AssertThat(lockedRuntime.UniversalMovementState)
+                .OverrideFailureMessage($"No roll may start during shieldstun (step {step}).")
+                .IsEqual((int)UniversalMovementPhase.None);
+            AssertThat(locked.IsGrounded)
+                .OverrideFailureMessage($"No jump may leave the ground during shieldstun (step {step}).")
+                .IsEqual(1);
+        }
     }
 
     private static FighterSimulation NewAdjacentSimulation(int seed, int spawnDistance = 1) => new(

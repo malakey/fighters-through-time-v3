@@ -28,8 +28,9 @@ public class FighterLedgeTests {
         FighterStateComponent fighter = AirborneAt(EdgeOf(0, 0), FP64.FromDouble(2.0));
         fighter.Velocity.y = FP64.FromInt(-8);
         FighterRuntimeComponent runtime = FreshRuntime();
+        FighterVerbComponent verb = new();
 
-        AssertThat(FighterLedgeRules.CanGrab(in fighter, in runtime)).IsTrue();
+        AssertThat(FighterLedgeRules.CanGrab(in fighter, in runtime, in verb)).IsTrue();
         AssertThat(Florence.TryFindLedge(in fighter.Position, out int anchor)).IsTrue();
         AssertThat(anchor).IsEqual(0);
     }
@@ -44,11 +45,12 @@ public class FighterLedgeTests {
         FighterStateComponent slow = AirborneAt(EdgeOf(0, 0), FP64.FromDouble(2.0));
         slow.Velocity.y = FighterLedgeRules.MaxGrabVerticalSpeed;
         FighterRuntimeComponent runtime = FreshRuntime();
-        AssertThat(FighterLedgeRules.CanGrab(in slow, in runtime)).IsTrue();
+        FighterVerbComponent verb = new();
+        AssertThat(FighterLedgeRules.CanGrab(in slow, in runtime, in verb)).IsTrue();
 
         FighterStateComponent fast = slow;
         fast.Velocity.y = FighterLedgeRules.MaxGrabVerticalSpeed + FP64.One;
-        AssertThat(FighterLedgeRules.CanGrab(in fast, in runtime)).IsFalse();
+        AssertThat(FighterLedgeRules.CanGrab(in fast, in runtime, in verb)).IsFalse();
     }
 
     [TestCase]
@@ -56,31 +58,63 @@ public class FighterLedgeTests {
         FighterStateComponent baseline = AirborneAt(EdgeOf(0, 0), FP64.FromDouble(2.0));
         baseline.Velocity.y = FP64.FromInt(-8);
         FighterRuntimeComponent freshRuntime = FreshRuntime();
-        AssertThat(FighterLedgeRules.CanGrab(in baseline, in freshRuntime)).IsTrue();
+        FighterVerbComponent freshVerb = new();
+        AssertThat(FighterLedgeRules.CanGrab(in baseline, in freshRuntime, in freshVerb)).IsTrue();
 
         FighterStateComponent stunned = baseline;
         stunned.HitstunFrames = 1;
-        AssertThat(FighterLedgeRules.CanGrab(in stunned, in freshRuntime)).IsFalse();
+        AssertThat(FighterLedgeRules.CanGrab(in stunned, in freshRuntime, in freshVerb)).IsFalse();
 
         FighterStateComponent dazed = baseline;
         dazed.DazeFrames = 1;
-        AssertThat(FighterLedgeRules.CanGrab(in dazed, in freshRuntime)).IsFalse();
+        AssertThat(FighterLedgeRules.CanGrab(in dazed, in freshRuntime, in freshVerb)).IsFalse();
 
         FighterStateComponent dropping = baseline;
         dropping.DropThroughFrames = 1;
-        AssertThat(FighterLedgeRules.CanGrab(in dropping, in freshRuntime)).IsFalse();
+        AssertThat(FighterLedgeRules.CanGrab(in dropping, in freshRuntime, in freshVerb)).IsFalse();
 
         FighterStateComponent grounded = baseline;
         grounded.IsGrounded = 1;
-        AssertThat(FighterLedgeRules.CanGrab(in grounded, in freshRuntime)).IsFalse();
+        AssertThat(FighterLedgeRules.CanGrab(in grounded, in freshRuntime, in freshVerb)).IsFalse();
 
         FighterRuntimeComponent lockedOut = freshRuntime;
         lockedOut.LedgeRegrabLockoutFrames = 1;
-        AssertThat(FighterLedgeRules.CanGrab(in baseline, in lockedOut)).IsFalse();
+        AssertThat(FighterLedgeRules.CanGrab(in baseline, in lockedOut, in freshVerb)).IsFalse();
 
         FighterRuntimeComponent alreadyHanging = freshRuntime;
         alreadyHanging.LedgeAnchor = 0;
-        AssertThat(FighterLedgeRules.CanGrab(in baseline, in alreadyHanging)).IsFalse();
+        AssertThat(FighterLedgeRules.CanGrab(in baseline, in alreadyHanging, in freshVerb)).IsFalse();
+    }
+
+    /// <summary>
+    /// V7.3 regrab cap: the per-airtime budget is
+    /// <c>BasicComboRules.LedgeRegrabsPerAirtime</c> (3) — the fourth grab in
+    /// one airtime is refused, and every latched grab spends one.
+    /// </summary>
+    [TestCase]
+    public void TheFourthGrabInOneAirtimeIsRefused() {
+        FighterStateComponent fighter = AirborneAt(EdgeOf(0, 0), FP64.FromDouble(2.0));
+        fighter.Velocity.y = FP64.FromInt(-8);
+        FighterRuntimeComponent runtime = FreshRuntime();
+        FighterTuningComponent tuning = Tuning();
+        AssertThat(Florence.TryGetHangPosition(0, out FPVector2 hang)).IsTrue();
+
+        FighterVerbComponent verb = new();
+        for (int grab = 1; grab <= FTT.Combat.BasicComboRules.LedgeRegrabsPerAirtime; grab++) {
+            AssertThat(FighterLedgeRules.CanGrab(in fighter, in runtime, in verb))
+                .OverrideFailureMessage($"Grab {grab} of the airtime budget must be allowed.")
+                .IsTrue();
+            FighterLedgeRules.Grab(ref fighter, ref runtime, ref verb, in tuning, 0, in hang);
+            AssertThat(verb.LedgeGrabsThisAirtime).IsEqual(grab);
+            // Simulate the release between grabs without grounding.
+            FighterLedgeRules.Release(ref fighter, ref runtime);
+            runtime.LedgeRegrabLockoutFrames = 0;
+            fighter.Velocity.y = FP64.FromInt(-8);
+        }
+
+        AssertThat(FighterLedgeRules.CanGrab(in fighter, in runtime, in verb))
+            .OverrideFailureMessage("The fourth grab in one airtime must be refused.")
+            .IsFalse();
     }
 
     [TestCase]
@@ -117,9 +151,11 @@ public class FighterLedgeTests {
 
         AssertThat(Florence.TryFindLedge(in fighter.Position, out int anchor)).IsTrue();
         AssertThat(Florence.TryGetHangPosition(anchor, out FPVector2 hang)).IsTrue();
-        FighterLedgeRules.Grab(ref fighter, ref runtime, in tuning, anchor, in hang);
+        FighterVerbComponent verb = new();
+        FighterLedgeRules.Grab(ref fighter, ref runtime, ref verb, in tuning, anchor, in hang);
 
         AssertThat(FighterLedgeRules.IsHanging(in runtime)).IsTrue();
+        AssertThat(verb.LedgeGrabsThisAirtime).IsEqual(1);
         // Side 0 is the left edge, so the hang sits a quarter unit further left
         // and a full unit below the surface.
         AssertThat(fighter.Position.x.RawValue).IsEqual(
@@ -288,8 +324,14 @@ public class FighterLedgeTests {
         AssertThat(SeekLedge(simulation, playerID: 0, platformIndex: 0, side: 0, maxTicks: 600)).IsTrue();
     }
 
+    /// <summary>
+    /// V7.3 ledge trump: the anchor is contested, not shared. When a second
+    /// fighter grabs an edge the other already hangs, the EARLIER hanger is
+    /// forced off through the normal release path — 30-frame regrab lockout
+    /// armed — and the newcomer keeps the ledge.
+    /// </summary>
     [TestCase]
-    public void BothFightersMayHangTheSameEdge() {
+    public void ASecondGrabberTrumpsTheHanger() {
         var simulation = new FighterSimulation(
             seed: 4400, rules: FighterMatchRules.Disabled, stageGeometry: Florence);
         // Player one starts under platform 1 and takes its left end first; player
@@ -297,16 +339,55 @@ public class FighterLedgeTests {
         AssertThat(SeekLedge(simulation, playerID: 1, platformIndex: 1, side: 0, maxTicks: 900)).IsTrue();
         AssertThat(SeekLedge(simulation, playerID: 0, platformIndex: 1, side: 0, maxTicks: 900)).IsTrue();
 
-        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent first)).IsTrue();
-        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent second)).IsTrue();
-        AssertThat(first.LedgeAnchor).IsEqual(2);
-        AssertThat(second.LedgeAnchor).IsEqual(2);
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent newcomer)).IsTrue();
+        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent trumped)).IsTrue();
+        AssertThat(newcomer.LedgeAnchor)
+            .OverrideFailureMessage("The newcomer must keep the contested anchor.")
+            .IsEqual(2);
+        AssertThat(FighterLedgeRules.IsHanging(in trumped))
+            .OverrideFailureMessage("The earlier hanger must be forced off by the trump.")
+            .IsFalse();
+        AssertThat(trumped.LedgeRegrabLockoutFrames)
+            .OverrideFailureMessage("The forced release arms the standard regrab lockout.")
+            .IsEqual(FighterLedgeRules.RegrabLockoutFrames);
+    }
 
-        // No occupancy and no pushbox: both are pinned to the identical anchor.
-        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent firstState)).IsTrue();
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent secondState)).IsTrue();
-        AssertThat(firstState.Position.x.RawValue).IsEqual(secondState.Position.x.RawValue);
-        AssertThat(firstState.Position.y.RawValue).IsEqual(secondState.Position.y.RawValue);
+    /// <summary>
+    /// V7.3 regrab cap, the reset half: touching the ground zeroes
+    /// <c>LedgeGrabsThisAirtime</c>, so the next airtime starts with the full
+    /// budget. Driven through the real simulation: grab (budget 1), Down-drop,
+    /// fast-fall to the solid base floor (budget 0).
+    /// </summary>
+    [TestCase]
+    public void LandingResetsTheRegrabBudget() {
+        var simulation = new FighterSimulation(
+            seed: 4450, rules: FighterMatchRules.Disabled, stageGeometry: Florence);
+        AssertThat(SeekLedge(simulation, playerID: 0, platformIndex: 0, side: 0, maxTicks: 600)).IsTrue();
+        AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent hanging)).IsTrue();
+        AssertThat(hanging.LedgeGrabsThisAirtime).IsEqual(1);
+
+        // Down drops off the hang (arming the regrab lockout) and then
+        // fast-falls the fighter onto the solid base floor.
+        bool landed = false;
+        for (int offset = 0; offset < 120 && !landed; offset++) {
+            int tick = simulation.CurrentTick;
+            simulation.Advance(
+                new PlayerInputFrame {
+                    Tick = (uint)tick,
+                    Held = GameplayButtons.Down,
+                    Pressed = offset == 0 ? GameplayButtons.Down : GameplayButtons.None
+                },
+                new PlayerInputFrame { Tick = (uint)tick });
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent fighter)).IsTrue();
+            landed = fighter.IsGrounded != 0;
+        }
+        AssertThat(landed)
+            .OverrideFailureMessage("The dropped fighter never touched down within two seconds.")
+            .IsTrue();
+        AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent grounded)).IsTrue();
+        AssertThat(grounded.LedgeGrabsThisAirtime)
+            .OverrideFailureMessage("Grounding must reset the per-airtime regrab budget.")
+            .IsEqual(0);
     }
 
     /// <summary>
@@ -472,8 +553,9 @@ public class FighterLedgeTests {
         int platformIndex = anchor / 2;
         fighter = AirborneAt(EdgeOf(platformIndex, anchor % 2), FP64.FromDouble(2.0));
         runtime = FreshRuntime();
+        FighterVerbComponent verb = new();
         AssertThat(Florence.TryGetHangPosition(anchor, out FPVector2 hang)).IsTrue();
-        FighterLedgeRules.Grab(ref fighter, ref runtime, in tuning, anchor, in hang);
+        FighterLedgeRules.Grab(ref fighter, ref runtime, ref verb, in tuning, anchor, in hang);
     }
 
     /// <summary>

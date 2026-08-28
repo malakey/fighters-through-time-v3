@@ -247,7 +247,16 @@ namespace FTT.Characters {
 		private Vector2 _pendingLaunch;
 		private bool _hasPendingLaunch;
 		private bool _stunTumble;
+		// V7.3 hit-2 cancel gate: true while the current hitstun came from
+		// string hit 1 ("combo_1") and cannot be block-cancelled.
+		private bool _hitstunBlockCancelBlocked;
 		private float _techInvulnerabilitySeconds;
+		// V7.3: the 12-frame tech recovery is a LOCKED window — in place, no
+		// actions, no movement — mirroring the sim's TechLockoutFrames.
+		private float _techLockoutSeconds;
+		// Per-stun latch: the launch actually left the ground, so the next
+		// grounded frame is a genuine landing (the tech's trigger).
+		private bool _stunLeftTheGround;
 
 		// === V7.1 Rally / Desperation Resonance / Defy History (Story side) ===
 		// The Fighter sim carries the identical state on FighterVerbComponent;
@@ -326,6 +335,11 @@ namespace FTT.Characters {
 		private Marker2D _aerialHitboxMarker;
 		private FTT.Combat.GlowPresentationController _glow;
 		private FTT.Environment.LedgeGrabPoint _activeLedge;
+		// V7.3 ledge rules, mirroring the sim: a per-airtime grab budget
+		// (LedgeRegrabsPerAirtime, reset on floor contact) and a short regrab
+		// lockout armed when a trump forces this player off a ledge.
+		private int _ledgeGrabsThisAirtime;
+		private float _ledgeRegrabLockoutSeconds;
 
 		// Combat wiring
 		private FTT.Combat.BaseSpecial _special1;
@@ -563,8 +577,15 @@ namespace FTT.Characters {
 						// OnBlockBroken event instead.
 						FTT.Core.HapticFeedbackManager.Instance?.OnGuardImpact(PlayerIndex);
 					}
-					// V7.1 hitstop: a blocked hit freezes for the flat 2 frames.
-					ApplyHitstop(FTT.Combat.BasicComboRules.BlockedHitstopFrames);
+					// V7.1/V7.3 hitstop: a blocked hit freezes for the flat 2
+					// frames; a shatter replaces that with the longer shared
+					// shatter freeze (the sim mirrors both). Construct/DoT
+					// ticks are exempt — blocked or not, they never freeze.
+					if (!hit.ExemptFromHitstop) {
+						ApplyHitstop(blockResult == FTT.Combat.BlockResult.GuardBroken
+							? FTT.Combat.BasicComboRules.ShatterFreezeFrames
+							: FTT.Combat.BasicComboRules.BlockedHitstopFrames);
+					}
 					return 0f;
 				}
 			}
@@ -608,13 +629,28 @@ namespace FTT.Characters {
 					ApplyStun(hit.HitstunDuration);
 					// A launched stun is a tumble: the victim may tech the landing.
 					_stunTumble = hit.Knockback != Vector2.Zero;
+					// V7.3 hit-2 cancel gate: string hit 1 is never
+					// block-cancelable; from hit two on the escape opens.
+					_hitstunBlockCancelBlocked = hit.HitboxID == "combo_1";
 				}
 			}
 
 			// V7.1 hitstop (victim side): scaled by the damage that actually
 			// applied; a lethal hit skips — the death presentation owns it.
-			if (CurrentState != CharacterState.Dead) {
+			// V7.3: construct/DoT ticks are exempt from hitstop entirely.
+			if (CurrentState != CharacterState.Dead && !hit.ExemptFromHitstop) {
 				ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(damageApplied));
+			}
+			// A launching hit whose victim ended up with no freeze resolves its
+			// DI immediately — a stashed launch must never sit armed waiting to
+			// replay under a later hit's hitstop (V7.3, mirrors the sim).
+			if (_hasPendingLaunch && _hitstopFramesRemaining <= 0) {
+				FTT.Combat.BasicComboRules.ResolveDirectionalInfluence(
+					_pendingLaunch.X, _pendingLaunch.Y,
+					CurrentInputFrame.Horizontal, CurrentInputFrame.Vertical,
+					out float launchX, out float launchY);
+				Velocity = new Vector2(launchX, launchY);
+				_hasPendingLaunch = false;
 			}
 
 			if (hit.AppliedStatus != FTT.Core.StatusType.None && CurrentState != CharacterState.Dead) {
@@ -714,6 +750,9 @@ namespace FTT.Characters {
 			}
 
 			if (_techInvulnerabilitySeconds > 0f) _techInvulnerabilitySeconds -= dt;
+			if (_ledgeRegrabLockoutSeconds > 0f) _ledgeRegrabLockoutSeconds -= dt;
+			// V7.3 regrab cap: floor contact resets the per-airtime ledge budget.
+			if (IsOnFloor()) _ledgeGrabsThisAirtime = 0;
 
 			// V7.1 Echo Step bookkeeping: sample the position ring, tick the
 			// cooldown, and advance an armed wind-up (the snap fires at 0).
@@ -740,6 +779,18 @@ namespace FTT.Characters {
 			UpdateDropThrough(dt);
 			UpdateHyperArmorPresentation();
 			if (_downTapFramesRemaining > 0) _downTapFramesRemaining--;
+
+			// V7.3 landing-tech lock: the 12-frame recovery holds the player in
+			// place — invulnerable (the ApplyDamage gate), no actions, no
+			// movement — then releases to Idle. Placed after the counters above
+			// so cooldowns and the Rally drain keep ticking, exactly as the
+			// sim's TechLockoutFrames branch keeps TickCounters running.
+			if (_techLockoutSeconds > 0f) {
+				_techLockoutSeconds -= dt;
+				Velocity = Vector2.Zero;
+				if (_techLockoutSeconds <= 0f) TransitionTo(CharacterState.Idle);
+				return;
+			}
 
 			switch (CurrentState) {
 				case CharacterState.Idle:
@@ -1576,25 +1627,29 @@ namespace FTT.Characters {
 			Velocity = blockVel;
 
 			_blockSystem?.StartBlock();
+			// V7.3 shieldstun: a blocked hit locks the blocker into the stance —
+			// no grab, roll, drop-through, or release until it expires.
+			bool shieldStunned = _blockSystem?.IsInShieldStun == true;
 			// V7.2: from the stance, BasicAttack converts the stance into a
 			// grab attempt — the chord repurposes dead input space (attack
 			// inputs were ignored while blocking).
-			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack) && TryStartGrab()) {
+			if (!shieldStunned
+				&& CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack) && TryStartGrab()) {
 				_blockSystem?.EndBlock();
 				return;
 			}
-			if (CheckRollInput()) {
+			if (!shieldStunned && CheckRollInput()) {
 				_blockSystem?.EndBlock();
 				return;
 			}
 
-			CheckDropThrough();
+			if (!shieldStunned) CheckDropThrough();
 			if (CurrentState != CharacterState.Blocking) {
 				_blockSystem?.EndBlock();
 				return;
 			}
 
-			if (!CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)) {
+			if (!shieldStunned && !CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)) {
 				_blockSystem?.EndBlock();
 				TransitionTo(CharacterState.Idle);
 				return;
@@ -1605,20 +1660,38 @@ namespace FTT.Characters {
 
 		private void ProcessStunned(float dt) {
 			ApplyGravity(dt);
+			// Track the launch leaving the ground with a per-stun latch.
+			// (IsOnFloor() here reflects the PREVIOUS frame's MoveAndSlide, and
+			// _wasGrounded is written from the same cached value at frame end —
+			// the two could never differ at this point, so the old
+			// `IsOnFloor() && !_wasGrounded` landing test was unsatisfiable and
+			// the tech never fired. The latch detects the real airborne →
+			// grounded transition instead; fixed in the V7.3 pass.)
+			if (!IsOnFloor()) _stunLeftTheGround = true;
 			// V7.1 landing tech (ukemi): a launched victim (tumble) holding Block
 			// on the ground-contact frame techs — hitstun ends in place with a
 			// 12-frame invulnerable recovery. Checked before the grounded
 			// block-cancel below so the tech's invulnerability grant wins on the
 			// landing frame. The Fighter sim's TryLandingTech mirrors this.
-			if (_stunTumble && IsOnFloor() && !_wasGrounded
+			if (_stunTumble && _stunLeftTheGround && IsOnFloor()
 				&& CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)) {
+				// V7.3 ruling: the tech reads the raw input, not the stance —
+				// charges, the shatter lockout, and the hit-2 gate are all
+				// irrelevant here.
 				_stunTimer = 0f;
 				_stunTumble = false;
+				_stunLeftTheGround = false;
+				_hitstunBlockCancelBlocked = false;
 				_hasPendingLaunch = false;
 				Velocity = Vector2.Zero;
 				_techInvulnerabilitySeconds =
 					FTT.Combat.BasicComboRules.LandingTechRecoveryFrames / 60f;
-				TransitionTo(CharacterState.Idle);
+				// V7.3: the recovery is a locked window, not a free Idle — the
+				// _techLockoutSeconds gate in _PhysicsProcess holds the player
+				// in place with no actions, then releases to Idle (mirrors the
+				// sim's TechLockoutFrames branch).
+				_techLockoutSeconds =
+					FTT.Combat.BasicComboRules.LandingTechRecoveryFrames / 60f;
 				return;
 			}
 			// Gameplay-feel plan §2.4 — Block cancels hitstun. A grounded victim
@@ -1626,7 +1699,12 @@ namespace FTT.Characters {
 			// airborne one cannot (the stance is grounded-only), and Dazed is a
 			// separate state so the guard-break punish window is untouched. The
 			// Fighter sim clears HitstunFrames on the same condition.
-			if (IsOnFloor() && CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)) {
+			// V7.3: string hit 1 arms the cancel gate — only from hit two on may
+			// Block escape — and a stance the victim cannot raise (no charges,
+			// shatter lockout) cannot be escaped into either.
+			if (IsOnFloor() && CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)
+				&& !_hitstunBlockCancelBlocked
+				&& (_blockSystem == null || _blockSystem.CanRaiseStance)) {
 				_stunTimer = 0f;
 				_stunTumble = false;
 				TransitionTo(CharacterState.Blocking);
@@ -1635,6 +1713,11 @@ namespace FTT.Characters {
 			_stunTimer -= dt;
 			if (_stunTimer <= 0) {
 				_stunTumble = false;
+				_stunLeftTheGround = false;
+				_hitstunBlockCancelBlocked = false;
+				// Hitstun over: any stashed launch is dead (V7.3, mirrors the
+				// sim's clear-on-hitstun-end).
+				_hasPendingLaunch = false;
 				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
 			}
 		}
@@ -1776,8 +1859,11 @@ namespace FTT.Characters {
 			ReleaseGrabState();
 			_stunTimer = duration;
 			// Callers that stun without a launch get no tumble; OnHurtboxHit
-			// overrides this right after when the hit carried an impulse.
+			// overrides this right after when the hit carried an impulse (and
+			// arms the V7.3 hit-2 cancel gate for string hit 1).
 			_stunTumble = false;
+			_stunLeftTheGround = false;
+			_hitstunBlockCancelBlocked = false;
 			TransitionTo(CharacterState.Stunned);
 		}
 
@@ -1792,6 +1878,14 @@ namespace FTT.Characters {
 			if (frames <= 0 || CurrentState == CharacterState.Dead) return;
 			if (frames > _hitstopFramesRemaining) _hitstopFramesRemaining = frames;
 		}
+
+		/// <summary>True while the hitstop freeze suspends this character's
+		/// gameplay clock. BlockSystem holds its timers on this.</summary>
+		public bool IsInHitstop => _hitstopFramesRemaining > 0;
+
+		/// <summary>V7.3: true through the 12-frame landing-tech lock — in
+		/// place, invulnerable, no actions — before the release to Idle.</summary>
+		public bool IsInTechLockout => _techLockoutSeconds > 0f;
 
 		/// <summary>
 		/// H-4: interrupts whichever ability slot is mid-cast. Safe to call
@@ -1808,6 +1902,46 @@ namespace FTT.Characters {
 		public int ApplyDamage(int damage) => ApplyDamage(damage, ignoreRollInvulnerability: false);
 
 		public int ApplyPersistentDamage(int damage) => ApplyDamage(damage, ignoreRollInvulnerability: true);
+
+		/// <summary>
+		/// V7.3 environmental-damage chokepoint — the Story mirror of the sim's
+		/// <c>FighterDamageRules.ApplyUnattributedDamage</c>. Every environmental
+		/// source (extractor discharge, drown/searchlight/rift ticks, escape
+		/// catches, hazards) routes here instead of calling
+		/// <see cref="ApplyDamage(int)"/> raw, so the victim-side pipeline runs:
+		/// Defy History consumes its flag (a Defy fired on an environmental path
+		/// must never suppress the NEXT hurtbox hit's accounting), Rally echo
+		/// accrues, and the victim meter earns the permanent portion. No
+		/// attacker credit, and no hitstop unless the source opts in.
+		/// </summary>
+		public int ApplyEnvironmentalDamage(int damage, bool appliesHitstop = false) {
+			int damageApplied = ApplyDamage(damage);
+			// Consume the Defy flag whether or not damage landed — the flag
+			// belongs to this hit's accounting alone.
+			bool defied = _defyFiredThisHit;
+			_defyFiredThisHit = false;
+			if (damageApplied <= 0) return damageApplied;
+
+			float echoAmount = 0f;
+			if (!defied && CurrentState != CharacterState.Dead && CurrentHP > 0 && MaximumHP > 0) {
+				float missing = (MaximumHP - CurrentHP) / (float)MaximumHP;
+				float fraction = (FTT.Combat.BasicComboRules.EchoFractionBase
+						+ FTT.Combat.BasicComboRules.EchoFractionSlope * missing)
+					* FTT.Core.StoryDifficultyTuning.GetRallyEchoMultiplier(
+						FTT.Core.StoryDifficultyTuning.CurrentStoryDifficulty);
+				echoAmount = damageApplied * fraction;
+				_echoPool += echoAmount;
+				_echoDrainPerFrame = _echoPool / FTT.Combat.BasicComboRules.EchoDrainFrames;
+			}
+			if (!defied) {
+				_ultimateMeter?.AddFromDamageTaken(damageApplied - echoAmount);
+				CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
+			}
+			if (appliesHitstop && CurrentState != CharacterState.Dead) {
+				ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(damageApplied));
+			}
+			return damageApplied;
+		}
 
 		private int ApplyDamage(int damage, bool ignoreRollInvulnerability) {
 			if (CurrentState == CharacterState.Dead || CurrentState == CharacterState.Respawning) return 0;
@@ -1872,8 +2006,10 @@ namespace FTT.Characters {
 		/// The Story chokepoint every damage-dealer already routes through for
 		/// meter-from-damage-dealt. V7.1 Rally rides the same choke: a landed
 		/// *direct* hit (melee, directional, special, ultimate, projectile,
-		/// zone pulse) also reclaims the player's remaining Echo Pool as real
-		/// HP. Construct nodes (turret, nest, coil, snare) pass
+		/// zone pulse) also reclaims from the player's remaining Echo Pool as
+		/// real HP — capped (V7.3) at the reclaiming hit's own damage ×
+		/// RallyReclaimDamageMultiplier; the remainder persists and keeps
+		/// draining. Construct nodes (turret, nest, coil, snare) pass
 		/// <paramref name="collectsEcho"/> false — no passive farming —
 		/// mirroring the sim's collectsEcho flag on ApplyFighterHit.
 		/// </summary>
@@ -1882,9 +2018,15 @@ namespace FTT.Characters {
 			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
 			if (!collectsEcho || damageApplied <= 0f || _echoPool <= 0f) return;
 			// Reclaimed HP grants no meter to anyone (HealStory is HP-only).
-			int reclaim = (int)MathF.Round(_echoPool);
-			_echoPool = 0f;
-			_echoDrainPerFrame = 0f;
+			float reclaimAmount = MathF.Min(
+				_echoPool,
+				damageApplied * FTT.Combat.BasicComboRules.RallyReclaimDamageMultiplier);
+			int reclaim = (int)MathF.Round(reclaimAmount);
+			_echoPool -= reclaimAmount;
+			if (_echoPool <= 0.0001f) {
+				_echoPool = 0f;
+				_echoDrainPerFrame = 0f;
+			}
 			if (reclaim > 0) HealStory(reclaim);
 		}
 
@@ -2031,7 +2173,9 @@ namespace FTT.Characters {
 			_hitstopFramesRemaining = 0;
 			_hasPendingLaunch = false;
 			_stunTumble = false;
+			_stunLeftTheGround = false;
 			_techInvulnerabilitySeconds = 0f;
+			_techLockoutSeconds = 0f;
 			_echoPool = 0f;
 			_echoDrainPerFrame = 0f;
 			ReleaseGrabState();
@@ -2503,7 +2647,10 @@ namespace FTT.Characters {
 		}
 
 		private bool CheckBlockInput() {
-			if (CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)) {
+			// V7.3: an empty shield or a running shatter lockout never raises
+			// the stance (a null BlockSystem keeps the legacy behavior).
+			if (CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)
+				&& (_blockSystem == null || _blockSystem.CanRaiseStance)) {
 				TransitionTo(CharacterState.Blocking);
 				return true;
 			}
@@ -2686,14 +2833,35 @@ namespace FTT.Characters {
 			if (ledge == null
 				|| CurrentState != CharacterState.Airborne
 				|| Velocity.Y < LedgeGrabMaximumRiseSpeed) return false;
+			// V7.3: the regrab lockout (armed when a trump forced this player
+			// off) and the per-airtime grab budget both refuse the capture,
+			// mirroring the sim's CanGrab gates.
+			if (_ledgeRegrabLockoutSeconds > 0f) return false;
+			if (_ledgeGrabsThisAirtime >= FTT.Combat.BasicComboRules.LedgeRegrabsPerAirtime) return false;
 			if (!ledge.IsInGroup("Ledge") || !ledge.TryAcquire(this)) return false;
 
+			_ledgeGrabsThisAirtime++;
 			_activeLedge = ledge;
 			GlobalPosition = ledge.HangPosition;
 			IsFacingRight = ledge.StageIsToRight;
 			UpdateSpriteFlip();
 			TransitionTo(CharacterState.LedgeHanging);
 			return true;
+		}
+
+		/// <summary>
+		/// V7.3 ledge trump, Story half: called by
+		/// <see cref="FTT.Environment.LedgeGrabPoint.TryAcquire"/> when a second
+		/// grabber contests the edge this player hangs. The hanger leaves through
+		/// the normal drop path with the regrab lockout armed (the sim's
+		/// 30-frame <c>FighterLedgeRules.RegrabLockoutFrames</c>), so it cannot
+		/// instantly trump back.
+		/// </summary>
+		public void ForceLedgeTrumpRelease() {
+			if (CurrentState != CharacterState.LedgeHanging) return;
+			_ledgeRegrabLockoutSeconds =
+				FTT.FighterSim.FighterLedgeRules.RegrabLockoutFrames / 60f;
+			DropFromLedge();
 		}
 	}
 }

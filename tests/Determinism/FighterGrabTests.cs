@@ -106,6 +106,165 @@ public class FighterGrabTests {
             .IsTrue();
     }
 
+    [TestCase]
+    public void AnAttackBeatsAGrabInStartup() {
+        // V7.3 grab-triangle fix: the grab chord holds Block, but a grabbing
+        // fighter has NO functioning shield — a swing landing during the grab
+        // startup deals full damage and breaks the attempt.
+        var simulation = NewSimulation(seed: 974);
+        int tick = WalkIntoGrabRange(simulation);
+
+        // P1 swings the same tick P2 chords a grab; the opener's startup is
+        // shorter than the grab's 10 frames, so the hit lands mid-startup.
+        simulation.Advance(
+            Frame(tick, 0, GameplayButtons.BasicAttack),
+            FrameChord(tick, GameplayButtons.Block | GameplayButtons.BasicAttack, GameplayButtons.BasicAttack));
+        tick++;
+        for (int step = 0; step < BasicComboRules.GrabStartupFrames + 4; step++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), FrameHeld(tick, GameplayButtons.Block));
+            tick++;
+        }
+
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();
+        AssertThat(struck.CurrentHP < struck.MaxHP)
+            .OverrideFailureMessage("The swing must land through the grab chord's held Block — attack beats grab.")
+            .IsTrue();
+        AssertThat(struck.BlockCharges)
+            .OverrideFailureMessage("No charge may be spent: the grabbing fighter had no shield to absorb with.")
+            .IsEqual(3);
+        AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent broken)).IsTrue();
+        AssertThat(broken.GrabPhase)
+            .OverrideFailureMessage("The landed hit must break the grab attempt.")
+            .IsEqual(0);
+        AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent attacker)).IsTrue();
+        AssertThat(attacker.BeingHeld).IsEqual(0);
+    }
+
+    [TestCase]
+    public void AGrabWhiffRecoveryHasNoShield() {
+        // V7.3 grab-triangle fix, the rules pin: no grab phase — startup,
+        // active, the 24f whiff recovery — and no held state leaves the shield
+        // functioning, even with Block held and charges available.
+        var fighter = new FighterStateComponent {
+            PlayerID = 0, Stocks = 3, MaxHP = 100, CurrentHP = 100,
+            BlockCharges = 3, IsGrounded = 1
+        };
+        var runtime = new FighterRuntimeComponent { HeldButtons = (int)GameplayButtons.Block };
+        var verb = new FighterVerbComponent();
+        AssertThat(FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb))
+            .OverrideFailureMessage("The baseline blocker must be in the stance.")
+            .IsTrue();
+
+        foreach (int phase in new[] {
+                     FighterGrabRules.PhaseStartup, FighterGrabRules.PhaseActive,
+                     FighterGrabRules.PhaseRecovery, FighterGrabRules.PhaseHolding,
+                     FighterGrabRules.PhaseThrowAnimation }) {
+            FighterVerbComponent grabbing = verb;
+            grabbing.GrabPhase = phase;
+            AssertThat(FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in grabbing))
+                .OverrideFailureMessage($"Grab phase {phase} must have no functioning shield.")
+                .IsFalse();
+        }
+
+        FighterVerbComponent held = verb;
+        held.BeingHeld = 1;
+        AssertThat(FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in held))
+            .OverrideFailureMessage("A held victim has no shield.")
+            .IsFalse();
+    }
+
+    [TestCase]
+    public void AGrabWhiffsAgainstAVictimInShieldstun() {
+        // V7.3 amendment: grab beats the *stance*, never the *stun*. The direct
+        // rules pin — in 1v1 the grabber is also the only shieldstun source and
+        // the 10f grab startup outlasts the 8f stun, so the rule bites under
+        // construct-assisted pressure; every grab resolves through this window.
+        var grabber = new FighterStateComponent {
+            PlayerID = 0, Stocks = 3, MaxHP = 100, CurrentHP = 100,
+            IsGrounded = 1, FacingRight = 1
+        };
+        var target = new FighterStateComponent {
+            PlayerID = 1, Stocks = 3, MaxHP = 100, CurrentHP = 100,
+            IsGrounded = 1, BlockCharges = 2,
+            Position = new FPVector2(FP64.FromDouble(0.5), FP64.Zero)
+        };
+        var targetRuntime = new FighterRuntimeComponent { HeldButtons = (int)GameplayButtons.Block };
+        var targetVerb = new FighterVerbComponent();
+
+        AssertThat(FighterGrabRules.ActiveWindowSeizes(in grabber, in target, in targetRuntime, in targetVerb))
+            .OverrideFailureMessage("The baseline blocking victim must be seizable — grab beats block.")
+            .IsTrue();
+
+        targetVerb.ShieldStunFrames = 1;
+        AssertThat(FighterGrabRules.ActiveWindowSeizes(in grabber, in target, in targetRuntime, in targetVerb))
+            .OverrideFailureMessage("A victim locked in shieldstun must whiff the grab.")
+            .IsFalse();
+    }
+
+    [TestCase]
+    public void AThrowCollectsTheRallyEcho() {
+        // V7.3 ruling #10: "any direct hit, including throws" collects the
+        // Rally echo. Throws route through ApplyFighterHit, so the reclaim
+        // follows the new capped rule: min(pool, throwDamage x 2), with the
+        // remainder persisting. P2's heavy opener stashes a large pool on P1;
+        // P1's forward throw (10 damage, cap 20) then reclaims exactly 20.
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(BuildGrappler(maxHP: 400)),
+            // Zero knockback so the wounded grabber-to-be stays planted in
+            // grab range instead of being launched across the stage.
+            FighterLoadoutFactory.FromCharacterData(BuildGrappler(maxHP: 400, damage: 300f, knockback: 0f)),
+            seed: 975,
+            spawnDistance: 1,
+            rules: FighterMatchRules.Disabled);
+        int tick = WalkIntoGrabRange(simulation);
+
+        // P2's opener lands: 240 damage on P1, who stashes the echo.
+        simulation.Advance(
+            Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.BasicAttack));
+        tick++;
+        for (int step = 0; step < 50; step++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            tick++;
+        }
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent wounded)).IsTrue();
+        AssertThat(wounded.CurrentHP)
+            .OverrideFailureMessage("The heavy opener must have landed on the future grabber.")
+            .IsEqual(160);
+        AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent pool)).IsTrue();
+        float capDamage = 10f * BasicComboRules.RallyReclaimDamageMultiplier;
+        AssertThat(pool.EchoPool.ToFloat() > capDamage)
+            .OverrideFailureMessage("The stashed pool must exceed the throw's reclaim cap for the pin to bind.")
+            .IsTrue();
+
+        // P1 grabs and holds neutral: forward throw at the decision window's
+        // end, resolving through ApplyFighterHit.
+        simulation.Advance(
+            FrameChord(tick, GameplayButtons.Block | GameplayButtons.BasicAttack, GameplayButtons.BasicAttack),
+            Frame(tick, 0, GameplayButtons.None));
+        tick++;
+        bool thrown = false;
+        for (int step = 0; step < 90 && !thrown; step++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            tick++;
+            AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent victimVerb)).IsTrue();
+            thrown = victimVerb.ThrowImmunityFrames > 0;
+        }
+        AssertThat(thrown).OverrideFailureMessage("The throw never resolved.").IsTrue();
+
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent victim)).IsTrue();
+        AssertThat(victim.CurrentHP)
+            .OverrideFailureMessage("The throw's 10 damage must have landed.")
+            .IsEqual(390);
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent healed)).IsTrue();
+        AssertThat(healed.CurrentHP)
+            .OverrideFailureMessage("The throw must reclaim exactly throwDamage x 2 from the echo pool.")
+            .IsEqual(160 + (int)capDamage);
+        AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent remainder)).IsTrue();
+        AssertThat(remainder.EchoPool > FP64.Zero)
+            .OverrideFailureMessage("The unreclaimed remainder must persist after the throw.")
+            .IsTrue();
+    }
+
     // ---- Harness -------------------------------------------------------------
 
     /// <summary>Grabs, holds with the given decision input, and returns the
@@ -156,16 +315,16 @@ public class FighterGrabTests {
         spawnDistance: 1,
         rules: FighterMatchRules.Disabled);
 
-    private static CharacterData BuildGrappler() => new() {
+    private static CharacterData BuildGrappler(int maxHP = 100, float damage = 10f, float knockback = 3f) => new() {
         CharacterID = "tesla",
-        MaxHP = 100,
+        MaxHP = maxHP,
         Weight = 1f,
         MaxBlockCharges = 3,
         MaxJumpCount = 1,
         MaxMoveSpeed = 8f,
         MaxJumpForce = 13f,
-        BasicAttackDamage = 10f,
-        BasicAttackKnockback = 3f,
+        BasicAttackDamage = damage,
+        BasicAttackKnockback = knockback,
         SpecialAttackOne = new AbilityData(),
         SpecialAttackTwo = new AbilityData(),
         MovementAbility = new MovementAbilityData(),

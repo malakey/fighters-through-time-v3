@@ -53,6 +53,54 @@ namespace FTT.Environment {
             pickup?.Setup(profile.ChooseItem(_random.Randf()), profile);
         }
 
+        /// <summary>
+        /// V7.3 Single Icon Rule: the ONE way a milestone system (boss defeat,
+        /// extractor destruction) awards dust — a physical pooled pickup at the
+        /// event's position, paying the wallet at collection through
+        /// <see cref="ChronalDustPickup.Collect"/> exactly like a kill drop.
+        /// Boss/extractor awards never expire and force the Large visual tier.
+        ///
+        /// <para>Raised-from-a-hit callers arrive inside the physics in/out
+        /// flush, where a pooled Area2D cannot enter the tree — the spawn is
+        /// deferred off the flush (mirroring the kill-drop path). Headless or
+        /// pool-less contexts fall back to paying the wallet directly (with the
+        /// attribution payload) so no award is ever lost and tests without a
+        /// PoolManager keep working.</para>
+        /// </summary>
+        public static ChronalDustPickup SpawnDustAward(
+            int amount, Vector2 position, Node parent, DustAwardSource source) {
+            amount = Mathf.Max(1, amount);
+            if (PhysicsCallbackGuard.IsInPhysicsCallback) {
+                Callable.From(() => SpawnDustAwardNow(amount, position, parent, source)).CallDeferred();
+                return null;
+            }
+            return SpawnDustAwardNow(amount, position, parent, source);
+        }
+
+        private static ChronalDustPickup SpawnDustAwardNow(
+            int amount, Vector2 position, Node parent, DustAwardSource source) {
+            PoolManager pools = PoolManager.Instance;
+            if (pools != null && parent != null && GodotObject.IsInstanceValid(parent)
+                && parent.IsInsideTree()) {
+                EnsurePools();
+                if (pools.IsRegistered(DustPoolID)
+                    && pools.Spawn(DustPoolID, position, parent) is ChronalDustPickup pickup) {
+                    pickup.Source = source;
+                    pickup.NeverExpires = source != DustAwardSource.Mob;
+                    pickup.ForceLargeTier = source != DustAwardSource.Mob;
+                    pickup.Setup(amount);
+                    return pickup;
+                }
+            }
+            // Fallback: direct wallet payment plus attribution — once, here.
+            EventBus.Instance?.RaiseChronalDustCollected(amount);
+            EventBus.Instance?.RaiseDustAwardCollected(new DustAwardCollectedPayload {
+                Amount = amount,
+                Source = source
+            });
+            return null;
+        }
+
         private static void EnsurePools() {
             PoolManager pools = PoolManager.Instance;
             if (pools == null) return;

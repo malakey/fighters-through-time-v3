@@ -141,6 +141,26 @@ public class FighterMatchPresentationTests {
         }
     }
 
+    /// <summary>V7.3 UI-scale pass: the stamp rides the TitleLabel theme
+    /// variation with no font-size override (the old 56 px override froze it
+    /// out of the accessibility UI scale), the outcome line the HeadingLabel.</summary>
+    [TestCase]
+    public void TheStampUsesTheTitleVariationWithNoFontSizeOverride() {
+        MatchResults results = MountResults();
+        try {
+            var stamp = results.FindChild("Stamp", recursive: true, owned: false) as Label;
+            AssertObject(stamp).IsNotNull();
+            AssertThat(stamp.ThemeTypeVariation.ToString()).IsEqual(UIPalette.TitleLabelVariation);
+            AssertThat(stamp.HasThemeFontSizeOverride("font_size")).IsFalse();
+            var outcome = results.FindChild("Outcome", recursive: true, owned: false) as Label;
+            AssertObject(outcome).IsNotNull();
+            AssertThat(outcome.ThemeTypeVariation.ToString()).IsEqual(UIPalette.HeadingLabelVariation);
+            AssertThat(outcome.HasThemeFontSizeOverride("font_size")).IsFalse();
+        } finally {
+            results.Free();
+        }
+    }
+
     [TestCase]
     public void ADrawStampsDifferentlyFromAKnockout() {
         MatchResults results = MountResults();

@@ -99,10 +99,16 @@ internal partial class PostBossChainTestLevelController : StoryLevelControllerBa
         RoutedToSubclass.Add(dialogueID);
 
     public void DefeatBossForTest(int dust = 50) {
-        // Mirrors BossEncounterController's real defeat flow: the encounter raises
-        // the single wallet award (which the base's wallet-receipt tally banks),
-        // then hands the payload to the level's defeat bookkeeping.
+        // Mirrors the V7.3 Single Icon Rule defeat flow: the encounter spawns a
+        // physical pickup whose COLLECTION raises the single wallet award plus
+        // the boss-line attribution payload; the defeat itself only routes the
+        // payload into the level's bookkeeping. The two raises here stand in
+        // for ChronalDustPickup.Collect().
         EventBus.Instance?.RaiseChronalDustCollected(dust);
+        EventBus.Instance?.RaiseDustAwardCollected(new DustAwardCollectedPayload {
+            Amount = dust,
+            Source = DustAwardSource.Boss
+        });
         OnBossDefeated(null, new BossDefeatedPayload { BossID = "test_boss", ChronalDustDrop = dust });
     }
 }
@@ -286,9 +292,10 @@ public class StoryLevelControllerBaseTests {
     }
 
     [TestCase]
-    public void ExtractorDestructionEntersTheTallyOnceAndItemizes() {
-        // Audit M-1: extractor income never entered DustEarnedThisLevel at all —
-        // the award reached the wallet while the results overlay under-reported.
+    public void ExtractorDestructionSpawnsAPickupAndCollectionEntersTheTallyOnceAndItemizes() {
+        // Audit M-1 reworked by the V7.3 Single Icon Rule: destruction spawns a
+        // physical pickup; the wallet is paid — and the extractor line labeled —
+        // only when it is collected.
         using var fixture = new LevelFixture(null);
         FrameworkTestLevelController level = fixture.Level;
         ChronalExtractor extractor = level.BuildExtractorForTest("orleans_test_extractor", new Vector2(500, 850));
@@ -302,7 +309,20 @@ public class StoryLevelControllerBaseTests {
             extractor.TakeEnvironmentDamage(extractor.MaxHP);
             AssertThat(extractor.IsDestroyed).IsTrue();
 
-            // One wallet award, banked into the total AND labeled on its line.
+            // Destruction pays nothing — the award is physical now.
+            AssertThat(awards).IsEqual(0);
+            AssertThat(level.DustEarnedThisLevel).IsEqual(0);
+            ChronalDustPickup pickup = FindPickupUnder(level);
+            AssertObject(pickup)
+                .OverrideFailureMessage("Destruction spawned no ChronalDustPickup.")
+                .IsNotNull();
+            AssertThat(pickup.DustAmount).IsEqual(extractor.DustReward);
+            AssertThat(pickup.Source).IsEqual(DustAwardSource.Extractor);
+            AssertThat(pickup.NeverExpires).IsTrue();
+            AssertThat(pickup.ForceLargeTier).IsTrue();
+
+            // One wallet award at collection, banked AND labeled on its line.
+            pickup.Collect();
             AssertThat(awards).IsEqual(1);
             AssertThat(awarded).IsEqual(extractor.DustReward);
             AssertThat(level.DustEarnedThisLevel).IsEqual(extractor.DustReward);

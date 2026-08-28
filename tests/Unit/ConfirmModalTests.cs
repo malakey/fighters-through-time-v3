@@ -128,6 +128,30 @@ public class ConfirmModalTests {
         }
     }
 
+    /// <summary>
+    /// V7.3 UI-scale pass: the modal's title rides the HeadingLabel theme
+    /// variation instead of a font-size override, so it follows the
+    /// accessibility UI scale with the rest of the theme.
+    /// </summary>
+    [TestCase]
+    public void TheTitleUsesTheHeadingVariationWithNoFontSizeOverride() {
+        var host = MakeHost();
+        try {
+            ConfirmModal modal = ConfirmModal.Create(
+                "pause_quit_confirm", titleKey: "timeline_collapse_title");
+            host.AddChild(modal);
+            var title = modal.FindChild("Title", recursive: true, owned: false) as Label;
+            AssertObject(title).IsNotNull();
+            AssertThat(title.ThemeTypeVariation.ToString())
+                .IsEqual(UIPalette.HeadingLabelVariation);
+            AssertThat(title.HasThemeFontSizeOverride("font_size"))
+                .OverrideFailureMessage("A font-size override freezes the title out of the UI scale.")
+                .IsFalse();
+        } finally {
+            host.QueueFree();
+        }
+    }
+
     private static ConfirmModal AddModal(Control host) {
         ConfirmModal modal = ConfirmModal.Create("pause_quit_confirm");
         host.AddChild(modal);

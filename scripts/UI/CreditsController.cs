@@ -148,8 +148,9 @@ namespace FTT.UI {
                     HorizontalAlignment = HorizontalAlignment.Center,
                     MouseFilter = Control.MouseFilterEnum.Ignore
                 };
-                label.AddThemeFontSizeOverride(
-                    "font_size", line.IsHeading ? UIPalette.TitleFontSize : UIPalette.BodyFontSize);
+                // Headings ride the TitleLabel role; body lines keep the theme
+                // default, so the roll follows the accessibility UI scale.
+                if (line.IsHeading) label.ThemeTypeVariation = UIPalette.TitleLabelVariation;
                 label.AddThemeColorOverride(
                     "font_color", line.IsHeading ? UIPalette.Cyan : UIPalette.TextPrimary);
                 _lines.AddChild(label);
@@ -195,7 +196,7 @@ namespace FTT.UI {
             _skipHint.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
             _skipHint.Position = new Vector2(760, 1010);
             _skipHint.CustomMinimumSize = new Vector2(400, 24);
-            _skipHint.AddThemeFontSizeOverride("font_size", UIPalette.SmallFontSize);
+            _skipHint.ThemeTypeVariation = UIPalette.SmallLabelVariation;
             _skipHint.AddThemeColorOverride("font_color", UIPalette.SlateDim);
             shade.AddChild(_skipHint);
         }

@@ -92,7 +92,10 @@ public class DisplaySettingsPersistenceTests {
 
         GlobalSaveData migrated = SaveSchemaMigrator.DeserializeGlobal(legacy);
 
-        AssertThat(migrated.SaveVersion).IsEqual(4);
+        // CurrentVersion is shared by both payloads and moved to 5 with the
+        // story-side V7.3 attempt-state fields; the v3 -> v4 binding step
+        // still runs, and the payload lands on whatever is current.
+        AssertThat(migrated.SaveVersion).IsEqual(SaveSchemaMigrator.CurrentVersion);
         AssertObject(migrated.InputBindings).IsNotNull();
         AssertThat(migrated.InputBindings.Actions.Count).IsEqual(0);
         // Unrelated v3 fields survive the step.
@@ -118,7 +121,7 @@ public class DisplaySettingsPersistenceTests {
         JObject root = JObject.Parse("{\"SaveVersion\":3,\"UIVolume\":0.25}");
         GlobalSaveData migrated = SaveSchemaMigrator.DeserializeGlobal(root.ToString());
 
-        AssertThat(migrated.SaveVersion).IsEqual(4);
+        AssertThat(migrated.SaveVersion).IsEqual(SaveSchemaMigrator.CurrentVersion);
         AssertObject(migrated.InputBindings).IsNotNull();
         AssertThat(migrated.InputBindings.Actions.Count).IsEqual(0);
         AssertThat(migrated.UIVolume).IsEqual(0.25f);

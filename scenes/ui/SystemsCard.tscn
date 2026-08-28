@@ -1,0 +1,161 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="1_theme"]
+
+[node name="SystemsCard" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+theme = ExtResource("1_theme")
+
+[node name="Shade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.02, 0.03, 0.08, 0.85)
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="Center"]
+custom_minimum_size = Vector2(880, 0)
+layout_mode = 2
+theme_type_variation = &"DialogueGlassPanel"
+
+[node name="Layout" type="VBoxContainer" parent="Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="Center/Panel/Layout"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+text = "systems_card_title"
+horizontal_alignment = 1
+
+[node name="Scroll" type="ScrollContainer" parent="Center/Panel/Layout"]
+custom_minimum_size = Vector2(820, 560)
+layout_mode = 2
+
+[node name="Sections" type="VBoxContainer" parent="Center/Panel/Layout/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="BlockTitle" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+text = "systems_card_block_title"
+
+[node name="BlockBody" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+custom_minimum_size = Vector2(780, 0)
+layout_mode = 2
+autowrap_mode = 3
+text = "systems_card_block_body"
+
+[node name="TriangleTitle" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+text = "systems_card_triangle_title"
+
+[node name="TriangleBody" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+custom_minimum_size = Vector2(780, 0)
+layout_mode = 2
+autowrap_mode = 3
+text = "systems_card_triangle_body"
+
+[node name="DiTitle" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+text = "systems_card_di_title"
+
+[node name="DiBody" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+custom_minimum_size = Vector2(780, 0)
+layout_mode = 2
+autowrap_mode = 3
+text = "systems_card_di_body"
+
+[node name="TechTitle" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+text = "systems_card_tech_title"
+
+[node name="TechBody" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+custom_minimum_size = Vector2(780, 0)
+layout_mode = 2
+autowrap_mode = 3
+text = "systems_card_tech_body"
+
+[node name="RallyTitle" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+text = "systems_card_rally_title"
+
+[node name="RallyBody" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+custom_minimum_size = Vector2(780, 0)
+layout_mode = 2
+autowrap_mode = 3
+text = "systems_card_rally_body"
+
+[node name="DefyTitle" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+text = "systems_card_defy_title"
+
+[node name="DefyBody" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+custom_minimum_size = Vector2(780, 0)
+layout_mode = 2
+autowrap_mode = 3
+text = "systems_card_defy_body"
+
+[node name="EchoTitle" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+text = "systems_card_echo_title"
+
+[node name="EchoBody" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+custom_minimum_size = Vector2(780, 0)
+layout_mode = 2
+autowrap_mode = 3
+text = "systems_card_echo_body"
+
+[node name="OvertimeTitle" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+text = "systems_card_overtime_title"
+
+[node name="OvertimeBody" type="Label" parent="Center/Panel/Layout/Scroll/Sections"]
+custom_minimum_size = Vector2(780, 0)
+layout_mode = 2
+autowrap_mode = 3
+text = "systems_card_overtime_body"
+
+[node name="FooterRow" type="HBoxContainer" parent="Center/Panel/Layout"]
+layout_mode = 2
+alignment = 1
+
+[node name="CloseButton" type="Button" parent="Center/Panel/Layout/FooterRow"]
+custom_minimum_size = Vector2(180, 44)
+layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+text = "common_back"

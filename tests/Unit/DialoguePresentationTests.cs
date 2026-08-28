@@ -137,6 +137,33 @@ public class DialoguePresentationTests {
         }
     }
 
+    /// <summary>
+    /// V7.3 UI-scale pass: the speaker and continue-hint labels ride theme
+    /// Label variations (HeadingLabel / SmallLabel) and the text body rides
+    /// the theme default, with no font-size overrides, so the box follows the
+    /// accessibility UI scale.
+    /// </summary>
+    [TestCase]
+    public void TheBoxLabelsUseThemeVariationsWithNoFontSizeOverrides() {
+        DialogueManager dialogue = Attach();
+        try {
+            var speaker = dialogue.GetNode<Label>("Panel/Layout/Content/SpeakerRow/SpeakerLabel");
+            AssertThat(speaker.ThemeTypeVariation.ToString()).IsEqual(UIPalette.HeadingLabelVariation);
+            AssertThat(speaker.HasThemeFontSizeOverride("font_size")).IsFalse();
+
+            var hint = dialogue.GetNode<Label>("Panel/Layout/Content/ContinueHint");
+            AssertThat(hint.ThemeTypeVariation.ToString()).IsEqual(UIPalette.SmallLabelVariation);
+            AssertThat(hint.HasThemeFontSizeOverride("font_size")).IsFalse();
+
+            var text = dialogue.GetNode<RichTextLabel>("Panel/Layout/Content/TextLabel");
+            AssertThat(text.HasThemeFontSizeOverride("normal_font_size"))
+                .OverrideFailureMessage("The dialogue body must ride the theme default font size.")
+                .IsFalse();
+        } finally {
+            Teardown(dialogue);
+        }
+    }
+
     // === Chirp plumbing ===
 
     [TestCase]
@@ -282,6 +309,103 @@ public class DialoguePresentationTests {
         AssertThat(animatingOnStartFrame).OverrideFailureMessage(
             "The box had already finished opening, so this case proves nothing about ordering.")
             .IsTrue();
+    }
+
+    // === V7.3 hold-to-skip (ruling #19) ===
+
+    [TestCase]
+    public void FinishingASequenceRecordsItsIDOnTheSaveExactlyOnce() {
+        const int scratchSlot = 2;
+        var saveManager = FTT.Core.SaveManager.Instance;
+        var gameManager = GameManager.Instance;
+        FTT.Core.StorySaveData original = saveManager.SaveSlots[scratchSlot];
+        int originalSlot = gameManager.CurrentSession.ActiveSaveSlot;
+        var tree = (SceneTree)Engine.GetMainLoop();
+        DialogueManager dialogue = Attach();
+        try {
+            var save = new FTT.Core.StorySaveData { SelectedCharacterID = "einstein" };
+            saveManager.SaveSlots[scratchSlot] = save;
+            SessionData session = gameManager.CurrentSession;
+            session.ActiveSaveSlot = scratchSlot;
+            gameManager.CurrentSession = session;
+
+            AssertThat(dialogue.RegisterSetFromPath(DialogueSetPath)).IsTrue();
+            for (int run = 0; run < 2; run++) {
+                AssertThat(dialogue.StartSequence(SequenceID)).IsTrue();
+                for (int step = 0; step < 10 && dialogue.IsSequenceActive; step++) dialogue.AdvanceLine();
+                AssertThat(dialogue.IsSequenceActive).IsFalse();
+            }
+
+            AssertThat(save.ViewedDialogueIDs.Contains(SequenceID))
+                .OverrideFailureMessage("The finished sequence must enter save.ViewedDialogueIDs.")
+                .IsTrue();
+            AssertThat(save.ViewedDialogueIDs.FindAll(id => id == SequenceID).Count)
+                .OverrideFailureMessage("The seen-set must deduplicate repeat viewings.")
+                .IsEqual(1);
+            AssertThat(save.LastViewedDialogueID).IsEqual(SequenceID);
+        } finally {
+            Teardown(dialogue);
+            tree.Paused = false;
+            saveManager.SaveSlots[scratchSlot] = original;
+            SessionData restore = gameManager.CurrentSession;
+            restore.ActiveSaveSlot = originalSlot;
+            gameManager.CurrentSession = restore;
+        }
+    }
+
+    [TestCase]
+    public void HoldToSkipRequiresACompletedCampaignAndAPreviouslySeenSequence() {
+        const int scratchSlot = 2;
+        var saveManager = FTT.Core.SaveManager.Instance;
+        var gameManager = GameManager.Instance;
+        FTT.Core.StorySaveData original = saveManager.SaveSlots[scratchSlot];
+        int originalSlot = gameManager.CurrentSession.ActiveSaveSlot;
+        var tree = (SceneTree)Engine.GetMainLoop();
+        DialogueManager dialogue = Attach();
+        try {
+            var save = new FTT.Core.StorySaveData { SelectedCharacterID = "einstein" };
+            save.ViewedDialogueIDs.Add(SequenceID);
+            saveManager.SaveSlots[scratchSlot] = save;
+            SessionData session = gameManager.CurrentSession;
+            session.ActiveSaveSlot = scratchSlot;
+            gameManager.CurrentSession = session;
+
+            AssertThat(dialogue.RegisterSetFromPath(DialogueSetPath)).IsTrue();
+
+            // Seen but the campaign is NOT completed: no skip, and holding does
+            // nothing — a first playthrough can never fast-forward story.
+            AssertThat(dialogue.StartSequence(SequenceID)).IsTrue();
+            AssertThat(dialogue.CanHoldToSkip).IsFalse();
+            dialogue.AdvanceSkipHold(DialogueManager.HoldToSkipSeconds + 0.1f);
+            AssertThat(dialogue.IsSequenceActive).IsTrue();
+            for (int step = 0; step < 10 && dialogue.IsSequenceActive; step++) dialogue.AdvanceLine();
+
+            // Completed + seen: the hold fast-forwards through EndSequence,
+            // which releases the PausesGameplay pause on its ordinary path.
+            save.IsCompleted = true;
+            AssertThat(dialogue.StartSequence(SequenceID)).IsTrue();
+            AssertThat(tree.Paused).IsTrue();
+            AssertThat(dialogue.CanHoldToSkip).IsTrue();
+
+            dialogue.AdvanceSkipHold(0.5f);
+            AssertThat(dialogue.IsSequenceActive)
+                .OverrideFailureMessage("A partial hold must not skip yet.")
+                .IsTrue();
+            AssertThat(dialogue.SkipHoldProgress > 0f && dialogue.SkipHoldProgress < 1f).IsTrue();
+
+            dialogue.AdvanceSkipHold(0.3f);
+            AssertThat(dialogue.IsSequenceActive).IsFalse();
+            AssertThat(tree.Paused)
+                .OverrideFailureMessage("The skip must release the gameplay pause.")
+                .IsFalse();
+        } finally {
+            Teardown(dialogue);
+            tree.Paused = false;
+            saveManager.SaveSlots[scratchSlot] = original;
+            SessionData restore = gameManager.CurrentSession;
+            restore.ActiveSaveSlot = originalSlot;
+            gameManager.CurrentSession = restore;
+        }
     }
 
     // === Helpers ===

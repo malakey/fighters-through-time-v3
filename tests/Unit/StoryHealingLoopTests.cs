@@ -42,6 +42,10 @@ public class StoryHealingLoopTests {
     [TestCase]
     public void TheRestorationFontChannelHealsOnceAndAnInterruptRefundsTheUse() {
         StoryManager.Instance?.ClearRestorationFonts();
+        // V7.3 range anchor: the channeler must stay put, so the harness gives
+        // it a floor to stand on (an unfloored player falls out of the 90 px
+        // channel range within half a second of pumping).
+        StaticBody2D floor = CreateFloor();
         PlayerController player = CreatePlayer();
         var font = new RestorationFont { Name = "TestFont", FontID = "test_font" };
         ((SceneTree)Engine.GetMainLoop()).Root.AddChild(font);
@@ -88,6 +92,47 @@ public class StoryHealingLoopTests {
             StoryManager.Instance?.ClearRestorationFonts();
             player.Free();
             font.Free();
+            floor.Free();
+        }
+    }
+
+    /// <summary>
+    /// V7.3: the channel is anchored — walking (or being knocked) beyond
+    /// <see cref="RestorationFont.ChannelRangePixels"/> interrupts it, and as
+    /// with every interrupt the use is refunded (never consumed).
+    /// </summary>
+    [TestCase]
+    public void LeavingTheChannelRangeInterruptsAndRefundsTheUse() {
+        StoryManager.Instance?.ClearRestorationFonts();
+        StaticBody2D floor = CreateFloor();
+        PlayerController player = CreatePlayer();
+        var font = new RestorationFont { Name = "RangeFont", FontID = "range_font" };
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(font);
+        try {
+            player.ApplyDamage(player.MaximumHP / 2);
+            HoldInteract(player, frames: 1);
+            font.Interact(player);
+            AssertThat(font.IsChanneling).IsTrue();
+
+            // Drifting inside the range does not interrupt.
+            player.GlobalPosition = font.GlobalPosition + new Vector2(font.ChannelRangePixels - 30f, 0f);
+            PumpChannel(player, font, frames: 10);
+            AssertThat(font.IsChanneling).IsTrue();
+
+            // Leaving the range does, and the use is refunded.
+            player.GlobalPosition = font.GlobalPosition + new Vector2(font.ChannelRangePixels + 60f, 0f);
+            PumpChannel(player, font, frames: 2);
+            AssertThat(font.IsChanneling).IsFalse();
+            AssertThat(font.UsesRemaining)
+                .OverrideFailureMessage("A range interrupt must refund the use.")
+                .IsEqual(StoryDifficultyTuning.GetRestorationFontUses(
+                    StoryDifficultyTuning.CurrentStoryDifficulty));
+        } finally {
+            InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+            StoryManager.Instance?.ClearRestorationFonts();
+            player.Free();
+            font.Free();
+            floor.Free();
         }
     }
 
@@ -152,6 +197,38 @@ public class StoryHealingLoopTests {
     }
 
     [TestCase]
+    public void FontUsesPersistThroughTheSaveAndClearOnRestart() {
+        // V7.3: the font's spent state survives a quit-and-resume — it rides
+        // the checkpoint save's attempt block — and resets only on a full
+        // Restart Level or fresh entry (ClearLevelAttemptState).
+        StoryManager story = StoryManager.Instance;
+        try {
+            story.ClearLevelAttemptState();
+            story.RecordFontUse("Orleans:persist_font");
+            story.RecordFontUse("Orleans:persist_font");
+            AssertThat(story.GetFontUsesConsumed("Orleans:persist_font")).IsEqual(2);
+
+            var save = new StorySaveData { SelectedCharacterID = "einstein" };
+            story.WriteAttemptStateToSave(save);
+            AssertThat(save.FontUsesConsumed["Orleans:persist_font"]).IsEqual(2);
+
+            // The resume path restores the spent state (dying never refills a font).
+            story.ClearRestorationFonts();
+            AssertThat(story.GetFontUsesConsumed("Orleans:persist_font")).IsEqual(0);
+            story.RestoreAttemptStateFromSave(save);
+            AssertThat(story.GetFontUsesConsumed("Orleans:persist_font"))
+                .OverrideFailureMessage("A mid-level resume must restore consumed font uses.")
+                .IsEqual(2);
+
+            // Restart Level clears the whole attempt: the font refills.
+            story.ClearLevelAttemptState();
+            AssertThat(story.GetFontUsesConsumed("Orleans:persist_font")).IsEqual(0);
+        } finally {
+            story.ClearLevelAttemptState();
+        }
+    }
+
+    [TestCase]
     public void RestartLevelClearsEveryPointOfDustEarnedThisLevel() {
         AssertThat(PauseMenu.CalculateRestartWallet(walletDust: 120, earnedThisLevel: 120)).IsEqual(0);
         // Residue that predates the level survives a restart.
@@ -180,6 +257,22 @@ public class StoryHealingLoopTests {
     private static void PumpExtractor(ChronalExtractor extractor, float seconds) {
         int frames = Mathf.CeilToInt(seconds * 60f);
         for (int frame = 0; frame < frames; frame++) extractor._PhysicsProcess(1.0 / 60.0);
+    }
+
+    /// <summary>Environment floor with its top at y = 0 so a channeling player
+    /// (feet on the node origin) stands still while a test drives frames.</summary>
+    private static StaticBody2D CreateFloor() {
+        var floor = new StaticBody2D {
+            Name = "HealingLoopFloor",
+            CollisionLayer = FTT.Core.CollisionLayers.Environment,
+            CollisionMask = 0
+        };
+        floor.AddChild(new CollisionShape2D {
+            Shape = new RectangleShape2D { Size = new Vector2(4000f, 40f) },
+            Position = new Vector2(0f, 20f)
+        });
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(floor);
+        return floor;
     }
 
     private static PlayerController CreatePlayer() {

@@ -60,6 +60,33 @@ public class UiScaleTests {
         AssertThat(theme.DefaultFontSize).IsEqual(authored);
     }
 
+    /// <summary>
+    /// V7.3: the non-HUD screens express their type-scale roles through the
+    /// theme's Label type variations instead of per-label font-size overrides,
+    /// because ApplyUiScale iterates GetFontSizeTypeList() — variations scale
+    /// with the theme for free while an override freezes its label at 100%.
+    /// </summary>
+    [TestCase]
+    public void LabelTypeVariationsScaleWithTheTheme() {
+        Theme theme = UIPalette.LoadTheme();
+        AssertObject(theme).IsNotNull();
+        try {
+            UIPalette.ApplyUiScale(1.4f);
+            AssertThat(theme.GetFontSize("font_size", UIPalette.TitleLabelVariation))
+                .IsEqual(UIPalette.ScaleFontSize(UIPalette.TitleFontSize, 1.4f));
+            AssertThat(theme.GetFontSize("font_size", UIPalette.EmphasisLabelVariation))
+                .IsEqual(UIPalette.ScaleFontSize(UIPalette.EmphasisFontSize, 1.4f));
+            AssertThat(theme.GetFontSize("font_size", UIPalette.HeadingLabelVariation))
+                .IsEqual(UIPalette.ScaleFontSize(UIPalette.HeadingFontSize, 1.4f));
+            AssertThat(theme.GetFontSize("font_size", UIPalette.SmallLabelVariation))
+                .IsEqual(UIPalette.ScaleFontSize(UIPalette.SmallFontSize, 1.4f));
+        } finally {
+            UIPalette.ApplyUiScale(1f);
+        }
+        AssertThat(theme.GetFontSize("font_size", UIPalette.TitleLabelVariation))
+            .IsEqual(UIPalette.TitleFontSize);
+    }
+
     [TestCase]
     public void TheUnscaledCopyKeepsAuthoredSizesWhileTheSharedThemeIsScaled() {
         // The HUDs scale their whole layout through UiScaleBinder, so they use

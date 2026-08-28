@@ -339,8 +339,17 @@ public class Level09ContentTests {
         beam.TickExposure(0.2f);   // 1.6 s: the drone fires
         AssertThat(beam.StrikeCount).IsEqual(1);
         AssertThat(level.Player.CurrentHP).IsEqual(hpBefore - beam.StrikeDamage);
-        // Unlike Paris, a Berlin beam never touches the Ultimate meter.
-        AssertFloat(level.Player.CurrentUltimateMeter).IsEqualApprox(meterBefore, 0.001f);
+        // Unlike Paris, a Berlin beam never DRAINS the Ultimate meter. Since
+        // the V7.3 environmental chokepoint, taking the strike earns the
+        // ordinary victim meter on the permanent (non-echo) portion instead.
+        float echoFraction = (FTT.Combat.BasicComboRules.EchoFractionBase
+                + FTT.Combat.BasicComboRules.EchoFractionSlope
+                    * (beam.StrikeDamage / (float)level.Player.MaximumHP))
+            * FTT.Core.StoryDifficultyTuning.GetRallyEchoMultiplier(
+                FTT.Core.StoryDifficultyTuning.CurrentStoryDifficulty);
+        float earned = beam.StrikeDamage * (1f - echoFraction)
+            * FTT.Combat.UltimateMeter.PointsPerDamageTaken;
+        AssertFloat(level.Player.CurrentUltimateMeter).IsEqualApprox(meterBefore + earned, 0.01f);
 
         // Leaving the beam ends the exposure clock outright.
         AssertThat(beam.RemovePlayer(level.Player)).IsTrue();

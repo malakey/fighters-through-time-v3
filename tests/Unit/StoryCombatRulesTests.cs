@@ -166,22 +166,64 @@ public class StoryCombatRulesTests {
         }
     }
 
+    /// <summary>
+    /// V7.3 ledge trump, Story half: a second grabber takes a held ledge — the
+    /// hanger is forced off through its normal drop path with the regrab
+    /// lockout armed, so it cannot instantly trump back; once the lockout
+    /// expires it may contest the edge again. Release stays owner-only.
+    /// </summary>
     [TestCase]
-    public void LedgeGrabPointEnforcesSingleOccupancyAndReleasesOwnerOnly() {
-        var ledge = new LedgeGrabPoint();
-        var first = new PlayerController();
-        var second = new PlayerController();
+    public void ASecondGrabberTrumpsTheHangerOnAStoryLedge() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        PackedScene ledgeScene = ResourceLoader.Load<PackedScene>("res://scenes/templates/LedgeGrabPointTemplate.tscn");
+        var ledge = ledgeScene.Instantiate<LedgeGrabPoint>();
+        PlayerController first = CharacterFactory.CreateCharacter("einstein");
+        PlayerController second = CharacterFactory.CreateCharacter("joan");
+        tree.Root.AddChild(ledge);
+        tree.Root.AddChild(first);
+        tree.Root.AddChild(second);
+        try {
+            first.TransitionTo(CharacterState.Airborne);
+            first.Velocity = Vector2.Down;
+            AssertThat(first.TryGrabLedge(ledge)).IsTrue();
+            AssertObject(ledge.Occupant).IsSame(first);
 
-        AssertThat(ledge.TryAcquire(first)).IsTrue();
-        AssertThat(ledge.TryAcquire(second)).IsFalse();
-        ledge.Release(second);
-        AssertThat(ledge.TryAcquire(second)).IsFalse();
-        ledge.Release(first);
-        AssertThat(ledge.TryAcquire(second)).IsTrue();
+            second.TransitionTo(CharacterState.Airborne);
+            second.Velocity = Vector2.Down;
+            AssertThat(second.TryGrabLedge(ledge))
+                .OverrideFailureMessage("The second grabber must trump the hanger, not be refused.")
+                .IsTrue();
+            AssertObject(ledge.Occupant).IsSame(second);
+            AssertThat(second.CurrentState).IsEqual(CharacterState.LedgeHanging);
+            AssertThat(first.CurrentState)
+                .OverrideFailureMessage("The trumped hanger must be dropped into the air.")
+                .IsEqual(CharacterState.Airborne);
 
-        ledge.Free();
-        first.Free();
-        second.Free();
+            // Release is owner-only: a non-occupant cannot clear the hold.
+            ledge.Release(first);
+            AssertObject(ledge.Occupant).IsSame(second);
+
+            // The forced release armed the regrab lockout — no instant
+            // trump-back.
+            first.Velocity = Vector2.Down;
+            AssertThat(first.TryGrabLedge(ledge))
+                .OverrideFailureMessage("The regrab lockout must refuse an instant trump-back.")
+                .IsFalse();
+
+            // Once the lockout (the sim's 30 frames) expires, the edge is
+            // contestable again and the trump works in the other direction.
+            SendInput(first, GameplayButtons.None, 31.0 / 60.0);
+            first.TransitionTo(CharacterState.Airborne);
+            first.Velocity = Vector2.Down;
+            AssertThat(first.TryGrabLedge(ledge)).IsTrue();
+            AssertObject(ledge.Occupant).IsSame(first);
+            AssertThat(second.CurrentState).IsEqual(CharacterState.Airborne);
+        } finally {
+            InputManager.Instance?.ClearInputSource(0);
+            first.Free();
+            second.Free();
+            ledge.Free();
+        }
     }
 
     [TestCase]
@@ -214,6 +256,10 @@ public class StoryCombatRulesTests {
     [TestCase]
     public void LedgeTimeoutDamageJumpAndSceneExitReleaseOccupancy() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        // The floor lets the run touch down between hangs: the V7.3 per-airtime
+        // budget (LedgeRegrabsPerAirtime = 3) would otherwise refuse the fourth
+        // grab this test takes.
+        StaticBody2D floor = CreateFlatFloor();
         PackedScene ledgeScene = ResourceLoader.Load<PackedScene>("res://scenes/templates/LedgeGrabPointTemplate.tscn");
         var ledge = ledgeScene.Instantiate<LedgeGrabPoint>();
         var player = CharacterFactory.CreateCharacter("einstein");
@@ -242,6 +288,18 @@ public class StoryCombatRulesTests {
             AssertThat(player.CurrentState).IsEqual(CharacterState.Stunned);
             AssertObject(ledge.Occupant).IsNull();
 
+            // Three grabs spent this airtime: land to reset the V7.3 budget
+            // before the scene-exit case takes its own grab.
+            player.Velocity = new Vector2(0f, 400f);
+            for (int frame = 0; frame < 120 && !player.IsOnFloor(); frame++) {
+                SendInput(player, GameplayButtons.None);
+            }
+            AssertThat(player.IsOnFloor())
+                .OverrideFailureMessage("The player must touch down to reset the regrab budget.")
+                .IsTrue();
+            // The reset reads the landing on the following tick.
+            SendInput(player, GameplayButtons.None);
+
             player.TransitionTo(CharacterState.Airborne);
             player.Velocity = Vector2.Down;
             AssertThat(player.TryGrabLedge(ledge)).IsTrue();
@@ -251,6 +309,7 @@ public class StoryCombatRulesTests {
             InputManager.Instance?.ClearInputSource(0);
             if (GodotObject.IsInstanceValid(player)) player.Free();
             ledge.Free();
+            floor.Free();
         }
     }
 
@@ -321,24 +380,35 @@ public class StoryCombatRulesTests {
 
     [TestCase]
     public void StoryBlockCancelsGroundedHitstunButNotAirborneHitstunOrDaze() {
-        // Gameplay-feel plan §2.4, Story half. The Fighter sim clears
-        // HitstunFrames on exactly the same condition; the two must not drift.
+        // Gameplay-feel plan §2.4, Story half, amended by the V7.3 hit-2
+        // cancel gate: string hit 1 ("combo_1") is never block-cancelable;
+        // from hit two on a grounded victim holding Block escapes into the
+        // stance. The Fighter sim clears HitstunFrames on exactly the same
+        // condition; the two must not drift.
         StaticBody2D floor = CreateFlatFloor();
         PlayerController grounded = CreateGroundedPlayer();
         PlayerController airborne = CreateGroundedPlayer();
         PlayerController control = CreateGroundedPlayer();
         try {
-            // Grounded: the launch is dropped so the victim is standing again,
-            // then Block is held while plenty of hitstun is still left.
-            StunOnTheFloor(grounded);
+            // Grounded, hit 1 of the string: the escape is gated shut.
+            StunOnTheFloor(grounded, hitboxID: "combo_1");
             AssertThat(grounded.CurrentState).IsEqual(CharacterState.Stunned);
             HoldInput(grounded, GameplayButtons.Block, frames: 2);
             AssertThat(grounded.CurrentState)
-                .OverrideFailureMessage("A grounded victim holding Block must leave hitstun into the stance.")
+                .OverrideFailureMessage("Hit one's hitstun must not be block-cancelable (V7.3 hit-2 gate).")
+                .IsEqual(CharacterState.Stunned);
+
+            // Grounded, hit 2: the launch is dropped so the victim is standing
+            // again, then Block is held while plenty of hitstun is still left.
+            StunOnTheFloor(grounded, hitboxID: "combo_2");
+            AssertThat(grounded.CurrentState).IsEqual(CharacterState.Stunned);
+            HoldInput(grounded, GameplayButtons.Block, frames: 2);
+            AssertThat(grounded.CurrentState)
+                .OverrideFailureMessage("From hit two on, a grounded victim holding Block must leave hitstun into the stance.")
                 .IsEqual(CharacterState.Blocking);
 
             // Control: the same victim without Block rides the stun out.
-            StunOnTheFloor(control);
+            StunOnTheFloor(control, hitboxID: "combo_2");
             HoldInput(control, GameplayButtons.None, frames: 2);
             AssertThat(control.CurrentState)
                 .OverrideFailureMessage("Without Block the victim must still be stunned at the same frame.")
@@ -445,6 +515,75 @@ public class StoryCombatRulesTests {
         }
     }
 
+    /// <summary>
+    /// V7.3 Story landing tech: the 12-frame recovery is a LOCKED window —
+    /// invulnerable, in place, no actions or movement — then Idle. It mirrors
+    /// the sim's TechLockoutFrames; before this pass Story teched straight
+    /// into a fully actionable Idle.
+    /// </summary>
+    [TestCase]
+    public void LandingTechLocksThePlayerForTwelveFrames() {
+        StaticBody2D floor = CreateFlatFloor();
+        PlayerController player = CreateGroundedPlayer();
+        try {
+            // A launching hit on string hit 1 (never block-cancelable, so the
+            // held Block below can only ever read as the tech input). The long
+            // hitstun guarantees the flight ends while the tumble still runs.
+            player.GetNode<Hurtbox>("Hurtbox").TakeHit(new HitPayload {
+                AttackerIndex = 1,
+                TargetIndex = 0,
+                AttackID = "test.launch",
+                HitboxID = "combo_1",
+                AttackClass = AttackClass.Basic,
+                Damage = 10f,
+                Knockback = new Vector2(4f, -2f),
+                HitstunDuration = 1.5f,
+                HitOrigin = new Vector2(-20f, 0f),
+                AttackerFacingRight = true
+            });
+            AssertThat(player.CurrentState).IsEqual(CharacterState.Stunned);
+
+            // Hold Block through hitstop, the launch, and the flight; the
+            // ground-contact frame techs into the locked recovery.
+            bool teched = false;
+            for (int frame = 0; frame < 180 && !teched; frame++) {
+                HoldInput(player, GameplayButtons.Block, frames: 1);
+                teched = player.IsInTechLockout;
+            }
+            AssertThat(teched)
+                .OverrideFailureMessage("The Block-held landing never teched into the locked recovery.")
+                .IsTrue();
+
+            // Locked: no damage, no actions, no movement.
+            Vector2 lockedPosition = player.GlobalPosition;
+            AssertThat(player.ApplyDamage(10))
+                .OverrideFailureMessage("The tech lock must be fully invulnerable.")
+                .IsEqual(0);
+            for (int frame = 0; frame < 5; frame++) {
+                HoldInput(player, GameplayButtons.BasicAttack, frames: 1);
+            }
+            AssertThat(player.CurrentState)
+                .OverrideFailureMessage("No action may start during the tech lock.")
+                .IsNotEqual(CharacterState.Attacking);
+            AssertThat(player.GlobalPosition)
+                .OverrideFailureMessage("The tech lock holds the player in place.")
+                .IsEqual(lockedPosition);
+
+            // Release: the remaining lock frames run off into Idle.
+            for (int frame = 0; frame < BasicComboRules.LandingTechRecoveryFrames && player.IsInTechLockout; frame++) {
+                HoldInput(player, GameplayButtons.None, frames: 1);
+            }
+            AssertThat(player.IsInTechLockout).IsFalse();
+            AssertThat(player.CurrentState)
+                .OverrideFailureMessage("The expired tech lock must release to Idle.")
+                .IsEqual(CharacterState.Idle);
+        } finally {
+            InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+            player.Free();
+            floor.Free();
+        }
+    }
+
     /// <summary>Environment floor with its top surface at y = 0.</summary>
     private static StaticBody2D CreateFlatFloor() {
         var floor = new StaticBody2D {
@@ -488,10 +627,11 @@ public class StoryCombatRulesTests {
 
     /// <summary>
     /// Lands a stunning hit and drops the launch so the victim is back on the
-    /// floor for the escape check, with most of the hitstun still to run.
+    /// floor for the escape check, with most of the hitstun still to run. The
+    /// hitboxID drives the V7.3 hit-2 cancel gate ("combo_1" is unescapable).
     /// </summary>
-    private static void StunOnTheFloor(PlayerController player) {
-        player.GetNode<Hurtbox>("Hurtbox").TakeHit(Hit(AttackClass.Basic));
+    private static void StunOnTheFloor(PlayerController player, string hitboxID = "primary") {
+        player.GetNode<Hurtbox>("Hurtbox").TakeHit(Hit(AttackClass.Basic, hitboxID));
         // V7.1: run the hit's short hitstop freeze off first — its expiry
         // resolves the stashed DI launch, which the manual zero below then
         // drops so the victim is standing on the floor again.
@@ -603,11 +743,11 @@ public class StoryCombatRulesTests {
         player._PhysicsProcess(delta);
     }
 
-    private static HitPayload Hit(AttackClass attackClass) => new() {
+    private static HitPayload Hit(AttackClass attackClass, string hitboxID = "primary") => new() {
         AttackerIndex = 1,
         TargetIndex = 0,
         AttackID = "test.hit",
-        HitboxID = "primary",
+        HitboxID = hitboxID,
         AttackClass = attackClass,
         Damage = 10f,
         Knockback = new Vector2(4f, -2f),
