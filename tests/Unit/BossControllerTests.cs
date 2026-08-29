@@ -412,6 +412,40 @@ public class BossControllerTests {
         }
     }
 
+    [TestCase]
+    public void BossesNeverFlinchFromHitstunSoTheyAreV74StaggerCompliantWithNoBossCode() {
+        // V7.4 Enemy Stagger Discipline boss ruling: "bosses that are authored
+        // flinch-proof already are simply compliant". BossController has no
+        // Stunned state at all and its hit intake ignores
+        // HitPayload.HitstunDuration entirely, so the BossStaggerBudgetSeconds
+        // constant has nothing to meter and no boss code change accompanies
+        // V7.4. This pin fails the moment someone teaches bosses to flinch,
+        // at which point the boss budget must be wired per the design.
+        BossData data = BossResource();
+        data.MaxHP = 200;
+        BossController boss = CreateBoss(data, seed: 17);
+        try {
+            var hurtbox = boss.GetNode<Hurtbox>("Hurtbox");
+            BossState stateBefore = boss.CurrentState;
+            int hpBefore = boss.CurrentHP;
+            hurtbox.TakeHit(new HitPayload {
+                AttackID = "einstein.basic",
+                HitboxID = "combo_1",
+                AttackClass = AttackClass.Basic,
+                Damage = 10f,
+                HitstunDuration = 2.5f, // absurdly long: still no flinch
+                HitOrigin = Vector2.Zero,
+                AttackerFacingRight = true
+            });
+            AssertThat(boss.CurrentHP).IsEqual(hpBefore - 10);
+            AssertThat(boss.CurrentState)
+                .OverrideFailureMessage("A boss must never flinch from player hitstun.")
+                .IsEqual(stateBefore);
+        } finally {
+            FreeBoss(boss);
+        }
+    }
+
     // === Helpers ===
 
     /// <summary>

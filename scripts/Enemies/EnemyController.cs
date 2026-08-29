@@ -50,6 +50,17 @@ namespace FTT.Enemies {
         private float _attackCooldownTimer;
         private float _eliteCooldownTimer;
         private float _stunTimer;
+
+        // === V7.4 Enemy Stagger Discipline (FTT.Combat.EnemyStaggerRules; PvE only) ===
+        // Getup armor after a naturally-expiring stun (all tiers), the elite
+        // stagger budget behind Armored Recovery, and the per-target
+        // diminishing-special-stun window. Bosses never flinch (BossController
+        // ignores HitPayload.HitstunDuration), so their budget constant has no
+        // consumer — recorded compliance, not an omission.
+        private int _getupArmorFramesRemaining;
+        private float _armoredRecoveryTimer;
+        private float _staggerBudget;
+        private float _specialStunWindowTimer;
         // V7.1 hitstop freeze (BasicComboRules numbers); max-assigned, never
         // shortened. Counted in physics frames so it cannot drift against the
         // 60 Hz clock the shared frame tables are authored in.
@@ -207,6 +218,24 @@ namespace FTT.Enemies {
         public EnemyAbilityData ActiveAbility => Executor.ActiveAbility;
         public bool LastAttackWasElite => _lastAttackWasElite;
         public bool IsFacingRight => _facingRight;
+
+        // === V7.4 stagger-discipline seams ===
+
+        /// <summary>True during the armored getup window after a naturally-expiring stun.</summary>
+        public bool IsGetupArmored => _getupArmorFramesRemaining > 0;
+
+        /// <summary>True during the elite budget-triggered Armored Recovery window.</summary>
+        public bool IsArmoredRecovery => _armoredRecoveryTimer > 0f;
+
+        /// <summary>
+        /// True while any V7.4 armor is up: incoming hits deal full damage but
+        /// apply no hitstun and no knockback, and the enemy acts freely. Armor,
+        /// not invulnerability — death is unaffected.
+        /// </summary>
+        public bool IsStaggerArmored => IsGetupArmored || IsArmoredRecovery;
+
+        /// <summary>Accumulated post-resistance stun credit (elites only). Test seam.</summary>
+        public float StaggerBudgetSeconds => _staggerBudget;
 
         /// <summary>
         /// True while chase holds at the stand-off band: the target came inside
@@ -372,6 +401,7 @@ namespace FTT.Enemies {
             if (CurrentState == EnemyState.Dead) return;
             if (_attackCooldownTimer > 0) _attackCooldownTimer -= dt;
             if (_eliteCooldownTimer > 0) _eliteCooldownTimer -= dt;
+            TickStaggerDiscipline(dt);
             Executor.Tick(dt);
 
             switch (CurrentState) {
@@ -704,8 +734,96 @@ namespace FTT.Enemies {
             Velocity = new Vector2(0, IsFlying ? 0f : Velocity.Y);
             _stunTimer -= dt;
             if (_stunTimer <= 0) {
-                CurrentState = _target != null ? EnemyState.Chase : EnemyState.Patrol;
+                // V7.4 armored getup recovery: a NATURALLY expiring hitstun (a
+                // refresh mid-stun never reaches here) arms the armor window —
+                // damage still lands, flinch and knockback do not, and the
+                // enemy acts freely (EnemyStaggerRules.GetupArmorFrames).
+                _getupArmorFramesRemaining = FTT.Combat.EnemyStaggerRules.GetupArmorFrames;
+                RefreshArmorPresentation();
+                // V7.4 pressure-exit rule: leaving stun with the target inside
+                // attack range prefers an immediate attack (through the normal
+                // attack-selection path, so cadence and cooldowns hold) over
+                // resuming Chase.
+                if (!TryPressureExitAttack()) {
+                    CurrentState = _target != null ? EnemyState.Chase : EnemyState.Patrol;
+                }
             }
+        }
+
+        // === V7.4 Enemy Stagger Discipline (EnemyStaggerRules; PvE only) ===
+
+        /// <summary>
+        /// Per-frame stagger-discipline bookkeeping: the special-stun diminish
+        /// window, the elite stagger budget's decay (only while not stunned),
+        /// and both armor windows' expiry (with the pressure-exit answer when
+        /// Armored Recovery ends with the target still in reach).
+        /// </summary>
+        private void TickStaggerDiscipline(float dt) {
+            if (_specialStunWindowTimer > 0f) _specialStunWindowTimer -= dt;
+            if (_staggerBudget > 0f && CurrentState != EnemyState.Stunned) {
+                _staggerBudget = Mathf.Max(
+                    0f, _staggerBudget - FTT.Combat.EnemyStaggerRules.StaggerDecayPerSecond * dt);
+            }
+            if (_getupArmorFramesRemaining > 0) {
+                _getupArmorFramesRemaining--;
+                if (_getupArmorFramesRemaining <= 0) RefreshArmorPresentation();
+            }
+            if (_armoredRecoveryTimer > 0f) {
+                _armoredRecoveryTimer -= dt;
+                if (_armoredRecoveryTimer <= 0f) {
+                    _armoredRecoveryTimer = 0f;
+                    RefreshArmorPresentation();
+                    TryPressureExitAttack();
+                }
+            }
+        }
+
+        /// <summary>
+        /// The armor flash: the shared gold hyper-armor glow — the codebase's
+        /// existing armor language, distinct from the red hit flash — pulses
+        /// while any V7.4 armor window is up.
+        /// </summary>
+        private void RefreshArmorPresentation() => _glow?.SetHyperArmor(IsStaggerArmored);
+
+        /// <summary>
+        /// V7.4 pressure-exit: attacks immediately when the target sits inside
+        /// attack range and the normal cadence permits (cooldown up, executor
+        /// idle). Routed through <see cref="EnterAttacking"/> so the ordinary
+        /// reaction delay and telegraph play. Returns false to let the caller
+        /// fall back to Chase/Patrol.
+        /// </summary>
+        private bool TryPressureExitAttack() {
+            if (_target == null || !IsInstanceValid(_target)) return false;
+            if (_target.CurrentState == FTT.Characters.CharacterState.Dead) return false;
+            if (CurrentState is EnemyState.Dead or EnemyState.Attacking) return false;
+            if (Executor.IsBusy || _attackCooldownTimer > 0f) return false;
+            if (GlobalPosition.DistanceTo(_target.GlobalPosition) > AttackRangePixels) return false;
+            EnterAttacking();
+            return true;
+        }
+
+        /// <summary>
+        /// Elite budget trip: flinch- and knockback-proof for
+        /// <see cref="FTT.Combat.EnemyStaggerRules.EliteArmoredRecoverySeconds"/>
+        /// (damage still lands), armor flash up, and the AI immediately commits
+        /// its signature telegraphed attack — the elite ability when its
+        /// cooldown is up, else the primary — through the normal
+        /// <see cref="BeginAttack"/> path so the class colour + glyph telegraph
+        /// plays. The budget resets on trigger.
+        /// </summary>
+        private void BeginArmoredRecovery() {
+            _staggerBudget = 0f;
+            _armoredRecoveryTimer = FTT.Combat.EnemyStaggerRules.EliteArmoredRecoverySeconds;
+            _stunTimer = 0f;
+            Executor.Cancel();
+            // Make the elite branch of SelectNextAttack eligible: the armored
+            // answer is the signature ability whenever its cooldown allows.
+            _lastAttackWasElite = false;
+            CurrentState = EnemyState.Attacking;
+            _attackCommitted = true;
+            _reactionFramesRemaining = 0;
+            RefreshArmorPresentation();
+            BeginAttack();
         }
 
         private void ProcessReturning(float dt) {
@@ -842,6 +960,8 @@ namespace FTT.Enemies {
 
         public void ApplyKnockback(Vector2 knockback, bool attackerFacingRight) {
             if (CurrentState == EnemyState.Dead) return;
+            // V7.4: both armor windows are knockback-proof (damage still lands).
+            if (IsStaggerArmored) return;
             // Impulse-free hits (construct arcs/bites carry zero knockback)
             // must not replace the velocity with a zero vector.
             if (knockback == Vector2.Zero) return;
@@ -870,17 +990,50 @@ namespace FTT.Enemies {
 
         public void ApplyStun(float duration) => ApplyStun(duration, 0f);
 
+        public void ApplyStun(float duration, float minimumSeconds) =>
+            ApplyStun(duration, minimumSeconds, fromSpecial: false);
+
         /// <summary>
         /// Applies hitstun scaled down by the authored <c>StunResistance</c>,
         /// floored at <paramref name="minimumSeconds"/>. Basic-class string
         /// hits pass <c>BasicComboRules.EnemyBasicStunFloorFrames</c> so no
         /// roster enemy — however resistant — can act between chain hits.
+        /// V7.4 (Enemy Stagger Discipline): both armor windows deny the stun
+        /// outright (damage already landed in TakeDamage); a special-sourced
+        /// stun inside the diminish window applies at half strength; and on
+        /// elites the applied stun feeds the stagger budget, tripping Armored
+        /// Recovery when it exceeds <c>EliteStaggerBudgetSeconds</c>.
         /// </summary>
-        public void ApplyStun(float duration, float minimumSeconds) {
+        public void ApplyStun(float duration, float minimumSeconds, bool fromSpecial) {
             if (CurrentState == EnemyState.Dead) return;
+            // V7.4 armor: flinch-proof. Armor only arms on natural stun expiry
+            // or a budget trip, so a hit landing DURING stun still refreshes
+            // the stun normally through this path.
+            if (IsStaggerArmored) return;
             float resistance = Mathf.Clamp(Data?.StunResistance ?? 0f, 0f, 1f);
             float stun = Mathf.Max(duration * (1f - resistance), minimumSeconds);
             if (stun <= 0f) return;
+            // V7.4 diminishing special stun: a special-sourced stun landing
+            // within the window of the previous one applies full damage but
+            // half stun; the window refreshes on every special-sourced stun.
+            // Basics are untouched (the getup armor already bounds them).
+            if (fromSpecial) {
+                if (_specialStunWindowTimer > 0f) {
+                    stun *= FTT.Combat.EnemyStaggerRules.SpecialStunDiminishFactor;
+                }
+                _specialStunWindowTimer = FTT.Combat.EnemyStaggerRules.SpecialStunDiminishWindowSeconds;
+            }
+            // V7.4 stagger budget (elites; bosses never flinch — see
+            // BossController, whose hit intake ignores hitstun entirely): each
+            // applied stun adds its post-resistance duration, and exceeding
+            // the budget answers with Armored Recovery instead of the stun.
+            if (Data?.Tier == EnemyTier.Elite) {
+                _staggerBudget += stun;
+                if (_staggerBudget > FTT.Combat.EnemyStaggerRules.EliteStaggerBudgetSeconds) {
+                    BeginArmoredRecovery();
+                    return;
+                }
+            }
             Executor.Cancel();
             _attackCommitted = false;
             _reactionFramesRemaining = 0;
@@ -1084,6 +1237,10 @@ namespace FTT.Enemies {
             _attackCooldownTimer = 0f;
             _eliteCooldownTimer = 0f;
             _stunTimer = 0f;
+            _getupArmorFramesRemaining = 0;
+            _armoredRecoveryTimer = 0f;
+            _staggerBudget = 0f;
+            _specialStunWindowTimer = 0f;
             _patrolIdleTimer = 0f;
             _deathTimer = 0f;
             _patrolForward = true;
@@ -1098,6 +1255,7 @@ namespace FTT.Enemies {
             _spawnPosition = GlobalPosition;
             _returnTarget = _spawnPosition;
             ClearStatusEffect();
+            RefreshArmorPresentation();
             Executor.Reset();
             Velocity = Vector2.Zero;
             CollisionLayer = CollisionLayers.Enemy;
@@ -1132,6 +1290,10 @@ namespace FTT.Enemies {
             _attackCommitted = false;
             _standOffEngaged = false;
             _reactionFramesRemaining = 0;
+            _getupArmorFramesRemaining = 0;
+            _armoredRecoveryTimer = 0f;
+            _staggerBudget = 0f;
+            _specialStunWindowTimer = 0f;
             Velocity = Vector2.Zero;
             CollisionLayer = 0;
             CollisionMask = 0;
@@ -1174,6 +1336,11 @@ namespace FTT.Enemies {
             _attackCooldownTimer = 0f;
             _eliteCooldownTimer = 0f;
             _stunTimer = 0f;
+            _getupArmorFramesRemaining = 0;
+            _armoredRecoveryTimer = 0f;
+            _staggerBudget = 0f;
+            _specialStunWindowTimer = 0f;
+            RefreshArmorPresentation();
             _hitstopFramesRemaining = 0;
             _isHeldByPlayer = false;
             _thrownFlight = false;
@@ -1218,7 +1385,11 @@ namespace FTT.Enemies {
                 float minimumSeconds = basicStringHit
                     ? FTT.Combat.BasicComboRules.EnemyBasicStunFloorFrames / 60f
                     : 0f;
-                ApplyStun(hit.HitstunDuration, minimumSeconds);
+                // V7.4: Special-class hits are marked so ApplyStun can run the
+                // diminishing-special-stun window (ultimates and basics are
+                // exempt — the loop being closed is the special-ability chain).
+                ApplyStun(hit.HitstunDuration, minimumSeconds,
+                    fromSpecial: hit.AttackClass == FTT.Combat.AttackClass.Special);
             }
             if (hit.AppliedStatus != StatusType.None && hit.StatusDuration > 0f) {
                 ApplyStatusEffect(hit.AppliedStatus, hit.StatusDuration, hit.StatusIntensity);

@@ -102,6 +102,15 @@ public class EnemyControllerTests {
             for (int frame = 0; frame < 10; frame++) elite._PhysicsProcess(Step);
             AssertThat(elite.CurrentState).IsEqual(EnemyState.Patrol);
 
+            // V7.4: the naturally-expired stun armed the getup armor window,
+            // which would deny the follow-up stun below — wait it out first
+            // (its own contract is pinned in the stagger-discipline tests).
+            AssertThat(elite.IsGetupArmored).IsTrue();
+            for (int frame = 0; frame < EnemyStaggerRules.GetupArmorFrames + 2; frame++) {
+                elite._PhysicsProcess(Step);
+            }
+            AssertThat(elite.IsGetupArmored).IsFalse();
+
             // A non-string Basic-class source (Leonardo's turret, Tesla's coil
             // arcs) keeps its authored short stun: 0.15s at 0.5 resistance
             // recovers within a handful of frames.
@@ -843,6 +852,262 @@ public class EnemyControllerTests {
             enemy.ApplyStatusEffect(StatusType.TimeDilation, 2f, 1f);
             AssertThat(enemy.StatusScaledDashVelocityX).IsEqualApprox(300f, 0.001f);
         } finally {
+            enemy.Free();
+        }
+    }
+
+    // === V7.4 Enemy Stagger Discipline (EnemyStaggerRules; PvE only) ===
+
+    [TestCase]
+    public void NaturallyExpiredStunArmsGetupArmorThatDeniesStunAndKnockbackButNeverDamage() {
+        EnemyController enemy = CreateEnemy("chrono_slasher"); // StunResistance 0
+        try {
+            var hurtbox = enemy.GetNode<Hurtbox>("Hurtbox");
+            enemy.ApplyStun(0.1f);
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Stunned);
+            for (int frame = 0; frame < 10; frame++) enemy._PhysicsProcess(Step);
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Patrol);
+            AssertThat(enemy.IsGetupArmored)
+                .OverrideFailureMessage("A naturally-expiring stun must arm the getup armor window.")
+                .IsTrue();
+
+            // The re-engage jab: full damage, but no stun and no knockback.
+            int hpBefore = enemy.CurrentHP;
+            Vector2 velocityBefore = enemy.Velocity;
+            hurtbox.TakeHit(new HitPayload {
+                AttackID = "einstein.basic",
+                HitboxID = "combo_1",
+                AttackClass = AttackClass.Basic,
+                Damage = 3f,
+                Knockback = new Vector2(2f, -1.5f),
+                HitstunDuration = BasicComboRules.HitstunFrames[0] / 60f,
+                HitOrigin = Vector2.Zero,
+                AttackerFacingRight = true
+            });
+            AssertThat(enemy.CurrentHP)
+                .OverrideFailureMessage("Armor never reduces damage.")
+                .IsEqual(hpBefore - 3);
+            AssertThat(enemy.CurrentState)
+                .OverrideFailureMessage("An armored hit must not re-stun the enemy.")
+                .IsNotEqual(EnemyState.Stunned);
+            AssertThat(enemy.Velocity)
+                .OverrideFailureMessage("An armored hit must not apply knockback.")
+                .IsEqual(velocityBefore);
+
+            // Armor expires; the next hit stuns normally again.
+            for (int frame = 0; frame < 50; frame++) enemy._PhysicsProcess(Step);
+            AssertThat(enemy.IsGetupArmored).IsFalse();
+            hurtbox.TakeHit(new HitPayload {
+                AttackID = "einstein.basic",
+                HitboxID = "combo_1",
+                AttackClass = AttackClass.Basic,
+                Damage = 3f,
+                Knockback = new Vector2(2f, -1.5f),
+                HitstunDuration = BasicComboRules.HitstunFrames[0] / 60f,
+                HitOrigin = Vector2.Zero,
+                AttackerFacingRight = true
+            });
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Stunned);
+        } finally {
+            enemy.Free();
+        }
+    }
+
+    [TestCase]
+    public void HitsLandingDuringStunStillRefreshTheStunNormally() {
+        // Armor arms only on NATURAL expiry: a hit landing mid-stun refreshes
+        // the stun exactly as before — the full string and its finisher work.
+        EnemyController enemy = CreateEnemy("chrono_slasher");
+        try {
+            enemy.ApplyStun(0.2f); // 12 frames
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Stunned);
+            for (int frame = 0; frame < 3; frame++) enemy._PhysicsProcess(Step);
+            enemy.ApplyStun(0.5f); // refresh mid-stun
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Stunned);
+            // 20 frames past the refresh: the original 12-frame stun would have
+            // expired long ago; the refreshed 30-frame stun is still holding.
+            for (int frame = 0; frame < 20; frame++) enemy._PhysicsProcess(Step);
+            AssertThat(enemy.CurrentState)
+                .OverrideFailureMessage("A mid-stun hit must refresh the stun, not be denied.")
+                .IsEqual(EnemyState.Stunned);
+            for (int frame = 0; frame < 15; frame++) enemy._PhysicsProcess(Step);
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Patrol);
+        } finally {
+            enemy.Free();
+        }
+    }
+
+    [TestCase]
+    public void SustainedStunBeyondTheEliteBudgetTriggersArmoredRecoveryWithACommittedAnswer() {
+        EnemyController elite = CreateEnemy("tech_enforcer");
+        try {
+            elite.Data.StunResistance = 0f;
+            elite.Data.EliteAbilityCooldown = 0f;
+            var hurtbox = elite.GetNode<Hurtbox>("Hurtbox");
+
+            elite.ApplyStun(0.9f);
+            elite.ApplyStun(0.9f); // budget 1.8 — still under the 2.0 s budget
+            AssertThat(elite.IsArmoredRecovery).IsFalse();
+            AssertThat(elite.CurrentState).IsEqual(EnemyState.Stunned);
+
+            elite.ApplyStun(0.9f); // budget 2.7 > 2.0 — Armored Recovery
+            AssertThat(elite.IsArmoredRecovery).IsTrue();
+            AssertThat(elite.StaggerBudgetSeconds)
+                .OverrideFailureMessage("The budget resets on trigger.")
+                .IsEqualApprox(0f, 0.0001f);
+            // The armored answer commits immediately through the normal
+            // BeginAttack path: the elite's signature ability (cooldown is up),
+            // with its ordinary telegraph.
+            AssertThat(elite.CurrentState).IsEqual(EnemyState.Attacking);
+            AssertThat(elite.LastAttackWasElite).IsTrue();
+            AssertThat(elite.ActiveAbility.Archetype).IsEqual(EnemyAbilityArchetype.ShieldBubble);
+            AssertThat(elite.AbilityPhase == EnemyAbilityPhase.Telegraph
+                    || elite.AbilityPhase == EnemyAbilityPhase.Active)
+                .OverrideFailureMessage("The committed answer must be executing.")
+                .IsTrue();
+
+            // During Armored Recovery: damage lands, flinch and shove do not.
+            int hpBefore = elite.CurrentHP;
+            hurtbox.TakeHit(new HitPayload {
+                AttackID = "einstein.basic",
+                HitboxID = "combo_1",
+                AttackClass = AttackClass.Basic,
+                Damage = 5f,
+                Knockback = new Vector2(3f, -1.5f),
+                HitstunDuration = BasicComboRules.HitstunFrames[0] / 60f,
+                HitOrigin = new Vector2(-40f, 0f),
+                AttackerFacingRight = true
+            });
+            AssertThat(elite.CurrentHP < hpBefore)
+                .OverrideFailureMessage("Armored Recovery never prevents damage.")
+                .IsTrue();
+            AssertThat(elite.CurrentState)
+                .OverrideFailureMessage("Armored Recovery is flinch-proof.")
+                .IsEqual(EnemyState.Attacking);
+        } finally {
+            elite.Free();
+        }
+    }
+
+    [TestCase]
+    public void SpacedOutStunsDecayTheStaggerBudgetAndNeverTriggerArmoredRecovery() {
+        EnemyController elite = CreateEnemy("tech_enforcer");
+        try {
+            elite.Data.StunResistance = 0f;
+            // 4 x 0.6 s = 2.4 s of raw stun — past the 2.0 s budget if it never
+            // decayed — but each stun is followed by ~1.5 s of unstunned time,
+            // which the 1 s/s decay fully clears.
+            for (int burst = 0; burst < 4; burst++) {
+                elite.ApplyStun(0.6f);
+                AssertThat(elite.IsArmoredRecovery)
+                    .OverrideFailureMessage("A spaced-out sequence must never trip the budget.")
+                    .IsFalse();
+                for (int frame = 0; frame < 130; frame++) elite._PhysicsProcess(Step);
+            }
+            AssertThat(elite.IsArmoredRecovery).IsFalse();
+            AssertThat(elite.StaggerBudgetSeconds < 1f)
+                .OverrideFailureMessage("The budget must decay while unstunned.")
+                .IsTrue();
+        } finally {
+            elite.Free();
+        }
+    }
+
+    [TestCase]
+    public void ASecondSpecialStunInsideTheWindowAppliesHalfStunAndFullDamageWhileBasicsAreUntouched() {
+        EnemyController enemy = CreateEnemy("chrono_slasher"); // StunResistance 0
+        try {
+            var hurtbox = enemy.GetNode<Hurtbox>("Hurtbox");
+            HitPayload SpecialHit() => new() {
+                AttackID = "einstein.special_one",
+                HitboxID = "special_test",
+                AttackClass = AttackClass.Special,
+                Damage = 4f,
+                HitstunDuration = 0.5f,
+                HitOrigin = Vector2.Zero,
+                AttackerFacingRight = true
+            };
+
+            int hp0 = enemy.CurrentHP;
+            hurtbox.TakeHit(SpecialHit());
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Stunned);
+            AssertThat(hp0 - enemy.CurrentHP).IsEqual(4);
+            for (int frame = 0; frame < 6; frame++) enemy._PhysicsProcess(Step);
+
+            // Second special inside the 4 s window: full damage, half stun.
+            int hp1 = enemy.CurrentHP;
+            hurtbox.TakeHit(SpecialHit());
+            AssertThat(hp1 - enemy.CurrentHP)
+                .OverrideFailureMessage("Diminished stun never diminishes damage.")
+                .IsEqual(4);
+            // Half of 0.5 s is 15 frames (+3 hitstop): expired well before the
+            // 24-frame mark where a full 30-frame stun would still hold.
+            for (int frame = 0; frame < 24; frame++) enemy._PhysicsProcess(Step);
+            AssertThat(enemy.CurrentState)
+                .OverrideFailureMessage("The second special's stun must be halved.")
+                .IsEqual(EnemyState.Patrol);
+
+            // Basics are untouched by the window: wait out the getup armor,
+            // then a Basic-class (non-string) hit keeps its full stun.
+            for (int frame = 0; frame < 45; frame++) enemy._PhysicsProcess(Step);
+            AssertThat(enemy.IsGetupArmored).IsFalse();
+            hurtbox.TakeHit(new HitPayload {
+                AttackID = "leonardo.turret",
+                HitboxID = "turret_shot",
+                AttackClass = AttackClass.Basic,
+                Damage = 2f,
+                HitstunDuration = 0.5f,
+                HitOrigin = Vector2.Zero,
+                AttackerFacingRight = true
+            });
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Stunned);
+            for (int frame = 0; frame < 24; frame++) enemy._PhysicsProcess(Step);
+            AssertThat(enemy.CurrentState)
+                .OverrideFailureMessage("A Basic-class stun inside the special window must stay full length.")
+                .IsEqual(EnemyState.Stunned);
+            for (int frame = 0; frame < 15; frame++) enemy._PhysicsProcess(Step);
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Patrol);
+
+            // Window expiry restores the full special stun: run well past the
+            // 4 s window (the basic stun above never refreshed it), then the
+            // next special holds the full 30 frames again.
+            for (int frame = 0; frame < 260; frame++) enemy._PhysicsProcess(Step);
+            hurtbox.TakeHit(SpecialHit());
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Stunned);
+            for (int frame = 0; frame < 24; frame++) enemy._PhysicsProcess(Step);
+            AssertThat(enemy.CurrentState)
+                .OverrideFailureMessage("An expired window must restore the full special stun.")
+                .IsEqual(EnemyState.Stunned);
+        } finally {
+            enemy.Free();
+        }
+    }
+
+    [TestCase]
+    public void StunEndingWithTheTargetInAttackRangePrefersAnImmediateAttackOverChase() {
+        StaticBody2D floor = CreateStandOffFloor();
+        EnemyController enemy = CreateEnemy("chrono_slasher");
+        PlayerController player = CreateTargetPlayer(new Vector2(60f, 0f));
+        try {
+            enemy.GlobalPosition = Vector2.Zero;
+            // Aggro: chrono_slasher's 1.5-unit reach is 90 px, so 60 px is in
+            // range. One frame acquires the target.
+            enemy._PhysicsProcess(Step);
+            AssertThat(enemy.CurrentState == EnemyState.Chase
+                    || enemy.CurrentState == EnemyState.Attacking).IsTrue();
+
+            enemy.ApplyStun(0.15f); // 9 frames
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Stunned);
+            for (int frame = 0; frame < 12; frame++) enemy._PhysicsProcess(Step);
+
+            // V7.4 pressure-exit: the getup answers instead of strolling.
+            AssertThat(enemy.CurrentState)
+                .OverrideFailureMessage("Stun ending in range must produce an attack, not Chase.")
+                .IsEqual(EnemyState.Attacking);
+            AssertThat(enemy.IsGetupArmored).IsTrue();
+        } finally {
+            player.Free();
+            floor.Free();
             enemy.Free();
         }
     }

@@ -80,6 +80,19 @@ namespace FTT.FighterSim {
         private int _edgeFramesRemaining;
         private int _edgeGapFramesRemaining;
 
+        // === V7.4 hitstun defense (input-side only; no combat-rules change) ===
+        /// <summary>
+        /// Frames the escape stance lingers after hitstun ends grounded, so the
+        /// blocked-into stance survives the rest of the attacker's string (the
+        /// hit-2 → hit-3 connect gap is bounded by hit 2's 40-frame hitstun).
+        /// Input-side pacing only — the sim rules are untouched.
+        /// </summary>
+        public const int EscapeStanceLingerFrames = 45;
+        private int _lastObservedHitstunFrames;
+        private int _escapeStanceLingerRemaining;
+        private bool _hitstunHoldBlockActive;
+        private bool _hitstunDiActive;
+
         public FighterCpuController(CpuDifficulty difficulty, int seed)
             : this(difficulty, seed, null, null) {
         }
@@ -89,14 +102,17 @@ namespace FTT.FighterSim {
         /// and platform summary the observation carries; <paramref name="world"/>
         /// supplies live orbs/hazards and the match-live gate. Both are optional —
         /// omitting them yields the Story-equivalent "absent" sentinels.
+        /// <paramref name="tuningOverride"/> replaces the difficulty band's rates —
+        /// a test seam for pinning roll gates at 0%/100%; production callers omit it.
         /// </summary>
         public FighterCpuController(
             CpuDifficulty difficulty,
             int seed,
             FighterStageGeometry geometry,
-            ICpuWorldObserver world) {
+            ICpuWorldObserver world,
+            CpuBandTuning? tuningOverride = null) {
             _difficulty = difficulty;
-            _tuning = CpuBandTuning.For(difficulty);
+            _tuning = tuningOverride ?? CpuBandTuning.For(difficulty);
             _geometry = geometry;
             _world = world;
             _randomState = unchecked((uint)seed) ^ 0xA511E9B3u;
@@ -153,9 +169,72 @@ namespace FTT.FighterSim {
             }
 
             AdvanceEdgePulse();
+            GameplayButtons held = ApplyHitstunDefense(
+                in observation, _sustainedHeld | _activeEdges, ref outputMoveX);
             return PlayerInputFrame.Create(
                 tick, outputMoveX / 127f, outputMoveY / 127f,
-                _sustainedHeld | _activeEdges, previousFrame.Held);
+                held, previousFrame.Held);
+        }
+
+        /// <summary>
+        /// V7.4 hitstun defense (design §10 difficulty matrices, the "Hitstun
+        /// Defense" rows). Rolled <b>once per hitstun instance</b> — a new
+        /// instance is <c>HitstunFrames</c> rising from zero or above the
+        /// previous frame's value (a mid-stun refresh is a new hit and re-rolls).
+        /// A successful defense roll holds Block for the remainder of the
+        /// hitstun, through the airborne tumble and ground contact, and for a
+        /// short grounded linger — buying the hit-2 escape, the blocked rest of
+        /// the string, and the landing tech purely through the ordinary sim
+        /// rules (nothing in the simulation is special-cased). A successful DI
+        /// roll additionally holds the stick toward stage centre while hitstun
+        /// runs, which is exactly what <c>FighterVerbRules.ResolvePendingLaunch</c>
+        /// reads when the launch hitstop ends. Pit-aware "hold up" DI is
+        /// deliberately not implemented: the observation carries no cheap
+        /// launch-trajectory-vs-pit test and the authored stages run solid
+        /// floors, so toward-centre is the design's accepted fallback.
+        /// The RNG draws live in the same recorded-input path as every other
+        /// roll (BlockPercent and friends): the produced frame is recorded and
+        /// replayed like human input, so rollback never re-samples them. The
+        /// daze branch stays inert — dazed players genuinely cannot act.
+        /// </summary>
+        private GameplayButtons ApplyHitstunDefense(
+            in CpuDecisionObservation observation, GameplayButtons held, ref sbyte moveX) {
+            int hitstun = observation.HitstunFrames;
+            bool newInstance = hitstun > 0
+                && (_lastObservedHitstunFrames <= 0 || hitstun > _lastObservedHitstunFrames);
+            if (newInstance) {
+                _hitstunHoldBlockActive = NextPercent() < _tuning.HitstunDefensePercent;
+                _hitstunDiActive = NextPercent() < _tuning.DiPercent;
+                _escapeStanceLingerRemaining = EscapeStanceLingerFrames;
+            }
+            if (_hitstunHoldBlockActive && hitstun <= 0 && observation.IsGrounded != 0) {
+                // Grounded with hitstun over (escaped, teched, or ridden out):
+                // the stance lingers briefly so the rest of the string meets a
+                // shield, then the hold releases.
+                if (_escapeStanceLingerRemaining > 0) _escapeStanceLingerRemaining--;
+                if (_escapeStanceLingerRemaining <= 0) {
+                    _hitstunHoldBlockActive = false;
+                    _hitstunDiActive = false;
+                }
+            }
+            _lastObservedHitstunFrames = hitstun;
+
+            if (!_hitstunHoldBlockActive
+                || observation.SuppressGameplayInput != 0
+                || observation.DazeFrames > 0
+                || observation.Stocks <= 0) {
+                return held;
+            }
+            // The hold is EXCLUSIVE, not additive: a scheduled BasicAttack edge
+            // landing while Block is held would read as the grab chord, and a
+            // grabbing fighter has no functioning shield (V7.3) — the committed
+            // escape stance must never convert itself into a grab attempt.
+            held = GameplayButtons.Block;
+            if (_hitstunDiActive && hitstun > 0 && observation.HasStageBounds != 0) {
+                long centerRaw = (observation.LeftWallRaw + observation.RightWallRaw) / 2;
+                moveX = observation.SelfPositionXRaw < centerRaw ? (sbyte)127 : (sbyte)-127;
+            }
+            return held;
         }
 
         /// <summary>
@@ -304,6 +383,13 @@ namespace FTT.FighterSim {
         public GameplayButtons Decide(in CpuDecisionObservation observation, out sbyte moveX, out sbyte moveY) {
             moveX = 0;
             moveY = 0;
+            // The decision table stays quiet in hitstun/daze — a stunned
+            // fighter has no utility actions to schedule. The V7.4 hitstun
+            // defense (hold Block through the stun, DI the launch) is NOT a
+            // scheduled decision: it rides the reflex layer in
+            // ApplyHitstunDefense, applied to the output frame directly,
+            // because a 30-frame hitstun is over before Easy's 30–45-frame
+            // reaction delay could deliver anything. Daze stays fully inert.
             if (observation.SuppressGameplayInput != 0
                 || observation.Stocks <= 0
                 || observation.HitstunFrames > 0
@@ -616,6 +702,18 @@ namespace FTT.FighterSim {
         public int EvasiveRollPercent { get; init; }
         /// <summary>Cumulative with the roll share: design's 10/40/80 shield rates.</summary>
         public int BlockPercent { get; init; }
+        /// <summary>
+        /// V7.4 Hitstun Defense: chance, rolled once per hitstun instance, to
+        /// hold Block through the hitstun and tumble — buying the hit-2 escape
+        /// and the landing tech through the ordinary sim rules. Design §10:
+        /// Easy 10, Medium 45, Hard 85.
+        /// </summary>
+        public int HitstunDefensePercent { get; init; }
+        /// <summary>
+        /// V7.4: chance per hitstun instance to DI a launching hit toward
+        /// stage centre. Design §10: Easy never (0), Medium 40, Hard 80.
+        /// </summary>
+        public int DiPercent { get; init; }
         public int OrbPursuitPercent { get; init; }
         public int HealingOrbPursuitPercent { get; init; }
         public int HealingOrbHPPercent { get; init; }
@@ -661,6 +759,10 @@ namespace FTT.FighterSim {
             SpecialTwoPercent = 0,
             EvasiveRollPercent = 0,
             BlockPercent = 10,
+            // design §10 Easy Hitstun Defense: 10% per instance, never DI —
+            // "Easy stays nearly defenseless in disadvantage by contract".
+            HitstunDefensePercent = 10,
+            DiPercent = 0,
             OrbPursuitPercent = 0,
             HealingOrbPursuitPercent = 0,
             HealingOrbHPPercent = 0,
@@ -691,6 +793,10 @@ namespace FTT.FighterSim {
             SpecialTwoPercent = 20,
             EvasiveRollPercent = 0,
             BlockPercent = 40,
+            // design §10 Medium Hitstun Defense: 45% Block-through, 40% DI —
+            // the teaching tier, where loops visibly work and visibly fail.
+            HitstunDefensePercent = 45,
+            DiPercent = 40,
             OrbPursuitPercent = 25,
             HealingOrbPursuitPercent = 60,
             HealingOrbHPPercent = 40,
@@ -722,6 +828,10 @@ namespace FTT.FighterSim {
             SpecialTwoPercent = 26,
             EvasiveRollPercent = 35,
             BlockPercent = 80,
+            // design §10 Hard Hitstun Defense: 85% Block-through, 80% DI —
+            // damage must be earned through grabs, delays, and shatter pressure.
+            HitstunDefensePercent = 85,
+            DiPercent = 80,
             OrbPursuitPercent = 75,
             HealingOrbPursuitPercent = 95,
             HealingOrbHPPercent = 50,
