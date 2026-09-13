@@ -9,9 +9,16 @@ using static GdUnit4.Assertions;
 namespace FTT.Tests.Unit;
 
 /// <summary>
-/// Audit Low "Kits/talents": the five re-pointed talent minors now reach their
-/// designed targets through the ability-scoped Story multipliers. Story-only —
-/// every multiplier defaults to 1f, and Fighter loadouts never read them.
+/// The re-pointed talent minors reach their designed targets through the
+/// ability-scoped Story multipliers. Story-only - every multiplier defaults to
+/// 1f, and Fighter loadouts never read them.
+///
+/// <para>Package 11 A4 moved all four from the roster-generic lanes
+/// (GlideDuration, ZoneRadius, ZoneDuration, PersistentHealth) onto the V7.6
+/// ability-SCOPED lanes, so each case now sets the exact (key, scope) pair the
+/// authored node carries. Cleopatra's case changed target as well: V7.6 retires
+/// her vortex radius minor outright and re-scopes her duration minor onto the
+/// SERPENT NEST, leaving the vortex on its authored numbers.</para>
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -23,8 +30,8 @@ public class AbilityZoneTalentTests {
         PlayerController player = CharacterFactory.CreateCharacter("pocahontas");
         tree.Root.AddChild(player);
         try {
-            // pocahontas_wr2 "Glide Duration +20%".
-            player.StoryGlideDurationMultiplier = 1.2f;
+            // pocahontas_glide_duration: AbilityDuration(pocahontas_breeze_glide) +20%.
+            player.StoryScopedStats = Scoped("AbilityDuration", "pocahontas_breeze_glide", 1.2f);
             player.TransitionTo(CharacterState.Airborne);
             player.Velocity = Vector2.Down;
             SendInput(player, GameplayButtons.MovementAbility);
@@ -65,8 +72,8 @@ public class AbilityZoneTalentTests {
         PlayerController player = CharacterFactory.CreateCharacter("einstein");
         tree.Root.AddChild(player);
         try {
-            // einstein_u2 "Rift Range +10%".
-            player.StoryZoneRadiusMultiplier = 1.1f;
+            // einstein_rift_range: AbilityRange(relativity_rift) +10%.
+            player.StoryScopedStats = Scoped("AbilityRange", "relativity_rift", 1.1f);
             player.TransitionTo(CharacterState.Airborne);
             player.Velocity = Vector2.Down;
 
@@ -100,14 +107,16 @@ public class AbilityZoneTalentTests {
     }
 
     [TestCase]
-    public void SandRadiusAndSandDurationMinorsScaleCleopatrasVortex() {
+    public void NestDurationMinorScalesCleopatrasSerpentNestAndLeavesTheVortexAlone() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
         PlayerController player = CharacterFactory.CreateCharacter("cleopatra");
         tree.Root.AddChild(player);
         try {
-            // cleopatra_dm1 "Sand Radius +15%", cleopatra_dm2 "Sand Duration +20%".
-            player.StoryZoneRadiusMultiplier = 1.15f;
-            player.StoryZoneDurationMultiplier = 1.2f;
+            // cleopatra_nest_duration: AbilityDuration(cleopatra_serpent_nest)
+            // +20%. Authoring the NEST scope must leave the vortex untouched -
+            // V7.6 retires her vortex-radius minor and moves the duration minor
+            // off the vortex entirely.
+            player.StoryScopedStats = Scoped("AbilityDuration", "cleopatra_serpent_nest", 1.2f);
             player.TransitionTo(CharacterState.Airborne);
             player.Velocity = Vector2.Down;
             SendInput(player, GameplayButtons.Special2);
@@ -118,22 +127,19 @@ public class AbilityZoneTalentTests {
             }
             AssertThat(vortex.VortexActive).IsTrue();
             AssertThat(vortex.ActiveVortexRadiusPixels)
-                .IsEqualApprox(CleopatraSandstormVortex.VortexRadiusPixels * 1.15f, 0.01f);
+                .IsEqualApprox(CleopatraSandstormVortex.VortexRadiusPixels, 0.01f);
 
             int baseLifetimeFrames = Mathf.CeilToInt(vortex.Data.Lifetime * 60f);
-            int scaledLifetimeFrames = Mathf.CeilToInt(vortex.Data.Lifetime * 1.2f * 60f);
 
-            // Past the unmodified lifetime the sand is still churning...
-            for (int frame = 0; frame < baseLifetimeFrames + 5; frame++) {
-                vortex._PhysicsProcess(1.0 / 60.0);
-            }
-            AssertThat(vortex.VortexActive).IsTrue();
-
-            // ...and it lapses once the scaled lifetime expires.
-            for (int frame = 0; frame < scaledLifetimeFrames - baseLifetimeFrames + 10; frame++) {
+            // The vortex lapses on its AUTHORED lifetime: the nest-scoped node
+            // must not reach it.
+            for (int frame = 0; frame < baseLifetimeFrames + 10; frame++) {
                 vortex._PhysicsProcess(1.0 / 60.0);
             }
             AssertThat(vortex.VortexActive).IsFalse();
+
+            // ...and a fresh vortex arms its own Vortex Step allowance.
+            AssertThat(vortex.VortexStepAvailable).IsTrue();
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);
             player.Free();
@@ -146,8 +152,8 @@ public class AbilityZoneTalentTests {
         PlayerController player = CharacterFactory.CreateCharacter("leonardo");
         tree.Root.AddChild(player);
         try {
-            // leonardo_a2 "Spiral Range +10%".
-            player.StoryZoneRadiusMultiplier = 1.1f;
+            // leonardo_spiral_range: AbilityRange(leonardo_golden_ratio) +10%.
+            player.StoryScopedStats = Scoped("AbilityRange", "leonardo_golden_ratio", 1.1f);
             player.TransitionTo(CharacterState.Airborne);
             player.Velocity = Vector2.Down;
             SendInput(player, GameplayButtons.Special1);
@@ -164,6 +170,15 @@ public class AbilityZoneTalentTests {
             player.Free();
         }
     }
+
+    /// <summary>
+    /// Builds a one-entry ability-scoped bucket, the shape
+    /// <c>CharacterFactory</c> copies out of <c>StoryStatProfile</c>.
+    /// </summary>
+    private static FTT.Environment.ScopedStoryStats Scoped(string key, string scope, float value) =>
+        new(new System.Collections.Generic.Dictionary<FTT.Environment.ScopedStatKey, float> {
+            [new FTT.Environment.ScopedStatKey(key, scope)] = value
+        });
 
     private static void SendInput(PlayerController player, GameplayButtons buttons, double delta = 1.0 / 60.0) {
         var source = new BufferedInputSource();

@@ -11,6 +11,26 @@ namespace FTT.Environment {
         public const string GridResourceDirectory = "res://resources/Resonance";
 
         /// <summary>
+        /// V7.6 dormant-node gate. A5's Legacy Unlock Schedule installs the
+        /// real probe — <c>(characterID, abilitySlot) =&gt; bool</c>. Until it
+        /// merges the probe is null and every gated node behaves as unlocked,
+        /// which is the pre-V7.6 behaviour.
+        /// TODO(A5): wire this to the Legacy Unlock Schedule's
+        /// <c>IsAbilityUnlocked</c> at campaign load.
+        /// </summary>
+        public static Func<string, string, bool> AbilityUnlockProbe;
+
+        /// <summary>
+        /// True when a node's gated ability slot is available in the current
+        /// Story context. Ungated nodes and an uninstalled probe both pass.
+        /// </summary>
+        public static bool IsAbilityUnlocked(string characterID, string abilitySlot) {
+            if (string.IsNullOrWhiteSpace(abilitySlot)) return true;
+            Func<string, string, bool> probe = AbilityUnlockProbe;
+            return probe == null || probe(characterID, abilitySlot);
+        }
+
+        /// <summary>
         /// The one place a Resonance grid is loaded. Goes through
         /// <see cref="AuthoredResources"/> so the grid and its nine scripted
         /// <c>ResonanceNodeData</c> sub-resources are marshalled once per process
@@ -55,12 +75,129 @@ namespace FTT.Environment {
             if (node == null) return ResonanceUnlockResult.MissingNode;
             List<string> unlocked = GetUnlockedNodes(save, grid.CharacterID);
             if (unlocked.Contains(node.NodeID)) return ResonanceUnlockResult.AlreadyUnlocked;
-            foreach (string prerequisite in node.PrerequisiteNodeIDs ?? Array.Empty<string>()) {
-                if (!unlocked.Contains(prerequisite)) return ResonanceUnlockResult.MissingPrerequisite;
+            if (!IsAbilityUnlocked(grid.CharacterID, node.GatedAbilityID)) {
+                return ResonanceUnlockResult.AbilityLocked;
+            }
+            if (!PrerequisitesSatisfied(node, unlocked)) {
+                return ResonanceUnlockResult.MissingPrerequisite;
             }
             int balance = save.DepositedChronalDust.GetValueOrDefault(grid.CharacterID);
             if (balance < node.UnlockCost) return ResonanceUnlockResult.InsufficientDust;
             return ResonanceUnlockResult.Unlocked;
+        }
+
+        /// <summary>
+        /// V7.6 prerequisite satisfaction. An EMPTY list is root-eligible under
+        /// either mode. <c>All</c> needs every listed node; <c>Any</c> needs at
+        /// least one. The single shared evaluator behind UI availability,
+        /// purchase, respec dependency checks and save validation.
+        /// </summary>
+        public static bool PrerequisitesSatisfied(ResonanceNodeData node, IReadOnlyList<string> unlocked) {
+            string[] prerequisites = node?.PrerequisiteNodeIDs ?? Array.Empty<string>();
+            if (prerequisites.Length == 0) return true;
+            if (node.PrerequisiteMode == PrerequisiteMode.Any) {
+                foreach (string prerequisite in prerequisites) {
+                    if (Contains(unlocked, prerequisite)) return true;
+                }
+                return false;
+            }
+            foreach (string prerequisite in prerequisites) {
+                if (!Contains(unlocked, prerequisite)) return false;
+            }
+            return true;
+        }
+
+        private static bool Contains(IReadOnlyList<string> unlocked, string nodeID) {
+            if (unlocked == null) return false;
+            for (int i = 0; i < unlocked.Count; i++) {
+                if (string.Equals(unlocked[i], nodeID, StringComparison.Ordinal)) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// V7.6 authored-data validation: rejects dangling prerequisite IDs,
+        /// self-references, duplicate node IDs, prerequisite cycles, scoped
+        /// stat keys with no <c>AbilityScope</c> (and vice versa), unknown stat
+        /// keys, and unknown gate slot names. Returns an empty list for a valid
+        /// grid. Pure data — no Godot scene dependency — so both the content
+        /// tests and a future editor tool can call it.
+        /// </summary>
+        public static List<string> ValidateGrid(ResonanceGridData grid) {
+            var issues = new List<string>();
+            if (grid == null) {
+                issues.Add("grid is null");
+                return issues;
+            }
+            ResonanceNodeData[] nodes = grid.Nodes ?? Array.Empty<ResonanceNodeData>();
+            var byID = new Dictionary<string, ResonanceNodeData>(StringComparer.Ordinal);
+            foreach (ResonanceNodeData node in nodes) {
+                if (node == null) {
+                    issues.Add($"{grid.GridID}: null node entry");
+                    continue;
+                }
+                if (string.IsNullOrWhiteSpace(node.NodeID)) {
+                    issues.Add($"{grid.GridID}: node with an empty NodeID");
+                    continue;
+                }
+                if (byID.ContainsKey(node.NodeID)) {
+                    issues.Add($"{grid.GridID}: duplicate NodeID '{node.NodeID}'");
+                    continue;
+                }
+                byID[node.NodeID] = node;
+            }
+            foreach (ResonanceNodeData node in byID.Values) {
+                foreach (string prerequisite in node.PrerequisiteNodeIDs ?? Array.Empty<string>()) {
+                    if (string.Equals(prerequisite, node.NodeID, StringComparison.Ordinal)) {
+                        issues.Add($"{node.NodeID}: lists itself as a prerequisite");
+                    } else if (!byID.ContainsKey(prerequisite)) {
+                        issues.Add($"{node.NodeID}: dangling prerequisite '{prerequisite}'");
+                    }
+                }
+                bool scoped = Array.IndexOf(ResonanceStatKeys.ScopedKeys, node.StatModifierKey) >= 0;
+                if (scoped && string.IsNullOrWhiteSpace(node.AbilityScope)) {
+                    issues.Add($"{node.NodeID}: scoped key '{node.StatModifierKey}' with no AbilityScope");
+                }
+                if (!string.IsNullOrWhiteSpace(node.AbilityScope)
+                    && Array.IndexOf(ResonanceStatKeys.ScopableKeys, node.StatModifierKey) < 0) {
+                    issues.Add($"{node.NodeID}: AbilityScope '{node.AbilityScope}' on unscopable key '{node.StatModifierKey}'");
+                }
+                if (!string.IsNullOrWhiteSpace(node.StatModifierKey)
+                    && Array.IndexOf(ResonanceStatKeys.All, node.StatModifierKey) < 0) {
+                    issues.Add($"{node.NodeID}: unknown StatModifierKey '{node.StatModifierKey}'");
+                }
+                if (!string.IsNullOrWhiteSpace(node.GatedAbilityID)
+                    && Array.IndexOf(ResonanceAbilitySlots.All, node.GatedAbilityID) < 0) {
+                    issues.Add($"{node.NodeID}: unknown GatedAbilityID '{node.GatedAbilityID}'");
+                }
+            }
+            foreach (string nodeID in byID.Keys) {
+                if (HasCycle(nodeID, byID, new HashSet<string>(StringComparer.Ordinal),
+                        new HashSet<string>(StringComparer.Ordinal))) {
+                    issues.Add($"{grid.GridID}: prerequisite cycle reachable from '{nodeID}'");
+                    break;
+                }
+            }
+            return issues;
+        }
+
+        private static bool HasCycle(
+            string nodeID,
+            Dictionary<string, ResonanceNodeData> byID,
+            HashSet<string> onStack,
+            HashSet<string> settled) {
+            if (settled.Contains(nodeID)) return false;
+            if (!onStack.Add(nodeID)) return true;
+            if (byID.TryGetValue(nodeID, out ResonanceNodeData node)) {
+                foreach (string prerequisite in node.PrerequisiteNodeIDs ?? Array.Empty<string>()) {
+                    if (byID.ContainsKey(prerequisite) && HasCycle(prerequisite, byID, onStack, settled)) {
+                        return true;
+                    }
+                }
+            }
+            onStack.Remove(nodeID);
+            settled.Add(nodeID);
+            return false;
         }
 
         /// <summary>
@@ -94,6 +231,83 @@ namespace FTT.Environment {
             save.DepositedChronalDust[grid.CharacterID] = checked(balance + refund);
             unlocked.Clear();
             return refund;
+        }
+
+        /// <summary>
+        /// The V7.6 retired node IDs and the price each was sold at, keyed by
+        /// character. Every pre-V7.6 grid was three linear branches of three at
+        /// 50 / 75 / 200; these are the exact IDs the shipped `.tres` files
+        /// carried at commit 31fed14. Used only by
+        /// <see cref="MigrateGridProgressToV76"/> to refund a purchase whose
+        /// node no longer exists.
+        /// </summary>
+        public static readonly IReadOnlyDictionary<string, int> RetiredNodeCosts =
+            BuildRetiredNodeCosts();
+
+        private static Dictionary<string, int> BuildRetiredNodeCosts() {
+            var table = new Dictionary<string, int>(StringComparer.Ordinal);
+            void Branch(string character, string branch) {
+                table[$"{character}_{branch}1"] = 50;
+                table[$"{character}_{branch}2"] = 75;
+                table[$"{character}_{branch}3"] = 200;
+            }
+            Branch("einstein", "u"); Branch("einstein", "o"); Branch("einstein", "d");
+            Branch("joan", "r"); Branch("joan", "m"); Branch("joan", "d");
+            Branch("leonardo", "a"); Branch("leonardo", "e"); Branch("leonardo", "m");
+            Branch("tesla", "c"); Branch("tesla", "p"); Branch("tesla", "w");
+            Branch("shakespeare", "t"); Branch("shakespeare", "c"); Branch("shakespeare", "h");
+            Branch("mozart", "a"); Branch("mozart", "f"); Branch("mozart", "p");
+            Branch("cleopatra", "al"); Branch("cleopatra", "dm"); Branch("cleopatra", "pw");
+            Branch("lincoln", "l"); Branch("lincoln", "s"); Branch("lincoln", "r");
+            Branch("pocahontas", "fs"); Branch("pocahontas", "wr"); Branch("pocahontas", "pw");
+            return table;
+        }
+
+        /// <summary>
+        /// F08's one-time, atomic, versioned free respec, generalized. Every
+        /// V7.6 grid re-authored every node ID, so a loaded save can carry
+        /// purchases that no longer name a node: on load, DROP any
+        /// <c>GridProgress</c> entry that is not present in that character's
+        /// current grid and REFUND it at its recorded retired price into that
+        /// character's deposited balance.
+        ///
+        /// <para>This is strictly stronger than a Shakespeare-only Act II
+        /// migration and covers all nine characters. It removes purchased
+        /// nodes and their effects, refunds exactly the recorded paid cost
+        /// once, preserves campaign progress and undeposited earnings, and
+        /// never grants a missing node for free. Idempotent — a second call
+        /// finds nothing to drop and refunds zero.</para>
+        ///
+        /// <para>A4 ships the function; the Phase C closeout calls it from the
+        /// single v5 to v6 migration step (plan §2.6).</para>
+        /// </summary>
+        /// <returns>The total dust refunded across every character on the save.</returns>
+        public static int MigrateGridProgressToV76(StorySaveData save) {
+            if (save?.GridProgress == null) return 0;
+            int refunded = 0;
+            foreach (string characterID in new List<string>(save.GridProgress.Keys)) {
+                List<string> unlocked = save.GridProgress[characterID];
+                if (unlocked == null || unlocked.Count == 0) continue;
+                ResonanceGridData grid = LoadGrid(characterID);
+                if (grid == null) continue;
+                var surviving = new List<string>(unlocked.Count);
+                int characterRefund = 0;
+                foreach (string nodeID in unlocked) {
+                    if (FindNode(grid, nodeID) != null) {
+                        surviving.Add(nodeID);
+                        continue;
+                    }
+                    characterRefund += RetiredNodeCosts.GetValueOrDefault(nodeID, 0);
+                }
+                if (surviving.Count == unlocked.Count) continue;
+                save.GridProgress[characterID] = surviving;
+                if (characterRefund > 0) {
+                    int balance = save.DepositedChronalDust.GetValueOrDefault(characterID);
+                    save.DepositedChronalDust[characterID] = checked(balance + characterRefund);
+                    refunded += characterRefund;
+                }
+            }
+            return refunded;
         }
 
         public static int DepositActiveDust(StorySaveData save, string characterID, int carriedDust) {
@@ -130,8 +344,22 @@ namespace FTT.Environment {
             float persistentHealth = 1f;
             float statusDuration = 1f;
             float statusIntensity = 1f;
+            float rallyEchoFraction = 1f;
+            float ultimateBuildRate = 1f;
+            float extractorDamage = 1f;
+            Dictionary<ScopedStatKey, float> scoped = null;
             foreach (ResonanceNodeData node in grid.Nodes ?? Array.Empty<ResonanceNodeData>()) {
                 if (node == null || !unlocked.Contains(node.NodeID)) continue;
+                // V7.6 ability-scoped lanes. Additive on top of the neutral 1.0
+                // so two nodes scoping the same ability compose the same way
+                // the character-wide lanes do.
+                if (Array.IndexOf(ResonanceStatKeys.ScopableKeys, node.StatModifierKey) >= 0
+                    && !string.IsNullOrWhiteSpace(node.AbilityScope)) {
+                    scoped ??= new Dictionary<ScopedStatKey, float>();
+                    var scopeKey = new ScopedStatKey(node.StatModifierKey, node.AbilityScope);
+                    scoped[scopeKey] = scoped.GetValueOrDefault(scopeKey, 1f) + PercentValue(node);
+                    continue;
+                }
                 switch (node.StatModifierKey) {
                     case "MaxHP": maxHP += Mathf.RoundToInt(node.StatModifierValue); break;
                     case "BlockCharges": blockCharges += Mathf.RoundToInt(node.StatModifierValue); break;
@@ -159,10 +387,13 @@ namespace FTT.Environment {
                     case "PersistentHealth": persistentHealth += PercentValue(node); break;
                     case "StatusDuration": statusDuration += PercentValue(node); break;
                     case "StatusDamage": statusIntensity += PercentValue(node); break;
-                    // "BlockDurability" (percent shield durability against discrete
-                    // integer block charges) and "Armor" (the design's combat rules
-                    // explicitly forbid a damage-reducing armor stat) have no
-                    // existing behavior to hook and intentionally resolve neutral.
+                    // V7.6 lanes.
+                    case "RallyEchoFraction": rallyEchoFraction += PercentValue(node); break;
+                    case "UltimateBuildRate": ultimateBuildRate += PercentValue(node); break;
+                    case "ExtractorDamage": extractorDamage += PercentValue(node); break;
+                    // An unknown or empty key resolves neutral. Traversal nodes
+                    // deliberately carry no stat key at all - they land in
+                    // StoryAbilityPerks through AbilityModifierKey instead.
                 }
             }
             return new StoryStatProfile(
@@ -182,7 +413,11 @@ namespace FTT.Environment {
                 statusIntensityMultiplier: statusIntensity,
                 glideDurationMultiplier: glideDuration,
                 zoneRadiusMultiplier: zoneRadius,
-                zoneDurationMultiplier: zoneDuration);
+                zoneDurationMultiplier: zoneDuration,
+                rallyEchoFractionMultiplier: rallyEchoFraction,
+                ultimateBuildRateMultiplier: ultimateBuildRate,
+                extractorDamageMultiplier: extractorDamage,
+                scopedMultipliers: scoped);
         }
 
         public static float GetUnlockedStatTotal(

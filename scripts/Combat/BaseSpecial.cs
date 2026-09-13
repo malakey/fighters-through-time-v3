@@ -67,9 +67,25 @@ namespace FTT.Combat {
         /// interrupted cast (H-4) still burns its cooldown. Ultimates are
         /// meter-gated and carry no cooldown timer.
         /// </summary>
+        /// <summary>
+        /// Package 11 A4 (Resonance V7.6). A per-CAST cooldown multiplier an
+        /// ability may override — Cleopatra's Vortex Step halves exactly the
+        /// cast that consumed its allowance, AFTER every other modifier, and
+        /// never rewrites a cooldown that has already started. Neutral 1.0
+        /// everywhere else.
+        /// </summary>
+        public virtual float CooldownScaleForThisCast => 1f;
+
         private void StartCooldown() {
             if (Owner == null || Data == null) return;
-            float cooldown = Data.CooldownDuration;
+            // Package 11 A4 (Resonance V7.6): CooldownReduction is now
+            // ability-SCOPED (Joan's Divine Piercing, Mozart's Fortissimo Wave,
+            // Lincoln's Splitting Strike). One lookup here covers all three -
+            // the character-wide StoryCooldownMultiplier still ticks the timers
+            // down in PlayerController, and an unscoped grid reads neutral 1.0.
+            float cooldown = Data.CooldownDuration
+                * Owner.StoryScoped("CooldownReduction", Data.AbilityID ?? "")
+                * CooldownScaleForThisCast;
             switch (Data.Slot) {
                 case FTT.Core.AbilitySlot.Special1:
                     Owner.SpecialOneCooldownTimer = cooldown;

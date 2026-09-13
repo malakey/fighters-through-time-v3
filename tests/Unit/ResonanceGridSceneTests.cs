@@ -38,14 +38,20 @@ public class ResonanceGridSceneTests {
             AssertThat(root.GetNodeOrNull<ColorRect>("Shade") != null).IsTrue();
             AssertThat(root.GetNodeOrNull<Label>(Layout + "Title") != null).IsTrue();
             AssertThat(root.GetNodeOrNull<Label>(Layout + "Balance") != null).IsTrue();
-            AssertThat(root.GetNodeOrNull<GridContainer>(Layout + "NodeGrid") != null).IsTrue();
+            // Package 11 A4 (V7.6): NodeGrid is a plain Control, not a
+            // GridContainer - nine unique topologies are placed at their
+            // authored normalized LayoutPosition, not tiled in three columns.
+            AssertThat(root.GetNodeOrNull<Control>(Layout + "NodeGrid") != null).IsTrue();
+            AssertThat(root.GetNodeOrNull<GridContainer>(Layout + "NodeGrid") == null).IsTrue();
             AssertThat(root.GetNodeOrNull<Label>(Layout + "Status") != null).IsTrue();
             AssertThat(root.GetNodeOrNull<Label>(Layout + "Hint") != null).IsTrue();
             AssertThat(root.GetNodeOrNull<Button>(Layout + "CloseButton") != null).IsTrue();
 
-            // Three columns, matching the 3x3 grids and the navigation math's
-            // GridColumns constant.
-            AssertThat(root.GetNode<GridContainer>(Layout + "NodeGrid").Columns).IsEqual(3);
+            // The constellation needs authored room: the chips are anchored at
+            // normalized positions inside it, so a collapsed container would
+            // pile every node on top of the others.
+            AssertThat(root.GetNode<Control>(Layout + "NodeGrid").CustomMinimumSize.X > 900f).IsTrue();
+            AssertThat(root.GetNode<Control>(Layout + "NodeGrid").CustomMinimumSize.Y > 400f).IsTrue();
 
             // Static copy is raw keys resolved by automatic control translation.
             AssertThat(root.GetNode<Label>(Layout + "Title").Text).IsEqual("resonance_title");
@@ -73,7 +79,7 @@ public class ResonanceGridSceneTests {
     }
 
     [TestCase]
-    public void TheNodeGridIsPopulatedFromTheActiveCharacterGridAndStartsOnTheFirstNode() {
+    public void TheNodeGridRendersTheAuthoredTopologyWithItsPrerequisiteEdges() {
         if (GameManager.Instance == null || SaveManager.Instance == null) return;
         SessionData original = GameManager.Instance.CurrentSession;
         StorySaveData originalSave = SaveManager.Instance.SaveSlots[0];
@@ -86,12 +92,29 @@ public class ResonanceGridSceneTests {
 
             ResonanceGridPanel panel = Open(out Node host);
             try {
-                var grid = panel.Root.GetNode<GridContainer>(Layout + "NodeGrid");
-                // Einstein's authored grid is 3x3; the buttons are code-built into
-                // the authored container because their count and copy come from
-                // ResonanceGridData, not from the scene.
-                AssertThat(grid.GetChildCount()).IsEqual(9);
+                var grid = panel.Root.GetNode<Control>(Layout + "NodeGrid");
+                // Nine authored node chips plus the edge layer behind them.
+                // The chips are code-built because their count, copy and
+                // position come from ResonanceGridData, not from the scene.
+                AssertThat(grid.GetChildCount()).IsEqual(10);
+                AssertThat(panel.EdgeLayer != null).IsTrue();
                 AssertThat(panel.FocusedIndex).IsEqual(0);
+
+                // Every chip sits at its own authored position: a topology
+                // where two nodes coincide is a rendering bug, not a design.
+                System.Collections.Generic.List<(float X, float Y)> positions = panel.LayoutPositions;
+                AssertThat(positions.Count).IsEqual(9);
+                var distinct = new System.Collections.Generic.HashSet<(float X, float Y)>(positions);
+                AssertThat(distinct.Count).IsEqual(9);
+
+                // Einstein's mesh authors two routes into every non-root node:
+                // six Any-of edge pairs, so twelve edges in all, and they are
+                // dotted because the mode is Any.
+                AssertThat(panel.EdgeLayer.Edges.Count).IsEqual(12);
+                foreach (ResonanceEdgeLayer.Edge edge in panel.EdgeLayer.Edges) {
+                    AssertThat(edge.AnyOf).IsTrue();
+                    AssertThat(edge.Satisfied).IsFalse();
+                }
 
                 // The balance line resolves its format string rather than showing a key.
                 AssertThat(panel.Root.GetNode<Label>(Layout + "Balance").Text)

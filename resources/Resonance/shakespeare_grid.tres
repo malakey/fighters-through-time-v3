@@ -1,105 +1,140 @@
-[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=12 format=3]
+[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/ResonanceGridData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Environment/ResonanceNodeData.cs" id="2"]
 
-[sub_resource type="Resource" id="T1"]
+[sub_resource type="Resource" id="N1"]
 script = ExtResource("2")
-NodeID = "shakespeare_t1"
-DisplayNameKey = "resonance_shakespeare_t1_name"
-DescriptionKey = "resonance_shakespeare_t1_description"
+SchemaVersion = 2
+NodeID = "shakespeare_quill_reach"
+DisplayNameKey = "resonance_shakespeare_quill_reach_name"
+DescriptionKey = "resonance_shakespeare_quill_reach_description"
 UnlockCost = 50
 PrerequisiteNodeIDs = PackedStringArray()
 StatModifierKey = "AttackRange"
 StatModifierValue = 0.1
 StatModifierIsPercent = true
+Tier = 1
+LayoutPosition = Vector2(0.2, 0.85)
 
-[sub_resource type="Resource" id="T2"]
+[sub_resource type="Resource" id="N2"]
 script = ExtResource("2")
-NodeID = "shakespeare_t2"
-DisplayNameKey = "resonance_shakespeare_t2_name"
-DescriptionKey = "resonance_shakespeare_t2_description"
-UnlockCost = 75
-PrerequisiteNodeIDs = PackedStringArray("shakespeare_t1")
-StatModifierKey = "SpecialDamage"
-StatModifierValue = 0.12
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="T3"]
-script = ExtResource("2")
-NodeID = "shakespeare_t3"
-DisplayNameKey = "resonance_shakespeare_t3_name"
-DescriptionKey = "resonance_shakespeare_t3_description"
-Type = 1
-UnlockCost = 200
-PrerequisiteNodeIDs = PackedStringArray("shakespeare_t2")
-AbilityModifierKey = "macbeths_curse"
-
-[sub_resource type="Resource" id="C1"]
-script = ExtResource("2")
-NodeID = "shakespeare_c1"
-DisplayNameKey = "resonance_shakespeare_c1_name"
-DescriptionKey = "resonance_shakespeare_c1_description"
+SchemaVersion = 2
+NodeID = "shakespeare_wit"
+DisplayNameKey = "resonance_shakespeare_wit_name"
+DescriptionKey = "resonance_shakespeare_wit_description"
 UnlockCost = 50
 PrerequisiteNodeIDs = PackedStringArray()
-StatModifierKey = "KnockbackForce"
-StatModifierValue = 0.15
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="C2"]
-script = ExtResource("2")
-NodeID = "shakespeare_c2"
-DisplayNameKey = "resonance_shakespeare_c2_name"
-DescriptionKey = "resonance_shakespeare_c2_description"
-UnlockCost = 75
-PrerequisiteNodeIDs = PackedStringArray("shakespeare_c1")
 StatModifierKey = "MoveSpeed"
 StatModifierValue = 0.03
 StatModifierIsPercent = true
+Tier = 1
+LayoutPosition = Vector2(0.5, 0.85)
 
-[sub_resource type="Resource" id="C3"]
+[sub_resource type="Resource" id="N3"]
 script = ExtResource("2")
-NodeID = "shakespeare_c3"
-DisplayNameKey = "resonance_shakespeare_c3_name"
-DescriptionKey = "resonance_shakespeare_c3_description"
-Type = 1
-UnlockCost = 200
-PrerequisiteNodeIDs = PackedStringArray("shakespeare_c2")
-AbilityModifierKey = "midsummer_glide"
-
-[sub_resource type="Resource" id="H1"]
-script = ExtResource("2")
-NodeID = "shakespeare_h1"
-DisplayNameKey = "resonance_shakespeare_h1_name"
-DescriptionKey = "resonance_shakespeare_h1_description"
+SchemaVersion = 2
+NodeID = "shakespeare_chronicle"
+DisplayNameKey = "resonance_shakespeare_chronicle_name"
+DescriptionKey = "resonance_shakespeare_chronicle_description"
 UnlockCost = 50
 PrerequisiteNodeIDs = PackedStringArray()
-StatModifierKey = "BlockDurability"
+StatModifierKey = "MaxHP"
+StatModifierValue = 15
+Tier = 1
+LayoutPosition = Vector2(0.8, 0.85)
+
+[sub_resource type="Resource" id="N4"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "shakespeare_lament_slow"
+DisplayNameKey = "resonance_shakespeare_lament_slow_name"
+DescriptionKey = "resonance_shakespeare_lament_slow_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("shakespeare_quill_reach", "shakespeare_wit", "shakespeare_chronicle")
+PrerequisiteMode = 1
+StatModifierKey = "AbilityDuration"
+AbilityScope = "shakespeare_yoricks_lament"
+StatModifierValue = 0.2
+StatModifierIsPercent = true
+Tier = 2
+GatedAbilityID = "special1"
+LayoutPosition = Vector2(0.2, 0.52)
+
+[sub_resource type="Resource" id="N5"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "shakespeare_tempest_apex"
+DisplayNameKey = "resonance_shakespeare_tempest_apex_name"
+DescriptionKey = "resonance_shakespeare_tempest_apex_description"
+Type = 2
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("shakespeare_quill_reach", "shakespeare_wit", "shakespeare_chronicle")
+PrerequisiteMode = 1
+AbilityModifierKey = "tempest_apex_jump"
+Tier = 2
+GatedAbilityID = "special2"
+LayoutPosition = Vector2(0.5, 0.52)
+
+[sub_resource type="Resource" id="N6"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "shakespeare_chronicle_rally"
+DisplayNameKey = "resonance_shakespeare_chronicle_rally_name"
+DescriptionKey = "resonance_shakespeare_chronicle_rally_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("shakespeare_quill_reach", "shakespeare_wit", "shakespeare_chronicle")
+PrerequisiteMode = 1
+StatModifierKey = "RallyEchoFraction"
 StatModifierValue = 0.1
 StatModifierIsPercent = true
+Tier = 2
+LayoutPosition = Vector2(0.8, 0.52)
 
-[sub_resource type="Resource" id="H2"]
+[sub_resource type="Resource" id="N7"]
 script = ExtResource("2")
-NodeID = "shakespeare_h2"
-DisplayNameKey = "resonance_shakespeare_h2_name"
-DescriptionKey = "resonance_shakespeare_h2_description"
-UnlockCost = 75
-PrerequisiteNodeIDs = PackedStringArray("shakespeare_h1")
-StatModifierKey = "MaxHP"
-StatModifierValue = 15.0
-
-[sub_resource type="Resource" id="H3"]
-script = ExtResource("2")
-NodeID = "shakespeare_h3"
-DisplayNameKey = "resonance_shakespeare_h3_name"
-DescriptionKey = "resonance_shakespeare_h3_description"
+SchemaVersion = 2
+NodeID = "shakespeare_macbeths_curse"
+DisplayNameKey = "resonance_shakespeare_macbeths_curse_name"
+DescriptionKey = "resonance_shakespeare_macbeths_curse_description"
 Type = 1
 UnlockCost = 200
-PrerequisiteNodeIDs = PackedStringArray("shakespeare_h2")
+PrerequisiteNodeIDs = PackedStringArray("shakespeare_lament_slow", "shakespeare_tempest_apex", "shakespeare_chronicle_rally")
+AbilityModifierKey = "macbeths_curse"
+Tier = 3
+GatedAbilityID = "special1"
+LayoutPosition = Vector2(0.2, 0.16)
+
+[sub_resource type="Resource" id="N8"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "shakespeare_midsummer_glide"
+DisplayNameKey = "resonance_shakespeare_midsummer_glide_name"
+DescriptionKey = "resonance_shakespeare_midsummer_glide_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("shakespeare_lament_slow", "shakespeare_tempest_apex", "shakespeare_chronicle_rally")
+AbilityModifierKey = "midsummer_glide"
+Tier = 3
+GatedAbilityID = "movement"
+LayoutPosition = Vector2(0.5, 0.16)
+
+[sub_resource type="Resource" id="N9"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "shakespeare_henrys_bastion"
+DisplayNameKey = "resonance_shakespeare_henrys_bastion_name"
+DescriptionKey = "resonance_shakespeare_henrys_bastion_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("shakespeare_lament_slow", "shakespeare_tempest_apex", "shakespeare_chronicle_rally")
 AbilityModifierKey = "henrys_bastion"
+Tier = 3
+LayoutPosition = Vector2(0.8, 0.16)
 
 [resource]
 script = ExtResource("1")
+SchemaVersion = 2
 GridID = "shakespeare_resonance_grid"
 CharacterID = "shakespeare"
-Nodes = Array[ExtResource("2")]([SubResource("T1"), SubResource("T2"), SubResource("T3"), SubResource("C1"), SubResource("C2"), SubResource("C3"), SubResource("H1"), SubResource("H2"), SubResource("H3")])
+Nodes = Array[ExtResource("2")]([SubResource("N1"), SubResource("N2"), SubResource("N3"), SubResource("N4"), SubResource("N5"), SubResource("N6"), SubResource("N7"), SubResource("N8"), SubResource("N9")])

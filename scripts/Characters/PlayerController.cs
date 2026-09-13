@@ -36,12 +36,38 @@ namespace FTT.Characters {
 	public partial class PlayerController : CharacterBody2D, FTT.Combat.IStatusEffectTarget {
 		public const int StoryRewindInvulnerabilityFrames = 120;
 
-		/// <summary>Story-only Resonance perk key (Joan): landing the final combo cleave heals 5% of missing HP.</summary>
+		/// <summary>
+		/// Story-only Resonance perk key (Joan). V7.6 rework: the connecting
+		/// combo finisher reclaims an extra share of the CURRENT Rally echo
+		/// pool on top of the damage-scaled reclaim. The V6 "heal 5% of missing
+		/// HP" effect is retired.
+		/// </summary>
 		public const string ZealousVigorPerkKey = "zealous_vigor";
-		/// <summary>Story-only Resonance perk key (Joan): blocked damage builds the Ultimate Meter 25% faster.</summary>
+		/// <summary>
+		/// Story-only Resonance perk key (Joan). V7.6 rework (F06 Option A):
+		/// a flat meter grant per DISTINCT successfully blocked attack, plus a
+		/// one-charge refund on the first block of a Guard-Crush execution.
+		/// The V6 "blocked damage builds meter 25% faster" scaling is retired.
+		/// </summary>
 		public const string ShieldOfOrleansPerkKey = "shield_of_orleans";
-		private const float ZealousVigorMissingHPFraction = 0.05f;
-		private const float ShieldOfOrleansMeterMultiplier = 1.25f;
+		/// <summary>V7.6 Zealous Vigor: extra fraction of the live echo pool reclaimed on the finisher.</summary>
+		public const float ZealousVigorEchoPoolFraction = 0.25f;
+		/// <summary>V7.6 Shield of Orleans: flat Influence per distinct blocked attack.</summary>
+		public const float ShieldOfOrleansMeterPerBlock = 5f;
+		/// <summary>V7.6 Shield of Orleans: block-charge cap the Guard-Crush refund respects.</summary>
+		public const int ShieldOfOrleansRefundCap = 3;
+		/// <summary>
+		/// V7.6 Shield of Orleans dedup window. The engine has no attack-
+		/// execution ID, so repeats of the same (attacker, AttackID, HitboxID)
+		/// inside this many physics frames count as ONE execution — long enough
+		/// to fold a volley, a multi-hit ability and a zone pulse into one
+		/// grant, short enough that re-using the attack later counts again.
+		/// </summary>
+		public const int ShieldOfOrleansExecutionWindowFrames = 60;
+
+		/// <summary>Monotonic Story physics-frame counter; drives per-execution dedup windows.</summary>
+		private int _storyFrame;
+		private readonly Dictionary<string, int> _shieldOfOrleansExecutions = new(StringComparer.Ordinal);
 
 		[Export] public CharacterData Data;
 		[Export] public int PlayerIndex = 0;
@@ -115,6 +141,30 @@ namespace FTT.Characters {
 		public float StoryStatusIntensityMultiplier { get; set; } = 1f;
 		public float StoryTemporaryDamageMultiplier { get; private set; } = 1f;
 		public float StoryTemporarySpeedMultiplier { get; private set; } = 1f;
+		// === Package 11 A4 (Resonance V7.6) — new resolver lanes ===
+		/// <summary>Scales the V7.1 Rally echo fraction on damage taken (Story-only).</summary>
+		public float StoryRallyEchoFractionMultiplier { get; set; } = 1f;
+		/// <summary>Scales Influence-meter accrual (Story-only, Mozart's Minor Resonance).</summary>
+		public float StoryUltimateBuildRateMultiplier { get; set; } = 1f;
+		/// <summary>Scales damage dealt to Chronal Extractors (Story-only).</summary>
+		public float StoryExtractorDamageMultiplier { get; set; } = 1f;
+		/// <summary>
+		/// V7.6 ability-scoped Resonance lanes, keyed (statKey, abilityScope).
+		/// One dictionary rather than six-times-N fields; read it through
+		/// <see cref="StoryScoped"/>, never directly. Story-only — Fighter
+		/// loadouts leave it empty.
+		/// </summary>
+		public FTT.Environment.ScopedStoryStats StoryScopedStats { get; set; }
+			= FTT.Environment.ScopedStoryStats.Empty;
+
+		/// <summary>
+		/// Reads an ability-scoped Resonance lane, e.g.
+		/// <c>StoryScoped("AbilityRange", "relativity_rift")</c>. Returns the
+		/// neutral 1.0 when the node is unauthored or not unlocked.
+		/// </summary>
+		public float StoryScoped(string statKey, string abilityScope, float fallback = 1f) =>
+			StoryScopedStats.Get(statKey, abilityScope, fallback);
+
 		/// <summary>
 		/// Unlocked Resonance major-perk keys (Story-only). Populated by
 		/// CharacterFactory from the active save; always empty in Fighter Mode.
@@ -619,14 +669,17 @@ namespace FTT.Characters {
 			if (CurrentState == CharacterState.Blocking && _blockSystem != null) {
 				FTT.Combat.BlockResult blockResult = _blockSystem.ResolveHit(hit);
 				if (blockResult != FTT.Combat.BlockResult.NotBlocked) {
-					// Shield of Orleans (Story-only, Joan): damage absorbed while
-					// blocking still builds the Ultimate Meter, 25% faster than the
-					// standard damage-taken rate.
+					// Shield of Orleans (Story-only, Joan). V7.6 F06 Option A:
+					// a FLAT +5 Influence per DISTINCT successfully blocked
+					// attack, not a damage-scaled multiplier. A shattering
+					// block still qualifies (a charge was consumed either way);
+					// a hold with no absorb, a whiff, a hit from behind, an
+					// unblockable and a zero-charge refusal all return
+					// NotBlocked above and never reach here. A multi-hit
+					// ability, volley, zone or piercing projectile grants at
+					// most one, via the execution dedup below.
 					if (HasStoryPerk(ShieldOfOrleansPerkKey)) {
-						_ultimateMeter?.AddFlat(Mathf.Max(0f, hit.Damage)
-							* FTT.Combat.UltimateMeter.PointsPerDamageTaken
-							* ShieldOfOrleansMeterMultiplier);
-						CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
+						ApplyShieldOfOrleans(hit, blockResult);
 					}
 					FTT.Core.CameraShake.Instance?.Shake(3f, 0.08f);
 					if (blockResult == FTT.Combat.BlockResult.Blocked) {
@@ -732,10 +785,14 @@ namespace FTT.Characters {
 			_defyFiredThisHit = false;
 			if (!defied && CurrentState != CharacterState.Dead && CurrentHP > 0 && MaximumHP > 0) {
 				float missing = (MaximumHP - CurrentHP) / (float)MaximumHP;
+				// Package 11 A4: the V7.6 RallyEchoFraction lane (Einstein,
+				// Joan, Shakespeare, Lincoln) scales the echo share alongside
+				// the difficulty multiplier. Story-only - the sim is untouched.
 				float fraction = (FTT.Combat.BasicComboRules.EchoFractionBase
 						+ FTT.Combat.BasicComboRules.EchoFractionSlope * missing)
 					* FTT.Core.StoryDifficultyTuning.GetRallyEchoMultiplier(
-						FTT.Core.StoryDifficultyTuning.CurrentStoryDifficulty);
+						FTT.Core.StoryDifficultyTuning.CurrentStoryDifficulty)
+					* StoryRallyEchoFractionMultiplier;
 				echoAmount = damageApplied * fraction;
 				_echoPool += echoAmount;
 				_echoDrainPerFrame = _echoPool / FTT.Combat.BasicComboRules.EchoDrainFrames;
@@ -783,13 +840,115 @@ namespace FTT.Characters {
 			}
 			if (damageApplied <= 0f || !HasStoryPerk(ZealousVigorPerkKey)) return;
 			if (payload.HitboxID != "combo_3") return;
-			int missingHP = MaximumHP - CurrentHP;
-			int heal = (int)MathF.Round(missingHP * ZealousVigorMissingHPFraction);
-			if (heal > 0) HealStory(heal);
+			// Zealous Vigor (Story-only, Joan). V7.6 rework: the connecting
+			// finisher reclaims an EXTRA 25% of the Rally echo pool ON TOP of
+			// the damage-scaled reclaim that AddInfluenceFromDamageDealt has
+			// already taken for this hit — so this reads the pool as it stands
+			// after that reclaim. The V6 "heal 5% of missing HP" is retired.
+			ReclaimEchoPoolFraction(ZealousVigorEchoPoolFraction);
+		}
+
+		/// <summary>
+		/// Package 11 A4 (Resonance V7.6). The shared "a hit I authored landed
+		/// on something" hook, raised by <c>Hitbox</c> for every Story hit.
+		/// Traversal flags that trigger on a connecting hit read it; nothing
+		/// here reaches the deterministic simulation.
+		/// </summary>
+		public void NotifyStoryHitLanded(in FTT.Combat.HitPayload payload) {
+			TryWingsRefresh(payload);
+		}
+
+		/// <summary>
+		/// Wings Refresh (Story-only traversal node, Joan). A DIRECT connecting
+		/// combo finisher or Righteous Smite hit resets Ascendant Wings'
+		/// cooldown to zero — once per attack EXECUTION even on multi-target.
+		/// It resets the cooldown and nothing else: no restored air jumps, no
+		/// extra glide time, no action cancel, and no bypass of Suppression or
+		/// a Time Freeze, all of which gate the cast itself rather than the
+		/// cooldown. Never on a whiff, a blocked hit, an invulnerable target, a
+		/// DoT tick or a prop, because <c>Hitbox</c> only raises the hook on
+		/// applied damage against a hurtbox.
+		/// </summary>
+		private void TryWingsRefresh(in FTT.Combat.HitPayload payload) {
+			if (!HasStoryPerk(Abilities.JoanAscendantWings.WingsRefreshPerkKey)) return;
+			string hitboxID = payload.HitboxID ?? "";
+			bool finisher = hitboxID == "combo_3";
+			bool smite = (payload.AttackID ?? "") == Abilities.JoanAscendantWings.RighteousSmiteAttackID;
+			if (!finisher && !smite) return;
+			string execution = $"wings|{payload.AttackID}|{hitboxID}";
+			if (_shieldOfOrleansExecutions.TryGetValue(execution, out int stamp)
+				&& _storyFrame - stamp < ShieldOfOrleansExecutionWindowFrames) {
+				return;
+			}
+			_shieldOfOrleansExecutions[execution] = _storyFrame;
+			MovementAbilityCooldownTimer = 0f;
+		}
+
+		/// <summary>
+		/// Reclaims a fraction of the LIVE Rally echo pool as real HP and
+		/// removes it from the pool. Zealous Vigor's chokepoint; the ordinary
+		/// damage-scaled reclaim lives in <see cref="AddInfluenceFromDamageDealt"/>.
+		/// Reclaimed HP grants no meter to anyone.
+		/// </summary>
+		private void ReclaimEchoPoolFraction(float fraction) {
+			if (fraction <= 0f || _echoPool <= 0f) return;
+			float amount = MathF.Min(_echoPool, _echoPool * fraction);
+			_echoPool -= amount;
+			if (_echoPool <= 0.0001f) {
+				_echoPool = 0f;
+				_echoDrainPerFrame = 0f;
+			}
+			int reclaim = (int)MathF.Round(amount);
+			if (reclaim > 0) HealStory(reclaim);
+		}
+
+		/// <summary>
+		/// Shield of Orleans (Story-only, Joan; V7.6 F06 Option A). Grants a
+		/// flat <see cref="ShieldOfOrleansMeterPerBlock"/> Influence once per
+		/// DISTINCT blocked attack execution, and refunds one shield charge on
+		/// the first successful block of a Guard-Crush execution
+		/// (<c>BlockChargeCost == 2</c>).
+		///
+		/// <para>The engine carries no attack-execution ID, so "distinct" is
+		/// approximated by (attacker, AttackID, HitboxID) inside a short
+		/// window: each basic-string strike has its own HitboxID and counts
+		/// once, while a multi-hit ability, volley, zone pulse or piercing
+		/// projectile reuses one pair and grants at most one. See the plan's
+		/// §9 A4 deviation note.</para>
+		/// </summary>
+		private void ApplyShieldOfOrleans(in FTT.Combat.HitPayload hit, FTT.Combat.BlockResult blockResult) {
+			string execution = $"{hit.AttackerIndex}|{hit.AttackID ?? ""}|{hit.HitboxID ?? ""}";
+			if (_shieldOfOrleansExecutions.TryGetValue(execution, out int stamp)
+				&& _storyFrame - stamp < ShieldOfOrleansExecutionWindowFrames) {
+				return;
+			}
+			PruneShieldOfOrleansExecutions();
+			_shieldOfOrleansExecutions[execution] = _storyFrame;
+			_ultimateMeter?.AddFlat(ShieldOfOrleansMeterPerBlock);
+			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
+			// The Guard-Crush refund runs AFTER normal consumption and after
+			// any shatter, and deliberately does not cancel the daze, the
+			// shieldstun or the shatter lockout — BlockSystem.CanRaiseStance
+			// keeps the refunded charge unusable until that lockout ends.
+			if (hit.BlockChargeCost >= 2) {
+				_blockSystem?.RefundCharges(1, ShieldOfOrleansRefundCap);
+				CurrentBlockCharges = _blockSystem?.CurrentCharges ?? CurrentBlockCharges;
+			}
+			_ = blockResult;
+		}
+
+		private void PruneShieldOfOrleansExecutions() {
+			if (_shieldOfOrleansExecutions.Count < 8) return;
+			var stale = new List<string>();
+			foreach (KeyValuePair<string, int> entry in _shieldOfOrleansExecutions) {
+				if (_storyFrame - entry.Value >= ShieldOfOrleansExecutionWindowFrames) stale.Add(entry.Key);
+			}
+			foreach (string key in stale) _shieldOfOrleansExecutions.Remove(key);
 		}
 
 		public override void _PhysicsProcess(double delta) {
 			float dt = (float)delta;
+			_storyFrame++;
 			CurrentInputFrame = FTT.Core.InputManager.Instance?.GetFrame(PlayerIndex) ?? default;
 
 			// V7.1 hitstop: while frozen, every state timer, velocity, position,
@@ -935,6 +1094,9 @@ namespace FTT.Characters {
 			UpdateLandingFeedback();
 
 			_wasGrounded = IsOnFloor();
+			// Package 11 A4: per-airtime Resonance traversal latches reset the
+			// moment the feet are down.
+			if (_wasGrounded) ResetAirtimeTraversalLatches();
 		}
 
 		/// <summary>
@@ -2050,10 +2212,14 @@ namespace FTT.Characters {
 			float echoAmount = 0f;
 			if (!defied && CurrentState != CharacterState.Dead && CurrentHP > 0 && MaximumHP > 0) {
 				float missing = (MaximumHP - CurrentHP) / (float)MaximumHP;
+				// Package 11 A4: the V7.6 RallyEchoFraction lane (Einstein,
+				// Joan, Shakespeare, Lincoln) scales the echo share alongside
+				// the difficulty multiplier. Story-only - the sim is untouched.
 				float fraction = (FTT.Combat.BasicComboRules.EchoFractionBase
 						+ FTT.Combat.BasicComboRules.EchoFractionSlope * missing)
 					* FTT.Core.StoryDifficultyTuning.GetRallyEchoMultiplier(
-						FTT.Core.StoryDifficultyTuning.CurrentStoryDifficulty);
+						FTT.Core.StoryDifficultyTuning.CurrentStoryDifficulty)
+					* StoryRallyEchoFractionMultiplier;
 				echoAmount = damageApplied * fraction;
 				_echoPool += echoAmount;
 				_echoDrainPerFrame = _echoPool / FTT.Combat.BasicComboRules.EchoDrainFrames;
@@ -2361,6 +2527,10 @@ namespace FTT.Characters {
 			_echoPool = 0f;
 			_echoDrainPerFrame = 0f;
 			ReleaseGrabState();
+			// Package 11 A4: a stock loss / respawn clears every per-airtime
+			// Resonance traversal latch and the Shield of Orleans dedup ledger.
+			ResetAirtimeTraversalLatches();
+			_shieldOfOrleansExecutions.Clear();
 			if (_animatedSprite != null) _animatedSprite.SpeedScale = 1f;
 			SetRewindSuspended(false);
 			_postRewindInvulnerabilityFrames = StoryRewindInvulnerabilityFrames;
@@ -2555,13 +2725,12 @@ namespace FTT.Characters {
 				_meleeHitbox.Damage = baseDmg * (_stringProfile.DamageTenths[comboIdx] / 10f);
 				_meleeHitbox.AttackID = $"{Data?.CharacterID ?? "fighter"}.basic";
 				_meleeHitbox.HitboxID = $"combo_{comboIdx + 1}";
-				// Kinetic Splitting (Story-only Resonance perk): Lincoln's third-hit
-				// downward crush shatters shields instantly, which is exactly the
-				// special-class block interaction.
-				_meleeHitbox.AttackClass = comboIdx == 2
-					&& HasStoryPerk(Abilities.LincolnSplittingStrike.KineticSplittingPerkKey)
-					? FTT.Combat.AttackClass.Special
-					: FTT.Combat.AttackClass.Basic;
+				// Package 11 A4: the V6 Kinetic Splitting rider that re-classed
+				// combo hit 3 as Special is RETIRED - it restated the baseline
+				// and granted nothing (recon F §6.8). The V7.6 perk lives
+				// entirely on LincolnSplittingStrike (the ground bounce and the
+				// +50% against Extractors and enemy constructs).
+				_meleeHitbox.AttackClass = FTT.Combat.AttackClass.Basic;
 
 				float baseKB = Data?.BasicAttackKnockback ?? 3f;
 				// Hitstun and the horizontal knockback multiplier both come from
@@ -2894,14 +3063,32 @@ namespace FTT.Characters {
 			}
 			// Package 11 A5 gate.
 			if (!IsAbilityUnlocked(FTT.Core.AbilitySlot.MovementAbility)) return false;
-			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.MovementAbility) && MovementAbilityCooldownTimer <= 0) {
-				if (_movementAbility != null && _movementAbility.TryExecute()) {
-					PlayAnimation("movement_ability");
-					TransitionTo(CharacterState.UsingMovementAbility);
-					return true;
-				}
+			if (!CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.MovementAbility)) return false;
+			// Second Glide (Story-only traversal node, Pocahontas): ONE extra
+			// Breeze Glide entry per airtime, which is the only thing in the
+			// kit that may start a movement ability while its cooldown runs.
+			// The allowance is consumed atomically before TryExecute, and a
+			// refused execute leaves it spent by design - the input was
+			// accepted. The latch clears on grounding and on a stock loss.
+			bool secondGlide = MovementAbilityCooldownTimer > 0
+				&& _movementAbility is Abilities.PocahontasBreezeGlide glide
+				&& glide.TryConsumeSecondGlide();
+			if (MovementAbilityCooldownTimer > 0 && !secondGlide) return false;
+			if (_movementAbility != null && _movementAbility.TryExecute()) {
+				PlayAnimation("movement_ability");
+				TransitionTo(CharacterState.UsingMovementAbility);
+				return true;
 			}
 			return false;
+		}
+
+		/// <summary>
+		/// Clears every per-airtime Resonance traversal latch. Called on
+		/// grounding and on a stock loss / respawn so a single jump can never
+		/// buy more than one extra entry.
+		/// </summary>
+		private void ResetAirtimeTraversalLatches() {
+			(_movementAbility as Abilities.PocahontasBreezeGlide)?.ResetAirtimeAllowance();
 		}
 
 		private bool CheckInteractInput() {

@@ -285,24 +285,6 @@ fighter_new_stage,New Stage
 fighter_rematch_waiting,"Rematch: both players press Attack (Interact cancels)"
 fighter_change_fighters,Change Fighters
 fighter_main_menu,Main Menu
-resonance_einstein_u1_name,Minor Speed +2%
-resonance_einstein_u1_description,Increase Story Mode movement speed by 2%.
-resonance_einstein_u2_name,Minor Rift Range +10%
-resonance_einstein_u2_description,Increase Relativity Rift range by 10% in Story Mode.
-resonance_einstein_u3_name,Event Horizon
-resonance_einstein_u3_description,Relativity Rift gains the Event Horizon major perk.
-resonance_einstein_o1_name,Minor Damage +5%
-resonance_einstein_o1_description,Increase special damage by 5% in Story Mode.
-resonance_einstein_o2_name,Minor Projectile Speed +10%
-resonance_einstein_o2_description,Increase projectile speed by 10% in Story Mode.
-resonance_einstein_o3_name,Critical Mass
-resonance_einstein_o3_description,Mass-Energy Conversion gains the Critical Mass major perk.
-resonance_einstein_d1_name,Minor HP +15
-resonance_einstein_d1_description,Increase maximum HP by 15 in Story Mode.
-resonance_einstein_d2_name,Minor Block Health +10%
-resonance_einstein_d2_description,Increase block durability by 10% in Story Mode.
-resonance_einstein_d3_name,Quantum Entanglement
-resonance_einstein_d3_description,Gain the Quantum Entanglement major defensive perk.
 resonance_title,TEMPORAL RESONANCE GRID
 resonance_balance,Deposited Chronal Dust: {0}
 resonance_cost,Cost: {0}
@@ -330,150 +312,6 @@ story_select_difficulty,SELECT DIFFICULTY
 difficulty_easy_description,5 rewinds; 70% HP restoration; checkpoints refill the pool.
 difficulty_normal_description,3 rewinds; 50% HP restoration; checkpoints restore one rewind.
 difficulty_hard_description,1 rewind; 30% HP restoration; no checkpoint refill.
-resonance_joan_r1_name,Minor Move Speed +5%
-resonance_joan_r1_description,Increase Story Mode movement speed by 5%.
-resonance_joan_r2_name,Minor Jump Height +5%
-resonance_joan_r2_description,Increase Story Mode jump force by 5%.
-resonance_joan_r3_name,Unstoppable Crusade
-resonance_joan_r3_description,Righteous Smite gains active-frame hyper-armor and Joan ignores knockback and hitstun for 1.5 seconds after casting.
-resonance_joan_m1_name,Minor Melee Damage +5%
-resonance_joan_m1_description,Increase Story Mode basic attack damage by 5%.
-resonance_joan_m2_name,Minor Combo Speed +5%
-resonance_joan_m2_description,Increase Martyr's Flurry combo speed by 5%.
-resonance_joan_m3_name,Zealous Vigor
-resonance_joan_m3_description,The final Martyr's Flurry cleave heals 5% of Joan's missing HP when it connects.
-resonance_joan_d1_name,Minor Armor +5%
-resonance_joan_d1_description,Improve Joan's Story Mode armor behavior by 5%.
-resonance_joan_d2_name,Minor HP +20
-resonance_joan_d2_description,Increase Story Mode maximum HP by 20.
-resonance_joan_d3_name,Shield of Orleans
-resonance_joan_d3_description,Damage taken while blocking builds Influence 25% faster.
-resonance_leonardo_a1_name,Minor Spiral Damage +8%
-resonance_leonardo_a1_description,Increase Golden Ratio damage by 8% in Story Mode.
-resonance_leonardo_a2_name,Minor Spiral Range +10%
-resonance_leonardo_a2_description,Increase Golden Ratio range by 10% in Story Mode.
-resonance_leonardo_a3_name,Master Stroke
-resonance_leonardo_a3_description,Golden Ratio deals 15% more damage and pulls enemies toward its center on each tick.
-resonance_leonardo_e1_name,Minor Turret HP +15%
-resonance_leonardo_e1_description,Increase Clockwork Turret health by 15% in Story Mode.
-resonance_leonardo_e2_name,Minor Bolt Damage +5%
-resonance_leonardo_e2_description,Increase Clockwork Turret bolt damage by 5% in Story Mode.
-resonance_leonardo_e3_name,Clockwork Overdrive
-resonance_leonardo_e3_description,Clockwork Turret fires five rapid bolts instead of three before self-destructing.
-resonance_leonardo_m1_name,Minor Glide Speed +10%
-resonance_leonardo_m1_description,Increase Ornithopter glide speed by 10% in Story Mode.
-resonance_leonardo_m2_name,Minor Jump Force +5%
-resonance_leonardo_m2_description,Increase Story Mode jump force by 5%.
-resonance_leonardo_m3_name,Daedalus Wings
-resonance_leonardo_m3_description,Ornithopter Flight leaves damaging steam and can cancel directly into a downward melee attack.
-resonance_tesla_c1_name,Minor Coil Duration +10%
-resonance_tesla_c1_description,Increase Tesla Coil duration by 10% in Story Mode.
-resonance_tesla_c2_name,Minor Coil Range +15%
-resonance_tesla_c2_description,Increase Tesla Coil range by 15% in Story Mode.
-resonance_tesla_c3_name,Resonant Overdrive
-resonance_tesla_c3_description,Tesla Coils last five seconds longer and fire electrical arcs 25% faster.
-resonance_tesla_p1_name,Minor Pulse Damage +10%
-resonance_tesla_p1_description,Increase Lorentz Pulse damage by 10% in Story Mode.
-resonance_tesla_p2_name,Minor Stun Duration +15%
-resonance_tesla_p2_description,Increase Lorentz Pulse status duration by 15% in Story Mode.
-resonance_tesla_p3_name,Lorentz Attraction
-resonance_tesla_p3_description,Lorentz Pulse pulls enemies inward before rooting them and increases root duration by one second.
-resonance_tesla_w1_name,Minor Move Speed +3%
-resonance_tesla_w1_description,Increase Story Mode movement speed by 3%.
-resonance_tesla_w2_name,Minor Cooldown Reduction +10%
-resonance_tesla_w2_description,Reduce Story Mode ability cooldowns by 10%.
-resonance_tesla_w3_name,Wardenclyffe Shield
-resonance_tesla_w3_description,Standing near an active Tesla Coil charges a shield worth 15% of Tesla's maximum HP.
-resonance_shakespeare_t1_name,Minor Quill Range +10%
-resonance_shakespeare_t1_description,Increase quill attack range by 10% in Story Mode.
-resonance_shakespeare_t2_name,Minor Ink Damage +12%
-resonance_shakespeare_t2_description,Increase Story Mode special damage by 12%.
-resonance_shakespeare_t3_name,Macbeth's Curse
-resonance_shakespeare_t3_description,Yorick's Lament also applies Venom damage once per second for three seconds.
-resonance_shakespeare_c1_name,Minor Wind Pushback +15%
-resonance_shakespeare_c1_description,Increase The Tempest knockback by 15% in Story Mode.
-resonance_shakespeare_c2_name,Minor Move Speed +3%
-resonance_shakespeare_c2_description,Increase Story Mode movement speed by 3%.
-resonance_shakespeare_c3_name,Midsummer Glide
-resonance_shakespeare_c3_description,Prospero's Flight deals 8 damage to crossed enemies and gains 20% maximum glide speed.
-resonance_shakespeare_h1_name,Minor Block Health +10%
-resonance_shakespeare_h1_description,Improve Story Mode block durability by 10%.
-resonance_shakespeare_h2_name,Minor Max HP +15
-resonance_shakespeare_h2_description,Increase Story Mode maximum HP by 15.
-resonance_shakespeare_h3_name,Henry's Bastion
-resonance_shakespeare_h3_description,A successful block summons a phantom guard shield worth 10% of maximum HP.
-resonance_mozart_a1_name,Minor Move Speed +3%
-resonance_mozart_a1_description,Increase Story Mode movement speed by 3%.
-resonance_mozart_a2_name,Minor Drift Duration +15%
-resonance_mozart_a2_description,Increase Sonata Drift duration by 15% in Story Mode.
-resonance_mozart_a3_name,Virtuoso Dash
-resonance_mozart_a3_description,Sonata Drift grants 20% movement speed and immunity to ranged projectiles.
-resonance_mozart_f1_name,Minor Projectile Speed +10%
-resonance_mozart_f1_description,Increase Requiem Chord projectile speed by 10% in Story Mode.
-resonance_mozart_f2_name,Minor Chord Damage +10%
-resonance_mozart_f2_description,Increase Requiem Chord damage by 10% in Story Mode.
-resonance_mozart_f3_name,Requiem Crescendo
-resonance_mozart_f3_description,Requiem Chord detonates twice with a wider secondary shockwave at 50% damage.
-resonance_mozart_p1_name,Minor Max HP +15
-resonance_mozart_p1_description,Increase Story Mode maximum HP by 15.
-resonance_mozart_p2_name,Minor Cooldown Reduction +10%
-resonance_mozart_p2_description,Reduce Story Mode ability cooldowns by 10%.
-resonance_mozart_p3_name,Rest Shield
-resonance_mozart_p3_description,Standing still or blocking for 1.5 seconds creates a shield against physical projectiles.
-resonance_cleopatra_al1_name,Minor Scepter Damage +8%
-resonance_cleopatra_al1_description,Increase Story Mode basic attack damage by 8%.
-resonance_cleopatra_al2_name,Minor Venom Damage +15%
-resonance_cleopatra_al2_description,Increase Venom damage by 15% in Story Mode.
-resonance_cleopatra_al3_name,Asp's Bite
-resonance_cleopatra_al3_description,Venom deals double damage to airborne enemies.
-resonance_cleopatra_dm1_name,Minor Sand Radius +15%
-resonance_cleopatra_dm1_description,Increase Sandstorm Vortex radius by 15% in Story Mode.
-resonance_cleopatra_dm2_name,Minor Sand Duration +20%
-resonance_cleopatra_dm2_description,Increase Sandstorm Vortex duration by 20% in Story Mode.
-resonance_cleopatra_dm3_name,Quicksand Grip
-resonance_cleopatra_dm3_description,Desert Mirage roots enemies standing in Sandstorm Vortex for one second.
-resonance_cleopatra_pw1_name,Minor Max HP +15
-resonance_cleopatra_pw1_description,Increase Story Mode maximum HP by 15.
-resonance_cleopatra_pw2_name,Minor Block Health +10%
-resonance_cleopatra_pw2_description,Improve Story Mode block durability by 10%.
-resonance_cleopatra_pw3_name,Royal Aegis
-resonance_cleopatra_pw3_description,Desert Mirage grants a shield worth 10% of Cleopatra's maximum HP.
-resonance_lincoln_l1_name,Minor Rail Range +10%
-resonance_lincoln_l1_description,Increase Lincoln's rail attack range by 10% in Story Mode.
-resonance_lincoln_l2_name,Minor Shockwave Damage +15%
-resonance_lincoln_l2_description,Increase The Emancipator damage by 15% in Story Mode.
-resonance_lincoln_l3_name,Executive Order
-resonance_lincoln_l3_description,The Emancipator travels 50% farther and deals 20% bonus damage.
-resonance_lincoln_s1_name,Minor Max HP +25
-resonance_lincoln_s1_description,Increase Story Mode maximum HP by 25.
-resonance_lincoln_s2_name,Minor Block Health +15%
-resonance_lincoln_s2_description,Improve Story Mode block durability by 15%.
-resonance_lincoln_s3_name,Homestead Bulwark
-resonance_lincoln_s3_description,Hitting an enemy with Rail Charge grants three seconds of hyper-armor.
-resonance_lincoln_r1_name,Minor Move Speed +4%
-resonance_lincoln_r1_description,Increase Story Mode movement speed by 4%.
-resonance_lincoln_r2_name,Minor Cooldown Reduction +10%
-resonance_lincoln_r2_description,Reduce Story Mode ability cooldowns by 10%.
-resonance_lincoln_r3_name,Kinetic Splitting
-resonance_lincoln_r3_description,Lincoln's downward crush shatters shields instantly.
-resonance_pocahontas_fs1_name,Minor Staff Damage +8%
-resonance_pocahontas_fs1_description,Increase Story Mode basic attack damage by 8%.
-resonance_pocahontas_fs2_name,Minor Snare Damage +15%
-resonance_pocahontas_fs2_description,Increase Vine Snare damage by 15% in Story Mode.
-resonance_pocahontas_fs3_name,Thorn Snare
-resonance_pocahontas_fs3_description,Rooted enemies take continuous physical damage.
-resonance_pocahontas_wr1_name,Minor Jump Height +15%
-resonance_pocahontas_wr1_description,Increase Story Mode jump force by 15%.
-resonance_pocahontas_wr2_name,Minor Glide Duration +20%
-resonance_pocahontas_wr2_description,Increase Breeze Glide duration by 20% in Story Mode.
-resonance_pocahontas_wr3_name,Tornado Lift
-resonance_pocahontas_wr3_description,Starting Breeze Glide creates an updraft that launches nearby enemies.
-resonance_pocahontas_pw1_name,Minor Max HP +15
-resonance_pocahontas_pw1_description,Increase Story Mode maximum HP by 15.
-resonance_pocahontas_pw2_name,Minor Block Recovery +10%
-resonance_pocahontas_pw2_description,Improve Story Mode block recovery by 10%.
-resonance_pocahontas_pw3_name,Leaf Barrier
-resonance_pocahontas_pw3_description,Breeze Glide grants a shield worth 10% of Pocahontas's maximum HP.
 fighter_stage,Stage
 fighter_stage_prototype,Functional prototype arena
 loading,LOADING...
@@ -1222,3 +1060,170 @@ tutorial_step_defy_spent,"The seal is broken - refilling the meter will not rest
 integrity_drain_slowed,Integrity drain slowed
 tremor_first_crossing_bark,"Sarah: The timeline's coming apart around you - move!"
 dialogue_collapse_sarah_era_lost,"Sarah: The era's gone. I'm pulling you out."
+# Package 11 A4
+resonance_einstein_momentum_name,Minor Momentum
+resonance_einstein_momentum_description,Move speed +2%.
+resonance_einstein_chalk_edge_name,Minor Chalk Edge
+resonance_einstein_chalk_edge_description,Basic attack damage +5%.
+resonance_einstein_mass_name,Minor Mass
+resonance_einstein_mass_description,Maximum health +15.
+resonance_einstein_extended_float_name,Extended Float
+resonance_einstein_extended_float_description,Traversal: Relativity Warp's reduced-gravity float window lasts 20 frames longer.
+resonance_einstein_rift_range_name,Minor Rift Range
+resonance_einstein_rift_range_description,Relativity Rift's radius +10%.
+resonance_einstein_rally_resonance_name,Minor Rally Resonance
+resonance_einstein_rally_resonance_description,Rally echo pool +10% of every hit taken.
+resonance_einstein_event_horizon_name,Event Horizon
+resonance_einstein_event_horizon_description,"Mass-Energy Conversion deals +20% to rift-trapped enemies, and projectiles crossing the rift are slowed to half speed."
+resonance_einstein_critical_mass_name,Critical Mass
+resonance_einstein_critical_mass_description,"The Mass-Energy burst leaves Radiant Burn: 1.25x damage taken for 3 seconds, no burn ticks. Applied after the triggering hit resolves; never on projectile contact, a blocked hit, or an invulnerable target."
+resonance_einstein_quantum_entanglement_name,Quantum Entanglement
+resonance_einstein_quantum_entanglement_description,A shattered guard warps Einstein backward before the daze lands. Five-second lockout.
+resonance_joan_zeal_name,Minor Zeal
+resonance_joan_zeal_description,Basic attack damage +5%.
+resonance_joan_vigor_name,Minor Vigor
+resonance_joan_vigor_description,Maximum health +20.
+resonance_joan_martyrs_resolve_name,Minor Martyr's Resolve
+resonance_joan_martyrs_resolve_description,Rally echo pool +10% of every hit taken.
+resonance_joan_wings_refresh_name,Wings Refresh
+resonance_joan_wings_refresh_description,"Traversal: a connecting combo finisher or Righteous Smite resets Ascendant Wings' cooldown. Once per attack execution; never on a whiff, a blocked hit, or an invulnerable target."
+resonance_joan_smite_damage_name,Minor Smite Damage
+resonance_joan_smite_damage_description,Righteous Smite damage +10%.
+resonance_joan_piercing_cooldown_name,Minor Piercing Cooldown
+resonance_joan_piercing_cooldown_description,Divine Piercing's cooldown -10%.
+resonance_joan_unstoppable_crusade_name,Unstoppable Crusade
+resonance_joan_unstoppable_crusade_description,"Righteous Smite's active frames carry hyper-armor, and Joan ignores knockback and hitstun for 1.5 seconds after the cast."
+resonance_joan_zealous_vigor_name,Zealous Vigor
+resonance_joan_zealous_vigor_description,A connecting combo finisher reclaims an extra 25% of the current Rally echo pool on top of the damage-scaled reclaim.
+resonance_joan_shield_of_orleans_name,Shield of Orleans
+resonance_joan_shield_of_orleans_description,Every distinct attack Joan successfully blocks builds 5 Influence. Blocking the first hit of a Guard-Crush attack also refunds one shield charge.
+resonance_leonardo_brush_reach_name,Minor Brush Reach
+resonance_leonardo_brush_reach_description,Basic attack reach +8%.
+resonance_leonardo_compass_slam_name,Minor Compass Slam
+resonance_leonardo_compass_slam_description,Basic attack damage +8%.
+resonance_leonardo_workshop_vigor_name,Minor Workshop Vigor
+resonance_leonardo_workshop_vigor_description,Maximum health +15.
+resonance_leonardo_spiral_range_name,Minor Spiral Range
+resonance_leonardo_spiral_range_description,The Golden Ratio's radius +10%.
+resonance_leonardo_turret_plating_name,Minor Turret Plating
+resonance_leonardo_turret_plating_description,The Clockwork Turret's health +25%.
+resonance_leonardo_replacement_name,Re-placement
+resonance_leonardo_replacement_description,Traversal: a deployed Clockwork Turret can be picked up and re-placed once.
+resonance_leonardo_master_stroke_name,Master Stroke
+resonance_leonardo_master_stroke_description,The Golden Ratio deals +15% and each tick pulls enemies toward its centre.
+resonance_leonardo_clockwork_overdrive_name,Clockwork Overdrive
+resonance_leonardo_clockwork_overdrive_description,"The Clockwork Turret fires five rapid bolts instead of four, and its bolts deal double damage to Chronal Extractors."
+resonance_leonardo_daedalus_wings_name,Daedalus Wings
+resonance_leonardo_daedalus_wings_description,The Ornithopter Glide leaves a steam trail and can be cancelled straight into a down-air.
+resonance_tesla_conductivity_name,Minor Conductivity
+resonance_tesla_conductivity_description,Move speed +3%.
+resonance_tesla_cane_edge_name,Minor Cane Edge
+resonance_tesla_cane_edge_description,Basic attack damage +5%.
+resonance_tesla_conductive_hold_name,Minor Conductive Hold
+resonance_tesla_conductive_hold_description,The combo finisher's Conductive mark lasts 2.5 seconds instead of 1.5. The Static Charge interrupt is unchanged.
+resonance_tesla_coil_duration_name,Minor Coil Duration
+resonance_tesla_coil_duration_description,A Tesla Coil stands for 40 seconds instead of 30.
+resonance_tesla_pulse_radius_name,Minor Pulse Radius
+resonance_tesla_pulse_radius_description,The Lorentz Pulse's radius +15%.
+resonance_tesla_long_blink_name,Long Blink
+resonance_tesla_long_blink_description,Traversal: Lightning Blink travels half a unit further.
+resonance_tesla_resonant_overdrive_name,Resonant Overdrive
+resonance_tesla_resonant_overdrive_description,"Tesla Coils arc 25% faster, and their arcs also strike Chronal Extractors in radius."
+resonance_tesla_lorentz_attraction_name,Lorentz Attraction
+resonance_tesla_lorentz_attraction_description,"The Lorentz Pulse pulls enemies in, then Roots them for an extra 0.5 seconds."
+resonance_tesla_wardenclyffe_shield_name,Wardenclyffe Shield
+resonance_tesla_wardenclyffe_shield_description,"Inside one of Tesla's own active coils, a broadcast shield absorbs up to 15% of his maximum health. It starts empty, waits 3 seconds after any damage, then recharges 2.5% of maximum health per second while in range."
+resonance_shakespeare_quill_reach_name,Minor Quill Reach
+resonance_shakespeare_quill_reach_description,"Act I, Tragedy. Basic attack reach +10%."
+resonance_shakespeare_wit_name,Minor Wit
+resonance_shakespeare_wit_description,"Act I, Comedy. Move speed +3%."
+resonance_shakespeare_chronicle_name,Minor Chronicle
+resonance_shakespeare_chronicle_description,"Act I, History. Maximum health +15."
+resonance_shakespeare_lament_slow_name,Minor Lament Slow
+resonance_shakespeare_lament_slow_description,Act II. Yorick's Lament slows for 3.0 seconds instead of 2.5.
+resonance_shakespeare_tempest_apex_name,Tempest Apex Jump
+resonance_shakespeare_tempest_apex_description,Act II. Traversal: The Tempest's lift can be jumped from at its apex.
+resonance_shakespeare_chronicle_rally_name,Minor Chronicle Rally
+resonance_shakespeare_chronicle_rally_description,Act II. Rally echo pool +10% of every hit taken.
+resonance_shakespeare_macbeths_curse_name,Macbeth's Curse
+resonance_shakespeare_macbeths_curse_description,"Act III. Yorick's Lament also inflicts Venom for 3 seconds, stacking with its Time Dilation."
+resonance_shakespeare_midsummer_glide_name,Midsummer Glide
+resonance_shakespeare_midsummer_glide_description,Act III. Prospero's Flight deals 8.0 damage to enemies glided through and moves 20% faster.
+resonance_shakespeare_henrys_bastion_name,Henry's Bastion
+resonance_shakespeare_henrys_bastion_description,"Act III. A real block summons a phantom guard absorbing 10% of maximum health for 8 seconds. It cannot absorb the hit that summoned it, and a later block refills it rather than stacking."
+resonance_mozart_tempo_name,Minor Tempo
+resonance_mozart_tempo_description,Do. Move speed +3%.
+resonance_mozart_baton_name,Minor Baton
+resonance_mozart_baton_description,Re. Basic attack damage +5%.
+resonance_mozart_resonance_name,Minor Resonance
+resonance_mozart_resonance_description,Mi. The Influence meter builds 10% faster.
+resonance_mozart_chord_damage_name,Minor Chord Damage
+resonance_mozart_chord_damage_description,Fa. The Requiem Chord deals +10%.
+resonance_mozart_extra_note_name,Extra Note
+resonance_mozart_extra_note_description,Sol. Traversal: two Sonata Drift staff platforms may stand at once.
+resonance_mozart_wave_cooldown_name,Minor Wave Cooldown
+resonance_mozart_wave_cooldown_description,La. The Fortissimo Wave's cooldown -10%.
+resonance_mozart_rest_shield_name,Rest Shield
+resonance_mozart_rest_shield_description,The Third. Standing still or blocking for 1.5 seconds raises a silent bubble that stops physical projectiles until Mozart moves or attacks.
+resonance_mozart_virtuoso_drift_name,Virtuoso Drift
+resonance_mozart_virtuoso_drift_description,The Fifth. Standing on a staff platform grants +20% move speed and immunity to ranged projectiles.
+resonance_mozart_requiem_crescendo_name,Requiem Crescendo
+resonance_mozart_requiem_crescendo_description,"The Octave. The Requiem Chord detonates twice, the second a wider shockwave at 50% power."
+resonance_cleopatra_asp_mark_name,Minor Asp Mark
+resonance_cleopatra_asp_mark_description,The combo finisher's Venom mark bites at 0.75 intensity instead of 0.5.
+resonance_cleopatra_quickstep_name,Minor Quickstep
+resonance_cleopatra_quickstep_description,Move speed +3%.
+resonance_cleopatra_ptolemaic_vigor_name,Minor Ptolemaic Vigor
+resonance_cleopatra_ptolemaic_vigor_description,Maximum health +15.
+resonance_cleopatra_nest_duration_name,Minor Nest Duration
+resonance_cleopatra_nest_duration_description,The Serpent Nest stands 20% longer.
+resonance_cleopatra_vortex_step_name,Vortex Step
+resonance_cleopatra_vortex_step_description,Traversal: casting Desert Mirage from inside her own Sandstorm Vortex halves that cast's cooldown. Once per vortex.
+resonance_cleopatra_venom_damage_name,Minor Venom Damage
+resonance_cleopatra_venom_damage_description,Every Venom tick deals +15%.
+resonance_cleopatra_asps_bite_name,Asp's Bite
+resonance_cleopatra_asps_bite_description,Venom ticks deal double damage to airborne enemies.
+resonance_cleopatra_quicksand_grip_name,Quicksand Grip
+resonance_cleopatra_quicksand_grip_description,Casting Desert Mirage Roots every enemy standing in a Sandstorm Vortex for 1 second.
+resonance_cleopatra_royal_aegis_name,Royal Aegis
+resonance_cleopatra_royal_aegis_description,"Desert Mirage grants a sand shield absorbing 10% of maximum health for 8 seconds, and her sand decoy carries one of its own."
+resonance_lincoln_iron_frame_name,Minor Iron Frame
+resonance_lincoln_iron_frame_description,The post. Maximum health +25.
+resonance_lincoln_rail_reach_name,Minor Rail Reach
+resonance_lincoln_rail_reach_description,Basic attack reach +10%.
+resonance_lincoln_wrestlers_rally_name,Minor Wrestler's Rally
+resonance_lincoln_wrestlers_rally_description,Rally echo pool +15% of every hit taken.
+resonance_lincoln_shockwave_damage_name,Minor Shockwave Damage
+resonance_lincoln_shockwave_damage_description,The Emancipator's shockwave deals +15%.
+resonance_lincoln_rail_breaker_name,Rail Breaker
+resonance_lincoln_rail_breaker_description,"Traversal: each Rail Charge destroys one breakable hostile projectile during its travel, before that projectile can land."
+resonance_lincoln_splitting_cooldown_name,Minor Splitting Cooldown
+resonance_lincoln_splitting_cooldown_description,The crossbar. Splitting Strike's cooldown -10%.
+resonance_lincoln_executive_order_name,Executive Order
+resonance_lincoln_executive_order_description,The Emancipator's shockwave travels 50% further and deals +20%.
+resonance_lincoln_homestead_bulwark_name,Homestead Bulwark
+resonance_lincoln_homestead_bulwark_description,A Rail Charge that connects grants 3 seconds of hyper-armor.
+resonance_lincoln_kinetic_splitting_name,Kinetic Splitting
+resonance_lincoln_kinetic_splitting_description,"Splitting Strike's spike bounces an airborne enemy off the ground into a 20-frame follow-up window, and deals +50% to Chronal Extractors and enemy constructs."
+resonance_pocahontas_windstep_name,Minor Windstep
+resonance_pocahontas_windstep_description,Wind. Move speed +3%.
+resonance_pocahontas_staff_edge_name,Minor Staff Edge
+resonance_pocahontas_staff_edge_description,River. Basic attack damage +8%.
+resonance_pocahontas_forest_vigor_name,Minor Forest Vigor
+resonance_pocahontas_forest_vigor_description,Spirit. Maximum health +15.
+resonance_pocahontas_glide_duration_name,Minor Glide Duration
+resonance_pocahontas_glide_duration_description,The Breeze Glide lasts 20% longer.
+resonance_pocahontas_snare_duration_name,Minor Snare Duration
+resonance_pocahontas_snare_duration_description,The Vine Snare Roots for 2.0 seconds instead of 1.5.
+resonance_pocahontas_second_glide_name,Second Glide
+resonance_pocahontas_second_glide_description,The crossing. Traversal: the Breeze Glide can be re-entered once per airtime.
+resonance_pocahontas_tornado_lift_name,Tornado Lift
+resonance_pocahontas_tornado_lift_description,Starting a Breeze Glide raises an updraft that launches nearby enemies.
+resonance_pocahontas_thorn_snare_name,Thorn Snare
+resonance_pocahontas_thorn_snare_description,Rooted enemies bleed for the Root's whole duration.
+resonance_pocahontas_leaf_barrier_name,Leaf Barrier
+resonance_pocahontas_leaf_barrier_description,"Entering a Breeze Glide grants a leaf shield absorbing 10% of maximum health for 8 seconds. Every valid entry, including a Second Glide, refills it rather than stacking."
+resonance_state_locked_ability,"Dormant - unlocks with a Legacy you have not recovered yet."
+resonance_dormant_node,Dormant Resonance
+resonance_state_locked_prerequisite_any,"Locked - requires any of {0}"
+resonance_result_ability_locked,That Resonance is still dormant.

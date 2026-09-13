@@ -144,7 +144,11 @@ namespace FTT.Characters.Abilities {
                         "bite",
                         (_data?.BaseDamage ?? 8f) * damageMultiplier,
                         _data?.AppliedStatus ?? FTT.Core.StatusType.Root,
-                        _data?.StatusDuration > 0f ? _data.StatusDuration : 1.5f));
+                        // Package 11 A4: "Minor Snare Duration" is the scoped
+                        // AbilityDuration(pocahontas_vine_snare) lane -
+                        // 1.5 s to 2.0 s of Root when bought.
+                        (_data?.StatusDuration > 0f ? _data.StatusDuration : 1.5f)
+                            * (_ownerPlayer?.StoryScoped("AbilityDuration", "pocahontas_vine_snare") ?? 1f)));
                     CreditOwnerInfluence(dealt);
                 } else if (_thornSnare) {
                     float dealt = hurtbox.TakeHit(BuildHitPayload(

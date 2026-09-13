@@ -1,105 +1,140 @@
-[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=12 format=3]
+[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/ResonanceGridData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Environment/ResonanceNodeData.cs" id="2"]
 
-[sub_resource type="Resource" id="L1"]
+[sub_resource type="Resource" id="N1"]
 script = ExtResource("2")
-NodeID = "lincoln_l1"
-DisplayNameKey = "resonance_lincoln_l1_name"
-DescriptionKey = "resonance_lincoln_l1_description"
-UnlockCost = 50
-PrerequisiteNodeIDs = PackedStringArray()
-StatModifierKey = "AttackRange"
-StatModifierValue = 0.1
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="L2"]
-script = ExtResource("2")
-NodeID = "lincoln_l2"
-DisplayNameKey = "resonance_lincoln_l2_name"
-DescriptionKey = "resonance_lincoln_l2_description"
-UnlockCost = 75
-PrerequisiteNodeIDs = PackedStringArray("lincoln_l1")
-StatModifierKey = "SpecialDamage"
-StatModifierValue = 0.15
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="L3"]
-script = ExtResource("2")
-NodeID = "lincoln_l3"
-DisplayNameKey = "resonance_lincoln_l3_name"
-DescriptionKey = "resonance_lincoln_l3_description"
-Type = 1
-UnlockCost = 200
-PrerequisiteNodeIDs = PackedStringArray("lincoln_l2")
-AbilityModifierKey = "executive_order"
-
-[sub_resource type="Resource" id="S1"]
-script = ExtResource("2")
-NodeID = "lincoln_s1"
-DisplayNameKey = "resonance_lincoln_s1_name"
-DescriptionKey = "resonance_lincoln_s1_description"
+SchemaVersion = 2
+NodeID = "lincoln_iron_frame"
+DisplayNameKey = "resonance_lincoln_iron_frame_name"
+DescriptionKey = "resonance_lincoln_iron_frame_description"
 UnlockCost = 50
 PrerequisiteNodeIDs = PackedStringArray()
 StatModifierKey = "MaxHP"
-StatModifierValue = 25.0
+StatModifierValue = 25
+Tier = 1
+LayoutPosition = Vector2(0.12, 0.5)
 
-[sub_resource type="Resource" id="S2"]
+[sub_resource type="Resource" id="N2"]
 script = ExtResource("2")
-NodeID = "lincoln_s2"
-DisplayNameKey = "resonance_lincoln_s2_name"
-DescriptionKey = "resonance_lincoln_s2_description"
-UnlockCost = 75
-PrerequisiteNodeIDs = PackedStringArray("lincoln_s1")
-StatModifierKey = "BlockDurability"
-StatModifierValue = 0.15
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="S3"]
-script = ExtResource("2")
-NodeID = "lincoln_s3"
-DisplayNameKey = "resonance_lincoln_s3_name"
-DescriptionKey = "resonance_lincoln_s3_description"
-Type = 1
-UnlockCost = 200
-PrerequisiteNodeIDs = PackedStringArray("lincoln_s2")
-AbilityModifierKey = "homestead_bulwark"
-
-[sub_resource type="Resource" id="R1"]
-script = ExtResource("2")
-NodeID = "lincoln_r1"
-DisplayNameKey = "resonance_lincoln_r1_name"
-DescriptionKey = "resonance_lincoln_r1_description"
+SchemaVersion = 2
+NodeID = "lincoln_rail_reach"
+DisplayNameKey = "resonance_lincoln_rail_reach_name"
+DescriptionKey = "resonance_lincoln_rail_reach_description"
 UnlockCost = 50
-PrerequisiteNodeIDs = PackedStringArray()
-StatModifierKey = "MoveSpeed"
-StatModifierValue = 0.04
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="R2"]
-script = ExtResource("2")
-NodeID = "lincoln_r2"
-DisplayNameKey = "resonance_lincoln_r2_name"
-DescriptionKey = "resonance_lincoln_r2_description"
-UnlockCost = 75
-PrerequisiteNodeIDs = PackedStringArray("lincoln_r1")
-StatModifierKey = "CooldownReduction"
+PrerequisiteNodeIDs = PackedStringArray("lincoln_iron_frame")
+StatModifierKey = "AttackRange"
 StatModifierValue = 0.1
 StatModifierIsPercent = true
+Tier = 1
+LayoutPosition = Vector2(0.34, 0.22)
 
-[sub_resource type="Resource" id="R3"]
+[sub_resource type="Resource" id="N3"]
 script = ExtResource("2")
-NodeID = "lincoln_r3"
-DisplayNameKey = "resonance_lincoln_r3_name"
-DescriptionKey = "resonance_lincoln_r3_description"
+SchemaVersion = 2
+NodeID = "lincoln_wrestlers_rally"
+DisplayNameKey = "resonance_lincoln_wrestlers_rally_name"
+DescriptionKey = "resonance_lincoln_wrestlers_rally_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray("lincoln_iron_frame")
+StatModifierKey = "RallyEchoFraction"
+StatModifierValue = 0.15
+StatModifierIsPercent = true
+Tier = 1
+LayoutPosition = Vector2(0.34, 0.78)
+
+[sub_resource type="Resource" id="N4"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "lincoln_shockwave_damage"
+DisplayNameKey = "resonance_lincoln_shockwave_damage_name"
+DescriptionKey = "resonance_lincoln_shockwave_damage_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("lincoln_rail_reach")
+StatModifierKey = "AbilityDamage"
+AbilityScope = "lincoln_emancipator"
+StatModifierValue = 0.15
+StatModifierIsPercent = true
+Tier = 2
+GatedAbilityID = "special1"
+LayoutPosition = Vector2(0.58, 0.22)
+
+[sub_resource type="Resource" id="N5"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "lincoln_rail_breaker"
+DisplayNameKey = "resonance_lincoln_rail_breaker_name"
+DescriptionKey = "resonance_lincoln_rail_breaker_description"
+Type = 2
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("lincoln_wrestlers_rally")
+AbilityModifierKey = "rail_breaker"
+Tier = 2
+GatedAbilityID = "movement"
+LayoutPosition = Vector2(0.58, 0.78)
+
+[sub_resource type="Resource" id="N6"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "lincoln_splitting_cooldown"
+DisplayNameKey = "resonance_lincoln_splitting_cooldown_name"
+DescriptionKey = "resonance_lincoln_splitting_cooldown_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("lincoln_iron_frame")
+StatModifierKey = "CooldownReduction"
+AbilityScope = "lincoln_splitting_strike"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+Tier = 2
+GatedAbilityID = "special2"
+LayoutPosition = Vector2(0.4, 0.5)
+
+[sub_resource type="Resource" id="N7"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "lincoln_executive_order"
+DisplayNameKey = "resonance_lincoln_executive_order_name"
+DescriptionKey = "resonance_lincoln_executive_order_description"
 Type = 1
 UnlockCost = 200
-PrerequisiteNodeIDs = PackedStringArray("lincoln_r2")
+PrerequisiteNodeIDs = PackedStringArray("lincoln_shockwave_damage")
+AbilityModifierKey = "executive_order"
+Tier = 3
+GatedAbilityID = "special1"
+LayoutPosition = Vector2(0.86, 0.16)
+
+[sub_resource type="Resource" id="N8"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "lincoln_homestead_bulwark"
+DisplayNameKey = "resonance_lincoln_homestead_bulwark_name"
+DescriptionKey = "resonance_lincoln_homestead_bulwark_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("lincoln_rail_breaker")
+AbilityModifierKey = "homestead_bulwark"
+Tier = 3
+GatedAbilityID = "movement"
+LayoutPosition = Vector2(0.86, 0.84)
+
+[sub_resource type="Resource" id="N9"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "lincoln_kinetic_splitting"
+DisplayNameKey = "resonance_lincoln_kinetic_splitting_name"
+DescriptionKey = "resonance_lincoln_kinetic_splitting_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("lincoln_splitting_cooldown")
 AbilityModifierKey = "kinetic_splitting"
+Tier = 3
+GatedAbilityID = "special2"
+LayoutPosition = Vector2(0.7, 0.5)
 
 [resource]
 script = ExtResource("1")
+SchemaVersion = 2
 GridID = "lincoln_resonance_grid"
 CharacterID = "lincoln"
-Nodes = Array[ExtResource("2")]([SubResource("L1"), SubResource("L2"), SubResource("L3"), SubResource("S1"), SubResource("S2"), SubResource("S3"), SubResource("R1"), SubResource("R2"), SubResource("R3")])
+Nodes = Array[ExtResource("2")]([SubResource("N1"), SubResource("N2"), SubResource("N3"), SubResource("N4"), SubResource("N5"), SubResource("N6"), SubResource("N7"), SubResource("N8"), SubResource("N9")])

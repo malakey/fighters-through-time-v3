@@ -69,5 +69,9 @@ public class LincolnContentTests {
             FTT.Characters.Abilities.LincolnRailCharge.HomesteadBulwarkPerkKey)).IsTrue();
         AssertThat(majorKeys.Contains(
             FTT.Characters.Abilities.LincolnSplittingStrike.KineticSplittingPerkKey)).IsTrue();
+        // Package 11 A4: the V7.6 traversal node rides the same
+        // AbilityModifierKey plumbing as the three Majors.
+        AssertThat(majorKeys.Contains(
+            FTT.Characters.Abilities.LincolnRailCharge.RailBreakerPerkKey)).IsTrue();
     }
 }

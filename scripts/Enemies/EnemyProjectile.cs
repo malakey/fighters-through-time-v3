@@ -29,8 +29,30 @@ namespace FTT.Enemies {
         /// <summary>Owning enemy/boss ID, carried for presentation and debugging.</summary>
         public string SourceID { get; private set; } = "";
         public Vector2 Velocity => _velocity;
+
+        /// <summary>
+        /// Package 11 A4 (Einstein's Event Horizon, V7.6): scales this shot's
+        /// travel velocity in place. Story-only presentation of a Resonance
+        /// major; nothing in the deterministic simulation calls it.
+        /// </summary>
+        public void ScaleVelocity(float scale) {
+            if (scale <= 0f || scale >= 1f) return;
+            _velocity *= scale;
+        }
         public float LifetimeRemaining => _lifetime;
         public bool PiercesTargets => _pierces;
+
+        /// <summary>
+        /// Package 11 A4 (Resonance V7.6). Authoring flag for Lincoln's Rail
+        /// Breaker traversal node: only a projectile marked breakable can be
+        /// destroyed by a Rail Charge. Beams, persistent zones and
+        /// environmental hazards carry no such flag and are never destroyed;
+        /// an unbreakable projectile resolves normally against his existing
+        /// armor. Default TRUE for ordinary enemy shots, which is the whole
+        /// class the design calls breakable; author false on a shot that must
+        /// survive a charge.
+        /// </summary>
+        public bool IsBreakable { get; set; } = true;
 
         public override void _Ready() {
             AddToGroup(GroupName);
@@ -56,6 +78,7 @@ namespace FTT.Enemies {
             _lockVertical = lockVertical;
             _lockedY = GlobalPosition.Y;
             _frozen = false;
+            IsBreakable = true;
 
             Vector2 size = ability?.HitboxSize ?? new Vector2(24f, 12f);
             if (size.X <= 0f || size.Y <= 0f) size = new Vector2(24f, 12f);

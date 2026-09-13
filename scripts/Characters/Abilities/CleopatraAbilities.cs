@@ -97,6 +97,40 @@ namespace FTT.Characters.Abilities {
         public bool VortexActive => _vortexActive;
         /// <summary>The deployed vortex's effective radius after Story minors (test observable).</summary>
         public float ActiveVortexRadiusPixels => _vortexRadius;
+        /// <summary>The deployed vortex centre in world space (test observable).</summary>
+        public Vector2 ActiveVortexCenter => _vortexCenter;
+
+        /// <summary>
+        /// Story-only Resonance TRAVERSAL flag (V7.6, Tier 2, F06 Option A).
+        /// Casting Desert Mirage from INSIDE Cleopatra's own Sandstorm Vortex
+        /// halves that cast's cooldown, after every other modifier.
+        /// </summary>
+        public const string VortexStepPerkKey = "vortex_step";
+
+        /// <summary>V7.6 Vortex Step: the multiplier applied to that cast's cooldown.</summary>
+        public const float VortexStepCooldownScale = 0.5f;
+
+        /// <summary>
+        /// The per-INSTANCE allowance. A vortex grants exactly one Vortex Step;
+        /// a new vortex gets a fresh allowance, and restoring this same vortex
+        /// (a rewind) keeps whatever it had left. Overlapping vortices cannot
+        /// stack because the consumer picks exactly one deterministically.
+        /// </summary>
+        public bool VortexStepAvailable { get; private set; }
+
+        /// <summary>
+        /// Consumes this vortex's Vortex Step allowance ATOMICALLY. Returns
+        /// true only when the vortex is live, the allowance is unspent, and
+        /// <paramref name="castPosition"/> is inside the churn — so a refused
+        /// input spends nothing, and an interruption AFTER an accepted cast
+        /// still leaves the allowance spent.
+        /// </summary>
+        public bool TryConsumeVortexStep(Vector2 castPosition) {
+            if (!_vortexActive || !VortexStepAvailable) return false;
+            if (castPosition.DistanceTo(_vortexCenter) > _vortexRadius) return false;
+            VortexStepAvailable = false;
+            return true;
+        }
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
@@ -117,6 +151,11 @@ namespace FTT.Characters.Abilities {
             // Story-only minors: "Sand Radius +15%" (cleopatra_dm1, ZoneRadius)
             // widens the vortex; "Sand Duration +20%" (cleopatra_dm2,
             // ZoneDuration) lengthens it. Neutral 1f outside Story Mode.
+            // Package 11 A4: V7.6 retires cleopatra_dm1 (ZoneRadius) outright
+            // and re-scopes the duration minor onto the SERPENT NEST, so the
+            // vortex keeps its authored radius and lifetime. The generic lanes
+            // stay in the expression as neutral 1.0 carriers for any future
+            // character-wide authoring.
             _vortexRadius = VortexRadiusPixels * Owner.StoryZoneRadiusMultiplier;
             _vortexLifetime = (Data?.Lifetime > 0f ? Data.Lifetime : 2f)
                 * Owner.StoryZoneDurationMultiplier;
@@ -124,6 +163,8 @@ namespace FTT.Characters.Abilities {
             if (_vortexTickInterval <= 0f) _vortexTickInterval = 0.4f;
             _vortexTickTimer = _vortexTickInterval;
             _vortexActive = true;
+            // Fresh instance, fresh Vortex Step allowance.
+            VortexStepAvailable = true;
 
             // Presentation only: damage, status, and the pull all run through the
             // hurtbox queries below so enemies participate alongside fighters.
@@ -277,6 +318,34 @@ namespace FTT.Characters.Abilities {
 
         private MovementAbilityData MovementData => Data as MovementAbilityData;
 
+        private bool _vortexStepApplied;
+
+        /// <summary>True when this cast consumed a Vortex Step. Test seam.</summary>
+        public bool VortexStepApplied => _vortexStepApplied;
+
+        /// <summary>
+        /// Vortex Step's cooldown scale for THIS cast: half after every other
+        /// modifier, or neutral when no allowance was consumed. Read by
+        /// BaseSpecial when it arms the cooldown, so the halving never rewrites
+        /// a cooldown that has already started and never shortens the cast
+        /// animation.
+        /// </summary>
+        public override float CooldownScaleForThisCast =>
+            _vortexStepApplied ? CleopatraSandstormVortex.VortexStepCooldownScale : 1f;
+
+        /// <summary>
+        /// The owner's own live Sandstorm Vortex, if any. Deterministic pick:
+        /// the first Special-slot vortex in child order, so overlapping
+        /// vortices can never consume more than one allowance.
+        /// </summary>
+        private CleopatraSandstormVortex FindOwnVortex() {
+            if (Owner == null) return null;
+            foreach (Node child in Owner.GetChildren()) {
+                if (child is CleopatraSandstormVortex vortex && vortex.VortexActive) return vortex;
+            }
+            return null;
+        }
+
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
             _mirageDuration = Mathf.Min(
@@ -294,6 +363,11 @@ namespace FTT.Characters.Abilities {
             }
             _mirageDirection = _mirageDirection.Normalized();
             _startPosition = Owner.GlobalPosition;
+            // Vortex Step (traversal): consumed atomically at the accepted
+            // cast, BEFORE the cooldown is armed in BaseSpecial, and never
+            // twice for one vortex instance.
+            _vortexStepApplied = Owner.HasStoryPerk(CleopatraSandstormVortex.VortexStepPerkKey)
+                && FindOwnVortex()?.TryConsumeVortexStep(Owner.GlobalPosition) == true;
             ApplyCastPerks();
         }
 

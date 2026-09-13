@@ -7,7 +7,8 @@ using Godot;
 namespace FTT.UI {
 
     public partial class ResonanceGridPanel : Control {
-        private const int GridColumns = 3;
+        /// <summary>V7.6 node chip size. The old 330x150 card cannot tile a nine-node mesh.</summary>
+        public static readonly Vector2 NodeChipSize = new(200, 90);
 
         /// <summary>The authored scene this panel presents (Package 8 B4).</summary>
         public const string ScenePath = "res://scenes/ui/ResonanceGrid.tscn";
@@ -18,7 +19,8 @@ namespace FTT.UI {
         private int _slot;
         private Label _balanceLabel;
         private Label _statusLabel;
-        private GridContainer _nodeGrid;
+        private Control _nodeGrid;
+        private ResonanceEdgeLayer _edgeLayer;
         private ConfirmModal _confirmation;
         private ConfirmModal _respecConfirmation;
         private Button _respecButton;
@@ -67,7 +69,7 @@ namespace FTT.UI {
 
             _balanceLabel = Root.GetNode<Label>("Center/Panel/Layout/Balance");
             _statusLabel = Root.GetNode<Label>("Center/Panel/Layout/Status");
-            _nodeGrid = Root.GetNode<GridContainer>("Center/Panel/Layout/NodeGrid");
+            _nodeGrid = Root.GetNode<Control>("Center/Panel/Layout/NodeGrid");
             Button closeButton = Root.GetNode<Button>("Center/Panel/Layout/CloseButton");
             closeButton.Pressed += Close;
             BuildRespecButton(closeButton);
@@ -168,7 +170,7 @@ namespace FTT.UI {
             if (deltaColumn != 0 || deltaRow != 0) {
                 GetViewport().SetInputAsHandled();
                 SetFocusedIndex(ResonanceGridNavigation.Move(
-                    _focusedIndex, deltaColumn, deltaRow, GridColumns, _nodes.Count));
+                    _focusedIndex, deltaColumn, deltaRow, LayoutPositions));
                 return;
             }
             if (@event.IsActionPressed("ui_accept")) {
@@ -189,14 +191,26 @@ namespace FTT.UI {
                 _statusLabel.Text = Tr("resonance_grid_unavailable");
                 return;
             }
+            // V7.6: the flat 3-column GridContainer is gone. Nodes are placed
+            // at their AUTHORED normalized LayoutPosition through anchors, so
+            // each topology renders as designed at any panel size, and the edge
+            // layer sits behind them.
+            _edgeLayer = new ResonanceEdgeLayer { Name = "EdgeLayer" };
+            _edgeLayer.SetAnchorsPreset(LayoutPreset.FullRect);
+            _nodeGrid.AddChild(_edgeLayer);
+            _nodeGrid.Resized += RebuildEdges;
+
             foreach (ResonanceNodeData node in _grid.Nodes ?? Array.Empty<ResonanceNodeData>()) {
                 if (node == null) continue;
                 int index = _nodes.Count;
                 _nodes.Add(node);
                 var button = new Button {
-                    CustomMinimumSize = new Vector2(330, 150),
+                    Name = node.NodeID,
+                    CustomMinimumSize = NodeChipSize,
+                    AutowrapMode = TextServer.AutowrapMode.WordSmart,
                     FocusMode = FocusModeEnum.None
                 };
+                PlaceChip(button, node.LayoutPosition);
                 button.Pressed += () => {
                     SetFocusedIndex(index);
                     ActivateNode(node);
@@ -206,7 +220,62 @@ namespace FTT.UI {
             }
             Refresh();
             SetFocusedIndex(0);
+            RebuildEdges();
         }
+
+        /// <summary>
+        /// Anchors a node chip so its CENTRE sits at the authored normalized
+        /// position. Anchor-based rather than pixel-based so the constellation
+        /// survives a panel resize and the accessibility UI scale.
+        /// </summary>
+        private static void PlaceChip(Control chip, Vector2 layoutPosition) {
+            float x = Mathf.Clamp(layoutPosition.X, 0f, 1f);
+            float y = Mathf.Clamp(layoutPosition.Y, 0f, 1f);
+            chip.AnchorLeft = x;
+            chip.AnchorRight = x;
+            chip.AnchorTop = y;
+            chip.AnchorBottom = y;
+            chip.OffsetLeft = -NodeChipSize.X * 0.5f;
+            chip.OffsetRight = NodeChipSize.X * 0.5f;
+            chip.OffsetTop = -NodeChipSize.Y * 0.5f;
+            chip.OffsetBottom = NodeChipSize.Y * 0.5f;
+        }
+
+        /// <summary>
+        /// Rebuilds the prerequisite edges: solid for All-of, dotted for
+        /// Any-of, glowing once the prerequisite end is unlocked.
+        /// </summary>
+        private void RebuildEdges() {
+            if (_edgeLayer == null || _grid == null || _save == null) return;
+            List<string> unlocked = ResonanceProgression.GetUnlockedNodes(_save, _grid.CharacterID);
+            var edges = new List<ResonanceEdgeLayer.Edge>();
+            foreach (ResonanceNodeData node in _nodes) {
+                if (!_buttons.TryGetValue(node.NodeID, out Button target)) continue;
+                foreach (string prerequisiteID in node.PrerequisiteNodeIDs ?? Array.Empty<string>()) {
+                    if (!_buttons.TryGetValue(prerequisiteID, out Button source)) continue;
+                    edges.Add(new ResonanceEdgeLayer.Edge(
+                        source.GetRect().GetCenter(),
+                        target.GetRect().GetCenter(),
+                        node.PrerequisiteMode == PrerequisiteMode.Any,
+                        unlocked.Contains(prerequisiteID)));
+                }
+            }
+            _edgeLayer.SetEdges(edges);
+        }
+
+        /// <summary>The authored normalized positions, in node order. Test surface.</summary>
+        public List<(float X, float Y)> LayoutPositions {
+            get {
+                var positions = new List<(float X, float Y)>(_nodes.Count);
+                foreach (ResonanceNodeData node in _nodes) {
+                    positions.Add((node.LayoutPosition.X, node.LayoutPosition.Y));
+                }
+                return positions;
+            }
+        }
+
+        /// <summary>The edge layer behind the node chips. Test surface.</summary>
+        public ResonanceEdgeLayer EdgeLayer => _edgeLayer;
 
         /// <summary>
         /// Locked nodes stay pressable so selecting them explains WHY they are
@@ -276,9 +345,14 @@ namespace FTT.UI {
                 button.Modulate = state switch {
                     ResonanceUnlockResult.AlreadyUnlocked => new Color(0.4f, 1f, 0.9f),
                     ResonanceUnlockResult.Unlocked => Colors.White,
+                    // V7.6 dormant silhouette: dim and unlabeled, but drawn in
+                    // its TRUE position so the constellation is honest about
+                    // what is still to come.
+                    ResonanceUnlockResult.AbilityLocked => new Color(0.30f, 0.32f, 0.40f),
                     _ => new Color(0.62f, 0.62f, 0.7f)
                 };
             }
+            RebuildEdges();
         }
 
         private void SetFocusedIndex(int index) {
@@ -299,6 +373,9 @@ namespace FTT.UI {
         }
 
         private string NodeText(ResonanceNodeData node, ResonanceUnlockResult state) {
+            // A gated node is an unnamed dormant star until the Legacy ability
+            // it modifies is recovered - no name, no cost, no tooltip body.
+            if (state == ResonanceUnlockResult.AbilityLocked) return Tr("resonance_dormant_node");
             string body = $"{Tr(node.DisplayNameKey)}\n{string.Format(Tr("resonance_cost"), node.UnlockCost)}";
             return state switch {
                 ResonanceUnlockResult.AlreadyUnlocked => $"{body}\n{Tr("resonance_unlocked")}",
@@ -307,9 +384,13 @@ namespace FTT.UI {
             };
         }
 
-        private string BuildTooltip(ResonanceNodeData node, ResonanceUnlockResult state) =>
-            $"{Tr(node.DisplayNameKey)}\n{Tr(node.DescriptionKey)}\n"
-            + $"{string.Format(Tr("resonance_cost"), node.UnlockCost)}\n{ExplainState(node, state)}";
+        private string BuildTooltip(ResonanceNodeData node, ResonanceUnlockResult state) {
+            if (state == ResonanceUnlockResult.AbilityLocked) {
+                return $"{Tr("resonance_dormant_node")}\n{Tr("resonance_state_locked_ability")}";
+            }
+            return $"{Tr(node.DisplayNameKey)}\n{Tr(node.DescriptionKey)}\n"
+                + $"{string.Format(Tr("resonance_cost"), node.UnlockCost)}\n{ExplainState(node, state)}";
+        }
 
         private string ExplainState(ResonanceNodeData node, ResonanceUnlockResult state) {
             switch (state) {
@@ -318,9 +399,16 @@ namespace FTT.UI {
                 case ResonanceUnlockResult.AlreadyUnlocked:
                     return Tr("resonance_result_already");
                 case ResonanceUnlockResult.MissingPrerequisite:
+                    // V7.6: an Any-of node needs "requires any of A, B"; the old
+                    // first-unmet-only text was wrong for every Any-of node and
+                    // for Shakespeare's All-of-three Majors.
                     return string.Format(
-                        Tr("resonance_state_locked_prerequisite"),
-                        PrerequisiteName(node));
+                        Tr(node.PrerequisiteMode == PrerequisiteMode.Any
+                            ? "resonance_state_locked_prerequisite_any"
+                            : "resonance_state_locked_prerequisite"),
+                        PrerequisiteNames(node));
+                case ResonanceUnlockResult.AbilityLocked:
+                    return Tr("resonance_state_locked_ability");
                 case ResonanceUnlockResult.InsufficientDust:
                     int balance = _save.DepositedChronalDust.GetValueOrDefault(_grid.CharacterID);
                     return string.Format(
@@ -331,16 +419,26 @@ namespace FTT.UI {
             }
         }
 
-        private string PrerequisiteName(ResonanceNodeData node) {
+        /// <summary>
+        /// Every UNMET prerequisite, comma separated. V7.6 replaces the old
+        /// first-unmet-only lookup: an Any-of node must read "requires any of
+        /// A, B" and Shakespeare's Majors need all three named.
+        /// </summary>
+        public string PrerequisiteNames(ResonanceNodeData node) {
             List<string> unlocked = ResonanceProgression.GetUnlockedNodes(_save, _grid.CharacterID);
+            var names = new List<string>();
             foreach (string prerequisiteID in node.PrerequisiteNodeIDs ?? Array.Empty<string>()) {
                 if (unlocked.Contains(prerequisiteID)) continue;
+                string label = prerequisiteID;
                 foreach (ResonanceNodeData candidate in _nodes) {
-                    if (candidate.NodeID == prerequisiteID) return Tr(candidate.DisplayNameKey);
+                    if (candidate.NodeID == prerequisiteID) {
+                        label = Tr(candidate.DisplayNameKey);
+                        break;
+                    }
                 }
-                return prerequisiteID;
+                names.Add(label);
             }
-            return "";
+            return string.Join(", ", names);
         }
 
         private static string ResultKey(ResonanceUnlockResult result) => result switch {
@@ -348,6 +446,7 @@ namespace FTT.UI {
             ResonanceUnlockResult.AlreadyUnlocked => "resonance_result_already",
             ResonanceUnlockResult.MissingPrerequisite => "resonance_result_prerequisite",
             ResonanceUnlockResult.InsufficientDust => "resonance_result_dust",
+            ResonanceUnlockResult.AbilityLocked => "resonance_result_ability_locked",
             _ => "resonance_result_unavailable"
         };
 

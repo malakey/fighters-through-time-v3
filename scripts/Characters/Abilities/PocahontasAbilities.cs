@@ -129,6 +129,34 @@ namespace FTT.Characters.Abilities {
     /// </summary>
     public partial class PocahontasBreezeGlide : BaseSpecial {
 
+        /// <summary>
+        /// Story-only Resonance TRAVERSAL flag (V7.6, Tier 2): the Breeze Glide
+        /// can be RE-ENTERED once per airtime. The latch resets on grounding
+        /// and on a stock loss / respawn, so a single jump never buys more than
+        /// one extra entry.
+        /// </summary>
+        public const string SecondGlidePerkKey = "second_glide";
+
+        /// <summary>True once this airtime's extra re-entry has been spent. Test seam.</summary>
+        public bool SecondGlideConsumed { get; private set; }
+
+        /// <summary>
+        /// Second Glide (traversal). Grants ONE extra glide entry per airtime.
+        /// Returns true when the re-entry is authorized and consumes the
+        /// airtime allowance atomically; false when the perk is absent, the
+        /// allowance is already spent, or the owner is grounded (a grounded
+        /// cast is the ordinary entry and spends nothing).
+        /// </summary>
+        public bool TryConsumeSecondGlide() {
+            if (Owner == null || Owner.IsOnFloor()) return false;
+            if (!Owner.HasStoryPerk(SecondGlidePerkKey) || SecondGlideConsumed) return false;
+            SecondGlideConsumed = true;
+            return true;
+        }
+
+        /// <summary>Airtime latch reset - grounding, respawn and stock loss all call this.</summary>
+        public void ResetAirtimeAllowance() => SecondGlideConsumed = false;
+
         public const string TornadoLiftPerkKey = "tornado_lift";
         public const string LeafBarrierPerkKey = "leaf_barrier";
 
@@ -148,11 +176,12 @@ namespace FTT.Characters.Abilities {
             UseAuthoredPhaseFrames();
             _isGliding = false;
             _dashSpeed = MovementData?.MovementSpeed > 0f ? MovementData.MovementSpeed : 350f;
-            // Story-only GlideDuration minor ("Glide Duration +20%",
-            // pocahontas_wr2) lengthens the glide window; neutral 1f outside
-            // Story Mode.
+            // Package 11 A4: V7.6 re-scopes the glide-window minor from the
+            // character-wide GlideDuration lane onto
+            // AbilityDuration(pocahontas_breeze_glide). Neutral 1.0 outside
+            // Story Mode and on a grid that has not bought it.
             _maxGlideDuration = (MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : 3f)
-                * Owner.StoryGlideDurationMultiplier;
+                * Owner.StoryScoped("AbilityDuration", "pocahontas_breeze_glide");
 
             float hDir = Owner.IsFacingRight ? 1f : -1f;
             Owner.Velocity = new Vector2(hDir * _dashSpeed, Owner.Velocity.Y);

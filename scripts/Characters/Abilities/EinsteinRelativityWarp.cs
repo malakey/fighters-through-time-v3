@@ -15,6 +15,14 @@ namespace FTT.Characters.Abilities {
 
         private const float FloatDuration = 1.0f;
 
+        /// <summary>
+        /// Story-only Resonance TRAVERSAL flag (V7.6, Tier 2): the warp's
+        /// reduced-gravity float window lasts 20 frames longer.
+        /// </summary>
+        public const string ExtendedFloatPerkKey = "extended_float";
+        /// <summary>V7.6 Extended Float: additional float frames at 60 Hz.</summary>
+        public const int ExtendedFloatBonusFrames = 20;
+
         private Vector2 _warpDirection;
         private Vector2 _startPosition;
         private float _warpDuration = 0.2f;
@@ -53,7 +61,11 @@ namespace FTT.Characters.Abilities {
             // The design allows canceling the warp into a brief float glide; hold
             // jump as the warp ends to trigger it in the air.
             if (!Owner.IsOnFloor() && Owner.CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Jump)) {
-                Owner.StoryFloatTimer = FloatDuration;
+                // Extended Float (traversal node): +20 frames on the window.
+                Owner.StoryFloatTimer = FloatDuration
+                    + (Owner.HasStoryPerk(ExtendedFloatPerkKey)
+                        ? ExtendedFloatBonusFrames / 60f
+                        : 0f);
             }
 
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {

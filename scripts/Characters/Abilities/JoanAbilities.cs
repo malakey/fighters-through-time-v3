@@ -172,6 +172,19 @@ namespace FTT.Characters.Abilities {
     /// </summary>
     public partial class JoanAscendantWings : BaseSpecial {
 
+        /// <summary>
+        /// Story-only Resonance TRAVERSAL flag (V7.6, Tier 2). A direct
+        /// connecting combo finisher or Righteous Smite hit resets this
+        /// ability's cooldown to zero, once per attack execution. The rule
+        /// lives in <c>PlayerController.TryWingsRefresh</c> because both
+        /// trigger sources are ordinary Hitbox hits; the key is declared here
+        /// beside the ability it refreshes.
+        /// </summary>
+        public const string WingsRefreshPerkKey = "wings_refresh";
+
+        /// <summary>The AttackID Righteous Smite's shockwave carries.</summary>
+        public const string RighteousSmiteAttackID = "joan_righteous_smite";
+
         private const float GlideGravityScale = 0.35f;
         private const float DefaultLeapSpeed = 420f;
         private const float DefaultGlideSeconds = 3f;

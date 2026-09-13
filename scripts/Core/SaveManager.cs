@@ -697,6 +697,25 @@ namespace FTT.Core {
             return MarkCampaignCompleted(GameManager.Instance.CurrentSession.ActiveSaveSlot);
         }
 
+        /// <summary>
+        /// Package 11 A4 (Resonance V7.6, F08). The one-time, versioned, FREE
+        /// respec a pre-V7.6 save needs: every grid re-authored every node ID,
+        /// so a loaded payload can carry purchases that no longer name a node.
+        /// This drops each such purchase and refunds its recorded retired price
+        /// into that character's deposited balance - removing the purchased
+        /// node and its effects, refunding exactly once, preserving campaign
+        /// progress and undeposited earnings, and never granting a missing node
+        /// for free. Idempotent.
+        ///
+        /// <para>A4 ships the function; the Phase C closeout calls it from the
+        /// single v5 to v6 migration step (plan §2.6) for every loaded story
+        /// payload. Wiring it here rather than inside the envelope keeps the
+        /// grid knowledge in one place.</para>
+        /// </summary>
+        /// <returns>Total dust refunded across every character on the save.</returns>
+        public static int MigrateResonanceGridsToV76(StorySaveData save) =>
+            FTT.Environment.ResonanceProgression.MigrateGridProgressToV76(save);
+
         /// <summary>Slot-explicit campaign completion; persists the slot immediately.</summary>
         public bool MarkCampaignCompleted(int slotIndex) {
             if (slotIndex < 0 || slotIndex >= SaveSlots.Length) return false;

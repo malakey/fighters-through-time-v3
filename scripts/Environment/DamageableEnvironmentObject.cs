@@ -92,8 +92,32 @@ namespace FTT.Environment {
         }
 
         private float OnHurtboxHit(HitPayload payload) {
-            TakeEnvironmentDamage(payload.Damage);
+            TakeEnvironmentDamage(payload.Damage * ResolveIncomingDamageMultiplier(payload));
             return 0f;
+        }
+
+        /// <summary>
+        /// Package 11 A4: the single hook a subclass overrides to scale an
+        /// incoming player hit (Chronal Extractors apply the V7.6 Resonance
+        /// Extractor riders here). Neutral 1.0 by default.
+        /// </summary>
+        protected virtual float ResolveIncomingDamageMultiplier(in HitPayload payload) => 1f;
+
+        /// <summary>
+        /// Resolves the attacking <c>PlayerController</c> for a hit payload via
+        /// the "Players" group - the same lookup the Extractor's siphon-engage
+        /// sweep uses, so it stays headless-safe and needs no back-reference on
+        /// the payload. Returns null for enemy, hazard and construct sources.
+        /// </summary>
+        protected FTT.Characters.PlayerController FindAttackingPlayer(int attackerIndex) {
+            if (attackerIndex < 0 || !IsInsideTree()) return null;
+            Godot.Collections.Array<Node> players = GetTree().GetNodesInGroup("Players");
+            using var lifetime = players.AsDisposable();
+            foreach (Node node in players) {
+                if (node is FTT.Characters.PlayerController player
+                    && player.PlayerIndex == attackerIndex) return player;
+            }
+            return null;
         }
 
         private void DestroyObject() {
