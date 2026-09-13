@@ -6,7 +6,7 @@ namespace FTT.Environment {
 
     public enum CrumblingPlatformState { Solid, Shaking, Collapsing, Disabled }
 
-    public partial class CrumblingPlatform : AnimatableBody2D, IStoryRewindable {
+    public partial class CrumblingPlatform : AnimatableBody2D, IStoryRewindable, IStoryTimeFreezable {
         [Signal] public delegate void StateChangedEventHandler(CrumblingPlatformState state, float duration);
 
         [Export] public string PlatformID = "";
@@ -45,6 +45,7 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            if (_timeFrozen) return;
             if (State == CrumblingPlatformState.Solid) return;
             _timer -= (float)delta;
             if (State == CrumblingPlatformState.Shaking && _visual is Node2D shakingVisual) {
@@ -105,5 +106,20 @@ namespace FTT.Environment {
 
         private void OnBodyEntered(Node2D body) { if (body is PlayerController) TriggerCollapse(); }
         private void OnRewind(Vector2 targetPosition) => ApplyStoryRewind();
+
+        // === IStoryTimeFreezable (V7.6 Time Freeze) ===========================
+
+        private bool _timeFrozen;
+
+        /// <summary>True while Time Freeze holds the world. Test seam.</summary>
+        public bool IsTimeFrozen => _timeFrozen;
+
+        /// <summary>
+        /// Stops simulating in place. Nothing else is mutated, so the phase, the
+        /// timer and the position all survive and resume with no catch-up tick —
+        /// the collision shape stays live throughout.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _timeFrozen = frozen;
+
     }
 }

@@ -327,7 +327,7 @@ save_completed,Campaign Complete
 save_timestamp_unknown,Unknown
 story_select_character,STORY MODE — SELECT CHARACTER
 story_select_difficulty,SELECT DIFFICULTY
-difficulty_easy_description,5 rewinds; full HP restoration; checkpoints refill the pool.
+difficulty_easy_description,5 rewinds; 70% HP restoration; checkpoints refill the pool.
 difficulty_normal_description,3 rewinds; 50% HP restoration; checkpoints restore one rewind.
 difficulty_hard_description,1 rewind; 30% HP restoration; no checkpoint refill.
 resonance_joan_r1_name,Minor Move Speed +5%
@@ -603,7 +603,6 @@ tutorial_step_attack,Calibration: land basic attacks on the dummy ({0}/{1})
 tutorial_step_rally,"Part of every blow lingers as an echo - strike back before it fades to reclaim it"
 tutorial_step_special,Calibration: use a Special ability (K or L)
 tutorial_step_rewind,Calibration: stand by - Chronal Rewind demonstration
-tutorial_step_manual_rewind,"Hold R to scrub time backward - release to commit, Jump to cancel"
 tutorial_step_double_jump,Mobility: reach the green marker with a double jump
 tutorial_step_roll,Mobility: cross the blue strip while rolling
 tutorial_gate_double_jump,DOUBLE JUMP
@@ -1081,7 +1080,6 @@ controls_action_block,Block
 controls_action_roll,Roll
 controls_action_ultimate,Ultimate
 controls_action_interact,Interact
-controls_action_rewind,Chronal Rewind
 controls_action_pause,Pause
 save_notice_slot_recovered,Story slot {0} was recovered from backup.
 save_notice_slot_migrated,Story slot {0} was migrated to the secure save format.
@@ -1143,7 +1141,6 @@ controls_action_up,Up
 fighter_state_ledge,Ledge Hang
 # V7.3 story/core/economy batch (2026-08-26)
 checkpoint_strike_prompt,Strike the fracture to stabilize it
-hud_rewind_cooldown,Rewind ready in {0}s
 collapse_transmission_line,"Sarah: We've lost the thread — pulling you out!"
 collapse_skip_prompt,Press Jump to skip
 resonance_respec_button,Respec (full refund)
@@ -1194,3 +1191,10 @@ systems_card_echo_body,"Spend 30 meter during your own recovery to snap back 30 
 systems_card_overtime_title,Overtime
 systems_card_overtime_body,"The final 60 seconds of a timed match double the hazard cadence and raise the Rally echo by half."
 dialogue_hold_skip,"Hold {0} to skip"
+# Package 11 A2 — V7.6 Time Freeze (F03)
+controls_action_time_freeze,Time Freeze (Story only)
+hud_time_freeze_ready,Time Freeze ready
+hud_time_freeze_active,"Time frozen: {0}s"
+hud_time_freeze_cooldown,"Time Freeze in {0}s"
+hud_time_freeze_thaw,Time resuming
+tutorial_step_time_freeze,"Press R to stop time, then slip past and reach the marker"

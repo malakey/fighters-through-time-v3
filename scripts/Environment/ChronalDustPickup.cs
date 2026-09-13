@@ -3,7 +3,7 @@ using FTT.Core;
 
 namespace FTT.Environment {
 
-    public partial class ChronalDustPickup : FTT.Core.PooledNode, FTT.Core.IPoolable {
+    public partial class ChronalDustPickup : FTT.Core.PooledNode, FTT.Core.IPoolable, IStoryTimeFreezable {
         [Export] public int DustAmount = 10;
         [Export] public DustVisualTierSet VisualTiers;
 
@@ -65,6 +65,7 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            if (_timeFrozen) return;
             float dt = (float)delta;
             if (!NeverExpires) {
                 _lifetime -= dt;
@@ -126,5 +127,20 @@ namespace FTT.Environment {
                 ? VisualTiers.LargeTexture
                 : VisualTiers.GetTexture(DustAmount);
         }
+
+        // === IStoryTimeFreezable (V7.6 Time Freeze) ===========================
+
+        private bool _timeFrozen;
+
+        /// <summary>True while Time Freeze holds the world. Test seam.</summary>
+        public bool IsTimeFrozen => _timeFrozen;
+
+        /// <summary>
+        /// Stops simulating in place, preserving every timer. For a pickup this
+        /// is also what enforces "no pickup collection during a freeze": the
+        /// magnet that resolves a collection lives in the frozen tick.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _timeFrozen = frozen;
+
     }
 }

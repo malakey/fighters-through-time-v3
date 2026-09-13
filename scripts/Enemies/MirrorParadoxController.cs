@@ -32,7 +32,7 @@ namespace FTT.Enemies {
     /// back as a <see cref="PlayerInputFrame"/> the clone consumes like any input device.
     /// </para>
     /// </remarks>
-    public partial class MirrorParadoxController : Node2D, IStoryRewindSimulation {
+    public partial class MirrorParadoxController : Node2D, IStoryRewindSimulation, IStoryTimeFreezable {
         /// <summary>Scene-tree group the clone joins so level logic can tell it from the player.</summary>
         public const string MirrorGroup = "MirrorParadox";
 
@@ -318,6 +318,17 @@ namespace FTT.Enemies {
             // start an unrevealed or already-defeated mirror simulating.
             Clone.SetPhysicsProcess(!frozen && IsEncounterActive && !IsDefeated);
             if (frozen) Clone.Velocity = Vector2.Zero;
+        }
+
+        /// <summary>
+        /// V7.6 Time Freeze. The clone is a PlayerController, so freezing it means
+        /// suspending its own simulation — but unlike the rewind path this must
+        /// NOT zero its velocity: the mirror resumes mid-leap exactly where it
+        /// stopped, with no catch-up tick.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) {
+            if (Clone == null || !IsInstanceValid(Clone)) return;
+            Clone.SetPhysicsProcess(!frozen && IsEncounterActive && !IsDefeated);
         }
 
         public void CaptureCheckpointState(string checkpointID) {

@@ -12,7 +12,7 @@ namespace FTT.Environment {
     /// Waypoints are offsets from the platform's authored position, so a template
     /// instance can be dropped anywhere without rewriting them.
     /// </summary>
-    public partial class PathMovingPlatform : AnimatableBody2D, IStoryRewindable, IRewindScrubbable {
+    public partial class PathMovingPlatform : AnimatableBody2D, IStoryRewindable, IRewindScrubbable, IStoryTimeFreezable {
         [Signal] public delegate void WaypointReachedEventHandler(int waypointIndex);
 
         [Export] public string PlatformID = "";
@@ -80,7 +80,11 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
-            if (_scrubbing) return;
+            // V7.6 Time Freeze: the platform stops exactly where it is — no
+            // history recorded, no path advanced, no catch-up on thaw — while
+            // its collision shape stays live, because the player may be
+            // standing on it.
+            if (_scrubbing || _timeFrozen) return;
             _history[_historyNext] = Position;
             _historyNext = (_historyNext + 1) % HistoryCapacity;
             if (_historyCount < HistoryCapacity) _historyCount++;
@@ -89,12 +93,8 @@ namespace FTT.Environment {
 
         // === IRewindScrubbable ================================================
 
-        private Vector2 _scrubStartPosition;
-
         public void BeginRewindScrub() {
             _scrubbing = true;
-            // The present-moment position, restored if the scrub is cancelled.
-            _scrubStartPosition = Position;
         }
 
         public void ApplyRewindScrub(int depthFrames) {
@@ -115,18 +115,22 @@ namespace FTT.Environment {
             _skipNextRewindRestore = true;
         }
 
+        // === IStoryTimeFreezable ==============================================
+
+        private bool _timeFrozen;
+
+        /// <summary>True while Time Freeze holds the platform in place. Test seam.</summary>
+        public bool IsTimeFrozen => _timeFrozen;
+
         /// <summary>
-        /// V7.3 cancel path: the preview never happened, so the platform snaps
-        /// back to where the scrub found it and resumes from there. No
-        /// skip-next-restore flag — a cancel raises no rewind event, and the
-        /// old EndRewindScrub-on-cancel left the flag armed to wrongly swallow
-        /// the NEXT real rewind's restore.
+        /// Freeze in place. Deliberately mutates nothing else: the waypoint
+        /// target, the endpoint wait timer and the recorded history all survive,
+        /// so the platform resumes mid-leg exactly where it stopped. Contrast
+        /// <see cref="ApplyRewindScrub"/>, which MOVES the platform.
         /// </summary>
-        public void CancelRewindScrub() {
-            _scrubbing = false;
-            _waitTimer = 0f;
-            PlatformVelocity = Vector2.Zero;
-            Position = _scrubStartPosition;
+        public void SetTimeFrozen(bool frozen) {
+            _timeFrozen = frozen;
+            if (frozen) PlatformVelocity = Vector2.Zero;
         }
 
         public void AdvancePath(float dt) {

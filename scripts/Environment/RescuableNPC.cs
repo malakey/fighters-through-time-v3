@@ -11,7 +11,7 @@ namespace FTT.Environment {
     /// <see cref="PuzzleManager"/> condition, and raises
     /// <see cref="RescuedEventHandler"/> for the level's objective counter.
     /// </summary>
-    public partial class RescuableNPC : Node2D, IInteractable, IStoryRewindable {
+    public partial class RescuableNPC : Node2D, IInteractable, IStoryRewindable, IStoryTimeFreezable {
         [Signal] public delegate void RescuedEventHandler(string npcID);
         [Signal] public delegate void DespawnedEventHandler(string npcID);
 
@@ -52,6 +52,7 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            if (_timeFrozen) return;
             if (!IsRescued || IsDespawned) return;
             _flashTimer -= (float)delta;
             if (_flashTimer <= 0f) CompleteDespawn();
@@ -103,5 +104,20 @@ namespace FTT.Environment {
         }
 
         private void OnRewind(Vector2 targetPosition) => ApplyStoryRewind();
+
+        // === IStoryTimeFreezable (V7.6 Time Freeze) ===========================
+
+        private bool _timeFrozen;
+
+        /// <summary>True while Time Freeze holds the world. Test seam.</summary>
+        public bool IsTimeFrozen => _timeFrozen;
+
+        /// <summary>
+        /// Stops simulating in place, preserving every timer. For a pickup this
+        /// is also what enforces "no pickup collection during a freeze": the
+        /// magnet that resolves a collection lives in the frozen tick.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _timeFrozen = frozen;
+
     }
 }

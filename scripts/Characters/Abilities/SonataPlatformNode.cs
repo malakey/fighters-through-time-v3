@@ -13,7 +13,7 @@ namespace FTT.Characters.Abilities {
     /// authored 3-second lifetime, freezes during Chronal Rewind, and fully
     /// resets its pooled state (collision included) between uses.
     /// </summary>
-    public partial class SonataPlatformNode : FTT.Core.PooledNode, FTT.Core.IPoolable, FTT.Environment.IStoryRewindSimulation {
+    public partial class SonataPlatformNode : FTT.Core.PooledNode, FTT.Core.IPoolable, FTT.Environment.IStoryRewindSimulation, FTT.Environment.IStoryTimeFreezable {
 
         /// <summary>Body top relative to the root origin (body is 12 px thick, centered).</summary>
         private const float SurfaceOffsetPixels = 6f;
@@ -79,5 +79,14 @@ namespace FTT.Characters.Abilities {
             _bodyShape ??= GetNodeOrNull<CollisionShape2D>("Body/CollisionShape2D");
             _bodyShape?.SetDeferred(CollisionShape2D.PropertyName.Disabled, !enabled);
         }
+
+        /// <summary>
+        /// V7.6 Time Freeze. Shares the freeze flag with the death rewind because
+        /// this class's rewind freeze is already a pure latch — it mutates nothing
+        /// on the way in, so positions, phases and timers all survive the freeze
+        /// and resume with no catch-up tick.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _rewindFrozen = frozen;
+
     }
 }

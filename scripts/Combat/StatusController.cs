@@ -220,6 +220,10 @@ namespace FTT.Combat {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // V7.6 Time Freeze suspends status timers along with the rest of the
+            // world's clocks: a burn may not tick down (or tick damage) during
+            // the five seconds the player spends escaping.
+            if (_owner != null && _owner.TimeFrozen) return;
             float dt = (float)delta;
             TickSlot(_control, dt);
             TickSlot(_damage, dt);

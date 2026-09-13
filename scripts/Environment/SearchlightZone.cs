@@ -16,7 +16,7 @@ namespace FTT.Environment {
     /// sections). Detection is Player-layer only; the beam itself never blocks
     /// movement.
     /// </summary>
-    public partial class SearchlightZone : Area2D, IStoryRewindable {
+    public partial class SearchlightZone : Area2D, IStoryRewindable, IStoryTimeFreezable {
         [Signal] public delegate void PlayerDetectedEventHandler(int playerIndex);
         [Signal] public delegate void PlayerLostEventHandler(int playerIndex);
         [Signal] public delegate void StrikeTriggeredEventHandler(int playerIndex, int damage);
@@ -76,6 +76,7 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            if (_timeFrozen) return;
             if (!Enabled) return;
             float dt = (float)delta;
             AdvanceSweep(dt);
@@ -90,9 +91,9 @@ namespace FTT.Environment {
         public void TickExposure(float dt) {
             foreach (PlayerController player in new List<PlayerController>(_exposure.Keys)) {
                 if (!GodotObject.IsInstanceValid(player)) { _exposure.Remove(player); continue; }
-                // V7.3: a Stasis Echo standing between the beam origin and the
-                // player blocks the light — exposure suspends and resets while
-                // the past self interposes ("blocks searchlight beams").
+                // V7.6: the Stasis Echo was the only thing that ever occluded a
+                // beam, so this is now always false. The check is kept so the
+                // Level 4/9 call sites and any future occluder have a seam.
                 if (IsBeamOccludedForPlayer(player)) {
                     _exposure[player] = 0f;
                     continue;
@@ -108,21 +109,18 @@ namespace FTT.Environment {
         }
 
         /// <summary>
-        /// Ray from the beam origin to the player against PersistentObject
-        /// BODIES; only a Stasis Echo blocks the light. Headless/harness-safe:
-        /// with no world or space state the beam is treated as unoccluded.
+        /// Whether anything blocks the beam between its origin and the player.
+        ///
+        /// <para><b>V7.6 ruling: always false.</b> The Stasis Echo was the only
+        /// occluder the game ever had and it is retired with the manual rewind.
+        /// The method survives (returning false) rather than being deleted so the
+        /// Level 4 corridor and Level 9 beam call sites are untouched — neither
+        /// level ever required occlusion to progress: both are timing/route
+        /// puzzles with <see cref="Enabled"/> kill switches.</para>
         /// </summary>
         public bool IsBeamOccludedForPlayer(PlayerController player) {
-            if (player == null || !IsInsideTree()) return false;
-            PhysicsDirectSpaceState2D space = GetWorld2D()?.DirectSpaceState;
-            if (space == null) return false;
-            var query = PhysicsRayQueryParameters2D.Create(
-                GlobalPosition, player.GlobalPosition, CollisionLayers.PersistentObject);
-            query.CollideWithAreas = false;
-            query.CollideWithBodies = true;
-            using Godot.Collections.Dictionary result = space.IntersectRay(query);
-            if (result == null || result.Count == 0) return false;
-            return result["collider"].AsGodotObject() is StasisEcho;
+            _ = player;
+            return false;
         }
 
         public bool AddPlayer(PlayerController player) {
@@ -184,5 +182,20 @@ namespace FTT.Environment {
         private void OnBodyEntered(Node2D body) { if (body is PlayerController player) AddPlayer(player); }
         private void OnBodyExited(Node2D body) { if (body is PlayerController player) RemovePlayer(player); }
         private void OnRewind(Vector2 targetPosition) => ApplyStoryRewind();
+
+        // === IStoryTimeFreezable (V7.6 Time Freeze) ===========================
+
+        private bool _timeFrozen;
+
+        /// <summary>True while Time Freeze holds the world. Test seam.</summary>
+        public bool IsTimeFrozen => _timeFrozen;
+
+        /// <summary>
+        /// Stops simulating in place. Nothing else is mutated, so the phase, the
+        /// timer and the position all survive and resume with no catch-up tick —
+        /// the collision shape stays live throughout.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _timeFrozen = frozen;
+
     }
 }

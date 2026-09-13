@@ -50,9 +50,8 @@ namespace FTT.Environment {
             float weight = body switch {
                 WeightedObject weighted => Mathf.Max(0f, weighted.WeightUnits),
                 PlayerController => PlayerWeight,
-                // V7.2: the Stasis Echo is the player's past self — it weighs
-                // exactly what they do, which is the "be in two places" verb.
-                StasisEcho => PlayerWeight,
+                // V7.6: the Stasis Echo arm went with the retired manual rewind.
+                // Plates are weighted by the player and by authored weights only.
                 _ => 0f
             };
             if (weight <= 0f) return;

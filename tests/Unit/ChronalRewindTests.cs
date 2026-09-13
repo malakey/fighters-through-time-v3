@@ -133,5 +133,60 @@ public class ChronalRewindTests {
         AssertThat(ChronalRewindManager.ApplyCheckpointRefresh(Difficulty.Normal, 3)).IsEqual(3);
         AssertThat(ChronalRewindManager.ApplyCheckpointRefresh(Difficulty.Hard, 0)).IsEqual(0);
         AssertThat(ChronalRewindManager.GetHPRestorePercent(Difficulty.Hard)).IsEqual(0.3f);
+
+        // V7.6: Time Freeze is the ONE time mechanic with no difficulty spread.
+        // One authored row, identical on Easy, Normal and Hard: 5 s, no charges,
+        // 45-second cooldown.
+        AssertThat(TimeFreezeController.FreezeSeconds).IsEqual(5f);
+        AssertThat(TimeFreezeController.CooldownSeconds).IsEqual(45f);
+        foreach (Difficulty difficulty in new[] { Difficulty.Easy, Difficulty.Normal, Difficulty.Hard }) {
+            // Nothing in the Time Freeze contract reads difficulty at all, which
+            // is the pin: the rewind rules above still differ per difficulty and
+            // these two constants deliberately do not.
+            AssertThat(TimeFreezeController.FreezeSeconds).IsEqual(5f);
+            AssertThat(TimeFreezeController.CooldownSeconds).IsEqual(45f);
+            _ = difficulty;
+        }
+    }
+
+    [TestCase]
+    public void ThePathPlatformReversesAlongItsOwnRecordedPathDuringADeathRewind() {
+        // Salvaged from the retired ManualRewindScrubTests when the manual scrub
+        // verb was deleted (Package 11 A2): the platform reversal is a DEATH
+        // rewind behaviour and outlived the verb that first exercised it. Time
+        // Freeze is the opposite case and is pinned in TimeFreezeTests.
+        var platform = new PathMovingPlatform {
+            Name = "DeathRewindPlatform",
+            Waypoints = new[] { Vector2.Zero, new Vector2(400f, 0f) },
+            Speed = 120f,
+            EndpointWaitSeconds = 0f
+        };
+        ((SceneTree)Engine.GetMainLoop()).Root.AddChild(platform);
+        try {
+            for (int frame = 0; frame < 90; frame++) platform._PhysicsProcess(1.0 / 60.0);
+            Vector2 present = platform.Position;
+            AssertThat(present.X > 100f).IsTrue();
+
+            platform.BeginRewindScrub();
+            platform.ApplyRewindScrub(60);
+            AssertThat(platform.Position.X < present.X)
+                .OverrideFailureMessage("The rewind must walk the platform back along its own path.")
+                .IsTrue();
+            float rewoundX = platform.Position.X;
+
+            // While the rewind owns it, its own motion is suspended.
+            platform._PhysicsProcess(1.0 / 60.0);
+            AssertThat(platform.Position.X).IsEqual(rewoundX);
+
+            // Ending the reversal resumes motion from the rewound position — the
+            // checkpoint-state snap at rewind end must not undo it.
+            platform.EndRewindScrub();
+            EventBus.Instance?.RaiseRewindTriggered(Vector2.Zero);
+            AssertThat(platform.Position.X).IsEqual(rewoundX);
+            platform._PhysicsProcess(1.0 / 60.0);
+            AssertThat(platform.Position.X > rewoundX).IsTrue();
+        } finally {
+            platform.Free();
+        }
     }
 }

@@ -16,7 +16,7 @@ namespace FTT.Environment {
     /// The slow goes through <see cref="EnvironmentPlayerModifiers"/>, NOT the
     /// status system — terrain must not evict a real status effect.
     /// </summary>
-    public partial class RisingWaterZone : Area2D, IStoryRewindable {
+    public partial class RisingWaterZone : Area2D, IStoryRewindable, IStoryTimeFreezable {
         [Signal] public delegate void WaterLevelChangedEventHandler(int step);
         [Signal] public delegate void PlayerSubmergedEventHandler(int playerIndex);
         [Signal] public delegate void PlayerSurfacedEventHandler(int playerIndex);
@@ -87,6 +87,7 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            if (_timeFrozen) return;
             if (!Enabled) return;
             float dt = (float)delta;
             if (AutoAdvanceSeconds > 0f && CurrentStep < StepCount - 1) {
@@ -194,5 +195,20 @@ namespace FTT.Environment {
         private void OnBodyEntered(Node2D body) { if (body is PlayerController player) AddPlayer(player); }
         private void OnBodyExited(Node2D body) { if (body is PlayerController player) RemovePlayer(player); }
         private void OnRewind(Vector2 targetPosition) => ApplyStoryRewind();
+
+        // === IStoryTimeFreezable (V7.6 Time Freeze) ===========================
+
+        private bool _timeFrozen;
+
+        /// <summary>True while Time Freeze holds the world. Test seam.</summary>
+        public bool IsTimeFrozen => _timeFrozen;
+
+        /// <summary>
+        /// Stops simulating in place. Nothing else is mutated, so the phase, the
+        /// timer and the position all survive and resume with no catch-up tick —
+        /// the collision shape stays live throughout.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _timeFrozen = frozen;
+
     }
 }

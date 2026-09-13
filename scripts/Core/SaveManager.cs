@@ -48,6 +48,14 @@ namespace FTT.Core {
         public List<string> ViewedDialogueIDs = new();
         public bool HasSeenCollapseBeat;
 
+        // === Package 11 A2 (V7.6 Time Freeze, additive) ====================
+        // Per-attempt Time Freeze cooldown. Activation commits the conservative
+        // full 45 s for any reload during that activation; an explicit Save or
+        // exit ends the freeze and stores 45 s; after thaw the true remainder is
+        // stored. A reload NEVER resumes or renews an active freeze. Older
+        // payloads load with the field initializer (0 = Ready).
+        public float TimeFreezeCooldownSeconds;
+
         public void Normalize() {
             SaveVersion = SaveSchemaMigrator.CurrentVersion;
             SelectedCharacterID ??= "";

@@ -15,7 +15,7 @@ namespace FTT.Characters.Abilities {
     /// damageable/destroyable, persists across owner death, freezes during
     /// Chronal Rewind, and fully resets its pooled state.
     /// </summary>
-    public partial class VineSnareNode : FTT.Core.PooledNode, FTT.Core.IPoolable, FTT.Environment.IStoryRewindSimulation {
+    public partial class VineSnareNode : FTT.Core.PooledNode, FTT.Core.IPoolable, FTT.Environment.IStoryRewindSimulation, FTT.Environment.IStoryTimeFreezable {
 
         private const float TriggerRangePixels = 120f; // 2 world units at 60 px/unit; mirrors the Fighter sim AttackRange.
         private const int MaxSnareHP = 15;
@@ -221,5 +221,14 @@ namespace FTT.Characters.Abilities {
                 _ownerPlayer.AddInfluenceFromDamageDealt(dealt, collectsEcho: false);
             }
         }
+
+        /// <summary>
+        /// V7.6 Time Freeze. Shares the freeze flag with the death rewind because
+        /// this class's rewind freeze is already a pure latch — it mutates nothing
+        /// on the way in, so positions, phases and timers all survive the freeze
+        /// and resume with no catch-up tick.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _rewindFrozen = frozen;
+
     }
 }

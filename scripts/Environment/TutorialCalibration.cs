@@ -4,10 +4,11 @@ namespace FTT.Environment {
     /// Ordered calibration steps for the Level 0 tutorial's Part 2, matching the
     /// designed sequence (design-godot.md, "Part 2: The Calibration"): basic
     /// attacks, then blocking, then the specials, then the forced-100%-meter
-    /// Ultimate, then the scripted Chronal Rewind demonstration. The rewind step
-    /// stays last so the scripted demonstration path
-    /// (<see cref="ChronalRewindManager.TriggerScriptedRewind"/>) is reached
-    /// exactly as before the block/ultimate steps were added.
+    /// Ultimate, then the scripted Chronal Rewind demonstration, and finally the
+    /// V7.6 Time Freeze escape drill. The two time lessons stay last and in that
+    /// order: the scripted demonstration path
+    /// (<see cref="ChronalRewindManager.TriggerScriptedRewind"/>) teaches the
+    /// finite death-save pool, then the drill teaches the escape verb.
     /// </summary>
     public enum TutorialCalibrationStep {
         BasicHits,
@@ -18,9 +19,10 @@ namespace FTT.Environment {
         UseSpecial,
         UseUltimate,
         UseRewind,
-        /// <summary>V7.2: one manual scrubbed rewind (free), which also leaves
-        /// the Stasis Echo the player can see.</summary>
-        UseManualRewind,
+        /// <summary>V7.6: the five-second Time Freeze escape drill — invulnerable
+        /// enemies, a safe destination, and a freeze that is ready on every
+        /// retry. Replaced the retired V7.2 manual-scrub lesson in place.</summary>
+        UseTimeFreeze,
         Done
     }
 
@@ -110,17 +112,17 @@ namespace FTT.Environment {
             return true;
         }
 
-        /// <summary>The scripted rewind demonstration completed; the manual
-        /// scrub lesson follows.</summary>
+        /// <summary>The scripted death-rewind demonstration completed; the Time
+        /// Freeze escape drill follows.</summary>
         public bool RegisterRewindComplete() {
             if (Step != TutorialCalibrationStep.UseRewind) return false;
-            Step = TutorialCalibrationStep.UseManualRewind;
+            Step = TutorialCalibrationStep.UseTimeFreeze;
             return true;
         }
 
-        /// <summary>V7.2: the player committed their own manual scrubbed rewind.</summary>
-        public bool RegisterManualRewindComplete() {
-            if (Step != TutorialCalibrationStep.UseManualRewind) return false;
+        /// <summary>V7.6: the player escaped the drill under their own Time Freeze.</summary>
+        public bool RegisterTimeFreezeComplete() {
+            if (Step != TutorialCalibrationStep.UseTimeFreeze) return false;
             Step = TutorialCalibrationStep.Done;
             return true;
         }
@@ -128,7 +130,7 @@ namespace FTT.Environment {
         /// <summary>
         /// Never-strand fallback: the rewind demonstration could not run (no
         /// manager, or repeated refusals), so the calibration finishes without
-        /// either rewind lesson.
+        /// either time lesson.
         /// </summary>
         public bool SkipRewindDemonstration() {
             if (Step != TutorialCalibrationStep.UseRewind) return false;
@@ -136,9 +138,9 @@ namespace FTT.Environment {
             return true;
         }
 
-        /// <summary>Never-strand fallback for the manual lesson alone.</summary>
-        public bool SkipManualRewindLesson() {
-            if (Step != TutorialCalibrationStep.UseManualRewind) return false;
+        /// <summary>Never-strand fallback for the Time Freeze drill alone.</summary>
+        public bool SkipTimeFreezeLesson() {
+            if (Step != TutorialCalibrationStep.UseTimeFreeze) return false;
             Step = TutorialCalibrationStep.Done;
             return true;
         }

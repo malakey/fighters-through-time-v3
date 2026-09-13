@@ -13,7 +13,7 @@ namespace FTT.Characters.Abilities {
     /// damageable/destroyable, persists across owner death, freezes during
     /// Chronal Rewind, and fully resets its pooled state.
     /// </summary>
-    public partial class TeslaCoilNode : FTT.Core.PooledNode, FTT.Core.IPoolable, FTT.Environment.IStoryRewindSimulation {
+    public partial class TeslaCoilNode : FTT.Core.PooledNode, FTT.Core.IPoolable, FTT.Environment.IStoryRewindSimulation, FTT.Environment.IStoryTimeFreezable {
 
         public const float LinkRangePixels = 480f;   // 8 world units at 60 px/unit.
         private const float ArcRangePixels = 300f;   // 5 world units; mirrors the Fighter sim AttackRange.
@@ -271,5 +271,14 @@ namespace FTT.Characters.Abilities {
                 _ownerPlayer.AddInfluenceFromDamageDealt(dealt, collectsEcho: false);
             }
         }
+
+        /// <summary>
+        /// V7.6 Time Freeze. Shares the freeze flag with the death rewind because
+        /// this class's rewind freeze is already a pure latch — it mutates nothing
+        /// on the way in, so positions, phases and timers all survive the freeze
+        /// and resume with no catch-up tick.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _rewindFrozen = frozen;
+
     }
 }

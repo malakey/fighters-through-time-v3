@@ -31,13 +31,13 @@ public class TutorialCalibrationTests {
         script.RegisterUltimateUsed();
         if (target == TutorialCalibrationStep.UseRewind) return script;
         script.RegisterRewindComplete();
-        if (target == TutorialCalibrationStep.UseManualRewind) return script;
-        script.RegisterManualRewindComplete();
+        if (target == TutorialCalibrationStep.UseTimeFreeze) return script;
+        script.RegisterTimeFreezeComplete();
         return script;
     }
 
     [TestCase]
-    public void TheDesignedStepOrderRunsAttackRallyBlockSpecialUltimateRewindManual() {
+    public void TheDesignedStepOrderRunsAttackRallyBlockSpecialUltimateRewindTimeFreeze() {
         var script = new TutorialCalibrationScript();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.BasicHits);
 
@@ -60,10 +60,11 @@ public class TutorialCalibrationTests {
         AssertThat(script.RegisterUltimateUsed()).IsTrue();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseRewind);
 
-        // V7.2: the scripted death-rewind demo hands off to the manual scrub.
+        // V7.6: the scripted death-rewind demo hands off to the Time Freeze
+        // escape drill, which is the last calibration beat.
         AssertThat(script.RegisterRewindComplete()).IsTrue();
-        AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseManualRewind);
-        AssertThat(script.RegisterManualRewindComplete()).IsTrue();
+        AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseTimeFreeze);
+        AssertThat(script.RegisterTimeFreezeComplete()).IsTrue();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.Done);
     }
 
@@ -131,34 +132,35 @@ public class TutorialCalibrationTests {
         AssertThat(script.RegisterSpecialUsed(AbilitySlot.Special1)).IsFalse();
         AssertThat(script.RegisterUltimateUsed()).IsFalse();
         AssertThat(script.RegisterRewindComplete()).IsFalse();
-        AssertThat(script.RegisterManualRewindComplete()).IsFalse();
+        AssertThat(script.RegisterTimeFreezeComplete()).IsFalse();
         AssertThat(script.SkipRewindDemonstration()).IsFalse();
-        AssertThat(script.SkipManualRewindLesson()).IsFalse();
+        AssertThat(script.SkipTimeFreezeLesson()).IsFalse();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.BasicHits);
         AssertThat(script.HitsBlocked).IsEqual(0);
     }
 
     [TestCase]
     public void TheRewindStepsCompleteInSequenceWithNeverStrandFallbacks() {
-        // The scripted rewind demonstration (ScriptedRewindTests) is preserved
-        // and hands off to the V7.2 manual scrub lesson; both carry a
+        // V7.6: the scripted death-rewind demonstration (ScriptedRewindTests) is
+        // preserved and hands off to the Time Freeze escape drill; both carry a
         // never-strand skip.
         TutorialCalibrationScript script = AdvanceToStep(TutorialCalibrationStep.UseRewind);
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseRewind);
         AssertThat(script.RegisterRewindComplete()).IsTrue();
-        AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseManualRewind);
-        AssertThat(script.RegisterManualRewindComplete()).IsTrue();
+        AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseTimeFreeze);
+        AssertThat(script.RegisterTimeFreezeComplete()).IsTrue();
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.Done);
 
-        // The demonstration could not run at all: skip both rewind lessons.
+        // The demonstration could not run at all: skip both time lessons.
         TutorialCalibrationScript stranded = AdvanceToStep(TutorialCalibrationStep.UseRewind);
         AssertThat(stranded.SkipRewindDemonstration()).IsTrue();
         AssertThat(stranded.Step).IsEqual(TutorialCalibrationStep.Done);
 
-        // The manual lesson alone could not run: its own skip closes it.
-        TutorialCalibrationScript manualStranded = AdvanceToStep(TutorialCalibrationStep.UseManualRewind);
-        AssertThat(manualStranded.SkipManualRewindLesson()).IsTrue();
-        AssertThat(manualStranded.Step).IsEqual(TutorialCalibrationStep.Done);
+        // The drill alone could not run (no TimeFreezeController): its own skip
+        // closes it rather than stranding the tutorial.
+        TutorialCalibrationScript drillStranded = AdvanceToStep(TutorialCalibrationStep.UseTimeFreeze);
+        AssertThat(drillStranded.SkipTimeFreezeLesson()).IsTrue();
+        AssertThat(drillStranded.Step).IsEqual(TutorialCalibrationStep.Done);
     }
 
     [TestCase]

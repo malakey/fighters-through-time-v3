@@ -365,6 +365,42 @@ namespace FTT.Core {
             !string.IsNullOrWhiteSpace(secretID) && _foundSecrets.Contains(secretID);
 
         /// <summary>Fresh entry / Restart Level: no per-attempt fact survives.</summary>
+        // === V7.6 Time Freeze cooldown (Package 11 A2) ======================
+
+        /// <summary>
+        /// Seconds left on the Story Time Freeze cooldown for THIS attempt.
+        ///
+        /// <para>Per-attempt state like the checkpoint and extractor registries:
+        /// a fresh level entry and a full Restart Level both start Ready (0),
+        /// while a mid-level resume restores exactly what the save parked. It is
+        /// deliberately untouched by checkpoint activation, death rewind,
+        /// Timeline Collapse and Anchor Snap — none of them may refresh it.</para>
+        /// </summary>
+        public float TimeFreezeCooldownRemaining { get; private set; }
+
+        /// <summary>
+        /// The live controller's sink. While a freeze is ACTIVE the controller
+        /// pushes the conservative full cooldown so any background autosave
+        /// records it; after thaw it pushes the true remainder.
+        /// </summary>
+        public void SetTimeFreezeCooldown(float seconds) =>
+            TimeFreezeCooldownRemaining = Mathf.Max(0f, seconds);
+
+        /// <summary>
+        /// F03: an explicit Save or an exit during a live freeze ends the freeze
+        /// and stores the full cooldown. Resolved through the controller's group
+        /// so the save surfaces never take a direct dependency on the level's
+        /// runtime stack. No-op when nothing is frozen.
+        /// </summary>
+        public void EndActiveTimeFreezeForExplicitSave() {
+            if (GetTree()?.GetFirstNodeInGroup(
+                    FTT.Environment.TimeFreezeController.ControllerGroup)
+                is FTT.Environment.TimeFreezeController controller
+                && IsInstanceValid(controller)) {
+                controller.EndFreezeForExplicitSave();
+            }
+        }
+
         public void ClearLevelAttemptState() {
             _activatedCheckpoints.Clear();
             _destroyedExtractors.Clear();
@@ -372,6 +408,8 @@ namespace FTT.Core {
             ClearRestorationFonts();
             TimelineIntegrityPercent = TimelineIntegrityRules.StartPercent;
             LevelSecretsFound = 0;
+            // A fresh attempt starts with Time Freeze Ready.
+            TimeFreezeCooldownRemaining = 0f;
         }
 
         /// <summary>Checkpoint saves (and the collapse save) carry the attempt.</summary>
@@ -383,6 +421,7 @@ namespace FTT.Core {
             save.FontUsesConsumed = new Dictionary<string, int>(_fontUsesConsumed);
             save.LevelIntegrityPercent = TimelineIntegrityPercent;
             save.HasSeenCollapseBeat = HasSeenCollapseBeat;
+            save.TimeFreezeCooldownSeconds = TimeFreezeCooldownRemaining;
         }
 
         /// <summary>Mid-level resume: the parked attempt comes back whole.</summary>
@@ -406,6 +445,10 @@ namespace FTT.Core {
             TimelineIntegrityPercent = Mathf.Clamp(save.LevelIntegrityPercent, 0f, TimelineIntegrityRules.StartPercent);
             LevelSecretsFound = _foundSecrets.Count;
             HasSeenCollapseBeat = save.HasSeenCollapseBeat;
+            // A mid-level resume inherits the parked cooldown. Reload never
+            // resumes a live freeze, so an activation saved mid-freeze comes
+            // back as the conservative full cooldown the activation committed.
+            TimeFreezeCooldownRemaining = Mathf.Max(0f, save.TimeFreezeCooldownSeconds);
         }
 
         /// <summary>

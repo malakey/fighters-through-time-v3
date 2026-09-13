@@ -15,6 +15,9 @@ namespace FTT.Environment {
         public RewindPresentationOverlay RewindOverlay;
         public ChronalRewindManager RewindManager;
 
+        /// <summary>V7.6 Time Freeze (F03). Level-only, exactly like the rewind stack.</summary>
+        public TimeFreezeController TimeFreeze;
+
         /// <summary>Scene music + environment cues (Package 8 B5). Null when the scene has no set.</summary>
         public StoryAudioDirector Audio;
     }
@@ -69,6 +72,14 @@ namespace FTT.Environment {
 
                 services.RewindManager = new ChronalRewindManager { Name = "ChronalRewindManager" };
                 sceneRoot.AddChild(services.RewindManager);
+
+                // Story-only escape ability. Rides the same level-only flag as
+                // the rewind stack, so the hub never gets one.
+                services.TimeFreeze = new TimeFreezeController {
+                    Name = "TimeFreezeController",
+                    Dialogue = services.Dialogue
+                };
+                sceneRoot.AddChild(services.TimeFreeze);
             }
 
             return services;

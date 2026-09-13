@@ -13,7 +13,7 @@ namespace FTT.Enemies {
     /// difficulty-scaled reaction delays, elite ability cycling, and pooling.
     /// Nothing here participates in the deterministic Fighter simulation.
     /// </summary>
-    public partial class EnemyController : CharacterBody2D, IPoolable, IStoryRewindable, IStoryRewindSimulation {
+    public partial class EnemyController : CharacterBody2D, IPoolable, IStoryRewindable, IStoryRewindSimulation, IStoryTimeFreezable {
         /// <summary>Seconds the death animation plays before the pool reclaims the body.</summary>
         public const float DeathAnimationSeconds = 0.5f;
         private const float GravityPixelsPerSecond = 980f;
@@ -886,8 +886,16 @@ namespace FTT.Enemies {
 
         public int TakeDamage(int damage) => TakeDamage(damage, null);
 
+        /// <summary>
+        /// V7.6 Level 0 Time Freeze drill: the blocker the player must escape
+        /// past is unkillable, so the lesson cannot be solved by fighting. Set
+        /// only by <c>Level00Controller</c> for the duration of the drill; no
+        /// campaign encounter ever sets it.
+        /// </summary>
+        public bool DrillInvulnerable { get; set; }
+
         private int TakeDamage(int damage, Vector2? hitOrigin, bool ignoreDefenses = false) {
-            if (CurrentState == EnemyState.Dead) return 0;
+            if (CurrentState == EnemyState.Dead || DrillInvulnerable) return 0;
             float incoming = Math.Max(0, damage) * StatusDamageTakenMultiplier;
             // V7.2 companion ruling: player Ultimate-class damage ignores enemy
             // damage-reduction defenses (frontal shields, the bubble) — the
@@ -1396,5 +1404,17 @@ namespace FTT.Enemies {
             }
             return damageApplied;
         }
+
+        /// <summary>
+        /// V7.6 Time Freeze. Deliberately NOT
+        /// <see cref="SetStoryRewindFrozen"/>: that path cancels the executor,
+        /// zeroes velocity and deactivates the hitbox, which is correct when the
+        /// world is about to be restored to a past state and catastrophic for a
+        /// freeze, whose whole contract is "resume preserved positions,
+        /// velocities, attack phases and remaining timers". This latches the same
+        /// early-return flag and touches nothing else.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _rewindFrozen = frozen;
+
     }
 }

@@ -243,20 +243,87 @@ namespace FTT.Environment {
 
         private void OnRewindTriggered(Vector2 _) {
             if (_phase != TutorialPhase.Calibration) return;
-            if (_calibration.RegisterRewindComplete()) {
-                // The guided demonstration never spends the player's real pool.
-                _services.RewindManager?.RefundRewind();
-                // V7.2: the manual scrub lesson follows — scripted tutorial
-                // uses are free on every difficulty.
-                if (_services.RewindManager != null) _services.RewindManager.ScriptedFreeRewind = true;
-                _services.HUD?.SetObjective("tutorial_step_manual_rewind");
+            if (!_calibration.RegisterRewindComplete()) return;
+            // The guided demonstration never spends the player's real pool.
+            _services.RewindManager?.RefundRewind();
+            BeginTimeFreezeDrill();
+        }
+
+        // === V7.6 Time Freeze escape drill (Package 11 A2) ====================
+        //
+        // The design asks for two separate time beats, in this order: (a) the
+        // scripted DEATH REWIND demonstration above, which teaches the finite
+        // pool and that the last charge still saves you, then (b) this five-second
+        // ESCAPE DRILL — an invulnerable enemy the player cannot fight through and
+        // a safe destination they can only reach with the world stopped.
+        //
+        // The drill provides a ready freeze on EVERY retry (DrillFreeFreeze) and
+        // consumes no death-rewind charge, so a failed attempt never strands the
+        // tutorial behind a 45-second wait. Outside this drill there is no
+        // recharge exemption anywhere in the game.
+
+        private Area2D _timeFreezeDrillGate;
+        private FTT.Enemies.EnemyController _timeFreezeDrillBlocker;
+
+        private void BeginTimeFreezeDrill() {
+            if (_services.TimeFreeze == null || !IsInstanceValid(_services.TimeFreeze)) {
+                // Never strand the tutorial: with no controller there is no drill.
+                _calibration.SkipTimeFreezeLesson();
+                _mobilityIntroPending = true;
                 return;
             }
-            // The second completed rewind is the player's own manual commit,
-            // which also leaves their first Stasis Echo behind them.
-            if (_calibration.RegisterManualRewindComplete()) {
-                if (_services.RewindManager != null) _services.RewindManager.ScriptedFreeRewind = false;
-                _mobilityIntroPending = true;
+            _services.TimeFreeze.DrillFreeFreeze = true;
+            _services.HUD?.SetObjective("tutorial_step_time_freeze");
+
+            // The blocker paces the corridor mouth. It is unkillable for the
+            // duration of the lesson, so the only way past is to stop time.
+            _timeFreezeDrillBlocker = FTT.Enemies.EnemyFactory.Spawn(
+                "chrono_slasher", this, new Vector2(1180, 850),
+                new Vector2(1120, 850), new Vector2(1260, 850));
+            if (_timeFreezeDrillBlocker != null && IsInstanceValid(_timeFreezeDrillBlocker)) {
+                _timeFreezeDrillBlocker.DrillInvulnerable = true;
+            }
+
+            // The safe destination, past the blocker.
+            _timeFreezeDrillGate = BuildGateZone(
+                "TimeFreezeDrillGate",
+                new Vector2(1420, 850),
+                new Vector2(120, 180),
+                new Color(0.4f, 0.85f, 1f, 0.35f),
+                "tutorial_step_time_freeze");
+        }
+
+        /// <summary>
+        /// Completion rule: the player used a Time Freeze during the drill AND
+        /// reached the safe destination. Polled from <c>_PhysicsProcess</c>.
+        /// </summary>
+        private void ProcessTimeFreezeDrill() {
+            if (_phase != TutorialPhase.Calibration
+                || _calibration.Step != TutorialCalibrationStep.UseTimeFreeze) return;
+            if (_services.TimeFreeze == null || !IsInstanceValid(_services.TimeFreeze)) return;
+            if (_services.TimeFreeze.IsFrozen) _timeFreezeDrillUsed = true;
+            if (!_timeFreezeDrillUsed || !ZoneContainsPlayer(_timeFreezeDrillGate)) return;
+            if (!_calibration.RegisterTimeFreezeComplete()) return;
+            MarkGateCleared(_timeFreezeDrillGate);
+            EndTimeFreezeDrill();
+            _mobilityIntroPending = true;
+        }
+
+        private bool _timeFreezeDrillUsed;
+
+        private void EndTimeFreezeDrill() {
+            // The exemption dies with the lesson: normal 45 s cooldown from here.
+            if (_services.TimeFreeze != null && IsInstanceValid(_services.TimeFreeze)) {
+                _services.TimeFreeze.DrillFreeFreeze = false;
+            }
+            if (_timeFreezeDrillBlocker != null && IsInstanceValid(_timeFreezeDrillBlocker)) {
+                _timeFreezeDrillBlocker.DrillInvulnerable = false;
+                if (FTT.Core.PoolManager.Instance != null) {
+                    FTT.Core.PoolManager.Instance.Release(_timeFreezeDrillBlocker);
+                } else {
+                    _timeFreezeDrillBlocker.QueueFree();
+                }
+                _timeFreezeDrillBlocker = null;
             }
         }
 
@@ -344,6 +411,7 @@ namespace FTT.Environment {
 
         public override void _PhysicsProcess(double delta) {
             ProcessRewindDemo();
+            ProcessTimeFreezeDrill();
             if (_framesSinceMovementAbility >= 0
                 && _framesSinceMovementAbility <= TutorialMobilityRules.MovementAbilityFreshnessFrames) {
                 _framesSinceMovementAbility++;

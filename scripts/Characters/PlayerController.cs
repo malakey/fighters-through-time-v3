@@ -775,7 +775,10 @@ namespace FTT.Characters {
 
 			UpdateStoryTemporaryEffects();
 
-			UpdateCooldowns(dt);
+			// V7.6: the freeze suspends ability cooldowns (block-charge regen and
+			// status durations suspend in BlockSystem/StatusController for the
+			// same reason). Movement and the effect clock keep running.
+			if (!TimeFrozen) UpdateCooldowns(dt);
 			UpdateDropThrough(dt);
 			UpdateHyperArmorPresentation();
 			if (_downTapFramesRemaining > 0) _downTapFramesRemaining--;
@@ -1348,6 +1351,7 @@ namespace FTT.Characters {
 		/// processing). 120-frame internal cooldown; never an escape.
 		/// </summary>
 		private bool TryStartEchoStep() {
+			if (TimeFrozen) return false;
 			if (_echoStepWindupFrames > 0 || _echoStepCooldownFrames > 0) return false;
 			if (!CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)
 				|| !CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Roll)) return false;
@@ -1433,6 +1437,7 @@ namespace FTT.Characters {
 		/// whiffs into normal recovery).
 		/// </summary>
 		private bool TryStartGrab() {
+			if (TimeFrozen) return false;
 			if (!IsOnFloor()) return false;
 			if (CurrentState is CharacterState.Stunned or CharacterState.Dazed
 				or CharacterState.Dead or CharacterState.Respawning
@@ -2126,6 +2131,25 @@ namespace FTT.Characters {
 		/// </summary>
 		public void SyncPresentationFacing() => UpdateSpriteFlip();
 
+		// === V7.6 Time Freeze (F03) ===========================================
+
+		/// <summary>
+		/// True while the Story player's Time Freeze holds the world.
+		///
+		/// <para><b>This is the opposite of <see cref="SetRewindSuspended"/>.</b> A
+		/// rewind suspends the PLAYER while the world is restored; a Time Freeze
+		/// stops the WORLD while the player keeps playing. Running, jumping, the
+		/// fast-fall and the universal evasive roll all stay available.</para>
+		///
+		/// <para>Refused for the whole freeze, and <b>discarded rather than
+		/// buffered</b> so nothing bursts out on thaw: basic attacks, grabs, both
+		/// specials, the ultimate, Echo Step, the character Movement Ability and
+		/// world interaction. Block-charge regeneration, ability cooldowns and
+		/// status durations are suspended for the same window; movement and the
+		/// freeze's own five-second clock keep running.</para>
+		/// </summary>
+		public bool TimeFrozen { get; set; }
+
 		public void SetRewindSuspended(bool suspended) {
 			if (_rewindSuspended == suspended) return;
 			_rewindSuspended = suspended;
@@ -2320,6 +2344,9 @@ namespace FTT.Characters {
 		}
 
 		private bool CheckAttackInput() {
+			// V7.6 Time Freeze: the swing (and the grab chord below it) is
+			// discarded outright — never buffered, so thaw brings no burst.
+			if (TimeFrozen) return false;
 			// V7.2: BasicAttack while Block is held is the GRAB chord — from
 			// neutral the same-frame press grabs (no block rises, no swing
 			// fires). Grounded only, like the stance it answers.
@@ -2607,6 +2634,7 @@ namespace FTT.Characters {
 		}
 
 		private bool CheckSpecialInput() {
+			if (TimeFrozen) return false;
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special1) && SpecialOneCooldownTimer <= 0) {
 				if (_special1 != null && _special1.TryExecute()) {
 					_pendingSpecialSlot = 1;
@@ -2629,6 +2657,7 @@ namespace FTT.Characters {
 		}
 
 		private bool CheckUltimateInput() {
+			if (TimeFrozen) return false;
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Ultimate)) {
 				bool meterReady = _ultimateMeter != null ? _ultimateMeter.IsFull : CurrentUltimateMeter >= 100f;
 				if (meterReady && _ultimate != null && _ultimate.TryExecute()) {
@@ -2658,6 +2687,7 @@ namespace FTT.Characters {
 		}
 
 		private bool CheckMovementAbilityInput() {
+			if (TimeFrozen) return false;
 			if (IsMovementRooted) return false;
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.MovementAbility) && MovementAbilityCooldownTimer <= 0) {
 				if (_movementAbility != null && _movementAbility.TryExecute()) {
