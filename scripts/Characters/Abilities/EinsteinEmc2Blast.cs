@@ -97,13 +97,50 @@ namespace FTT.Characters.Abilities {
                     HitstunDuration = Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = impactPosition,
                     AttackerFacingRight = Owner.IsFacingRight,
-                    AppliedStatus = criticalMass ? FTT.Core.StatusType.RadiantBurn : FTT.Core.StatusType.None,
-                    StatusDuration = criticalMass ? CriticalMassBurnDuration : 0f,
+                    // Package 11 A4 (Critical Mass, V7.6): the Radiant Burn is
+                    // deliberately NOT carried on this payload. The design
+                    // requires it to land AFTER the triggering hit resolves, so
+                    // the 1.25x vulnerability cannot amplify the burst that
+                    // applied it, and to be skipped entirely when the hit was
+                    // blocked or the target was invulnerable.
+                    AppliedStatus = FTT.Core.StatusType.None,
+                    StatusDuration = 0f,
                     StatusIntensity = 1f,
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.3f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
                 if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                // dealt > 0 is exactly "the hit resolved into real damage":
+                // a block, an invulnerable target and a DoT-only contact all
+                // return zero, which is the design's gating list.
+                if (criticalMass && dealt > 0f) ApplyCriticalMassBurn(hurtbox);
+            }
+        }
+
+        /// <summary>
+        /// Critical Mass (Story-only Resonance major, V7.6). Applies Radiant
+        /// Burn - 1.25x damage taken for 3 seconds with no periodic damage,
+        /// which is exactly what <c>RadiantBurnStrategy</c> already models - to
+        /// a target the burst actually damaged, AFTER that hit resolved. It
+        /// occupies the DAMAGE slot and replaces under the shared
+        /// stronger-wins rule, so it coexists with the rift's Time Dilation in
+        /// the control slot. Never fires on projectile contact (only the
+        /// detonation burst calls this), a blocked hit, or an invulnerable
+        /// target.
+        /// </summary>
+        private static void ApplyCriticalMassBurn(Hurtbox hurtbox) {
+            Node current = hurtbox.GetParent();
+            while (current != null) {
+                if (current is PlayerController player) {
+                    player.GetNodeOrNull<StatusController>("StatusController")
+                        ?.ApplyStatus(FTT.Core.StatusType.RadiantBurn, CriticalMassBurnDuration, 1f);
+                    return;
+                }
+                if (current is FTT.Enemies.EnemyController enemy) {
+                    enemy.ApplyStatusEffect(FTT.Core.StatusType.RadiantBurn, CriticalMassBurnDuration, 1f);
+                    return;
+                }
+                current = current.GetParent();
             }
         }
 

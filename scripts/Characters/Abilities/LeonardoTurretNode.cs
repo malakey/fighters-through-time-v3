@@ -27,6 +27,21 @@ namespace FTT.Characters.Abilities {
         public int BoltsRemaining { get; private set; }
         public bool IsTurretDestroyed { get; private set; }
 
+        /// <summary>
+        /// Package 11 A4 (Re-placement traversal node, V7.6). True while this
+        /// turret can still be picked up and re-placed once. Reset on every
+        /// spawn from the pool, so a recycled node never carries a spent
+        /// allowance forward.
+        /// </summary>
+        public bool ReplacementAvailable { get; private set; } = true;
+
+        /// <summary>Consumes the single re-placement allowance atomically.</summary>
+        public bool TryConsumeReplacement() {
+            if (!ReplacementAvailable || IsTurretDestroyed) return false;
+            ReplacementAvailable = false;
+            return true;
+        }
+
         private PlayerController _ownerPlayer;
         private AbilityData _data;
         private int _currentHP;
@@ -63,7 +78,13 @@ namespace FTT.Characters.Abilities {
             // Story-only Resonance minors: ProjectileDamage raises bolt damage and
             // PersistentHealth reinforces the chassis. Both 1f outside Story Mode.
             BoltDamage = (data?.BaseDamage ?? 5f) * (owner?.StoryProjectileDamageMultiplier ?? 1f);
-            _currentHP = Mathf.RoundToInt(MaxTurretHP * (owner?.StoryPersistentHealthMultiplier ?? 1f));
+            // Package 11 A4: V7.6 re-scopes "Minor Turret Plating" from the
+            // character-wide PersistentHealth lane onto
+            // ConstructHP(leonardo_clockwork_turret), and raises it to +25%.
+            ReplacementAvailable = true;
+            _currentHP = Mathf.RoundToInt(MaxTurretHP
+                * (owner?.StoryPersistentHealthMultiplier ?? 1f)
+                * (owner?.StoryScoped("ConstructHP", "leonardo_clockwork_turret") ?? 1f));
             _maxHP = _currentHP;
             IsTurretDestroyed = false;
             // Story-only PersistentDuration minors lengthen the deployment, the

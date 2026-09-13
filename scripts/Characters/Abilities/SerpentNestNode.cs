@@ -61,7 +61,10 @@ namespace FTT.Characters.Abilities {
             _currentHP = MaxNestHP;
             IsNestDestroyed = false;
             // Story-only PersistentDuration minors extend the nest's lifespan.
-            _lifetime = (data?.Lifetime > 0f ? data.Lifetime : 12f)
+            // Package 11 A4: V7.6 re-scopes Cleopatra's duration minor off the
+            // vortex and onto the NEST - AbilityDuration(cleopatra_serpent_nest).
+            _lifetime = (owner?.StoryScoped("AbilityDuration", "cleopatra_serpent_nest") ?? 1f)
+                * (data?.Lifetime > 0f ? data.Lifetime : 12f)
                 * (owner?.StoryPersistentDurationMultiplier ?? 1f);
             _biteInterval = (data?.DamageTickIntervalFrames ?? 120) / 60f;
             if (_biteInterval <= 0f) _biteInterval = 2f;

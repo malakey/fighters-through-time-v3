@@ -250,6 +250,15 @@ namespace FTT.Characters.Abilities {
             });
         }
 
+        /// <summary>
+        /// Story-only Resonance TRAVERSAL flag (V7.6, Tier 2): two Sonata Drift
+        /// staff platforms may stand at once.
+        /// </summary>
+        public const string ExtraNotePerkKey = "extra_note";
+
+        /// <summary>V7.6 Extra Note: additional concurrent staff platforms.</summary>
+        public const int ExtraNoteAdditionalPlatforms = 1;
+
         private void DeployPlatform() {
             if (Owner == null) return;
             if (Data?.PersistentObjectScene == null) {
@@ -257,7 +266,11 @@ namespace FTT.Characters.Abilities {
                 return;
             }
 
+            // Extra Note (Story-only traversal node, V7.6): two staff
+            // platforms may stand at once instead of one. The deploy limit is
+            // already modelled, so the flag only raises the cap.
             int maxActive = Data.MaxActiveObjects > 0 ? Data.MaxActiveObjects : 1;
+            if (Owner.HasStoryPerk(ExtraNotePerkKey)) maxActive += ExtraNoteAdditionalPlatforms;
             while (CountActivePlatforms() >= maxActive) {
                 SonataPlatformNode oldest = FindOldestPlatform();
                 if (oldest == null) break;

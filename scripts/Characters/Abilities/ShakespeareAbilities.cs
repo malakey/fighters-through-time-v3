@@ -97,7 +97,11 @@ namespace FTT.Characters.Abilities {
                     HitOrigin = impactPosition,
                     AttackerFacingRight = Owner.IsFacingRight,
                     AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.TimeDilation,
-                    StatusDuration = Data?.StatusDuration ?? 2.5f,
+                    // Package 11 A4: "Minor Lament Slow" is the scoped
+                    // AbilityDuration(shakespeare_yoricks_lament) lane -
+                    // 2.5 s to 3.0 s when bought.
+                    StatusDuration = (Data?.StatusDuration ?? 2.5f)
+                        * Owner.StoryScoped("AbilityDuration", "shakespeare_yoricks_lament"),
                     StatusIntensity = Data?.StatusIntensity ?? 0.6f,
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
@@ -142,6 +146,15 @@ namespace FTT.Characters.Abilities {
     /// </summary>
     public partial class ShakespeareTheTempest : BaseSpecial {
 
+        /// <summary>
+        /// Story-only Resonance TRAVERSAL flag (V7.6, Tier 2). The Tempest's
+        /// lift can be jumped from at its APEX — a jump refresh, granted once
+        /// per lift as the active phase ends.
+        /// <para>V7.6 correction: the V7 text said "the barrier can be jumped
+        /// from"; no barrier exists anywhere in this kit.</para>
+        /// </summary>
+        public const string TempestApexJumpPerkKey = "tempest_apex_jump";
+
         private const float StormRadius = 120f;
         private const float LiftSpeed = 200f;
         private const float PushAcceleration = 180f;
@@ -156,6 +169,13 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
+            // Tempest Apex Jump (traversal): the lift has just finished, which
+            // IS the apex — refresh the jump budget so Shakespeare can leave
+            // from the top. A refresh only; it grants no glide, cancels
+            // nothing, and cannot bypass a Suppression or a Time Freeze.
+            if (Owner != null && Owner.HasStoryPerk(TempestApexJumpPerkKey)) {
+                Owner.RemainingJumps = Owner.Data?.MaxJumpCount ?? 2;
+            }
         }
 
         public override void _PhysicsProcess(double delta) {

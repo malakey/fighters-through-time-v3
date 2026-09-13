@@ -1,6 +1,7 @@
 using Godot;
 using FTT.Combat;
 using FTT.Characters;
+using FTT.Core;
 
 namespace FTT.Characters.Abilities {
 
@@ -28,6 +29,8 @@ namespace FTT.Characters.Abilities {
 
         public int OwnerIndex { get; private set; }
         public float ArcDamage { get; private set; }
+        /// <summary>Seconds the coil still has to stand. Test seam.</summary>
+        public float LifetimeRemaining => _lifetime;
         public bool IsCoilDestroyed { get; private set; }
 
         private PlayerController _ownerPlayer;
@@ -45,6 +48,7 @@ namespace FTT.Characters.Abilities {
         private ProgressBar _hpBar;
         // Story-only Resonance minors captured at deploy time (1f in Fighter Mode).
         private float _rangeMultiplier = 1f;
+        private bool _resonantOverdrive;
         private float _statusDurationMultiplier = 1f;
 
         // Pooled constructs re-enter the tree on every spawn cycle but _Ready runs
@@ -74,16 +78,22 @@ namespace FTT.Characters.Abilities {
             // Story-only Resonance minors: PersistentDuration extends the coil's
             // lifespan, PersistentRange widens arc/link reach, StatusDuration
             // lengthens the fence's StaticCharge. All 1f outside Story Mode.
+            // Package 11 A4: V7.6 re-scopes the coil-lifespan minor from the
+            // character-wide PersistentDuration lane onto
+            // AbilityDuration(tesla_coil) - 30 s to 40 s when bought.
             _lifetime = (data?.Lifetime > 0f ? data.Lifetime : 30f)
-                * (owner?.StoryPersistentDurationMultiplier ?? 1f);
+                * (owner?.StoryPersistentDurationMultiplier ?? 1f)
+                * (owner?.StoryScoped("AbilityDuration", "tesla_coil") ?? 1f);
             _rangeMultiplier = owner?.StoryPersistentRangeMultiplier ?? 1f;
             _statusDurationMultiplier = owner?.StoryStatusDurationMultiplier ?? 1f;
             _arcInterval = (data?.DamageTickIntervalFrames ?? 120) / 60f;
             if (_arcInterval <= 0f) _arcInterval = 2f;
-            // Resonant Overdrive (Story-only Resonance major perk): coils last
-            // 5 seconds longer and fire arcs 25% faster.
+            // Resonant Overdrive (Story-only Resonance major perk). V7.6: the
+            // "+5 s coil duration" clause MOVED to Minor Coil Duration, so the
+            // Major now grants the 25% faster arcs and Extractor targeting
+            // only - never both halves of the old effect.
+            _resonantOverdrive = resonantOverdrive;
             if (resonantOverdrive) {
-                _lifetime += 5f;
                 _arcInterval /= 1.25f;
             }
             _arcTimer = _arcInterval;
@@ -124,6 +134,7 @@ namespace FTT.Characters.Abilities {
             IsCoilDestroyed = true;
             _rewindFrozen = false;
             _rangeMultiplier = 1f;
+            _resonantOverdrive = false;
             _statusDurationMultiplier = 1f;
         }
 
@@ -194,11 +205,40 @@ namespace FTT.Characters.Abilities {
                     nearest = hurtbox;
                 }
             }
-            if (nearest == null) return;
+            if (nearest == null) {
+                ArcAtExtractor(arcRange);
+                return;
+            }
             float dealt = nearest.TakeHit(BuildHitPayload(
                 ArcDamage, AttackClass.Basic, GlobalPosition,
                 FTT.Core.StatusType.None, 0f, _data?.KnockbackForce ?? Vector2.Zero));
             CreditOwnerInfluence(dealt);
+        }
+
+        /// <summary>
+        /// Resonant Overdrive (Story-only Resonance major, V7.6): the coil's
+        /// arcs also strike Chronal Extractors inside the arc radius. A new
+        /// target acquisition against damageable environment, taken only when
+        /// no living enemy is in range so the Major never steals a hit from
+        /// ordinary combat. This is the sanctioned INDIRECT channel between a
+        /// grid and the V7.6 Timeline Integrity timer.
+        /// </summary>
+        private void ArcAtExtractor(float arcRange) {
+            if (!_resonantOverdrive || !IsInsideTree()) return;
+            Godot.Collections.Array<Node> extractors =
+                GetTree().GetNodesInGroup(FTT.Environment.ChronalExtractor.GroupName);
+            using var lifetime = extractors.AsDisposable();
+            FTT.Environment.ChronalExtractor nearest = null;
+            float nearestDistance = arcRange;
+            foreach (Node node in extractors) {
+                if (node is not FTT.Environment.ChronalExtractor extractor || extractor.IsDestroyed) continue;
+                float distance = GlobalPosition.DistanceTo(extractor.GlobalPosition);
+                if (distance <= nearestDistance) {
+                    nearestDistance = distance;
+                    nearest = extractor;
+                }
+            }
+            nearest?.TakeEnvironmentDamage(ArcDamage);
         }
 
         private void TickFence() {

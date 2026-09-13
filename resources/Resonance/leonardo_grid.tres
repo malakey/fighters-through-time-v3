@@ -1,106 +1,141 @@
-[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=12 format=3]
+[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/ResonanceGridData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Environment/ResonanceNodeData.cs" id="2"]
 
-[sub_resource type="Resource" id="A1"]
+[sub_resource type="Resource" id="N1"]
 script = ExtResource("2")
-NodeID = "leonardo_a1"
-DisplayNameKey = "resonance_leonardo_a1_name"
-DescriptionKey = "resonance_leonardo_a1_description"
+SchemaVersion = 2
+NodeID = "leonardo_brush_reach"
+DisplayNameKey = "resonance_leonardo_brush_reach_name"
+DescriptionKey = "resonance_leonardo_brush_reach_description"
 UnlockCost = 50
 PrerequisiteNodeIDs = PackedStringArray()
-StatModifierKey = "SpecialDamage"
+StatModifierKey = "AttackRange"
 StatModifierValue = 0.08
 StatModifierIsPercent = true
+Tier = 1
+LayoutPosition = Vector2(0.15, 0.3)
 
-[sub_resource type="Resource" id="A2"]
+[sub_resource type="Resource" id="N2"]
 script = ExtResource("2")
-NodeID = "leonardo_a2"
-DisplayNameKey = "resonance_leonardo_a2_name"
-DescriptionKey = "resonance_leonardo_a2_description"
+SchemaVersion = 2
+NodeID = "leonardo_compass_slam"
+DisplayNameKey = "resonance_leonardo_compass_slam_name"
+DescriptionKey = "resonance_leonardo_compass_slam_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "BasicAttackDamage"
+StatModifierValue = 0.08
+StatModifierIsPercent = true
+Tier = 1
+LayoutPosition = Vector2(0.15, 0.7)
+
+[sub_resource type="Resource" id="N3"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "leonardo_workshop_vigor"
+DisplayNameKey = "resonance_leonardo_workshop_vigor_name"
+DescriptionKey = "resonance_leonardo_workshop_vigor_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray("leonardo_brush_reach", "leonardo_compass_slam")
+PrerequisiteMode = 1
+StatModifierKey = "MaxHP"
+StatModifierValue = 15
+Tier = 1
+LayoutPosition = Vector2(0.38, 0.5)
+
+[sub_resource type="Resource" id="N4"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "leonardo_spiral_range"
+DisplayNameKey = "resonance_leonardo_spiral_range_name"
+DescriptionKey = "resonance_leonardo_spiral_range_description"
 UnlockCost = 75
-PrerequisiteNodeIDs = PackedStringArray("leonardo_a1")
-StatModifierKey = "ZoneRadius"
+PrerequisiteNodeIDs = PackedStringArray("leonardo_brush_reach")
+StatModifierKey = "AbilityRange"
+AbilityScope = "leonardo_golden_ratio"
 StatModifierValue = 0.1
 StatModifierIsPercent = true
+Tier = 2
+GatedAbilityID = "special1"
+LayoutPosition = Vector2(0.45, 0.18)
 
-[sub_resource type="Resource" id="A3"]
+[sub_resource type="Resource" id="N5"]
 script = ExtResource("2")
-NodeID = "leonardo_a3"
-DisplayNameKey = "resonance_leonardo_a3_name"
-DescriptionKey = "resonance_leonardo_a3_description"
+SchemaVersion = 2
+NodeID = "leonardo_turret_plating"
+DisplayNameKey = "resonance_leonardo_turret_plating_name"
+DescriptionKey = "resonance_leonardo_turret_plating_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("leonardo_compass_slam")
+StatModifierKey = "ConstructHP"
+AbilityScope = "leonardo_clockwork_turret"
+StatModifierValue = 0.25
+StatModifierIsPercent = true
+Tier = 2
+GatedAbilityID = "special2"
+LayoutPosition = Vector2(0.45, 0.82)
+
+[sub_resource type="Resource" id="N6"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "leonardo_replacement"
+DisplayNameKey = "resonance_leonardo_replacement_name"
+DescriptionKey = "resonance_leonardo_replacement_description"
+Type = 2
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("leonardo_workshop_vigor")
+AbilityModifierKey = "turret_replacement"
+Tier = 2
+GatedAbilityID = "special2"
+LayoutPosition = Vector2(0.62, 0.5)
+
+[sub_resource type="Resource" id="N7"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "leonardo_master_stroke"
+DisplayNameKey = "resonance_leonardo_master_stroke_name"
+DescriptionKey = "resonance_leonardo_master_stroke_description"
 Type = 1
 UnlockCost = 200
-PrerequisiteNodeIDs = PackedStringArray("leonardo_a2")
+PrerequisiteNodeIDs = PackedStringArray("leonardo_spiral_range")
 AbilityModifierKey = "master_stroke"
+Tier = 3
+GatedAbilityID = "special1"
+LayoutPosition = Vector2(0.8, 0.12)
 
-[sub_resource type="Resource" id="E1"]
+[sub_resource type="Resource" id="N8"]
 script = ExtResource("2")
-NodeID = "leonardo_e1"
-DisplayNameKey = "resonance_leonardo_e1_name"
-DescriptionKey = "resonance_leonardo_e1_description"
-UnlockCost = 50
-PrerequisiteNodeIDs = PackedStringArray()
-StatModifierKey = "PersistentHealth"
-StatModifierValue = 0.15
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="E2"]
-script = ExtResource("2")
-NodeID = "leonardo_e2"
-DisplayNameKey = "resonance_leonardo_e2_name"
-DescriptionKey = "resonance_leonardo_e2_description"
-UnlockCost = 75
-PrerequisiteNodeIDs = PackedStringArray("leonardo_e1")
-StatModifierKey = "ProjectileDamage"
-StatModifierValue = 0.05
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="E3"]
-script = ExtResource("2")
-NodeID = "leonardo_e3"
-DisplayNameKey = "resonance_leonardo_e3_name"
-DescriptionKey = "resonance_leonardo_e3_description"
+SchemaVersion = 2
+NodeID = "leonardo_clockwork_overdrive"
+DisplayNameKey = "resonance_leonardo_clockwork_overdrive_name"
+DescriptionKey = "resonance_leonardo_clockwork_overdrive_description"
 Type = 1
 UnlockCost = 200
-PrerequisiteNodeIDs = PackedStringArray("leonardo_e2")
+PrerequisiteNodeIDs = PackedStringArray("leonardo_turret_plating")
 AbilityModifierKey = "clockwork_overdrive"
+Tier = 3
+GatedAbilityID = "special2"
+LayoutPosition = Vector2(0.8, 0.88)
 
-[sub_resource type="Resource" id="M1"]
+[sub_resource type="Resource" id="N9"]
 script = ExtResource("2")
-NodeID = "leonardo_m1"
-DisplayNameKey = "resonance_leonardo_m1_name"
-DescriptionKey = "resonance_leonardo_m1_description"
-UnlockCost = 50
-PrerequisiteNodeIDs = PackedStringArray()
-StatModifierKey = "GlideSpeed"
-StatModifierValue = 0.1
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="M2"]
-script = ExtResource("2")
-NodeID = "leonardo_m2"
-DisplayNameKey = "resonance_leonardo_m2_name"
-DescriptionKey = "resonance_leonardo_m2_description"
-UnlockCost = 75
-PrerequisiteNodeIDs = PackedStringArray("leonardo_m1")
-StatModifierKey = "JumpForce"
-StatModifierValue = 0.05
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="M3"]
-script = ExtResource("2")
-NodeID = "leonardo_m3"
-DisplayNameKey = "resonance_leonardo_m3_name"
-DescriptionKey = "resonance_leonardo_m3_description"
+SchemaVersion = 2
+NodeID = "leonardo_daedalus_wings"
+DisplayNameKey = "resonance_leonardo_daedalus_wings_name"
+DescriptionKey = "resonance_leonardo_daedalus_wings_description"
 Type = 1
 UnlockCost = 200
-PrerequisiteNodeIDs = PackedStringArray("leonardo_m2")
+PrerequisiteNodeIDs = PackedStringArray("leonardo_replacement", "leonardo_spiral_range", "leonardo_turret_plating")
 AbilityModifierKey = "daedalus_wings"
+Tier = 3
+GatedAbilityID = "movement"
+LayoutPosition = Vector2(0.9, 0.5)
 
 [resource]
 script = ExtResource("1")
+SchemaVersion = 2
 GridID = "leonardo_resonance_grid"
 CharacterID = "leonardo"
-Nodes = Array[ExtResource("2")]([SubResource("A1"), SubResource("A2"), SubResource("A3"), SubResource("E1"), SubResource("E2"), SubResource("E3"), SubResource("M1"), SubResource("M2"), SubResource("M3")])
+Nodes = Array[ExtResource("2")]([SubResource("N1"), SubResource("N2"), SubResource("N3"), SubResource("N4"), SubResource("N5"), SubResource("N6"), SubResource("N7"), SubResource("N8"), SubResource("N9")])

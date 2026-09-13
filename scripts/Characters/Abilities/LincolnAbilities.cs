@@ -53,9 +53,15 @@ namespace FTT.Characters.Abilities {
             _waveSpeed = Data?.ProjectileSpeed > 0f ? Data.ProjectileSpeed : 200f;
             _waveDistanceRemaining = _waveSpeed * (Data?.ProjectileLifetime > 0f ? Data.ProjectileLifetime : 1.5f)
                 * (executiveOrder ? ExecutiveOrderTravelMultiplier : 1f);
+            // Package 11 A4: V7.6 re-scopes "Minor Shockwave Damage" from the
+            // character-wide SpecialDamage lane onto
+            // AbilityDamage(lincoln_emancipator). The wave resolves its hits
+            // through a direct TakeHit, so the lane is read here rather than in
+            // Hitbox.CreatePayload.
             _waveDamage = (Data?.BaseDamage ?? 20f)
                 * (executiveOrder ? ExecutiveOrderDamageMultiplier : 1f)
-                * Owner.StorySpecialDamageMultiplier;
+                * Owner.StorySpecialDamageMultiplier
+                * Owner.StoryScoped("AbilityDamage", Data?.AbilityID ?? "lincoln_emancipator");
             _waveFront = Owner.GlobalPosition
                 + new Vector2(_waveMovingRight ? 50f : -50f, WaveFloorOffsetY);
             _waveVisualCountdown = 0;
@@ -154,15 +160,37 @@ namespace FTT.Characters.Abilities {
     /// Special 2 — Splitting Strike: a massive overhead arc dealing the authored
     /// 18 damage through the shared hitbox contract. A blocking target loses every
     /// charge at once (the canonical special-versus-shield shatter rule); airborne
-    /// targets caught in the arc are spiked straight down. Story-only Resonance
-    /// perk Kinetic Splitting upgrades basic-combo hit 3 to the same shield
-    /// shatter (wired in PlayerController.StartComboHit).
+    /// targets caught in the arc are spiked straight down. The Story-only
+    /// Resonance perk Kinetic Splitting (V7.6) bounces a spiked target off the
+    /// ground into a follow-up window and adds +50% against Chronal Extractors
+    /// and enemy constructs.
     /// </summary>
     public partial class LincolnSplittingStrike : BaseSpecial {
 
+        /// <summary>
+        /// Story-only Resonance perk key. V7.6 FULL REWORK - nothing of the V6
+        /// perk survives. The V6 effect merely re-classed combo hit 3 as
+        /// Special, which restated the baseline and granted nothing. Now:
+        /// the spike GROUND-BOUNCES an airborne target, opening a 20-frame
+        /// follow-up window that true-combos into the string's launching Hit 2
+        /// (PvE only, and subject to the V7.4 Stagger Discipline's diminishing
+        /// special stun); and the strike deals +50% to Chronal Extractors and
+        /// enemy constructs (resolved in <see cref="FTT.Environment.StoryExtractorDamage"/>).
+        /// </summary>
         public const string KineticSplittingPerkKey = "kinetic_splitting";
 
+        /// <summary>V7.6 Kinetic Splitting: the follow-up window a ground bounce opens.</summary>
+        public const int GroundBounceWindowFrames = 20;
+        /// <summary>V7.6 Kinetic Splitting: upward speed the ground bounce imparts.</summary>
+        public const float GroundBounceUpwardSpeed = 260f;
+
         private const float SpikeDownwardSpeed = 400f;
+
+        /// <summary>
+        /// Enemies spiked this execution that are still falling toward the
+        /// bounce. Cleared when the ability leaves its active phase.
+        /// </summary>
+        private readonly System.Collections.Generic.List<CharacterBody2D> _bounceWatch = new();
 
         private Hitbox _overheadHitbox;
 
@@ -203,7 +231,39 @@ namespace FTT.Characters.Abilities {
         public override void _PhysicsProcess(double delta) {
             base._PhysicsProcess(delta);
             if (CurrentPhase == AbilityPhase.Active) SpikeAirborneTargets();
+            ResolveGroundBounces();
         }
+
+        /// <summary>
+        /// Kinetic Splitting (Story-only, V7.6). A spiked enemy that reaches
+        /// the floor BOUNCES back up and is held in a
+        /// <see cref="GroundBounceWindowFrames"/>-frame follow-up window, so
+        /// Lincoln can true-combo into the string's launching Hit 2. PvE only:
+        /// the watch list only ever holds <c>EnemyController</c> bodies, and
+        /// nothing here reaches <c>scripts/FighterSim/</c>. The stun the window
+        /// applies runs through the enemy's ordinary Special-class intake, so
+        /// the V7.4 Stagger Discipline's diminishing special stun and its
+        /// getup armor both still govern it.
+        /// </summary>
+        private void ResolveGroundBounces() {
+            if (_bounceWatch.Count == 0) return;
+            for (int i = _bounceWatch.Count - 1; i >= 0; i--) {
+                CharacterBody2D body = _bounceWatch[i];
+                if (body == null || !GodotObject.IsInstanceValid(body) || !body.IsInsideTree()) {
+                    _bounceWatch.RemoveAt(i);
+                    continue;
+                }
+                if (!body.IsOnFloor()) continue;
+                _bounceWatch.RemoveAt(i);
+                body.Velocity = new Vector2(body.Velocity.X, -GroundBounceUpwardSpeed);
+                if (body is FTT.Enemies.EnemyController enemy) {
+                    enemy.ApplyStun(GroundBounceWindowFrames / 60f);
+                }
+            }
+        }
+
+        /// <summary>Test seam: enemies currently awaiting their ground bounce.</summary>
+        public int PendingGroundBounces => _bounceWatch.Count;
 
         /// <summary>
         /// Design: the overhead arc spikes airborne enemies directly downward.
@@ -221,6 +281,13 @@ namespace FTT.Characters.Abilities {
                     if (current is CharacterBody2D body) {
                         if (!body.IsOnFloor()) {
                             body.Velocity = new Vector2(body.Velocity.X, SpikeDownwardSpeed);
+                            // Kinetic Splitting: remember the spiked body so the
+                            // ground contact bounces it into the follow-up window.
+                            if (Owner.HasStoryPerk(KineticSplittingPerkKey)
+                                && body is FTT.Enemies.EnemyController
+                                && !_bounceWatch.Contains(body)) {
+                                _bounceWatch.Add(body);
+                            }
                         }
                         break;
                     }
@@ -243,6 +310,26 @@ namespace FTT.Characters.Abilities {
 
         public const string HomesteadBulwarkPerkKey = "homestead_bulwark";
 
+        /// <summary>
+        /// Story-only Resonance TRAVERSAL flag (V7.6, Tier 2, F06 Option A):
+        /// each Rail Charge ACTIVATION destroys ONE hostile projectile authored
+        /// as breakable during its travel, resolved BEFORE that projectile can
+        /// apply damage or on-hit effects. The allowance is consumed once per
+        /// activation, never per frame or per overlap; later projectiles and
+        /// unbreakable attacks resolve normally against his existing armor.
+        /// Beams, persistent zones, environmental hazards and unbreakable
+        /// projectiles are never destroyed. No reflection, no extra damage, no
+        /// blanket invulnerability, and NO effect on the universal roll.
+        /// Baseline Rail Charge breaks nothing.
+        /// </summary>
+        public const string RailBreakerPerkKey = "rail_breaker";
+
+        /// <summary>V7.6 Rail Breaker: projectiles destroyed per activation.</summary>
+        public const int RailBreakerProjectilesPerActivation = 1;
+
+        /// <summary>True once this activation has spent its break. Test seam.</summary>
+        public bool RailBreakerSpent { get; private set; }
+
         private const float MaxChargeDuration = 3.0f;
         private const float HomesteadBulwarkArmorSeconds = 3f;
 
@@ -263,6 +350,8 @@ namespace FTT.Characters.Abilities {
             _chargeDirection = Owner.IsFacingRight ? Vector2.Right : Vector2.Left;
             _startPosition = Owner.GlobalPosition;
             _struckHurtboxes.Clear();
+            // One break per ACTIVATION, armed here and spent at most once.
+            RailBreakerSpent = false;
         }
 
         protected override void OnActive() {
@@ -282,9 +371,43 @@ namespace FTT.Characters.Abilities {
         public override void _PhysicsProcess(double delta) {
             if (CurrentPhase == AbilityPhase.Active) {
                 Owner.Velocity = _chargeDirection * _chargeSpeed;
+                // Rail Breaker runs BEFORE contact resolution so the broken
+                // projectile never applies its damage or on-hit effects.
+                TryBreakProjectile();
                 StrikeContacts();
             }
             base._PhysicsProcess(delta);
+        }
+
+        /// <summary>
+        /// Rail Breaker (Story-only traversal node, V7.6). Destroys at most one
+        /// breakable hostile projectile per activation, checked each active
+        /// frame until the single allowance is spent. Deliberately reads the
+        /// pooled projectile groups rather than a collision layer: beams,
+        /// persistent zones and environmental hazards never join those groups
+        /// and so can never be destroyed.
+        /// </summary>
+        private void TryBreakProjectile() {
+            if (Owner == null || RailBreakerSpent) return;
+            if (!Owner.HasStoryPerk(RailBreakerPerkKey)) return;
+            Vector2 offset = Data?.HitboxOffset ?? new Vector2(30f, 0f);
+            if (!Owner.IsFacingRight) offset.X = -offset.X;
+            Vector2 center = Owner.GlobalPosition + offset;
+            Vector2 extents = (Data?.HitboxSize ?? new Vector2(60, 50)) * 0.5f;
+
+            Godot.Collections.Array<Node> shots =
+                Owner.GetTree()?.GetNodesInGroup(FTT.Enemies.EnemyProjectile.GroupName);
+            if (shots == null) return;
+            using var lifetime = shots.AsDisposable();
+            foreach (Node node in shots) {
+                if (node is not FTT.Enemies.EnemyProjectile shot) continue;
+                if (!shot.IsBreakable || !shot.IsInsideTree()) continue;
+                Vector2 delta = shot.GlobalPosition - center;
+                if (Mathf.Abs(delta.X) > extents.X || Mathf.Abs(delta.Y) > extents.Y) continue;
+                shot.ReturnToPool();
+                RailBreakerSpent = true;
+                return;
+            }
         }
 
         /// <summary>

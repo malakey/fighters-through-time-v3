@@ -23,6 +23,18 @@ namespace FTT.Combat {
         /// <summary>Raised once at the impact position when a detonating projectile connects.</summary>
         public event System.Action<Vector2> Impacted;
 
+        /// <summary>
+        /// Package 11 A4 (Resonance V7.6). Authoring flag for Lincoln's Rail
+        /// Breaker traversal node: only a projectile marked breakable can be
+        /// destroyed by a Rail Charge. Beams, persistent zones and
+        /// environmental hazards carry no such flag and are never destroyed;
+        /// an unbreakable projectile resolves normally against his existing
+        /// armor. Default TRUE for ordinary enemy shots, which is the whole
+        /// class the design calls breakable; author false on a shot that must
+        /// survive a charge.
+        /// </summary>
+        public bool IsBreakable { get; set; } = true;
+
         private float _verticalVelocity;
         private float _arcGravity;
 

@@ -54,9 +54,11 @@ namespace FTT.Characters.Abilities {
             _tickInterval = (Data?.DamageTickIntervalFrames ?? 30) / 60f;
             if (_tickInterval <= 0f) _tickInterval = 0.5f;
             _ticksRemaining = Data?.IsMultiHit == true ? Mathf.Max(1, Data.HitCount) : 3;
-            // Story-only ZoneRadius minor ("Spiral Range +10%", leonardo_a2)
-            // widens the whole expansion; neutral 1f outside Story Mode.
-            float radiusScale = Owner.StoryZoneRadiusMultiplier;
+            // Package 11 A4: V7.6 re-scopes "Minor Spiral Range" from the
+            // character-wide ZoneRadius lane onto
+            // AbilityRange(leonardo_golden_ratio).
+            float radiusScale = Owner.StoryZoneRadiusMultiplier
+                * Owner.StoryScoped("AbilityRange", "leonardo_golden_ratio");
             float maxRadius = MaxRadiusPixels * radiusScale;
             // First tick lands immediately (next physics step); the spiral reaches
             // full radius by the final tick.
@@ -172,6 +174,15 @@ namespace FTT.Characters.Abilities {
 
         public const string ClockworkOverdrivePerkKey = "clockwork_overdrive";
 
+        /// <summary>
+        /// Story-only Resonance TRAVERSAL flag (V7.6, Tier 2): a deployed
+        /// Clockwork Turret can be picked up and RE-PLACED once. The re-place
+        /// moves the existing turret rather than deploying a second one, so it
+        /// never widens the deploy limit, and it keeps the turret's remaining
+        /// bolts and health - only its position changes. Once per turret.
+        /// </summary>
+        public const string ReplacementPerkKey = "turret_replacement";
+
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
         }
@@ -192,6 +203,12 @@ namespace FTT.Characters.Abilities {
                 return;
             }
 
+            // Re-placement (traversal node, V7.6): a live turret that still
+            // has its one allowance is PICKED UP and re-placed instead of
+            // being recycled for a fresh deploy. The deploy limit is untouched
+            // and the turret keeps its bolts and health.
+            if (Owner.HasStoryPerk(ReplacementPerkKey) && TryReplaceTurret()) return;
+
             int maxActive = Data.MaxActiveObjects > 0 ? Data.MaxActiveObjects : 1;
             while (CountActiveTurrets() >= maxActive) {
                 LeonardoTurretNode oldest = FindOldestTurret();
@@ -208,6 +225,23 @@ namespace FTT.Characters.Abilities {
 
             turret.Initialize(Data, Owner, Owner.HasStoryPerk(ClockworkOverdrivePerkKey));
             Owner.ActivePersistentObjects.Add(turret);
+        }
+
+        /// <summary>
+        /// Consumes a live turret's single re-placement allowance and moves it
+        /// to the new deploy position. Returns false when no live turret has an
+        /// allowance left, in which case the ordinary deploy path runs.
+        /// </summary>
+        private bool TryReplaceTurret() {
+            foreach (Node2D node in Owner.ActivePersistentObjects) {
+                if (node is not LeonardoTurretNode turret) continue;
+                if (!IsInstanceValid(turret) || turret.IsTurretDestroyed) continue;
+                if (!turret.TryConsumeReplacement()) continue;
+                turret.GlobalPosition =
+                    Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 70f : -70f, 0f);
+                return true;
+            }
+            return false;
         }
 
         private int CountActiveTurrets() {

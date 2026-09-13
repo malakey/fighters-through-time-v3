@@ -137,7 +137,11 @@ public class MirrorParadoxTests {
             SelectedCharacterID = MirroredCharacter,
             DepositedChronalDust = new Dictionary<string, int>(),
             GridProgress = new Dictionary<string, List<string>> {
-                [MirroredCharacter] = new() { "einstein_u1", "einstein_u2", "einstein_u3", "einstein_o1", "einstein_d1" }
+                [MirroredCharacter] = new() {
+                    // Package 11 A4: the V7.6 Einstein mesh node IDs.
+                    "einstein_momentum", "einstein_mass", "einstein_chalk_edge",
+                    "einstein_rift_range", "einstein_event_horizon"
+                }
             }
         };
 

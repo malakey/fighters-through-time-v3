@@ -1,106 +1,144 @@
-[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=12 format=3]
+[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/ResonanceGridData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Environment/ResonanceNodeData.cs" id="2"]
 
-[sub_resource type="Resource" id="C1"]
+[sub_resource type="Resource" id="N1"]
 script = ExtResource("2")
-NodeID = "tesla_c1"
-DisplayNameKey = "resonance_tesla_c1_name"
-DescriptionKey = "resonance_tesla_c1_description"
-UnlockCost = 50
-PrerequisiteNodeIDs = PackedStringArray()
-StatModifierKey = "PersistentDuration"
-StatModifierValue = 0.1
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="C2"]
-script = ExtResource("2")
-NodeID = "tesla_c2"
-DisplayNameKey = "resonance_tesla_c2_name"
-DescriptionKey = "resonance_tesla_c2_description"
-UnlockCost = 75
-PrerequisiteNodeIDs = PackedStringArray("tesla_c1")
-StatModifierKey = "PersistentRange"
-StatModifierValue = 0.15
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="C3"]
-script = ExtResource("2")
-NodeID = "tesla_c3"
-DisplayNameKey = "resonance_tesla_c3_name"
-DescriptionKey = "resonance_tesla_c3_description"
-Type = 1
-UnlockCost = 200
-PrerequisiteNodeIDs = PackedStringArray("tesla_c2")
-AbilityModifierKey = "resonant_overdrive"
-
-[sub_resource type="Resource" id="P1"]
-script = ExtResource("2")
-NodeID = "tesla_p1"
-DisplayNameKey = "resonance_tesla_p1_name"
-DescriptionKey = "resonance_tesla_p1_description"
-UnlockCost = 50
-PrerequisiteNodeIDs = PackedStringArray()
-StatModifierKey = "SpecialDamage"
-StatModifierValue = 0.1
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="P2"]
-script = ExtResource("2")
-NodeID = "tesla_p2"
-DisplayNameKey = "resonance_tesla_p2_name"
-DescriptionKey = "resonance_tesla_p2_description"
-UnlockCost = 75
-PrerequisiteNodeIDs = PackedStringArray("tesla_p1")
-StatModifierKey = "StatusDuration"
-StatModifierValue = 0.15
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="P3"]
-script = ExtResource("2")
-NodeID = "tesla_p3"
-DisplayNameKey = "resonance_tesla_p3_name"
-DescriptionKey = "resonance_tesla_p3_description"
-Type = 1
-UnlockCost = 200
-PrerequisiteNodeIDs = PackedStringArray("tesla_p2")
-AbilityModifierKey = "lorentz_attraction"
-
-[sub_resource type="Resource" id="W1"]
-script = ExtResource("2")
-NodeID = "tesla_w1"
-DisplayNameKey = "resonance_tesla_w1_name"
-DescriptionKey = "resonance_tesla_w1_description"
+SchemaVersion = 2
+NodeID = "tesla_conductivity"
+DisplayNameKey = "resonance_tesla_conductivity_name"
+DescriptionKey = "resonance_tesla_conductivity_description"
 UnlockCost = 50
 PrerequisiteNodeIDs = PackedStringArray()
 StatModifierKey = "MoveSpeed"
 StatModifierValue = 0.03
 StatModifierIsPercent = true
+Tier = 1
+LayoutPosition = Vector2(0.16, 0.22)
 
-[sub_resource type="Resource" id="W2"]
+[sub_resource type="Resource" id="N2"]
 script = ExtResource("2")
-NodeID = "tesla_w2"
-DisplayNameKey = "resonance_tesla_w2_name"
-DescriptionKey = "resonance_tesla_w2_description"
-UnlockCost = 75
-PrerequisiteNodeIDs = PackedStringArray("tesla_w1")
-StatModifierKey = "CooldownReduction"
-StatModifierValue = 0.1
+SchemaVersion = 2
+NodeID = "tesla_cane_edge"
+DisplayNameKey = "resonance_tesla_cane_edge_name"
+DescriptionKey = "resonance_tesla_cane_edge_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "BasicAttackDamage"
+StatModifierValue = 0.05
 StatModifierIsPercent = true
+Tier = 1
+LayoutPosition = Vector2(0.16, 0.78)
 
-[sub_resource type="Resource" id="W3"]
+[sub_resource type="Resource" id="N3"]
 script = ExtResource("2")
-NodeID = "tesla_w3"
-DisplayNameKey = "resonance_tesla_w3_name"
-DescriptionKey = "resonance_tesla_w3_description"
+SchemaVersion = 2
+NodeID = "tesla_conductive_hold"
+DisplayNameKey = "resonance_tesla_conductive_hold_name"
+DescriptionKey = "resonance_tesla_conductive_hold_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray("tesla_conductivity", "tesla_cane_edge")
+StatModifierKey = "AbilityDuration"
+AbilityScope = "conductive_finisher_mark"
+StatModifierValue = 0.666667
+StatModifierIsPercent = true
+AbilityModifierKey = "conductive_hold"
+Tier = 1
+GatedAbilityID = "special2"
+LayoutPosition = Vector2(0.34, 0.5)
+
+[sub_resource type="Resource" id="N4"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tesla_coil_duration"
+DisplayNameKey = "resonance_tesla_coil_duration_name"
+DescriptionKey = "resonance_tesla_coil_duration_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("tesla_conductivity")
+StatModifierKey = "AbilityDuration"
+AbilityScope = "tesla_coil"
+StatModifierValue = 0.333333
+StatModifierIsPercent = true
+Tier = 2
+GatedAbilityID = "special1"
+LayoutPosition = Vector2(0.5, 0.14)
+
+[sub_resource type="Resource" id="N5"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tesla_pulse_radius"
+DisplayNameKey = "resonance_tesla_pulse_radius_name"
+DescriptionKey = "resonance_tesla_pulse_radius_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("tesla_cane_edge")
+StatModifierKey = "AbilityRange"
+AbilityScope = "tesla_lorentz_pulse"
+StatModifierValue = 0.15
+StatModifierIsPercent = true
+Tier = 2
+GatedAbilityID = "special2"
+LayoutPosition = Vector2(0.5, 0.86)
+
+[sub_resource type="Resource" id="N6"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tesla_long_blink"
+DisplayNameKey = "resonance_tesla_long_blink_name"
+DescriptionKey = "resonance_tesla_long_blink_description"
+Type = 2
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("tesla_conductive_hold")
+AbilityModifierKey = "long_blink"
+Tier = 2
+GatedAbilityID = "movement"
+LayoutPosition = Vector2(0.58, 0.5)
+
+[sub_resource type="Resource" id="N7"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tesla_resonant_overdrive"
+DisplayNameKey = "resonance_tesla_resonant_overdrive_name"
+DescriptionKey = "resonance_tesla_resonant_overdrive_description"
 Type = 1
 UnlockCost = 200
-PrerequisiteNodeIDs = PackedStringArray("tesla_w2")
+PrerequisiteNodeIDs = PackedStringArray("tesla_coil_duration")
+AbilityModifierKey = "resonant_overdrive"
+Tier = 3
+GatedAbilityID = "special1"
+LayoutPosition = Vector2(0.84, 0.14)
+
+[sub_resource type="Resource" id="N8"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tesla_lorentz_attraction"
+DisplayNameKey = "resonance_tesla_lorentz_attraction_name"
+DescriptionKey = "resonance_tesla_lorentz_attraction_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("tesla_pulse_radius")
+AbilityModifierKey = "lorentz_attraction"
+Tier = 3
+GatedAbilityID = "special2"
+LayoutPosition = Vector2(0.84, 0.86)
+
+[sub_resource type="Resource" id="N9"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tesla_wardenclyffe_shield"
+DisplayNameKey = "resonance_tesla_wardenclyffe_shield_name"
+DescriptionKey = "resonance_tesla_wardenclyffe_shield_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("tesla_long_blink")
 AbilityModifierKey = "wardenclyffe_shield"
+Tier = 3
+GatedAbilityID = "special1"
+LayoutPosition = Vector2(0.88, 0.5)
 
 [resource]
 script = ExtResource("1")
+SchemaVersion = 2
 GridID = "tesla_resonance_grid"
 CharacterID = "tesla"
-Nodes = Array[ExtResource("2")]([SubResource("C1"), SubResource("C2"), SubResource("C3"), SubResource("P1"), SubResource("P2"), SubResource("P3"), SubResource("W1"), SubResource("W2"), SubResource("W3")])
+Nodes = Array[ExtResource("2")]([SubResource("N1"), SubResource("N2"), SubResource("N3"), SubResource("N4"), SubResource("N5"), SubResource("N6"), SubResource("N7"), SubResource("N8"), SubResource("N9")])

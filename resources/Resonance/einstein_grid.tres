@@ -1,105 +1,143 @@
-[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=12 format=3]
+[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/ResonanceGridData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Environment/ResonanceNodeData.cs" id="2"]
 
-[sub_resource type="Resource" id="U1"]
+[sub_resource type="Resource" id="N1"]
 script = ExtResource("2")
-NodeID = "einstein_u1"
-DisplayNameKey = "resonance_einstein_u1_name"
-DescriptionKey = "resonance_einstein_u1_description"
+SchemaVersion = 2
+NodeID = "einstein_momentum"
+DisplayNameKey = "resonance_einstein_momentum_name"
+DescriptionKey = "resonance_einstein_momentum_description"
 UnlockCost = 50
 PrerequisiteNodeIDs = PackedStringArray()
 StatModifierKey = "MoveSpeed"
 StatModifierValue = 0.02
 StatModifierIsPercent = true
+Tier = 1
+LayoutPosition = Vector2(0.15, 0.2)
 
-[sub_resource type="Resource" id="U2"]
+[sub_resource type="Resource" id="N2"]
 script = ExtResource("2")
-NodeID = "einstein_u2"
-DisplayNameKey = "resonance_einstein_u2_name"
-DescriptionKey = "resonance_einstein_u2_description"
-UnlockCost = 75
-PrerequisiteNodeIDs = PackedStringArray("einstein_u1")
-StatModifierKey = "ZoneRadius"
-StatModifierValue = 0.1
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="U3"]
-script = ExtResource("2")
-NodeID = "einstein_u3"
-DisplayNameKey = "resonance_einstein_u3_name"
-DescriptionKey = "resonance_einstein_u3_description"
-Type = 1
-UnlockCost = 200
-PrerequisiteNodeIDs = PackedStringArray("einstein_u2")
-AbilityModifierKey = "event_horizon"
-
-[sub_resource type="Resource" id="O1"]
-script = ExtResource("2")
-NodeID = "einstein_o1"
-DisplayNameKey = "resonance_einstein_o1_name"
-DescriptionKey = "resonance_einstein_o1_description"
+SchemaVersion = 2
+NodeID = "einstein_chalk_edge"
+DisplayNameKey = "resonance_einstein_chalk_edge_name"
+DescriptionKey = "resonance_einstein_chalk_edge_description"
 UnlockCost = 50
 PrerequisiteNodeIDs = PackedStringArray()
-StatModifierKey = "SpecialDamage"
+StatModifierKey = "BasicAttackDamage"
 StatModifierValue = 0.05
 StatModifierIsPercent = true
+Tier = 1
+LayoutPosition = Vector2(0.15, 0.5)
 
-[sub_resource type="Resource" id="O2"]
+[sub_resource type="Resource" id="N3"]
 script = ExtResource("2")
-NodeID = "einstein_o2"
-DisplayNameKey = "resonance_einstein_o2_name"
-DescriptionKey = "resonance_einstein_o2_description"
-UnlockCost = 75
-PrerequisiteNodeIDs = PackedStringArray("einstein_o1")
-StatModifierKey = "ProjectileSpeed"
-StatModifierValue = 0.1
-StatModifierIsPercent = true
-
-[sub_resource type="Resource" id="O3"]
-script = ExtResource("2")
-NodeID = "einstein_o3"
-DisplayNameKey = "resonance_einstein_o3_name"
-DescriptionKey = "resonance_einstein_o3_description"
-Type = 1
-UnlockCost = 200
-PrerequisiteNodeIDs = PackedStringArray("einstein_o2")
-AbilityModifierKey = "critical_mass"
-
-[sub_resource type="Resource" id="D1"]
-script = ExtResource("2")
-NodeID = "einstein_d1"
-DisplayNameKey = "resonance_einstein_d1_name"
-DescriptionKey = "resonance_einstein_d1_description"
+SchemaVersion = 2
+NodeID = "einstein_mass"
+DisplayNameKey = "resonance_einstein_mass_name"
+DescriptionKey = "resonance_einstein_mass_description"
 UnlockCost = 50
 PrerequisiteNodeIDs = PackedStringArray()
 StatModifierKey = "MaxHP"
-StatModifierValue = 15.0
+StatModifierValue = 15
+Tier = 1
+LayoutPosition = Vector2(0.15, 0.8)
 
-[sub_resource type="Resource" id="D2"]
+[sub_resource type="Resource" id="N4"]
 script = ExtResource("2")
-NodeID = "einstein_d2"
-DisplayNameKey = "resonance_einstein_d2_name"
-DescriptionKey = "resonance_einstein_d2_description"
+SchemaVersion = 2
+NodeID = "einstein_extended_float"
+DisplayNameKey = "resonance_einstein_extended_float_name"
+DescriptionKey = "resonance_einstein_extended_float_description"
+Type = 2
 UnlockCost = 75
-PrerequisiteNodeIDs = PackedStringArray("einstein_d1")
-StatModifierKey = "BlockDurability"
+PrerequisiteNodeIDs = PackedStringArray("einstein_momentum", "einstein_mass")
+PrerequisiteMode = 1
+AbilityModifierKey = "extended_float"
+Tier = 2
+GatedAbilityID = "movement"
+LayoutPosition = Vector2(0.5, 0.2)
+
+[sub_resource type="Resource" id="N5"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "einstein_rift_range"
+DisplayNameKey = "resonance_einstein_rift_range_name"
+DescriptionKey = "resonance_einstein_rift_range_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("einstein_chalk_edge", "einstein_momentum")
+PrerequisiteMode = 1
+StatModifierKey = "AbilityRange"
+AbilityScope = "relativity_rift"
 StatModifierValue = 0.1
 StatModifierIsPercent = true
+Tier = 2
+GatedAbilityID = "special2"
+LayoutPosition = Vector2(0.5, 0.5)
 
-[sub_resource type="Resource" id="D3"]
+[sub_resource type="Resource" id="N6"]
 script = ExtResource("2")
-NodeID = "einstein_d3"
-DisplayNameKey = "resonance_einstein_d3_name"
-DescriptionKey = "resonance_einstein_d3_description"
+SchemaVersion = 2
+NodeID = "einstein_rally_resonance"
+DisplayNameKey = "resonance_einstein_rally_resonance_name"
+DescriptionKey = "resonance_einstein_rally_resonance_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("einstein_mass", "einstein_chalk_edge")
+PrerequisiteMode = 1
+StatModifierKey = "RallyEchoFraction"
+StatModifierValue = 0.1
+StatModifierIsPercent = true
+Tier = 2
+LayoutPosition = Vector2(0.5, 0.8)
+
+[sub_resource type="Resource" id="N7"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "einstein_event_horizon"
+DisplayNameKey = "resonance_einstein_event_horizon_name"
+DescriptionKey = "resonance_einstein_event_horizon_description"
 Type = 1
 UnlockCost = 200
-PrerequisiteNodeIDs = PackedStringArray("einstein_d2")
+PrerequisiteNodeIDs = PackedStringArray("einstein_rift_range", "einstein_rally_resonance")
+PrerequisiteMode = 1
+AbilityModifierKey = "event_horizon"
+Tier = 3
+GatedAbilityID = "special2"
+LayoutPosition = Vector2(0.85, 0.2)
+
+[sub_resource type="Resource" id="N8"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "einstein_critical_mass"
+DisplayNameKey = "resonance_einstein_critical_mass_name"
+DescriptionKey = "resonance_einstein_critical_mass_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("einstein_rift_range", "einstein_extended_float")
+PrerequisiteMode = 1
+AbilityModifierKey = "critical_mass"
+Tier = 3
+GatedAbilityID = "special1"
+LayoutPosition = Vector2(0.85, 0.5)
+
+[sub_resource type="Resource" id="N9"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "einstein_quantum_entanglement"
+DisplayNameKey = "resonance_einstein_quantum_entanglement_name"
+DescriptionKey = "resonance_einstein_quantum_entanglement_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("einstein_extended_float", "einstein_rally_resonance")
+PrerequisiteMode = 1
 AbilityModifierKey = "quantum_entanglement"
+Tier = 3
+LayoutPosition = Vector2(0.85, 0.8)
 
 [resource]
 script = ExtResource("1")
+SchemaVersion = 2
 GridID = "einstein_resonance_grid"
 CharacterID = "einstein"
-Nodes = Array[ExtResource("2")]([SubResource("U1"), SubResource("U2"), SubResource("U3"), SubResource("O1"), SubResource("O2"), SubResource("O3"), SubResource("D1"), SubResource("D2"), SubResource("D3")])
+Nodes = Array[ExtResource("2")]([SubResource("N1"), SubResource("N2"), SubResource("N3"), SubResource("N4"), SubResource("N5"), SubResource("N6"), SubResource("N7"), SubResource("N8"), SubResource("N9")])

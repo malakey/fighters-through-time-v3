@@ -95,4 +95,47 @@ public class ResonanceRespecTests {
         AssertThat(ResonanceProgression.RespecAll(grid, save)).IsEqual(0);
         AssertThat(save.DepositedChronalDust["einstein"]).IsEqual(75);
     }
+
+    /// <summary>
+    /// Package 11 A4 (F08). The one-time, versioned, FREE respec a pre-V7.6
+    /// save gets on load. V7.6 re-authored every node ID in every grid, so the
+    /// migration generalizes F08's Shakespeare case to all nine characters:
+    /// drop every purchase whose node no longer exists and refund exactly its
+    /// recorded paid cost, once. Campaign progress and undeposited earnings are
+    /// untouched, and a missing node is never granted for free.
+    /// </summary>
+    [TestCase]
+    public void TheF08MigrationRefundsEveryRetiredPurchaseOnceAndGrantsNothingFree() {
+        var save = new StorySaveData {
+            SelectedCharacterID = "shakespeare",
+            CurrentLevelID = "res://scenes/campaign/Level_11_Gettysburg.tscn",
+            LevelChronalDust = 40
+        };
+        save.DepositedChronalDust["shakespeare"] = 25;
+        // A pre-F08 Shakespeare build: a Major plus two retired minors,
+        // 200 + 50 + 75 = 325.
+        save.GridProgress["shakespeare"] = new List<string> {
+            "shakespeare_t3", "shakespeare_t1", "shakespeare_c2"
+        };
+
+        int refunded = ResonanceProgression.MigrateGridProgressToV76(save);
+
+        AssertThat(refunded).IsEqual(325);
+        AssertThat(save.DepositedChronalDust["shakespeare"]).IsEqual(350);
+        AssertThat(save.GridProgress["shakespeare"].Count).IsEqual(0);
+        // Campaign progress and undeposited earnings survive untouched.
+        AssertThat(save.CurrentLevelID).IsEqual("res://scenes/campaign/Level_11_Gettysburg.tscn");
+        AssertThat(save.LevelChronalDust).IsEqual(40);
+
+        // Nothing is granted for free: the refunded dust must be spent again
+        // through the ordinary evaluator, and the new Act III Major still
+        // needs all three Act II prerequisites.
+        ResonanceGridData grid = ResonanceProgression.LoadGrid("shakespeare");
+        AssertThat(ResonanceProgression.EvaluateUnlock(grid, save, "shakespeare_macbeths_curse"))
+            .IsEqual(ResonanceUnlockResult.MissingPrerequisite);
+
+        // Idempotent: running it again refunds nothing.
+        AssertThat(ResonanceProgression.MigrateGridProgressToV76(save)).IsEqual(0);
+        AssertThat(save.DepositedChronalDust["shakespeare"]).IsEqual(350);
+    }
 }

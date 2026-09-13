@@ -22,6 +22,21 @@ namespace FTT.Environment {
         /// <summary>V7 idle cycle: the safe window in which attacks are free.</summary>
         [Export] public float SafeWindowSeconds = 4.0f;
 
+        /// <summary>The scene-tree group every live Extractor joins.</summary>
+        public const string GroupName = "chronal_extractor";
+
+        /// <summary>
+        /// Package 11 A4 (Resonance V7.6). The sanctioned indirect channel
+        /// between a grid and the Timeline Integrity timer: Leonardo's
+        /// Clockwork Overdrive bolts double against an Extractor, Lincoln's
+        /// Kinetic Splitting adds 50%, and the generic <c>ExtractorDamage</c>
+        /// lane rides on top. Story-only - a null attacker (enemy, hazard,
+        /// Fighter body) resolves neutral.
+        /// </summary>
+        protected override float ResolveIncomingDamageMultiplier(in FTT.Combat.HitPayload payload) =>
+            StoryExtractorDamage.ExtractorMultiplier(
+                FindAttackingPlayer(payload.AttackerIndex), payload.AttackID ?? "");
+
         private Area2D _hazardArea;
         private bool _telegraphing;
         private float _cycleTimer;
@@ -58,7 +73,7 @@ namespace FTT.Environment {
             MaxHP = 100;
             HitsToBreak = 0;
             base._Ready();
-            AddToGroup("chronal_extractor");
+            AddToGroup(GroupName);
             _hazardArea = GetNodeOrNull<Area2D>("HazardArea");
             _telegraphing = false;
             _cycleTimer = SafeWindowSeconds;

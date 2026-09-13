@@ -86,7 +86,13 @@ namespace FTT.Combat {
                 AttackID = AttackID ?? "",
                 HitboxID = HitboxID ?? "primary",
                 AttackClass = AttackClass,
-                Damage = Mathf.Max(0f, Damage) * (SourcePlayer?.StoryTemporaryDamageMultiplier ?? 1f),
+                // Package 11 A4: the V7.6 ability-scoped AbilityDamage lane
+                // applies to every hit an ability authors, keyed by its
+                // AttackID (which is the AbilityID everywhere in the kit code).
+                // Neutral 1.0 for basics, enemies and Fighter Mode.
+                Damage = Mathf.Max(0f, Damage)
+                    * (SourcePlayer?.StoryTemporaryDamageMultiplier ?? 1f)
+                    * (SourcePlayer?.StoryScoped("AbilityDamage", AttackID ?? "") ?? 1f),
                 Knockback = KnockbackForce * (SourcePlayer?.StoryKnockbackMultiplier ?? 1f),
                 HitstunDuration = Mathf.Max(0f, HitstunDuration),
                 HitOrigin = GlobalPosition,
@@ -95,12 +101,31 @@ namespace FTT.Combat {
                 StatusDuration = Mathf.Max(0f, StatusDuration)
                     * (SourcePlayer?.StoryStatusDurationMultiplier ?? 1f),
                 StatusIntensity = (StatusIntensity <= 0f ? 1f : StatusIntensity)
-                    * (damagingStatus ? SourcePlayer?.StoryStatusIntensityMultiplier ?? 1f : 1f),
+                    * (damagingStatus ? SourcePlayer?.StoryStatusIntensityMultiplier ?? 1f : 1f)
+                    * ResolveScopedStatusIntensity(),
                 ScreenShakeIntensity = Mathf.Max(0f, ScreenShakeIntensity),
                 ScreenShakeDuration = Mathf.Max(0f, ScreenShakeDuration),
                 BlockChargeCost = Mathf.Max(0, BlockChargeCost),
                 Unblockable = Unblockable
             };
+        }
+
+        /// <summary>
+        /// Package 11 A4 (Resonance V7.6). Cleopatra's two Venom minors are
+        /// ability-SCOPED, so they cannot ride the character-wide
+        /// StatusIntensity lane. Minor Asp Mark scales only the basic
+        /// finisher's Venom mark (0.5 -> 0.75 at +50%); Minor Venom Damage
+        /// scales every Venom tick. BasicComboRules is cross-mode and stays
+        /// read-only - the Story multiplier is applied HERE, at the hit
+        /// application site, exactly as the plan requires.
+        /// </summary>
+        private float ResolveScopedStatusIntensity() {
+            if (SourcePlayer == null || AppliedStatus != FTT.Core.StatusType.Venom) return 1f;
+            float scale = SourcePlayer.StoryScoped("AbilityDamage", "venom");
+            if ((HitboxID ?? "") == "combo_3") {
+                scale *= SourcePlayer.StoryScoped("AbilityDamage", "finisher_venom");
+            }
+            return scale;
         }
 
         private void OnAreaEntered(Area2D area) {
@@ -115,6 +140,12 @@ namespace FTT.Combat {
             HitPayload payload = CreatePayload(hurtbox.OwnerPlayerIndex);
             float damageApplied = hurtbox.TakeHit(payload);
             if (damageApplied > 0f) SourcePlayer?.AddInfluenceFromDamageDealt(damageApplied);
+            // Package 11 A4: the shared Story "a hit of mine landed" hook the
+            // V7.6 traversal flags read (Joan's Wings Refresh). Runs for every
+            // Hitbox-delivered hit - melee, special and pooled projectile -
+            // which is exactly the design's "a direct Hit 3 or Righteous Smite
+            // hit" surface without a second chokepoint.
+            if (damageApplied > 0f) SourcePlayer?.NotifyStoryHitLanded(payload);
             HitConfirmed?.Invoke(payload, damageApplied);
         }
 

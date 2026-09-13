@@ -131,6 +131,24 @@ namespace FTT.Combat {
             _owner.RechargeStoryShield(capacity);
         }
 
+        /// <summary>
+        /// Package 11 A4 (Shield of Orleans, V7.6 F06 Option A). Hands back
+        /// shield charges without touching the stance, the shieldstun window,
+        /// a running daze or the shatter lockout - Joan's Guard-Crush refund
+        /// runs AFTER normal consumption and after any shatter, so a refunded
+        /// charge still sits behind <see cref="CanRaiseStance"/>'s lockout
+        /// check and is deliberately unusable until that lockout ends. Clamped
+        /// to <paramref name="cap"/> (never above <see cref="MaxCharges"/>).
+        /// </summary>
+        public void RefundCharges(int count, int cap) {
+            if (count <= 0) return;
+            int ceiling = Mathf.Min(Mathf.Max(0, cap), Mathf.Max(0, MaxCharges));
+            int refunded = Mathf.Min(ceiling, CurrentCharges + count);
+            if (refunded == CurrentCharges) return;
+            CurrentCharges = refunded;
+            RaiseChargesChanged();
+        }
+
         public void ApplyStockReset() {
             CurrentCharges = Mathf.Max(0, MaxCharges);
             _regenTimer = 0f;

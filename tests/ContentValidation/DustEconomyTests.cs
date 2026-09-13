@@ -55,8 +55,13 @@ public class DustEconomyTests {
                     AssertThat(node.UnlockCost).IsEqual(MajorCost);
                 } else {
                     minorCosts.Add(node.UnlockCost);
+                    // Package 11 A4: V7.6 breaks the old "Tier 1 has no
+                    // prerequisites" inference in four grids (Joan, Leonardo,
+                    // Tesla, Lincoln all author a Tier 1 node behind a
+                    // prerequisite), so the curve is checked against the
+                    // explicit Tier field the node now carries.
                     AssertThat(node.UnlockCost).IsEqual(
-                        node.PrerequisiteNodeIDs.Length == 0 ? TierOneCost : TierTwoCost);
+                        node.Tier == 1 ? TierOneCost : TierTwoCost);
                 }
             }
 

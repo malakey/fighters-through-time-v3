@@ -82,6 +82,13 @@ namespace FTT.Characters {
 				player.StoryPersistentHealthMultiplier = storyStats.PersistentHealthMultiplier;
 				player.StoryStatusDurationMultiplier = storyStats.StatusDurationMultiplier;
 				player.StoryStatusIntensityMultiplier = storyStats.StatusIntensityMultiplier;
+				// Package 11 A4 (Resonance V7.6): three new character-wide lanes
+				// plus the one scoped bucket - a single assignment instead of
+				// six-times-N hand-copied fields.
+				player.StoryRallyEchoFractionMultiplier = storyStats.RallyEchoFractionMultiplier;
+				player.StoryUltimateBuildRateMultiplier = storyStats.UltimateBuildRateMultiplier;
+				player.StoryExtractorDamageMultiplier = storyStats.ExtractorDamageMultiplier;
+				player.StoryScopedStats = new FTT.Environment.ScopedStoryStats(storyStats.ScopedMultipliers);
 				FTT.Environment.ResonanceProgression.TryCollectActiveAbilityModifiers(
 					characterID, player.StoryAbilityPerks);
 			}
