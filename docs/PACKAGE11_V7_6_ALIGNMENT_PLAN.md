@@ -4994,3 +4994,99 @@ count change: the three Open stages' `SceneMirrorsItsAuthoredFixedPointGeometry`
 cases, Paris's collider count (3 → `FloorSegments.Length + 2`), the locked dossier rows, the orb
 anchor support rule, the common bounds contract, the legacy-flat-arena ledge sweep, and
 `JumpAndLandOnPlatform`, which now has to leap Paris's courtyard to reach the right walkway.
+### A5 — Legacy Unlock Schedule, ability slot locks, rebuilt Level 0, dialogue mechanisms (2026-09-13)
+**The Legacy Unlock gate installs only where a Story save exists, and "no active save" deliberately
+means "no gate" rather than "everything dormant".**
+`CharacterFactory.ResolveStoryUnlockedSlots` returns `null` — no locks — when `SaveManager`,
+`GameManager` or the active slot is missing, and `CharacterFactory` skips
+`PlayerController.ApplyLegacyUnlockLocks` entirely on the `applyStoryProgression: false` seam. The
+alternative reading (lock everything when no save is present) would have broken the Test Arena, every
+Story unit test that spawns a character, and the 2026-08-15 developer level select, which sets
+`ActiveSaveSlot = -1` precisely so a debug launch cannot touch a campaign — a dev launch into Level 9
+would have arrived with a Level 0 kit. A real campaign always carries its slot, so the gate always
+installs where the design cares. Pinned by `LegacyUnlockScheduleTests`
+(`TheFighterHolodeckAndDrillPathsAlwaysBuildTheFullKit`,
+`AGatedControllerRefusesTheFourSlotsAndAnUngatedOneRefusesNothing`).
+**The persisted unlock payload is the per-character dictionary from §2.6, not recon B3's flat list.**
+`StorySaveData.UnlockedLegacyAbilities` is `Dictionary<string, List<string>>` keyed by character ID
+with the `movement` / `special1` / `special2` / `ultimate` slot keys, per plan §2.6's owner table.
+Recon B §B3's change list says `List<string>`; the plan is the later, more specific ruling, and a
+save's hero is recorded per slot, so the dictionary is also the shape that survives a re-rolled slot.
+`StoryManager.GrantLegacyUnlockMilestone` additionally **backfills** from `CompletedLevels` on every
+grant, so a v5 payload (or one whose milestone write was lost) catches up without a migration step
+and the two sources can never disagree.
+**Milestones are matched on the `level_NN` prefix, and a trailing letter disqualifies the match.**
+`LegacyUnlockSchedule.LevelNumberOf` reads the two digits after `level_`, so the era suffix
+(`_orleans`, `_chicago`) is free to change without touching the schedule — but `level_04a_<hero>`
+returns `-1`. Level 4A is the first FULL-kit level, entered after Level 4 already granted the
+Ultimate; it must never grant or pre-grant a milestone. Pinned by
+`LevelIdsResolveTheirMilestoneAndFourAGrantsNothing`.
+**The Ultimate's "Resonance Restored" beat is deferred, not suppressed.**
+`StoryManager.ShouldPlayResonanceRestoredOnResults` is false for `AbilitySlot.Ultimate`, and
+`TryConsumeDeferredResonanceRestored(out slot)` hands it to Level 4A's entry exactly once (A12
+consumes it). The flag lives on the autoload, so it survives the hub visit between Level 4 and 4A but
+not a quit-and-relaunch; 4A can fall back on "the Ultimate is unlocked and this is 4A" if a stronger
+guarantee is wanted. Pinned by `TheUltimateBeatIsDeferredToFourAEntryRatherThanLevelFoursResults`.
+**The calibration enum keeps A2's two rewind step names, and only re-orders around them.**
+The delivered order is `BasicHits, RallyReclaim, Block, Grab, HitstunDI, LandingTech, MeterAndDefy,
+UseRewind, UseManualRewind, Done`. The dossier spells the last three `DeathRewind, TimeFreeze, Done`;
+A2 owns that region and performs the `UseManualRewind` → `UseTimeFreeze` rename itself, so renaming
+them here would have produced a pure merge conflict for no behavioural gain. `UseSpecial` and
+`UseUltimate` and their two Register methods are deleted, which is the part that mattered.
+**Level 0's grab dummy is a frozen standard-tier drone, not the `TrainingDummy`.**
+`PlayerController.FindGrabbableEnemy` scans the `"Enemies"` group for `EnemyController`s, and
+`TrainingDummy` is a bare `CharacterBody2D` — it can never be grabbed. `BeginGrabLesson` therefore
+spawns a `hologram_drone` beside the dummy and holds it in `SetStoryRewindFrozen(true)` (the existing
+"present but inert" state: no AI, no attacks, no motion), releasing the freeze the instant the grab
+connects so the throw plays out normally. Its "shield" is a `Level00Controller`-owned guard flag that
+restores the drone's HP on every swing — the designed read (everything absorbed, prompt re-shown)
+without editing `EnemyController`, which is A1's exclusive file this wave. No `EnemyData` was touched.
+**The teaching launch is free because it never enters the hit pipeline at all.**
+`PlayerController.ApplyTutorialScriptedLaunch` (A5's region) applies the stun, the impulse, the
+stashed pending launch and the extended hitstop directly. It calls neither `OnHurtboxHit` nor
+`ApplyDamage`, so there is no HP loss to echo, no meter to earn and no death to spend a rewind
+charge on — which is the "no HP, no Rally accounting, no rewind charge" rule by construction rather
+than a set of subtractions after the fact. Pinned by `TheScriptedLaunchCostsNoHpNoRallyEchoAndNoMeter`.
+**The first tech attempt's "slowed approach" is bought with hitstop, not a global time scale.**
+`Level00Controller.FirstTechApproachFreezeFrames` (24) applies one extra freeze as the first fall
+steepens. Writing `Engine.TimeScale` would have slowed the dialogue layer, the HUD and the audio
+mixer along with the fall, and would not have been restorable from a mid-beat scene change.
+**"Tech at 0 block charges" is pinned as an independence claim, not an end-to-end tech.**
+Driving a real landing tech needs a floor, gravity and several seconds of physics; instead
+`TheTumbleAndItsTechAreIndependentOfTheBlockChargePool` drains the shield to zero, proves
+`BlockSystem.CanRaiseStance` is false, and proves the scripted launch still arms a techable tumble.
+The V7.3 rule it rests on — the tech reads the raw Block input, not the stance — is already pinned by
+the V7.3 block-model suite. A human playthrough of Level 0 remains the only full check of the beat.
+**Four retired tutorial rows were deleted from `en.csv` rather than added to the orphan roster.**
+`tutorial_step_special`, `tutorial_step_ultimate`, `tutorial_step_movement` and
+`tutorial_gate_movement` describe lessons that no longer exist. §2.11 allows either deletion in the
+same change or a roster entry; deletion keeps `UnusedTranslationKeyTests` at its existing ceiling and
+leaves nothing for A6 to inherit. `TutorialCalibrationContentTests`' required-key list was rewritten
+in place to name the eight new `# Package 11 A5` tutorial keys instead.
+**`level_00.ultimate_intro` is retained as the Meter & Defy beat's sequence ID.**
+Per §2.3 identifier retention the dialogue ID, its `dlg_l00_ultimate_1` line key and its `.tres` entry
+are unchanged; only the beat behind it changed, from "cast your Ultimate" to "a full meter can refuse
+death once". **A6 must rewrite that sequence's English against the Defy beat**, and Level 0's
+`level_00.mobility_intro` still instructs the player about the Movement-Ability corridor that V7.6
+deleted.
+**A5 declares `OnDefySealChanged` and publishes only the tutorial's forced states.**
+Per §2.9 the enum and payload are declared in `EventBus.cs` now; `Level00Controller` raises `Ready`
+before the scripted lethal hit and `Spent` after it. **A1b takes over as the general publisher in
+Wave 2** and must not re-declare the type. `AbilitySlotLockPayload` / `AbilitySlotLockState` are
+likewise declared here; A5 publishes `Dormant` and `Clear`, A1 publishes `Suppressed`.
+**`CharacterFactory.ResolveStoryUnlockedSlots` is public so the Move List reads the same resolver.**
+`MoveListScreen` needs the same answer the factory computes, and duplicating the save read would have
+created a second canonical resolution of "what has this campaign earned". The one consequence is that
+a UI file now calls into `FTT.Characters`, which it already did for `CharacterData`.
+**Levels 1–4 route reachability was NOT re-audited against the locked kit.**
+The dossier's item 6 asks for an audit of Levels 1–4 without the not-yet-unlocked abilities. Level 0's
+own Part 3 was re-authored (its movement corridor is deleted, leaving double jump → roll), but Levels
+1–4 were left untouched: that geometry lives in files A3/A3b own this package and editing it here
+would collide. **Open, owner Unassigned** — acceptance is a walk of the four levels' required routes
+with only basics, Block, Rally, the death rewind and Time Freeze available. Level 1 is documented as
+authored for base jump reach and Level 2 Orléans is designed *around* the Movement Ability (which it
+legitimately has, granted by Level 1's completion), so the risk concentrates in Levels 3 and 4.
+**The `--import`-regenerated `localization/en.en.translation` is deliberately NOT committed** (§2.11):
+the orchestrator regenerates it once per wave. `ScriptTranslationKeyTests`, `SceneVisibleTextTests`
+and `UnusedTranslationKeyTests` were verified green locally against a freshly imported translation
+and will only be green in other checkouts after that import.

@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using System;
 using System.Collections.Generic;
 using FTT.Characters.Abilities;
@@ -38,6 +38,41 @@ namespace FTT.Characters {
 		/// </summary>
 		public static bool IsKnownCharacter(string characterID) =>
 			!string.IsNullOrEmpty(characterID) && Visuals.ContainsKey(characterID);
+
+		/// <summary>
+		/// Package 11 A5: the ability slots the active story save has restored
+		/// for <paramref name="characterID"/>, or <c>null</c> when there is no
+		/// active story save at all.
+		///
+		/// <para>Null means "install no gate". That is deliberate and is the
+		/// correct reading for the Test Arena, a unit test, and the developer
+		/// level select (which sets <c>ActiveSaveSlot = -1</c> precisely so no
+		/// real campaign can be written): a debug launch straight into Level 9
+		/// must not arrive with a Level-0 kit. A real campaign always has its
+		/// slot, so the gate always installs where it matters.</para>
+		/// </summary>
+		public static HashSet<AbilitySlot> ResolveStoryUnlockedSlots(string characterID) {
+			SaveManager saveManager = SaveManager.Instance;
+			GameManager gameManager = GameManager.Instance;
+			if (saveManager == null || gameManager == null) return null;
+			int slotIndex = gameManager.CurrentSession.ActiveSaveSlot;
+			if (slotIndex < 0 || slotIndex >= saveManager.SaveSlots.Length) return null;
+			StorySaveData save = saveManager.SaveSlots[slotIndex];
+			if (save == null) return null;
+
+			var slots = new HashSet<AbilitySlot>();
+			if (save.UnlockedLegacyAbilities != null
+				&& save.UnlockedLegacyAbilities.TryGetValue(characterID, out List<string> keys)) {
+				slots.UnionWith(LegacyUnlockSchedule.SlotsFromSavedKeys(keys));
+			}
+			// Backstop for a payload written before the schedule existed: the
+			// completed-level history is the same source of truth the milestone
+			// grant uses, so the two can never disagree.
+			foreach (AbilitySlot slot in LegacyUnlockSchedule.GatedSlots) {
+				if (LegacyUnlockSchedule.IsUnlocked(slot, save.CompletedLevels)) slots.Add(slot);
+			}
+			return slots;
+		}
 
 		public static PlayerController CreateCharacter(string characterID, int playerIndex = 0, bool applyStoryProgression = true) {
 			// Pinned, not GD.Load: a character .tres pulls in four AbilityData
@@ -84,6 +119,14 @@ namespace FTT.Characters {
 				player.StoryStatusIntensityMultiplier = storyStats.StatusIntensityMultiplier;
 				FTT.Environment.ResonanceProgression.TryCollectActiveAbilityModifiers(
 					characterID, player.StoryAbilityPerks);
+			}
+			// Package 11 A5 (V7.5 Legacy Unlock Schedule). Story-only: the
+			// applyStoryProgression: false seam — Fighter Mode, the hub
+			// Holodeck, the Calibration Drills and the Mirror Paradox clone —
+			// never installs the gate, so those paths always run the full kit.
+			if (applyStoryProgression) {
+				HashSet<AbilitySlot> unlocked = ResolveStoryUnlockedSlots(characterID);
+				if (unlocked != null) player.ApplyLegacyUnlockLocks(unlocked);
 			}
 
 			var bodyShape = new CollisionShape2D { Name = "CollisionShape2D", Position = new Vector2(0, -32) };

@@ -24,7 +24,12 @@ namespace FTT.UI {
         private Label _integrityLabel;
         private Label _secretsLabel;
         private Label _ratingLabel;
+        /// <summary>Package 11 A5: the V7.5 "Resonance Restored" unlock beat.</summary>
+        private Label _resonanceRestoredLabel;
         private Button _returnButton;
+
+        /// <summary>The Resonance Restored line, for the A5 pin. Test seam.</summary>
+        internal Label ResonanceRestoredLine => _resonanceRestoredLabel;
 
         /// <summary>
         /// Instantiates the authored results scene. Package 8 B1 removed the
@@ -122,6 +127,9 @@ namespace FTT.UI {
         /// run produced them (Fighter-adjacent tests, bare panels).
         /// </summary>
         private void ShowTimelineLines() {
+            // Package 11 A5: every ShowResults overload funnels through here, so
+            // the unlock beat is wired once.
+            ShowResonanceRestoredBeat();
             FTT.Core.StoryManager story = FTT.Core.StoryManager.Instance;
             if (story == null) {
                 SetLineVisible(_integrityLabel, false);
@@ -174,7 +182,59 @@ namespace FTT.UI {
                 _integrityLabel = AppendResultLine(layout, "IntegrityLine");
                 _secretsLabel = AppendResultLine(layout, "SecretsLine");
                 _ratingLabel = AppendResultLine(layout, "RatingLine");
+                _resonanceRestoredLabel = AppendResultLine(layout, "ResonanceRestoredLine");
+                _resonanceRestoredLabel.AddThemeColorOverride("font_color", UIPalette.TextAccent);
             }
+        }
+
+        // === Package 11 A5: the V7.5 "Resonance Restored" beat ==============
+
+        /// <summary>
+        /// Names the ability this level's completion restored. Level 4's grant
+        /// is deliberately silent here — the Ultimate's beat plays on Level 4A's
+        /// entry instead (StoryManager.TryConsumeDeferredResonanceRestored), so
+        /// the first full-kit level opens on it.
+        /// </summary>
+        private void ShowResonanceRestoredBeat() {
+            if (_resonanceRestoredLabel == null) return;
+            FTT.Core.StoryManager story = FTT.Core.StoryManager.Instance;
+            if (story == null || !story.ShouldPlayResonanceRestoredOnResults) {
+                _resonanceRestoredLabel.Visible = false;
+                return;
+            }
+            _resonanceRestoredLabel.Text = string.Format(
+                Tr("results_resonance_restored"), ResolveRestoredAbilityName(story.LastLegacyUnlockSlot.Value));
+            _resonanceRestoredLabel.Visible = true;
+        }
+
+        /// <summary>
+        /// The restored ability's authored display name — the resource owns it,
+        /// so the beat can never disagree with the Move List. Falls back to the
+        /// slot label when the character data is unavailable.
+        /// </summary>
+        private static string ResolveRestoredAbilityName(FTT.Core.AbilitySlot slot) {
+            string slotKey = slot switch {
+                FTT.Core.AbilitySlot.Special1 => "movelist_slot_special1",
+                FTT.Core.AbilitySlot.Special2 => "movelist_slot_special2",
+                FTT.Core.AbilitySlot.MovementAbility => "movelist_slot_movement",
+                _ => "movelist_slot_ultimate"
+            };
+            string characterID = FTT.Core.GameManager.Instance?.CurrentSession.SelectedCharacterID ?? "";
+            if (!FTT.Characters.CharacterFactory.IsKnownCharacter(characterID)) {
+                return TranslationServer.Translate(slotKey).ToString();
+            }
+            var data = FTT.Core.AuthoredResources.Load<FTT.Characters.CharacterData>(
+                $"res://resources/Characters/{characterID}_data.tres");
+            FTT.Combat.AbilityData ability = slot switch {
+                FTT.Core.AbilitySlot.Special1 => data?.SpecialAttackOne,
+                FTT.Core.AbilitySlot.Special2 => data?.SpecialAttackTwo,
+                FTT.Core.AbilitySlot.MovementAbility => data?.MovementAbility,
+                _ => data?.UltimateAttack
+            };
+            if (ability == null || string.IsNullOrWhiteSpace(ability.DisplayNameKey)) {
+                return TranslationServer.Translate(slotKey).ToString();
+            }
+            return TranslationServer.Translate(ability.DisplayNameKey).ToString();
         }
 
         private Label AppendResultLine(Container layout, string name) {

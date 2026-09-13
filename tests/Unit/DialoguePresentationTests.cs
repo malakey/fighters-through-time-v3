@@ -353,36 +353,22 @@ public class DialoguePresentationTests {
         }
     }
 
+    /// <summary>
+    /// Rewritten for V7.6 (Package 11 A5): this case used to pin the retired
+    /// "completed campaign AND already seen on this slot" gate. What survives is
+    /// the part that still matters — the hold is a 0.75 s commitment, a partial
+    /// hold does nothing, and the completed hold fast-forwards through
+    /// <c>EndSequence</c>, which is the path that hands <c>SceneTree.Paused</c>
+    /// back.
+    /// </summary>
     [TestCase]
-    public void HoldToSkipRequiresACompletedCampaignAndAPreviouslySeenSequence() {
-        const int scratchSlot = 2;
-        var saveManager = FTT.Core.SaveManager.Instance;
-        var gameManager = GameManager.Instance;
-        FTT.Core.StorySaveData original = saveManager.SaveSlots[scratchSlot];
-        int originalSlot = gameManager.CurrentSession.ActiveSaveSlot;
+    public void TheHoldIsACommitmentAndItsSkipReleasesTheGameplayPause() {
         var tree = (SceneTree)Engine.GetMainLoop();
         DialogueManager dialogue = Attach();
-        try {
-            var save = new FTT.Core.StorySaveData { SelectedCharacterID = "einstein" };
-            save.ViewedDialogueIDs.Add(SequenceID);
-            saveManager.SaveSlots[scratchSlot] = save;
-            SessionData session = gameManager.CurrentSession;
-            session.ActiveSaveSlot = scratchSlot;
-            gameManager.CurrentSession = session;
-
+        WithScratchSlot(save => {
+            // Already seen globally, so no confirmation stands in the way.
+            SeenGlobally().Add(SequenceID);
             AssertThat(dialogue.RegisterSetFromPath(DialogueSetPath)).IsTrue();
-
-            // Seen but the campaign is NOT completed: no skip, and holding does
-            // nothing — a first playthrough can never fast-forward story.
-            AssertThat(dialogue.StartSequence(SequenceID)).IsTrue();
-            AssertThat(dialogue.CanHoldToSkip).IsFalse();
-            dialogue.AdvanceSkipHold(DialogueManager.HoldToSkipSeconds + 0.1f);
-            AssertThat(dialogue.IsSequenceActive).IsTrue();
-            for (int step = 0; step < 10 && dialogue.IsSequenceActive; step++) dialogue.AdvanceLine();
-
-            // Completed + seen: the hold fast-forwards through EndSequence,
-            // which releases the PausesGameplay pause on its ordinary path.
-            save.IsCompleted = true;
             AssertThat(dialogue.StartSequence(SequenceID)).IsTrue();
             AssertThat(tree.Paused).IsTrue();
             AssertThat(dialogue.CanHoldToSkip).IsTrue();
@@ -398,17 +384,210 @@ public class DialoguePresentationTests {
             AssertThat(tree.Paused)
                 .OverrideFailureMessage("The skip must release the gameplay pause.")
                 .IsFalse();
+        }, dialogue);
+    }
+
+    // === V7.6 skip model (Package 11 A5, plan §2.10) =====================
+
+    [TestCase]
+    public void EverySequenceIsSkippableNowThatTheCompletedCampaignGateIsGone() {
+        DialogueManager dialogue = Attach();
+        WithScratchSlot(save => {
+            // A first playthrough, a never-seen sequence: V7.3 refused this
+            // outright. V7.6 allows it — what it costs is one confirmation.
+            AssertThat(save.IsCompleted).IsFalse();
+            AssertThat(dialogue.RegisterSetFromPath(DialogueSetPath)).IsTrue();
+            AssertThat(dialogue.StartSequence(SequenceID)).IsTrue();
+            AssertThat(dialogue.CanHoldToSkip)
+                .OverrideFailureMessage("V7.6: every sequence is skippable, first viewing included.")
+                .IsTrue();
+        }, dialogue);
+    }
+
+    [TestCase]
+    public void TheFirstSkipOfAnUnseenSequenceOpensExactlyOneConfirmation() {
+        DialogueManager dialogue = Attach();
+        WithScratchSlot(save => {
+            SeenGlobally().Remove(SequenceID);
+            AssertThat(dialogue.RegisterSetFromPath(DialogueSetPath)).IsTrue();
+            AssertThat(dialogue.StartSequence(SequenceID)).IsTrue();
+
+            dialogue.AdvanceSkipHold(DialogueManager.HoldToSkipSeconds + 0.1f);
+            AssertThat(dialogue.IsSkipConfirmOpen)
+                .OverrideFailureMessage("A never-seen sequence must ask before it is skipped away.")
+                .IsTrue();
+            AssertThat(dialogue.IsSequenceActive)
+                .OverrideFailureMessage("The sequence is still running behind the modal.")
+                .IsTrue();
+
+            // Backing out resumes the scene, and the hold can be retried.
+            dialogue.CancelSkip();
+            AssertThat(dialogue.IsSkipConfirmOpen).IsFalse();
+            AssertThat(dialogue.IsSequenceActive).IsTrue();
+            AssertThat(dialogue.SkipHoldProgress).IsEqual(0f);
+
+            dialogue.AdvanceSkipHold(DialogueManager.HoldToSkipSeconds + 0.1f);
+            AssertThat(dialogue.IsSkipConfirmOpen).IsTrue();
+            dialogue.ConfirmSkip();
+            AssertThat(dialogue.IsSequenceActive).IsFalse();
+            AssertThat(DialogueManager.HasSeenSequenceGlobally(SequenceID))
+                .OverrideFailureMessage("A confirmed skip records the sequence in the GLOBAL set.")
+                .IsTrue();
+        }, dialogue);
+    }
+
+    [TestCase]
+    public void ASequenceSeenOnAnotherSlotSkipsWithNoPrompt() {
+        DialogueManager dialogue = Attach();
+        WithScratchSlot(save => {
+            // Watched in a different playthrough: the global set remembers it,
+            // and this slot's own ledger is untouched.
+            SeenGlobally().Add(SequenceID);
+            AssertThat(save.ViewedDialogueIDs.Contains(SequenceID)).IsFalse();
+
+            AssertThat(dialogue.RegisterSetFromPath(DialogueSetPath)).IsTrue();
+            AssertThat(dialogue.StartSequence(SequenceID)).IsTrue();
+            dialogue.AdvanceSkipHold(DialogueManager.HoldToSkipSeconds + 0.1f);
+
+            AssertThat(dialogue.IsSkipConfirmOpen)
+                .OverrideFailureMessage("A sequence seen on any slot must skip without asking again.")
+                .IsFalse();
+            AssertThat(dialogue.IsSequenceActive).IsFalse();
+            AssertThat(save.ViewedDialogueIDs.Contains(SequenceID))
+                .OverrideFailureMessage(
+                    "Seeing it elsewhere suppresses the prompt only — this slot still earns the effects.")
+                .IsTrue();
+        }, dialogue);
+    }
+
+    [TestCase]
+    public void EffectsResolveExactlyOnceWhetherTheSceneIsWatchedOrSkipped() {
+        DialogueManager dialogue = Attach();
+        WithScratchSlot(save => {
+            AssertThat(dialogue.RegisterSetFromPath(DialogueSetPath)).IsTrue();
+            SeenGlobally().Add(SequenceID);
+
+            // Skipped: the effects apply, exactly as if it had been watched.
+            AssertThat(dialogue.StartSequence(SequenceID)).IsTrue();
+            dialogue.AdvanceSkipHold(DialogueManager.HoldToSkipSeconds + 0.1f);
+            AssertThat(dialogue.IsSequenceActive).IsFalse();
+            AssertThat(DialogueManager.HasResolvedDialogueEffects(SequenceID)).IsTrue();
+            AssertThat(save.ViewedDialogueIDs.FindAll(id => id == SequenceID).Count).IsEqual(1);
+
+            // Watching it again afterwards does not pay a second time.
+            AssertThat(dialogue.StartSequence(SequenceID)).IsTrue();
+            for (int step = 0; step < 10 && dialogue.IsSequenceActive; step++) dialogue.AdvanceLine();
+            AssertThat(save.ViewedDialogueIDs.FindAll(id => id == SequenceID).Count)
+                .OverrideFailureMessage("The effect ledger is idempotent per story slot.")
+                .IsEqual(1);
+            AssertThat(dialogue.ResolveDialogueEffects(SequenceID))
+                .OverrideFailureMessage("A repeat resolution must report that it applied nothing.")
+                .IsFalse();
+        }, dialogue);
+    }
+
+    [TestCase]
+    public void AHeroVariantIsSelectedBySavedHeroIdAndCaptiveTokensResolve() {
+        DialogueManager dialogue = Attach();
+        WithScratchSlot(save => {
+            // A6 authors the real variants; the mechanism is what is pinned here.
+            var baseSequence = new DialogueSequenceData {
+                DialogueID = "p11_a5.variant_probe",
+                SpeakerNameKeys = new[] { "speaker_player" },
+                LineKeys = new[] { "dialogue_continue" },
+                EmotionKeys = new[] { "emotion_neutral" },
+                PausesGameplay = false
+            };
+            var variant = new DialogueSequenceData {
+                DialogueID = "p11_a5.variant_probe@leonardo",
+                HeroConditionCharacterID = "leonardo",
+                SpeakerNameKeys = new[] { "speaker_player" },
+                LineKeys = new[] { "dialogue_continue" },
+                EmotionKeys = new[] { "emotion_neutral" },
+                PausesGameplay = false
+            };
+            var set = new DialogueSetData {
+                DialogueSetID = "p11_a5_probe",
+                Sequences = new[] { baseSequence, variant }
+            };
+            dialogue.RegisterSet(set);
+
+            // Selection reads the SAVED hero ID, never a localized name.
+            save.SelectedCharacterID = "einstein";
+            AssertThat(dialogue.FindSequence("p11_a5.variant_probe").DialogueID)
+                .OverrideFailureMessage("A hero with no variant must get the base sequence.")
+                .IsEqual("p11_a5.variant_probe");
+
+            save.SelectedCharacterID = "leonardo";
+            AssertThat(dialogue.FindSequence("p11_a5.variant_probe").DialogueID)
+                .OverrideFailureMessage("Leonardo's authored variant must win for Leonardo.")
+                .IsEqual("p11_a5.variant_probe@leonardo");
+
+            // The two IDs stay DISTINCT strings so the seen/skip bookkeeping can
+            // never substitute one for the other across slots (N03).
+            AssertThat(set.FindSequence("p11_a5.variant_probe@leonardo", "einstein").DialogueID)
+                .IsEqual("p11_a5.variant_probe@leonardo");
+            AssertThat(DialogueSequenceData.BaseIDOf("p11_a5.variant_probe@leonardo"))
+                .IsEqual("p11_a5.variant_probe");
+
+            // Captive tokens resolve to two distinct absent legends.
+            save.SelectedCharacterID = "einstein";
+            SessionData session = GameManager.Instance.CurrentSession;
+            session.SelectedCharacterID = "einstein";
+            GameManager.Instance.CurrentSession = session;
+            string rendered = DialogueManager.SubstituteCaptiveNames(
+                "They took {CaptiveName1}. And {CaptiveName2}.");
+            AssertThat(rendered.Contains("{CaptiveName1}") || rendered.Contains("{CaptiveName2}"))
+                .OverrideFailureMessage($"Tokens survived substitution: {rendered}")
+                .IsFalse();
+            (string first, string second) = FTT.Core.CampaignCaptiveRoster.NamedExamplesFor("einstein");
+            AssertThat(first == second).IsFalse();
+            AssertThat(first == "einstein" || second == "einstein")
+                .OverrideFailureMessage("The active hero can never be their own captive.")
+                .IsFalse();
+        }, dialogue);
+    }
+
+    // === Helpers ===
+
+    /// <summary>The global seen-set the V7.6 skip confirmation reads.</summary>
+    private static System.Collections.Generic.HashSet<string> SeenGlobally() {
+        FTT.Core.GlobalSaveData global = FTT.Core.SaveManager.Instance.GlobalData;
+        global.SeenDialogueIDs ??= new System.Collections.Generic.HashSet<string>(
+            System.StringComparer.Ordinal);
+        return global.SeenDialogueIDs;
+    }
+
+    /// <summary>
+    /// Runs a case against scratch slot 2 and a scratch global seen-set,
+    /// restoring the real save state, the session and the tree pause afterwards.
+    /// </summary>
+    private static void WithScratchSlot(
+        System.Action<FTT.Core.StorySaveData> body, DialogueManager dialogue) {
+        const int scratchSlot = 2;
+        var saveManager = FTT.Core.SaveManager.Instance;
+        var gameManager = GameManager.Instance;
+        FTT.Core.StorySaveData original = saveManager.SaveSlots[scratchSlot];
+        SessionData originalSession = gameManager.CurrentSession;
+        var originalSeen = new System.Collections.Generic.HashSet<string>(
+            SeenGlobally(), System.StringComparer.Ordinal);
+        var tree = (SceneTree)Engine.GetMainLoop();
+        try {
+            var save = new FTT.Core.StorySaveData { SelectedCharacterID = "einstein" };
+            saveManager.SaveSlots[scratchSlot] = save;
+            SessionData session = gameManager.CurrentSession;
+            session.ActiveSaveSlot = scratchSlot;
+            session.SelectedCharacterID = "einstein";
+            gameManager.CurrentSession = session;
+            body(save);
         } finally {
             Teardown(dialogue);
             tree.Paused = false;
             saveManager.SaveSlots[scratchSlot] = original;
-            SessionData restore = gameManager.CurrentSession;
-            restore.ActiveSaveSlot = originalSlot;
-            gameManager.CurrentSession = restore;
+            gameManager.CurrentSession = originalSession;
+            saveManager.GlobalData.SeenDialogueIDs = originalSeen;
         }
     }
-
-    // === Helpers ===
 
     private static DialogueManager Attach() {
         DialogueManager dialogue = DialogueManager.CreateDefault();

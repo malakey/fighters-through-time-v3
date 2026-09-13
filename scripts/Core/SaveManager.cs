@@ -55,6 +55,15 @@ namespace FTT.Core {
         // stored. A reload NEVER resumes or renews an active freeze. Older
         // payloads load with the field initializer (0 = Ready).
         public float TimeFreezeCooldownSeconds;
+        // === Package 11 A5 (V7.5 Legacy Unlock Schedule) ==================
+        // Per character, the ability slots Act I has restored. The persisted
+        // keys are "movement" / "special1" / "special2" / "ultimate" —
+        // FTT.Core.LegacyUnlockSchedule owns those strings, so they are a
+        // serialization contract. Additive per plan §2.6: a v5 payload loads
+        // with an empty dictionary and StoryManager backfills it from
+        // CompletedLevels. Preserved on Restart Level — restarting a level
+        // never un-earns a kit.
+        public Dictionary<string, List<string>> UnlockedLegacyAbilities = new();
 
         public void Normalize() {
             SaveVersion = SaveSchemaMigrator.CurrentVersion;
@@ -75,6 +84,10 @@ namespace FTT.Core {
             DestroyedExtractorIDs ??= new List<string>();
             FoundSecretIDs ??= new List<string>();
             ViewedDialogueIDs ??= new List<string>();
+            UnlockedLegacyAbilities ??= new Dictionary<string, List<string>>();
+            foreach (string characterID in new List<string>(UnlockedLegacyAbilities.Keys)) {
+                UnlockedLegacyAbilities[characterID] ??= new List<string>();
+            }
             LevelIntegrityPercent = Math.Clamp(LevelIntegrityPercent, 0f, 100f);
             CurrentHP = Math.Max(0, CurrentHP);
             CurrentLives = Math.Max(0, CurrentLives);
@@ -176,9 +189,23 @@ namespace FTT.Core {
         /// </summary>
         public InputBindingSet InputBindings = new();
 
+        /// <summary>
+        /// Package 11 A5 (V7.6 dialogue skip, plan §2.10 item 4). Dialogue
+        /// sequence IDs the player has finished — or confirmed a skip on — on
+        /// <b>any</b> story slot. Global on purpose: a scene seen in one
+        /// playthrough should not ask "skip this? it won't replay" again in the
+        /// next. It gates <b>only</b> the first-viewing confirmation; per-slot
+        /// gameplay effects are still keyed on
+        /// <see cref="StorySaveData.ViewedDialogueIDs"/>, so seeing a scene in
+        /// another slot never suppresses this slot's rewards. Additive: an older
+        /// payload loads with an empty set.
+        /// </summary>
+        public HashSet<string> SeenDialogueIDs = new(StringComparer.Ordinal);
+
         public void Normalize() {
             SaveVersion = SaveSchemaMigrator.CurrentVersion;
             UnlockedCharacters ??= new List<string>();
+            SeenDialogueIDs ??= new HashSet<string>(StringComparer.Ordinal);
             UnlockedStages ??= new List<string>();
             foreach (string stageID in InitialStageIDs) {
                 if (!UnlockedStages.Contains(stageID)) UnlockedStages.Add(stageID);

@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using System.Collections.Generic;
 
 namespace FTT.Core {
@@ -642,9 +642,107 @@ namespace FTT.Core {
 
         private void OnLevelComplete(string levelID) {
             CompleteLevelRun();
+            // === Package 11 A5 region: the Legacy Unlock milestone grant ===
+            // Inside the completion transaction and BEFORE
+            // RecordLevelResultToSave, so the same save write that records the
+            // result also persists the restored slot.
+            GrantLegacyUnlockMilestone(levelID);
+            // === end Package 11 A5 region ===
             RecordLevelResultToSave(levelID);
             AdvanceToNextLevel();
         }
+
+        // === Package 11 A5 region: V7.5 Legacy Unlock Schedule ==============
+
+        /// <summary>
+        /// The ability slot the most recent level completion restored, or null.
+        /// Read by <c>LevelResultsPanel</c> for the "Resonance Restored" beat.
+        /// </summary>
+        public AbilitySlot? LastLegacyUnlockSlot { get; private set; }
+
+        /// <summary>
+        /// True when the results overlay for the level just completed should play
+        /// the Resonance Restored beat. The Ultimate is deliberately excluded:
+        /// Level 4A is the first full-kit level and V7.5 plays the Ultimate's
+        /// beat on <b>4A entry</b>, not on Level 4's exit
+        /// (<see cref="TryConsumeDeferredResonanceRestored"/>).
+        /// </summary>
+        public bool ShouldPlayResonanceRestoredOnResults =>
+            LastLegacyUnlockSlot.HasValue && LastLegacyUnlockSlot.Value != AbilitySlot.Ultimate;
+
+        private AbilitySlot? _deferredResonanceSlot;
+
+        /// <summary>
+        /// Hands the deferred Resonance Restored beat (the Ultimate) to Level 4A's
+        /// entry, exactly once. Returns false everywhere else.
+        /// </summary>
+        public bool TryConsumeDeferredResonanceRestored(out AbilitySlot slot) {
+            slot = AbilitySlot.Ultimate;
+            if (!_deferredResonanceSlot.HasValue) return false;
+            slot = _deferredResonanceSlot.Value;
+            _deferredResonanceSlot = null;
+            return true;
+        }
+
+        /// <summary>
+        /// Grants the milestone slot for a completed level onto the active save's
+        /// per-character unlock list, and backfills anything an older payload is
+        /// missing. Idempotent — replaying a level never double-grants, and a
+        /// Restart Level never removes an earned slot.
+        /// </summary>
+        /// <summary>
+        /// Test seam: runs the milestone grant alone, without the surrounding
+        /// completion transaction's timer freeze, save write and level advance.
+        /// </summary>
+        internal void GrantLegacyUnlockMilestoneForTests(string levelID) =>
+            GrantLegacyUnlockMilestone(levelID);
+
+        private void GrantLegacyUnlockMilestone(string levelID) {
+            LastLegacyUnlockSlot = null;
+            var saveManager = SaveManager.Instance;
+            var gameManager = GameManager.Instance;
+            if (saveManager == null || gameManager == null) return;
+            int slotIndex = gameManager.CurrentSession.ActiveSaveSlot;
+            if (slotIndex < 0 || slotIndex >= saveManager.SaveSlots.Length) return;
+            StorySaveData save = saveManager.SaveSlots[slotIndex];
+            if (save == null) return;
+
+            string characterID = save.SelectedCharacterID;
+            if (string.IsNullOrWhiteSpace(characterID)) {
+                characterID = gameManager.CurrentSession.SelectedCharacterID ?? "";
+            }
+            if (string.IsNullOrWhiteSpace(characterID)) return;
+
+            save.UnlockedLegacyAbilities ??= new System.Collections.Generic.Dictionary<
+                string, System.Collections.Generic.List<string>>();
+            if (!save.UnlockedLegacyAbilities.TryGetValue(
+                    characterID, out System.Collections.Generic.List<string> granted) || granted == null) {
+                granted = new System.Collections.Generic.List<string>();
+                save.UnlockedLegacyAbilities[characterID] = granted;
+            }
+
+            // Backfill first: a save written before this schedule existed, or
+            // one whose milestone write was lost, catches up from its own
+            // completed-level history without granting a beat for it.
+            foreach (string key in LegacyUnlockSchedule.UnlockedKeysFor(save.CompletedLevels)) {
+                if (!granted.Contains(key)) granted.Add(key);
+            }
+
+            if (!LegacyUnlockSchedule.TryGrantedSlotForLevel(levelID, out AbilitySlot milestone)) return;
+            string milestoneKey = LegacyUnlockSchedule.SlotKey(milestone);
+            bool alreadyHeld = granted.Contains(milestoneKey);
+            if (!alreadyHeld) granted.Add(milestoneKey);
+            if (alreadyHeld) return;
+
+            LastLegacyUnlockSlot = milestone;
+            if (milestone == AbilitySlot.Ultimate) _deferredResonanceSlot = milestone;
+            EventBus.Instance?.RaiseAbilitySlotLockChanged(new AbilitySlotLockPayload {
+                Slot = milestone,
+                State = AbilitySlotLockState.Clear
+            });
+        }
+
+        // === end Package 11 A5 region ===
 
         /// <summary>
         /// Records the completed level's Timeline Integrity, secrets, and

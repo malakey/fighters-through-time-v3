@@ -650,8 +650,10 @@ public class TimeFreezeTests {
             script.RegisterBasicHit();
             script.RegisterRallyReclaimHit();
             script.RegisterBlockedHit();
-            script.RegisterSpecialUsed(AbilitySlot.Special2);
-            script.RegisterUltimateUsed();
+            script.RegisterGrabThrow();
+            script.RegisterDirectionalInfluenceBeat();
+            script.RegisterLandingTech();
+            script.RegisterDefyProc();
             script.RegisterRewindComplete();
         }
         AssertThat(script.Step).IsEqual(TutorialCalibrationStep.UseTimeFreeze);

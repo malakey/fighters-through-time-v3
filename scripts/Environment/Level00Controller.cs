@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using FTT.Characters;
 using FTT.Core;
 using FTT.Enemies;
@@ -8,11 +8,22 @@ namespace FTT.Environment {
 
     /// <summary>
     /// Level 0 - Chronal Integration tutorial. Three documented parts: the
-    /// fracture presentation, guided calibration (attacks, block, specials,
-    /// forced-meter ultimate, Chronal Rewind demonstration) against a training
-    /// dummy, and advanced mobility gates (double jump, movement ability, roll)
-    /// followed by the holographic combat trial. The calibration step order and
-    /// gating live in <see cref="TutorialCalibrationScript"/> (audit M-3).
+    /// fracture presentation, guided calibration against a training dummy, and
+    /// advanced mobility gates followed by the holographic combat trial. The
+    /// calibration step order and gating live in
+    /// <see cref="TutorialCalibrationScript"/> (audit M-3).
+    ///
+    /// <para><b>V7.6 rebuild (Package 11 A5).</b> Under the V7.5 Legacy Unlock
+    /// Schedule the hero owns basics, Block, Rally, the death rewind, Time
+    /// Freeze and the Ultimate Meter at Level 0 — and nothing else. The Special,
+    /// Ultimate and Movement-Ability calibrations are therefore <b>deleted</b>
+    /// (they demanded abilities that do not exist yet), and three beats take
+    /// their place: <b>Grab Calibration</b> against a shielded dummy, <b>Hitstun
+    /// Agency Calibration</b> (DI, then a mandatory landing tech that repeats
+    /// until it lands), and <b>Meter &amp; Defy History</b>, which fills the
+    /// meter and spends it refusing a scripted lethal hit with the F13 seal
+    /// going lit → broken on screen. Part 3's traversal is authored for base
+    /// jump reach alone; its movement-ability corridor is gone.</para>
     /// </summary>
     public partial class Level00Controller : Node2D {
         private enum TutorialPhase { Fracture, Calibration, Mobility, CombatTrial, Complete }
@@ -26,13 +37,48 @@ namespace FTT.Environment {
         private readonly TutorialCalibrationScript _calibration = new();
 
         private Area2D _doubleJumpGate;
-        private Area2D _movementGate;
         private Area2D _rollGate;
         private bool _doubleJumpGateCleared;
-        private bool _movementGateCleared;
         private bool _rollGateCleared;
-        /// <summary>-1 until the movement ability fires; then frames since it fired.</summary>
-        private int _framesSinceMovementAbility = -1;
+
+        // === V7.6 Grab Calibration ======================================
+        // The grab reaches EnemyControllers in the "Enemies" group, not the
+        // TrainingDummy, so the shielded target is a standard-tier drone parked
+        // beside the dummy. It is held in the rewind-freeze state — passive,
+        // never attacking — and its "shield" is a guard flag this controller
+        // enforces by restoring the HP every swing takes off, which is exactly
+        // the designed read: everything the player swings is absorbed, and the
+        // prompt keeps pointing at the grab.
+        private EnemyController _grabDummy;
+        private int _grabDummyFullHP;
+        private bool _grabGuardUp;
+        private bool _grabConnected;
+        private ColorRect _grabGuardVisual;
+
+        // === V7.6 Hitstun Agency Calibration =============================
+        /// <summary>Knockback of the scripted launch, in authored hit-payload units/frame.</summary>
+        internal static readonly Vector2 ScriptedLaunchKnockback = new(3.2f, -7.5f);
+        /// <summary>Hitstun the scripted launch applies, in seconds.</summary>
+        internal const float ScriptedLaunchHitstunSeconds = 0.75f;
+        /// <summary>
+        /// Tutorial-only extended hitstop on the launch. The shared table gives a
+        /// normal hit 3-6 frames; 36 frames (0.6 s) is long enough to read the DI
+        /// prompt and commit a direction, and it exists nowhere outside Level 0.
+        /// </summary>
+        internal const int TutorialLaunchHitstopFrames = 36;
+        /// <summary>One extra freeze on the FIRST tech attempt: the "slowed approach".</summary>
+        internal const int FirstTechApproachFreezeFrames = 24;
+        /// <summary>Frames between a missed tech and the next free launch.</summary>
+        private const int LaunchRetryDelayFrames = 90;
+
+        private int _launchCountdownFrames = -1;
+        private bool _launchInFlight;
+        private bool _firstApproachFreezeSpent;
+
+        // === V7.6 Meter & Defy History Calibration =======================
+        /// <summary>Frames the lit seal is held before the scripted lethal hit lands.</summary>
+        private const int DefyBeatDelayFrames = 120;
+        private int _defyCountdownFrames = -1;
 
         private int _enemiesKilled;
         private int _totalEnemies;
@@ -59,12 +105,9 @@ namespace FTT.Environment {
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnEnemyKilled += OnEnemyKilled;
                 EventBus.Instance.OnDialogueComplete += OnDialogueComplete;
-                EventBus.Instance.OnCooldownStarted += OnCooldownStarted;
                 EventBus.Instance.OnRewindTriggered += OnRewindTriggered;
                 EventBus.Instance.OnBlockAbsorbed += OnBlockAbsorbed;
                 EventBus.Instance.OnBlockBroken += OnBlockBroken;
-                EventBus.Instance.OnUltimateActivation += OnUltimateActivation;
-                EventBus.Instance.OnMovementAbilityUsed += OnMovementAbilityUsed;
             }
 
             // Defer one frame so the dialogue UI is fully in the tree before pausing.
@@ -75,12 +118,9 @@ namespace FTT.Environment {
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnEnemyKilled -= OnEnemyKilled;
                 EventBus.Instance.OnDialogueComplete -= OnDialogueComplete;
-                EventBus.Instance.OnCooldownStarted -= OnCooldownStarted;
                 EventBus.Instance.OnRewindTriggered -= OnRewindTriggered;
                 EventBus.Instance.OnBlockAbsorbed -= OnBlockAbsorbed;
                 EventBus.Instance.OnBlockBroken -= OnBlockBroken;
-                EventBus.Instance.OnUltimateActivation -= OnUltimateActivation;
-                EventBus.Instance.OnMovementAbilityUsed -= OnMovementAbilityUsed;
             }
             if (_dummy != null && IsInstanceValid(_dummy)) _dummy.HitLanded -= OnDummyHit;
             // Pooled combat-trial enemies are parented here; hand them back or the
@@ -102,8 +142,13 @@ namespace FTT.Environment {
                 case "level_00.block_intro":
                     BeginBlockLesson();
                     break;
+                // V7.6: the sequence ID is retained (V7.5 identifier retention)
+                // but its beat is now the Meter & Defy History calibration —
+                // the meter is taught as the fuel that refuses death, not as
+                // the fuel for a cast the hero has not earned yet. A6 rewrites
+                // its English against that.
                 case "level_00.ultimate_intro":
-                    BeginUltimateLesson();
+                    BeginMeterAndDefyLesson();
                     break;
                 case "level_00.mobility_intro":
                     BeginMobilityGates();
@@ -180,31 +225,216 @@ namespace FTT.Environment {
 
         private void CompleteBlockLesson() {
             if (_dummy != null && IsInstanceValid(_dummy)) _dummy.EndScriptedAttacks();
-            _services.HUD?.SetObjective("tutorial_step_special");
+            BeginGrabLesson();
         }
 
-        private void OnCooldownStarted(CooldownPayload payload) {
-            if (_phase != TutorialPhase.Calibration) return;
-            // Only the two special slots satisfy the specials lesson; movement or
-            // ultimate cooldowns must not skip it (audit M-3).
-            if (_calibration.RegisterSpecialUsed(payload.Slot)) {
-                _services.Dialogue?.StartSequence("level_00.ultimate_intro");
+        // === V7.6 Grab Calibration ======================================
+
+        /// <summary>
+        /// Parks a standard-tier drone beside the training dummy, freezes it so
+        /// it never fights back, and raises its "shield": while the guard is up
+        /// every point of damage the player deals is restored, so swings are
+        /// visibly absorbed and the prompt keeps pointing at the grab.
+        /// "A raised shield stops a blade, not a hand."
+        /// </summary>
+        private void BeginGrabLesson() {
+            _grabDummy = EnemyFactory.SpawnHologramDrone(this, new Vector2(1160, 850));
+            if (_grabDummy != null) {
+                _grabDummyFullHP = _grabDummy.CurrentHP;
+                // The rewind-freeze state is the existing "inert but present"
+                // mode: no AI, no attacks, no motion. It is released the moment
+                // the grab connects so the throw plays out normally.
+                _grabDummy.SetStoryRewindFrozen(true);
+                _grabGuardUp = true;
+                _grabGuardVisual = new ColorRect {
+                    Name = "GrabLessonGuard",
+                    Size = new Vector2(56, 92),
+                    Position = new Vector2(-28, -92),
+                    Color = new Color(0.35f, 0.75f, 1f, 0.4f),
+                    MouseFilter = Control.MouseFilterEnum.Ignore
+                };
+                _grabDummy.AddChild(_grabGuardVisual);
             }
+            _services.HUD?.SetObjective("tutorial_step_grab");
         }
 
         /// <summary>
-        /// The simulation fills the Influence Meter to 100% and asks for the
-        /// History Maker, per the designed ultimate calibration.
+        /// Grab-lesson bookkeeping. Runs every physics frame while the step is
+        /// live: restores the guarded HP (the absorb), releases the freeze when
+        /// the grab connects, and closes the lesson when the throw resolves.
         /// </summary>
-        private void BeginUltimateLesson() {
-            // A scripted meter grant, not a landed hit — never a Rally reclaim.
-            _player?.AddInfluenceFromDamageDealt(FTT.Combat.UltimateMeter.MaxValue, collectsEcho: false);
-            _services.HUD?.SetObjective("tutorial_step_ultimate");
+        private void ProcessGrabLesson() {
+            if (_calibration.Step != TutorialCalibrationStep.Grab) return;
+            if (_grabDummy == null || !IsInstanceValid(_grabDummy)) {
+                // Never strand the tutorial on a missing drone.
+                if (_calibration.RegisterGrabThrow()) CompleteGrabLesson();
+                return;
+            }
+
+            if (_grabGuardUp && _grabDummy.CurrentHP < _grabDummyFullHP) {
+                _grabDummy.CurrentHP = _grabDummyFullHP;
+                _calibration.RegisterGrabLessonSwingAbsorbed();
+                // Re-prompt: the player is swinging at a raised shield.
+                _services.HUD?.SetObjective("tutorial_step_grab_absorbed");
+            }
+
+            if (!_grabConnected && _player != null && IsInstanceValid(_player)
+                && _player.GrabbedEnemy == _grabDummy && _player.GrabPhase >= 4) {
+                _grabConnected = true;
+                _grabGuardUp = false;
+                _grabDummy.SetStoryRewindFrozen(false);
+                if (_grabGuardVisual != null && IsInstanceValid(_grabGuardVisual)) {
+                    _grabGuardVisual.QueueFree();
+                    _grabGuardVisual = null;
+                }
+            }
+
+            if (_grabConnected && (_player == null || !IsInstanceValid(_player) || _player.GrabPhase == 0)) {
+                if (_calibration.RegisterGrabThrow()) CompleteGrabLesson();
+            }
         }
 
-        private void OnUltimateActivation(UltimateActivationPayload payload) {
-            if (_phase != TutorialPhase.Calibration || payload.PlayerIndex != 0) return;
-            if (!_calibration.RegisterUltimateUsed()) return;
+        private void CompleteGrabLesson() {
+            // "Grabs beat blocks. Strikes beat grabs." — the follow-up names the
+            // rule both ways before the next beat starts.
+            _services.HUD?.SetObjective("tutorial_step_grab_complete");
+            BeginHitstunAgencyLesson();
+        }
+
+        // === V7.6 Hitstun Agency Calibration ============================
+
+        /// <summary>
+        /// Arms the first free scripted launch. Everything about it is the real
+        /// verb layer — the stashed impulse, the ±15° DI read at hitstop expiry,
+        /// the tumble, the landing tech — except that it costs the player
+        /// nothing: no HP, no Rally echo, no meter, no rewind charge.
+        /// </summary>
+        private void BeginHitstunAgencyLesson() {
+            _services.HUD?.SetObjective("tutorial_step_di");
+            _launchCountdownFrames = 60;
+        }
+
+        private void ProcessHitstunAgencyLesson() {
+            if (_player == null || !IsInstanceValid(_player)) return;
+            if (_calibration.Step is not (TutorialCalibrationStep.HitstunDI
+                or TutorialCalibrationStep.LandingTech)) return;
+
+            if (_launchCountdownFrames > 0) {
+                _launchCountdownFrames--;
+                return;
+            }
+            if (_launchCountdownFrames == 0) {
+                _launchCountdownFrames = -1;
+                _launchInFlight = true;
+                _firstApproachFreezeSpent = _calibration.ScriptedLaunchesDelivered > 0;
+                _player.ApplyTutorialScriptedLaunch(
+                    ScriptedLaunchKnockback, ScriptedLaunchHitstunSeconds, TutorialLaunchHitstopFrames);
+                return;
+            }
+            if (!_launchInFlight) return;
+
+            if (_calibration.Step == TutorialCalibrationStep.HitstunDI) {
+                // The extended tutorial freeze has run out, so the DI read has
+                // resolved — whether or not a direction was held. The beat
+                // proceeds either way; the lesson is that the option exists.
+                if (_player.HitstopFramesRemaining > 0) return;
+                if (_calibration.RegisterDirectionalInfluenceBeat()) {
+                    _services.HUD?.SetObjective("tutorial_step_tech");
+                }
+                return;
+            }
+
+            // Landing tech. The first attempt gets the designed "slowed
+            // approach": one extra freeze as the fall steepens, bought with the
+            // existing hitstop mechanism rather than a global time scale.
+            if (!_firstApproachFreezeSpent && !_player.IsOnFloor() && _player.Velocity.Y > 180f) {
+                _firstApproachFreezeSpent = true;
+                _player.ApplyHitstop(FirstTechApproachFreezeFrames);
+                return;
+            }
+            if (_player.HitstopFramesRemaining > 0) return;
+
+            if (_player.IsInTechLockout) {
+                _launchInFlight = false;
+                if (_calibration.RegisterLandingTech()) CompleteHitstunAgencyLesson();
+                return;
+            }
+            // Landed (or hitstun simply ran out) without a tech: play the full
+            // knockdown and repeat. The launch is free, so a miss costs nothing.
+            if (_player.CurrentState != CharacterState.Stunned && _player.IsOnFloor()) {
+                _launchInFlight = false;
+                if (!_calibration.RegisterLandingTechMissed()) return;
+                _services.HUD?.SetObjective("tutorial_step_tech_retry");
+                _launchCountdownFrames = LaunchRetryDelayFrames;
+            }
+        }
+
+        private void CompleteHitstunAgencyLesson() {
+            _services.Dialogue?.StartSequence("level_00.ultimate_intro");
+        }
+
+        // === V7.6 Meter & Defy History Calibration ======================
+
+        /// <summary>
+        /// Fills the Influence Meter to 100% and lights the F13 Defy seal, then
+        /// arms the scripted lethal-tagged hit that Defy History refuses. No
+        /// extra meter award, no extra Defy use: the calibration spends exactly
+        /// the one the player is being shown.
+        /// </summary>
+        private void BeginMeterAndDefyLesson() {
+            if (_player == null || !IsInstanceValid(_player)) return;
+            if (_player.StoryDefyHistoryUsed) {
+                // A resumed attempt already spent it; the lesson closes on its
+                // coaching text rather than stranding the player.
+                if (_calibration.SkipDefyLesson()) BeginRewindDemonstration();
+                return;
+            }
+            // A scripted meter grant, not a landed hit — never a Rally reclaim.
+            _player.AddInfluenceFromDamageDealt(FTT.Combat.UltimateMeter.MaxValue, collectsEcho: false);
+            PublishDefySeal(DefySealState.Ready);
+            _services.HUD?.SetObjective("tutorial_step_defy");
+            _defyCountdownFrames = DefyBeatDelayFrames;
+        }
+
+        private void ProcessMeterAndDefyLesson() {
+            if (_calibration.Step != TutorialCalibrationStep.MeterAndDefy) return;
+            if (_defyCountdownFrames < 0) return;
+            if (_defyCountdownFrames > 0) {
+                _defyCountdownFrames--;
+                return;
+            }
+            _defyCountdownFrames = -1;
+            if (_player == null || !IsInstanceValid(_player)) {
+                if (_calibration.SkipDefyLesson()) BeginRewindDemonstration();
+                return;
+            }
+            // The lethal-tagged hit. ApplyEnvironmentalDamage is the V7.3
+            // chokepoint: it runs the whole victim-side pipeline, so Defy
+            // History fires and consumes its own flag rather than leaking into
+            // the next hit's accounting.
+            _player.ApplyEnvironmentalDamage(_player.CurrentHP);
+            PublishDefySeal(_player.StoryDefyHistoryUsed ? DefySealState.Spent : DefySealState.Building);
+            _services.HUD?.SetObjective("tutorial_step_defy_spent");
+            if (_calibration.RegisterDefyProc()) BeginRewindDemonstration();
+        }
+
+        /// <summary>
+        /// A5 publishes the F13 seal for the tutorial's forced states. A1b takes
+        /// over as the general publisher in Wave 2 (plan §2.9); the payload and
+        /// the enum are shared, so nothing here changes when it does.
+        /// </summary>
+        private void PublishDefySeal(DefySealState state) {
+            EventBus.Instance?.RaiseDefySealChanged(new DefySealPayload {
+                PlayerIndex = 0,
+                State = state
+            });
+        }
+
+        /// <summary>
+        /// Hands off to the scripted death-rewind demonstration (A2's region
+        /// picks up from the manual lesson that follows it).
+        /// </summary>
+        private void BeginRewindDemonstration() {
             _services.HUD?.SetObjective("tutorial_step_rewind");
             // Rewind is a death-save, not an input the player can perform, so the
             // tutorial demonstrates it: hold the objective on screen briefly, then
@@ -359,21 +589,15 @@ namespace FTT.Environment {
             _doubleJumpGate = BuildGateZone("DoubleJumpGate", new Vector2(1900, 570), new Vector2(160, 140),
                 new Color(0.2f, 0.9f, 0.5f, 0.25f), "tutorial_gate_double_jump");
 
-            // Movement-ability gate: a marked corridor crossed with the
-            // character's unique movement ability. The gate reads ability usage
-            // (state or the freshness window in TutorialMobilityRules), not
-            // character-specific geometry, so all nine kits clear the same gate.
-            _movementGate = BuildGateZone("MovementAbilityGate", new Vector2(2500, 830), new Vector2(220, 140),
-                new Color(0.9f, 0.5f, 0.9f, 0.25f), "tutorial_gate_movement");
+            // V7.6: the movement-ability corridor is DELETED. The Movement
+            // Ability unlocks after Level 1 under the Legacy Unlock Schedule, so
+            // a Level 0 gate demanding it was an unclearable wall. Part 3's
+            // traversal is authored for base jump reach alone; the ability gets
+            // its own optional Wren drill when it is actually granted.
 
             // Roll gate: a marked strip the player must cross while rolling.
             _rollGate = BuildGateZone("RollGate", new Vector2(3100, 850), new Vector2(200, 110),
                 new Color(0.4f, 0.6f, 1f, 0.25f), "tutorial_gate_roll");
-        }
-
-        private void OnMovementAbilityUsed(MovementAbilityPayload payload) {
-            if (payload.PlayerIndex != 0) return;
-            _framesSinceMovementAbility = 0;
         }
 
         private Area2D BuildGateZone(string name, Vector2 position, Vector2 size, Color color, string labelKey) {
@@ -411,28 +635,24 @@ namespace FTT.Environment {
 
         public override void _PhysicsProcess(double delta) {
             ProcessRewindDemo();
+            if (_phase == TutorialPhase.Calibration) {
+                // V7.6 beats. Each is phase-gated inside itself, so the order
+                // here is documentation, not control flow.
+                ProcessGrabLesson();
+                ProcessHitstunAgencyLesson();
+                ProcessMeterAndDefyLesson();
             ProcessTimeFreezeDrill();
-            if (_framesSinceMovementAbility >= 0
-                && _framesSinceMovementAbility <= TutorialMobilityRules.MovementAbilityFreshnessFrames) {
-                _framesSinceMovementAbility++;
             }
             if (_phase != TutorialPhase.Mobility || _player == null || !IsInstanceValid(_player)) return;
 
             if (!_doubleJumpGateCleared && ZoneContainsPlayer(_doubleJumpGate)) {
                 _doubleJumpGateCleared = true;
                 MarkGateCleared(_doubleJumpGate);
-                _services.HUD?.SetObjective("tutorial_step_movement");
-            }
-            if (_doubleJumpGateCleared && !_movementGateCleared
-                && TutorialMobilityRules.MovementGateSatisfied(
-                    ZoneContainsPlayer(_movementGate),
-                    _player.CurrentState == CharacterState.UsingMovementAbility,
-                    _framesSinceMovementAbility)) {
-                _movementGateCleared = true;
-                MarkGateCleared(_movementGate);
                 _services.HUD?.SetObjective("tutorial_step_roll");
             }
-            if (_movementGateCleared && !_rollGateCleared && ZoneContainsPlayer(_rollGate)
+            // V7.6: double jump then roll — the movement-ability corridor that
+            // used to sit between them is gone.
+            if (_doubleJumpGateCleared && !_rollGateCleared && ZoneContainsPlayer(_rollGate)
                 && _player.CurrentState == CharacterState.Rolling) {
                 _rollGateCleared = true;
                 MarkGateCleared(_rollGate);
