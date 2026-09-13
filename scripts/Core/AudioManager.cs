@@ -335,9 +335,30 @@ namespace FTT.Core {
         /// One dialogue typewriter chirp. <paramref name="pitchScale"/> carries the
         /// speaker's character identity (lower for Lincoln, higher for Einstein/Tesla
         /// per the design); Package 8 B3 supplies it per line.
+        ///
+        /// <para>Package 11 A8 / C01b: routed to the dedicated Dialogue bus under
+        /// UI. The authored synthetic voice character is preserved and is never
+        /// additionally warped or muffled by an environmental or health profile —
+        /// and never automatically boosted either.</para>
         /// </summary>
         public void PlayChirp(float pitchScale = 1f) =>
-            PlayOneShot(_chirpStream, AudioBuses.UI, pitchScale, -6f);
+            PlayOneShot(_chirpStream, AudioBuses.Dialogue, pitchScale, -6f);
+
+        /// <summary>
+        /// Package 11 A8 / C01b. Plays a cue on the clear <b>Critical Cues</b>
+        /// path: attack-class and hazard warnings, impending platform danger,
+        /// freeze/thaw, recovery and boss-phase cues, timer-danger cues, and
+        /// confirmed result announcements.
+        ///
+        /// <para>The bus sends into SFX, so the player's SFX gain and mute still
+        /// apply — C01b is explicit that moving a cue "directly to Master must not
+        /// bypass a muted SFX setting", and that nothing here is auto-boosted. What
+        /// the bus buys is immunity from the selected background profile's
+        /// low-pass, which now lives on the World SFX children rather than on their
+        /// shared parent.</para>
+        /// </summary>
+        public void PlayCriticalCue(AudioStream stream, float pitchScale = 1f, float volumeDb = 0f) =>
+            PlayOneShot(stream, AudioBuses.CriticalCues, pitchScale, volumeDb);
 
         /// <summary>
         /// One footstep for the given surface. Unknown surfaces fall back to the

@@ -68,6 +68,42 @@ namespace FTT.UI {
             return (remainingFrames + tickRate - 1) / tickRate;
         }
 
+        /// <summary>
+        /// Package 11 A8 / F21. Seconds at which the match clock turns red and
+        /// chimes once. The design calls it out as <c>00:10</c>.
+        /// </summary>
+        public const int TimerDangerSeconds = 10;
+
+        /// <summary>True while the clock is inside its final ten seconds.</summary>
+        public static bool IsTimerDanger(int totalSecondsRemaining) =>
+            totalSecondsRemaining > 0 && totalSecondsRemaining <= TimerDangerSeconds;
+
+        /// <summary>
+        /// Package 11 A8 / F21. True for the mode whose stock display is
+        /// "Stocks lost: N" rather than finite pips.
+        ///
+        /// <para>Takes the ordinal rather than the enum because the deterministic
+        /// match component stores the mode as an <c>int</c>;
+        /// <c>MatchMode.TimeLimit</c> is explicitly 1. Legacy
+        /// <c>Hybrid == 2</c> normalizes to Stock, so anything that is not 1 keeps
+        /// the pips — the safe direction, since showing pips for a mode that has
+        /// them is merely redundant while hiding them in Stock would hide the
+        /// elimination rule itself.</para>
+        /// </summary>
+        public static bool UsesStocksLostDisplay(int matchMode) =>
+            matchMode == (int)MatchMode.TimeLimit;
+
+        /// <summary>
+        /// Package 11 A8 / F24. Status duration radial fill from the authoritative
+        /// frame count. Ten seconds is the reference sweep: statuses do not publish
+        /// their original duration anywhere the HUD can read it, and inventing a
+        /// per-type duration here would create a second canonical value.
+        /// </summary>
+        public static float StatusRadialFraction(int remainingFrames, int tickRate) {
+            if (remainingFrames <= 0 || tickRate <= 0) return 0f;
+            return Mathf.Clamp(remainingFrames / (float)(tickRate * 10), 0f, 1f);
+        }
+
         /// <summary>Bar fill in 0..1, safe against a zero or negative maximum.</summary>
         public static float BarFraction(int current, int maximum) {
             if (maximum <= 0) return 0f;

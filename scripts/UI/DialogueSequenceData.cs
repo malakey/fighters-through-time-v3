@@ -35,18 +35,6 @@ namespace FTT.UI {
 
         // === Package 11 A5 (V7.5 N03 hero-conditional variants, plan §2.10) ==
 
-        /// <summary>
-        /// Non-empty on a hero-conditional variant: the campaign character ID
-        /// this sequence is written for. A variant's <see cref="DialogueID"/> is
-        /// <c>&lt;baseID&gt;@&lt;heroID&gt;</c> (e.g. <c>level_01.entrance@leonardo</c>)
-        /// so the two IDs are <b>distinct strings</b> — that is what stops F10's
-        /// seen/skip bookkeeping from substituting one variant for another
-        /// across slots. Empty means the default sequence every other hero gets.
-        ///
-        /// <para>Selection compares the <i>saved campaign hero ID</i> against the
-        /// level's authored central-legend ID — never a localized name.</para>
-        /// </summary>
-        [Export] public string HeroConditionCharacterID = "";
 
         /// <summary>The variant separator. Never appears in a base dialogue ID.</summary>
         public const char VariantSeparator = '@';

@@ -50,22 +50,34 @@ namespace FTT.Core {
 
         /// <summary>
         /// Actions the Controls tab may rebind, in display order (Package 8 A4).
-        /// <see cref="Actions.Ultimate"/> is deliberately absent: it is authored as
-        /// an LB+RB chord that <see cref="ReadUltimatePressed"/> evaluates as a
-        /// conjunction, which the per-event remap UI cannot express. It is surfaced
-        /// read-only instead.
+        ///
+        /// <para>Package 11 A8 / C01c: <see cref="Actions.Ultimate"/> now carries a
+        /// real direct binding slot. Package 8 surfaced it read-only because the
+        /// per-event remap UI cannot express the LB+RB conjunction; C01c's answer
+        /// is that the chord stays a <em>fixed preset shortcut</em> alongside a
+        /// single direct key/button, so the row is editable after all. The chord
+        /// itself is still not a remappable event — see
+        /// <see cref="InputShortcuts"/>, which owns the recipes.</para>
         /// </summary>
         public static readonly string[] RemappableActions = {
             Actions.MoveLeft, Actions.MoveRight, Actions.Jump, Actions.Down, Actions.Up,
             Actions.BasicAttack, Actions.Special1, Actions.Special2, Actions.MovementAbility,
-            Actions.Block, Actions.Roll, Actions.Interact, Actions.TimeFreeze, Actions.Pause
+            Actions.Block, Actions.Roll, Actions.Ultimate, Actions.Interact, Actions.TimeFreeze, Actions.Pause
         };
 
-        /// <summary>Actions shown in the Controls tab but not rebindable.</summary>
-        public static readonly string[] ReadOnlyActions = { Actions.Ultimate };
+        /// <summary>
+        /// Actions shown in the Controls tab but not rebindable. Empty since
+        /// Package 11 A8 moved Ultimate into <see cref="RemappableActions"/>; kept
+        /// as the seam for any future action that genuinely cannot be expressed as
+        /// a per-event binding.
+        /// </summary>
+        public static readonly string[] ReadOnlyActions = System.Array.Empty<string>();
 
         /// <summary>Translation key naming an action in the remap UI.</summary>
         public static string ActionLabelKey(string action) => action switch {
+            InputShortcuts.GrabAction => "controls_action_grab",
+            InputShortcuts.EchoStepAction => "controls_action_echo_step",
+            InputShortcuts.TimeFreezeAction => "controls_action_time_freeze",
             Actions.MoveLeft => "controls_action_move_left",
             Actions.MoveRight => "controls_action_move_right",
             Actions.Jump => "controls_action_jump",
@@ -79,7 +91,6 @@ namespace FTT.Core {
             Actions.Roll => "controls_action_roll",
             Actions.Ultimate => "controls_action_ultimate",
             Actions.Interact => "controls_action_interact",
-            Actions.TimeFreeze => "controls_action_time_freeze",
             Actions.Pause => "controls_action_pause",
             _ => "common_unknown"
         };

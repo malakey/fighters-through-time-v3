@@ -306,10 +306,9 @@ namespace FTT.Core {
             LastLevelRewindsUsed = LevelRewindsUsed;
             LastLevelIntegrityPercent = TimelineIntegrityPercent;
             LastLevelSecretsFound = LevelSecretsFound;
-            // Package 11 A3 / V7.6 ruling 2.A: the Chronal Rating is retired.
-            // Its rules type is deleted; the property and its save row stay as
-            // dead fields until A8 removes them and the results line.
-            LastLevelChronalRating = "";
+            // Package 11 A8, ruling 2.A: the Chronal Rating is retired by V7.6.
+            // Nothing computes or stores it any more; the Integrity tier is the
+            // single grade the results overlay shows.
         }
 
         // === Timeline Integrity — the level timer (V7.6 F01, Package 11 A3) ==
@@ -330,8 +329,6 @@ namespace FTT.Core {
         public float LastLevelIntegrityPercent { get; private set; } = TimelineIntegrityRules.StartPercent;
         public int LastLevelSecretsFound { get; private set; }
 
-        /// <summary>Retired by V7.6 ruling 2.A; A8 deletes the property and its save row.</summary>
-        public string LastLevelChronalRating { get; private set; } = "";
 
         /// <summary>The current level's authored par, in seconds. 0 = untimed.</summary>
         public float ParSecondsForCurrentLevel { get; private set; }
@@ -1084,7 +1081,9 @@ namespace FTT.Core {
             if (slot < 0 || slot >= saveManager.SaveSlots.Length || saveManager.SaveSlots[slot] == null) return;
             StorySaveData save = saveManager.SaveSlots[slot];
             save.IntegrityByLevel[levelID] = LastLevelIntegrityPercent;
-            save.RatingByLevel[levelID] = LastLevelChronalRating ?? "";
+            // RatingByLevel is deliberately no longer written (ruling 2.A). The
+            // field survives in the payload as dead data through schema v6 -- an
+            // older save keeps whatever rating it already recorded.
             save.SecretsFoundByLevel[levelID] = LastLevelSecretsFound;
             saveManager.SaveStorySlot(slot);
         }

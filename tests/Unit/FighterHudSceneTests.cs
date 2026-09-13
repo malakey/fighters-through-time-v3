@@ -130,10 +130,12 @@ public class FighterHudSceneTests {
     public void PlayerPanelsAnchorToTheBottomAndTheClockStaysTopCenter() {
         // M-29 (audit 2026-08-08; design :2617): "Bottom of screen, evenly spaced
         // (P1 left, P2 right)" — the panels were authored top-anchored.
+        // Package 11 A8 renamed Root -> SafeArea and PlayerOne/Two -> P1_Status /
+        // P2_Status to match HUD_CONTRACT; the geometry rule is unchanged.
         FighterHUD hud = Mount();
         try {
-            var one = hud.GetNode<Control>("Root/PlayerOne");
-            var two = hud.GetNode<Control>("Root/PlayerTwo");
+            var one = hud.GetNode<Control>("SafeArea/P1_Status");
+            var two = hud.GetNode<Control>("SafeArea/P2_Status");
 
             AssertFloat(one.AnchorTop).IsEqual(1f);
             AssertFloat(one.AnchorBottom).IsEqual(1f);
@@ -148,13 +150,13 @@ public class FighterHudSceneTests {
 
             // The deplete-toward-center HP treatment survives the move: P2's bar
             // still fills end-to-begin (fill_mode = 1).
-            AssertThat(hud.GetNode<ProgressBar>("Root/PlayerTwo/Body/Column/HPBar")
+            AssertThat(hud.GetNode<ProgressBar>("SafeArea/P2_Status/Body/Column/HPBar")
                 .Get("fill_mode").AsInt32()).IsEqual(1);
-            AssertThat(hud.GetNode<ProgressBar>("Root/PlayerOne/Body/Column/HPBar")
+            AssertThat(hud.GetNode<ProgressBar>("SafeArea/P1_Status/Body/Column/HPBar")
                 .Get("fill_mode").AsInt32()).IsEqual(0);
 
             // Match timer stays top-center (design :2622).
-            var clock = hud.GetNode<Control>("Root/MatchClock");
+            var clock = hud.GetNode<Control>("SafeArea/MatchClock");
             AssertFloat(clock.AnchorTop).IsEqual(0f);
             AssertFloat(clock.AnchorLeft).IsEqual(0.5f);
             AssertFloat(clock.AnchorRight).IsEqual(0.5f);
@@ -163,24 +165,91 @@ public class FighterHudSceneTests {
         }
     }
 
+    /// <summary>
+    /// F24: both status slots render at once, at fixed positions. The old single
+    /// pip chose one winner and hid the other, which is exactly what the contract
+    /// forbids — and the data for both was always present on the component.
+    /// </summary>
     [TestCase]
-    public void TheStatusPipAppearsOnlyWhileAStatusIsActive() {
+    public void BothStatusSlotsRenderIndependentlyAndKeepTheirFixedPositions() {
         FighterHUD hud = Mount();
         try {
             TranslationServer.SetLocale("en");
             hud.ConfigurePlayer(0, null, 3, 3);
 
             hud.ApplyPlayerState(0, State(), Runtime(), TickRate);
-            AssertThat(hud.StatusText(0)).IsEqual("");
+            AssertThat(hud.StatusSlotOccupied(0, damageSlot: true)).IsFalse();
+            AssertThat(hud.StatusSlotOccupied(0, damageSlot: false)).IsFalse();
+            // An empty slot keeps its reserved space rather than collapsing.
+            AssertThat(hud.StatusSlotReserved(0, damageSlot: true)).IsTrue();
+            AssertThat(hud.StatusSlotReserved(0, damageSlot: false)).IsTrue();
 
-            FighterRuntimeComponent venom = Runtime();
-            venom.StatusType = (int)StatusType.Venom;
-            hud.ApplyPlayerState(0, State(), venom, TickRate);
-            AssertThat(hud.StatusText(0))
+            // Root alone: the CONTROL slot fills, the damage slot stays reserved.
+            FighterRuntimeComponent rooted = Runtime();
+            rooted.StatusType = (int)StatusType.Root;
+            rooted.StatusFrames = 5 * TickRate;
+            hud.ApplyPlayerState(0, State(), rooted, TickRate);
+            AssertThat(hud.StatusSlotOccupied(0, damageSlot: false)).IsTrue();
+            AssertThat(hud.StatusSlotOccupied(0, damageSlot: true)).IsFalse();
+            AssertThat(hud.StatusText(0, damageSlot: false))
+                .IsEqual(TranslationServer.Translate("status_root").ToString());
+
+            // Venom lands in the DAMAGE slot without evicting Root.
+            FighterRuntimeComponent both = rooted;
+            both.DamageStatusType = (int)StatusType.Venom;
+            both.DamageStatusFrames = 3 * TickRate;
+            hud.ApplyPlayerState(0, State(), both, TickRate);
+            AssertThat(hud.StatusSlotOccupied(0, damageSlot: true)).IsTrue();
+            AssertThat(hud.StatusSlotOccupied(0, damageSlot: false)).IsTrue();
+            AssertThat(hud.StatusText(0, damageSlot: true))
                 .IsEqual(TranslationServer.Translate("status_venom").ToString());
 
+            // Hiding one indicator must not shift the other: the panel is
+            // fixed-position and both slots keep their reserved space and order.
+            AssertThat(hud.StatusSlotIndex(0, damageSlot: true))
+                .IsLess(hud.StatusSlotIndex(0, damageSlot: false));
+            AssertThat(hud.StatusSlotReserved(0, damageSlot: true)).IsTrue();
+            AssertThat(hud.StatusSlotReserved(0, damageSlot: false)).IsTrue();
+
+            // Clearing both empties the slots again.
             hud.ApplyPlayerState(0, State(), Runtime(), TickRate);
-            AssertThat(hud.StatusText(0)).IsEqual("");
+            AssertThat(hud.StatusSlotOccupied(0, damageSlot: true)).IsFalse();
+            AssertThat(hud.StatusSlotOccupied(0, damageSlot: false)).IsFalse();
+        } finally {
+            hud.Free();
+        }
+    }
+
+    /// <summary>
+    /// F24 is explicit that P2's slots keep their semantic order rather than
+    /// mirroring it: the damage slot is the left one on both sides, so one icon
+    /// never means two different things.
+    /// </summary>
+    [TestCase]
+    public void PlayerTwoSlotsAreNotReversed() {
+        FighterHUD hud = Mount();
+        try {
+            TranslationServer.SetLocale("en");
+            hud.ConfigurePlayer(1, null, 3, 3);
+
+            FighterRuntimeComponent burning = Runtime();
+            burning.DamageStatusType = (int)StatusType.RadiantBurn;
+            burning.DamageStatusFrames = 4 * TickRate;
+            burning.StatusType = (int)StatusType.TimeDilation;
+            burning.StatusFrames = 4 * TickRate;
+            hud.ApplyPlayerState(1, State(), burning, TickRate);
+
+            AssertThat(hud.StatusText(1, damageSlot: true))
+                .IsEqual(TranslationServer.Translate("status_radiantburn").ToString());
+            AssertThat(hud.StatusText(1, damageSlot: false))
+                .IsEqual(TranslationServer.Translate("status_timedilation").ToString());
+            AssertThat(hud.StatusSlotIndex(1, damageSlot: true)
+                    < hud.StatusSlotIndex(1, damageSlot: false))
+                .OverrideFailureMessage("P2's damage slot must stay to the LEFT of its control slot.")
+                .IsTrue();
+            // Same order as P1: one icon never means two different things.
+            AssertThat(hud.StatusSlotIndex(1, damageSlot: true))
+                .IsEqual(hud.StatusSlotIndex(0, damageSlot: true));
         } finally {
             hud.Free();
         }
@@ -209,6 +278,29 @@ public class FighterHudSceneTests {
             // Timer Off takes the clock away again.
             hud.ApplyMatchState(timerEnabled: false, 65 * TickRate, TickRate);
             AssertThat(hud.TimerVisible).IsFalse();
+        } finally {
+            hud.Free();
+        }
+    }
+
+    /// <summary>
+    /// F22: Sudden Death has no timer left to count, so the clock area carries
+    /// the phase instead of a running time. The existing SUDDEN DEATH banner on
+    /// <c>FighterOverlayModel</c> is untouched — this is the clock, not the stamp.
+    /// </summary>
+    [TestCase]
+    public void SuddenDeathReplacesTheRunningClockWithItsPhaseText() {
+        FighterHUD hud = Mount();
+        try {
+            TranslationServer.SetLocale("en");
+
+            hud.ApplyMatchState(true, 12 * TickRate, TickRate, (int)MatchMode.Stock, suddenDeath: false);
+            AssertThat(hud.TimerText).IsEqual("0:12");
+
+            hud.ApplyMatchState(true, 0, TickRate, (int)MatchMode.Stock, suddenDeath: true);
+            AssertThat(hud.TimerVisible).IsTrue();
+            AssertThat(hud.TimerText)
+                .IsEqual(TranslationServer.Translate("fighter_hud_sudden_death_clock").ToString());
         } finally {
             hud.Free();
         }

@@ -25,10 +25,19 @@ namespace FTT.Core {
         public bool IsCompleted;
         public string LastSavedTimestamp = "";
         // V7.1: Timeline Integrity per completed level (the campaign-ending
-        // average input). V7: the Chronal Rating stamp and secrets found per
-        // level — a second, better run should feel seen.
+        // average input), and secrets found per level — a second, better run
+        // should feel seen.
         public Dictionary<string, float> IntegrityByLevel = new();
+
+        /// <summary>
+        /// <b>Dead field.</b> V7.6 ruling 2.A retires the Chronal Rating, and
+        /// Package 11 A8 removed every writer. It stays in the payload through
+        /// schema v6 because deleting a field is a breaking change this package is
+        /// not taking, and because an older save's recorded ratings are harmless to
+        /// carry forward. Nothing may start writing it again.
+        /// </summary>
         public Dictionary<string, string> RatingByLevel = new();
+
         public Dictionary<string, int> SecretsFoundByLevel = new();
 
         // === Schema v5 (V7.3, purely additive) =============================
@@ -181,6 +190,18 @@ namespace FTT.Core {
         public const float MinUiScale = 0.9f;
         public const float MaxUiScale = 1.4f;
 
+        /// <summary>
+        /// Package 11 A8 / C01a. The <b>Reduced Temporal Effects</b> comfort
+        /// preset. Additive field: a payload written before it existed keeps this
+        /// <c>false</c> initializer, which is exactly the required legacy default
+        /// — Off, without overwriting an explicit value and without inferring it
+        /// from <see cref="ScreenShakeScale"/>. Read it through
+        /// <see cref="ComfortSettings"/> rather than directly, and never from
+        /// <c>scripts/FighterSim/</c>: the preset is local presentation state and
+        /// stays outside match snapshots and hashes.
+        /// </summary>
+        public bool ReducedTemporalEffects;
+
         // Display (Package 8 A4). Applied at boot by ViewportEnforcer, which is the
         // last autoload and already owns window/viewport concerns.
         public int ResolutionWidth = 1920;
@@ -232,6 +253,14 @@ namespace FTT.Core {
             UiScale = Math.Clamp(UiScale, MinUiScale, MaxUiScale);
             NormalizeDisplay();
         }
+
+        /// <summary>
+        /// Package 11 A8. Hands the comfort preset to its runtime read point.
+        /// Separate from <see cref="Normalize"/> because normalization runs on
+        /// every write as well as every load, and the preset must be pushed only
+        /// where "what the player chose" actually changes.
+        /// </summary>
+        public void ApplyComfortSettings() => ComfortSettings.Apply(ReducedTemporalEffects);
 
         /// <summary>
         /// Snaps the stored size onto the nearest supported resolution and clamps
@@ -402,6 +431,10 @@ namespace FTT.Core {
             InputBindingService.EnsureDefaultsCaptured();
             LoadGlobalData();
             ApplySavedInputBindings();
+            // C01a: the preset must be live before the first loading/portal
+            // effect. GameManager.LoadScene builds that screen, and the earliest
+            // it can run is after this autoload's _Ready, so this is the boundary.
+            GlobalData?.ApplyComfortSettings();
             for (int slot = 0; slot < SaveSlots.Length; slot++) LoadStorySlot(slot);
             // V7.6 ruling 2.B (Package 11 A3): crashes are free. The boot
             // billing is gone; the marker survives only as F10's attempt-status

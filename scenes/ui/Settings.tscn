@@ -178,6 +178,15 @@ max_value = 1.0
 step = 0.05
 value = 1.0
 
+[node name="ReducedEffectsToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Gameplay"]
+layout_mode = 2
+size_flags_horizontal = 0
+
+[node name="ReducedEffectsHelp" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
+layout_mode = 2
+theme_type_variation = &"SmallLabel"
+autowrap_mode = 3
+
 [node name="UiScaleLabel" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
 layout_mode = 2
 
@@ -216,6 +225,14 @@ autowrap_mode = 3
 layout_mode = 2
 theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
 autowrap_mode = 3
+
+[node name="ShortcutsHeading" type="Label" parent="Margin/Panel/Body/Tabs/Controls"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+
+[node name="ShortcutRows" type="VBoxContainer" parent="Margin/Panel/Body/Tabs/Controls"]
+layout_mode = 2
+theme_override_constants/separation = 4
 
 [node name="ResetAllButton" type="Button" parent="Margin/Panel/Body/Tabs/Controls"]
 custom_minimum_size = Vector2(280, 40)

@@ -378,6 +378,26 @@ namespace FTT.Core {
         public AbilitySlotLockState State;
     }
 
+    /// <summary>Act III Warden Beacon anchor charges. Zero outside Act III.</summary>
+    public struct AnchorChargesPayload {
+        public int Charges;
+        public int Max;
+    }
+
+    /// <summary>
+    /// Rally echo pool for the HUD's HP-bar band. No event existed before
+    /// Package 11 — the band was polled from <c>PlayerController.EchoPool</c> /
+    /// <c>verb.EchoPool</c> every frame — so this is an addition, not an
+    /// extension (plan §2.9 asked A8 to check and say which).
+    /// </summary>
+    public struct RallyEchoPayload {
+        public int PlayerIndex;
+        /// <summary>Pool as a fraction of maximum HP, 0-1.</summary>
+        public float PoolFraction;
+        /// <summary>True on the frame a direct hit reclaimed part of the pool.</summary>
+        public bool ReclaimFlash;
+    }
+
     public partial class EventBus : Node {
         public static EventBus Instance { get; private set; }
 
@@ -576,5 +596,14 @@ namespace FTT.Core {
         public event Action<TremorPayload> OnCollapseTremorChanged;
         public void RaiseCollapseTremorChanged(TremorPayload payload) =>
             OnCollapseTremorChanged?.Invoke(payload);
+        // === Package 11 A8: HUD-consumed events with no Wave 1 publisher ===
+        public event Action<AnchorChargesPayload> OnAnchorChargesChanged;
+        public void RaiseAnchorChargesChanged(AnchorChargesPayload payload) =>
+            OnAnchorChargesChanged?.Invoke(payload);
+
+        public event Action<RallyEchoPayload> OnRallyEchoChanged;
+        public void RaiseRallyEchoChanged(RallyEchoPayload payload) =>
+            OnRallyEchoChanged?.Invoke(payload);
+
     }
 }

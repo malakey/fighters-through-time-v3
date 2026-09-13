@@ -110,10 +110,13 @@ public class AudioVoicePoolTests {
     public void EachPlaybackEntryPointRoutesToItsDocumentedBus() {
         AudioManager audio = Audio();
         try {
+            // C01b (Package 11 A8): the dialogue chirp has its own bus under UI,
+            // so the authored voice character is never additionally warped or
+            // muffled by an environmental or health profile.
             audio.PlayChirp(1.2f);
             AudioStreamPlayer chirp = LastAllocated(audio);
             AssertObject(chirp).IsNotNull();
-            AssertThat(chirp.Bus).IsEqual(AudioBuses.UI);
+            AssertThat(chirp.Bus).IsEqual(AudioBuses.Dialogue);
             AssertThat(chirp.PitchScale).IsEqualApprox(1.2f, 0.001f);
 
             audio.PlayFootstep("stone");

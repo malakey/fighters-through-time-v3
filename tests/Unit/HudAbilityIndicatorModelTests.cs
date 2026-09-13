@@ -80,21 +80,37 @@ public class HudAbilityIndicatorModelTests {
         AssertFloat(model.UltimateMeter).IsEqual(HudAbilityIndicatorModel.UltimateReadyMeter);
     }
 
+    /// <summary>
+    /// F24: newest-wins is a per-SLOT rule, not a per-model one. Venom replacing
+    /// Venom is still an outright replacement; Venom arriving beside Root is not.
+    /// </summary>
     [TestCase]
-    public void TheNewestStatusCompletelyReplacesThePreviousOne() {
+    public void TheNewestStatusReplacesThePreviousOneInItsOwnSlotOnly() {
         var model = new HudAbilityIndicatorModel();
 
         model.ApplyStatus(StatusType.Venom, 5f);
-        AssertThat(model.ActiveStatus).IsEqual(StatusType.Venom);
-        AssertFloat(model.StatusRemaining).IsEqual(5f);
+        AssertThat(model.DamageStatus).IsEqual(StatusType.Venom);
+        AssertFloat(model.DamageStatusRemaining).IsEqual(5f);
+        AssertThat(model.ControlStatus).IsEqual(StatusType.None);
 
-        // Project rule: one status at a time, no stacking, newest wins outright.
-        model.ApplyStatus(StatusType.Root, 2f);
+        // Same slot: newest wins outright.
+        model.ApplyStatus(StatusType.RadiantBurn, 2f);
+        AssertThat(model.DamageStatus).IsEqual(StatusType.RadiantBurn);
+        AssertFloat(model.DamageStatusRemaining).IsEqual(2f);
+
+        // Other slot: coexists. The compat single-status view still leads with
+        // control, matching StatusController.ActiveType.
+        model.ApplyStatus(StatusType.Root, 3f);
+        AssertThat(model.ControlStatus).IsEqual(StatusType.Root);
+        AssertThat(model.DamageStatus).IsEqual(StatusType.RadiantBurn);
         AssertThat(model.ActiveStatus).IsEqual(StatusType.Root);
-        AssertFloat(model.StatusRemaining).IsEqual(2f);
+
+        model.ClearStatus(StatusType.Root);
+        AssertThat(model.ControlStatus).IsEqual(StatusType.None);
+        AssertThat(model.DamageStatus).IsEqual(StatusType.RadiantBurn);
 
         model.ClearStatus();
-        AssertThat(model.ActiveStatus).IsEqual(StatusType.None);
+        AssertThat(model.DamageStatus).IsEqual(StatusType.None);
         AssertFloat(model.StatusRemaining).IsEqual(0f);
     }
 
@@ -104,12 +120,78 @@ public class HudAbilityIndicatorModelTests {
         model.ApplyStatus(StatusType.RadiantBurn, 1f);
 
         model.Tick(0.5f);
-        AssertThat(model.ActiveStatus).IsEqual(StatusType.RadiantBurn);
+        AssertThat(model.DamageStatus).IsEqual(StatusType.RadiantBurn);
 
         // The bus falling edge is the primary source; this timer is the fallback
         // for a status whose owner left the tree mid-effect.
         model.Tick(0.6f);
-        AssertThat(model.ActiveStatus).IsEqual(StatusType.None);
+        AssertThat(model.DamageStatus).IsEqual(StatusType.None);
+    }
+
+    /// <summary>
+    /// F24: "Radials follow authoritative simulation clocks, including pauses and
+    /// Time Freeze; the HUD must not independently count down a frozen status."
+    /// Cooldowns are unaffected — they are not what Time Freeze stops.
+    /// </summary>
+    [TestCase]
+    public void ASuspendedStatusClockDoesNotTickDownWhileCooldownsStillDo() {
+        var model = new HudAbilityIndicatorModel();
+        model.ApplyStatus(StatusType.Venom, 5f);
+        model.StartCooldown(AbilitySlot.Special1, 4f);
+
+        model.StatusClockSuspended = true;
+        model.Tick(2f);
+        AssertFloat(model.DamageStatusRemaining).IsEqual(5f);
+        AssertFloat(model.RemainingSeconds(AbilitySlot.Special1)).IsEqual(2f);
+
+        model.StatusClockSuspended = false;
+        model.Tick(2f);
+        AssertFloat(model.DamageStatusRemaining).IsEqual(3f);
+    }
+
+    /// <summary>
+    /// The authoritative sync is what the Story HUD actually renders from: it
+    /// overwrites both slots wholesale, so an expiry the event layer swallowed
+    /// (StatusController re-announces a survivor instead of clearing) still
+    /// disappears from the HUD.
+    /// </summary>
+    [TestCase]
+    public void SyncingFromTheAuthorityOverwritesBothSlots() {
+        var model = new HudAbilityIndicatorModel();
+        model.ApplyStatus(StatusType.Venom, 5f);
+        model.ApplyStatus(StatusType.Root, 5f);
+
+        model.SyncStatusFromAuthority(StatusType.Root, 1.5f, StatusType.None, 0f);
+        AssertThat(model.ControlStatus).IsEqual(StatusType.Root);
+        AssertFloat(model.ControlStatusRemaining).IsEqual(1.5f);
+        AssertThat(model.DamageStatus).IsEqual(StatusType.None);
+
+        // A zero remaining is an empty slot however the type reads.
+        model.SyncStatusFromAuthority(StatusType.Root, 0f, StatusType.Venom, 2f);
+        AssertThat(model.ControlStatus).IsEqual(StatusType.None);
+        AssertThat(model.DamageStatus).IsEqual(StatusType.Venom);
+    }
+
+    /// <summary>
+    /// V7.5 slot locks: a locked slot is never "ready", however full its cooldown
+    /// or meter is, so the overlay and the readiness tint cannot disagree.
+    /// </summary>
+    [TestCase]
+    public void ALockedSlotIsNeverReadyAndClearingTheLockRestoresIt() {
+        var model = new HudAbilityIndicatorModel();
+        AssertThat(model.IsReady(AbilitySlot.Special1)).IsTrue();
+
+        model.SetSlotLock(AbilitySlot.Special1, AbilitySlotLockState.Dormant);
+        AssertThat(model.LockState(AbilitySlot.Special1)).IsEqual(AbilitySlotLockState.Dormant);
+        AssertThat(model.IsLocked(AbilitySlot.Special1)).IsTrue();
+        AssertThat(model.IsReady(AbilitySlot.Special1)).IsFalse();
+
+        model.SetUltimateMeter(100f);
+        model.SetSlotLock(AbilitySlot.Ultimate, AbilitySlotLockState.Suppressed);
+        AssertThat(model.IsReady(AbilitySlot.Ultimate)).IsFalse();
+
+        model.SetSlotLock(AbilitySlot.Special1, AbilitySlotLockState.Clear);
+        AssertThat(model.IsReady(AbilitySlot.Special1)).IsTrue();
     }
 
     [TestCase]
@@ -118,11 +200,13 @@ public class HudAbilityIndicatorModelTests {
         model.ApplyStatus(StatusType.StaticCharge, 3f);
 
         model.ApplyStatus(StatusType.None, 3f);
-        AssertThat(model.ActiveStatus).IsEqual(StatusType.None);
+        // None names no slot, so it latches nothing — and must not silently wipe
+        // the StaticCharge that IS active.
+        AssertThat(model.ControlStatus).IsEqual(StatusType.StaticCharge);
 
         model.ApplyStatus(StatusType.Venom, 4f);
         model.ApplyStatus(StatusType.Venom, 0f);
-        AssertThat(model.ActiveStatus).IsEqual(StatusType.None);
+        AssertThat(model.DamageStatus).IsEqual(StatusType.None);
     }
 
     [TestCase]
@@ -137,6 +221,7 @@ public class HudAbilityIndicatorModelTests {
         AssertThat(model.IsReady(AbilitySlot.Special2)).IsTrue();
         AssertThat(model.IsReady(AbilitySlot.Ultimate)).IsFalse();
         AssertThat(model.ActiveStatus).IsEqual(StatusType.None);
+        AssertThat(model.LockState(AbilitySlot.Special2)).IsEqual(AbilitySlotLockState.Clear);
         AssertFloat(model.UltimateMeter).IsEqual(0f);
     }
 

@@ -33,7 +33,7 @@ public class AudioBusLayoutTests {
 
     [TestCase]
     public void EveryAuthoredBusExistsAtRuntimeAndRoutesToItsDocumentedParent() {
-        AssertThat(AudioBuses.All.Length).IsEqual(7);
+        AssertThat(AudioBuses.All.Length).IsEqual(9);
         foreach (string busName in AudioBuses.All) {
             AssertThat(AudioServer.GetBusIndex(busName) >= 0)
                 .OverrideFailureMessage($"bus '{busName}' is missing from the running AudioServer")
@@ -47,6 +47,12 @@ public class AudioBusLayoutTests {
         AssertThat(AudioServer.GetBusSend(AudioServer.GetBusIndex(AudioBuses.Combat))).IsEqual(AudioBuses.SFX);
         AssertThat(AudioServer.GetBusSend(AudioServer.GetBusIndex(AudioBuses.Movement))).IsEqual(AudioBuses.SFX);
         AssertThat(AudioServer.GetBusSend(AudioServer.GetBusIndex(AudioBuses.Environmental))).IsEqual(AudioBuses.SFX);
+        // C01b (Package 11 A8): the clear path sits UNDER SFX so the player's SFX
+        // gain and mute still govern it, and Dialogue sits under UI.
+        AssertThat(AudioServer.GetBusSend(AudioServer.GetBusIndex(AudioBuses.CriticalCues)))
+            .IsEqual(AudioBuses.SFX);
+        AssertThat(AudioServer.GetBusSend(AudioServer.GetBusIndex(AudioBuses.Dialogue)))
+            .IsEqual(AudioBuses.UI);
         AssertThat(AudioBuses.HierarchyIsIntact()).IsTrue();
     }
 
@@ -77,15 +83,69 @@ public class AudioBusLayoutTests {
     }
 
     /// <summary>
-    /// The snapshot layer muffles by driving the authored low-pass filters. Without
-    /// them the pause/low-health snapshots degrade to volume-only, which is a real
+    /// The mix layer muffles by driving the authored low-pass filters. Without
+    /// them the pause/low-health profiles degrade to volume-only, which is a real
     /// but silent loss of behaviour — so the effects are part of the contract.
+    ///
+    /// <para>Package 11 A8 / C01b moved the SFX-side filter DOWN onto the three
+    /// background World SFX children. Leaving it on the shared SFX parent would
+    /// have muffled the new Critical Cues path along with everything else, which
+    /// is the failure the contract names outright: "never a second filter on a
+    /// parent bus carrying protected cues."</para>
     /// </summary>
     [TestCase]
-    public void MusicAndSfxCarryALowPassFilterAndMasterCarriesALimiter() {
+    public void BackgroundBusesCarryTheLowPassAndProtectedBusesCarryNone() {
         AssertThat(HasEffect<AudioEffectLowPassFilter>(AudioBuses.Music)).IsTrue();
-        AssertThat(HasEffect<AudioEffectLowPassFilter>(AudioBuses.SFX)).IsTrue();
         AssertThat(HasEffect<AudioEffectHardLimiter>(AudioBuses.Master)).IsTrue();
+
+        foreach (string background in AudioBuses.BackgroundSfxBuses) {
+            AssertThat(HasEffect<AudioEffectLowPassFilter>(background))
+                .OverrideFailureMessage($"background bus '{background}' lost its low-pass filter")
+                .IsTrue();
+        }
+
+        // The SFX parent itself must be clean, or the split buys nothing.
+        AssertThat(HasEffect<AudioEffectLowPassFilter>(AudioBuses.SFX)).IsFalse();
+        foreach (string protectedBus in AudioBuses.ProtectedBuses) {
+            AssertThat(HasEffect<AudioEffectLowPassFilter>(protectedBus))
+                .OverrideFailureMessage($"protected bus '{protectedBus}' must carry no background filter")
+                .IsFalse();
+        }
+    }
+
+    /// <summary>
+    /// C01b: a selected profile's cutoff reaches the background World SFX buses
+    /// and never the protected ones, so a warning stays clear through the most
+    /// aggressive muffle the mix can select.
+    /// </summary>
+    [TestCase]
+    public void ASelectedProfileFiltersBackgroundSfxButNotCriticalCues() {
+        var mixer = new AudioSnapshotMixer();
+        try {
+            mixer.ApplySnapshot(AudioSnapshot.Pause);
+            mixer.SettleImmediately();
+            foreach (string background in AudioBuses.BackgroundSfxBuses) {
+                AssertFloat(CutoffOf(background)).IsEqualApprox(1200f, 1f);
+            }
+            AssertFloat(CutoffOf(AudioBuses.CriticalCues))
+                .OverrideFailureMessage("Critical Cues must carry no filter to drive at all.")
+                .IsEqual(-1f);
+        } finally {
+            new AudioSnapshotMixer().SettleImmediately();
+            AudioManager.Instance?.ApplySavedVolumes();
+        }
+    }
+
+    /// <summary>Cutoff of a bus's first low-pass, or -1 when it has none.</summary>
+    private static float CutoffOf(string busName) {
+        int index = AudioServer.GetBusIndex(busName);
+        if (index < 0) return -1f;
+        for (int effect = 0; effect < AudioServer.GetBusEffectCount(index); effect++) {
+            if (AudioServer.GetBusEffect(index, effect) is AudioEffectLowPassFilter filter) {
+                return filter.CutoffHz;
+            }
+        }
+        return -1f;
     }
 
     /// <summary>

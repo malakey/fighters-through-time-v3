@@ -853,7 +853,6 @@ integrity_tier_stabilized,Stabilized
 integrity_tier_fractured,Fractured
 results_integrity,Timeline Integrity: {0}% ({1})
 results_secrets,Secrets {0}/{1}
-results_rating,Chronal Rating: {0}
 menu_lan_match,LAN Match
 network_select_title,LAN Match (Direct IP)
 network_select_notice,"Both machines must pick the same characters, stage, and rules. Host on one machine, join from the other."
@@ -903,7 +902,7 @@ controls_binding_unbound,Unbound
 controls_binding_mouse,Mouse {0}
 controls_binding_joy_button,Pad Button {0}
 controls_binding_joy_axis,Pad Axis {0}{1}
-controls_ultimate_readonly,"Ultimate is fixed to the U key, and to the LB + RB shoulder chord on a controller. It cannot be rebound."
+controls_ultimate_readonly,"Ultimate has its own binding slot. The Movement Ability + Special 2 shoulder chord stays available as an optional shortcut you can switch off below."
 controls_action_move_left,Move Left
 controls_action_move_right,Move Right
 controls_action_jump,Jump
@@ -1292,3 +1291,34 @@ dlg_hub_okafor_act3_1,The readings are off my scale now. I have nothing to compa
 dlg_hub_okafor_act3_2,Come back and let me take one more. That is all I am asking of you.
 # M01: Steam Remote Play Together is the launch netplay message.
 fighter_remote_play_notice,Play online with a friend through Steam Remote Play Together — they join your local match from their own machine.
+# Package 11 A8
+hud_level_dust,Chronal Dust: {0}
+hud_dust_pickup,+{0}
+hud_integrity_siphons,Siphons active: {0}
+hud_time_freeze_ready,Freeze ready
+hud_time_freeze_active,Frozen {0}s
+hud_time_freeze_thaw,Thawing in {0}s
+hud_time_freeze_cooldown,Freeze {0}s
+hud_defy_not_ready,Defy: Not Ready
+hud_defy_ready,Defy: Ready
+hud_defy_spent,Defy: Spent
+hud_defy_unavailable,Defy: Unavailable
+hud_slot_lock_dormant,Dormant legacy
+hud_slot_lock_suppressed,Suppressed
+hud_slot_lock_clear,Available
+fighter_hud_stocks_lost,Stocks lost: {0}
+fighter_hud_sudden_death_clock,Sudden Death - next death loses
+results_dust_optional,"Optional finds: {0}"
+results_dust_losses,"Lost to collapse: {0}"
+results_dust_tier_bonus,"Integrity bonus: {0}"
+settings_reduced_temporal_effects,Reduced Temporal Effects
+settings_reduced_temporal_effects_help,"Reduces distortion, after-images and screen flashes. Keeps gameplay cues and timing unchanged."
+controls_action_grab,Grab
+controls_action_echo_step,Echo Step
+controls_shortcuts_heading,Optional shortcuts
+controls_shortcut_ultimate,Ultimate chord
+controls_shortcut_grab,Grab chord
+controls_shortcut_echo_step,Echo Step chord
+controls_unbind,Unbind
+controls_unbound_done,Slot cleared.
+controls_unreachable_action,"No way left to use: {0}. Bind a key or re-enable its shortcut."

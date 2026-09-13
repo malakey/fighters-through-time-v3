@@ -23,13 +23,19 @@ namespace FTT.UI {
         private Label _rewindsLabel;
         private Label _integrityLabel;
         private Label _secretsLabel;
-        private Label _ratingLabel;
         /// <summary>Package 11 A5: the V7.5 "Resonance Restored" unlock beat.</summary>
         private Label _resonanceRestoredLabel;
         private Button _returnButton;
 
         /// <summary>The Resonance Restored line, for the A5 pin. Test seam.</summary>
         internal Label ResonanceRestoredLine => _resonanceRestoredLabel;
+        // Package 11 A8 / F05: the itemisation widened from three categories to
+        // six — required enemies, boss, Extractors, optional/secret allocations,
+        // losses, and the Integrity tier bonus. A10 supplies the values from its
+        // ledger; this surface owns the lines and their copy.
+        private Label _dustOptionalLabel;
+        private Label _dustLossesLabel;
+        private Label _dustTierBonusLabel;
 
         /// <summary>
         /// Instantiates the authored results scene. Package 8 B1 removed the
@@ -101,6 +107,40 @@ namespace FTT.UI {
         }
 
         /// <summary>
+        /// Package 11 A8 / F05: the full six-category itemisation — required
+        /// enemies, boss, Extractors, optional and secret allocations, losses, and
+        /// the Integrity tier bonus.
+        ///
+        /// <para><paramref name="lossDust"/> is subtracted from the displayed
+        /// total and rendered as its own negative line, because a player who paid a
+        /// Collapse fee should be able to see the number that left rather than
+        /// inferring it from a total that quietly does not add up. The tier bonus
+        /// is added on top for the same reason.</para>
+        ///
+        /// <para>The values come from the economy ledger, not from this panel: the
+        /// overlay must never disagree with what the wallet was actually paid.</para>
+        /// </summary>
+        public void ShowResults(
+            string levelTitleKey, int mobDust, int extractorDust, int bossDust,
+            int optionalDust, int lossDust, int tierBonusDust,
+            float completionSeconds, int rewindsUsed) {
+            mobDust = Mathf.Max(0, mobDust);
+            extractorDust = Mathf.Max(0, extractorDust);
+            bossDust = Mathf.Max(0, bossDust);
+            optionalDust = Mathf.Max(0, optionalDust);
+            lossDust = Mathf.Max(0, lossDust);
+            tierBonusDust = Mathf.Max(0, tierBonusDust);
+            int total = mobDust + extractorDust + bossDust + optionalDust + tierBonusDust - lossDust;
+            ShowResults(levelTitleKey, Mathf.Max(0, total), completionSeconds, rewindsUsed);
+            SetItemizedLine(_dustMobsLabel, "results_dust_mobs", mobDust);
+            SetItemizedLine(_dustExtractorsLabel, "results_dust_extractors", extractorDust);
+            SetItemizedLine(_dustBossLabel, "results_dust_boss", bossDust);
+            SetItemizedLine(_dustOptionalLabel, "results_dust_optional", optionalDust);
+            SetItemizedLine(_dustLossesLabel, "results_dust_losses", lossDust);
+            SetItemizedLine(_dustTierBonusLabel, "results_dust_tier_bonus", tierBonusDust);
+        }
+
+        /// <summary>
         /// Explicit-statistics overload. Present so the panel is provable without
         /// standing up the StoryManager autoload and playing a level through.
         /// </summary>
@@ -110,6 +150,9 @@ namespace FTT.UI {
             SetLineVisible(_dustMobsLabel, false);
             SetLineVisible(_dustExtractorsLabel, false);
             SetLineVisible(_dustBossLabel, false);
+            SetLineVisible(_dustOptionalLabel, false);
+            SetLineVisible(_dustLossesLabel, false);
+            SetLineVisible(_dustTierBonusLabel, false);
             if (_timeLabel != null) {
                 _timeLabel.Text = string.Format(
                     Tr("results_completion_time"), FTT.Core.StoryManager.FormatDuration(completionSeconds));
@@ -121,10 +164,21 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// V7/V7.1 result lines: the Timeline Integrity percentage and tier,
-        /// the secrets counter, and the Chronal Rating stamp — read from the
-        /// statistics StoryManager froze at completion. Hidden when no story
-        /// run produced them (Fighter-adjacent tests, bare panels).
+        /// V7/V7.1 result lines: the Timeline Integrity percentage with its tier,
+        /// and the secrets counter — read from the statistics StoryManager froze at
+        /// completion. Hidden when no story run produced them (Fighter-adjacent
+        /// tests, bare panels).
+        ///
+        /// <para>Package 11 A8, ruling 2.A: the <b>Chronal Rating</b> stamp is
+        /// gone. V7.6 retires the rating outright, and the Integrity tier it was
+        /// derived from is the thing the player is actually being told about — two
+        /// gradings of the same run on adjacent lines only invited the question of
+        /// which one counted.</para>
+        ///
+        /// <para>F01/H-31: the Integrity value shown is the one frozen at PreBoss
+        /// activation, not a live reading — the gauge stops there by contract, so
+        /// the boss fight cannot change the grade the player earned on the
+        /// approach.</para>
         /// </summary>
         private void ShowTimelineLines() {
             // Package 11 A5: every ShowResults overload funnels through here, so
@@ -134,7 +188,6 @@ namespace FTT.UI {
             if (story == null) {
                 SetLineVisible(_integrityLabel, false);
                 SetLineVisible(_secretsLabel, false);
-                SetLineVisible(_ratingLabel, false);
                 return;
             }
             float integrity = story.LastLevelIntegrityPercent;
@@ -145,14 +198,9 @@ namespace FTT.UI {
                     Tr(FTT.Core.TimelineIntegrityRules.TierKey(integrity)));
                 _integrityLabel.Visible = true;
             }
-            if (_secretsLabel != null) {
-                _secretsLabel.Text = string.Format(Tr("results_secrets"), story.LastLevelSecretsFound, 1);
-                _secretsLabel.Visible = true;
-            }
-            if (_ratingLabel != null && !string.IsNullOrEmpty(story.LastLevelChronalRating)) {
-                _ratingLabel.Text = string.Format(Tr("results_rating"), story.LastLevelChronalRating);
-                _ratingLabel.Visible = true;
-            }
+            if (_secretsLabel == null) return;
+            _secretsLabel.Text = string.Format(Tr("results_secrets"), story.LastLevelSecretsFound, 1);
+            _secretsLabel.Visible = true;
         }
 
         private void SetItemizedLine(Label label, string translationKey, int amount) {
@@ -179,11 +227,16 @@ namespace FTT.UI {
             // V7/V7.1 lines are code-built so the authored scene stays untouched:
             // inserted above the return button, hidden until populated.
             if (GetNodeOrNull<Container>("Shade/Panel/Layout") is Container layout) {
+                // F05's three extra dust categories sit with the existing three,
+                // above the run statistics.
+                _dustOptionalLabel = AppendResultLine(layout, "DustOptional");
+                _dustLossesLabel = AppendResultLine(layout, "DustLosses");
+                _dustTierBonusLabel = AppendResultLine(layout, "DustTierBonus");
                 _integrityLabel = AppendResultLine(layout, "IntegrityLine");
                 _secretsLabel = AppendResultLine(layout, "SecretsLine");
-                _ratingLabel = AppendResultLine(layout, "RatingLine");
                 _resonanceRestoredLabel = AppendResultLine(layout, "ResonanceRestoredLine");
                 _resonanceRestoredLabel.AddThemeColorOverride("font_color", UIPalette.TextAccent);
+                // No RatingLine: V7.6 ruling 2.A retires the Chronal Rating.
             }
         }
 
