@@ -1431,3 +1431,55 @@ dlg_l04a_pocahontas_boss_2,"You have my river. You have never once listened to i
 dlg_l04a_pocahontas_exit_1,"The weir is open. The season can finish the way it was written."
 dlg_l04a_pocahontas_exit_2,"Wound closed, Warden. That one was yours, not history's."
 dlg_l04a_pocahontas_exit_3,"They will send something worse next time. Let them."
+# Package 11 B2
+legacy_cleopatra_level_title,"Alexandria, 30 BC — The Legacy Nexus"
+legacy_cleopatra_room_harbour,Harbour Steps
+legacy_cleopatra_room_mausoleum,The Royal Mausoleum
+legacy_cleopatra_room_asp_hall,The Asp's Hall
+legacy_cleopatra_objective_gates,Reclaim the nexus ({0}/{1} resonances answered)
+legacy_cleopatra_objective_boss,Break the Jackal's hold on the mausoleum
+legacy_cleopatra_objective_complete,The nexus is yours again
+boss_cleopatra_legacy_priest_name,The Mausoleum Jackal
+speaker_cleopatra_legacy_priest,The Mausoleum Jackal
+dlg_l04a_cleopatra_entrance_1,"Warden, the rift signature is your own. The Unbound came back for the night Alexandria lost you."
+dlg_l04a_cleopatra_entrance_2,Then they will meet the queen who was still standing when the basket arrived.
+dlg_l04a_cleopatra_entrance_3,Everything you are is past that causeway. Go and take it back.
+dlg_l04a_cleopatra_boss_1,"A queen filed under 'ended'. Kneel, and the record stays tidy."
+dlg_l04a_cleopatra_boss_2,You hold my serpents. Not one of them has ever obeyed you.
+dlg_l04a_cleopatra_exit_1,The seal is quiet. The night can finish the way it was written.
+dlg_l04a_cleopatra_exit_2,"Wound closed, Warden. That one was yours, not history's."
+dlg_l04a_cleopatra_exit_3,They will send something worse. Let it come to my harbour.
+legacy_tesla_level_title,"Chicago, 1893 — The Legacy Nexus"
+legacy_tesla_room_court,Court of Honor
+legacy_tesla_room_electricity,The Electricity Building
+legacy_tesla_room_dynamo,The Dynamo Vault
+legacy_tesla_objective_gates,Reclaim the nexus ({0}/{1} resonances answered)
+legacy_tesla_objective_boss,Break the Inventor's hold on the dynamo
+legacy_tesla_objective_complete,The nexus is yours again
+boss_tesla_legacy_inventor_name,The Exposition Inventor
+speaker_tesla_legacy_inventor,The Exposition Inventor
+dlg_l04a_tesla_entrance_1,"Warden, the rift signature is your own. The Unbound came back for the night the Fair first lit."
+dlg_l04a_tesla_entrance_2,Then they can stand in my current and call it an accident afterwards.
+dlg_l04a_tesla_entrance_3,Everything you are is past that gantry. Go and switch it on.
+dlg_l04a_tesla_boss_1,"An unfiled genius. Hold still — correction is only current, properly applied."
+dlg_l04a_tesla_boss_2,You hold my coils. You have never once understood the ground.
+dlg_l04a_tesla_exit_1,The dynamo is turning. Let the Fair have its night.
+dlg_l04a_tesla_exit_2,"Wound closed, Warden. The Unbound just lost their claim on you."
+dlg_l04a_tesla_exit_3,Let them come again. I know where every switch in this building is.
+legacy_shakespeare_level_title,"London, 1599 — The Legacy Nexus"
+legacy_shakespeare_room_bankside,Bankside Approach
+legacy_shakespeare_room_yard,The Globe's Yard
+legacy_shakespeare_room_understage,Beneath the Stage
+legacy_shakespeare_objective_gates,Reclaim the nexus ({0}/{1} resonances answered)
+legacy_shakespeare_objective_boss,Break the Understudy's hold on the stage
+legacy_shakespeare_objective_complete,The nexus is yours again
+boss_shakespeare_legacy_king_name,The Understudy King
+speaker_shakespeare_legacy_king,The Understudy King
+dlg_l04a_shakespeare_entrance_1,"Warden, the rift signature is your own. The Unbound came back for the night the Globe first opened."
+dlg_l04a_shakespeare_entrance_2,"Then they shall have a performance, and no exit but the one I write them."
+dlg_l04a_shakespeare_entrance_3,Everything you are is past that span. Go and call the house to order.
+dlg_l04a_shakespeare_boss_1,An author we failed to strike from the cast. Step aside — I have the part now.
+dlg_l04a_shakespeare_boss_2,You hold my words. You have never once earned a single one.
+dlg_l04a_shakespeare_exit_1,The stage is swept. The season can run as it was written.
+dlg_l04a_shakespeare_exit_2,"Wound closed, Warden. Take the applause — that one was yours."
+dlg_l04a_shakespeare_exit_3,They will send a better player next time. Let them try these boards.
