@@ -5486,3 +5486,101 @@ touched. Three test-side changes in `FighterHazardBehaviorTests`:
 
 **Not a seam.** `resources/Audio/default_bus_layout.tres` is rewritten with CRLF line endings by any
 headless Godot launch. It carries no content diff and was deliberately left uncommitted.
+### B1 — Level 4A variants for Joan, Leonardo and Lincoln (2026-09-13)
+**Shipped.** Three complete Legacy Levels at the campaign's functionally-complete /
+placeholder-presentation bar, copied structurally from A12's Einstein exemplar: `joan` (Orléans,
+1429 — the assault on the Tourelles), `leonardo` (Florence, 1503 — the workshop), `lincoln`
+(Gettysburg, 1863 — the dedication). Per hero: `scenes/campaign/Level_04A_<hero>.tscn`,
+`scripts/Environment/Level04A<Hero>Controller.cs`, `resources/Dialogue/level_04a_<hero>_dialogue.tres`
+(entrance / boss_intro / exit), `resources/Bosses/legacy/<hero>_legacy_boss.tres`,
+`resources/Pools/level_pool_configs/level_04a_<hero>_pool_config.tres`, a `StoryLevel` and a
+`DialogueSet` manifest row, a pool-catalog entry, seventeen `en.csv` rows, and a fourteen-case
+`Level04A<Hero>ContentTests`. Each is three rooms across 6,720 px with the F12 two-checkpoint route,
+the four kit gates, the independent Eraser trigger, one late Font, and a two-phase boss.
+**Boss reuse (§2.4 requires this stated explicitly).** Each variant **duplicates** an era boss to
+`resources/Bosses/legacy/` at **700 HP** (the exemplar's 4A row) with `ChronalDustDrop = 25`, its own
+`BossID`/`DisplayName`/`DisplayNameKey`, and its last ability gated to phase 1 so phase 2 changes the
+fight. No shared boss resource was edited.
+| Variant | Duplicated from | Shared `MaxHP` | 4A `MaxHP` | New `BossID` |
+|---|---|---|---|---|
+| joan | `siegemaster_duke.tres` (Level 2, Orléans) | 540 (A7b → 520) | **700** | `joan_legacy_overseer` |
+| leonardo | `borgia_inquisitor.tres` (Level 1, Florence) | 500 (A7b → 350) | **700** | `leonardo_legacy_overseer` |
+| lincoln | `siege_cannon.tres` (Level 11, Gettysburg) | 880 | **700** | `lincoln_legacy_overseer` |
+Each suite proves the duplicate did not come from editing the shared resource, but deliberately does
+**not** pin the shared boss's literal `MaxHP` — A7b is applying the V7.6 2.E HP rows to two of these
+three in the same wave, and a literal would fail this suite on someone else's approved change. The
+assertion is `shared.MaxHP != duplicate.MaxHP` plus a `BossID` pin, which holds before and after A7b.
+**Deviation 1 — a fifth `LegacyGateMode` is genuinely needed, and B1 worked around it instead.**
+The plan says a hero whose special is neither the Strike nor the Zone shape needs a fifth mode,
+recorded here rather than loosening an existing one. Three shipped Story abilities deliver through a
+hand-rolled `PhysicsShapeQueryParameters2D` masked to **`EnemyHurtbox` alone** — `joan_divine_piercing`
+(the thrust flurry), `leonardo_clockwork_turret` (the bolts), and `lincoln_emancipator`'s ground wave
+— so they can never touch `LegacyKitGate`'s `PersistentObject` strike surface. Adding an enum member
+while B1, B2 and B3 all hit the same need in parallel invites three conflicting edits to A12's file,
+so B1 solved it in variant-owned code:
+- **Lincoln** needed nothing: the Emancipator's wave lays a live `story_zone` carrying its ability ID,
+  so its gate is an honest `Zone`; Splitting Strike swings a real `Hitbox`, so its gate is an honest
+  `Strike`.
+- **Joan's Special 2** and **Leonardo's Special 2** hang a new `scripts/Environment/LegacyResonantEffigy.cs`
+  on the gate: a second, unowned `EnvironmentHurtboxAdapter` on the `EnemyHurtbox` layer that forwards
+  everything it receives to the **same** `LegacyKitGate.TryResolve`. V01c is unchanged — the gate still
+  accepts only its one authored ability ID, so a basic combo hit, another special, an enemy hitbox or
+  an incidental contact is rejected exactly as on the ordinary surface. It returns 0 damage (no meter,
+  no Rally echo, no Wings-refresh hook, no reward — every consumer in `Hitbox.OnAreaEntered` guards on
+  `damageApplied > 0f`), it goes inert via the physics-safe setters the moment its gate latches, and
+  because its owner index is `-1` it inherits `Hitbox.IsDiscardedByTimeFreeze` for free: a frozen world
+  cannot grant objective progress through it.
+**Request for A12 / Phase C:** the real fix is one line in `LegacyKitGate.BuildStrikeSurface` — give
+the strike surface `CollisionLayers.EnemyHurtbox` alongside `PersistentObject` (it already carries the
+`payload.AttackerIndex >= 0` check that keeps enemies out). `LegacyResonantEffigy` and both
+`Attach…Effigy` hooks then delete cleanly. B2 and B3 will hit the same wall with Tesla's coils,
+Cleopatra's nest, Mozart's platforms and Pocahontas's snares.
+**Deviation 2 — `ParSeconds` is hidden, so no 4A variant has an Integrity clock.** A merge collision
+between A3 and A12 that neither could see alone: `StoryLevelControllerBase.ParSeconds` is
+`public virtual` **`float`** (A3, read at `BeginIntegrityClock(ParSeconds, …)` and by
+`SetRecoveryRouteSeconds`), while `LegacyLevelControllerBase.ParSeconds` is `public abstract` **`int`**
+(A12). Different return types, so the Legacy member **hides** rather than overrides — build warning
+`CS0114` at `LegacyLevelControllerBase.cs:170`. Every 4A level therefore boots with the base's `0f`,
+`BeginIntegrityClock` is called with par 0, and `if (ParSeconds <= 0f) return;` skips the clock
+entirely. This affects the Einstein exemplar too. A subclass cannot fix it — C# forbids declaring both
+members in one class — and both files are outside B1's ownership, so it is recorded rather than
+patched. **Fix:** make the Legacy member `public abstract override float ParSeconds { get; }` and turn
+the nine variants' `override int` into `override float`. B1's suites read the authored value through
+the variant's static type, so they stay green either way and will keep passing after the fix.
+**Deviation 3 — `CampaignRouteTests` conflated the route length with the manifest row count.**
+`EveryManifestStoryLevelRowMatchesTheStoryManagerScenePath` and
+`EveryManifestStoryLevelRowPointsAtAnAuthoredScene` asserted `rows.Count == CampaignRouteLength` (17),
+which held only while Einstein was the single variant. B1 replaced both with a derived
+`ExpectedStoryLevelRowCount(rows)` = sixteen shared levels + one row per authored `level_04a_*` row, so
+B2 and B3 need no further edit and the merged nine-variant tree passes unchanged.
+**Manifest counts: B1 raised them by three, not to the collective total.**
+`ContentManifest.ExactRequiredCounts` StoryLevel **17 → 20** and DialogueSet **18 → 21**, with
+`ContentManifestTests`' `StoryLevel` assertion moved 17 → 20 in the same change. A12's handoff says
+"raise to 25 / 26", but that value is only true of the merged wave: B1's branch holds twenty
+StoryLevel rows, and setting 25 would fail the branch's own gate. **The orchestrator must reconcile
+all three B branches to StoryLevel 25 / DialogueSet 26 at merge** (AudioSet stays 28 — one shared 4A
+set).
+**Dialogue values authored under B1's own marker.** The dossier says A6 owns the lines, or the B agent
+authors them if A6 has already merged. A6 is merged, so B1 wrote the fifty-one `en.csv` rows
+(three variants × seventeen) under `# Package 11 B1` in the V7.5 register — Sarah addresses the player
+as "Warden", each Overseer is the Archive's local hand, and no hero-variant `@heroID` suffixes are
+needed because a 4A set is already per-hero.
+**Eraser debut left on A12's placeholder.** All three variants call the base hook and author no enemy;
+`EraserDebutTrigger` still spawns `chrono_guard_elite` until A7a merges, and **B3 re-points all nine
+variants in one change** as the dossier assigns. Every variant's pool config warms `elite_enemy`.
+**Provisional pars (V01a).** Joan 285 s, Leonardo 320 s, Lincoln 300 s — authored per route and never
+pooled, but not measured. They need Normal-difficulty medians on each variant's own route before they
+are anything but placeholders, and the same is true of `EntryRecoveryBudgetSeconds` (F11), which
+defaults to the par.
+**Localization gates fail until the orchestrator reimports (§2.11).** B1 adds 51 `en.csv` rows and does
+not commit the regenerated `en.en.translation`. Against the committed tree, six cases fail — the
+`TheDialogueSetResolvesWithTheThreeBeatsAndEveryLineKeyLocalized` and
+`EveryVisibleLevelStringHasALocalizationEntry` pair in each of the three new suites — with the same
+misleading "missing from localization/en.csv" wording A12 recorded. All six were verified green in the
+worktree with the translation reimported, before the binary was reverted for the commit.
+**Not verified.** Nobody has played these three levels. The acceptance criteria that need a human —
+"completable end to end on Normal with the full kit and nothing else", "every kit gate blocks progress
+until its ability is used", and in particular the two effigy gates actually resolving from a live
+Divine Piercing flurry and a live turret deployment — are reasoned from the shipped ability code and
+pinned structurally, not played. The geometry is graybox; no era art, music or VFX was added (P01
+Option A: the palettes and parallax intent are reused from Levels 2, 1 and 11).
