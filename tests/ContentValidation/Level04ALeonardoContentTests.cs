@@ -416,7 +416,7 @@ public class Level04ALeonardoContentTests {
     public void TheVariantCarriesItsOwnParAndEntryRecoveryBudget() {
         using var fixture = new LegacyFixture();
         // V01a: each distinct 4A route has its own benchmark; nothing pools them.
-        AssertThat(fixture.Level.ParSeconds).IsEqual(320);
+        AssertThat(fixture.Level.NexusParSeconds).IsEqual(320);
         AssertThat(fixture.Level.EntryRecoveryBudgetSeconds > 0)
             .OverrideFailureMessage("Every 4A variant authors an F11 Entry recovery budget.").IsTrue();
     }

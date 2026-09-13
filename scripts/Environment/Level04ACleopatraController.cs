@@ -102,7 +102,7 @@ namespace FTT.Environment {
         /// V01a placeholder: this route's own benchmark, never pooled with another
         /// variant's. Pending the Normal-difficulty median measurement.
         /// </summary>
-        public override int ParSeconds => 320;
+        public override int NexusParSeconds => 320;
 
         // === Authored placements ===
 

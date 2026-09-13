@@ -96,7 +96,7 @@ namespace FTT.Environment {
         public static readonly Rect2 Room3CameraBounds = new(Room3StartX - 320f, 0, 1920, LevelHeight);
 
         /// <summary>V01a: this route's own provisional Normal median, never pooled with another variant's.</summary>
-        public override int ParSeconds => 320;
+        public override int NexusParSeconds => 320;
 
         // === Authored placements ===
 
