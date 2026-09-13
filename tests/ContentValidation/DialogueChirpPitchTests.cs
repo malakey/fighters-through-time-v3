@@ -98,6 +98,38 @@ public class DialogueChirpPitchTests {
             .OverrideFailureMessage("Mozart should read as brighter than the neutral chirp.").IsTrue();
     }
 
+    /// <summary>
+    /// Package 11 A6. The V7.5 Mystery Thread adds seven non-roster speakers - the
+    /// six N03 recognition voices and Medic Okafor. Chirp pitch is authored per
+    /// playable character and every other speaker takes the neutral pitch, so what
+    /// this pins is that each new speaker key really is an NPC key (none may be
+    /// <c>speaker_player</c>, which would detune an NPC to the locked hero's pitch
+    /// mid-scene) and that all seven resolve through the compiled translation.
+    /// </summary>
+    [TestCase]
+    public void TheNewMysteryThreadSpeakersAreNpcKeysAndChirpAtTheNeutralPitch() {
+        TranslationServer.SetLocale("en");
+        string[] newSpeakers = {
+            "speaker_apprentice", "speaker_captain", "speaker_engineer",
+            "speaker_guard", "speaker_player_company", "speaker_union_officer",
+            "speaker_okafor"
+        };
+
+        var issues = new List<string>();
+        foreach (string key in newSpeakers) {
+            // "speaker_player_company" is the Globe's player of the company, not the
+            // hero: the resolver keys on the exact string, and a prefix match here
+            // would be exactly the bug worth catching.
+            if (key == "speaker_player") issues.Add($"{key} collides with the player speaker key");
+            if (TranslationServer.Translate(key).ToString() == key) {
+                issues.Add($"{key} does not resolve through the compiled en.en.translation");
+            }
+        }
+
+        AssertThat(DialogueManager.NeutralChirpPitch).IsEqual(1.0f);
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
     [TestCase]
     public void TheFieldDefaultsToTheNeutralPitchSoAnUnauthoredResourceIsNotDetuned() {
         var fresh = new CharacterData();

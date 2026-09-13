@@ -80,7 +80,7 @@ namespace FTT.Environment {
         /// <summary>The Berlin era standard: a long-telegraph, long-range sniper.</summary>
         public const string SentryEnemyID = "infrared_border_sentry";
 
-        /// <summary>The Future Cultist standard mixed through every era roster.</summary>
+        /// <summary>The Unbound shock-trooper standard mixed through every era roster.</summary>
         public const string CultistEnemyID = "chrono_slasher";
 
         /// <summary>The Berlin elite. Exactly one, per the locked economy row.</summary>
@@ -95,7 +95,7 @@ namespace FTT.Environment {
         /// every earlier wave still alive.
         /// </summary>
         public static readonly (string EnemyID, int Wave, Vector2 Position)[] SpawnTable = {
-            // Wave 1 - Checkpoint Charlie. A sniper on the rubble, cultists on the street.
+            // Wave 1 - Checkpoint Charlie. A sniper on the rubble, Unbound troopers on the street.
             (CultistEnemyID, 1, new Vector2(1000f, 1150f)),
             (SentryEnemyID, 1, new Vector2(1700f, 990f)),
             (CultistEnemyID, 1, new Vector2(2450f, 1150f)),

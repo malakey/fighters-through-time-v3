@@ -9,7 +9,7 @@ namespace FTT.Environment {
     /// <summary>
     /// Level 5 - The Sinking Titanic, 1912. The Act I finale.
     ///
-    /// The Apex Archive is siphoning the emotional weight of the disaster itself,
+    /// The Unbound is siphoning the emotional weight of the disaster itself,
     /// so the level is a losing race with the sea: the player climbs sternward
     /// across four listing deck sections while a level-wide
     /// <see cref="RisingWaterZone"/> escalates room by room behind them.
@@ -32,7 +32,7 @@ namespace FTT.Environment {
     ///
     /// Encounter economy is locked by docs/DUST_ECONOMY.md: 12 standards, 1 elite,
     /// 1 boss, 4 extractors. The Titanic is a civilian vessel with no local military
-    /// population for the cult to brainwash, so the roster is cultist-only
+    /// population for the Unbound to brainwash, so the roster is Unbound-only
     /// (design-godot.md 2363): chrono_slasher standards, one tech_enforcer elite.
     /// </summary>
     public partial class Level05Controller : StoryLevelControllerBase {

@@ -10,6 +10,21 @@ namespace FTT.UI {
     [GlobalClass]
     public partial class DialogueSequenceData : Resource {
         [Export] public string DialogueID = "";
+
+        /// <summary>
+        /// Package 11 (V7.5 Mystery Thread, N03): the campaign character ID this
+        /// sequence is authored for. Empty means the default sequence that plays for
+        /// every hero. A variant's <see cref="DialogueID"/> is
+        /// <c>&lt;baseID&gt;@&lt;heroID&gt;</c> - for example
+        /// <c>level_01.entrance@leonardo</c> - and selection is from the saved
+        /// campaign hero ID against this field, never from a localized name.
+        /// Variant IDs are deliberately distinct strings so the seen/skip rules
+        /// cannot substitute one branch for the other across save slots.
+        /// <para>A6 authors the content against this field; A5 owns the lookup
+        /// (<c>DialogueSetData.FindSequence</c>) and the manager routing.</para>
+        /// </summary>
+        [Export] public string HeroConditionCharacterID = "";
+
         [Export] public string[] SpeakerNameKeys = System.Array.Empty<string>();
         [Export] public string[] LineKeys = System.Array.Empty<string>();
         [Export] public string[] EmotionKeys = System.Array.Empty<string>();

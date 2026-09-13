@@ -181,20 +181,23 @@ public class Level13ContentTests {
         AssertObject(intro).IsNotNull();
         AssertThat(intro.SpeakerNameKeys).ContainsExactly("speaker_mirror_paradox", "speaker_player");
 
+        // V7.5: there is no mid-campaign power loss, so the Mirror is not the
+        // resonance the hero shed. It is the model the Unbound built from a
+        // thousand simulations of the one legend that got away.
         string mirror = LocalizationValue("dlg_l13_boss_intro_1").ToLowerInvariant();
-        AssertString(mirror).Contains("resonance");
-        AssertString(mirror).Contains("shed");
+        AssertString(mirror).Contains("got away");
+        AssertString(mirror).Contains("model");
 
-        // The exit keeps the campaign's fading-resonance motif and states the doubt
-        // in the player's own voice rather than narrating it.
+        // The exit states the unease in the player's own voice rather than
+        // narrating it: somebody has been studying them for a very long time.
         string doubt = LocalizationValue("dlg_l13_exit_3").ToLowerInvariant();
-        AssertString(doubt).Contains("resonance");
-        AssertString(doubt).Contains("which one of us");
+        AssertString(doubt).Contains("fought like me");
+        AssertString(doubt).Contains("studying me");
 
         // ...and hands off to Level 14 rather than to a restored era: nothing living
         // was ever caught in the Void, so there are no locals to send home.
         string handoff = LocalizationValue("dlg_l13_exit_5").ToLowerInvariant();
-        AssertString(handoff).Contains("neo-earth");
+        AssertString(handoff).Contains("bastion");
     }
 
     // === Encounter economy (locked by docs/DUST_ECONOMY.md) ===

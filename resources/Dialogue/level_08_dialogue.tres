@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="DialogueSetData" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
@@ -24,7 +24,7 @@ AutoAdvance = false
 [sub_resource type="Resource" id="PostBoss"]
 script = ExtResource("2")
 DialogueID = "level_08.postboss"
-SpeakerNameKeys = PackedStringArray("speaker_cleopatra", "speaker_player", "speaker_cleopatra", "speaker_player")
+SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah")
 LineKeys = PackedStringArray("dlg_l08_postboss_1", "dlg_l08_postboss_2", "dlg_l08_postboss_3", "dlg_l08_postboss_4")
 EmotionKeys = PackedStringArray("emotion_injured", "emotion_neutral", "emotion_confused", "emotion_determined")
 PausesGameplay = true
@@ -39,7 +39,27 @@ EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_n
 PausesGameplay = true
 AutoAdvance = false
 
+[sub_resource type="Resource" id="EntranceCleopatra"]
+script = ExtResource("2")
+DialogueID = "level_08.entrance@cleopatra"
+HeroConditionCharacterID = "cleopatra"
+SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_guard")
+LineKeys = PackedStringArray("dlg_l08_entrance_1", "dlg_l08_entrance_2", "dlg_l08_recognition_cleopatra")
+EmotionKeys = PackedStringArray("emotion_shocked", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="PostBossCleopatra"]
+script = ExtResource("2")
+DialogueID = "level_08.postboss@cleopatra"
+HeroConditionCharacterID = "cleopatra"
+SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l08_postboss_1_cleopatra", "dlg_l08_postboss_2_cleopatra", "dlg_l08_postboss_3", "dlg_l08_postboss_4")
+EmotionKeys = PackedStringArray("emotion_determined", "emotion_neutral", "emotion_confused", "emotion_neutral")
+PausesGameplay = true
+AutoAdvance = false
+
 [resource]
 script = ExtResource("1")
 DialogueSetID = "dialogue_level_08"
-Sequences = [SubResource("Entrance"), SubResource("BossIntro"), SubResource("PostBoss"), SubResource("Exit")]
+Sequences = [SubResource("Entrance"), SubResource("BossIntro"), SubResource("PostBoss"), SubResource("Exit"), SubResource("EntranceCleopatra"), SubResource("PostBossCleopatra")]

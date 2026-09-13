@@ -9,7 +9,7 @@ namespace FTT.Environment {
     /// the French vanguard approach, the English siege line under a rolling mortar
     /// barrage, a vertical battlement climb, and the Siegemaster Duke's court.
     ///
-    /// Era identity is mechanical, not decorative: the Apex Archive has given the
+    /// Era identity is mechanical, not decorative: the Unbound has given the
     /// English two kinetic <see cref="ShieldGeneratorTower"/>s, and each one keeps a
     /// <see cref="ForcefieldBarrier"/> solid across the only route forward. The
     /// player has to break the generators to advance, which is the sabotage the
@@ -85,7 +85,7 @@ namespace FTT.Environment {
 
         /// <summary>
         /// Era roster: `laser_archer` (Orléans standard, ranged) mixed with
-        /// `chrono_slasher` (Future Cultist standard, melee). No elites - the locked
+        /// `chrono_slasher` (Unbound shock-trooper standard, melee). No elites - the locked
         /// row for level 2 is E = 0.
         /// </summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] Room1Spawns = {

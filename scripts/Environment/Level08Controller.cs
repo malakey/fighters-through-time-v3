@@ -131,7 +131,7 @@ namespace FTT.Environment {
 
         /// <summary>
         /// Era roster: `plasma_spear_ward` (Egypt standard, plasma javelins) mixed with
-        /// `chrono_slasher` (Future Cultist standard, melee). No elites - the locked
+        /// `chrono_slasher` (Unbound shock-trooper standard, melee). No elites - the locked
         /// row for level 8 is E = 0.
         /// </summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] DuneSpawns = {

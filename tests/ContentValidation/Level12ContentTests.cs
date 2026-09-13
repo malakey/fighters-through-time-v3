@@ -153,27 +153,34 @@ public class Level12ContentTests {
 
     [TestCase]
     public void ThePreBossBeatIsTheAuthoredSarahSceneAndStillCarriesTheCampaignsThesis() {
-        // design-godot.md 3376-3383 is the authored script: five lines, alternating
-        // Player / Sarah / Player / Sarah / Player, ending Determined. It is where
-        // the campaign finally states its own price, so its content is pinned, not
-        // just its shape - a rewrite that drops the bargain has to fail here.
+        // design-godot.md section 16 (Level 12 pre-boss) is the authored V7.5
+        // script: five lines - Player / Sarah / a narrated stage beat where the
+        // nexus siphon dies and the trace completes / Sarah (Shocked) / Player
+        // (Determined). This is the Act II "where" reveal, so its content is
+        // pinned, not just its shape.
         DialogueSequenceData preboss = SequenceNamed("level_12.preboss");
         AssertObject(preboss).IsNotNull();
         AssertThat(preboss.LineKeys.Length).IsEqual(5);
         AssertThat(preboss.SpeakerNameKeys).ContainsExactly(
-            "speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player");
+            "speaker_player", "speaker_sarah", "speaker_narration", "speaker_sarah", "speaker_player");
+        AssertString(preboss.EmotionKeys[3]).IsEqual("emotion_shocked");
         AssertString(preboss.EmotionKeys[4]).IsEqual("emotion_determined");
 
-        string sarahsWarning = LocalizationValue("dlg_l12_preboss_2").ToLowerInvariant();
-        AssertString(sarahsWarning).Contains("act ii siphon nexus");
-        AssertString(sarahsWarning).Contains("prime anchor");
-        AssertString(sarahsWarning).Contains("snap back");
+        string sarahsTrace = LocalizationValue("dlg_l12_preboss_2").ToLowerInvariant();
+        AssertString(sarahsTrace).Contains("siphon nexus");
+        AssertString(sarahsTrace).Contains("trace");
+        AssertString(sarahsTrace).Contains("flowing somewhere");
 
-        string thePrice = LocalizationValue("dlg_l12_preboss_4").ToLowerInvariant();
-        AssertString(thePrice).Contains("brainwashed");
-        AssertString(thePrice).Contains("unaware");
-        AssertString(thePrice).Contains("lose all of your powers");
-        AssertString(thePrice).Contains("mortal again");
+        // N04: the reveal names two captives through the substitution tokens and
+        // states location, captivity and draining - never the Forge, the deficit
+        // or the rewrite. NarrativeKnowledgeBoundaryTests pins the other half.
+        string theReveal = LocalizationValue("dlg_l12_preboss_4");
+        AssertString(theReveal).Contains("{CaptiveName1}");
+        AssertString(theReveal).Contains("{CaptiveName2}");
+        string revealLower = theReveal.ToLowerInvariant();
+        AssertString(revealLower).Contains("fortress in the space between timelines");
+        AssertString(revealLower).Contains("resonance signatures");
+        AssertString(revealLower).Contains("draining");
 
         // It has to reach the player before the fight, so it cannot be wired to the
         // boss: the level arms it from a room trigger and the base class keeps its

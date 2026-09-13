@@ -487,7 +487,14 @@ public class Level11ContentTests {
         var set = AuthoredResources.Load<DialogueSetData>(Level11Controller.DialogueResourcePath);
         AssertObject(set).IsNotNull();
         AssertString(set.DialogueSetID).IsEqual("dialogue_level_11");
-        AssertThat(set.Sequences.Length).IsEqual(3);
+        // Package 11 A6: three base beats plus the two N03 Lincoln hero variants.
+        AssertThat(set.Sequences.Length).IsEqual(5);
+        foreach (string variant in new[] { "level_11.entrance@lincoln", "level_11.exit@lincoln" }) {
+            DialogueSequenceData branch = set.Find(variant);
+            AssertObject(branch).OverrideFailureMessage(
+                $"The N03 recognition variant '{variant}' is missing.").IsNotNull();
+            AssertString(branch.HeroConditionCharacterID).IsEqual("lincoln");
+        }
 
         var keys = new HashSet<string>(StringComparer.Ordinal);
         foreach (string line in File.ReadAllLines("localization/en.csv")) {

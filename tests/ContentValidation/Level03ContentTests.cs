@@ -108,7 +108,10 @@ public class Level03ContentTests {
             AssertObject(sequence).IsNotNull();
             byID[sequence.DialogueID] = sequence;
         }
-        foreach (string beat in new[] { "level_03.entrance", "level_03.boss_intro", "level_03.exit" }) {
+        // Package 11 A6: the two N03 Tesla hero variants join the three base beats.
+        foreach (string beat in new[] {
+            "level_03.entrance", "level_03.boss_intro", "level_03.exit",
+            "level_03.entrance@tesla", "level_03.exit@tesla" }) {
             AssertThat(byID.ContainsKey(beat))
                 .OverrideFailureMessage($"Dialogue sequence '{beat}' is missing from the level 3 set.")
                 .IsTrue();

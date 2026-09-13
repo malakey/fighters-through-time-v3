@@ -11,7 +11,7 @@ namespace FTT.Environment {
     /// Level 13 - The Chronal Void. The Act III opener and the campaign's only
     /// transitional level: the rift between dimensions, entered on the coordinate
     /// trace the Gravity Overseer gave up on the Moon and exited into the assault
-    /// on Neo-Earth.
+    /// on the Unbound Bastion.
     ///
     /// <b>Era identity - the void has no era, so it has all of them.</b> The
     /// walkable geometry above the sediment shelf is authored as fragments torn out
@@ -251,7 +251,7 @@ namespace FTT.Environment {
 
         /// <summary>Alexandria's phasing standard - flying, wall-phasing, and native to a broken rift.</summary>
         public const string PhantomEnemyID = "rift_phantom";
-        /// <summary>Future Cultist standard: the Archive's own people, dug in on the approach.</summary>
+        /// <summary>Unbound shock-trooper standard: the Unbound's own people, dug in on the approach.</summary>
         public const string CultistEnemyID = "chrono_slasher";
         public const string EliteEnemyID = "chrono_guard_elite";
 
@@ -273,11 +273,11 @@ namespace FTT.Environment {
         /// </summary>
         public static readonly (string EnemyID, int Wave, Vector2 Position)[] SpawnTable = {
             // Wave 1 - the Threshold. A phantom on the shelf, a phantom guarding the
-            // first extractor's cornice, and a cultist picket in between.
+            // first extractor's cornice, and a Unbound trooper picket in between.
             (PhantomEnemyID, 1, new Vector2(1180f, StandY)),
             (CultistEnemyID, 1, new Vector2(2620f, StandY)),
             (PhantomEnemyID, 1, new Vector2(2380f, 890f)),
-            // Wave 2 - the Drift. Cultists hold the shelf, phantoms work the shards.
+            // Wave 2 - the Drift. Unbound troopers hold the shelf, phantoms work the shards.
             (CultistEnemyID, 2, new Vector2(3700f, StandY)),
             (PhantomEnemyID, 2, new Vector2(4820f, StandY)),
             (CultistEnemyID, 2, new Vector2(5560f, StandY)),

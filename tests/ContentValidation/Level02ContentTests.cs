@@ -246,7 +246,14 @@ public class Level02ContentTests {
         var set = FTT.Core.AuthoredResources.Load<DialogueSetData>(Level02Controller.DialogueResourcePath);
         AssertObject(set).IsNotNull();
         AssertString(set.DialogueSetID).IsEqual("dialogue_level_02");
-        AssertThat(set.Sequences.Length).IsEqual(3);
+        // Package 11 A6: three base beats plus the two N03 Joan hero variants.
+        AssertThat(set.Sequences.Length).IsEqual(5);
+        foreach (string variant in new[] { "level_02.entrance@joan", "level_02.exit@joan" }) {
+            DialogueSequenceData branch = set.Find(variant);
+            AssertObject(branch).OverrideFailureMessage(
+                $"The N03 recognition variant '{variant}' is missing.").IsNotNull();
+            AssertString(branch.HeroConditionCharacterID).IsEqual("joan");
+        }
 
         var keys = new HashSet<string>(StringComparer.Ordinal);
         foreach (string line in File.ReadAllLines("localization/en.csv")) {

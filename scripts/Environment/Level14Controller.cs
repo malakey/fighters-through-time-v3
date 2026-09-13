@@ -36,9 +36,9 @@ namespace FTT.Environment {
     }
 
     /// <summary>
-    /// Level 14 - Neo-Earth, the Apex Archive core laboratory. The penultimate
+    /// Level 14 - the Unbound Bastion, the Unbound core laboratory. The penultimate
     /// level, and the first time the campaign crosses out of history entirely: this
-    /// is the cult's own home timeline, so there are no violated locals here and no
+    /// is the Unbound's own home timeline, so there are no violated locals here and no
     /// era to restore. Only the fortress, and the fact that it was never built to be
     /// entered from the outside.
     ///
@@ -66,7 +66,7 @@ namespace FTT.Environment {
     /// dies. Every tuning still has to pass the survivable-walk proof.
     ///
     /// Encounter economy is locked by docs/DUST_ECONOMY.md: 14 standards, 2 elites,
-    /// 1 boss, 3 extractors, cultist roster only.
+    /// 1 boss, 3 extractors, Unbound trooper roster only.
     /// </summary>
     public partial class Level14Controller : StoryLevelControllerBase {
 
@@ -278,11 +278,11 @@ namespace FTT.Environment {
 
         // === Encounters (locked: 14 standards / 2 elites / 1 boss / 3 extractors) ===
 
-        /// <summary>Future Cultist standard. Act III has no brainwashed locals to press into service.</summary>
+        /// <summary>Unbound shock-trooper standard. Act III has no brainwashed locals to press into service.</summary>
         public const string SlasherEnemyID = "chrono_slasher";
-        /// <summary>Future Cultist standard, flying - the laboratory's own security drones.</summary>
+        /// <summary>Unbound shock-trooper standard, flying - the laboratory's own security drones.</summary>
         public const string DroneEnemyID = "hologram_drone";
-        /// <summary>Future Cultist elite.</summary>
+        /// <summary>Unbound shock-trooper elite.</summary>
         public const string EliteEnemyID = "tech_enforcer";
         public const string BossResourcePath = "res://resources/Bosses/archive_prime.tres";
 

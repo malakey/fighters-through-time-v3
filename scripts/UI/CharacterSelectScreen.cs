@@ -416,6 +416,11 @@ namespace FTT.UI {
             : new List<Control> {
                 _localHumanToggle,
                 _cpuDifficulty,
+                // M01 (Package 11): the Steam Remote Play Together notice is the
+                // launch netplay message. It is a Label rather than a button, but
+                // it is focusable and in the chain so a controller-only player can
+                // reach and read it without a mouse.
+                GetNode<Label>(SelectRoot + "RemotePlayNotice"),
                 GetNode<Button>(SelectRoot + "ButtonRow/MoveListButton"),
                 GetNode<Button>(SelectRoot + "ButtonRow/SystemsCardButton"),
                 GetNode<Button>(SelectRoot + "ButtonRow/BackButton")

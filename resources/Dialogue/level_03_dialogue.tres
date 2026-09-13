@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="DialogueSetData" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
@@ -30,7 +30,27 @@ EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_s
 PausesGameplay = true
 AutoAdvance = false
 
+[sub_resource type="Resource" id="EntranceTesla"]
+script = ExtResource("2")
+DialogueID = "level_03.entrance@tesla"
+HeroConditionCharacterID = "tesla"
+SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_engineer")
+LineKeys = PackedStringArray("dlg_l03_entrance_1", "dlg_l03_entrance_2", "dlg_l03_recognition_tesla")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined", "emotion_shocked")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="ExitTesla"]
+script = ExtResource("2")
+DialogueID = "level_03.exit@tesla"
+HeroConditionCharacterID = "tesla"
+SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player")
+LineKeys = PackedStringArray("dlg_l03_exit_1", "dlg_l03_exit_2", "dlg_l03_exit_3_tesla", "dlg_l03_exit_4_tesla", "dlg_l03_exit_5")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_determined", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
 [resource]
 script = ExtResource("1")
 DialogueSetID = "dialogue_level_03"
-Sequences = [SubResource("Entrance"), SubResource("BossIntro"), SubResource("Exit")]
+Sequences = [SubResource("Entrance"), SubResource("BossIntro"), SubResource("Exit"), SubResource("EntranceTesla"), SubResource("ExitTesla")]

@@ -30,7 +30,7 @@ namespace FTT.Environment {
     ///
     /// <para>
     /// Era roster: <c>shock_shield_legionnaire</c> (Pompeii standard) mixed with
-    /// <c>chrono_slasher</c> (Future Cultist standard). The legionnaire carries
+    /// <c>chrono_slasher</c> (Unbound shock-trooper standard). The legionnaire carries
     /// <c>FrontalDamageReduction = 0.5</c>, so every legionnaire post is authored
     /// with a drop-through platform overhead and a patrol that turns its back: the
     /// geometry rewards attacking from above or from behind rather than trading
@@ -128,7 +128,7 @@ namespace FTT.Environment {
 
         // === Authored encounter tables (the locked economy row lives here) ===
 
-        /// <summary>Forum: two legionnaires holding the colonnade, one cultist between them.</summary>
+        /// <summary>Forum: two legionnaires holding the colonnade, one Unbound trooper between them.</summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2 PatrolA, Vector2 PatrolB)[] Room1Spawns = {
             ("shock_shield_legionnaire", new Vector2(1000, EnemyGroundY), new Vector2(860, EnemyGroundY), new Vector2(1160, EnemyGroundY)),
             ("chrono_slasher", new Vector2(1750, EnemyGroundY), new Vector2(1600, EnemyGroundY), new Vector2(1900, EnemyGroundY)),
@@ -410,7 +410,7 @@ namespace FTT.Environment {
         }
 
         /// <summary>
-        /// Room 4: the caldera rim and the cult's thermal anchor. Slanted rocky
+        /// Room 4: the caldera rim and the Unbound's thermal anchor. Slanted rocky
         /// slopes on a flat base floor (the base keeps summoned adds and knockback
         /// from falling out of the world) plus two narrow stone ledges. 1,600 px of
         /// floor against the Vulcan Decimator's authored 9.0-unit ranged band, which

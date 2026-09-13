@@ -167,6 +167,97 @@ public class CampaignLocalizationTests {
         }
     }
 
+    /// <summary>
+    /// Package 11 A6. The V7.5 narrative added two key families that no level
+    /// controller references by literal, so the walks above cannot reach them: the
+    /// N04 captive spoken names (resolved at render time from the roster minus the
+    /// active hero) and the six N03 recognition speakers. Both render inside
+    /// dialogue, so a missing compiled entry shows up as a raw key mid-scene.
+    /// </summary>
+    [TestCase]
+    public void TheCaptiveNameAndRecognitionSpeakerFamiliesResolveThroughTheCompiledTranslation() {
+        TranslationServer.SetLocale("en");
+        HashSet<string> csvKeys = EnglishTranslationKeys();
+
+        // Leonardo's spoken name is deliberately NOT his roster display name: N04
+        // fixes it as "Da Vinci", which is why this family exists at all.
+        string[] required = {
+            "captive_name_leonardo", "captive_name_cleopatra", "captive_name_tesla",
+            "speaker_apprentice", "speaker_captain", "speaker_engineer",
+            "speaker_guard", "speaker_player_company", "speaker_union_officer",
+            "speaker_okafor"
+        };
+
+        var issues = new List<string>();
+        foreach (string key in required) {
+            if (!csvKeys.Contains(key)) { issues.Add($"{key} is missing from en.csv"); continue; }
+            if (TranslationServer.Translate(key).ToString() == key) {
+                issues.Add($"{key} does not resolve through the compiled en.en.translation");
+            }
+        }
+        AssertString(TranslationServer.Translate("captive_name_leonardo").ToString())
+            .OverrideFailureMessage("N04 fixes Leonardo's spoken captive name as 'Da Vinci'.")
+            .IsEqual("Da Vinci");
+
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    /// <summary>
+    /// Package 11 A6. Every hero-conditional sequence must use the
+    /// <c>&lt;baseID&gt;@&lt;heroID&gt;</c> form, declare the matching
+    /// <c>HeroConditionCharacterID</c>, and have a base sequence to fall back to.
+    /// N03 is explicit that variant IDs are distinct strings so the seen/skip rules
+    /// cannot substitute one branch for the other across save slots.
+    /// </summary>
+    [TestCase]
+    public void EveryHeroVariantSequenceIsWellFormedAndHasABaseToFallBackTo() {
+        var issues = new List<string>();
+        int variants = 0;
+
+        foreach (string path in DialogueSetPaths()) {
+            var set = AuthoredResources.Load<DialogueSetData>(path);
+            if (set?.Sequences == null) continue;
+
+            var allIDs = new HashSet<string>(System.StringComparer.Ordinal);
+            foreach (DialogueSequenceData sequence in set.Sequences) {
+                if (sequence != null) allIDs.Add(sequence.DialogueID);
+            }
+
+            foreach (DialogueSequenceData sequence in set.Sequences) {
+                if (sequence == null) continue;
+                int at = sequence.DialogueID.IndexOf('@');
+                bool declares = !string.IsNullOrWhiteSpace(sequence.HeroConditionCharacterID);
+
+                if (at < 0) {
+                    if (declares) {
+                        issues.Add($"{path}:{sequence.DialogueID} declares a hero condition " +
+                                   "but its ID is not <baseID>@<heroID>");
+                    }
+                    continue;
+                }
+
+                variants++;
+                string baseID = sequence.DialogueID[..at];
+                string heroID = sequence.DialogueID[(at + 1)..];
+                if (!declares) {
+                    issues.Add($"{path}:{sequence.DialogueID} has no HeroConditionCharacterID");
+                } else if (sequence.HeroConditionCharacterID != heroID) {
+                    issues.Add($"{path}:{sequence.DialogueID} declares " +
+                               $"'{sequence.HeroConditionCharacterID}', not '{heroID}'");
+                }
+                if (!allIDs.Contains(baseID)) {
+                    issues.Add($"{path}:{sequence.DialogueID} has no base sequence '{baseID}' to fall back to");
+                }
+            }
+        }
+
+        AssertThat(variants).OverrideFailureMessage(
+            $"Only {variants} hero-variant sequences were reached; the V7.5 Mystery Thread " +
+            "authors the six N03 recognition branches plus the per-character Level 0 opening.")
+            .IsGreaterEqual(12);
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
     private static IEnumerable<string> DialogueSetPaths() {
         using DirAccess directory = DirAccess.Open(DialogueDirectory);
         if (directory == null) yield break;

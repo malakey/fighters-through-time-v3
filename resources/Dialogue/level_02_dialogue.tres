@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="DialogueSetData" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
@@ -30,7 +30,27 @@ EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_c
 PausesGameplay = true
 AutoAdvance = false
 
+[sub_resource type="Resource" id="EntranceJoan"]
+script = ExtResource("2")
+DialogueID = "level_02.entrance@joan"
+HeroConditionCharacterID = "joan"
+SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_captain")
+LineKeys = PackedStringArray("dlg_l02_entrance_1", "dlg_l02_entrance_2", "dlg_l02_recognition_joan")
+EmotionKeys = PackedStringArray("emotion_shocked", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="ExitJoan"]
+script = ExtResource("2")
+DialogueID = "level_02.exit@joan"
+HeroConditionCharacterID = "joan"
+SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player")
+LineKeys = PackedStringArray("dlg_l02_exit_1", "dlg_l02_exit_2", "dlg_l02_exit_3_joan", "dlg_l02_exit_4_joan", "dlg_l02_exit_5")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_determined", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
 [resource]
 script = ExtResource("1")
 DialogueSetID = "dialogue_level_02"
-Sequences = [SubResource("Entrance"), SubResource("BossIntro"), SubResource("Exit")]
+Sequences = [SubResource("Entrance"), SubResource("BossIntro"), SubResource("Exit"), SubResource("EntranceJoan"), SubResource("ExitJoan")]

@@ -78,7 +78,7 @@ namespace FTT.Environment {
         /// </summary>
         public readonly record struct EnemySpawn(string EnemyID, Vector2 Position, float PatrolRadius);
 
-        /// <summary>Room 1 - Midway. Drones strafe the arc lamps, a cultist works the crowd.</summary>
+        /// <summary>Room 1 - Midway. Drones strafe the arc lamps, a Unbound trooper works the crowd.</summary>
         public static readonly EnemySpawn[] MidwayWave = {
             new("voltaic_shock_drone", new Vector2(1100, 980), 260f),
             new("chrono_slasher", new Vector2(1900, GroundY - 50), 300f),

@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="DialogueSetData" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=17 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
@@ -6,9 +6,9 @@
 [sub_resource type="Resource" id="Intro"]
 script = ExtResource("2")
 DialogueID = "level_00.intro"
-SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_sarah")
-LineKeys = PackedStringArray("dlg_l00_intro_1", "dlg_l00_intro_2", "dlg_l00_intro_3", "dlg_l00_intro_4", "dlg_l00_intro_5", "dlg_l00_intro_6")
-EmotionKeys = PackedStringArray("emotion_neutral", "emotion_confused", "emotion_neutral", "emotion_shocked", "emotion_neutral", "emotion_determined")
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_intro_1", "dlg_l00_intro_2", "dlg_l00_intro_3", "dlg_l00_intro_4", "dlg_l00_intro_5", "dlg_l00_intro_6", "dlg_l00_intro_7")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_confused", "emotion_neutral", "emotion_shocked", "emotion_neutral", "emotion_neutral", "emotion_determined")
 PausesGameplay = true
 AutoAdvance = false
 
@@ -48,7 +48,97 @@ EmotionKeys = PackedStringArray("emotion_determined")
 PausesGameplay = true
 AutoAdvance = false
 
+[sub_resource type="Resource" id="Intro_einstein"]
+script = ExtResource("2")
+DialogueID = "level_00.intro@einstein"
+HeroConditionCharacterID = "einstein"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_intro_1", "dlg_l00_intro_2_einstein", "dlg_l00_intro_3", "dlg_l00_intro_4", "dlg_l00_intro_5", "dlg_l00_intro_6", "dlg_l00_intro_7")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_confused", "emotion_neutral", "emotion_shocked", "emotion_neutral", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="Intro_joan"]
+script = ExtResource("2")
+DialogueID = "level_00.intro@joan"
+HeroConditionCharacterID = "joan"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_intro_1", "dlg_l00_intro_2_joan", "dlg_l00_intro_3", "dlg_l00_intro_4", "dlg_l00_intro_5", "dlg_l00_intro_6", "dlg_l00_intro_7")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_confused", "emotion_neutral", "emotion_shocked", "emotion_neutral", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="Intro_leonardo"]
+script = ExtResource("2")
+DialogueID = "level_00.intro@leonardo"
+HeroConditionCharacterID = "leonardo"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_intro_1", "dlg_l00_intro_2_leonardo", "dlg_l00_intro_3", "dlg_l00_intro_4", "dlg_l00_intro_5", "dlg_l00_intro_6", "dlg_l00_intro_7")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_confused", "emotion_neutral", "emotion_shocked", "emotion_neutral", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="Intro_lincoln"]
+script = ExtResource("2")
+DialogueID = "level_00.intro@lincoln"
+HeroConditionCharacterID = "lincoln"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_intro_1", "dlg_l00_intro_2_lincoln", "dlg_l00_intro_3", "dlg_l00_intro_4", "dlg_l00_intro_5", "dlg_l00_intro_6", "dlg_l00_intro_7")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_confused", "emotion_neutral", "emotion_shocked", "emotion_neutral", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="Intro_cleopatra"]
+script = ExtResource("2")
+DialogueID = "level_00.intro@cleopatra"
+HeroConditionCharacterID = "cleopatra"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_intro_1", "dlg_l00_intro_2_cleopatra", "dlg_l00_intro_3", "dlg_l00_intro_4", "dlg_l00_intro_5", "dlg_l00_intro_6", "dlg_l00_intro_7")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_confused", "emotion_neutral", "emotion_shocked", "emotion_neutral", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="Intro_tesla"]
+script = ExtResource("2")
+DialogueID = "level_00.intro@tesla"
+HeroConditionCharacterID = "tesla"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_intro_1", "dlg_l00_intro_2_tesla", "dlg_l00_intro_3", "dlg_l00_intro_4", "dlg_l00_intro_5", "dlg_l00_intro_6", "dlg_l00_intro_7")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_confused", "emotion_neutral", "emotion_shocked", "emotion_neutral", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="Intro_shakespeare"]
+script = ExtResource("2")
+DialogueID = "level_00.intro@shakespeare"
+HeroConditionCharacterID = "shakespeare"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_intro_1", "dlg_l00_intro_2_shakespeare", "dlg_l00_intro_3", "dlg_l00_intro_4", "dlg_l00_intro_5", "dlg_l00_intro_6", "dlg_l00_intro_7")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_confused", "emotion_neutral", "emotion_shocked", "emotion_neutral", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="Intro_mozart"]
+script = ExtResource("2")
+DialogueID = "level_00.intro@mozart"
+HeroConditionCharacterID = "mozart"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_intro_1", "dlg_l00_intro_2_mozart", "dlg_l00_intro_3", "dlg_l00_intro_4", "dlg_l00_intro_5", "dlg_l00_intro_6", "dlg_l00_intro_7")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_confused", "emotion_neutral", "emotion_shocked", "emotion_neutral", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="Intro_pocahontas"]
+script = ExtResource("2")
+DialogueID = "level_00.intro@pocahontas"
+HeroConditionCharacterID = "pocahontas"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l00_intro_1", "dlg_l00_intro_2_pocahontas", "dlg_l00_intro_3", "dlg_l00_intro_4", "dlg_l00_intro_5", "dlg_l00_intro_6", "dlg_l00_intro_7")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_confused", "emotion_neutral", "emotion_shocked", "emotion_neutral", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
 [resource]
 script = ExtResource("1")
 DialogueSetID = "dialogue_level_00"
-Sequences = [SubResource("Intro"), SubResource("BlockIntro"), SubResource("UltimateIntro"), SubResource("MobilityIntro"), SubResource("Complete")]
+Sequences = [SubResource("Intro"), SubResource("BlockIntro"), SubResource("UltimateIntro"), SubResource("MobilityIntro"), SubResource("Complete"), SubResource("Intro_einstein"), SubResource("Intro_joan"), SubResource("Intro_leonardo"), SubResource("Intro_lincoln"), SubResource("Intro_cleopatra"), SubResource("Intro_tesla"), SubResource("Intro_shakespeare"), SubResource("Intro_mozart"), SubResource("Intro_pocahontas")]
