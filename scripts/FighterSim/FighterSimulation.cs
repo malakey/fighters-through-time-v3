@@ -165,6 +165,23 @@ namespace FTT.FighterSim {
             return false;
         }
 
+        /// <summary>
+        /// V7.6 F07 (Package 11 A1): reads a fighter's caster-owned Conductive
+        /// mark (component 318). Snapshot and hash state like everything else.
+        /// </summary>
+        public bool TryGetFighterConductive(int playerID, out FighterConductiveComponent mark) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterConductiveComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID == playerID) {
+                    mark = _simulation.Frame.GetReadOnly<FighterConductiveComponent>(entity);
+                    return true;
+                }
+            }
+            mark = default;
+            return false;
+        }
+
         public FighterMatchComponent GetMatchState() =>
             _simulation.Frame.GetReadOnlySingleton<FighterMatchComponent>();
 

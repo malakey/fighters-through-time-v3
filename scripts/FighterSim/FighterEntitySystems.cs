@@ -43,6 +43,71 @@ namespace FTT.FighterSim {
             && FP64.Abs(firstPosition.y - secondPosition.y) <= firstHalfExtents.y + secondHalfExtents.y;
     }
 
+    /// <summary>
+    /// V7.6 F07 (Package 11 A1): the deterministic half of the caster-owned
+    /// Conductive MARK. A mark is NOT a status — it occupies neither status slot,
+    /// causes no action lock, and contributes zero stagger budget — so it has its
+    /// own component (ID 318) and its own rules, all pure integer state that
+    /// round-trips through snapshot and hash.
+    ///
+    /// Fighter Mode always applies the BASELINE duration: the Story-only
+    /// <c>tesla_conductive_hold</c> Resonance node must never reach the sim
+    /// (Story/Fighter isolation, Package 11 §2.14).
+    /// </summary>
+    public static class FighterConductiveRules {
+
+        /// <summary>
+        /// One mark per target: a new source replaces the old one, the same source
+        /// takes the longer remaining time — never additive. A replacement also
+        /// clears the chain-consumed guard, because a fresh mark is a fresh chain
+        /// opportunity.
+        /// </summary>
+        public static void ApplyMark(ref FighterConductiveComponent mark, int sourcePlayerID, int frames) {
+            if (frames <= 0) return;
+            if (mark.SourcePlayerID != sourcePlayerID || frames > mark.FramesRemaining) {
+                mark.SourcePlayerID = sourcePlayerID;
+                mark.FramesRemaining = frames;
+                mark.ChainConsumedExecutionID = 0;
+            }
+        }
+
+        /// <summary>
+        /// One frame of decay. A frozen (hitstop) fighter's mark holds exactly as
+        /// their hitstun does, so the freeze cannot silently shorten it.
+        /// </summary>
+        public static void Tick(ref FighterConductiveComponent mark, bool frozen) {
+            if (frozen || mark.FramesRemaining <= 0) return;
+            mark.FramesRemaining--;
+            if (mark.FramesRemaining > 0) return;
+            mark.SourcePlayerID = -1;
+            mark.ChainConsumedExecutionID = 0;
+        }
+
+        public static bool HasMarkFrom(in FighterConductiveComponent mark, int sourcePlayerID) =>
+            mark.FramesRemaining > 0 && mark.SourcePlayerID == sourcePlayerID;
+
+        /// <summary>
+        /// The per-execution chain guard. Returns true exactly once per
+        /// <paramref name="executionID"/>, so a restored multi-hit Lorentz Pulse
+        /// replaying across a rollback cannot duplicate its chains. Execution IDs
+        /// are deterministic sim counters, never wall-clock values, and must be
+        /// non-zero (0 is the "nothing consumed" sentinel).
+        /// </summary>
+        public static bool TryConsumeChain(ref FighterConductiveComponent mark, int sourcePlayerID, int executionID) {
+            if (executionID == 0 || !HasMarkFrom(in mark, sourcePlayerID)) return false;
+            if (mark.ChainConsumedExecutionID == executionID) return false;
+            mark.ChainConsumedExecutionID = executionID;
+            return true;
+        }
+
+        /// <summary>Stock loss and match reset drop the mark outright.</summary>
+        public static void Clear(ref FighterConductiveComponent mark) {
+            mark.FramesRemaining = 0;
+            mark.SourcePlayerID = -1;
+            mark.ChainConsumedExecutionID = 0;
+        }
+    }
+
     internal static class FighterDamageRules {
         public const int BasicAttackClass = 1;
         public const int SpecialAttackClass = 2;
@@ -436,23 +501,49 @@ namespace FTT.FighterSim {
                 appliesHitstop: false);
         }
 
-        private static void ApplyStatus(
+        /// <summary>
+        /// The simulation's single status chokepoint. Internal rather than private
+        /// so FighterStatusSlotTests and SuppressionTests can drive it directly —
+        /// the stronger-wins comparison and the Suppression refusal are contract,
+        /// not incidental behaviour.
+        /// </summary>
+        internal static void ApplyStatus(
             ref FighterStateComponent targetState,
             ref FighterRuntimeComponent targetRuntime,
             int statusType,
             int statusFrames,
             FP64 statusIntensity) {
             if (statusType == (int)StatusType.None || statusFrames <= 0) return;
+            // V7.6 (Package 11 A1): Suppression is a STORY-ONLY status. The
+            // design is explicit — "Fighter Mode is untouched: no Suppression
+            // source exists in the sim, and none may be added without a separate
+            // ruling." An authored .tres carrying it is refused here so it can
+            // never enter deterministic state. Pinned by FighterStatusSlotTests.
+            if (statusType == (int)StatusType.Suppression) return;
             FP64 intensity = statusIntensity > FP64.Zero ? statusIntensity : FP64.One;
             // V7 two-slot rule (mirrors StatusController): a damaging status and a
-            // control status coexist; a new application replaces only its own slot.
-            if (statusType == (int)StatusType.Venom || statusType == (int)StatusType.RadiantBurn) {
+            // control status coexist; a new application competes only with its own
+            // slot. V7.6 replaces newest-wins with STRONGER-WINS, decided by
+            // StatusRouting.ShouldReplaceRaw — an exact int64 product of the FP64
+            // raw intensity and the integer frame count, so it is bit-reproducible
+            // across a rollback and needs no FP64 division.
+            if (FTT.Combat.StatusRouting.SlotOf(statusType) == FTT.Combat.StatusSlot.Damage) {
+                if (!FTT.Combat.StatusRouting.ShouldReplaceRaw(
+                        targetRuntime.DamageStatusType,
+                        targetRuntime.DamageStatusIntensity.RawValue,
+                        targetRuntime.DamageStatusFrames,
+                        statusType, intensity.RawValue, statusFrames)) return;
                 targetRuntime.DamageStatusType = statusType;
                 targetRuntime.DamageStatusFrames = statusFrames;
                 targetRuntime.DamageStatusIntensity = intensity;
                 targetRuntime.StatusTickFrames = statusType == (int)StatusType.Venom ? 60 : 0;
                 return;
             }
+            if (!FTT.Combat.StatusRouting.ShouldReplaceRaw(
+                    targetRuntime.StatusType,
+                    targetRuntime.StatusIntensity.RawValue,
+                    targetRuntime.StatusFrames,
+                    statusType, intensity.RawValue, statusFrames)) return;
             targetRuntime.StatusType = statusType;
             targetRuntime.StatusFrames = statusFrames;
             targetRuntime.StatusIntensity = intensity;

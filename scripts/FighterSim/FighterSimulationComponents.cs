@@ -520,6 +520,33 @@ namespace FTT.FighterSim {
         public int SampleCountdown;
     }
 
+    /// <summary>
+    /// V7.6 F07 (Package 11 A1): the caster-owned Conductive MARK, deterministic
+    /// half. A mark is NOT a status — it occupies neither status slot, causes no
+    /// action lock, and contributes zero stagger budget — so it lives in its own
+    /// component rather than in the full FighterRuntimeComponent.
+    ///
+    /// All three fields are snapshot and hash state with stable owner ordering
+    /// and no wall-clock timer. <see cref="ChainConsumedExecutionID"/> is the
+    /// per-execution guard the design requires: a restored multi-hit Lorentz
+    /// Pulse must not duplicate chains, so an execution that already consumed
+    /// this mark is remembered and a rollback replays the same decision.
+    /// Klotho component ID assigned by Package 11 §2.7 — A1 only.
+    /// </summary>
+    [KlothoComponent(318, MaxCount = 2)]
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public partial struct FighterConductiveComponent : IComponent {
+        /// <summary>Frames left on the mark; 0 when unmarked.</summary>
+        public int FramesRemaining;
+        /// <summary>Player ID that applied the live mark; -1 when unmarked.</summary>
+        public int SourcePlayerID;
+        /// <summary>
+        /// The attacker execution ID that has already cashed this mark for a
+        /// chain, or 0 when none has. Deterministic, never a wall-clock value.
+        /// </summary>
+        public int ChainConsumedExecutionID;
+    }
+
     [KlothoComponent(301)]
     [KlothoSingletonComponent]
     [StructLayout(LayoutKind.Sequential, Pack = 4)]

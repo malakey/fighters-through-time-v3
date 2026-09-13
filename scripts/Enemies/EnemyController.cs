@@ -194,7 +194,11 @@ namespace FTT.Enemies {
 
         public bool IsStoryRewindFrozen => _rewindFrozen;
 
-        /// <summary>Active status effect (newest replaces; no stacking), Story-only.</summary>
+        /// <summary>
+        /// Active status effect, Story-only. V7.6: routing is
+        /// <see cref="FTT.Combat.StatusRouting.SlotOf"/> and replacement within a
+        /// slot is stronger-wins, not newest-wins.
+        /// </summary>
         public StatusType ControlStatusType { get; private set; } = StatusType.None;
         public StatusType DamageStatusType { get; private set; } = StatusType.None;
         /// <summary>Control slot first, then damage — the compat view for single-status readers.</summary>
@@ -204,6 +208,81 @@ namespace FTT.Enemies {
             ControlStatusType == type || DamageStatusType == type;
         public float StatusMoveMultiplier { get; private set; } = 1f;
         public float StatusDamageTakenMultiplier { get; private set; } = 1f;
+
+        /// <summary>The V7.6 contracted two-slot view (IStatusEffectTarget).</summary>
+        public FTT.Combat.StatusSlots ActiveStatuses {
+            get => new() {
+                Damage = new FTT.Combat.StatusEffectData {
+                    Type = DamageStatusType,
+                    RemainingSeconds = _damageStatusTimer,
+                    Intensity = _damageStatusIntensity
+                },
+                Control = new FTT.Combat.StatusEffectData {
+                    Type = ControlStatusType,
+                    RemainingSeconds = _controlStatusTimer,
+                    Intensity = _controlStatusIntensity
+                }
+            };
+            set {
+                ClearAllStatusEffects();
+                if (value.Damage.IsActive) {
+                    ApplyStatusEffect(value.Damage.Type, value.Damage.RemainingSeconds, value.Damage.Intensity);
+                }
+                if (value.Control.IsActive) {
+                    ApplyStatusEffect(value.Control.Type, value.Control.RemainingSeconds, value.Control.Intensity);
+                }
+            }
+        }
+
+        public Node2D TargetNode => this;
+
+        /// <summary>Clears one slot by identity, whatever occupies it.</summary>
+        public void ClearStatusEffect(FTT.Combat.StatusSlot slot) {
+            if (slot == FTT.Combat.StatusSlot.Damage) ClearDamageStatusSlot();
+            else ClearControlStatusSlot();
+            RefreshStatusGlow();
+        }
+
+        /// <summary>Both slots. Death, respawn, rewind restore and Restart Level call this.</summary>
+        public void ClearAllStatusEffects() => ClearStatusEffect();
+
+        // === V7.6 F07 Conductive mark (caster-owned; NOT a status) ===
+        // No slot, no action lock, zero stagger budget, and it may remain while
+        // the enemy acts inside a V7.4 armor window.
+
+        private int _conductiveFramesRemaining;
+        private int _conductiveSourcePlayerID = -1;
+
+        public int ConductiveFramesRemaining => _conductiveFramesRemaining;
+        public int ConductiveSourcePlayerID =>
+            _conductiveFramesRemaining > 0 ? _conductiveSourcePlayerID : -1;
+        public bool HasConductiveMark => _conductiveFramesRemaining > 0;
+        public bool HasConductiveMarkFrom(int sourcePlayerID) =>
+            _conductiveFramesRemaining > 0 && _conductiveSourcePlayerID == sourcePlayerID;
+
+        /// <summary>
+        /// One mark per target: a new source replaces the old one, the same
+        /// source takes the longer remaining time — never additive, and never
+        /// blocked by armor (a mark is not a stun).
+        /// </summary>
+        public void ApplyConductiveMark(int sourcePlayerID, int frames) {
+            if (frames <= 0 || CurrentState == EnemyState.Dead) return;
+            if (_conductiveSourcePlayerID != sourcePlayerID || frames > _conductiveFramesRemaining) {
+                _conductiveSourcePlayerID = sourcePlayerID;
+                _conductiveFramesRemaining = frames;
+            }
+        }
+
+        public void ClearConductiveMark() {
+            _conductiveFramesRemaining = 0;
+            _conductiveSourcePlayerID = -1;
+        }
+
+        private void TickConductiveMark() {
+            if (_conductiveFramesRemaining <= 0) return;
+            _conductiveFramesRemaining--;
+            if (_conductiveFramesRemaining <= 0) _conductiveSourcePlayerID = -1;
+        }
 
         /// <summary>Story difficulty-scaled maximum HP; canonical base stays in EnemyData.</summary>
         public int ScaledMaxHP => _scaledMaxHP > 0 ? _scaledMaxHP : Data?.MaxHP ?? 1;
@@ -399,6 +478,9 @@ namespace FTT.Enemies {
 
             TickStatus(dt);
             if (CurrentState == EnemyState.Dead) return;
+            // F07: the Conductive mark is not a status — it ticks on its own
+            // frame counter and locks nothing.
+            TickConductiveMark();
             if (_attackCooldownTimer > 0) _attackCooldownTimer -= dt;
             if (_eliteCooldownTimer > 0) _eliteCooldownTimer -= dt;
             TickStaggerDiscipline(dt);
@@ -815,6 +897,14 @@ namespace FTT.Enemies {
             _staggerBudget = 0f;
             _armoredRecoveryTimer = FTT.Combat.EnemyStaggerRules.EliteArmoredRecoverySeconds;
             _stunTimer = 0f;
+            // F07: Static Charge cannot persist as a separate input lock once
+            // stagger protection has ended the effective stun. Entering armored
+            // recovery drops the lock (and ApplyStatusEffect rejects its
+            // reapplication for the duration of the protection).
+            if (ControlStatusType == StatusType.StaticCharge) {
+                ClearControlStatusSlot();
+                RefreshStatusGlow();
+            }
             Executor.Cancel();
             // Make the elite branch of SelectNextAttack eligible: the armored
             // answer is the signature ability whenever its cooldown allows.
@@ -924,6 +1014,9 @@ namespace FTT.Enemies {
 
         private void Die() {
             CurrentState = EnemyState.Dead;
+            // V7.6: death clears both status slots and the caster-owned mark.
+            ClearAllStatusEffects();
+            ClearConductiveMark();
             Executor.Cancel();
             _attackHitbox?.Deactivate();
             _attackCommitted = false;
@@ -1044,15 +1137,40 @@ namespace FTT.Enemies {
 
         /// <summary>
         /// Minimal Story status support mirroring StatusController semantics: the
-        /// V7 two-slot rule. A damaging status (Venom, RadiantBurn) and a control
-        /// status (TimeDilation, StaticCharge, Root) coexist; a new application
-        /// replaces only the occupant of its own slot.
+        /// V7 two-slot rule routed through the shared
+        /// <see cref="FTT.Combat.StatusRouting"/> table. A damaging status
+        /// (Venom, RadiantBurn) and a control status (TimeDilation, StaticCharge,
+        /// Root, Suppression) coexist; a new application competes only with the
+        /// occupant of its own slot, and V7.6's stronger-wins rule means a weaker
+        /// same-type reapplication does nothing at all.
         /// </summary>
-        public void ApplyStatusEffect(StatusType type, float duration, float intensity = 1f) {
+        public void ApplyStatusEffect(StatusType type, float duration, float intensity = 1f) =>
+            ApplyStatusEffect(type, duration, intensity, fromHitPayload: false);
+
+        /// <summary>
+        /// F07: <paramref name="fromHitPayload"/> marks the application that
+        /// already had its stun folded into <see cref="TakeHit"/>'s single
+        /// <see cref="ApplyStun"/> call, so a Static Charge riding a hit sets only
+        /// the slot/visual state instead of charging the stagger budget a second
+        /// time. Direct callers (a scripted status, a debug apply) keep the old
+        /// behaviour and route their own stun.
+        /// </summary>
+        public void ApplyStatusEffect(StatusType type, float duration, float intensity, bool fromHitPayload) {
             if (CurrentState == EnemyState.Dead || type == StatusType.None || duration <= 0f) return;
+            // V7.6: Suppression has no enemy-side effect (the ability lock is a
+            // player verb). Occupying the control slot with an inert status would
+            // silently evict a live Root or slow, so it is refused outright.
+            if (type == StatusType.Suppression) return;
+            // F07: Static Charge's action lock IS stun in PvE, so an armor window
+            // rejects its reapplication the same way it rejects hitstun — no
+            // lingering lock with no stun behind it.
+            if (type == StatusType.StaticCharge && IsStaggerArmored) return;
 
             float potency = intensity <= 0f ? 1f : intensity;
-            if (FTT.Combat.StatusController.IsDamageStatus(type)) {
+            if (FTT.Combat.StatusRouting.SlotOf(type) == FTT.Combat.StatusSlot.Damage) {
+                if (!FTT.Combat.StatusRouting.ShouldReplace(
+                        DamageStatusType, _damageStatusIntensity, _damageStatusTimer,
+                        type, potency, duration)) return;
                 ClearDamageStatusSlot();
                 DamageStatusType = type;
                 _damageStatusTimer = duration;
@@ -1066,6 +1184,9 @@ namespace FTT.Enemies {
                         break;
                 }
             } else {
+                if (!FTT.Combat.StatusRouting.ShouldReplace(
+                        ControlStatusType, _controlStatusIntensity, _controlStatusTimer,
+                        type, potency, duration)) return;
                 ClearControlStatusSlot();
                 ControlStatusType = type;
                 _controlStatusTimer = duration;
@@ -1079,7 +1200,12 @@ namespace FTT.Enemies {
                         Velocity = new Vector2(0f, Velocity.Y);
                         break;
                     case StatusType.StaticCharge:
-                        ApplyStun(duration);
+                        // F07: one hit is ONE stun event. When the charge rode a
+                        // hit payload, TakeHit already applied
+                        // max(hitstun, staticCharge) through a single ApplyStun
+                        // with the correct fromSpecial classification — charging
+                        // the budget again here is the double-stun defect.
+                        if (!fromHitPayload) ApplyStun(duration);
                         break;
                 }
             }
@@ -1255,6 +1381,7 @@ namespace FTT.Enemies {
             _spawnPosition = GlobalPosition;
             _returnTarget = _spawnPosition;
             ClearStatusEffect();
+            ClearConductiveMark();
             RefreshArmorPresentation();
             Executor.Reset();
             Velocity = Vector2.Zero;
@@ -1352,6 +1479,7 @@ namespace FTT.Enemies {
             _lastAttackWasElite = false;
             Velocity = Vector2.Zero;
             ClearStatusEffect();
+            ClearConductiveMark();
             Executor.Reset();
             _attackHitbox?.Deactivate();
             PlayAnimation("idle");
@@ -1372,7 +1500,18 @@ namespace FTT.Enemies {
                 ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(damageApplied));
             }
             ApplyKnockback(hit.Knockback, hit.AttackerFacingRight);
-            if (hit.HitstunDuration > 0f) {
+            // F07 (V7.6): Static Charge's action lock counts as stun in PvE, so a
+            // hit that carries BOTH hitstun and a Static Charge runs them
+            // CONCURRENTLY and counts the GREATER duration ONCE — Tesla's finisher
+            // must not turn 0.4 s into 0.8 s of elite stagger budget. The charge
+            // is folded into the single ApplyStun below and its slot application
+            // is then flagged fromHitPayload so it cannot re-enter ApplyStun.
+            bool staticChargeRidesThisHit =
+                hit.AppliedStatus == StatusType.StaticCharge && hit.StatusDuration > 0f;
+            float concurrentStun = staticChargeRidesThisHit
+                ? Mathf.Max(hit.HitstunDuration, hit.StatusDuration)
+                : hit.HitstunDuration;
+            if (concurrentStun > 0f) {
                 // Basic-class STRING hits (the melee combo's "combo_N" hitboxes
                 // plus the §2.8 directional strikes "up_attack" / "down_air";
                 // the idiom Joan's Zealous Vigor also keys on) floor the
@@ -1388,11 +1527,18 @@ namespace FTT.Enemies {
                 // V7.4: Special-class hits are marked so ApplyStun can run the
                 // diminishing-special-stun window (ultimates and basics are
                 // exempt — the loop being closed is the special-ability chain).
-                ApplyStun(hit.HitstunDuration, minimumSeconds,
+                ApplyStun(concurrentStun, minimumSeconds,
                     fromSpecial: hit.AttackClass == FTT.Combat.AttackClass.Special);
             }
             if (hit.AppliedStatus != StatusType.None && hit.StatusDuration > 0f) {
-                ApplyStatusEffect(hit.AppliedStatus, hit.StatusDuration, hit.StatusIntensity);
+                ApplyStatusEffect(hit.AppliedStatus, hit.StatusDuration, hit.StatusIntensity,
+                    fromHitPayload: true);
+            }
+            // V7.6 F07: the caster-owned combo mark rides the same hit but is not
+            // a status — no slot, no action lock, zero stagger budget, and armor
+            // never refuses it.
+            if (hit.ComboMark == FTT.Combat.ComboMarkType.Conductive && hit.ComboMarkFrames > 0) {
+                ApplyConductiveMark(hit.AttackerIndex, hit.ComboMarkFrames);
             }
             return damageApplied;
         }

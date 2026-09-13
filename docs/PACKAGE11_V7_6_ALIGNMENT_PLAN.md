@@ -4727,3 +4727,107 @@ a **bold one-sentence claim**, then the reasoning and the pinning test. The orch
 integration block per wave. Phase C appends the final closeout block including the honest
 "What Package 11 did NOT deliver" list. Nothing in this section is ever edited or removed — only
 appended.)*
+
+### A1 — Status architecture, Suppression, Conductive (2026-09-13)
+
+**The four status sites now share one routing table and one stronger-wins rule, `Suppression` exists
+as a Story-only cast lock the deterministic simulation refuses outright, and Tesla's chain marker is
+a caster-owned Conductive mark that costs zero stagger budget — which is also what fixes the F07
+double-stun defect.** Pinned by `StatusControllerTests`, `SuppressionTests`, `ConductiveMarkTests`,
+`FighterStatusSlotTests`, and the new cases in `EnemyControllerTests`, `BossControllerTests` and
+`TeslaContentTests`.
+
+**Recon correction — `BossController` already had status slots.** The dossier (E §2.2, D §15.1) and
+this plan's §3 A1 both state "`BossController` has **no** status slots at all". It does:
+`ControlStatusType` / `DamageStatusType` plus timers, intensities and its own routing switch, since
+Package 4. The delivered work was therefore re-expressing the existing slots over `StatusSlots` /
+`StatusRouting` and adding stronger-wins, not building them. Nothing was removed.
+
+**`IStatusEffectTarget` does not inherit `IDamageable`, because `IDamageable` does not exist.**
+`grep -r IDamageable` over the whole repository returns nothing — the design's
+`interface IStatusEffectTarget : IDamageable` cannot be honoured without first inventing a
+damage interface and retrofitting the entire hit pipeline onto it, which is a cross-cutting refactor
+far outside this workstream. `IStatusEffectTarget` is declared standalone with the five members the
+design specifies (`ActiveStatuses`, `ApplyStatusEffect`, `ClearStatusEffect(slot)`,
+`ClearAllStatusEffects`, `TargetNode`) and is implemented by `PlayerController`, `EnemyController`
+and `BossController`. Recorded for a future `IDamageable` extraction package.
+
+**`Suppression` is refused on enemies and bosses, not made a no-op.** The dossier asked for an
+explicit decision ("may be a no-op for enemies; decide explicitly rather than silently"). Letting it
+occupy the control slot as an inert status would silently evict a live Root or Time Dilation, so
+`EnemyController.ApplyStatusEffect` and `BossController.ApplyStatusEffect` both return early on it.
+The ability lock is a player verb and has no enemy meaning. Pinned in `BossControllerTests`.
+
+**The F07 stagger fix is a `fromHitPayload` flag, not a second code path.** `EnemyController.TakeHit`
+computes `max(hitstun, staticChargeDuration)` and calls `ApplyStun` exactly once with the correct
+`fromSpecial` classification; the status application then routes through
+`ApplyStatusEffect(type, duration, intensity, fromHitPayload: true)` so the `StaticCharge` arm sets
+only the slot/visual state. Direct callers (a scripted status, a debug apply) keep the old behaviour
+and route their own stun through the public three-argument overload, which is unchanged. Tesla's
+finisher now consumes exactly 0.4 s of an elite's budget rather than 0.8 s.
+
+**The Conductive mark rides `HitPayload`, not a bespoke channel.** `HitPayload` and `Hitbox` gained
+`ComboMark` / `ComboMarkFrames` (`FTT.Combat.ComboMarkType`, append-only, `None = 0`,
+`Conductive = 1`), and `BasicStringProfile` gained `FinisherMarkType` / `FinisherMarkFrames`. The
+Story-only `tesla_conductive_hold` extension (90 → 150 frames) is read at the **application site**
+(`PlayerController.FinisherConductiveMarkFrames()`), never substituted into the cross-mode
+`BasicComboRules` table — Fighter Mode always marks at 90. Linked coil-fence marks use
+`BasicComboRules.ConductiveMarkFenceFrames` (90) and are never extended. A4 must author the node
+under exactly the key `tesla_conductive_hold`
+(`PlayerController.ConductiveHoldPerkKey`).
+
+**Sim edits outside A1's declared region, all additive and localized.** The plan gave A1
+`FighterSimulationComponents.cs` (ID 318 only) and `FighterEntitySystems.cs`
+(`ApplyStatus` only). Component 318 is useless without an entity that carries it, so four further
+additive edits were required and are listed here explicitly for A9 (Wave 1) and A1c (Wave 2):
+`FighterSimulationSystems.cs` — one `frame.Add(entity, new FighterConductiveComponent {...})` in
+`FighterWorldSystem`; one `ref FighterConductiveComponent targetConductive` parameter appended to
+`ApplyBasicSwing` with its two call sites in `FighterCombatSystem.Update` (which also tick both
+fighters' marks); and one mark-application block after the existing Momentum refund.
+`FighterSimulation.cs` — one new `TryGetFighterConductive` accessor. None of these touch
+`FighterMovementSystem`, `ApplyStockLoss`, `FighterMatchSystem` or any Echo Step path.
+`FighterDamageRules.ApplyStatus` was widened from `private` to `internal` as a test seam.
+
+**`FighterConductiveRules.TryConsumeChain` exists but has no sim consumer yet.** The per-execution
+chain guard is implemented and pinned (including a snapshot/restore replay proving a rollback reaches
+the identical decision), because the design requires component 318 to "store consumed/processed
+attack state so a restored multi-hit Pulse cannot duplicate chains". The sim has no bespoke Lorentz
+Pulse today — Tesla's Special 2 runs through the generic zone/area path — so nothing calls it.
+Whoever ships a sim-side multi-hit Pulse must route its chain decision through it.
+
+**`AbilitySlotLockPayload` / `AbilitySlotLockState` are declared by A1, and A1 merges first.**
+§2.9 names **A5** as the publisher of `OnAbilitySlotLockChanged`, but A1 publishes the
+Suppressed/Clear half and merges ahead of A5, so the payload, the enum and the event declaration are
+in `EventBus.cs` already. **A5 must not re-declare them** — only append its Dormant raises.
+The existing `FTT.Core.AbilitySlot` enum is reused rather than duplicated; its movement member is
+spelled `MovementAbility`, not `Movement` as §2.9's table writes it.
+
+**The aura-smother is a fourth independent glow channel, not a stack layer.**
+`GlowPresentationController.SetAuraSmothered(bool)` desaturates `EffectiveTint` toward
+`GlowPalette.SuppressionColor` and pins the outline to base priority (thickness clamped to 1, glow
+intensity 1, pulse 0) **without** pushing or clearing a `GlowState`. A layer would have been cleared
+by any status ending or telegraph start; a channel survives, and the arbiter's resolved layer is
+restored intact when Suppression lifts. Strict ordering per §5.1 holds: **A1 → A8 → A6b**.
+`GlowPalette.Status` also gained a `Suppression` arm so the status layer is not transparent.
+
+**The Suppression refusal tone is `AudioManager.PlayUISound(null, 0.45f)`.** There is no
+string-keyed SFX API and authoring a new cue is A8/A11 territory, so the "dull null-tone" is the
+default UI stream at a low pitch. A8 may repoint `PlayerController.PlaySuppressedCastRefusal`.
+
+**`StatusController.ClearSlot`'s "re-announce the survivor" hack is left in place**, as instructed.
+A8 deletes it once the HUD tracks two pips. `StatusEffectPayload` gained no slot discriminator.
+
+**Test delta is +24, not the dossier's +23.** `StatusControllerTests` is +1 rather than ±0: the
+stronger-wins rewrite landed in one rewritten case, and a second case was added to pin
+`StatusRouting.SlotOf` across every enum value together with the `StatusController.IsDamageStatus`
+forwarder agreeing with it at every value — the routing table is a separate contract from the
+replacement rule and cramming both into one case would have hidden a real regression. Baseline
+1638 → **1662** at A1's merge.
+
+**Risk flagged for the orchestrator: the `# Package 11 <WS-ID>` marker rows in `en.csv`.**
+§2.11 mandates them. They survive today's gates only because
+`UnusedTranslationKeyTests`' CSV reader skips lines starting with `#` and because `status_` is a
+registered dynamic-key prefix. Godot's own CSV translation importer has no comment syntax, so each
+marker compiles into `en.en.translation` as a real key whose message is empty. Harmless, but it is
+20-odd junk entries in the shipped binary; Phase C should decide whether to strip the markers before
+the final import.

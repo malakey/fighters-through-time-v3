@@ -210,17 +210,25 @@ namespace FTT.Characters.Abilities {
                     Mathf.Max(Mathf.Abs(partnerPosition.Y - GlobalPosition.Y), FenceHalfHeightPixels * 2f))
             };
             foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(center, shape)) {
+                // V7.6 F07: the fence's Static Charge stays a pure interrupt and
+                // it also lays a Conductive mark at the BASELINE 90 frames — the
+                // tesla_conductive_hold Resonance node extends only the finisher's
+                // mark, never a linked fence's.
                 float dealt = hurtbox.TakeHit(BuildHitPayload(
                     FenceDamage, AttackClass.Basic, center,
                     FTT.Core.StatusType.StaticCharge, FenceStaticChargeDuration,
-                    _data?.KnockbackForce ?? Vector2.Zero));
+                    _data?.KnockbackForce ?? Vector2.Zero,
+                    FTT.Combat.ComboMarkType.Conductive,
+                    FTT.Combat.BasicComboRules.ConductiveMarkFenceFrames));
                 CreditOwnerInfluence(dealt);
             }
         }
 
         private HitPayload BuildHitPayload(
             float damage, AttackClass attackClass, Vector2 origin,
-            FTT.Core.StatusType status, float statusDuration, Vector2 knockback) => new() {
+            FTT.Core.StatusType status, float statusDuration, Vector2 knockback,
+            FTT.Combat.ComboMarkType comboMark = FTT.Combat.ComboMarkType.None,
+            int comboMarkFrames = 0) => new() {
             AttackerIndex = OwnerIndex,
             AttackID = _data?.AbilityID ?? "tesla_tesla_coil",
             HitboxID = attackClass == AttackClass.Basic ? "coil_arc" : "coil_burst",
@@ -236,7 +244,9 @@ namespace FTT.Characters.Abilities {
             ScreenShakeIntensity = 0.1f,
             ScreenShakeDuration = 0.05f,
             // V7.3: construct ticks carry no hitstop.
-            ExemptFromHitstop = true
+            ExemptFromHitstop = true,
+            ComboMark = comboMark,
+            ComboMarkFrames = comboMarkFrames
         };
 
         private System.Collections.Generic.List<Hurtbox> QueryEnemyHurtboxes(Vector2 center, float radius) =>

@@ -1194,3 +1194,8 @@ systems_card_echo_body,"Spend 30 meter during your own recovery to snap back 30 
 systems_card_overtime_title,Overtime
 systems_card_overtime_body,"The final 60 seconds of a timed match double the hazard cadence and raise the Rally echo by half."
 dialogue_hold_skip,"Hold {0} to skip"
+# Package 11 A1
+status_suppression,Suppression
+status_suppression_tooltip,"Specials, Movement and Ultimate are locked. Cooldowns keep running."
+status_conductive,Conductive
+status_conductive_tooltip,"Primed for Lorentz chains. Does not restrict actions."

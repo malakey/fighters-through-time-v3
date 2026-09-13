@@ -54,6 +54,10 @@ namespace FTT.Combat {
         private bool _resolvedVisible;
         private GlowState _resolved;
         private FTT.Core.StatusType _activeStatus = FTT.Core.StatusType.None;
+        // V7.6 Suppression (Package 11 A1): the aura-smother channel — a FOURTH
+        // independent channel, deliberately not part of the glow stack, so it
+        // cannot be cleared by a status ending or a telegraph starting.
+        private bool _auraSmothered;
 
         /// <summary>The sprite (or other CanvasItem) this arbiter owns.</summary>
         public CanvasItem Target => _target;
@@ -63,7 +67,15 @@ namespace FTT.Combat {
         public PointLight2D Light => _light;
         public Color BaseTint => _baseTint;
         public bool HasTintOverride => _tintOverrideActive;
-        public Color EffectiveTint => _tintOverrideActive ? _tintOverride : _baseTint;
+        public Color EffectiveTint {
+            get {
+                Color tint = _tintOverrideActive ? _tintOverride : _baseTint;
+                return _auraSmothered ? Desaturate(tint) : tint;
+            }
+        }
+
+        /// <summary>True while the V7.6 Suppression aura-smother channel is up.</summary>
+        public bool IsAuraSmothered => _auraSmothered;
         public bool IsGlowing => _resolvedVisible;
         public GlowState ResolvedState => _resolved;
 
@@ -211,6 +223,41 @@ namespace FTT.Combat {
 
         public void SetSlotIndicator(int playerIndex) => PushState(GlowPalette.SlotIndicator(playerIndex));
 
+        /// <summary>
+        /// V7.6 Suppression aura-smother (Package 11 A1). While set, the
+        /// persistent gold resonance aura desaturates to cold grey and the
+        /// outline shader drops to base priority — thickness, glow intensity and
+        /// pulse are pinned to their resting values without touching the glow
+        /// stack, so the arbiter's resolved layer (telegraph, hyper-armor,
+        /// slot ownership) is preserved and restored intact when Suppression
+        /// ends. A1 owns this channel and the state read; A8 owns the HUD
+        /// cross-out, driven by OnAbilitySlotLockChanged.
+        /// </summary>
+        public void SetAuraSmothered(bool smothered) {
+            if (_auraSmothered == smothered) return;
+            _auraSmothered = smothered;
+            ApplyTint();
+            ApplyResolvedState();
+        }
+
+        /// <summary>Luminance-preserving desaturation toward the cold Suppression grey.</summary>
+        private static Color Desaturate(Color source) {
+            float luminance = 0.299f * source.R + 0.587f * source.G + 0.114f * source.B;
+            Color cold = GlowPalette.SuppressionColor;
+            return new Color(
+                Mathf.Lerp(source.R, luminance * cold.R * 2f, AuraSmotherWeight),
+                Mathf.Lerp(source.G, luminance * cold.G * 2f, AuraSmotherWeight),
+                Mathf.Lerp(source.B, luminance * cold.B * 2f, AuraSmotherWeight),
+                source.A);
+        }
+
+        /// <summary>How far the smother pulls the aura toward cold grey.</summary>
+        public const float AuraSmotherWeight = 0.85f;
+
+        /// <summary>The base outline priority a smothered outline drops to.</summary>
+        public const float SmotheredOutlineThickness = 1f;
+        public const float SmotheredGlowIntensity = 1f;
+
         // === Internals ===
 
         private void EnsureMaterial() {
@@ -257,16 +304,25 @@ namespace FTT.Combat {
         }
 
         private void PushToMaterial(Color outlineColor) {
+            // V7.6 Suppression: the outline drops to base priority — resting
+            // thickness and intensity, no pulse — without disturbing the stack.
+            float thickness = _resolvedVisible
+                ? (_auraSmothered ? Mathf.Min(_resolved.Thickness, SmotheredOutlineThickness) : _resolved.Thickness)
+                : 0f;
+            float intensity = _resolvedVisible
+                ? (_auraSmothered ? SmotheredGlowIntensity : _resolved.Intensity)
+                : 1f;
+            float pulse = _resolvedVisible && !_auraSmothered ? _resolved.PulseSpeed : 0f;
             if (_material != null) {
                 _material.SetShaderParameter(OutlineColorUniform, outlineColor);
-                _material.SetShaderParameter(OutlineThicknessUniform, _resolvedVisible ? _resolved.Thickness : 0f);
-                _material.SetShaderParameter(GlowIntensityUniform, _resolvedVisible ? _resolved.Intensity : 1f);
-                _material.SetShaderParameter(PulseSpeedUniform, _resolvedVisible ? _resolved.PulseSpeed : 0f);
+                _material.SetShaderParameter(OutlineThicknessUniform, thickness);
+                _material.SetShaderParameter(GlowIntensityUniform, intensity);
+                _material.SetShaderParameter(PulseSpeedUniform, pulse);
             }
             if (_light == null) return;
             _light.Enabled = _resolvedVisible;
             // The design keeps the light in sync with the same _GlowIntensity value.
-            _light.Energy = _resolvedVisible ? _resolved.Intensity * 0.5f : 0f;
+            _light.Energy = _resolvedVisible ? intensity * 0.5f : 0f;
             _light.Color = outlineColor.A > 0f ? new Color(outlineColor.R, outlineColor.G, outlineColor.B) : Colors.White;
         }
 

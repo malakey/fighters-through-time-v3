@@ -1,6 +1,21 @@
 namespace FTT.Combat {
 
     /// <summary>
+    /// Caster-owned combo marks (V7.6 F07). A mark is deliberately NOT a status:
+    /// it occupies neither status slot, causes no action lock, contributes zero
+    /// stagger budget, and may remain while the target acts in armor. Append-only
+    /// — the ordinals ride the deterministic simulation's component 318.
+    /// </summary>
+    public enum ComboMarkType {
+        None = 0,
+        /// <summary>
+        /// Tesla's F07 chain marker. Lorentz Pulse's chain lightning gates on
+        /// this, freeing Static Charge to be a pure 0.4 s interrupt.
+        /// </summary>
+        Conductive = 1
+    }
+
+    /// <summary>
     /// One character's authored basic-string profile (V7.1 "Normals Are the
     /// Character", applied 2026-08-22). The three-hit chassis is universal —
     /// hitstun, active/recovery frames, hit-2 startup, knockback multipliers,
@@ -57,6 +72,25 @@ namespace FTT.Combat {
         /// </summary>
         public readonly int FinisherKnockbackTenths;
 
+        // === V7.6 F07 rider: the caster-owned combo MARK ===
+        // A mark is not a status: it occupies no status slot, causes no action
+        // lock, and contributes zero stagger budget. Tesla's finisher applies
+        // Static Charge (the 24-frame interrupt above) AND a Conductive mark, so
+        // the chain marker and the action lock are finally separate things.
+
+        /// <summary>
+        /// Mark the finisher applies (<see cref="ComboMarkType"/>; 0 = none).
+        /// Tesla authors Conductive.
+        /// </summary>
+        public readonly int FinisherMarkType;
+
+        /// <summary>
+        /// Baseline mark duration in frames (90 = 1.5 s). Story-only Resonance
+        /// nodes extend it at the APPLICATION site, never here — this table is
+        /// cross-mode.
+        /// </summary>
+        public readonly int FinisherMarkFrames;
+
         public BasicStringProfile(
             int groundOpenerStartup, int groundFinisherStartup,
             int aerialOpenerStartup, int aerialFinisherStartup,
@@ -66,7 +100,9 @@ namespace FTT.Combat {
             int finisherStatusFrames = 0,
             int finisherStatusIntensityMilli = 1000,
             int hit2VerticalLaunchTenths = 10,
-            int finisherKnockbackTenths = 45) {
+            int finisherKnockbackTenths = 45,
+            int finisherMarkType = 0,
+            int finisherMarkFrames = 0) {
             GroundStartupFrames = new[] {
                 groundOpenerStartup, BasicComboRules.GroundStartupFrames[1], groundFinisherStartup };
             AerialStartupFrames = new[] {
@@ -79,6 +115,8 @@ namespace FTT.Combat {
             FinisherStatusIntensityMilli = finisherStatusIntensityMilli;
             Hit2VerticalLaunchTenths = hit2VerticalLaunchTenths;
             FinisherKnockbackTenths = finisherKnockbackTenths;
+            FinisherMarkType = finisherMarkType;
+            FinisherMarkFrames = finisherMarkFrames;
         }
     }
 
@@ -106,6 +144,25 @@ namespace FTT.Combat {
         public static readonly int[] AerialStartupFrames = { 5, 6, 12 };
         public static readonly int[] AerialActiveFrames = { 7, 8, 10 };
         public static readonly int[] AerialRecoveryFrames = { 13, 14, 18 };
+
+        // === V7.6 F07 Conductive mark durations (cross-mode) ===
+
+        /// <summary>Baseline Conductive mark: 90 frames / 1.5 s.</summary>
+        public const int ConductiveMarkBaselineFrames = 90;
+
+        /// <summary>
+        /// With the Story-only <c>tesla_conductive_hold</c> Resonance node:
+        /// 150 frames / 2.5 s. Read at the application site, never substituted
+        /// into an authored profile — this table is cross-mode and Fighter Mode
+        /// must keep the 90-frame baseline.
+        /// </summary>
+        public const int ConductiveMarkUpgradedFrames = 150;
+
+        /// <summary>
+        /// A linked Tesla coil FENCE tick marks at the baseline and is explicitly
+        /// NOT extended by the Resonance node.
+        /// </summary>
+        public const int ConductiveMarkFenceFrames = ConductiveMarkBaselineFrames;
 
         /// <summary>
         /// The template profile: the exact universal string every character
@@ -142,9 +199,14 @@ namespace FTT.Combat {
                 // Tesla's finisher magnetizes "with a brief Static Charge"
                 // (kit brief): 0.4 s — equal to the finisher's own hitstun, so
                 // it adds no lockdown and exists purely to prime Lorentz chains.
+                // V7.6 F07: the finisher now applies TWO things — the same
+                // 0.4 s Static Charge interrupt AND a separate 1.5 s Conductive
+                // mark that enables Lorentz chains without locking actions.
                 { "tesla",       new BasicStringProfile(6, 15, 5, 12,  8, 10, 15, 100, 100,
                     finisherStatusType: (int)FTT.Core.StatusType.StaticCharge,
-                    finisherStatusFrames: 24) },
+                    finisherStatusFrames: 24,
+                    finisherMarkType: (int)ComboMarkType.Conductive,
+                    finisherMarkFrames: BasicComboRules.ConductiveMarkBaselineFrames) },
                 { "einstein",    new BasicStringProfile(7, 16, 6, 13,  8, 10, 15, 110, 100) },
                 { "shakespeare", new BasicStringProfile(7, 16, 6, 13,  8, 10, 15, 105, 100) },
                 // Lincoln's "heavy upward vertical swing that launches" hit 2

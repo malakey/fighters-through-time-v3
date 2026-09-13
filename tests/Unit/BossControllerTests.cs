@@ -513,6 +513,85 @@ public class BossControllerTests {
         BossAbilities = abilities
     };
 
+    // === V7.6 status slots on bosses (Package 11 A1) ===
+
+    [TestCase]
+    public void BossesCarryTheTwoStatusSlotsAndObeyStrongerWins() {
+        BossController boss = CreateBoss(BossResource(), seed: 515);
+        try {
+            // Both slots coexist and the contracted view reports both.
+            boss.ApplyStatusEffect(StatusType.TimeDilation, 3f, 1f);
+            boss.ApplyStatusEffect(StatusType.Venom, 4f, 1f);
+            StatusSlots slots = boss.ActiveStatuses;
+            AssertThat(slots.Control.Type).IsEqual(StatusType.TimeDilation);
+            AssertThat(slots.Damage.Type).IsEqual(StatusType.Venom);
+            AssertThat(slots.Has(StatusType.Venom)).IsTrue();
+            AssertThat(boss.StatusMoveMultiplier).IsEqual(0.5f);
+
+            // Stronger-wins: a weaker same-type reapplication is a no-op and the
+            // occupant keeps its own remaining duration.
+            boss.ApplyStatusEffect(StatusType.TimeDilation, 0.1f, 1f);
+            for (int frame = 0; frame < 12; frame++) boss._PhysicsProcess(Step);
+            AssertThat(boss.ControlStatusType)
+                .OverrideFailureMessage("A weaker same-type application must not shorten the occupant.")
+                .IsEqual(StatusType.TimeDilation);
+
+            // Suppression is a player-side ability lock; a boss refuses it rather
+            // than letting an inert status evict a live control status.
+            boss.ApplyStatusEffect(StatusType.Suppression, 2f, 1f);
+            AssertThat(boss.ControlStatusType)
+                .OverrideFailureMessage("Suppression must not evict a boss control status.")
+                .IsEqual(StatusType.TimeDilation);
+
+            // ClearAllStatusEffects empties both slots.
+            boss.ClearAllStatusEffects();
+            AssertThat(boss.ActiveStatuses.Control.Type).IsEqual(StatusType.None);
+            AssertThat(boss.ActiveStatuses.Damage.Type).IsEqual(StatusType.None);
+            AssertThat(boss.StatusMoveMultiplier).IsEqual(1f);
+            AssertThat(boss.TargetNode).IsEqual(boss);
+        } finally {
+            FreeBoss(boss);
+        }
+    }
+
+    [TestCase]
+    public void BossStatusSlotsDoNotDisturbTheV74FlinchImmunity() {
+        BossController boss = CreateBoss(BossResource(), seed: 516);
+        try {
+            var hurtbox = boss.GetNode<Hurtbox>("Hurtbox");
+            BossState before = boss.CurrentState;
+            // A Tesla-shaped hit: long hitstun, a Static Charge, and the F07
+            // Conductive mark. Bosses still ignore HitPayload.HitstunDuration
+            // outright, so the status lands without any stagger.
+            hurtbox.TakeHit(new HitPayload {
+                AttackerIndex = 0,
+                AttackID = "tesla.basic",
+                HitboxID = "combo_3",
+                AttackClass = AttackClass.Basic,
+                Damage = 4f,
+                HitstunDuration = 2.5f,
+                HitOrigin = Vector2.Zero,
+                AttackerFacingRight = true,
+                AppliedStatus = StatusType.StaticCharge,
+                StatusDuration = 0.4f,
+                StatusIntensity = 1f,
+                ComboMark = ComboMarkType.Conductive,
+                ComboMarkFrames = BasicComboRules.ConductiveMarkBaselineFrames
+            });
+            AssertThat(boss.CurrentState)
+                .OverrideFailureMessage("A boss must never flinch, status slots or not.")
+                .IsEqual(before);
+            AssertThat(boss.ControlStatusType).IsEqual(StatusType.StaticCharge);
+            AssertThat(boss.HasConductiveMarkFrom(0))
+                .OverrideFailureMessage("The caster-owned mark lands on bosses too.")
+                .IsTrue();
+            AssertThat(boss.ConductiveFramesRemaining)
+                .IsEqual(BasicComboRules.ConductiveMarkBaselineFrames);
+        } finally {
+            FreeBoss(boss);
+        }
+    }
+
     private static BossController CreateBoss(BossData data, ulong seed) {
         PackedScene scene = ResourceLoader.Load<PackedScene>("res://scenes/enemies/Boss.tscn");
         var boss = scene.Instantiate<BossController>();

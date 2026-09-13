@@ -1116,6 +1116,170 @@ public class EnemyControllerTests {
     /// Instantiates the authored tier scene with a duplicated data resource so a
     /// test may retune fields without leaking into the shared canonical .tres.
     /// </summary>
+    // === V7.6 F07 Static Charge stagger accounting (Package 11 A1) ===
+    // One hit is ONE stun event: hitstun and a Static Charge riding the same hit
+    // run concurrently and the GREATER post-resistance duration is counted once.
+
+    [TestCase]
+    public void TeslaFinisherChargesTheEliteBudgetOnceNotTwice() {
+        EnemyController elite = CreateEnemy("tech_enforcer");
+        try {
+            elite.Data.StunResistance = 0f;
+            var hurtbox = elite.GetNode<Hurtbox>("Hurtbox");
+            // The authored Tesla finisher: 0.4 s hitstun (HitstunFrames[2] = 24)
+            // AND a 0.4 s Static Charge. The design forbids the pair becoming
+            // 0.8 s of stagger budget.
+            BasicStringProfile tesla = BasicComboRules.StringProfileFor("tesla");
+            hurtbox.TakeHit(new HitPayload {
+                AttackerIndex = 0,
+                AttackID = "tesla.basic",
+                HitboxID = "combo_3",
+                AttackClass = AttackClass.Basic,
+                Damage = 5f,
+                HitstunDuration = BasicComboRules.HitstunFrames[2] / 60f,
+                HitOrigin = Vector2.Zero,
+                AttackerFacingRight = true,
+                AppliedStatus = StatusType.StaticCharge,
+                StatusDuration = tesla.FinisherStatusFrames / 60f,
+                StatusIntensity = 1f,
+                ComboMark = ComboMarkType.Conductive,
+                ComboMarkFrames = tesla.FinisherMarkFrames
+            });
+            AssertThat(elite.StaggerBudgetSeconds)
+                .OverrideFailureMessage(
+                    "The finisher must not turn 0.4 s of budget into 0.8 s; budget was "
+                    + elite.StaggerBudgetSeconds)
+                .IsEqualApprox(0.4f, 0.0001f);
+            AssertThat(elite.ControlStatusType)
+                .OverrideFailureMessage("The Static Charge still occupies the control slot.")
+                .IsEqual(StatusType.StaticCharge);
+            AssertThat(elite.HasConductiveMark)
+                .OverrideFailureMessage("A mark rides the same hit but is not a status.")
+                .IsTrue();
+        } finally {
+            elite.Free();
+        }
+    }
+
+    [TestCase]
+    public void ConcurrentStaticChargeTakesTheMaximumStunNeverOverwritingALongerOne() {
+        EnemyController enemy = CreateEnemy("chrono_slasher"); // StunResistance 0
+        try {
+            var hurtbox = enemy.GetNode<Hurtbox>("Hurtbox");
+            // 0.5 s of hitstun with a 0.1 s Static Charge riding along. The old
+            // second ApplyStun overwrote _stunTimer with 0.1 s; max wins now.
+            hurtbox.TakeHit(new HitPayload {
+                AttackerIndex = 0,
+                AttackID = "tesla.coil",
+                HitboxID = "coil_arc",
+                AttackClass = AttackClass.Basic,
+                Damage = 2f,
+                HitstunDuration = 0.5f,
+                HitOrigin = Vector2.Zero,
+                AttackerFacingRight = true,
+                AppliedStatus = StatusType.StaticCharge,
+                StatusDuration = 0.1f,
+                StatusIntensity = 1f
+            });
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Stunned);
+            // 12 frames in: a 0.1 s (6-frame) stun would have expired; the
+            // 0.5 s (30-frame) stun still holds.
+            for (int frame = 0; frame < 12; frame++) enemy._PhysicsProcess(Step);
+            AssertThat(enemy.CurrentState)
+                .OverrideFailureMessage("A shorter Static Charge must never shorten a longer hitstun.")
+                .IsEqual(EnemyState.Stunned);
+        } finally {
+            enemy.Free();
+        }
+    }
+
+    [TestCase]
+    public void ASpecialSourcedStaticChargeDiminishesAndRefreshesTheSpecialWindow() {
+        EnemyController enemy = CreateEnemy("chrono_slasher"); // StunResistance 0
+        try {
+            var hurtbox = enemy.GetNode<Hurtbox>("Hurtbox");
+            HitPayload ChargingSpecial() => new() {
+                AttackerIndex = 0,
+                AttackID = "tesla.special_two",
+                HitboxID = "pulse",
+                AttackClass = AttackClass.Special,
+                Damage = 3f,
+                HitstunDuration = 0f,
+                HitOrigin = Vector2.Zero,
+                AttackerFacingRight = true,
+                AppliedStatus = StatusType.StaticCharge,
+                StatusDuration = 0.5f,
+                StatusIntensity = 1f
+            };
+
+            // The charge alone is the stun, from a Special-class source, so it
+            // arms the diminish window. The old path classified it non-special
+            // and it never diminished at all.
+            hurtbox.TakeHit(ChargingSpecial());
+            AssertThat(enemy.CurrentState).IsEqual(EnemyState.Stunned);
+            for (int frame = 0; frame < 6; frame++) enemy._PhysicsProcess(Step);
+
+            hurtbox.TakeHit(ChargingSpecial());
+            // Half of 0.5 s is 15 frames (+3 hitstop); a full 30-frame stun would
+            // still hold at frame 24.
+            for (int frame = 0; frame < 24; frame++) enemy._PhysicsProcess(Step);
+            AssertThat(enemy.CurrentState)
+                .OverrideFailureMessage("A special-sourced Static Charge must diminish inside the window.")
+                .IsEqual(EnemyState.Patrol);
+        } finally {
+            enemy.Free();
+        }
+    }
+
+    [TestCase]
+    public void ArmoredRecoveryEndsTheStaticChargeLockAndRejectsItsReapplication() {
+        EnemyController elite = CreateEnemy("tech_enforcer");
+        try {
+            elite.Data.StunResistance = 0f;
+            elite.Data.EliteAbilityCooldown = 0f;
+            var hurtbox = elite.GetNode<Hurtbox>("Hurtbox");
+
+            elite.ApplyStatusEffect(StatusType.StaticCharge, 1.0f, 1f);
+            AssertThat(elite.ControlStatusType).IsEqual(StatusType.StaticCharge);
+
+            // Trip the elite budget: protection ends the effective stun, so the
+            // charge cannot persist as a separate input lock behind it.
+            elite.ApplyStun(0.9f);
+            elite.ApplyStun(0.9f);
+            elite.ApplyStun(0.9f);
+            AssertThat(elite.IsArmoredRecovery).IsTrue();
+            AssertThat(elite.ControlStatusType)
+                .OverrideFailureMessage("Armored Recovery must end the Static Charge lock.")
+                .IsEqual(StatusType.None);
+
+            // Reapplication is rejected for the duration of the protection.
+            hurtbox.TakeHit(new HitPayload {
+                AttackerIndex = 0,
+                AttackID = "tesla.coil",
+                HitboxID = "coil_fence",
+                AttackClass = AttackClass.Basic,
+                Damage = 4f,
+                HitstunDuration = 0f,
+                HitOrigin = Vector2.Zero,
+                AttackerFacingRight = true,
+                AppliedStatus = StatusType.StaticCharge,
+                StatusDuration = 1.0f,
+                StatusIntensity = 1f,
+                ComboMark = ComboMarkType.Conductive,
+                ComboMarkFrames = BasicComboRules.ConductiveMarkFenceFrames
+            });
+            AssertThat(elite.ControlStatusType)
+                .OverrideFailureMessage("Armor must reject Static Charge reapplication.")
+                .IsEqual(StatusType.None);
+            // A MARK is not a stun: armor never refuses it.
+            AssertThat(elite.HasConductiveMark)
+                .OverrideFailureMessage("Armor must not refuse the caster-owned mark.")
+                .IsTrue();
+        } finally {
+            elite.Free();
+        }
+    }
+
     private static EnemyController CreateEnemy(string enemyID) {
         EnemyData canonical = FTT.Core.AuthoredResources.Load<EnemyData>($"res://resources/Enemies/{enemyID}.tres");
         var data = (EnemyData)canonical.Duplicate();

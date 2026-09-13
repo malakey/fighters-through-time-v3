@@ -33,7 +33,7 @@ namespace FTT.Characters {
 		Grabbing
 	}
 
-	public partial class PlayerController : CharacterBody2D {
+	public partial class PlayerController : CharacterBody2D, FTT.Combat.IStatusEffectTarget {
 		public const int StoryRewindInvulnerabilityFrames = 120;
 
 		/// <summary>Story-only Resonance perk key (Joan): landing the final combo cleave heals 5% of missing HP.</summary>
@@ -657,6 +657,12 @@ namespace FTT.Characters {
 				_statusController?.ApplyStatus(hit.AppliedStatus, hit.StatusDuration, hit.StatusIntensity);
 			}
 
+			// V7.6 F07: the caster-owned combo mark rides the same hit but is not
+			// a status — no slot, no action lock, no stagger budget.
+			if (hit.ComboMark == FTT.Combat.ComboMarkType.Conductive && hit.ComboMarkFrames > 0) {
+				ApplyConductiveMark(hit.AttackerIndex, hit.ComboMarkFrames);
+			}
+
 			// V7.1 Rally: a fraction of the hit becomes a briefly reclaimable
 			// echo — 20% at full health sliding to 50% near death (evaluated
 			// after the damage), difficulty-scaled, never on a lethal hit. Each
@@ -778,6 +784,9 @@ namespace FTT.Characters {
 			UpdateCooldowns(dt);
 			UpdateDropThrough(dt);
 			UpdateHyperArmorPresentation();
+			// F07: the Conductive mark is a caster-owned combo mark, not a
+			// status — it ticks on its own frame counter and locks nothing.
+			TickConductiveMark();
 			if (_downTapFramesRemaining > 0) _downTapFramesRemaining--;
 
 			// V7.3 landing-tech lock: the 12-frame recovery holds the player in
@@ -1838,6 +1847,15 @@ namespace FTT.Characters {
 					if (oldState == CharacterState.Attacking) GroundComboCounter = 0;
 					ComboCounter = GroundComboCounter;
 					break;
+				case CharacterState.Dead:
+					// V7.6: death clears both status slots (so a Suppression lock
+					// can never survive a respawn), and T01a clears every
+					// Conductive mark this character sourced — Tesla's coils
+					// survive his death, his marks do not.
+					ClearAllStatusEffects();
+					ClearConductiveMark();
+					if (IsInsideTree()) ClearConductiveMarksFrom(GetTree(), PlayerIndex);
+					break;
 			}
 		}
 
@@ -2416,6 +2434,15 @@ namespace FTT.Characters {
 				_meleeHitbox.StatusIntensity = finisher
 					? _stringProfile.FinisherStatusIntensityMilli / 1000f
 					: 1f;
+				// V7.6 F07 rider: the finisher's caster-owned combo MARK, applied
+				// alongside (never instead of) the status. Tesla's Conductive mark
+				// rides here at 90 frames — 150 with the Story-only
+				// tesla_conductive_hold Resonance node, scaled at this application
+				// site so the cross-mode BasicComboRules table stays untouched.
+				_meleeHitbox.ComboMark = finisher
+					? (FTT.Combat.ComboMarkType)_stringProfile.FinisherMarkType
+					: FTT.Combat.ComboMarkType.None;
+				_meleeHitbox.ComboMarkFrames = finisher ? FinisherConductiveMarkFrames() : 0;
 			}
 
 			if (_aerialHitboxMarker != null && _attackStartedAerial) {
@@ -2607,6 +2634,16 @@ namespace FTT.Characters {
 		}
 
 		private bool CheckSpecialInput() {
+			// V7.6 Suppression: both special casts are refused outright. The
+			// cooldown timers are untouched (they keep ticking in
+			// UpdateCooldowns) and no meter is spent — only a dull null-tone.
+			if (_abilityCastSuppressed) {
+				if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special1)
+					|| CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special2)) {
+					PlaySuppressedCastRefusal();
+				}
+				return false;
+			}
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special1) && SpecialOneCooldownTimer <= 0) {
 				if (_special1 != null && _special1.TryExecute()) {
 					_pendingSpecialSlot = 1;
@@ -2629,6 +2666,14 @@ namespace FTT.Characters {
 		}
 
 		private bool CheckUltimateInput() {
+			// V7.6 Suppression: the ultimate CAST is locked; the meter is
+			// neither spent nor reset, so a full meter is still full at thaw.
+			if (_abilityCastSuppressed) {
+				if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Ultimate)) {
+					PlaySuppressedCastRefusal();
+				}
+				return false;
+			}
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Ultimate)) {
 				bool meterReady = _ultimateMeter != null ? _ultimateMeter.IsFull : CurrentUltimateMeter >= 100f;
 				if (meterReady && _ultimate != null && _ultimate.TryExecute()) {
@@ -2659,6 +2704,14 @@ namespace FTT.Characters {
 
 		private bool CheckMovementAbilityInput() {
 			if (IsMovementRooted) return false;
+			// V7.6 Suppression: the movement ability is locked with the specials
+			// (the roll and ordinary movement stay available).
+			if (_abilityCastSuppressed) {
+				if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.MovementAbility)) {
+					PlaySuppressedCastRefusal();
+				}
+				return false;
+			}
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.MovementAbility) && MovementAbilityCooldownTimer <= 0) {
 				if (_movementAbility != null && _movementAbility.TryExecute()) {
 					PlayAnimation("movement_ability");
@@ -2862,6 +2915,179 @@ namespace FTT.Characters {
 			_ledgeRegrabLockoutSeconds =
 				FTT.FighterSim.FighterLedgeRules.RegrabLockoutFrames / 60f;
 			DropFromLedge();
+		}
+
+		// ====================================================================
+		// === Package 11 A1 — status slots, Suppression, Conductive mark   ===
+		// ====================================================================
+
+		// --- V7.6 StatusSlots contract (IStatusEffectTarget) ---
+		// The player's slot store is its child StatusController; this surface is
+		// the contracted view over it, so the three controllers and the sim share
+		// one routing table (FTT.Combat.StatusRouting) and one replacement rule.
+
+		public FTT.Combat.StatusSlots ActiveStatuses {
+			get => _statusController?.ActiveStatuses ?? FTT.Combat.StatusSlots.Empty;
+			set { if (_statusController != null) _statusController.ActiveStatuses = value; }
+		}
+
+		public void ApplyStatusEffect(FTT.Core.StatusType status, float duration, float intensity) =>
+			_statusController?.ApplyStatus(status, duration, intensity);
+
+		public void ClearStatusEffect(FTT.Combat.StatusSlot slot) =>
+			_statusController?.ClearStatusSlot(slot);
+
+		/// <summary>Both slots. Death, respawn and Restart Level call this.</summary>
+		public void ClearAllStatusEffects() => _statusController?.ClearAllStatusEffects();
+
+		public Node2D TargetNode => this;
+
+		public bool HasStatusEffect(FTT.Core.StatusType type) =>
+			_statusController?.HasStatus(type) == true;
+
+		// --- V7.6 Suppression: the ability-cast lock ---
+
+		private bool _abilityCastSuppressed;
+
+		/// <summary>
+		/// True while <see cref="FTT.Core.StatusType.Suppression"/> occupies the
+		/// control slot. Consulted by the four cast sites (Special 1 / Special 2
+		/// in <c>CheckSpecialInput</c>, <c>CheckUltimateInput</c>,
+		/// <c>CheckMovementAbilityInput</c>), which refuse without consuming a
+		/// cooldown or meter. Everything else — basics, block, grab, Rally, DI,
+		/// landing tech, Defy History, death rewinds and Time Freeze — is
+		/// deliberately unaffected, and cooldowns keep ticking.
+		/// </summary>
+		public bool IsAbilityCastSuppressed => _abilityCastSuppressed;
+
+		/// <summary>
+		/// Driven by <see cref="FTT.Combat.SuppressionStrategy"/> on apply and
+		/// remove. Publishes the four slots' Suppressed/Clear transitions on the
+		/// bus (Package 11 §2.9) so the HUD draws the cold cross-out without this
+		/// class knowing anything about the HUD.
+		/// </summary>
+		public void SetAbilityCastSuppressed(bool suppressed) {
+			if (_abilityCastSuppressed == suppressed) return;
+			_abilityCastSuppressed = suppressed;
+			_glow?.SetAuraSmothered(suppressed);
+			FTT.Core.AbilitySlotLockState state = suppressed
+				? FTT.Core.AbilitySlotLockState.Suppressed
+				: FTT.Core.AbilitySlotLockState.Clear;
+			foreach (FTT.Core.AbilitySlot slot in SuppressibleSlots) {
+				FTT.Core.EventBus.Instance?.RaiseAbilitySlotLockChanged(
+					new FTT.Core.AbilitySlotLockPayload { Slot = slot, State = state });
+			}
+		}
+
+		private static readonly FTT.Core.AbilitySlot[] SuppressibleSlots = {
+			FTT.Core.AbilitySlot.Special1,
+			FTT.Core.AbilitySlot.Special2,
+			FTT.Core.AbilitySlot.MovementAbility,
+			FTT.Core.AbilitySlot.Ultimate
+		};
+
+		/// <summary>
+		/// The refusal feedback hook: a dull low null-tone rather than the
+		/// ability's cast cue. Presentation only — it never consumes cooldown or
+		/// meter. A8 may repoint this at an authored cue.
+		/// </summary>
+		private static void PlaySuppressedCastRefusal() =>
+			FTT.Core.AudioManager.Instance?.PlayUISound(null, SuppressedRefusalPitch);
+
+		private const float SuppressedRefusalPitch = 0.45f;
+
+		// --- F07 Conductive mark (a caster-owned combo mark, NOT a status) ---
+		// Tesla's finisher applies Static Charge (a 24-frame interrupt) AND a
+		// separate Conductive mark. The mark occupies no status slot, causes no
+		// action lock, contributes zero stagger budget, and may remain while the
+		// target acts in armor. Lorentz Pulse chains gate on the mark, never on
+		// Static Charge.
+
+		private int _conductiveFramesRemaining;
+		private int _conductiveSourcePlayerID = -1;
+
+		/// <summary>Frames left on the Conductive mark; 0 when unmarked.</summary>
+		public int ConductiveFramesRemaining => _conductiveFramesRemaining;
+
+		/// <summary>Player index that applied the live mark; -1 when unmarked.</summary>
+		public int ConductiveSourcePlayerID =>
+			_conductiveFramesRemaining > 0 ? _conductiveSourcePlayerID : -1;
+
+		public bool HasConductiveMark => _conductiveFramesRemaining > 0;
+
+		public bool HasConductiveMarkFrom(int sourcePlayerID) =>
+			_conductiveFramesRemaining > 0 && _conductiveSourcePlayerID == sourcePlayerID;
+
+		/// <summary>
+		/// Applies (or extends) a Conductive mark. One mark per target: a new
+		/// source replaces the old one, and the same source takes the longer
+		/// remaining time — never additive.
+		/// </summary>
+		public void ApplyConductiveMark(int sourcePlayerID, int frames) {
+			if (frames <= 0 || CurrentState == CharacterState.Dead) return;
+			if (_conductiveSourcePlayerID != sourcePlayerID || frames > _conductiveFramesRemaining) {
+				_conductiveSourcePlayerID = sourcePlayerID;
+				_conductiveFramesRemaining = frames;
+			}
+		}
+
+		public void ClearConductiveMark() {
+			_conductiveFramesRemaining = 0;
+			_conductiveSourcePlayerID = -1;
+		}
+
+		/// <summary>Hitstop freezes the gameplay clock, so the mark holds with it.</summary>
+		private void TickConductiveMark() {
+			if (_conductiveFramesRemaining <= 0) return;
+			_conductiveFramesRemaining--;
+			if (_conductiveFramesRemaining <= 0) _conductiveSourcePlayerID = -1;
+		}
+
+		/// <summary>
+		/// T01a: Tesla's death clears <b>his</b> Conductive marks even though his
+		/// coils survive. Sweeps every live Story combatant and drops marks whose
+		/// source is <paramref name="sourcePlayerID"/>.
+		/// </summary>
+		public static void ClearConductiveMarksFrom(SceneTree tree, int sourcePlayerID) {
+			if (tree == null) return;
+			Godot.Collections.Array<Node> players = tree.GetNodesInGroup("Players");
+			using (var playersLifetime = players.AsDisposable()) {
+				foreach (Node node in players) {
+					if (node is PlayerController pc && pc.HasConductiveMarkFrom(sourcePlayerID)) {
+						pc.ClearConductiveMark();
+					}
+				}
+			}
+			Godot.Collections.Array<Node> enemies = tree.GetNodesInGroup("Enemies");
+			using (var enemiesLifetime = enemies.AsDisposable()) {
+				foreach (Node node in enemies) {
+					if (node is FTT.Enemies.EnemyController enemy
+						&& enemy.HasConductiveMarkFrom(sourcePlayerID)) {
+						enemy.ClearConductiveMark();
+					} else if (node is FTT.Enemies.BossController boss
+						&& boss.HasConductiveMarkFrom(sourcePlayerID)) {
+						boss.ClearConductiveMark();
+					}
+				}
+			}
+		}
+
+		/// <summary>
+		/// The <c>tesla_conductive_hold</c> Resonance node (Story-only) extends
+		/// the finisher's mark from 1.5 s to 2.5 s. A4 authors the node; the
+		/// scaling is read here, at the application site — the cross-mode
+		/// <see cref="FTT.Combat.BasicComboRules"/> constant is never edited for a
+		/// Story perk. Linked coil-fence marks are deliberately NOT extended.
+		/// </summary>
+		public const string ConductiveHoldPerkKey = "tesla_conductive_hold";
+
+		/// <summary>The Conductive frames this character's finisher applies; 0 when it applies none.</summary>
+		public int FinisherConductiveMarkFrames() {
+			int frames = _stringProfile.FinisherMarkFrames;
+			if (frames <= 0) return 0;
+			return HasStoryPerk(ConductiveHoldPerkKey)
+				? FTT.Combat.BasicComboRules.ConductiveMarkUpgradedFrames
+				: frames;
 		}
 	}
 }

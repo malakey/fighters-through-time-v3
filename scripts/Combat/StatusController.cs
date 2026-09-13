@@ -93,13 +93,41 @@ namespace FTT.Combat {
     }
 
     /// <summary>
+    /// V7.6 Suppression (the Eraser line's Null Lance) — control slot, Story-only
+    /// source. The whole effect is the ability-cast lock: Special 1, Special 2,
+    /// the Movement Ability and the Ultimate cast are refused (cooldowns keep
+    /// ticking, no meter is spent) and the persistent resonance aura desaturates
+    /// to cold grey. Basics, block, grab, Rally, DI, landing tech, Defy History,
+    /// death rewinds and Time Freeze are deliberately untouched — Time Freeze is
+    /// the universal escape tool and is explicitly carved out.
+    /// </summary>
+    public sealed class SuppressionStrategy : IStatusStrategy {
+        /// <summary>Authored standard duration (design: 2.0 s at standard intensity).</summary>
+        public const float StandardDurationSeconds = 2.0f;
+
+        public void OnApply(FTT.Characters.PlayerController target, float duration, float intensity) {
+            target.SetAbilityCastSuppressed(true);
+        }
+        public void OnTick(FTT.Characters.PlayerController target, float delta) { }
+        public void OnRemove(FTT.Characters.PlayerController target) {
+            target.SetAbilityCastSuppressed(false);
+        }
+    }
+
+    /// <summary>
     /// V7 two-slot status system. A damaging status (Venom, RadiantBurn) and a
-    /// control status (TimeDilation, StaticCharge, Root) can be active at the
-    /// same time; a new application replaces only the occupant of its own slot.
-    /// This keeps the trapper kits coherent — Cleopatra's vortex slow no longer
-    /// deletes her nest's Venom — while preserving the newest-replaces rule
-    /// within each slot. Each strategy's OnRemove resets only its own modifiers
-    /// so one slot expiring cannot strip the other slot's effect.
+    /// control status (TimeDilation, StaticCharge, Root, Suppression) can be
+    /// active at the same time; a new application competes only with the
+    /// occupant of its own slot. This keeps the trapper kits coherent —
+    /// Cleopatra's vortex slow no longer deletes her nest's Venom. Each
+    /// strategy's OnRemove resets only its own modifiers so one slot expiring
+    /// cannot strip the other slot's effect.
+    ///
+    /// V7.6 (Package 11 A1): slot routing is <see cref="StatusRouting.SlotOf"/>
+    /// — the one table shared with the enemy, boss and simulation sites — and
+    /// within a slot the rule is <b>stronger-wins</b>
+    /// (<see cref="StatusRouting.ShouldReplace"/>), not newest-wins: a weaker
+    /// same-type reapplication does nothing at all.
     /// </summary>
     public partial class StatusController : Node {
 
@@ -119,13 +147,22 @@ namespace FTT.Combat {
             { FTT.Core.StatusType.Venom, () => new VenomStrategy() },
             { FTT.Core.StatusType.StaticCharge, () => new StaticChargeStrategy() },
             { FTT.Core.StatusType.RadiantBurn, () => new RadiantBurnStrategy() },
-            { FTT.Core.StatusType.Root, () => new RootStrategy() }
+            { FTT.Core.StatusType.Root, () => new RootStrategy() },
+            { FTT.Core.StatusType.Suppression, () => new SuppressionStrategy() }
         };
 
+        /// <summary>
+        /// Forwarder to the shared routing table (V7.6). Kept because the HUD and
+        /// the simulation's hot path already call this signature; the table itself
+        /// lives in <see cref="StatusRouting"/> and has exactly one implementation.
+        /// </summary>
         public static bool IsDamageStatus(FTT.Core.StatusType type) =>
-            type is FTT.Core.StatusType.Venom or FTT.Core.StatusType.RadiantBurn;
+            StatusRouting.SlotOf(type) == StatusSlot.Damage;
 
-        private Slot SlotFor(FTT.Core.StatusType type) => IsDamageStatus(type) ? _damage : _control;
+        private Slot SlotFor(FTT.Core.StatusType type) =>
+            StatusRouting.SlotOf(type) == StatusSlot.Damage ? _damage : _control;
+
+        private Slot SlotFor(StatusSlot slot) => slot == StatusSlot.Damage ? _damage : _control;
 
         public override void _Ready() {
             _owner = GetParent<FTT.Characters.PlayerController>();
@@ -134,6 +171,11 @@ namespace FTT.Combat {
         public void ApplyStatus(FTT.Core.StatusType type, float duration, float intensity = 1.0f) {
             if (type == FTT.Core.StatusType.None || duration <= 0.0f || _owner == null) return;
             Slot slot = SlotFor(type);
+            // V7.6 stronger-wins: a weaker same-type application is a complete
+            // no-op — no replace, no refresh, no event, and the occupant's own
+            // remaining duration is left exactly as it was.
+            if (!StatusRouting.ShouldReplace(
+                    slot.Type, slot.Intensity, slot.Remaining, type, intensity, duration)) return;
             ClearSlot(slot, raiseEvents: false);
 
             slot.Type = type;
@@ -242,5 +284,43 @@ namespace FTT.Combat {
         public FTT.Core.StatusType ControlStatusType => _control.Type;
         public FTT.Core.StatusType DamageStatusType => _damage.Type;
         public bool HasStatus(FTT.Core.StatusType type) => _control.Type == type || _damage.Type == type;
+
+        // === V7.6 StatusSlots contract (Package 11 A1) ===
+        // The controller is the player's slot store; PlayerController implements
+        // IStatusEffectTarget over this surface.
+
+        /// <summary>
+        /// The contracted two-slot view. The setter restores both slots wholesale
+        /// (strategies are rebuilt and re-applied), which is what death/respawn
+        /// and rewind restore need.
+        /// </summary>
+        public StatusSlots ActiveStatuses {
+            get => new() {
+                Damage = ReadSlot(_damage),
+                Control = ReadSlot(_control)
+            };
+            set {
+                ClearStatus();
+                ApplySlotData(value.Damage);
+                ApplySlotData(value.Control);
+            }
+        }
+
+        private static StatusEffectData ReadSlot(Slot slot) => new() {
+            Type = slot.Type,
+            RemainingSeconds = slot.Remaining,
+            Intensity = slot.Intensity
+        };
+
+        private void ApplySlotData(StatusEffectData data) {
+            if (data.Type == FTT.Core.StatusType.None || data.RemainingSeconds <= 0f) return;
+            ApplyStatus(data.Type, data.RemainingSeconds, data.Intensity);
+        }
+
+        /// <summary>Clears one slot by identity, whatever occupies it.</summary>
+        public void ClearStatusSlot(StatusSlot slot) => ClearSlot(SlotFor(slot), raiseEvents: true);
+
+        /// <summary>Both slots. Death, respawn and Restart Level call this.</summary>
+        public void ClearAllStatusEffects() => ClearStatus();
     }
 }

@@ -128,6 +128,13 @@ namespace FTT.Combat {
         /// <summary>Venom lerps between its two authored colours over the status duration.</summary>
         public static readonly Color VenomSecondaryColor = new(0f, 1f, 0.4f);         // #00ff66
         public static readonly Color RootColor = new(0.545f, 0.271f, 0.075f);         // #8B4513
+        /// <summary>
+        /// V7.6 Suppression (Package 11 A1): a cold desaturated grey. The design
+        /// calls for the persistent gold resonance aura to DESATURATE and the
+        /// outline to drop to base priority rather than for a loud new outline —
+        /// so this state is deliberately thin, dim and non-pulsing.
+        /// </summary>
+        public static readonly Color SuppressionColor = new(0.45f, 0.48f, 0.53f);     // #737a87
 
         private static readonly Color[] SlotColors = {
             new(0f, 0.941f, 1f),      // P1 #00f0ff
@@ -155,6 +162,7 @@ namespace FTT.Combat {
             FTT.Core.StatusType.RadiantBurn => new GlowState(GlowLayer.Status, RadiantBurnColor, 2f, 2.5f, 1f),
             FTT.Core.StatusType.Venom => new GlowState(GlowLayer.Status, VenomColor, 2f, 1.5f, 0.5f),
             FTT.Core.StatusType.Root => new GlowState(GlowLayer.Status, RootColor, 1.5f, 1.2f, 0f),
+            FTT.Core.StatusType.Suppression => new GlowState(GlowLayer.Status, SuppressionColor, 1f, 1f, 0f),
             _ => new GlowState(GlowLayer.Status, new Color(0f, 0f, 0f, 0f), 0f, 1f, 0f)
         };
     }
