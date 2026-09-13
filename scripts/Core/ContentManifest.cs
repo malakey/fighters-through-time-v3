@@ -132,17 +132,22 @@ namespace FTT.Core {
         /// 17 and DialogueSet 18; all nine variants share one AudioSet, so that moved by
         /// one. <b>B1-B3 raise StoryLevel to 25 and DialogueSet to 26</b> with the other
         /// eight heroes; AudioSet stays at 28.
+        ///
+        /// <para><b>Package 11 B3</b> adds Mozart and Pocahontas: StoryLevel 17 → 19 and
+        /// DialogueSet 18 → 20. B1 (+3) and B2 (+3) raise the same two constants in
+        /// parallel branches; the orchestrator reconciles the three bumps to 25 / 26 at
+        /// merge. AudioSet is untouched — all nine variants share one set.</para>
         /// </summary>
         private static readonly Dictionary<ContentCategory, int> ExactRequiredCounts = new() {
             // B1 (joan, leonardo, lincoln) raised these by three. B2 and B3 raise them
             // by three each in their own branches; the merged wave value is 25 / 26.
-            [ContentCategory.StoryLevel] = 20,
+            [ContentCategory.StoryLevel] = 22,
             [ContentCategory.FighterStage] = 10,
             [ContentCategory.Character] = 9,
             [ContentCategory.Ability] = 36,
             [ContentCategory.ResonanceGrid] = 9,
             [ContentCategory.Boss] = 15,
-            [ContentCategory.DialogueSet] = 21,
+            [ContentCategory.DialogueSet] = 23,
             [ContentCategory.UIScreen] = 22,
             [ContentCategory.Pool] = 7,
             [ContentCategory.AudioSet] = 28,

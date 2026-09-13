@@ -5584,3 +5584,91 @@ until its ability is used", and in particular the two effigy gates actually reso
 Divine Piercing flurry and a live turret deployment — are reasoned from the shipped ability code and
 pinned structurally, not played. The geometry is graybox; no era art, music or VFX was added (P01
 Option A: the palettes and parallax intent are reused from Levels 2, 1 and 11).
+### B3 — Level 4A variants: Mozart and Pocahontas, plus the nine-hero coverage gate (2026-09-13)
+**Shipped.** Two complete Legacy Levels at the campaign's functionally-complete /
+placeholder-presentation bar, both copied structurally from the A12 Einstein exemplar and adding
+nothing to `LegacyLevelControllerBase`: `Level04AMozartController` + `Level_04A_mozart.tscn` (Vienna,
+1782 — the Burgtheater premiere) and `Level04APocahontasController` + `Level_04A_pocahontas.tscn`
+(Tsenacommacah, 1607 — the cut riverbank). Each carries its three-room geometry, two role-tagged
+checkpoints, the four kit gates, the Nexus source, the Eraser debut hook, one late Font, the boss
+slot, a dialogue set, a pool config, a legacy boss resource, manifest and pool-catalog rows, and a
+14-case content suite. Plus the cross-cutting `Level04AVariantCoverageTests`.
+**Placeholder eras, declared.** Neither nexus moment has an existing campaign level to borrow art or
+palette from (P01 Option A reuses era themes *where they exist*). Both palettes are authored
+placeholders in the house style, recorded here rather than passed off as era assets: Mozart —
+gaslit stone, gilt and theatre crimson, Archive cyan on the machinery; Pocahontas — river silt and
+wet loam, pine and marsh green, the same Archive cyan. Both variants use the shared
+`AudioSetPaths.Legacy` set, like Einstein's.
+**Boss reuse, stated per §2.4.** Mozart's `mozart_legacy_impresario` duplicates
+`resources/Bosses/tragedy_king.tres` (Level 10, the Globe — a theatre boss for an opera house) at
+**MaxHP 700** (the shared row stays 800), `ChronalDustDrop` 25 (shared stays 50), and
+`AbilityMinPhase` retuned to `[0,0,0,1]` so the fourth ability is a real phase-2 escalation.
+Pocahontas's `pocahontas_legacy_tidereaver` duplicates `resources/Bosses/tidal_eraser.tres` (Level 5,
+the Titanic — tidewater) at **MaxHP 700** (the shared row stays 640), dust 25, `AbilityMinPhase`
+`[0,0,1]`. Both are two-phase; neither shared resource was edited, and both content suites pin the
+shared rows' untouched HP and dust.
+**Deviation 1 — a fifth `LegacyGateMode` is genuinely needed (Pocahontas Special 2).** Vine Snare
+deploys a pooled `VineSnareNode` **persistent construct**, not a `PlaceholderZone`, so it never joins
+the `story_zone` group the shared `Zone` poll walks, and a `Zone` gate can never see it. Per A12's
+instruction this is recorded rather than fixed by loosening `Zone`: the shared enum wants a
+`Construct` mode matching a live construct by ability ownership. Worked around inside B3's own files
+by `VineSnareGateResolver` (declared in `Level04APocahontasController.cs`) — a variant-local node that
+reads the player's own `ActivePersistentObjects` list and funnels through the gate's existing public
+`TryResolve` with the gate's authored ability ID, so V01c still holds exactly (a decoy, another
+ability's construct, or an enemy can never open it) and `LegacyKitGate.cs` was not touched. The gate
+stays in `Zone` mode, which also gives it the right prompt ("hold it in a field of your own making").
+Phase C should promote the resolver into the shared enum and delete it.
+**Deviation 2 — traversal gates are placed at the CAST, not at the far landing.** `LegacyKitGate`'s
+`TraversalGraceFrames` is 30, refreshed only while `CharacterState.UsingMovementAbility` holds.
+Einstein's Warp is instantaneous, so a far-side landing box works for him; neither B3 hero's movement
+ability is. Sonata Drift lays a platform under Mozart's feet and moves him nowhere, and Breeze Glide
+carries Pocahontas for up to three seconds — long after the 21-frame cast ends. Both landing boxes are
+therefore authored **over** their gaps (Mozart at staff-platform altitude mid-pit; Pocahontas ~180 px
+past the lip, inside the dash's reach) rather than on the far lip, and each content suite pins that
+placement with the reason. A larger or ability-aware grace window in the shared gate would let a
+variant put the box where the player actually lands; not taken here.
+**Defect found, not fixed (A12 × A3, affects all nine variants).**
+`LegacyLevelControllerBase.ParSeconds` is `public abstract int`, which **hides** A3's
+`StoryLevelControllerBase.ParSeconds` (`public virtual float`) — the build has said so since the Wave 1
+merge (`CS0114` at `LegacyLevelControllerBase.cs:170`). The consequence is silent and real:
+`StoryLevelControllerBase._Ready` calls `story.BeginIntegrityClock(ParSeconds, …)` through the *base*
+member, which is still 0 for every Legacy Level, and the next line early-returns on `ParSeconds <= 0f`
+— so **no 4A variant starts an Integrity clock**, and `SetRecoveryRouteSeconds(id, ParSeconds * …)`
+books a zero recovery budget at both checkpoints. A variant cannot repair this from its subclass: the
+name is shadowed by the intermediate abstract. The fix belongs in `LegacyLevelControllerBase` (make it
+`public abstract override float ParSeconds`, or rename the Legacy member and override the base one),
+which is A12's file and outside every B agent's region. Both B3 content suites assert
+`ParSeconds > 0`, which reads the int and passes — so it does not catch this; a Phase C pin should
+assert the clock actually starts.
+**Manifest count bumps.** `ContentManifest.ExactRequiredCounts` StoryLevel 17 → **19** and DialogueSet
+18 → **20**; `ContentManifestTests`' `StoryLevel` assertion 17 → **19**. B1 (+3) and B2 (+3) raise the
+same three numbers in parallel; the orchestrator reconciles to 25 / 26 / 25 at merge. AudioSet is
+untouched — all nine variants share one set.
+**A fourth count, which A12's handoff did not list.** `CampaignRouteTests` asserted
+`StoryLevel row count == CampaignRouteLength` in **two** cases. That conflates route slots with
+manifest rows and held only while Einstein was the single authored variant — it broke immediately on
+appending two rows. Rewritten in place (no case-count change) as a derived
+`ExpectedStoryLevelRowCount(rows)` = the sixteen shared slots plus however many `level_04a_*` rows the
+manifest actually carries, so it stays true for one variant or nine and the three B branches' edits
+are textually identical at merge.
+**Not delivered.** The A7a Eraser re-point: A7a is a *parallel* Wave 2 branch, so `eraser` does not
+exist on `p11/B3`, and all nine variants still spawn `EraserDebutTrigger.PlaceholderEnemyID`
+(`chrono_guard_elite`) through the base's unchanged hook. **The one-line re-point of
+`EraserDebutTrigger.EnemyID` to `EraserEnemyID`, and the single-Eraser composition pin in
+`EncounterCompositionTests`, remain outstanding for whoever merges after A7a.** Also not delivered:
+measured `ParSeconds` / F11 budgets (300 s placeholders, as A12 left them — V01a needs Normal medians
+no automated gate can produce), the per-source dust allocation (A10 owns it), and the six B1/B2
+heroes, for which `Level04AVariantCoverageTests` is red **by design** on this branch, naming each
+missing hero.
+**Validation.** `dotnet build` clean (3 warnings, all pre-existing: the Klotho component-size note,
+the vendored GdUnit4 `CS8632`, and the `ParSeconds` `CS0114` above). Cold `--headless --import` first;
+the regenerated `en.en.translation` is **not** committed (§2.11), so the two new suites'
+localization-dependent cases fail against the committed tree exactly as A12's three do. Filtered run,
+against a drained `testhost`/`Godot*` window: **55/55 green** across `Level04AMozartContentTests` (14),
+`Level04APocahontasContentTests` (14), `CampaignRouteTests` (11), `ContentManifestTests` (3),
+`ScenePoolConfigTests` (5) and `LegacyCheckpointContractTests` (8), with `Level04AEinsteinContentTests`
+13/13 unchanged. `Level04AVariantCoverageTests` fails 4/4 naming joan, leonardo, lincoln, cleopatra,
+tesla and shakespeare and nobody else. Headless project load clean; both scenes smoke 300 frames at
+exit 0 with leak counts inside the existing campaign band (mozart 6/3, pocahontas 2/1, against
+einstein 2/1 and Pompeii 6/3). One `exit code: 100` contention run was observed mid-session and
+retried on a clear window (failure signature 5); it was never accepted as a result.

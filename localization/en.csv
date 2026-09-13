@@ -1396,3 +1396,38 @@ dlg_l04a_lincoln_boss_2,"You have taken my rails. You have never once understood
 dlg_l04a_lincoln_exit_1,"The platform stands. The day can be spoken for after all."
 dlg_l04a_lincoln_exit_2,"Wound closed, Warden. That one was yours, not history's."
 dlg_l04a_lincoln_exit_3,"They will send something worse. Let it stand where these men stood."
+# Package 11 B3
+legacy_mozart_level_title,"Vienna, 1782 — The Legacy Nexus"
+legacy_mozart_room_platz,Michaelerplatz
+legacy_mozart_room_stage,The Burgtheater Stage
+legacy_mozart_room_vault,The Gilded Vault
+legacy_mozart_objective_gates,"Reclaim the nexus ({0}/{1} resonances answered)"
+legacy_mozart_objective_boss,Silence the Impresario
+legacy_mozart_objective_complete,The nexus is yours again
+boss_mozart_legacy_impresario_name,The Burgtheater Impresario
+speaker_mozart_legacy_impresario,The Burgtheater Impresario
+dlg_l04a_mozart_entrance_1,"Warden, the rift signature is your own. They came back for the night they lost you."
+dlg_l04a_mozart_entrance_2,"Then they have chosen the one house where I know every door."
+dlg_l04a_mozart_entrance_3,"Everything you are is waiting past that pit. Go and take it back."
+dlg_l04a_mozart_boss_1,"An unfinished man writing unfinished work. We only came to close the score."
+dlg_l04a_mozart_boss_2,"You have my music. You have never once heard it."
+dlg_l04a_mozart_exit_1,"The house is quiet. The premiere can finish the way it was written."
+dlg_l04a_mozart_exit_2,"Wound closed, Warden. That one was yours, not history's."
+dlg_l04a_mozart_exit_3,"They will send something worse next time. Let them."
+legacy_pocahontas_level_title,"Tsenacommacah, 1607 — The Legacy Nexus"
+legacy_pocahontas_room_riverbank,The Cut Riverbank
+legacy_pocahontas_room_weir,The Weir and the Terraces
+legacy_pocahontas_room_hollow,The Flooded Hollow
+legacy_pocahontas_objective_gates,"Reclaim the nexus ({0}/{1} resonances answered)"
+legacy_pocahontas_objective_boss,Break the Reaver's hold on the river
+legacy_pocahontas_objective_complete,The nexus is yours again
+boss_pocahontas_legacy_tidereaver_name,The Tidewater Reaver
+speaker_pocahontas_legacy_tidereaver,The Tidewater Reaver
+dlg_l04a_pocahontas_entrance_1,"Warden, the rift signature is your own. They came back for the season they lost you."
+dlg_l04a_pocahontas_entrance_2,"They cut the bank to keep me from the water. They do not know this river."
+dlg_l04a_pocahontas_entrance_3,"Everything you are is on the far side of that gorge. Go and take it back."
+dlg_l04a_pocahontas_boss_1,"A girl the record could not hold. Stand still and be simplified."
+dlg_l04a_pocahontas_boss_2,"You have my river. You have never once listened to it."
+dlg_l04a_pocahontas_exit_1,"The weir is open. The season can finish the way it was written."
+dlg_l04a_pocahontas_exit_2,"Wound closed, Warden. That one was yours, not history's."
+dlg_l04a_pocahontas_exit_3,"They will send something worse next time. Let them."
