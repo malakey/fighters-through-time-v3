@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ScenePoolConfig" load_steps=24 format=3]
+[gd_resource type="Resource" script_class="ScenePoolConfig" load_steps=25 format=3]
 
 [ext_resource type="Script" path="res://scripts/Core/ScenePoolConfig.cs" id="1_config"]
 [ext_resource type="Script" path="res://scripts/Core/PoolDefinition.cs" id="2_definition"]
@@ -13,6 +13,7 @@
 [ext_resource type="PackedScene" path="res://scenes/templates/ChronalDustPickupTemplate.tscn" id="11_dust"]
 [ext_resource type="PackedScene" path="res://scenes/templates/StoryItemPickupTemplate.tscn" id="12_item"]
 [ext_resource type="PackedScene" path="res://scenes/enemies/EnemyProjectile.tscn" id="13_enemy_projectile"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/falling_debris.tscn" id="14_debris"]
 
 [sub_resource type="Resource" id="Projectile"]
 script = ExtResource("2_definition")
@@ -98,8 +99,16 @@ SceneTemplate = ExtResource("9_construct")
 WarmUpCount = 10
 MaxCapacity = 24
 
+[sub_resource type="Resource" id="FallingDebris"]
+script = ExtResource("2_definition")
+PoolID = "falling_debris"
+SceneTemplate = ExtResource("14_debris")
+WarmUpCount = 4
+MaxCapacity = 8
+OverflowPolicy = 1
+
 [resource]
 script = ExtResource("1_config")
 ConfigID = "level_13_chronal_void_pools"
 MaxWarmUpInstances = 220
-PoolDefinitions = Array[ExtResource("2_definition")]([SubResource("Projectile"), SubResource("Zone"), SubResource("CombatVfx"), SubResource("EnvironmentVfx"), SubResource("Enemy"), SubResource("EliteEnemy"), SubResource("EnemyProjectile"), SubResource("Dust"), SubResource("Item"), SubResource("Damage"), SubResource("Construct")])
+PoolDefinitions = Array[ExtResource("2_definition")]([SubResource("Projectile"), SubResource("Zone"), SubResource("CombatVfx"), SubResource("EnvironmentVfx"), SubResource("Enemy"), SubResource("EliteEnemy"), SubResource("EnemyProjectile"), SubResource("Dust"), SubResource("Item"), SubResource("Damage"), SubResource("Construct"), SubResource("FallingDebris")])

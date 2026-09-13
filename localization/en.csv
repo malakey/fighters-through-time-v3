@@ -1150,7 +1150,6 @@ resonance_respec_button,Respec (full refund)
 resonance_respec_title,Confirm Respec
 resonance_respec_confirm,Refund all {0} Chronal Dust spent on this grid and clear every unlocked node?
 resonance_respec_done,Respec complete: {0} Chronal Dust refunded.
-save_notice_abnormal_exit_fee,"Your last session ended unexpectedly — {0} undeposited Chronal Dust was lost to the fracture."
 movelist_title,Move List
 movelist_title_for,"Move List — {0}"
 movelist_section_string,Basic String
@@ -1194,3 +1193,7 @@ systems_card_echo_body,"Spend 30 meter during your own recovery to snap back 30 
 systems_card_overtime_title,Overtime
 systems_card_overtime_body,"The final 60 seconds of a timed match double the hazard cadence and raise the Rally echo by half."
 dialogue_hold_skip,"Hold {0} to skip"
+# Package 11 A3
+integrity_drain_slowed,Integrity drain slowed
+tremor_first_crossing_bark,"Sarah: The timeline's coming apart around you - move!"
+dialogue_collapse_sarah_era_lost,"Sarah: The era's gone. I'm pulling you out."

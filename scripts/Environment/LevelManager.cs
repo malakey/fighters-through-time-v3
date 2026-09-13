@@ -3,6 +3,26 @@ using System.Collections.Generic;
 
 namespace FTT.Environment {
 
+    /// <summary>
+    /// Package 11 A3 (V7.6 F12): a checkpoint's authored role. The Integrity
+    /// freeze, the Hard "middle inactive" rule and self-activation all read
+    /// this — <b>never</b> the checkpoint's numeric ID suffix, its array
+    /// position or the level's checkpoint count. F12 is explicit: a saved
+    /// <c>_1</c> must never be reinterpreted as PreBoss, which is exactly what
+    /// would strand Level 4A (whose PreBoss anchor IS <c>_checkpoint_1</c>)
+    /// under the Hard middle rule.
+    ///
+    /// Append-only: the ordinals are exported into authored scenes.
+    /// </summary>
+    public enum CheckpointRole {
+        /// <summary>The level entrance. Self-activates once on fresh entry; never locks the clock.</summary>
+        Entry = 0,
+        /// <summary>A mid-route fracture. Struck to activate; inert on Hard in Acts I-II; never locks the clock.</summary>
+        Middle = 1,
+        /// <summary>The pre-boss fracture. Struck to activate; freezes Timeline Integrity permanently.</summary>
+        PreBoss = 2
+    }
+
     public partial class LevelManager : Node {
         [Export] public string LevelID = "";
         [Export] public string LevelDisplayName = "";
@@ -70,6 +90,21 @@ namespace FTT.Environment {
         [Export] public Vector2 RespawnOffset = new(0, -50);
         /// <summary>Entry checkpoints self-activate — the player just arrived through them.</summary>
         [Export] public bool SelfActivating;
+
+        /// <summary>
+        /// Package 11 A3 (V7.6 F12): the authored role, exported ALONGSIDE the
+        /// stable ID. Self-activation, the Hard middle rule and the Integrity
+        /// freeze all read this and never the ID suffix.
+        /// </summary>
+        [Export] public CheckpointRole Role = CheckpointRole.Entry;
+
+        /// <summary>
+        /// F12: an inert anchor still exists in the world (so the fracture is
+        /// visible and the geometry is unchanged) but cannot be activated,
+        /// cannot anchor a respawn and saves nothing. Hard's middle checkpoint
+        /// in Acts I-II is the only current user; A3b enables Act III's.
+        /// </summary>
+        [Export] public bool Inert;
 
         /// <summary>Local visual state; the once-per-attempt authority is StoryManager's registry.</summary>
         public bool IsActivated { get; private set; }
@@ -163,6 +198,10 @@ namespace FTT.Environment {
         /// made authoritative by StoryManager's persisted registry in V7.3).
         /// </summary>
         public void Activate() {
+            // F12: an inert anchor is not a recovery destination. It saves
+            // nothing, heals nothing, refreshes nothing and never locks the
+            // clock — the earlier real anchor stays the destination.
+            if (Inert) return;
             bool firstActivation = FTT.Core.StoryManager.Instance?.TryActivateCheckpoint(CheckpointID) ?? !IsActivated;
             IsActivated = true;
             var levelManager = GetTree()?.CurrentScene?.GetNodeOrNull<LevelManager>("LevelManager");
@@ -177,6 +216,13 @@ namespace FTT.Environment {
                         FTT.Core.StoryDifficultyTuning.CurrentStoryDifficulty));
                 if (heal > 0) player.HealStory(heal);
             }
+            // V7.6 F12: the PreBoss fracture — identified by its authored ROLE,
+            // never by a `_checkpoint_2` spelling — freezes Timeline Integrity
+            // permanently for this attempt and banks the final score. Entry and
+            // Middle only bank the F11 recovery allowance. Both happen BEFORE
+            // the committed half so the save always records the post-lock gauge.
+            if (Role == CheckpointRole.PreBoss) FTT.Core.StoryManager.Instance?.LockIntegrityAtPreBoss();
+            else FTT.Core.StoryManager.Instance?.BankCheckpointIntegrity();
             // Gameplay half first (state capture, rewind refresh, HUD)...
             FTT.Core.EventBus.Instance?.RaiseCheckpointReached(CheckpointID, firstActivation);
             // ...then the persistence half, so the save is always post-refresh.
@@ -188,10 +234,14 @@ namespace FTT.Environment {
         /// range; the stabilized rift shows its authored cyan.</summary>
         private void UpdatePresentation() {
             if (GetNodeOrNull<CanvasItem>("CheckpointVisual") is CanvasItem visual) {
-                visual.Modulate = IsActivated ? Colors.White : new Color(1f, 0.55f, 0.3f);
+                // An inert anchor reads dead grey: present in the world, but
+                // visibly not a fracture this difficulty can stabilize.
+                visual.Modulate = Inert
+                    ? new Color(0.4f, 0.42f, 0.45f)
+                    : IsActivated ? Colors.White : new Color(1f, 0.55f, 0.3f);
             }
             if (_strikePrompt != null) {
-                _strikePrompt.Visible = _playerNearby && !IsActivated && !SelfActivating;
+                _strikePrompt.Visible = _playerNearby && !IsActivated && !SelfActivating && !Inert;
             }
         }
     }

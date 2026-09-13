@@ -71,6 +71,15 @@ namespace FTT.Environment {
 
         public override string LevelID => AlexandriaLevelID;
         public override CampaignLevel Level => CampaignLevel.Alexandria;
+        
+        /// <summary>
+        /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
+        /// seeded as 6 authored rooms x 90 s, rounded up to the nearest
+        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
+        /// per-hero median measurement pass.
+        /// </summary>
+        public override float ParSeconds => 540f;
         public override string LevelTitleKey => "alexandria_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_15_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(220f, FloorY - 60f);
@@ -299,7 +308,7 @@ namespace FTT.Environment {
             BuildFloor(0f, FloorY, Room2StartX);
             BuildGallery(PorticoStair);
 
-            BuildCheckpoint(Checkpoint0Position.X, Checkpoint0Position.Y, Checkpoint0);
+            BuildCheckpoint(Checkpoint0Position.X, Checkpoint0Position.Y, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(0f, "alexandria_room_portico", new Color(0.95f, 0.72f, 0.42f));
         }
 
@@ -310,7 +319,7 @@ namespace FTT.Environment {
             BuildFloor(Room2StartX, FloorY, width);
             BuildGallery(ScriptoriumClimb);
 
-            BuildCheckpoint(Checkpoint1Position.X, Checkpoint1Position.Y, Checkpoint1);
+            BuildCheckpoint(Checkpoint1Position.X, Checkpoint1Position.Y, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "alexandria_room_stacks", new Color(0.92f, 0.66f, 0.36f));
 
             BuildRoomTransitionPair(
@@ -327,7 +336,7 @@ namespace FTT.Environment {
             BuildFloor(Room3StartX, FloorY, width);
             BuildGallery(HallShelves);
 
-            BuildCheckpoint(Checkpoint2Position.X, Checkpoint2Position.Y, Checkpoint2);
+            BuildCheckpoint(Checkpoint2Position.X, Checkpoint2Position.Y, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room3StartX, "alexandria_room_collapse", new Color(0.98f, 0.5f, 0.24f));
 
             BuildRoomTransitionPair(

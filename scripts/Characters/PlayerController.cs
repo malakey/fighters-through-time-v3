@@ -2002,6 +2002,44 @@ namespace FTT.Characters {
 			return damageApplied;
 		}
 
+		// === Package 11 A3 (V7.6 F16): lethal Story pits ====================
+
+		/// <summary>
+		/// Resolves one <b>non-hit</b> death: HP to zero, unconditionally.
+		///
+		/// This is the chokepoint every lethal opening routes through, and it
+		/// exists precisely so a pit author cannot accidentally go through
+		/// <see cref="ApplyDamage"/>. Falling is not a hit, so F16 says the
+		/// fall must ignore <i>everything</i> a hit would consult: current HP,
+		/// the Story shield, hyper-armor, roll and landing-tech invulnerability,
+		/// post-rewind invulnerability, and above all <b>Defy History</b> —
+		/// whose used flag is left exactly as it was, because a pit must never
+		/// spend the run's one saved life. No damage is "applied", so there is
+		/// no Rally echo, no victim meter and no hitstop.
+		///
+		/// Everything downstream is the ordinary death flow: the Dead
+		/// transition and <c>OnPlayerDied</c>, which the rewind manager turns
+		/// into a spent charge plus a grounded-history rewind, or — with an
+		/// empty pool — a Timeline Collapse.
+		/// </summary>
+		public void KillPlayerNonHit() {
+			if (CurrentState == CharacterState.Dead || CurrentState == CharacterState.Respawning) return;
+			int previousHP = CurrentHP;
+			CurrentHP = 0;
+			StoryShieldPoints = 0f;
+			if (CurrentState == CharacterState.Attacking) CancelActiveAttack();
+			InterruptActiveAbilities();
+			ReleaseGrabState();
+			FTT.Core.EventBus.Instance?.RaisePlayerHPChanged(new FTT.Core.PlayerHPPayload {
+				PlayerIndex = PlayerIndex,
+				CurrentHP = 0,
+				MaxHP = MaximumHP,
+				DamageAmount = previousHP
+			});
+			TransitionTo(CharacterState.Dead);
+			FTT.Core.EventBus.Instance?.RaisePlayerDied(PlayerIndex);
+		}
+
 		/// <summary>
 		/// The Story chokepoint every damage-dealer already routes through for
 		/// meter-from-damage-dealt. V7.1 Rally rides the same choke: a landed

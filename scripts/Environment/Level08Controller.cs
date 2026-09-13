@@ -54,6 +54,15 @@ namespace FTT.Environment {
 
         public override string LevelID => ID;
         public override CampaignLevel Level => CampaignLevel.Egypt;
+        
+        /// <summary>
+        /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
+        /// seeded as 4 authored rooms x 90 s, rounded up to the nearest
+        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
+        /// per-hero median measurement pass.
+        /// </summary>
+        public override float ParSeconds => 360f;
         public override string LevelTitleKey => "egypt_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(200, 650);
@@ -227,7 +236,7 @@ namespace FTT.Environment {
             BuildPlatform(2600, 520, 240);
             BuildPlatform(3000, 600, 220);
 
-            BuildCheckpoint(200, SurfaceEnemyY, Checkpoint0);
+            BuildCheckpoint(200, SurfaceEnemyY, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(Room1StartX, "egypt_room_dunes", new Color(0.95f, 0.82f, 0.42f));
             BuildRoomTransition("egypt_room_dunes", new Vector2(300, 500), Room1CameraBounds,
                 new Vector2(80, 1080));
@@ -288,7 +297,7 @@ namespace FTT.Environment {
             BuildPlatform(7180, 1420, 200, TombPlatformColor);
             BuildPlatform(7600, 1260, 240, TombPlatformColor);
 
-            BuildCheckpoint(6520, TombEnemyY, Checkpoint1);
+            BuildCheckpoint(6520, TombEnemyY, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room3StartX, "egypt_room_tombs", new Color(0.55f, 0.80f, 0.90f));
             BuildRoomTransition("egypt_room_tombs", new Vector2(Room3StartX, 900), Room3CameraBounds,
                 new Vector2(80, LevelHeight));
@@ -321,7 +330,7 @@ namespace FTT.Environment {
             BuildPlatform(8880, 1420, 260, TombPlatformColor);
             BuildPlatform(9700, 1420, 260, TombPlatformColor);
 
-            BuildCheckpoint(8420, TombEnemyY, Checkpoint2);
+            BuildCheckpoint(8420, TombEnemyY, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room4StartX, "egypt_room_chamber", new Color(0.95f, 0.35f, 0.45f));
             BuildRoomTransition("egypt_room_chamber", new Vector2(Room4StartX + 40, 1200), Room4CameraBounds,
                 new Vector2(80, 1080));

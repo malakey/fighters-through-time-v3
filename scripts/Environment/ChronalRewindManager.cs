@@ -409,6 +409,11 @@ namespace FTT.Environment {
             _playbackTicks = ComputePlaybackTicks(_playbackPath.Count);
             _holdTicksRemaining = PreRewindHoldFrames;
             _isRewinding = true;
+            // Package 11 A3 (F01): the death-rewind presentation freezes the
+            // world, so the Integrity clock stops for its duration. The rewind
+            // itself never REFUNDS a point — it only stops the bleeding while
+            // the player is not playing.
+            StoryManager.Instance?.SetIntegrityClockPause(IntegrityClockPause.DeathRewind, true);
             FreezeWorldForRewind();
             BeginPlatformScrub();
             _player.SetRewindSuspended(true);
@@ -457,6 +462,9 @@ namespace FTT.Environment {
             _buffer.Clear();
             EndPlatformScrub();
             EventBus.Instance?.RaiseRewindTriggered(landingPosition);
+            // Package 11 A3 (F01): play resumes, and so does the clock — at the
+            // value it froze at. Nothing is given back.
+            StoryManager.Instance?.SetIntegrityClockPause(IntegrityClockPause.DeathRewind, false);
             ResumeWorldAfterRewind();
             RaisePresentation(RewindPresentationPhase.Landed, landingPosition, active: false);
             // Stasis Echo (V7.2): a committed manual rewind leaves a frozen copy
@@ -514,13 +522,43 @@ namespace FTT.Environment {
 
         private void CollapseTimeline() {
             if (_collapseBeatActive) return;
+            _collapseCause = TimelineCollapseCause.Death;
             BeginCollapseBeat();
         }
+
+        /// <summary>
+        /// Package 11 A3 (V7.6 F01): Timeline Integrity reached zero. The same
+        /// fracture beat as a death-caused collapse, but tagged
+        /// <see cref="TimelineCollapseCause.Timer"/> so the F11 recovery
+        /// minimum is applied — that grant is the ONE thing a timer collapse
+        /// does that a death collapse does not. Called by
+        /// <c>StoryManager.FireIntegrityCollapse</c>; Act III replaces it with
+        /// Anchor Snap / Smothered (A3b).
+        /// </summary>
+        internal void BeginTimerCollapse() {
+            if (_collapseBeatActive) return;
+            _collapseCause = TimelineCollapseCause.Timer;
+            // The era-lost Sarah variant: a timer collapse is a different
+            // failure from dying, and she says so. Non-blocking, so it rides
+            // over the fracture beat rather than gating it. A6 owns the
+            // English value; A6b may promote it to a full presentation beat.
+            ResolvePlayer();
+            EnvironmentNotice.Post(EraLostCollapseLineKey, _player, seconds: CollapseBeatSeconds);
+            BeginCollapseBeat();
+        }
+
+        /// <summary>Sarah's line when Timeline Integrity, not death, ends the attempt.</summary>
+        public const string EraLostCollapseLineKey = "dialogue_collapse_sarah_era_lost";
+
+        private TimelineCollapseCause _collapseCause = TimelineCollapseCause.Death;
 
         /// <summary>Starts the fracture presentation over the frozen world.</summary>
         internal void BeginCollapseBeat() {
             _collapseBeatActive = true;
             _collapseBeatRemaining = CollapseBeatSeconds;
+            // Package 11 A3 (F01): the collapse beat freezes the world, so the
+            // Integrity clock stops with it.
+            StoryManager.Instance?.SetIntegrityClockPause(IntegrityClockPause.DeathRewind, true);
             IsCollapseBeatSkippable = StoryManager.Instance?.HasSeenCollapseBeat ?? false;
             FreezeWorldForRewind();
             EventBus.Instance?.RaiseRewindPresentation(CreateCollapsePayload(
@@ -547,7 +585,7 @@ namespace FTT.Environment {
                 CollapseCompletionOverrideForTesting();
                 return true;
             }
-            StoryManager.Instance?.BeginTimelineCollapse(GetCheckpointID());
+            StoryManager.Instance?.BeginTimelineCollapse(GetCheckpointID(), _collapseCause);
             return true;
         }
 

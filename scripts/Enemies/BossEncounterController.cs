@@ -119,6 +119,10 @@ namespace FTT.Enemies {
                 FTT.Core.StoryManager.Instance?.RecordBossIntroSeen(Data.BossID);
                 _introBeatSecondsRemaining = IntroBeatSeconds;
                 Boss.SetStoryRewindFrozen(true);
+                // Package 11 A3 (F01): the name-card ritual holds the world,
+                // so it holds the Timeline Integrity clock with it.
+                FTT.Core.StoryManager.Instance?.SetIntegrityClockPause(
+                    FTT.Core.IntegrityClockPause.BossIntro, true);
                 HUD?.ShowBossIntroCard(
                     string.IsNullOrWhiteSpace(Data.DisplayNameKey) ? "boss" : Data.DisplayNameKey,
                     IntroBeatSeconds + 0.5f);
@@ -132,6 +136,8 @@ namespace FTT.Enemies {
             _introBeatSecondsRemaining -= dt;
             if (_introBeatSecondsRemaining > 0f) return true;
             _introBeatSecondsRemaining = -1f;
+            FTT.Core.StoryManager.Instance?.SetIntegrityClockPause(
+                FTT.Core.IntegrityClockPause.BossIntro, false);
             if (Boss != null && IsInstanceValid(Boss)) {
                 Boss.SetStoryRewindFrozen(false);
                 // The signature telegraph, shown once for free: the first

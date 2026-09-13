@@ -98,7 +98,61 @@ namespace FTT.Environment {
             BuildRoom2();
             BuildRoom3();
             BuildRoom4BossArena();
+            BuildExtractors();
         }
+
+        /// <summary>
+        /// Package 11 A3: Florence's three budgeted Chronal Extractors — the
+        /// one standing content gap docs/DUST_ECONOMY.md left open, because
+        /// Package 5 deliberately did not retrofit the pre-existing Tutorial
+        /// and Florence controllers.
+        ///
+        /// Level 1 is <b>untimed</b> (it does not extend
+        /// <see cref="StoryLevelControllerBase"/>, so no Integrity clock arms
+        /// and no tier bonus applies). These carry presentation and dust only.
+        /// The per-machine dust allocation — Level 1's whole 10 optional dust
+        /// goes to its Extractors — is <b>A10's</b>; A3 authors the placements
+        /// and the destroyed-registry wiring so a mid-level resume rebuilds
+        /// them broken.
+        ///
+        /// One per traversable room, off the critical path: the entry hall's
+        /// far end, the print shop past the platform climb, and the workshop
+        /// behind the spike run. The boss arena gets none.
+        /// </summary>
+        private void BuildExtractors() {
+            BuildExtractor("florence_extractor_0", new Vector2(4700f, 860f));
+            BuildExtractor("florence_extractor_1", new Vector2(Room2OffsetX + 2600f, 860f));
+            BuildExtractor("florence_extractor_2", new Vector2(Room3OffsetX + 1700f, 860f));
+        }
+
+        /// <summary>
+        /// Places one Extractor from the shared template. Mirrors
+        /// <c>StoryLevelControllerBase.BuildExtractor</c>, which Florence
+        /// cannot inherit — the dust value stays resource-owned and is never
+        /// overridden from level code.
+        /// </summary>
+        private ChronalExtractor BuildExtractor(string extractorID, Vector2 position) {
+            var packed = ResourceLoader.Load<PackedScene>(
+                StoryLevelControllerBase.ExtractorTemplatePath);
+            if (packed?.Instantiate() is not ChronalExtractor extractor) {
+                GD.PushWarning($"Chronal Extractor template could not be instantiated for '{extractorID}'.");
+                return null;
+            }
+            extractor.Name = $"Extractor_{extractorID}";
+            extractor.ObjectID = extractorID;
+            extractor.Position = position;
+            AddChild(extractor);
+            _extractors.Add(extractor);
+            if (StoryManager.Instance?.IsExtractorDestroyed(extractorID) == true) {
+                extractor.RestoreDestroyedState();
+            }
+            return extractor;
+        }
+
+        private readonly System.Collections.Generic.List<ChronalExtractor> _extractors = new();
+
+        /// <summary>Florence's authored Extractors. Test seam.</summary>
+        public System.Collections.Generic.IReadOnlyList<ChronalExtractor> Extractors => _extractors;
 
         private void BuildRoom1() {
             var bg1 = new ColorRect();

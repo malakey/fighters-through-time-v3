@@ -52,6 +52,15 @@ namespace FTT.Environment {
 
         public override string LevelID => NassauLevelID;
         public override CampaignLevel Level => CampaignLevel.Nassau;
+        
+        /// <summary>
+        /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
+        /// seeded as 7 authored rooms x 90 s, rounded up to the nearest
+        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
+        /// per-hero median measurement pass.
+        /// </summary>
+        public override float ParSeconds => 630f;
         public override string LevelTitleKey => "nassau_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_07_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(240f, 850f);
@@ -306,7 +315,7 @@ namespace FTT.Environment {
             BuildPlatform(1900f, 620f, 240f);
             BuildPlatform(2350f, 760f, 240f);
 
-            BuildCheckpoint(240f, DeckY - 20f, Checkpoint0);
+            BuildCheckpoint(240f, DeckY - 20f, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(Room1StartX, "nassau_room_harbour", new Color(0.92f, 0.78f, 0.42f));
             BuildRoomTransition("nassau_room_harbour", new Vector2(300f, 600f), Room1CameraBounds,
                 new Vector2(80f, LevelHeight));
@@ -335,7 +344,7 @@ namespace FTT.Environment {
             BuildFloor(SwingGapEndX, DeckY, Room3StartX - SwingGapEndX);
             BuildPlatform(5750f, ReceivingYardY + DefaultPlatformThickness / 2f, 400f, YardColor);
 
-            BuildCheckpoint(5800f, DeckY - 20f, Checkpoint1);
+            BuildCheckpoint(5800f, DeckY - 20f, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "nassau_room_rigging", new Color(0.55f, 0.82f, 0.9f));
             BuildRoomTransitionPair("nassau_room_harbour_return", Room1CameraBounds,
                 "nassau_room_rigging", Room2CameraBounds, Room2StartX, _ => SpawnWave(2));
@@ -355,7 +364,7 @@ namespace FTT.Environment {
                 BuildPlatform(centerX, topY + DefaultPlatformThickness / 2f, width, YardColor);
             }
 
-            BuildCheckpoint(8420f, DeckY - 20f, Checkpoint2);
+            BuildCheckpoint(8420f, DeckY - 20f, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room3StartX, "nassau_room_channel", new Color(0.9f, 0.6f, 0.3f));
             BuildRoomTransitionPair("nassau_room_rigging_return", Room2CameraBounds,
                 "nassau_room_channel", Room3CameraBounds, Room3StartX, _ => EnterBoardingChannel());

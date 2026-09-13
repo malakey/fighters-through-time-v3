@@ -76,6 +76,15 @@ namespace FTT.Environment {
 
         public override string LevelID => NeoEarthLevelID;
         public override CampaignLevel Level => CampaignLevel.NeoEarth;
+        
+        /// <summary>
+        /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
+        /// seeded as 6 authored rooms x 90 s, rounded up to the nearest
+        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
+        /// per-hero median measurement pass.
+        /// </summary>
+        public override float ParSeconds => 540f;
         public override string LevelTitleKey => "neo_earth_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_14_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(200f, DeckY - 60f);
@@ -381,7 +390,7 @@ namespace FTT.Environment {
             // for the heaviest character at Earth-normal gravity.
             BuildRungs(PortalScaffold);
 
-            BuildCheckpoint(Checkpoint0Position.X, Checkpoint0Position.Y, Checkpoint0);
+            BuildCheckpoint(Checkpoint0Position.X, Checkpoint0Position.Y, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(0f, "neo_earth_room_breach_gallery", new Color(0.4f, 0.9f, 1f));
         }
 
@@ -403,7 +412,7 @@ namespace FTT.Environment {
             BuildFloor(5720f, HighDeckY, 260f, BulkheadColor);
             BuildWall(BulkheadX, HighDeckY, DeckY - HighDeckY, BulkheadColor, 24f);
 
-            BuildCheckpoint(Checkpoint1Position.X, Checkpoint1Position.Y, Checkpoint1);
+            BuildCheckpoint(Checkpoint1Position.X, Checkpoint1Position.Y, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "neo_earth_room_containment_wing", new Color(0.7f, 0.55f, 1f));
 
             BuildRoomTransitionPair(
@@ -423,7 +432,7 @@ namespace FTT.Environment {
             // Ceiling catwalk at the head of the gamma shaft; extractor 2 sits on it.
             BuildOneWayPlatform(8940f, 680f, 400f);
 
-            BuildCheckpoint(Checkpoint2Position.X, Checkpoint2Position.Y, Checkpoint2);
+            BuildCheckpoint(Checkpoint2Position.X, Checkpoint2Position.Y, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room3StartX, "neo_earth_room_core_approach", new Color(0.95f, 0.6f, 0.35f));
 
             BuildRoomTransitionPair(

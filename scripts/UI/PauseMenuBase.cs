@@ -36,6 +36,10 @@ namespace FTT.UI {
             _isPaused = false;
             SceneTree tree = GetTree();
             if (tree != null) tree.Paused = false;
+            // Package 11 A3 (F01): the Integrity clock scope is handed back
+            // with the tree pause, on teardown as well as on the normal path.
+            FTT.Core.StoryManager.Instance?.SetIntegrityClockPause(
+                FTT.Core.IntegrityClockPause.PauseMenu, false);
         }
 
         /// <summary>Flips the pause state.</summary>
@@ -51,6 +55,9 @@ namespace FTT.UI {
 
             SceneTree tree = GetTree();
             if (tree != null) tree.Paused = paused;
+            // Package 11 A3 (F01): reading the map costs no Timeline Integrity.
+            FTT.Core.StoryManager.Instance?.SetIntegrityClockPause(
+                FTT.Core.IntegrityClockPause.PauseMenu, paused);
 
             OnPauseStateChanged(paused);
         }

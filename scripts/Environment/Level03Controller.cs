@@ -32,6 +32,15 @@ namespace FTT.Environment {
 
         public override string LevelID => ChicagoLevelID;
         public override CampaignLevel Level => CampaignLevel.Chicago;
+        
+        /// <summary>
+        /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
+        /// seeded as 6 authored rooms x 90 s, rounded up to the nearest
+        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
+        /// per-hero median measurement pass.
+        /// </summary>
+        public override float ParSeconds => 540f;
         public override string LevelTitleKey => "chicago_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_03_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(240, GroundY - 50);
@@ -158,7 +167,7 @@ namespace FTT.Environment {
             BuildOneWayPlatform(1750, 1080, 260);
             BuildOneWayPlatform(2100, 1080, 300);
 
-            BuildCheckpoint(240, GroundY - 50, CheckpointEntry);
+            BuildCheckpoint(240, GroundY - 50, CheckpointEntry, CheckpointRole.Entry);
             BuildRoomDecoration(MidwayStartX, "chicago_room_midway", new Color(0.6f, 0.82f, 1f));
 
             BuildWaveTrigger("MidwayWaveTrigger", new Vector2(760, GroundY - 200), () => {
@@ -188,7 +197,7 @@ namespace FTT.Environment {
             BuildPlatform(5960, 820, 240);
             BuildPlatform(6240, 1080, 220);
 
-            BuildCheckpoint(6180, GroundY - 50, CheckpointMid);
+            BuildCheckpoint(6180, GroundY - 50, CheckpointMid, CheckpointRole.Middle);
             BuildRoomDecoration(ElectricityStartX, "chicago_room_electricity", new Color(0.5f, 0.9f, 1f));
 
             BuildRoomTransitionPair(
@@ -261,7 +270,7 @@ namespace FTT.Environment {
             BuildPlatform(8720, 1060, 300, new Color(0.42f, 0.34f, 0.18f));
             BuildPlatform(9840, 1060, 300, new Color(0.42f, 0.34f, 0.18f));
 
-            BuildCheckpoint(8420, GroundY - 50, CheckpointPreBoss);
+            BuildCheckpoint(8420, GroundY - 50, CheckpointPreBoss, CheckpointRole.PreBoss);
             BuildRoomDecoration(BossStartX, "chicago_room_boss", new Color(1f, 0.45f, 0.35f));
 
             BuildRoomTransition("chicago_room_boss", new Vector2(BossStartX + 80, GroundY - 400),

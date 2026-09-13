@@ -104,6 +104,33 @@ namespace FTT.Core {
         public DustAwardSource Source;
     }
 
+    // === Package 11 A3 — Timeline Integrity as the level timer (F01) ======
+
+    /// <summary>Level-end Integrity tier (V7.6: Restored 50+, Stabilized 20+, Fractured below).</summary>
+    public enum IntegrityTier {
+        Restored = 0,
+        Stabilized = 1,
+        Fractured = 2
+    }
+
+    /// <summary>
+    /// The F01 level clock, republished whenever the gauge, the live rate or
+    /// the pause state moves. A8 owns the HUD that renders it; nothing else
+    /// may read the gauge by polling a level controller.
+    /// </summary>
+    public struct IntegrityPayload {
+        public float Percent;
+        public IntegrityTier Tier;
+        public int LivingExtractors;
+        public float DrainPerSecond;
+        public bool Frozen;
+    }
+
+    /// <summary>Collapse Tremor stage: 0 = off, 1 = below 20%, 2 = below 10%.</summary>
+    public struct TremorPayload {
+        public int Level;
+    }
+
     /// <summary>Phase of an enemy/boss ability the presentation layer can bind to.</summary>
     public enum EnemyPresentationPhase {
         Telegraph,
@@ -444,5 +471,14 @@ namespace FTT.Core {
         // === Match Reset ===
         public event Action OnMatchReset;
         public void RaiseMatchReset() => OnMatchReset?.Invoke();
+
+        // === Package 11 A3 — Timeline Integrity & Collapse Tremor ===========
+        public event Action<IntegrityPayload> OnTimelineIntegrityChanged;
+        public void RaiseTimelineIntegrityChanged(IntegrityPayload payload) =>
+            OnTimelineIntegrityChanged?.Invoke(payload);
+
+        public event Action<TremorPayload> OnCollapseTremorChanged;
+        public void RaiseCollapseTremorChanged(TremorPayload payload) =>
+            OnCollapseTremorChanged?.Invoke(payload);
     }
 }

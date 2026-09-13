@@ -15,6 +15,20 @@ namespace FTT.Environment {
         [Export] public float RespawnDuration = 5f;
         [Export] public StoryRewindPolicy RewindPolicy { get; set; } = StoryRewindPolicy.RestoreCheckpointState;
 
+        /// <summary>
+        /// Package 11 A3 (V7.6 Collapse Tremor): this platform destabilizes
+        /// once the Tremor starts. <b>Opt-in, and deliberately so</b> — the
+        /// exclusions (pressure plates, latched-switch gates,
+        /// <c>PathMovingPlatform</c>, and the entire pre-boss approach) are
+        /// enforced by those surfaces simply never carrying the flag, which is
+        /// a rule a reader can verify by grep and a test can assert.
+        ///
+        /// A flagged platform always keeps its <see cref="RespawnDuration"/>,
+        /// so every gap it spans becomes crossable again within 5 s and the
+        /// Tremor can never sever a route permanently.
+        /// </summary>
+        [Export] public bool FractureEligible;
+
         private CollisionShape2D _collisionShape;
         private CanvasItem _visual;
         private Vector2 _visualRestPosition;

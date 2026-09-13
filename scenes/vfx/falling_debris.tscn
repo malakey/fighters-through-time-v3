@@ -1,0 +1,28 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/FallingDebris.cs" id="1_debris"]
+[ext_resource type="Texture2D" path="res://assets/placeholders/orb.svg" id="2_visual"]
+
+[node name="FallingDebris" type="Node2D" groups=["falling_debris"]]
+script = ExtResource("1_debris")
+
+[node name="Telegraph" type="Node2D" parent="."]
+
+[node name="CrackGlow" type="Sprite2D" parent="Telegraph"]
+texture = ExtResource("2_visual")
+scale = Vector2(0.5, 0.16)
+modulate = Color(0.7, 0.95, 1, 0.85)
+
+[node name="LandingMarker" type="Sprite2D" parent="Telegraph"]
+texture = ExtResource("2_visual")
+position = Vector2(0, 520)
+scale = Vector2(0.55, 0.12)
+modulate = Color(1, 0.5, 0.35, 0.7)
+
+[node name="Body" type="Node2D" parent="."]
+visible = false
+
+[node name="Rubble" type="Sprite2D" parent="Body"]
+texture = ExtResource("2_visual")
+scale = Vector2(0.34, 0.34)
+modulate = Color(0.55, 0.48, 0.44, 1)

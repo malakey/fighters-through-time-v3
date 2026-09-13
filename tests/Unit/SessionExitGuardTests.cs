@@ -7,13 +7,15 @@ using static GdUnit4.Assertions;
 namespace FTT.Tests.Unit;
 
 /// <summary>
-/// V7.3 quit-fee session marker (design "one loss rule"): a marker written at
-/// campaign start and cleared on clean shutdown means an abnormal exit
-/// (crash, kill, power loss) is detected at the next boot and pays the same
-/// 20% undeposited-dust fee the Exit button pays — Alt-F4 is no longer
-/// strictly better than pressing Exit. Fee math lives in Core
-/// (SessionExitGuard) with PauseMenu delegating, so the boot check never
-/// references UI.
+/// The campaign session marker and the VOLUNTARY exit fee.
+///
+/// <b>V7.6 ruling 2.B (Package 11 A3): crashes are free.</b> The V7.3
+/// abnormal-exit fee is retired — a marker surviving to the next boot bills
+/// nothing and posts no notice. The marker itself stays, because F10
+/// repurposes it as the attempt-status router (A3b). The voluntary 20%
+/// undeposited-dust fee the Exit button charges is unchanged, and its math
+/// still lives in Core (SessionExitGuard) with PauseMenu delegating, so the
+/// boot check never references UI.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -61,20 +63,16 @@ public class SessionExitGuardTests {
         AssertThat(PauseMenu.CalculateExitWalletAfterPenalty(100, 40))
             .IsEqual(SessionExitGuard.CalculateExitWalletAfterPenalty(100, 40));
 
-        // The abnormal-exit application: whole undeposited wallet at risk.
-        var save = new StorySaveData { LevelChronalDust = 100 };
-        AssertThat(SessionExitGuard.ApplyAbnormalExitFee(save)).IsEqual(20);
-        AssertThat(save.LevelChronalDust).IsEqual(80);
-
-        // A marker left parked at the hub costs nothing: the auto-deposit
-        // zeroed the at-risk wallet.
-        var hubParked = new StorySaveData { LevelChronalDust = 0 };
-        AssertThat(SessionExitGuard.ApplyAbnormalExitFee(hubParked)).IsEqual(0);
-        AssertThat(hubParked.LevelChronalDust).IsEqual(0);
+        // V7.6 2.B: no abnormal-exit application exists any more. The type
+        // must expose only the two voluntary helpers plus the marker API.
+        AssertThat(typeof(SessionExitGuard).GetMethod("ApplyAbnormalExitFee"))
+            .OverrideFailureMessage(
+                "V7.6 ruling 2.B retired the crash fee: ApplyAbnormalExitFee must not exist.")
+            .IsNull();
     }
 
     [TestCase]
-    public void TheBootCheckBillsTheMarkedSlotOnceAndClearsTheMarker() {
+    public void TheBootCheckChargesNothingAndStillConsumesTheMarker() {
         const int scratchSlot = 2;
         SaveManager saveManager = SaveManager.Instance;
         AssertObject(saveManager).IsNotNull();
@@ -86,18 +84,22 @@ public class SessionExitGuardTests {
             };
             SessionExitGuard.WriteMarker(scratchSlot);
 
-            saveManager.ApplyAbnormalExitFeeIfMarked();
+            AssertThat(saveManager.ConsumeAbnormalExitMarker())
+                .OverrideFailureMessage("The boot check must still recognise the marked slot for F10.")
+                .IsTrue();
             AssertThat(saveManager.SaveSlots[scratchSlot].LevelChronalDust)
-                .OverrideFailureMessage("The abnormal exit must pay the same 20% the Exit button pays.")
-                .IsEqual(40);
+                .OverrideFailureMessage("V7.6 ruling 2.B: a crash costs the player nothing.")
+                .IsEqual(50);
             AssertThat(SessionExitGuard.TryReadMarker(out _))
                 .OverrideFailureMessage("The boot check must consume the marker.")
                 .IsFalse();
-            AssertString(saveManager.LastLoadNoticeKey).IsEqual("save_notice_abnormal_exit_fee");
+            AssertString(saveManager.LastLoadNoticeKey ?? "")
+                .OverrideFailureMessage("A crash must post no fee notice.")
+                .IsNotEqual("save_notice_abnormal_exit_fee");
 
-            // A second boot check without a marker bills nothing.
-            saveManager.ApplyAbnormalExitFeeIfMarked();
-            AssertThat(saveManager.SaveSlots[scratchSlot].LevelChronalDust).IsEqual(40);
+            // A second boot check without a marker does nothing at all.
+            AssertThat(saveManager.ConsumeAbnormalExitMarker()).IsFalse();
+            AssertThat(saveManager.SaveSlots[scratchSlot].LevelChronalDust).IsEqual(50);
         } finally {
             SessionExitGuard.ClearMarker();
             int activeSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;

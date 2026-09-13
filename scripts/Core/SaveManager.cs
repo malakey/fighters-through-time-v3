@@ -48,6 +48,13 @@ namespace FTT.Core {
         public List<string> ViewedDialogueIDs = new();
         public bool HasSeenCollapseBeat;
 
+        // === Package 11 A3 (V7.6 F11), additive ============================
+        // The paid-recovery allowance banked at the last checkpoint. Distinct
+        // from LevelIntegrityPercent, which is the LIVE gauge and keeps
+        // draining after the fracture is struck. Only a timer-caused Collapse
+        // reads it, and only to floor the granted recovery.
+        public float CheckpointIntegrityPercent = 100f;
+
         public void Normalize() {
             SaveVersion = SaveSchemaMigrator.CurrentVersion;
             SelectedCharacterID ??= "";
@@ -68,6 +75,7 @@ namespace FTT.Core {
             FoundSecretIDs ??= new List<string>();
             ViewedDialogueIDs ??= new List<string>();
             LevelIntegrityPercent = Math.Clamp(LevelIntegrityPercent, 0f, 100f);
+            CheckpointIntegrityPercent = Math.Clamp(CheckpointIntegrityPercent, 0f, 100f);
             CurrentHP = Math.Max(0, CurrentHP);
             CurrentLives = Math.Max(0, CurrentLives);
             CurrentUltimateMeter = Math.Clamp(CurrentUltimateMeter, 0f, 100f);
@@ -361,7 +369,11 @@ namespace FTT.Core {
             LoadGlobalData();
             ApplySavedInputBindings();
             for (int slot = 0; slot < SaveSlots.Length; slot++) LoadStorySlot(slot);
-            ApplyAbnormalExitFeeIfMarked();
+            // V7.6 ruling 2.B (Package 11 A3): crashes are free. The boot
+            // billing is gone; the marker survives only as F10's attempt-status
+            // router, which A3b consumes. The VOLUNTARY 20% exit fee the pause
+            // menu charges is unchanged.
+            ConsumeAbnormalExitMarker();
             if (EventBus.Instance != null) {
                 // V7.3 checkpoint save ordering: persistence listens to the
                 // COMMITTED half of the checkpoint event pair, which the
@@ -387,22 +399,21 @@ namespace FTT.Core {
         }
 
         /// <summary>
-        /// V7.3 boot check: a session marker surviving to the next launch means
-        /// the previous session ended abnormally (crash, process kill, power
-        /// loss). The identical 20% undeposited-dust fee the Exit button pays
-        /// applies to the marked slot, with a one-line notice — killing the
-        /// process is no longer strictly better than pressing Exit. A marker
-        /// left while parked at the hub costs nothing (the wallet is zero), and
-        /// costs nothing silently.
+        /// V7.6 ruling 2.B (Package 11 A3): a session marker surviving to the
+        /// next launch means the previous session ended abnormally — and that
+        /// now costs <b>nothing</b>. The V7.3 boot billing (a 20% undeposited-
+        /// dust fee plus a notice) is retired: a crash is not a player choice,
+        /// and charging for one taught players to fear the power switch rather
+        /// than to press Exit.
+        ///
+        /// The marker itself stays, because F10 repurposes it as the attempt-
+        /// status router (A3b). Reading it here clears it so a settled boot
+        /// never looks abnormal to the next launch.
         /// </summary>
-        internal void ApplyAbnormalExitFeeIfMarked() {
-            if (!SessionExitGuard.TryReadMarker(out int slot)) return;
+        internal bool ConsumeAbnormalExitMarker() {
+            if (!SessionExitGuard.TryReadMarker(out int slot)) return false;
             SessionExitGuard.ClearMarker();
-            if (slot < 0 || slot >= SaveSlots.Length || SaveSlots[slot] == null) return;
-            int forfeited = SessionExitGuard.ApplyAbnormalExitFee(SaveSlots[slot]);
-            if (forfeited <= 0) return;
-            SaveStorySlot(slot);
-            SetNotice("save_notice_abnormal_exit_fee", forfeited.ToString());
+            return slot >= 0 && slot < SaveSlots.Length && SaveSlots[slot] != null;
         }
 
         /// <summary>
