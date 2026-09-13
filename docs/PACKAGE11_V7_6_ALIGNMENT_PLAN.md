@@ -5422,3 +5422,67 @@ rows and does not commit the regenerated `en.en.translation`, so against the com
 reads "missing from localization/en.csv", which is misleading — the keys are in the CSV; the
 assertions go through the compiled table. All three were verified green in the worktree with the
 translation reimported before the binary was reverted for the commit.
+
+### Wave 1 seam repair — 2026-09-13, main checkout, post-merge
+
+The nine Wave 1 branches were each green in isolation; the merged tree built clean but reported
+**Failed: 20, Passed: 1851, Total: 1871**. Every failure was a merge seam, not a design bug. Three
+seams, all closed test-side (no production behaviour changed, no locked number touched). The full
+suite after the repair is **Failed: 0, Passed: 1871, Total: 1871**.
+
+**Seam 1 — A8's test name trips A2's retirement source gate (1 failure, 6 more cascading).**
+`TimeFreezeTests.TheRetiredTimeVerbLeavesNoTraceInTheSource` scans every `.cs` under `scripts/` and
+`tests/` for the assembled token `Manual` + `Rewind` after stripping comments — so it reads code, not
+prose. A8's `StoryHudContractTests.TheRetiredManualRewindCooldownPipIsNotReintroduced` carries the
+banned token in its **method name**, which is code. Renamed to
+`TheRetiredRewindCooldownPipIsNotReintroduced`; the test body, its intent and its two assertions are
+untouched. Neither side is wrong on its own — A2 owns the gate, A8 owns a pip-absence pin that has to
+name the thing it retires. *Rule for later waves: a retirement source gate makes the retired noun
+unusable in identifiers anywhere in the repo, test names included.*
+
+**Seam 2 — A8's ownership channel × a test that leaks its host (1 failure, 13 cascading).**
+F24 moved the Fighter slot outline off the arbitrated effect stack onto its own shader channel
+(`owner_outline_*`, `GlowPresentationController.SetSlotIndicator` →
+`HasOwnershipOutline` / `OwnershipSlot` / `OwnershipOutlineColor`).
+`FighterPresentationSyncTests.TheDriverPushesTheAuthoredPlayerSlotOutlineOnBothFighters` still read
+the old path (`IsLayerActive(GlowLayer.SlotIndicator)` + `ResolvedState.OutlineColor`) and failed.
+Rewritten against the ownership channel — which is the stronger pin anyway, since the whole point of
+the separate channel is that no stack layer can reach the edge.
+
+That one assertion was doing far more damage than its own failure. The case freed its host on the
+last line rather than in a `finally`, so the throw leaked a `FighterSimulationDriver` host — and with
+it two `StoryPlayer`-grouped presentation bodies — into the shared `SceneTree` root for the rest of
+the session. Every Story suite that resolves the player by group then picked up a foreign, dead
+fighter: `TimeFreezeController.ResolvePlayer` found it and `CanActivate` refused every activation
+(six `TimeFreezeTests` failures, including the "Expecting 45 but is 0" cooldown case),
+`CampaignStateTests` failed its own explicit "test environment is dirty: a StoryPlayer is already in
+the tree" guard (×2), and `CheckpointStrikeTests`, `DeathTriggeredRewindTests` (×2),
+`ScriptedRewindTests` and `MirrorParadoxTests` all followed. The host is now freed in a `finally`.
+*Rule: any GdUnit case that adds a grouped node to the tree root must free it in a `finally` — a
+leaked `StoryPlayer` is a session-wide failure amplifier, and the resulting cascade points at A2/A3/A5
+seams that do not exist.*
+
+**Seam 3 — A9's Paris pit × the hazard suite's meter-building script (2 failures).**
+A9 re-authored Paris as an Open stage with a 5-unit courtyard pit at x ∈ (−2.5, 2.5) and floor-segment
+ends that are true ledges. Both Paris beam cases opened by walking player one at player two to build
+Influence; that walk now ends in a ledge hang at x ≈ −2.25, a 300-frame auto-release, a fall and a lost
+stock, so the meter never built and both cases failed on their opening
+`Influence > 10` / `> 20` assertion — before reaching a single beam assertion. The beam rules were not
+touched. Three test-side changes in `FighterHazardBehaviorTests`:
+
+- `HazardHarness.EngageOpponent(frames)` replaces the two inline walk-and-swing loops: it hops the
+  courtyard, drops through the walkway it lands on, and then swings. On a Sealed stage (and on the
+  legacy flat arena, which the third beam case still uses) it degenerates to the old behaviour.
+- `HazardHarness.StepTowardOnFloor(x)` clamps the chase target into the floor segment under the
+  fighter with a **one-unit** margin. A quarter-unit margin is not enough: the twelve-frame stop ramp
+  carries a running fighter over the edge and into a ledge hang, which silently ends the beam overlap.
+- `DampeningBeamDrainsFivePercentPerSecond` now observes the full 360-frame active window instead of
+  240. On the old flat floor the beam reached the fighter almost immediately; on the Open stage it has
+  to cross the courtyard first, so the three consecutive 30-frame drain ticks the case requires land
+  later. The 2.5-points-per-tick and 30-frame-spacing assertions are unchanged.
+
+*Rule for Wave 2: any test that walks a fighter across an authored stage has to respect
+`FighterStageGeometry.FloorSegments`. `IsOpenStage` is the cheap guard.*
+
+**Not a seam.** `resources/Audio/default_bus_layout.tres` is rewritten with CRLF line endings by any
+headless Godot launch. It carries no content diff and was deliberately left uncommitted.
