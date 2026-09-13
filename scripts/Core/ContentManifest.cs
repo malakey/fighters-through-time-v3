@@ -126,17 +126,24 @@ namespace FTT.Core {
         string Message);
 
     public static class ContentManifestValidator {
+        /// <summary>
+        /// Package 11 A12 (V7.6): the campaign grew a seventeenth slot — Level 4A, the
+        /// per-character Legacy Level. A12 ships the Einstein exemplar, so StoryLevel is
+        /// 17 and DialogueSet 18; all nine variants share one AudioSet, so that moved by
+        /// one. <b>B1-B3 raise StoryLevel to 25 and DialogueSet to 26</b> with the other
+        /// eight heroes; AudioSet stays at 28.
+        /// </summary>
         private static readonly Dictionary<ContentCategory, int> ExactRequiredCounts = new() {
-            [ContentCategory.StoryLevel] = 16,
+            [ContentCategory.StoryLevel] = 17,
             [ContentCategory.FighterStage] = 10,
             [ContentCategory.Character] = 9,
             [ContentCategory.Ability] = 36,
             [ContentCategory.ResonanceGrid] = 9,
             [ContentCategory.Boss] = 15,
-            [ContentCategory.DialogueSet] = 17,
+            [ContentCategory.DialogueSet] = 18,
             [ContentCategory.UIScreen] = 22,
             [ContentCategory.Pool] = 7,
-            [ContentCategory.AudioSet] = 27,
+            [ContentCategory.AudioSet] = 28,
             [ContentCategory.VisualSet] = 41,
             [ContentCategory.Template] = 14
         };

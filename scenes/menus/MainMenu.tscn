@@ -713,6 +713,12 @@ layout_mode = 2
 text = "campaign_level_alexandria"
 alignment = 0
 
+[node name="LevelButton16" type="Button" parent="LevelSelectScreen/Center/Panel/Layout/Grid"]
+custom_minimum_size = Vector2(360, 44)
+layout_mode = 2
+text = "campaign_level_legacy_nexus"
+alignment = 0
+
 [node name="BottomSeparator" type="HSeparator" parent="LevelSelectScreen/Center/Panel/Layout"]
 layout_mode = 2
 

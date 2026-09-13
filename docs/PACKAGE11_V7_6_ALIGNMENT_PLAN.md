@@ -5327,3 +5327,98 @@ package is not taking. `ChronalRatingRules` itself is A3's to delete.
 `InputBindingSchemaTests` 12→15, `SettingsMenuSceneTests` 10→12, `LevelResultsStatsTests` 8→10;
 `StoryHudPresentationTests`, `AudioSnapshotTriggerTests`, `GlowStateStackTests` and
 `GlowPresentationControllerTests` were rewritten at ±0.
+### A12 — Level 4A framework, routing, and the Einstein exemplar (2026-09-13)
+**The campaign's "the enum value is the array index, advance with +1" model is gone; play order is
+now an explicit seventeen-slot route and scene paths resolve by ID — which is the only way Level 4A
+could be added without renumbering a single existing level.** `CampaignLevel.LegacyNexus = 16` is
+appended, `StoryManager.CampaignRoute` orders `0,1,2,3,4,16,5…15`, `AdvanceToNextLevel()` steps that
+list, `GetLevelScenePath(level, heroID)` resolves the per-hero `Level_04A_<hero>.tscn`, and
+`ResumeCampaign`'s path→index scan is a path→ID lookup over the route (it passes the *save's* own
+character, because the session has not been repointed at the slot yet). Pinned by the rewritten
+`CampaignRouteTests`, including the acceptance case that Paris advances to the hero's 4A and 4A
+advances to the Titanic.
+**Checkpoint roles are declared as string constants, not a second enum.** A3 is adding the shared
+`CheckpointRole` export (`Entry | Middle | PreBoss`) to `CheckpointTrigger` in this same wave, and a
+second enum of that shape would collide at merge. `LegacyCheckpointRoles.Entry` / `.PreBoss` use A3's
+exact spellings and `LegacyLevelControllerBase.CheckpointRoles` maps the two authored IDs to them;
+**role tagging on the trigger nodes themselves is applied at merge**, a one-line assignment per
+checkpoint in `BuildLevel`. Everything that reads a role today —
+`IsCheckpointEnabled`, the PreBoss route gate — already reads the map rather than the ID suffix, so
+`LegacyCheckpointContractTests` pins the contract's real trap (4A's PreBoss ID ends `_1`, a *middle*
+suffix on a shared level) before A3's export exists.
+**The PreBoss route gate is physical, not advisory.** Rather than gating `CheckpointTrigger.Activate`
+— which lives in A3's `LevelManager.cs` — the base disables the PreBoss fracture's `StrikeSurface`
+through `SetMonitoringSafe`/`SetMonitorableSafe` until every mandatory objective (four kit gates plus
+the Eraser encounter) is complete. The fracture simply does not answer a strike, so the Integrity
+clock cannot lock ahead of the approach, and no A3-owned file was touched.
+**The Eraser debut ships as a working encounter against a placeholder body.** `EraserDebutTrigger`
+is complete — idempotent reconstruction, live-wave guard, claimed-reward guard, and a presentation
+flag (`BarkSeen`) held strictly separate from encounter state. **A7a (Wave 2) supplies the Eraser
+elite itself**; `EraserDebutTrigger.EraserEnemyID = "eraser"` is reserved with a marked TODO and
+`PlaceholderEnemyID = "chrono_guard_elite"` is what actually spawns today. **B3 re-points all nine
+variants to `EraserEnemyID` in one change once A7a merges** — nothing else about the trigger moves.
+`SpawnEraserDebut()` is a real method, not a stub: it was cheaper to build the encounter correctly
+against a placeholder resource than to leave the route gate unreachable.
+**Time Freeze is wired as a probe, not a reference.** A2's `TimeFreezeController` does not exist in
+this worktree, so `NexusResonanceSource.WorldTimeSuspendedProbe` (default `() => false`) is the seam
+for "Time Freeze cannot arm the source, cast the Ultimate, or activate the Eraser encounter". **At
+merge, A2 wires `TimeFreezeController.IsActive` into that property once** and all three rules go
+live with no change to A12's code. Both behaviours are already pinned against the probe.
+**The F04 meter contract is implemented at the meter, not in nine ability scripts.** Every roster
+ultimate validates on a full meter and calls `_meter.Consume()` in its own `OnStartup`, and
+`scripts/Characters/Abilities/*` is A4's. So `PlayerController.TryCastNexusUltimate` lends the meter
+`MaxValue` for exactly the length of `TryExecute()` and then restores the value the player actually
+had. Net effect is the design clause verbatim — casts at any meter value including zero, neither
+fills nor consumes — and because a zero-meter cast leaves zero meter, it cannot light the F13 Defy
+seal. `NexusResonanceSourceTests` pins the zero case, the partial-meter case, and the seal.
+**`PlaceholderZone` gained a read-only `AbilityID`.** A zone applies its effects to *bodies*, not to
+hurtbox areas, so a zone-shaped kit gate cannot learn its identity from `HitPayload.AttackID` the way
+a strike gate does. The property is derived from the authored `AbilityData` the zone already
+receives — no second canonical value — and is reset in both `OnSpawn` and `OnDespawn` per the pool
+contract. `PlaceholderZone.cs` is **A1b's exclusive file in Wave 2**; this is a Wave 1 additive edit
+and is flagged here so A1b sees it.
+**Boss (the §2.4 disclosure): `resources/Bosses/legacy/einstein_legacy_boss.tres` duplicates
+`resources/Bosses/gravity_overseer.tres` with `MaxHP = 700`.** The Overseer wielding a stolen
+artefact of the hero's era is the design's own second option, and for Einstein that artefact is
+gravity. The duplicate re-authors it as **two phases** (`PhaseThresholds = [0.5]`,
+`AbilityMinPhase` retargeted from `[0,0,0,2]` to `[0,0,0,1]` — the original named a phase a two-phase
+boss does not have) with its own `BossID`, `DisplayNameKey` and `ChronalDustDrop = 25`. The four
+ability resources and the sprite set are *referenced*, not copied, so the shared kit stays
+single-sourced, and the shared resource is untouched — a content-test assertion pins
+`gravity_overseer.MaxHP == 950` specifically to prove that. **700 is chosen as the V7.6 Level 3 row**:
+4A sits between the new L4 (850) and the unchanged L5 (640), and §2.2 forbids reconciling that curve,
+so a value already on the approved table is the only defensible pick. It lives under
+`resources/Bosses/legacy/` because the fifteen-boss roster sweeps (`BossBarPhaseNotchTests`,
+`EnemyRetroSpriteAssetTests`, the Act I/II/III suites) walk `resources/Bosses/` **non-recursively** and
+their exact counts must not move. `EnemyRosterContentTests` *is* recursive, so the boss's
+`DisplayNameKey` is a real `en.csv` row.
+**Audio: one shared set for all nine variants.** `AudioSetPaths.ForStoryLevel` derives a path from a
+two-digit slot and 4A has none, so `AudioSetPaths.Legacy` is a named constant rather than a new
+derivation branch — every existing campaign mapping and all of that resolver's negative cases stay
+exactly as they were. `resources/Audio/level_04a_audio.tres` is authored and gated inside
+`Level04AEinsteinContentTests` rather than by extending the shared seventeen-row `StorySets` table in
+`StoryAudioSetContentTests`, which A6/A8 also touch.
+**Recorded, not closed:** the F04 clause that a puzzle cast "cannot damage actors, heal, generate
+meter or rewards" is enforced *by placement* — the Nexus set-piece is authored in a cleared area with
+no actors in the cast radius — not at the damage pipeline. Closing it properly needs an
+`ultimateOrigin` flag through `ResolveIncomingHit`, which is **A1b's region** of
+`PlayerController.cs`. Flagged for A1b/Phase C rather than taken here.
+**Not delivered:** the per-source dust allocator (A10 owns it; A12 ships the 15/25/10 constants and
+the budget, not the distribution), and `ParSeconds`/`EntryRecoveryBudgetSeconds` carry authored
+placeholders (300 s) — V01a requires measured Normal medians per route, which no automated gate can
+produce.
+**Manifest counts are validated exactly, and that is a trap for the B wave.**
+`ContentManifestValidator.ExactRequiredCounts` (`scripts/Core/ContentManifest.cs`) hardcodes a count
+per category and raises an **Error** on a mismatch — so appending a manifest row without bumping the
+matching constant fails `ContentManifestTests` on the `HasErrors` assertion, not on the count
+assertion, which reads like an unrelated break. A12 moved StoryLevel 16→17, DialogueSet 17→18 and
+AudioSet 27→28 (one shared 4A set for all nine variants). **B1-B3 must raise StoryLevel to 25 and
+DialogueSet to 26**, in the same change as `ContentManifestTests`' own `StoryLevel` assertion.
+**Three A12 cases fail until the orchestrator reimports, by design (§2.11).** A12 adds 25 `en.csv`
+rows and does not commit the regenerated `en.en.translation`, so against the committed tree exactly
+`Level04AEinsteinContentTests.TheDialogueSetResolvesWithTheThreeBeatsAndEveryLineKeyLocalized`,
+`Level04AEinsteinContentTests.EveryVisibleLevelStringHasALocalizationEntry` and
+`CampaignRouteTests.EveryCampaignRouteSlotHasAUniqueLocalizedHubMissionName` fail. Their failure text
+reads "missing from localization/en.csv", which is misleading — the keys are in the CSV; the
+assertions go through the compiled table. All three were verified green in the worktree with the
+translation reimported before the binary was reverted for the commit.

@@ -24,6 +24,17 @@ namespace FTT.Combat {
         // the owner remains inside and lapses right after leaving.
         private const float OwnerBuffRefreshSeconds = 0.05f;
 
+        /// <summary>
+        /// Authored identity of the ability that placed this zone, or "". Package 11
+        /// A12: Level 4A's zone-shaped kit gates must accept only their own hero's
+        /// ability (V01c), and a zone applies its effects to bodies rather than to
+        /// hurtbox areas — so a gate cannot learn the identity from a
+        /// <c>HitPayload.AttackID</c> the way a strike gate does. Read-only and
+        /// derived from the same authored <see cref="AbilityData"/> the zone already
+        /// receives, so it creates no second canonical value.
+        /// </summary>
+        public string AbilityID { get; private set; } = "";
+
         public override void _Ready() => AddToGroup("story_zone");
 
         public void Setup(float damage, float lifetime, float tickInterval, int ownerIndex,
@@ -43,6 +54,7 @@ namespace FTT.Combat {
             _statusIntensity = statusIntensity <= 0f ? 1f : statusIntensity;
             _ownerPlayer = ownerPlayer;
             _ownerSpeedMultiplier = ownerSpeedMultiplier;
+            AbilityID = data?.AbilityID ?? "";
 
             EnsureNodes();
             bool usesAuthoredVisual = ApplyAuthoredVisual(data, radius);
@@ -212,6 +224,7 @@ namespace FTT.Combat {
         public void OnSpawn() {
             _lifetime = 0f;
             _tickTimer = 0f;
+            AbilityID = "";
             Modulate = Colors.White;
         }
 
@@ -229,6 +242,7 @@ namespace FTT.Combat {
             _statusIntensity = 1f;
             _ownerSpeedMultiplier = 1f;
             _ownerPlayer = null;
+            AbilityID = "";
             if (_authoredVisual != null) {
                 _authoredVisual.Stop();
                 _authoredVisual.Visible = false;

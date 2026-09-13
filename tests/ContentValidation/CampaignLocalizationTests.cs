@@ -30,11 +30,17 @@ namespace FTT.Tests.ContentValidation;
 [TestSuite]
 [RequireGodotRuntime]
 public class CampaignLocalizationTests {
-    private const int CampaignLevelCount = 16;
+    /// <summary>
+    /// Authored campaign levels. Package 11 A12 (V7.6) added a seventeenth — Level 4A,
+    /// the per-character Legacy Level — as the Einstein exemplar; <b>B1-B3 raise this to
+    /// 25</b> with the other eight heroes. It counts authored levels, not route length:
+    /// one playthrough still visits sixteen levels plus one 4A variant.
+    /// </summary>
+    private const int CampaignLevelCount = 17;
     private const string DialogueDirectory = "res://resources/Dialogue/";
 
     /// <summary>
-    /// Every line and speaker key actually referenced by the seventeen authored
+    /// Every line and speaker key actually referenced by the authored campaign
     /// dialogue sets (hub + levels 0-15) must be in the CSV and must resolve
     /// through the compiled translation.
     /// </summary>
@@ -82,7 +88,7 @@ public class CampaignLocalizationTests {
 
         AssertThat(sets).OverrideFailureMessage(
             $"Only {sets} dialogue sets were reached; the directory walk is broken.")
-            .IsEqual(CampaignLevelCount + 1); // 16 levels + the hub.
+            .IsEqual(CampaignLevelCount + 1); // the authored levels (incl. Level 4A) + the hub.
         AssertThat(sequences).OverrideFailureMessage(
             $"Only {sequences} dialogue sequences were reached.").IsGreaterEqual(48);
         AssertThat(lines).IsGreater(300);

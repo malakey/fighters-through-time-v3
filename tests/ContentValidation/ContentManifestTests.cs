@@ -15,7 +15,10 @@ public class ContentManifestTests {
 
         AssertThat(manifest.SchemaVersion).IsEqual(ContentManifest.CurrentSchemaVersion);
         AssertThat(ContentManifestValidator.HasErrors(issues)).IsFalse();
-        AssertThat(manifest.ForCategory(ContentCategory.StoryLevel).Count()).IsEqual(16);
+        // Sixteen shared campaign levels plus the authored Level 4A variants (V7.6).
+        // A12 ships the Einstein exemplar; B1-B3 raise this to 25 with the other
+        // eight heroes in Wave 2.
+        AssertThat(manifest.ForCategory(ContentCategory.StoryLevel).Count()).IsEqual(17);
         AssertThat(manifest.ForCategory(ContentCategory.FighterStage).Count()).IsEqual(10);
         AssertThat(manifest.ForCategory(ContentCategory.Character).Count()).IsEqual(9);
         AssertThat(manifest.ForCategory(ContentCategory.Ability).Count()).IsEqual(36);
