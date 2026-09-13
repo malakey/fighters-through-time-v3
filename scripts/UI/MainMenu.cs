@@ -45,7 +45,14 @@ namespace FTT.UI {
         };
 
         private const int StorySlotCount = 3;
-        private const int CampaignLevelCount = 16;
+
+        /// <summary>
+        /// Developer level-select tile count. Seventeen as of V7.6 (Package 11 A12):
+        /// the sixteen shared campaign slots plus <c>CampaignLevel.LegacyNexus</c>,
+        /// the per-character Level 4A. Tiles are keyed by enum value, not by route
+        /// position, which is why 4A is tile 16 and still labels itself "04A".
+        /// </summary>
+        private const int CampaignLevelCount = 17;
 
         /// <summary>
         /// Test seam for the developer level-select gate: null defers to
@@ -221,10 +228,12 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// Developer level select. Sixteen authored buttons, one per
-        /// <see cref="FTT.Core.CampaignLevel"/>, labelled with the level index plus
-        /// the hub's <c>campaign_level_*</c> mission name (the scene stores the raw
-        /// key; the numbered prefix is why the text is composed here).
+        /// Developer level select. Seventeen authored buttons, one per
+        /// <see cref="FTT.Core.CampaignLevel"/>, labelled with the level's campaign
+        /// number plus the hub's <c>campaign_level_*</c> mission name (the scene
+        /// stores the raw key; the numbered prefix is why the text is composed here).
+        /// Level 4A labels itself "04A" rather than "16": the enum value is an
+        /// identity, and the slot's campaign number is what a developer looks for.
         /// </summary>
         private void BindLevelSelectScreen() {
             const string layout = "LevelSelectScreen/Center/Panel/Layout/";
@@ -233,11 +242,15 @@ namespace FTT.UI {
                 var level = (FTT.Core.CampaignLevel)index;
                 var button = grid.GetNode<Button>($"LevelButton{index}");
                 button.ThemeTypeVariation = "TemporalGlassButton";
-                button.Text = $"{index:00}  {Tr(FTT.Environment.HubWorldController.CampaignLevelNameKey(level))}";
+                button.Text = $"{LevelSelectNumber(level)}  {Tr(FTT.Environment.HubWorldController.CampaignLevelNameKey(level))}";
                 button.Pressed += () => OnLevelPressed(level);
             }
             GetNode<Button>(layout + "BackButton").Pressed += GoBack;
         }
+
+        /// <summary>The campaign number shown on a developer tile ("04A" for Level 4A).</summary>
+        internal static string LevelSelectNumber(FTT.Core.CampaignLevel level) =>
+            level == FTT.Core.CampaignLevel.LegacyNexus ? "04A" : $"{(int)level:00}";
 
         // ---- Screen stack ----------------------------------------------------
 

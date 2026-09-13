@@ -2628,22 +2628,79 @@ namespace FTT.Characters {
 			return false;
 		}
 
+		// === F04 Nexus Resonance Source (Package 11 A12, Story-only) ================
+		// Level 4A's required Ultimate set-piece authorizes the hero's real Ultimate
+		// from the nexus itself rather than from the meter. Deliberately a single
+		// narrow interception in the Story ultimate-input path: nothing in
+		// scripts/FighterSim/ knows this field exists, and Fighter Mode, the hub
+		// Holodeck and the Calibration Drills always run the ordinary meter gate.
+
+		/// <summary>
+		/// The armed <see cref="FTT.Environment.NexusResonanceSource"/>, or null.
+		/// Owned by the source: it sets this on Interact and clears it on every exit
+		/// path (leaving the cast area, death, reload, interruption, resolution, and
+		/// its own <c>_ExitTree</c>), so a stale authorization cannot outlive the
+		/// level scene or be carried to the boss.
+		/// </summary>
+		public FTT.Environment.NexusResonanceSource NexusUltimateSource { get; set; }
+
+		/// <summary>True while a Nexus authorization is live for this character's Ultimate.</summary>
+		public bool IsNexusUltimateAuthorized =>
+			NexusUltimateSource != null
+			&& IsInstanceValid(NexusUltimateSource)
+			&& NexusUltimateSource.AuthorizesUltimate(_ultimate?.Data?.AbilityID ?? "");
+
 		private bool CheckUltimateInput() {
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Ultimate)) {
 				bool meterReady = _ultimateMeter != null ? _ultimateMeter.IsFull : CurrentUltimateMeter >= 100f;
-				if (meterReady && _ultimate != null && _ultimate.TryExecute()) {
-					_ultimateStartedAerial = !IsOnFloor();
-					PlayAnimation("ultimate");
-					TransitionTo(CharacterState.UsingUltimate);
-					FTT.Core.EventBus.Instance?.RaiseUltimateActivation(new FTT.Core.UltimateActivationPayload {
-						PlayerIndex = PlayerIndex,
-						AbilityID = _ultimate.Data?.AbilityID ?? "",
-						Position = GlobalPosition
-					});
-					return true;
+				// F04: the authorization takes priority over ordinary meter spending
+				// while armed, and works at any meter value including zero.
+				bool nexusAuthorized = IsNexusUltimateAuthorized;
+				if ((meterReady || nexusAuthorized) && _ultimate != null) {
+					if (nexusAuthorized) return TryCastNexusUltimate();
+					if (_ultimate.TryExecute()) {
+						BeginUltimateCast();
+						return true;
+					}
 				}
 			}
 			return false;
+		}
+
+		/// <summary>
+		/// The puzzle cast. Every roster ultimate gates itself on a full meter and
+		/// consumes it in its own startup, so the authorization lends the meter for
+		/// exactly the length of the execute call and then restores the value the
+		/// player actually had. The net effect is the F04 contract: the cast neither
+		/// fills nor consumes the meter, and a zero-meter cast leaves zero meter — so
+		/// it can never light the F13 Defy seal.
+		/// </summary>
+		private bool TryCastNexusUltimate() {
+			FTT.Environment.NexusResonanceSource source = NexusUltimateSource;
+			float meterBefore = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
+			_ultimateMeter?.SetValue(FTT.Combat.UltimateMeter.MaxValue);
+			bool executed = _ultimate.TryExecute();
+			_ultimateMeter?.SetValue(meterBefore);
+			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? meterBefore;
+			if (!executed) {
+				source?.NotifyCastInterrupted();
+				return false;
+			}
+			BeginUltimateCast();
+			source?.ResolvePuzzleTarget();
+			return true;
+		}
+
+		/// <summary>Shared tail of both ultimate cast paths.</summary>
+		private void BeginUltimateCast() {
+			_ultimateStartedAerial = !IsOnFloor();
+			PlayAnimation("ultimate");
+			TransitionTo(CharacterState.UsingUltimate);
+			FTT.Core.EventBus.Instance?.RaiseUltimateActivation(new FTT.Core.UltimateActivationPayload {
+				PlayerIndex = PlayerIndex,
+				AbilityID = _ultimate.Data?.AbilityID ?? "",
+				Position = GlobalPosition
+			});
 		}
 
 		private bool CheckBlockInput() {

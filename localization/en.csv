@@ -1194,3 +1194,29 @@ systems_card_echo_body,"Spend 30 meter during your own recovery to snap back 30 
 systems_card_overtime_title,Overtime
 systems_card_overtime_body,"The final 60 seconds of a timed match double the hazard cadence and raise the Rally echo by half."
 dialogue_hold_skip,"Hold {0} to skip"
+# Package 11 A12
+campaign_level_legacy_nexus,The Legacy Nexus
+legacy_einstein_level_title,"Princeton, 1945 — The Legacy Nexus"
+legacy_einstein_room_lawn,Institute Lawn
+legacy_einstein_room_containment,Containment Wing
+legacy_einstein_room_vault,The Vault Beneath the Lens
+legacy_einstein_objective_gates,"Reclaim the nexus ({0}/{1} resonances answered)"
+legacy_einstein_objective_boss,Break the Overseer's hold on the lens
+legacy_einstein_objective_complete,The nexus is yours again
+legacy_gate_strike_prompt,Resonance lock — strike it with your own power
+legacy_gate_zone_prompt,Resonance lock — hold it in a field of your own making
+legacy_gate_traversal_prompt,Resonance lock — cross by your own movement
+legacy_gate_nexus_prompt,Resonance lock — only the Nexus can answer this
+nexus_source_prompt,Draw on the Nexus
+nexus_source_armed,Nexus-powered Ultimate
+eraser_debut_bark,"That one isn't guarding anything. It's hunting — it's hunting you."
+boss_einstein_legacy_overseer_name,The Princeton Overseer
+speaker_einstein_legacy_overseer,The Princeton Overseer
+dlg_l04a_einstein_entrance_1,"Warden, the rift signature is your own. They came back for the night they lost you."
+dlg_l04a_einstein_entrance_2,"Then they will find the man they underestimated, standing in his own doorway."
+dlg_l04a_einstein_entrance_3,"Everything you are is on the other side of that lawn. Go and take it back."
+dlg_l04a_einstein_boss_1,"You were an accident we failed to file. Hold still and be corrected."
+dlg_l04a_einstein_boss_2,"You have my gravity. You have never once understood it."
+dlg_l04a_einstein_exit_1,"The lens is cold. The night can finish the way it was written."
+dlg_l04a_einstein_exit_2,"Wound closed, Warden. That one was yours, not history's."
+dlg_l04a_einstein_exit_3,"They will send something worse next time. Let them."

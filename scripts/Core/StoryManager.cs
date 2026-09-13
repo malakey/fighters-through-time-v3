@@ -19,7 +19,18 @@ namespace FTT.Core {
         Lunar = 12,
         ChronalVoid = 13,
         NeoEarth = 14,
-        Alexandria = 15
+        Alexandria = 15,
+
+        /// <summary>
+        /// V7.6 Level 4A — the per-character Legacy Level (Package 11 §2.4).
+        /// Appended at 16 so <b>nothing renumbers</b>: the enum value is a stable
+        /// identity, never a position in the campaign. Its place in the run is
+        /// carried by <see cref="StoryManager.CampaignRoute"/>, which orders
+        /// 0,1,2,3,4,<b>16</b>,5…15, and its scene path resolves per hero
+        /// (<c>Level_04A_&lt;hero&gt;.tscn</c>) — the one campaign slot whose
+        /// route depends on the locked character.
+        /// </summary>
+        LegacyNexus = 16
     }
 
     public partial class StoryManager : Node {
@@ -56,23 +67,64 @@ namespace FTT.Core {
         /// <summary>Rewinds spent in the most recently finished level.</summary>
         public int LastLevelRewindsUsed { get; private set; }
 
-        private static readonly string[] LevelScenePaths = {
-            "res://scenes/campaign/Level_00_Tutorial.tscn",
-            "res://scenes/campaign/Level_01_Florence.tscn",
-            "res://scenes/campaign/Level_02_Orleans.tscn",
-            "res://scenes/campaign/Level_03_Chicago.tscn",
-            "res://scenes/campaign/Level_04_Paris.tscn",
-            "res://scenes/campaign/Level_05_Titanic.tscn",
-            "res://scenes/campaign/Level_06_Pompeii.tscn",
-            "res://scenes/campaign/Level_07_Nassau.tscn",
-            "res://scenes/campaign/Level_08_Egypt.tscn",
-            "res://scenes/campaign/Level_09_Berlin.tscn",
-            "res://scenes/campaign/Level_10_Globe.tscn",
-            "res://scenes/campaign/Level_11_Gettysburg.tscn",
-            "res://scenes/campaign/Level_12_Lunar.tscn",
-            "res://scenes/campaign/Level_13_ChronalVoid.tscn",
-            "res://scenes/campaign/Level_14_NeoEarth.tscn",
-            "res://scenes/campaign/Level_15_Alexandria.tscn",
+        // === Campaign routing (Package 11 A12) =====================================
+        // The route used to be "the enum value IS the array index, advance with +1".
+        // Level 4A (V7.6) breaks that: it is played between Levels 4 and 5 but must
+        // not renumber anything, and its scene path depends on the locked hero. So
+        // the model is now an explicit ordered route plus an ID-keyed path table.
+        // Nothing indexes LevelScenePaths by enum value any more.
+
+        /// <summary>
+        /// The campaign in play order (Package 11 §2.4): Level 4A sits between
+        /// Paris and the Titanic. <see cref="AdvanceToNextLevel"/> steps this list;
+        /// the enum's numeric values are identities, not positions.
+        /// </summary>
+        private static readonly CampaignLevel[] Route = {
+            CampaignLevel.Tutorial,
+            CampaignLevel.Florence,
+            CampaignLevel.Orleans,
+            CampaignLevel.Chicago,
+            CampaignLevel.Paris,
+            CampaignLevel.LegacyNexus,
+            CampaignLevel.Titanic,
+            CampaignLevel.Pompeii,
+            CampaignLevel.Nassau,
+            CampaignLevel.Egypt,
+            CampaignLevel.Berlin,
+            CampaignLevel.London,
+            CampaignLevel.Gettysburg,
+            CampaignLevel.Lunar,
+            CampaignLevel.ChronalVoid,
+            CampaignLevel.NeoEarth,
+            CampaignLevel.Alexandria,
+        };
+
+        /// <summary>The campaign in play order. Seventeen slots as of V7.6.</summary>
+        public static IReadOnlyList<CampaignLevel> CampaignRoute => Route;
+
+        /// <summary>Per-hero Level 4A scene prefix; the suffix is the lowercase character ID.</summary>
+        public const string LegacyLevelScenePrefix = "res://scenes/campaign/Level_04A_";
+
+        /// <summary>Per-hero Level 4A level-ID prefix (<c>level_04a_einstein</c>).</summary>
+        public const string LegacyLevelIDPrefix = "level_04a_";
+
+        private static readonly Dictionary<CampaignLevel, string> LevelScenePaths = new() {
+            { CampaignLevel.Tutorial, "res://scenes/campaign/Level_00_Tutorial.tscn" },
+            { CampaignLevel.Florence, "res://scenes/campaign/Level_01_Florence.tscn" },
+            { CampaignLevel.Orleans, "res://scenes/campaign/Level_02_Orleans.tscn" },
+            { CampaignLevel.Chicago, "res://scenes/campaign/Level_03_Chicago.tscn" },
+            { CampaignLevel.Paris, "res://scenes/campaign/Level_04_Paris.tscn" },
+            { CampaignLevel.Titanic, "res://scenes/campaign/Level_05_Titanic.tscn" },
+            { CampaignLevel.Pompeii, "res://scenes/campaign/Level_06_Pompeii.tscn" },
+            { CampaignLevel.Nassau, "res://scenes/campaign/Level_07_Nassau.tscn" },
+            { CampaignLevel.Egypt, "res://scenes/campaign/Level_08_Egypt.tscn" },
+            { CampaignLevel.Berlin, "res://scenes/campaign/Level_09_Berlin.tscn" },
+            { CampaignLevel.London, "res://scenes/campaign/Level_10_Globe.tscn" },
+            { CampaignLevel.Gettysburg, "res://scenes/campaign/Level_11_Gettysburg.tscn" },
+            { CampaignLevel.Lunar, "res://scenes/campaign/Level_12_Lunar.tscn" },
+            { CampaignLevel.ChronalVoid, "res://scenes/campaign/Level_13_ChronalVoid.tscn" },
+            { CampaignLevel.NeoEarth, "res://scenes/campaign/Level_14_NeoEarth.tscn" },
+            { CampaignLevel.Alexandria, "res://scenes/campaign/Level_15_Alexandria.tscn" },
         };
 
         public override void _Ready() {
@@ -176,14 +228,16 @@ namespace FTT.Core {
 
         public void ResumeCampaign(int slot, StorySaveData save) {
             if (save == null || GameManager.Instance == null) return;
-            int levelIndex = 0;
-            for (int index = 0; index < LevelScenePaths.Length; index++) {
-                if (LevelScenePaths[index] == save.CurrentLevelID) {
-                    levelIndex = index;
+            // Package 11 A12: a path -> ID lookup over the route, not a path ->
+            // array-index scan. The save's own character resolves its 4A variant,
+            // because the session has not been repointed at this slot yet.
+            CurrentLevel = CampaignLevel.Tutorial;
+            foreach (CampaignLevel level in Route) {
+                if (GetLevelScenePath(level, save.SelectedCharacterID) == save.CurrentLevelID) {
+                    CurrentLevel = level;
                     break;
                 }
             }
-            CurrentLevel = (CampaignLevel)levelIndex;
             ChronalDustCollected = Mathf.Max(0, save.LevelChronalDust);
             ChronalRewindsRemaining = Mathf.Max(0, save.CurrentLives);
             TutorialComplete = save.CompletedLevels.Contains("level_00_tutorial");
@@ -423,23 +477,76 @@ namespace FTT.Core {
                 : $"{minutes}:{remainder:00}";
         }
 
+        /// <summary>
+        /// Steps <see cref="CampaignRoute"/> (Package 11 A12), so Paris advances to
+        /// Level 4A and 4A advances to the Titanic. A level that is not on the route
+        /// (or the finale) is a no-op, which keeps the old hard cap at Alexandria.
+        /// </summary>
         public void AdvanceToNextLevel() {
-            if ((int)CurrentLevel < 15) {
-                CurrentLevel = (CampaignLevel)((int)CurrentLevel + 1);
+            int index = RouteIndexOf(CurrentLevel);
+            if (index >= 0 && index < Route.Length - 1) {
+                CurrentLevel = Route[index + 1];
             }
             // The finished attempt's registries (fonts, checkpoints,
             // extractors, secrets) never leak into the next level.
             ClearLevelAttemptState();
         }
 
+        /// <summary>Position of <paramref name="level"/> in the campaign route, or -1.</summary>
+        public static int RouteIndexOf(CampaignLevel level) {
+            for (int index = 0; index < Route.Length; index++) {
+                if (Route[index] == level) return index;
+            }
+            return -1;
+        }
+
         public string GetCurrentLevelPath() {
             return GetLevelScenePath(CurrentLevel);
         }
 
-        public static string GetLevelScenePath(CampaignLevel level) {
-            int idx = (int)level;
-            return idx >= 0 && idx < LevelScenePaths.Length ? LevelScenePaths[idx] : "";
+        /// <summary>
+        /// Resolves a campaign slot to its scene, using the session's locked hero for
+        /// the per-hero Level 4A. Unknown slots resolve to "" and callers refuse the
+        /// route rather than changing to a missing scene.
+        /// </summary>
+        public static string GetLevelScenePath(CampaignLevel level) => GetLevelScenePath(level, null);
+
+        /// <summary>
+        /// Resolves a campaign slot to its scene path by ID (never by array index).
+        ///
+        /// <para>Level 4A is authored once per roster character, so its path is
+        /// <c>Level_04A_&lt;hero&gt;.tscn</c>. <paramref name="heroCharacterID"/> wins
+        /// when supplied (the resume path knows the save's character before the
+        /// session does); otherwise the live session's selected character is used, and
+        /// failing that the active save's locked character. With no character at all —
+        /// a developer direct launch that skipped character select — this returns ""
+        /// so the route is refused rather than pointed at a scene that cannot
+        /// exist.</para>
+        /// </summary>
+        public static string GetLevelScenePath(CampaignLevel level, string heroCharacterID) {
+            if (level == CampaignLevel.LegacyNexus) {
+                string hero = ResolveLegacyHeroID(heroCharacterID);
+                return string.IsNullOrWhiteSpace(hero) ? "" : $"{LegacyLevelScenePrefix}{hero}.tscn";
+            }
+            return LevelScenePaths.TryGetValue(level, out string path) ? path : "";
         }
+
+        /// <summary>The hero whose Level 4A variant the campaign would route to right now.</summary>
+        public static string ResolveLegacyHeroID(string heroCharacterID = null) {
+            if (!string.IsNullOrWhiteSpace(heroCharacterID)) return heroCharacterID.ToLowerInvariant();
+            string session = GameManager.Instance?.CurrentSession.SelectedCharacterID;
+            if (!string.IsNullOrWhiteSpace(session)) return session.ToLowerInvariant();
+            StorySaveData save = Instance?.GetActiveSave();
+            return string.IsNullOrWhiteSpace(save?.SelectedCharacterID)
+                ? ""
+                : save.SelectedCharacterID.ToLowerInvariant();
+        }
+
+        /// <summary>The 4A level ID for a hero (<c>level_04a_einstein</c>).</summary>
+        public static string LegacyLevelID(string heroCharacterID) =>
+            string.IsNullOrWhiteSpace(heroCharacterID)
+                ? ""
+                : LegacyLevelIDPrefix + heroCharacterID.ToLowerInvariant();
 
         public void CollectDust(int amount) {
             ChronalDustCollected += Mathf.Max(0, amount);

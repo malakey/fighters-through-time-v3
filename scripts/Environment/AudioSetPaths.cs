@@ -25,6 +25,19 @@ namespace FTT.Environment {
         /// <summary>Level 0's set is named for the tutorial, not for its index.</summary>
         public const string Tutorial = Directory + "tutorial_audio.tres";
 
+        /// <summary>
+        /// Level 4A's set (Package 11 A12), shared by all nine Legacy variants —
+        /// P01 Option A reuses suitable era themes rather than commissioning nine
+        /// tracks, and a variant that needs its own overrides <c>AudioSetPath</c>.
+        /// Named separately rather than derived: <see cref="ForStoryLevel"/> reads a
+        /// two-digit slot and 4A has none, so leaving that derivation untouched keeps
+        /// every existing campaign mapping and its negative cases intact.
+        /// </summary>
+        public const string Legacy = Directory + "level_04a_audio.tres";
+
+        /// <summary>Identity written into the 4A set's <c>StageID</c>.</summary>
+        public const string LegacyStageID = "level_04a_legacy";
+
         /// <summary>Identity written into the hub set's <c>StageID</c>.</summary>
         public const string HubStageID = "hub_ship";
 

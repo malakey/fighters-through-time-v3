@@ -65,8 +65,9 @@ public class MainMenuSceneTests {
             // Nine authored roster tiles, matching the locked nine-character roster.
             AssertThat(menu.GetNode<GridContainer>(CharacterLayout + "Grid").GetChildCount()).IsEqual(9);
 
-            // Sixteen authored developer level-select tiles, one per CampaignLevel.
-            AssertThat(menu.GetNode<GridContainer>(LevelLayout + "Grid").GetChildCount()).IsEqual(16);
+            // Seventeen authored developer level-select tiles, one per CampaignLevel:
+            // the sixteen shared slots plus V7.6's LegacyNexus (Level 4A).
+            AssertThat(menu.GetNode<GridContainer>(LevelLayout + "Grid").GetChildCount()).IsEqual(17);
 
             // The A4 save-notice slot must survive the conversion, whether or not a
             // notice is actually pending in this session.
@@ -393,19 +394,26 @@ public class MainMenuSceneTests {
             // difficulty screen the campaign flow would go to from here.
             Press(menu, CharacterLayout + "Grid/CharacterButton3");
             AssertThat(menu.CurrentScreen).IsEqual(MainMenuScreen.LevelSelect);
-            AssertChainCoversScreen(menu, "LevelSelectScreen", 17);
+            // Seventeen tiles plus the Back button.
+            AssertChainCoversScreen(menu, "LevelSelectScreen", 18);
 
             // Every tile carries a numbered, localized mission name, not a raw key.
+            // Level 4A labels itself "04A": the enum value is an identity, and a
+            // developer looks for the campaign number, not the ordinal.
             var grid = menu.GetNode<GridContainer>(LevelLayout + "Grid");
-            for (int index = 0; index < 16; index++) {
+            for (int index = 0; index < 17; index++) {
                 string text = grid.GetNode<Button>($"LevelButton{index}").Text;
-                AssertThat(text.StartsWith($"{index:00}  "))
-                    .OverrideFailureMessage($"Level tile {index} is not numbered: '{text}'")
+                string expectedNumber = index == (int)CampaignLevel.LegacyNexus ? "04A" : $"{index:00}";
+                AssertThat(text.StartsWith($"{expectedNumber}  "))
+                    .OverrideFailureMessage($"Level tile {index} is not numbered '{expectedNumber}': '{text}'")
                     .IsTrue();
                 AssertThat(text.Contains("campaign_level_"))
                     .OverrideFailureMessage($"Level tile {index} shows a raw key: '{text}'")
                     .IsFalse();
             }
+
+            // The 4A tile routes to the Legacy slot, not to a renumbered level.
+            AssertThat(grid.GetNode<Button>("LevelButton16").Text.Contains("04A")).IsTrue();
 
             Press(menu, LevelLayout + "Grid/LevelButton10");
             AssertThat(menu.PendingLevel).IsEqual(CampaignLevel.London);
