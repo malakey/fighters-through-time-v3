@@ -209,6 +209,26 @@ namespace FTT.Core {
         public bool CollapseSkipPromptEnabled;
     }
 
+    // === Package 11 A2 — Time Freeze (F03) ================================
+
+    /// <summary>The three states the Story HUD's Time Freeze indicator renders.</summary>
+    public enum TimeFreezeState {
+        Ready,
+        Active,
+        Cooldown
+    }
+
+    /// <summary>
+    /// V7.6 Time Freeze readiness. Deliberately its own event and its own HUD
+    /// surface: the design forbids attaching this cooldown to the death-rewind
+    /// counter, which is what the retired V7.3 rewind pip did.
+    /// </summary>
+    public struct TimeFreezePayload {
+        public TimeFreezeState State;
+        /// <summary>Freeze seconds left while Active; cooldown seconds left while Cooldown; 0 when Ready.</summary>
+        public float SecondsRemaining;
+    }
+
     /// <summary>
     /// Local Fighter Mode presentation beats. Purely cosmetic: the deterministic
     /// simulation never reads these, and the driver raises them from its own
@@ -386,6 +406,10 @@ namespace FTT.Core {
 
         public event Action<RewindPresentationPayload> OnRewindPresentation;
         public void RaiseRewindPresentation(RewindPresentationPayload payload) => OnRewindPresentation?.Invoke(payload);
+
+        // Package 11 A2 — Time Freeze readiness (Ready / Active / Cooldown).
+        public event Action<TimeFreezePayload> OnTimeFreezeStateChanged;
+        public void RaiseTimeFreezeStateChanged(TimeFreezePayload payload) => OnTimeFreezeStateChanged?.Invoke(payload);
 
         // === Fighter Mode presentation (countdown / KO sequence) ===
         public event Action<FighterPresentationPayload> OnFighterPresentation;

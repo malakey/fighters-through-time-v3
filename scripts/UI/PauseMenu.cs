@@ -153,6 +153,9 @@ namespace FTT.UI {
         /// open; the button flips to a "saved" label as feedback.
         /// </summary>
         private void SaveProgress() {
+            // F03: an explicit Save during a live Time Freeze ends the freeze and
+            // stores the full cooldown (a background autosave does not).
+            FTT.Core.StoryManager.Instance?.EndActiveTimeFreezeForExplicitSave();
             var saveManager = FTT.Core.SaveManager.Instance;
             var gameManager = FTT.Core.GameManager.Instance;
             if (saveManager == null || gameManager == null) return;
@@ -277,6 +280,8 @@ namespace FTT.UI {
         /// so the in-memory wallet cannot leak the forfeited dust back.
         /// </summary>
         private void ApplyExitDustPenalty() {
+            // F03: exiting during a live Time Freeze ends it and stores 45 s.
+            FTT.Core.StoryManager.Instance?.EndActiveTimeFreezeForExplicitSave();
             var story = FTT.Core.StoryManager.Instance;
             var saveManager = FTT.Core.SaveManager.Instance;
             var gameManager = FTT.Core.GameManager.Instance;

@@ -5,7 +5,7 @@ using FTT.Core;
 
 namespace FTT.Environment {
 
-    public partial class StoryCyclicHazard : Area2D, IStoryRewindable {
+    public partial class StoryCyclicHazard : Area2D, IStoryRewindable, IStoryTimeFreezable {
         [Export] public string HazardID = "";
         [Export] public float WarningDuration = 1f;
         [Export] public float ActiveDuration = 1f;
@@ -39,6 +39,7 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            if (_timeFrozen) return;
             if (!Enabled) return;
             _timer -= (float)delta;
             if (_timer <= 0f) AdvancePhase();
@@ -97,5 +98,20 @@ namespace FTT.Environment {
         }
 
         private void OnRewind(Vector2 targetPosition) => ApplyStoryRewind();
+
+        // === IStoryTimeFreezable (V7.6 Time Freeze) ===========================
+
+        private bool _timeFrozen;
+
+        /// <summary>True while Time Freeze holds the world. Test seam.</summary>
+        public bool IsTimeFrozen => _timeFrozen;
+
+        /// <summary>
+        /// Stops simulating in place. Nothing else is mutated, so the phase, the
+        /// timer and the position all survive and resume with no catch-up tick —
+        /// the collision shape stays live throughout.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _timeFrozen = frozen;
+
     }
 }

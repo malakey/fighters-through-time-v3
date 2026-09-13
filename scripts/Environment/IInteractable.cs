@@ -14,17 +14,20 @@ namespace FTT.Environment {
     }
 
     /// <summary>
-    /// V7.2: a world object that scrubs backward along its own recorded path
-    /// during a Chronal Rewind — the "one visible world object rewinding"
-    /// exemplar (PathMovingPlatform). Depth is in recorded physics frames.
+    /// A world object that walks backward along its own recorded path during a
+    /// Chronal Rewind — the "one visible world object rewinding" exemplar
+    /// (PathMovingPlatform). Depth is in recorded physics frames.
+    ///
+    /// <para><b>V7.6:</b> this survives for the <b>death rewind only</b>. The
+    /// manual scrub verb is retired, so there is no preview and therefore nothing
+    /// to cancel — <c>CancelRewindScrub</c> went with it. Time Freeze uses
+    /// <see cref="IStoryTimeFreezable"/> instead, which stops a platform where it
+    /// stands rather than moving it.</para>
     /// </summary>
     public interface IRewindScrubbable {
         void BeginRewindScrub();
         void ApplyRewindScrub(int depthFrames);
-        /// <summary>The scrub committed: resume from the scrubbed position.</summary>
+        /// <summary>Playback finished: resume from the rewound position.</summary>
         void EndRewindScrub();
-        /// <summary>V7.3: the scrub was cancelled — snap back to the present
-        /// (where the scrub found the object), because the preview never happened.</summary>
-        void CancelRewindScrub();
     }
 }

@@ -141,6 +141,40 @@ namespace FTT.Core {
             return clone;
         }
 
+        /// <summary>
+        /// Package 11 A2 (F03 / C-2): renames a saved <c>gameplay_rewind</c>
+        /// override onto <c>gameplay_time_freeze</c>.
+        ///
+        /// <para>The V7.2 manual-rewind action was retired and replaced by Time
+        /// Freeze, which ships with <i>exactly the same</i> default events. A
+        /// player who never remapped it therefore has nothing stored and needs no
+        /// migration (<see cref="InputBindingService.BuildOverrides"/> only saves
+        /// rows that differ from the project defaults) — but a player who DID
+        /// remap it has a row keyed by the dead action name, which
+        /// <see cref="InputBindingService.ApplyAction"/> now silently drops
+        /// because the name is no longer in <c>RemappableActions</c>. That is the
+        /// binding this moves across.</para>
+        ///
+        /// <para><b>An explicit newer Time Freeze bind always wins.</b> If the
+        /// payload already carries a <c>gameplay_time_freeze</c> row the legacy
+        /// row is discarded rather than applied, so a player who rebound the new
+        /// action cannot have it overwritten by their old one.</para>
+        ///
+        /// <para>Returns true when the set changed. Pure data work: the Phase C
+        /// closeout calls it from the single v5-to-v6 migration step.</para>
+        /// </summary>
+        public bool MigrateLegacyRewindAction() {
+            if (Actions == null || !Actions.TryGetValue(InputManager.Actions.LegacyRewind,
+                    out List<InputBindingEvent> legacy)) {
+                return false;
+            }
+            Actions.Remove(InputManager.Actions.LegacyRewind);
+            if (Actions.ContainsKey(InputManager.Actions.TimeFreeze)) return true;
+            if (legacy == null || legacy.Count == 0) return true;
+            Set(InputManager.Actions.TimeFreeze, legacy);
+            return true;
+        }
+
         /// <summary>True when this action's events differ from the supplied reference set.</summary>
         public bool DiffersFrom(InputBindingSet reference, string action) {
             IReadOnlyList<InputBindingEvent> mine = For(action);

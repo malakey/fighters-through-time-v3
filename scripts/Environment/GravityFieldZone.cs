@@ -16,7 +16,7 @@ namespace FTT.Environment {
     /// <see cref="CycleSeconds"/>, tinting its visual during the final
     /// <see cref="TelegraphSeconds"/> before each shift. Fighter Mode is untouched.
     /// </summary>
-    public partial class GravityFieldZone : Area2D, IStoryRewindable {
+    public partial class GravityFieldZone : Area2D, IStoryRewindable, IStoryTimeFreezable {
         [Signal] public delegate void GravityShiftedEventHandler(float scale);
         [Signal] public delegate void TelegraphStartedEventHandler(float nextScale);
 
@@ -79,6 +79,7 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            if (_timeFrozen) return;
             if (!Enabled || !IsCycling) return;
             _cycleTimer -= (float)delta;
             bool shouldTelegraph = _cycleTimer <= TelegraphSeconds;
@@ -214,5 +215,20 @@ namespace FTT.Environment {
         private void OnBodyEntered(Node2D body) { if (body is PlayerController player) AddPlayer(player); }
         private void OnBodyExited(Node2D body) { if (body is PlayerController player) RemovePlayer(player); }
         private void OnRewind(Vector2 targetPosition) => ApplyStoryRewind();
+
+        // === IStoryTimeFreezable (V7.6 Time Freeze) ===========================
+
+        private bool _timeFrozen;
+
+        /// <summary>True while Time Freeze holds the world. Test seam.</summary>
+        public bool IsTimeFrozen => _timeFrozen;
+
+        /// <summary>
+        /// Stops simulating in place. Nothing else is mutated, so the phase, the
+        /// timer and the position all survive and resume with no catch-up tick —
+        /// the collision shape stays live throughout.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _timeFrozen = frozen;
+
     }
 }

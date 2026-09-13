@@ -28,6 +28,12 @@ namespace FTT.Environment {
             HasActivated = true;
             GetNodeOrNull<StoryCameraConfiner>(CameraPath)?.SetBounds(CameraBounds);
             SetEncounterActive(true);
+            // V7.6 Time Freeze: a room revealed DURING an active freeze is frozen
+            // before its actors can take a tick. This runs synchronously right
+            // after the encounter root is enabled and before anything has
+            // processed, which is what "suspend adjacent-room simulation so
+            // off-screen attacks cannot enter" reduces to in practice.
+            TimeFreezeController.FreezeActivatedRoom(GetTree());
             EventBus.Instance?.RaiseRoomTransitioned(new RoomTransitionPayload {
                 RoomID = RoomID,
                 CameraBounds = CameraBounds

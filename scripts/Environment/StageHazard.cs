@@ -3,7 +3,7 @@ using Godot;
 using FTT.Core;
 
 namespace FTT.Environment {
-    public partial class StageHazard : Node2D {
+    public partial class StageHazard : Node2D, IStoryTimeFreezable {
         [Export] public float WarningDuration = 2.0f;
         [Export] public float ActiveDuration = 3.0f;
         [Export] public float CooldownDuration = 30.0f;
@@ -25,6 +25,7 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            if (_timeFrozen) return;
             if (!Enabled) return;
             float dt = (float)delta;
             _timer -= dt;
@@ -87,5 +88,20 @@ namespace FTT.Environment {
                 }
             }
         }
+
+        // === IStoryTimeFreezable (V7.6 Time Freeze) ===========================
+
+        private bool _timeFrozen;
+
+        /// <summary>True while Time Freeze holds the world. Test seam.</summary>
+        public bool IsTimeFrozen => _timeFrozen;
+
+        /// <summary>
+        /// Stops simulating in place. Nothing else is mutated, so the phase, the
+        /// timer and the position all survive and resume with no catch-up tick —
+        /// the collision shape stays live throughout.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _timeFrozen = frozen;
+
     }
 }

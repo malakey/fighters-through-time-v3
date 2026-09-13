@@ -208,6 +208,11 @@ namespace FTT.Combat {
             // a frozen fighter's timers do not tick (mirrors the sim, where
             // TickCounters is skipped during hitstop).
             if (_owner != null && _owner.IsInHitstop) return;
+            // V7.6 Time Freeze suspends passive combat recovery: the design is
+            // explicit that "these rules override ordinary live-play
+            // regeneration", so a five-second freeze may not hand the player a
+            // free shield charge.
+            if (_owner != null && _owner.TimeFrozen) return;
             if (_shieldStunTimer > 0f) _shieldStunTimer -= (float)delta;
             // V7.3 shatter lockout: regen is held (interval re-armed) while it
             // runs, so the first charge lands one interval after it expires.

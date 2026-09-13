@@ -14,7 +14,7 @@ namespace FTT.Enemies {
     /// selection, distance filtering, phase gating, telegraph interruption, and
     /// knockback immunity. Story-only; nothing here reaches scripts/FighterSim.
     /// </summary>
-    public partial class BossController : CharacterBody2D, IPoolable, IStoryRewindable, IStoryRewindSimulation {
+    public partial class BossController : CharacterBody2D, IPoolable, IStoryRewindable, IStoryRewindSimulation, IStoryTimeFreezable {
         public const float DeathAnimationSeconds = 1.0f;
         private const float GravityPixelsPerSecond = 980f;
         private const float PixelsPerUnit = 60f;
@@ -960,5 +960,17 @@ namespace FTT.Enemies {
         }
 
         private void OnRewindTriggered(Vector2 targetPosition) => ApplyStoryRewind();
+
+        /// <summary>
+        /// V7.6 Time Freeze. Deliberately NOT
+        /// <see cref="SetStoryRewindFrozen"/>: that path cancels the executor,
+        /// zeroes velocity and deactivates the hitbox, which is correct when the
+        /// world is about to be restored to a past state and catastrophic for a
+        /// freeze, whose whole contract is "resume preserved positions,
+        /// velocities, attack phases and remaining timers". This latches the same
+        /// early-return flag and touches nothing else.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _rewindFrozen = frozen;
+
     }
 }

@@ -14,7 +14,7 @@ namespace FTT.Characters.Abilities {
     /// during Chronal Rewind, and fully resets its pooled state. Story-only
     /// Resonance perk Clockwork Overdrive upgrades it to a rapid burst of 5 bolts.
     /// </summary>
-    public partial class LeonardoTurretNode : FTT.Core.PooledNode, FTT.Core.IPoolable, FTT.Environment.IStoryRewindSimulation {
+    public partial class LeonardoTurretNode : FTT.Core.PooledNode, FTT.Core.IPoolable, FTT.Environment.IStoryRewindSimulation, FTT.Environment.IStoryTimeFreezable {
 
         private const float TargetRangePixels = 1800f;   // 30 world units at 60 px/unit.
         private const int MaxTurretHP = 20;
@@ -207,5 +207,14 @@ namespace FTT.Characters.Abilities {
             }
             return results;
         }
+
+        /// <summary>
+        /// V7.6 Time Freeze. Shares the freeze flag with the death rewind because
+        /// this class's rewind freeze is already a pure latch — it mutates nothing
+        /// on the way in, so positions, phases and timers all survive the freeze
+        /// and resume with no catch-up tick.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _rewindFrozen = frozen;
+
     }
 }

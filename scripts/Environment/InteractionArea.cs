@@ -32,6 +32,11 @@ namespace FTT.Environment {
         }
 
         public bool TryInteract(PlayerController player) {
+            // V7.6 Time Freeze: no puzzle interaction, no puzzle progress and no
+            // objective credit while the world is stopped. Gated here rather than
+            // in _UnhandledInput so a scripted or test-driven interaction obeys
+            // the same rule as a keypress.
+            if (player != null && player.TimeFrozen) return false;
             IInteractable target = GetInteractable();
             if (player == null || target == null || !target.CanInteract(player)) return false;
             target.Interact(player);

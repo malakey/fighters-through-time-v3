@@ -6,7 +6,7 @@ using FTT.Core;
 
 namespace FTT.Environment {
 
-    public partial class ChronalRiftZone : Area2D {
+    public partial class ChronalRiftZone : Area2D, IStoryTimeFreezable {
         [Signal] public delegate void TimeLoopSnappedEventHandler(int playerIndex, Vector2 destination);
 
         [Export] public string RiftID = "";
@@ -30,6 +30,7 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            if (_timeFrozen) return;
             foreach (PlayerController player in new List<PlayerController>(_insideDurations.Keys)) {
                 if (!GodotObject.IsInstanceValid(player)) { _insideDurations.Remove(player); _entryPositions.Remove(player); continue; }
                 float elapsed = _insideDurations[player] + (float)delta;
@@ -73,5 +74,20 @@ namespace FTT.Environment {
 
         private void OnBodyEntered(Node2D body) { if (body is PlayerController player) AddPlayer(player); }
         private void OnBodyExited(Node2D body) { if (body is PlayerController player) RemovePlayer(player); }
+
+        // === IStoryTimeFreezable (V7.6 Time Freeze) ===========================
+
+        private bool _timeFrozen;
+
+        /// <summary>True while Time Freeze holds the world. Test seam.</summary>
+        public bool IsTimeFrozen => _timeFrozen;
+
+        /// <summary>
+        /// Stops simulating in place. Nothing else is mutated, so the phase, the
+        /// timer and the position all survive and resume with no catch-up tick —
+        /// the collision shape stays live throughout.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _timeFrozen = frozen;
+
     }
 }

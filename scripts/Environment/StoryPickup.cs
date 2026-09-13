@@ -4,7 +4,7 @@ using Godot;
 
 namespace FTT.Environment {
 
-    public partial class StoryPickup : PooledNode, IPoolable {
+    public partial class StoryPickup : PooledNode, IPoolable, IStoryTimeFreezable {
         [Export] public float MagnetRadius = 150f;
         [Export] public float MagnetSpeed = 900f;
         [Export] public float ExpirationSeconds = 10f;
@@ -33,6 +33,7 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            if (_timeFrozen) return;
             float dt = (float)delta;
             _lifetime -= dt;
             if (_lifetime <= 0f) { ReturnToPool(); return; }
@@ -111,5 +112,20 @@ namespace FTT.Environment {
                 _ => Colors.White
             };
         }
+
+        // === IStoryTimeFreezable (V7.6 Time Freeze) ===========================
+
+        private bool _timeFrozen;
+
+        /// <summary>True while Time Freeze holds the world. Test seam.</summary>
+        public bool IsTimeFrozen => _timeFrozen;
+
+        /// <summary>
+        /// Stops simulating in place, preserving every timer. For a pickup this
+        /// is also what enforces "no pickup collection during a freeze": the
+        /// magnet that resolves a collection lives in the frozen tick.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _timeFrozen = frozen;
+
     }
 }

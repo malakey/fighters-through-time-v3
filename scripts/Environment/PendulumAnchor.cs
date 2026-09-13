@@ -21,7 +21,7 @@ namespace FTT.Environment {
     ///     velocity, scaled by <see cref="ReleaseLaunchAssist"/> and capped by
     ///     <see cref="MaxLaunchSpeed"/>. Set the assist to 0 for a dead-stop anchor.
     /// </summary>
-    public partial class PendulumAnchor : AnimatableBody2D, IStoryRewindable {
+    public partial class PendulumAnchor : AnimatableBody2D, IStoryRewindable, IStoryTimeFreezable {
         [Signal] public delegate void OccupantLaunchedEventHandler(int playerIndex, Vector2 launchVelocity);
 
         [Export] public string AnchorID = "";
@@ -69,7 +69,10 @@ namespace FTT.Environment {
             _lastOccupant = null;
         }
 
-        public override void _PhysicsProcess(double delta) => AdvanceSwing((float)delta);
+        public override void _PhysicsProcess(double delta) {
+            if (_timeFrozen) return;
+            AdvanceSwing((float)delta);
+        }
 
         public void AdvanceSwing(float dt) {
             if (!_initialized) { _previousGrabPosition = GrabPosition; _initialized = true; }
@@ -127,5 +130,20 @@ namespace FTT.Environment {
         }
 
         private void OnRewind(Vector2 targetPosition) => ApplyStoryRewind();
+
+        // === IStoryTimeFreezable (V7.6 Time Freeze) ===========================
+
+        private bool _timeFrozen;
+
+        /// <summary>True while Time Freeze holds the world. Test seam.</summary>
+        public bool IsTimeFrozen => _timeFrozen;
+
+        /// <summary>
+        /// Stops simulating in place. Nothing else is mutated, so the phase, the
+        /// timer and the position all survive and resume with no catch-up tick —
+        /// the collision shape stays live throughout.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _timeFrozen = frozen;
+
     }
 }

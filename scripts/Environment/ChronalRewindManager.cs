@@ -44,12 +44,6 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
-            // The manual-rewind cooldown ticks in real play time — never
-            // while the world is frozen for a rewind, a scrub, or the
-            // collapse beat.
-            if (!_isRewinding && !_isScrubbing && !_collapseBeatActive && _manualCooldownRemaining > 0f) {
-                _manualCooldownRemaining = Math.Max(0f, _manualCooldownRemaining - (float)delta);
-            }
             if (_collapseBeatActive) {
                 AdvanceCollapseBeat(
                     (float)delta,
@@ -63,13 +57,10 @@ namespace FTT.Environment {
                 AdvancePlayback();
                 return;
             }
-            if (_isScrubbing) {
-                AdvanceScrub();
-                return;
-            }
             if (_player.CurrentState == CharacterState.Dead || _player.CurrentState == CharacterState.Respawning) return;
-            TrackManualRewindHold((float)delta);
-            if (_isScrubbing) return;
+            // The buffer keeps recording through a Time Freeze: the player really
+            // travelled there, and CHECKPOINT_RECOVERY.md counts freeze travel as
+            // live route time.
             _buffer.Record(new RewindFrame(
                 _player.GlobalPosition,
                 _player.IsOnFloor(),
@@ -77,168 +68,14 @@ namespace FTT.Environment {
                 _player.ActiveAnimationName));
         }
 
-        // === Manual rewind (V7.2 — a scrubbed verb with its own input) ==========
+        // === Path-platform reversal (the world-interaction exemplar) ============
+        //
+        // V7.6: the manual scrub verb is retired, so this is now purely the DEATH
+        // rewind's platform reversal — the platform walks back along its own
+        // recorded path in step with the player's playback. There is no cancel
+        // path any more, because there is no preview to cancel.
 
-        /// <summary>Hold gameplay_rewind this long to begin the scrub.</summary>
-        public const float ManualHoldSeconds = 0.5f;
-
-        /// <summary>The scrub walks the history at 4x while the input is held.</summary>
-        public const int ScrubFramesPerTick = 4;
-
-        /// <summary>The Stasis Echo persists this long, counted from playback end.</summary>
-        public const float StasisEchoSeconds = 10f;
-
-        /// <summary>
-        /// V7.3: committing a manual rewind starts a 12-second cooldown shared
-        /// by ALL difficulties — Easy keeps its zero charge cost but honors
-        /// the cooldown (free was never meant to mean continuous). Scripted
-        /// tutorial rewinds bypass it, cancelling a scrub starts none, and
-        /// death-triggered rewinds are unaffected.
-        /// </summary>
-        public const float ManualRewindCooldownSeconds = 12f;
-
-        private float _manualCooldownRemaining;
-
-        /// <summary>Seconds left before the manual verb is available again. HUD pip surface.</summary>
-        public float ManualRewindCooldownRemaining => _manualCooldownRemaining;
-
-        /// <summary>True when the cooldown does not block a manual rewind.</summary>
-        public bool IsManualRewindOffCooldown => _manualCooldownRemaining <= 0f || ScriptedFreeRewind;
-
-        /// <summary>Arms the cooldown; called on commit (never on cancel). Test seam.</summary>
-        internal void StartManualRewindCooldown() {
-            if (ScriptedFreeRewind) return;
-            _manualCooldownRemaining = ManualRewindCooldownSeconds;
-        }
-
-        private float _manualHoldSeconds;
-        private bool _isScrubbing;
-        private int _scrubDepthFrames;
-        private Vector2 _scrubOrigin;
-        private bool _manualCommit;
-        private bool _spawnEchoOnComplete;
-        private Vector2 _pendingEchoOrigin;
         private readonly List<IRewindScrubbable> _scrubbables = new();
-
-        /// <summary>True while the world-frozen scrub preview is running. Test seam.</summary>
-        public bool IsScrubbing => _isScrubbing;
-
-        /// <summary>Current scrub depth in history frames. Test seam.</summary>
-        public int ScrubDepthFrames => _scrubDepthFrames;
-
-        /// <summary>
-        /// Level 0's calibration sets this during its scripted manual-rewind
-        /// beat: scripted tutorial uses are free on every difficulty.
-        /// </summary>
-        public bool ScriptedFreeRewind { get; set; }
-
-        /// <summary>Easy manual rewinds are free (the learning sandbox); the
-        /// scripted tutorial uses are free everywhere. Test seam.</summary>
-        public bool IsManualRewindFree => _difficulty == Difficulty.Easy || ScriptedFreeRewind;
-
-        private void TrackManualRewindHold(float dt) {
-            if (!Input.IsActionPressed(InputManager.Actions.Rewind) || !CanBeginManualRewind()) {
-                _manualHoldSeconds = 0f;
-                return;
-            }
-            _manualHoldSeconds += dt;
-            if (_manualHoldSeconds < ManualHoldSeconds) return;
-            _manualHoldSeconds = 0f;
-            BeginScrub();
-        }
-
-        /// <summary>
-        /// Usable in any state except hitstun, daze, Dead, and mid-ability —
-        /// and only when a charge is available (or the rewind is free), the
-        /// V7.3 cooldown has expired (scripted tutorial uses are exempt), and
-        /// there is real history to scrub.
-        /// </summary>
-        private bool CanBeginManualRewind() =>
-            _player.CurrentState is not (CharacterState.Stunned or CharacterState.Dazed
-                or CharacterState.Dead or CharacterState.Respawning
-                or CharacterState.UsingSpecial or CharacterState.UsingUltimate
-                or CharacterState.UsingMovementAbility or CharacterState.Grabbing)
-            && (IsManualRewindFree || RemainingRewinds > 0)
-            && IsManualRewindOffCooldown
-            && _buffer.Count > MinimumPlaybackFrames;
-
-        private void BeginScrub() {
-            _isScrubbing = true;
-            _scrubDepthFrames = 0;
-            _scrubOrigin = _player.GlobalPosition;
-            FreezeWorldForRewind();
-            BeginPlatformScrub();
-            _player.SetRewindSuspended(true);
-            RaisePresentation(RewindPresentationPhase.Started, _scrubOrigin, active: true);
-        }
-
-        private void AdvanceScrub() {
-            // Jump cancels: snap back to the present, no charge spent.
-            if (Input.IsActionJustPressed(InputManager.Actions.Jump)) {
-                CancelScrub();
-                return;
-            }
-            bool held = Input.IsActionPressed(InputManager.Actions.Rewind);
-            if (held) {
-                if (_scrubDepthFrames < _buffer.Count) {
-                    _scrubDepthFrames = Math.Min(_buffer.Count, _scrubDepthFrames + ScrubFramesPerTick);
-                    ApplyPlatformScrub(_scrubDepthFrames);
-                }
-                return;
-            }
-            CommitScrub();
-        }
-
-        /// <summary>The scrub preview's ghost position (the frame the commit
-        /// would target). Presentation polls this while scrubbing.</summary>
-        public Vector2 ScrubPreviewPosition =>
-            _buffer.TryPeek(Math.Max(1, _scrubDepthFrames), out RewindFrame frame)
-                ? frame.Position
-                : _scrubOrigin;
-
-        private void CancelScrub() {
-            _isScrubbing = false;
-            _scrubDepthFrames = 0;
-            // V7.3: a cancel snaps the world back to the present — the
-            // scrub-preview never happened, so the platforms return to where
-            // the scrub found them (EndPlatformScrub would leave them at the
-            // scrubbed position and arm the skip-next-restore flag with no
-            // rewind event ever coming to consume it).
-            CancelPlatformScrub();
-            _player.SetRewindSuspended(false);
-            ResumeWorldAfterRewind();
-            RaisePresentation(RewindPresentationPhase.Landed, _player.GlobalPosition, active: false);
-        }
-
-        /// <summary>
-        /// Releasing the input commits: one charge is spent (never on cancel,
-        /// free on Easy and for scripted tutorial uses), the standard playback
-        /// runs for the scrubbed span, and a Stasis Echo is left at the origin.
-        /// </summary>
-        private void CommitScrub() {
-            _isScrubbing = false;
-            int depth = Math.Max(1, _scrubDepthFrames);
-            if (!IsManualRewindFree) {
-                RemainingRewinds--;
-                StoryManager.Instance?.SetRewinds(RemainingRewinds);
-            }
-            // V7.3: the cooldown arms on COMMIT — on every difficulty — and
-            // never on cancel; scripted tutorial uses are exempt.
-            StartManualRewindCooldown();
-            _manualCommit = true;
-            _spawnEchoOnComplete = true;
-            _pendingEchoOrigin = _scrubOrigin;
-            Vector2 checkpoint = GetCheckpointPosition();
-            _playbackPath = _buffer.BuildPlaybackPath(checkpoint, 1, depth);
-            _playbackTick = 0;
-            _playbackTicks = ComputePlaybackTicks(_playbackPath.Count);
-            _holdTicksRemaining = PreRewindHoldFrames;
-            _isRewinding = true;
-            // World and player are already frozen from the scrub.
-            RaisePresentation(RewindPresentationPhase.Playback, _playbackPath[^1].Position, active: true);
-        }
-
-        // === Path-platform scrubbing (the world-interaction exemplar) ===========
 
         private void BeginPlatformScrub() {
             _scrubbables.Clear();
@@ -263,15 +100,6 @@ namespace FTT.Environment {
             foreach (IRewindScrubbable scrubbable in _scrubbables) {
                 if (scrubbable is GodotObject godotObject && !IsInstanceValid(godotObject)) continue;
                 scrubbable.EndRewindScrub();
-            }
-            _scrubbables.Clear();
-        }
-
-        /// <summary>V7.3 cancel path: every scrubbed object snaps back to the present.</summary>
-        private void CancelPlatformScrub() {
-            foreach (IRewindScrubbable scrubbable in _scrubbables) {
-                if (scrubbable is GodotObject godotObject && !IsInstanceValid(godotObject)) continue;
-                scrubbable.CancelRewindScrub();
             }
             _scrubbables.Clear();
         }
@@ -443,11 +271,10 @@ namespace FTT.Environment {
             int maximumHP = _player.MaximumHP;
             // On the death path CurrentHP is 0, so the difficulty restore applies
             // unchanged; a scripted demonstration must not damage a healthy player.
-            // A voluntary (manual) rewind restores no HP at all — unchanged rule.
-            int restoredHP = _manualCommit
-                ? Math.Max(1, _player.CurrentHP)
-                : Math.Max(_player.CurrentHP,
-                    Math.Max(1, Mathf.CeilToInt(maximumHP * GetHPRestorePercent(_difficulty))));
+            // V7.6: the voluntary "restores no HP" branch went with the manual verb
+            // — every rewind that reaches here is a death or a scripted demo.
+            int restoredHP = Math.Max(_player.CurrentHP,
+                Math.Max(1, Mathf.CeilToInt(maximumHP * GetHPRestorePercent(_difficulty))));
             _player.CompleteStoryRewind(landingPosition, restoredHP);
             _isRewinding = false;
             _playbackPath = null;
@@ -459,15 +286,6 @@ namespace FTT.Environment {
             EventBus.Instance?.RaiseRewindTriggered(landingPosition);
             ResumeWorldAfterRewind();
             RaisePresentation(RewindPresentationPhase.Landed, landingPosition, active: false);
-            // Stasis Echo (V7.2): a committed manual rewind leaves a frozen copy
-            // at the rewind origin, living 10 s from the moment playback ends.
-            // Death-rewinds leave no Echo — the constructive half belongs to the
-            // deliberate verb only.
-            if (_spawnEchoOnComplete) {
-                StasisEcho.Spawn(GetTree(), _pendingEchoOrigin, _player, StasisEchoSeconds);
-            }
-            _manualCommit = false;
-            _spawnEchoOnComplete = false;
         }
 
         /// <summary>

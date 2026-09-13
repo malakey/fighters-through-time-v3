@@ -12,7 +12,7 @@ namespace FTT.Environment {
     /// <see cref="CatchDamage"/> plus forward knockback — never an instant kill, so
     /// Chronal Rewind stays the meaningful failure state.
     /// </summary>
-    public partial class EscapeSequenceController : Node2D, IStoryRewindable {
+    public partial class EscapeSequenceController : Node2D, IStoryRewindable, IStoryTimeFreezable {
         [Signal] public delegate void EscapeStartedEventHandler();
         [Signal] public delegate void EscapeCompletedEventHandler();
         [Signal] public delegate void PlayerCaughtEventHandler(int playerIndex, int damage);
@@ -66,7 +66,10 @@ namespace FTT.Environment {
             _catchCooldowns.Clear();
         }
 
-        public override void _PhysicsProcess(double delta) => AdvanceFront((float)delta);
+        public override void _PhysicsProcess(double delta) {
+            if (_timeFrozen) return;
+            AdvanceFront((float)delta);
+        }
 
         public void AdvanceFront(float dt) {
             _cooldownScratch.Clear();
@@ -171,5 +174,20 @@ namespace FTT.Environment {
         }
 
         private void OnRewind(Vector2 targetPosition) => ApplyStoryRewind();
+
+        // === IStoryTimeFreezable (V7.6 Time Freeze) ===========================
+
+        private bool _timeFrozen;
+
+        /// <summary>True while Time Freeze holds the world. Test seam.</summary>
+        public bool IsTimeFrozen => _timeFrozen;
+
+        /// <summary>
+        /// Stops simulating in place. Nothing else is mutated, so the phase, the
+        /// timer and the position all survive and resume with no catch-up tick —
+        /// the collision shape stays live throughout.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _timeFrozen = frozen;
+
     }
 }

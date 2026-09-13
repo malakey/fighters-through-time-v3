@@ -11,7 +11,7 @@ namespace FTT.Environment {
     /// Either cycles on a timer (<see cref="AutoCycle"/>) or is driven externally
     /// through <see cref="BeginWarning"/> / <see cref="Open"/> / <see cref="Close"/>.
     /// </summary>
-    public partial class TrapdoorPlatform : AnimatableBody2D, IStoryRewindable {
+    public partial class TrapdoorPlatform : AnimatableBody2D, IStoryRewindable, IStoryTimeFreezable {
         [Signal] public delegate void StateChangedEventHandler(int state);
 
         [Export] public string TrapdoorID = "";
@@ -60,6 +60,7 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            if (_timeFrozen) return;
             float dt = (float)delta;
             if (State == TrapdoorState.Warning) {
                 _shakeClock += dt;
@@ -142,5 +143,20 @@ namespace FTT.Environment {
         }
 
         private void OnRewind(Vector2 targetPosition) => ApplyStoryRewind();
+
+        // === IStoryTimeFreezable (V7.6 Time Freeze) ===========================
+
+        private bool _timeFrozen;
+
+        /// <summary>True while Time Freeze holds the world. Test seam.</summary>
+        public bool IsTimeFrozen => _timeFrozen;
+
+        /// <summary>
+        /// Stops simulating in place. Nothing else is mutated, so the phase, the
+        /// timer and the position all survive and resume with no catch-up tick —
+        /// the collision shape stays live throughout.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _timeFrozen = frozen;
+
     }
 }

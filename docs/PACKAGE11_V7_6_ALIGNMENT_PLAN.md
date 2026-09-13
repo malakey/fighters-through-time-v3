@@ -4831,3 +4831,88 @@ registered dynamic-key prefix. Godot's own CSV translation importer has no comme
 marker compiles into `en.en.translation` as a real key whose message is empty. Harmless, but it is
 20-odd junk entries in the shipped binary; Phase C should decide whether to strip the markers before
 the final import.
+---
+### A2 — Time Freeze (F03) and the retirement of Manual Rewind / Stasis Echo (2026-09-13)
+**Time Freeze ships as a Story-only escape ability that stops the world for five seconds without
+ever touching the player, and the V7.2/V7.3 manual rewind, its 12-second cooldown and the Stasis
+Echo are deleted outright — no compatibility shim, no retired-but-present code.**
+Nine decisions in this workstream departed from, or resolved an open question in, the dossier. Each
+is recorded here with its reasoning and its pinning test.
+**1. The freeze uses its own interface, not the death rewind's.** The dossier offered
+`IStoryRewindSimulation` reuse as option (a). It is not merely wide — it is *wrong*:
+`EnemyController.SetStoryRewindFrozen(true)` calls `Executor.Cancel()`, zeroes `Velocity` and
+deactivates the attack hitbox, and `BossController` does the same. That is correct when the world is
+about to be restored to a past state and catastrophic for a freeze whose entire contract is "resume
+preserved positions, velocities, attack phases and remaining timers". The new
+`IStoryTimeFreezable { void SetTimeFrozen(bool) }` (in `StoryRewindPolicy.cs`) is therefore a
+*second, non-mutating* freeze: implementers latch a flag their own tick early-returns on and touch
+nothing else. Classes whose rewind freeze was already a pure latch (the five construct nodes,
+`DilationFieldZone`) forward to the same field; `EnemyController` / `BossController` set the flag
+directly and deliberately skip the cancel. Pinned by
+`TimeFreezeTests.ThawPreservesEveryActorsPositionVelocityAndAttackPhaseWithNoCatchUp`, which asserts
+the velocity survives `SetTimeFrozen(true)` — the exact assertion that fails if anyone ever routes
+Time Freeze through the rewind path.
+**2. The `ProcessMode.Disabled` fallback is restricted to the three projectile/zone groups.** The
+dossier proposed applying it to a room's `Actors`/`Hazards`/`Encounter` containers. In Godot 4,
+`ProcessMode.Disabled` on a `CollisionObject2D` subtree disables its **collision**, which is exactly
+right for a pooled projectile (a frozen shot must not travel *or* damage) and catastrophic for
+`CrumblingPlatform`, `PathMovingPlatform`, `RotatingPlatform`, `TrapdoorPlatform` and `Counterweight`
+— all of which live in the `story_hazard`/`puzzle_object` containers a room fallback would sweep, and
+all of which the player may be standing on when they press the button. Dropping the floor out from
+under the player mid-freeze would be the single most visible bug this feature could ship. So:
+`ProcessFallbackGroups` is `story_projectile`, `enemy_projectile`, `story_zone` only, and **every**
+simulating body gets an explicit hook instead. All writes go through
+`PhysicsSafeSetters.SetProcessModeSafe`.
+**3. Coverage rule: a class gets a hook if and only if it ticks.** The recon listed ~25 classes.
+Six of them — `MovementDampenerZone`, `ForcefieldBarrier`, `ShieldGeneratorTower`, `RotatingGear`,
+`RotatingPlatform`, `Counterweight` — have no `_Process`/`_PhysicsProcess` at all; they are
+event-driven and simulate nothing, so a freeze flag on them would be dead code that later readers
+would mistake for coverage. They are deliberately omitted. Hooks landed on the fifteen classes that
+really tick: `StageHazard`, `StoryCyclicHazard`, `RisingWaterZone`, `SearchlightZone`,
+`ChronalRiftZone`, `GravityFieldZone`, `CrumblingPlatform`, `TrapdoorPlatform`, `PendulumAnchor`,
+`EscapeSequenceController`, `PathMovingPlatform`, `StoryPickup`, `ChronalDustPickup`,
+`RescuableNPC`, `RestorationFont` — plus `EnemyController`, `BossController`,
+`MirrorParadoxController`, `DilationFieldZone` and the five construct nodes. A new freezable with no
+natural simulation group joins `TimeFreezeController.FreezableGroup` (`"time_freezable"`), which is
+how `RestorationFont` is reached.
+**4. The world-freeze service is NOT shared with the death rewind.** The dossier suggested
+refactoring `FreezeWorldForRewind` into a service both mechanics call. The two freeze *sets* differ
+in three ways that would have to be parameterised anyway — `chronal_extractor` in/out, projectiles
+cleared vs. preserved, and the mutating vs. non-mutating call — at which point "shared" means one
+function with a mode flag and two disjoint bodies. `ChronalRewindManager` keeps its own sweep;
+`TimeFreezeController` owns `FrozenTimeGroups` + `ProcessFallbackGroups`. The Integrity divergence is
+pinned by `TimeFreezeTests.TimelineIntegrityKeepsDrainingAcrossTheWholeFreeze`, which asserts
+`chronal_extractor` is in the rewind set and in **neither** Time Freeze set, and that
+`ChronalExtractor` is not `IStoryTimeFreezable` at all.
+**5. C-14 resolved in Time Freeze's favour, with no coordination cost.** Timeline Integrity keeps
+draining across the whole five seconds (`CHECKPOINT_RECOVERY.md` line 31: freeze travel is live route
+time). Because the sets are separate, nothing A3's Integrity-timer rework does can accidentally pause
+the clock during a freeze — the extractor simply is not in the set.
+**6. `SearchlightZone.IsBeamOccludedForPlayer` survives, returning false** (the ruling the dossier
+asked for, taken as written). The Echo was the only occluder the game ever had; the Level 4 corridor
+and Level 9 beam are timing/route puzzles with `Enabled` kill switches and never required occlusion
+to progress. Keeping the method leaves both level call sites untouched and leaves a seam for a future
+occluder.
+**7. The Level 0 drill blocker is an invulnerable real enemy, which required three lines in
+`EnemyController`.** The design asks for "invulnerable enemies and a safe destination"; the lesson
+must not be solvable by fighting. `EnemyController` had no invulnerability surface, so
+`DrillInvulnerable` was added (checked at the top of `TakeDamage`, alongside the existing
+`CurrentState == Dead` guard). No campaign encounter sets it; `Level00Controller` sets it for the
+lesson and clears it at completion. Flagged for A7 as a three-line addition to a shared file.
+**8. `PauseMenu` took two one-line calls.** F03's "an explicit Save or exit during an active freeze
+ends the freeze and stores 45 s" has no other honest hook: a background autosave and an explicit Save
+both reach `SaveManager.SaveCheckpoint`, so the distinction can only be drawn at the two explicit
+call sites. `StoryManager.EndActiveTimeFreezeForExplicitSave()` (resolved through the controller's
+group, so no save surface takes a dependency on the level's runtime stack) is called from
+`PauseMenu.SaveProgress` and `PauseMenu.ApplyExitDustPenalty`. Pinned by
+`TimeFreezeTests.ActivationStoresTheConservativeCooldownAndAnExplicitSaveEndsTheFreeze`, which also
+pins that an autosave mid-freeze keeps the conservative 45 s **without** thawing.
+**9. The retirement gate reads code, not prose.** `TimeFreezeTests.TheRetiredTimeVerbLeavesNoTraceInTheSource`
+sweeps `scripts/` and `tests/` for the five retired identifiers — but assembles each token from
+fragments and strips `//` lines first, so the surviving explanatory comments (and the test's own
+banned list) cannot trip it. Without that, every comment explaining *why* the Echo is gone would fail
+the gate, and the obvious "fix" would be to delete the explanations.
+**One residual gap, deliberately not closed:** `Level10Controller`'s Globe audience mechanic ticks in
+the level controller's own `_PhysicsProcess` rather than in a freezable node, so it keeps arming
+during a freeze. Closing it means editing a level controller A2 does not own for a two-line hook;
+recorded for whoever next touches Level 10. Nothing else in the campaign has this shape.

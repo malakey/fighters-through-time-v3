@@ -20,7 +20,7 @@ namespace FTT.Environment {
     /// Pair with an <see cref="InteractionArea"/> child pointing at this node,
     /// exactly like every other interactable.
     /// </summary>
-    public partial class RestorationFont : Node2D, IInteractable {
+    public partial class RestorationFont : Node2D, IInteractable, IStoryTimeFreezable {
         [Export] public string FontID = "font";
 
         /// <summary>
@@ -80,11 +80,16 @@ namespace FTT.Environment {
         }
 
         public override void _Ready() {
+            // The font has no natural simulation group, so it joins the generic
+            // one the Time Freeze sweep also walks: an in-progress channel must
+            // stop (no healing during a freeze).
+            AddToGroup(TimeFreezeController.FreezableGroup);
             _glow = GetNodeOrNull<Node2D>("Glow");
             UpdateGlow();
         }
 
         public override void _PhysicsProcess(double delta) {
+            if (_timeFrozen) return;
             float dt = (float)delta;
             AdvanceChannel(dt);
             AdvanceRestore(dt);
@@ -173,5 +178,20 @@ namespace FTT.Environment {
             float share = authored > 0 ? UsesRemaining / (float)authored : 0f;
             _glow.Modulate = new Color(1f, 1f, 1f, 0.15f + 0.85f * share);
         }
+
+        // === IStoryTimeFreezable (V7.6 Time Freeze) ===========================
+
+        private bool _timeFrozen;
+
+        /// <summary>True while Time Freeze holds the world. Test seam.</summary>
+        public bool IsTimeFrozen => _timeFrozen;
+
+        /// <summary>
+        /// Stops simulating in place, preserving every timer. For a pickup this
+        /// is also what enforces "no pickup collection during a freeze": the
+        /// magnet that resolves a collection lives in the frozen tick.
+        /// </summary>
+        public void SetTimeFrozen(bool frozen) => _timeFrozen = frozen;
+
     }
 }
