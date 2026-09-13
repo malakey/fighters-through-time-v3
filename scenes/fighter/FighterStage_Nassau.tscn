@@ -9,7 +9,7 @@
 [ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="7_lighting"]
 
 [sub_resource type="RectangleShape2D" id="ground_col"]
-size = Vector2(1125, 48)
+size = Vector2(937.5, 48)
 
 [sub_resource type="RectangleShape2D" id="yard_col"]
 size = Vector2(225, 12)
@@ -144,6 +144,42 @@ default_color = Color(0.24, 0.19, 0.14, 1)
 color = Color(0.04, 0.04, 0.05, 1)
 polygon = PackedVector2Array(964, 66, 1088, 92, 1058, 116, 1084, 142, 964, 156)
 
+[node name="SternGap" type="ColorRect" parent="Presentation"]
+z_index = -9
+offset_left = 1325.0
+offset_top = 700.0
+offset_right = 1512.5
+offset_bottom = 1120.0
+color = Color(0.02, 0.055, 0.085, 1)
+
+[node name="SternGapSwell" type="ColorRect" parent="Presentation"]
+z_index = -8
+offset_left = 1325.0
+offset_top = 880.0
+offset_right = 1512.5
+offset_bottom = 1120.0
+color = Color(0.05, 0.16, 0.22, 1)
+
+[node name="SternGapFoam" type="Line2D" parent="Presentation"]
+z_index = -7
+points = PackedVector2Array(1325, 892, 1372, 878, 1418, 894, 1466, 880, 1512.5, 894)
+width = 5.0
+default_color = Color(0.62, 0.84, 0.92, 0.7)
+
+[node name="SternBlastLine" type="ColorRect" parent="Presentation"]
+z_index = -7
+offset_left = 1325.0
+offset_top = 1009.5
+offset_right = 1512.5
+offset_bottom = 1015.5
+color = Color(0.12, 0.72, 0.86, 0.75)
+
+[node name="SternBrokenRail" type="Line2D" parent="Presentation"]
+z_index = -7
+points = PackedVector2Array(1250, 684, 1300, 680, 1325, 692, 1338, 716)
+width = 4.0
+default_color = Color(0.12, 0.72, 0.86, 0.6)
+
 [node name="BackdropTint" type="ColorRect" parent="Presentation"]
 z_index = -30
 offset_left = -200.0
@@ -176,16 +212,16 @@ offset_bottom = 700.0
 color = Color(0.22, 0.12, 0.055, 1)
 
 [node name="StarboardCannon" type="ColorRect" parent="Presentation/DeckProps"]
-offset_left = 1340.0
+offset_left = 1160.0
 offset_top = 662.0
-offset_right = 1448.0
+offset_right = 1268.0
 offset_bottom = 692.0
 color = Color(0.1, 0.11, 0.12, 1)
 
 [node name="StarboardCannonCarriage" type="ColorRect" parent="Presentation/DeckProps"]
-offset_left = 1364.0
+offset_left = 1184.0
 offset_top = 686.0
-offset_right = 1428.0
+offset_right = 1248.0
 offset_bottom = 700.0
 color = Color(0.22, 0.12, 0.055, 1)
 
@@ -341,7 +377,7 @@ RimScale = 12.0
 [node name="Geometry" type="Node2D" parent="."]
 
 [node name="Ground" type="StaticBody2D" parent="Geometry"]
-position = Vector2(950, 700)
+position = Vector2(856.25, 700)
 collision_layer = 64
 collision_mask = 0
 
@@ -350,32 +386,43 @@ position = Vector2(0, 24)
 shape = SubResource("ground_col")
 
 [node name="Visual" type="ColorRect" parent="Geometry/Ground"]
-offset_left = -562.5
+offset_left = -468.75
 offset_top = 0.0
-offset_right = 562.5
+offset_right = 468.75
 offset_bottom = 48.0
 color = Color(0.22, 0.12, 0.055, 1)
 
 [node name="PlankSeamA" type="ColorRect" parent="Geometry/Ground"]
-offset_left = -562.5
+offset_left = -468.75
 offset_top = 16.0
-offset_right = 562.5
+offset_right = 468.75
 offset_bottom = 18.0
 color = Color(0.14, 0.08, 0.035, 1)
 
 [node name="PlankSeamB" type="ColorRect" parent="Geometry/Ground"]
-offset_left = -562.5
+offset_left = -468.75
 offset_top = 33.0
-offset_right = 562.5
+offset_right = 468.75
 offset_bottom = 35.0
 color = Color(0.14, 0.08, 0.035, 1)
 
 [node name="TopLine" type="ColorRect" parent="Geometry/Ground"]
-offset_left = -562.5
+offset_left = -468.75
 offset_top = -3.0
-offset_right = 562.5
+offset_right = 468.75
 offset_bottom = 0.0
 color = Color(0.12, 0.72, 0.86, 1)
+
+[node name="LedgeCue" type="ColorRect" parent="Geometry/Ground"]
+offset_left = 454.75
+offset_top = -8.0
+offset_right = 468.75
+offset_bottom = 48.0
+color = Color(0.12, 0.72, 0.86, 0.95)
+
+[node name="SternSplinters" type="Polygon2D" parent="Geometry/Ground"]
+color = Color(0.16, 0.09, 0.04, 1)
+polygon = PackedVector2Array(468.75, 0, 468.75, 48, 436.75, 48, 452.75, 26, 440.75, 12)
 
 [node name="WallLeft" type="StaticBody2D" parent="Geometry"]
 position = Vector2(387.5, 418.75)

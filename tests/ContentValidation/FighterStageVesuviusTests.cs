@@ -4,6 +4,7 @@ using FTT.Environment;
 using FTT.FighterSim;
 using GdUnit4;
 using Godot;
+using xpTURN.Klotho.Deterministic.Math;
 using static GdUnit4.Assertions;
 
 namespace FTT.Tests.ContentValidation;
@@ -163,6 +164,22 @@ public class FighterStageVesuviusTests {
             // One scorch zone per rockfall anchor.
             AssertThat(presentation.GetNode<Node2D>("ImpactScorches").GetChildCount()).IsEqual(4);
             AssertThat(presentation.GetNode<Node2D>("RockfallChutes").GetChildCount()).IsEqual(4);
+
+            // Package 11 A9: the slope's downhill end has collapsed. The painted
+            // shelf must open downward exactly where the authored floor stops, and
+            // the stage's one true ledge needs a readable edge cue.
+            AssertThat(FighterStageGeometry.Vesuvius.IsOpenStage).IsTrue();
+            var shelf = presentation.GetNodeOrNull<ColorRect>("CollapsedShelf");
+            AssertObject(shelf).IsNotNull();
+            float floorPlaneY = FighterStageConformance.ToPixels(FP64.Zero, FP64.Zero).Y;
+            float gapStart = FighterStageConformance.ToPixels(
+                FighterStageGeometry.Vesuvius.FloorSegments[0].EdgeX(1), FP64.Zero).X;
+            AssertThat(Mathf.Abs(shelf.OffsetLeft - gapStart) <= FighterStageConformance.EpsilonPixels)
+                .OverrideFailureMessage(
+                    $"the painted shelf starts at {shelf.OffsetLeft} px but the floor stops at {gapStart} px")
+                .IsTrue();
+            AssertThat(shelf.OffsetTop >= floorPlaneY).IsTrue();
+            AssertObject(root.GetNodeOrNull<ColorRect>("Geometry/Ground/LedgeCue")).IsNotNull();
         } finally {
             root.Free();
         }

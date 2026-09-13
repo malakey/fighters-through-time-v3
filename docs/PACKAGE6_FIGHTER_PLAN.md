@@ -295,18 +295,27 @@ Shared: `BottomBlastZone = −5`, `SpawnDistance = 4`, `Ceiling = 9`. Platforms 
 (`BackgroundColor`/`GroundColor`/`AccentColor`) already authored per era drive the placeholder
 palette.
 
-| StageID | Hazard ID | Walls | Platforms | HazardAnchorXs | OrbAnchors |
-|---|---|---|---|---|---|
-| `florence_workshop` (shipped) | 1 | ±9 | (−4, 2.4, 1.6), (4, 2.4, 1.6) | {−6, 0, 6} | (−4, 2.9), (0, 0.5), (4, 2.9) |
-| `orleans_vanguard` | 2 | ±9 | (−3.5, 2.0, 1.4), (3.5, 2.0, 1.4), (0, 4.0, 1.4) | {−8, 8} | (−3.5, 2.5), (3.5, 2.5), (0, 4.5) |
-| `chicago_exposition` | 3 | ±10 | (−6, 3.2, 1.5), (6, 3.2, 1.5) | {0} | (−6, 3.7), (6, 3.7), (0, 0.5) |
-| `paris_bastille` | 4 | ±9 | (−4, 2.6, 2.0), (4, 2.6, 2.0) | {−6, 0, 6} | (−4, 3.1), (4, 3.1), (0, 0.5) |
-| `vesuvius_caldera` | 5 | ±8 | (−4.5, 2.0, 1.1), (3.0, 3.5, 1.1) | {−6, −2, 2, 6} | (−4.5, 2.5), (3.0, 4.0), (0, 0.5) |
-| `nassau_flagship` | 6 | ±9 | (−4, 2.8, 1.8), (4, 2.8, 1.8) | {−5, 0, 5} | (−4, 3.3), (4, 3.3), (0, 0.5) |
-| `alexandria_chambers` | 7 | ±9 | (−4, 1.6, 1.3), (4, 1.6, 1.3) | {−6, 0, 6} | (−4, 2.1), (4, 2.1), (0, 0.5) |
-| `berlin_wall` | 8 | ±10 | (−6.5, 3.6, 1.3), (6.5, 3.6, 1.3) | {−4, 0, 4} | (−6.5, 4.1), (6.5, 4.1), (0, 0.5) |
-| `globe_theatre` | 9 | ±9 | (−5, 2.4, 1.4), (5, 2.4, 1.4), (0, 4.4, 1.2) | {−5, 0, 5} | (−5, 2.9), (5, 2.9), (0, 4.9) |
-| `gettysburg_ridge` | 10 | ±10 | (−4.5, 1.8, 1.2), (4.5, 1.8, 1.2) | {−5, 0, 5} | (−4.5, 2.3), (4.5, 2.3), (0, 0.5) |
+The **FloorSegments** column was added by Package 11 A9 (V7 "Floor Segments, Pits & Ledges",
+Option A — resolves audit H-11). An empty cell means **Sealed**: an unbroken floor from wall to
+wall, which is the pre-A9 behaviour and is authored in code as an empty `FloorSegments` array. A
+populated cell means **Open**: the listed spans are the only solid floor, everything between them is
+a pit that reaches the bottom blast zone, and every segment end that faces a pit is a true grabbable
+ledge. Per V7.6 ruling 2.D these three layouts are **provisional** — they were authored before any
+Fighter number had been tuned against a stage with a hole in it, and the balance pass that follows
+the pits may move them.
+
+| StageID | Hazard ID | Walls | Platforms | HazardAnchorXs | OrbAnchors | FloorSegments |
+|---|---|---|---|---|---|---|
+| `florence_workshop` (shipped) | 1 | ±9 | (−4, 2.4, 1.6), (4, 2.4, 1.6) | {−6, 0, 6} | (−4, 2.9), (0, 0.5), (4, 2.9) | Sealed |
+| `orleans_vanguard` | 2 | ±9 | (−3.5, 2.0, 1.4), (3.5, 2.0, 1.4), (0, 4.0, 1.4) | {−8, 8} | (−3.5, 2.5), (3.5, 2.5), (0, 4.5) | Sealed |
+| `chicago_exposition` | 3 | ±10 | (−6, 3.2, 1.5), (6, 3.2, 1.5) | {0} | (−6, 3.7), (6, 3.7), (0, 0.5) | Sealed |
+| `paris_bastille` **(Open)** | 4 | ±9 | (−4, 2.6, 2.0), (4, 2.6, 2.0) | {−6, 0, 6} | (−4, 3.1), (4, 3.1), (−7, 0.5), (7, 0.5) | [−9, −2.5], [2.5, 9] — pit −2.5…+2.5, ledges at −2.5 and +2.5, respawn (−4, 3) |
+| `vesuvius_caldera` **(Open)** | 5 | ±8 | (−4.5, 2.0, 1.1), (3.0, 3.5, 1.1) | {−6, −2, 2, **4.5**} | (−4.5, 2.5), (3.0, 4.0), (0, 0.5) | [−8, 5.5] — pit 5.5…8 against the right wall, one ledge at +5.5 |
+| `nassau_flagship` **(Open)** | 6 | ±9 | (−4, 2.8, 1.8), (4, 2.8, 1.8) | {−5, 0, 5} | (−4, 3.3), (4, 3.3), (0, 0.5) | [−9, 6] — pit 6…9 against the stern, one ledge at +6 |
+| `alexandria_chambers` | 7 | ±9 | (−4, 1.6, 1.3), (4, 1.6, 1.3) | {−6, 0, 6} | (−4, 2.1), (4, 2.1), (0, 0.5) | Sealed |
+| `berlin_wall` | 8 | ±10 | (−6.5, 3.6, 1.3), (6.5, 3.6, 1.3) | {−4, 0, 4} | (−6.5, 4.1), (6.5, 4.1), (0, 0.5) | Sealed |
+| `globe_theatre` | 9 | ±9 | (−5, 2.4, 1.4), (5, 2.4, 1.4), (0, 4.4, 1.2) | {−5, 0, 5} | (−5, 2.9), (5, 2.9), (0, 4.9) | Sealed |
+| `gettysburg_ridge` | 10 | ±10 | (−4.5, 1.8, 1.2), (4.5, 1.8, 1.2) | {−5, 0, 5} | (−4.5, 2.3), (4.5, 2.3), (0, 0.5) | Sealed |
 
 A1 may adjust any value by the minimum needed for integrator reachability or spawn safety, logging
 the delta in §9; Phase B scenes are authored against the *merged* values in code, not this table,
@@ -1681,3 +1690,54 @@ Recorded so the next package inherits an honest boundary rather than a checkbox.
    not been measured on any target machine, and the Steam Deck has never been touched. Package 9.
 9. **Florence's three budgeted Chronal Extractors** (`docs/DUST_ECONOMY.md` §6) remain unauthored —
    a Package 5 leftover this package did not pick up, since it is Story content.
+
+### Package 11 A9 — Three Open stages, floor segments and main-floor ledges (2026-09-13)
+
+**Paris, Vesuvius and Nassau are Open stages now: the main floor is authored as segments with real
+pits between them, the bottom blast zone is genuinely reachable on all three, and every segment end
+that faces a pit is a true grabbable ledge.** This closes audit H-11 — "the bottom-blast-zone pillar
+vs. the solid-floor stage dossiers" — which Package 6 recorded as open by design because every
+authored stage ran an unbroken floor and no fighter could ever fall out of the world.
+
+§4's dossier table gains a **FloorSegments** column. The seven Sealed stages keep an empty array,
+which the geometry treats as "supports every x", so their behaviour is bit-identical to before; only
+the three Open rows changed, plus two knock-on anchor moves the pits forced (Paris's centre orb
+anchor, which sat over the new hole, became the symmetric pair ∓7; Vesuvius's far-right rockfall
+anchor moved 6 → 4.5 so its 180-frame ground residue pool keeps a floor under it).
+
+**These numbers are provisional, per V7.6 ruling 2.D.** They were solved against the constraints that
+existed before any pit did — spawns at ∓4 on solid floor, walls stay solid, the gap survivable with
+the post-2026-08-10 double jump (≈4.21 units), the ledge capture box ±0.5 wide and 1.2 deep, the
+blast zone 5 units down — and they are deliberately the first thing to be re-tuned by the Fighter
+balance pass that 2.D sequences after the pits. Nothing here retunes knockback, DI, tech or ledge
+numbers; that was explicitly out of A9's scope.
+
+Implementation notes worth inheriting:
+
+* **The anchor encoding was extended, not replaced.** Floor ledges continue the platform run at
+  `(Platforms.Length + segmentIndex) * 2 + side`, so no snapshot field was added —
+  `FighterRuntimeComponent.LedgeAnchor` is already an `int` and the component is exactly full at 128
+  bytes. `TryFindLedge` and `TryGetHangPosition` share one `IsFloorLedge` predicate so a restored
+  snapshot can never resolve a hang the live tick would not have granted.
+* **A segment end that sits on a solid side wall is not a ledge.** Vesuvius's and Nassau's left ends
+  are their walls; a fighter can never get below the floor plane there, and refusing them keeps the
+  anchor space honest.
+* **The respawn platform anchor is per stage.** `FighterMatchFlowRules.RespawnPlatformPosition`
+  stays the shared default; `FighterStageGeometry.RespawnPlatformPosition` overrides it, and Paris
+  uses (−4, 3) because stage centre is now a hole. `ProcessRespawnPlatform` re-pins the position from
+  geometry on every tick the platform holds the fighter, which is what makes it authoritative even
+  for a stock loss raised by the static hit pipeline (that path has no geometry in hand and passes
+  the shared default for one frozen, invulnerable tick).
+* **Conformance now matches spans, not one slab.** `FighterStageConformance.ValidateGroundAndWalls`
+  collects every layer-64 body under `Geometry` that is not a wall and matches it against a
+  `FloorSegments` entry by centre and half-width. A Sealed stage synthesises the single wall-to-wall
+  segment, so the old contract is the same loop. `FighterStageConformanceNegativeTests` proves the
+  span match actually refuses a floor painted across a pit.
+* **Paris's decorative `CourtyardPit` was a lie and was re-authored, not reused.** The old ColorRect
+  spanned x −4…+4 — exactly both spawn points — over solid floor, 0.96 units deep. The real pit is
+  −2.5…+2.5 and opens downward past the blast zone, with edge cues on both true ledges.
+
+Recorded for later: `FighterCpuController` gained the floor-topology observation fields and the
+corrected DI comment only. The V7.4 deferral of pit-aware DI ("the authored stages run solid floors")
+has expired, but the policy change is **A9b's**, deliberately, so the pits land before any CPU or
+balance tuning moves with them.

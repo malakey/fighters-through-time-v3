@@ -205,7 +205,13 @@ namespace FTT.UI {
                 if (stage == null || !stage.IsPlayable || !unlocked.Contains(stage.StageID)) continue;
                 int itemID = _stageIDs.Count;
                 _stageIDs.Add(stage.StageID);
-                _stageSelect.AddItem(Tr(stage.DisplayNameKey), itemID);
+                // Same Open/Sealed badge the Fighter select shows: the Holodeck
+                // routes straight into a match, so it must not hide whether the
+                // floor has a pit in it.
+                _stageSelect.AddItem(
+                    $"{Tr(stage.DisplayNameKey)} - {Tr(FighterStageLayoutBadge.LabelKey(stage))}", itemID);
+                _stageSelect.SetItemTooltip(
+                    _stageSelect.ItemCount - 1, Tr(FighterStageLayoutBadge.TooltipKey(stage)));
             }
             _stageSelect.Disabled = _stageIDs.Count == 0;
             int preferred = _stageIDs.IndexOf(preferredID);

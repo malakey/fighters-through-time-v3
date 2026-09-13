@@ -21,10 +21,11 @@ namespace FTT.FighterSim {
     /// <para>
     /// Every optional block carries an explicit presence flag whose <c>0</c> default
     /// means "this concept does not exist here": <see cref="HasStageBounds"/>,
-    /// <see cref="HasOrb"/>, <see cref="HasHazard"/>. A Story adapter leaves all three
-    /// at zero, which is what keeps stage-relative behaviour (off-stage recovery,
-    /// hazard avoidance, orb pursuit) from firing inside a campaign level where the
-    /// floor is nowhere near <c>y = 0</c>. <see cref="SuppressGameplayInput"/> is
+    /// <see cref="HasOrb"/>, <see cref="HasHazard"/>, <see cref="HasFloorSegments"/>.
+    /// A Story adapter leaves them all at zero, which is what keeps stage-relative
+    /// behaviour (off-stage recovery, pit awareness, hazard avoidance, orb pursuit)
+    /// from firing inside a campaign level where the floor is nowhere near
+    /// <c>y = 0</c>. <see cref="SuppressGameplayInput"/> is
     /// likewise defaulted to "live" so a hand-built observation behaves normally.
     /// </para>
     /// </remarks>
@@ -82,6 +83,50 @@ namespace FTT.FighterSim {
         public long NearestPlatformCenterXRaw;
         public long NearestPlatformSurfaceYRaw;
         public long NearestPlatformHalfWidthRaw;
+
+        // === Main-floor topology (Package 11 A9; absent when HasFloorSegments == 0) ===
+        /// <summary>
+        /// Non-zero on an <b>Open</b> stage — one whose main floor is authored as
+        /// segments with real pits between them (Paris, Vesuvius, Nassau). Zero
+        /// means the floor is unbroken wall to wall, which covers every Sealed
+        /// stage, the legacy flat arena and every Story adapter. A consumer must
+        /// read zero as "there are no gaps to fall into": the design is explicit
+        /// that closed stages and ordinary supported traversal never trigger
+        /// emergency recovery.
+        /// </summary>
+        public int HasFloorSegments;
+        /// <summary>
+        /// Non-zero when solid main floor exists directly under the fighter's
+        /// current X. Always 1 on a stage with an unbroken floor, so "unsupported
+        /// over a gap" is <c>HasFloorSegments != 0 &amp;&amp;
+        /// HasFloorSupportUnderSelf == 0</c>.
+        /// </summary>
+        public int HasFloorSupportUnderSelf;
+        /// <summary>
+        /// Non-zero when the fighter's current trajectory — X plus the horizontal
+        /// distance covered while the current vertical velocity carries them back
+        /// down to the floor plane — ends over a gap rather than over floor. This
+        /// is the pit-risk signal DI and recovery planning read; zero whenever
+        /// <see cref="HasFloorSegments"/> is zero.
+        /// </summary>
+        public int LaunchTrajectoryCrossesGap;
+        /// <summary>
+        /// Presence flag for <see cref="NearestFloorEdgeLeftXRaw"/>: the nearest
+        /// main-floor segment end facing a pit to the fighter's LEFT.
+        /// </summary>
+        public int HasFloorEdgeLeft;
+        /// <summary>Raw <c>FP64</c> X of that edge. Meaningless when the flag is 0.</summary>
+        public long NearestFloorEdgeLeftXRaw;
+        /// <summary>The same pair, to the fighter's RIGHT.</summary>
+        public int HasFloorEdgeRight;
+        public long NearestFloorEdgeRightXRaw;
+        /// <summary>
+        /// Width of the gap the fighter is currently over, raw <c>FP64</c>; zero
+        /// when they are supported or the floor is unbroken. Derived from the two
+        /// bounding segment ends, so it is exact fixed-point geometry, not an
+        /// estimate.
+        /// </summary>
+        public long CurrentGapWidthRaw;
 
         // === Nearest live Chronal Orb (absent when HasOrb == 0) ===
         public int HasOrb;

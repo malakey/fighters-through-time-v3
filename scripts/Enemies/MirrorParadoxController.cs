@@ -402,12 +402,14 @@ namespace FTT.Enemies {
         /// <remarks>
         /// Story world units are pixels with <b>+Y down</b>, so every Y quantity is
         /// negated to match the Fighter simulation's +Y-up convention. The stage,
-        /// orb, and hazard blocks are left at their "absent" sentinels
-        /// (<c>HasStageBounds</c>/<c>HasOrb</c>/<c>HasHazard</c> all zero): a campaign
-        /// level has no blast zone, no Chronal Orbs, and no Fighter stage hazards, and
-        /// those flags are exactly what keep the shared table's off-stage recovery,
-        /// orb pursuit, and hazard evasion branches from firing here. Package 6 §2.5
-        /// requires both Observe paths to stay field-for-field aligned.
+        /// orb, hazard and floor-topology blocks are left at their "absent"
+        /// sentinels (<c>HasStageBounds</c>/<c>HasOrb</c>/<c>HasHazard</c>/
+        /// <c>HasFloorSegments</c> all zero): a campaign level has no blast zone,
+        /// no Chronal Orbs, no Fighter stage hazards and no authored floor
+        /// segments, and those flags are exactly what keep the shared table's
+        /// off-stage recovery, orb pursuit, hazard evasion and pit-awareness
+        /// branches from firing here. Package 6 §2.5 requires both Observe paths to
+        /// stay field-for-field aligned.
         /// </remarks>
         public CpuDecisionObservation Observe() {
             if (_self == null || !GodotObject.IsInstanceValid(_self)) return default;
@@ -445,8 +447,9 @@ namespace FTT.Enemies {
                 TargetInfluenceRaw = targetValid
                     ? FP64.FromFloat(Math.Max(0f, Target.CurrentUltimateMeter)).RawValue
                     : 0
-                // HasStageBounds / HasOrb / HasHazard / SuppressGameplayInput stay 0:
-                // Story has no Fighter stage, no orbs, no stage hazards, and the
+                // HasStageBounds / HasOrb / HasHazard / HasFloorSegments /
+                // SuppressGameplayInput stay 0: Story has no Fighter stage, no
+                // orbs, no stage hazards, no authored floor segments, and the
                 // encounter's own reveal gate owns whether the clone acts at all.
             };
             ProjectNearestHostileProjectile(ref observation);

@@ -220,6 +220,10 @@ public class FighterLedgeTests {
     public void TheLegacyFlatArenaHasNoPlatformsAndThereforeNoLedges() {
         FighterStageGeometry flat = FighterStageGeometry.Default;
         AssertThat(flat.Platforms.Length).IsEqual(0);
+        // Package 11 A9 added floor-segment ledges; the legacy arena authors no
+        // segments either, so the sweep below must still find nothing anywhere.
+        AssertThat(flat.FloorSegments.Length).IsEqual(0);
+        AssertThat(flat.IsOpenStage).IsFalse();
         for (int x = -10; x <= 10; x++) {
             for (int y = -5; y <= 9; y++) {
                 AssertThat(flat.TryFindLedge(
@@ -228,6 +232,174 @@ public class FighterLedgeTests {
             }
         }
         AssertThat(flat.TryGetHangPosition(0, out FPVector2 _)).IsFalse();
+    }
+
+    // === Package 11 A9: main-floor ledges on the three Open stages ===
+
+    /// <summary>
+    /// A floor-segment end that faces a pit is a true ledge. The anchor run
+    /// continues straight after the one-way platforms —
+    /// <c>(Platforms.Length + segmentIndex) * 2 + side</c> — which is what let the
+    /// whole feature land with no new snapshot field. A segment end sitting on a
+    /// solid side wall is deliberately NOT a ledge, and both lookups must agree
+    /// about that or a restored snapshot could resolve a hang the live tick would
+    /// never have granted.
+    /// </summary>
+    [TestCase]
+    public void FloorSegmentEndsAreTrueLedgesEncodedAfterThePlatforms() {
+        FighterStageGeometry paris = FighterStageGeometry.Paris;
+        AssertThat(paris.IsOpenStage).IsTrue();
+        AssertThat(paris.FloorSegments.Length).IsEqual(2);
+
+        int leftPitEdge = (paris.Platforms.Length + 0) * 2 + 1;
+        int rightPitEdge = (paris.Platforms.Length + 1) * 2 + 0;
+        AssertThat(leftPitEdge).IsEqual(5);
+        AssertThat(rightPitEdge).IsEqual(6);
+
+        FP64 justUnderTheFloor = FP64.FromDouble(-0.1);
+        AssertThat(paris.TryFindLedge(
+            new FPVector2(FP64.FromDouble(-2.5), justUnderTheFloor), out int anchor)).IsTrue();
+        AssertThat(anchor).IsEqual(leftPitEdge);
+        AssertThat(paris.TryFindLedge(
+            new FPVector2(FP64.FromDouble(2.5), justUnderTheFloor), out anchor)).IsTrue();
+        AssertThat(anchor).IsEqual(rightPitEdge);
+
+        // The hang sits a quarter unit out over the pit, one unit below the floor.
+        AssertThat(paris.TryGetHangPosition(leftPitEdge, out FPVector2 hang)).IsTrue();
+        AssertThat(hang.x.RawValue)
+            .IsEqual((FP64.FromDouble(-2.5) + FighterLedgeRules.HangOutwardOffset).RawValue);
+        AssertThat(hang.y.RawValue).IsEqual((FP64.Zero - FighterLedgeRules.HangDepth).RawValue);
+        AssertThat(paris.TryGetHangPosition(rightPitEdge, out FPVector2 mirrored)).IsTrue();
+        AssertThat(mirrored.x.RawValue)
+            .IsEqual((FP64.FromDouble(2.5) - FighterLedgeRules.HangOutwardOffset).RawValue);
+
+        // The middle of the pit is not a ledge, and neither is a wall-side end.
+        AssertThat(paris.TryFindLedge(new FPVector2(FP64.Zero, justUnderTheFloor), out int none)).IsFalse();
+        AssertThat(none).IsEqual(FighterLedgeRules.NoAnchor);
+        int wallSideEnd = (paris.Platforms.Length + 0) * 2 + 0;
+        AssertThat(paris.TryGetHangPosition(wallSideEnd, out FPVector2 _))
+            .OverrideFailureMessage("A segment end against a solid wall must not resolve as a hang.")
+            .IsFalse();
+        AssertThat(paris.TryFindLedge(
+            new FPVector2(paris.LeftWall, justUnderTheFloor), out int _)).IsFalse();
+
+        // A Sealed stage authors no floor ledges at all: the anchor run stops
+        // exactly where the platforms do.
+        FighterStageGeometry sealedStage = FighterStageGeometry.Florence;
+        AssertThat(sealedStage.IsOpenStage).IsFalse();
+        AssertThat(sealedStage.TryGetHangPosition(
+            sealedStage.Platforms.Length * 2, out FPVector2 _)).IsFalse();
+    }
+
+    /// <summary>
+    /// The wiring half, driven through a real simulation on Nassau's stern: walk
+    /// off the end of the deck, catch the main-floor ledge, then climb back up and
+    /// stand on the deck again. Nothing about the grab is special-cased for floor
+    /// ledges — this is the platform path, reached through the extended anchor run.
+    /// </summary>
+    [TestCase]
+    public void WalkingOffAFloorSegmentEndCatchesTheLedgeAndClimbsBack() {
+        FighterStageGeometry nassau = FighterStageGeometry.Nassau;
+        int sternAnchor = nassau.Platforms.Length * 2 + 1;
+        var simulation = new FighterSimulation(
+            seed: 4800, rules: FighterMatchRules.Disabled, stageGeometry: nassau);
+
+        AssertThat(SeekFloorLedge(simulation, nassau, playerID: 1, sternAnchor, maxTicks: 600))
+            .OverrideFailureMessage("Player two never caught Nassau's stern ledge.")
+            .IsTrue();
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent hanging)).IsTrue();
+        AssertThat(nassau.TryGetHangPosition(sternAnchor, out FPVector2 hang)).IsTrue();
+        AssertThat(hanging.Position.x.RawValue).IsEqual(hang.x.RawValue);
+        AssertThat(hanging.Position.y.RawValue).IsEqual(hang.y.RawValue);
+        AssertThat(hanging.IsGrounded).IsEqual(0);
+        AssertThat(hanging.Stocks).IsEqual(3);
+
+        // Climb: Jump leaves the hang, and holding inward puts them back on deck.
+        bool backOnDeck = false;
+        for (int offset = 0; offset < 180 && !backOnDeck; offset++) {
+            int tick = simulation.CurrentTick;
+            GameplayButtons held = offset == 0 ? GameplayButtons.Jump : GameplayButtons.None;
+            simulation.Advance(
+                new PlayerInputFrame { Tick = (uint)tick },
+                new PlayerInputFrame {
+                    Tick = (uint)tick, MoveX = -127, Held = held, Pressed = held
+                });
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent climbing)).IsTrue();
+            backOnDeck = climbing.IsGrounded != 0
+                && climbing.Position.y.RawValue == FP64.Zero.RawValue
+                && nassau.HasFloorSupport(climbing.Position.x);
+        }
+        AssertThat(backOnDeck)
+            .OverrideFailureMessage("The climb never put the fighter back on the deck.")
+            .IsTrue();
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent landed)).IsTrue();
+        AssertThat(landed.Stocks).IsEqual(3);
+    }
+
+    /// <summary>
+    /// V7.3's ledge trump compares anchors, and floor ledges now share that anchor
+    /// space — so a contested main-floor edge must resolve the same way a contested
+    /// platform end does: the earlier hanger is forced off with the standard
+    /// 30-frame regrab lockout, and the newcomer keeps it.
+    /// </summary>
+    [TestCase]
+    public void ASecondGrabberTrumpsTheHangerOnAFloorLedge() {
+        FighterStageGeometry nassau = FighterStageGeometry.Nassau;
+        int sternAnchor = nassau.Platforms.Length * 2 + 1;
+        var simulation = new FighterSimulation(
+            seed: 4850, rules: FighterMatchRules.Disabled, stageGeometry: nassau);
+
+        // Player two is nearest the stern and takes it first; player one then
+        // crosses the whole deck and contests the same edge.
+        AssertThat(SeekFloorLedge(simulation, nassau, playerID: 1, sternAnchor, maxTicks: 600)).IsTrue();
+        AssertThat(SeekFloorLedge(simulation, nassau, playerID: 0, sternAnchor, maxTicks: 900)).IsTrue();
+
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent newcomer)).IsTrue();
+        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent trumped)).IsTrue();
+        AssertThat(newcomer.LedgeAnchor)
+            .OverrideFailureMessage("The newcomer must keep the contested floor ledge.")
+            .IsEqual(sternAnchor);
+        AssertThat(FighterLedgeRules.IsHanging(in trumped))
+            .OverrideFailureMessage("The earlier hanger must be forced off a contested floor ledge too.")
+            .IsFalse();
+        AssertThat(trumped.LedgeRegrabLockoutFrames)
+            .IsEqual(FighterLedgeRules.RegrabLockoutFrames);
+    }
+
+    /// <summary>
+    /// The V7.3 per-airtime regrab budget is a fighter-state rule, not a platform
+    /// rule, so it applies unchanged at a main-floor ledge: three grabs per
+    /// airtime, and the fourth is refused until grounding resets it.
+    /// </summary>
+    [TestCase]
+    public void TheRegrabBudgetAppliesOnAFloorLedge() {
+        FighterStageGeometry nassau = FighterStageGeometry.Nassau;
+        int sternAnchor = nassau.Platforms.Length * 2 + 1;
+        AssertThat(nassau.TryGetHangPosition(sternAnchor, out FPVector2 hang)).IsTrue();
+
+        FighterTuningComponent tuning = Tuning();
+        FighterStateComponent fighter = AirborneAt(hang.x, FP64.FromDouble(-0.5));
+        fighter.Velocity.y = FP64.FromInt(-8);
+        FighterRuntimeComponent runtime = FreshRuntime();
+        FighterVerbComponent verb = new();
+
+        for (int grab = 1; grab <= FTT.Combat.BasicComboRules.LedgeRegrabsPerAirtime; grab++) {
+            AssertThat(FighterLedgeRules.CanGrab(in fighter, in runtime, in verb))
+                .OverrideFailureMessage($"Floor-ledge grab {grab} of the airtime budget must be allowed.")
+                .IsTrue();
+            AssertThat(nassau.TryFindLedge(in fighter.Position, out int anchor)).IsTrue();
+            AssertThat(anchor).IsEqual(sternAnchor);
+            FighterLedgeRules.Grab(ref fighter, ref runtime, ref verb, in tuning, anchor, in hang);
+            AssertThat(verb.LedgeGrabsThisAirtime).IsEqual(grab);
+            FighterLedgeRules.Release(ref fighter, ref runtime);
+            runtime.LedgeRegrabLockoutFrames = 0;
+            fighter.Position = new FPVector2(hang.x, FP64.FromDouble(-0.5));
+            fighter.Velocity.y = FP64.FromInt(-8);
+        }
+
+        AssertThat(FighterLedgeRules.CanGrab(in fighter, in runtime, in verb))
+            .OverrideFailureMessage("The fourth floor-ledge grab in one airtime must be refused.")
+            .IsFalse();
     }
 
     // === Wiring: a real simulation on authored geometry ===
@@ -575,6 +747,40 @@ public class FighterLedgeTests {
             int tick = simulation.CurrentTick;
             PlayerInputFrame seeking = SeekInput(tick, in fighter, in platform, side);
             PlayerInputFrame neutral = new() { Tick = (uint)tick };
+            simulation.Advance(
+                playerID == 0 ? seeking : neutral,
+                playerID == 0 ? neutral : seeking);
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Walks <paramref name="playerID"/> along the main floor toward the authored
+    /// floor-segment end named by <paramref name="anchor"/> and off it, until they
+    /// hang there. The other fighter is left neutral so a hang it already holds is
+    /// only disturbed by the trump rule, never by input.
+    /// </summary>
+    private static bool SeekFloorLedge(
+        FighterSimulation simulation,
+        FighterStageGeometry geometry,
+        int playerID,
+        int anchor,
+        int maxTicks) {
+        int segmentIndex = anchor / 2 - geometry.Platforms.Length;
+        int side = anchor % 2;
+        FP64 edge = geometry.FloorSegments[segmentIndex].EdgeX(side);
+        for (int step = 0; step < maxTicks; step++) {
+            if (!simulation.TryGetFighter(playerID, out FighterStateComponent fighter)
+                || !simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime)) return false;
+            if (runtime.LedgeAnchor == anchor) return true;
+            if (fighter.Stocks < 3) return false;
+
+            int tick = simulation.CurrentTick;
+            var seeking = new PlayerInputFrame {
+                Tick = (uint)tick,
+                MoveX = fighter.Position.x < edge ? (sbyte)127 : (sbyte)-127
+            };
+            var neutral = new PlayerInputFrame { Tick = (uint)tick };
             simulation.Advance(
                 playerID == 0 ? seeking : neutral,
                 playerID == 0 ? neutral : seeking);
