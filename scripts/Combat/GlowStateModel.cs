@@ -4,13 +4,28 @@ using Godot;
 namespace FTT.Combat {
 
     /// <summary>
-    /// Priority layers for the outline/glow arbiter, ordered lowest to highest.
-    /// design-godot.md "Priority &amp; Overwrite": hyper-armor / spawn invincibility
-    /// override status effects, and status effects override the player slot
-    /// indicator. When a higher layer clears, the next active layer takes over.
+    /// Priority layers for the <b>secondary effect</b> outline/glow arbiter,
+    /// ordered lowest to highest. design-godot.md "Priority &amp; Overwrite":
+    /// hyper-armor / spawn invincibility override status effects. When a higher
+    /// layer clears, the next active layer takes over.
+    ///
+    /// <para>Package 11 A8 / F24: the Fighter player-slot edge is no longer one of
+    /// these layers — see <see cref="SlotIndicator"/>.</para>
     /// </summary>
     public enum GlowLayer {
-        /// <summary>Fighter-mode player slot ownership tint; lowest priority.</summary>
+        /// <summary>
+        /// <b>Retired by Package 11 A8 (F24 Option A).</b> The Fighter player-slot
+        /// edge used to be the lowest arbitrated layer, so any status, armor or
+        /// spawn source outranked and replaced it — precisely what F24 forbids
+        /// ("damage, statuses, armor, invulnerability, ability decoys and an effect
+        /// expiring cannot recolor, pulse, disable or replace it"). It is now an
+        /// independent persistent shader channel owned by
+        /// <c>GlowPresentationController.SetSlotIndicator</c>.
+        ///
+        /// <para>The member stays so the ordinals below do not shift and so a stale
+        /// push degrades to an invisible low-priority state rather than failing to
+        /// compile. Nothing in the repository pushes it.</para>
+        /// </summary>
         SlotIndicator = 0,
         /// <summary>Active status effect.</summary>
         Status = 1,
@@ -145,6 +160,12 @@ namespace FTT.Combat {
         public static GlowState SpawnInvulnerability() =>
             new(GlowLayer.SpawnInvulnerability, SpawnInvulnerabilityColor, 2.5f, 1.8f, 2f);
 
+        /// <summary>
+        /// F24's ownership edge: the slot colour at the 1 px reference thickness,
+        /// static intensity, no pulse. Returned as a <see cref="GlowState"/> for
+        /// convenience, but it is <b>not</b> pushed onto the effect stack — the
+        /// arbiter writes it to the independent owner channel.
+        /// </summary>
         public static GlowState SlotIndicator(int playerIndex) =>
             new(GlowLayer.SlotIndicator, SlotColor(playerIndex), 1f, 1f, 0f);
 

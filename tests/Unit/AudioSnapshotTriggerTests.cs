@@ -124,19 +124,21 @@ public class AudioSnapshotTriggerTests {
     }
 
     /// <summary>
-    /// The new triggers must layer with the pre-existing Rewind duck exactly as
-    /// the mixer's stacking contract promises: offsets sum, and releasing the
-    /// rewind falls back to the low-health duck rather than to transparent.
+    /// Package 11 A8 / C01b: the triggers still coexist as REQUESTS, but only the
+    /// winner is applied. Rewind outranks LowHealth, so the duck is the rewind's
+    /// alone — not the sum — and releasing it falls back to low health rather
+    /// than to Normal.
     /// </summary>
     [TestCase]
-    public void LowHealthLayersUnderAndSurvivesTheRewindDuck() {
+    public void LowHealthIsSuppressedByTheRewindDuckAndReturnsWhenItEnds() {
         RunWithCleanSnapshots(audio => {
             audio.SetLowHealth(true);
             audio.ApplySnapshot(AudioSnapshot.Rewind, -12f);
             AssertThat(audio.Snapshots.ActiveSnapshotCount).IsEqual(2);
-            // LowHealth music offset is -2; stacked with the -12 rewind duck.
+            AssertThat(audio.Snapshots.SelectedSnapshot).IsEqual(AudioSnapshot.Rewind);
+            // -12, not -14: nothing sums.
             AssertThat(audio.Snapshots.GetTargetOffsetDb(AudioBuses.Music))
-                .IsEqualApprox(-14f, 0.001f);
+                .IsEqualApprox(-12f, 0.001f);
 
             audio.ReleaseSnapshot(AudioSnapshot.Rewind);
             AssertThat(audio.IsSnapshotActive(AudioSnapshot.LowHealth)).IsTrue();

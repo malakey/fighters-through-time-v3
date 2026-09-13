@@ -34,6 +34,14 @@ namespace FTT.Combat {
         public const string GlowIntensityUniform = "glow_intensity";
         public const string PulseSpeedUniform = "pulse_speed";
 
+        // --- F24 ownership edge (Package 11 A8) -----------------------------
+        public const string OwnerOutlineColorUniform = "owner_outline_color";
+        public const string OwnerOutlineThicknessUniform = "owner_outline_thickness";
+        public const string OwnerOutlineEnabledUniform = "owner_outline_enabled";
+
+        /// <summary>HUD_CONTRACT's one-pixel reference thickness for the ownership edge.</summary>
+        public const float OwnerOutlineThickness = 1f;
+
         /// <summary>Player slot this arbiter listens for on the EventBus; -1 disables filtering.</summary>
         [Export] public int OwnerPlayerIndex = -1;
         /// <summary>Story players subscribe to the bus; Fighter presentation bodies are driven by the driver.</summary>
@@ -55,6 +63,14 @@ namespace FTT.Combat {
         private GlowState _resolved;
         private FTT.Core.StatusType _activeStatus = FTT.Core.StatusType.None;
 
+        // --- F24 ownership channel ------------------------------------------
+        // Deliberately NOT part of _stack. It is set once from match slot
+        // identity, re-applied on spawn and rollback, and never popped; no effect
+        // source can read or write it.
+        private bool _ownerOutlineEnabled;
+        private Color _ownerOutlineColor = new(0f, 0f, 0f, 0f);
+        private int _ownerSlot = -1;
+
         /// <summary>The sprite (or other CanvasItem) this arbiter owns.</summary>
         public CanvasItem Target => _target;
         public bool HasMaterial => _material != null;
@@ -66,6 +82,19 @@ namespace FTT.Combat {
         public Color EffectiveTint => _tintOverrideActive ? _tintOverride : _baseTint;
         public bool IsGlowing => _resolvedVisible;
         public GlowState ResolvedState => _resolved;
+
+        /// <summary>
+        /// F24: true while this actor carries a player-slot ownership edge. Set
+        /// from match identity; no status, armor, spawn-protection or expiry path
+        /// can clear it.
+        /// </summary>
+        public bool HasOwnershipOutline => _ownerOutlineEnabled;
+
+        /// <summary>The ownership edge's colour; transparent when it is not set.</summary>
+        public Color OwnershipOutlineColor => _ownerOutlineColor;
+
+        /// <summary>The slot this actor's ownership edge represents, or -1.</summary>
+        public int OwnershipSlot => _ownerSlot;
 
         public bool IsLayerActive(GlowLayer layer) => _stack.IsActive(layer);
 
@@ -209,7 +238,41 @@ namespace FTT.Combat {
             else ClearState(GlowLayer.SpawnInvulnerability);
         }
 
-        public void SetSlotIndicator(int playerIndex) => PushState(GlowPalette.SlotIndicator(playerIndex));
+        /// <summary>
+        /// F24 Option A (Package 11 A8): binds this actor's <b>ownership edge</b>.
+        ///
+        /// <para>Until Package 11 this pushed the slot colour onto the arbitrated
+        /// effect stack as its lowest layer, so the first status, armor shell or
+        /// spawn aura outranked it and the player simply lost track of which
+        /// fighter was theirs. HUD_CONTRACT makes that a bug: the edge "is a
+        /// separate persistent layer… damage, statuses, armor, invulnerability,
+        /// ability decoys and an effect expiring cannot recolor, pulse, disable or
+        /// replace it." So it now writes its own shader channel, composited after
+        /// the effect edge, and nothing but a re-bind or
+        /// <see cref="ClearSlotIndicator"/> touches it.</para>
+        ///
+        /// <para>Idempotent, which is what makes it safe to re-assert on spawn and
+        /// after a rollback re-sync: those paths restore ownership from match
+        /// identity, independently of whatever the effect stack is doing.</para>
+        /// </summary>
+        public void SetSlotIndicator(int playerIndex) {
+            _ownerSlot = playerIndex;
+            _ownerOutlineColor = GlowPalette.SlotColor(playerIndex);
+            _ownerOutlineEnabled = playerIndex >= 0;
+            PushOwnershipToMaterial();
+        }
+
+        /// <summary>
+        /// Drops the ownership edge. Story entities never have one, and a Fighter
+        /// proxy released back to a pool must not keep another slot's colour.
+        /// Reachable only from ownership code — never from an effect expiry.
+        /// </summary>
+        public void ClearSlotIndicator() {
+            _ownerSlot = -1;
+            _ownerOutlineColor = new Color(0f, 0f, 0f, 0f);
+            _ownerOutlineEnabled = false;
+            PushOwnershipToMaterial();
+        }
 
         // === Internals ===
 
@@ -228,6 +291,9 @@ namespace FTT.Combat {
             _material.SetShaderParameter(GlowIntensityUniform, 1f);
             _material.SetShaderParameter(PulseSpeedUniform, 0f);
             _target.Material = _material;
+            // A material built after SetSlotIndicator ran (pooled proxies rebind
+            // their sprite) would otherwise come up with no ownership edge.
+            PushOwnershipToMaterial();
         }
 
         private void EnsureLight() {
@@ -256,12 +322,32 @@ namespace FTT.Combat {
             PushToMaterial(_resolvedVisible ? _resolved.OutlineColor : new Color(0f, 0f, 0f, 0f));
         }
 
+        /// <summary>
+        /// Writes the ownership channel. Separate from
+        /// <see cref="PushToMaterial"/> on purpose: the effect path must never be
+        /// able to reach these three uniforms, and this path must never be able to
+        /// reach the effect's four.
+        /// </summary>
+        private void PushOwnershipToMaterial() {
+            if (_material == null) return;
+            _material.SetShaderParameter(OwnerOutlineColorUniform, _ownerOutlineColor);
+            _material.SetShaderParameter(OwnerOutlineThicknessUniform, OwnerOutlineThickness);
+            _material.SetShaderParameter(OwnerOutlineEnabledUniform, _ownerOutlineEnabled);
+        }
+
         private void PushToMaterial(Color outlineColor) {
             if (_material != null) {
                 _material.SetShaderParameter(OutlineColorUniform, outlineColor);
                 _material.SetShaderParameter(OutlineThicknessUniform, _resolvedVisible ? _resolved.Thickness : 0f);
                 _material.SetShaderParameter(GlowIntensityUniform, _resolvedVisible ? _resolved.Intensity : 1f);
-                _material.SetShaderParameter(PulseSpeedUniform, _resolvedVisible ? _resolved.PulseSpeed : 0f);
+                // C01a: while Reduced Temporal Effects is on, armor/status/spawn
+                // feedback is a steady glow with a smooth expiry fade rather than
+                // repeated flashing, so every authored pulse collapses to 0. The
+                // colour, thickness and intensity are untouched — the cue stays
+                // exactly as identifiable, it simply stops throbbing.
+                _material.SetShaderParameter(
+                    PulseSpeedUniform,
+                    _resolvedVisible ? FTT.Core.ComfortSettings.ResolvePulseSpeed(_resolved.PulseSpeed) : 0f);
             }
             if (_light == null) return;
             _light.Enabled = _resolvedVisible;
@@ -270,15 +356,28 @@ namespace FTT.Combat {
             _light.Color = outlineColor.A > 0f ? new Color(outlineColor.R, outlineColor.G, outlineColor.B) : Colors.White;
         }
 
+        private bool _appliedReducedEffects;
+
         public override void _Process(double delta) {
             float dt = (float)delta;
             if (_flashSecondsRemaining > 0f) {
                 _flashSecondsRemaining -= dt;
                 if (_flashSecondsRemaining <= 0f) ClearTintOverride();
             }
-            // Venom is authored as a gradient: lerp between its two colours.
+            // C01a applies live. Polled rather than event-driven for the same
+            // reason HudOpacity is: the preset can move from a pause menu opened
+            // over this very scene, and a stale pulse would keep throbbing until
+            // the next glow change.
+            if (_appliedReducedEffects != FTT.Core.ComfortSettings.ReducedTemporalEffects) {
+                _appliedReducedEffects = FTT.Core.ComfortSettings.ReducedTemporalEffects;
+                ApplyResolvedState();
+            }
+            // Venom is authored as a gradient: lerp between its two colours. That
+            // lerp is decorative pulsing, so C01a freezes it at the authored base
+            // colour rather than animating.
             if (_resolvedVisible && _resolved.Layer == GlowLayer.Status
-                && _activeStatus == FTT.Core.StatusType.Venom && _material != null) {
+                && _activeStatus == FTT.Core.StatusType.Venom && _material != null
+                && FTT.Core.ComfortSettings.ScreenTintPulseAllowed) {
                 _venomPhase += dt * 0.6f;
                 float weight = 0.5f + 0.5f * Mathf.Sin(_venomPhase * Mathf.Tau);
                 Color blended = GlowPalette.VenomColor.Lerp(GlowPalette.VenomSecondaryColor, weight);

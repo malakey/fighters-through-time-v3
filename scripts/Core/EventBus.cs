@@ -276,6 +276,109 @@ namespace FTT.Core {
         Results
     }
 
+    // =====================================================================
+    // Package 11 §2.9 — HUD decoupling payloads.
+    //
+    // The plan fixes these names and field names so the publishing workstream
+    // and the HUD workstream (A8) can be written in parallel without seeing
+    // each other's code. A8 CONSUMES all of them; the publishers land in
+    // separate Wave 1/2 branches.
+    //
+    // ORCHESTRATOR: A8 declared these so its own worktree compiles. If a
+    // publishing workstream declared the same type, keep exactly ONE copy at
+    // merge — this block is a union candidate, not an independent addition.
+    // Field names and semantics are taken verbatim from plan §2.9.
+    // =====================================================================
+
+    /// <summary>Level-end Integrity band. Mirrors <c>TimelineIntegrityRules.Tier</c>'s 0/1/2.</summary>
+    public enum IntegrityTier {
+        Restored = 0,
+        Stabilized = 1,
+        Fractured = 2
+    }
+
+    /// <summary>F03 Time Freeze verb state. Story only; no Fighter equivalent exists.</summary>
+    public enum TimeFreezeState {
+        Ready,
+        Active,
+        Cooldown
+    }
+
+    /// <summary>
+    /// V7.5 Legacy Unlock Schedule slot state. <c>Dormant</c> is "not yet
+    /// restored"; <c>Suppressed</c> is the Story-only status lock; <c>Clear</c> is
+    /// usable. A locked slot is always SHOWN — never hidden.
+    /// </summary>
+    public enum AbilitySlotLockState {
+        Clear,
+        Dormant,
+        Suppressed
+    }
+
+    /// <summary>
+    /// F13 Defy History seal. <c>Building</c> is unused with a meter below 100;
+    /// <c>Ready</c> is unused at a full meter; <c>Spent</c> survives any later
+    /// refill; <c>Barred</c> is a mode/life disable that does not clear Spent.
+    /// </summary>
+    public enum DefySealState {
+        Building,
+        Ready,
+        Spent,
+        Barred
+    }
+
+    /// <summary>F01: Timeline Integrity as the level timer.</summary>
+    public struct IntegrityPayload {
+        public float Percent;
+        public IntegrityTier Tier;
+        /// <summary>Living, engaged Extractors currently siphoning — the clock's siphon streams.</summary>
+        public int LivingExtractors;
+        public float DrainPerSecond;
+        /// <summary>True while the gauge is locked (the PreBoss freeze, or a rewind/scrub pause).</summary>
+        public bool Frozen;
+    }
+
+    /// <summary>V7.6 Collapse Tremor level: 0 off, 1 below 20%, 2 below 10%.</summary>
+    public struct TremorPayload {
+        public int Level;
+    }
+
+    public struct TimeFreezePayload {
+        public TimeFreezeState State;
+        /// <summary>Seconds left on the active freeze or on the cooldown; 0 when Ready.</summary>
+        public float SecondsRemaining;
+    }
+
+    public struct AbilitySlotLockPayload {
+        public AbilitySlot Slot;
+        public AbilitySlotLockState State;
+    }
+
+    /// <summary>Act III Warden Beacon anchor charges. Zero outside Act III.</summary>
+    public struct AnchorChargesPayload {
+        public int Charges;
+        public int Max;
+    }
+
+    public struct DefySealPayload {
+        public int PlayerIndex;
+        public DefySealState State;
+    }
+
+    /// <summary>
+    /// Rally echo pool for the HUD's HP-bar band. No event existed before
+    /// Package 11 — the band was polled from <c>PlayerController.EchoPool</c> /
+    /// <c>verb.EchoPool</c> every frame — so this is an addition, not an
+    /// extension (plan §2.9 asked A8 to check and say which).
+    /// </summary>
+    public struct RallyEchoPayload {
+        public int PlayerIndex;
+        /// <summary>Pool as a fraction of maximum HP, 0-1.</summary>
+        public float PoolFraction;
+        /// <summary>True on the frame a direct hit reclaimed part of the pool.</summary>
+        public bool ReclaimFlash;
+    }
+
     public partial class EventBus : Node {
         public static EventBus Instance { get; private set; }
 
@@ -440,6 +543,38 @@ namespace FTT.Core {
 
         public event Action<BossDefeatedPayload> OnBossDefeated;
         public void RaiseBossDefeated(BossDefeatedPayload payload) => OnBossDefeated?.Invoke(payload);
+
+        // === Package 11 §2.9 — HUD decoupling events ===
+        // See the payload block above for the orchestrator de-duplication note.
+        // A8 subscribes to every one of these; the publishers land separately.
+
+        public event Action<IntegrityPayload> OnTimelineIntegrityChanged;
+        public void RaiseTimelineIntegrityChanged(IntegrityPayload payload) =>
+            OnTimelineIntegrityChanged?.Invoke(payload);
+
+        public event Action<TremorPayload> OnCollapseTremorChanged;
+        public void RaiseCollapseTremorChanged(TremorPayload payload) =>
+            OnCollapseTremorChanged?.Invoke(payload);
+
+        public event Action<TimeFreezePayload> OnTimeFreezeStateChanged;
+        public void RaiseTimeFreezeStateChanged(TimeFreezePayload payload) =>
+            OnTimeFreezeStateChanged?.Invoke(payload);
+
+        public event Action<AbilitySlotLockPayload> OnAbilitySlotLockChanged;
+        public void RaiseAbilitySlotLockChanged(AbilitySlotLockPayload payload) =>
+            OnAbilitySlotLockChanged?.Invoke(payload);
+
+        public event Action<AnchorChargesPayload> OnAnchorChargesChanged;
+        public void RaiseAnchorChargesChanged(AnchorChargesPayload payload) =>
+            OnAnchorChargesChanged?.Invoke(payload);
+
+        public event Action<DefySealPayload> OnDefySealChanged;
+        public void RaiseDefySealChanged(DefySealPayload payload) =>
+            OnDefySealChanged?.Invoke(payload);
+
+        public event Action<RallyEchoPayload> OnRallyEchoChanged;
+        public void RaiseRallyEchoChanged(RallyEchoPayload payload) =>
+            OnRallyEchoChanged?.Invoke(payload);
 
         // === Match Reset ===
         public event Action OnMatchReset;

@@ -87,15 +87,21 @@ public class UnusedTranslationKeyTests {
         "boss_defeated",
         // V7.3 LAN de-scope (2026-08-26): the main menu's code-built LanButton
         // was removed; the key stays for the Package 7 netcode entry point.
-        "menu_lan_match"
+        "menu_lan_match",
+        // Package 11 A8 / F03: the Story HUD rewrite dropped the V7.3 manual-rewind
+        // cooldown pip, which was this key's only consumer. The ROW itself is A2's
+        // to delete (plan section 2.11 owned-deletes), so it is recorded here for
+        // the one wave in which the consumer is gone and the row is not.
+        "hud_rewind_cooldown"
     };
 
     /// <summary>The cap stated in the Package 8 closeout, lowered as orphans are
     /// retired (12 → 10 with the audit M-2 pause pass; 10 → 11 with the V7.3 LAN
-    /// de-scope, which orphaned <c>menu_lan_match</c> until Package 7). Informational
-    /// alongside the roster rule above: if both ever disagree, the roster is the
-    /// authority.</summary>
-    private const int RecordedOrphanCeiling = 11;
+    /// de-scope, which orphaned <c>menu_lan_match</c> until Package 7; 11 → 12 with
+    /// Package 11 A8, whose Story HUD rewrite orphaned <c>hud_rewind_cooldown</c>
+    /// until A2 deletes the row it owns). Informational alongside the roster rule
+    /// above: if both ever disagree, the roster is the authority.</summary>
+    private const int RecordedOrphanCeiling = 12;
 
     [TestCase]
     public void NoTranslationKeyGoesUnusedBeyondTheRecordedOrphans() {

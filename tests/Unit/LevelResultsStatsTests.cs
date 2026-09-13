@@ -124,6 +124,67 @@ public class LevelResultsStatsTests {
         }
     }
 
+    /// <summary>
+    /// Package 11 A8 / F05: six categories, not three. Losses are shown on their
+    /// own line and subtracted, and the Integrity tier bonus is added — a total
+    /// that silently did not add up was the thing to avoid.
+    /// </summary>
+    [TestCase]
+    public void TheSixCategoryItemisationAddsTheTierBonusAndSubtractsLosses() {
+        Node host = CreateHost("LevelResultsF05Host");
+        try {
+            LevelResultsPanel panel = AddPanel(host);
+            panel.ShowResults("orleans_level_title", 15, 30, 25, 10, 12, 8, 120f, 1);
+
+            var total = panel.GetNodeOrNull<Label>("Shade/Panel/Layout/DustEarned");
+            var optional = panel.GetNodeOrNull<Label>("Shade/Panel/Layout/DustOptional");
+            var losses = panel.GetNodeOrNull<Label>("Shade/Panel/Layout/DustLosses");
+            var tierBonus = panel.GetNodeOrNull<Label>("Shade/Panel/Layout/DustTierBonus");
+            AssertObject(optional).IsNotNull();
+            AssertObject(losses).IsNotNull();
+            AssertObject(tierBonus).IsNotNull();
+
+            // 15 + 30 + 25 + 10 + 8 - 12 = 76.
+            AssertThat(total.Text.Contains("76")).IsTrue();
+            AssertThat(optional.Visible).IsTrue();
+            AssertThat(optional.Text.Contains("10")).IsTrue();
+            AssertThat(losses.Visible).IsTrue();
+            AssertThat(losses.Text.Contains("12")).IsTrue();
+            AssertThat(tierBonus.Visible).IsTrue();
+            AssertThat(tierBonus.Text.Contains("8")).IsTrue();
+
+            // The legacy forms hide the three new lines too.
+            panel.ShowResults("orleans_level_title", 240, 187f, 3);
+            AssertThat(optional.Visible).IsFalse();
+            AssertThat(losses.Visible).IsFalse();
+            AssertThat(tierBonus.Visible).IsFalse();
+        } finally {
+            host.Free();
+        }
+    }
+
+    /// <summary>
+    /// Ruling 2.A: the Chronal Rating is retired. The panel must not build the
+    /// line at all — a hidden-but-present RatingLine would be a standing
+    /// invitation to start writing it again — and its key is gone from en.csv.
+    /// </summary>
+    [TestCase]
+    public void TheRetiredChronalRatingLineIsGone() {
+        Node host = CreateHost("LevelResultsNoRatingHost");
+        try {
+            LevelResultsPanel panel = AddPanel(host);
+            panel.ShowResults("orleans_level_title", 40, 90f, 0);
+            AssertObject(panel.GetNodeOrNull<Label>("Shade/Panel/Layout/RatingLine")).IsNull();
+
+            TranslationServer.SetLocale("en");
+            AssertThat(TranslationServer.Translate("results_rating").ToString())
+                .OverrideFailureMessage("results_rating must no longer resolve: A8 owns its deletion.")
+                .IsEqual("results_rating");
+        } finally {
+            host.Free();
+        }
+    }
+
     [TestCase]
     public void ANegativeRewindCountIsFlooredRatherThanShown() {
         Node host = CreateHost("LevelResultsNegativeHost");

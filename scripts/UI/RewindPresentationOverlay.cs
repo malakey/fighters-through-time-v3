@@ -141,9 +141,15 @@ namespace FTT.UI {
                 || payload.Phase == FTT.Core.RewindPresentationPhase.Playback
                 || payload.Phase == FTT.Core.RewindPresentationPhase.TimelineCollapse;
             bool collapse = payload.Phase == FTT.Core.RewindPresentationPhase.TimelineCollapse;
-            Visible = active && (payload.ScreenTintEnabled || payload.ScanlinesEnabled);
+            // C01a (Package 11 A8): the preset takes precedence over what the
+            // authored payload asks for. High-frequency scanlines and decorative
+            // ghost trails are suppressed outright; the flat screen tint stays,
+            // because it is the stable cue identifying the time state and the
+            // reduced treatment explicitly preserves that.
+            bool scanlines = payload.ScanlinesEnabled && FTT.Core.ComfortSettings.DistortionAllowed;
+            Visible = active && (payload.ScreenTintEnabled || scanlines);
             if (_tint != null) _tint.Visible = payload.ScreenTintEnabled && active;
-            if (_scanlines != null) _scanlines.Visible = payload.ScanlinesEnabled && active && !collapse;
+            if (_scanlines != null) _scanlines.Visible = scanlines && active && !collapse;
             // V7.3 collapse beat: the fracture treatment replaces the rewind
             // scanline read; the skip prompt shows only once the beat has
             // been seen (the first viewing is unskippable).
@@ -152,7 +158,11 @@ namespace FTT.UI {
             SetMusicDuck(active ? payload.MusicDuckDecibels : 0f);
 
             bool playSweep = _cues.Apply(payload);
-            ApplyGhostTrail(_cues.GhostTrailActive);
+            // C01a: "Remove trailing copies of actors and props." The trail is
+            // decorative after-imagery, not a readability cue, so it goes — and
+            // passing false here also CLEARS copies already emitted, which is the
+            // half the contract calls out about enabling the preset mid-effect.
+            ApplyGhostTrail(_cues.GhostTrailActive && FTT.Core.ComfortSettings.GhostTrailsAllowed);
             if (playSweep) PlayCue(SweepStream());
         }
 
@@ -161,7 +171,21 @@ namespace FTT.UI {
         /// <c>_PhysicsProcess</c> because it is presentation, and with
         /// <c>ProcessModeEnum.Always</c> because a rewind may pause the tree.
         /// </summary>
+        private bool _appliedReducedEffects;
+
         public override void _Process(double delta) {
+            // C01a applies live, including mid-rewind: enabling the preset must
+            // clear already-emitted after-images and stop the suppressed overlay
+            // now, not at the next event. Polled rather than event-subscribed
+            // because a static event on a per-scene overlay is a leak waiting to
+            // happen, and this node already runs every frame.
+            if (_appliedReducedEffects != FTT.Core.ComfortSettings.ReducedTemporalEffects) {
+                _appliedReducedEffects = FTT.Core.ComfortSettings.ReducedTemporalEffects;
+                if (_appliedReducedEffects) {
+                    ApplyGhostTrail(false);
+                    if (_scanlines != null) _scanlines.Visible = false;
+                }
+            }
             int ticks = _cues.Advance((float)delta);
             if (ticks <= 0) return;
             // One cue per frame however far the clock slipped: a stall must not

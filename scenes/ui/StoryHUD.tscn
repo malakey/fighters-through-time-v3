@@ -1,13 +1,31 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
+
+; Package 11 A8 — rewritten to the HUD_CONTRACT (F24) hierarchy.
+;
+; SafeArea / TopLeft_Panel / TopRight_Panel replace the old
+; Root / {TopLeft, Portrait, Vitals} split, and the widgets StoryHUD.cs used to
+; build at runtime "so the authored scene stays untouched" (the Rally echo band,
+; the Integrity readout, the boss intro card) are authored nodes now. The fourth,
+; the V7.3 manual-rewind cooldown pip, is deleted rather than moved: F03 retires
+; the 12 s manual rewind it measured.
+;
+; The repo extras the contract does not enumerate — LevelTitle/Objective,
+; BossPanel, CheckpointToast — are kept as named siblings under SafeArea and
+; recorded as accepted deviations. They are shipped behaviour, not drift.
+;
+; Only genuinely DATA-DRIVEN counts are still built in code: the block-charge
+; pips (base capacity plus the Story-only Resonance bonus) and the Act III anchor
+; pips. Authoring a fixed number there would cap the HUD at today's defaults.
 
 [ext_resource type="Script" path="res://scripts/UI/StoryHUD.cs" id="1_script"]
 [ext_resource type="Script" path="res://scripts/UI/BossPhaseNotchOverlay.cs" id="2_notches"]
+[ext_resource type="Script" path="res://scripts/UI/RadialProgress.cs" id="3_radial"]
 
 [node name="StoryHUD" type="CanvasLayer"]
 layer = 10
 script = ExtResource("1_script")
 
-[node name="Root" type="Control" parent="."]
+[node name="SafeArea" type="Control" parent="."]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -16,167 +34,450 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="TopLeft" type="VBoxContainer" parent="Root"]
+[node name="TopLeft" type="VBoxContainer" parent="SafeArea"]
 layout_mode = 0
 offset_left = 20.0
 offset_top = 12.0
 offset_right = 620.0
 offset_bottom = 70.0
+mouse_filter = 2
 
-[node name="LevelTitle" type="Label" parent="Root/TopLeft"]
+[node name="LevelTitle" type="Label" parent="SafeArea/TopLeft"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
 theme_override_font_sizes/font_size = 16
 
-[node name="Objective" type="Label" parent="Root/TopLeft"]
+[node name="Objective" type="Label" parent="SafeArea/TopLeft"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.8, 0.2, 1)
 theme_override_font_sizes/font_size = 13
 
-[node name="Portrait" type="TextureRect" parent="Root"]
+[node name="TopLeft_Panel" type="HBoxContainer" parent="SafeArea"]
 layout_mode = 0
 offset_left = 20.0
 offset_top = 80.0
-offset_right = 84.0
-offset_bottom = 144.0
+offset_right = 620.0
+offset_bottom = 300.0
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="PlayerPortrait" type="TextureRect" parent="SafeArea/TopLeft_Panel"]
+custom_minimum_size = Vector2(64, 64)
+layout_mode = 2
+size_flags_vertical = 0
 mouse_filter = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Vitals" type="VBoxContainer" parent="Root"]
-layout_mode = 0
-offset_left = 92.0
-offset_top = 80.0
-offset_right = 372.0
-offset_bottom = 280.0
-
-[node name="HPBar" type="ProgressBar" parent="Root/Vitals"]
-custom_minimum_size = Vector2(280, 16)
+[node name="Vitals" type="VBoxContainer" parent="SafeArea/TopLeft_Panel"]
 layout_mode = 2
+mouse_filter = 2
+
+[node name="HealthBar_BG" type="ProgressBar" parent="SafeArea/TopLeft_Panel/Vitals"]
+custom_minimum_size = Vector2(200, 20)
+layout_mode = 2
+mouse_filter = 2
 max_value = 100.0
 value = 100.0
 show_percentage = false
 
-[node name="HPText" type="Label" parent="Root/Vitals"]
+[node name="RallyEcho_Band" type="ColorRect" parent="SafeArea/TopLeft_Panel/Vitals/HealthBar_BG"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(1, 0.92, 0.35, 0.55)
+
+[node name="HPText" type="Label" parent="SafeArea/TopLeft_Panel/Vitals"]
 layout_mode = 2
+mouse_filter = 2
 theme_override_font_sizes/font_size = 11
 
-[node name="BlockCharges" type="HBoxContainer" parent="Root/Vitals"]
+[node name="BlockCharges_Panel" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/Vitals"]
 custom_minimum_size = Vector2(0, 20)
 layout_mode = 2
+mouse_filter = 2
 theme_override_constants/separation = 4
 
-[node name="MeterBar" type="ProgressBar" parent="Root/Vitals"]
-modulate = Color(0.4, 0.8, 1, 1)
-custom_minimum_size = Vector2(280, 8)
+[node name="StatusEffects_Panel" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/Vitals"]
+custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
-max_value = 100.0
-show_percentage = false
+mouse_filter = 2
+theme_override_constants/separation = 6
 
-[node name="Abilities" type="HBoxContainer" parent="Root/Vitals"]
-custom_minimum_size = Vector2(280, 30)
+[node name="DamageStatus_Indicator" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/StatusEffects_Panel"]
+custom_minimum_size = Vector2(28, 28)
 layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="DamageStatus_DurationRadial" type="Control" parent="SafeArea/TopLeft_Panel/Vitals/StatusEffects_Panel/DamageStatus_Indicator"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
+
+[node name="ControlStatus_Indicator" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/StatusEffects_Panel"]
+custom_minimum_size = Vector2(28, 28)
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ControlStatus_DurationRadial" type="Control" parent="SafeArea/TopLeft_Panel/Vitals/StatusEffects_Panel/ControlStatus_Indicator"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
+
+[node name="MeterRow" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/Vitals"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="UltimateMeter_BG" type="Control" parent="SafeArea/TopLeft_Panel/Vitals/MeterRow"]
+custom_minimum_size = Vector2(40, 40)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="UltimateMeter_Fill" type="Control" parent="SafeArea/TopLeft_Panel/Vitals/MeterRow/UltimateMeter_BG"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
+
+[node name="UltimateMeter_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/MeterRow/UltimateMeter_BG"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="DefySeal" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/MeterRow"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="CooldownRow" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/Vitals"]
+layout_mode = 2
+mouse_filter = 2
 theme_override_constants/separation = 8
 
-[node name="Special1" type="VBoxContainer" parent="Root/Vitals/Abilities"]
-custom_minimum_size = Vector2(62, 0)
+[node name="Cooldown1_Icon" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/CooldownRow"]
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
-
-[node name="SlotName" type="Label" parent="Root/Vitals/Abilities/Special1"]
-layout_mode = 2
+mouse_filter = 2
 theme_override_font_sizes/font_size = 11
 horizontal_alignment = 1
+vertical_alignment = 1
 
-[node name="SlotBar" type="ProgressBar" parent="Root/Vitals/Abilities/Special1"]
-custom_minimum_size = Vector2(62, 6)
-layout_mode = 2
-max_value = 100.0
-value = 100.0
-show_percentage = false
+[node name="Cooldown1_Radial" type="Control" parent="SafeArea/TopLeft_Panel/Vitals/CooldownRow/Cooldown1_Icon"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
 
-[node name="Special2" type="VBoxContainer" parent="Root/Vitals/Abilities"]
-custom_minimum_size = Vector2(62, 0)
-layout_mode = 2
-
-[node name="SlotName" type="Label" parent="Root/Vitals/Abilities/Special2"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 11
-horizontal_alignment = 1
-
-[node name="SlotBar" type="ProgressBar" parent="Root/Vitals/Abilities/Special2"]
-custom_minimum_size = Vector2(62, 6)
-layout_mode = 2
-max_value = 100.0
-value = 100.0
-show_percentage = false
-
-[node name="Movement" type="VBoxContainer" parent="Root/Vitals/Abilities"]
-custom_minimum_size = Vector2(62, 0)
-layout_mode = 2
-
-[node name="SlotName" type="Label" parent="Root/Vitals/Abilities/Movement"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 11
-horizontal_alignment = 1
-
-[node name="SlotBar" type="ProgressBar" parent="Root/Vitals/Abilities/Movement"]
-custom_minimum_size = Vector2(62, 6)
-layout_mode = 2
-max_value = 100.0
-value = 100.0
-show_percentage = false
-
-[node name="Ultimate" type="VBoxContainer" parent="Root/Vitals/Abilities"]
-custom_minimum_size = Vector2(62, 0)
-layout_mode = 2
-
-[node name="SlotName" type="Label" parent="Root/Vitals/Abilities/Ultimate"]
-layout_mode = 2
-theme_override_font_sizes/font_size = 11
-horizontal_alignment = 1
-
-[node name="SlotBar" type="ProgressBar" parent="Root/Vitals/Abilities/Ultimate"]
-custom_minimum_size = Vector2(62, 6)
-layout_mode = 2
-max_value = 100.0
-show_percentage = false
-
-[node name="StatusIndicator" type="Label" parent="Root/Vitals"]
+[node name="Cooldown1_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/CooldownRow/Cooldown1_Icon"]
 visible = false
-layout_mode = 2
-theme_override_font_sizes/font_size = 12
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+vertical_alignment = 1
 
-[node name="RewindLabel" type="Label" parent="Root/Vitals"]
+[node name="Cooldown2_Icon" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/CooldownRow"]
+custom_minimum_size = Vector2(36, 36)
 layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Cooldown2_Radial" type="Control" parent="SafeArea/TopLeft_Panel/Vitals/CooldownRow/Cooldown2_Icon"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
+
+[node name="Cooldown2_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/CooldownRow/Cooldown2_Icon"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Cooldown3_Icon" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/CooldownRow"]
+custom_minimum_size = Vector2(36, 36)
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Cooldown3_Radial" type="Control" parent="SafeArea/TopLeft_Panel/Vitals/CooldownRow/Cooldown3_Icon"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
+
+[node name="Cooldown3_LockOverlay" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/CooldownRow/Cooldown3_Icon"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TemporalRow" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/Vitals"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 12
+
+[node name="RewindCounter" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="RewindIcon" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow/RewindCounter"]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+mouse_filter = 2
+text = "⧗"
+theme_override_colors/font_color = Color(0.6, 0.9, 1, 1)
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="RewindCountText" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow/RewindCounter"]
+layout_mode = 2
+mouse_filter = 2
 theme_override_colors/font_color = Color(0.6, 0.9, 1, 1)
 theme_override_font_sizes/font_size = 12
+vertical_alignment = 1
 
-[node name="DustLabel" type="Label" parent="Root/Vitals"]
+[node name="TimeFreezeIndicator" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
-theme_override_font_sizes/font_size = 12
+mouse_filter = 2
+theme_override_constants/separation = 4
 
-[node name="BossPanel" type="VBoxContainer" parent="Root"]
+[node name="FreezeIcon" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow/TimeFreezeIndicator"]
+custom_minimum_size = Vector2(32, 32)
+layout_mode = 2
+mouse_filter = 2
+text = "❄"
+theme_override_font_sizes/font_size = 18
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="FreezeRemainingText" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow/TimeFreezeIndicator"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 12
+vertical_alignment = 1
+
+[node name="BeaconAnchors" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow"]
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="BeaconIcon" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow/BeaconAnchors"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+mouse_filter = 2
+text = "⌂"
+theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
+theme_override_font_sizes/font_size = 15
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="AnchorPips" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow/BeaconAnchors"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 3
+
+[node name="TopRight_Panel" type="VBoxContainer" parent="SafeArea"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -280.0
+offset_top = 16.0
+offset_right = -20.0
+offset_bottom = 140.0
+grow_horizontal = 0
+mouse_filter = 2
+alignment = 2
+theme_override_constants/separation = 8
+
+[node name="CurrencyContainer" type="HBoxContainer" parent="SafeArea/TopRight_Panel"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 2
+theme_override_constants/separation = 5
+
+[node name="ChronalDustIcon" type="Label" parent="SafeArea/TopRight_Panel/CurrencyContainer"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+mouse_filter = 2
+text = "✦"
+theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
+theme_override_font_sizes/font_size = 16
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="ChronalDustText" type="Label" parent="SafeArea/TopRight_Panel/CurrencyContainer"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
+theme_override_font_sizes/font_size = 14
+vertical_alignment = 1
+
+[node name="DustPickup_Float" type="Label" parent="SafeArea/TopRight_Panel/CurrencyContainer"]
+visible = false
+custom_minimum_size = Vector2(56, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.92, 0.35, 1)
+theme_override_font_sizes/font_size = 14
+vertical_alignment = 1
+
+[node name="IntegrityClock" type="Control" parent="SafeArea/TopRight_Panel"]
+custom_minimum_size = Vector2(48, 48)
+layout_mode = 2
+size_flags_horizontal = 8
+mouse_filter = 2
+
+[node name="ClockFace" type="Control" parent="SafeArea/TopRight_Panel/IntegrityClock"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="ClockWedge" type="Control" parent="SafeArea/TopRight_Panel/IntegrityClock"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
+
+[node name="SiphonStreams" type="Label" parent="SafeArea/TopRight_Panel/IntegrityClock"]
+visible = false
+layout_mode = 1
+anchors_preset = 7
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -40.0
+offset_top = 0.0
+offset_right = 40.0
+offset_bottom = 18.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.95, 0.25, 0.25, 1)
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 1
+
+[node name="IntegrityText" type="Label" parent="SafeArea/TopRight_Panel/IntegrityClock"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="BossPanel" type="VBoxContainer" parent="SafeArea"]
 visible = false
 layout_mode = 0
 offset_left = 660.0
 offset_top = 14.0
 offset_right = 1260.0
 offset_bottom = 60.0
+mouse_filter = 2
 
-[node name="BossName" type="Label" parent="Root/BossPanel"]
+[node name="BossName" type="Label" parent="SafeArea/BossPanel"]
 layout_mode = 2
+mouse_filter = 2
 theme_override_colors/font_color = Color(0.95, 0.25, 0.25, 1)
 theme_override_font_sizes/font_size = 15
 horizontal_alignment = 1
 
-[node name="BossBar" type="ProgressBar" parent="Root/BossPanel"]
+[node name="BossBar" type="ProgressBar" parent="SafeArea/BossPanel"]
 modulate = Color(1, 0.3, 0.3, 1)
 custom_minimum_size = Vector2(600, 14)
 layout_mode = 2
+mouse_filter = 2
 show_percentage = false
 
-[node name="PhaseNotches" type="Control" parent="Root/BossPanel/BossBar"]
+[node name="PhaseNotches" type="Control" parent="SafeArea/BossPanel/BossBar"]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -186,13 +487,44 @@ grow_vertical = 2
 mouse_filter = 2
 script = ExtResource("2_notches")
 
-[node name="CheckpointToast" type="Label" parent="Root"]
+[node name="BossIntroCard" type="Label" parent="SafeArea"]
+visible = false
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -420.0
+offset_top = -40.0
+offset_right = 420.0
+offset_bottom = 40.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 40
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TremorOverlay" type="ColorRect" parent="SafeArea"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.6, 0.85, 1, 0.07)
+
+[node name="CheckpointToast" type="Label" parent="SafeArea"]
 visible = false
 layout_mode = 0
 offset_left = 810.0
 offset_top = 140.0
 offset_right = 1110.0
 offset_bottom = 170.0
+mouse_filter = 2
 theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
 theme_override_font_sizes/font_size = 20
 horizontal_alignment = 1

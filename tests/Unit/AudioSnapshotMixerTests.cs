@@ -51,36 +51,66 @@ public class AudioSnapshotMixerTests {
         });
     }
 
+    /// <summary>
+    /// Package 11 A8 / C01b: profiles do not stack. Only the highest-priority
+    /// active request is applied, and releasing it re-selects from what is left
+    /// rather than jumping back to Normal.
+    ///
+    /// <para>The old behaviour summed the offsets, so Pause over Ultimate ducked
+    /// music by 20 dB — exactly the "a prior 12 dB rewind duck cannot make it
+    /// 24 dB" case the contract names.</para>
+    /// </summary>
     [TestCase]
-    public void SnapshotsStackAdditivelyAndUnstackOneAtATime() {
+    public void OnlyTheHighestPriorityProfileIsAppliedAndReleaseReselects() {
         RunWithRestoredBuses(mixer => {
-            mixer.ApplySnapshot(AudioSnapshot.Pause);
-            mixer.AdvanceFades(1.0);
-            float pauseOnly = mixer.GetOffsetDb(AudioBuses.Music);
-            AssertThat(pauseOnly).IsEqualApprox(-8f, 0.001f);
-
             mixer.ApplySnapshot(AudioSnapshot.Ultimate);
             mixer.AdvanceFades(1.0);
-            AssertThat(mixer.ActiveSnapshotCount).IsEqual(2);
-            AssertThat(mixer.GetOffsetDb(AudioBuses.Music)).IsEqualApprox(-20f, 0.001f);
+            AssertThat(mixer.GetOffsetDb(AudioBuses.Music)).IsEqualApprox(-12f, 0.001f);
+            AssertThat(mixer.SelectedSnapshot).IsEqual(AudioSnapshot.Ultimate);
 
-            // Releasing the newer one must fall back to the older, not to silence
-            // and not to transparent.
-            mixer.ReleaseSnapshot(AudioSnapshot.Ultimate);
+            // Pause outranks Ultimate; the result is Pause ALONE, not the sum.
+            mixer.ApplySnapshot(AudioSnapshot.Pause);
             mixer.AdvanceFades(1.0);
-            AssertThat(mixer.ActiveSnapshotCount).IsEqual(1);
-            AssertThat(mixer.GetOffsetDb(AudioBuses.Music)).IsEqualApprox(pauseOnly, 0.001f);
+            AssertThat(mixer.ActiveSnapshotCount).IsEqual(2);
+            AssertThat(mixer.SelectedSnapshot).IsEqual(AudioSnapshot.Pause);
+            AssertThat(mixer.GetOffsetDb(AudioBuses.Music)).IsEqualApprox(-8f, 0.001f);
 
+            // Releasing the winner falls back to the next real request.
             mixer.ReleaseSnapshot(AudioSnapshot.Pause);
             mixer.AdvanceFades(1.0);
+            AssertThat(mixer.SelectedSnapshot).IsEqual(AudioSnapshot.Ultimate);
+            AssertThat(mixer.GetOffsetDb(AudioBuses.Music)).IsEqualApprox(-12f, 0.001f);
+
+            mixer.ReleaseSnapshot(AudioSnapshot.Ultimate);
+            mixer.AdvanceFades(1.0);
+            AssertThat(mixer.HasSelection).IsFalse();
             AssertThat(mixer.GetOffsetDb(AudioBuses.Music)).IsEqualApprox(0f, 0.001f);
-            AssertThat(mixer.GetOffsetDb(AudioBuses.UI)).IsEqualApprox(0f, 0.001f);
         });
     }
 
-    /// <summary>Cutoffs cannot sum — the most aggressive muffle simply wins.</summary>
+    /// <summary>
+    /// C01b forbids an automatic UI boost: "UI/dialogue stays clear at the user's
+    /// configured level, without automatic boost." The Pause profile used to lift
+    /// UI by +2 dB, and UI is no longer a mixed bus at all.
+    /// </summary>
     [TestCase]
-    public void FilterCutoffsStackByMinimumAndRestoreTheNextMostAggressive() {
+    public void NoProfileTouchesTheUiBus() {
+        RunWithRestoredBuses(mixer => {
+            mixer.ApplySnapshot(AudioSnapshot.Pause);
+            mixer.AdvanceFades(1.0);
+            AssertThat(mixer.GetTargetOffsetDb(AudioBuses.UI)).IsEqual(0f);
+            AssertThat(mixer.GetOffsetDb(AudioBuses.UI)).IsEqual(0f);
+            AssertThat(System.Array.IndexOf(AudioSnapshotMixer.MixedBuses, AudioBuses.UI)).IsEqual(-1);
+        });
+    }
+
+    /// <summary>
+    /// Cutoffs are selected, not combined. The winning profile's cutoff is the
+    /// one that applies; releasing it restores the next winner's, not the
+    /// most-aggressive-ever.
+    /// </summary>
+    [TestCase]
+    public void FilterCutoffFollowsTheSelectedProfileOnly() {
         RunWithRestoredBuses(mixer => {
             mixer.ApplySnapshot(AudioSnapshot.LowHealth);
             mixer.AdvanceFades(2.0);
@@ -97,6 +127,53 @@ public class AudioSnapshotMixerTests {
             mixer.ReleaseSnapshot(AudioSnapshot.LowHealth);
             mixer.AdvanceFades(2.0);
             AssertThat(mixer.CurrentMusicCutoffHz).IsEqualApprox(AudioSnapshotMixer.TransparentCutoffHz, 0.1f);
+        });
+    }
+
+    /// <summary>
+    /// A C01b priority row with no authored treatment "adds none" — but it still
+    /// WINS, which is how Time Freeze suppresses a low-health heartbeat rather
+    /// than playing under it.
+    /// </summary>
+    [TestCase]
+    public void AHigherRowWithNoAuthoredTreatmentStillSuppressesALowerOne() {
+        RunWithRestoredBuses(mixer => {
+            mixer.ApplySnapshot(AudioSnapshot.LowHealth);
+            mixer.AdvanceFades(2.0);
+            AssertThat(mixer.GetOffsetDb(AudioBuses.Music)).IsEqualApprox(-2f, 0.001f);
+
+            mixer.ApplySnapshot(AudioSnapshot.TimeFreeze);
+            mixer.AdvanceFades(2.0);
+            AssertThat(mixer.SelectedSnapshot).IsEqual(AudioSnapshot.TimeFreeze);
+            AssertThat(mixer.GetOffsetDb(AudioBuses.Music)).IsEqualApprox(0f, 0.001f);
+            AssertThat(mixer.CurrentMusicCutoffHz).IsEqualApprox(AudioSnapshotMixer.TransparentCutoffHz, 0.1f);
+
+            mixer.ReleaseSnapshot(AudioSnapshot.TimeFreeze);
+            mixer.AdvanceFades(2.0);
+            AssertThat(mixer.GetOffsetDb(AudioBuses.Music)).IsEqualApprox(-2f, 0.001f);
+        });
+    }
+
+    /// <summary>
+    /// Repeated transitions must return to the selected target rather than
+    /// accumulating attenuation — the measurable half of C01b's "rapid
+    /// transitions must not accumulate attenuation, filters or queued
+    /// transitions".
+    /// </summary>
+    [TestCase]
+    public void RepeatedTransitionsDoNotAccumulateAttenuation() {
+        RunWithRestoredBuses(mixer => {
+            for (int pass = 0; pass < 6; pass++) {
+                mixer.ApplySnapshot(AudioSnapshot.Ultimate);
+                mixer.AdvanceFades(1.0);
+                mixer.ReleaseSnapshot(AudioSnapshot.Ultimate);
+                mixer.AdvanceFades(1.0);
+            }
+            AssertThat(mixer.GetOffsetDb(AudioBuses.Music)).IsEqualApprox(0f, 0.001f);
+
+            mixer.ApplySnapshot(AudioSnapshot.Ultimate);
+            mixer.AdvanceFades(1.0);
+            AssertThat(mixer.GetOffsetDb(AudioBuses.Music)).IsEqualApprox(-12f, 0.001f);
         });
     }
 
@@ -154,6 +231,7 @@ public class AudioSnapshotMixerTests {
 
             mixer.ReleaseAllSnapshots();
             AssertThat(mixer.ActiveSnapshotCount).IsEqual(0);
+            AssertThat(mixer.HasSelection).IsFalse();
             AssertThat(mixer.IsFading).IsTrue();
 
             mixer.SettleImmediately();

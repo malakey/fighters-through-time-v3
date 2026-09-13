@@ -39,6 +39,8 @@ public class StoryHudPresentationTests {
     public void TheAuthoredSceneSuppliesEveryWidgetTheControllersDriveAndAdoptsTheTheme() {
         // CreateDefault must resolve the authored scene: Package 8 B1 deleted the
         // code-built duplicate, so a missing scene is now a silent empty HUD.
+        // Package 11 A8 rewrote the tree to the HUD_CONTRACT names, so the paths
+        // below are the contract's, not the old Root/Vitals ones.
         AssertThat(ResourceLoader.Exists(StoryHUD.SceneResourcePath)).IsTrue();
 
         Node host = CreateHost("StoryHudAuthoredHost");
@@ -46,27 +48,33 @@ public class StoryHudPresentationTests {
             StoryHUD hud = AddHud(host);
             AssertThat(hud.Name.ToString()).IsEqual("StoryHUD");
 
-            var root = hud.GetNodeOrNull<Control>("Root");
+            var root = hud.GetNodeOrNull<Control>("SafeArea");
             AssertObject(root).IsNotNull();
             AssertObject(root.Theme).IsNotNull();
 
-            AssertObject(hud.GetNodeOrNull<Label>("Root/TopLeft/LevelTitle")).IsNotNull();
-            AssertObject(hud.GetNodeOrNull<Label>("Root/TopLeft/Objective")).IsNotNull();
-            // M-27: the designed portrait and block-charge row exist in the scene.
-            AssertObject(hud.GetNodeOrNull<TextureRect>("Root/Portrait")).IsNotNull();
-            AssertObject(hud.GetNodeOrNull<HBoxContainer>("Root/Vitals/BlockCharges")).IsNotNull();
-            AssertObject(hud.GetNodeOrNull<ProgressBar>("Root/Vitals/HPBar")).IsNotNull();
-            AssertObject(hud.GetNodeOrNull<ProgressBar>("Root/Vitals/MeterBar")).IsNotNull();
-            AssertObject(hud.GetNodeOrNull<Label>("Root/Vitals/RewindLabel")).IsNotNull();
-            AssertObject(hud.GetNodeOrNull<Label>("Root/Vitals/DustLabel")).IsNotNull();
-            AssertObject(hud.GetNodeOrNull<Label>("Root/Vitals/StatusIndicator")).IsNotNull();
-            AssertObject(hud.GetNodeOrNull<ProgressBar>("Root/BossPanel/BossBar")).IsNotNull();
+            // Repo extras the contract does not enumerate, kept as named siblings.
+            AssertObject(hud.GetNodeOrNull<Label>("SafeArea/TopLeft/LevelTitle")).IsNotNull();
+            AssertObject(hud.GetNodeOrNull<Label>("SafeArea/TopLeft/Objective")).IsNotNull();
+            AssertObject(hud.GetNodeOrNull<Control>("SafeArea/BossPanel")).IsNotNull();
+            AssertObject(hud.GetNodeOrNull<ProgressBar>("SafeArea/BossPanel/BossBar")).IsNotNull();
+            AssertObject(hud.GetNodeOrNull<Label>("SafeArea/CheckpointToast")).IsNotNull();
+            // Three widgets StoryHUD.ResolveUI used to build at runtime are
+            // authored nodes now.
+            AssertObject(hud.GetNodeOrNull<Label>("SafeArea/BossIntroCard")).IsNotNull();
             AssertObject(hud.BossNotches).IsNotNull();
 
-            foreach (string slot in new[] { "Special1", "Special2", "Movement", "Ultimate" }) {
-                AssertObject(hud.GetNodeOrNull<Label>($"Root/Vitals/Abilities/{slot}/SlotName")).IsNotNull();
-                AssertObject(hud.GetNodeOrNull<ProgressBar>($"Root/Vitals/Abilities/{slot}/SlotBar")).IsNotNull();
-            }
+            AssertObject(hud.GetNodeOrNull<TextureRect>(
+                "SafeArea/TopLeft_Panel/PlayerPortrait")).IsNotNull();
+            AssertObject(hud.GetNodeOrNull<ProgressBar>(
+                "SafeArea/TopLeft_Panel/Vitals/HealthBar_BG")).IsNotNull();
+            AssertObject(hud.GetNodeOrNull<ColorRect>(
+                "SafeArea/TopLeft_Panel/Vitals/HealthBar_BG/RallyEcho_Band")).IsNotNull();
+            AssertObject(hud.GetNodeOrNull<HBoxContainer>(
+                "SafeArea/TopLeft_Panel/Vitals/BlockCharges_Panel")).IsNotNull();
+            AssertObject(hud.GetNodeOrNull<Label>(
+                "SafeArea/TopLeft_Panel/Vitals/TemporalRow/RewindCounter/RewindCountText")).IsNotNull();
+            AssertObject(hud.GetNodeOrNull<Label>(
+                "SafeArea/TopRight_Panel/CurrencyContainer/ChronalDustText")).IsNotNull();
         } finally {
             host.Free();
         }
@@ -77,7 +85,7 @@ public class StoryHudPresentationTests {
         Node host = CreateHost("StoryHudBossBarHost");
         try {
             StoryHUD hud = AddHud(host);
-            var panel = hud.GetNodeOrNull<Control>("Root/BossPanel");
+            var panel = hud.GetNodeOrNull<Control>("SafeArea/BossPanel");
             AssertThat(panel.Visible).IsFalse();
 
             hud.ShowBossBar("boss_archive_prime_name", 900, 1200, new[] { 0.66f, 0.33f });
@@ -148,31 +156,52 @@ public class StoryHudPresentationTests {
         }
     }
 
+    /// <summary>
+    /// F24: the two status categories occupy their own slots and clear
+    /// independently. The single-pip model this replaces made a Venom application
+    /// erase an active Root from the HUD while the player was still rooted.
+    /// </summary>
     [TestCase]
-    public void TheStatusPipFollowsTheRisingAndFallingEdgesOnTheBus() {
+    public void BothStatusSlotsFollowTheirOwnRisingAndFallingEdgesOnTheBus() {
         Node host = CreateHost("StoryHudStatusHost");
         try {
             StoryHUD hud = AddHud(host);
             EventBus bus = EventBus.Instance;
-            var pip = hud.GetNodeOrNull<Label>("Root/Vitals/StatusIndicator");
-            AssertThat(pip.Visible).IsFalse();
+            AssertThat(hud.Indicators.ControlStatus).IsEqual(StatusType.None);
+            AssertThat(hud.Indicators.DamageStatus).IsEqual(StatusType.None);
 
             bus.RaiseStatusEffectApplied(new StatusEffectPayload {
                 TargetIndex = 0, Type = StatusType.Venom, Duration = 5f, Intensity = 1f
             });
-            AssertThat(hud.Indicators.ActiveStatus).IsEqual(StatusType.Venom);
+            AssertThat(hud.Indicators.DamageStatus).IsEqual(StatusType.Venom);
+            AssertThat(hud.Indicators.ControlStatus).IsEqual(StatusType.None);
 
-            // A3 added the falling edge specifically so a pushed status can clear.
+            // A control status lands beside it rather than replacing it.
+            bus.RaiseStatusEffectApplied(new StatusEffectPayload {
+                TargetIndex = 0, Type = StatusType.Root, Duration = 4f, Intensity = 1f
+            });
+            AssertThat(hud.Indicators.DamageStatus).IsEqual(StatusType.Venom);
+            AssertThat(hud.Indicators.ControlStatus).IsEqual(StatusType.Root);
+
+            // A typed clear empties only its own slot.
+            bus.RaiseStatusEffectCleared(new StatusEffectPayload {
+                TargetIndex = 0, Type = StatusType.Root, Duration = 0f, Intensity = 0f
+            });
+            AssertThat(hud.Indicators.ControlStatus).IsEqual(StatusType.None);
+            AssertThat(hud.Indicators.DamageStatus).IsEqual(StatusType.Venom);
+
+            // StatusController raises a None clear only when NOTHING survives, so
+            // None means "both slots empty".
             bus.RaiseStatusEffectCleared(new StatusEffectPayload {
                 TargetIndex = 0, Type = StatusType.None, Duration = 0f, Intensity = 0f
             });
-            AssertThat(hud.Indicators.ActiveStatus).IsEqual(StatusType.None);
+            AssertThat(hud.Indicators.DamageStatus).IsEqual(StatusType.None);
 
             // An enemy's status must not appear on the player's HUD.
             bus.RaiseStatusEffectApplied(new StatusEffectPayload {
                 TargetIndex = 1, Type = StatusType.Root, Duration = 5f, Intensity = 1f
             });
-            AssertThat(hud.Indicators.ActiveStatus).IsEqual(StatusType.None);
+            AssertThat(hud.Indicators.ControlStatus).IsEqual(StatusType.None);
         } finally {
             host.Free();
         }
@@ -229,7 +258,7 @@ public class StoryHudPresentationTests {
         try {
             data.HudOpacity = 0.5f;
             StoryHUD hud = AddHud(host);
-            var root = hud.GetNodeOrNull<Control>("Root");
+            var root = hud.GetNodeOrNull<Control>("SafeArea");
 
             AssertFloat(hud.AppliedHudOpacity).IsEqualApprox(0.5f, 0.0001f);
             AssertFloat(root.Modulate.A).IsEqualApprox(0.5f, 0.0001f);

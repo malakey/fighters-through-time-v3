@@ -5,25 +5,46 @@ namespace FTT.Core {
 
     /// <summary>
     /// The named mixer states from <c>design-godot.md</c>'s "Audio Snapshots"
-    /// section. <c>NormalGameplay</c> is not a member: it is the absence of every
-    /// snapshot, so that "no snapshot active" and "baseline mix" cannot drift apart.
+    /// section, extended by C01b's priority ladder. <c>NormalGameplay</c> is not a
+    /// member: it is the absence of every profile, so "no profile active" and
+    /// "baseline mix" cannot drift apart.
+    ///
+    /// <para>Declaration order is deliberately <b>not</b> the priority order — the
+    /// four original members keep their ordinals so no logged or saved value
+    /// shifts. <see cref="AudioSnapshotMixer.PriorityOf"/> owns the ladder.</para>
     /// </summary>
     public enum AudioSnapshot {
-        /// <summary>Pause menu: BGM/SFX ducked and muffled, UI lifted so prompts read.</summary>
+        /// <summary>Pause menu: background ducked and muffled. UI is never boosted.</summary>
         Pause,
         /// <summary>Below 20% HP: high end rolled off to build tension.</summary>
         LowHealth,
-        /// <summary>Ultimate cinematic: everything but the ultimate itself steps back 12 dB.</summary>
+        /// <summary>Ultimate cinematic: the background steps back 12 dB.</summary>
         Ultimate,
-        /// <summary>Chronal Rewind: music ducks under the rewind sweep and tick.</summary>
-        Rewind
+        /// <summary>Death Rewind / Collapse recovery: music ducks under the sweep and tick.</summary>
+        Rewind,
+
+        // ---- C01b additions ------------------------------------------------
+        // A priority row with no authored background treatment "adds none", so an
+        // empty definition is a legal placeholder: the row still wins the ladder
+        // and therefore still SUPPRESSES the lower rows, which is the point.
+
+        /// <summary>Act III Anchor Snap recovery presentation.</summary>
+        AnchorSnap,
+        /// <summary>Defy proc, boss phase change, or other scripted presentation.</summary>
+        DefyOrScripted,
+        /// <summary>Story Time Freeze: the subdued time-stop treatment.</summary>
+        TimeFreeze,
+        /// <summary>Low Timeline Integrity / Collapse Tremor atmosphere.</summary>
+        LowIntegrityTremor,
+        /// <summary>Underwater or other liquid environment.</summary>
+        Underwater
     }
 
     /// <summary>
-    /// Applies named snapshots as <em>offsets</em> on top of the player's saved bus
-    /// volumes, tweening each change rather than snapping it.
+    /// Applies <b>one</b> named background profile as an <em>offset</em> on top of
+    /// the player's saved bus volumes, tweening each change rather than snapping it.
     ///
-    /// <para>Offset-based is the whole point. The rewind duck this replaces
+    /// <para><b>Offset-based is the whole point.</b> The rewind duck this replaced
     /// (<c>RewindPresentationOverlay</c>) snapshotted the Music bus's absolute dB on
     /// entry and wrote it back on exit, so a settings change during a rewind was
     /// silently reverted when the rewind ended. Here the mixer owns the base volume
@@ -31,63 +52,114 @@ namespace FTT.Core {
     /// restore) and recomputes <c>base + offset</c> whenever either side moves;
     /// neither can clobber the other.</para>
     ///
-    /// <para>Snapshots stack additively: Pause plus Ultimate ducks music by the sum.
-    /// Filter cutoffs stack by <em>minimum</em> instead — the most aggressive active
-    /// muffle wins, and releasing it restores the next-most-aggressive rather than
-    /// jumping straight back to transparent.</para>
+    /// <para><b>Package 11 A8 / C01b: priority selection, not additive stacking.</b>
+    /// Profiles used to stack — Pause plus Ultimate ducked music by the sum, and
+    /// cutoffs combined by minimum. COMFORT_SETTINGS.md C01b forbids exactly that:
+    /// "Apply the winning profile's gain/filter/pitch targets once relative to the
+    /// user's configured baseline… a prior 12 dB rewind duck cannot make it 24 dB."
+    /// So the request set is still tracked — a profile that is genuinely active
+    /// stays active — but only the single highest-priority request is applied, and
+    /// releasing it <b>re-selects</b> from the remaining requests rather than
+    /// blindly restoring Normal.</para>
     ///
-    /// <para>Plain C# class, not a Node: <see cref="AudioManager"/> owns it and pumps
-    /// <see cref="AdvanceFades"/>. That keeps the tween deterministic and testable
-    /// without waiting on engine frames.</para>
+    /// <para>Two further C01b rules land here. The Pause profile's old
+    /// <c>+2 dB</c> UI lift is gone: "UI/dialogue stays clear at the user's
+    /// configured level, without automatic boost." And no profile may write to a
+    /// bus in <see cref="AudioBuses.ProtectedBuses"/>, which is why the filter
+    /// targets are the background World SFX children rather than their shared SFX
+    /// parent.</para>
+    ///
+    /// <para>Local presentation state: derived from authoritative game state and
+    /// applied outside gameplay snapshots and hashes. Plain C# class, not a Node —
+    /// <see cref="AudioManager"/> owns it and pumps <see cref="AdvanceFades"/>,
+    /// which keeps the tween deterministic and testable without engine frames.</para>
     /// </summary>
     public class AudioSnapshotMixer {
         /// <summary>Cutoff at which the authored low-pass filters are effectively transparent.</summary>
         public const float TransparentCutoffHz = 20500f;
 
-        /// <summary>Default blend time for a snapshot apply/release, in seconds.</summary>
+        /// <summary>Default blend time for a profile selection, in seconds.</summary>
         public const float DefaultFadeSeconds = 0.25f;
 
-        /// <summary>Buses the snapshot layer is allowed to move.</summary>
-        public static readonly string[] MixedBuses = { AudioBuses.Music, AudioBuses.SFX, AudioBuses.UI };
+        /// <summary>
+        /// Buses the background layer is allowed to move. <see cref="AudioBuses.UI"/>
+        /// is deliberately absent since C01b: nothing in the mix policy may raise or
+        /// lower it, so UI and dialogue keep the player's configured level.
+        /// </summary>
+        public static readonly string[] MixedBuses = { AudioBuses.Music, AudioBuses.SFX };
 
         /// <summary>
-        /// Buses whose base volume the mixer owns. Master carries a base (the master
-        /// slider) but no snapshot ever offsets it — ducking the master would duck
-        /// the very UI prompts a snapshot is trying to keep legible.
+        /// Buses whose base volume the mixer owns. Master and UI carry a base (their
+        /// sliders) but no profile ever offsets them — ducking Master would duck the
+        /// very warnings a profile is trying to keep legible.
         /// </summary>
-        public static readonly string[] BasedBuses = { AudioBuses.Master, AudioBuses.Music, AudioBuses.SFX, AudioBuses.UI };
+        public static readonly string[] BasedBuses = {
+            AudioBuses.Master, AudioBuses.Music, AudioBuses.SFX, AudioBuses.UI
+        };
 
         private readonly struct SnapshotDefinition {
             public readonly float MusicDb;
             public readonly float SfxDb;
-            public readonly float UiDb;
             public readonly float MusicCutoffHz;
             public readonly float SfxCutoffHz;
             public readonly float FadeSeconds;
 
             public SnapshotDefinition(
-                float musicDb, float sfxDb, float uiDb,
+                float musicDb, float sfxDb,
                 float musicCutoffHz, float sfxCutoffHz, float fadeSeconds) {
                 MusicDb = musicDb;
                 SfxDb = sfxDb;
-                UiDb = uiDb;
                 MusicCutoffHz = musicCutoffHz;
                 SfxCutoffHz = sfxCutoffHz;
                 FadeSeconds = fadeSeconds;
             }
         }
 
-        // Values follow design-godot.md: GamePaused muffles BGM/SFX and lifts UI;
-        // LowHealth rolls off the high end; UltimateCinematic ducks 12 dB; Rewind
-        // matches the -12 dB the authored rewind payload already carried.
+        // Values follow design-godot.md's snapshot table. GamePaused muffles the
+        // background (and no longer lifts UI); LowHealth rolls off the high end;
+        // UltimateCinematic ducks 12 dB exactly once; Rewind keeps the -12 dB the
+        // authored rewind payload already carried.
+        //
+        // The five C01b rows ship with NO authored background treatment. C01b:
+        // "A priority row with no authored background treatment adds none." They
+        // are still real ladder entries — winning the ladder is how Time Freeze
+        // suppresses a low-health heartbeat — they simply select a transparent
+        // target until content authors one.
         private static readonly Dictionary<AudioSnapshot, SnapshotDefinition> Definitions = new() {
-            [AudioSnapshot.Pause] = new SnapshotDefinition(-8f, -12f, 2f, 900f, 1200f, 0.20f),
-            [AudioSnapshot.LowHealth] = new SnapshotDefinition(-2f, 0f, 0f, 3200f, TransparentCutoffHz, 0.60f),
-            [AudioSnapshot.Ultimate] = new SnapshotDefinition(-12f, -12f, 0f, TransparentCutoffHz, TransparentCutoffHz, 0.15f),
-            [AudioSnapshot.Rewind] = new SnapshotDefinition(-12f, 0f, 0f, 1800f, TransparentCutoffHz, 0.30f)
+            [AudioSnapshot.Pause] = new SnapshotDefinition(-8f, -12f, 900f, 1200f, 0.20f),
+            [AudioSnapshot.LowHealth] = new SnapshotDefinition(-2f, 0f, 3200f, TransparentCutoffHz, 0.60f),
+            [AudioSnapshot.Ultimate] =
+                new SnapshotDefinition(-12f, -12f, TransparentCutoffHz, TransparentCutoffHz, 0.15f),
+            [AudioSnapshot.Rewind] = new SnapshotDefinition(-12f, 0f, 1800f, TransparentCutoffHz, 0.30f),
+            [AudioSnapshot.AnchorSnap] = Silent(0.30f),
+            [AudioSnapshot.DefyOrScripted] = Silent(0.20f),
+            [AudioSnapshot.TimeFreeze] = Silent(0.25f),
+            [AudioSnapshot.LowIntegrityTremor] = Silent(0.50f),
+            [AudioSnapshot.Underwater] = Silent(0.40f)
         };
 
-        /// <summary>Active snapshots and their (possibly overridden) music offset.</summary>
+        private static SnapshotDefinition Silent(float fadeSeconds) =>
+            new(0f, 0f, TransparentCutoffHz, TransparentCutoffHz, fadeSeconds);
+
+        /// <summary>
+        /// C01b's ladder, highest first. Pause outranks everything because a paused
+        /// game must not keep a combat mix under the menu; NormalGameplay is the
+        /// absence of a request and scores below every row.
+        /// </summary>
+        public static int PriorityOf(AudioSnapshot snapshot) => snapshot switch {
+            AudioSnapshot.Pause => 9,
+            AudioSnapshot.Rewind => 8,
+            AudioSnapshot.AnchorSnap => 8,
+            AudioSnapshot.Ultimate => 7,
+            AudioSnapshot.DefyOrScripted => 6,
+            AudioSnapshot.TimeFreeze => 5,
+            AudioSnapshot.LowIntegrityTremor => 4,
+            AudioSnapshot.LowHealth => 3,
+            AudioSnapshot.Underwater => 2,
+            _ => 1
+        };
+
+        /// <summary>Active requests and their (possibly overridden) music offset.</summary>
         private readonly Dictionary<AudioSnapshot, float> _active = new();
 
         private readonly Dictionary<string, float> _baseDb = new();
@@ -104,6 +176,8 @@ namespace FTT.Core {
 
         private float _fadeSeconds = DefaultFadeSeconds;
         private float _fadeElapsed;
+        private bool _hasSelection;
+        private AudioSnapshot _selected;
 
         public AudioSnapshotMixer() {
             foreach (string bus in BasedBuses) _baseDb[bus] = 0f;
@@ -117,9 +191,23 @@ namespace FTT.Core {
         /// <summary>True while the mixer is still blending toward its targets.</summary>
         public bool IsFading => _fadeElapsed < _fadeSeconds;
 
+        /// <summary>True when this profile is one of the active <em>requests</em>.</summary>
         public bool IsSnapshotActive(AudioSnapshot snapshot) => _active.ContainsKey(snapshot);
 
+        /// <summary>
+        /// How many profiles are currently requested. Not how many are applied —
+        /// since C01b that is always exactly 0 or 1.
+        /// </summary>
         public int ActiveSnapshotCount => _active.Count;
+
+        /// <summary>True when some profile currently wins the ladder.</summary>
+        public bool HasSelection => _hasSelection;
+
+        /// <summary>
+        /// The one profile whose targets are applied. Meaningless while
+        /// <see cref="HasSelection"/> is false.
+        /// </summary>
+        public AudioSnapshot SelectedSnapshot => _selected;
 
         /// <summary>Offset currently written to the bus, mid-tween.</summary>
         public float GetOffsetDb(string busName) =>
@@ -138,8 +226,8 @@ namespace FTT.Core {
 
         /// <summary>
         /// Sets a bus's baseline volume — the settings slider value, or the saved
-        /// value restored at boot. Snapshot offsets ride on top of it and survive
-        /// the change.
+        /// value restored at boot. The background offset rides on top of it and
+        /// survives the change.
         /// </summary>
         public void SetBaseVolume(string busName, float decibels) {
             if (!_baseDb.ContainsKey(busName)) {
@@ -154,24 +242,30 @@ namespace FTT.Core {
         public void ApplySnapshot(AudioSnapshot snapshot) => ApplySnapshot(snapshot, Definitions[snapshot].MusicDb);
 
         /// <summary>
-        /// Applies a snapshot with an explicit music offset, for callers that carry
-        /// an authored duck depth (the rewind payload's <c>MusicDuckDecibels</c>).
-        /// Re-applying an already-active snapshot just updates its offset.
+        /// Records a profile request with an explicit music offset, for callers that
+        /// carry an authored duck depth (the rewind payload's
+        /// <c>MusicDuckDecibels</c>). Re-requesting an already-active profile just
+        /// updates its offset — it never stacks.
         /// </summary>
         public void ApplySnapshot(AudioSnapshot snapshot, float musicOffsetDb) {
             _active[snapshot] = musicOffsetDb;
-            Retarget(Definitions[snapshot].FadeSeconds);
+            Reselect(Definitions[snapshot].FadeSeconds);
         }
 
+        /// <summary>
+        /// Drops a request and re-selects from what is left. C01b: "Re-evaluate
+        /// current active requests when a profile ends; do not blindly restore
+        /// Normal or a saved stale low-health state."
+        /// </summary>
         public void ReleaseSnapshot(AudioSnapshot snapshot) {
             if (!_active.Remove(snapshot)) return;
-            Retarget(Definitions[snapshot].FadeSeconds);
+            Reselect(Definitions[snapshot].FadeSeconds);
         }
 
         public void ReleaseAllSnapshots() {
             if (_active.Count == 0) return;
             _active.Clear();
-            Retarget(DefaultFadeSeconds);
+            Reselect(DefaultFadeSeconds);
         }
 
         /// <summary>
@@ -189,7 +283,7 @@ namespace FTT.Core {
             WriteCutoffs();
         }
 
-        /// <summary>Advances every in-flight blend. Driven by <see cref="AudioManager"/>.</summary>
+        /// <summary>Advances the in-flight blend. Driven by <see cref="AudioManager"/>.</summary>
         public void AdvanceFades(double delta) {
             if (!IsFading) return;
             _fadeElapsed = Mathf.Min(_fadeSeconds, _fadeElapsed + (float)delta);
@@ -204,28 +298,41 @@ namespace FTT.Core {
             WriteCutoffs();
         }
 
-        private void Retarget(float fadeSeconds) {
+        /// <summary>
+        /// Resolves the single winning request and blends toward <em>its</em>
+        /// targets. Nothing sums. An equal-priority overlap is broken by the
+        /// profile's own stable enum ordinal rather than by callback order, which is
+        /// C01b's "resolve an equal-priority overlap by stable presentation identity".
+        /// </summary>
+        private void Reselect(float fadeSeconds) {
+            _hasSelection = false;
+            int bestPriority = int.MinValue;
             float music = 0f;
             float sfx = 0f;
-            float ui = 0f;
             float musicCutoff = TransparentCutoffHz;
             float sfxCutoff = TransparentCutoffHz;
 
             foreach (KeyValuePair<AudioSnapshot, float> entry in _active) {
+                int priority = PriorityOf(entry.Key);
+                if (_hasSelection
+                    && (priority < bestPriority
+                        || (priority == bestPriority && (int)entry.Key >= (int)_selected))) {
+                    continue;
+                }
                 SnapshotDefinition definition = Definitions[entry.Key];
-                music += entry.Value;
-                sfx += definition.SfxDb;
-                ui += definition.UiDb;
-                musicCutoff = Mathf.Min(musicCutoff, definition.MusicCutoffHz);
-                sfxCutoff = Mathf.Min(sfxCutoff, definition.SfxCutoffHz);
+                _hasSelection = true;
+                _selected = entry.Key;
+                bestPriority = priority;
+                music = entry.Value;
+                sfx = definition.SfxDb;
+                musicCutoff = definition.MusicCutoffHz;
+                sfxCutoff = definition.SfxCutoffHz;
             }
 
             _fadeFromDb[AudioBuses.Music] = _currentOffsetDb[AudioBuses.Music];
             _fadeFromDb[AudioBuses.SFX] = _currentOffsetDb[AudioBuses.SFX];
-            _fadeFromDb[AudioBuses.UI] = _currentOffsetDb[AudioBuses.UI];
             _targetOffsetDb[AudioBuses.Music] = music;
             _targetOffsetDb[AudioBuses.SFX] = sfx;
-            _targetOffsetDb[AudioBuses.UI] = ui;
 
             _fadeFromMusicCutoff = _currentMusicCutoff;
             _fadeFromSfxCutoff = _currentSfxCutoff;
@@ -246,15 +353,21 @@ namespace FTT.Core {
 
         private void WriteCutoffs() {
             WriteCutoff(AudioBuses.Music, _currentMusicCutoff);
-            WriteCutoff(AudioBuses.SFX, _currentSfxCutoff);
+            // C01b: background World SFX only. CriticalCues is a sibling under the
+            // same SFX parent precisely so this loop cannot reach it.
+            foreach (string bus in AudioBuses.BackgroundSfxBuses) WriteCutoff(bus, _currentSfxCutoff);
         }
 
         /// <summary>
         /// Pushes a cutoff into the bus's authored low-pass filter. Silently does
         /// nothing when the layout has no filter on that bus, so a stripped-down
-        /// layout degrades to volume-only snapshots instead of throwing.
+        /// layout degrades to volume-only profiles instead of throwing. Refuses
+        /// outright to touch a protected bus.
         /// </summary>
         private static void WriteCutoff(string busName, float cutoffHz) {
+            foreach (string protectedBus in AudioBuses.ProtectedBuses) {
+                if (protectedBus == busName) return;
+            }
             int index = AudioServer.GetBusIndex(busName);
             if (index < 0) return;
             int effectCount = AudioServer.GetBusEffectCount(index);

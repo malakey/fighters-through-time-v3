@@ -128,20 +128,96 @@ public class SettingsMenuSceneTests {
     }
 
     [TestCase]
-    public void EveryRemappableActionGetsAKeyboardAndAJoypadSlot() {
+    public void EveryBindableActionGetsAKeyboardAJoypadAnUnbindAndAResetControl() {
         var host = NewHost("SettingsRowsHost");
         try {
             SettingsMenu menu = OpenMenu(host);
             var rows = menu.Tabs.GetNode<VBoxContainer>("Controls/Scroll/ActionRows");
-            AssertThat(rows.GetChildCount()).IsEqual(InputManager.RemappableActions.Length);
+            System.Collections.Generic.List<string> bindable = InputBindingService.BindableActions();
+            AssertThat(rows.GetChildCount()).IsEqual(bindable.Count);
 
-            foreach (string action in InputManager.RemappableActions) {
+            foreach (string action in bindable) {
                 var row = rows.GetNode<HBoxContainer>($"Row_{action}");
                 AssertObject(row).IsNotNull();
-                // label + keyboard slot + joypad slot + per-action reset
-                AssertThat(row.GetChildCount()).IsEqual(4);
+                // C01c: label + keyboard slot + joypad slot + Unbind + reset. The
+                // Unbind control is the new one — without it the player could
+                // never reach the explicit-Unbound state the save format stores.
+                AssertThat(row.GetChildCount()).IsEqual(5);
+            }
+
+            // Ultimate has a real row now rather than the Package 8 read-only line.
+            AssertObject(rows.GetNodeOrNull<HBoxContainer>(
+                $"Row_{InputManager.Actions.Ultimate}")).IsNotNull();
+        } finally {
+            Teardown(host);
+        }
+    }
+
+    /// <summary>
+    /// C01c's preset shortcuts get an On/Off control per applicable device kind,
+    /// and the Ultimate chord is gamepad-only — the contract adds no new keyboard
+    /// Ultimate chord, so offering a keyboard toggle for one would be a lie.
+    /// </summary>
+    [TestCase]
+    public void ThePresetShortcutsEachGetAnOnOffToggleForTheirDeviceKinds() {
+        var host = NewHost("SettingsShortcutsHost");
+        try {
+            SettingsMenu menu = OpenMenu(host);
+            var rows = menu.Tabs.GetNode<VBoxContainer>("Controls/ShortcutRows");
+
+            AssertObject(rows.GetNodeOrNull<HBoxContainer>(
+                $"Shortcut_{InputShortcuts.UltimateAction}_{(int)InputDeviceKind.Joypad}")).IsNotNull();
+            AssertObject(rows.GetNodeOrNull<HBoxContainer>(
+                $"Shortcut_{InputShortcuts.UltimateAction}_{(int)InputDeviceKind.Keyboard}")).IsNull();
+
+            foreach (string action in new[] { InputShortcuts.GrabAction, InputShortcuts.EchoStepAction }) {
+                AssertObject(rows.GetNodeOrNull<HBoxContainer>(
+                    $"Shortcut_{action}_{(int)InputDeviceKind.Keyboard}")).IsNotNull();
+                AssertObject(rows.GetNodeOrNull<HBoxContainer>(
+                    $"Shortcut_{action}_{(int)InputDeviceKind.Joypad}")).IsNotNull();
+            }
+
+            // Legacy payloads reproduce the shipped chords: every toggle starts On.
+            foreach (Node child in rows.GetChildren()) {
+                var toggle = child.GetChild<CheckButton>(0);
+                AssertThat(toggle.ButtonPressed)
+                    .OverrideFailureMessage($"{child.Name} must default ON.").IsTrue();
             }
         } finally {
+            Teardown(host);
+        }
+    }
+
+    /// <summary>
+    /// C01a: the toggle sits in Settings → Gameplay beside Screen Shake, and its
+    /// help text is authored copy rather than a raw key.
+    /// </summary>
+    [TestCase]
+    public void TheGameplayTabCarriesTheReducedTemporalEffectsToggleAndItsHelpText() {
+        GlobalSaveData data = SaveManager.Instance?.GlobalData;
+        if (data == null) return;
+        bool original = data.ReducedTemporalEffects;
+        var host = NewHost("SettingsComfortHost");
+        try {
+            TranslationServer.SetLocale("en");
+            data.ReducedTemporalEffects = true;
+            SettingsMenu menu = OpenMenu(host);
+
+            var toggle = menu.Tabs.GetNode<CheckButton>("Gameplay/ReducedEffectsToggle");
+            var help = menu.Tabs.GetNode<Label>("Gameplay/ReducedEffectsHelp");
+            AssertThat(toggle.ButtonPressed)
+                .OverrideFailureMessage("The toggle must load from the saved value.").IsTrue();
+            AssertThat(toggle.Text)
+                .IsEqual(TranslationServer.Translate("settings_reduced_temporal_effects").ToString());
+            AssertThat(help.Text.Length > 0).IsTrue();
+            AssertThat(help.Text)
+                .IsEqual(TranslationServer.Translate("settings_reduced_temporal_effects_help").ToString());
+
+            // It sits beside Screen Shake, not in some other tab.
+            AssertObject(menu.Tabs.GetNodeOrNull<HSlider>("Gameplay/ScreenShakeSlider")).IsNotNull();
+        } finally {
+            data.ReducedTemporalEffects = original;
+            ComfortSettings.Apply(original);
             Teardown(host);
         }
     }

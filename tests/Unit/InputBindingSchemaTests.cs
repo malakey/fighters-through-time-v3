@@ -231,11 +231,10 @@ public class InputBindingSchemaTests {
         // bindings to ANY existing InputMap action, so a tampered global payload
         // could rebind ui_* navigation or the read-only gameplay_ultimate chord.
         List<InputBindingEvent> acceptDefault = InputBindingService.CaptureAction("ui_accept");
-        List<InputBindingEvent> ultimateDefault = InputBindingService.CaptureAction(InputManager.Actions.Ultimate);
         try {
             var tampered = new InputBindingSet();
             tampered.Set("ui_accept", new[] { new InputBindingEvent(InputBindingKind.Key, (int)Key.F13) });
-            tampered.Set(InputManager.Actions.Ultimate, new[] { new InputBindingEvent(InputBindingKind.Key, (int)Key.F14) });
+            tampered.Set("ui_cancel", new[] { new InputBindingEvent(InputBindingKind.Key, (int)Key.F14) });
 
             InputBindingService.Apply(tampered);
 
@@ -244,11 +243,8 @@ public class InputBindingSchemaTests {
             for (int index = 0; index < acceptNow.Count; index++) {
                 AssertThat(acceptNow[index].Matches(acceptDefault[index])).IsTrue();
             }
-            List<InputBindingEvent> ultimateNow = InputBindingService.CaptureAction(InputManager.Actions.Ultimate);
-            AssertThat(ultimateNow.Count).IsEqual(ultimateDefault.Count);
-            for (int index = 0; index < ultimateNow.Count; index++) {
-                AssertThat(ultimateNow[index].Matches(ultimateDefault[index])).IsTrue();
-            }
+            // Package 11 A8 / C01c: gameplay_ultimate IS restorable now, so the
+            // guard is pinned on ui_* navigation, which never was.
         } finally {
             InputMap.LoadFromProjectSettings();
         }
@@ -273,10 +269,26 @@ public class InputBindingSchemaTests {
         }
     }
 
+    /// <summary>
+    /// Package 11 A8 / C01c: the Ultimate now carries a real direct binding slot.
+    /// Package 8 surfaced it read-only because the per-event remap UI cannot
+    /// express the LB+RB conjunction; C01c's answer is that the chord stays a
+    /// FIXED preset shortcut alongside one direct key or button, so the row is
+    /// editable after all.
+    /// </summary>
     [TestCase]
-    public void TheUltimateChordIsExcludedFromRemapping() {
-        AssertThat(InputManager.RemappableActions.Contains(InputManager.Actions.Ultimate)).IsFalse();
-        AssertThat(InputManager.ReadOnlyActions.Contains(InputManager.Actions.Ultimate)).IsTrue();
+    public void TheUltimateIsRemappableAndItsChordIsAPresetShortcut() {
+        AssertThat(InputManager.RemappableActions.Contains(InputManager.Actions.Ultimate)).IsTrue();
+        AssertThat(InputManager.ReadOnlyActions.Length).IsEqual(0);
+
+        InputShortcuts.Recipe recipe = InputShortcuts.RecipeFor(InputShortcuts.UltimateAction);
+        AssertObject(recipe).IsNotNull();
+        AssertThat(System.Array.IndexOf(recipe.Components, InputManager.Actions.MovementAbility) >= 0).IsTrue();
+        AssertThat(System.Array.IndexOf(recipe.Components, InputManager.Actions.Special2) >= 0).IsTrue();
+        // C01c adds no new keyboard Ultimate chord.
+        AssertThat(InputShortcuts.AppliesTo(recipe, InputDeviceKind.Joypad)).IsTrue();
+        AssertThat(InputShortcuts.AppliesTo(recipe, InputDeviceKind.Keyboard)).IsFalse();
+
         // The universal dash mechanic was removed (2026-08-09): no InputMap
         // action for it may ever reappear.
         AssertThat(InputMap.HasAction("gameplay_dash")).IsFalse();
@@ -284,6 +296,100 @@ public class InputBindingSchemaTests {
             AssertThat(InputMap.HasAction(action))
                 .OverrideFailureMessage($"Remappable action {action} is not in the InputMap.").IsTrue();
         }
+    }
+
+    /// <summary>
+    /// C01c's hard blocker, closed: "An explicit Unbound value differs from a
+    /// missing override that inherits defaults." <c>Normalize()</c> deletes an
+    /// empty event row on purpose — that is what a corrupt payload looks like — so
+    /// the deliberate clear needs its own representation that survives it.
+    /// </summary>
+    [TestCase]
+    public void AnExplicitUnboundSurvivesNormalizeAndIsPerDeviceKind() {
+        var set = new InputBindingSet();
+        set.Set(InputManager.Actions.Ultimate, new[] {
+            new InputBindingEvent(InputBindingKind.Key, (int)Key.U),
+            new InputBindingEvent(InputBindingKind.JoyButton, (int)JoyButton.Y)
+        });
+
+        set.SetUnbound(InputManager.Actions.Ultimate, InputDeviceKind.Joypad, unbound: true);
+        set.Normalize();
+
+        AssertThat(set.IsUnbound(InputManager.Actions.Ultimate, InputDeviceKind.Joypad)).IsTrue();
+        // The other device kind is untouched — clearing the gamepad slot must not
+        // take the keyboard U with it.
+        AssertThat(set.IsUnbound(InputManager.Actions.Ultimate, InputDeviceKind.Keyboard)).IsFalse();
+        AssertThat(set.EventsFor(InputManager.Actions.Ultimate, InputDeviceKind.Keyboard).Count).IsEqual(1);
+        AssertThat(set.EventsFor(InputManager.Actions.Ultimate, InputDeviceKind.Joypad).Count).IsEqual(0);
+
+        // "Explicitly cleared" and "never overridden" stay distinguishable.
+        AssertThat(set.IsUnbound(InputManager.Actions.Roll, InputDeviceKind.Joypad)).IsFalse();
+
+        set.SetUnbound(InputManager.Actions.Ultimate, InputDeviceKind.Joypad, unbound: false);
+        AssertThat(set.IsUnbound(InputManager.Actions.Ultimate, InputDeviceKind.Joypad)).IsFalse();
+    }
+
+    /// <summary>
+    /// Shortcut flags round-trip per device kind, and a legacy payload with no
+    /// flags at all reproduces today's shipped chords rather than silently
+    /// disabling them.
+    /// </summary>
+    [TestCase]
+    public void ShortcutFlagsRoundTripAndDefaultOnForALegacyPayload() {
+        var legacy = new InputBindingSet();
+        legacy.Normalize();
+        foreach (InputShortcuts.Recipe recipe in InputShortcuts.Recipes) {
+            AssertThat(legacy.IsShortcutEnabled(recipe.Action, InputDeviceKind.Keyboard))
+                .OverrideFailureMessage($"{recipe.Action} must default ON for a legacy payload.")
+                .IsTrue();
+            AssertThat(legacy.IsShortcutEnabled(recipe.Action, InputDeviceKind.Joypad)).IsTrue();
+        }
+
+        legacy.SetShortcutEnabled(InputShortcuts.GrabAction, InputDeviceKind.Keyboard, false);
+        legacy.Normalize();
+        AssertThat(legacy.IsShortcutEnabled(InputShortcuts.GrabAction, InputDeviceKind.Keyboard)).IsFalse();
+        // Per-device independence: the gamepad chord is unaffected.
+        AssertThat(legacy.IsShortcutEnabled(InputShortcuts.GrabAction, InputDeviceKind.Joypad)).IsTrue();
+
+        InputBindingSet clone = legacy.Clone();
+        AssertThat(clone.IsShortcutEnabled(InputShortcuts.GrabAction, InputDeviceKind.Keyboard)).IsFalse();
+
+        // Per-action reset restores that action's preset flags for the device.
+        legacy.ResetSlot(InputShortcuts.GrabAction, InputDeviceKind.Keyboard);
+        AssertThat(legacy.IsShortcutEnabled(InputShortcuts.GrabAction, InputDeviceKind.Keyboard)).IsTrue();
+    }
+
+    /// <summary>
+    /// C01c: "Do not silently leave Ultimate/Grab/Echo Step unreachable when their
+    /// shortcut is disabled." A direct bind and an enabled shortcut coexist, and
+    /// either one on its own is a valid route.
+    /// </summary>
+    [TestCase]
+    public void TheReachabilityValidatorRejectsAnUnreachableUltimate() {
+        InputBindingService.EnsureDefaultsCaptured();
+        InputBindingSet effective = InputBindingService.CaptureEffective();
+
+        // Ultimate's keyboard route is its direct bind; its gamepad route is the
+        // chord. Both present, so the profile is reachable.
+        AssertThat(InputShortcuts.HasDirectRoute(
+            effective, InputShortcuts.UltimateAction, InputDeviceKind.Keyboard)).IsTrue();
+        AssertThat(InputShortcuts.ProfileIsReachable(effective, out System.Collections.Generic.List<string> _))
+            .IsTrue();
+
+        // Clear the keyboard slot: the Ultimate chord is gamepad-only, so nothing
+        // is left on the keyboard and the profile must be refused.
+        effective.SetUnbound(InputShortcuts.UltimateAction, InputDeviceKind.Keyboard, unbound: true);
+        AssertThat(InputShortcuts.ProfileIsReachable(
+            effective, out System.Collections.Generic.List<string> unreachable)).IsFalse();
+        AssertThat(unreachable.Contains(InputShortcuts.UltimateAction)).IsTrue();
+
+        // Giving it a direct bind again restores the route.
+        effective.SetUnbound(InputShortcuts.UltimateAction, InputDeviceKind.Keyboard, unbound: false);
+        effective.Set(InputShortcuts.UltimateAction, new[] {
+            new InputBindingEvent(InputBindingKind.Key, (int)Key.U)
+        });
+        AssertThat(InputShortcuts.ProfileIsReachable(effective, out System.Collections.Generic.List<string> _))
+            .IsTrue();
     }
 
     [TestCase]

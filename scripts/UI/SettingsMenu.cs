@@ -53,11 +53,15 @@ namespace FTT.UI {
         private HSlider _hudOpacitySlider;
         private HSlider _screenShakeSlider;
         private HSlider _uiScaleSlider;
+        private CheckButton _reducedEffectsToggle;
+        private Label _reducedEffectsHelp;
 
         // Controls
         private TabContainer _tabs;
         private VBoxContainer _actionRows;
+        private VBoxContainer _shortcutRows;
         private Label _controlsStatus;
+        private readonly Dictionary<string, Button> _unbindButtons = new();
         private readonly Dictionary<string, Button> _keyboardSlots = new();
         private readonly Dictionary<string, Button> _joypadSlots = new();
         private InputBindingSet _workingBindings = new();
@@ -149,8 +153,11 @@ namespace FTT.UI {
             _hudOpacitySlider = Slider("Gameplay/HudOpacitySlider");
             _screenShakeSlider = Slider("Gameplay/ScreenShakeSlider");
             _uiScaleSlider = Slider("Gameplay/UiScaleSlider");
+            _reducedEffectsToggle = _tabs.GetNode<CheckButton>("Gameplay/ReducedEffectsToggle");
+            _reducedEffectsHelp = _tabs.GetNode<Label>("Gameplay/ReducedEffectsHelp");
 
             _actionRows = _tabs.GetNode<VBoxContainer>("Controls/Scroll/ActionRows");
+            _shortcutRows = _tabs.GetNode<VBoxContainer>("Controls/ShortcutRows");
             _controlsStatus = _tabs.GetNode<Label>("Controls/Status");
         }
 
@@ -181,9 +188,12 @@ namespace FTT.UI {
             _tabs.GetNode<Label>("Gameplay/HudOpacityLabel").Text = Tr("settings_hud_opacity");
             _tabs.GetNode<Label>("Gameplay/ScreenShakeLabel").Text = Tr("settings_screen_shake");
             _tabs.GetNode<Label>("Gameplay/UiScaleLabel").Text = Tr("settings_ui_scale");
+            _reducedEffectsToggle.Text = Tr("settings_reduced_temporal_effects");
+            _reducedEffectsHelp.Text = Tr("settings_reduced_temporal_effects_help");
 
             _tabs.GetNode<Label>("Controls/Hint").Text = Tr("controls_hint");
             _tabs.GetNode<Label>("Controls/ReadOnlyInfo").Text = Tr("controls_ultimate_readonly");
+            _tabs.GetNode<Label>("Controls/ShortcutsHeading").Text = Tr("controls_shortcuts_heading");
             _tabs.GetNode<Button>("Controls/ResetAllButton").Text = Tr("controls_reset_all");
             _controlsStatus.Text = "";
         }
@@ -213,6 +223,11 @@ namespace FTT.UI {
             // Live preview: rescaling the shared theme repaints every open
             // screen (this one included) as the slider moves.
             _uiScaleSlider.ValueChanged += value => UIPalette.ApplyUiScale((float)value);
+            // C01a applies LIVE: the preset reaches every presentation surface the
+            // moment it is toggled, without restarting a level, replaying a proc or
+            // resetting a gameplay timer. It is pushed here as well as on save so a
+            // player who backs out with Escape still sees what they chose.
+            _reducedEffectsToggle.Toggled += on => ComfortSettings.Apply(on);
 
             _root.GetNode<Button>("Margin/Panel/Body/Footer/BackButton").Pressed += Close;
             _tabs.GetNode<Button>("Controls/ResetAllButton").Pressed += OnResetAllBindings;
@@ -257,43 +272,148 @@ namespace FTT.UI {
             }
             _keyboardSlots.Clear();
             _joypadSlots.Clear();
-            _workingBindings = InputBindingService.CaptureEffective();
+            _unbindButtons.Clear();
+            // C01c: the live InputMap cannot express "explicitly Unbound" or a
+            // shortcut flag, so the persisted set is handed in and the working set
+            // carries those choices forward.
+            _workingBindings = InputBindingService.CaptureEffective(
+                SaveManager.Instance?.GlobalData?.InputBindings);
 
-            foreach (string action in InputManager.RemappableActions) {
+            // C01c lists EVERY gameplay action, including the ones whose direct
+            // slot ships Unbound and the Story-only Time Freeze. Actions A1c and A2
+            // have not landed yet are simply absent from BindableActions rather
+            // than rendering a broken row.
+            foreach (string action in InputBindingService.BindableActions()) {
                 string capturedAction = action;
                 var row = new HBoxContainer { Name = $"Row_{action}" };
                 row.AddThemeConstantOverride("separation", 8);
 
                 var label = new Label {
-                    Text = Tr(InputManager.ActionLabelKey(action)),
+                    Text = ActionLabel(action),
                     CustomMinimumSize = new Vector2(260, 0)
                 };
                 row.AddChild(label);
 
-                var keyboardSlot = new Button { CustomMinimumSize = new Vector2(220, 34) };
+                var keyboardSlot = new Button { CustomMinimumSize = new Vector2(200, 34) };
                 keyboardSlot.Pressed += () => BeginListening(capturedAction, InputDeviceKind.Keyboard);
                 row.AddChild(keyboardSlot);
                 _keyboardSlots[action] = keyboardSlot;
 
-                var joypadSlot = new Button { CustomMinimumSize = new Vector2(220, 34) };
+                var joypadSlot = new Button { CustomMinimumSize = new Vector2(200, 34) };
                 joypadSlot.Pressed += () => BeginListening(capturedAction, InputDeviceKind.Joypad);
                 row.AddChild(joypadSlot);
                 _joypadSlots[action] = joypadSlot;
 
-                var reset = new Button { Text = Tr("controls_reset_action"), CustomMinimumSize = new Vector2(120, 34) };
+                // C01c: an explicit Unbound is a real choice, distinct from "no
+                // override, inherit the default". Without a control for it the
+                // player could never reach the state the save format now stores.
+                var unbind = new Button {
+                    Text = Tr("controls_unbind"), CustomMinimumSize = new Vector2(110, 34)
+                };
+                unbind.Pressed += () => UnbindSlot(capturedAction, InputDeviceKind.Keyboard);
+                row.AddChild(unbind);
+                _unbindButtons[action] = unbind;
+
+                var reset = new Button {
+                    Text = Tr("controls_reset_action"), CustomMinimumSize = new Vector2(110, 34)
+                };
                 reset.Pressed += () => ResetSingleAction(capturedAction);
                 row.AddChild(reset);
 
                 _actionRows.AddChild(row);
             }
 
-            // The ultimate chord is shown read-only in the Controls tab header
-            // text rather than as a rebindable row.
+            BuildShortcutRows();
+
             RefreshBindingLabels();
         }
 
+        /// <summary>
+        /// C01c's preset shortcuts. Their action recipes are FIXED — there is no
+        /// chord-capture editor — so each row is one On/Off toggle plus a label
+        /// naming the recipe's CURRENT component bindings. Remapping a component
+        /// updates the label; it never redefines the recipe.
+        /// </summary>
+        private void BuildShortcutRows() {
+            if (_shortcutRows == null) return;
+            Godot.Collections.Array<Node> existing = _shortcutRows.GetChildren();
+            using (existing.AsDisposable()) {
+                foreach (Node child in existing) {
+                    _shortcutRows.RemoveChild(child);
+                    child.Free();
+                }
+            }
+            foreach (InputShortcuts.Recipe recipe in InputShortcuts.Recipes) {
+                foreach (InputDeviceKind deviceKind in DeviceKinds) {
+                    if (!InputShortcuts.AppliesTo(recipe, deviceKind)) continue;
+                    InputShortcuts.Recipe capturedRecipe = recipe;
+                    InputDeviceKind capturedKind = deviceKind;
+                    var row = new HBoxContainer { Name = $"Shortcut_{recipe.Action}_{(int)deviceKind}" };
+                    row.AddThemeConstantOverride("separation", 8);
+
+                    var toggle = new CheckButton {
+                        Text = Tr(recipe.LabelKey),
+                        ButtonPressed = _workingBindings.IsShortcutEnabled(recipe.Action, deviceKind)
+                    };
+                    toggle.Toggled += on => {
+                        _workingBindings.SetShortcutEnabled(capturedRecipe.Action, capturedKind, on);
+                        RefreshBindingLabels();
+                        _controlsStatus.Text = ReachabilityWarning() ?? "";
+                    };
+                    row.AddChild(toggle);
+
+                    // The chord's CURRENT buttons, not a hard-coded "LB+RB": C01c
+                    // is explicit that such a label describes defaults, and a
+                    // remapped component must be reflected here.
+                    row.AddChild(new Label { Text = DescribeRecipe(recipe, deviceKind) });
+                    _shortcutRows.AddChild(row);
+                }
+            }
+        }
+
+        private static readonly InputDeviceKind[] DeviceKinds =
+            { InputDeviceKind.Keyboard, InputDeviceKind.Joypad };
+
+        /// <summary>Localized action name, covering C01c's four direct actions.</summary>
+        private static string ActionLabel(string action) =>
+            TranslationServer.Translate(InputShortcuts.ActionLabelKey(action));
+
+        /// <summary>Renders a recipe as its components' live bindings, joined.</summary>
+        private string DescribeRecipe(InputShortcuts.Recipe recipe, InputDeviceKind deviceKind) {
+            var parts = new List<string>();
+            foreach (string component in recipe.Components) {
+                parts.Add(InputBindingService.DescribeAll(_workingBindings.EventsFor(component, deviceKind)));
+            }
+            return string.Join(" + ", parts);
+        }
+
+        /// <summary>
+        /// C01c's explicit Unbound. It clears the slot rather than deleting the
+        /// row, and the reachability check runs immediately so the player is told
+        /// at once that they just made Ultimate, Grab or Echo Step unreachable —
+        /// rather than discovering it in a match.
+        /// </summary>
+        private void UnbindSlot(string action, InputDeviceKind deviceKind) {
+            CancelListening();
+            _workingBindings.SetUnbound(action, deviceKind, unbound: true);
+            RefreshBindingLabels();
+            _controlsStatus.Text = ReachabilityWarning() ?? Tr("controls_unbound_done");
+        }
+
+        /// <summary>
+        /// C01c: "Do not silently leave Ultimate/Grab/Echo Step unreachable when
+        /// their shortcut is disabled. Explain the missing route." Returns the
+        /// localized explanation, or null when every required verb keeps a route.
+        /// </summary>
+        internal string ReachabilityWarning() {
+            if (InputShortcuts.ProfileIsReachable(_workingBindings, out List<string> unreachable)) return null;
+            var names = new List<string>();
+            foreach (string action in unreachable) names.Add(ActionLabel(action));
+            return string.Format(Tr("controls_unreachable_action"), string.Join(", ", names));
+        }
+
         private void RefreshBindingLabels() {
-            foreach (string action in InputManager.RemappableActions) {
+            foreach (string action in InputBindingService.BindableActions()) {
                 IReadOnlyList<InputBindingEvent> events = _workingBindings.For(action);
                 if (_keyboardSlots.TryGetValue(action, out Button keyboardSlot) && IsInstanceValid(keyboardSlot)) {
                     keyboardSlot.Text = DescribeSlot(events, InputDeviceKind.Keyboard);
@@ -395,25 +515,39 @@ namespace FTT.UI {
                 .ToList();
             next.Add(captured);
             _workingBindings.Set(action, next);
+            // A fresh capture is the opposite of an explicit Unbound: lift it, or
+            // Normalize would strip the binding straight back out on save.
+            _workingBindings.SetUnbound(action, _listeningDeviceKind, unbound: false);
 
             _listeningAction = "";
             RefreshBindingLabels();
-            _controlsStatus.Text = Tr("controls_rebound");
+            _controlsStatus.Text = ReachabilityWarning() ?? Tr("controls_rebound");
         }
 
+        /// <summary>
+        /// C01c's per-action reset: "restores that action's direct default AND its
+        /// preset flags for the selected device". Clearing the explicit Unbound is
+        /// the half that is easy to forget — without it the row would show the
+        /// default while the payload still said the slot was cleared on purpose.
+        /// </summary>
         private void ResetSingleAction(string action) {
             CancelListening();
             IReadOnlyList<InputBindingEvent> defaults = InputBindingService.ProjectDefaults.For(action);
             _workingBindings.Set(action, defaults);
+            foreach (InputDeviceKind deviceKind in DeviceKinds) _workingBindings.ResetSlot(action, deviceKind);
             RefreshBindingLabels();
+            BuildShortcutRows();
             _controlsStatus.Text = Tr("controls_reset_action_done");
         }
 
         private void OnResetAllBindings() {
             CancelListening();
             SaveManager.Instance?.ResetInputBindingsToDefault();
+            // Global reset restores the WHOLE control profile, so the C01c maps go
+            // with it: no persisted set is handed in here on purpose.
             _workingBindings = InputBindingService.CaptureEffective();
             RefreshBindingLabels();
+            BuildShortcutRows();
             _controlsStatus.Text = Tr("controls_reset_all_done");
         }
 
@@ -481,6 +615,10 @@ namespace FTT.UI {
             _hudOpacitySlider.Value = data.HudOpacity;
             _screenShakeSlider.Value = data.ScreenShakeScale;
             _uiScaleSlider.Value = data.UiScale;
+            // C01a: the preset is independent of Screen Shake and is never
+            // inferred from it — a player who turned shake off has said nothing
+            // about distortion or after-images.
+            _reducedEffectsToggle.ButtonPressed = data.ReducedTemporalEffects;
             _resolutionDropdown.Selected =
                 GlobalSaveData.ResolutionIndex(data.ResolutionWidth, data.ResolutionHeight);
             _windowModeDropdown.Selected = (int)data.WindowMode;
@@ -501,6 +639,8 @@ namespace FTT.UI {
             data.HudOpacity = (float)_hudOpacitySlider.Value;
             data.ScreenShakeScale = (float)_screenShakeSlider.Value;
             data.UiScale = (float)_uiScaleSlider.Value;
+            data.ReducedTemporalEffects = _reducedEffectsToggle.ButtonPressed;
+            data.ApplyComfortSettings();
             ReadDisplayInto(data);
             // PersistInputBindings writes the global payload itself.
             manager.PersistInputBindings(_workingBindings);

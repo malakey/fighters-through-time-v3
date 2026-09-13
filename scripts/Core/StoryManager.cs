@@ -267,12 +267,9 @@ namespace FTT.Core {
             LastLevelRewindsUsed = LevelRewindsUsed;
             LastLevelIntegrityPercent = TimelineIntegrityPercent;
             LastLevelSecretsFound = LevelSecretsFound;
-            LastLevelChronalRating = ChronalRatingRules.Compute(
-                TimelineIntegrityPercent,
-                LevelRewindsUsed,
-                LevelSecretsFound,
-                secretsTotal: 1,
-                LevelElapsedSeconds);
+            // Package 11 A8, ruling 2.A: the Chronal Rating is retired by V7.6.
+            // Nothing computes or stores it any more; the Integrity tier is the
+            // single grade the results overlay shows.
         }
 
         // === Timeline Integrity & secrets (V7.1) ============================
@@ -286,7 +283,6 @@ namespace FTT.Core {
         /// <summary>Frozen at completion for the results overlay.</summary>
         public float LastLevelIntegrityPercent { get; private set; } = TimelineIntegrityRules.StartPercent;
         public int LastLevelSecretsFound { get; private set; }
-        public string LastLevelChronalRating { get; private set; } = "";
 
         /// <summary>
         /// V7.3 Siphon Clock: the drain accounting lives on each engaged
@@ -616,7 +612,10 @@ namespace FTT.Core {
             if (slot < 0 || slot >= saveManager.SaveSlots.Length || saveManager.SaveSlots[slot] == null) return;
             StorySaveData save = saveManager.SaveSlots[slot];
             save.IntegrityByLevel[levelID] = LastLevelIntegrityPercent;
-            save.RatingByLevel[levelID] = LastLevelChronalRating ?? "";
+            // RatingByLevel is deliberately no longer written (ruling 2.A). The
+            // field survives in the payload as dead data through schema v6 —
+            // removing it is a breaking change this package is not taking — so an
+            // older save keeps whatever rating it already recorded.
             save.SecretsFoundByLevel[levelID] = LastLevelSecretsFound;
             saveManager.SaveStorySlot(slot);
         }

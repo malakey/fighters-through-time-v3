@@ -4727,3 +4727,125 @@ a **bold one-sentence claim**, then the reasoning and the pinning test. The orch
 integration block per wave. Phase C appends the final closeout block including the honest
 "What Package 11 did NOT deliver" list. Nothing in this section is ever edited or removed — only
 appended.)*
+
+### A8 — HUD, presentation and comfort settings (2026-09-13)
+
+**The Story HUD is now the HUD_CONTRACT tree, both HUDs render two status slots, the Fighter
+ownership edge is an independent shader channel, and C01a/C01b/C01c's settings shapes exist —
+but four items in the dossier were deliberately not taken, and one edit lands outside my
+declared file ownership.**
+
+**1. The HUD scene rewrite renames every node, once.** `scenes/ui/StoryHUD.tscn` went from
+`Root/{TopLeft,Portrait,Vitals,BossPanel,CheckpointToast}` to the contract's
+`SafeArea/{TopLeft_Panel,TopRight_Panel}`. Recon H open question 1 offered a permanent
+deviation mapping instead; the plan ruled for the rename and I took it. The three widgets
+`StoryHUD.ResolveUI()` used to build at runtime "so the authored scene stays untouched" (the
+Rally echo band, the Integrity readout, the boss intro card) are authored nodes now. The
+fourth, the V7.3 manual-rewind cooldown pip, is **deleted** rather than moved — see item 7.
+The repo extras the contract does not enumerate (`TopLeft/{LevelTitle,Objective}`, `BossPanel`,
+`BossIntroCard`, `CheckpointToast`, plus a new `TremorOverlay`) are kept as named siblings under
+`SafeArea` and pinned as accepted deviations by `StoryHudContractTests`.
+
+**2. I added two accessors to `StatusController.cs`, which A1 owns.** F24 requires the status
+radials to follow "authoritative simulation clocks, including pauses and Time Freeze", and the
+controller exposes `ControlStatusType`/`DamageStatusType` but only a control-first
+`RemainingDuration` — which cannot answer for the damage slot while the control slot is
+occupied. I appended `ControlStatusRemaining` and `DamageStatusRemaining` as two
+expression-bodied properties beside the existing pair. Purely additive, no behaviour change.
+**Orchestrator: this is outside §5.2's A8 file list; merge by union with A1's edits.**
+
+**3. I declared the §2.9 payloads in `EventBus.cs` myself.** The plan fixes their names and
+fields but the publishers land in parallel branches, so referencing them without declaring them
+leaves this worktree unable to compile — and a clean build is a gate. The block carries an
+explicit `ORCHESTRATOR:` comment: it is a **union candidate, not an independent addition**, and
+exactly one copy of each type must survive the merge. Types declared: `IntegrityTier`,
+`TimeFreezeState`, `AbilitySlotLockState`, `DefySealState`, `IntegrityPayload`, `TremorPayload`,
+`TimeFreezePayload`, `AbilitySlotLockPayload`, `AnchorChargesPayload`, `DefySealPayload`,
+`RallyEchoPayload`, plus the seven `Raise*`/event pairs.
+
+**4. `OnRallyEchoChanged` is an addition, not an extension.** §2.9 asked A8 to check whether a
+Rally echo event already existed. It did not — the band was polled from
+`PlayerController.EchoPool` / `verb.EchoPool` every frame, which is still how the band's
+*geometry* is computed (the drain is continuous and would spam events). The new payload carries
+only the **reclaim flash**, which has no polled equivalent.
+
+**5. The F24 glow split is scoped to the ownership channel only.** The dossier also asked for the
+effect stack to be re-prioritised to `spawn protection → armor → control status → damage status`,
+which means reordering `GlowLayer` (spawn currently sits *below* armor) and splitting `Status`
+into two layers. That is a rewrite of `GlowStateModel.cs`'s enum and `GlowStateStack`'s indexing
+in a file A1 is editing in this same wave for the aura-smother channel, and the plan's ordering
+is strict A1 → A8 → A6b. **Not delivered; recorded for A1b or Phase C.** What did land:
+`GlowLayer.SlotIndicator` is retired (documented, nothing pushes it), `SetSlotIndicator` writes an
+independent channel, the shader gained `owner_outline_color`/`_thickness`/`_enabled` and a second
+composite pass *after* the effect edge, and `OwnershipOutlineTests` proves the edge survives a
+status starting, armor and spawn overlapping, and every one of them expiring.
+
+**6. Spawn-invulnerability glow was not moved onto `FighterStateComponent.InvulnerabilityFrames`.**
+The dossier asked for it, and for it not to fire in Sudden Death (F22). Both require editing
+`FighterSimulationDriver`'s presentation sync, which is A1c/A9 territory this package.
+**Not delivered.**
+
+**7. The rewind-cooldown pip's deletion happened here, not in A2.** §5.1 says "A2 deletes the
+rewind-cooldown pip and nothing else" in `StoryHUD.cs`. Because A8 rewrote the whole file and
+scene, the pip could not survive the rewrite; it is gone, and `StoryHudContractTests` fails if
+anything reintroduces a node named `RewindCooldownPip`. Its translation row
+`hud_rewind_cooldown` is **A2's to delete** (§2.11), so A8 recorded it as an orphan and raised
+`UnusedTranslationKeyTests.RecordedOrphanCeiling` from 11 to 12. **A2 should delete both the row
+and the roster entry, and drop the ceiling back to 11.**
+
+**8. C01b moved the SFX low-pass DOWN rather than adding a filtered sibling.** Recon I asked for
+a `CriticalCues` bus "not carrying the background LPF" as a sibling of Combat/Movement/
+Environmental under SFX — but those siblings *inherit* SFX's filter, so a clean sibling was
+impossible without moving something. The filter now lives on the three background World SFX
+children and the SFX parent carries none, which is what lets Critical Cues keep the player's SFX
+gain and mute while escaping the background muffle. `AudioBusLayoutTests` pins both halves.
+The `AudioSnapshot` enum gained five rows with **no authored treatment** (silent placeholders per
+the standing rule) — they still win the ladder, which is how Time Freeze suppresses a low-health
+heartbeat rather than playing under it.
+
+**9. `MatchResults` was left alone.** The dossier's item 8 says it shows both final regulation
+stocks-lost totals; §5.1 assigns exactly that to A1c ("adds the stocks-lost totals lines to
+`MatchResults` only"). A8 shipped the HUD half (`fighter_hud_stocks_lost`, the mode-switched
+stock display, `FighterHudModel.UsesStocksLostDisplay`) and left the results lines to A1c.
+
+**10. `controls_ultimate_readonly` keeps its key and gets new English.** Its old value —
+"It cannot be rebound." — became false the moment C01c gave Ultimate a direct slot. The row is
+unowned by §2.11, so rather than delete it A8 rewrote the value to describe the optional chord.
+
+**11. C01a's consumer wiring is partial, honestly.** Wired: `GlowPresentationController` (every
+authored pulse collapses to a steady glow; the Venom gradient stops animating),
+`RewindPresentationOverlay` (scanlines and ghost trails suppressed, already-emitted trails
+cleared on a live enable). Deliberately **not** wired: `CameraShake` — C01a says shake stays
+independently controlled by its own slider; `LoadingScreen` — it is already a static portal with
+no distortion pass to disable; `VfxEmitter` and the Relativity Rift zone visual — their
+suppressible passes are Package 10 art that does not exist yet, so there is nothing to gate.
+`FighterPresentationOverlay`'s KO beat is already a restrained dim rather than a flash.
+The determinism guarantee is pinned structurally instead of by hash comparison:
+`ReducedTemporalEffectsSettingTests.NoDeterministicSimulationCodeReadsThePreset` fails if
+anything under `scripts/FighterSim/` ever references the preset, which a two-match hash
+comparison would not.
+
+**12. Explicit Unbound is keyed per device kind.** §2.6 describes `UnboundActions` as a flat
+`HashSet<string>`; C01c requires keyboard and gamepad overrides to stay independent ("clearing
+the gamepad slot must not clear its keyboard U"). Entries are therefore
+`action|deviceKind` via `InputBindingSet.SlotKey`, matching the shortcut-flag map's keying.
+A8 also moved `Actions.Ultimate` into `RemappableActions` (emptying `ReadOnlyActions`) and built
+`InputBindingService.RestorableActions` from `RemappableActions` **plus**
+`InputShortcuts.DirectActions`, so A1c's `gameplay_grab`/`gameplay_echo_step` and A2's
+`gameplay_time_freeze` are restorable the moment they exist. Every C01c consumer keys by action
+name and tolerates an action the InputMap does not carry yet.
+
+**13. `results_rating` is deleted; `RatingByLevel` survives as dead data.** Ruling 2.A. A8 removed
+`StoryManager.LastLevelChronalRating`, its `ChronalRatingRules.Compute` call, the
+`save.RatingByLevel[levelID]` write and `LevelResultsPanel`'s `RatingLine`. The save field stays
+with an XML comment saying nothing may write it again — removing it is a breaking change this
+package is not taking. `ChronalRatingRules` itself is A3's to delete.
+
+**Test delta: +42 (26 new across seven suites, +16 net across seven rewritten ones).** New:
+`StoryHudContractTests` (3), `DefySealTests` (5), `ReducedTemporalEffectsSettingTests` (5),
+`OwnershipOutlineTests` (4), `StockDisplayModeTests` (3), `IntegrityClockTests` (3),
+`DustCounterPersistenceTests` (3). Rewritten in place: `HudAbilityIndicatorModelTests` 8→11,
+`FighterHudSceneTests` 8→10, `AudioSnapshotMixerTests` 8→11, `AudioBusLayoutTests` 6→7,
+`InputBindingSchemaTests` 12→15, `SettingsMenuSceneTests` 10→12, `LevelResultsStatsTests` 8→10;
+`StoryHudPresentationTests`, `AudioSnapshotTriggerTests`, `GlowStateStackTests` and
+`GlowPresentationControllerTests` were rewritten at ±0.

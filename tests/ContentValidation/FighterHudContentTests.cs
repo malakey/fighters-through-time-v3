@@ -82,26 +82,25 @@ public class FighterHudContentTests {
         AssertObject(packed).IsNotNull();
         Node root = AutoFree(packed.Instantiate());
 
-        string[] required = {
-            "Root",
-            "Root/MatchClock",
-            "Root/PlayerOne/Body/Portrait",
-            "Root/PlayerOne/Body/Column/TopRow/Name",
-            "Root/PlayerOne/Body/Column/TopRow/Status",
-            "Root/PlayerOne/Body/Column/HPBar",
-            "Root/PlayerOne/Body/Column/MeterBar",
-            "Root/PlayerOne/Body/Column/PipRow/Stocks",
-            "Root/PlayerOne/Body/Column/PipRow/Shields",
-            "Root/PlayerOne/Body/Column/Cooldowns",
-            "Root/PlayerTwo/Body/Portrait",
-            "Root/PlayerTwo/Body/Column/TopRow/Name",
-            "Root/PlayerTwo/Body/Column/TopRow/Status",
-            "Root/PlayerTwo/Body/Column/HPBar",
-            "Root/PlayerTwo/Body/Column/MeterBar",
-            "Root/PlayerTwo/Body/Column/PipRow/Stocks",
-            "Root/PlayerTwo/Body/Column/PipRow/Shields",
-            "Root/PlayerTwo/Body/Column/Cooldowns"
-        };
+        // Package 11 A8 renamed the tree to HUD_CONTRACT's names (Root ->
+        // SafeArea, PlayerOne/Two -> P1_Status/P2_Status) and replaced the single
+        // Status label with F24's two fixed 24 x 24 slots.
+        var required = new List<string> { "SafeArea", "SafeArea/MatchClock" };
+        foreach (string player in new[] { "P1_Status", "P2_Status" }) {
+            required.Add($"SafeArea/{player}/Body/Portrait");
+            required.Add($"SafeArea/{player}/Body/Column/TopRow/Name");
+            required.Add($"SafeArea/{player}/Body/Column/HPBar");
+            required.Add($"SafeArea/{player}/Body/Column/MeterBar");
+            required.Add($"SafeArea/{player}/Body/Column/DefySeal");
+            required.Add($"SafeArea/{player}/Body/Column/PipRow/Stocks");
+            required.Add($"SafeArea/{player}/Body/Column/PipRow/StocksLost");
+            required.Add($"SafeArea/{player}/Body/Column/PipRow/Shields");
+            required.Add($"SafeArea/{player}/Body/Column/Cooldowns");
+            required.Add(
+                $"SafeArea/{player}/Body/Column/TopRow/StatusEffects_Panel/DamageStatus_Indicator");
+            required.Add(
+                $"SafeArea/{player}/Body/Column/TopRow/StatusEffects_Panel/ControlStatus_Indicator");
+        }
 
         var missing = new List<string>();
         foreach (string path in required) {
@@ -116,7 +115,7 @@ public class FighterHudContentTests {
     public void TheHudRootAdoptsTheSharedTheme() {
         var packed = ResourceLoader.Load<PackedScene>(FighterHUD.ScenePath);
         Node root = AutoFree(packed.Instantiate());
-        var hudRoot = root.GetNodeOrNull<Control>("Root");
+        var hudRoot = root.GetNodeOrNull<Control>("SafeArea");
         AssertObject(hudRoot).IsNotNull();
         // A missing theme resource must not take the HUD down, so this only
         // requires the adoption when the theme actually exists.

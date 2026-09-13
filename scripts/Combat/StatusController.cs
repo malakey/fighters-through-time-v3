@@ -241,6 +241,15 @@ namespace FTT.Combat {
             _control.Type != FTT.Core.StatusType.None ? _control.Intensity : _damage.Intensity;
         public FTT.Core.StatusType ControlStatusType => _control.Type;
         public FTT.Core.StatusType DamageStatusType => _damage.Type;
+
+        // Package 11 A8 / F24: the HUD draws a duration radial per slot and "must
+        // not independently count down a frozen status", so it reads the
+        // authoritative per-slot remaining instead of running its own timer. The
+        // pre-existing RemainingDuration is the control-first compat view and
+        // cannot answer for the damage slot while the control slot is occupied.
+        public float ControlStatusRemaining => _control.Remaining;
+        public float DamageStatusRemaining => _damage.Remaining;
+
         public bool HasStatus(FTT.Core.StatusType type) => _control.Type == type || _damage.Type == type;
     }
 }

@@ -26,15 +26,17 @@ public class GlowStateStackTests {
         AssertThat(stack.TryResolve(out GlowState _)).IsFalse();
     }
 
+    /// <summary>
+    /// Package 11 A8 / F24: the player-slot indicator left this stack entirely —
+    /// it is an independent persistent shader channel now, precisely because
+    /// sitting at the bottom of a priority stack meant the first status or armor
+    /// source replaced it. What remains is the SECONDARY effect ladder.
+    /// </summary>
     [TestCase]
-    public void HyperArmorOutranksStatusWhichOutranksTheSlotIndicator() {
+    public void HyperArmorOutranksStatusInTheEffectStack() {
         var stack = new GlowStateStack();
-        stack.Push(GlowPalette.SlotIndicator(1));
+        stack.Push(GlowPalette.Status(StatusType.Root));
         AssertThat(stack.TryResolve(out GlowState resolved)).IsTrue();
-        AssertThat(resolved.Layer).IsEqual(GlowLayer.SlotIndicator);
-
-        stack.Push(GlowPalette.Status(StatusType.RadiantBurn));
-        AssertThat(stack.TryResolve(out resolved)).IsTrue();
         AssertThat(resolved.Layer).IsEqual(GlowLayer.Status);
 
         stack.Push(GlowPalette.SpawnInvulnerability());
@@ -44,38 +46,41 @@ public class GlowStateStackTests {
         stack.Push(GlowPalette.HyperArmor());
         AssertThat(stack.TryResolve(out resolved)).IsTrue();
         AssertThat(resolved.Layer).IsEqual(GlowLayer.HyperArmor);
-        AssertThat(stack.ActiveLayerCount).IsEqual(4);
+        AssertThat(stack.ActiveLayerCount).IsEqual(3);
+
+        // Nothing pushes the retired slot layer any more.
+        AssertThat(stack.IsActive(GlowLayer.SlotIndicator)).IsFalse();
     }
 
     [TestCase]
     public void ClearingTheTopLayerRevertsToTheNextActiveSource() {
         var stack = new GlowStateStack();
-        stack.Push(GlowPalette.SlotIndicator(0));
         stack.Push(GlowPalette.Status(StatusType.Venom));
+        stack.Push(GlowPalette.SpawnInvulnerability());
         stack.Push(GlowPalette.HyperArmor());
 
         stack.Clear(GlowLayer.HyperArmor);
         AssertThat(stack.TryResolve(out GlowState resolved)).IsTrue();
+        AssertThat(resolved.Layer).IsEqual(GlowLayer.SpawnInvulnerability);
+
+        stack.Clear(GlowLayer.SpawnInvulnerability);
+        AssertThat(stack.TryResolve(out resolved)).IsTrue();
         AssertThat(resolved.Layer).IsEqual(GlowLayer.Status);
 
         stack.Clear(GlowLayer.Status);
-        AssertThat(stack.TryResolve(out resolved)).IsTrue();
-        AssertThat(resolved.Layer).IsEqual(GlowLayer.SlotIndicator);
-
-        stack.Clear(GlowLayer.SlotIndicator);
         AssertThat(stack.TryResolve(out GlowState _)).IsFalse();
     }
 
     [TestCase]
     public void ClearingALowerLayerLeavesTheActiveTreatmentAlone() {
         var stack = new GlowStateStack();
-        stack.Push(GlowPalette.SlotIndicator(1));
+        stack.Push(GlowPalette.Status(StatusType.Root));
         stack.Push(GlowPalette.HyperArmor());
 
-        stack.Clear(GlowLayer.SlotIndicator);
+        stack.Clear(GlowLayer.Status);
         AssertThat(stack.TryResolve(out GlowState resolved)).IsTrue();
         AssertThat(resolved.Layer).IsEqual(GlowLayer.HyperArmor);
-        AssertThat(stack.IsActive(GlowLayer.SlotIndicator)).IsFalse();
+        AssertThat(stack.IsActive(GlowLayer.Status)).IsFalse();
     }
 
     [TestCase]

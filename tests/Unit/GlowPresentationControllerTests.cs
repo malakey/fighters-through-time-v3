@@ -62,11 +62,14 @@ public class GlowPresentationControllerTests {
         AssertThat(glow.GlowMaterial
             .GetShaderParameter(GlowPresentationController.OutlineThicknessUniform).AsSingle()).IsEqual(0f);
 
+        // Package 11 A8 / F24: the slot indicator is NOT part of this stack any
+        // more, so the effect layer starts empty even with an ownership edge set.
         glow.SetSlotIndicator(1);
+        AssertThat(glow.IsGlowing).IsFalse();
+
+        glow.SetStatus(FTT.Core.StatusType.Root);
         AssertThat(glow.IsGlowing).IsTrue();
-        AssertThat(glow.GlowMaterial
-            .GetShaderParameter(GlowPresentationController.OutlineColorUniform).AsColor())
-            .IsEqual(GlowPalette.SlotColor(1));
+        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.Status);
 
         glow.SetHyperArmor(true);
         AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.HyperArmor);
@@ -77,7 +80,7 @@ public class GlowPresentationControllerTests {
         AssertThat(glow.Light.Enabled).IsTrue();
 
         glow.SetHyperArmor(false);
-        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.SlotIndicator);
+        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.Status);
 
         glow.ClearAllStates();
         AssertThat(glow.IsGlowing).IsFalse();
