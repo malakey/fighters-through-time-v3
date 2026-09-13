@@ -4,6 +4,7 @@ using FTT.Environment;
 using FTT.FighterSim;
 using GdUnit4;
 using Godot;
+using xpTURN.Klotho.Deterministic.Math;
 using static GdUnit4.Assertions;
 
 namespace FTT.Tests.ContentValidation;
@@ -109,8 +110,13 @@ public class FighterStageParisTests {
                 else if (body.CollisionLayer == FighterStageConformance.OneWayPlatformLayer) oneWay++;
                 else AssertThat($"'{body.Name}' is on layer {body.CollisionLayer}").IsEqual("");
             }
-            // Ground plus two walls; two drawbridge walkways.
-            AssertThat(solid).IsEqual(3);
+            // Package 11 A9: Paris is an Open stage, so its main floor is authored
+            // as one solid body per FloorSegments entry — two of them, either side
+            // of the courtyard pit — plus the two walls. The drawbridge walkways
+            // stay one-way.
+            AssertThat(FighterStageGeometry.Paris.IsOpenStage).IsTrue();
+            AssertThat(solid).IsEqual(FighterStageGeometry.Paris.FloorSegments.Length + 2);
+            AssertThat(solid).IsEqual(4);
             AssertThat(oneWay).IsEqual(FighterStageGeometry.Paris.Platforms.Length);
         } finally {
             root.Free();
@@ -160,6 +166,29 @@ public class FighterStageParisTests {
                 if (child.Name.ToString().StartsWith("BeamColumn")) beamColumns++;
             }
             AssertThat(beamColumns).IsEqual(FighterStageGeometry.Paris.HazardAnchorXs.Length);
+
+            // Package 11 A9: the courtyard pit is real geometry now, and it needs a
+            // readable depth cue over the authored gap rather than the old painted
+            // trench that spanned both spawn points over solid floor.
+            var pit = presentation.GetNodeOrNull<ColorRect>("CourtyardPit");
+            AssertObject(pit).IsNotNull();
+            FighterStagePlatform leftSegment = FighterStageGeometry.Paris.FloorSegments[0];
+            FighterStagePlatform rightSegment = FighterStageGeometry.Paris.FloorSegments[1];
+            float pitLeft = FighterStageConformance.ToPixels(leftSegment.EdgeX(1), FP64.Zero).X;
+            float pitRight = FighterStageConformance.ToPixels(rightSegment.EdgeX(0), FP64.Zero).X;
+            AssertThat(Mathf.Abs(pit.OffsetLeft - pitLeft) <= FighterStageConformance.EpsilonPixels)
+                .OverrideFailureMessage(
+                    $"the painted pit starts at {pit.OffsetLeft} px but the authored gap starts at {pitLeft} px")
+                .IsTrue();
+            AssertThat(Mathf.Abs(pit.OffsetRight - pitRight) <= FighterStageConformance.EpsilonPixels)
+                .OverrideFailureMessage(
+                    $"the painted pit ends at {pit.OffsetRight} px but the authored gap ends at {pitRight} px")
+                .IsTrue();
+            // It has to open DOWNWARD from the floor plane, not sit on top of it.
+            AssertThat(pit.OffsetTop >= FighterStageConformance.ToPixels(FP64.Zero, FP64.Zero).Y).IsTrue();
+            // Both true ledges carry an edge cue.
+            AssertObject(root.GetNodeOrNull<ColorRect>("Geometry/GroundLeft/LedgeCue")).IsNotNull();
+            AssertObject(root.GetNodeOrNull<ColorRect>("Geometry/GroundRight/LedgeCue")).IsNotNull();
         } finally {
             root.Free();
         }

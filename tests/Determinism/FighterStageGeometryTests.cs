@@ -1,5 +1,7 @@
 using System.Collections.Generic;
+using FTT.Characters;
 using FTT.Core;
+using FTT.Environment;
 using FTT.FighterSim;
 using GdUnit4;
 using static GdUnit4.Assertions;
@@ -20,13 +22,22 @@ namespace FTT.Tests.Determinism;
 [RequireGodotRuntime]
 public class FighterStageGeometryTests {
 
-    /// <summary>The locked §4 dossier: id, walls, platforms, hazard anchors, orb anchors.</summary>
+    /// <summary>
+    /// The locked §4 dossier: id, walls, platforms, hazard anchors, orb anchors and
+    /// — since Package 11 A9 — the main floor's segments. An empty
+    /// <c>FloorSegments</c> row is a <b>Sealed</b> stage: unbroken floor, wall to
+    /// wall. A non-empty one is an <b>Open</b> stage with real pits.
+    /// </summary>
     private sealed record StageDossier(
         string StageID,
         double Wall,
         (double CenterX, double SurfaceY, double HalfWidth)[] Platforms,
         double[] HazardAnchorXs,
-        (double X, double Y)[] OrbAnchors);
+        (double X, double Y)[] OrbAnchors,
+        (double CenterX, double HalfWidth)[] FloorSegments = null) {
+        public (double CenterX, double HalfWidth)[] Segments =>
+            FloorSegments ?? System.Array.Empty<(double, double)>();
+    }
 
     private static readonly StageDossier[] Dossiers = {
         new("florence_workshop", 9,
@@ -41,18 +52,25 @@ public class FighterStageGeometryTests {
             new[] { (-6.0, 3.2, 1.5), (6.0, 3.2, 1.5) },
             new[] { 0.0 },
             new[] { (-6.0, 3.7), (6.0, 3.7), (0.0, 0.5) }),
+        // Open: a 5.0-wide centred courtyard pit under the drawbridge walkways.
         new("paris_bastille", 9,
             new[] { (-4.0, 2.6, 2.0), (4.0, 2.6, 2.0) },
             new[] { -6.0, 0.0, 6.0 },
-            new[] { (-4.0, 3.1), (4.0, 3.1), (0.0, 0.5) }),
+            new[] { (-4.0, 3.1), (4.0, 3.1), (-7.0, 0.5), (7.0, 0.5) },
+            new[] { (-5.75, 3.25), (5.75, 3.25) }),
+        // Open: the collapsed shelf, a 2.5-wide gap against the right wall. The
+        // far-right rockfall anchor moved 6 -> 4.5 to keep its residue pool on floor.
         new("vesuvius_caldera", 8,
             new[] { (-4.5, 2.0, 1.1), (3.0, 3.5, 1.1) },
-            new[] { -6.0, -2.0, 2.0, 6.0 },
-            new[] { (-4.5, 2.5), (3.0, 4.0), (0.0, 0.5) }),
+            new[] { -6.0, -2.0, 2.0, 4.5 },
+            new[] { (-4.5, 2.5), (3.0, 4.0), (0.0, 0.5) },
+            new[] { (-1.25, 6.75) }),
+        // Open: the listing stern ends at x = 6 over open water.
         new("nassau_flagship", 9,
             new[] { (-4.0, 2.8, 1.8), (4.0, 2.8, 1.8) },
             new[] { -5.0, 0.0, 5.0 },
-            new[] { (-4.0, 3.3), (4.0, 3.3), (0.0, 0.5) }),
+            new[] { (-4.0, 3.3), (4.0, 3.3), (0.0, 0.5) },
+            new[] { (-1.5, 7.5) }),
         new("alexandria_chambers", 9,
             new[] { (-4.0, 1.6, 1.3), (4.0, 1.6, 1.3) },
             new[] { -6.0, 0.0, 6.0 },
@@ -84,6 +102,17 @@ public class FighterStageGeometryTests {
         AssertThat(geometry.Platforms.Length).IsEqual(0);
         AssertThat(geometry.HazardAnchorXs.Length).IsEqual(0);
         AssertThat(geometry.OrbAnchors.Length).IsEqual(0);
+        // Package 11 A9: no authored segments means an unbroken floor, which is
+        // exactly the legacy arena's pre-A9 behaviour.
+        AssertThat(geometry.FloorSegments.Length).IsEqual(0);
+        AssertThat(geometry.IsOpenStage).IsFalse();
+        for (int x = -10; x <= 10; x++) {
+            AssertThat(geometry.HasFloorSupport(FP64.FromInt(x))).IsTrue();
+        }
+        AssertThat(geometry.RespawnPlatformPosition.x.RawValue)
+            .IsEqual(FighterMatchFlowRules.RespawnPlatformPosition.x.RawValue);
+        AssertThat(geometry.RespawnPlatformPosition.y.RawValue)
+            .IsEqual(FighterMatchFlowRules.RespawnPlatformPosition.y.RawValue);
     }
 
     /// <summary>
@@ -148,6 +177,18 @@ public class FighterStageGeometryTests {
                 AssertThat(geometry.OrbAnchors[index].x.RawValue).IsEqual(FP64.FromDouble(x).RawValue);
                 AssertThat(geometry.OrbAnchors[index].y.RawValue).IsEqual(FP64.FromDouble(y).RawValue);
             }
+
+            AssertThat(geometry.FloorSegments.Length).IsEqual(dossier.Segments.Length);
+            AssertThat(geometry.IsOpenStage).IsEqual(dossier.Segments.Length > 0);
+            for (int index = 0; index < dossier.Segments.Length; index++) {
+                (double centerX, double halfWidth) = dossier.Segments[index];
+                AssertThat(geometry.FloorSegments[index].CenterX.RawValue)
+                    .IsEqual(FP64.FromDouble(centerX).RawValue);
+                AssertThat(geometry.FloorSegments[index].HalfWidth.RawValue)
+                    .IsEqual(FP64.FromDouble(halfWidth).RawValue);
+                // Floor segments live on the floor plane by definition.
+                AssertThat(geometry.FloorSegments[index].SurfaceY.RawValue).IsEqual(0);
+            }
         }
     }
 
@@ -183,6 +224,26 @@ public class FighterStageGeometryTests {
                 AssertWithMessage(id, anchor.x > geometry.LeftWall && anchor.x < geometry.RightWall);
                 AssertWithMessage(id, anchor.y > FP64.Zero && anchor.y < geometry.Ceiling);
             }
+
+            // Package 11 A9 floor-segment invariants: every segment lies inside the
+            // walls, no two overlap, they are authored left to right, and BOTH
+            // spawn points stand on solid floor — a spawn over a pit would cost a
+            // stock before the countdown finished.
+            FP64 previousRightEdge = geometry.LeftWall;
+            for (int index = 0; index < geometry.FloorSegments.Length; index++) {
+                FighterStagePlatform segment = geometry.FloorSegments[index];
+                AssertWithMessage(id, segment.HalfWidth > FP64.Zero);
+                AssertWithMessage(id, segment.EdgeX(0) >= geometry.LeftWall);
+                AssertWithMessage(id, segment.EdgeX(1) <= geometry.RightWall);
+                AssertWithMessage(id, segment.EdgeX(0) >= previousRightEdge);
+                previousRightEdge = segment.EdgeX(1);
+            }
+            FP64 spawn = FP64.FromInt(geometry.SpawnDistance);
+            AssertWithMessage(id, geometry.HasFloorSupport(spawn));
+            AssertWithMessage(id, geometry.HasFloorSupport(FP64.Zero - spawn));
+            // The respawn platform drop must never land in a pit either.
+            AssertWithMessage(id, geometry.HasFloorSupport(geometry.RespawnPlatformPosition.x));
+            AssertWithMessage(id, geometry.RespawnPlatformPosition.y > FP64.Zero);
         }
     }
 
@@ -196,7 +257,10 @@ public class FighterStageGeometryTests {
         FP64 clearance = FP64.FromDouble(0.5);
         foreach (FighterStageGeometry geometry in FighterStageGeometry.AllAuthored) {
             foreach (FPVector2 anchor in geometry.OrbAnchors) {
-                bool supported = anchor.y.RawValue == clearance.RawValue;
+                // A ground-level anchor is only supported where the main floor
+                // actually exists — on an Open stage that is no longer everywhere.
+                bool supported = anchor.y.RawValue == clearance.RawValue
+                    && geometry.HasFloorSupport(anchor.x);
                 foreach (FighterStagePlatform platform in geometry.Platforms) {
                     if (anchor.y.RawValue == (platform.SurfaceY + clearance).RawValue
                         && platform.Supports(anchor.x)) {
@@ -224,6 +288,73 @@ public class FighterStageGeometryTests {
                 AssertWithMessage($"{geometry.StageID} platform {index}", landed);
             }
         }
+    }
+
+    /// <summary>
+    /// Package 11 A9 — the V7 pillar's other half: a pit has to be survivable, not
+    /// just lethal. Every authored pit-facing floor ledge is walked off, dropped
+    /// from, and recovered from by <b>every one of the nine authored kits</b>,
+    /// through the real fixed-point simulation with no CPU assistance and no
+    /// special-casing. A kit whose jump or air control could not get back is a
+    /// stage bug, and this is where it surfaces.
+    /// </summary>
+    [TestCase]
+    public void EveryAuthoredPitIsEscapableByEveryCharacter() {
+        string[] roster = {
+            "einstein", "joan", "leonardo", "lincoln", "cleopatra",
+            "tesla", "shakespeare", "mozart", "pocahontas"
+        };
+        var issues = new List<string>();
+        int seed = 7100;
+        int drills = 0;
+
+        foreach (FighterStageGeometry geometry in FighterStageGeometry.AllAuthored) {
+            List<(int SegmentIndex, int Side)> ledges = PitFacingLedges(geometry);
+            if (ledges.Count == 0) continue;
+            foreach (string characterID in roster) {
+                var data = AuthoredResources.Load<CharacterData>(
+                    $"res://resources/Characters/{characterID}_data.tres");
+                AssertThat(data).IsNotNull();
+                FighterLoadout loadout = FighterLoadoutFactory.FromCharacterData(data);
+                foreach ((int segmentIndex, int side) in ledges) {
+                    drills++;
+                    if (EscapesTheGapAtLedge(
+                            geometry, loadout, segmentIndex, side, seed++, out string trace)) continue;
+                    issues.Add(
+                        $"{geometry.StageID} segment {segmentIndex} side {side} / {characterID}: {trace}");
+                }
+            }
+        }
+
+        // Three Open stages: Paris has two pit-facing ends, Vesuvius and Nassau one
+        // each, so nine kits run 4 × 9 = 36 drills.
+        AssertThat(drills).IsEqual(36);
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    /// <summary>
+    /// I-13: the catalog's Open/Sealed flag is what stage select shows the player.
+    /// A stage whose flag disagrees with its authored floor topology would promise
+    /// a sealed floor and then drop them through it.
+    /// </summary>
+    [TestCase]
+    public void TheCatalogLayoutFlagMatchesTheAuthoredFloorTopology() {
+        FighterStageCatalog catalog = FighterStageCatalog.LoadDefault();
+        AssertObject(catalog).IsNotNull();
+        var issues = new List<string>();
+        int open = 0;
+        foreach (FighterStageData stage in catalog.Stages) {
+            AssertObject(stage).IsNotNull();
+            FighterStageGeometry geometry = FighterStageGeometry.ForStage(stage.StageID);
+            if (geometry.IsOpenStage) open++;
+            if (stage.IsOpenStage == geometry.IsOpenStage) continue;
+            issues.Add(
+                $"{stage.StageID}: catalog says IsOpenStage={stage.IsOpenStage} but the geometry " +
+                $"authors {geometry.FloorSegments.Length} floor segments");
+        }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+        // Exactly three Open stages ship: Paris, Vesuvius, Nassau.
+        AssertThat(open).IsEqual(3);
     }
 
     [TestCase]
@@ -450,14 +581,19 @@ public class FighterStageGeometryTests {
         // fighters walking into each other jostle to a standstill.
         const sbyte opponentAxis = 127;
         FP64 stopBand = FP64.FromDouble(0.15);
+        FP64 edgeLookahead = FP64.FromDouble(0.2);
 
         for (int tick = 0; tick < 900; tick++) {
             if (!simulation.TryGetFighter(0, out FighterStateComponent fighter)) return false;
+            if (!simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)) return false;
             if (fighter.IsGrounded != 0
                 && fighter.Position.y.RawValue == platform.SurfaceY.RawValue
                 && platform.Supports(fighter.Position.x)) {
                 return true;
             }
+            // Falling into a pit and losing the stock is a failed walk, not a slow
+            // one — report it rather than looping through respawns.
+            if (fighter.Stocks < 3) return false;
 
             FP64 dx = platform.CenterX - fighter.Position.x;
             sbyte moveX = dx > stopBand ? (sbyte)127 : dx < -stopBand ? (sbyte)-127 : (sbyte)0;
@@ -472,6 +608,27 @@ public class FighterStageGeometryTests {
                 if (canGroundJump || canAirJump) buttons = GameplayButtons.Jump;
             }
 
+            // Package 11 A9 — an Open stage's floor has holes in it, so the walk
+            // has to leap them: take off one step before the edge, spend the air
+            // jump while still over the gap, and climb out of any ledge catch.
+            if (FighterLedgeRules.IsHanging(in runtime)) {
+                buttons = GameplayButtons.Jump;
+            } else if (geometry.IsOpenStage) {
+                FP64 probe = moveX > 0
+                    ? fighter.Position.x + edgeLookahead
+                    : fighter.Position.x - edgeLookahead;
+                bool aboutToStepOff = fighter.IsGrounded != 0
+                    && moveX != 0
+                    && fighter.Position.y.RawValue == FP64.Zero.RawValue
+                    && geometry.HasFloorSupport(fighter.Position.x)
+                    && !geometry.HasFloorSupport(probe);
+                bool sinkingIntoTheGap = fighter.IsGrounded == 0
+                    && !geometry.HasFloorSupport(fighter.Position.x)
+                    && fighter.Velocity.y < FP64.Zero
+                    && fighter.RemainingJumps > 0;
+                if (aboutToStepOff || sinkingIntoTheGap) buttons = GameplayButtons.Jump;
+            }
+
             simulation.Advance(
                 new PlayerInputFrame {
                     Tick = (uint)tick,
@@ -482,6 +639,111 @@ public class FighterStageGeometryTests {
                 new PlayerInputFrame { Tick = (uint)tick, MoveX = opponentAxis });
         }
         return false;
+    }
+
+    /// <summary>
+    /// The Package 11 A9 escape drill for one authored pit-facing floor ledge.
+    /// Walks the chosen fighter off that end, drops them off the ledge they catch,
+    /// lets them fall clear of the capture box, then recovers using nothing but
+    /// ordinary inputs — drift, the jumps the grab refilled, and the climb. Success
+    /// is standing on a solid surface again with the stock intact; reaching the
+    /// blast zone is a failure.
+    /// </summary>
+    private static bool EscapesTheGapAtLedge(
+        FighterStageGeometry geometry,
+        FighterLoadout loadout,
+        int segmentIndex,
+        int side,
+        int seed,
+        out string trace) {
+        FighterStagePlatform segment = geometry.FloorSegments[segmentIndex];
+        FP64 edge = segment.EdgeX(side);
+        // Drive whichever fighter spawns on the SAME segment as the target end.
+        int playerID = edge > FP64.Zero ? 1 : 0;
+        int expectedAnchor = (geometry.Platforms.Length + segmentIndex) * 2 + side;
+
+        var simulation = new FighterSimulation(
+            playerID == 0 ? loadout : FighterLoadout.Default(FighterCharacterID.Joan),
+            playerID == 0 ? FighterLoadout.Default(FighterCharacterID.Joan) : loadout,
+            stocks: 3,
+            seed: seed,
+            rules: FighterMatchRules.Disabled,
+            stageGeometry: geometry);
+
+        const int Approaching = 0;
+        const int Dropping = 1;
+        const int Falling = 2;
+        const int Recovering = 3;
+        int phase = Approaching;
+        sbyte towardTheGap = side == 1 ? (sbyte)127 : (sbyte)-127;
+        sbyte towardTheFloor = (sbyte)-towardTheGap;
+        FP64 clearOfTheCaptureBox = FP64.Zero - FighterLedgeRules.CaptureDepth - FP64.FromDouble(0.1);
+
+        for (int tick = 0; tick < 600; tick++) {
+            if (!simulation.TryGetFighter(playerID, out FighterStateComponent fighter)
+                || !simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime)) {
+                trace = "the fighter vanished";
+                return false;
+            }
+            if (fighter.Stocks < 3) {
+                trace = $"fell to the blast zone at tick {tick}";
+                return false;
+            }
+            bool hanging = FighterLedgeRules.IsHanging(in runtime);
+
+            if (phase == Approaching && hanging) {
+                if (runtime.LedgeAnchor != expectedAnchor) {
+                    trace = $"caught anchor {runtime.LedgeAnchor}, expected {expectedAnchor}";
+                    return false;
+                }
+                phase = Dropping;
+            } else if (phase == Dropping) {
+                phase = Falling;
+            } else if (phase == Falling && fighter.Position.y < clearOfTheCaptureBox) {
+                phase = Recovering;
+            } else if (phase == Recovering && fighter.IsGrounded != 0) {
+                trace = "";
+                return true;
+            }
+
+            sbyte moveX = 0;
+            GameplayButtons held = GameplayButtons.None;
+            if (phase == Approaching) {
+                moveX = towardTheGap;
+            } else if (phase == Dropping) {
+                // One tick of Down releases the hang into a real fall.
+                held = GameplayButtons.Down;
+            } else if (phase == Recovering) {
+                moveX = towardTheFloor;
+                if (hanging || (fighter.Velocity.y <= FP64.Zero && fighter.RemainingJumps > 0)) {
+                    held = GameplayButtons.Jump;
+                }
+            }
+
+            var input = new PlayerInputFrame {
+                Tick = (uint)tick, MoveX = moveX, Held = held, Pressed = held
+            };
+            var neutral = new PlayerInputFrame { Tick = (uint)tick };
+            simulation.Advance(
+                playerID == 0 ? input : neutral,
+                playerID == 0 ? neutral : input);
+        }
+
+        trace = $"never returned to solid ground (phase {phase})";
+        return false;
+    }
+
+    /// <summary>Every authored floor-segment end that faces a pit, as (segment, side).</summary>
+    private static List<(int SegmentIndex, int Side)> PitFacingLedges(FighterStageGeometry geometry) {
+        var found = new List<(int, int)>();
+        for (int index = 0; index < geometry.FloorSegments.Length; index++) {
+            for (int side = 0; side < 2; side++) {
+                FP64 edge = geometry.FloorSegments[index].EdgeX(side);
+                if (edge <= geometry.LeftWall || edge >= geometry.RightWall) continue;
+                found.Add((index, side));
+            }
+        }
+        return found;
     }
 
     private static void AssertWithMessage(string context, bool condition) {

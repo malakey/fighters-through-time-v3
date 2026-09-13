@@ -230,6 +230,17 @@ namespace FTT.FighterSim {
         private static readonly FP64 FastFallSpeed = -FP64.FromDouble(UniversalMovementRules.FastFallSpeed);
         private static readonly FP64 RollSpeedMultiplier = FP64.FromDouble(UniversalMovementRules.RollSpeedMultiplier);
 
+        /// <summary>
+        /// The tick length and free-fall acceleration, exposed read-only so an
+        /// input-side consumer — the CPU's pit-risk trajectory probe (Package 11
+        /// A9) — integrates exactly the way the simulation does instead of keeping
+        /// a second copy of either number.
+        /// </summary>
+        internal static FP64 FixedDeltaSeconds => FixedDelta;
+
+        /// <inheritdoc cref="FixedDeltaSeconds"/>
+        internal static FP64 GravityPerSecondSquared => Gravity;
+
         private readonly FighterStageGeometry _geometry;
 
         public FighterMovementSystem(FighterStageGeometry geometry = null) {
@@ -291,7 +302,8 @@ namespace FTT.FighterSim {
                 // The Chronal Respawn Platform owns the fighter completely: it is
                 // frozen, invulnerable, and consumes no input until it drops.
                 if (FighterMatchFlowRules.IsOnRespawnPlatform(in fighter)) {
-                    ProcessRespawnPlatform(ref fighter, ref runtime);
+                    ProcessRespawnPlatform(
+                        ref fighter, ref runtime, _geometry.RespawnPlatformPosition);
                     continue;
                 }
 
@@ -398,7 +410,16 @@ namespace FTT.FighterSim {
                             statusMoveMultiplier,
                             speedBuffMultiplier,
                             jumpBuffMultiplier,
-                            groundIsSolid: _geometry.Platforms.Length > 0,
+                            // "Drop inputs are ignored on the main floor" needs a
+                            // per-x answer now that the floor can have holes: the
+                            // rule applies where the stage HAS a solid floor and
+                            // the fighter is standing on it. Over a pit there is
+                            // nothing to drop through, so the branch must not fire
+                            // either way. The legacy flat arena authors neither
+                            // platforms nor segments and keeps its historical
+                            // drop-through ground.
+                            groundIsSolid: StageHasSolidFloorRule
+                                && _geometry.HasFloorSupport(fighter.Position.x),
                             // Swings never lock steering — an attacker keeps
                             // full horizontal control at normal run
                             // acceleration; only the block stance roots.
@@ -444,8 +465,11 @@ namespace FTT.FighterSim {
                     if (fighter.Velocity.y > FP64.Zero) fighter.Velocity.y = FP64.Zero;
                 }
 
-                // Walking off a one-way platform edge removes ground support.
-                if (fighter.IsGrounded != 0 && fighter.Position.y > FP64.Zero && !HasPlatformSupport(in fighter)) {
+                // Walking off an edge removes ground support — a one-way platform
+                // end above the floor plane, or (Package 11 A9) the end of a main
+                // floor segment on an Open stage. An unbroken floor supports every
+                // x, so the Sealed stages never take the second branch.
+                if (fighter.IsGrounded != 0 && !HasGroundSupport(in fighter)) {
                     fighter.IsGrounded = 0;
                 }
 
@@ -459,14 +483,22 @@ namespace FTT.FighterSim {
                 // window expired, which made the bottom blast zone unreachable on
                 // any stage whose base floor spans the full width.
                 if (fighter.Position.y < _geometry.BottomBlastZone) {
-                    FighterSimulationRules.ApplyStockLoss(ref fighter, ref runtime, ref verb, in tuning);
+                    FighterSimulationRules.ApplyStockLoss(
+                        ref fighter, ref runtime, ref verb, in tuning, _geometry);
                     continue;
                 }
 
                 // Stages with authored platforms have a solid base floor; only the
                 // legacy flat arena keeps its historical drop-through ground.
-                bool groundIsSolid = _geometry.Platforms.Length > 0;
-                if ((groundIsSolid || fighter.DropThroughFrames <= 0) && fighter.Position.y <= FP64.Zero) {
+                // Package 11 A9: the snap is per-x now. Over an authored pit there
+                // is no floor to snap to, so the fighter keeps falling toward the
+                // blast zone — which the branch above already resolved this tick,
+                // so the ordering is right.
+                bool hasFloorHere = _geometry.HasFloorSupport(fighter.Position.x);
+                bool groundIsSolid = hasFloorHere && StageHasSolidFloorRule;
+                if (hasFloorHere
+                    && (groundIsSolid || fighter.DropThroughFrames <= 0)
+                    && fighter.Position.y <= FP64.Zero) {
                     fighter.Position.y = FP64.Zero;
                     if (fighter.Velocity.y < FP64.Zero) fighter.Velocity.y = FP64.Zero;
                     fighter.IsGrounded = 1;
@@ -557,10 +589,18 @@ namespace FTT.FighterSim {
         /// grace window any gameplay input drops them; otherwise the platform
         /// dissolves on expiry. Either way the three-second spawn invulnerability
         /// is (re)armed at the drop, never before it.
+        ///
+        /// <para>Package 11 A9: the platform sits at the <i>stage's</i> authored
+        /// anchor, not the global stage-centre constant — on Paris centre is a pit
+        /// now. Because the position is re-pinned on every tick the platform holds
+        /// the fighter, this call is also the authority: a stock loss raised by the
+        /// hit pipeline (which has no geometry in hand) places the fighter at the
+        /// shared default for one tick and is corrected here before the drop.</para>
         /// </summary>
         private static void ProcessRespawnPlatform(
             ref FighterStateComponent fighter,
-            ref FighterRuntimeComponent runtime) {
+            ref FighterRuntimeComponent runtime,
+            in FPVector2 respawnPosition) {
             int elapsed = FighterMatchFlowRules.RespawnPlatformFrames - fighter.RespawnFramesRemaining;
             bool graceElapsed = elapsed >= FighterMatchFlowRules.RespawnPlatformGraceFrames;
             bool inputRequestedDrop = graceElapsed
@@ -578,7 +618,7 @@ namespace FTT.FighterSim {
             runtime.ReleasedButtons = 0;
             FighterUniversalMovementRules.Cancel(ref runtime);
 
-            fighter.Position = FighterMatchFlowRules.RespawnPlatformPosition;
+            fighter.Position = respawnPosition;
             fighter.Velocity = FPVector2.Zero;
             fighter.IsGrounded = 1;
             fighter.HitstunFrames = 0;
@@ -597,6 +637,25 @@ namespace FTT.FighterSim {
             fighter.InvulnerabilityFrames =
                 fighter.RespawnFramesRemaining + FighterMatchFlowRules.RespawnInvulnerabilityFrames;
         }
+
+        /// <summary>
+        /// True when this stage's base floor is solid at all — authored platforms
+        /// or authored floor segments. Only the legacy flat arena is false, and it
+        /// keeps its historical drop-through ground.
+        /// </summary>
+        private bool StageHasSolidFloorRule =>
+            _geometry.Platforms.Length > 0 || _geometry.IsOpenStage;
+
+        /// <summary>
+        /// True while a grounded fighter still has something under them: a one-way
+        /// platform surface above the floor plane, or the main floor at the floor
+        /// plane itself. The floor branch is what makes a pit edge a real edge —
+        /// on an unbroken floor it always answers true.
+        /// </summary>
+        private bool HasGroundSupport(in FighterStateComponent fighter) =>
+            fighter.Position.y > FP64.Zero
+                ? HasPlatformSupport(in fighter)
+                : _geometry.HasFloorSupport(fighter.Position.x);
 
         /// <summary>True while the fighter stands on a platform surface span.</summary>
         private bool HasPlatformSupport(in FighterStateComponent fighter) {
@@ -2426,11 +2485,26 @@ namespace FTT.FighterSim {
     }
 
     internal static class FighterSimulationRules {
+        /// <summary>
+        /// Resolves one stock loss: verb-layer wipe, stock decrement, meter
+        /// retention, and the Chronal Respawn Platform placement.
+        /// </summary>
+        /// <param name="geometry">
+        /// The match's stage geometry, when the caller holds one. It supplies the
+        /// stage's authored respawn anchor (Package 11 A9): on an Open stage whose
+        /// centre is a pit, the global stage-centre constant would drop the
+        /// respawning fighter straight back into the hole. Callers without geometry
+        /// in hand — the hit pipeline's static damage chokepoints — pass null and
+        /// get the shared default; <c>ProcessRespawnPlatform</c> re-pins the
+        /// fighter to the stage anchor on the next movement tick, before the
+        /// platform ever drops them.
+        /// </param>
         public static void ApplyStockLoss(
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
             ref FighterVerbComponent verb,
-            in FighterTuningComponent tuning) {
+            in FighterTuningComponent tuning,
+            FighterStageGeometry geometry = null) {
             if (fighter.Stocks <= 0) return;
             // V7.1: KO / stock loss clears the Echo Pool and every transient
             // verb-layer state; it never transfers across stocks.
@@ -2456,10 +2530,12 @@ namespace FTT.FighterSim {
             fighter.BlockCharges = tuning.MaxBlockCharges;
             fighter.RemainingJumps = tuning.MaxJumpCount;
             // Chronal Respawn Platform, all match modes: the fighter materialises
-            // frozen and invulnerable at stage centre +3.0 rather than teleporting
-            // straight back into play. The 3 s spawn invulnerability is armed when
-            // the platform drops them, not here.
-            fighter.Position = FighterMatchFlowRules.RespawnPlatformPosition;
+            // frozen and invulnerable at the stage's respawn anchor (centre +3.0
+            // unless the stage overrides it) rather than teleporting straight back
+            // into play. The 3 s spawn invulnerability is armed when the platform
+            // drops them, not here.
+            fighter.Position =
+                geometry?.RespawnPlatformPosition ?? FighterMatchFlowRules.RespawnPlatformPosition;
             fighter.Velocity = FPVector2.Zero;
             fighter.IsGrounded = 1;
             if (fighter.Stocks > 0) {

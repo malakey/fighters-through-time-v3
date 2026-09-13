@@ -670,12 +670,18 @@ namespace FTT.UI {
                 if (stage == null || !stage.IsPlayable || !unlocked.Contains(stage.StageID)) continue;
                 int itemID = _stageIDs.Count;
                 _stageIDs.Add(stage.StageID);
-                _stageSelect.AddItem(Tr(stage.DisplayNameKey), itemID);
+                // Open/Sealed rides the item label itself (V7 "Floor Segments, Pits
+                // & Ledges"): whether the main floor has a hole in it changes how a
+                // match is played, so it belongs in front of the pick rather than
+                // only in a tooltip.
+                _stageSelect.AddItem(
+                    $"{Tr(stage.DisplayNameKey)} - {Tr(FighterStageLayoutBadge.LabelKey(stage))}", itemID);
                 int itemIndex = _stageSelect.ItemCount - 1;
                 // A production-contract stage is no longer a prototype. The line
                 // used to be appended unconditionally, which branded every stage —
                 // including the shipped Florence Workshop — as placeholder routing.
                 string tooltip =
+                    $"{Tr(FighterStageLayoutBadge.TooltipKey(stage))}\n" +
                     $"{Tr(stage.LayoutDescriptionKey)}\n{Tr(stage.HazardNameKey)}: {Tr(stage.HazardDescriptionKey)}";
                 if (!stage.ProductionReady) tooltip += $"\n{Tr("fighter_stage_prototype")}";
                 _stageSelect.SetItemTooltip(itemIndex, tooltip);

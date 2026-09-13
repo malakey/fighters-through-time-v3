@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using FTT.Characters;
 using FTT.Combat;
 using FTT.Core;
@@ -308,6 +309,213 @@ public class FighterMatchFlowTests {
         AssertThat(after.Stocks).IsEqual(2);
         AssertThat(simulation.GetMatchState().MatchState).IsEqual(FighterMatchStates.InProgress);
         AssertThat(simulation.GetMatchState().PlayerOneKOs).IsEqual(1);
+    }
+
+    // === Package 11 A9: the bottom blast zone on the three Open stages ===
+
+    /// <summary>
+    /// The V7 pillar behind audit finding H-11: on an <b>Open</b> stage the bottom
+    /// blast zone is genuinely reachable through ordinary play. Every Open stage is
+    /// walked off its own pit-facing floor edge with Down held — catch the ledge,
+    /// let go, fast-fall — and the fall costs exactly one stock. Nothing is
+    /// manufactured here: no drop-through input, no hand-placed position, no hazard.
+    /// </summary>
+    [TestCase]
+    public void WalkingIntoAnOpenStagePitCostsAStock() {
+        var issues = new List<string>();
+        int stages = 0;
+        foreach (FighterStageGeometry geometry in FighterStageGeometry.AllAuthored) {
+            if (!geometry.IsOpenStage) continue;
+            stages++;
+            (int segmentIndex, int side) = FirstPitFacingLedge(geometry);
+            var simulation = new FighterSimulation(
+                stocks: 3,
+                seed: 7300 + stages,
+                rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0),
+                stageGeometry: geometry);
+
+            if (!WalkIntoThePit(simulation, geometry, segmentIndex, side, out int playerID, 600)) {
+                issues.Add($"{geometry.StageID}: the walk never reached the blast zone");
+                continue;
+            }
+            AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent fallen)).IsTrue();
+            if (fallen.Stocks != 2) issues.Add($"{geometry.StageID}: stocks are {fallen.Stocks}, expected 2");
+            if (!FighterMatchFlowRules.IsOnRespawnPlatform(in fallen)) {
+                issues.Add($"{geometry.StageID}: the respawn platform did not take the fighter");
+            }
+            if (simulation.GetMatchState().MatchState != FighterMatchStates.InProgress) {
+                issues.Add($"{geometry.StageID}: the match ended on a non-final stock");
+            }
+        }
+        AssertThat(stages).IsEqual(3);
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    /// <summary>
+    /// The same fall on the last stock resolves the match, which is what makes a
+    /// pit a real win condition rather than an expensive mistake.
+    /// </summary>
+    [TestCase]
+    public void TheFinalStockLostToAPitEndsTheMatchOnAnOpenStage() {
+        FighterStageGeometry paris = FighterStageGeometry.Paris;
+        (int segmentIndex, int side) = FirstPitFacingLedge(paris);
+        var simulation = new FighterSimulation(
+            stocks: 1,
+            seed: 7350,
+            rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0),
+            stageGeometry: paris);
+
+        AssertThat(WalkIntoThePit(simulation, paris, segmentIndex, side, out int playerID, 600))
+            .OverrideFailureMessage("The walk never reached the Paris courtyard's blast zone.")
+            .IsTrue();
+
+        FighterMatchComponent match = simulation.GetMatchState();
+        AssertThat(match.MatchState).IsEqual(FighterMatchStates.Complete);
+        AssertThat(match.WinnerPlayerID).IsEqual(playerID == 0 ? 1 : 0);
+        AssertThat(match.IsTrueTie).IsEqual(0);
+    }
+
+    /// <summary>
+    /// The respawn anchor is per stage now: Paris's centre is a hole, so dropping a
+    /// respawning fighter at the global stage-centre constant would cost them a
+    /// second stock immediately. Every Open stage's platform must sit over solid
+    /// support and its drop must reach a surface.
+    /// </summary>
+    [TestCase]
+    public void TheRespawnPlatformUsesItsStageAnchorAndDropsOntoSolidGround() {
+        var issues = new List<string>();
+        int stages = 0;
+        foreach (FighterStageGeometry geometry in FighterStageGeometry.AllAuthored) {
+            if (!geometry.IsOpenStage) continue;
+            stages++;
+            (int segmentIndex, int side) = FirstPitFacingLedge(geometry);
+            var simulation = new FighterSimulation(
+                stocks: 3,
+                seed: 7400 + stages,
+                rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0),
+                stageGeometry: geometry);
+            if (!WalkIntoThePit(simulation, geometry, segmentIndex, side, out int playerID, 600)) {
+                issues.Add($"{geometry.StageID}: the walk never reached the blast zone");
+                continue;
+            }
+
+            AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent onPlatform)).IsTrue();
+            if (onPlatform.Position.x.RawValue != geometry.RespawnPlatformPosition.x.RawValue
+                || onPlatform.Position.y.RawValue != geometry.RespawnPlatformPosition.y.RawValue) {
+                issues.Add(
+                    $"{geometry.StageID}: respawned at ({onPlatform.Position.x.ToFloat()}, " +
+                    $"{onPlatform.Position.y.ToFloat()}) instead of the authored anchor");
+            }
+
+            // Ride the platform out and land: the drop must find a surface and must
+            // not cost a second stock.
+            bool landed = false;
+            bool lostAnother = false;
+            for (int offset = 0; offset < 600 && !landed && !lostAnother; offset++) {
+                int tick = simulation.CurrentTick;
+                simulation.Advance(Neutral(tick), Neutral(tick));
+                AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent dropping)).IsTrue();
+                lostAnother = dropping.Stocks < 2;
+                landed = !FighterMatchFlowRules.IsOnRespawnPlatform(in dropping)
+                    && dropping.IsGrounded != 0;
+            }
+            if (lostAnother) issues.Add($"{geometry.StageID}: the respawn drop cost another stock");
+            else if (!landed) issues.Add($"{geometry.StageID}: the respawn drop never reached a surface");
+        }
+        AssertThat(stages).IsEqual(3);
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    /// <summary>
+    /// The other half of the contract: the seven Sealed stages author no floor
+    /// segments, so their floor still supports every x and a fighter walking the
+    /// full width of one can never fall out of the world. This is what proves the
+    /// segment lookup is a no-op wherever nothing is authored.
+    /// </summary>
+    [TestCase]
+    public void SealedStagesKeepAnUnbrokenFloorAndNeverDropAFighter() {
+        var issues = new List<string>();
+        int stages = 0;
+        foreach (FighterStageGeometry geometry in FighterStageGeometry.AllAuthored) {
+            if (geometry.IsOpenStage) continue;
+            stages++;
+            for (int step = 0; step <= 40; step++) {
+                FP64 x = geometry.LeftWall
+                    + (geometry.RightWall - geometry.LeftWall) * FP64.FromInt(step) / FP64.FromInt(40);
+                if (geometry.HasFloorSupport(x)) continue;
+                issues.Add($"{geometry.StageID}: no floor support at x {x.ToFloat()}");
+            }
+
+            var simulation = new FighterSimulation(
+                stocks: 3,
+                seed: 7450 + stages,
+                rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0),
+                stageGeometry: geometry);
+            for (int tick = 0; tick < 400; tick++) {
+                // Both fighters walk hard into opposite walls holding Down the whole
+                // way — the exact input that would find a hole if one existed.
+                simulation.Advance(
+                    Frame(tick, -127, GameplayButtons.Down),
+                    Frame(tick, 127, GameplayButtons.Down));
+            }
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent first)).IsTrue();
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent second)).IsTrue();
+            if (first.Stocks != 3 || second.Stocks != 3) {
+                issues.Add($"{geometry.StageID}: a sealed floor dropped a fighter");
+            }
+        }
+        AssertThat(stages).IsEqual(7);
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    /// <summary>The first authored floor-segment end that faces a pit.</summary>
+    private static (int SegmentIndex, int Side) FirstPitFacingLedge(FighterStageGeometry geometry) {
+        for (int index = 0; index < geometry.FloorSegments.Length; index++) {
+            for (int side = 0; side < 2; side++) {
+                FP64 edge = geometry.FloorSegments[index].EdgeX(side);
+                if (edge > geometry.LeftWall && edge < geometry.RightWall) return (index, side);
+            }
+        }
+        AssertThat($"{geometry.StageID} authors no pit-facing floor edge").IsEqual("");
+        return (0, 0);
+    }
+
+    /// <summary>
+    /// Walks the fighter that spawns on <paramref name="segmentIndex"/> off its
+    /// named end with Down held: the ledge catch releases instantly, the fast-fall
+    /// carries them past the blast zone, and the run stops at the stock loss.
+    /// </summary>
+    private static bool WalkIntoThePit(
+        FighterSimulation simulation,
+        FighterStageGeometry geometry,
+        int segmentIndex,
+        int side,
+        out int playerID,
+        int maxTicks) {
+        FP64 edge = geometry.FloorSegments[segmentIndex].EdgeX(side);
+        playerID = edge > FP64.Zero ? 1 : 0;
+        sbyte intoTheGap = side == 1 ? (sbyte)127 : (sbyte)-127;
+        int startingStocks = simulation.TryGetFighter(playerID, out FighterStateComponent start)
+            ? start.Stocks
+            : 0;
+
+        for (int step = 0; step < maxTicks; step++) {
+            int tick = simulation.CurrentTick;
+            var falling = new PlayerInputFrame {
+                Tick = (uint)tick,
+                MoveX = intoTheGap,
+                Held = GameplayButtons.Down,
+                Pressed = step == 0 ? GameplayButtons.Down : GameplayButtons.None
+            };
+            var neutral = new PlayerInputFrame { Tick = (uint)tick };
+            simulation.Advance(
+                playerID == 0 ? falling : neutral,
+                playerID == 0 ? neutral : falling);
+            if (!simulation.TryGetFighter(playerID, out FighterStateComponent state)) return false;
+            if (state.Stocks < startingStocks) return true;
+            if (simulation.GetMatchState().MatchState == FighterMatchStates.Complete) return true;
+        }
+        return false;
     }
 
     [TestCase]

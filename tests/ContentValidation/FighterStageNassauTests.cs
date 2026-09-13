@@ -4,6 +4,7 @@ using FTT.Environment;
 using FTT.FighterSim;
 using GdUnit4;
 using Godot;
+using xpTURN.Klotho.Deterministic.Math;
 using static GdUnit4.Assertions;
 
 namespace FTT.Tests.ContentValidation;
@@ -178,6 +179,22 @@ public class FighterStageNassauTests {
                         .IsFalse();
                 }
             }
+
+            // Package 11 A9: the listing stern ends over open water. The painted gap
+            // must open downward exactly where the authored deck stops, and the
+            // stage's one true ledge needs a readable edge cue.
+            AssertThat(FighterStageGeometry.Nassau.IsOpenStage).IsTrue();
+            var sternGap = presentation.GetNodeOrNull<ColorRect>("SternGap");
+            AssertObject(sternGap).IsNotNull();
+            float deckEnd = FighterStageConformance.ToPixels(
+                FighterStageGeometry.Nassau.FloorSegments[0].EdgeX(1), FP64.Zero).X;
+            AssertThat(Mathf.Abs(sternGap.OffsetLeft - deckEnd) <= FighterStageConformance.EpsilonPixels)
+                .OverrideFailureMessage(
+                    $"the painted stern gap starts at {sternGap.OffsetLeft} px but the deck ends at {deckEnd} px")
+                .IsTrue();
+            AssertThat(sternGap.OffsetTop
+                >= FighterStageConformance.ToPixels(FP64.Zero, FP64.Zero).Y).IsTrue();
+            AssertObject(root.GetNodeOrNull<ColorRect>("Geometry/Ground/LedgeCue")).IsNotNull();
 
             // One dressed grid per authored hazard anchor, on the anchor's x.
             var targets = presentation.GetNodeOrNull<Node2D>("MortarTargets");

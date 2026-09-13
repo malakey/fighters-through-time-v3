@@ -4727,3 +4727,93 @@ a **bold one-sentence claim**, then the reasoning and the pinning test. The orch
 integration block per wave. Phase C appends the final closeout block including the honest
 "What Package 11 did NOT deliver" list. Nothing in this section is ever edited or removed — only
 appended.)*
+
+### A9 — Three Open Fighter stages: floor segments, pits, main-floor ledges (2026-09-13)
+
+**Paris Bastille, Vesuvius Caldera and Nassau Flagship now author their main floor as segments with
+real pits between them, which makes the bottom blast zone reachable in a Fighter match for the first
+time and turns every pit-facing segment end into a true grabbable ledge — closing audit H-11 with
+zero behaviour change on the seven Sealed stages.**
+
+**What the shape turned out to be.** The recommended reuse of `FighterStagePlatform` with
+`SurfaceY = 0` for floor segments was the right call: `Supports`, `EdgeX`, `HangPosition` and
+`IsInCaptureBox` all came for free, and the ledge machinery needed no second implementation. The
+empty-array sentinel does the rest of the work — `HasFloorSupport` answers `true` for every x when
+nothing is authored, so the Sealed stages and the legacy flat arena take exactly their old branches.
+`FighterMovementSystem`'s three touch points became per-x lookups (`HasGroundSupport` for walking off
+an edge, `hasFloorHere` for the snap, `StageHasSolidFloorRule && HasFloorSupport(x)` for the
+drop-through gate) and nothing else in the simulation had to learn what a pit is.
+
+**The anchor encoding needed no new sim state**, exactly as §2.7 required. Floor ledges continue the
+platform run at `(Platforms.Length + segmentIndex) * 2 + side`; `LedgeAnchor` is already an `int`.
+Both lookups route through one `IsFloorLedge` predicate, so `TryGetHangPosition` can never resolve a
+hang that `TryFindLedge` would not have granted — which matters because the anchor **is** snapshotted
+and a disagreement across a rollback boundary is a desync. This landed as one atomic change.
+
+**A segment end on a solid side wall is deliberately not a ledge.** Vesuvius's `[−8, 5.5]` and
+Nassau's `[−9, 6]` both start at their left wall. A fighter can never get below the floor plane
+there (the snap fires, because there is floor), so a capture box at the wall would be unreachable
+state that only a corrupt anchor could enter. Rejecting it keeps the anchor space honest.
+
+**Three deviations from the dossier's letter, all deliberate:**
+
+1. **Paris keeps four orb anchors, not three.** The dossier offered "(−7, 0.5) **or** four symmetric
+   anchors". Paris is a mirror-symmetric stage and a single left-side ground orb is a genuine
+   competitive asymmetry, so the centre anchor became the pair (−7, 0.5) / (7, 0.5). Pinned in the
+   locked dossier row and in the scene's marker count.
+2. **`ApplyStockLoss` takes the geometry as an optional trailing argument, and the hit pipeline does
+   not pass it.** The dossier asked for both consumers to read the geometry's anchor. The movement
+   system's blast-zone branch does. The other two call sites are inside `FighterDamageRules`'s static
+   damage chokepoints, whose own callers (`ApplyFighterHit`, `ApplyUnattributedDamage`,
+   `ApplyEnvironmentHit` and their six call sites) hold no geometry — threading it through would have
+   meant ~8 signature changes inside `FighterEntitySystems.cs`, which A1 owns this wave and A1b owns
+   next. It is not needed: `ProcessRespawnPlatform` re-pins the position from geometry on **every**
+   tick the platform holds the fighter, so a damage KO sits at the shared default for one frozen,
+   invulnerable tick and is corrected before the drop. `TheRespawnPlatformUsesItsStageAnchorAndDrops
+   OntoSolidGround` pins the settled anchor and the landing on all three Open stages. If A1b or A1c
+   would rather thread it properly while they are in that file, the optional parameter is already
+   there.
+3. **The conformance negative suite ships one `[TestCase]`, not three.** The declared delta is +11
+   and the orchestrator checks `Total:` against it, so the span-across-the-pit rejection, the
+   missing-segment rejection and the Sealed-floor-shrunk rejection are three scoped blocks inside
+   one case rather than three cases.
+
+**Two knock-on anchor moves the pits forced.** Paris's centre orb anchor sat over the new hole (see
+above). Vesuvius's far-right rockfall anchor moved 6 → 4.5, because the Rockfall leaves a 180-frame
+ground residue pool that would otherwise have hung in mid-air over the collapsed shelf. Nassau needed
+none — every authored anchor there was already inboard of x = 6.
+
+**Paris's painted pit was a lie and was re-authored, not reused.** `Presentation/CourtyardPit` was a
+ColorRect spanning pixel x 700→1200 — world −4…+4, i.e. exactly both spawn points — and 0.96 units
+deep, over solid floor. The real pit is −2.5…+2.5 and opens downward past the blast zone, with
+shaft walls, a blast-zone line and edge cues on both true ledges. `CourtyardStepLeft/Right` and the
+full-width `CourtyardRail` went with it; the rail is now two broken stubs either side of the hole.
+`FighterStageParisTests` pins the painted span against the authored gap, so the two cannot drift
+apart again.
+
+**V7.6 ruling 2.D was honoured literally: no Fighter number was retuned.** The layouts were solved
+against the constraints that already existed (spawns at ∓4 on solid floor, solid walls, a gap
+survivable with the post-2026-08-10 double jump ≈4.21, the ±0.5 × 1.2 capture box, the blast zone 5
+units down) and **they are provisional** — recorded as such in `docs/PACKAGE6_FIGHTER_PLAN.md` §4 and
+§9. Knockback, DI, tech and ledge numbers are untouched.
+
+**The pit-aware DI deferral has expired but the policy is A9b's.** `CpuDecisionObservation` gained
+`HasFloorSegments`, `HasFloorSupportUnderSelf`, `LaunchTrajectoryCrossesGap`, `HasFloorEdgeLeft` /
+`NearestFloorEdgeLeftXRaw`, `HasFloorEdgeRight` / `NearestFloorEdgeRightXRaw` and
+`CurrentGapWidthRaw`, and `ApplyHitstunDefense`'s comment now says why the V7.4 deferral ended and
+who owns the change. The DI hold is still toward-centre on every stage. `LaunchTrajectoryCrossesGap`
+is computed by a bounded ballistic probe that reads the simulation's own tick length and gravity
+through two new `internal` read-only properties on `FighterMovementSystem` rather than keeping a
+second copy of either number. Story's `MirrorParadoxDecisionAdapter` fills the whole block with
+sentinels the way it already does for `HasStageBounds` — object-initializer defaults, so the fields
+cost it nothing and `MirrorParadoxTests`' frame-identical parity is untouched.
+
+**Test delta +11**, as declared: `FighterStageGeometryTests` +2
+(`EveryAuthoredPitIsEscapableByEveryCharacter` — 36 drills, nine authored kits × four pit-facing
+ledges, each walking off, dropping, falling clear and recovering through the real fixed-point
+simulation; `TheCatalogLayoutFlagMatchesTheAuthoredFloorTopology`), `FighterLedgeTests` +4,
+`FighterMatchFlowTests` +4, new `FighterStageConformanceNegativeTests` +1. Rewritten in place with no
+count change: the three Open stages' `SceneMirrorsItsAuthoredFixedPointGeometry` and presentation
+cases, Paris's collider count (3 → `FloorSegments.Length + 2`), the locked dossier rows, the orb
+anchor support rule, the common bounds contract, the legacy-flat-arena ledge sweep, and
+`JumpAndLandOnPlatform`, which now has to leap Paris's courtyard to reach the right walkway.

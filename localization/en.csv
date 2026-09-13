@@ -490,15 +490,15 @@ stage_chicago_layout,Metallic floor framed by two conductor-coil platforms.
 stage_chicago_hazard_name,Tesla Coil Induction
 stage_chicago_hazard_description,Electrical grids damage and Static Charge caught fighters.
 stage_paris_name,Paris Bastille
-stage_paris_layout,Drawbridge walkways frame a lower central fighting space.
+stage_paris_layout,Two drawbridge walkways overhang an open courtyard pit. Fall in and you are gone.
 stage_paris_hazard_name,Neural-Dampening Beam
 stage_paris_hazard_description,A sweeping beam drains Influence while a fighter remains exposed.
 stage_vesuvius_name,Vesuvius Caldera
-stage_vesuvius_layout,Rocky slopes and two narrow stone ledges.
+stage_vesuvius_layout,Two narrow stone ledges over a slope whose downhill end has collapsed into the caldera.
 stage_vesuvius_hazard_name,Volcanic Rockfall
 stage_vesuvius_hazard_description,Falling temporal rocks damage and slow caught fighters.
 stage_nassau_name,Nassau Flagship
-stage_nassau_layout,A burning ship deck with raised wooden yards.
+stage_nassau_layout,A burning deck with raised wooden yards; the listing stern simply ends over open water.
 stage_nassau_hazard_name,British Navy Mortar
 stage_nassau_hazard_description,Warning zones precede high-launching mortar explosions.
 stage_alexandria_name,Alexandria Chambers
@@ -1194,3 +1194,8 @@ systems_card_echo_body,"Spend 30 meter during your own recovery to snap back 30 
 systems_card_overtime_title,Overtime
 systems_card_overtime_body,"The final 60 seconds of a timed match double the hazard cadence and raise the Rally echo by half."
 dialogue_hold_skip,"Hold {0} to skip"
+# Package 11 A9
+stage_layout_open,Open
+stage_layout_sealed,Sealed
+stage_layout_open_tooltip,"Open layout: the main floor has a pit. The bottom blast zone is reachable and its edges are grabbable ledges."
+stage_layout_sealed_tooltip,"Sealed layout: the main floor runs unbroken from wall to wall."

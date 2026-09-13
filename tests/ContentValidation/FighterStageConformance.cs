@@ -25,8 +25,11 @@ namespace FTT.Tests.ContentValidation;
 /// <item>One-way platform bodies live under <c>Geometry</c> on collision layer 128;
 /// the body's own origin is the platform surface point (CenterX, SurfaceY) and its
 /// <see cref="RectangleShape2D"/> width is twice the authored half-width.</item>
-/// <item><c>Geometry/Ground</c> is on layer 64; the top edge of its collision rect is y = 0
-/// and its half-width matches the walls.</item>
+/// <item>Main-floor bodies live under <c>Geometry</c> on layer 64 — every layer-64 body
+/// that is not <c>WallLeft</c>/<c>WallRight</c> — and each rect's top edge is y = 0. A
+/// Sealed stage authors exactly one, spanning wall to wall. An <b>Open</b> stage authors
+/// one per <c>FighterStageGeometry.FloorSegments</c> entry, matched by centre and
+/// half-width, so a scene floor painted across an authored pit fails (Package 11 A9).</item>
 /// <item><c>Geometry/WallLeft</c> and <c>Geometry/WallRight</c> sit on the authored wall planes.</item>
 /// </list>
 /// </summary>
@@ -155,33 +158,92 @@ public static class FighterStageConformance {
         }
     }
 
+    /// <summary>
+    /// Package 11 A9: the main floor is a set of segments, not a single slab. Every
+    /// solid body under <c>Geometry</c> that is not a wall is a floor body, and each
+    /// must match an authored <c>FloorSegments</c> entry by centre and half-width —
+    /// a Sealed stage (empty segments) authors exactly one wall-to-wall body, which
+    /// is the pre-A9 contract expressed through the same loop. The <b>span</b> match
+    /// is what makes this refuse a scene that paints solid floor across a pit.
+    /// </summary>
     private static void ValidateGroundAndWalls(Node2D root, FighterStageGeometry geometry, List<string> issues) {
-        var ground = root.GetNodeOrNull<StaticBody2D>("Geometry/Ground");
-        if (ground == null) {
-            issues.Add("missing 'Geometry/Ground' StaticBody2D");
+        var geometryNode = root.GetNodeOrNull<Node2D>("Geometry");
+        if (geometryNode == null) {
+            issues.Add("missing 'Geometry' node");
         } else {
-            if (ground.CollisionLayer != SolidCollisionLayer) {
-                issues.Add($"ground is on collision layer {ground.CollisionLayer}, expected {SolidCollisionLayer}");
-            }
-            CollisionShape2D shape = FirstShape(ground);
-            RectangleShape2D rect = shape?.Shape as RectangleShape2D;
-            if (rect == null) {
-                issues.Add("ground has no RectangleShape2D collider");
+            var bodies = new List<StaticBody2D>();
+            CollectBodies(geometryNode, SolidCollisionLayer, bodies);
+            bodies.RemoveAll(body =>
+                body.Name.ToString() == "WallLeft" || body.Name.ToString() == "WallRight");
+
+            List<FighterStagePlatform> expected = ExpectedFloorSegments(geometry);
+            if (bodies.Count == 0) {
+                issues.Add("no solid main-floor StaticBody2D under 'Geometry'");
+            } else if (bodies.Count != expected.Count) {
+                issues.Add(
+                    $"scene has {bodies.Count} main-floor bodies but geometry authors {expected.Count} " +
+                    (geometry.IsOpenStage ? "floor segments" : "unbroken floor"));
             } else {
-                float topEdge = LocalToRoot(shape, root).Y - rect.Size.Y / 2f;
-                float expectedTop = ToPixels(FP64.Zero, FP64.Zero).Y;
-                if (Mathf.Abs(topEdge - expectedTop) > EpsilonPixels) {
-                    issues.Add($"ground surface is at y {topEdge} px but the floor plane is {expectedTop} px");
-                }
-                float expectedWidth = UnitsToPixels(geometry.RightWall - geometry.LeftWall);
-                if (Mathf.Abs(rect.Size.X - expectedWidth) > EpsilonPixels) {
-                    issues.Add($"ground is {rect.Size.X} px wide but the walls are {expectedWidth} px apart");
+                var unmatched = new List<FighterStagePlatform>(expected);
+                foreach (StaticBody2D body in bodies) {
+                    CollisionShape2D shape = FirstShape(body);
+                    RectangleShape2D rect = shape?.Shape as RectangleShape2D;
+                    if (rect == null) {
+                        issues.Add($"floor body '{body.Name}' has no RectangleShape2D collider");
+                        continue;
+                    }
+                    float topEdge = LocalToRoot(shape, root).Y - rect.Size.Y / 2f;
+                    float expectedTop = ToPixels(FP64.Zero, FP64.Zero).Y;
+                    if (Mathf.Abs(topEdge - expectedTop) > EpsilonPixels) {
+                        issues.Add(
+                            $"floor body '{body.Name}' surface is at y {topEdge} px " +
+                            $"but the floor plane is {expectedTop} px");
+                    }
+                    if (body.CollisionMask != 0) {
+                        issues.Add(
+                            $"floor body '{body.Name}' has a non-zero collision mask; " +
+                            "the simulation is authoritative");
+                    }
+
+                    float centerX = LocalToRoot(body, root).X;
+                    int match = -1;
+                    for (int index = 0; index < unmatched.Count; index++) {
+                        float expectedCenterX = ToPixels(unmatched[index].CenterX, FP64.Zero).X;
+                        float expectedHalfWidth = UnitsToPixels(unmatched[index].HalfWidth);
+                        if (Mathf.Abs(centerX - expectedCenterX) <= EpsilonPixels
+                            && Mathf.Abs(rect.Size.X / 2f - expectedHalfWidth) <= EpsilonPixels) {
+                            match = index;
+                            break;
+                        }
+                    }
+                    if (match < 0) {
+                        issues.Add(
+                            $"floor body '{body.Name}' spans {rect.Size.X} px centred at {centerX} px, " +
+                            "which matches no authored floor segment");
+                    } else {
+                        unmatched.RemoveAt(match);
+                    }
                 }
             }
         }
 
         CheckWall(root, "Geometry/WallLeft", geometry.LeftWall, issues);
         CheckWall(root, "Geometry/WallRight", geometry.RightWall, issues);
+    }
+
+    /// <summary>
+    /// The authored floor spans. An empty <c>FloorSegments</c> means "unbroken floor,
+    /// wall to wall", which is expressed here as the single synthesised segment the
+    /// seven Sealed stages have always authored in their scenes.
+    /// </summary>
+    private static List<FighterStagePlatform> ExpectedFloorSegments(FighterStageGeometry geometry) {
+        if (geometry.FloorSegments.Length > 0) {
+            return new List<FighterStagePlatform>(geometry.FloorSegments);
+        }
+        FP64 half = (geometry.RightWall - geometry.LeftWall) / FP64.FromInt(2);
+        return new List<FighterStagePlatform> {
+            new(geometry.LeftWall + half, FP64.Zero, half)
+        };
     }
 
     private static void CheckWall(Node2D root, string path, FP64 wallX, List<string> issues) {

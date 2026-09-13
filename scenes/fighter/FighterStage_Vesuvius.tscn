@@ -10,7 +10,7 @@
 [ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="8_lighting"]
 
 [sub_resource type="RectangleShape2D" id="ground_col"]
-size = Vector2(1000, 48)
+size = Vector2(843.75, 48)
 
 [sub_resource type="RectangleShape2D" id="wall_col"]
 size = Vector2(24, 562.5)
@@ -64,13 +64,50 @@ texture = ExtResource("7_ridge")
 [node name="CalderaSlope" type="Polygon2D" parent="Presentation"]
 z_index = -8
 color = Color(0.17, 0.06, 0.03, 1)
-polygon = PackedVector2Array(430, 470, 700, 585, 950, 645, 1200, 682, 1470, 700, 1470, 780, 430, 780)
+polygon = PackedVector2Array(430, 470, 700, 585, 950, 645, 1200, 682, 1293.75, 690, 1293.75, 780, 430, 780)
 
 [node name="SlopeRim" type="Line2D" parent="Presentation"]
 z_index = -7
-points = PackedVector2Array(430, 470, 700, 585, 950, 645, 1200, 682, 1470, 700)
+points = PackedVector2Array(430, 470, 700, 585, 950, 645, 1200, 682, 1293.75, 690)
 width = 4.0
 default_color = Color(1, 0.25, 0.04, 0.55)
+
+[node name="CollapsedShelf" type="ColorRect" parent="Presentation"]
+z_index = -9
+offset_left = 1293.75
+offset_top = 700.0
+offset_right = 1450.0
+offset_bottom = 1120.0
+color = Color(0.05, 0.02, 0.012, 1)
+
+[node name="CollapsedShelfMouth" type="ColorRect" parent="Presentation"]
+z_index = -8
+offset_left = 1293.75
+offset_top = 700.0
+offset_right = 1450.0
+offset_bottom = 754.0
+color = Color(0.12, 0.05, 0.028, 1)
+
+[node name="CollapsedShelfGlow" type="ColorRect" parent="Presentation"]
+z_index = -8
+offset_left = 1293.75
+offset_top = 940.0
+offset_right = 1450.0
+offset_bottom = 1120.0
+color = Color(0.75, 0.16, 0.02, 0.3)
+
+[node name="CollapsedShelfBlastLine" type="ColorRect" parent="Presentation"]
+z_index = -7
+offset_left = 1293.75
+offset_top = 1009.5
+offset_right = 1450.0
+offset_bottom = 1015.5
+color = Color(1, 0.25, 0.04, 0.75)
+
+[node name="CollapsedShelfBrokenEdge" type="Polygon2D" parent="Presentation"]
+z_index = -7
+color = Color(0.3, 0.12, 0.05, 1)
+polygon = PackedVector2Array(1276, 690, 1293.75, 690, 1293.75, 748, 1284, 724, 1290, 706)
 
 [node name="LavaSeamUpper" type="Line2D" parent="Presentation"]
 z_index = -7
@@ -80,7 +117,7 @@ default_color = Color(1, 0.36, 0.06, 0.65)
 
 [node name="LavaSeamLower" type="Line2D" parent="Presentation"]
 z_index = -7
-points = PackedVector2Array(1210, 690, 1300, 700, 1360, 690)
+points = PackedVector2Array(1150, 684, 1220, 692, 1280, 688)
 width = 5.0
 default_color = Color(1, 0.36, 0.06, 0.65)
 
@@ -127,9 +164,9 @@ offset_bottom = 700.0
 color = Color(1, 0.3, 0.06, 0.09)
 
 [node name="ChuteD" type="ColorRect" parent="Presentation/RockfallChutes"]
-offset_left = 1313.0
+offset_left = 1219.25
 offset_top = 137.5
-offset_right = 1337.0
+offset_right = 1243.25
 offset_bottom = 700.0
 color = Color(1, 0.3, 0.06, 0.09)
 
@@ -167,7 +204,7 @@ width = 3.0
 default_color = Color(1, 0.25, 0.04, 0.7)
 
 [node name="ScorchD" type="Polygon2D" parent="Presentation/ImpactScorches"]
-position = Vector2(1325, 696)
+position = Vector2(1231.25, 696)
 color = Color(0.07, 0.02, 0.01, 1)
 polygon = PackedVector2Array(-52, 0, -37, -8, 0, -11, 37, -8, 52, 0, 37, 8, 0, 11, -37, 8)
 
@@ -203,7 +240,7 @@ RimScale = 12.0
 [node name="Geometry" type="Node2D" parent="."]
 
 [node name="Ground" type="StaticBody2D" parent="Geometry"]
-position = Vector2(950, 700)
+position = Vector2(871.875, 700)
 collision_layer = 64
 collision_mask = 0
 
@@ -212,25 +249,36 @@ position = Vector2(0, 24)
 shape = SubResource("ground_col")
 
 [node name="Visual" type="ColorRect" parent="Geometry/Ground"]
-offset_left = -500.0
+offset_left = -421.875
 offset_top = 0.0
-offset_right = 500.0
+offset_right = 421.875
 offset_bottom = 48.0
 color = Color(0.24, 0.09, 0.04, 1)
 
 [node name="TopLine" type="ColorRect" parent="Geometry/Ground"]
-offset_left = -500.0
+offset_left = -421.875
 offset_top = -3.0
-offset_right = 500.0
+offset_right = 421.875
 offset_bottom = 0.0
 color = Color(1, 0.25, 0.04, 1)
 
 [node name="MagmaGlow" type="ColorRect" parent="Geometry/Ground"]
-offset_left = -500.0
+offset_left = -421.875
 offset_top = 30.0
-offset_right = 500.0
+offset_right = 421.875
 offset_bottom = 40.0
 color = Color(0.75, 0.16, 0.02, 0.55)
+
+[node name="LedgeCue" type="ColorRect" parent="Geometry/Ground"]
+offset_left = 407.875
+offset_top = -8.0
+offset_right = 421.875
+offset_bottom = 48.0
+color = Color(1, 0.55, 0.12, 0.9)
+
+[node name="LedgeUndercut" type="Polygon2D" parent="Geometry/Ground"]
+color = Color(0.1, 0.035, 0.02, 1)
+polygon = PackedVector2Array(421.875, 0, 421.875, 48, 389.875, 48)
 
 [node name="WallLeft" type="StaticBody2D" parent="Geometry"]
 position = Vector2(450, 418.75)
@@ -361,7 +409,7 @@ position = Vector2(825, 700)
 position = Vector2(1075, 700)
 
 [node name="RockfallFarRight" type="Marker2D" parent="HazardAnchors"]
-position = Vector2(1325, 700)
+position = Vector2(1231.25, 700)
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(950, 500)

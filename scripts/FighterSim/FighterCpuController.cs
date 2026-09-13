@@ -88,6 +88,15 @@ namespace FTT.FighterSim {
         /// Input-side pacing only — the sim rules are untouched.
         /// </summary>
         public const int EscapeStanceLingerFrames = 45;
+
+        /// <summary>
+        /// Upper bound on the pit-risk trajectory probe (four seconds). A launch
+        /// that has not reached a landing surface inside it is already past the
+        /// blast zone or pinned on the ceiling; either way the probe's answer no
+        /// longer matters.
+        /// </summary>
+        private const int TrajectoryProbeTicks = 240;
+
         private int _lastObservedHitstunFrames;
         private int _escapeStanceLingerRemaining;
         private bool _hitstunHoldBlockActive;
@@ -188,10 +197,18 @@ namespace FTT.FighterSim {
         /// rules (nothing in the simulation is special-cased). A successful DI
         /// roll additionally holds the stick toward stage centre while hitstun
         /// runs, which is exactly what <c>FighterVerbRules.ResolvePendingLaunch</c>
-        /// reads when the launch hitstop ends. Pit-aware "hold up" DI is
-        /// deliberately not implemented: the observation carries no cheap
-        /// launch-trajectory-vs-pit test and the authored stages run solid
-        /// floors, so toward-centre is the design's accepted fallback.
+        /// reads when the launch hitstop ends.
+        ///
+        /// <para><b>Pit-aware DI is now possible and is A9b's to implement.</b> The
+        /// V7.4 deferral ("no cheap launch-trajectory-vs-pit test, and the authored
+        /// stages run solid floors") expired with Package 11 A9: three Open stages
+        /// author real pits, and <c>CpuDecisionObservation</c> carries the floor
+        /// topology — <c>HasFloorSegments</c>, <c>HasFloorSupportUnderSelf</c>,
+        /// <c>LaunchTrajectoryCrossesGap</c>, the two nearest pit-facing floor
+        /// edges and <c>CurrentGapWidthRaw</c>. A9 ships the observation only and
+        /// deliberately changes no DI policy (V7.6 ruling 2.D sequencing: the pits
+        /// land before any further Fighter tuning pass), so the hold below is still
+        /// toward-centre on every stage.</para>
         /// The RNG draws live in the same recorded-input path as every other
         /// roll (BlockPercent and friends): the produced frame is recorded and
         /// replayed like human input, so rollback never re-samples them. The
@@ -329,6 +346,7 @@ namespace FTT.FighterSim {
                     observation.NearestPlatformSurfaceYRaw = geometry.Platforms[nearest].SurfaceY.RawValue;
                     observation.NearestPlatformHalfWidthRaw = geometry.Platforms[nearest].HalfWidth.RawValue;
                 }
+                FillFloorTopology(ref observation, in self, geometry);
             }
 
             if (world != null) {
@@ -357,6 +375,77 @@ namespace FTT.FighterSim {
             }
 
             return observation;
+        }
+
+        /// <summary>
+        /// Fills the main-floor topology block (Package 11 A9). On a Sealed stage
+        /// the floor is unbroken, so <c>HasFloorSegments</c> stays 0 and only
+        /// <c>HasFloorSupportUnderSelf</c> is written — always 1 — which is what
+        /// keeps "closed stages never trigger recovery" true by construction.
+        /// </summary>
+        private static void FillFloorTopology(
+            ref CpuDecisionObservation observation,
+            in FighterStateComponent self,
+            FighterStageGeometry geometry) {
+            observation.HasFloorSupportUnderSelf = geometry.HasFloorSupport(self.Position.x) ? 1 : 0;
+            if (!geometry.IsOpenStage) return;
+            observation.HasFloorSegments = 1;
+
+            bool hasLeft = geometry.TryGetNearestFloorEdge(self.Position.x, -1, out FP64 leftEdge);
+            bool hasRight = geometry.TryGetNearestFloorEdge(self.Position.x, 1, out FP64 rightEdge);
+            if (hasLeft) {
+                observation.HasFloorEdgeLeft = 1;
+                observation.NearestFloorEdgeLeftXRaw = leftEdge.RawValue;
+            }
+            if (hasRight) {
+                observation.HasFloorEdgeRight = 1;
+                observation.NearestFloorEdgeRightXRaw = rightEdge.RawValue;
+            }
+            if (observation.HasFloorSupportUnderSelf == 0 && hasLeft && hasRight) {
+                observation.CurrentGapWidthRaw = (rightEdge - leftEdge).RawValue;
+            }
+            observation.LaunchTrajectoryCrossesGap = TrajectoryEndsOverGap(in self, geometry) ? 1 : 0;
+        }
+
+        /// <summary>
+        /// Ballistic pit-risk probe: integrates the fighter's current position and
+        /// velocity forward with the simulation's own tick length and gravity until
+        /// they reach a landing surface, and reports whether that surface is a gap.
+        /// Horizontal input and air control are deliberately ignored — the question
+        /// is where the CURRENT trajectory ends, which is exactly what DI and
+        /// recovery planning need to know. Pure fixed point, no allocation, and
+        /// bounded at <see cref="TrajectoryProbeTicks"/>.
+        /// </summary>
+        private static bool TrajectoryEndsOverGap(
+            in FighterStateComponent self, FighterStageGeometry geometry) {
+            if (self.IsGrounded != 0) return false;
+            FP64 delta = FighterMovementSystem.FixedDeltaSeconds;
+            FP64 gravityStep = FighterMovementSystem.GravityPerSecondSquared * delta;
+            FP64 x = self.Position.x;
+            FP64 y = self.Position.y;
+            FP64 velocityX = self.Velocity.x;
+            FP64 velocityY = self.Velocity.y;
+
+            for (int tick = 0; tick < TrajectoryProbeTicks; tick++) {
+                FP64 previousY = y;
+                velocityY += gravityStep;
+                x += velocityX * delta;
+                y += velocityY * delta;
+                if (x < geometry.LeftWall) x = geometry.LeftWall;
+                else if (x > geometry.RightWall) x = geometry.RightWall;
+
+                // A one-way platform caught on the way down is a landing, not a pit.
+                for (int index = 0; index < geometry.Platforms.Length; index++) {
+                    FighterStagePlatform platform = geometry.Platforms[index];
+                    if (previousY < platform.SurfaceY
+                        || y > platform.SurfaceY
+                        || !platform.Supports(x)) continue;
+                    return false;
+                }
+                if (y > FP64.Zero) continue;
+                return !geometry.HasFloorSupport(x);
+            }
+            return false;
         }
 
         public int GetReactionDelayBounds(out int maximum) {
