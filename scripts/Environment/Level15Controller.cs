@@ -12,7 +12,7 @@ namespace FTT.Environment {
     /// Level 15 - the Library of Alexandria Restoration. <b>The final level.</b>
     ///
     /// The player returns to the moment of the original cataclysm: the same Library
-    /// the game opens on, burning, at the instant the Apex Archive's overload
+    /// the game opens on, burning, at the instant the Unbound's overload
     /// fractured history. This is the only level in the campaign that is a
     /// <i>return</i> - the geography is meant to be recognised - and the era
     /// identity is that the place is dying while you cross it. Cyclic fire columns
@@ -20,7 +20,7 @@ namespace FTT.Environment {
     /// <see cref="EscapeSequenceController"/> firestorm at the player's back.
     ///
     /// Encounter economy is locked by docs/DUST_ECONOMY.md: 12 standards, 2 elites,
-    /// 1 boss, 3 extractors. Act III is cultist-only (plan section 2.4), so the
+    /// 1 boss, 3 extractors. Act III is Unbound-only (plan section 2.4), so the
     /// garrison is <see cref="CultistEnemyID"/> with one
     /// <see cref="TechEliteEnemyID"/> and one <see cref="GuardEliteEnemyID"/>.
     ///
@@ -194,7 +194,7 @@ namespace FTT.Environment {
 
         // === Encounters (locked: 12 standards / 2 elites / 1 boss / 3 extractors) ===
 
-        /// <summary>Act III is cultist-only (plan section 2.4).</summary>
+        /// <summary>Act III is Unbound-only (plan section 2.4).</summary>
         public const string CultistEnemyID = "chrono_slasher";
         public const string TechEliteEnemyID = "tech_enforcer";
         public const string GuardEliteEnemyID = "chrono_guard_elite";

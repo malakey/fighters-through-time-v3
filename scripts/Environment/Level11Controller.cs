@@ -191,7 +191,7 @@ namespace FTT.Environment {
         /// <summary>
         /// Era roster: `laser_rifle_infantry` (the Gettysburg standard - fast beam-bolts,
         /// which is why this level carries the campaign's highest `enemy_projectile` warm
-        /// count) mixed with `chrono_slasher` (Future Cultist standard, melee).
+        /// count) mixed with `chrono_slasher` (Unbound shock-trooper standard, melee).
         /// </summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] Room1Spawns = {
             ("laser_rifle_infantry", new Vector2(1500, EnemyGroundY), new Vector2(1400, EnemyGroundY), new Vector2(1620, EnemyGroundY)),

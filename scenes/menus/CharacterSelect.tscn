@@ -211,6 +211,15 @@ theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
 text = "fighter_select_hint"
 horizontal_alignment = 1
 
+[node name="RemotePlayNotice" type="Label" parent="SelectPhase/Root"]
+layout_mode = 2
+focus_mode = 2
+theme_type_variation = &"SmallLabel"
+theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
+text = "fighter_remote_play_notice"
+horizontal_alignment = 1
+autowrap_mode = 3
+
 [node name="ButtonRow" type="HBoxContainer" parent="SelectPhase/Root"]
 layout_mode = 2
 theme_override_constants/separation = 24

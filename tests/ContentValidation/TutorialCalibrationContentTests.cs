@@ -29,13 +29,28 @@ public class TutorialCalibrationContentTests {
         AssertObject(set).IsNotNull();
         AssertThat(set.DialogueSetID).IsEqual("dialogue_level_00");
 
-        string[] ids = (set.Sequences ?? Array.Empty<DialogueSequenceData>())
+        // Package 11 A6: the V7.5 First Strike opens at THIS character's historic
+        // nexus, so level_00.intro carries one hero variant per roster member after
+        // the five shared calibration beats. The base order is what the tutorial
+        // flow steps through; the variants are selected by hero ID, never played in
+        // sequence, so they are excluded from the ordering pin.
+        DialogueSequenceData[] sequences = (set.Sequences ?? Array.Empty<DialogueSequenceData>())
             .Where(sequence => sequence != null)
+            .ToArray();
+        string[] baseIDs = sequences
+            .Where(sequence => string.IsNullOrEmpty(sequence.HeroConditionCharacterID))
             .Select(sequence => sequence.DialogueID)
             .ToArray();
-        AssertThat(string.Join(",", ids)).IsEqual(
+        AssertThat(string.Join(",", baseIDs)).IsEqual(
             "level_00.intro,level_00.block_intro,level_00.ultimate_intro," +
             "level_00.mobility_intro,level_00.complete");
+
+        // Every hero variant is a full replacement for the shared opening, so it
+        // must be reachable as "level_00.intro@<heroID>" and declare its hero.
+        foreach (DialogueSequenceData variant in sequences
+                     .Where(sequence => !string.IsNullOrEmpty(sequence.HeroConditionCharacterID))) {
+            AssertThat(variant.DialogueID).IsEqual("level_00.intro@" + variant.HeroConditionCharacterID);
+        }
 
         foreach (DialogueSequenceData sequence in set.Sequences) {
             AssertThat(sequence.SpeakerNameKeys.Length).OverrideFailureMessage(

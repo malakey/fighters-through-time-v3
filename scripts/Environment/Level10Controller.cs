@@ -8,7 +8,7 @@ namespace FTT.Environment {
 
     /// <summary>
     /// Level 10 - The Globe Theatre, London 1599. Opening night of <i>Hamlet</i>.
-    /// The Apex Archive has seeded neural-manipulators through the galleries and
+    /// The Unbound has seeded neural-manipulators through the galleries and
     /// rigged collapse charges under the stage, meaning to turn the house into a
     /// fatal stampede. Four rooms across 10,240 px:
     /// <list type="number">
@@ -35,7 +35,7 @@ namespace FTT.Environment {
     /// <para>
     /// Era roster: <c>holo_page</c> (the London standard - a spectral prompt-boy
     /// hurling holographic daggers that apply TimeDilation) mixed with
-    /// <c>chrono_slasher</c> (Future Cultist standard).
+    /// <c>chrono_slasher</c> (Unbound shock-trooper standard).
     /// </para>
     ///
     /// <para>
@@ -171,7 +171,7 @@ namespace FTT.Environment {
 
         // === Authored encounter tables (the locked economy row lives here) ===
 
-        /// <summary>The Yard: groundlings the cult has already turned, standing in the pit.</summary>
+        /// <summary>The Yard: groundlings the Unbound has already turned, standing in the pit.</summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2 PatrolA, Vector2 PatrolB)[] Room1Spawns = {
             ("holo_page", new Vector2(1180, EnemyGroundY), new Vector2(1020, EnemyGroundY), new Vector2(1340, EnemyGroundY)),
             ("chrono_slasher", new Vector2(1720, EnemyGroundY), new Vector2(1560, EnemyGroundY), new Vector2(1880, EnemyGroundY)),

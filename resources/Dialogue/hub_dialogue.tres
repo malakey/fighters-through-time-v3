@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="DialogueSetData" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
@@ -12,7 +12,61 @@ EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined")
 PausesGameplay = true
 AutoAdvance = false
 
+[sub_resource type="Resource" id="SarahAct1"]
+script = ExtResource("2")
+DialogueID = "hub.sarah_act1"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_hub_sarah_act1_1", "dlg_hub_sarah_act1_2")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="SarahAct2"]
+script = ExtResource("2")
+DialogueID = "hub.sarah_act2"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_hub_sarah_act2_1", "dlg_hub_sarah_act2_2")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="SarahAct3"]
+script = ExtResource("2")
+DialogueID = "hub.sarah_act3"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_hub_sarah_act3_1", "dlg_hub_sarah_act3_2")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="OkaforAct1"]
+script = ExtResource("2")
+DialogueID = "hub.okafor_act1"
+SpeakerNameKeys = PackedStringArray("speaker_okafor", "speaker_okafor")
+LineKeys = PackedStringArray("dlg_hub_okafor_act1_1", "dlg_hub_okafor_act1_2")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="OkaforAct2"]
+script = ExtResource("2")
+DialogueID = "hub.okafor_act2"
+SpeakerNameKeys = PackedStringArray("speaker_okafor", "speaker_okafor")
+LineKeys = PackedStringArray("dlg_hub_okafor_act2_1", "dlg_hub_okafor_act2_2")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="OkaforAct3"]
+script = ExtResource("2")
+DialogueID = "hub.okafor_act3"
+SpeakerNameKeys = PackedStringArray("speaker_okafor", "speaker_okafor")
+LineKeys = PackedStringArray("dlg_hub_okafor_act3_1", "dlg_hub_okafor_act3_2")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral")
+PausesGameplay = true
+AutoAdvance = false
+
 [resource]
 script = ExtResource("1")
 DialogueSetID = "dialogue_hub"
-Sequences = [SubResource("SarahBriefing")]
+Sequences = [SubResource("SarahBriefing"), SubResource("SarahAct1"), SubResource("SarahAct2"), SubResource("SarahAct3"), SubResource("OkaforAct1"), SubResource("OkaforAct2"), SubResource("OkaforAct3")]

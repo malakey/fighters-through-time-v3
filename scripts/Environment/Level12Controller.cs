@@ -199,7 +199,7 @@ namespace FTT.Environment {
 
         /// <summary>Lunar era standard: grav-beams that PULL rather than knock back.</summary>
         public const string DiggerEnemyID = "vacuum_digger";
-        /// <summary>Future Cultist standard, mixed through the outpost garrison.</summary>
+        /// <summary>Unbound shock-trooper standard, mixed through the outpost garrison.</summary>
         public const string CultistEnemyID = "chrono_slasher";
         /// <summary>Lunar era elite.</summary>
         public const string EliteEnemyID = "void_enforcer";
@@ -217,7 +217,7 @@ namespace FTT.Environment {
             (DiggerEnemyID, 1, new Vector2(1100f, StandY)),
             (DiggerEnemyID, 1, new Vector2(1900f, StandY)),
             (DiggerEnemyID, 1, new Vector2(2600f, StandY)),
-            // Wave 2 - the vent field. Cultists join the local excavation crews.
+            // Wave 2 - the vent field. Unbound troopers join the local excavation crews.
             (DiggerEnemyID, 2, new Vector2(3400f, StandY)),
             (CultistEnemyID, 2, new Vector2(3900f, StandY)),
             (DiggerEnemyID, 2, new Vector2(4600f, StandY)),

@@ -358,7 +358,7 @@ public class Level08ContentTests {
         AssertObject(set).IsNotNull();
         AssertString(set.DialogueSetID).IsEqual("dialogue_level_08");
         AssertThat(set.Sequences.Length).OverrideFailureMessage(
-            "Level 8 ships four beats: entrance, boss_intro, postboss, exit.").IsEqual(4);
+            "Level 8 ships four beats plus the two N03 Cleopatra hero variants.").IsEqual(6);
 
         var keys = new HashSet<string>(StringComparer.Ordinal);
         foreach (string line in File.ReadAllLines("localization/en.csv")) {
@@ -392,14 +392,29 @@ public class Level08ContentTests {
             }
         }
 
-        // The authored Cleopatra scene is a canonical campaign beat: four lines,
-        // alternating Cleopatra and the player (design-godot.md 3368-3374).
+        // V7.5 Mystery Thread: Cleopatra is a captive, so the default post-boss
+        // beat is the player and Sarah on the radio finding an empty throne
+        // (design-godot.md section 16, Level 8 post-boss). The hero-is-Cleopatra
+        // branch is the N03 recognition variant.
         DialogueSequenceData postBoss = set.Find("level_08.postboss");
         AssertThat(postBoss.LineCount).IsEqual(4);
-        AssertString(postBoss.GetSpeakerKey(0)).IsEqual("speaker_cleopatra");
-        AssertString(postBoss.GetSpeakerKey(1)).IsEqual("speaker_player");
-        AssertString(postBoss.GetSpeakerKey(2)).IsEqual("speaker_cleopatra");
-        AssertString(postBoss.GetSpeakerKey(3)).IsEqual("speaker_player");
+        AssertString(postBoss.GetSpeakerKey(0)).IsEqual("speaker_player");
+        AssertString(postBoss.GetSpeakerKey(1)).IsEqual("speaker_sarah");
+        AssertString(postBoss.GetSpeakerKey(2)).IsEqual("speaker_player");
+        AssertString(postBoss.GetSpeakerKey(3)).IsEqual("speaker_sarah");
+
+        foreach (string variant in new[] {
+            "level_08.entrance@cleopatra", "level_08.postboss@cleopatra" }) {
+            DialogueSequenceData branch = set.Find(variant);
+            AssertObject(branch).OverrideFailureMessage(
+                $"The N03 recognition variant '{variant}' is missing.").IsNotNull();
+            AssertString(branch.HeroConditionCharacterID).IsEqual("cleopatra");
+            for (int index = 0; index < branch.LineCount; index++) {
+                required.Add(branch.GetLineKey(index));
+                required.Add(branch.GetSpeakerKey(index));
+                required.Add(branch.GetEmotionKey(index));
+            }
+        }
 
         foreach (string key in required) {
             AssertThat(keys.Contains(key)).OverrideFailureMessage(

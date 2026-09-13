@@ -147,9 +147,10 @@ public class CharacterSelectSceneTests {
             screen.GetNode<CheckButton>(SelectRoot + "ModeRow/LocalHumanToggle").ButtonPressed = false;
 
             // V7.3 Fighter Onboarding added the Move List and Systems Card
-            // footer buttons to the selection chain (3 -> 5).
+            // footer buttons to the selection chain (3 -> 5); Package 11 A6 added
+            // the M01 Steam Remote Play Together notice (5 -> 6).
             IReadOnlyList<Control> selectionChain = screen.FocusChain;
-            AssertThat(selectionChain.Count).IsEqual(5);
+            AssertThat(selectionChain.Count).IsEqual(6);
             AssertThat(selectionChain.Contains(
                 screen.GetNode<Button>(SelectRoot + "ButtonRow/MoveListButton"))).IsTrue();
             AssertThat(selectionChain.Contains(
@@ -172,6 +173,37 @@ public class CharacterSelectSceneTests {
             AssertThat(stageChain.Contains(screen.GetNode<SpinBox>(StageRoot + "RulesRow/TimeLimit").GetLineEdit()))
                 .OverrideFailureMessage("The time-limit editor is not reachable by focus.").IsTrue();
             AssertThat(screen.GetNode<OptionButton>(StageRoot + "StageRow/StageSelect").HasFocus()).IsTrue();
+        } finally {
+            Teardown(host);
+        }
+    }
+
+    /// <summary>
+    /// Package 11 A6 (M01). Steam Remote Play Together is the launch netplay
+    /// message, and it needs no netcode: Remote Play is host-side streamed local
+    /// multiplayer, so the shipped local 1v1 path <i>is</i> the feature and the
+    /// implementation is a notice on the Fighter local-play surface. The scene
+    /// stores the raw translation key per the repo convention, so the assertion is
+    /// on the key rather than the English.
+    /// </summary>
+    [TestCase]
+    public void TheFighterFooterCarriesTheSteamRemotePlayNoticeInsideTheFocusChain() {
+        CharacterSelectScreen screen = Open(out Node host);
+        try {
+            var notice = screen.GetNodeOrNull<Label>(SelectRoot + "RemotePlayNotice");
+            AssertObject(notice)
+                .OverrideFailureMessage("The Remote Play Together notice is missing from the footer.")
+                .IsNotNull();
+            AssertString(notice.Text)
+                .OverrideFailureMessage("Authored .tscn text must be the raw key, not the English.")
+                .IsEqual("fighter_remote_play_notice");
+
+            // Focusable and chained, so a controller-only player can reach and read
+            // it; the chain is re-authored whenever the surface changes.
+            AssertThat(notice.FocusMode).IsEqual(Control.FocusModeEnum.All);
+            AssertThat(screen.FocusChain.Contains(notice))
+                .OverrideFailureMessage("The notice is not in the selection focus chain.").IsTrue();
+            AssertChainAuthored(screen.FocusChain);
         } finally {
             Teardown(host);
         }

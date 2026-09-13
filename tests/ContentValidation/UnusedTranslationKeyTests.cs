@@ -87,15 +87,30 @@ public class UnusedTranslationKeyTests {
         "boss_defeated",
         // V7.3 LAN de-scope (2026-08-26): the main menu's code-built LanButton
         // was removed; the key stays for the Package 7 netcode entry point.
-        "menu_lan_match"
+        "menu_lan_match",
+        // Package 11 A6 (V7.5 narrative). Cleopatra is a captive from the first
+        // strike onward, so the Level 8 post-boss scene no longer has her present
+        // as an NPC; in the N03 hero-is-Cleopatra branch she is the player and
+        // renders through speaker_player. The key is retained per the plan's
+        // legacy-identifier rule rather than deleted.
+        "speaker_cleopatra",
+        // Package 11 A6 (N04). The captive spoken names are resolved at render
+        // time by A5's CampaignCaptiveRoster ("captive_name_" + roster id), so no
+        // literal exists to find until that resolver merges. Retire all three
+        // from this roster in the same change that lands it.
+        "captive_name_leonardo",
+        "captive_name_cleopatra",
+        "captive_name_tesla"
     };
 
     /// <summary>The cap stated in the Package 8 closeout, lowered as orphans are
     /// retired (12 → 10 with the audit M-2 pause pass; 10 → 11 with the V7.3 LAN
-    /// de-scope, which orphaned <c>menu_lan_match</c> until Package 7). Informational
+    /// de-scope, which orphaned <c>menu_lan_match</c> until Package 7; 11 → 15 with
+    /// Package 11 A6’s V7.5 narrative pass, which orphaned <c>speaker_cleopatra</c>
+    /// and added the three runtime-resolved <c>captive_name_*</c> rows). Informational
     /// alongside the roster rule above: if both ever disagree, the roster is the
     /// authority.</summary>
-    private const int RecordedOrphanCeiling = 11;
+    private const int RecordedOrphanCeiling = 15;
 
     [TestCase]
     public void NoTranslationKeyGoesUnusedBeyondTheRecordedOrphans() {

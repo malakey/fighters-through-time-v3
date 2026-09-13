@@ -122,7 +122,7 @@ public class Level15ContentTests {
     // === Dialogue ===
 
     [TestCase]
-    public void TheDialogueSetCarriesAllFiveBeatsIncludingThePreBossAndTheEnding() {
+    public void TheDialogueSetCarriesAllBeatsIncludingThePreBossAndBothEndings() {
         var set = AuthoredResources.Load<DialogueSetData>(DialoguePath);
         AssertObject(set).IsNotNull();
         AssertString(set.DialogueSetID).IsEqual("dialogue_level_15");
@@ -130,9 +130,12 @@ public class Level15ContentTests {
         var ids = new List<string>();
         foreach (DialogueSequenceData sequence in set.Sequences) ids.Add(sequence.DialogueID);
         // postboss carries the Core prompt; ending is the authored finale script.
+        // Package 11 A6: N05 authors a second closing narration for a campaign
+        // average below 50% - the Prime Anchor's visible scar. A3b owns the
+        // unrounded 750-point selection between the two.
         AssertThat(ids).ContainsExactlyInAnyOrder(
             "level_15.entrance", "level_15.preboss", "level_15.boss_intro",
-            "level_15.postboss", "level_15.ending");
+            "level_15.postboss", "level_15.ending", "level_15.ending_scarred");
         // No exit beat, deliberately - see ExitDialogueID above.
         AssertThat(ids.Contains("level_15.exit")).IsFalse();
     }
@@ -203,8 +206,8 @@ public class Level15ContentTests {
 
         // Sarah on the radio: the anchor takes the feedback, the siphons die.
         string sarahsCall = LocalizationValue("dlg_l15_ending_1").ToLowerInvariant();
-        AssertString(sarahsCall).Contains("prime anchor");
-        AssertString(sarahsCall).Contains("siphons");
+        AssertString(sarahsCall).Contains("forge");
+        AssertString(sarahsCall).Contains("cradles are opening");
 
         // The montage names the three eras the design calls out by name.
         string montage = LocalizationValue("dlg_l15_ending_2").ToLowerInvariant();
@@ -213,15 +216,16 @@ public class Level15ContentTests {
                 .OverrideFailureMessage($"The restoration montage must show {era}.").Contains(era);
         }
 
-        // The player watching the resonance leave their hands.
-        string fading = LocalizationValue("dlg_l15_ending_3").ToLowerInvariant();
-        AssertString(fading).Contains("resonance");
-        AssertString(fading).Contains("fading");
+        // V7.5: the single, voluntary surrender of the charge - the only power
+        // loss in the game, and it happens by choice at the very end.
+        string release = LocalizationValue("dlg_l15_ending_3").ToLowerInvariant();
+        AssertString(release).Contains("resonance");
+        AssertString(release).Contains("held in trust");
 
-        // Sarah's farewell, and the price Level 12 promised.
+        // Sarah's farewell.
         string farewell = LocalizationValue("dlg_l15_ending_4").ToLowerInvariant();
         AssertString(farewell).Contains("rifts are closed");
-        AssertString(farewell).Contains("history is safe");
+        AssertString(farewell).Contains("timelines are sealed");
 
         // The closing line.
         AssertString(LocalizationValue("dlg_l15_ending_5").ToLowerInvariant()).Contains("ours to write");

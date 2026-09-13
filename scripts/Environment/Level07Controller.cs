@@ -9,7 +9,7 @@ namespace FTT.Environment {
     /// <summary>
     /// Level 7 - Nassau, 1715. The Golden Age of Piracy.
     ///
-    /// The pirate republic has just declared independence, and the Apex Archive is
+    /// The pirate republic has just declared independence, and the Unbound is
     /// steering the Royal Navy onto it with sub-aquatic torpedoes and a chronal
     /// targeting grid. The level is therefore a ship-to-ship crossing, not a walk:
     /// four rooms strung between hulls with open water in two of them.
@@ -41,7 +41,7 @@ namespace FTT.Environment {
     ///
     /// Encounter economy is locked by docs/DUST_ECONOMY.md: 10 standards, 1 elite,
     /// 1 boss, 3 extractors. Roster is the Nassau era pair - `laser_pistol_deckhand`
-    /// (rapid low-damage ranged) - mixed with `chrono_slasher` cultists, and the
+    /// (rapid low-damage ranged) - mixed with `chrono_slasher` Unbound troopers, and the
     /// single elite is the `overcharged_cannon_master`.
     /// </summary>
     public partial class Level07Controller : StoryLevelControllerBase {

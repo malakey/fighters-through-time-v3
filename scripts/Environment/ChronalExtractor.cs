@@ -190,7 +190,7 @@ namespace FTT.Environment {
             FTT.Combat.VfxEmitter.EmitScene(scene, GlobalPosition, GetParent(), DischargeColor);
         }
 
-        /// <summary>Apex Archive cyan, matching the extractor's core glow.</summary>
+        /// <summary>Unbound cyan, matching the extractor's core glow.</summary>
         public static readonly Color DischargeColor = new(0.2f, 0.95f, 1f, 0.85f);
 
         protected override void ApplyStatePresentation() {

@@ -110,15 +110,18 @@ public class Level14ContentTests {
     // === Dialogue ===
 
     [TestCase]
-    public void TheDialogueSetCarriesTheThreeAuthoredBeats() {
+    public void TheDialogueSetCarriesTheFourAuthoredBeats() {
         var set = AuthoredResources.Load<DialogueSetData>(DialoguePath);
         AssertObject(set).IsNotNull();
         AssertString(set.DialogueSetID).IsEqual("dialogue_level_14");
 
         var ids = new List<string>();
         foreach (DialogueSequenceData sequence in set.Sequences) ids.Add(sequence.DialogueID);
+        // Package 11 A6: the V7.5 Extraction Hall reveal fires on entering the
+        // hall, before the final approach to the Forge core.
         AssertThat(ids).ContainsExactlyInAnyOrder(
-            "level_14.entrance", "level_14.boss_intro", "level_14.exit");
+            "level_14.entrance", "level_14.extraction_hall",
+            "level_14.boss_intro", "level_14.exit");
     }
 
     [TestCase]
@@ -168,24 +171,27 @@ public class Level14ContentTests {
     }
 
     [TestCase]
-    public void TheExitBeatHandsTheCampaignToAlexandriaAndKeepsTheFadingResonanceMotif() {
-        // Level 14 is the last level before the finale. Its exit is the only place
-        // the campaign points at the final confrontation, and Act III has no
-        // brainwashed locals to restore - so the beat has to say what it does have.
-        string noLocals = LocalizationValue("dlg_l14_exit_2").ToLowerInvariant();
-        AssertString(noLocals)
-            .OverrideFailureMessage("Neo-Earth is the cult's own timeline; the exit must not restore locals.")
-            .Contains("nobody down there");
-        AssertString(noLocals).Contains("chose it");
+    public void TheExitBeatKeepsTheCradlesHeldAndHandsTheCampaignToTheFiringChannel() {
+        // V7.5: severing a charged cradle consumes the captive, so breaking the
+        // intake frees nobody. The exit has to say that out loud - the retired
+        // copy claimed there was "nobody down there to bring home", which is the
+        // exact opposite of the Extraction Cradles canon.
+        string cradles = LocalizationValue("dlg_l14_exit_2").ToLowerInvariant();
+        AssertString(cradles)
+            .OverrideFailureMessage("The Bastion is full of captives; the exit must not say it is empty.")
+            .Contains("cradles are still holding");
+        AssertThat(cradles.Contains("nobody down there"))
+            .OverrideFailureMessage("The retired 'nobody down there' line contradicts the cradles.")
+            .IsFalse();
 
-        string fading = LocalizationValue("dlg_l14_exit_3").ToLowerInvariant();
-        AssertString(fading).Contains("resonance");
-        AssertString(fading).Contains("slower");
+        // No mid-campaign power loss: the hero leaves carrying everything taken back.
+        string carried = LocalizationValue("dlg_l14_exit_3").ToLowerInvariant();
+        AssertString(carried).Contains("still carrying");
 
+        // The only route to Level 15 is the Forge's own firing channel.
         string handoff = LocalizationValue("dlg_l14_exit_4").ToLowerInvariant();
-        AssertString(handoff).Contains("prime anchor");
-        AssertString(handoff).Contains("alexandria");
-        AssertString(handoff).Contains("leader of the apex archive");
+        AssertString(handoff).Contains("forge is firing");
+        AssertString(handoff).Contains("channel");
     }
 
     // === Encounter economy (locked by docs/DUST_ECONOMY.md) ===

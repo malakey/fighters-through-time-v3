@@ -178,11 +178,8 @@ public class DialoguePresentationTests {
             AssertThat(dialogue.RegisterSetFromPath(DialogueSetPath)).IsTrue();
             AssertThat(dialogue.StartSequence(SequenceID)).IsTrue();
 
-            // Line 0 is speaker_cleopatra: an NPC, so the neutral pitch.
-            AssertThat(dialogue.ActiveChirpPitch).IsEqual(DialogueManager.NeutralChirpPitch);
-
-            // Line 1 is speaker_player: the locked character's authored pitch.
-            dialogue.AdvanceLine();
+            // V7.5 re-set this scene: line 0 is now speaker_player (the locked
+            // character's authored pitch) and line 1 is speaker_sarah, an NPC.
             var lincoln = FTT.Core.AuthoredResources.Load<FTT.Characters.CharacterData>(
                 "res://resources/Characters/lincoln_data.tres");
             AssertThat(dialogue.ActiveChirpPitch)
@@ -193,8 +190,13 @@ public class DialoguePresentationTests {
                 .OverrideFailureMessage("Lincoln's authored pitch is the neutral pitch; the test proves nothing.")
                 .IsTrue();
 
+            // Line 1 is speaker_sarah: an NPC, so the neutral pitch.
             dialogue.AdvanceLine();
             AssertThat(dialogue.ActiveChirpPitch).IsEqual(DialogueManager.NeutralChirpPitch);
+
+            // Line 2 is speaker_player again.
+            dialogue.AdvanceLine();
+            AssertThat(dialogue.ActiveChirpPitch).IsEqual(lincoln.DialogueChirpPitch);
         } finally {
             Teardown(dialogue);
             SessionData restore = GameManager.Instance.CurrentSession;
