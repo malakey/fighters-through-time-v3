@@ -17,8 +17,9 @@ public class ContentManifestTests {
         AssertThat(ContentManifestValidator.HasErrors(issues)).IsFalse();
         // Sixteen shared campaign levels plus the authored Level 4A variants (V7.6).
         // A12 ships the Einstein exemplar; B1-B3 raise this to 25 with the other
-        // eight heroes in Wave 2.
-        AssertThat(manifest.ForCategory(ContentCategory.StoryLevel).Count()).IsEqual(17);
+        // eight heroes in Wave 2. B1 added joan/leonardo/lincoln (+3); B2 and B3 add
+        // three each in parallel, and the merged wave value is 25.
+        AssertThat(manifest.ForCategory(ContentCategory.StoryLevel).Count()).IsEqual(20);
         AssertThat(manifest.ForCategory(ContentCategory.FighterStage).Count()).IsEqual(10);
         AssertThat(manifest.ForCategory(ContentCategory.Character).Count()).IsEqual(9);
         AssertThat(manifest.ForCategory(ContentCategory.Ability).Count()).IsEqual(36);

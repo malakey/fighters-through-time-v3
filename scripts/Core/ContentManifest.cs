@@ -134,13 +134,15 @@ namespace FTT.Core {
         /// eight heroes; AudioSet stays at 28.
         /// </summary>
         private static readonly Dictionary<ContentCategory, int> ExactRequiredCounts = new() {
-            [ContentCategory.StoryLevel] = 17,
+            // B1 (joan, leonardo, lincoln) raised these by three. B2 and B3 raise them
+            // by three each in their own branches; the merged wave value is 25 / 26.
+            [ContentCategory.StoryLevel] = 20,
             [ContentCategory.FighterStage] = 10,
             [ContentCategory.Character] = 9,
             [ContentCategory.Ability] = 36,
             [ContentCategory.ResonanceGrid] = 9,
             [ContentCategory.Boss] = 15,
-            [ContentCategory.DialogueSet] = 18,
+            [ContentCategory.DialogueSet] = 21,
             [ContentCategory.UIScreen] = 22,
             [ContentCategory.Pool] = 7,
             [ContentCategory.AudioSet] = 28,
