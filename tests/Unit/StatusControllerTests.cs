@@ -10,18 +10,80 @@ namespace FTT.Tests.Unit;
 [TestSuite]
 [RequireGodotRuntime]
 public class StatusControllerTests {
+    // V7.6 (Package 11 A1): within a slot the rule is STRONGER-WINS, not
+    // newest-wins. A different type always replaces; the same type replaces only
+    // when newIntensity x newDuration >= currentIntensity x currentRemaining,
+    // bringing its own duration; a weaker same-type application does nothing at
+    // all; and the other slot is never touched.
     [TestCase]
-    public void NewStatusCompletelyReplacesPreviousStatus() {
+    public void StrongerWinsGovernsReplacementWithinASlotAndNeverTouchesTheOther() {
         (PlayerController player, StatusController status) = CreateSubject();
-        status.ApplyStatus(StatusType.TimeDilation, 2f);
-        AssertThat(player.StatusMovementMultiplier).IsEqual(0.5f);
+        try {
+            // A different type in the same slot always replaces, weaker or not.
+            status.ApplyStatus(StatusType.TimeDilation, 2f);
+            AssertThat(player.StatusMovementMultiplier).IsEqual(0.5f);
+            status.ApplyStatus(StatusType.Root, 1f);
+            AssertThat(status.ControlStatusType)
+                .OverrideFailureMessage("A different type in the slot always replaces.")
+                .IsEqual(StatusType.Root);
+            AssertThat(player.StatusMovementMultiplier).IsEqual(1f);
+            AssertThat(player.IsMovementRooted).IsTrue();
 
-        status.ApplyStatus(StatusType.Root, 1f);
+            // Occupy the damage slot so the control-slot traffic below can be
+            // proved not to touch it.
+            status.ApplyStatus(StatusType.Venom, 4f, 1f);
+            AssertThat(status.DamageStatusType).IsEqual(StatusType.Venom);
 
-        AssertThat(status.ActiveType).IsEqual(StatusType.Root);
-        AssertThat(player.StatusMovementMultiplier).IsEqual(1f);
-        AssertThat(player.IsMovementRooted).IsTrue();
-        player.Free();
+            // A WEAKER same-type application is a complete no-op: no replace, no
+            // refresh, and the occupant keeps its own remaining duration.
+            status.ApplyStatus(StatusType.Root, 0.25f);
+            status._PhysicsProcess(0.5);
+            AssertThat(player.IsMovementRooted)
+                .OverrideFailureMessage("A weaker same-type application must not shorten the occupant.")
+                .IsTrue();
+
+            // EQUAL strength replaces (the rule is >=): the same type at the same
+            // intensity and the same remaining duration brings its own duration.
+            AssertThat(StatusRouting.ShouldReplace(StatusType.Root, 1f, 0.5f, StatusType.Root, 1f, 0.5f))
+                .OverrideFailureMessage("Equal strength must replace.")
+                .IsTrue();
+            AssertThat(StatusRouting.ShouldReplace(StatusType.Root, 1f, 2f, StatusType.Root, 1f, 1f))
+                .OverrideFailureMessage("A weaker same-type application must not replace.")
+                .IsFalse();
+            // Intensity participates: half the duration at triple the potency wins.
+            AssertThat(StatusRouting.ShouldReplace(StatusType.Venom, 1f, 2f, StatusType.Venom, 3f, 1f))
+                .OverrideFailureMessage("Intensity x duration is the strength product.")
+                .IsTrue();
+
+            // A stronger same-type application replaces and brings its duration.
+            status.ApplyStatus(StatusType.Root, 5f, 1f);
+            status._PhysicsProcess(1.0);
+            AssertThat(player.IsMovementRooted).IsTrue();
+
+            // Through all of that the damage slot was never touched.
+            AssertThat(status.DamageStatusType)
+                .OverrideFailureMessage("Control-slot traffic must never touch the damage slot.")
+                .IsEqual(StatusType.Venom);
+        } finally {
+            player.Free();
+        }
+    }
+
+    [TestCase]
+    public void StatusRoutingIsTheOneTableAndCoversEverySlotAssignment() {
+        AssertThat(StatusRouting.SlotOf(StatusType.Venom)).IsEqual(StatusSlot.Damage);
+        AssertThat(StatusRouting.SlotOf(StatusType.RadiantBurn)).IsEqual(StatusSlot.Damage);
+        AssertThat(StatusRouting.SlotOf(StatusType.TimeDilation)).IsEqual(StatusSlot.Control);
+        AssertThat(StatusRouting.SlotOf(StatusType.StaticCharge)).IsEqual(StatusSlot.Control);
+        AssertThat(StatusRouting.SlotOf(StatusType.Root)).IsEqual(StatusSlot.Control);
+        AssertThat(StatusRouting.SlotOf(StatusType.Suppression)).IsEqual(StatusSlot.Control);
+        // The legacy forwarder must agree with the table at every value, because
+        // the simulation hot path and the HUD both still call it.
+        foreach (StatusType type in System.Enum.GetValues<StatusType>()) {
+            AssertThat(StatusController.IsDamageStatus(type))
+                .OverrideFailureMessage($"IsDamageStatus must forward to the table for {type}.")
+                .IsEqual(StatusRouting.SlotOf(type) == StatusSlot.Damage);
+        }
     }
 
     [TestCase]

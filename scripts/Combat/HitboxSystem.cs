@@ -43,5 +43,14 @@ namespace FTT.Combat {
         /// player-authored hits freeze. The four construct nodes (turret, coil,
         /// nest, snare) set this; the victim's hit handler skips ApplyHitstop.</summary>
         public bool ExemptFromHitstop;
+        /// <summary>
+        /// V7.6 F07 (Package 11 A1): a caster-owned combo MARK this hit applies,
+        /// alongside — and independent of — <see cref="AppliedStatus"/>. A mark
+        /// occupies no status slot, causes no action lock, and contributes zero
+        /// stagger budget. <see cref="AttackerIndex"/> identifies the owner.
+        /// </summary>
+        public ComboMarkType ComboMark;
+        /// <summary>Mark duration in frames; 0 applies nothing.</summary>
+        public int ComboMarkFrames;
     }
 }

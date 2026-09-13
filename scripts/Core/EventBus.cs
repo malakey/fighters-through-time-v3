@@ -257,13 +257,27 @@ namespace FTT.Core {
         public Vector2 FocusPosition;
     }
 
+    /// <summary>
+    /// Append-only. The ordinals serialize into authored <c>.tres</c> data and
+    /// the deterministic simulation casts this enum to <c>int</c> in ~30 places,
+    /// so a member is never reordered, renumbered, or reused.
+    /// </summary>
     public enum StatusType {
         None,
         TimeDilation,
         Venom,
         StaticCharge,
         RadiantBurn,
-        Root
+        Root,
+        /// <summary>
+        /// V7.6 (Package 11 A1): the Eraser line's Null Lance. Control slot,
+        /// <b>Story-only source</b> — the deterministic simulation refuses it
+        /// outright (<c>FighterEntitySystems.ApplyStatus</c>). Locks the
+        /// Special 1 / Special 2 / Movement Ability / Ultimate cast while
+        /// cooldowns keep ticking; basics, block, grab, Rally, DI, landing tech,
+        /// Defy History, death rewinds and Time Freeze are untouched.
+        /// </summary>
+        Suppression = 6
     }
 
     public enum MatchState {
@@ -274,6 +288,26 @@ namespace FTT.Core {
         KOSequence,
         PostMatch,
         Results
+    }
+
+    // === Package 11 A1: ability-slot lock states (V7.5/V7.6) ===
+
+    /// <summary>
+    /// Why an ability slot is unavailable. <c>Dormant</c> = not yet granted by the
+    /// Legacy Unlock Schedule (published by A5); <c>Suppressed</c> = the
+    /// <see cref="StatusType.Suppression"/> cast lock (published by
+    /// <c>PlayerController</c>); <c>Clear</c> = usable. Locked slots are shown,
+    /// never hidden.
+    /// </summary>
+    public enum AbilitySlotLockState {
+        Clear = 0,
+        Dormant = 1,
+        Suppressed = 2
+    }
+
+    public struct AbilitySlotLockPayload {
+        public AbilitySlot Slot;
+        public AbilitySlotLockState State;
     }
 
     public partial class EventBus : Node {
@@ -444,5 +478,16 @@ namespace FTT.Core {
         // === Match Reset ===
         public event Action OnMatchReset;
         public void RaiseMatchReset() => OnMatchReset?.Invoke();
+
+        // === Package 11 A1: ability-slot lock states ===
+        /// <summary>
+        /// Raised on every Dormant / Suppressed / Clear transition of one Story
+        /// ability slot. A1 publishes the Suppression transitions from
+        /// <c>PlayerController</c>; A5 publishes Dormant from the Legacy Unlock
+        /// Schedule; A8's HUD subscribes and draws the cold cross-out.
+        /// </summary>
+        public event Action<AbilitySlotLockPayload> OnAbilitySlotLockChanged;
+        public void RaiseAbilitySlotLockChanged(AbilitySlotLockPayload payload) =>
+            OnAbilitySlotLockChanged?.Invoke(payload);
     }
 }

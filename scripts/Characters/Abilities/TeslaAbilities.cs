@@ -114,9 +114,11 @@ namespace FTT.Characters.Abilities {
 
     /// <summary>
     /// Special 2 — Lorentz Pulse: a radial electromagnetic burst around Tesla that
-    /// damages and Roots enemies for the authored duration. Targets primed with
-    /// StaticCharge (checked before the Root replaces it) take an additional chain
-    /// lightning strike per active Tesla Coil. Story-only Resonance perk Lorentz
+    /// damages and Roots enemies for the authored duration. Targets carrying Tesla's
+    /// V7.6 F07 Conductive MARK (not Static Charge — the split is the point of F07)
+    /// take an additional chain lightning strike per active Tesla Coil. Because the
+    /// mark occupies no status slot, the pulse's own Root can never evict it.
+    /// Story-only Resonance perk Lorentz
     /// Attraction pulls enemies toward Tesla before rooting them and extends the
     /// root by one second.
     /// </summary>
@@ -167,9 +169,10 @@ namespace FTT.Characters.Abilities {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
 
-                // Chain priming must be read before the pulse applies Root: the
-                // newest status completely replaces the previous one.
-                bool primed = TargetHasStaticCharge(hurtbox);
+                // V7.6 F07: chain eligibility is the separate Conductive MARK,
+                // owned by this Tesla — Static Charge is now a pure interrupt and
+                // is never consulted here.
+                bool primed = TargetHasConductiveMark(hurtbox, Owner.PlayerIndex);
                 if (attraction) PullTargetTowardOwner(hurtbox);
 
                 float dealt = hurtbox.TakeHit(new HitPayload {
@@ -234,15 +237,23 @@ namespace FTT.Characters.Abilities {
             }
         }
 
-        private static bool TargetHasStaticCharge(Hurtbox hurtbox) {
+        /// <summary>
+        /// V7.6 F07: the chain gate. Reads the caster-owned Conductive mark —
+        /// which carries no action lock and contributes zero stagger budget — so
+        /// Lorentz chains no longer depend on the target being action-locked.
+        /// The mark must belong to THIS Tesla.
+        /// </summary>
+        private static bool TargetHasConductiveMark(Hurtbox hurtbox, int sourcePlayerIndex) {
             Node current = hurtbox.GetParent();
             while (current != null) {
                 if (current is PlayerController player) {
-                    var status = player.GetNodeOrNull<StatusController>("StatusController");
-                    return status?.HasStatus(FTT.Core.StatusType.StaticCharge) == true;
+                    return player.HasConductiveMarkFrom(sourcePlayerIndex);
                 }
                 if (current is FTT.Enemies.EnemyController enemy) {
-                    return enemy.HasStatusEffect(FTT.Core.StatusType.StaticCharge);
+                    return enemy.HasConductiveMarkFrom(sourcePlayerIndex);
+                }
+                if (current is FTT.Enemies.BossController boss) {
+                    return boss.HasConductiveMarkFrom(sourcePlayerIndex);
                 }
                 current = current.GetParent();
             }

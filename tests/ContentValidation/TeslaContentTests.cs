@@ -52,6 +52,30 @@ public class TeslaContentTests {
         AssertThat(data.CooldownDuration).IsEqual(5f);
     }
 
+    /// <summary>
+    /// V7.6 F07: the finisher rider is a PAIR — the unchanged 0.4 s Static Charge
+    /// interrupt plus a separate 1.5 s Conductive mark that enables Lorentz chains
+    /// without locking actions. The two must never be collapsed back into one.
+    /// </summary>
+    [TestCase]
+    public void TeslaFinisherRiderAuthorsBothTheInterruptAndTheConductiveMark() {
+        BasicStringProfile tesla = BasicComboRules.StringProfileFor("tesla");
+        AssertThat(tesla.FinisherStatusType).IsEqual((int)StatusType.StaticCharge);
+        AssertThat(tesla.FinisherStatusFrames)
+            .OverrideFailureMessage("Static Charge stays a pure 0.4 s interrupt.")
+            .IsEqual(24);
+        AssertThat(tesla.FinisherMarkType).IsEqual((int)ComboMarkType.Conductive);
+        AssertThat(tesla.FinisherMarkFrames)
+            .OverrideFailureMessage("The Conductive mark is 90 frames / 1.5 s at baseline.")
+            .IsEqual(BasicComboRules.ConductiveMarkBaselineFrames);
+        AssertThat(BasicComboRules.ConductiveMarkFenceFrames)
+            .OverrideFailureMessage("A linked coil fence marks at the baseline and is never extended.")
+            .IsEqual(BasicComboRules.ConductiveMarkBaselineFrames);
+        AssertThat(BasicComboRules.ConductiveMarkUpgradedFrames)
+            .OverrideFailureMessage("tesla_conductive_hold takes the mark to 2.5 s, Story only.")
+            .IsEqual(150);
+    }
+
     [TestCase]
     public void TeslaCoilSceneSatisfiesThePersistentConstructContract() {
         var scene = ResourceLoader.Load<PackedScene>("res://scenes/constructs/TeslaCoil.tscn");

@@ -82,6 +82,79 @@ namespace FTT.Enemies {
         public float StatusMoveMultiplier { get; private set; } = 1f;
         public float StatusDamageTakenMultiplier { get; private set; } = 1f;
 
+        // === V7.6 StatusSlots contract (IStatusEffectTarget), Package 11 A1 ===
+        // Bosses carry the same two slots as players and ordinary enemies. Their
+        // flinch immunity is unchanged and orthogonal: this controller has no
+        // Stunned state and its hit intake still ignores HitPayload.HitstunDuration
+        // outright, so a status can land on a boss without ever staggering it.
+
+        public FTT.Combat.StatusSlots ActiveStatuses {
+            get => new() {
+                Damage = new FTT.Combat.StatusEffectData {
+                    Type = DamageStatusType,
+                    RemainingSeconds = _damageStatusTimer,
+                    Intensity = _damageStatusIntensity
+                },
+                Control = new FTT.Combat.StatusEffectData {
+                    Type = ControlStatusType,
+                    RemainingSeconds = _controlStatusTimer,
+                    Intensity = _controlStatusIntensity
+                }
+            };
+            set {
+                ClearAllStatusEffects();
+                if (value.Damage.IsActive) {
+                    ApplyStatusEffect(value.Damage.Type, value.Damage.RemainingSeconds, value.Damage.Intensity);
+                }
+                if (value.Control.IsActive) {
+                    ApplyStatusEffect(value.Control.Type, value.Control.RemainingSeconds, value.Control.Intensity);
+                }
+            }
+        }
+
+        public Node2D TargetNode => this;
+
+        /// <summary>Clears one slot by identity, whatever occupies it.</summary>
+        public void ClearStatusEffect(FTT.Combat.StatusSlot slot) {
+            if (slot == FTT.Combat.StatusSlot.Damage) ClearDamageStatusSlot();
+            else ClearControlStatusSlot();
+            RefreshStatusGlow();
+        }
+
+        /// <summary>Both slots. Death, rewind restore and Restart Level call this.</summary>
+        public void ClearAllStatusEffects() => ClearStatusEffect();
+
+        // === V7.6 F07 Conductive mark (caster-owned; NOT a status) ===
+
+        private int _conductiveFramesRemaining;
+        private int _conductiveSourcePlayerID = -1;
+
+        public int ConductiveFramesRemaining => _conductiveFramesRemaining;
+        public int ConductiveSourcePlayerID =>
+            _conductiveFramesRemaining > 0 ? _conductiveSourcePlayerID : -1;
+        public bool HasConductiveMark => _conductiveFramesRemaining > 0;
+        public bool HasConductiveMarkFrom(int sourcePlayerID) =>
+            _conductiveFramesRemaining > 0 && _conductiveSourcePlayerID == sourcePlayerID;
+
+        public void ApplyConductiveMark(int sourcePlayerID, int frames) {
+            if (frames <= 0 || CurrentState == BossState.Dead) return;
+            if (_conductiveSourcePlayerID != sourcePlayerID || frames > _conductiveFramesRemaining) {
+                _conductiveSourcePlayerID = sourcePlayerID;
+                _conductiveFramesRemaining = frames;
+            }
+        }
+
+        public void ClearConductiveMark() {
+            _conductiveFramesRemaining = 0;
+            _conductiveSourcePlayerID = -1;
+        }
+
+        private void TickConductiveMark() {
+            if (_conductiveFramesRemaining <= 0) return;
+            _conductiveFramesRemaining--;
+            if (_conductiveFramesRemaining <= 0) _conductiveSourcePlayerID = -1;
+        }
+
         /// <summary>Story difficulty-scaled maximum HP; canonical base stays in BossData.</summary>
         public int ScaledMaxHP => _scaledMaxHP > 0 ? _scaledMaxHP : Data?.MaxHP ?? 1;
 
@@ -225,6 +298,9 @@ namespace FTT.Enemies {
             }
 
             TickStatus(dt);
+            // F07: the Conductive mark is not a status — it ticks on its own
+            // frame counter and locks nothing.
+            TickConductiveMark();
             TickAbilityCooldowns(dt);
             if (CurrentState == BossState.Dead) return;
 
@@ -573,6 +649,9 @@ namespace FTT.Enemies {
 
         private void Die() {
             CurrentState = BossState.Dead;
+            // V7.6: death clears both status slots and the caster-owned mark.
+            ClearAllStatusEffects();
+            ClearConductiveMark();
             Executor.Cancel();
             _attackHitbox?.Deactivate();
             Velocity = Vector2.Zero;
@@ -613,14 +692,23 @@ namespace FTT.Enemies {
         }
 
         /// <summary>
-        /// V7 two-slot status rule (mirrors StatusController): a damaging status
-        /// and a control status coexist; a new application replaces only the
-        /// occupant of its own slot.
+        /// V7 two-slot status rule (mirrors StatusController), routed through the
+        /// shared <see cref="FTT.Combat.StatusRouting"/> table: a damaging status
+        /// and a control status coexist; a new application competes only with the
+        /// occupant of its own slot, and V7.6's stronger-wins rule means a weaker
+        /// same-type reapplication does nothing at all.
         /// </summary>
         public void ApplyStatusEffect(StatusType type, float duration, float intensity = 1f) {
             if (CurrentState == BossState.Dead || type == StatusType.None || duration <= 0f) return;
+            // V7.6: Suppression is a player-side ability lock with no boss
+            // meaning; refusing it keeps an inert status from evicting a live
+            // control status.
+            if (type == StatusType.Suppression) return;
             float potency = intensity <= 0f ? 1f : intensity;
-            if (FTT.Combat.StatusController.IsDamageStatus(type)) {
+            if (FTT.Combat.StatusRouting.SlotOf(type) == FTT.Combat.StatusSlot.Damage) {
+                if (!FTT.Combat.StatusRouting.ShouldReplace(
+                        DamageStatusType, _damageStatusIntensity, _damageStatusTimer,
+                        type, potency, duration)) return;
                 ClearDamageStatusSlot();
                 DamageStatusType = type;
                 _damageStatusTimer = duration;
@@ -634,6 +722,9 @@ namespace FTT.Enemies {
                         break;
                 }
             } else {
+                if (!FTT.Combat.StatusRouting.ShouldReplace(
+                        ControlStatusType, _controlStatusIntensity, _controlStatusTimer,
+                        type, potency, duration)) return;
                 ClearControlStatusSlot();
                 ControlStatusType = type;
                 _controlStatusTimer = duration;
@@ -719,6 +810,11 @@ namespace FTT.Enemies {
                 ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(damageApplied));
             }
             ApplyKnockback(hit.Knockback, hit.AttackerFacingRight);
+            // V7.6 F07: the caster-owned combo mark rides the same hit but is
+            // not a status — no slot, no action lock, zero stagger budget.
+            if (hit.ComboMark == FTT.Combat.ComboMarkType.Conductive && hit.ComboMarkFrames > 0) {
+                ApplyConductiveMark(hit.AttackerIndex, hit.ComboMarkFrames);
+            }
             if (hit.AppliedStatus != StatusType.None && hit.StatusDuration > 0f) {
                 ApplyStatusEffect(hit.AppliedStatus, hit.StatusDuration, hit.StatusIntensity);
             }

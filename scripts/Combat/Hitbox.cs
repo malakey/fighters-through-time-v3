@@ -29,6 +29,13 @@ namespace FTT.Combat {
         [Export] public int BlockChargeCost;
         /// <summary>V7.2: boss-only red-telegraph attacks no block answers.</summary>
         [Export] public bool Unblockable;
+        /// <summary>
+        /// V7.6 F07: a caster-owned combo mark this hitbox applies, independent of
+        /// <see cref="AppliedStatus"/>. Tesla's finisher sets Conductive.
+        /// </summary>
+        [Export] public ComboMarkType ComboMark = ComboMarkType.None;
+        /// <summary>Mark duration in frames; 0 applies nothing. Never scaled by a status minor.</summary>
+        [Export] public int ComboMarkFrames;
 
         [ExportGroup("Runtime")]
         [Export] public bool IsActive;
@@ -99,7 +106,9 @@ namespace FTT.Combat {
                 ScreenShakeIntensity = Mathf.Max(0f, ScreenShakeIntensity),
                 ScreenShakeDuration = Mathf.Max(0f, ScreenShakeDuration),
                 BlockChargeCost = Mathf.Max(0, BlockChargeCost),
-                Unblockable = Unblockable
+                Unblockable = Unblockable,
+                ComboMark = ComboMark,
+                ComboMarkFrames = Mathf.Max(0, ComboMarkFrames)
             };
         }
 

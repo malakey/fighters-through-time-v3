@@ -158,6 +158,13 @@ namespace FTT.FighterSim {
                 Sample4X = spawn.x, Sample4Y = spawn.y,
                 SampleCountdown = 6
             });
+            // V7.6 F07 (Package 11 A1): the caster-owned Conductive mark. Not a
+            // status — no slot, no action lock, zero stagger budget.
+            frame.Add(entity, new FighterConductiveComponent {
+                FramesRemaining = 0,
+                SourcePlayerID = -1,
+                ChainConsumedExecutionID = 0
+            });
         }
     }
 
@@ -1607,12 +1614,17 @@ namespace FTT.FighterSim {
             AttackIntent secondIntent = !twoActing ? default : BuildIntent(in fighterTwo, in runtimeTwo, in verbTwo, in tuningTwo, in fighterOne);
             ApplyIntent(ref fighterOne, ref runtimeOne, ref verbOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, in tuningTwo, in firstIntent);
             ApplyIntent(ref fighterTwo, ref runtimeTwo, ref verbTwo, ref fighterOne, ref runtimeOne, ref verbOne, in tuningOne, in secondIntent);
+            // F07 marks are written onto the VICTIM's component 318.
+            ref FighterConductiveComponent conductiveOne = ref frame.Get<FighterConductiveComponent>(first);
+            ref FighterConductiveComponent conductiveTwo = ref frame.Get<FighterConductiveComponent>(second);
+            FighterConductiveRules.Tick(ref conductiveOne, verbOne.HitstopFrames > 0);
+            FighterConductiveRules.Tick(ref conductiveTwo, verbTwo.HitstopFrames > 0);
             if (oneActing) {
-                ApplyBasicSwing(ref fighterOne, ref runtimeOne, ref verbOne, in tuningOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, in tuningTwo);
+                ApplyBasicSwing(ref fighterOne, ref runtimeOne, ref verbOne, in tuningOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, in tuningTwo, ref conductiveTwo);
                 ApplyConstructSwing(ref frame, ref fighterOne, ref runtimeOne, in tuningOne);
             }
             if (twoActing) {
-                ApplyBasicSwing(ref fighterTwo, ref runtimeTwo, ref verbTwo, in tuningTwo, ref fighterOne, ref runtimeOne, ref verbOne, in tuningOne);
+                ApplyBasicSwing(ref fighterTwo, ref runtimeTwo, ref verbTwo, in tuningTwo, ref fighterOne, ref runtimeOne, ref verbOne, in tuningOne, ref conductiveOne);
                 ApplyConstructSwing(ref frame, ref fighterTwo, ref runtimeTwo, in tuningTwo);
             }
         }
@@ -1909,7 +1921,8 @@ namespace FTT.FighterSim {
             ref FighterStateComponent target,
             ref FighterRuntimeComponent targetRuntime,
             ref FighterVerbComponent targetVerb,
-            in FighterTuningComponent targetTuning) {
+            in FighterTuningComponent targetTuning,
+            ref FighterConductiveComponent targetConductive) {
             if (attackerRuntime.AttackPhase != FighterBasicAttackRules.PhaseActive) return;
             if ((attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagHitResolved) != 0) return;
             if (attacker.Stocks <= 0) return;
@@ -1982,6 +1995,14 @@ namespace FTT.FighterSim {
             // slot. Cooldown is earned by completing strings.
             if (connected && finisher) {
                 ApplyMomentumRefund(ref attackerRuntime, ref attackerVerb);
+            }
+            // V7.6 F07: the finisher's caster-owned MARK, applied alongside (never
+            // instead of) its status. Fighter Mode always uses the BASELINE
+            // duration — the tesla_conductive_hold extension is a Story-only
+            // Resonance node and must never reach the deterministic sim.
+            if (connected && finisher && profile.FinisherMarkType == (int)FTT.Combat.ComboMarkType.Conductive) {
+                FighterConductiveRules.ApplyMark(
+                    ref targetConductive, attacker.PlayerID, profile.FinisherMarkFrames);
             }
         }
 
