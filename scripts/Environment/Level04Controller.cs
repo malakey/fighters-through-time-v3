@@ -91,6 +91,15 @@ namespace FTT.Environment {
 
         public override string LevelID => "level_04_paris";
         public override CampaignLevel Level => CampaignLevel.Paris;
+        
+        /// <summary>
+        /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
+        /// seeded as 4 authored rooms x 90 s, rounded up to the nearest
+        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
+        /// per-hero median measurement pass.
+        /// </summary>
+        public override float ParSeconds => 360f;
         public override string LevelTitleKey => "paris_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_04_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(240, 850);
@@ -192,7 +201,7 @@ namespace FTT.Environment {
             BuildHazardSpikes(1550, 890, 130);
             BuildHazardSpikes(2200, 890, 110);
 
-            BuildCheckpoint(240, GroundY - 50, $"{LevelID}_checkpoint_0");
+            BuildCheckpoint(240, GroundY - 50, $"{LevelID}_checkpoint_0", CheckpointRole.Entry);
             BuildRoomDecoration(Room1StartX, "paris_room_gatehouse", new Color(0.85f, 0.55f, 0.25f));
 
             BuildRoomTransition("paris_room_gatehouse", new Vector2(560, 600),
@@ -225,7 +234,7 @@ namespace FTT.Environment {
             // Upper walkway, swept end to end by the tower beam.
             BuildPlatform(5540, 300, 1080);
 
-            BuildCheckpoint(5000, GroundY - 50, $"{LevelID}_checkpoint_1");
+            BuildCheckpoint(5000, GroundY - 50, $"{LevelID}_checkpoint_1", CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "paris_room_searchlights", new Color(0.95f, 0.88f, 0.45f));
 
             BuildRoomTransition("paris_room_searchlights", new Vector2(Room2StartX, 600),
@@ -256,7 +265,7 @@ namespace FTT.Environment {
             BuildCellShell(6820);
             BuildCellShell(7820);
 
-            BuildCheckpoint(8480, GroundY - 50, $"{LevelID}_checkpoint_2");
+            BuildCheckpoint(8480, GroundY - 50, $"{LevelID}_checkpoint_2", CheckpointRole.PreBoss);
             BuildRoomDecoration(Room3StartX, "paris_room_cells", new Color(0.7f, 0.45f, 0.5f));
 
             _courtyardGate = BuildDoor("CourtyardGate", new Vector2(8560, GroundY),

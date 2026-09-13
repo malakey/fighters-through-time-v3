@@ -5090,3 +5090,104 @@ legitimately has, granted by Level 1's completion), so the risk concentrates in 
 the orchestrator regenerates it once per wave. `ScriptTranslationKeyTests`, `SceneVisibleTextTests`
 and `UnusedTranslationKeyTests` were verified green locally against a freshly imported translation
 and will only be green in other checkouts after that import.
+### A3 — Timeline Integrity as the level timer, Collapse Tremor, checkpoint roles, lethal pits (2026-09-13)
+**The V7.1/V7.3 siphon model is gone, not retuned: Timeline Integrity is now a normalized level clock
+that drains globally from level load, that nothing anywhere can add a point back to, and that fires a
+Timeline Collapse at zero on every difficulty.** `grep -rn "MaxSiphonSharePercent\|SiphonGrace\|RestoreTimelineIntegrity\|ChronalRatingRules"`
+over `scripts/` returns nothing. The 600 px engagement check, the 10 s grace, the 10% per-machine
+share and the +3/+2/+5 restoration paths are all deleted; a living Extractor's only remaining
+contribution to the clock is the +0.2 it adds to the drain factor. Pinned by the rewritten
+`TimelineIntegrityTests` (12 cases; four invalidated cases removed, ten added).
+**`ChronalRatingRules` is deleted outright rather than renamed to `IntegrityTierRules`,** per the §3
+A3 naming ruling: `TimelineIntegrityRules` already owned `Tier`/`TierKey`/`DustBonusPercent`, so a
+second tier type would have been the "second canonical value" §2.1 forbids. `StoryManager` keeps
+`LastLevelChronalRating` as a dead property writing `""`, and `StorySaveData.RatingByLevel` stays a
+dead field through v6 — **A8 owns deleting both, plus the `results_rating` row in `en.csv` and the
+results line**. A3 deliberately left that row in place.
+**The Integrity clock ticks on `StoryManager._PhysicsProcess`, not on a level controller.** The
+autoload survives room transitions and scene-local teardown, and 60 Hz is where a gameplay resource
+is spent. The pause set (`IntegrityClockPause`, a `[Flags]` mask) is deliberately a **mask, not a
+counter**: an unbalanced release can never strand the clock, which matters because every one of its
+four call sites is in a file A3 does not own. `DialogueManager`, `PauseMenuBase`,
+`ChronalRewindManager` and `BossEncounterController` each take exactly one scope, and each releases
+it on teardown as well as on the normal path.
+**The Collapse Tremor attaches from `StoryLevelControllerBase`, not from `StorySceneBootstrapper`.**
+The dossier suggested the bootstrapper, but A2 owns that file this wave, and the bootstrapper is
+shared by the hub, the Tutorial and Florence — so gating it there would have needed a special case.
+The Tutorial and Florence do not extend the base controller at all, so attaching from the base
+produces exactly the required "untimed levels opt out" behavior with no gate. The same reasoning arms
+the clock there.
+**No `ParSeconds` value in this change is measured, and none may be quoted as if it were.** V01a
+requires a per-hero median Normal required-route measurement that has not happened. A3 seeds every
+par as `authored room count x 90 s` rounded up to the nearest 30 s (room count = the level's
+`BuildRoomTransition` calls), and seeds F11 remaining-route budgets as fractions of par
+(Entry 0.90 — par is a full-run median including detours, while F11 measures the mandatory route
+only; Middle 0.45; PreBoss 0.00, which falls to the 25-point floor). Both tables are recorded in
+`docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md` under **`VERIFY-PAR-SECONDS`** and pinned as a
+table in `StoryLevelControllerBaseTests`, so a measurement pass is a single-file edit. Entry at 0.90
+also keeps Hard's Entry budget at 90 points rather than the exactly-100 a 1.00 fraction produces —
+legal, but uncomfortably on the invalid-budget boundary.
+**`RequiredRecovery` computes in `double` with a 1e-6 rounding epsilon.** The single-precision rate
+made the contract's own worked example (par 600, route 240, Easy) come out at 25 instead of 24: a
+recovery minimum that drifts by a point between releases is not a budget anyone can validate. An
+above-100 requirement **throws** and is never clamped; `StoryManager.ResolveTimerRecoveryIntegrity`
+catches it, reports it with `GD.PushError`, and falls back to the banked checkpoint gauge so an
+authoring error leaves the game playable while staying loud. Pinned by `F11RecoveryBudgetTests` (4).
+**F16 ships complete but authors zero kill boundaries, because the campaign has no lethal opening to
+attach one to.** A sweep of all sixteen controllers found every gap documented as deliberately
+non-lethal — L04's boss pit "deliberately not a hazard", L05's flood "never becomes a kill floor",
+L07's sea "not a rising water zone and not a kill plane" (it rescues the player onto the deck they
+launched from), L06's lava front "never a kill", and L12/L13/L14/L15 each stating they have no pits.
+L10's "Yard" is a recessed crowd area with a floor, not a void. The §3 A3 scope ruling excludes
+exactly this case, so A3 shipped the chokepoint (`PlayerController.KillPlayerNonHit()`), the
+`StoryKillBoundary` type and the `BuildKillBoundary` authoring helper with its edge cue, and recorded
+the content gap as **`VERIFY-STORY-PITS`**. Authoring a boundary is now content work, not code work.
+`StoryKillBoundaryTests` (5) pins the behavior, including the F16 edge case where Integrity hits zero
+on the same update: the timer collapse resolves instead, and no rewind charge is spent.
+**A real bug the pins caught:** `StoryKillBoundary.Resolve` originally counted a kill and returned
+true even against an already-dead body, so a hero falling through a wide boundary would have
+re-raised `OnPlayerDied` and spent a second rewind charge per overlapping trigger. It now refuses
+`Dead`/`Respawning` outright.
+**Debris is blockable through the player's own `BlockSystem` node path, not through a new
+`PlayerController` method.** A7a owns the shared non-damaging block entry point in Wave 2; until then
+`FallingDebris` resolves a Basic-class `HitPayload` against
+`player.GetNodeOrNull<BlockSystem>("BlockSystem")`, which is exactly how `PlayerController` resolves
+it itself. That call site should move onto A7a's entry point when it lands.
+**`FractureEligible` is opt-in, and the Tremor's exclusions are enforced by omission.** Pressure
+plates, latched-switch gates, `PathMovingPlatform` and the pre-boss approach are excluded by simply
+never carrying the flag — a rule a reader can verify by grep and a test can assert, rather than a
+type blacklist that silently rots. Every flagged platform keeps its 5 s respawn, so no gap can become
+uncrossable; `CollapseTremorTests` asserts the full Shaking -> Collapsing -> Disabled -> **Solid**
+cycle rather than only the collapse.
+**Florence's three Extractors are authored, closing the one content gap `docs/DUST_ECONOMY.md` §6
+left open.** Level 1 predates `StoryLevelControllerBase` and was not retrofitted, so
+`Level01Controller` grew its own `BuildExtractor` mirroring the base helper — dust value still
+resource-owned, never overridden from level code. Level 1 is **untimed**, so these carry presentation
+and dust only; **the per-machine dust allocation is A10's**. New `Level01ContentTests` (+1).
+**The abnormal-exit fee is deleted; the marker survives.** `SessionExitGuard.ApplyAbnormalExitFee` is
+gone and `SaveManager.ApplyAbnormalExitFeeIfMarked` became `ConsumeAbnormalExitMarker`, which reads
+and clears the marker and charges nothing — a power cut is not a player decision. The voluntary 20%
+`CalculateExit*` helpers are untouched, and the `save_notice_abnormal_exit_fee` row was deleted in
+the same change so `UnusedTranslationKeyTests` sees no new orphan. **A3b inherits the marker as F10's
+attempt-status router.**
+**`BuildCheckpoint` now requires an explicit `CheckpointRole`,** which rewrote all 42 call sites
+across Levels 02-15. That was deliberate rather than adding a suffix-inferring overload: F12's whole
+point is that no code path may infer a role from an ID, and leaving an inferring overload in place
+would have been the exact footgun that strands Level 4A's `_checkpoint_1` PreBoss anchor under Hard's
+middle rule. `StoryManager.GetCheckpointRole` returns **Entry** for an unregistered ID — the safe
+default, because Entry cannot lock the boss clock.
+**Test delta: +33** (1673 -> 1706 at A3's merge, on the plan's own arithmetic).
+`TimelineIntegrityTests` 6 -> 12 (**+6**, four cases removed, ten added); `SessionExitGuardTests`
+rewritten **±0**; new `CheckpointRoleTests` **+6**, `CollapseTremorTests` **+9**,
+`F11RecoveryBudgetTests` **+4**, `StoryKillBoundaryTests` **+5**; new `Level01ContentTests` **+1**;
+`StoryLevelControllerBaseTests` 15 -> 17 **+2**.
+**Not delivered, and why.** (1) No authored kill boundaries — see `VERIFY-STORY-PITS` above. (2) The
+Tremor's decorative half (chronal crack lines across background layers, inward palette desaturation,
+prop time-ghosting, the vignette pulse) is **not** implemented: A8 owns the shared crack-glow overlay
+and the C01a Reduced Temporal Effects preset, and A3 publishes
+`EventBus.OnCollapseTremorChanged(TremorPayload{Level})` for it to drive. The Tremor's *gameplay* —
+stages, shake, jolts, debris, unstable platforms — is complete. (3) Tremor audio (rumble bed, stone
+groan, music-bus detune, HUD clock tick) is not wired; under the standing silent-placeholder rule
+there is nothing to add until Package 10 supplies stems. (4) `DustBonusPercent` is still authored and
+unapplied — **A10** applies it. (5) The Act III branch of the zero-Integrity collapse is a clearly
+marked hook (`StoryManager.ActIIICollapseOverride`), left null for **A3b**.

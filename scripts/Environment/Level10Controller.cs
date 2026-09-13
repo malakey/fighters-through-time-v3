@@ -57,6 +57,15 @@ namespace FTT.Environment {
 
         public override string LevelID => ID;
         public override CampaignLevel Level => CampaignLevel.London;
+        
+        /// <summary>
+        /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
+        /// seeded as 4 authored rooms x 90 s, rounded up to the nearest
+        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
+        /// per-hero median measurement pass.
+        /// </summary>
+        public override float ParSeconds => 360f;
         public override string LevelTitleKey => "globe_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(240, EnemyGroundY);
@@ -342,7 +351,7 @@ namespace FTT.Environment {
             BuildOneWayPlatform(1180, 760, 240, GalleryColor);
             BuildOneWayPlatform(2280, 740, 240, GalleryColor);
 
-            BuildCheckpoint(240, EnemyGroundY, Checkpoint0);
+            BuildCheckpoint(240, EnemyGroundY, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(Room1StartX, "globe_room_yard", new Color(0.95f, 0.80f, 0.48f));
             BuildRoomTransition("globe_room_yard", new Vector2(340, 800), Room1CameraBounds,
                 triggerSize: new Vector2(80, LevelHeight));
@@ -398,7 +407,7 @@ namespace FTT.Environment {
             BuildPlatform(4400, 880, 240, GalleryColor);
             BuildPlatform(5100, 760, 220, GalleryColor);
 
-            BuildCheckpoint(5400, EnemyGroundY, Checkpoint1);
+            BuildCheckpoint(5400, EnemyGroundY, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "globe_room_stage", new Color(0.98f, 0.72f, 0.36f));
 
             BuildRoomTransition("globe_room_stage", new Vector2(Room2StartX, 800), Room2CameraBounds,
@@ -516,7 +525,7 @@ namespace FTT.Environment {
 
             BuildWall(10220, 0, LevelHeight);
 
-            BuildCheckpoint(8420, EnemyGroundY, Checkpoint2);
+            BuildCheckpoint(8420, EnemyGroundY, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room4StartX, "globe_room_tiring_house", new Color(0.98f, 0.40f, 0.52f));
             BuildRoomTransition("globe_room_tiring_house", new Vector2(Room4StartX + 30, 800), Room4CameraBounds,
                 triggerSize: new Vector2(80, LevelHeight));

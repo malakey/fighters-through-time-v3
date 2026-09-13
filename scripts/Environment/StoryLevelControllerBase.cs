@@ -88,6 +88,55 @@ namespace FTT.Environment {
         /// <summary>Delay between the boss dying and the exit dialogue starting.</summary>
         protected virtual float ExitDialogueDelaySeconds => 1.5f;
 
+        // === Timeline Integrity, the level timer (V7.6 F01, Package 11 A3) ===
+
+        /// <summary>
+        /// The level's authored par, in seconds: the reference time the F01
+        /// Integrity clock normalizes against, so a par run ends at 50% /
+        /// 33.33% / 16.67% on Easy / Normal / Hard.
+        ///
+        /// <b>These are PROVISIONAL values, not measured ones.</b> V01a requires
+        /// a per-hero median Normal required-route measurement that has not
+        /// happened; every shipped par is seeded as
+        /// <c>authored room count x 90 s</c>, rounded up to the nearest 30 s,
+        /// and is recorded in <c>docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md</c>
+        /// under <c>VERIFY-PAR-SECONDS</c>. Do not present them as measured.
+        ///
+        /// 0 means the level is untimed and the clock never arms. The Tutorial
+        /// and Florence do not extend this base at all, which is how they opt
+        /// out of the clock and the Collapse Tremor without a special case.
+        /// </summary>
+        public virtual float ParSeconds => 0f;
+
+        /// <summary>
+        /// Provisional F11 remaining-route budget for an anchor, as a fraction
+        /// of <see cref="ParSeconds"/>: the conservative live time from that
+        /// anchor to the pre-boss clock lock.
+        ///
+        /// Entry is 0.90 rather than 1.00 because par is a full-run median that
+        /// includes optional detours, while F11 measures the MANDATORY route
+        /// only. The PreBoss anchor has no remaining timed route at all, so its
+        /// budget falls to the 25-point floor.
+        ///
+        /// Also provisional, also recorded under <c>VERIFY-PAR-SECONDS</c>.
+        /// Override per level once real measurements exist.
+        /// </summary>
+        protected virtual float RemainingRouteFractionFor(CheckpointRole role) => role switch {
+            CheckpointRole.Entry => 0.90f,
+            CheckpointRole.Middle => 0.45f,
+            _ => 0f
+        };
+
+        /// <summary>
+        /// Acts I-II vs Act III. F12's "Hard middle checkpoint is inert" rule
+        /// applies to the shared Acts I-II levels only; Act III's middles stay
+        /// active on Hard (A3b enforces the Act III half).
+        /// </summary>
+        protected bool IsActIII => (int)Level >= (int)CampaignLevel.ChronalVoid;
+
+        /// <summary>The scene's Collapse Tremor, on timed levels. Null on untimed ones.</summary>
+        public CollapseTremorController Tremor { get; private set; }
+
         /// <summary>
         /// Authored dialogue beats that run BETWEEN the boss dying and the ordinary
         /// exit beat, in order. Empty (the default) hands defeat straight to
@@ -197,6 +246,12 @@ namespace FTT.Environment {
             SpawnPlayer();
             SpawnInitialEnemies();
             ApplyResumedAttemptState();
+            // V7.6 F01: arm the level clock AFTER the world is built (so the
+            // authored Extractor population is known) and after the resumed
+            // attempt is applied (so a resume's already-broken machines are
+            // already out of the living count). The F01 DENOMINATOR is fixed
+            // from the authored starting population, never from survivors.
+            ArmIntegrityClock();
             AttachStoryServices();
             BindEvents();
             ApplyResumeCameraBounds();
@@ -222,6 +277,25 @@ namespace FTT.Environment {
         /// level is live at a time today, but the hub and the test fixtures are not).
         /// </summary>
         private void ReleasePooledContent() => PoolManager.Instance?.ReleaseActiveUnder(this);
+
+        /// <summary>
+        /// Arms the F01 Integrity clock and, on a timed level, attaches the
+        /// Collapse Tremor.
+        ///
+        /// The Tremor is attached HERE rather than in
+        /// <c>StorySceneBootstrapper</c> (which A2 owns this wave) precisely
+        /// because the untimed Tutorial and Florence do not extend this base —
+        /// so opting them out costs no special case at all. The hub, which
+        /// shares the bootstrapper, is likewise untouched.
+        /// </summary>
+        private void ArmIntegrityClock() {
+            StoryManager story = StoryManager.Instance;
+            if (story == null) return;
+            story.BeginIntegrityClock(ParSeconds, _extractors.Count);
+            if (ParSeconds <= 0f) return;
+            Tremor = new CollapseTremorController { Name = "CollapseTremorController" };
+            AddChild(Tremor);
+        }
 
         private void CreateLevelManager() {
             Levels = new LevelManager {
@@ -667,22 +741,55 @@ namespace FTT.Environment {
         internal static int ApplySpikeDamage(PlayerController player, int damage) =>
             player?.ApplyEnvironmentalDamage(damage) ?? 0;
 
-        protected CheckpointTrigger BuildCheckpoint(float x, float y, string id) {
+        /// <summary>
+        /// Places one authored Chronal Fracture.
+        ///
+        /// <b>V7.6 F12 (Package 11 A3): the authored ROLE drives everything.</b>
+        /// Self-activation, the Hard "middle inactive" rule and the Integrity
+        /// freeze all read <paramref name="role"/> — never the ID's numeric
+        /// suffix, its array position or the level's checkpoint count. The
+        /// stable IDs are unchanged, so saves and content tests keep resolving;
+        /// the role is the alias map <see cref="StoryManager.RegisterCheckpointRole"/>
+        /// records, which is what lets a saved <c>_checkpoint_1</c> mean Middle
+        /// on a shared level and PreBoss on Level 4A without either guessing.
+        /// </summary>
+        protected CheckpointTrigger BuildCheckpoint(float x, float y, string id, CheckpointRole role) {
+            // F12: Hard's middle fracture is inert in the shared Acts I-II
+            // levels only. Act III keeps its Hard middle active (A3b), and 4A's
+            // PreBoss anchor is never disabled merely because its ID ends `_1`.
+            bool inert = role == CheckpointRole.Middle
+                && !IsActIII
+                && (GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal) == Difficulty.Hard;
             var checkpoint = new CheckpointTrigger {
                 Name = $"Checkpoint_{id}",
                 CheckpointID = id,
+                Role = role,
+                Inert = inert,
                 Position = new Vector2(x, y),
                 RespawnOffset = new Vector2(0, -50),
-                // V7.3 strike-to-activate: only the entry checkpoint
-                // ("{levelID}_checkpoint_0") self-activates — the player just
-                // arrived through it (design exception); the mid and pre-boss
-                // fractures must be struck.
-                SelfActivating = id != null && id.EndsWith("_checkpoint_0", StringComparison.Ordinal),
+                // V7.3 strike-to-activate: only the ENTRY fracture
+                // self-activates — the player just arrived through it (design
+                // exception); the middle and pre-boss fractures must be struck.
+                SelfActivating = role == CheckpointRole.Entry,
                 CollisionLayer = CollisionLayers.Trigger,
                 CollisionMask = CollisionLayers.Player
             };
+            StoryManager.Instance?.RegisterCheckpointRole(id, role);
+            if (inert) {
+                // An inert anchor is not a recovery destination: no respawn
+                // registration and no F11 budget. The earlier real anchor keeps
+                // the longer remaining route, exactly as CHECKPOINT_RECOVERY
+                // requires.
+                AddCheckpointNodes(checkpoint);
+                return checkpoint;
+            }
+            StoryManager.Instance?.SetRecoveryRouteSeconds(id, ParSeconds * RemainingRouteFractionFor(role));
             Levels?.RegisterCheckpoint(id, checkpoint.Position + checkpoint.RespawnOffset);
+            AddCheckpointNodes(checkpoint);
+            return checkpoint;
+        }
 
+        private void AddCheckpointNodes(CheckpointTrigger checkpoint) {
             checkpoint.AddChild(new CollisionShape2D {
                 Shape = new RectangleShape2D { Size = new Vector2(60, 120) },
                 Position = new Vector2(0, -60)
@@ -708,7 +815,78 @@ namespace FTT.Environment {
             checkpoint.AddChild(label);
 
             AddChild(checkpoint);
-            return checkpoint;
+        }
+
+        // === F16 lethal pits & Collapse Tremor platforms (Package 11 A3) =====
+
+        /// <summary>
+        /// Authors one lethal boundary under a pit, chasm or void. Crossing it
+        /// resolves a single non-hit fall death through
+        /// <see cref="StoryKillBoundary"/> — never a damage event, so Defy
+        /// History, the Rally echo and the meter are all untouched.
+        ///
+        /// Place it well below the deepest reachable geometry: camera framing
+        /// never kills, only this does.
+        /// </summary>
+        protected StoryKillBoundary BuildKillBoundary(
+            string boundaryID, float centerX, float y, float width, float height = 220f) {
+            var boundary = new StoryKillBoundary {
+                Name = $"KillBoundary_{boundaryID}",
+                BoundaryID = boundaryID,
+                Position = new Vector2(centerX, y)
+            };
+            boundary.AddChild(new CollisionShape2D {
+                Shape = new RectangleShape2D { Size = new Vector2(Mathf.Max(1f, width), Mathf.Max(1f, height)) }
+            });
+            // The readable edge/depth cue F16 requires. Deliberately a world
+            // object rather than a HUD element, so it is visible during a Time
+            // Freeze as well — a frozen world must still show the player where
+            // the floor stops.
+            boundary.AddChild(new ColorRect {
+                Name = "EdgeCue",
+                Size = new Vector2(Mathf.Max(1f, width), 10f),
+                Position = new Vector2(-width * 0.5f, -height * 0.5f - 10f),
+                Color = new Color(0.85f, 0.25f, 0.3f, 0.42f),
+                MouseFilter = Control.MouseFilterEnum.Ignore
+            });
+            AddChild(boundary);
+            return boundary;
+        }
+
+        /// <summary>
+        /// A platform that destabilizes once the Collapse Tremor starts: it
+        /// shakes, collapses, and always respawns after
+        /// <see cref="CollapseTremorRules.FracturePlatformRespawnSeconds"/>, so
+        /// the gap it spans can never become permanently uncrossable.
+        ///
+        /// Never use this for a pressure plate, a latched-switch gate, a
+        /// <c>PathMovingPlatform</c> or anything on the pre-boss approach — the
+        /// exclusion is enforced by simply not flagging those surfaces.
+        /// </summary>
+        protected CrumblingPlatform BuildFracturePlatform(
+            string platformID, float x, float y, float width, Color? fill = null) {
+            var platform = new CrumblingPlatform {
+                Name = $"FracturePlatform_{platformID}",
+                PlatformID = platformID,
+                FractureEligible = true,
+                RespawnDuration = CollapseTremorRules.FracturePlatformRespawnSeconds,
+                Position = new Vector2(x, y),
+                CollisionLayer = CollisionLayers.Environment,
+                CollisionMask = 0
+            };
+            platform.AddChild(new CollisionShape2D {
+                Name = "CollisionShape2D",
+                Shape = new RectangleShape2D { Size = new Vector2(width, DefaultPlatformThickness) }
+            });
+            platform.AddChild(new ColorRect {
+                Name = "Visual",
+                Size = new Vector2(width, DefaultPlatformThickness),
+                Position = new Vector2(-width * 0.5f, -DefaultPlatformThickness * 0.5f),
+                Color = fill ?? PlatformColor,
+                MouseFilter = Control.MouseFilterEnum.Ignore
+            });
+            AddChild(platform);
+            return platform;
         }
 
         /// <summary>Proximity trigger that runs <paramref name="onEntered"/> the first time the player crosses it.</summary>

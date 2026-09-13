@@ -34,6 +34,15 @@ namespace FTT.Environment {
 
         public override string LevelID => ID;
         public override CampaignLevel Level => CampaignLevel.Orleans;
+        
+        /// <summary>
+        /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
+        /// seeded as 4 authored rooms x 90 s, rounded up to the nearest
+        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
+        /// per-hero median measurement pass.
+        /// </summary>
+        public override float ParSeconds => 360f;
         public override string LevelTitleKey => "orleans_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(200, 850);
@@ -168,7 +177,7 @@ namespace FTT.Environment {
 
             BuildHazardSpikes(1600, 890, 140);
 
-            BuildCheckpoint(200, EnemyGroundY, Checkpoint0);
+            BuildCheckpoint(200, EnemyGroundY, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(Room1StartX, "orleans_room_vanguard", new Color(0.85f, 0.72f, 0.35f));
             BuildRoomTransition("orleans_room_vanguard", new Vector2(300, 600), Room1CameraBounds);
         }
@@ -188,7 +197,7 @@ namespace FTT.Environment {
             BuildPlatform(5000, 600, 200);
             BuildPlatform(5500, 700, 240);
 
-            BuildCheckpoint(5300, EnemyGroundY, Checkpoint1);
+            BuildCheckpoint(5300, EnemyGroundY, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "orleans_room_siege_line", new Color(0.9f, 0.55f, 0.25f));
 
             // The barrier covers y 582..902; this arch seals everything above it, so
@@ -251,7 +260,7 @@ namespace FTT.Environment {
 
             BuildWall(10540, 0, LevelHeight);
 
-            BuildCheckpoint(9060, EnemyGroundY, Checkpoint2);
+            BuildCheckpoint(9060, EnemyGroundY, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room4StartX, "orleans_room_boss", new Color(0.95f, 0.3f, 0.25f));
             BuildRoomTransition("orleans_room_boss", new Vector2(Room4StartX + 30, 540), Room4CameraBounds);
 

@@ -28,30 +28,22 @@ namespace FTT.Environment {
         public ChronalExtractorVisualState VisualState { get; private set; }
         public int DischargeCount { get; private set; }
 
-        /// <summary>Distance at which the machine notices the player and its
-        /// siphon starts draining Timeline Integrity (V7.1 Siphon Clock).</summary>
-        [Export] public float SiphonEngageDistancePixels = 600f;
-
-        /// <summary>True once the player has entered the machine's room. Test seam.</summary>
-        public bool SiphonEngaged { get; private set; }
-
         /// <summary>True during the charge-up (red indicator) phase. Test seam.</summary>
         public bool IsTelegraphing => _telegraphing;
 
-        /// <summary>
-        /// V7.3: integrity points this machine has actually stolen — hard
-        /// capped at its 10% siphon share
-        /// (<see cref="TimelineIntegrityRules.MaxSiphonSharePercent"/>).
-        /// </summary>
-        public float DrainedSharePercent { get; private set; }
-
-        /// <summary>Seconds left of the V7.3 drain-free engagement grace. Test seam.</summary>
-        public float SiphonGraceRemaining { get; private set; } = TimelineIntegrityRules.SiphonGraceSeconds;
+        // V7.6 F01 (Package 11 A3): the per-machine siphon is RETIRED. There is
+        // no engagement distance, no grace window, no share cap and no
+        // per-machine drain — Timeline Integrity is a normalized level clock
+        // that runs globally from level load whether this machine has ever been
+        // seen or not. A living Extractor's only contribution is the +0.2 it
+        // adds to the drain FACTOR, which StoryManager reads from the
+        // living-machine count; breaking one slows the future rate and never
+        // moves the gauge by a point.
 
         private bool _rewindFrozen;
 
-        /// <summary>V7.3: the world freeze during a rewind/scrub (and the collapse
-        /// beat) pauses the discharge cycle, the siphon, AND the grace timer.</summary>
+        /// <summary>The world freeze during a death rewind (and the collapse
+        /// beat) still pauses the discharge cycle.</summary>
         public void SetStoryRewindFrozen(bool frozen) => _rewindFrozen = frozen;
 
         public override void _Ready() {
@@ -73,25 +65,6 @@ namespace FTT.Environment {
         /// </summary>
         public override void _PhysicsProcess(double delta) {
             if (IsDestroyed || _rewindFrozen) return;
-            // V7.1 Siphon Clock, V7.3 rebalance: a living Extractor drains
-            // Timeline Integrity once its room is entered — after a 10 s
-            // drain-free grace (peeking in and retreating leaves no scar) and
-            // never past its 10% siphon share.
-            if (!SiphonEngaged) {
-                if (GetTree()?.GetFirstNodeInGroup("StoryPlayer") is PlayerController player
-                    && player.GlobalPosition.DistanceTo(GlobalPosition) <= SiphonEngageDistancePixels) {
-                    SiphonEngaged = true;
-                }
-            } else if (SiphonGraceRemaining > 0f) {
-                SiphonGraceRemaining = Mathf.Max(0f, SiphonGraceRemaining - (float)delta);
-            } else if (DrainedSharePercent < TimelineIntegrityRules.MaxSiphonSharePercent) {
-                Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
-                float requested = Mathf.Min(
-                    TimelineIntegrityRules.DrainPerSecond(difficulty) * (float)delta,
-                    TimelineIntegrityRules.MaxSiphonSharePercent - DrainedSharePercent);
-                float applied = StoryManager.Instance?.DrainTimelineIntegrityAmount(requested) ?? 0f;
-                DrainedSharePercent += applied;
-            }
             _cycleTimer -= (float)delta;
             if (_cycleTimer > 0f) return;
             if (_telegraphing) {
@@ -156,13 +129,20 @@ namespace FTT.Environment {
             // never here. The pickup never expires and reads as a Large icon.
             StoryDropSystem.SpawnDustAward(
                 DustReward, GlobalPosition, GetParent(), DustAwardSource.Extractor);
-            // V7.3: destroying an Extractor restores +3% Timeline Integrity
-            // (the drain already stopped — whatever remains of the share is
-            // preserved permanently) and enters the per-attempt registry so a
-            // mid-level resume rebuilds it broken.
-            StoryManager.Instance?.RestoreTimelineIntegrity(
-                TimelineIntegrityRules.ExtractorDestroyRestorePercent);
+            // V7.6 F01: destroying an Extractor buys FUTURE time, never a
+            // refill — the living count drops, which lowers the drain factor
+            // for the rest of the level while the gauge itself does not move
+            // by a single point. The per-attempt registry entry is what lets a
+            // mid-level resume rebuild the machine broken.
+            StoryManager.Instance?.NotifyExtractorDestroyed();
             StoryManager.Instance?.RecordExtractorDestroyed(ObjectID);
+            // E01 drain feedback: a brief non-blocking notice on a REAL first
+            // destruction while the clock runs. No "time gained", no refill,
+            // no numeric readout — the notice says the drain slowed, nothing
+            // more. Untimed levels and a locked PreBoss clock say nothing.
+            if (StoryManager.Instance?.IsIntegrityClockRunning == true) {
+                EnvironmentNotice.Post("integrity_drain_slowed", this);
+            }
             // Package 8 B5. The discharge already sounds through the hazard event the
             // director subscribes to; the break itself is a separate, lower beat.
             EnvironmentAudioCues.PlayDestruction();

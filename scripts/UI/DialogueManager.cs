@@ -153,6 +153,10 @@ namespace FTT.UI {
             _pausedGameplay = false;
             SceneTree tree = GetTree();
             if (tree != null) tree.Paused = false;
+            // Package 11 A3 (F01): handed back with the tree pause, including
+            // on teardown — a leaked scope would strand the level clock.
+            FTT.Core.StoryManager.Instance?.SetIntegrityClockPause(
+                FTT.Core.IntegrityClockPause.Dialogue, false);
         }
 
         private void ResolveOrBuildUI() {
@@ -329,6 +333,11 @@ namespace FTT.UI {
             if (sequence.PausesGameplay && GetTree() != null && !GetTree().Paused) {
                 GetTree().Paused = true;
                 _pausedGameplay = true;
+                // Package 11 A3 (F01): a gameplay-pausing sequence also holds
+                // the Timeline Integrity clock. Frozen presentation never
+                // costs the player time.
+                FTT.Core.StoryManager.Instance?.SetIntegrityClockPause(
+                    FTT.Core.IntegrityClockPause.Dialogue, true);
             }
             // V7.6 (Package 11 A5): EVERY sequence is skippable. The V7.3
             // completed-campaign + already-seen gate is gone; the first skip of

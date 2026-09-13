@@ -27,6 +27,8 @@ internal partial class FrameworkTestLevelController : StoryLevelControllerBase {
     public override string DialogueSetPath => "";
     public override Vector2 PlayerSpawnPosition => new(200, 850);
     public override Rect2 LevelBounds => new(0, 0, 6000, 1080);
+    /// <summary>Timed, so the F01 clock arms and the Collapse Tremor attaches.</summary>
+    public override float ParSeconds => 360f;
 
     public readonly List<string> MarkedCheckpoints = new();
     public readonly List<string> CompletedDialogues = new();
@@ -45,9 +47,9 @@ internal partial class FrameworkTestLevelController : StoryLevelControllerBase {
         DropThrough = BuildOneWayPlatform(1200, 620, 240);
         BuildWall(0, 0, 1080);
         BuildHazardSpikes(900, 890, 120);
-        BuildCheckpoint(200, 850, $"{TestLevelID}_checkpoint_0");
-        MidCheckpoint = BuildCheckpoint(2000, 850, $"{TestLevelID}_checkpoint_1");
-        BuildCheckpoint(3600, 850, $"{TestLevelID}_checkpoint_2");
+        BuildCheckpoint(200, 850, $"{TestLevelID}_checkpoint_0", CheckpointRole.Entry);
+        MidCheckpoint = BuildCheckpoint(2000, 850, $"{TestLevelID}_checkpoint_1", CheckpointRole.Middle);
+        BuildCheckpoint(3600, 850, $"{TestLevelID}_checkpoint_2", CheckpointRole.PreBoss);
         BuildRoomTransition("orleans_room_2", new Vector2(1800, 600), new Rect2(1500, 0, 2000, 1080));
     }
 
@@ -64,6 +66,10 @@ internal partial class FrameworkTestLevelController : StoryLevelControllerBase {
     public LevelResultsPanel CompleteForTest() => ShowCompletionResults();
     public ChronalExtractor BuildExtractorForTest(string extractorID, Vector2 position) =>
         BuildExtractor(extractorID, position);
+    public CrumblingPlatform BuildFracturePlatformForTest(string id, float x, float y, float width) =>
+        BuildFracturePlatform(id, x, y, width);
+    public StoryKillBoundary BuildKillBoundaryForTest(string id, float x, float y, float width) =>
+        BuildKillBoundary(id, x, y, width);
 }
 
 /// <summary>
@@ -441,6 +447,83 @@ public class StoryLevelControllerBaseTests {
         level.DefeatBossForTest(50);
         AssertThat(level.StartedDialogues).ContainsExactly("level_02.postboss", "level_02.exit");
         AssertThat(level.LevelComplete).IsTrue();
+    }
+
+    [TestCase]
+    public void EveryTimedCampaignLevelAuthorsAParSecondsAndTheClockArmsFromIt() {
+        // V7.6 F01: a timed level's clock is normalized against an authored
+        // par. These are PROVISIONAL values (rooms x 90 s, rounded up to 30 s)
+        // recorded under VERIFY-PAR-SECONDS, so the pin is on the TABLE rather
+        // than on any individual number being correct: a later measurement pass
+        // is a single-file edit and this case is the one place it lands.
+        var expected = new Dictionary<CampaignLevel, float> {
+            { CampaignLevel.Orleans, 360f },      // 4 rooms
+            { CampaignLevel.Chicago, 540f },      // 6 rooms
+            { CampaignLevel.Paris, 360f },        // 4 rooms
+            { CampaignLevel.Titanic, 270f },      // 3 rooms
+            { CampaignLevel.Pompeii, 360f },      // 4 rooms
+            { CampaignLevel.Nassau, 630f },       // 7 rooms
+            { CampaignLevel.Egypt, 360f },        // 4 rooms
+            { CampaignLevel.Berlin, 360f },       // 4 rooms
+            { CampaignLevel.London, 360f },       // 4 rooms
+            { CampaignLevel.Gettysburg, 360f },   // 4 rooms
+            { CampaignLevel.Lunar, 540f },        // 6 rooms
+            { CampaignLevel.ChronalVoid, 450f },  // 5 rooms
+            { CampaignLevel.NeoEarth, 540f },     // 6 rooms
+            { CampaignLevel.Alexandria, 540f }    // 6 rooms
+        };
+        var issues = new List<string>();
+        foreach (KeyValuePair<CampaignLevel, float> row in expected) {
+            if (row.Value <= 0f) issues.Add($"{row.Key} authors a non-positive par");
+            // Every provisional value is a whole number of 30-second steps.
+            if (!Mathf.IsEqualApprox(row.Value % 30f, 0f)) {
+                issues.Add($"{row.Key} par {row.Value} is not rounded to 30 s");
+            }
+        }
+        AssertThat(expected.Count)
+            .OverrideFailureMessage("All fourteen StoryLevelControllerBase levels must author a par.")
+            .IsEqual(14);
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+
+        // And the base controller actually arms the clock from its own par.
+        using var fixture = new LevelFixture(null);
+        AssertThat(fixture.Level.ParSeconds).IsGreater(0f);
+        AssertThat(StoryManager.Instance.ParSecondsForCurrentLevel)
+            .OverrideFailureMessage("_Ready must arm the F01 clock from the level's authored par.")
+            .IsEqual(fixture.Level.ParSeconds);
+        AssertThat(fixture.Level.Tremor)
+            .OverrideFailureMessage("A timed level attaches the Collapse Tremor; an untimed one does not.")
+            .IsNotNull();
+    }
+
+    [TestCase]
+    public void FractureEligibleIsOptInAndTheExcludedSurfaceTypesNeverCarryIt() {
+        using var fixture = new LevelFixture(null);
+        FrameworkTestLevelController level = fixture.Level;
+
+        CrumblingPlatform flagged = level.BuildFracturePlatformForTest("tremor_gap", 2600f, 700f, 200f);
+        AssertThat(flagged.FractureEligible).IsTrue();
+        AssertThat(flagged.RespawnDuration)
+            .OverrideFailureMessage("An unstable platform must always come back within 5 s.")
+            .IsEqual(CollapseTremorRules.FracturePlatformRespawnSeconds);
+
+        // The exclusions are enforced by omission, and that is checkable: no
+        // excluded surface type in the repository may carry the flag, and the
+        // default is off, so an author has to opt in deliberately.
+        var issues = new List<string>();
+        if (new CrumblingPlatform().FractureEligible) issues.Add("FractureEligible must default off");
+        foreach (Node child in level.GetChildren()) {
+            if (child is PathMovingPlatform) issues.Add("PathMovingPlatform is never Tremor-eligible");
+            if (child is PressurePlate) issues.Add("PressurePlate is never Tremor-eligible");
+        }
+        // The ordinary builders produce nothing eligible: only the dedicated
+        // BuildFracturePlatform helper does.
+        foreach (Node child in level.GetChildren()) {
+            if (child is CrumblingPlatform platform && platform != flagged && platform.FractureEligible) {
+                issues.Add($"{platform.Name} was flagged without going through BuildFracturePlatform");
+            }
+        }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 
     private static string PrefixOf(string levelID) {

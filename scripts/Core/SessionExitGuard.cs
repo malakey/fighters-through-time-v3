@@ -6,18 +6,19 @@ using Godot;
 namespace FTT.Core {
 
     /// <summary>
-    /// V7.3 quit-fee session marker — one rule for the Exit button, Alt-F4,
-    /// and the power switch. A marker file is written when a campaign session
-    /// starts (StartCampaign/ResumeCampaign) and refreshed on every
-    /// checkpoint save; a clean shutdown (SaveManager._ExitTree) or a paid
-    /// pause-menu exit fee clears it. If the marker is still present at the
-    /// next boot, the session ended abnormally and the identical 20%
-    /// undeposited-dust fee applies to the marked slot, with a one-line
-    /// notice. A marker left while parked at the hub costs nothing, because
-    /// the hub auto-deposit zeroes the at-risk wallet.
+    /// The campaign session marker. Written when a campaign session starts
+    /// (StartCampaign/ResumeCampaign), refreshed on every checkpoint save, and
+    /// cleared by a clean shutdown (SaveManager._ExitTree) or a paid
+    /// pause-menu exit.
     ///
-    /// The fee math lives here (Core), moved from PauseMenu, so the boot
-    /// check never references UI; PauseMenu delegates to these helpers.
+    /// <b>V7.6 ruling 2.B (Package 11 A3): crashes are free.</b> A marker
+    /// surviving to the next boot no longer bills anything — the V7.3
+    /// abnormal-exit fee and its notice are retired. The marker now exists
+    /// purely so F10 can route an interrupted attempt's status (A3b).
+    ///
+    /// The VOLUNTARY 20% exit fee the pause menu charges is unchanged, and its
+    /// math still lives here (Core) rather than in UI; PauseMenu delegates to
+    /// these helpers.
     /// </summary>
     public static class SessionExitGuard {
 
@@ -80,19 +81,11 @@ namespace FTT.Core {
             return wallet - forfeited;
         }
 
-        /// <summary>
-        /// Applies the abnormal-exit fee to a save's undeposited wallet.
-        /// A crash cannot know what portion of the wallet was earned in the
-        /// interrupted level, so the whole undeposited wallet is treated as
-        /// at-risk — which matches reality, because the hub auto-deposit
-        /// zeroes it between levels. Returns the dust forfeited.
-        /// </summary>
-        public static int ApplyAbnormalExitFee(StorySaveData save) {
-            if (save == null) return 0;
-            int wallet = Math.Max(0, save.LevelChronalDust);
-            int after = CalculateExitWalletAfterPenalty(wallet, wallet);
-            save.LevelChronalDust = after;
-            return wallet - after;
-        }
+        // V7.6 ruling 2.B (Package 11 A3): ApplyAbnormalExitFee is DELETED.
+        // Crashes are free — a power cut is not a player decision, and billing
+        // one taught players to fear the power switch rather than to press
+        // Exit. The marker above survives as F10's attempt-status router
+        // (A3b), and the VOLUNTARY 20% pause-menu exit fee — the two
+        // Calculate* helpers — is unchanged.
     }
 }

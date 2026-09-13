@@ -51,6 +51,15 @@ namespace FTT.Environment {
 
         public override string LevelID => ID;
         public override CampaignLevel Level => CampaignLevel.Gettysburg;
+        
+        /// <summary>
+        /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
+        /// seeded as 4 authored rooms x 90 s, rounded up to the nearest
+        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
+        /// per-hero median measurement pass.
+        /// </summary>
+        public override float ParSeconds => 360f;
         public override string LevelTitleKey => "gettysburg_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(200, EnemyGroundY);
@@ -300,7 +309,7 @@ namespace FTT.Environment {
             BuildOneWayPlatform(2680, 730, 160);
             BuildPlatform(2750, 640, 240);
 
-            BuildCheckpoint(200, EnemyGroundY, Checkpoint0);
+            BuildCheckpoint(200, EnemyGroundY, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(Room1StartX, "gettysburg_room_seminary_ridge", new Color(0.85f, 0.78f, 0.42f));
             BuildRoomTransition("gettysburg_room_seminary_ridge", new Vector2(300, 600), Room1CameraBounds);
         }
@@ -319,7 +328,7 @@ namespace FTT.Environment {
             BuildOneWayPlatform(4790, 740, 180);
             BuildOneWayPlatform(4920, 650, 160);
 
-            BuildCheckpoint(6250, EnemyGroundY, Checkpoint1);
+            BuildCheckpoint(6250, EnemyGroundY, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "gettysburg_room_wheatfield", new Color(0.92f, 0.68f, 0.30f));
             BuildRoomTransition("gettysburg_room_wheatfield", new Vector2(Room2StartX, 600), Room2CameraBounds,
                 onEntered: _ => {
@@ -370,7 +379,7 @@ namespace FTT.Environment {
 
             BuildWall(11500, 0, LevelHeight);
 
-            BuildCheckpoint(9060, EnemyGroundY, Checkpoint2);
+            BuildCheckpoint(9060, EnemyGroundY, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room4StartX, "gettysburg_room_railcut", new Color(0.95f, 0.33f, 0.24f));
             BuildRoomTransition("gettysburg_room_railcut", new Vector2(Room4StartX + 30, 540), Room4CameraBounds);
 

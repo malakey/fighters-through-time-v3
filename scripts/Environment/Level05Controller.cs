@@ -43,6 +43,15 @@ namespace FTT.Environment {
 
         public override string LevelID => TitanicLevelID;
         public override CampaignLevel Level => CampaignLevel.Titanic;
+        
+        /// <summary>
+        /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
+        /// seeded as 3 authored rooms x 90 s, rounded up to the nearest
+        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
+        /// per-hero median measurement pass.
+        /// </summary>
+        public override float ParSeconds => 270f;
         public override string LevelTitleKey => "titanic_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_05_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(240, 1270);
@@ -215,7 +224,7 @@ namespace FTT.Environment {
             BuildOneWayPlatform(2600f, 980f, 240f);
             BuildOneWayPlatform(3050f, 880f, 220f);
 
-            BuildCheckpoint(300f, DeckD0 - 10f, Checkpoint0);
+            BuildCheckpoint(300f, DeckD0 - 10f, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(0f, "titanic_room_grand_staircase", new Color(0.8f, 0.68f, 0.4f));
         }
 
@@ -234,7 +243,7 @@ namespace FTT.Environment {
             BuildOneWayPlatform(5000f, 900f, 220f);
             BuildOneWayPlatform(5700f, 780f, 200f);
 
-            BuildCheckpoint(6100f, DeckE2 - 10f, Checkpoint1);
+            BuildCheckpoint(6100f, DeckE2 - 10f, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "titanic_room_boiler_casing", new Color(0.75f, 0.5f, 0.3f));
 
             BuildRoomTransition("titanic_boiler_casing", new Vector2(Room2StartX, LevelHeight / 2f),
@@ -262,7 +271,7 @@ namespace FTT.Environment {
             BuildOneWayPlatform(8300f, 600f, 200f);
             BuildOneWayPlatform(8600f, 660f, 240f);
 
-            BuildCheckpoint(8650f, DeckBoat - 10f, Checkpoint2);
+            BuildCheckpoint(8650f, DeckBoat - 10f, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room3StartX, "titanic_room_boat_deck", new Color(0.6f, 0.78f, 0.9f));
 
             BuildRoomTransition("titanic_boat_deck", new Vector2(Room3StartX, LevelHeight / 2f),

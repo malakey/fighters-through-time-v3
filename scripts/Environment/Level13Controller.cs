@@ -65,6 +65,15 @@ namespace FTT.Environment {
 
         public override string LevelID => VoidLevelID;
         public override CampaignLevel Level => CampaignLevel.ChronalVoid;
+        
+        /// <summary>
+        /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
+        /// seeded as 5 authored rooms x 90 s, rounded up to the nearest
+        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
+        /// per-hero median measurement pass.
+        /// </summary>
+        public override float ParSeconds => 450f;
         public override string LevelTitleKey => "chronal_void_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_13_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(220f, ShelfY - 60f);
@@ -392,7 +401,7 @@ namespace FTT.Environment {
                 BuildEraMotif(motifID);
             }
 
-            BuildCheckpoint(Checkpoint0Position.X, Checkpoint0Position.Y, Checkpoint0);
+            BuildCheckpoint(Checkpoint0Position.X, Checkpoint0Position.Y, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(0f, "void_room_threshold", new Color(0.72f, 0.62f, 0.98f));
         }
 
@@ -409,8 +418,8 @@ namespace FTT.Environment {
                 BuildEraMotif(motifID);
             }
 
-            BuildCheckpoint(Checkpoint1Position.X, Checkpoint1Position.Y, Checkpoint1);
-            BuildCheckpoint(Checkpoint2Position.X, Checkpoint2Position.Y, Checkpoint2);
+            BuildCheckpoint(Checkpoint1Position.X, Checkpoint1Position.Y, Checkpoint1, CheckpointRole.Middle);
+            BuildCheckpoint(Checkpoint2Position.X, Checkpoint2Position.Y, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room2StartX, "void_room_drift", new Color(0.55f, 0.9f, 1f));
 
             BuildRoomTransitionPair(

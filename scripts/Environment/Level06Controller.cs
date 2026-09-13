@@ -81,6 +81,15 @@ namespace FTT.Environment {
 
         public override string LevelID => ID;
         public override CampaignLevel Level => CampaignLevel.Pompeii;
+        
+        /// <summary>
+        /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
+        /// seeded as 4 authored rooms x 90 s, rounded up to the nearest
+        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
+        /// per-hero median measurement pass.
+        /// </summary>
+        public override float ParSeconds => 360f;
         public override string LevelTitleKey => "pompeii_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(240, 850);
@@ -309,7 +318,7 @@ namespace FTT.Environment {
             BuildOneWayPlatform(1000, 700, 220);
             BuildOneWayPlatform(2450, 690, 220);
 
-            BuildCheckpoint(240, EnemyGroundY, Checkpoint0);
+            BuildCheckpoint(240, EnemyGroundY, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(Room1StartX, "pompeii_room_forum", new Color(0.92f, 0.72f, 0.40f));
             BuildRoomTransition("pompeii_room_forum", new Vector2(340, 600), Room1CameraBounds);
         }
@@ -360,7 +369,7 @@ namespace FTT.Environment {
             // Flanking roof over the east legionnaire post.
             BuildOneWayPlatform(5150, 690, 200);
 
-            BuildCheckpoint(5600, EnemyGroundY, Checkpoint1);
+            BuildCheckpoint(5600, EnemyGroundY, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "pompeii_room_vault", new Color(0.80f, 0.55f, 0.42f));
 
             // The rockfall itself, plus the ceiling slab above it - a 620 px slab
@@ -432,7 +441,7 @@ namespace FTT.Environment {
 
             BuildWall(10540, 0, LevelHeight);
 
-            BuildCheckpoint(9060, EnemyGroundY, Checkpoint2);
+            BuildCheckpoint(9060, EnemyGroundY, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room4StartX, "pompeii_room_caldera", new Color(0.98f, 0.32f, 0.20f));
             BuildRoomTransition("pompeii_room_caldera", new Vector2(Room4StartX + 30, 540), Room4CameraBounds);
 

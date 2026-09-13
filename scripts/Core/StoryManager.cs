@@ -22,6 +22,34 @@ namespace FTT.Core {
         Alexandria = 15
     }
 
+    /// <summary>
+    /// Package 11 A3 (F01): the scopes that may hold the Timeline Integrity
+    /// level clock. A bitmask rather than a counter, so an unbalanced release
+    /// can never strand the clock paused. The clock runs through every other
+    /// live moment — including a Restoration Font channel and an active Time
+    /// Freeze, which A2 deliberately does NOT pause.
+    /// </summary>
+    [System.Flags]
+    public enum IntegrityClockPause {
+        None = 0,
+        /// <summary>A dialogue sequence is holding the world.</summary>
+        Dialogue = 1,
+        /// <summary>The pause menu (Story) is up.</summary>
+        PauseMenu = 2,
+        /// <summary>A death-rewind presentation or the Timeline Collapse beat.</summary>
+        DeathRewind = 4,
+        /// <summary>The boss-intro name-card ritual.</summary>
+        BossIntro = 8
+    }
+
+    /// <summary>Why a Timeline Collapse is being resolved (F01 / F11).</summary>
+    public enum TimelineCollapseCause {
+        /// <summary>The rewind pool ran out on a death.</summary>
+        Death = 0,
+        /// <summary>Timeline Integrity reached zero. Only this cause grants an F11 recovery minimum.</summary>
+        Timer = 1
+    }
+
     public partial class StoryManager : Node {
         public static StoryManager Instance { get; private set; }
 
@@ -102,6 +130,14 @@ namespace FTT.Core {
             if (!IsLevelTimerRunning) return;
             LevelElapsedSeconds += (float)delta;
         }
+
+        /// <summary>
+        /// Package 11 A3 (F01): the Timeline Integrity level clock ticks on the
+        /// physics step, not <c>_Process</c> — it is a gameplay resource, and a
+        /// gameplay resource is spent at 60 Hz. The autoload owns it so the
+        /// clock survives room transitions and scene-local teardown.
+        /// </summary>
+        public override void _PhysicsProcess(double delta) => TickIntegrityClock(delta);
 
         public void StartCampaign(string characterID) {
             var session = GameManager.Instance.CurrentSession;
@@ -252,7 +288,10 @@ namespace FTT.Core {
         }
 
         /// <summary>Stops the clock without publishing a completion result.</summary>
-        public void StopLevelRun() => IsLevelTimerRunning = false;
+        public void StopLevelRun() {
+            IsLevelTimerRunning = false;
+            StopIntegrityClock();
+        }
 
         /// <summary>
         /// Freezes the running statistics as the "last completed level" result the
@@ -267,17 +306,21 @@ namespace FTT.Core {
             LastLevelRewindsUsed = LevelRewindsUsed;
             LastLevelIntegrityPercent = TimelineIntegrityPercent;
             LastLevelSecretsFound = LevelSecretsFound;
-            LastLevelChronalRating = ChronalRatingRules.Compute(
-                TimelineIntegrityPercent,
-                LevelRewindsUsed,
-                LevelSecretsFound,
-                secretsTotal: 1,
-                LevelElapsedSeconds);
+            // Package 11 A3 / V7.6 ruling 2.A: the Chronal Rating is retired.
+            // Its rules type is deleted; the property and its save row stay as
+            // dead fields until A8 removes them and the results line.
+            LastLevelChronalRating = "";
         }
 
-        // === Timeline Integrity & secrets (V7.1) ============================
+        // === Timeline Integrity — the level timer (V7.6 F01, Package 11 A3) ==
+        // The V7.1/V7.3 siphon model (per-machine share, 10 s grace, 600 px
+        // engagement, +3/+2/+5 restoration) is gone. Integrity is now a
+        // normalized level CLOCK: it opens at 100, drains globally from level
+        // load whether the player has seen a machine or not, and nothing ever
+        // adds a point back. Breaking a machine or finding the secret only
+        // ever slows the FUTURE rate — see TimelineIntegrityRules.
 
-        /// <summary>The Siphon Clock: this attempt's Timeline Integrity, 0-100.</summary>
+        /// <summary>This attempt's Timeline Integrity, 0-100.</summary>
         public float TimelineIntegrityPercent { get; private set; } = TimelineIntegrityRules.StartPercent;
 
         /// <summary>Secrets found in this level attempt.</summary>
@@ -286,42 +329,236 @@ namespace FTT.Core {
         /// <summary>Frozen at completion for the results overlay.</summary>
         public float LastLevelIntegrityPercent { get; private set; } = TimelineIntegrityRules.StartPercent;
         public int LastLevelSecretsFound { get; private set; }
+
+        /// <summary>Retired by V7.6 ruling 2.A; A8 deletes the property and its save row.</summary>
         public string LastLevelChronalRating { get; private set; } = "";
 
+        /// <summary>The current level's authored par, in seconds. 0 = untimed.</summary>
+        public float ParSecondsForCurrentLevel { get; private set; }
+
         /// <summary>
-        /// V7.3 Siphon Clock: the drain accounting lives on each engaged
-        /// Extractor (which owns its 10% share cap and 10 s grace window);
-        /// this is the single sink they draw through. Returns the integrity
-        /// actually drained, so the caller's share ledger only counts what
-        /// was really stolen. Replaces the old unbounded per-extractor-count
-        /// entry point.
+        /// The authored starting Extractor population, captured once at level
+        /// load. The F01 denominator is fixed from this and is NEVER
+        /// recalculated from survivors, including on a checkpoint resume.
+        /// </summary>
+        public int StartingExtractorCount { get; private set; }
+
+        /// <summary>Machines still standing this attempt. Only the numerator moves.</summary>
+        public int LivingExtractorCount { get; private set; }
+
+        /// <summary>True once any secret has been found this attempt (a permanent -0.1 on the rate).</summary>
+        public bool SecretFoundThisLevel => _foundSecrets.Count > 0;
+
+        /// <summary>True while the clock is armed for a timed level (par &gt; 0) and not locked.</summary>
+        public bool IsIntegrityClockRunning =>
+            ParSecondsForCurrentLevel > 0f && IsLevelTimerRunning && !IsPreBossLocked;
+
+        /// <summary>True once the PreBoss fracture froze the gauge for good this attempt.</summary>
+        public bool IsPreBossLocked { get; private set; }
+
+        /// <summary>
+        /// The F11 paid-recovery allowance banked at the last checkpoint —
+        /// deliberately distinct from the live gauge, which keeps draining
+        /// after the checkpoint is struck.
+        /// </summary>
+        public float CheckpointIntegrityPercent { get; private set; } = TimelineIntegrityRules.StartPercent;
+
+        /// <summary>Live drain, in integrity points per second. 0 while paused or locked.</summary>
+        public float CurrentIntegrityDrainPerSecond =>
+            !IsIntegrityClockRunning || _integrityClockPause != IntegrityClockPause.None
+                ? 0f
+                : TimelineIntegrityRules.DrainPerSecond(
+                    ParSecondsForCurrentLevel,
+                    GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal,
+                    LivingExtractorCount,
+                    StartingExtractorCount,
+                    SecretFoundThisLevel);
+
+        private IntegrityClockPause _integrityClockPause = IntegrityClockPause.None;
+        private bool _integrityCollapseFired;
+
+        /// <summary>True while any pause scope holds the clock. Test seam.</summary>
+        public bool IsIntegrityClockPaused => _integrityClockPause != IntegrityClockPause.None;
+
+        /// <summary>The live pause mask. Test seam.</summary>
+        public IntegrityClockPause IntegrityClockPauseScopes => _integrityClockPause;
+
+        /// <summary>
+        /// Arms the level clock. Called once per level entry from the level
+        /// controller, AFTER the attempt registries are in place, so a resumed
+        /// attempt's broken machines are already known. An untimed level
+        /// (Tutorial, Florence) passes <c>parSeconds = 0</c> — or simply never
+        /// calls this — and the gauge stays inert at 100.
+        /// </summary>
+        public void BeginIntegrityClock(float parSeconds, int startingExtractors) {
+            ParSecondsForCurrentLevel = Mathf.Max(0f, parSeconds);
+            StartingExtractorCount = Mathf.Max(0, startingExtractors);
+            LivingExtractorCount = Mathf.Max(0, StartingExtractorCount - _destroyedExtractors.Count);
+            _integrityClockPause = IntegrityClockPause.None;
+            _integrityCollapseFired = false;
+            PublishIntegrity();
+        }
+
+        /// <summary>Disarms the clock (level complete, hub, teardown).</summary>
+        public void StopIntegrityClock() {
+            ParSecondsForCurrentLevel = 0f;
+            _integrityClockPause = IntegrityClockPause.None;
+        }
+
+        /// <summary>
+        /// The pause set. The clock stops for frozen presentation only —
+        /// dialogue, the pause menu, the death-rewind/collapse beat, and the
+        /// boss-intro ritual. It keeps running through ALL other live play,
+        /// including a Restoration Font channel and including an active Time
+        /// Freeze (A2 owns the freeze and deliberately does not pause this).
+        /// Idempotent by design: a mask, not a counter, so an unbalanced
+        /// release can never strand the clock.
+        /// </summary>
+        public void SetIntegrityClockPause(IntegrityClockPause scope, bool paused) {
+            if (scope == IntegrityClockPause.None) return;
+            IntegrityClockPause updated = paused
+                ? _integrityClockPause | scope
+                : _integrityClockPause & ~scope;
+            if (updated == _integrityClockPause) return;
+            _integrityClockPause = updated;
+            PublishIntegrity();
+        }
+
+        /// <summary>
+        /// A machine broke: the numerator drops by one for the rest of the
+        /// level. The gauge itself does not move — F01 is explicit that
+        /// destruction buys future time, never a refill.
+        /// </summary>
+        public void NotifyExtractorDestroyed() {
+            if (LivingExtractorCount <= 0) return;
+            LivingExtractorCount--;
+            PublishIntegrity();
+        }
+
+        /// <summary>
+        /// PreBoss activation freezes the gauge permanently for this attempt
+        /// and banks the final Integrity. Driven by the authored checkpoint
+        /// ROLE, never by an ID suffix. Entry, Middle and route triggers can
+        /// never call this.
+        /// </summary>
+        public void LockIntegrityAtPreBoss() {
+            if (IsPreBossLocked) return;
+            IsPreBossLocked = true;
+            CheckpointIntegrityPercent = TimelineIntegrityPercent;
+            PublishIntegrity();
+        }
+
+        /// <summary>
+        /// Banks the live gauge as the F11 recovery allowance at a checkpoint.
+        /// A locked PreBoss clock keeps the value it froze with.
+        /// </summary>
+        public void BankCheckpointIntegrity() {
+            if (IsPreBossLocked) return;
+            CheckpointIntegrityPercent = TimelineIntegrityPercent;
+        }
+
+        /// <summary>
+        /// Authored F11 remaining-route budget for one checkpoint, in seconds
+        /// of live play from that anchor to the PreBoss lock. Registered by
+        /// the level controller as it builds its checkpoints.
+        /// </summary>
+        public void SetRecoveryRouteSeconds(string checkpointID, float remainingRouteSeconds) {
+            if (string.IsNullOrWhiteSpace(checkpointID)) return;
+            _recoveryRouteSeconds[checkpointID] = Mathf.Max(0f, remainingRouteSeconds);
+        }
+
+        public float GetRecoveryRouteSeconds(string checkpointID) =>
+            !string.IsNullOrWhiteSpace(checkpointID)
+            && _recoveryRouteSeconds.TryGetValue(checkpointID, out float seconds)
+                ? seconds
+                : 0f;
+
+        private readonly Dictionary<string, float> _recoveryRouteSeconds = new(System.StringComparer.Ordinal);
+
+        /// <summary>
+        /// Ticks the level clock. Runs on the autoload's physics step so the
+        /// rate is frame-rate independent and survives room transitions.
+        /// Clamps at zero and fires exactly one timer-caused Collapse there.
+        /// </summary>
+        internal void TickIntegrityClock(double delta) {
+            if (!IsIntegrityClockRunning || _integrityClockPause != IntegrityClockPause.None) return;
+            if (TimelineIntegrityPercent <= 0f) {
+                FireIntegrityCollapse();
+                return;
+            }
+            float before = TimelineIntegrityPercent;
+            TimelineIntegrityPercent = Mathf.Max(
+                0f, TimelineIntegrityPercent - CurrentIntegrityDrainPerSecond * (float)delta);
+            if (!Mathf.IsEqualApprox(before, TimelineIntegrityPercent)) PublishIntegrity();
+            if (TimelineIntegrityPercent <= 0f) FireIntegrityCollapse();
+        }
+
+        /// <summary>
+        /// Zero Integrity is a Timeline Collapse on EVERY difficulty. Acts I-II
+        /// route through the ordinary collapse beat with a TimerCaused cause.
+        ///
+        /// ACT III HOOK (A3b): levels 13-15 resolve an Anchor Snap (with a
+        /// Warden Beacon charge) or the Smothered Game Over (with none) here
+        /// instead, by assigning <see cref="ActIIICollapseOverride"/>.
+        /// </summary>
+        private void FireIntegrityCollapse() {
+            if (_integrityCollapseFired) return;
+            _integrityCollapseFired = true;
+            PendingCollapseCause = TimelineCollapseCause.Timer;
+            if (ActIIICollapseOverride != null) {
+                ActIIICollapseOverride();
+                return;
+            }
+            if (GetTree()?.GetFirstNodeInGroup(FTT.Environment.ChronalRewindManager.ManagerGroup)
+                is FTT.Environment.ChronalRewindManager manager) {
+                manager.BeginTimerCollapse();
+                return;
+            }
+            // No rewind stack in the scene (a bare test fixture): collapse directly.
+            BeginTimelineCollapse(CollapsedCheckpointID, TimelineCollapseCause.Timer);
+        }
+
+        /// <summary>
+        /// Act III (A3b) replaces the Acts I-II collapse with Anchor Snap /
+        /// Smothered. Left null by A3; also the collapse-at-zero test seam.
+        /// </summary>
+        public System.Action ActIIICollapseOverride { get; set; }
+
+        /// <summary>What caused the collapse currently being resolved.</summary>
+        public TimelineCollapseCause PendingCollapseCause { get; private set; } = TimelineCollapseCause.Death;
+
+        private void PublishIntegrity() => EventBus.Instance?.RaiseTimelineIntegrityChanged(new IntegrityPayload {
+            Percent = TimelineIntegrityPercent,
+            Tier = (IntegrityTier)TimelineIntegrityRules.Tier(TimelineIntegrityPercent),
+            LivingExtractors = LivingExtractorCount,
+            DrainPerSecond = CurrentIntegrityDrainPerSecond,
+            Frozen = IsPreBossLocked || _integrityClockPause != IntegrityClockPause.None
+        });
+
+        /// <summary>
+        /// The single sink every Integrity cost draws through. Returns the
+        /// integrity actually removed. Nothing in V7.6 adds a point back —
+        /// there is deliberately no restoration counterpart.
         /// </summary>
         public float DrainTimelineIntegrityAmount(float amountPercent) {
-            if (amountPercent <= 0f || !IsLevelTimerRunning) return 0f;
+            if (amountPercent <= 0f || !IsLevelTimerRunning || IsPreBossLocked) return 0f;
             float applied = Mathf.Min(amountPercent, TimelineIntegrityPercent);
             TimelineIntegrityPercent -= applied;
+            if (applied > 0f) PublishIntegrity();
             return applied;
         }
 
-        /// <summary>V7.3 restoration paths: +3% per destroyed Extractor, +2%
-        /// per ordinary secret, +5% for the special secret — capped at 100.</summary>
-        public void RestoreTimelineIntegrity(float percent) {
-            TimelineIntegrityPercent = Mathf.Min(
-                TimelineIntegrityRules.StartPercent,
-                TimelineIntegrityPercent + Mathf.Max(0f, percent));
-        }
-
         /// <summary>
-        /// Counts a secret once per attempt and pays its restoration
-        /// (+2% ordinary / +5% special). Returns false when this secret was
-        /// already found this attempt (including via a mid-level resume).
+        /// Counts a secret once per attempt. V7.6: a secret no longer restores
+        /// integrity at all — it subtracts 0.1 from the drain FACTOR for the
+        /// rest of the level, which is future time, not a refill. The
+        /// <paramref name="isSpecialSecret"/> flag no longer selects an amount
+        /// and is retained only so authored scenes keep compiling.
         /// </summary>
         public bool RegisterSecretFound(string secretID, bool isSpecialSecret = true) {
             if (!string.IsNullOrWhiteSpace(secretID) && !_foundSecrets.Add(secretID)) return false;
             LevelSecretsFound++;
-            RestoreTimelineIntegrity(isSpecialSecret
-                ? TimelineIntegrityRules.SpecialSecretRestorePercent
-                : TimelineIntegrityRules.GenericSecretRestorePercent);
+            PublishIntegrity();
             return true;
         }
 
@@ -353,6 +590,45 @@ namespace FTT.Core {
 
         public bool IsCheckpointActivated(string checkpointID) =>
             !string.IsNullOrWhiteSpace(checkpointID) && _activatedCheckpoints.Contains(checkpointID);
+
+        // === Checkpoint roles (V7.6 F12, Package 11 A3) =====================
+        // The ID -> role alias map. A level controller registers each authored
+        // checkpoint's role as it builds it, so a verified existing stable ID
+        // (`{levelID}_checkpoint_1`) survives while the ROLE, never the numeric
+        // suffix, drives self-activation, the Hard-middle rule, the Integrity
+        // freeze and save migration.
+
+        private readonly Dictionary<string, FTT.Environment.CheckpointRole> _checkpointRoles =
+            new(System.StringComparer.Ordinal);
+
+        /// <summary>
+        /// Registers an authored checkpoint's role. Re-locks the Integrity
+        /// gauge when a resumed attempt had already struck its PreBoss
+        /// fracture — a reload retains the lock and the banked score without
+        /// refilling the gauge or replaying checkpoint benefits.
+        /// </summary>
+        public void RegisterCheckpointRole(string checkpointID, FTT.Environment.CheckpointRole role) {
+            if (string.IsNullOrWhiteSpace(checkpointID)) return;
+            _checkpointRoles[checkpointID] = role;
+            if (role == FTT.Environment.CheckpointRole.PreBoss && _activatedCheckpoints.Contains(checkpointID)) {
+                LockIntegrityAtPreBoss();
+            }
+        }
+
+        /// <summary>
+        /// The authored role for a saved checkpoint ID. Unregistered IDs fall
+        /// back to <see cref="FTT.Environment.CheckpointRole.Entry"/> — the
+        /// safe answer, because Entry can never lock the boss clock. F12 is
+        /// explicit: never reinterpret a saved <c>_1</c> as PreBoss.
+        /// </summary>
+        public FTT.Environment.CheckpointRole GetCheckpointRole(string checkpointID) =>
+            !string.IsNullOrWhiteSpace(checkpointID)
+            && _checkpointRoles.TryGetValue(checkpointID, out FTT.Environment.CheckpointRole role)
+                ? role
+                : FTT.Environment.CheckpointRole.Entry;
+
+        public bool HasCheckpointRole(string checkpointID) =>
+            !string.IsNullOrWhiteSpace(checkpointID) && _checkpointRoles.ContainsKey(checkpointID);
 
         public void RecordExtractorDestroyed(string extractorID) {
             if (!string.IsNullOrWhiteSpace(extractorID)) _destroyedExtractors.Add(extractorID);
@@ -405,8 +681,16 @@ namespace FTT.Core {
             _activatedCheckpoints.Clear();
             _destroyedExtractors.Clear();
             _foundSecrets.Clear();
+            _checkpointRoles.Clear();
+            _recoveryRouteSeconds.Clear();
             ClearRestorationFonts();
             TimelineIntegrityPercent = TimelineIntegrityRules.StartPercent;
+            CheckpointIntegrityPercent = TimelineIntegrityRules.StartPercent;
+            IsPreBossLocked = false;
+            _integrityClockPause = IntegrityClockPause.None;
+            _integrityCollapseFired = false;
+            PendingCollapseCause = TimelineCollapseCause.Death;
+            LivingExtractorCount = StartingExtractorCount;
             LevelSecretsFound = 0;
             // A fresh attempt starts with Time Freeze Ready.
             TimeFreezeCooldownRemaining = 0f;
@@ -420,6 +704,9 @@ namespace FTT.Core {
             save.FoundSecretIDs = new List<string>(_foundSecrets);
             save.FontUsesConsumed = new Dictionary<string, int>(_fontUsesConsumed);
             save.LevelIntegrityPercent = TimelineIntegrityPercent;
+            // F11: the paid-recovery allowance is banked separately from the
+            // live gauge, which keeps draining after the fracture is struck.
+            save.CheckpointIntegrityPercent = CheckpointIntegrityPercent;
             save.HasSeenCollapseBeat = HasSeenCollapseBeat;
             save.TimeFreezeCooldownSeconds = TimeFreezeCooldownRemaining;
         }
@@ -443,6 +730,8 @@ namespace FTT.Core {
                 }
             }
             TimelineIntegrityPercent = Mathf.Clamp(save.LevelIntegrityPercent, 0f, TimelineIntegrityRules.StartPercent);
+            CheckpointIntegrityPercent = Mathf.Clamp(
+                save.CheckpointIntegrityPercent, 0f, TimelineIntegrityRules.StartPercent);
             LevelSecretsFound = _foundSecrets.Count;
             HasSeenCollapseBeat = save.HasSeenCollapseBeat;
             // A mid-level resume inherits the parked cooldown. Reload never
@@ -538,14 +827,52 @@ namespace FTT.Core {
         public static int CalculateTimelineCollapseDust(int carriedDust) =>
             Mathf.FloorToInt(Mathf.Max(0, carriedDust) * 0.8f);
 
-        public void BeginTimelineCollapse(string checkpointID) {
+        /// <summary>
+        /// F11 recovery minima. The granted gauge is the larger of what the
+        /// anchor banked and the anchor's authored minimum
+        /// (<c>max(25, ceil(allAliveRate x remainingRoute x 1.20))</c>).
+        /// A budget above 100 throws out of <see cref="TimelineIntegrityRules.RecoveryMinimum"/>
+        /// — an invalid content budget is reported loudly, never clamped; the
+        /// collapse then falls back to the banked checkpoint gauge so the game
+        /// is still playable while the authoring is fixed.
+        /// </summary>
+        private void ResolveTimerRecoveryIntegrity(Difficulty difficulty) {
+            float banked = Mathf.Clamp(CheckpointIntegrityPercent, 0f, TimelineIntegrityRules.StartPercent);
+            float par = ParSecondsForCurrentLevel;
+            if (par <= 0f) {
+                TimelineIntegrityPercent = banked;
+                return;
+            }
+            float route = GetRecoveryRouteSeconds(CollapsedCheckpointID);
+            try {
+                TimelineIntegrityPercent =
+                    TimelineIntegrityRules.TimerRecoveryIntegrity(banked, par, difficulty, route);
+            } catch (System.Exception exception) {
+                GD.PushError(
+                    $"Invalid F11 recovery budget for '{CollapsedCheckpointID}' on {CurrentLevel}: {exception.Message}");
+                TimelineIntegrityPercent = banked;
+            }
+            CheckpointIntegrityPercent = TimelineIntegrityPercent;
+            IsPreBossLocked = false;
+            _integrityCollapseFired = false;
+            PublishIntegrity();
+        }
+
+        public void BeginTimelineCollapse(string checkpointID, TimelineCollapseCause cause = TimelineCollapseCause.Death) {
             CollapsedLevel = CurrentLevel;
             CollapsedCheckpointID = checkpointID ?? "";
+            PendingCollapseCause = cause;
             HasPendingTimelineRestart = true;
             ApplyTimelineCollapseDustPenalty();
 
             Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
             ChronalRewindsRemaining = FTT.Environment.ChronalRewindManager.GetMaximumRewinds(difficulty);
+            // F11: ONLY a timer-caused Collapse that actually grants recovery
+            // applies the authored minimum. Ordinary load and the death rewind
+            // never do. The resolved value is written into the attempt's
+            // Integrity before the save, so an interrupted recovery loads the
+            // already-resolved result and never grants twice.
+            if (cause == TimelineCollapseCause.Timer) ResolveTimerRecoveryIntegrity(difficulty);
             StorySaveData save = GetActiveSave();
             if (save != null) {
                 save.LevelChronalDust = ChronalDustCollected;

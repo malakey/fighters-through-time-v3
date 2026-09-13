@@ -147,6 +147,15 @@ namespace FTT.Environment {
 
         public override string LevelID => "level_09_berlin";
         public override CampaignLevel Level => CampaignLevel.Berlin;
+        
+        /// <summary>
+        /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
+        /// seeded as 4 authored rooms x 90 s, rounded up to the nearest
+        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
+        /// per-hero median measurement pass.
+        /// </summary>
+        public override float ParSeconds => 360f;
         public override string LevelTitleKey => "berlin_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_09_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(240f, 1150f);
@@ -257,7 +266,7 @@ namespace FTT.Environment {
             BuildHazardSpikes(1450f, 1190f, 140f);
             BuildHazardSpikes(2050f, 1190f, 120f);
 
-            BuildCheckpoint(240f, GroundY - 50f, CheckpointID(0));
+            BuildCheckpoint(240f, GroundY - 50f, CheckpointID(0), CheckpointRole.Entry);
             BuildRoomDecoration(Room1StartX, "berlin_room_checkpoint_charlie", new Color(0.80f, 0.86f, 0.95f));
 
             BuildRoomTransition("berlin_room_checkpoint_charlie", new Vector2(560f, 900f),
@@ -294,7 +303,7 @@ namespace FTT.Environment {
             // Upper walkway, swept end to end by the watchtower beam.
             BuildPlatform(5900f, 520f, 700f);
 
-            BuildCheckpoint(5200f, GroundY - 50f, CheckpointID(1));
+            BuildCheckpoint(5200f, GroundY - 50f, CheckpointID(1), CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "berlin_room_death_strip", new Color(1.0f, 0.92f, 0.55f));
 
             BuildRoomTransition("berlin_room_death_strip", new Vector2(Room2StartX, 700f),
@@ -323,7 +332,7 @@ namespace FTT.Environment {
             BuildPlatform(7900f, 1040f, 260f, SnowRubbleColor);
             BuildPlatform(8300f, 920f, 240f, SnowRubbleColor);
 
-            BuildCheckpoint(8480f, GroundY - 50f, CheckpointID(2));
+            BuildCheckpoint(8480f, GroundY - 50f, CheckpointID(2), CheckpointRole.PreBoss);
             BuildRoomDecoration(Room3StartX, "berlin_room_radar_yard", new Color(0.60f, 0.85f, 0.70f));
 
             BuildRoomTransition("berlin_room_radar_yard", new Vector2(Room3StartX + 80f, 700f),

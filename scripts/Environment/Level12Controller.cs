@@ -47,6 +47,15 @@ namespace FTT.Environment {
 
         public override string LevelID => LunarLevelID;
         public override CampaignLevel Level => CampaignLevel.Lunar;
+        
+        /// <summary>
+        /// V7.6 F01 par (Package 11 A3). <b>Provisional, not measured</b>:
+        /// seeded as 6 authored rooms x 90 s, rounded up to the nearest
+        /// 30 s. Recorded under VERIFY-PAR-SECONDS in
+        /// docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md pending the V01a
+        /// per-hero median measurement pass.
+        /// </summary>
+        public override float ParSeconds => 540f;
         public override string LevelTitleKey => "lunar_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_12_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(220f, SurfaceY - 60f);
@@ -292,7 +301,7 @@ namespace FTT.Environment {
             // character's lunar jump would fence Lincoln out of his own level.
             BuildPlatform(2050f, SurfaceY - 80f, 180f, new Color(0.55f, 0.5f, 0.35f));
 
-            BuildCheckpoint(Checkpoint0Position.X, Checkpoint0Position.Y, Checkpoint0);
+            BuildCheckpoint(Checkpoint0Position.X, Checkpoint0Position.Y, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(0f, "lunar_room_tranquility_base", new Color(0.78f, 0.84f, 0.95f));
         }
 
@@ -307,7 +316,7 @@ namespace FTT.Environment {
             BuildPlatform(5160f, LedgeB, 240f);
             BuildPlatform(5700f, HighDeckY, 240f);
 
-            BuildCheckpoint(Checkpoint1Position.X, Checkpoint1Position.Y, Checkpoint1);
+            BuildCheckpoint(Checkpoint1Position.X, Checkpoint1Position.Y, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "lunar_room_vent_field", new Color(0.7f, 0.8f, 0.95f));
 
             BuildRoomTransitionPair(
@@ -336,7 +345,7 @@ namespace FTT.Environment {
             BuildPlatform(8860f, HighDeckY, 240f);
             BuildLadder(CurtainStairs);
 
-            BuildCheckpoint(Checkpoint2Position.X, Checkpoint2Position.Y, Checkpoint2);
+            BuildCheckpoint(Checkpoint2Position.X, Checkpoint2Position.Y, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room3StartX, "lunar_room_relay_spire", new Color(0.85f, 0.8f, 0.6f));
 
             BuildRoomTransitionPair(
