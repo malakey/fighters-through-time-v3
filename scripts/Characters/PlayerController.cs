@@ -123,6 +123,64 @@ namespace FTT.Characters {
 		public bool HasStoryPerk(string abilityModifierKey) =>
 			!string.IsNullOrWhiteSpace(abilityModifierKey) && StoryAbilityPerks.Contains(abilityModifierKey);
 
+		// === Package 11 A5 region: V7.5 Legacy Unlock ability gate ==========
+		// Story-only. The locks are INSTALLED by CharacterFactory on the
+		// applyStoryProgression: true path alone, so Fighter Mode, the hub
+		// Holodeck, the Calibration Drills and the Mirror Paradox clone — all of
+		// which travel applyStoryProgression: false — keep the full normalized
+		// kit and never see this state. The default is "no locks": a controller
+		// nobody gated behaves exactly as it did before this package.
+
+		private HashSet<FTT.Core.AbilitySlot> _legacyUnlockedSlots;
+
+		/// <summary>True while the Legacy Unlock Schedule is gating this controller.</summary>
+		public bool LegacyAbilityLocksActive => _legacyUnlockedSlots != null;
+
+		/// <summary>
+		/// Installs the Story ability gate. Called once by
+		/// <c>CharacterFactory</c> with the slots the active save has earned;
+		/// publishes the Dormant/Clear slot-lock states A8 renders. Passing null
+		/// clears the gate (full kit).
+		/// </summary>
+		public void ApplyLegacyUnlockLocks(IEnumerable<FTT.Core.AbilitySlot> unlockedSlots) {
+			if (unlockedSlots == null) {
+				_legacyUnlockedSlots = null;
+				return;
+			}
+			_legacyUnlockedSlots = new HashSet<FTT.Core.AbilitySlot>(unlockedSlots);
+			PublishAbilitySlotLockStates();
+		}
+
+		/// <summary>
+		/// Republishes every gated slot's lock state. Public so a HUD rebuilt
+		/// mid-level (room transition, resume) can be refreshed without a respawn.
+		/// </summary>
+		public void PublishAbilitySlotLockStates() {
+			if (PlayerIndex != 0) return;
+			foreach (FTT.Core.AbilitySlot slot in FTT.Core.LegacyUnlockSchedule.GatedSlots) {
+				FTT.Core.EventBus.Instance?.RaiseAbilitySlotLockChanged(new FTT.Core.AbilitySlotLockPayload {
+					Slot = slot,
+					State = IsAbilityUnlocked(slot)
+						? FTT.Core.AbilitySlotLockState.Clear
+						: FTT.Core.AbilitySlotLockState.Dormant
+				});
+			}
+		}
+
+		/// <summary>
+		/// V7.5: is this slot's ability available yet? Always true when no gate
+		/// is installed, and always true for anything the schedule does not gate
+		/// (the basics, Block, Rally, the rewind, the meter and Defy History are
+		/// never locked).
+		/// </summary>
+		public bool IsAbilityUnlocked(FTT.Core.AbilitySlot slot) {
+			if (_legacyUnlockedSlots == null) return true;
+			if (FTT.Core.LegacyUnlockSchedule.MilestoneLevelFor(slot) <= 0) return true;
+			return _legacyUnlockedSlots.Contains(slot);
+		}
+
+		// === end Package 11 A5 region (gate declaration) ===
+
 		// Story-only perk shield (Wardenclyffe Shield, Royal Aegis, Leaf Barrier,
 		// ...): absorbs damage before HP. Capacity is configured by the owning
 		// perk's ability code; Fighter Mode never reads these fields because the
@@ -1887,6 +1945,50 @@ namespace FTT.Characters {
 		/// place, invulnerable, no actions — before the release to Idle.</summary>
 		public bool IsInTechLockout => _techLockoutSeconds > 0f;
 
+		// === Package 11 A5 region: Level 0 scripted-hit exemptions ==========
+		// The V7.6 Hitstun Agency Calibration teaches DI and the landing tech
+		// with a repeating scripted launch. The design is explicit that the
+		// launch is FREE — "no HP, no Rally accounting, no rewind charge" — so
+		// it deliberately does NOT travel OnHurtboxHit/ApplyDamage: there is no
+		// damage to apply, nothing to echo, and no death to rewind. Everything
+		// else about the launch is the ordinary verb layer, including the ±15°
+		// DI resolution at hitstop expiry and the real landing-tech window.
+
+		/// <summary>True while the victim is in a launched (techable) tumble.</summary>
+		public bool IsInTumble => _stunTumble;
+
+		/// <summary>Frames of hitstop freeze left. Tutorial/DI seam.</summary>
+		public int HitstopFramesRemaining => _hitstopFramesRemaining;
+
+		/// <summary>True while a launch impulse is stashed awaiting its DI read.</summary>
+		public bool HasPendingLaunch => _hasPendingLaunch;
+
+		/// <summary>
+		/// Level 0 only: a scripted launching hit that costs the player nothing.
+		/// <paramref name="knockback"/> is in the authored hit-payload scale
+		/// (units/frame, as <c>HitPayload.Knockback</c> carries it);
+		/// <paramref name="hitstopFrames"/> is the tutorial's deliberately
+		/// extended freeze, which is what gives the player time to read the DI
+		/// prompt and hold a direction.
+		/// </summary>
+		public void ApplyTutorialScriptedLaunch(
+			Vector2 knockback, float hitstunSeconds, int hitstopFrames) {
+			if (CurrentState is CharacterState.Dead or CharacterState.Respawning) return;
+			if (knockback == Vector2.Zero || hitstunSeconds <= 0f) return;
+			ApplyStun(hitstunSeconds);
+			Velocity = knockback * 60f;
+			_pendingLaunch = Velocity;
+			_hasPendingLaunch = true;
+			// A launched stun is a tumble, so the landing tech is live; the
+			// V7.3 hit-2 gate never applies to a scripted lesson hit.
+			_stunTumble = true;
+			_stunLeftTheGround = false;
+			_hitstunBlockCancelBlocked = false;
+			ApplyHitstop(hitstopFrames);
+		}
+
+		// === end Package 11 A5 region (scripted-hit exemptions) ===
+
 		/// <summary>
 		/// H-4: interrupts whichever ability slot is mid-cast. Safe to call
 		/// unconditionally — <see cref="FTT.Combat.BaseSpecial.Interrupt"/>
@@ -2607,7 +2709,11 @@ namespace FTT.Characters {
 		}
 
 		private bool CheckSpecialInput() {
-			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special1) && SpecialOneCooldownTimer <= 0) {
+			// Package 11 A5 gate: a Dormant slot is refused outright. Cooldowns
+			// are irrelevant — the ability has never been cast.
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special1)
+				&& IsAbilityUnlocked(FTT.Core.AbilitySlot.Special1)
+				&& SpecialOneCooldownTimer <= 0) {
 				if (_special1 != null && _special1.TryExecute()) {
 					_pendingSpecialSlot = 1;
 					_specialStartedAerial = !IsOnFloor();
@@ -2616,7 +2722,10 @@ namespace FTT.Characters {
 					return true;
 				}
 			}
-			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special2) && SpecialTwoCooldownTimer <= 0) {
+			// Package 11 A5 gate.
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Special2)
+				&& IsAbilityUnlocked(FTT.Core.AbilitySlot.Special2)
+				&& SpecialTwoCooldownTimer <= 0) {
 				if (_special2 != null && _special2.TryExecute()) {
 					_pendingSpecialSlot = 2;
 					_specialStartedAerial = !IsOnFloor();
@@ -2629,7 +2738,10 @@ namespace FTT.Characters {
 		}
 
 		private bool CheckUltimateInput() {
-			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Ultimate)) {
+			// Package 11 A5 gate: the METER is never locked (Defy History and
+			// Level 4's dampening beams need it from Level 0) — only the cast is.
+			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Ultimate)
+				&& IsAbilityUnlocked(FTT.Core.AbilitySlot.Ultimate)) {
 				bool meterReady = _ultimateMeter != null ? _ultimateMeter.IsFull : CurrentUltimateMeter >= 100f;
 				if (meterReady && _ultimate != null && _ultimate.TryExecute()) {
 					_ultimateStartedAerial = !IsOnFloor();
@@ -2659,6 +2771,8 @@ namespace FTT.Characters {
 
 		private bool CheckMovementAbilityInput() {
 			if (IsMovementRooted) return false;
+			// Package 11 A5 gate.
+			if (!IsAbilityUnlocked(FTT.Core.AbilitySlot.MovementAbility)) return false;
 			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.MovementAbility) && MovementAbilityCooldownTimer <= 0) {
 				if (_movementAbility != null && _movementAbility.TryExecute()) {
 					PlayAnimation("movement_ability");

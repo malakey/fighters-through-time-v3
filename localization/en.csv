@@ -1,4 +1,4 @@
-key,en
+﻿key,en
 menu_story_mode,Story Mode
 menu_fighter_mode,Fighter Mode
 menu_settings,Settings
@@ -601,7 +601,6 @@ tutorial_fracture_label,CHRONAL FRACTURE
 tutorial_objective_fracture,Listen to Commander Sarah's briefing
 tutorial_step_attack,Calibration: land basic attacks on the dummy ({0}/{1})
 tutorial_step_rally,"Part of every blow lingers as an echo - strike back before it fades to reclaim it"
-tutorial_step_special,Calibration: use a Special ability (K or L)
 tutorial_step_rewind,Calibration: stand by - Chronal Rewind demonstration
 tutorial_step_manual_rewind,"Hold R to scrub time backward - release to commit, Jump to cancel"
 tutorial_step_double_jump,Mobility: reach the green marker with a double jump
@@ -1120,9 +1119,6 @@ results_dust_boss,Boss reward: {0}
 pause_save_done,Progress saved
 pause_restart_confirm,Restart the level from the beginning? All Chronal Dust earned this level will be lost.
 tutorial_step_block,Calibration: hold Block to absorb the dummy's telegraphed swipes ({0}/{1})
-tutorial_step_ultimate,"Calibration: Influence Meter charged - unleash your Ultimate! (A full meter can also refuse death itself - once.)"
-tutorial_step_movement,Mobility: cross the violet corridor using your Movement Ability
-tutorial_gate_movement,MOVEMENT ABILITY
 dlg_l00_block_1,Attacks calibrated. Now defense. The dummy will telegraph slow swipes - hold Block to absorb them and watch your shield charges fall with each impact.
 dlg_l00_block_2,"Careful: three absorbed hits exhaust your shield entirely and break your guard, leaving you dazed. Absorb the swipes to continue."
 dlg_l00_ultimate_1,I am flooding your Influence Meter to full for the final combat test. Trigger your Ultimate - your History Maker - and let history itself answer.
@@ -1194,3 +1190,18 @@ systems_card_echo_body,"Spend 30 meter during your own recovery to snap back 30 
 systems_card_overtime_title,Overtime
 systems_card_overtime_body,"The final 60 seconds of a timed match double the hazard cadence and raise the Rally echo by half."
 dialogue_hold_skip,"Hold {0} to skip"
+# Package 11 A5
+dialogue_skip_confirm_title,Skip this scene?
+dialogue_skip_confirm_body,"You haven't watched this one yet, and it won't replay."
+dialogue_skip_confirm_ok,Skip
+dialogue_skip_confirm_cancel,Keep watching
+movelist_dormant_until,"Dormant — restored after Level {0}"
+results_resonance_restored,"RESONANCE RESTORED — {0}"
+tutorial_step_grab,"Calibration: a raised shield stops a blade, not a hand - hold Block and press Attack to grab"
+tutorial_step_grab_absorbed,The shield absorbed it - grab through the guard instead
+tutorial_step_grab_complete,Grabs beat blocks. Strikes beat grabs.
+tutorial_step_di,Calibration: hold a direction as the blow lands to steer where you fly
+tutorial_step_tech,Calibration: hold Block as you land to recover on your feet
+tutorial_step_tech_retry,"That one put you down - hold Block through the landing and try again"
+tutorial_step_defy,"Calibration: meter charged - a full meter can also refuse death itself, once"
+tutorial_step_defy_spent,"The seal is broken - refilling the meter will not restore it this level"

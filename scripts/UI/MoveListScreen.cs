@@ -27,11 +27,26 @@ namespace FTT.UI {
     public partial class MoveListScreen : CanvasLayer {
         public const string ScenePath = "res://scenes/ui/MoveList.tscn";
 
+        /// <summary>
+        /// Package 11 A5: which mode the list is being read in.
+        /// <c>Fighter</c> always shows the full kit — Fighter Mode, the hub
+        /// Holodeck and the Calibration Drills never gate an ability.
+        /// <c>Story</c> consults the V7.5 Legacy Unlock Schedule and marks
+        /// not-yet-restored slots Dormant.
+        /// </summary>
+        public enum MoveListMode {
+            Fighter,
+            Story
+        }
+
         /// <summary>Raised after the screen hides, so the opener can restore focus.</summary>
         public event Action Closed;
 
         /// <summary>Character the list is currently built for. Test seam.</summary>
         public string CharacterID { get; private set; } = "";
+
+        /// <summary>Mode the list was last built in. Test seam.</summary>
+        public MoveListMode Mode { get; private set; } = MoveListMode.Fighter;
 
         private Control _root;
         private TextureRect _portrait;
@@ -67,8 +82,11 @@ namespace FTT.UI {
         }
 
         /// <summary>Builds the list for one roster character and shows the screen.</summary>
-        public void Open(string characterID) {
-            Populate(characterID);
+        public void Open(string characterID) => Open(characterID, MoveListMode.Fighter);
+
+        /// <summary>Mode-aware overload: the Story pause opens the gated list.</summary>
+        public void Open(string characterID, MoveListMode mode) {
+            Populate(characterID, mode);
             Visible = true;
             RebuildFocusChain();
         }
@@ -113,8 +131,12 @@ namespace FTT.UI {
         /// Rebuilds every data-driven row. Public seam so tests can build the
         /// list for all nine roster IDs without driving input.
         /// </summary>
-        public void Populate(string characterID) {
+        public void Populate(string characterID) => Populate(characterID, MoveListMode.Fighter);
+
+        /// <summary>Mode-aware overload (Package 11 A5).</summary>
+        public void Populate(string characterID, MoveListMode mode) {
             CharacterID = characterID ?? "";
+            Mode = mode;
             if (_sections == null) return;
             for (int index = _sections.GetChildCount() - 1; index >= 0; index--) {
                 Node child = _sections.GetChild(index);
@@ -187,10 +209,13 @@ namespace FTT.UI {
 
             // -- Specials, movement ability, ultimate: authored .tres data only.
             AddSectionTitle("movelist_section_abilities");
-            AddAbility("movelist_slot_special1", data?.SpecialAttackOne);
-            AddAbility("movelist_slot_special2", data?.SpecialAttackTwo);
-            AddAbility("movelist_slot_movement", data?.MovementAbility);
-            AddAbility("movelist_slot_ultimate", data?.UltimateAttack);
+            HashSet<AbilitySlot> unlocked = mode == MoveListMode.Story
+                ? FTT.Characters.CharacterFactory.ResolveStoryUnlockedSlots(CharacterID)
+                : null;
+            AddAbility("movelist_slot_special1", data?.SpecialAttackOne, AbilitySlot.Special1, unlocked);
+            AddAbility("movelist_slot_special2", data?.SpecialAttackTwo, AbilitySlot.Special2, unlocked);
+            AddAbility("movelist_slot_movement", data?.MovementAbility, AbilitySlot.MovementAbility, unlocked);
+            AddAbility("movelist_slot_ultimate", data?.UltimateAttack, AbilitySlot.Ultimate, unlocked);
 
             // -- Universal movement.
             AddSectionTitle("movelist_section_movement");
@@ -235,8 +260,16 @@ namespace FTT.UI {
         /// One authored ability row: name, damage/cooldown, description, and
         /// icon straight off the .tres — the resource owns every number shown.
         /// </summary>
-        private void AddAbility(string slotKey, AbilityData ability) {
+        private void AddAbility(
+            string slotKey, AbilityData ability, AbilitySlot slot, HashSet<AbilitySlot> unlockedSlots) {
             if (ability == null) return;
+            // Package 11 A5: a Story row for a slot the Legacy Unlock Schedule
+            // has not restored is DORMANT — shown, never hidden, but with its
+            // frame data withheld until the hero earns it. A null set means "no
+            // gate" (Fighter Mode, or a Story context with no active save).
+            bool dormant = unlockedSlots != null
+                && LegacyUnlockSchedule.MilestoneLevelFor(slot) > 0
+                && !unlockedSlots.Contains(slot);
             var row = new HBoxContainer { Name = $"Ability_{slotKey}" };
             row.AddThemeConstantOverride("separation", 12);
             _sections.AddChild(row);
@@ -264,12 +297,15 @@ namespace FTT.UI {
             body.AddChild(nameLabel);
 
             var stats = new Label {
-                Name = "AbilityStats",
-                Text = string.Format(
-                    Tr("movelist_ability_stats"), ability.BaseDamage, ability.CooldownDuration),
+                Name = dormant ? "AbilityDormant" : "AbilityStats",
+                Text = dormant
+                    ? string.Format(
+                        Tr("movelist_dormant_until"), LegacyUnlockSchedule.MilestoneLevelFor(slot))
+                    : string.Format(
+                        Tr("movelist_ability_stats"), ability.BaseDamage, ability.CooldownDuration),
                 ThemeTypeVariation = UIPalette.SmallLabelVariation
             };
-            stats.AddThemeColorOverride("font_color", UIPalette.Gold);
+            stats.AddThemeColorOverride("font_color", dormant ? UIPalette.SlateDim : UIPalette.Gold);
             body.AddChild(stats);
 
             if (!string.IsNullOrWhiteSpace(ability.DescriptionKey)) {

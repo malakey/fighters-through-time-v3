@@ -266,6 +266,44 @@ namespace FTT.Core {
         Root
     }
 
+    // === Package 11 A5: ability slot lock states + the F13 Defy seal =======
+    // Appended per plan §2.9. Publishers never touch the HUD; A8 subscribes.
+
+    /// <summary>
+    /// V7.5/V7.6 ability-slot presentation state. <c>Dormant</c> = not yet
+    /// granted by the Legacy Unlock Schedule; <c>Suppressed</c> = a Suppression
+    /// status is running (A1's publisher); <c>Clear</c> = usable. A locked slot
+    /// is always <b>shown</b>, never hidden.
+    /// </summary>
+    public enum AbilitySlotLockState {
+        Clear,
+        Dormant,
+        Suppressed
+    }
+
+    public struct AbilitySlotLockPayload {
+        public AbilitySlot Slot;
+        public AbilitySlotLockState State;
+    }
+
+    /// <summary>
+    /// F13 Defy History seal. <c>Building</c> = unused but below a full meter
+    /// (the dim intact seal); <c>Ready</c> = lit, a full meter will refuse the
+    /// next lethal hit; <c>Spent</c> = broken, and refilling the meter does not
+    /// restore it; <c>Barred</c> = unavailable in this context.
+    /// </summary>
+    public enum DefySealState {
+        Building,
+        Ready,
+        Spent,
+        Barred
+    }
+
+    public struct DefySealPayload {
+        public int PlayerIndex;
+        public DefySealState State;
+    }
+
     public enum MatchState {
         PreMatch,
         Countdown,
@@ -444,5 +482,20 @@ namespace FTT.Core {
         // === Match Reset ===
         public event Action OnMatchReset;
         public void RaiseMatchReset() => OnMatchReset?.Invoke();
+
+        // === Package 11 A5: Legacy Unlock / Suppression slot locks (plan §2.9) ===
+        // A5 publishes Dormant and Clear (the Legacy Unlock Schedule); A1
+        // publishes Suppressed from the status layer. A8 renders both.
+        public event Action<AbilitySlotLockPayload> OnAbilitySlotLockChanged;
+        public void RaiseAbilitySlotLockChanged(AbilitySlotLockPayload payload) =>
+            OnAbilitySlotLockChanged?.Invoke(payload);
+
+        // === Package 11 A5 declares / A1b takes over in Wave 2 (plan §2.9) ===
+        // The F13 Defy seal. A5 publishes the Level 0 calibration's forced
+        // lit → broken states so the tutorial can teach the rule; A1b becomes
+        // the general publisher when it lands.
+        public event Action<DefySealPayload> OnDefySealChanged;
+        public void RaiseDefySealChanged(DefySealPayload payload) =>
+            OnDefySealChanged?.Invoke(payload);
     }
 }

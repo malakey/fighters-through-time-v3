@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using Godot;
 
 namespace FTT.UI {
@@ -345,7 +345,10 @@ namespace FTT.UI {
             }
             string characterID =
                 FTT.Core.GameManager.Instance?.CurrentSession.SelectedCharacterID ?? "";
-            _moveList.Open(characterID);
+            // Package 11 A5: the STORY pause shows the gated list — a slot the
+            // Legacy Unlock Schedule has not restored reads Dormant with no
+            // frame data. The Fighter pause keeps the full kit.
+            _moveList.Open(characterID, MoveListScreen.MoveListMode.Story);
         }
 
         private void OpenSettings() {

@@ -53,17 +53,28 @@ namespace FTT.UI {
         public DialogueEmotionTreatment.Treatment ActiveEmotion { get; private set; } =
             DialogueEmotionTreatment.Resolve(DialogueEmotion.Neutral);
 
-        // === V7.3 hold-to-skip (ruling #19) ================================
-        // On a completed-campaign save, a sequence the save has already seen
-        // (save.ViewedDialogueIDs) can be fast-forwarded by holding the
-        // confirm/Interact action; EndSequence runs through the ordinary
-        // pause-release path. First viewings are never skippable.
+        // === Hold-to-skip — V7.3 ruling #19, widened by V7.6 (Package 11 A5) =
+        // V7.3 allowed the hold only on a completed campaign, and only for a
+        // sequence that slot had already seen. V7.6 (plan §2.10 item 3) drops
+        // BOTH gates: every sequence is skippable, first viewing included.
+        // What replaces them is a single confirmation — the first time a
+        // sequence is skipped, a modal says it will not replay — keyed on the
+        // GLOBAL GlobalSaveData.SeenDialogueIDs set, so a scene watched in
+        // another playthrough never asks again.
+        //
+        // The gameplay half is ResolveDialogueEffects: a skipped sequence
+        // applies exactly the same effects as a watched one, exactly once per
+        // story slot. Seeing a scene in another slot suppresses only the
+        // confirmation — never another slot's effects.
 
-        /// <summary>Seconds the confirm action must be held to skip a seen sequence.</summary>
+        /// <summary>Seconds the confirm action must be held to skip a sequence.</summary>
         public const float HoldToSkipSeconds = 0.75f;
 
-        /// <summary>True while the active sequence is eligible for hold-to-skip.</summary>
-        public bool CanHoldToSkip => _isActive && _skipEligible;
+        /// <summary>True while the active sequence can be fast-forwarded by a hold.</summary>
+        public bool CanHoldToSkip => _isActive && _skipEligible && !IsSkipConfirmOpen;
+
+        /// <summary>True while the first-viewing skip confirmation is on screen.</summary>
+        public bool IsSkipConfirmOpen => _skipConfirm != null && _skipConfirm.IsOpen;
 
         /// <summary>Skip-hold fill, 0..1 — drives the hint's progress affordance.</summary>
         public float SkipHoldProgress =>
@@ -74,6 +85,7 @@ namespace FTT.UI {
         private Control _skipHintRow;
         private Label _skipHintLabel;
         private ProgressBar _skipProgressBar;
+        private ConfirmModal _skipConfirm;
 
         private PanelContainer _dialoguePanel;
         private PanelContainer _portraitFrame;
@@ -254,12 +266,36 @@ namespace FTT.UI {
             return true;
         }
 
-        public DialogueSequenceData FindSequence(string dialogueID) {
+        /// <summary>
+        /// Resolves a dialogue ID against the registered sets, preferring the
+        /// active campaign hero's authored variant (Package 11 A5, plan §2.10
+        /// item 1). Every trigger path — <see cref="StartSequence(string)"/>,
+        /// the EventBus trigger, a level controller — lands here, so a hero
+        /// variant is picked up wherever the sequence is started from.
+        /// </summary>
+        public DialogueSequenceData FindSequence(string dialogueID) =>
+            FindSequence(dialogueID, ActiveHeroID());
+
+        /// <summary>Explicit-hero overload; the selection seam tests drive.</summary>
+        public DialogueSequenceData FindSequence(string baseID, string activeHeroID) {
             foreach (DialogueSetData set in _registeredSets) {
-                DialogueSequenceData sequence = set.Find(dialogueID);
+                DialogueSequenceData sequence = set.FindSequence(baseID, activeHeroID);
                 if (sequence != null) return sequence;
             }
             return null;
+        }
+
+        /// <summary>
+        /// The saved campaign hero ID — never a localized name. Falls back to the
+        /// session's selected character so a slotless developer launch still
+        /// picks the right variant.
+        /// </summary>
+        private static string ActiveHeroID() {
+            FTT.Core.StorySaveData save = ActiveStorySave();
+            if (save != null && !string.IsNullOrWhiteSpace(save.SelectedCharacterID)) {
+                return save.SelectedCharacterID;
+            }
+            return FTT.Core.GameManager.Instance?.CurrentSession.SelectedCharacterID ?? "";
         }
 
         private void OnDialogueTriggered(string dialogueID) {
@@ -294,13 +330,11 @@ namespace FTT.UI {
                 GetTree().Paused = true;
                 _pausedGameplay = true;
             }
-            // V7.3 hold-to-skip: eligible only when the active save's campaign
-            // is completed AND this exact sequence was seen before this run.
+            // V7.6 (Package 11 A5): EVERY sequence is skippable. The V7.3
+            // completed-campaign + already-seen gate is gone; the first skip of
+            // a never-seen sequence opens one confirmation instead.
             _skipHoldSeconds = 0f;
-            FTT.Core.StorySaveData save = ActiveStorySave();
-            _skipEligible = save != null && save.IsCompleted
-                && save.ViewedDialogueIDs != null
-                && save.ViewedDialogueIDs.Contains(sequence.DialogueID);
+            _skipEligible = true;
             RefreshSkipHint();
             BeginBoxAnimation(opening: true);
             ShowCurrentLine();
@@ -320,7 +354,7 @@ namespace FTT.UI {
             ApplyEmotion(DialogueEmotionTreatment.Resolve(emotionKey), emotionKey);
             if (_portrait != null) _portrait.Texture = _currentSequence.GetPortrait(_currentIndex) ?? _defaultPortrait;
 
-            _textLabel.Text = Tr(_currentSequence.GetLineKey(_currentIndex));
+            _textLabel.Text = SubstituteCaptiveNames(Tr(_currentSequence.GetLineKey(_currentIndex)));
             // The pacing model reads punctuation, so it needs the text the player
             // will actually see - BBCode markup stripped.
             Reveal.Begin(_textLabel.GetParsedText());
@@ -377,6 +411,49 @@ namespace FTT.UI {
             }
         }
 
+        // === Package 11 A5: {CaptiveName1} / {CaptiveName2} (plan §2.10 item 2) ===
+
+        /// <summary>First absent-legend token a Mystery Thread line may carry.</summary>
+        public const string CaptiveNameToken1 = "{CaptiveName1}";
+
+        /// <summary>Second absent-legend token.</summary>
+        public const string CaptiveNameToken2 = "{CaptiveName2}";
+
+        /// <summary>
+        /// Substitutes the captive-name tokens against the manifest roster minus
+        /// the active hero (<see cref="FTT.Core.CampaignCaptiveRoster"/>). Static
+        /// and public so the resolution is provable without a box on screen.
+        /// A line with no token is returned untouched.
+        /// </summary>
+        public static string SubstituteCaptiveNames(string text) {
+            if (string.IsNullOrEmpty(text)) return text;
+            bool hasFirst = text.Contains(CaptiveNameToken1);
+            bool hasSecond = text.Contains(CaptiveNameToken2);
+            if (!hasFirst && !hasSecond) return text;
+            (string first, string second) =
+                FTT.Core.CampaignCaptiveRoster.NamedExamplesFor(ActiveHeroID());
+            if (hasFirst) text = text.Replace(CaptiveNameToken1, ResolveCaptiveName(first));
+            if (hasSecond) text = text.Replace(CaptiveNameToken2, ResolveCaptiveName(second));
+            return text;
+        }
+
+        /// <summary>
+        /// A captive's spoken name. The <c>captive_name_*</c> family (A6 authors
+        /// the rows) is distinct from <c>character_*_name</c> because a legend is
+        /// spoken of differently than they are listed — "Da Vinci", not
+        /// "Leonardo da Vinci". An unauthored key falls back to the display name
+        /// rather than putting a raw key on screen.
+        /// </summary>
+        private static string ResolveCaptiveName(string characterID) {
+            if (string.IsNullOrWhiteSpace(characterID)) return "";
+            string key = FTT.Core.CampaignCaptiveRoster.SpokenNameKey(characterID);
+            string spoken = TranslationServer.Translate(key).ToString();
+            if (spoken != key) return spoken;
+            string displayKey = $"character_{characterID}_name";
+            string display = TranslationServer.Translate(displayKey).ToString();
+            return display == displayKey ? characterID : display;
+        }
+
         private string ResolveSpeakerName(string speakerKey) {
             if (speakerKey == PlayerSpeakerKey) {
                 string characterID = FTT.Core.GameManager.Instance?.CurrentSession.SelectedCharacterID;
@@ -408,6 +485,9 @@ namespace FTT.UI {
         public override void _Process(double delta) {
             AdvanceBoxAnimation((float)delta);
             if (!_isActive) return;
+            // The reveal, the auto-advance timer and the hold all suspend while
+            // the skip confirmation is up.
+            if (IsSkipConfirmOpen) return;
             if (CanHoldToSkip) {
                 bool held = Input.IsActionPressed(FTT.Core.InputManager.Actions.Interact)
                     || Input.IsActionPressed("ui_accept");
@@ -449,24 +529,133 @@ namespace FTT.UI {
             _skipEligible = false;
             _skipHoldSeconds = 0f;
             if (_skipHintRow != null) _skipHintRow.Visible = false;
+            CloseSkipConfirm();
             BeginBoxAnimation(opening: false);
             ReleaseGameplayPause();
             RecordLastViewedDialogue(completedID);
+            // Package 11 A5 (plan §2.10 item 5): effect resolution is no longer
+            // welded to "the player watched it to the end". Both the completion
+            // path and the confirmed-skip path arrive here, so both apply the
+            // same effects, exactly once per story slot.
+            ResolveDialogueEffects(completedID);
             FTT.Core.EventBus.Instance?.RaiseDialogueComplete(completedID);
+        }
+
+        // === Package 11 A5: the idempotent gameplay-effect ledger ============
+
+        /// <summary>
+        /// Marks a sequence's gameplay effects as applied on the active story
+        /// slot and returns whether this call is the one that applied them.
+        /// Watched and skipped sequences both route here, so a skip can never
+        /// cost the player a reward — and a replay can never pay it twice.
+        ///
+        /// <para>The per-slot <c>StorySaveData.ViewedDialogueIDs</c> list is the
+        /// ledger (F10's "story slot effect IDs"); the global
+        /// <c>GlobalSaveData.SeenDialogueIDs</c> set it also writes governs the
+        /// skip confirmation alone.</para>
+        /// </summary>
+        public bool ResolveDialogueEffects(string sequenceID) {
+            if (string.IsNullOrWhiteSpace(sequenceID)) return false;
+            RecordSequenceSeenGlobally(sequenceID);
+            FTT.Core.StorySaveData save = ActiveStorySave();
+            if (save == null) return false;
+            save.ViewedDialogueIDs ??= new List<string>();
+            if (save.ViewedDialogueIDs.Contains(sequenceID)) return false;
+            save.ViewedDialogueIDs.Add(sequenceID);
+            return true;
+        }
+
+        /// <summary>True when this slot has already had the sequence's effects applied.</summary>
+        public static bool HasResolvedDialogueEffects(string sequenceID) {
+            FTT.Core.StorySaveData save = ActiveStorySave();
+            return save?.ViewedDialogueIDs != null && save.ViewedDialogueIDs.Contains(sequenceID);
+        }
+
+        /// <summary>
+        /// True when this sequence has been finished or skip-confirmed on ANY
+        /// slot — the gate for the first-viewing confirmation.
+        /// </summary>
+        public static bool HasSeenSequenceGlobally(string sequenceID) {
+            if (string.IsNullOrWhiteSpace(sequenceID)) return false;
+            FTT.Core.GlobalSaveData global = FTT.Core.SaveManager.Instance?.GlobalData;
+            return global?.SeenDialogueIDs != null && global.SeenDialogueIDs.Contains(sequenceID);
+        }
+
+        private static void RecordSequenceSeenGlobally(string sequenceID) {
+            if (string.IsNullOrWhiteSpace(sequenceID)) return;
+            FTT.Core.GlobalSaveData global = FTT.Core.SaveManager.Instance?.GlobalData;
+            if (global == null) return;
+            global.SeenDialogueIDs ??= new HashSet<string>(System.StringComparer.Ordinal);
+            global.SeenDialogueIDs.Add(sequenceID);
         }
 
         /// <summary>
         /// Advances the skip hold. Called from <c>_Process</c> while the confirm
         /// action is held; public so tests can drive the 0.75 s window
-        /// deterministically. Reaching the threshold fast-forwards to
-        /// <see cref="EndSequence"/> — the existing pause-release path.
+        /// deterministically. Reaching the threshold either skips outright (a
+        /// sequence seen on any slot) or opens the one-time confirmation.
         /// </summary>
         public void AdvanceSkipHold(float delta) {
             if (!CanHoldToSkip) return;
             _skipHoldSeconds += delta;
             if (_skipProgressBar != null) _skipProgressBar.Value = SkipHoldProgress;
-            if (_skipHoldSeconds >= HoldToSkipSeconds) EndSequence();
+            if (_skipHoldSeconds >= HoldToSkipSeconds) CompleteSkipHold();
         }
+
+        /// <summary>
+        /// The hold reached its threshold. A sequence already seen on any slot
+        /// skips silently; a never-seen one asks once, because skipping a scene
+        /// the player has not watched is the only irreversible part of this
+        /// feature.
+        /// </summary>
+        private void CompleteSkipHold() {
+            string sequenceID = _currentSequence?.DialogueID ?? "";
+            if (HasSeenSequenceGlobally(sequenceID)) {
+                EndSequence();
+                return;
+            }
+            OpenSkipConfirm();
+        }
+
+        /// <summary>Shows the shared themed confirmation over the box.</summary>
+        private void OpenSkipConfirm() {
+            ResetSkipHold();
+            if (_skipConfirm == null || !IsInstanceValid(_skipConfirm)) {
+                _skipConfirm = ConfirmModal.Create(
+                    "dialogue_skip_confirm_body",
+                    "dialogue_skip_confirm_ok",
+                    "dialogue_skip_confirm_cancel",
+                    "dialogue_skip_confirm_title");
+                _skipConfirm.Confirmed += OnSkipConfirmed;
+                _skipConfirm.Cancelled += OnSkipCancelled;
+                AddChild(_skipConfirm);
+            }
+            _skipConfirm.Open();
+        }
+
+        private void OnSkipConfirmed() {
+            if (!_isActive) return;
+            EndSequence();
+        }
+
+        private void OnSkipCancelled() => ResetSkipHold();
+
+        private void CloseSkipConfirm() {
+            if (_skipConfirm != null && IsInstanceValid(_skipConfirm)) _skipConfirm.Close();
+        }
+
+        /// <summary>Test seam: completes the hold without stepping 0.75 s of input.</summary>
+        internal void ForceSkipHoldForTests() {
+            if (!CanHoldToSkip) return;
+            _skipHoldSeconds = HoldToSkipSeconds;
+            CompleteSkipHold();
+        }
+
+        /// <summary>Test/UI seam: confirms an open skip confirmation.</summary>
+        public void ConfirmSkip() => _skipConfirm?.Confirm();
+
+        /// <summary>Test/UI seam: backs out of an open skip confirmation.</summary>
+        public void CancelSkip() => _skipConfirm?.Cancel();
 
         /// <summary>Releasing the confirm action resets the fill.</summary>
         public void ResetSkipHold() {
@@ -574,19 +763,19 @@ namespace FTT.UI {
             if (string.IsNullOrWhiteSpace(dialogueID)) return;
             FTT.Core.StorySaveData save = ActiveStorySave();
             if (save == null) return;
+            // Package 11 A5: demoted to a PRESENTATION CURSOR only. The
+            // seen/effect bookkeeping moved to ResolveDialogueEffects, which
+            // both the watched and the skipped path call — writing it from here
+            // would have made "the player pressed through every line" the
+            // condition for a reward again.
             save.LastViewedDialogueID = dialogueID;
-            // V7.3 hold-to-skip consumer: the seen-set (deduplicated) is what
-            // makes a sequence skippable on a completed-campaign save. Persisted
-            // with the save at the next checkpoint/level write, like the
-            // last-viewed ID above.
-            save.ViewedDialogueIDs ??= new List<string>();
-            if (!save.ViewedDialogueIDs.Contains(dialogueID)) {
-                save.ViewedDialogueIDs.Add(dialogueID);
-            }
         }
 
         public override void _UnhandledInput(InputEvent @event) {
             if (!_isActive) return;
+            // The confirmation owns input while it is up: advancing or
+            // completing a line underneath it would fight the focus trap.
+            if (IsSkipConfirmOpen) return;
             bool confirm = @event.IsActionPressed(FTT.Core.InputManager.Actions.Interact)
                 || @event.IsActionPressed(FTT.Core.InputManager.Actions.BasicAttack)
                 || @event.IsActionPressed("ui_accept");

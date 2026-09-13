@@ -72,11 +72,19 @@ public class TutorialCalibrationContentTests {
         HashSet<string> csvKeys = EnglishCsvKeys();
 
         string[] required = {
-            // Tutorial objective and gate copy (audit M-3).
+            // Tutorial objective and gate copy (audit M-3; the V7.6 rebuild
+            // retired tutorial_step_special / _ultimate / _movement and
+            // tutorial_gate_movement along with the lessons that showed them —
+            // Package 11 A5 deleted those rows in the same change).
             "tutorial_step_block",
-            "tutorial_step_ultimate",
-            "tutorial_step_movement",
-            "tutorial_gate_movement",
+            "tutorial_step_grab",
+            "tutorial_step_grab_absorbed",
+            "tutorial_step_grab_complete",
+            "tutorial_step_di",
+            "tutorial_step_tech",
+            "tutorial_step_tech_retry",
+            "tutorial_step_defy",
+            "tutorial_step_defy_spent",
             // Dialogue lines behind the new sequences.
             "dlg_l00_block_1",
             "dlg_l00_block_2",
