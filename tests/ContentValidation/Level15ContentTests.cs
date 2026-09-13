@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using FTT.Characters;
@@ -723,13 +723,33 @@ public class Level15ContentTests {
     /// </summary>
     private static StorySaveData EntrySave() => CheckpointSave(Level15Controller.Checkpoint0);
 
-    private static StorySaveData CheckpointSave(string checkpointID) => new() {
-        SelectedCharacterID = "einstein",
-        CurrentLevelID = StoryManager.GetLevelScenePath(CampaignLevel.Alexandria),
-        LastCheckpointID = checkpointID,
-        CurrentHP = 80,
-        CurrentUltimateMeter = 30f
-    };
+    /// <summary>
+    /// A save parked at <paramref name="checkpointID"/> whose recorded per-level
+    /// Integrity clears the N05 bar.
+    ///
+    /// <para><b>Package 11 A3b.</b> The ending is no longer a single authored
+    /// sequence: <c>Level15Controller.SelectedEndingDialogueID</c> picks between
+    /// <c>level_15.ending</c> and <c>level_15.ending_scarred</c> from the
+    /// unrounded sum of the fifteen counted levels against 750 percentage points.
+    /// An empty <c>IntegrityByLevel</c> sums to zero and correctly selects the
+    /// scarred variant, so these endgame-CHAIN cases — which are about ordering,
+    /// one-shot completion and the pause hand-off, not about which variant plays
+    /// — seed a clean run and keep asserting <c>level_15.ending</c>. The
+    /// selection itself is pinned by <c>EndingSelectionTests</c>.</para>
+    /// </summary>
+    private static StorySaveData CheckpointSave(string checkpointID) {
+        var save = new StorySaveData {
+            SelectedCharacterID = "einstein",
+            CurrentLevelID = StoryManager.GetLevelScenePath(CampaignLevel.Alexandria),
+            LastCheckpointID = checkpointID,
+            CurrentHP = 80,
+            CurrentUltimateMeter = 30f
+        };
+        foreach (string levelID in StoryManager.RequiredEndingLevelIDs("einstein")) {
+            save.IntegrityByLevel[levelID] = 70f;
+        }
+        return save;
+    }
 
     private static int CountInSpawnTable(string enemyID) {
         int total = 0;
