@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="BossData" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/tragedy_king/sceptre_strike.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/tragedy_king/soliloquy_shard.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/tragedy_king/curtain_call.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/tragedy_king/exit_stage_left.tres" id="6"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Bosses/tragedy_king_frames.tres" id="7"]
+
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+BossID = "shakespeare_legacy_king"
+SpriteFramesResource = ExtResource("7")
+DisplayName = "The Understudy King"
+DisplayNameKey = "boss_shakespeare_legacy_king_name"
+MaxHP = 700
+IsKnockbackImmune = true
+MoveSpeed = 4.5
+AttackDamage = 21.0
+AttackKnockback = 4.5
+AttackRange = 3.0
+RestCooldown = 1.3
+MeleeRangeThreshold = 3.0
+RangedRangeThreshold = 8.0
+ReactionDelayMinFrames = 5
+ReactionDelayMaxFrames = 10
+PhaseThresholds = Array[float]([0.5])
+PhaseTransitionInvincibilityDuration = 2.0
+PhaseSpeedMultipliers = Array[float]([1.0, 1.3])
+ChronalDustDrop = 25
+AttackPattern = 1
+BossAbilities = Array[ExtResource("2")]([ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6")])
+AbilityMinPhase = Array[int]([0, 0, 0, 0])
+InterruptibleDuringTelegraph = true
+InterruptDamageThreshold = 22.0
+PlaceholderTint = Color(0.78, 0.32, 0.48, 1)

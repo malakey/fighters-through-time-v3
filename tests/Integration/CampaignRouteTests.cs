@@ -36,6 +36,24 @@ public class CampaignRouteTests {
 
     private const string ExemplarHero = "einstein";
 
+    /// <summary>
+    /// The manifest holds one <c>StoryLevel</c> row per shared level <b>plus one per
+    /// authored Level 4A variant</b>, so its row count is not the route length: all
+    /// nine 4A variants share the single <see cref="CampaignLevel.LegacyNexus"/>
+    /// slot. A12's exemplar made the two counts coincide at 17; from the second
+    /// variant on they diverge, and the invariant that actually holds is
+    /// "sixteen shared rows plus at least one Legacy row, every one of them
+    /// resolvable". Computed rather than hardcoded so B1-B3 can land in any order.
+    /// </summary>
+    private static int ExpectedStoryLevelRows(List<ContentManifestEntry> rows) {
+        int legacy = rows.Count(entry =>
+            entry.ContentID.StartsWith(StoryManager.LegacyLevelIDPrefix, StringComparison.Ordinal));
+        AssertThat(legacy >= 1)
+            .OverrideFailureMessage("At least the Einstein Legacy Level row must be in the manifest.")
+            .IsTrue();
+        return SharedCampaignLevelCount + legacy;
+    }
+
     // === Route shape ===
 
     [TestCase]
@@ -88,7 +106,7 @@ public class CampaignRouteTests {
         using var session = new ScratchSession(ExemplarHero);
         ContentManifest manifest = ContentManifest.LoadDefault();
         List<ContentManifestEntry> rows = manifest.ForCategory(ContentCategory.StoryLevel).ToList();
-        AssertThat(rows.Count).IsEqual(CampaignRouteLength);
+        AssertThat(rows.Count).IsEqual(ExpectedStoryLevelRows(rows));
 
         for (int index = 0; index < SharedCampaignLevelCount; index++) {
             string prefix = $"level_{index:00}_";
@@ -191,7 +209,7 @@ public class CampaignRouteTests {
     public void EveryManifestStoryLevelRowPointsAtAnAuthoredScene() {
         ContentManifest manifest = ContentManifest.LoadDefault();
         List<ContentManifestEntry> rows = manifest.ForCategory(ContentCategory.StoryLevel).ToList();
-        AssertThat(rows.Count).IsEqual(CampaignRouteLength);
+        AssertThat(rows.Count).IsEqual(ExpectedStoryLevelRows(rows));
 
         foreach (ContentManifestEntry row in rows) {
             AssertThat(ResourceLoader.Exists(row.ResourcePath)).OverrideFailureMessage(

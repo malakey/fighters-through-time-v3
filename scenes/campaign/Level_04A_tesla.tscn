@@ -1,0 +1,10 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/Level04ATeslaController.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/StoryDropSystem.cs" id="2_drops"]
+
+[node name="Level_04A_tesla" type="Node2D"]
+script = ExtResource("1")
+
+[node name="StoryDropSystem" type="Node" parent="."]
+script = ExtResource("2_drops")

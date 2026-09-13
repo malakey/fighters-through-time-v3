@@ -134,13 +134,16 @@ namespace FTT.Core {
         /// eight heroes; AudioSet stays at 28.
         /// </summary>
         private static readonly Dictionary<ContentCategory, int> ExactRequiredCounts = new() {
-            [ContentCategory.StoryLevel] = 17,
+            // Package 11 B2 (+3: cleopatra, tesla, shakespeare). B1 and B3 add
+            // their heroes in parallel; the orchestrator reconciles to 25 at merge.
+            [ContentCategory.StoryLevel] = 20,
             [ContentCategory.FighterStage] = 10,
             [ContentCategory.Character] = 9,
             [ContentCategory.Ability] = 36,
             [ContentCategory.ResonanceGrid] = 9,
             [ContentCategory.Boss] = 15,
-            [ContentCategory.DialogueSet] = 18,
+            // Package 11 B2 (+3). Reconciled to 26 once all nine variants exist.
+            [ContentCategory.DialogueSet] = 21,
             [ContentCategory.UIScreen] = 22,
             [ContentCategory.Pool] = 7,
             [ContentCategory.AudioSet] = 28,

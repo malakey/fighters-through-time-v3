@@ -5422,3 +5422,145 @@ rows and does not commit the regenerated `en.en.translation`, so against the com
 reads "missing from localization/en.csv", which is misleading — the keys are in the CSV; the
 assertions go through the compiled table. All three were verified green in the worktree with the
 translation reimported before the binary was reverted for the commit.
+
+
+### B2 — Level 4A variants: Cleopatra, Tesla, Shakespeare (2026-09-13)
+
+Branch `p11/B2`. Three Legacy Levels at the campaign's functionally-complete /
+placeholder-presentation bar, each a structural copy of A12's Einstein exemplar with only the
+declared per-hero surface filled in. P01 Option A throughout: Alexandria 30 BC reuses Level 8's
+palette, Chicago 1893 Level 3's, London 1599 Level 10's.
+
+| Hero | Nexus moment | Rooms | Par (V01a placeholder) |
+|---|---|---|---|
+| `cleopatra` | Alexandria, 30 BC — the Royal Mausoleum | Harbour Steps / Royal Mausoleum / The Asp's Hall | 320 s |
+| `tesla` | Chicago, 1893 — the Exposition | Court of Honor / Electricity Building / Dynamo Vault | 310 s |
+| `shakespeare` | London, 1599 — the Globe's opening season | Bankside Approach / The Globe's Yard / Beneath the Stage | 330 s |
+
+**Legacy boss reuse (§2.4 requires this stated exactly).** Each duplicates an era boss into
+`resources/Bosses/legacy/<hero>_legacy_boss.tres`, changing only `BossID`, `DisplayName`,
+`DisplayNameKey`, `MaxHP` → **700** (the 4A HP the exemplar uses) and `ChronalDustDrop` → **25**.
+Every other field — abilities, phases, ranges, tints — is the era boss's, verbatim. No shared boss
+resource was edited.
+
+| Hero | Era resource reused | New BossID / display |
+|---|---|---|
+| `cleopatra` | `resources/Bosses/jackal_priest.tres` (700 HP, 50 dust) | `cleopatra_legacy_priest` — "The Mausoleum Jackal" |
+| `tesla` | `resources/Bosses/chronal_inventor.tres` (560 HP, 50 dust) | `tesla_legacy_inventor` — "The Exposition Inventor" |
+| `shakespeare` | `resources/Bosses/tragedy_king.tres` (800 HP, 50 dust) | `shakespeare_legacy_king` — "The Understudy King" |
+
+---
+
+#### D1. The fifth `LegacyGateMode` is real, and B2 ships it as a watcher rather than an enum member
+
+A12's dossier anticipated this: "a hero whose special is neither shape needs a fifth
+`LegacyGateMode` — record it in §9 rather than loosening an existing one." Three of B2's six special
+gates are neither `Strike` nor `Zone`:
+
+- **Cleopatra's Serpent Nest** and **Tesla's Tesla Coil** are deployed constructs. Their hits *do*
+  carry the ability ID, but `SerpentNestNode`/`TeslaCoilNode` deliver them through a private
+  `DirectSpaceState` sweep against the **`EnemyHurtbox`** layer — never through the `Hitbox`
+  pipeline — so they can never reach a gate surface, which sits on `PersistentObject` like every
+  other authored strike surface.
+- **Shakespeare's The Tempest** lifts the caster and pushes adjacent *bodies*. It spawns no zone and
+  raises no hitbox at all, so nothing in the combat pipeline can observe it. (`PushTargetAway` also
+  requires a `CharacterBody2D` ancestor, which a gate is not.)
+
+§5 gives B2 only its three heroes' files, and `LegacyKitGate.cs` is A12's — and B1 (Leonardo's
+turret, and Lincoln's/Joan's shapes) and B3 (Pocahontas's vine snare) hit the same wall in the same
+wave. Rather than three agents racing on one enum, B2 ships **`scripts/Environment/LegacyCastGateWatcher.cs`**
+(new, B2-owned): a `Node2D` the controller parents to the gate, which recognises *the hero
+performing the authored ability inside the mechanism's area* by reading the player's own
+`BaseSpecial` children (`IsExecuting` + `Data.AbilityID`) and calls the gate's public `TryResolve`.
+It enforces the same V01c contract — one ability, nothing else, and only in range; a construct, a
+decoy, an enemy or an incidental contact can never stand in. `TryRecognize(abilityID, castPosition)`
+is the single entry point, so the tests drive the real rule. Gates carrying a watcher keep their
+declared `Mode` for presentation and for the base's route bookkeeping.
+
+**Ask of Phase C:** fold this into `LegacyKitGate` as `LegacyGateMode.Cast = 4` with the poll
+inlined, and delete the watcher — after B1's and B3's equivalents are on the table, so one shape
+covers all nine kits. Do **not** loosen `Strike` or `Zone` to cover it.
+
+**Reconciled with B1/B3 (orchestrator, 2026-09-13).** B1 and B3 hit the same wall and the
+orchestrator is fixing the construct half **upstream at merge**, by adding `EnemyHurtbox` to the
+layer `LegacyKitGate.BuildStrikeSurface` puts on its `EnvironmentHurtboxAdapter`. B2's variants are
+already consistent with that approach: **Cleopatra's Serpent Nest and Tesla's Tesla Coil gates are
+declared `Strike`** and become natively resolvable the moment that layer lands — their watchers are
+then redundant and should be dropped with the rest of the consolidation. **Shakespeare's The Tempest
+is not covered by the layer fix** and still needs `LegacyGateMode.Cast`: it raises no hitbox and
+calls `TakeHit` on nothing, so no hurtbox layer can observe it. Nothing in A12's files was edited
+here.
+
+#### D2. `LegacyLevelControllerBase.ParSeconds` **hides** the base property, so the F01 clock never arms on any 4A level
+
+Not B2's code and not fixable from a subclass, but it fails silently and it is on `main` today.
+**Independently reported by B1 and B3 in the same wave; the orchestrator fixes it upstream at
+merge.** B2 recorded the mechanism below before that reconciliation and leaves it here as the
+diagnosis.
+`StoryLevelControllerBase` declares `public virtual float ParSeconds => 0f` (A3) and
+`LegacyLevelControllerBase` declares `public abstract int ParSeconds { get; }` (A12). Different
+type, same name → this is **hiding, not overriding** (build warning
+`CS0114 ... hides inherited member`, line 170). `StoryLevelControllerBase.ArmIntegrityClock()` reads
+the *float* property, which no Legacy class overrides, so it sees **0** for every 4A variant: the
+Integrity clock is armed with `ParSeconds = 0` and `if (ParSeconds <= 0f) return;` means **no
+`CollapseTremorController` is ever attached to a Legacy level**. Einstein's 4A has the same defect.
+
+A subclass cannot work around it — a class may not declare both `override float ParSeconds` and the
+`override int ParSeconds` that satisfies the abstract. The fix belongs in
+`LegacyLevelControllerBase` (A12's file): make it `public abstract override float ParSeconds { get; }`,
+or keep the int surface and add `public sealed override float ParSeconds => LegacyParSeconds;`.
+Every variant's authored par is already correct and pinned; only the plumbing is dead.
+
+#### D3. Collective manifest counts bumped by +3, not to the reconciled total
+
+Per the orchestrator's instruction each B agent adds its own delta and notes it.
+`ContentManifest.ExactRequiredCounts`: `StoryLevel` 17 → **20**, `DialogueSet` 18 → **21**
+(`AudioSet` untouched at 28 — all nine variants share one set). `ContentManifestTests`' `StoryLevel`
+assertion moved 17 → 20 in the same change. **Reconcile to 25 / 26 at merge** once B1 (+3) and
+B3 (+2) land; 16 shared + 9 variants = 25, and 17 shared dialogue sets + 9 = 26.
+
+#### D4. Two shared gates asserted a per-route count that the second variant necessarily breaks
+
+Both were bugs waiting for the second 4A variant, not counts to bump — all nine variants share one
+route slot, so the manifest row count and the route length diverge permanently from here. Fixed
+generically so B1/B3's identical need merges cleanly and the three can land in any order:
+
+- `tests/Integration/CampaignRouteTests.cs` — the two `rows.Count == CampaignRouteLength` assertions
+  now call a new `ExpectedStoryLevelRows(rows)` = 16 shared + however many `level_04a_*` rows exist
+  (at least one). `CampaignRouteLength` still pins the 17-slot route everywhere it should.
+- `tests/ContentValidation/CampaignLocalizationTests.cs` — `CampaignLevelCount` (17) split into
+  `AuthoredLevelCount`, derived from the manifest's `StoryLevel` rows (used for the dialogue-set
+  walk and the `*_level_title` family), and `CampaignRouteSlotCount` (17, used for the
+  `campaign_level_*` family, which correctly stays at one key per route slot).
+
+#### D5. Dialogue values authored by B2, under B2's own marker
+
+A6 merged in Wave 1, so per the dossier's stated fallback B2 authored the 4A line *values* itself
+rather than handing keys over. 51 rows under `# Package 11 B2` in `localization/en.csv` — per hero:
+the level title, three room names, three objectives, `boss_*_name` + `speaker_*` for the legacy
+boss, and eight dialogue lines (3 entrance / 2 boss_intro / 3 exit). Written in the V7.5 register
+(Sarah addresses the player as **Warden**; the antagonists are the **Unbound**). Copy is
+`[proposed]` — not from the design master — and is A6's to revise. No existing row was edited or
+deleted. The compiled `en.en.translation` was regenerated locally to verify and then reverted per
+§2.11.
+
+N03 hero-recognition variants (`<baseID>@<heroID>`) are deliberately **not** used: 4A is already
+per-hero, so its sequences are plain IDs.
+
+#### D6. Carried forward unchanged from A12
+
+- The Eraser debut still spawns `chrono_guard_elite`; **B3 re-points all nine variants** at
+  `EraserDebutTrigger.EraserEnemyID` once A7a merges. Each variant's pool config warms
+  `elite_enemy` (3), pinned per suite.
+- Time Freeze reaches the Nexus source through `NexusResonanceSource.WorldTimeSuspendedProbe`
+  until A2's `IsActive` is wired at merge.
+- Per-source dust allocation is A10's; B2 ships the locked 15/25/10 envelope and the boss's
+  authored `ChronalDustDrop = 25`.
+- `ParSeconds` values are authored placeholders pending V01a measurement — **distinct per route**
+  (320 / 310 / 330), never pooled.
+
+#### D7. Toolchain note
+
+`CLAUDE.md` states both Godot executables live under `C:\Users\DavidMcClelland\Documents\FTT\`.
+On this machine they are at `D:\Projects\Godot_v4.7.1-stable_mono_win64*.exe`, which is also what
+`.claude/settings.json` sets `GODOT_BIN` to. The 2026-08-15 relocation note in `CLAUDE.md` is stale.
