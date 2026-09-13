@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ScenePoolCatalog" load_steps=59 format=3]
+[gd_resource type="Resource" script_class="ScenePoolCatalog" load_steps=61 format=3]
 
 [ext_resource type="Script" path="res://scripts/Core/ScenePoolCatalog.cs" id="1_catalog"]
 [ext_resource type="Script" path="res://scripts/Core/ScenePoolCatalogEntry.cs" id="2_entry"]
@@ -20,6 +20,8 @@
 [ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_14_pool_config.tres" id="18_neoearth"]
 [ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_15_pool_config.tres" id="19_alexandria"]
 [ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_04a_einstein_pool_config.tres" id="30_legacy_einstein"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_04a_mozart_pool_config.tres" id="31_legacy_mozart"]
+[ext_resource type="Resource" path="res://resources/Pools/level_pool_configs/level_04a_pocahontas_pool_config.tres" id="32_legacy_pocahontas"]
 [ext_resource type="Resource" path="res://resources/Pools/fighter_stage_configs/fighter_stage_florence_pool_config.tres" id="20_stage_florence"]
 [ext_resource type="Resource" path="res://resources/Pools/fighter_stage_configs/fighter_stage_orleans_pool_config.tres" id="21_stage_orleans"]
 [ext_resource type="Resource" path="res://resources/Pools/fighter_stage_configs/fighter_stage_chicago_pool_config.tres" id="22_stage_chicago"]
@@ -143,7 +145,15 @@ PoolConfig = ExtResource("29_stage_gettysburg")
 script = ExtResource("2_entry")
 ScenePath = "res://scenes/campaign/Level_04A_einstein.tscn"
 PoolConfig = ExtResource("30_legacy_einstein")
+[sub_resource type="Resource" id="LegacyMozart"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_04A_mozart.tscn"
+PoolConfig = ExtResource("31_legacy_mozart")
+[sub_resource type="Resource" id="LegacyPocahontas"]
+script = ExtResource("2_entry")
+ScenePath = "res://scenes/campaign/Level_04A_pocahontas.tscn"
+PoolConfig = ExtResource("32_legacy_pocahontas")
 
 [resource]
 script = ExtResource("1_catalog")
-Scenes = Array[ExtResource("2_entry")]([SubResource("Tutorial"), SubResource("Florence"), SubResource("Orleans"), SubResource("Chicago"), SubResource("Paris"), SubResource("Titanic"), SubResource("Pompeii"), SubResource("Nassau"), SubResource("Egypt"), SubResource("Berlin"), SubResource("Globe"), SubResource("Gettysburg"), SubResource("Lunar"), SubResource("ChronalVoid"), SubResource("NeoEarth"), SubResource("Alexandria"), SubResource("Arena"), SubResource("StageFlorence"), SubResource("StageOrleans"), SubResource("StageChicago"), SubResource("StageParis"), SubResource("StageVesuvius"), SubResource("StageNassau"), SubResource("StageAlexandria"), SubResource("StageBerlin"), SubResource("StageGlobe"), SubResource("StageGettysburg"), SubResource("LegacyEinstein")])
+Scenes = Array[ExtResource("2_entry")]([SubResource("Tutorial"), SubResource("Florence"), SubResource("Orleans"), SubResource("Chicago"), SubResource("Paris"), SubResource("Titanic"), SubResource("Pompeii"), SubResource("Nassau"), SubResource("Egypt"), SubResource("Berlin"), SubResource("Globe"), SubResource("Gettysburg"), SubResource("Lunar"), SubResource("ChronalVoid"), SubResource("NeoEarth"), SubResource("Alexandria"), SubResource("Arena"), SubResource("StageFlorence"), SubResource("StageOrleans"), SubResource("StageChicago"), SubResource("StageParis"), SubResource("StageVesuvius"), SubResource("StageNassau"), SubResource("StageAlexandria"), SubResource("StageBerlin"), SubResource("StageGlobe"), SubResource("StageGettysburg"), SubResource("LegacyEinstein"), SubResource("LegacyMozart"), SubResource("LegacyPocahontas")])

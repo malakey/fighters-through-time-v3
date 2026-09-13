@@ -36,6 +36,22 @@ public class CampaignRouteTests {
 
     private const string ExemplarHero = "einstein";
 
+    /// <summary>
+    /// The StoryLevel manifest rows: the sixteen shared slots plus <b>one row per
+    /// authored Level 4A variant</b>. That is not <see cref="CampaignRouteLength"/> —
+    /// the route has one Legacy slot, but the manifest carries a row for every hero
+    /// whose variant exists. Equating the two held only while Einstein was the single
+    /// authored variant (A12); it is derived from the manifest here so it stays true
+    /// as B1, B2 and B3 land the other eight (Package 11 B3).
+    /// </summary>
+    private static int ExpectedStoryLevelRowCount(List<ContentManifestEntry> rows) {
+        int legacyRows = rows.Count(entry =>
+            entry.ContentID.StartsWith(StoryManager.LegacyLevelIDPrefix, StringComparison.Ordinal));
+        AssertThat(legacyRows > 0)
+            .OverrideFailureMessage("The manifest carries no Level 4A variant rows at all.").IsTrue();
+        return SharedCampaignLevelCount + legacyRows;
+    }
+
     // === Route shape ===
 
     [TestCase]
@@ -88,7 +104,7 @@ public class CampaignRouteTests {
         using var session = new ScratchSession(ExemplarHero);
         ContentManifest manifest = ContentManifest.LoadDefault();
         List<ContentManifestEntry> rows = manifest.ForCategory(ContentCategory.StoryLevel).ToList();
-        AssertThat(rows.Count).IsEqual(CampaignRouteLength);
+        AssertThat(rows.Count).IsEqual(ExpectedStoryLevelRowCount(rows));
 
         for (int index = 0; index < SharedCampaignLevelCount; index++) {
             string prefix = $"level_{index:00}_";
@@ -191,7 +207,7 @@ public class CampaignRouteTests {
     public void EveryManifestStoryLevelRowPointsAtAnAuthoredScene() {
         ContentManifest manifest = ContentManifest.LoadDefault();
         List<ContentManifestEntry> rows = manifest.ForCategory(ContentCategory.StoryLevel).ToList();
-        AssertThat(rows.Count).IsEqual(CampaignRouteLength);
+        AssertThat(rows.Count).IsEqual(ExpectedStoryLevelRowCount(rows));
 
         foreach (ContentManifestEntry row in rows) {
             AssertThat(ResourceLoader.Exists(row.ResourcePath)).OverrideFailureMessage(
