@@ -2619,7 +2619,10 @@ namespace FTT.Characters {
 				// F10: commit the spent use to the per-attempt registry in the
 				// same breath as HP and meter, so a quit-and-resume or a death
 				// rewind that rebuilds this controller cannot restore it.
-				if (FTT.Core.StoryManager.Instance != null) {
+				// Only a live campaign attempt records the spent use; a proc outside
+				// one (Test Arena, fixtures) must not leave stale singleton state.
+				if (FTT.Core.StoryManager.Instance != null
+					&& FTT.Core.StoryManager.Instance.HasLiveAttempt) {
 					FTT.Core.StoryManager.Instance.StoryDefyHistoryUsed = true;
 				}
 				_defyFiredThisHit = true;

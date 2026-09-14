@@ -161,7 +161,13 @@ namespace FTT.Characters {
 				// The isolation seam is deliberate: Fighter Mode, the Holodeck,
 				// the Calibration Drills and the Mirror Paradox clone always
 				// start with an unused Defy.
-				if (FTT.Core.StoryManager.Instance?.StoryDefyHistoryUsed == true) {
+				// Integration guard: the per-attempt authority only exists inside a
+				// live campaign attempt. Outside one (the Test Arena, a headless
+				// fixture that never ran BeginLevelRun) the singleton flag is stale
+				// state from an earlier attempt and must not seed a spent Defy.
+				var storyManager = FTT.Core.StoryManager.Instance;
+				if (storyManager != null && storyManager.HasLiveAttempt
+					&& storyManager.StoryDefyHistoryUsed) {
 					player.SetStoryDefyHistoryUsed(true);
 				}
 			}

@@ -6527,3 +6527,7 @@ Wardenclyffe numbers (3 s delay, 2.5%/s) are design values pending playtest, the
 and the coil-range membership is exercised through the `WardenclyffeInCoilRange` seam rather than by
 deploying live coils in a physics scene.
 **AGENTS.md / CLAUDE.md edits required at Phase C** — listed in `docs/handoffs/P11_A1b.md` §6.
+
+### Integration — per-attempt Defy seam (2026-09-13)
+
+- A1b made Defy History once-per-ATTEMPT by seeding `PlayerController` from `StoryManager.StoryDefyHistoryUsed` in `CharacterFactory` and writing the flag back on a proc. The singleton outlives every test, so any suite that fired a Story Defy left the flag set and a later fixture that built a full-meter player (`StoryRallyTests`, `StoryKillBoundaryTests`) inherited a spent Defy; both passed in isolation and failed in the merged batch. Fix: `StoryManager.HasLiveAttempt` (a minted `AttemptID`) now gates both the seed and the write-back, so the Test Arena and headless fixtures never read or leave per-attempt state. No design number changed.

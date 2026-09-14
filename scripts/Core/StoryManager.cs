@@ -1647,6 +1647,14 @@ namespace FTT.Core {
         /// </summary>
         public StoryAttemptState CurrentAttempt => _attempt;
 
+        /// <summary>
+        /// True only inside a minted campaign attempt (BeginLevelRun / Restart Level
+        /// / a resumed save). The default record carries no AttemptID, so a Test
+        /// Arena match or a headless fixture that never entered a level is NOT a
+        /// live attempt and must neither read nor write per-attempt state.
+        /// </summary>
+        public bool HasLiveAttempt => _attempt != null && !string.IsNullOrEmpty(_attempt.AttemptID);
+
         /// <summary>The attempt's status. Load routing reads this and nothing else.</summary>
         public StoryAttemptStatus AttemptStatus => _attempt.Status;
 
