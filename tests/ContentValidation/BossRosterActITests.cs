@@ -47,9 +47,9 @@ public class BossRosterActITests {
     }
 
     [TestCase]
-    public void EveryActIBossPaysTheLockedFiftyDustBossReward() {
+    public void EveryActIBossPaysTheLockedTwentyFiveDustBossReward() {
         foreach (string bossID in ActIBosses) {
-            AssertThat(Load(bossID).ChronalDustDrop).IsEqual(50);
+            AssertThat(Load(bossID).ChronalDustDrop).IsEqual(25);
         }
     }
 

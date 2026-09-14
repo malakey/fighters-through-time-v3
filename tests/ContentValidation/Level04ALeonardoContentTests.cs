@@ -379,8 +379,12 @@ public class Level04ALeonardoContentTests {
         AssertThat(shared.MaxHP != data.MaxHP)
             .OverrideFailureMessage("The shared era boss must be untouched by the Legacy duplicate.")
             .IsTrue();
-        AssertThat(shared.ChronalDustDrop != data.ChronalDustDrop)
-            .OverrideFailureMessage("The Legacy duplicate must carry its own 25-dust row.").IsTrue();
+        // P11 A10 (F05): every boss in the game pays the locked 25, so this row no
+        // longer distinguishes the duplicate from the shared era boss — MaxHP above
+        // does. What matters here is that the duplicate carries the locked row.
+        AssertThat(data.ChronalDustDrop)
+            .OverrideFailureMessage("The Legacy duplicate must carry the locked 25-dust row.")
+            .IsEqual(LegacyLevelControllerBase.BossDust);
 
         using var fixture = new LegacyFixture();
         AssertThat(fixture.Level.BossEncounters.Count).IsEqual(1);

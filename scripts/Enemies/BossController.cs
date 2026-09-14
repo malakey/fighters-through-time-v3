@@ -1088,7 +1088,7 @@ namespace FTT.Enemies {
             EventBus.Instance?.RaiseBossDefeated(new BossDefeatedPayload {
                 BossID = Data?.BossID ?? "",
                 Position = GlobalPosition,
-                ChronalDustDrop = Data?.ChronalDustDrop ?? 50
+                ChronalDustDrop = Data?.ChronalDustDrop ?? 25
             });
         }
 

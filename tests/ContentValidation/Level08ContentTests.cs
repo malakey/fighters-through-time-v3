@@ -317,7 +317,7 @@ public class Level08ContentTests {
         foreach (ChronalExtractor extractor in level.Extractors) {
             // 15 dust each is resource-owned (docs/DUST_ECONOMY.md) and must not be
             // re-specified by level code.
-            AssertThat(extractor.DustReward).IsEqual(15);
+            AssertThat(extractor.DustReward).IsEqual(3);
         }
 
         AssertThat(level.BossEncounters.Count).IsEqual(1);

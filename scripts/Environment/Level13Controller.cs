@@ -675,9 +675,11 @@ namespace FTT.Environment {
             if (_mirrorDefeated) return;
             _mirrorDefeated = true;
             SetObjective(CompletionObjectiveKey);
-            // MirrorParadoxEncounterController already raised the dust award (which
-            // the base's wallet-receipt tally banked); only label it for the results.
-            AttributeBossDust(payload.ChronalDustDrop);
+            // Package 11 A10 (F05): the Mirror now pays through the shared
+            // physical-pickup path like every other boss, so the wallet AND the
+            // boss results line are both raised at COLLECTION. Attributing here
+            // as well would label dust the wallet has not been paid — the same
+            // rule StoryLevelControllerBase already applies to every other boss.
             StartExitSequence();
         }
 

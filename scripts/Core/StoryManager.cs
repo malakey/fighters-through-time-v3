@@ -879,6 +879,13 @@ namespace FTT.Core {
         }
 
         public void ClearLevelAttemptState() {
+            // === Package 11 A10 region: F05 reward-source claims ==============
+            // A fresh entry or a full Restart Level clears this level's source
+            // claims, its pickup state, the pending tier bonus and the loss
+            // tally together — a discarded attempt can never stack income onto
+            // the next one. Previously deposited dust is untouched.
+            FTT.Environment.LevelRewardDirectory.ResetAttempt();
+            // === end Package 11 A10 region ===
             _activatedCheckpoints.Clear();
             _destroyedExtractors.Clear();
             _foundSecrets.Clear();
@@ -910,6 +917,10 @@ namespace FTT.Core {
             save.DestroyedExtractorIDs = new List<string>(_destroyedExtractors);
             save.FoundSecretIDs = new List<string>(_foundSecrets);
             save.FontUsesConsumed = new Dictionary<string, int>(_fontUsesConsumed);
+            // Package 11 A10 (F05): the COLLECTED reward sources ride the
+            // attempt, so a checkpoint resume, Anchor Snap, quit/resume or crash
+            // recovery can restore the world without paying a source twice.
+            save.ClaimedRewardSourceIDs = FTT.Environment.LevelRewardDirectory.ClaimedSourceIDs();
             save.LevelIntegrityPercent = TimelineIntegrityPercent;
             // F11: the paid-recovery allowance is banked separately from the
             // live gauge, which keeps draining after the fracture is struck.
@@ -984,6 +995,10 @@ namespace FTT.Core {
                     if (!string.IsNullOrWhiteSpace(entry.Key)) _fontUsesConsumed[entry.Key] = entry.Value;
                 }
             }
+            // Package 11 A10 (F05): collected claims come back; the issued set
+            // deliberately does not, because the reload discarded the world's
+            // uncollected pickups along with it.
+            FTT.Environment.LevelRewardDirectory.RestoreClaims(save.ClaimedRewardSourceIDs);
             TimelineIntegrityPercent = Mathf.Clamp(save.LevelIntegrityPercent, 0f, TimelineIntegrityRules.StartPercent);
             CheckpointIntegrityPercent = Mathf.Clamp(
                 save.CheckpointIntegrityPercent, 0f, TimelineIntegrityRules.StartPercent);
@@ -1141,7 +1156,13 @@ namespace FTT.Core {
         }
 
         public void ApplyTimelineCollapseDustPenalty() {
+            int before = ChronalDustCollected;
             ChronalDustCollected = CalculateTimelineCollapseDust(ChronalDustCollected);
+            // Package 11 A10 (F05): the 20% fee is a LOSS, itemised on the
+            // results overlay of a run that survives to completion after an
+            // Anchor Snap. It never unclaims a collected source — lost dust
+            // cannot be recovered by killing the same source again.
+            FTT.Environment.LevelRewardDirectory.RecordDustLoss(before - ChronalDustCollected);
         }
 
         public static int CalculateTimelineCollapseDust(int carriedDust) =>
@@ -1305,6 +1326,12 @@ namespace FTT.Core {
 
         private void OnLevelComplete(string levelID) {
             CompleteLevelRun();
+            // === Package 11 A10 region: the F05 Integrity tier bonus ==========
+            // Inside the completion transaction, after CompleteLevelRun has
+            // frozen LastLevelIntegrityPercent and before the save write, so the
+            // same envelope that records the result also persists the bonus.
+            ApplyIntegrityTierBonus();
+            // === end Package 11 A10 region ===
             // === Package 11 A3b region: the Act III completion transaction ===
             // F02: the active level's earnings are undeposited until completion,
             // when the auto-deposit fires ONCE, "sealed through the Warden
@@ -1321,6 +1348,49 @@ namespace FTT.Core {
             RecordLevelResultToSave(levelID);
             AdvanceToNextLevel();
         }
+
+        // === Package 11 A10 region: the F05 Integrity tier bonus ============
+
+        /// <summary>
+        /// The Integrity tier bonus paid by the most recent successful level
+        /// completion (results itemisation). Zero on an untimed level.
+        /// </summary>
+        public int LastLevelTierBonusDust { get; private set; }
+
+        /// <summary>
+        /// F05: <c>bonus = floor(retainedBaseDust x tierRate)</c> at Restored
+        /// >=50% 10% / Stabilized >=20% 5% / Fractured &lt;20% 0%, calculated
+        /// <b>exactly once</b> on successful completion.
+        ///
+        /// <para><c>retainedBaseDust</c> is this level's collected, undeposited
+        /// base dust remaining after any applied loss penalties — it is the live
+        /// level wallet, which by construction excludes deposited dust, respec
+        /// refunds and any prior tier bonus. The bonus is added to that wallet
+        /// and banks with it; <b>no compounding, no checkpoint payout, and
+        /// nothing for a failed attempt</b>.</para>
+        ///
+        /// <para><b>An untimed level pays nothing</b> — Level 1 has no Integrity
+        /// clock, which is precisely why the all-Restored maxima are 787
+        /// required and 1,094 thorough rather than 792 / 1,100.</para>
+        /// </summary>
+        private void ApplyIntegrityTierBonus() {
+            LastLevelTierBonusDust = 0;
+            FTT.Environment.LevelRewardDirectory.LastTierBonusDust = 0;
+            bool levelIsTimed = ParSecondsForCurrentLevel > 0f;
+            int bonus = FTT.Environment.RewardAllocator.TierBonus(
+                ChronalDustCollected, LastLevelIntegrityPercent, levelIsTimed);
+            if (bonus <= 0) return;
+            LastLevelTierBonusDust = bonus;
+            FTT.Environment.LevelRewardDirectory.LastTierBonusDust = bonus;
+            // CollectDust rather than the wallet event: the level controllers
+            // tally OnChronalDustCollected into their results total, and the
+            // bonus is rendered as its own line on top of that total.
+            CollectDust(bonus);
+            StorySaveData save = GetActiveSave();
+            if (save != null) save.LevelChronalDust = ChronalDustCollected;
+        }
+
+        // === end Package 11 A10 region ===
 
         // === Package 11 A5 region: V7.5 Legacy Unlock Schedule ==============
 

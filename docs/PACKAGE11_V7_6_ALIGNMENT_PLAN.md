@@ -6345,3 +6345,76 @@ final-charge blocks" is four cases not one, and "roll i-frames, cover and range 
 out-of-range case would miss). The channelling gate earned its own case as well, since it is an
 acceptance criterion. No test was deleted; every count change in the level suites is a rewrite in
 place with the reasoning inline.
+### A10 — Chronal Dust economy (F05): authored per-source ledger, 25-dust bosses, Integrity tier bonus (2026-09-13)
+**Per-source dust is an authored inventory, not a rate card.** The contract fixes a *pool* per level
+(required encounters / boss / optional) and says nothing about what any single enemy pays, so the
+shipped model — every enemy carrying its own `ChronalDustDrop`, every Extractor a flat 15 — could
+not hit a budget row at all, and a level's take moved with how many things the player happened to
+kill. A10 inverts it: `resources/Content/reward_manifests/*.tres` author each level's finite source
+IDs, `RewardAllocator` distributes the pool over them (floor + largest remainder, ties by stable
+source ID, fixed shares carved out first), and `LevelRewardDirectory` compiles that into a
+per-difficulty ledger. **A difficulty changes the distribution, never the total** — Easy compiles a
+prefix of each wave exactly as the controllers spawn it, and the same 15 is spread over fewer
+sources. `EnemyData.ChronalDustDrop` and `ChronalExtractor.DustReward` are demoted in place to
+**advisory fallbacks** for contexts with no compiled ledger (the Test Arena, the unit harness) rather
+than deleted, because deleting them would have touched all 27 enemy resources for no gain.
+**An unauthored source pays nothing; it never falls back to a flat value.** This is the rule that
+makes the row exact, and it retires "every enemy guarantees dust": a boss summon, an endlessly
+repeatable reinforcement, or a restored enemy whose source is already issued draws **zero** and
+spawns no pickup. The one deliberate exception is the boss, below.
+**Deviation 1 — the boss award needed a three-way resolver, not a two-way one.** Both encounter
+controllers first read "ledger exists? use it, else authored fallback", which pays **0** whenever a
+boss fires while some *other* level's ledger is live — the unit harness leaves `CurrentLevel` at
+whatever the previous case set, and `MirrorParadoxTests` caught it. `TryIssueBossAward` returning
+false conflates "this level authors no boss" with "already claimed", and those need opposite
+answers. `LevelRewardDirectory.ResolveBossAward(authoredFallback, out sourceID)` now owns the rule
+once for `BossEncounterController` and `MirrorParadoxEncounterController`: a ledger that authors a
+boss is authoritative (the single 25, once — repeated phases share it, an already-claimed source
+pays nothing), and **no ledger *or* a ledger with no boss source** means this encounter is not part
+of that ledger, so the authored `BossData` value applies.
+**Deviation 2 — Level 4A needs nine manifests, not one.** The plan's model is one manifest per
+campaign index. The nine Legacy Levels all share `CampaignLevel.LegacyNexus = 16` and all carry the
+same locked row (15 / 25 / 10 "regardless of layout or enemy count"), but each authors its **own**
+approach inventory — Cleopatra fields `plasma_spear_ward`, Shakespeare `holo_page`, Tesla
+`voltaic_shock_drone`, and the six standards sit in different orders — so one shared source list
+would allocate against enemies the level never spawns. `LevelRewardManifest.FileNameFor(index, hero)`
+resolves `level_04a_<hero>_rewards.tres` for index 16 only, the locked character joins
+`LevelRewardDirectory`'s cache key for that index only, and 25 manifests ship instead of 17.
+`RewardManifestTests` expands the 4A row per roster hero read from `content_manifest.csv` (never a
+literal list, matching `Level04AVariantCoverageTests`) and checks each manifest against its own
+controller's `ApproachSpawns` table, so a variant whose layout changes fails naming the hero.
+**Deviation 3 — all fifteen top-level bosses were authored at 50, and the contract says 25.** The
+ledger's "16 bosses = 400" is arithmetic, not a target, so the resources were wrong rather than the
+doc. All fifteen `resources/Bosses/*.tres` went 50 → 25 (the nine `legacy/` bosses already shipped at
+25 from the B wave), `BossData.ChronalDustDrop`'s default follows so a new boss inherits 25, and the
+eleven content suites that pinned 50 were updated in place. `DustEconomyTests` now sweeps the whole
+`legacy/` folder rather than einstein alone.
+**The tier bonus is inside the completion transaction, but banking is unchanged.** F05 says the
+Integrity tier bonus "auto-deposits once using the level-completion transaction";
+`StoryManager.ApplyIntegrityTierBonus` computes `floor(retained x rate)` at 10 / 5 / 0 %, adds it to
+the level wallet once at completion, and writes it straight into the save. Moving the *deposit
+itself* from the hub to level completion is a different change and was explicitly out of scope —
+`docs/DUST_ECONOMY.md`'s implementation map records it as a known gap. Level 1 is untimed and can
+never pay a bonus.
+**Claims persist per attempt through A3b's seam.** `StorySaveData.ClaimedRewardSourceIDs` joins the
+V7.3 additive per-attempt group (field initializer plus a `Normalize` null guard), so `SaveVersion`
+stays **5** with no migration step — same shape as A3b's attempt registries, and written/restored/
+cleared alongside them in `WriteAttemptStateToSave` / `RestoreAttemptStateFromSave` /
+`ClearLevelAttemptState`. A mid-level resume brings collected claims back; issued-but-uncollected
+sources do not survive, so an uncollected drop can be re-earned.
+#### Known gaps left open (recorded in `docs/DUST_ECONOMY.md`, not closed here)
+- **No level authors a `SecretCache`**, so the discovery half of every optional pool is allocated but
+  unreachable. **Level 4A is the sharpest case:** `LegacyLevelControllerBase` builds neither a cache
+  nor an Extractor (its own suites assert `Extractors.Count == 0`), so 4A's whole 10-dust optional
+  pool has no physical source. Each variant's manifest reserves `level_04a_<hero>.secret` for the B
+  wave to attach one to; nothing else changes when it does.
+- **Boss summons can consume a skipped mandatory source of the same enemy ID.** Issuing is keyed by
+  enemy ID against a finite queue so the level total is never exceeded, but a summoned
+  `chrono_slasher` can draw a mandatory one the player walked past. Closing it exactly needs
+  `RewardEligible = false` at the `EnemyAbilityExecutor` summon site — **A7a's file**, not A10's.
+- **The losses line only ever shows the Collapse fee**; a voluntary pause-menu exit never reaches a
+  results screen for its retention fee to appear on.
+- The Eraser debut still spawns `chrono_guard_elite`, so all nine 4A manifests name it.
+  `RewardManifestTests` pins that against `EraserDebutTrigger.PlaceholderEnemyID`, so **B3's
+  re-point to `EraserEnemyID` after A7a merges fails this suite by name** and the nine manifest rows
+  are updated in the same change.

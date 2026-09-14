@@ -201,12 +201,20 @@ namespace FTT.Environment {
         public int ExtractorDustEarned { get; private set; }
 
         /// <summary>
-        /// Mob-kill remainder of the total: every wallet award that was not a boss
-        /// or extractor payout — pickup collections from kills, plus rare chest
-        /// finds. Derived rather than counted so the three lines always sum to the
-        /// exact wallet total even if an award lands out of order.
+        /// Package 11 A10 (F05): the secret / other-optional portion — the half
+        /// of a level's optional pool that is not a machine row.
         /// </summary>
-        public int MobDustEarned => Mathf.Max(0, DustEarnedThisLevel - BossDustEarned - ExtractorDustEarned);
+        public int OptionalDustEarned { get; private set; }
+
+        /// <summary>
+        /// Required-encounter remainder of the total: every wallet award that was
+        /// not a boss, extractor or optional payout — pickup collections from
+        /// authored mandatory kills, plus rare chest finds. Derived rather than
+        /// counted so the lines always sum to the exact wallet total even if an
+        /// award lands out of order.
+        /// </summary>
+        public int MobDustEarned => Mathf.Max(
+            0, DustEarnedThisLevel - BossDustEarned - ExtractorDustEarned - OptionalDustEarned);
 
         /// <summary>True when the run resumed at a saved checkpoint rather than the entrance.</summary>
         public bool ResumedMidLevel { get; private set; }
@@ -395,6 +403,8 @@ namespace FTT.Environment {
             switch (payload.Source) {
                 case DustAwardSource.Boss: AttributeBossDust(payload.Amount); break;
                 case DustAwardSource.Extractor: AttributeExtractorDust(payload.Amount); break;
+                // Package 11 A10 (F05): the sixth results category.
+                case DustAwardSource.Secret: AttributeOptionalDust(payload.Amount); break;
             }
         }
 
@@ -411,6 +421,9 @@ namespace FTT.Environment {
 
         /// <summary>Extractor sibling of <see cref="AttributeBossDust"/>.</summary>
         protected void AttributeExtractorDust(int amount) => ExtractorDustEarned += Mathf.Max(0, amount);
+
+        /// <summary>Secret / other-optional sibling of <see cref="AttributeBossDust"/> (Package 11 A10).</summary>
+        protected void AttributeOptionalDust(int amount) => OptionalDustEarned += Mathf.Max(0, amount);
 
         // === Player, camera, and checkpoint resume ===
 
@@ -1389,7 +1402,20 @@ namespace FTT.Environment {
                 else StoryManager.Instance?.ReturnToHub();
             };
             AddChild(results);
-            results.ShowResults(LevelTitleKey, MobDustEarned, ExtractorDustEarned, BossDustEarned);
+            // Package 11 A10 (F05): the six-category itemisation — required
+            // enemies, boss, Extractors, secret/other optional, losses, and the
+            // Integrity tier bonus. Every value is what the wallet was actually
+            // paid; the panel never computes an economy number of its own.
+            results.ShowResults(
+                LevelTitleKey,
+                MobDustEarned,
+                ExtractorDustEarned,
+                BossDustEarned,
+                OptionalDustEarned,
+                LevelRewardDirectory.DustLostThisAttempt,
+                LevelRewardDirectory.LastTierBonusDust,
+                StoryManager.Instance?.LastLevelCompletionSeconds ?? 0f,
+                StoryManager.Instance?.LastLevelRewindsUsed ?? 0);
             return results;
         }
     }

@@ -53,6 +53,10 @@ namespace FTT.Core {
         public Dictionary<string, int> FontUsesConsumed = new();
         public List<string> DestroyedExtractorIDs = new();
         public List<string> FoundSecretIDs = new();
+        /// <summary>Package 11 A10 (F05, additive): the reward sources whose
+        /// pickup this attempt actually COLLECTED. A restored enemy whose reward
+        /// was collected may fight again and awards zero additional dust.</summary>
+        public List<string> ClaimedRewardSourceIDs = new();
         public float LevelIntegrityPercent = 100f;
         public List<string> ViewedDialogueIDs = new();
         public bool HasSeenCollapseBeat;
@@ -124,6 +128,7 @@ namespace FTT.Core {
             FontUsesConsumed ??= new Dictionary<string, int>();
             DestroyedExtractorIDs ??= new List<string>();
             FoundSecretIDs ??= new List<string>();
+            ClaimedRewardSourceIDs ??= new List<string>();
             ViewedDialogueIDs ??= new List<string>();
             UnlockedLegacyAbilities ??= new Dictionary<string, List<string>>();
             foreach (string characterID in new List<string>(UnlockedLegacyAbilities.Keys)) {
@@ -954,6 +959,10 @@ namespace FTT.Core {
             SaveSlots[slot].ActivatedCheckpointIDs.Clear();
             SaveSlots[slot].DestroyedExtractorIDs.Clear();
             SaveSlots[slot].FoundSecretIDs.Clear();
+            // Package 11 A10 (F05): a completed level's source claims retire
+            // with the attempt — completed levels cannot be replayed, and the
+            // next level compiles its own ledger.
+            SaveSlots[slot].ClaimedRewardSourceIDs.Clear();
             SaveSlots[slot].FontUsesConsumed.Clear();
             SaveSlots[slot].LevelIntegrityPercent = 100f;
             // Package 11 A3b: the completed attempt is over. The next level's

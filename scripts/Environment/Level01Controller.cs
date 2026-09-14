@@ -31,8 +31,13 @@ namespace FTT.Environment {
         // the wallet was actually paid. _bossDustEarned labels the boss's share
         // for the itemized overlay; Florence authors no extractors (the open
         // docs/DUST_ECONOMY.md §4 gap), so its extractor line is zero.
+        // Package 11 A10 (F05): the per-category labels now ride the attribution
+        // payload at COLLECTION, exactly as StoryLevelControllerBase does, and
+        // Florence's three authored Extractors (A3) finally have a line.
         private int _dustEarnedThisLevel;
         private int _bossDustEarned;
+        private int _extractorDustEarned;
+        private int _optionalDustEarned;
 
         private const float LevelWidth = 11520f;
         private const float LevelHeight = 1080f;
@@ -66,6 +71,7 @@ namespace FTT.Environment {
 
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnChronalDustCollected += OnDustAwarded;
+                EventBus.Instance.OnDustAwardCollected += OnDustAwardAttributed;
                 EventBus.Instance.OnDialogueComplete += OnDialogueComplete;
             }
 
@@ -76,6 +82,7 @@ namespace FTT.Environment {
         public override void _ExitTree() {
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnChronalDustCollected -= OnDustAwarded;
+                EventBus.Instance.OnDustAwardCollected -= OnDustAwardAttributed;
                 EventBus.Instance.OnDialogueComplete -= OnDialogueComplete;
             }
             // Pooled wave enemies are parented here; hand them back or the pool keeps
@@ -707,13 +714,22 @@ namespace FTT.Environment {
         /// </summary>
         private void OnDustAwarded(int amount) => _dustEarnedThisLevel += Mathf.Max(0, amount);
 
+        /// <summary>Package 11 A10 (F05): labels a collected award's category.</summary>
+        private void OnDustAwardAttributed(DustAwardCollectedPayload payload) {
+            switch (payload.Source) {
+                case DustAwardSource.Boss: _bossDustEarned += Mathf.Max(0, payload.Amount); break;
+                case DustAwardSource.Extractor: _extractorDustEarned += Mathf.Max(0, payload.Amount); break;
+                case DustAwardSource.Secret: _optionalDustEarned += Mathf.Max(0, payload.Amount); break;
+            }
+        }
+
         private void OnBossDefeated(BossDefeatedPayload payload) {
             if (_bossDefeated) return;
             _bossDefeated = true;
             _services?.HUD?.SetObjective("florence_objective_complete");
-            // Dust is raised once by the encounter controller (which the wallet
-            // tally banked); this only labels the boss's share for the results.
-            _bossDustEarned += Mathf.Max(0, payload.ChronalDustDrop);
+            // Package 11 A10 (F05): the boss award is a physical pickup whose
+            // wallet payment AND results label both land at collection, so the
+            // defeat beat no longer labels dust the wallet has not been paid.
 
             var timer = GetTree().CreateTimer(1.5);
             timer.Timeout += () => _services?.Dialogue?.StartSequence("level_01.exit");
@@ -729,11 +745,21 @@ namespace FTT.Environment {
             var results = LevelResultsPanel.CreateDefault();
             results.ReturnRequested += () => StoryManager.Instance?.ReturnToHub();
             AddChild(results);
+            // Package 11 A10 (F05): the six-category itemisation. Level 1 has no
+            // Integrity clock, so it can never pay a tier bonus — which is
+            // precisely why the all-Restored maxima are 787 / 1,094 and not
+            // 792 / 1,100.
             results.ShowResults(
                 "florence_level_title",
-                Mathf.Max(0, _dustEarnedThisLevel - _bossDustEarned),
+                Mathf.Max(0, _dustEarnedThisLevel - _bossDustEarned
+                    - _extractorDustEarned - _optionalDustEarned),
+                _extractorDustEarned,
+                _bossDustEarned,
+                _optionalDustEarned,
+                FTT.Environment.LevelRewardDirectory.DustLostThisAttempt,
                 0,
-                _bossDustEarned);
+                StoryManager.Instance?.LastLevelCompletionSeconds ?? 0f,
+                StoryManager.Instance?.LastLevelRewindsUsed ?? 0);
         }
     }
 }

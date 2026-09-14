@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="LevelRewardManifest" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/LevelRewardManifest.cs" id="1_manifest"]
+
+[resource]
+script = ExtResource("1_manifest")
+LevelID = "level_06_pompeii"
+CampaignLevelIndex = 6
+RequiredEncounterPool = 15
+BossAward = 25
+OptionalPool = 20
+BossSourceID = "level_06.boss"
+RequiredWaves = PackedStringArray("level_06.room1:shock_shield_legionnaire,chrono_slasher,shock_shield_legionnaire", "level_06.room2:shock_shield_legionnaire,chrono_slasher,shock_shield_legionnaire", "level_06.room3:chrono_slasher,shock_shield_legionnaire,chrono_slasher,shock_shield_legionnaire")
+ScriptedRequiredSources = PackedStringArray()
+ExtractorSourceIDs = PackedStringArray("level_06.extractor_forum", "level_06.extractor_villa", "level_06.extractor_ashroad")
+SecretSourceID = "level_06.secret"
+OptionalPoolAllToExtractors = false

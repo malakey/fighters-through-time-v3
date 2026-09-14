@@ -22,7 +22,7 @@ ReactionDelayMaxFrames = 8
 PhaseThresholds = Array[float]([])
 PhaseTransitionInvincibilityDuration = 0.0
 PhaseSpeedMultipliers = Array[float]([])
-ChronalDustDrop = 50
+ChronalDustDrop = 25
 AttackPattern = 0
 AbilityMinPhase = Array[int]([])
 ; BossAbilities is deliberately absent, leaving it null. Do NOT reintroduce it as

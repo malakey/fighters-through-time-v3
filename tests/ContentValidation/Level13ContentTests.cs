@@ -322,7 +322,7 @@ public class Level13ContentTests {
         // knockback-immune, because it fights like a player.
         AssertThat(encounter.Data.PhaseThresholds.Length).IsEqual(0);
         AssertThat(encounter.Data.IsKnockbackImmune).IsFalse();
-        AssertThat(encounter.Data.ChronalDustDrop).IsEqual(50);
+        AssertThat(encounter.Data.ChronalDustDrop).IsEqual(25);
 
         MirrorParadoxController mirror = encounter.Mirror;
         AssertObject(mirror).OverrideFailureMessage("The Mirror clone never spawned.").IsNotNull();

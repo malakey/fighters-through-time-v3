@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="LevelRewardManifest" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/LevelRewardManifest.cs" id="1_manifest"]
+
+[resource]
+script = ExtResource("1_manifest")
+LevelID = "level_09_berlin"
+CampaignLevelIndex = 9
+RequiredEncounterPool = 15
+BossAward = 25
+OptionalPool = 20
+BossSourceID = "level_09.boss"
+RequiredWaves = PackedStringArray("level_09.wave1:chrono_slasher,infrared_border_sentry,chrono_slasher", "level_09.wave2:infrared_border_sentry,chrono_slasher,infrared_border_sentry,infrared_border_sentry", "level_09.wave3:infrared_border_sentry,chrono_slasher,infrared_border_sentry,neural_mech_walker,chrono_slasher,infrared_border_sentry")
+ScriptedRequiredSources = PackedStringArray()
+ExtractorSourceIDs = PackedStringArray("level_09.extractor_ruins", "level_09.extractor_watchtower", "level_09.extractor_radar_mast")
+SecretSourceID = "level_09.secret"
+OptionalPoolAllToExtractors = false

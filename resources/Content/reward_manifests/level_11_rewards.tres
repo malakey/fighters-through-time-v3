@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="LevelRewardManifest" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/LevelRewardManifest.cs" id="1_manifest"]
+
+[resource]
+script = ExtResource("1_manifest")
+LevelID = "level_11_gettysburg"
+CampaignLevelIndex = 11
+RequiredEncounterPool = 15
+BossAward = 25
+OptionalPool = 20
+BossSourceID = "level_11.boss"
+RequiredWaves = PackedStringArray("level_11.room1:laser_rifle_infantry,chrono_slasher,laser_rifle_infantry", "level_11.room2:laser_rifle_infantry,laser_rifle_infantry,chrono_slasher,laser_rifle_infantry", "level_11.room3:laser_rifle_infantry,chrono_slasher,laser_rifle_infantry", "level_11.angle:laser_rifle_infantry,chrono_slasher", "level_11.elite:cyber_cavalry_commander")
+ScriptedRequiredSources = PackedStringArray()
+ExtractorSourceIDs = PackedStringArray("level_11.extractor_ridge_battery", "level_11.extractor_wheatfield_lane", "level_11.extractor_angle_lane")
+SecretSourceID = "level_11.secret"
+OptionalPoolAllToExtractors = false

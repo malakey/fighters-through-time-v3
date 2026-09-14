@@ -30,7 +30,7 @@ public class EnemyRosterContentTests {
     // docs/DUST_ECONOMY.md Section 1 reward tiers, locked by DustEconomyTests.
     private const int StandardDustCeiling = 2;
     private const int EliteDustReward = 10;
-    private const int BossDustReward = 50;
+    private const int BossDustReward = 25;
 
     /// <summary>Design Section 6 / plan Section 3.5: the only boss without BossData attacks.</summary>
     private const string CpuDrivenBossID = "mirror_paradox";

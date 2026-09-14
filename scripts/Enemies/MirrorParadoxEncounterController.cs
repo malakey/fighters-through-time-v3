@@ -133,8 +133,21 @@ namespace FTT.Enemies {
             if (!string.IsNullOrEmpty(Data?.BossID) && payload.BossID != Data.BossID) return;
             IsDefeated = true;
             HUD?.HideBossBar();
-            // Boss dust is resource-authored (docs/DUST_ECONOMY.md Section 1).
-            if (AwardDustOnDefeat) EventBus.Instance?.RaiseChronalDustCollected(payload.ChronalDustDrop);
+            // Package 11 A10 (F05): the Mirror Paradox follows the same 25-dust
+            // physical-pickup rule as every other boss — its wallet-direct path
+            // is removed. The wallet is paid, the claim committed and the boss
+            // results line attributed at COLLECTION, through the Single Icon
+            // Rule's shared award spawner, with the explicit Boss attribution
+            // Level 13 used to supply by hand.
+            if (AwardDustOnDefeat) {
+                int reward = LevelRewardDirectory.ResolveBossAward(
+                    payload.ChronalDustDrop, out string rewardSourceID);
+                if (reward > 0) {
+                    StoryDropSystem.SpawnDustAward(
+                        reward, payload.Position != Vector2.Zero ? payload.Position : GlobalPosition,
+                        GetParent() ?? this, DustAwardSource.Boss, rewardSourceID);
+                }
+            }
             MirrorDefeated?.Invoke(payload);
         }
 

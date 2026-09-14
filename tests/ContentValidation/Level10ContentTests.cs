@@ -254,7 +254,7 @@ public class Level10ContentTests {
             AssertThat(ids.Add(extractor.ObjectID))
                 .OverrideFailureMessage($"Duplicate extractor id '{extractor.ObjectID}'.").IsTrue();
             // Dust stays resource-owned at the locked 15; level code must not override it.
-            AssertThat(extractor.DustReward).IsEqual(15);
+            AssertThat(extractor.DustReward).IsEqual(3);
         }
 
         // One of them is under the stage, which is only reachable by taking a fall
@@ -272,7 +272,7 @@ public class Level10ContentTests {
         var boss = AuthoredResources.Load<BossData>(BossPath);
         AssertObject(boss).IsNotNull();
         AssertString(boss.BossID).IsEqual("tragedy_king");
-        AssertThat(boss.ChronalDustDrop).IsEqual(50);
+        AssertThat(boss.ChronalDustDrop).IsEqual(25);
 
         using var fixture = new GlobeFixture();
         AssertThat(fixture.Level.BossEncounters.Count).IsEqual(1);

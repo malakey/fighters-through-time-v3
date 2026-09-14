@@ -255,6 +255,10 @@ public class StoryLevelControllerBaseTests {
         // again on collection — every kill paid the wallet twice. The physical
         // pickup is the single awarding path; the controller only tallies what the
         // wallet was actually paid.
+        // A synthetic framework level is not a campaign level, so it runs on the
+        // advisory-fallback path (P11 A10 F05) — the authored ChronalDustDrop, not
+        // some other campaign level's ledger that the session happens to be on.
+        FTT.Environment.LevelRewardDirectory.SuppressLedgerForTest = true;
         using var fixture = new LevelFixture(null);
         FrameworkTestLevelController level = fixture.Level;
         var drops = new StoryDropSystem { Name = "StoryDropSystem", RandomSeed = 12345UL };
@@ -294,6 +298,7 @@ public class StoryLevelControllerBaseTests {
             AssertThat(level.ExtractorDustEarned).IsEqual(0);
         } finally {
             EventBus.Instance.OnChronalDustCollected -= OnDust;
+            FTT.Environment.LevelRewardDirectory.ResetAttempt();
         }
     }
 
@@ -302,6 +307,8 @@ public class StoryLevelControllerBaseTests {
         // Audit M-1 reworked by the V7.3 Single Icon Rule: destruction spawns a
         // physical pickup; the wallet is paid — and the extractor line labeled —
         // only when it is collected.
+        // Advisory-fallback path: see the kill test above.
+        FTT.Environment.LevelRewardDirectory.SuppressLedgerForTest = true;
         using var fixture = new LevelFixture(null);
         FrameworkTestLevelController level = fixture.Level;
         ChronalExtractor extractor = level.BuildExtractorForTest("orleans_test_extractor", new Vector2(500, 850));
@@ -325,7 +332,10 @@ public class StoryLevelControllerBaseTests {
             AssertThat(pickup.DustAmount).IsEqual(extractor.DustReward);
             AssertThat(pickup.Source).IsEqual(DustAwardSource.Extractor);
             AssertThat(pickup.NeverExpires).IsTrue();
-            AssertThat(pickup.ForceLargeTier).IsTrue();
+            // P11 A10 (F05 §9): only the BOSS still forces a Large milestone
+            // plate. An ordinary Extractor now shows the icon its actual award
+            // earns, so its pickup carries no forced tier.
+            AssertThat(pickup.ForceLargeTier).IsFalse();
 
             // One wallet award at collection, banked AND labeled on its line.
             pickup.Collect();
@@ -337,6 +347,7 @@ public class StoryLevelControllerBaseTests {
             AssertThat(level.BossDustEarned).IsEqual(0);
         } finally {
             EventBus.Instance.OnChronalDustCollected -= OnDust;
+            FTT.Environment.LevelRewardDirectory.ResetAttempt();
         }
     }
 

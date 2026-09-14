@@ -49,7 +49,7 @@ public class Level01ContentTests {
                 }
                 // The dust value stays resource-owned: never overridden from
                 // level code, per the standing rule in the base controller.
-                if (extractor.DustReward != 15) {
+                if (extractor.DustReward != 3) {
                     issues.Add($"{extractor.ObjectID} overrides the resource-owned dust value");
                 }
             }
