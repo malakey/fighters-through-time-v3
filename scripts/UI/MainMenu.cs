@@ -157,6 +157,7 @@ namespace FTT.UI {
             };
             // V7.3: LAN de-scoped to Package 7 — no LanButton on the root screen.
             // NetworkSelectScreen and scripts/Networking/ stay for the later package.
+            GetNode<Button>(layout + "CalibrationDrillsButton").Pressed += OnCalibrationDrillsPressed;
             GetNode<Button>(layout + "SettingsButton").Pressed += OpenSettings;
             GetNode<Button>(layout + "QuitButton").Pressed += ConfirmQuit;
         }
@@ -344,6 +345,32 @@ namespace FTT.UI {
             if (FTT.Core.GameManager.Instance == null || !ShowDeveloperLevelSelect) return;
             _developerLevelFlow = true;
             PushScreen(MainMenuScreen.CharacterSelect);
+        }
+
+        /// <summary>
+        /// Package 11 A11 (F18 Option B). Calibration Drills is a standalone route:
+        /// it is available on a first boot with no Story save, creates and loads
+        /// nothing, and leaves <c>ActiveSaveSlot</c> alone. Recording the Main Menu
+        /// as the calibration return destination is what makes "Exit Calibration"
+        /// come back here rather than to the Fighter lobby.
+        /// </summary>
+        private void OnCalibrationDrillsPressed() {
+            string destination = ArmCalibrationRoute();
+            if (destination != null) FTT.Core.GameManager.Instance.LoadScene(destination);
+        }
+
+        /// <summary>
+        /// Arms the standalone calibration route and returns the scene to open, or
+        /// null when there is no session. Split from the handler so the session
+        /// contract is testable without a real scene change.
+        /// </summary>
+        internal static string ArmCalibrationRoute() {
+            if (FTT.Core.GameManager.Instance == null) return null;
+            FTT.Core.SessionData session = FTT.Core.GameManager.Instance.CurrentSession;
+            session.CalibrationReturnScenePath = FTT.Combat.CalibrationRoute.MainMenuScenePath;
+            session.CalibrationDrillIndex = 0;
+            FTT.Core.GameManager.Instance.CurrentSession = session;
+            return FTT.Combat.CalibrationRoute.PickerScenePath;
         }
 
         private void OpenSettings() {

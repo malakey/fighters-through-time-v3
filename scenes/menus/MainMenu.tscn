@@ -270,6 +270,20 @@ text = "menu_fighter_mode"
 alignment = 0
 
 
+[node name="CalibrationDrillsButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(380, 56)
+layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+theme_override_font_sizes/font_size = 22
+theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_override_styles/disabled = SubResource("GlassBtnDisabled")
+theme_override_styles/hover = SubResource("GlassBtnHover")
+theme_override_styles/pressed = SubResource("GlassBtnPressed")
+theme_override_styles/normal = SubResource("GlassBtnNormal")
+text = "menu_calibration_drills"
+alignment = 0
+
+
 [node name="SettingsButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
 custom_minimum_size = Vector2(380, 56)
 layout_mode = 2
