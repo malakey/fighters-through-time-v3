@@ -5422,3 +5422,545 @@ rows and does not commit the regenerated `en.en.translation`, so against the com
 reads "missing from localization/en.csv", which is misleading — the keys are in the CSV; the
 assertions go through the compiled table. All three were verified green in the worktree with the
 translation reimported before the binary was reverted for the commit.
+
+### Wave 1 seam repair — 2026-09-13, main checkout, post-merge
+
+The nine Wave 1 branches were each green in isolation; the merged tree built clean but reported
+**Failed: 20, Passed: 1851, Total: 1871**. Every failure was a merge seam, not a design bug. Three
+seams, all closed test-side (no production behaviour changed, no locked number touched). The full
+suite after the repair is **Failed: 0, Passed: 1871, Total: 1871**.
+
+**Seam 1 — A8's test name trips A2's retirement source gate (1 failure, 6 more cascading).**
+`TimeFreezeTests.TheRetiredTimeVerbLeavesNoTraceInTheSource` scans every `.cs` under `scripts/` and
+`tests/` for the assembled token `Manual` + `Rewind` after stripping comments — so it reads code, not
+prose. A8's `StoryHudContractTests.TheRetiredManualRewindCooldownPipIsNotReintroduced` carries the
+banned token in its **method name**, which is code. Renamed to
+`TheRetiredRewindCooldownPipIsNotReintroduced`; the test body, its intent and its two assertions are
+untouched. Neither side is wrong on its own — A2 owns the gate, A8 owns a pip-absence pin that has to
+name the thing it retires. *Rule for later waves: a retirement source gate makes the retired noun
+unusable in identifiers anywhere in the repo, test names included.*
+
+**Seam 2 — A8's ownership channel × a test that leaks its host (1 failure, 13 cascading).**
+F24 moved the Fighter slot outline off the arbitrated effect stack onto its own shader channel
+(`owner_outline_*`, `GlowPresentationController.SetSlotIndicator` →
+`HasOwnershipOutline` / `OwnershipSlot` / `OwnershipOutlineColor`).
+`FighterPresentationSyncTests.TheDriverPushesTheAuthoredPlayerSlotOutlineOnBothFighters` still read
+the old path (`IsLayerActive(GlowLayer.SlotIndicator)` + `ResolvedState.OutlineColor`) and failed.
+Rewritten against the ownership channel — which is the stronger pin anyway, since the whole point of
+the separate channel is that no stack layer can reach the edge.
+
+That one assertion was doing far more damage than its own failure. The case freed its host on the
+last line rather than in a `finally`, so the throw leaked a `FighterSimulationDriver` host — and with
+it two `StoryPlayer`-grouped presentation bodies — into the shared `SceneTree` root for the rest of
+the session. Every Story suite that resolves the player by group then picked up a foreign, dead
+fighter: `TimeFreezeController.ResolvePlayer` found it and `CanActivate` refused every activation
+(six `TimeFreezeTests` failures, including the "Expecting 45 but is 0" cooldown case),
+`CampaignStateTests` failed its own explicit "test environment is dirty: a StoryPlayer is already in
+the tree" guard (×2), and `CheckpointStrikeTests`, `DeathTriggeredRewindTests` (×2),
+`ScriptedRewindTests` and `MirrorParadoxTests` all followed. The host is now freed in a `finally`.
+*Rule: any GdUnit case that adds a grouped node to the tree root must free it in a `finally` — a
+leaked `StoryPlayer` is a session-wide failure amplifier, and the resulting cascade points at A2/A3/A5
+seams that do not exist.*
+
+**Seam 3 — A9's Paris pit × the hazard suite's meter-building script (2 failures).**
+A9 re-authored Paris as an Open stage with a 5-unit courtyard pit at x ∈ (−2.5, 2.5) and floor-segment
+ends that are true ledges. Both Paris beam cases opened by walking player one at player two to build
+Influence; that walk now ends in a ledge hang at x ≈ −2.25, a 300-frame auto-release, a fall and a lost
+stock, so the meter never built and both cases failed on their opening
+`Influence > 10` / `> 20` assertion — before reaching a single beam assertion. The beam rules were not
+touched. Three test-side changes in `FighterHazardBehaviorTests`:
+
+- `HazardHarness.EngageOpponent(frames)` replaces the two inline walk-and-swing loops: it hops the
+  courtyard, drops through the walkway it lands on, and then swings. On a Sealed stage (and on the
+  legacy flat arena, which the third beam case still uses) it degenerates to the old behaviour.
+- `HazardHarness.StepTowardOnFloor(x)` clamps the chase target into the floor segment under the
+  fighter with a **one-unit** margin. A quarter-unit margin is not enough: the twelve-frame stop ramp
+  carries a running fighter over the edge and into a ledge hang, which silently ends the beam overlap.
+- `DampeningBeamDrainsFivePercentPerSecond` now observes the full 360-frame active window instead of
+  240. On the old flat floor the beam reached the fighter almost immediately; on the Open stage it has
+  to cross the courtyard first, so the three consecutive 30-frame drain ticks the case requires land
+  later. The 2.5-points-per-tick and 30-frame-spacing assertions are unchanged.
+
+*Rule for Wave 2: any test that walks a fighter across an authored stage has to respect
+`FighterStageGeometry.FloorSegments`. `IsOpenStage` is the cheap guard.*
+
+**Not a seam.** `resources/Audio/default_bus_layout.tres` is rewritten with CRLF line endings by any
+headless Godot launch. It carries no content diff and was deliberately left uncommitted.
+### B1 — Level 4A variants for Joan, Leonardo and Lincoln (2026-09-13)
+**Shipped.** Three complete Legacy Levels at the campaign's functionally-complete /
+placeholder-presentation bar, copied structurally from A12's Einstein exemplar: `joan` (Orléans,
+1429 — the assault on the Tourelles), `leonardo` (Florence, 1503 — the workshop), `lincoln`
+(Gettysburg, 1863 — the dedication). Per hero: `scenes/campaign/Level_04A_<hero>.tscn`,
+`scripts/Environment/Level04A<Hero>Controller.cs`, `resources/Dialogue/level_04a_<hero>_dialogue.tres`
+(entrance / boss_intro / exit), `resources/Bosses/legacy/<hero>_legacy_boss.tres`,
+`resources/Pools/level_pool_configs/level_04a_<hero>_pool_config.tres`, a `StoryLevel` and a
+`DialogueSet` manifest row, a pool-catalog entry, seventeen `en.csv` rows, and a fourteen-case
+`Level04A<Hero>ContentTests`. Each is three rooms across 6,720 px with the F12 two-checkpoint route,
+the four kit gates, the independent Eraser trigger, one late Font, and a two-phase boss.
+**Boss reuse (§2.4 requires this stated explicitly).** Each variant **duplicates** an era boss to
+`resources/Bosses/legacy/` at **700 HP** (the exemplar's 4A row) with `ChronalDustDrop = 25`, its own
+`BossID`/`DisplayName`/`DisplayNameKey`, and its last ability gated to phase 1 so phase 2 changes the
+fight. No shared boss resource was edited.
+| Variant | Duplicated from | Shared `MaxHP` | 4A `MaxHP` | New `BossID` |
+|---|---|---|---|---|
+| joan | `siegemaster_duke.tres` (Level 2, Orléans) | 540 (A7b → 520) | **700** | `joan_legacy_overseer` |
+| leonardo | `borgia_inquisitor.tres` (Level 1, Florence) | 500 (A7b → 350) | **700** | `leonardo_legacy_overseer` |
+| lincoln | `siege_cannon.tres` (Level 11, Gettysburg) | 880 | **700** | `lincoln_legacy_overseer` |
+Each suite proves the duplicate did not come from editing the shared resource, but deliberately does
+**not** pin the shared boss's literal `MaxHP` — A7b is applying the V7.6 2.E HP rows to two of these
+three in the same wave, and a literal would fail this suite on someone else's approved change. The
+assertion is `shared.MaxHP != duplicate.MaxHP` plus a `BossID` pin, which holds before and after A7b.
+**Deviation 1 — a fifth `LegacyGateMode` is genuinely needed, and B1 worked around it instead.**
+The plan says a hero whose special is neither the Strike nor the Zone shape needs a fifth mode,
+recorded here rather than loosening an existing one. Three shipped Story abilities deliver through a
+hand-rolled `PhysicsShapeQueryParameters2D` masked to **`EnemyHurtbox` alone** — `joan_divine_piercing`
+(the thrust flurry), `leonardo_clockwork_turret` (the bolts), and `lincoln_emancipator`'s ground wave
+— so they can never touch `LegacyKitGate`'s `PersistentObject` strike surface. Adding an enum member
+while B1, B2 and B3 all hit the same need in parallel invites three conflicting edits to A12's file,
+so B1 solved it in variant-owned code:
+- **Lincoln** needed nothing: the Emancipator's wave lays a live `story_zone` carrying its ability ID,
+  so its gate is an honest `Zone`; Splitting Strike swings a real `Hitbox`, so its gate is an honest
+  `Strike`.
+- **Joan's Special 2** and **Leonardo's Special 2** hang a new `scripts/Environment/LegacyResonantEffigy.cs`
+  on the gate: a second, unowned `EnvironmentHurtboxAdapter` on the `EnemyHurtbox` layer that forwards
+  everything it receives to the **same** `LegacyKitGate.TryResolve`. V01c is unchanged — the gate still
+  accepts only its one authored ability ID, so a basic combo hit, another special, an enemy hitbox or
+  an incidental contact is rejected exactly as on the ordinary surface. It returns 0 damage (no meter,
+  no Rally echo, no Wings-refresh hook, no reward — every consumer in `Hitbox.OnAreaEntered` guards on
+  `damageApplied > 0f`), it goes inert via the physics-safe setters the moment its gate latches, and
+  because its owner index is `-1` it inherits `Hitbox.IsDiscardedByTimeFreeze` for free: a frozen world
+  cannot grant objective progress through it.
+**Request for A12 / Phase C:** the real fix is one line in `LegacyKitGate.BuildStrikeSurface` — give
+the strike surface `CollisionLayers.EnemyHurtbox` alongside `PersistentObject` (it already carries the
+`payload.AttackerIndex >= 0` check that keeps enemies out). `LegacyResonantEffigy` and both
+`Attach…Effigy` hooks then delete cleanly. B2 and B3 will hit the same wall with Tesla's coils,
+Cleopatra's nest, Mozart's platforms and Pocahontas's snares.
+**Deviation 2 — `ParSeconds` is hidden, so no 4A variant has an Integrity clock.** A merge collision
+between A3 and A12 that neither could see alone: `StoryLevelControllerBase.ParSeconds` is
+`public virtual` **`float`** (A3, read at `BeginIntegrityClock(ParSeconds, …)` and by
+`SetRecoveryRouteSeconds`), while `LegacyLevelControllerBase.ParSeconds` is `public abstract` **`int`**
+(A12). Different return types, so the Legacy member **hides** rather than overrides — build warning
+`CS0114` at `LegacyLevelControllerBase.cs:170`. Every 4A level therefore boots with the base's `0f`,
+`BeginIntegrityClock` is called with par 0, and `if (ParSeconds <= 0f) return;` skips the clock
+entirely. This affects the Einstein exemplar too. A subclass cannot fix it — C# forbids declaring both
+members in one class — and both files are outside B1's ownership, so it is recorded rather than
+patched. **Fix:** make the Legacy member `public abstract override float ParSeconds { get; }` and turn
+the nine variants' `override int` into `override float`. B1's suites read the authored value through
+the variant's static type, so they stay green either way and will keep passing after the fix.
+**Deviation 3 — `CampaignRouteTests` conflated the route length with the manifest row count.**
+`EveryManifestStoryLevelRowMatchesTheStoryManagerScenePath` and
+`EveryManifestStoryLevelRowPointsAtAnAuthoredScene` asserted `rows.Count == CampaignRouteLength` (17),
+which held only while Einstein was the single variant. B1 replaced both with a derived
+`ExpectedStoryLevelRowCount(rows)` = sixteen shared levels + one row per authored `level_04a_*` row, so
+B2 and B3 need no further edit and the merged nine-variant tree passes unchanged.
+**Manifest counts: B1 raised them by three, not to the collective total.**
+`ContentManifest.ExactRequiredCounts` StoryLevel **17 → 20** and DialogueSet **18 → 21**, with
+`ContentManifestTests`' `StoryLevel` assertion moved 17 → 20 in the same change. A12's handoff says
+"raise to 25 / 26", but that value is only true of the merged wave: B1's branch holds twenty
+StoryLevel rows, and setting 25 would fail the branch's own gate. **The orchestrator must reconcile
+all three B branches to StoryLevel 25 / DialogueSet 26 at merge** (AudioSet stays 28 — one shared 4A
+set).
+**Dialogue values authored under B1's own marker.** The dossier says A6 owns the lines, or the B agent
+authors them if A6 has already merged. A6 is merged, so B1 wrote the fifty-one `en.csv` rows
+(three variants × seventeen) under `# Package 11 B1` in the V7.5 register — Sarah addresses the player
+as "Warden", each Overseer is the Archive's local hand, and no hero-variant `@heroID` suffixes are
+needed because a 4A set is already per-hero.
+**Eraser debut left on A12's placeholder.** All three variants call the base hook and author no enemy;
+`EraserDebutTrigger` still spawns `chrono_guard_elite` until A7a merges, and **B3 re-points all nine
+variants in one change** as the dossier assigns. Every variant's pool config warms `elite_enemy`.
+**Provisional pars (V01a).** Joan 285 s, Leonardo 320 s, Lincoln 300 s — authored per route and never
+pooled, but not measured. They need Normal-difficulty medians on each variant's own route before they
+are anything but placeholders, and the same is true of `EntryRecoveryBudgetSeconds` (F11), which
+defaults to the par.
+**Localization gates fail until the orchestrator reimports (§2.11).** B1 adds 51 `en.csv` rows and does
+not commit the regenerated `en.en.translation`. Against the committed tree, six cases fail — the
+`TheDialogueSetResolvesWithTheThreeBeatsAndEveryLineKeyLocalized` and
+`EveryVisibleLevelStringHasALocalizationEntry` pair in each of the three new suites — with the same
+misleading "missing from localization/en.csv" wording A12 recorded. All six were verified green in the
+worktree with the translation reimported, before the binary was reverted for the commit.
+**Not verified.** Nobody has played these three levels. The acceptance criteria that need a human —
+"completable end to end on Normal with the full kit and nothing else", "every kit gate blocks progress
+until its ability is used", and in particular the two effigy gates actually resolving from a live
+Divine Piercing flurry and a live turret deployment — are reasoned from the shipped ability code and
+pinned structurally, not played. The geometry is graybox; no era art, music or VFX was added (P01
+Option A: the palettes and parallax intent are reused from Levels 2, 1 and 11).
+### B3 — Level 4A variants: Mozart and Pocahontas, plus the nine-hero coverage gate (2026-09-13)
+**Shipped.** Two complete Legacy Levels at the campaign's functionally-complete /
+placeholder-presentation bar, both copied structurally from the A12 Einstein exemplar and adding
+nothing to `LegacyLevelControllerBase`: `Level04AMozartController` + `Level_04A_mozart.tscn` (Vienna,
+1782 — the Burgtheater premiere) and `Level04APocahontasController` + `Level_04A_pocahontas.tscn`
+(Tsenacommacah, 1607 — the cut riverbank). Each carries its three-room geometry, two role-tagged
+checkpoints, the four kit gates, the Nexus source, the Eraser debut hook, one late Font, the boss
+slot, a dialogue set, a pool config, a legacy boss resource, manifest and pool-catalog rows, and a
+14-case content suite. Plus the cross-cutting `Level04AVariantCoverageTests`.
+**Placeholder eras, declared.** Neither nexus moment has an existing campaign level to borrow art or
+palette from (P01 Option A reuses era themes *where they exist*). Both palettes are authored
+placeholders in the house style, recorded here rather than passed off as era assets: Mozart —
+gaslit stone, gilt and theatre crimson, Archive cyan on the machinery; Pocahontas — river silt and
+wet loam, pine and marsh green, the same Archive cyan. Both variants use the shared
+`AudioSetPaths.Legacy` set, like Einstein's.
+**Boss reuse, stated per §2.4.** Mozart's `mozart_legacy_impresario` duplicates
+`resources/Bosses/tragedy_king.tres` (Level 10, the Globe — a theatre boss for an opera house) at
+**MaxHP 700** (the shared row stays 800), `ChronalDustDrop` 25 (shared stays 50), and
+`AbilityMinPhase` retuned to `[0,0,0,1]` so the fourth ability is a real phase-2 escalation.
+Pocahontas's `pocahontas_legacy_tidereaver` duplicates `resources/Bosses/tidal_eraser.tres` (Level 5,
+the Titanic — tidewater) at **MaxHP 700** (the shared row stays 640), dust 25, `AbilityMinPhase`
+`[0,0,1]`. Both are two-phase; neither shared resource was edited, and both content suites pin the
+shared rows' untouched HP and dust.
+**Deviation 1 — a fifth `LegacyGateMode` is genuinely needed (Pocahontas Special 2).** Vine Snare
+deploys a pooled `VineSnareNode` **persistent construct**, not a `PlaceholderZone`, so it never joins
+the `story_zone` group the shared `Zone` poll walks, and a `Zone` gate can never see it. Per A12's
+instruction this is recorded rather than fixed by loosening `Zone`: the shared enum wants a
+`Construct` mode matching a live construct by ability ownership. Worked around inside B3's own files
+by `VineSnareGateResolver` (declared in `Level04APocahontasController.cs`) — a variant-local node that
+reads the player's own `ActivePersistentObjects` list and funnels through the gate's existing public
+`TryResolve` with the gate's authored ability ID, so V01c still holds exactly (a decoy, another
+ability's construct, or an enemy can never open it) and `LegacyKitGate.cs` was not touched. The gate
+stays in `Zone` mode, which also gives it the right prompt ("hold it in a field of your own making").
+Phase C should promote the resolver into the shared enum and delete it.
+**Deviation 2 — traversal gates are placed at the CAST, not at the far landing.** `LegacyKitGate`'s
+`TraversalGraceFrames` is 30, refreshed only while `CharacterState.UsingMovementAbility` holds.
+Einstein's Warp is instantaneous, so a far-side landing box works for him; neither B3 hero's movement
+ability is. Sonata Drift lays a platform under Mozart's feet and moves him nowhere, and Breeze Glide
+carries Pocahontas for up to three seconds — long after the 21-frame cast ends. Both landing boxes are
+therefore authored **over** their gaps (Mozart at staff-platform altitude mid-pit; Pocahontas ~180 px
+past the lip, inside the dash's reach) rather than on the far lip, and each content suite pins that
+placement with the reason. A larger or ability-aware grace window in the shared gate would let a
+variant put the box where the player actually lands; not taken here.
+**Defect found, not fixed (A12 × A3, affects all nine variants).**
+`LegacyLevelControllerBase.ParSeconds` is `public abstract int`, which **hides** A3's
+`StoryLevelControllerBase.ParSeconds` (`public virtual float`) — the build has said so since the Wave 1
+merge (`CS0114` at `LegacyLevelControllerBase.cs:170`). The consequence is silent and real:
+`StoryLevelControllerBase._Ready` calls `story.BeginIntegrityClock(ParSeconds, …)` through the *base*
+member, which is still 0 for every Legacy Level, and the next line early-returns on `ParSeconds <= 0f`
+— so **no 4A variant starts an Integrity clock**, and `SetRecoveryRouteSeconds(id, ParSeconds * …)`
+books a zero recovery budget at both checkpoints. A variant cannot repair this from its subclass: the
+name is shadowed by the intermediate abstract. The fix belongs in `LegacyLevelControllerBase` (make it
+`public abstract override float ParSeconds`, or rename the Legacy member and override the base one),
+which is A12's file and outside every B agent's region. Both B3 content suites assert
+`ParSeconds > 0`, which reads the int and passes — so it does not catch this; a Phase C pin should
+assert the clock actually starts.
+**Manifest count bumps.** `ContentManifest.ExactRequiredCounts` StoryLevel 17 → **19** and DialogueSet
+18 → **20**; `ContentManifestTests`' `StoryLevel` assertion 17 → **19**. B1 (+3) and B2 (+3) raise the
+same three numbers in parallel; the orchestrator reconciles to 25 / 26 / 25 at merge. AudioSet is
+untouched — all nine variants share one set.
+**A fourth count, which A12's handoff did not list.** `CampaignRouteTests` asserted
+`StoryLevel row count == CampaignRouteLength` in **two** cases. That conflates route slots with
+manifest rows and held only while Einstein was the single authored variant — it broke immediately on
+appending two rows. Rewritten in place (no case-count change) as a derived
+`ExpectedStoryLevelRowCount(rows)` = the sixteen shared slots plus however many `level_04a_*` rows the
+manifest actually carries, so it stays true for one variant or nine and the three B branches' edits
+are textually identical at merge.
+**Not delivered.** The A7a Eraser re-point: A7a is a *parallel* Wave 2 branch, so `eraser` does not
+exist on `p11/B3`, and all nine variants still spawn `EraserDebutTrigger.PlaceholderEnemyID`
+(`chrono_guard_elite`) through the base's unchanged hook. **The one-line re-point of
+`EraserDebutTrigger.EnemyID` to `EraserEnemyID`, and the single-Eraser composition pin in
+`EncounterCompositionTests`, remain outstanding for whoever merges after A7a.** Also not delivered:
+measured `ParSeconds` / F11 budgets (300 s placeholders, as A12 left them — V01a needs Normal medians
+no automated gate can produce), the per-source dust allocation (A10 owns it), and the six B1/B2
+heroes, for which `Level04AVariantCoverageTests` is red **by design** on this branch, naming each
+missing hero.
+**Validation.** `dotnet build` clean (3 warnings, all pre-existing: the Klotho component-size note,
+the vendored GdUnit4 `CS8632`, and the `ParSeconds` `CS0114` above). Cold `--headless --import` first;
+the regenerated `en.en.translation` is **not** committed (§2.11), so the two new suites'
+localization-dependent cases fail against the committed tree exactly as A12's three do. Filtered run,
+against a drained `testhost`/`Godot*` window: **55/55 green** across `Level04AMozartContentTests` (14),
+`Level04APocahontasContentTests` (14), `CampaignRouteTests` (11), `ContentManifestTests` (3),
+`ScenePoolConfigTests` (5) and `LegacyCheckpointContractTests` (8), with `Level04AEinsteinContentTests`
+13/13 unchanged. `Level04AVariantCoverageTests` fails 4/4 naming joan, leonardo, lincoln, cleopatra,
+tesla and shakespeare and nobody else. Headless project load clean; both scenes smoke 300 frames at
+exit 0 with leak counts inside the existing campaign band (mozart 6/3, pocahontas 2/1, against
+einstein 2/1 and Pompeii 6/3). One `exit code: 100` contention run was observed mid-session and
+retried on a clear window (failure signature 5); it was never accepted as a result.
+### B2 — Level 4A variants: Cleopatra, Tesla, Shakespeare (2026-09-13)
+Branch `p11/B2`. Three Legacy Levels at the campaign's functionally-complete /
+placeholder-presentation bar, each a structural copy of A12's Einstein exemplar with only the
+declared per-hero surface filled in. P01 Option A throughout: Alexandria 30 BC reuses Level 8's
+palette, Chicago 1893 Level 3's, London 1599 Level 10's.
+| Hero | Nexus moment | Rooms | Par (V01a placeholder) |
+|---|---|---|---|
+| `cleopatra` | Alexandria, 30 BC — the Royal Mausoleum | Harbour Steps / Royal Mausoleum / The Asp's Hall | 320 s |
+| `tesla` | Chicago, 1893 — the Exposition | Court of Honor / Electricity Building / Dynamo Vault | 310 s |
+| `shakespeare` | London, 1599 — the Globe's opening season | Bankside Approach / The Globe's Yard / Beneath the Stage | 330 s |
+**Legacy boss reuse (§2.4 requires this stated exactly).** Each duplicates an era boss into
+`resources/Bosses/legacy/<hero>_legacy_boss.tres`, changing only `BossID`, `DisplayName`,
+`DisplayNameKey`, `MaxHP` → **700** (the 4A HP the exemplar uses) and `ChronalDustDrop` → **25**.
+Every other field — abilities, phases, ranges, tints — is the era boss's, verbatim. No shared boss
+resource was edited.
+| Hero | Era resource reused | New BossID / display |
+|---|---|---|
+| `cleopatra` | `resources/Bosses/jackal_priest.tres` (700 HP, 50 dust) | `cleopatra_legacy_priest` — "The Mausoleum Jackal" |
+| `tesla` | `resources/Bosses/chronal_inventor.tres` (560 HP, 50 dust) | `tesla_legacy_inventor` — "The Exposition Inventor" |
+| `shakespeare` | `resources/Bosses/tragedy_king.tres` (800 HP, 50 dust) | `shakespeare_legacy_king` — "The Understudy King" |
+---
+#### D1. The fifth `LegacyGateMode` is real, and B2 ships it as a watcher rather than an enum member
+A12's dossier anticipated this: "a hero whose special is neither shape needs a fifth
+`LegacyGateMode` — record it in §9 rather than loosening an existing one." Three of B2's six special
+gates are neither `Strike` nor `Zone`:
+- **Cleopatra's Serpent Nest** and **Tesla's Tesla Coil** are deployed constructs. Their hits *do*
+  carry the ability ID, but `SerpentNestNode`/`TeslaCoilNode` deliver them through a private
+  `DirectSpaceState` sweep against the **`EnemyHurtbox`** layer — never through the `Hitbox`
+  pipeline — so they can never reach a gate surface, which sits on `PersistentObject` like every
+  other authored strike surface.
+- **Shakespeare's The Tempest** lifts the caster and pushes adjacent *bodies*. It spawns no zone and
+  raises no hitbox at all, so nothing in the combat pipeline can observe it. (`PushTargetAway` also
+  requires a `CharacterBody2D` ancestor, which a gate is not.)
+§5 gives B2 only its three heroes' files, and `LegacyKitGate.cs` is A12's — and B1 (Leonardo's
+turret, and Lincoln's/Joan's shapes) and B3 (Pocahontas's vine snare) hit the same wall in the same
+wave. Rather than three agents racing on one enum, B2 ships **`scripts/Environment/LegacyCastGateWatcher.cs`**
+(new, B2-owned): a `Node2D` the controller parents to the gate, which recognises *the hero
+performing the authored ability inside the mechanism's area* by reading the player's own
+`BaseSpecial` children (`IsExecuting` + `Data.AbilityID`) and calls the gate's public `TryResolve`.
+It enforces the same V01c contract — one ability, nothing else, and only in range; a construct, a
+decoy, an enemy or an incidental contact can never stand in. `TryRecognize(abilityID, castPosition)`
+is the single entry point, so the tests drive the real rule. Gates carrying a watcher keep their
+declared `Mode` for presentation and for the base's route bookkeeping.
+**Ask of Phase C:** fold this into `LegacyKitGate` as `LegacyGateMode.Cast = 4` with the poll
+inlined, and delete the watcher — after B1's and B3's equivalents are on the table, so one shape
+covers all nine kits. Do **not** loosen `Strike` or `Zone` to cover it.
+**Reconciled with B1/B3 (orchestrator, 2026-09-13).** B1 and B3 hit the same wall and the
+orchestrator is fixing the construct half **upstream at merge**, by adding `EnemyHurtbox` to the
+layer `LegacyKitGate.BuildStrikeSurface` puts on its `EnvironmentHurtboxAdapter`. B2's variants are
+already consistent with that approach: **Cleopatra's Serpent Nest and Tesla's Tesla Coil gates are
+declared `Strike`** and become natively resolvable the moment that layer lands — their watchers are
+then redundant and should be dropped with the rest of the consolidation. **Shakespeare's The Tempest
+is not covered by the layer fix** and still needs `LegacyGateMode.Cast`: it raises no hitbox and
+calls `TakeHit` on nothing, so no hurtbox layer can observe it. Nothing in A12's files was edited
+here.
+#### D2. `LegacyLevelControllerBase.ParSeconds` **hides** the base property, so the F01 clock never arms on any 4A level
+Not B2's code and not fixable from a subclass, but it fails silently and it is on `main` today.
+**Independently reported by B1 and B3 in the same wave; the orchestrator fixes it upstream at
+merge.** B2 recorded the mechanism below before that reconciliation and leaves it here as the
+diagnosis.
+`StoryLevelControllerBase` declares `public virtual float ParSeconds => 0f` (A3) and
+`LegacyLevelControllerBase` declares `public abstract int ParSeconds { get; }` (A12). Different
+type, same name → this is **hiding, not overriding** (build warning
+`CS0114 ... hides inherited member`, line 170). `StoryLevelControllerBase.ArmIntegrityClock()` reads
+the *float* property, which no Legacy class overrides, so it sees **0** for every 4A variant: the
+Integrity clock is armed with `ParSeconds = 0` and `if (ParSeconds <= 0f) return;` means **no
+`CollapseTremorController` is ever attached to a Legacy level**. Einstein's 4A has the same defect.
+A subclass cannot work around it — a class may not declare both `override float ParSeconds` and the
+`override int ParSeconds` that satisfies the abstract. The fix belongs in
+`LegacyLevelControllerBase` (A12's file): make it `public abstract override float ParSeconds { get; }`,
+or keep the int surface and add `public sealed override float ParSeconds => LegacyParSeconds;`.
+Every variant's authored par is already correct and pinned; only the plumbing is dead.
+#### D3. Collective manifest counts bumped by +3, not to the reconciled total
+Per the orchestrator's instruction each B agent adds its own delta and notes it.
+`ContentManifest.ExactRequiredCounts`: `StoryLevel` 17 → **20**, `DialogueSet` 18 → **21**
+(`AudioSet` untouched at 28 — all nine variants share one set). `ContentManifestTests`' `StoryLevel`
+assertion moved 17 → 20 in the same change. **Reconcile to 25 / 26 at merge** once B1 (+3) and
+B3 (+2) land; 16 shared + 9 variants = 25, and 17 shared dialogue sets + 9 = 26.
+#### D4. Two shared gates asserted a per-route count that the second variant necessarily breaks
+Both were bugs waiting for the second 4A variant, not counts to bump — all nine variants share one
+route slot, so the manifest row count and the route length diverge permanently from here. Fixed
+generically so B1/B3's identical need merges cleanly and the three can land in any order:
+- `tests/Integration/CampaignRouteTests.cs` — the two `rows.Count == CampaignRouteLength` assertions
+  now call a new `ExpectedStoryLevelRows(rows)` = 16 shared + however many `level_04a_*` rows exist
+  (at least one). `CampaignRouteLength` still pins the 17-slot route everywhere it should.
+- `tests/ContentValidation/CampaignLocalizationTests.cs` — `CampaignLevelCount` (17) split into
+  `AuthoredLevelCount`, derived from the manifest's `StoryLevel` rows (used for the dialogue-set
+  walk and the `*_level_title` family), and `CampaignRouteSlotCount` (17, used for the
+  `campaign_level_*` family, which correctly stays at one key per route slot).
+#### D5. Dialogue values authored by B2, under B2's own marker
+A6 merged in Wave 1, so per the dossier's stated fallback B2 authored the 4A line *values* itself
+rather than handing keys over. 51 rows under `# Package 11 B2` in `localization/en.csv` — per hero:
+the level title, three room names, three objectives, `boss_*_name` + `speaker_*` for the legacy
+boss, and eight dialogue lines (3 entrance / 2 boss_intro / 3 exit). Written in the V7.5 register
+(Sarah addresses the player as **Warden**; the antagonists are the **Unbound**). Copy is
+`[proposed]` — not from the design master — and is A6's to revise. No existing row was edited or
+deleted. The compiled `en.en.translation` was regenerated locally to verify and then reverted per
+§2.11.
+N03 hero-recognition variants (`<baseID>@<heroID>`) are deliberately **not** used: 4A is already
+per-hero, so its sequences are plain IDs.
+#### D6. Carried forward unchanged from A12
+- The Eraser debut still spawns `chrono_guard_elite`; **B3 re-points all nine variants** at
+  `EraserDebutTrigger.EraserEnemyID` once A7a merges. Each variant's pool config warms
+  `elite_enemy` (3), pinned per suite.
+- Time Freeze reaches the Nexus source through `NexusResonanceSource.WorldTimeSuspendedProbe`
+  until A2's `IsActive` is wired at merge.
+- Per-source dust allocation is A10's; B2 ships the locked 15/25/10 envelope and the boss's
+  authored `ChronalDustDrop = 25`.
+- `ParSeconds` values are authored placeholders pending V01a measurement — **distinct per route**
+  (320 / 310 / 330), never pooled.
+#### D7. Toolchain note
+`CLAUDE.md` states both Godot executables live under `C:\Users\DavidMcClelland\Documents\FTT\`.
+On this machine they are at `D:\Projects\Godot_v4.7.1-stable_mono_win64*.exe`, which is also what
+`.claude/settings.json` sets `GODOT_BIN` to. The 2026-08-15 relocation note in `CLAUDE.md` is stale.
+### A3b — Act III gauntlet, attempt state, load routing (2026-09-13)
+**Branch** `p11/A3b` · worktree `D:\Projects\ftt-p11\A3b` · merged `main` before validation (already
+up to date). Build clean: 0 errors, 3 warnings, all pre-existing on the merge base (`CS8632` in the
+vendored GdUnit4 API, `KLSG_ECS004` on `FighterTuningComponent`, and A12's `CS0114` on
+`LegacyLevelControllerBase.ParSeconds` — reported here rather than fixed, since that file is A12's).
+**1. `StoryAttemptState` keeps the six loose V7.3 root fields as written mirrors.** F10 says the
+per-attempt state moves into the record, and it does — but `ActivatedCheckpointIDs`,
+`DestroyedExtractorIDs`, `FoundSecretIDs`, `FontUsesConsumed`, `LevelIntegrityPercent` and
+`HasSeenCollapseBeat` are still written in the same transaction. Two reasons: they are the
+"trustworthy existing records" F10 tells the migration to derive from, and deleting them mid-package
+would break A2's and A3's live consumers plus a dozen shipped tests for no behavioural gain.
+`StoryAttemptState.MigrateFromLegacyRoot` is the single function Phase C's v5-to-v6 step calls;
+retiring the mirrors afterwards is a one-line change in `WriteAttemptStateToSave`. **Do not add a new
+consumer of the loose fields.**
+**2. `StoryLevelControllerBase.IsActIII` is wrong for Level 4A, and A3b did not change it.** A3
+defined it as `(int)Level >= (int)CampaignLevel.ChronalVoid`, which is also true for
+`LegacyNexus = 16` — the Legacy Level played between Levels 4 and 5. Its only consumer was
+`BuildCheckpoint`'s Hard-middle rule, where 4A authors no Middle anchor, so nothing is broken today.
+Rather than redefine an A3 member mid-wave, A3b added `StoryManager.IsActIIILevel(CampaignLevel)` (an
+explicit three-member set) and `StoryLevelControllerBase.IsActIIIGauntletLevel`, and every new Act III
+decision reads those. **`IsActIII` is now a trap for the next agent who reaches for it** — it should
+be deleted or redefined at closeout.
+**3. The inert-middle rule moved to a pure static.** `StoryLevelControllerBase.IsMiddleAnchorInert(
+level, role, difficulty)` is now the single statement of F12's rule; `BuildCheckpoint` calls it. This
+was done so the Act III exception could be pinned without standing up a whole level scene, and it
+removes the duplicated `role == Middle && !IsActIII && Hard` expression.
+**4. Baseline encounter IDs ship as a mechanism with a derived default, not fourteen authored
+tables.** `StoryAttemptState.CheckpointRecord.BaselineEncounterIDs` + `BaselineVersion` are persisted
+records, `StoryManager.RegisterEncounterBaseline` / `GetEncounterBaseline` are the registry, and
+`StoryLevelControllerBase.BaselineEncounterIDsFor(checkpointID, role)` is the authoring hook — its
+default derives `{LevelID}_wave_N` from the authored anchor order (the entrance clears nothing; the
+anchor at authored index i > 0 clears waves 1 through i+1). **That default does not match every
+level.** A survey of all fourteen `MarkWavesClearedThrough` overrides found the 1,2 / 1,2,3 shape in
+L05, L07, L12, L13, L14 and L15; L03 and L08 clear no waves at their anchors; L09 clears 2 / 2,3; and
+L02, L04, L06, L10 and L11 override nothing at all. Authoring a real per-level table means editing
+fourteen controllers, which exceeded this workstream — **recorded as open, owner Unassigned**,
+acceptance = each level overrides `BaselineEncounterIDsFor` with its own stable IDs and a bumped
+`BaselineVersion`. Nothing today reads the baseline to respawn encounters, so the wrong default cannot
+mis-restore anything; it would only mis-describe the record.
+**5. The Act III collapse hook is armed but behaviourally equivalent to leaving it null.**
+`BeginLevelRun` sets `ActIIICollapseOverride = RunActIIICollapseBeat` on Levels 13-15. That method
+runs the same `ChronalRewindManager.BeginTimerCollapse()` fracture beat A3's default path runs,
+because the design is explicit that in Act III "the same beat plays and no rift comes" — the
+divergence is in `BeginTimelineCollapse`, which branches to `ResolveActIIIFailure` for the gauntlet
+and therefore catches **both** triggers (timer-zero *and* a lethal event with no rewind charge, which
+`ChronalRewindManager.OnPlayerDied` routes through the same call). The hook is used as the dossier
+asked and is a real seam for a distinct Snap presentation later.
+**6. The Anchor Snap presentation is a localized `EnvironmentNotice`, not an authored 3 s beat.**
+Sarah's *"It nearly had you. Your anchor held — get up."* posts over the frozen world and the
+reconstruction follows. The designed fracture-reassembles-at-the-anchor treatment (~3 s, skippable
+after the first viewing) is presentation work on the shared rewind overlay, which A8 owns; the
+gameplay — one anchor spent, full HP, full rewind pool, the same 20% fee, in place — is complete.
+**7. Rally settlement on reconstruction is done at the restore site, not on `PlayerController`.**
+T01a's "settle uncredited damage-taken meter once" is applied in
+`StoryLevelControllerBase.RestoreSavedCheckpoint` by folding
+`attempt.PlayerResourceTimers.RallyUncreditedMeter` into the meter handed to `RestoreStoryCheckpoint`
+and zeroing it against the attempt revision. The rest of T01a's hero cleanup is structural —
+checkpoint reconstruction builds a brand-new `PlayerController` through `CharacterFactory`, so there
+is no stale status, grab, attachment or Echo pool to clear — and `ClearAllStatusEffects()` is called
+anyway so the contract is stated rather than assumed. **No `PlayerController` edit was made**, because
+A3b owns no region of that file (§5.1). **Nothing yet writes `RallyUncreditedMeter`**; A1b owns the
+Rally pool and is the natural publisher.
+**8. `playerResourceTimers` is persisted but only partly populated.** `TimeFreezeCooldownSeconds` is
+mirrored from A2's field; block charges, regen/lockout, ability and Echo Step cooldowns, the Rally
+remainder and the D02d Wardenclyffe delay have fields, `Normalize()` and round-trip but **no writer** —
+each belongs to the workstream that owns the resource (A1b, A1c, A2). The per-second durable snapshot
+(`StoryManager.CaptureDurableSnapshot`) does capture live HP, meter, the rewind pool and the wallet,
+which is the half that had no durability at all before.
+**9. The ordered async writer is a per-slot `Task` chain, not a dedicated thread.**
+`SaveManager.QueueStorySlotWrite(slot, revision)` serializes the payload on the game thread, then
+chains one continuation per slot; `RunQueuedWrite` refuses a revision older than the last durable one,
+and `FlushStorySlotWrites` drains before every synchronous critical-event commit and at `_ExitTree`.
+`SaveStorySlot` stays the synchronous critical-event path and now reports failure honestly
+(`LastStoryWriteFailed` + `save_notice_write_failed`), so a caller cannot present a transition as
+saved. **`PersistAttempt` returns that bool but its Act III callers do not yet refuse the transition on
+`false`** — the Snap and Smothered routes proceed and the notice is raised. Closing that needs a UI
+surface for the failure, which nobody owns this package.
+**10. `Level15ContentTests`' endgame fixture was changed, not its assertions.** The N05 selector made
+`SelectedEndingDialogueID` resolve to `level_15.ending_scarred` for a save with no recorded per-level
+Integrity — correct behaviour, but it broke two endgame-*chain* cases that assert ordering and one-shot
+completion, not which variant plays. `CheckpointSave` now seeds a 70%-per-level clean run. ±0 cases;
+the selection itself is pinned by the new `EndingSelectionTests`.
+**11. A6's two open items were closed here.** `alexandria_interaction_insert_core` already had a
+consumer (`TemporalCoreAnchor.InteractionPromptKey`), so A6's item (a) needed no work. Item (c), the
+unstarted `level_14.extraction_hall` sequence, is now triggered by `EnterFabricationSpine` via
+`Level14Controller.PlayExtractionHallReveal()`, which also posts the V7.6 one-line clock
+recontextualization (`hold_reveal_forge_intake`, authored under the A3b marker).
+**12. `localization/en.en.translation` is deliberately NOT committed** (§2.11). A3b ran
+`--headless --import` locally to warm its own tests and reverted the binary; the mass `.import`
+line-ending churn that import produced was reverted too and is not in the commit.
+`ScriptTranslationKeyTests`, `SceneVisibleTextTests`, `UnusedTranslationKeyTests` and
+`CampaignLocalizationTests` all pass here with the import applied and are
+**expected-to-fail-until-import** against the committed tree.
+**Test delta: +40**, exactly the dossier's figure — 7 new suites (+34) and 2 extended (+6), with
+`LevelAttemptPersistenceTests` (4 cases) and the `Level15ContentTests` fixture rewritten in place at ±0.
+### A11 — Calibration Drills: the standalone route, the shared drill scene, and six scripted lessons (2026-09-13)
+
+**A drill's reset is a rebuilt sandbox, not a write into the simulation.** F18 requires each drill to
+"supply and reset only the resources its scripted lesson needs, on start **and** on retry", and the
+deterministic simulation deliberately exposes no external state-write seam (`FighterSimulation` offers
+`CaptureFullState`/`RestoreFullState`, which nothing in the repository has ever exercised, and
+`scripts/FighterSim/` is outside A11's ownership). `CalibrationDrillRunner.StartDrill` therefore frees
+both presentation fighters and the `FighterSimulationDriver` and builds them again — the only reset
+that is correct by construction for HP, meter, shield charges, cooldowns, status, facing and position
+at once. Retry and start are literally the same code path. `DrillSceneSmokeTests.
+RetryRebuildsTheSandboxAndResetsTheAttemptAndItsResources` pins a fresh driver at tick 0 with full HP,
+zero meter and full shield charges.
+
+**Resources a lesson needs are earned in a scripted lead-in beat, not granted.** The consequence of
+the above: Echo Step costs 30 Influence and a fresh sandbox starts at zero, so drill 5 is authored as
+two beats — "charge Influence to 30 by attacking the training bag", then "fold the recovery" —
+carried by a second objective line (`ObjectiveStageTwoKey`) and `CalibrationDrillProgress.Stage`. It
+teaches the cost, which is arguably better coaching than a granted meter, but it is a deviation from
+"supplies … the resources its scripted lesson needs" and is recorded as one.
+
+**Drill 5 teaches the Echo Step the build has, not the one the design line names.** The design says
+"Echo Step a whiffed **special**"; the shipped V7.1 rule (`FighterSimulationSystems.TryStartEchoStep`)
+fires the Block+Roll chord out of the recovery frames of the fighter's own **basic** swing, hit or
+whiff. The drill's objective copy is written to the shipped rule and its pass condition is the
+neutral observable `EchoStepWindupFrames` rising from zero, so **A1c's V7.6 Echo Step rework (the
+dedicated `gameplay_echo_step` action, the exact `t−30` destination) needs no change here** — only
+`drill_echo_step_objective_two`'s wording, if the input changes.
+
+**Drill 1 passes on two blocked hits rather than on a detected hitstun escape.** "Block the string
+then escape after Hit 2" is exactly what holding Block through a string produces (V7.3: a grounded
+blocking victim escapes hitstun into the stance from hit two on), but the escape frame itself has no
+unambiguous observable — the escape sets the block stance, not a flag. The pass is therefore two
+non-shatter blocked hits, counted on the rising edge of `ShieldStunFrames`, and the *coaching* line
+names the hit-2 escape. Eating three connected hits with nothing blocked fails the attempt.
+
+**The drill scene borrows `LocalFighterPause` and the runner never touches `SceneTree.Paused`.** The
+driver attaches the pause menu, the HUD and the results screen as it does for any stage; the runner
+suspends its sandbox for the pass/fail card by setting the **driver's** `ProcessMode` to `Disabled`,
+because the card lives on its own `CanvasLayer` and must keep taking input. Pause ownership stays in
+`PauseMenuBase`, which is the only thing in the scene that writes the tree pause.
+
+**`LocalFighterPause.ExitToLobby` gained a calibration branch — a file §5.1 assigns to nobody.** A
+drill borrows that pause, and its exit is "Exit Calibration", never the Fighter character-select lobby
+the player never passed through. Three lines: a non-empty
+`SessionData.CalibrationReturnScenePath` routes to `CalibrationRoute.ExitDestination` and disarms the
+route. Every path that leaves calibration calls `CalibrationRoute.Cleared` on the way out, so an
+ordinary Fighter match afterwards still exits to the lobby and a relaunch can never resume a drill.
+
+**Route naming follows the dossier, not the orchestrator brief, where the two differ.** The brief
+names `scenes/ui/DrillList.tscn`; §4 A11's change list names `CalibrationDrillList.tscn`. The dossier
+spelling shipped, for all three scenes. The brief's test-suite names shipped instead of the dossier's:
+`CalibrationDrillsRouteTests` (8) + `CalibrationDrillScriptTests` (11) + `DrillSceneSmokeTests` (4)
+rather than `CalibrationDrillFlowTests` (8) + `CalibrationDrillContentTests` (2) — the content
+assertions live inside the pure script suite, which is where the catalog they assert lives.
+
+**Two screens' actions are split into an `Apply…ToSession` half.** `MainMenu.ArmCalibrationRoute`,
+`CalibrationDrillPicker.ApplyChoiceToSession` / `ApplyBackToSession`, `CalibrationDrillList.
+ApplyDrillToSession` / `ApplyBackToSession` / `ApplyExitToSession`, `CalibrationDrillRunner.
+ApplyExitToSession` and `HolodeckConsolePanel.ApplyCalibrationRouteToSession` all write the session
+and return a destination path without changing scene. This is the existing `HolodeckConsolePanel.
+ApplyToSession` idiom and it is not cosmetic: calling `GameManager.LoadScene` inside the GdUnit host
+hands the **runner's** current scene to a threaded load and kills the session, which is why no menu
+test presses the Fighter button either.
+
+**The dummy is a scripted bag on the Level 0 pattern, injected through `InputManager.SetInputSource`.**
+`CalibrationDrillDummyScript` is pure C# — a fixed beat schedule (approach, three swings, rest), a
+guard that never drops Block, an idle bag, and a one-hit poker — and
+`CalibrationDrillDummySource` derives real Pressed/Released edges from the previous frame, because a
+permanently-set button bit never starts a swing. The runner sets `FighterOpponentType.LocalHuman` for
+the scene's lifetime (otherwise the driver builds a CPU controller for player 1 and the script is
+never heard) and restores the previous value in `_ExitTree`.
+
+**No exit fee is possible, and the pin is behavioural.** A3 already deleted
+`SessionExitGuard.ApplyAbnormalExitFee` under ruling 2.B, so the fee has no caller at all; the hub
+route additionally never writes, clears or re-slots the session marker, which
+`CalibrationDrillsRouteTests.TheHubConsoleKeepsItsPracticeBoutAndItsDrillsEntryCostsTheCampaignNothing`
+asserts directly.
+
+**Not delivered:** a human has judged none of it — no drill has been played, so whether a scripted
+string is *learnable* at these timings (`StringSwingIntervalFrames = 20`, a 90-frame rest) is
+unverified; the drill scene's presentation is holodeck-styled placeholder geometry, not art; and the
+sandbox runs on Florence's Sealed geometry with the stage's own platforms and no hazard, which is a
+deliberate choice (a Sealed floor means no lesson can end in a pit) rather than an authored drill room.

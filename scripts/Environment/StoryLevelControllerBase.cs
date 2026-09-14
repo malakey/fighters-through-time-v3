@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using System;
 using System.Collections.Generic;
 using FTT.Characters;
@@ -506,7 +506,42 @@ namespace FTT.Environment {
                 ResumedCheckpointID = save.LastCheckpointID;
                 MarkWavesClearedThrough(save.LastCheckpointID);
             }
-            Player.RestoreStoryCheckpoint(position, save.CurrentHP, save.CurrentUltimateMeter);
+            // === Package 11 A3b region: F10 durable restore + T01a cleanup ===
+            //
+            // F10 supersedes V7.3's "restore the HP and meter the checkpoint
+            // banked": ordinary loading restores the LATEST DURABLE values. Those
+            // are exactly what save.CurrentHP / CurrentUltimateMeter now hold,
+            // because StoryManager snapshots the live player once per live second
+            // and folds the same capture into every critical event — before
+            // Package 11 nothing between two fractures was durable at all.
+            //
+            // T01a checkpoint-load semantics: the hero's temporary buffs,
+            // shields, debuffs, marks, attachments, grabs, attack phases and
+            // movement history are discarded. That is mostly structural here —
+            // reconstruction builds a brand-new PlayerController through
+            // CharacterFactory, so there is nothing stale to carry — but the
+            // status clear is stated rather than assumed, because "it happens to
+            // be empty" is not a contract.
+            //
+            // The one value change is Rally: the pool is discarded WITHOUT
+            // granting HP, and the still-uncredited damage-taken meter is settled
+            // exactly ONCE, capped at the ordinary meter cap, in the same
+            // transaction as the reconstruction. Committing the settlement
+            // against the attempt revision is what stops a repeated load from
+            // paying the same damage record twice.
+            StoryManager story = StoryManager.Instance;
+            float settledMeter = save.CurrentUltimateMeter;
+            if (story != null) {
+                StoryPlayerResourceTimers timers = story.CurrentAttempt.PlayerResourceTimers;
+                if (timers.RallyUncreditedMeter > 0f) {
+                    settledMeter = Mathf.Min(100f, settledMeter + timers.RallyUncreditedMeter);
+                    timers.RallyUncreditedMeter = 0f;
+                    story.CurrentAttempt.Bump();
+                }
+            }
+            Player.ClearAllStatusEffects();
+            Player.RestoreStoryCheckpoint(position, save.CurrentHP, settledMeter);
+            // === end Package 11 A3b region ===
         }
 
         /// <summary>
@@ -757,9 +792,8 @@ namespace FTT.Environment {
             // F12: Hard's middle fracture is inert in the shared Acts I-II
             // levels only. Act III keeps its Hard middle active (A3b), and 4A's
             // PreBoss anchor is never disabled merely because its ID ends `_1`.
-            bool inert = role == CheckpointRole.Middle
-                && !IsActIII
-                && (GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal) == Difficulty.Hard;
+            bool inert = IsMiddleAnchorInert(
+                Level, role, GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal);
             var checkpoint = new CheckpointTrigger {
                 Name = $"Checkpoint_{id}",
                 CheckpointID = id,
@@ -784,10 +818,72 @@ namespace FTT.Environment {
                 return checkpoint;
             }
             StoryManager.Instance?.SetRecoveryRouteSeconds(id, ParSeconds * RemainingRouteFractionFor(role));
+            StoryManager.Instance?.RegisterEncounterBaseline(id, BaselineEncounterIDsFor(id, role));
+            _liveCheckpointCount++;
             Levels?.RegisterCheckpoint(id, checkpoint.Position + checkpoint.RespawnOffset);
             AddCheckpointNodes(checkpoint);
+            // === Package 11 A3b: the Warden Beacon rides every live Act III
+            // anchor. Sarah hands it over at Level 13's entry and it opens the
+            // Repository at ANY activated Act III checkpoint — so it is authored
+            // with the anchor, and gated at interaction time on that anchor
+            // actually having been activated.
+            if (IsActIIIGauntletLevel) {
+                WardenBeacon beacon = WardenBeacon.Create(id, checkpoint.Position + new Vector2(90f, 0f));
+                _wardenBeacons.Add(beacon);
+                AddChild(beacon);
+            }
             return checkpoint;
         }
+
+        /// <summary>
+        /// The three Act III gauntlet levels. Deliberately not
+        /// <see cref="IsActIII"/>, which is an ordinal comparison and therefore
+        /// also true for Level 4A (enum value 16, played between Levels 4 and 5).
+        /// </summary>
+        protected bool IsActIIIGauntletLevel => StoryManager.IsActIIILevel(Level);
+
+        /// <summary>
+        /// F12: Hard's <b>middle</b> fracture is inert — it activates nothing,
+        /// anchors no respawn and registers no F11 budget — but only in Acts I-II.
+        /// V7.6 suspends the rule for the Act III gauntlet, where all three
+        /// anchors stay live on every difficulty. Entry and PreBoss are never
+        /// inert, and no anchor is ever judged by its ID suffix.
+        ///
+        /// <para>Pure and shared so the rule has exactly one statement: the
+        /// builder reads it and so does its test.</para>
+        /// </summary>
+        public static bool IsMiddleAnchorInert(CampaignLevel level, CheckpointRole role, Difficulty difficulty) =>
+            role == CheckpointRole.Middle
+            && difficulty == Difficulty.Hard
+            && !StoryManager.IsActIIILevel(level);
+
+        /// <summary>
+        /// F10: the authored encounter baseline an anchor reconstructs from.
+        /// "Bind baseline membership to stable encounter IDs, not an enemy's
+        /// physical position at death."
+        ///
+        /// <para>The default derives the IDs from the level's own authored anchor
+        /// order, reproducing the rule the campaign controllers already implement
+        /// in <see cref="MarkWavesClearedThrough"/>: the entrance anchor clears
+        /// nothing, and the anchor at authored index <c>i &gt; 0</c> restores
+        /// <c>{LevelID}_wave_1 … _wave_(i+1)</c> as already cleared. Encounters
+        /// beyond the baseline may respawn, but a respawned enemy whose reward is
+        /// already claimed pays nothing again — that is the reward ledger's job,
+        /// not the baseline's.</para>
+        ///
+        /// <para>A level whose route does not match overrides this. The IDs are
+        /// authored data; nothing infers membership from where an enemy happened
+        /// to be standing when the player died.</para>
+        /// </summary>
+        protected virtual IReadOnlyList<string> BaselineEncounterIDsFor(string checkpointID, CheckpointRole role) {
+            var ids = new List<string>();
+            int waves = _liveCheckpointCount == 0 ? 0 : _liveCheckpointCount + 1;
+            for (int wave = 1; wave <= waves; wave++) ids.Add($"{LevelID}_wave_{wave}");
+            return ids;
+        }
+
+        /// <summary>Live (non-inert) anchors authored so far; the index the baseline derivation uses.</summary>
+        private int _liveCheckpointCount;
 
         private void AddCheckpointNodes(CheckpointTrigger checkpoint) {
             checkpoint.AddChild(new CollisionShape2D {
@@ -1041,6 +1137,62 @@ namespace FTT.Environment {
             foreach ((string id, Vector2 position) in placements) BuildExtractor(id, position);
         }
 
+        // === Package 11 A3b: Act III Resonance Hold drain stand-ins ==========
+
+        public const string ResonanceHoldTemplatePath =
+            "res://scenes/templates/ResonanceHoldNodeTemplate.tscn";
+
+        /// <summary>
+        /// Places one Act III drain stand-in — a severed conduit (L13), a cradle
+        /// intake valve (L14) or a firing-channel anchor pylon (L15).
+        ///
+        /// <para>It enters the same <c>_extractors</c> list as a Chronal
+        /// Extractor, which is the whole point: the F01 denominator, the
+        /// <c>+0.2</c> drain weight, the destroyed-registry entry, the resume
+        /// rebuild and the F05 optional-dust share are an Extractor's exactly.
+        /// Only the fiction and the strings differ.</para>
+        /// </summary>
+        protected ResonanceHoldNode BuildResonanceHoldNode(
+            string nodeID, Vector2 position, ResonanceHoldVariant variant) {
+            var packed = ResourceLoader.Load<PackedScene>(ResonanceHoldTemplatePath);
+            if (packed?.Instantiate() is not ResonanceHoldNode node) {
+                GD.PushWarning($"Resonance Hold node template could not be instantiated for '{nodeID}'.");
+                return null;
+            }
+            node.Name = $"HoldNode_{nodeID}";
+            node.ObjectID = nodeID;
+            node.Position = position;
+            node.Variant = variant;
+            AddChild(node);
+            _extractors.Add(node);
+            return node;
+        }
+
+        /// <summary>Places the level's Act III drain stand-ins from its authored position table.</summary>
+        protected void BuildResonanceHoldNodes(
+            ResonanceHoldVariant variant, params (string ID, Vector2 Position)[] placements) {
+            if (placements == null) return;
+            foreach ((string id, Vector2 position) in placements) {
+                BuildResonanceHoldNode(id, position, variant);
+            }
+        }
+
+        /// <summary>The Act III drain stand-ins this level built. Test seam.</summary>
+        public IReadOnlyList<ResonanceHoldNode> ResonanceHoldNodes {
+            get {
+                var nodes = new List<ResonanceHoldNode>();
+                foreach (ChronalExtractor extractor in _extractors) {
+                    if (extractor is ResonanceHoldNode hold) nodes.Add(hold);
+                }
+                return nodes;
+            }
+        }
+
+        /// <summary>The Warden Beacons this level placed, one per live Act III anchor. Test seam.</summary>
+        public IReadOnlyList<WardenBeacon> WardenBeacons => _wardenBeacons;
+
+        private readonly List<WardenBeacon> _wardenBeacons = new();
+
         // === Boss encounter ===
 
         /// <summary>
@@ -1220,7 +1372,22 @@ namespace FTT.Environment {
         /// </summary>
         protected virtual LevelResultsPanel PresentCompletion() {
             var results = LevelResultsPanel.CreateDefault();
-            results.ReturnRequested += () => StoryManager.Instance?.ReturnToHub();
+            // === Package 11 A3b: the Act III Gauntlet has no portal trip ======
+            // Levels 13-15 play back to back with no return to the Time-Ship —
+            // "we can hear you, we can't reach you". The results overlay and the
+            // post-boss dialogue still play; only the hub leg is gone. Steps 5-6
+            // of the completion flow (Return Prompt, Hub Spawn) simply do not run
+            // for Levels 13 and 14, and the level-completion auto-deposit that
+            // StoryManager already committed is the gauntlet's only banking
+            // event. OnLevelComplete has advanced CurrentLevel by now, so
+            // LoadCurrentLevel() is the next level, in-level.
+            //
+            // Level 15 never reaches here: it overrides PresentCompletion and
+            // runs the campaign ending instead.
+            results.ReturnRequested += () => {
+                if (IsActIIIGauntletLevel) StoryManager.Instance?.LoadCurrentLevel();
+                else StoryManager.Instance?.ReturnToHub();
+            };
             AddChild(results);
             results.ShowResults(LevelTitleKey, MobDustEarned, ExtractorDustEarned, BossDustEarned);
             return results;

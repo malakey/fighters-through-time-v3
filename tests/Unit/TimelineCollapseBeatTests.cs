@@ -1,4 +1,4 @@
-using FTT.Core;
+﻿using FTT.Core;
 using FTT.Environment;
 using GdUnit4;
 using Godot;
@@ -86,5 +86,92 @@ public class TimelineCollapseBeatTests {
         AssertThat(seen.CollapseSkipPromptEnabled)
             .OverrideFailureMessage("Once seen, the beat advertises press-to-skip.")
             .IsTrue();
+    }
+
+    // === Package 11 A3b: the cause split and the Act III branch ============
+
+    [TestCase]
+    public void ATimerCausedCollapseIsDistinctFromADeathAndCarriesSarahsEraLostLine() {
+        // V7.6 F01 gave the beat two causes. Only the timer cause grants an F11
+        // recovery minimum, and only it plays the era-lost transmission — so the
+        // cause has to survive from the trigger to the resolution, not be
+        // re-derived at the far end.
+        AssertThat(ChronalRewindManager.EraLostCollapseLineKey)
+            .IsEqual("dialogue_collapse_sarah_era_lost");
+
+        StoryManager story = StoryManager.Instance;
+        SaveManager saves = SaveManager.Instance;
+        const int scratchSlot = 2;
+        StorySaveData original = saves.SaveSlots[scratchSlot];
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        CampaignLevel originalLevel = story.CurrentLevel;
+        story.SuppressSceneLoadsForTesting = true;
+        try {
+            story.PrepareDirectLevel(CampaignLevel.Orleans, "einstein", Difficulty.Normal);
+            saves.SaveSlots[scratchSlot] = new StorySaveData { SelectedCharacterID = "einstein" };
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = scratchSlot;
+            story.BeginLevelRun();
+
+            story.BeginTimelineCollapse("orleans_checkpoint_1", TimelineCollapseCause.Timer);
+            AssertThat(story.PendingCollapseCause).IsEqual(TimelineCollapseCause.Timer);
+            AssertThat(story.LastRequestedScenePath)
+                .OverrideFailureMessage("Acts I-II collapse still extracts to the Time-Ship.")
+                .IsEqual(StoryManager.HubScenePath);
+            AssertThat(story.CurrentAttempt.Status)
+                .OverrideFailureMessage("The hub portal finishes the committed paid recovery.")
+                .IsEqual(StoryAttemptStatus.AwaitingHubResume);
+            AssertThat(story.CurrentAttempt.RecoveryEvent.Cause).IsEqual(StoryRecoveryCause.Collapse);
+        } finally {
+            story.SuppressSceneLoadsForTesting = false;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            saves.SaveSlots[scratchSlot] = original;
+            story.PrepareDirectLevel(originalLevel, "einstein", Difficulty.Normal);
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            story.ClearLevelAttemptState();
+            story.StopLevelRun();
+        }
+    }
+
+    [TestCase]
+    public void TheActIIIBranchResolvesASnapInsteadOfAHubExtraction() {
+        StoryManager story = StoryManager.Instance;
+        SaveManager saves = SaveManager.Instance;
+        const int scratchSlot = 2;
+        StorySaveData original = saves.SaveSlots[scratchSlot];
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        CampaignLevel originalLevel = story.CurrentLevel;
+        story.SuppressSceneLoadsForTesting = true;
+        try {
+            story.PrepareDirectLevel(CampaignLevel.Alexandria, "einstein", Difficulty.Normal);
+            saves.SaveSlots[scratchSlot] = new StorySaveData { SelectedCharacterID = "einstein" };
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = scratchSlot;
+            story.BeginLevelRun();
+            AssertThat(story.AnchorChargesRemaining).IsEqual(2);
+
+            // The SAME entry point a death with no rewind charge uses. In Act III
+            // it never reaches the hub extraction at all.
+            story.BeginTimelineCollapse("level_15_alexandria_checkpoint_1");
+            AssertThat(story.LastRequestedScenePath)
+                .OverrideFailureMessage("Act III has no hub leg: the Snap stays in the level.")
+                .IsEqual(StoryManager.GetLevelScenePath(CampaignLevel.Alexandria));
+            AssertThat(story.AnchorChargesRemaining).IsEqual(1);
+            AssertThat(story.HasPendingTimelineRestart)
+                .OverrideFailureMessage("There is no hub restart choice to offer in the gauntlet.")
+                .IsFalse();
+            AssertThat(story.CurrentAttempt.RecoveryEvent.Cause).IsEqual(StoryRecoveryCause.AnchorSnap);
+
+            // And A3's hook is armed for the timer path rather than left null.
+            AssertThat(story.ActIIICollapseOverride)
+                .OverrideFailureMessage("BeginLevelRun arms the Act III collapse hook.")
+                .IsNotNull();
+        } finally {
+            story.SuppressSceneLoadsForTesting = false;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            saves.SaveSlots[scratchSlot] = original;
+            story.PrepareDirectLevel(originalLevel, "einstein", Difficulty.Normal);
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            story.ClearLevelAttemptState();
+            story.StopLevelRun();
+        }
     }
 }

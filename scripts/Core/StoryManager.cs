@@ -189,7 +189,13 @@ namespace FTT.Core {
         /// gameplay resource is spent at 60 Hz. The autoload owns it so the
         /// clock survives room transitions and scene-local teardown.
         /// </summary>
-        public override void _PhysicsProcess(double delta) => TickIntegrityClock(delta);
+        public override void _PhysicsProcess(double delta) {
+            TickIntegrityClock(delta);
+            // F10 durability: continuous HP/meter/timer changes are checkpointed
+            // at least once per live second. Between checkpoints none of it was
+            // durable before Package 11 A3b.
+            TickDurableSnapshot(delta);
+        }
 
         public void StartCampaign(string characterID) {
             var session = GameManager.Instance.CurrentSession;
@@ -285,6 +291,42 @@ namespace FTT.Core {
             GameManager.Instance.CurrentSession = session;
             // V7.3 quit-fee rule: the resumed session is live again.
             SessionExitGuard.WriteMarker(slot);
+            RouteResumeByAttemptStatus(save);
+        }
+
+        /// <summary>
+        /// Package 11 A3b (F10 load routing). The load destination is driven by
+        /// the saved <see cref="StoryAttemptState.Status"/>, never by "always the
+        /// hub":
+        ///
+        /// <list type="bullet">
+        /// <item><b>Smothered</b> → the Game Over screen, with no HP or anchor
+        /// refill and no replayed failure fee. Only an explicit Restart Level
+        /// leaves it.</item>
+        /// <item><b>Active / RecoveryPending</b> in <b>Act III</b> → straight back
+        /// into the level at its checkpoint. The hub is unreachable until the
+        /// campaign is complete.</item>
+        /// <item><b>AwaitingHubResume</b>, and everything in Acts I–II → the hub,
+        /// whose portal finishes the already-committed paid recovery.</item>
+        /// </list>
+        ///
+        /// <b>None of these paths runs fresh-entry resource initialization</b> —
+        /// <see cref="LoadCurrentLevel"/> resolves a mid-level resume from the
+        /// parked checkpoint, and the hub route leaves the attempt alone.
+        /// </summary>
+        private void RouteResumeByAttemptStatus(StorySaveData save) {
+            RestoreAttemptRecord(save);
+            StoryAttemptStatus status = save.AttemptState?.Status ?? StoryAttemptStatus.Active;
+            if (status == StoryAttemptStatus.Smothered) {
+                LoadGameOverScreen();
+                return;
+            }
+            bool actIII = IsActIIILevel(CurrentLevel);
+            bool parkedInLevel = !string.IsNullOrWhiteSpace(save.LastCheckpointID);
+            if (actIII && parkedInLevel && status != StoryAttemptStatus.AwaitingHubResume) {
+                LoadCurrentLevel();
+                return;
+            }
             ReturnToHub();
         }
 
@@ -292,10 +334,29 @@ namespace FTT.Core {
             string path = GetCurrentLevelPath();
             if (!string.IsNullOrWhiteSpace(path) && ResourceLoader.Exists(path)) {
                 BeginLevelRun(resumeAttempt: IsMidLevelResume(path));
-                GameManager.Instance.LoadScene(path);
+                RequestScene(path);
             } else {
                 GD.PushError($"Campaign scene is not authored yet: {path}");
             }
+        }
+
+        // === Package 11 A3b: scene-load test seam ===========================
+        // The Act III routing decisions (Snap in place, Smothered to Game Over,
+        // gauntlet chaining, resume routing) are the behaviour under test, and
+        // every one of them ends in a scene change. The seam records the
+        // destination instead of loading it, so a suite can assert WHERE a
+        // decision routed without tearing down the test scene tree.
+
+        /// <summary>Set by a test: record the destination instead of changing scene.</summary>
+        internal bool SuppressSceneLoadsForTesting { get; set; }
+
+        /// <summary>The last scene path this manager routed to. Test seam.</summary>
+        public string LastRequestedScenePath { get; private set; } = "";
+
+        private void RequestScene(string path) {
+            LastRequestedScenePath = path ?? "";
+            if (SuppressSceneLoadsForTesting) return;
+            GameManager.Instance?.LoadScene(path);
         }
 
         /// <summary>
@@ -314,8 +375,11 @@ namespace FTT.Core {
 
         public void ReturnToHub() {
             StopLevelRun();
-            GameManager.Instance.LoadScene("res://scenes/campaign/HubWorld.tscn");
+            RequestScene(HubScenePath);
         }
+
+        /// <summary>The Time-Ship hub. Unreachable during the Act III gauntlet (V7.6).</summary>
+        public const string HubScenePath = "res://scenes/campaign/HubWorld.tscn";
 
         /// <summary>
         /// Zeroes and starts the per-level statistics. Called on every level load,
@@ -332,13 +396,38 @@ namespace FTT.Core {
             LevelElapsedSeconds = 0f;
             LevelRewindsUsed = 0;
             IsLevelTimerRunning = true;
+            _durableSnapshotTimer = 0f;
+            // Package 11 A3b: arm (or disarm) A3's Act III collapse hook for the
+            // level about to load. In the gauntlet the timer-zero collapse plays
+            // the same fracture beat and then resolves an Anchor Snap or the
+            // Smothered Game Over instead of a hub extraction.
+            ActIIICollapseOverride = IsActIIILevel(CurrentLevel) ? RunActIIICollapseBeat : null;
+            // An Anchor Snap reconstructs the level inside the SAME attempt. It
+            // reaches here through LoadCurrentLevel, and on a slotless developer
+            // launch there is no parked save to recognize it by - so the Snap
+            // says so explicitly rather than letting the mint branch refill the
+            // anchor it just spent.
+            if (_forceResumeNextRun) {
+                _forceResumeNextRun = false;
+                resumeAttempt = true;
+            }
             if (resumeAttempt) {
-                RestoreAttemptStateFromSave(GetActiveSave());
+                // F10: a resume never re-initializes anchors, and never mints a
+                // new attempt ID. The parked record is the attempt. With no slot
+                // at all (a developer direct launch) the live in-memory attempt
+                // IS the record - reading a null save here would wipe it.
+                StorySaveData parked = GetActiveSave();
+                if (parked != null) RestoreAttemptStateFromSave(parked);
                 return;
             }
             ClearLevelAttemptState();
             Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
             ChronalRewindsRemaining = FTT.Environment.ChronalRewindManager.GetMaximumRewinds(difficulty);
+            // Package 11 A3b (F10): fresh entry is one of exactly two events that
+            // mint an attempt ID and initialize the Act III anchor charges. The
+            // other is an explicit full Restart Level, which reaches this same
+            // branch because it clears LastCheckpointID first.
+            MintFreshAttempt();
         }
 
         /// <summary>Stops the clock without publishing a completion result.</summary>
@@ -496,6 +585,12 @@ namespace FTT.Core {
             if (IsPreBossLocked) return;
             IsPreBossLocked = true;
             CheckpointIntegrityPercent = TimelineIntegrityPercent;
+            // Package 11 A3b (N05): the ending average reads the PreBoss-LOCKED
+            // gauge, banked here and committed with the completion transaction —
+            // never a value sampled at completion, which a later rule change
+            // could quietly redefine.
+            _attempt.PreBossLocked = true;
+            _attempt.FinalGateIntegrity = TimelineIntegrityPercent;
             PublishIntegrity();
         }
 
@@ -636,8 +731,63 @@ namespace FTT.Core {
         /// </summary>
         public bool TryActivateCheckpoint(string checkpointID) {
             if (string.IsNullOrWhiteSpace(checkpointID)) return false;
-            return _activatedCheckpoints.Add(checkpointID);
+            bool first = _activatedCheckpoints.Add(checkpointID);
+            // Package 11 A3b (F10): the anchor, its role, its authored encounter
+            // baseline and the granted-benefit ID all commit in ONE transaction
+            // with the activation. A granted benefit is recorded separately from
+            // the activation because loading or a paid recovery re-reads the
+            // activation set but must never pay Mending or the rewind refresh
+            // a second time.
+            _attempt.CheckpointRecord.AnchorID = checkpointID;
+            _attempt.CheckpointRecord.AnchorRole = (int)GetCheckpointRole(checkpointID);
+            if (!_attempt.CheckpointRecord.ActivatedCheckpointIDs.Contains(checkpointID)) {
+                _attempt.CheckpointRecord.ActivatedCheckpointIDs.Add(checkpointID);
+            }
+            if (first && !_attempt.CheckpointRecord.GrantedBenefitIDs.Contains(checkpointID)) {
+                _attempt.CheckpointRecord.GrantedBenefitIDs.Add(checkpointID);
+            }
+            _attempt.CheckpointRecord.BaselineEncounterIDs =
+                new List<string>(GetEncounterBaseline(checkpointID));
+            _attempt.Bump();
+            return first;
         }
+
+        /// <summary>
+        /// True when this checkpoint's Mending + rewind refresh have already been
+        /// paid this attempt. Distinct from <see cref="IsCheckpointActivated"/>:
+        /// a migrated legacy save can be activated-but-unbenefited, and F10
+        /// forbids paying a benefit twice.
+        /// </summary>
+        public bool HasGrantedCheckpointBenefit(string checkpointID) =>
+            !string.IsNullOrWhiteSpace(checkpointID)
+            && _attempt.CheckpointRecord.GrantedBenefitIDs.Contains(checkpointID);
+
+        // === Authored encounter baselines (F10) =============================
+        // "Rebuild ordinary encounters from an authored checkpoint baseline"
+        // with membership bound to STABLE ENCOUNTER IDs, never to an enemy's
+        // physical position at death. The level controller registers each
+        // anchor's baseline as it builds its checkpoints; StoryManager only
+        // stores and persists it.
+
+        private readonly Dictionary<string, List<string>> _encounterBaselines =
+            new(System.StringComparer.Ordinal);
+
+        /// <summary>Registers one anchor's authored baseline encounter IDs.</summary>
+        public void RegisterEncounterBaseline(string checkpointID, IReadOnlyList<string> encounterIDs) {
+            if (string.IsNullOrWhiteSpace(checkpointID)) return;
+            var ids = new List<string>();
+            foreach (string id in encounterIDs ?? System.Array.Empty<string>()) {
+                if (!string.IsNullOrWhiteSpace(id) && !ids.Contains(id)) ids.Add(id);
+            }
+            _encounterBaselines[checkpointID] = ids;
+        }
+
+        /// <summary>The authored baseline for an anchor, or an empty list.</summary>
+        public IReadOnlyList<string> GetEncounterBaseline(string checkpointID) =>
+            !string.IsNullOrWhiteSpace(checkpointID)
+            && _encounterBaselines.TryGetValue(checkpointID, out List<string> ids)
+                ? ids
+                : System.Array.Empty<string>();
 
         public bool IsCheckpointActivated(string checkpointID) =>
             !string.IsNullOrWhiteSpace(checkpointID) && _activatedCheckpoints.Contains(checkpointID);
@@ -734,6 +884,12 @@ namespace FTT.Core {
             _foundSecrets.Clear();
             _checkpointRoles.Clear();
             _recoveryRouteSeconds.Clear();
+            _encounterBaselines.Clear();
+            // Package 11 A3b: the attempt record is per-attempt state like the
+            // rest of this family. It is CLEARED here but NOT re-minted — an
+            // attempt ID is minted only by MintFreshAttempt(), from fresh level
+            // entry or an explicit full Restart Level.
+            _attempt = new StoryAttemptState();
             ClearRestorationFonts();
             TimelineIntegrityPercent = TimelineIntegrityRules.StartPercent;
             CheckpointIntegrityPercent = TimelineIntegrityRules.StartPercent;
@@ -775,6 +931,54 @@ namespace FTT.Core {
             // Package 11 A1b (V7.6 F10): Defy History is once per ATTEMPT, and
             // it commits in the same envelope write as HP and meter.
             save.StoryDefyHistoryUsed = StoryDefyHistoryUsed;
+            WriteAttemptRecord(save);
+        }
+
+        /// <summary>
+        /// Package 11 A3b (F10). Folds the live attempt into the save's
+        /// <see cref="StorySaveData.AttemptState"/> record, alongside the V7.3
+        /// loose root fields above — which stay written as the migration source
+        /// Phase C reads, and must gain no NEW consumer.
+        /// </summary>
+        private void WriteAttemptRecord(StorySaveData save) {
+            _attempt.LevelID = CurrentLevelIDForAttempt();
+            _attempt.CurrentIntegrity = TimelineIntegrityPercent;
+            _attempt.StartingExtractorCount = StartingExtractorCount;
+            _attempt.DestroyedExtractorIDs = new List<string>(_destroyedExtractors);
+            _attempt.FoundSecretIDs = new List<string>(_foundSecrets);
+            _attempt.FontUsesByID = new Dictionary<string, int>(_fontUsesConsumed);
+            _attempt.PreBossLocked = IsPreBossLocked;
+            _attempt.PlayerResourceTimers.TimeFreezeCooldownSeconds = TimeFreezeCooldownRemaining;
+            _attempt.PresentationFlags["collapse_beat_seen"] = HasSeenCollapseBeat;
+            _attempt.AnchorChargesRemaining = AnchorChargesRemaining;
+            _attempt.AnchorChargeMaximum = AnchorChargeMaximum;
+            _attempt.Normalize();
+            save.AttemptState = _attempt;
+            save.AnchorCharges = AnchorChargesRemaining;
+        }
+
+        /// <summary>
+        /// Pulls a saved attempt record back into the live manager, migrating a
+        /// pre-v6 payload's loose fields first. <b>Never</b> fabricates anchors,
+        /// an unused Defy or unclaimed rewards for a legacy mid-level attempt —
+        /// <see cref="StoryAttemptState.MigrateFromLegacyRoot"/> marks that case
+        /// <see cref="StoryAttemptStatus.LegacyRecoveryRequired"/> instead.
+        /// </summary>
+        private void RestoreAttemptRecord(StorySaveData save) {
+            if (save == null) return;
+            save.AttemptState ??= new StoryAttemptState();
+            StoryAttemptState.MigrateFromLegacyRoot(save);
+            _attempt = save.AttemptState;
+            _attempt.Normalize();
+            AnchorChargesRemaining = _attempt.AnchorChargesRemaining;
+            AnchorChargeMaximum = _attempt.AnchorChargeMaximum;
+            PendingAttemptNoticeKey = _attempt.Status == StoryAttemptStatus.LegacyRecoveryRequired
+                ? LegacyRecoveryNoticeKey
+                : "";
+            if (!string.IsNullOrEmpty(PendingAttemptNoticeKey)) {
+                GD.PushWarning(TranslationServer.Translate(LegacyRecoveryNoticeKey));
+            }
+            PublishAnchorCharges();
         }
 
         /// <summary>Mid-level resume: the parked attempt comes back whole.</summary>
@@ -803,6 +1007,18 @@ namespace FTT.Core {
             // Package 11 A1b (V7.6 F10): the parked attempt comes back with its
             // Defy already spent - a resume can never restore the saved life.
             StoryDefyHistoryUsed = save.StoryDefyHistoryUsed;
+            RestoreAttemptRecord(save);
+            // F10 supersedes the V7.3 rule that a reload restores the gauge the
+            // checkpoint banked: ordinary loading restores the LATEST DURABLE
+            // Integrity, and CheckpointIntegrityPercent is only the paid-recovery
+            // allowance. The attempt record is authoritative where it exists.
+            if (_attempt.HasAttempt) {
+                TimelineIntegrityPercent = Mathf.Clamp(
+                    _attempt.CurrentIntegrity, 0f, TimelineIntegrityRules.StartPercent);
+                // A locked boss clock stays locked on reload; it cannot be
+                // re-run for a different tier.
+                IsPreBossLocked = _attempt.PreBossLocked;
+            }
             // A mid-level resume inherits the parked cooldown. Reload never
             // resumes a live freeze, so an activation saved mid-freeze comes
             // back as the conservative full cooldown the activation committed.
@@ -981,6 +1197,16 @@ namespace FTT.Core {
         }
 
         public void BeginTimelineCollapse(string checkpointID, TimelineCollapseCause cause = TimelineCollapseCause.Death) {
+            // Package 11 A3b (V7.6 Act III Gauntlet): the Wardens cannot reach
+            // past the Void, so there is no hub extraction in Levels 13-15. The
+            // SAME chokepoint serves both triggers the design names — an
+            // unprevented lethal event with no death-rewind charge (which
+            // ChronalRewindManager routes here) and the Resonance Hold reaching
+            // zero — so neither can bypass the anchor accounting.
+            if (IsActIIILevel(CurrentLevel)) {
+                ResolveActIIIFailure(checkpointID, cause);
+                return;
+            }
             CollapsedLevel = CurrentLevel;
             CollapsedCheckpointID = checkpointID ?? "";
             PendingCollapseCause = cause;
@@ -1003,6 +1229,12 @@ namespace FTT.Core {
                 if (!string.IsNullOrWhiteSpace(CollapsedCheckpointID)) save.LastCheckpointID = CollapsedCheckpointID;
                 // A collapse resume-from-anchor keeps the attempt's registries
                 // (checkpoints stay Mended-out, extractors stay broken).
+                // Acts I-II Collapse is a PAID RECOVERY inside the SAME attempt,
+                // not a fresh one: the hub portal finishes it (F10).
+                _attempt.Status = StoryAttemptStatus.AwaitingHubResume;
+                _attempt.RecoveryEvent = BuildRecoveryEvent(
+                    StoryRecoveryCause.Collapse, CollapsedCheckpointID, difficulty, feeCharged: true);
+                _attempt.Bump();
                 WriteAttemptStateToSave(save);
                 SaveManager.Instance.SaveStorySlot(GameManager.Instance.CurrentSession.ActiveSaveSlot);
             }
@@ -1091,6 +1323,13 @@ namespace FTT.Core {
 
         private void OnLevelComplete(string levelID) {
             CompleteLevelRun();
+            // === Package 11 A3b region: the Act III completion transaction ===
+            // F02: the active level's earnings are undeposited until completion,
+            // when the auto-deposit fires ONCE, "sealed through the Warden
+            // Beacon". Level 13's dust becomes spendable at Level 14's Beacon.
+            // Acts I-II keep the hub Repository as their banking event.
+            CommitCompletionTransaction(levelID);
+            // === end Package 11 A3b region ===
             // === Package 11 A5 region: the Legacy Unlock milestone grant ===
             // Inside the completion transaction and BEFORE
             // RecordLevelResultToSave, so the same save write that records the
@@ -1205,7 +1444,13 @@ namespace FTT.Core {
             int slot = gameManager.CurrentSession.ActiveSaveSlot;
             if (slot < 0 || slot >= saveManager.SaveSlots.Length || saveManager.SaveSlots[slot] == null) return;
             StorySaveData save = saveManager.SaveSlots[slot];
-            save.IntegrityByLevel[levelID] = LastLevelIntegrityPercent;
+            // Package 11 A3b (N05): the recorded contribution is the gauge
+            // LOCKED at the PreBoss fracture, not a value re-sampled after the
+            // boss. They agree today because the lock freezes the clock — but
+            // the locked figure is the authored one, so it is what is stored.
+            save.IntegrityByLevel[levelID] = _attempt.FinalGateIntegrity >= 0f
+                ? _attempt.FinalGateIntegrity
+                : LastLevelIntegrityPercent;
             // RatingByLevel is deliberately no longer written (ruling 2.A). The
             // field survives in the payload as dead data through schema v6 -- an
             // older save keeps whatever rating it already recorded.
@@ -1221,5 +1466,607 @@ namespace FTT.Core {
         private void OnRewindTriggered(Vector2 targetPosition) {
             if (IsLevelTimerRunning) LevelRewindsUsed++;
         }
+
+        // ====================================================================
+        // === Package 11 A3b — the Act III Gauntlet and the F10 attempt ======
+        // ====================================================================
+
+        /// <summary>The authored Game Over surface. Only Smothered reaches it.</summary>
+        public const string GameOverScenePath = "res://scenes/ui/GameOver.tscn";
+
+        /// <summary>
+        /// A3's <see cref="ActIIICollapseOverride"/>, filled by A3b. The Act III
+        /// clock reaching zero still earns its beat — the design authors the
+        /// collapse as the Smothered sequence, and in Act III "the same beat
+        /// plays and no rift comes" — so the fracture presentation runs first and
+        /// <see cref="BeginTimelineCollapse"/> then routes to
+        /// <see cref="ResolveActIIIFailure"/>. With no rewind stack in the scene
+        /// (a bare test fixture) the failure resolves directly.
+        /// </summary>
+        /// <summary>
+        /// Sarah, over an Anchor Snap: <i>"It nearly had you. Your anchor held —
+        /// get up."</i> The Snap's own presentation is the collapse fracture
+        /// reassembling at the anchor rather than the era falling to monochrome.
+        /// </summary>
+        public const string AnchorSnapLineKey = "anchor_snap_sarah_line";
+
+        /// <summary>
+        /// Surfaced when a migrated save cannot have its attempt history
+        /// reconstructed. The save and every balance are preserved; the player is
+        /// told an explicit Restart Level is needed. F10 forbids silently
+        /// restarting, granting resources, or claiming the legacy state was
+        /// recovered.
+        /// </summary>
+        public const string LegacyRecoveryNoticeKey = "save_notice_legacy_recovery_required";
+
+        /// <summary>
+        /// The notice the next surface should show about the loaded attempt, or
+        /// "". Set on a load that resolved to
+        /// <see cref="StoryAttemptStatus.LegacyRecoveryRequired"/>.
+        /// </summary>
+        public string PendingAttemptNoticeKey { get; private set; } = "";
+
+        private void RunActIIICollapseBeat() {
+            if (GetTree()?.GetFirstNodeInGroup(FTT.Environment.ChronalRewindManager.ManagerGroup)
+                is FTT.Environment.ChronalRewindManager manager) {
+                manager.BeginTimerCollapse();
+                return;
+            }
+            ResolveActIIIFailure(CollapsedCheckpointID, TimelineCollapseCause.Timer);
+        }
+
+        /// <summary>
+        /// The stable authored level ID for every shared campaign slot. Level 4A
+        /// is absent because its ID is per hero
+        /// (<see cref="LegacyLevelID"/>); Level 0 and 1 are present but untimed,
+        /// so N05 excludes them explicitly rather than by omission.
+        /// </summary>
+        private static readonly Dictionary<CampaignLevel, string> LevelIDs = new() {
+            { CampaignLevel.Tutorial, "level_00_tutorial" },
+            { CampaignLevel.Florence, "level_01_florence" },
+            { CampaignLevel.Orleans, "level_02_orleans" },
+            { CampaignLevel.Chicago, "level_03_chicago" },
+            { CampaignLevel.Paris, "level_04_paris" },
+            { CampaignLevel.Titanic, "level_05_titanic" },
+            { CampaignLevel.Pompeii, "level_06_pompeii" },
+            { CampaignLevel.Nassau, "level_07_nassau" },
+            { CampaignLevel.Egypt, "level_08_egypt" },
+            { CampaignLevel.Berlin, "level_09_berlin" },
+            { CampaignLevel.London, "level_10_globe" },
+            { CampaignLevel.Gettysburg, "level_11_gettysburg" },
+            { CampaignLevel.Lunar, "level_12_lunar" },
+            { CampaignLevel.ChronalVoid, "level_13_chronal_void" },
+            { CampaignLevel.NeoEarth, "level_14_neo_earth" },
+            { CampaignLevel.Alexandria, "level_15_alexandria" },
+        };
+
+        /// <summary>The authored level ID for a campaign slot ("" for Level 4A without a hero).</summary>
+        public static string GetLevelID(CampaignLevel level, string heroCharacterID = null) =>
+            level == CampaignLevel.LegacyNexus
+                ? LegacyLevelID(ResolveLegacyHeroID(heroCharacterID))
+                : LevelIDs.TryGetValue(level, out string id) ? id : "";
+
+        /// <summary>
+        /// The three Act III levels of the V7.6 Gauntlet.
+        ///
+        /// <para><b>Not</b> <c>(int)level &gt;= (int)ChronalVoid</c>: Level 4A was
+        /// appended at enum value <b>16</b> so nothing renumbered, and that
+        /// ordinal comparison classifies the Legacy Level — played between
+        /// Levels 4 and 5 — as Act III. The set is explicit for exactly that
+        /// reason.</para>
+        /// </summary>
+        public static bool IsActIIILevel(CampaignLevel level) =>
+            level == CampaignLevel.ChronalVoid
+            || level == CampaignLevel.NeoEarth
+            || level == CampaignLevel.Alexandria;
+
+        /// <summary>True while the run is inside the Act III gauntlet.</summary>
+        public bool IsInActIII => IsActIIILevel(CurrentLevel);
+
+        // === The attempt record (F10) ======================================
+
+        private StoryAttemptState _attempt = new();
+
+        /// <summary>Set by an Anchor Snap so the reconstruction keeps the same attempt.</summary>
+        private bool _forceResumeNextRun;
+
+        /// <summary>
+        /// This run's F10 attempt record. Live authority; written into the save
+        /// by <see cref="WriteAttemptStateToSave"/> and restored by
+        /// <see cref="RestoreAttemptStateFromSave"/>.
+        /// </summary>
+        public StoryAttemptState CurrentAttempt => _attempt;
+
+        /// <summary>The attempt's status. Load routing reads this and nothing else.</summary>
+        public StoryAttemptStatus AttemptStatus => _attempt.Status;
+
+        /// <summary>
+        /// F10: Story Defy History is once per <b>attempt</b>. Death rewind,
+        /// Collapse, Snap, a hub visit and loading never reset it; only fresh
+        /// entry and an explicit full Restart Level do.
+        /// </summary>
+        public bool DefyHistoryUsed {
+            get => _attempt.DefyHistoryUsed;
+            set {
+                if (_attempt.DefyHistoryUsed == value) return;
+                _attempt.DefyHistoryUsed = value;
+                _attempt.Bump();
+                CommitCriticalEvent();
+            }
+        }
+
+        private string CurrentLevelIDForAttempt() => GetLevelID(CurrentLevel);
+
+        /// <summary>
+        /// Mints a new attempt. Exactly two callers: fresh entry into a level
+        /// (<see cref="BeginLevelRun"/> on the non-resume branch) and an explicit
+        /// full Restart Level (<see cref="RestartLevelAttempt"/>, which routes
+        /// through the same branch). Nothing else may create an attempt ID — not
+        /// a scene reload, a hub return, a checkpoint, a death, or a Snap.
+        /// </summary>
+        private void MintFreshAttempt() {
+            Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
+            int anchors = IsActIIILevel(CurrentLevel) ? AnchorChargesFor(difficulty) : 0;
+            _attempt = StoryAttemptState.CreateFresh(CurrentLevelIDForAttempt(), anchors);
+            AnchorChargesRemaining = anchors;
+            AnchorChargeMaximum = anchors;
+            PublishAnchorCharges();
+        }
+
+        /// <summary>
+        /// Test/UI seam: the explicit full Restart Level. Discards the attempt's
+        /// claims, uses, checkpoints and pending recovery, keeps deposited dust,
+        /// the grid, completed levels and Legacy unlocks, and mints a new ID.
+        /// The active wallet is the caller's to clear (the pause menu and the
+        /// Game Over screen both do, under the existing Restart rule).
+        /// </summary>
+        public void RestartLevelAttempt() {
+            ClearLevelAttemptState();
+            Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
+            ChronalRewindsRemaining = FTT.Environment.ChronalRewindManager.GetMaximumRewinds(difficulty);
+            MintFreshAttempt();
+        }
+
+        // === Anchor charges (V7.6 Act III) ==================================
+
+        /// <summary>Anchor charges left on the Warden Beacon. Always zero outside Act III.</summary>
+        public int AnchorChargesRemaining { get; private set; }
+
+        /// <summary>The cap this attempt initialized with (Easy 3 / Normal 2 / Hard 1).</summary>
+        public int AnchorChargeMaximum { get; private set; }
+
+        /// <summary>
+        /// The Unified Difficulty Scaling row: <b>Easy 3 / Normal 2 / Hard 1</b>
+        /// anchor charges per Act III level.
+        /// </summary>
+        public static int AnchorChargesFor(Difficulty difficulty) => difficulty switch {
+            Difficulty.Easy => 3,
+            Difficulty.Hard => 1,
+            _ => 2
+        };
+
+        /// <summary>
+        /// Spends one charge for an Anchor Snap. <b>1 → 0 still completes the
+        /// Snap</b> — zero remaining is a living state, not a failure. Returns
+        /// false only when there was nothing to spend, which is the Smothered
+        /// branch.
+        /// </summary>
+        public bool SpendAnchorCharge() {
+            if (AnchorChargesRemaining <= 0) return false;
+            AnchorChargesRemaining--;
+            _attempt.AnchorChargesRemaining = AnchorChargesRemaining;
+            _attempt.Bump();
+            PublishAnchorCharges();
+            return true;
+        }
+
+        private void PublishAnchorCharges() => EventBus.Instance?.RaiseAnchorChargesChanged(
+            new AnchorChargesPayload { Charges = AnchorChargesRemaining, Max = AnchorChargeMaximum });
+
+        // === Anchor Snap and Smothered ======================================
+
+        /// <summary>
+        /// The Act III branch of every failure. Named by the design as replacing
+        /// "Timeline Collapse's hub extraction": with a charge left it is an
+        /// <b>Anchor Snap</b> back to the last activated checkpoint in place;
+        /// with none it is <b>Smothered</b>, the game's only Game Over.
+        /// </summary>
+        public void ResolveActIIIFailure(string checkpointID, TimelineCollapseCause cause) {
+            if (AnchorChargesRemaining > 0) BeginAnchorSnap(checkpointID, cause);
+            else EnterSmothered(checkpointID, cause);
+        }
+
+        /// <summary>
+        /// V7.6 Anchor Snap. The same priced recovery ladder as an Acts I–II
+        /// Collapse — full HP, the full difficulty rewind pool, the <b>same 20%
+        /// undeposited-dust fee</b>, the same Integrity allowance (checkpoint
+        /// gauge for a non-timer cause, <c>max(checkpoint, F11 minimum)</c> for a
+        /// timer cause) — with two differences: it spends one anchor charge, and
+        /// the hero snaps back <i>in place</i> instead of being extracted to the
+        /// Time-Ship. The attempt is unchanged; no new attempt ID is minted.
+        /// </summary>
+        public void BeginAnchorSnap(string checkpointID, TimelineCollapseCause cause = TimelineCollapseCause.Death) {
+            CollapsedLevel = CurrentLevel;
+            CollapsedCheckpointID = checkpointID ?? "";
+            PendingCollapseCause = cause;
+            HasPendingTimelineRestart = false;
+            ApplyTimelineCollapseDustPenalty();
+            SpendAnchorCharge();
+
+            Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
+            ChronalRewindsRemaining = FTT.Environment.ChronalRewindManager.GetMaximumRewinds(difficulty);
+            if (cause == TimelineCollapseCause.Timer) ResolveTimerRecoveryIntegrity(difficulty);
+
+            // F10: the outcome is resolved and COMMITTED before the presentation.
+            // A crash during the snap beat resumes the settled result and never
+            // re-spends the anchor or re-charges the fee.
+            _attempt.Status = StoryAttemptStatus.RecoveryPending;
+            _attempt.RecoveryEvent = BuildRecoveryEvent(
+                StoryRecoveryCause.AnchorSnap, CollapsedCheckpointID, difficulty, feeCharged: true);
+            _attempt.PendingHealing.Clear();   // a death recovery cancels pending healing, no refund
+            _attempt.Bump();
+            PersistAttempt(save => {
+                save.LevelChronalDust = ChronalDustCollected;
+                save.CurrentLives = ChronalRewindsRemaining;
+                save.CurrentHP = GetSelectedCharacterMaximumHP();
+                if (!string.IsNullOrWhiteSpace(CollapsedCheckpointID)) save.LastCheckpointID = CollapsedCheckpointID;
+            });
+
+            if (GetTree()?.GetFirstNodeInGroup("StoryPlayer") is Node2D hero) {
+                FTT.Environment.EnvironmentNotice.Post(
+                    AnchorSnapLineKey, hero, 3f, new Color(0.96f, 0.78f, 0.32f));
+            }
+            // "In place": the level is reconstructed at its last activated
+            // anchor. No portal trip, no hub, same attempt.
+            _attempt.Status = StoryAttemptStatus.Active;
+            _attempt.RecoveryEvent.Applied = true;
+            _attempt.Bump();
+            _forceResumeNextRun = true;
+            LoadCurrentLevel();
+        }
+
+        /// <summary>
+        /// V7.6 Smothered — a collapse with no anchor charge left, and the only
+        /// Game Over in the game.
+        ///
+        /// <para>F10 is explicit that this terminal state <b>persists before its
+        /// presentation</b>: quitting and loading return to this same Game Over
+        /// without refilling HP or charges and without replaying the failure fee,
+        /// and only an explicit Restart Level starts a fresh attempt. Deposited
+        /// dust — including earnings from previously completed Act III levels
+        /// sealed through the Beacon — is never touched.</para>
+        /// </summary>
+        public void EnterSmothered(string checkpointID, TimelineCollapseCause cause = TimelineCollapseCause.Death) {
+            CollapsedLevel = CurrentLevel;
+            CollapsedCheckpointID = checkpointID ?? "";
+            PendingCollapseCause = cause;
+            HasPendingTimelineRestart = false;
+            Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
+
+            bool alreadySettled = _attempt.Status == StoryAttemptStatus.Smothered;
+            if (!alreadySettled) {
+                // The triggering collapse is ONE failure event: its fee is
+                // charged here, once. Reopening the Game Over screen never
+                // repeats it.
+                ApplyTimelineCollapseDustPenalty();
+                _attempt.RecoveryEvent = BuildRecoveryEvent(
+                    StoryRecoveryCause.Smothered, CollapsedCheckpointID, difficulty, feeCharged: true);
+                _attempt.RecoveryEvent.Applied = true;
+                _attempt.Status = StoryAttemptStatus.Smothered;
+                _attempt.Bump();
+                PersistAttempt(save => {
+                    save.LevelChronalDust = ChronalDustCollected;
+                    if (!string.IsNullOrWhiteSpace(CollapsedCheckpointID)) save.LastCheckpointID = CollapsedCheckpointID;
+                });
+            }
+            StopLevelRun();
+            LoadGameOverScreen();
+        }
+
+        private void LoadGameOverScreen() => RequestScene(GameOverScenePath);
+
+        /// <summary>
+        /// Leaves the Smothered Game Over by the only door F10 opens: a full
+        /// Restart Level. Standard Restart rules — every point of undeposited
+        /// level dust is cleared, anchor charges refill, a new attempt ID is
+        /// minted — while deposited dust, the grid, completed levels and Legacy
+        /// unlocks all survive.
+        /// </summary>
+        public void RestartFromGameOver() {
+            CurrentLevel = CollapsedLevel;
+            SetDust(0);
+            // ClearLevelAttemptState rather than RestartLevelAttempt: the mint
+            // belongs to the level load below, so a Restart produces exactly ONE
+            // fresh attempt rather than two in a row.
+            ClearLevelAttemptState();
+            Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
+            ChronalRewindsRemaining = FTT.Environment.ChronalRewindManager.GetMaximumRewinds(difficulty);
+            PersistAttempt(save => {
+                save.CurrentLevelID = GetCurrentLevelPath();
+                save.LastCheckpointID = "";
+                save.LevelChronalDust = 0;
+                save.CurrentLives = ChronalRewindsRemaining;
+                save.CurrentHP = GetSelectedCharacterMaximumHP();
+            });
+            LoadCurrentLevel();
+        }
+
+        private StoryRecoveryEvent BuildRecoveryEvent(
+            StoryRecoveryCause cause, string checkpointID, Difficulty difficulty, bool feeCharged) => new() {
+                EventID = System.Guid.NewGuid().ToString("N"),
+                Cause = cause,
+                CheckpointID = checkpointID ?? "",
+                CheckpointRole = (int)GetCheckpointRole(checkpointID),
+                Difficulty = difficulty,
+                ResolvedHP = GetSelectedCharacterMaximumHP(),
+                ResolvedRewinds = ChronalRewindsRemaining,
+                ResolvedAnchorCharges = AnchorChargesRemaining,
+                ResolvedWalletDust = ChronalDustCollected,
+                ResolvedIntegrityPercent = TimelineIntegrityPercent,
+                ResolvedRecoveryMinimum = PendingCollapseCause == TimelineCollapseCause.Timer
+                    ? TimelineIntegrityPercent
+                    : 0f,
+                FeeCharged = feeCharged
+            };
+
+        // === Completion transaction and the Act III auto-deposit =============
+
+        /// <summary>
+        /// Commits the level's completion transaction once, before any results
+        /// overlay or dialogue. In Act III this is also the <b>only</b> banking
+        /// event: with no hub to reach, the level's earnings are "sealed through
+        /// the Warden Beacon" here, which is what makes Level 13's dust spendable
+        /// at Level 14's Beacon (F02).
+        /// </summary>
+        private void CommitCompletionTransaction(string levelID) {
+            _attempt.CompletionTransaction = new StoryCompletionTransaction {
+                TransactionID = System.Guid.NewGuid().ToString("N"),
+                RetainedBaseDust = ChronalDustCollected,
+                FinalIntegrityPercent = _attempt.FinalGateIntegrity >= 0f
+                    ? _attempt.FinalGateIntegrity
+                    : LastLevelIntegrityPercent,
+                Sealed = true,
+                Destination = IsActIIILevel(CurrentLevel) ? "next_level" : "hub"
+            };
+            _attempt.Status = StoryAttemptStatus.CompletionPending;
+            _attempt.Bump();
+            if (IsActIIILevel(CurrentLevel)) {
+                _attempt.CompletionTransaction.DepositAmount = DepositDustToActiveSave();
+            }
+            _attempt.CompletionTransaction.Applied = true;
+            _attempt.Status = StoryAttemptStatus.Completed;
+            _attempt.Bump();
+        }
+
+        // === F05 reward-source claims (F10 persistence side) =================
+        // "Issue once and commit the claim with the wallet/benefit; restore a
+        // pending pickup once; clear on fresh/restart." A respawned enemy may
+        // fight again but cannot reissue a claimed reward, and a random drop's
+        // outcome is fixed at issue so a reload cannot reroll it.
+        //
+        // A10 owns the allocator and the spawn sites; this is the ledger they
+        // commit through.
+
+        /// <summary>The record for a stable reward source, created on first touch.</summary>
+        public StoryRewardSourceRecord RewardSource(string sourceID) {
+            if (string.IsNullOrWhiteSpace(sourceID)) return null;
+            if (!_attempt.RewardSources.TryGetValue(sourceID, out StoryRewardSourceRecord record)) {
+                record = new StoryRewardSourceRecord { SourceID = sourceID };
+                _attempt.RewardSources[sourceID] = record;
+            }
+            return record;
+        }
+
+        /// <summary>
+        /// Issues a source's reward once. Returns false when it has already been
+        /// issued this attempt — which is what makes a respawned encounter
+        /// harmless. <paramref name="fixedDropOutcome"/> pins a randomized result
+        /// at issue time so a reload restores it rather than rerolling.
+        /// </summary>
+        public bool TryIssueReward(string sourceID, int quantity, string pickupType = "",
+                                   Vector2 position = default, int fixedDropOutcome = -1) {
+            StoryRewardSourceRecord record = RewardSource(sourceID);
+            if (record == null || record.State != StoryRewardSourceState.Unissued) return false;
+            record.State = StoryRewardSourceState.SpawnedUncollected;
+            record.Quantity = Mathf.Max(0, quantity);
+            record.PickupType = pickupType ?? "";
+            record.PositionX = position.X;
+            record.PositionY = position.Y;
+            record.FixedDropOutcome = fixedDropOutcome;
+            _attempt.Bump();
+            return true;
+        }
+
+        /// <summary>
+        /// Commits a claim. Returns false when the source was already collected,
+        /// so a duplicate pickup callback pays nothing.
+        /// </summary>
+        public bool TryCollectReward(string sourceID) {
+            StoryRewardSourceRecord record = RewardSource(sourceID);
+            if (record == null || record.State == StoryRewardSourceState.Collected) return false;
+            record.State = StoryRewardSourceState.Collected;
+            _attempt.Bump();
+            return true;
+        }
+
+        /// <summary>True once this source's reward has been collected this attempt.</summary>
+        public bool IsRewardClaimed(string sourceID) =>
+            !string.IsNullOrWhiteSpace(sourceID)
+            && _attempt.RewardSources.TryGetValue(sourceID, out StoryRewardSourceRecord record)
+            && record.State == StoryRewardSourceState.Collected;
+
+        /// <summary>True when a pickup was spawned and never picked up — it restores once.</summary>
+        public bool IsRewardPendingPickup(string sourceID) =>
+            !string.IsNullOrWhiteSpace(sourceID)
+            && _attempt.RewardSources.TryGetValue(sourceID, out StoryRewardSourceRecord record)
+            && record.State == StoryRewardSourceState.SpawnedUncollected;
+
+        // === Healing-loop persistence (F10 deltas) ===========================
+
+        /// <summary>
+        /// A Restoration Font channel completed: the use decrement and the
+        /// pending heal commit <b>together</b>. A channel interrupted before it
+        /// completes never reaches here, so it consumes no use and stores no heal.
+        /// </summary>
+        public void CommitFontChannelCompletion(string fontID, float healAmount, float durationSeconds) {
+            if (string.IsNullOrWhiteSpace(fontID)) return;
+            RecordFontUse(fontID);
+            _attempt.PendingHealing.SourceID = fontID;
+            _attempt.PendingHealing.UncreditedAmount = Mathf.Max(0f, healAmount);
+            _attempt.PendingHealing.RemainingSeconds = Mathf.Max(0f, durationSeconds);
+            _attempt.Bump();
+            CommitCriticalEvent();
+        }
+
+        /// <summary>Credits part of a pending heal. Only the uncredited remainder survives a reload.</summary>
+        public void CreditPendingHealing(float amount) {
+            StoryPendingHealing pending = _attempt.PendingHealing;
+            if (!pending.IsActive || amount <= 0f) return;
+            pending.UncreditedAmount = Mathf.Max(0f, pending.UncreditedAmount - amount);
+            if (pending.UncreditedAmount <= 0f) pending.Clear();
+            _attempt.Bump();
+        }
+
+        /// <summary>The heal still owed to the player, or zero. Test seam.</summary>
+        public float PendingHealingRemaining => _attempt.PendingHealing.UncreditedAmount;
+
+        /// <summary>
+        /// A death recovery that replaces HP cancels pending healing <b>without
+        /// refunding the spent Font use</b> — the channel completed; the player
+        /// simply did not live long enough to be paid.
+        /// </summary>
+        public void CancelPendingHealingForRecovery() {
+            if (!_attempt.PendingHealing.IsActive) return;
+            _attempt.PendingHealing.Clear();
+            _attempt.Bump();
+        }
+
+        /// <summary>
+        /// Records a consumed Chronal Feast / Salve pickup by its stable ID so a
+        /// reload restores the claim rather than reissuing it. Returns false when
+        /// it was already consumed this attempt.
+        /// </summary>
+        public bool TryConsumeHealingPickup(string pickupID) {
+            if (string.IsNullOrWhiteSpace(pickupID)) return false;
+            if (_attempt.CollectedHealingIDs.Contains(pickupID)) return false;
+            _attempt.CollectedHealingIDs.Add(pickupID);
+            _attempt.Bump();
+            return true;
+        }
+
+        /// <summary>True once this healing pickup has been consumed this attempt.</summary>
+        public bool IsHealingPickupConsumed(string pickupID) =>
+            !string.IsNullOrWhiteSpace(pickupID) && _attempt.CollectedHealingIDs.Contains(pickupID);
+
+        // === N05 ending selection ===========================================
+
+        /// <summary>
+        /// The clean-restoration threshold, in <b>summed percentage points</b>
+        /// across the fifteen counted levels: 50% × 15 = 750. The comparison is
+        /// deliberately against the unrounded sum, never a rounded average, so
+        /// display rounding can never change the ending.
+        /// </summary>
+        public const float CleanEndingThresholdPoints = 750f;
+
+        /// <summary>
+        /// N05's counted set: <b>exactly fifteen</b> unique level IDs — the
+        /// fourteen shared levels 2 through 15, plus the saved hero's <b>one</b>
+        /// Level 4A. Untimed Levels 0 and 1 and the other eight 4A variants are
+        /// excluded.
+        /// </summary>
+        public static List<string> RequiredEndingLevelIDs(string heroCharacterID) {
+            var ids = new List<string>();
+            foreach (CampaignLevel level in Route) {
+                if (level == CampaignLevel.Tutorial || level == CampaignLevel.Florence) continue;
+                if (level == CampaignLevel.LegacyNexus) {
+                    string legacy = LegacyLevelID(ResolveLegacyHeroID(heroCharacterID));
+                    if (!string.IsNullOrWhiteSpace(legacy)) ids.Add(legacy);
+                    continue;
+                }
+                string id = GetLevelID(level);
+                if (!string.IsNullOrWhiteSpace(id)) ids.Add(id);
+            }
+            return ids;
+        }
+
+        /// <summary>
+        /// Sums the recorded PreBoss-locked final Integrity across
+        /// <see cref="RequiredEndingLevelIDs"/> at full stored precision. A
+        /// missing record contributes zero — it cannot be guessed, and F10
+        /// forbids a smaller denominator.
+        /// </summary>
+        public static float ResolveEndingPointTotal(StorySaveData save, string heroCharacterID) {
+            if (save?.IntegrityByLevel == null) return 0f;
+            float total = 0f;
+            foreach (string id in RequiredEndingLevelIDs(heroCharacterID)) {
+                if (save.IntegrityByLevel.TryGetValue(id, out float percent)) {
+                    total += Mathf.Clamp(percent, 0f, TimelineIntegrityRules.StartPercent);
+                }
+            }
+            return total;
+        }
+
+        /// <summary>
+        /// True for the clean restoration ending. Exactly 750 points selects it;
+        /// anything below selects the scarred ending, even where UI rounding
+        /// would display 50%. Identical on every difficulty.
+        /// </summary>
+        public static bool IsCleanRestorationEnding(StorySaveData save, string heroCharacterID) =>
+            ResolveEndingPointTotal(save, heroCharacterID) >= CleanEndingThresholdPoints;
+
+        // === Durability: the ordered write and the per-second snapshot ======
+
+        private const float DurableSnapshotIntervalSeconds = 1f;
+        private float _durableSnapshotTimer;
+
+        /// <summary>
+        /// F10: HP, meter and resource timers change continuously and were not
+        /// durable between checkpoints. Once per live second the live values are
+        /// captured and queued through the ordered per-slot writer. A crash can
+        /// still lose the last second — the contract says so explicitly — but not
+        /// a whole room.
+        /// </summary>
+        private void TickDurableSnapshot(double delta) {
+            if (!IsLevelTimerRunning || !_attempt.HasAttempt) return;
+            if (_attempt.Status == StoryAttemptStatus.Smothered) return;
+            _durableSnapshotTimer += (float)delta;
+            if (_durableSnapshotTimer < DurableSnapshotIntervalSeconds) return;
+            _durableSnapshotTimer = 0f;
+            CaptureDurableSnapshot();
+        }
+
+        /// <summary>Captures live player resources into the attempt and queues one ordered write.</summary>
+        internal void CaptureDurableSnapshot() {
+            StorySaveData save = GetActiveSave();
+            if (save == null) return;
+            if (GetTree()?.GetFirstNodeInGroup("StoryPlayer") is FTT.Characters.PlayerController player) {
+                save.CurrentHP = player.CurrentHP;
+                save.CurrentUltimateMeter = player.CurrentUltimateMeter;
+            }
+            save.CurrentLives = ChronalRewindsRemaining;
+            save.LevelChronalDust = ChronalDustCollected;
+            _attempt.Bump();
+            WriteAttemptStateToSave(save);
+            SaveManager.Instance?.QueueStorySlotWrite(
+                GameManager.Instance?.CurrentSession.ActiveSaveSlot ?? -1, _attempt.Revision);
+        }
+
+        /// <summary>
+        /// Commits one critical event synchronously: the state is captured, the
+        /// revision bumped, and the write must land before the event may be
+        /// treated as safely saved. Returns false when the write failed — the
+        /// caller must not present a transition as saved.
+        /// </summary>
+        private bool PersistAttempt(System.Action<StorySaveData> mutate = null) {
+            StorySaveData save = GetActiveSave();
+            if (save == null) return false;
+            mutate?.Invoke(save);
+            WriteAttemptStateToSave(save);
+            int slot = GameManager.Instance?.CurrentSession.ActiveSaveSlot ?? -1;
+            return SaveManager.Instance?.SaveStorySlot(slot) == true;
+        }
+
+        /// <summary>Public chokepoint for the F10 coupled-transaction autosave triggers.</summary>
+        public bool CommitCriticalEvent() => PersistAttempt();
     }
 }

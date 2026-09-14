@@ -1,4 +1,4 @@
-using FTT.Characters;
+﻿using FTT.Characters;
 using FTT.Core;
 using FTT.Environment;
 using FTT.UI;
@@ -260,6 +260,116 @@ public class StoryHealingLoopTests {
     }
 
     /// <summary>Environment floor with its top at y = 0 so a channeling player
+    // === Package 11 A3b: F10 healing-loop persistence deltas ==============
+
+    [TestCase]
+    public void ACheckpointsGrantedBenefitIsRecordedSeparatelyFromItsActivation() {
+        // F10 splits "this anchor is activated" from "this anchor has been PAID".
+        // A load or a paid recovery re-reads the activation set; neither may pay
+        // the Mending heal or the rewind refresh a second time.
+        FTT.Core.StoryManager story = FTT.Core.StoryManager.Instance;
+        try {
+            story.BeginLevelRun();
+            AssertThat(story.HasGrantedCheckpointBenefit("heal_checkpoint_1")).IsFalse();
+            AssertThat(story.TryActivateCheckpoint("heal_checkpoint_1")).IsTrue();
+            AssertThat(story.HasGrantedCheckpointBenefit("heal_checkpoint_1"))
+                .OverrideFailureMessage("The benefit ID commits with the activation.")
+                .IsTrue();
+
+            var save = new FTT.Core.StorySaveData { SelectedCharacterID = "einstein" };
+            story.WriteAttemptStateToSave(save);
+            story.ClearLevelAttemptState();
+            story.RestoreAttemptStateFromSave(save);
+            AssertThat(story.HasGrantedCheckpointBenefit("heal_checkpoint_1"))
+                .OverrideFailureMessage("A reload cannot re-grant an already-paid benefit.")
+                .IsTrue();
+            AssertThat(story.TryActivateCheckpoint("heal_checkpoint_1")).IsFalse();
+        } finally {
+            story.ClearLevelAttemptState();
+            story.StopLevelRun();
+        }
+    }
+
+    [TestCase]
+    public void ACompletedFontChannelPersistsItsUseAndItsUncreditedRemainderTogether() {
+        FTT.Core.StoryManager story = FTT.Core.StoryManager.Instance;
+        try {
+            story.BeginLevelRun();
+            // An interrupted channel never reaches the commit, so it costs nothing.
+            AssertThat(story.GetFontUsesConsumed("Orleans:font_a")).IsEqual(0);
+            AssertThat(story.PendingHealingRemaining).IsEqual(0f);
+
+            story.CommitFontChannelCompletion("Orleans:font_a", healAmount: 30f, durationSeconds: 2f);
+            AssertThat(story.GetFontUsesConsumed("Orleans:font_a"))
+                .OverrideFailureMessage("The use decrement commits WITH the pending heal.")
+                .IsEqual(1);
+            AssertThat(story.PendingHealingRemaining).IsEqual(30f);
+
+            // Half of it lands, then the player quits.
+            story.CreditPendingHealing(12f);
+            var save = new FTT.Core.StorySaveData { SelectedCharacterID = "einstein" };
+            story.WriteAttemptStateToSave(save);
+            story.ClearLevelAttemptState();
+            story.RestoreAttemptStateFromSave(save);
+
+            AssertThat(story.PendingHealingRemaining)
+                .OverrideFailureMessage("Repeated loads resume only the UNCREDITED remainder.")
+                .IsEqual(18f);
+            AssertThat(story.GetFontUsesConsumed("Orleans:font_a")).IsEqual(1);
+        } finally {
+            story.ClearLevelAttemptState();
+            story.StopLevelRun();
+        }
+    }
+
+    [TestCase]
+    public void ADeathRecoveryCancelsPendingHealingWithoutRefundingTheSpentUse() {
+        FTT.Core.StoryManager story = FTT.Core.StoryManager.Instance;
+        try {
+            story.BeginLevelRun();
+            story.CommitFontChannelCompletion("Orleans:font_b", healAmount: 40f, durationSeconds: 2f);
+            AssertThat(story.PendingHealingRemaining).IsEqual(40f);
+
+            story.CancelPendingHealingForRecovery();
+            AssertThat(story.PendingHealingRemaining)
+                .OverrideFailureMessage("A recovery that replaces HP cancels the pending heal.")
+                .IsEqual(0f);
+            AssertThat(story.GetFontUsesConsumed("Orleans:font_b"))
+                .OverrideFailureMessage(
+                    "The channel completed; the player simply did not live long enough to be " +
+                    "paid. The use is NOT refunded.")
+                .IsEqual(1);
+        } finally {
+            story.ClearLevelAttemptState();
+            story.StopLevelRun();
+        }
+    }
+
+    [TestCase]
+    public void AConsumedFeastOrSalveKeepsItsClaimAcrossAReload() {
+        FTT.Core.StoryManager story = FTT.Core.StoryManager.Instance;
+        try {
+            story.BeginLevelRun();
+            AssertThat(story.TryConsumeHealingPickup("l04_salve_02")).IsTrue();
+            AssertThat(story.TryConsumeHealingPickup("l04_salve_02"))
+                .OverrideFailureMessage("A pickup ID is consumed once per attempt.")
+                .IsFalse();
+
+            var save = new FTT.Core.StorySaveData { SelectedCharacterID = "einstein" };
+            story.WriteAttemptStateToSave(save);
+            story.ClearLevelAttemptState();
+            AssertThat(story.IsHealingPickupConsumed("l04_salve_02")).IsFalse();
+
+            story.RestoreAttemptStateFromSave(save);
+            AssertThat(story.IsHealingPickupConsumed("l04_salve_02"))
+                .OverrideFailureMessage("A reload restores the claim; it never reissues the pickup.")
+                .IsTrue();
+        } finally {
+            story.ClearLevelAttemptState();
+            story.StopLevelRun();
+        }
+    }
+
     /// (feet on the node origin) stands still while a test drives frames.</summary>
     private static StaticBody2D CreateFloor() {
         var floor = new StaticBody2D {
