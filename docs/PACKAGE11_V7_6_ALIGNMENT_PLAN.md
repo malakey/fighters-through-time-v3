@@ -5964,3 +5964,103 @@ string is *learnable* at these timings (`StringSwingIntervalFrames = 20`, a 90-f
 unverified; the drill scene's presentation is holodeck-styled placeholder geometry, not art; and the
 sandbox runs on Florence's Sealed geometry with the stage's own platforms and no hazard, which is a
 deliberate choice (a Sealed floor means no lesson can end in a pit) rather than an authored drill room.
+---
+### A9b — Fighter CPU: F19 recovery profiles, pit-aware DI and the grab/Echo Step verb policy (2026-09-13)
+**The shipped recovery ladder was not merely mistuned, it was inverted, and correcting it required an
+episode concept the controller did not have.** `DecideRecovery`'s three-branch percentage ladder ran
+jump → movement → Special 2 with `RecoveryMovementPercent = 0` and `RecoverySpecialTwoPercent = 55/85`
+on Easy and Medium, so the two bands the design says must lean on the character's movement ability
+used it never, and the band the design forbids Specials to outright used Special 2 as its main
+recovery button. Swapping the numbers is not enough: `CPU_RECOVERY.md` caps Easy and Medium at **one
+movement activation per offstage episode**, and an episode is explicitly not an airtime — "a jump
+refund or temporary staff-platform landing alone does not reset" it. The latch (`_episodeActive`,
+`_episodeMovementActivations`, `_episodeFrames`) is therefore input-side controller state, alongside
+`_hitstunHoldBlockActive` and friends and deliberately outside the rollback snapshot, and it ends only
+on a stable landing on **authored** stage geometry, a legal ledge capture, or a KO.
+`IsStableStageLanding` is what makes "authored" real: grounded plus floor support under this X, or
+standing on one of the stage's own one-way platforms — a construct or Mozart's three-second staff is
+not a landing. Pinned by `CpuRecoveryMatrixTests` (81 drills) and
+`FighterCpuBehaviorTests.EveryBandRecoversWithItsMovementAbilityAndOnlyEasyAndMediumAreCappedPerEpisode`.
+**The per-episode activation is charged at delivery, not at decision, and that is a real bug class
+rather than a style choice.** Decisions are scheduled into a 128-slot ring and delivered after the
+band's reaction delay; with Easy's 30–45-frame jitter a later decision can overwrite a pending slot.
+Charging the activation when the plan was formed meant Easy could spend its one activation on a
+decision that never reached the simulation and then be capped out for the rest of the episode — it
+produced literally zero movement-ability presses. `_movementActivationDeliveryTick` marks the
+in-flight plan, `MovementActivationsAllowed` counts it against the cap so the CPU cannot queue two,
+and a marker whose delivery tick passes unconsumed is released rather than charged.
+**No character approves an optional mobility Special, and Pocahontas's Spirit Strike is a rejection
+with evidence rather than an omission.** `CPU_RECOVERY.md` admits it "only after confirming aerial
+legality and the implemented trajectory". The shipped simulation translates the caster in exactly one
+place — `FighterAbilitySystem.ApplyMovement`, reachable only by the movement ability — and
+`pocahontas/special_1.tres` is `ExecutionType = 0` (Melee) with no caster translation, so the design's
+forced diagonal-up dash does not exist to plan against. The contract's own instruction applies:
+"Reject missing or unvalidated optional Special mappings; fall back to verified jumps/movement instead
+of treating a slot number as a capability." `CpuRecoveryProfile.MobilitySpecialFor` returns `None` for
+all nine, the planner branch behind it is therefore unreachable in the shipped build, and re-approving
+Spirit Strike later is a one-line profile edit.
+`CpuRecoveryProfileTests.PocahontasPlansBreezeGlideWithItsJumpResetAndRejectsSpiritStrike` pins the
+authored execution type so the rejection breaks loudly if the trajectory ever lands.
+**`RecoverySpecialTwoPercent` is retired, not renumbered.** Its premise — that slot 2 is a universal
+recovery move — is what the design rejects in as many words, so keeping the name with a new value
+would have preserved the bug in the vocabulary. It becomes `RecoveryMobilitySpecialPercent`, gated
+behind the profile's explicit approval, plus the new `RecoveryMovementActivationsPerEpisode`
+(1 / 1 / 0) and `PlansMultiActionRecovery` (false / false / true). **A7b's boss-override
+`CpuBandTuning` must not set the retired property**; every new member is an ordinary `init` property,
+so a `with` expression that names only what it changes keeps working.
+**Recovery detection is now "unsupported over a gap", and Closed stages are excluded by construction
+rather than by a threshold.** `IsOffStage` keeps the past-a-wall branch; the floor-plane branch is
+replaced, on Open stages only, by A9's `HasFloorSupportUnderSelf == 0 || LaunchTrajectoryCrossesGap
+!= 0`. On a Sealed stage `HasFloorSegments` is zero, so the gap branch cannot fire at all — which is
+how "closed stages and ordinary supported traversal must not trigger emergency casts" is satisfied
+without inventing a Y threshold the contract forbids. The legacy below-the-floor test survives only
+for stages with no authored segments. `CpuRecoveryMatrixTests.AssertNoFalseTriggerOnASealedStage` runs
+in all nine cases.
+**Pit-aware DI shipped; the V7.4 deferral is closed.** `ResolveDiHold` aims at the nearest pit-facing
+floor edge while the launch trajectory ends over a gap, and keeps the unchanged toward-centre hold
+everywhere else — Sealed stages, the legacy arena, and any Open-stage launch that already ends over
+floor. On Paris this is the difference between DI and suicide: stage centre *is* the hole. Pinned in
+`FighterCpuHitstunDefenseTests.ASuccessfulDiRollHoldsTowardSafetyDuringTheLaunchWindow`, which keeps
+both original toward-centre assertions and adds the pit branch plus a supported-trajectory control.
+**Both new verbs are emitted as the shared chords a human presses, and re-validated at delivery.** The
+CPU never reaches into grab or Echo Step directly: it schedules `Block | BasicAttack` and
+`Block | Roll` and lets the ordinary resolver and every canonical eligibility rule decide. Because a
+plan formed 4–20 frames earlier can be overtaken by the CPU's own state, `ScheduledDecision` carries
+the intended verb and `VerbStillLegalForSelf` drops it at delivery if self-legality has lapsed —
+`CanStartGrab` / `CanStartEchoStep` mirror `FighterGrabRules.CanStartGrab` and the simulation's
+`TryStartEchoStep` gate rather than restating them. **Opponent** conditions are deliberately *not*
+rechecked: the contract says contact resolves against the actual current world and a planned grab is
+allowed to whiff. `_grabOpportunityID` and `_attackExecutionID` give the once-per-opportunity rule an
+identity, tracked before the band gate so "one opportunity" means the same run of decisions on every
+band and a disabled band simply never rolls against it.
+**`DEFER-CPU-SNAPSHOT` is opened rather than silently resolved.** `CPU_COMBAT_POLICY.md` asks the
+admission roll to "snapshot the admission result, opportunity/attack IDs and PRNG state for
+deterministic resimulation". The controller is an *input source* whose RNG and schedule ring are
+deliberately outside the rollback snapshot (Package 6 §2.5) — determinism comes from the seed plus the
+observation sequence, and
+`FighterCpuBehaviorTests.TheExpandedTableStaysBitIdenticalForTheSameSeedAndObservationStream` is the
+pin that makes CPU frames recordable and replayable exactly like a human pad. Re-architecting that to
+satisfy the document's letter would break the property its intent actually wants. The IDs are exposed
+as read-only controller properties for the tests; the ledger entry carries the acceptance criteria.
+**Not resolved here, by design.**
+**Also recorded:** `Observe` gained the verb block behind `HasVerbState` / `HasTargetVerbState`, filled
+only when an `ICpuWorldObserver` can resolve a `FighterVerbComponent`. The two new observer members
+are **default interface methods returning false**, so every existing implementer — including the test
+fakes — compiles untouched and a Story adapter is absent by default. `MirrorParadoxDecisionAdapter`
+needed no code change, only its comment, and
+`MirrorParadoxTests.TheStoryAdapterLeavesTheVerbLayerAbsentSoFighterVerbsStayOutOfTheCampaign`
+re-proves frame-identical parity. `FighterSimulation.TryGetEchoStepDestination` and the promotion of
+`FighterMovementSystem.OldestRingSample` to `internal` are the only sim-side edits, both read-only —
+**A1c must re-point both when it replaces the 5-sample ring with the exact 31-sample bank.**
+**Difficulty-matrix wording delta, doc-only:** Medium's hitstun-defense row is now "A randomized CPU
+attempt rate does **not** prove any pressure sequence is escapable". `FighterCpuHitstunDefenseTests`
+remains valid as a pin on the CPU's *input* behaviour, but it must no longer be cited as evidence that
+a string is escapable — that claim needs a combat-rules test, not a CPU success rate.
+**Not delivered:** the Mirror Paradox does not gain grabs or Echo Step. `CPU_COMBAT_POLICY.md`'s F20
+paragraph routes that through `MIRROR_PARADOX.md`, which is **A7b's** dossier, and the Story adapter
+has no verb layer to project; the sentinels keep the branches inert until someone builds one. The
+Paris drill also records a real limit rather than hiding it: dropped dead centre in the 5.0-wide
+courtyard pit, Lincoln cannot return — horizontal-only Rail Charge plus the roster's lowest jump
+cannot cover 2.5 units of climb. That is the contract's "an unreachable route may still end in a KO",
+not a planner defect, so the drill uses the shallow knock 0.5 units past the ledge and the deep-centre
+case is left as a balance observation for a human pass.

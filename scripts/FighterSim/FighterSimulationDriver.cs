@@ -143,11 +143,18 @@ namespace FTT.FighterSim {
                 // matchSeed reproduces it; the default reroll varies it per match).
                 // The CPU stays outside the snapshot.
                 int cpuSeed = unchecked(Simulation.GetMatchState().WorldSeed * 397 + CpuPlayerSlot);
+                // Package 11 A9b: the F19 recovery profile is built from the CPU
+                // fighter's own normalized loadout — the same object the fighter
+                // itself was constructed from — so the planner reads authored
+                // reach, cooldowns and jump numbers instead of owning copies.
                 _cpuController = new FighterCpuController(
                     session.CpuDifficulty,
                     cpuSeed,
                     FighterStageGeometry.ForStage(stageID ?? ""),
-                    new FighterSimulationWorldObserver(Simulation));
+                    new FighterSimulationWorldObserver(Simulation),
+                    tuningOverride: null,
+                    recoveryProfile: CpuRecoveryProfile.FromLoadout(
+                        FighterLoadoutFactory.FromCharacterData(_playerTwo.Data)));
             }
             WarmPresentationProxies(112);
             AddToGroup("FighterSimulation");

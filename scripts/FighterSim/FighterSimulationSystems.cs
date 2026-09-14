@@ -995,8 +995,14 @@ namespace FTT.FighterSim {
             ring.RingIndex = (ring.RingIndex + 1) % EchoRingSampleCount;
         }
 
-        /// <summary>RingIndex points at the next slot to overwrite — the oldest sample.</summary>
-        private static FPVector2 OldestRingSample(in FighterEchoRingComponent ring) => ring.RingIndex switch {
+        /// <summary>
+        /// RingIndex points at the next slot to overwrite — the oldest sample.
+        /// <c>internal</c> for Package 11 A9b: the CPU has to inspect the
+        /// resolved historical destination for pit risk <i>before</i> selecting
+        /// Echo Step, and the temporal contract forbids it from computing a
+        /// second, nearby answer of its own.
+        /// </summary>
+        internal static FPVector2 OldestRingSample(in FighterEchoRingComponent ring) => ring.RingIndex switch {
             0 => new FPVector2(ring.Sample0X, ring.Sample0Y),
             1 => new FPVector2(ring.Sample1X, ring.Sample1Y),
             2 => new FPVector2(ring.Sample2X, ring.Sample2Y),

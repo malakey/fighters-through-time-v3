@@ -448,9 +448,12 @@ namespace FTT.Enemies {
                     ? FP64.FromFloat(Math.Max(0f, Target.CurrentUltimateMeter)).RawValue
                     : 0
                 // HasStageBounds / HasOrb / HasHazard / HasFloorSegments /
-                // SuppressGameplayInput stay 0: Story has no Fighter stage, no
-                // orbs, no stage hazards, no authored floor segments, and the
-                // encounter's own reveal gate owns whether the clone acts at all.
+                // HasVerbState / HasTargetVerbState / SuppressGameplayInput stay
+                // 0: Story has no Fighter stage, no orbs, no stage hazards, no
+                // authored floor segments and no verb layer, and the encounter's
+                // own reveal gate owns whether the clone acts at all. The verb
+                // sentinels (Package 11 A9b) are what keep the F19 grab and Echo
+                // Step branches out of a campaign level entirely.
             };
             ProjectNearestHostileProjectile(ref observation);
             return observation;
