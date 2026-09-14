@@ -107,10 +107,9 @@ public class FighterHazardBehaviorTests {
         var harness = new HazardHarness(FighterStageGeometry.Paris, FighterHazardTypeID.ParisDampeningBeam, 6104);
 
         // Build Influence first: the drain is unobservable from an empty meter.
-        for (int frame = 0; frame < 400; frame++) {
-            GameplayButtons buttons = frame % 40 == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None;
-            harness.StepToward(harness.Fighter(1).Position.x, buttons);
-        }
+        // Paris is an Open stage since A9, so closing the distance means crossing
+        // the courtyard pit rather than walking a flat floor.
+        harness.EngageOpponent(400);
         AssertThat(harness.Fighter(0).Influence > FP64.FromInt(10)).IsTrue();
 
         AssertThat(harness.StepUntilHazardExists()).IsTrue();
@@ -124,7 +123,7 @@ public class FighterHazardBehaviorTests {
         bool reversed = false;
         FP64 previousVelocityX = harness.Hazard().Velocity.x;
         for (int frame = 0; frame < 360 && harness.HasHazard() && harness.Hazard().Phase == 1; frame++) {
-            harness.StepToward(harness.Hazard().Position.x);
+            harness.StepTowardOnFloor(harness.Hazard().Position.x);
             if (!harness.HasHazard()) break;
             FighterHazardComponent hazard = harness.Hazard();
             if (hazard.Position.x < minimumX) minimumX = hazard.Position.x;
@@ -155,10 +154,7 @@ public class FighterHazardBehaviorTests {
         var harness = new HazardHarness(FighterStageGeometry.Paris, FighterHazardTypeID.ParisDampeningBeam, 6120);
 
         // Build a meter worth measuring, then go passive.
-        for (int frame = 0; frame < 400; frame++) {
-            GameplayButtons buttons = frame % 40 == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None;
-            harness.StepToward(harness.Fighter(1).Position.x, buttons);
-        }
+        harness.EngageOpponent(400);
         AssertThat(harness.Fighter(0).Influence > FP64.FromInt(20)).IsTrue();
         AssertThat(harness.StepUntilHazardExists()).IsTrue();
         harness.StepWhileWarning();
@@ -167,9 +163,13 @@ public class FighterHazardBehaviorTests {
         var dropFrames = new System.Collections.Generic.List<int>();
         var dropSizes = new System.Collections.Generic.List<long>();
         FP64 previous = harness.Fighter(0).Influence;
-        for (int frame = 0; frame < 240 && harness.HasHazard()
+        // The whole 360-frame active window: on an Open stage the beam has to
+        // cross the courtyard before it reaches the walkway the fighter can
+        // actually stand on, so the first contact lands later than it did on the
+        // old flat Paris floor.
+        for (int frame = 0; frame < 400 && harness.HasHazard()
              && harness.Hazard().Phase == FighterHazardSystem.ActivePhase; frame++) {
-            harness.StepToward(harness.Hazard().Position.x);
+            harness.StepTowardOnFloor(harness.Hazard().Position.x);
             FP64 current = harness.Fighter(0).Influence;
             if (current < previous) {
                 dropFrames.Add(frame);
@@ -584,11 +584,13 @@ public class FighterHazardBehaviorTests {
         private static readonly FP64 SteerBand = FP64.FromDouble(0.15);
 
         private readonly FighterSimulation _simulation;
+        private readonly FighterStageGeometry _geometry;
         private int _tick;
 
         public readonly List<PlayerInputFrame> RecordedInputs = new();
 
         public HazardHarness(FighterStageGeometry geometry, int hazardTypeID, int seed) {
+            _geometry = geometry;
             _simulation = NewSimulation(geometry, hazardTypeID, seed);
         }
 
@@ -620,6 +622,66 @@ public class FighterHazardBehaviorTests {
             FP64 dx = targetX - Fighter(0).Position.x;
             sbyte axis = dx > SteerBand ? (sbyte)127 : dx < -SteerBand ? (sbyte)-127 : (sbyte)0;
             Step(axis, buttons);
+        }
+
+        /// <summary>
+        /// Walks toward <paramref name="targetX"/> without stepping off the floor
+        /// segment the fighter is standing on. Package 11 A9 gave three stages a
+        /// real pit, so a naive chase at a sweeping hazard now ends in a ledge
+        /// hang over the hole instead of under the hazard. Sealed stages (and the
+        /// legacy flat arena) have no segments, so this is plain
+        /// <see cref="StepToward"/> there.
+        /// </summary>
+        public void StepTowardOnFloor(FP64 targetX, GameplayButtons buttons = GameplayButtons.None) =>
+            StepToward(ClampToSupportingFloor(targetX), buttons);
+
+        /// <summary>
+        /// Clamps <paramref name="targetX"/> into the floor segment currently
+        /// under player one, leaving a full unit of margin inside the ledge —
+        /// enough for the twelve-frame stop ramp, which otherwise carries a
+        /// running fighter over the edge and straight into a ledge hang.
+        /// </summary>
+        private FP64 ClampToSupportingFloor(FP64 targetX) {
+            if (_geometry == null || _geometry.FloorSegments.Length == 0) return targetX;
+            FP64 fighterX = Fighter(0).Position.x;
+            FP64 margin = FP64.One;
+            foreach (FighterStagePlatform segment in _geometry.FloorSegments) {
+                if (!segment.Supports(fighterX)) continue;
+                FP64 left = segment.EdgeX(0) + margin;
+                FP64 right = segment.EdgeX(1) - margin;
+                return targetX < left ? left : targetX > right ? right : targetX;
+            }
+            return targetX;
+        }
+
+        /// <summary>
+        /// Builds player one's Influence by closing on player two and swinging.
+        /// On an Open stage the two spawns are separated by the pit, so the script
+        /// leaps the gap and drops through the landing platform first; on a Sealed
+        /// floor it degenerates to the walk-and-swing this suite always used.
+        /// </summary>
+        public void EngageOpponent(int frames) {
+            for (int frame = 0; frame < frames; frame++) {
+                FighterStateComponent self = Fighter(0);
+                FP64 dx = Fighter(1).Position.x - self.Position.x;
+                sbyte axis = dx > SteerBand ? (sbyte)127 : dx < -SteerBand ? (sbyte)-127 : (sbyte)0;
+                bool closed = FP64.Abs(dx) <= FP64.FromInt(2);
+                bool overhead = self.Position.y > FP64.One;
+                GameplayButtons buttons;
+                if (!closed) {
+                    // Hop the courtyard. Harmless on a stage with no gap to cross.
+                    buttons = frame % 12 == 0 ? GameplayButtons.Jump : GameplayButtons.None;
+                } else if (overhead) {
+                    // Standing on the walkway above the opponent: drop through it.
+                    axis = 0;
+                    buttons = frame % 12 == 0
+                        ? GameplayButtons.Down | GameplayButtons.Jump
+                        : GameplayButtons.Down;
+                } else {
+                    buttons = frame % 40 == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None;
+                }
+                Step(axis, buttons);
+            }
         }
 
         /// <summary>Advances to the frame the first hazard becomes observable.</summary>
