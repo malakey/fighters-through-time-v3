@@ -55,7 +55,12 @@ public class UnusedTranslationKeyTests {
     /// </summary>
     private static readonly (string Prefix, string BuiltBy, string Marker)[] DynamicKeyPrefixes = {
         ("status_", "scripts/UI/HudAbilityIndicatorModel.cs", "\"status_\" + type.ToString().ToLowerInvariant()"),
-        ("status_", "scripts/UI/FighterHudModel.cs", "status_{status.ToString().ToLowerInvariant()}")
+        ("status_", "scripts/UI/FighterHudModel.cs", "status_{status.ToString().ToLowerInvariant()}"),
+        // Package 11 Phase C. A6 authored the captive spoken names and recorded
+        // all three as orphans "until the resolver merges"; A5's resolver has
+        // merged, and it builds the key from the manifest roster ID, so the
+        // family belongs here rather than on the orphan roster.
+        ("captive_name_", "scripts/Core/CampaignCaptiveRoster.cs", "$\"captive_name_{characterID}\"")
     };
 
     /// <summary>
@@ -93,24 +98,23 @@ public class UnusedTranslationKeyTests {
         // as an NPC; in the N03 hero-is-Cleopatra branch she is the player and
         // renders through speaker_player. The key is retained per the plan's
         // legacy-identifier rule rather than deleted.
-        "speaker_cleopatra",
-        // Package 11 A6 (N04). The captive spoken names are resolved at render
-        // time by A5's CampaignCaptiveRoster ("captive_name_" + roster id), so no
-        // literal exists to find until that resolver merges. Retire all three
-        // from this roster in the same change that lands it.
-        "captive_name_leonardo",
-        "captive_name_cleopatra",
-        "captive_name_tesla"
+        "speaker_cleopatra"
+        // The three captive_name_* rows A6 recorded here left the roster at the
+        // Package 11 Phase C closeout: A5's CampaignCaptiveRoster shipped, so
+        // they are a runtime-built family and moved to DynamicKeyPrefixes.
     };
 
     /// <summary>The cap stated in the Package 8 closeout, lowered as orphans are
     /// retired (12 → 10 with the audit M-2 pause pass; 10 → 11 with the V7.3 LAN
     /// de-scope, which orphaned <c>menu_lan_match</c> until Package 7; 11 → 15 with
     /// Package 11 A6’s V7.5 narrative pass, which orphaned <c>speaker_cleopatra</c>
-    /// and added the three runtime-resolved <c>captive_name_*</c> rows). Informational
+    /// and added the three runtime-resolved <c>captive_name_*</c> rows; 15 → 12 at
+    /// the Package 11 Phase C closeout, which moved those three onto
+    /// <see cref="DynamicKeyPrefixes"/> now that their resolver has shipped).
+    /// Informational
     /// alongside the roster rule above: if both ever disagree, the roster is the
     /// authority.</summary>
-    private const int RecordedOrphanCeiling = 15;
+    private const int RecordedOrphanCeiling = 12;
 
     [TestCase]
     public void NoTranslationKeyGoesUnusedBeyondTheRecordedOrphans() {
