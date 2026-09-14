@@ -38,11 +38,15 @@ namespace FTT.UI {
     /// </summary>
     public partial class MainMenu : Control {
 
-        /// <summary>The locked nine-character roster, in authored grid order.</summary>
-        private static readonly string[] RosterIDs = {
-            "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-            "tesla", "shakespeare", "mozart", "pocahontas"
-        };
+        /// <summary>
+        /// The roster, in authored manifest order — which is the grid order the
+        /// character screen paints. Package 11 A6b: read from
+        /// <see cref="FTT.Core.CharacterRoster"/> (the content manifest), never
+        /// a literal cast list, per the design's standing "the roster will grow"
+        /// mandate.
+        /// </summary>
+        private string[] RosterIDs => _rosterIDs ??= FTT.Core.CharacterRoster.ToArray();
+        private string[] _rosterIDs;
 
         private const int StorySlotCount = 3;
 
@@ -193,9 +197,17 @@ namespace FTT.UI {
         private void BindCharacterScreen() {
             const string layout = "CharacterScreen/Center/Panel/Layout/";
             var grid = GetNode<GridContainer>(layout + "Grid");
+            // Package 11 A6b: the roster comes from the content manifest, never
+            // from a literal cast list (the A9 mandate). The authored grid still
+            // carries a fixed number of CharacterButton tiles, so a roster that
+            // outgrows the scene binds the tiles that exist and leaves the rest
+            // unbound rather than throwing out of _Ready — authoring the extra
+            // tiles is scene work, not a code change. GetNodeOrNull is what
+            // makes that degradation graceful.
             for (int index = 0; index < RosterIDs.Length; index++) {
                 string characterID = RosterIDs[index];
-                var button = grid.GetNode<Button>($"CharacterButton{index}");
+                var button = grid.GetNodeOrNull<Button>($"CharacterButton{index}");
+                if (button == null) continue;
                 button.ThemeTypeVariation = "TemporalGlassButton";
                 button.Text = CharacterName(characterID);
                 button.Pressed += () => OnCharacterPressed(characterID);

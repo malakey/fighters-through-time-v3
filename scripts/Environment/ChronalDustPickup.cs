@@ -37,8 +37,17 @@ namespace FTT.Environment {
         private Sprite2D _glow;
         private float _glowTimer;
 
-        /// <summary>Chronal gold. Package 8 B6: the dust had no glow at all.</summary>
-        public static readonly Color GlowColor = new(1f, 0.86f, 0.42f, 0.5f);
+        /// <summary>
+        /// History's resonance, warm gold (Package 8 B6 gave the dust its glow;
+        /// Package 11 A6b named the pigment). The design's recurrence contract
+        /// is explicit: <i>every Dust pickup restates the origin</i> — this is
+        /// the same gold that ignites on the hero in Level 0 and the same gold
+        /// the hero's persistent aura carries, which is why it reads from
+        /// <see cref="FTT.UI.UIPalette.ResonanceAura"/> rather than repeating
+        /// the literal.
+        /// </summary>
+        public static readonly Color GlowColor =
+            new(FTT.UI.UIPalette.ResonanceAura, 0.5f);
 
         public override void _Ready() {
             AddToGroup("story_loot");

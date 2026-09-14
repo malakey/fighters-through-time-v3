@@ -209,8 +209,16 @@ namespace FTT.Environment {
             FTT.Combat.VfxEmitter.EmitScene(scene, GlobalPosition, GetParent(), DischargeColor);
         }
 
-        /// <summary>Unbound cyan, matching the extractor's core glow.</summary>
-        public static readonly Color DischargeColor = new(0.2f, 0.95f, 1f, 0.85f);
+        /// <summary>
+        /// The Unbound's cold synthetic light (design §2's two-colour grammar,
+        /// codified by Package 11 A6b). Every Chronal Extractor is Level 0 in
+        /// miniature — the same cold beam drawing the same warm resonance out of
+        /// an era — so it must not carry its own pigment. The literal that used
+        /// to sit here was already exactly this colour; what was missing was the
+        /// shared contract, and the comment called it "Apex Archive cyan" long
+        /// after the V7.5 faction rename.
+        /// </summary>
+        public static readonly Color DischargeColor = FTT.UI.UIPalette.UnboundColdDischarge;
 
         protected override void ApplyStatePresentation() {
             base.ApplyStatePresentation();

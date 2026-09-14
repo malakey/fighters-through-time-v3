@@ -42,31 +42,20 @@ namespace FTT.Core {
         /// <summary>Number of named captives a line may reference: {CaptiveName1}, {CaptiveName2}.</summary>
         public const int NamedExampleCount = 2;
 
-        private static IReadOnlyList<string> _rosterCache;
-
         /// <summary>
         /// Every character ID the content manifest registers, in manifest order.
-        /// Cached for the process lifetime — the manifest is immutable content.
+        ///
+        /// <para>Package 11 A6b: this used to carry its own manifest read and
+        /// its own process-lifetime cache. It now forwards to
+        /// <see cref="CharacterRoster.IDs"/> — the single canonical roster — so
+        /// there is exactly one manifest read, one cache and one answer to
+        /// "who is on the roster". The A9 mandate is unchanged; it is simply
+        /// enforced in one place now.</para>
         /// </summary>
-        public static IReadOnlyList<string> Roster() {
-            if (_rosterCache != null) return _rosterCache;
-            var ids = new List<string>();
-            try {
-                ContentManifest manifest = ContentManifest.LoadDefault();
-                foreach (ContentManifestEntry entry in manifest.ForCategory(ContentCategory.Character)) {
-                    if (!string.IsNullOrWhiteSpace(entry.ContentID)) ids.Add(entry.ContentID);
-                }
-            } catch (Exception error) {
-                // A missing or malformed manifest must not take the dialogue
-                // system down: the tokens then resolve to their fallback copy.
-                Godot.GD.PushWarning($"CampaignCaptiveRoster could not read the content manifest: {error.Message}");
-            }
-            _rosterCache = ids;
-            return _rosterCache;
-        }
+        public static IReadOnlyList<string> Roster() => CharacterRoster.IDs;
 
         /// <summary>Test seam: drops the cached manifest roster.</summary>
-        internal static void ResetCacheForTests() => _rosterCache = null;
+        internal static void ResetCacheForTests() => CharacterRoster.ResetCacheForTests();
 
         /// <summary>
         /// The captives for a campaign locked to <paramref name="heroID"/>:

@@ -38,11 +38,14 @@ public class Level15ContentTests {
     private const string DialoguePath = "res://resources/Dialogue/level_15_dialogue.tres";
     private const int ScratchSlot = 2;
 
-    /// <summary>The nine playable characters; every one of them has to fit the level.</summary>
-    private static readonly string[] RosterIDs = {
-        "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-        "tesla", "shakespeare", "mozart", "pocahontas"
-    };
+    /// <summary>
+    /// Package 11 A6b: the roster is the content manifest, never a literal
+    /// cast list. design-godot.md §2 forbids enumerating the cast in
+    /// load-bearing ways, and a duplicated array here is exactly the thing
+    /// that blocks a roster addition — the content would be complete and the
+    /// test suite would still fail.
+    /// </summary>
+    private static readonly IReadOnlyList<string> RosterIDs = FTT.Core.CharacterRoster.IDs;
 
     // === Scene and identity ===
 

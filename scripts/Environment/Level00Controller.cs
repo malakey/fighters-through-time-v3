@@ -809,38 +809,168 @@ namespace FTT.Environment {
             BuildDecoration();
         }
 
-        /// <summary>Placeholder Chronal Rift visual for the part-one fracture presentation.</summary>
+        /// <summary>
+        /// Part 1's ignition beat — the V7.6 two-colour visual grammar's opening
+        /// statement (design §2 "The Visual Grammar of Resonance"; Package 11
+        /// A6b fills in the treatment A5 left room for).
+        ///
+        /// <para>What this used to be: a single violet/purple <c>ColorRect</c>
+        /// pulsing on a loop. A generic rift. It said nothing about who did this
+        /// or what it did to the hero, and violet belongs to neither half of the
+        /// grammar — the language leaked before it was ever established.</para>
+        ///
+        /// <para>The authored beat is four moves, in this order:</para>
+        /// <list type="number">
+        /// <item>A <b>cold beam cracks the nexus</b> — the Unbound's synthetic
+        /// light, a jagged tear rather than a clean opening.</item>
+        /// <item><b>Gold ignition on the hero</b> — history's resonance answers,
+        /// warm, from the era into a person.</item>
+        /// <item>The <b>beam breaks</b> — the cold recoils and guts out.</item>
+        /// <item>The <b>Warden portal opens beside the Unbound rift</b>. This is
+        /// the contract the whole campaign leans on afterwards: <b>two kinds of
+        /// door</b>. Unbound rifts are jagged cold tears; Warden portals are
+        /// clean steady geometry. Establishing them side by side, once, in the
+        /// opening minutes is what makes every later door legible at a glance
+        /// without a line of dialogue.</item>
+        /// </list>
+        ///
+        /// <para>Placeholder <c>ColorRect</c> / <c>PointLight2D</c> treatment,
+        /// consistent with the era-placeholder bar the rest of the campaign
+        /// meets — the <i>grammar</i> is the deliverable, not the art. Every
+        /// pigment comes from <see cref="FTT.UI.UIPalette"/>'s grammar block;
+        /// <c>ResonanceGrammarTests</c> fails if this beat reintroduces a local
+        /// literal or any violet.</para>
+        /// </summary>
         private void BuildFracturePresentation() {
-            var rift = new Node2D { Name = "ChronalFracture", Position = new Vector2(250, 700) };
+            var rift = new Node2D {
+                Name = "ChronalFracture",
+                Position = new Vector2(250, 700),
+                // The intro dialogue pauses the tree, and the beat has to play
+                // underneath it rather than waiting for it to finish.
+                ProcessMode = ProcessModeEnum.Always
+            };
             AddChild(rift);
 
-            var core = new ColorRect {
-                Size = new Vector2(50, 180),
-                Position = new Vector2(-25, -90),
-                Color = new Color(0.5f, 0.2f, 0.9f, 0.85f)
+            // --- Beat 1: the cold beam, a JAGGED tear -----------------------
+            // Jaggedness is geometry, not colour: offset shards of differing
+            // width and height, never a single clean column. A Warden portal
+            // (below) is built from the opposite vocabulary on purpose.
+            var beam = new Node2D {
+                Name = "UnboundBeam",
+                // Starts low so beat 1 reads as the beam BITING rather than as
+                // something that was always there.
+                Modulate = new Color(1f, 1f, 1f, 0.18f)
             };
-            rift.AddChild(core);
+            rift.AddChild(beam);
 
-            var glow = new ColorRect {
-                Size = new Vector2(90, 220),
-                Position = new Vector2(-45, -110),
-                Color = new Color(0.4f, 0.1f, 0.8f, 0.25f)
+            float[] shardOffsets = { -18f, -4f, 9f, 21f };
+            float[] shardHeights = { 150f, 196f, 168f, 128f };
+            float[] shardWidths = { 12f, 18f, 10f, 14f };
+            for (int index = 0; index < shardOffsets.Length; index++) {
+                beam.AddChild(new ColorRect {
+                    Name = $"ColdShard{index}",
+                    Size = new Vector2(shardWidths[index], shardHeights[index]),
+                    Position = new Vector2(shardOffsets[index], -shardHeights[index] * 0.55f),
+                    Color = FTT.UI.UIPalette.UnboundColdDischarge,
+                    RotationDegrees = index % 2 == 0 ? -4f : 5f
+                });
+            }
+
+            var coldHalo = new ColorRect {
+                Name = "ColdHalo",
+                Size = new Vector2(96, 232),
+                Position = new Vector2(-48, -116),
+                Color = FTT.UI.UIPalette.UnboundColdDim
             };
-            rift.AddChild(glow);
-
-            var tween = rift.CreateTween().SetLoops();
-            tween.TweenProperty(core, "modulate:a", 0.45f, 0.8);
-            tween.TweenProperty(core, "modulate:a", 1.0f, 0.8);
+            rift.AddChild(coldHalo);
+            rift.MoveChild(coldHalo, 0);
 
             var label = new Label {
+                Name = "FractureLabel",
                 Text = Tr("tutorial_fracture_label"),
                 Position = new Vector2(-90, -150),
                 CustomMinimumSize = new Vector2(180, 20),
                 HorizontalAlignment = HorizontalAlignment.Center
             };
             label.AddThemeFontSizeOverride("font_size", 11);
-            label.AddThemeColorOverride("font_color", new Color(0.7f, 0.4f, 1f));
+            label.AddThemeColorOverride("font_color", FTT.UI.UIPalette.UnboundCold);
             rift.AddChild(label);
+
+            // --- Beat 2: the gold ignition on the hero ----------------------
+            // Sited at the player's start anchor, not at the rift: the grammar
+            // says gold flows FROM the era INTO its people, so the warm light
+            // has to originate on the hero, answering the cold rather than
+            // emanating from the same wound.
+            var ignition = new Node2D {
+                Name = "ResonanceIgnition",
+                Position = new Vector2(150, 200),
+                Modulate = new Color(1f, 1f, 1f, 0f),
+                ProcessMode = ProcessModeEnum.Always
+            };
+            rift.AddChild(ignition);
+            ignition.AddChild(new ColorRect {
+                Name = "IgnitionCore",
+                Size = new Vector2(34, 34),
+                Position = new Vector2(-17, -17),
+                Color = FTT.UI.UIPalette.ResonanceGoldBright
+            });
+            ignition.AddChild(new ColorRect {
+                Name = "IgnitionHalo",
+                Size = new Vector2(96, 96),
+                Position = new Vector2(-48, -48),
+                Color = new Color(FTT.UI.UIPalette.ResonanceGold, 0.3f)
+            });
+
+            // --- Beat 4: the Warden portal, CLEAN STEADY geometry -----------
+            // Built beside the rift, deliberately: the comparison is the point.
+            // An even frame, concentric, square to the world, no rotation and no
+            // pulse. Nothing about it is torn.
+            var portal = new Node2D {
+                Name = "WardenPortal",
+                Position = new Vector2(420, 0),
+                Modulate = new Color(1f, 1f, 1f, 0f),
+                ProcessMode = ProcessModeEnum.Always
+            };
+            rift.AddChild(portal);
+            portal.AddChild(new ColorRect {
+                Name = "PortalFrame",
+                Size = new Vector2(84, 180),
+                Position = new Vector2(-42, -104),
+                Color = new Color(FTT.UI.UIPalette.WardenPortal, 0.45f)
+            });
+            portal.AddChild(new ColorRect {
+                Name = "PortalCore",
+                Size = new Vector2(60, 156),
+                Position = new Vector2(-30, -92),
+                Color = FTT.UI.UIPalette.WardenPortal
+            });
+
+            // --- The beat timeline ------------------------------------------
+            // One chained tween so the order is authored in one readable place
+            // rather than spread across four timers.
+            Tween beat = rift.CreateTween();
+            // 1. The beam bites: cold flares to full over the first second.
+            beat.TweenProperty(beam, "modulate:a", 1f, 0.9);
+            // 2. Gold answers on the hero.
+            beat.TweenProperty(ignition, "modulate:a", 1f, 0.7)
+                .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
+            // 3. The beam breaks — the cold guts out rather than fading evenly.
+            beat.TweenProperty(beam, "modulate:a", 0.28f, 0.5)
+                .SetTrans(Tween.TransitionType.Expo).SetEase(Tween.EaseType.In);
+            beat.Parallel().TweenProperty(coldHalo, "modulate:a", 0.35f, 0.5);
+            // 4. The Warden door opens beside the tear. Steady: a linear fade,
+            //    no overshoot, no bounce — it behaves as unlike the rift as it
+            //    looks.
+            beat.TweenProperty(portal, "modulate:a", 1f, 0.8)
+                .SetTrans(Tween.TransitionType.Linear);
+
+            // The broken beam keeps a slow cold flicker afterwards: the wound is
+            // still open, which is the level's whole premise. The portal is NOT
+            // animated — steady geometry is half its definition.
+            Tween flicker = rift.CreateTween().SetLoops();
+            flicker.TweenInterval(3.0);
+            flicker.TweenProperty(beam, "modulate:a", 0.16f, 1.1);
+            flicker.TweenProperty(beam, "modulate:a", 0.34f, 1.1);
         }
 
         private void BuildFloor(float x, float y, float width) {

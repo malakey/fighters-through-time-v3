@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using FTT.Core;
 using FTT.Enemies;
@@ -24,10 +24,14 @@ namespace FTT.Tests.ContentValidation;
 [TestSuite]
 [RequireGodotRuntime]
 public class DustEconomyTests {
-    private static readonly string[] CharacterIDs = {
-        "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-        "tesla", "shakespeare", "mozart", "pocahontas"
-    };
+    /// <summary>
+    /// Package 11 A6b: the roster is the content manifest, never a literal
+    /// cast list. design-godot.md §2 forbids enumerating the cast in
+    /// load-bearing ways, and a duplicated array here is exactly the thing
+    /// that blocks a roster addition — the content would be complete and the
+    /// test suite would still fail.
+    /// </summary>
+    private static readonly IReadOnlyList<string> CharacterIDs = FTT.Core.CharacterRoster.IDs;
 
     // The contract's grid cost curve. Unchanged by F05 Option A, which was
     // chosen precisely to retain the 975-dust grid and its upgrade choices.

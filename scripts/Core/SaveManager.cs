@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -264,10 +264,29 @@ namespace FTT.Core {
         };
 
         public int SaveVersion = SaveSchemaMigrator.CurrentVersion;
-        public List<string> UnlockedCharacters = new() {
-            "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-            "tesla", "shakespeare", "mozart", "pocahontas"
-        };
+        /// <summary>
+        /// Every character is available from the start in the initial build
+        /// (AGENTS.md pillar), so the unlock set is simply the whole roster.
+        ///
+        /// <para>Package 11 A6b: the roster is the content manifest
+        /// (<see cref="CharacterRoster"/>) rather than a literal cast list, so a
+        /// new roster row is unlocked by default instead of being permanently
+        /// missing from every save that already exists.</para>
+        ///
+        /// <para><b>Filled by <see cref="SaveManager.EnsureRosterUnlocked"/> —
+        /// not by this initializer and not by <see cref="Normalize"/>.</b>
+        /// Reading the manifest means reading a file through Godot's
+        /// <c>FileAccess</c>, and both a field initializer and <c>Normalize</c>
+        /// run inside pure-C# GdUnit suites that have no Godot runtime, where
+        /// that call is an access violation which takes the whole test host down
+        /// (0xC0000005, observed on <c>BasicStringProfileTests</c> and
+        /// <c>FighterMatchStatisticsTests</c>). <see cref="GlobalSaveData"/> is a
+        /// plain data class with no engine dependency and must stay one; the
+        /// engine-side fill belongs on the autoload that is always inside the
+        /// engine. The stage list gets away with backfilling in <c>Normalize</c>
+        /// only because <c>InitialStageIDs</c> is a literal.</para>
+        /// </summary>
+        public List<string> UnlockedCharacters = new();
         public List<string> UnlockedStages = new(InitialStageIDs);
         public int TotalPlayTime;
         public int TotalWins;
@@ -345,6 +364,13 @@ namespace FTT.Core {
 
         public void Normalize() {
             SaveVersion = SaveSchemaMigrator.CurrentVersion;
+            // Package 11 A6b: the roster backfill deliberately does NOT live
+            // here. See UnlockedCharacters' remarks — reading the content
+            // manifest is Godot file I/O, and this method is called from pure-C#
+            // GdUnit suites with no Godot runtime, where that is an access
+            // violation that kills the test host. GlobalSaveData is a plain data
+            // class with no engine dependency and must stay one;
+            // SaveManager.EnsureRosterUnlocked owns the fill.
             UnlockedCharacters ??= new List<string>();
             SeenDialogueIDs ??= new HashSet<string>(StringComparer.Ordinal);
             UnlockedStages ??= new List<string>();
@@ -823,9 +849,37 @@ namespace FTT.Core {
             return false;
         }
 
+        /// <summary>
+        /// Package 11 A6b: grants every manifest roster character, mirroring the
+        /// <c>UnlockedStages</c> backfill in <see cref="GlobalSaveData.Normalize"/>.
+        ///
+        /// <para>The initial-build pillar is "all characters available from the
+        /// start", so a roster row added after a save was written must become
+        /// available on that save — otherwise the character would exist in the
+        /// manifest, in the content and on the select grid, and be locked
+        /// forever. A future unlock phase replaces this rule deliberately.</para>
+        ///
+        /// <para>It lives on the autoload rather than on the payload because
+        /// reading the manifest is Godot file I/O and <see cref="GlobalSaveData"/>
+        /// must stay engine-free; see that field's remarks.</para>
+        /// </summary>
+        /// <remarks><c>internal</c> rather than <c>private</c> so
+        /// <c>CharacterRosterTests</c> can pin the grant directly instead of
+        /// reaching it through a full encrypted global load.</remarks>
+        internal static void EnsureRosterUnlocked(GlobalSaveData data) {
+            if (data == null) return;
+            data.UnlockedCharacters ??= new List<string>();
+            foreach (string characterID in CharacterRoster.IDs) {
+                if (!data.UnlockedCharacters.Contains(characterID)) {
+                    data.UnlockedCharacters.Add(characterID);
+                }
+            }
+        }
+
         public bool SaveGlobalData() {
             GlobalData ??= new GlobalSaveData();
             GlobalData.Normalize();
+            EnsureRosterUnlocked(GlobalData);
             return WritePayload(GetGlobalPath(), "global", GlobalData.SaveVersion, JsonConvert.SerializeObject(GlobalData));
         }
 
@@ -833,16 +887,23 @@ namespace FTT.Core {
             // No-save state (M-22): keep defaults, leave the files alone.
             if (_masterKey == null) {
                 GlobalData = new GlobalSaveData();
+                // A6b: the roster unlock set is filled here, not by a field
+                // initializer and not by Normalize (see UnlockedCharacters), so
+                // every path that hands out a fresh payload has to ask for it or
+                // a new install comes up with no selectable characters.
+                EnsureRosterUnlocked(GlobalData);
                 return false;
             }
             string path = GetGlobalPath();
             if (!File.Exists(path) && !File.Exists(path + ".bak")) {
                 GlobalData = new GlobalSaveData();
+                EnsureRosterUnlocked(GlobalData);
                 return false;
             }
             if (TryLoadPayload(path, "global", out string json, out bool backupUsed)) {
                 try {
                     GlobalData = SaveSchemaMigrator.DeserializeGlobal(json);
+                    EnsureRosterUnlocked(GlobalData);
                     if (backupUsed) SetNotice("save_notice_global_recovered");
                     return true;
                 } catch (SaveVersionException exception) {
@@ -856,6 +917,7 @@ namespace FTT.Core {
             try {
                 if (TryLoadLegacyGlobal(path, out GlobalSaveData migrated)) {
                     GlobalData = migrated;
+                    EnsureRosterUnlocked(GlobalData);
                     SaveGlobalData();
                     SetNotice("save_notice_global_migrated");
                     return true;
@@ -865,6 +927,7 @@ namespace FTT.Core {
                 return false;
             }
             GlobalData = new GlobalSaveData();
+            EnsureRosterUnlocked(GlobalData);
             PreserveCorruptCandidates(path);
             SetNotice("save_notice_global_corrupt");
             return false;

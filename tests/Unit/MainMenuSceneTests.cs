@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using FTT.Core;
 using FTT.UI;
 using GdUnit4;
@@ -62,8 +62,12 @@ public class MainMenuSceneTests {
                     .IsTrue();
             }
 
-            // Nine authored roster tiles, matching the locked nine-character roster.
-            AssertThat(menu.GetNode<GridContainer>(CharacterLayout + "Grid").GetChildCount()).IsEqual(9);
+            // Package 11 A6b: one authored tile per manifest roster member.
+            // Phrased as agreement rather than as the number nine, so adding a
+            // character surfaces as "author the tile" instead of as an
+            // unrelated menu regression.
+            AssertThat(menu.GetNode<GridContainer>(CharacterLayout + "Grid").GetChildCount())
+                .IsEqual(FTT.Core.CharacterRoster.Count);
 
             // Seventeen authored developer level-select tiles, one per CampaignLevel:
             // the sixteen shared slots plus V7.6's LegacyNexus (Level 4A).

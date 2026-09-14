@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using FTT.Core;
 using FTT.Environment;
 using GdUnit4;
@@ -19,10 +19,13 @@ namespace FTT.Tests.Unit;
 [TestSuite]
 [RequireGodotRuntime]
 public class ResonanceHygieneTests {
-    private static readonly string[] CharacterIDs = {
-        "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-        "tesla", "shakespeare", "mozart", "pocahontas"
-    };
+    /// <summary>
+    /// Package 11 A6b: the roster is the content manifest, never a literal
+    /// cast list (design §2's standing "the roster will grow" mandate). A
+    /// duplicated array here is exactly what blocks a roster addition — the
+    /// content would be complete and this suite would still fail.
+    /// </summary>
+    private static readonly IReadOnlyList<string> CharacterIDs = FTT.Core.CharacterRoster.IDs;
 
     [TestCase]
     public void NoMinorTouchesStunOrHitstunDuration() {

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using FTT.Characters;
 using FTT.Combat;
 using FTT.Core;
@@ -22,10 +22,14 @@ namespace FTT.Tests.ContentValidation;
 [RequireGodotRuntime]
 public class AbilityVfxAssignmentTests {
 
-    private static readonly string[] Characters = {
-        "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-        "tesla", "shakespeare", "mozart", "pocahontas"
-    };
+    /// <summary>
+    /// Package 11 A6b: the roster is the content manifest, never a literal
+    /// cast list. design-godot.md §2 forbids enumerating the cast in
+    /// load-bearing ways, and a duplicated array here is exactly the thing
+    /// that blocks a roster addition — the content would be complete and the
+    /// test suite would still fail.
+    /// </summary>
+    private static readonly IReadOnlyList<string> Characters = FTT.Core.CharacterRoster.IDs;
 
     private static readonly string[] Slots = { "special_1", "special_2", "movement", "ultimate" };
 
@@ -96,7 +100,7 @@ public class AbilityVfxAssignmentTests {
         foreach (string character in Characters) {
             accents.Add(VfxAccentPalette.ForCharacter(character));
         }
-        AssertThat(accents.Count).IsEqual(Characters.Length);
+        AssertThat(accents.Count).IsEqual(Characters.Count);
 
         // The accent is derived from the canonical character colour, never re-authored.
         Color expected = CharacterFactory.GetCharacterColor("tesla")

@@ -6643,3 +6643,144 @@ stage / Story / presentation **189/189**; Story rewind + drills **43/43**.
 `ScriptTranslationKeyTests`, `SceneVisibleTextTests`, `CampaignLocalizationTests` and
 `UnusedTranslationKeyTests` are **expected to fail on the two new keys until the orchestrator
 imports**.
+### A6b — Roster de-hardcoding and the two-colour visual grammar (2026-09-13)
+**Every load-bearing roster enumeration in `scripts/` is gone, replaced by one manifest-backed
+`FTT.Core.CharacterRoster`; the design's two-colour grammar is a named contract in `UIPalette` with a
+pinning test; Level 0 opens on cold-beam → gold-ignition → two kinds of door; and the hero carries a
+persistent warm-gold aura on its own arbiter channel.**
+`grep -rn '"einstein", *"joan"' scripts/` returns **nothing**. The dossier's acceptance criterion is
+met, with the two documented exceptions below.
+**1. `FTT.Core.CharacterRoster` is the one roster, and `CampaignCaptiveRoster` now forwards to it.**
+A5 shipped `CampaignCaptiveRoster` in Wave 1 with its own manifest read and its own process-lifetime
+cache. Rather than stand a second cache beside it, `CampaignCaptiveRoster.Roster()` is a one-line
+forward to `CharacterRoster.IDs` and its `ResetCacheForTests` forwards too — one manifest read, one
+cache, one answer to "who is on the roster". That edits a file A5 owns; it is behaviour-preserving
+(`CampaignCaptiveRosterTests` is green, unchanged) and it is the only way to honour "reuse its
+manifest-backed roster source, do not build a second one".
+**2. The five load-bearing arrays are repointed, and two of them gained a degradation path.**
+`MainMenu.RosterIDs`, `CharacterSelectScreen._characterIDs`, `HolodeckConsolePanel.RosterIDs`,
+`GlobalSaveData.UnlockedCharacters` and `AbilityVisualLibrary`'s gate all read the manifest now. Two
+of those index into **authored scene tiles** (`CharacterButton{n}`), which the manifest cannot grow: a
+roster larger than the authored grid would have thrown out of `_Ready` on `GetNode`. Both now bind
+with `GetNodeOrNull` and skip the tail, and `StyleTile` guards the null, so a tenth character degrades
+to "its tile is not authored yet" instead of taking the menu down. Authoring the tile stays scene
+work; `MainMenuSceneTests` and `CharacterSelectSceneTests` assert the tile count **equals the roster
+count**, so the omission surfaces as "author the tile" rather than as an unrelated menu regression.
+**3. THE ONE THAT BITES: `CharacterRoster` needs the Godot runtime, so it must never be reached from
+a pure-C# path.** Reading the manifest goes through Godot's `FileAccess`, and GdUnit runs suites
+without `[RequireGodotRuntime]` in a plain .NET host where that call is an **access violation**
+(`0xC0000005` inside `godotsharp_string_new_with_utf16_chars`) that kills the test host mid-run —
+reported as `Test host process crashed : Fatal error` after a plausible `Passed!` line, which is easy
+to misread as signature 5 contention. It is not catchable: `try`/`catch` cannot see a native AV.
+Two real instances were found and fixed, both introduced by this pass:
+- **`GlobalSaveData.UnlockedCharacters`'s field initializer** crashed `BasicStringProfileTests`
+  (pure C#) simply by the type being touched.
+- **Moving the fill into `GlobalSaveData.Normalize()` did not help** — `FighterMatchStatisticsTests`
+  (also pure C#) calls `Normalize()` directly, and crashed identically.
+The rule this establishes, which belongs in `AGENTS.md`: **`GlobalSaveData` is a plain data class with
+no engine dependency and must stay one.** The roster grant now lives on the autoload as
+`SaveManager.EnsureRosterUnlocked(GlobalSaveData)` (`internal` so the test can pin it directly), called
+from every path that hands out a global payload — the no-save-key branch, the no-file branch, the
+successful load, the legacy migration, the corrupt-fallback branch, and `SaveGlobalData`. It is
+idempotent and pinned as such. `UnlockedStages` gets away with backfilling inside `Normalize` only
+because `InitialStageIDs` is a literal array.
+**4. `UnlockedCharacters` backfills at all, which it did not before.** The field initializer only runs
+for a brand-new payload, so a roster row added later would have been permanently missing from every
+existing global save — the character would be in the manifest, in the content, on the select grid, and
+locked forever. The initial-build pillar is "all characters available from the start", so granting is
+correct; a future unlock phase replaces this rule deliberately.
+**5. `CharacterFactory`'s nine-entry colour dictionary moved onto `CharacterData`.** Three new
+`[Export] Color PlaceholderBodyColor / AccentColor / DetailColor`, authored into the nine `.tres` with
+**exactly** the values the dictionary held — a move, not a re-tune. An unauthored (transparent) colour
+falls back to the neutral placeholder grey, which is precisely what an unknown ID produced before.
+`IsKnownCharacter` now tests manifest membership rather than dictionary membership, which also makes it
+the same source the VFX gate uses. **The per-character ability `switch` in `SetupAbilities` is
+deliberately left alone**, per the dossier: it is inherent per-character *behaviour*, not data, a tenth
+character needs a class there regardless, and a missing arm fails loudly at construction rather than
+silently hiding a character.
+**6. `DEFER-ROSTER-ENUM` — `FighterCharacterID` is a recorded, deliberate deferral.** Not de-enumed,
+per the dossier's explicit instruction. The contract, for `AGENTS.md` at Phase C:
+*`FTT.FighterSim.FighterCharacterID` is **append-only**. A new member takes the next ordinal; no member
+is ever reordered, renumbered or reused. `FighterEntitySystems` encodes `zoneTypeID = (int)id * 10 +
+slot` in roughly twenty places, so that product must stay unique. Ordinals serialize into snapshots and
+the network protocol, which makes adding a tenth character a protocol-affecting change requiring a
+rollback and protocol pass.* The same text is in `CharacterRoster`'s doc comment, where an agent
+touching the roster will actually read it.
+**7. Six further test roster arrays were converted beyond the dossier's list; one was deliberately
+left.** The dossier named seven duplicated arrays; the repo had fourteen. Converted:
+`FighterKnockbackScalingTests`, `FighterStageGeometryTests`, `FighterSimulationTests` (Determinism),
+`MoveListScreenTests`, `ResonanceHygieneTests`, `ResonanceProgressionTests` — each a one-line
+declaration swap, trivially re-appliable if **A1b or A1c** conflicts on the three Determinism files
+this wave. **`BasicStringProfileTests` keeps its literal array on purpose**: it is pure C# because it
+tests `BasicComboRules`, which has no Godot dependency and should keep running in the fast host, and
+per item 3 it physically cannot read the manifest. Annotating it `[RequireGodotRuntime]` purely to
+read a roster would couple a pure rules test to the engine for no gain. A roster addition costs one
+line there; the manifest-backed suites carry the mandate.
+**8. `== 9` survives in exactly one place, phrased as agreement.** `ContentManifestTests` pins
+`Character` rows `== CharacterRoster.Count` with `Count > 0`, plus `Ability == rosterCount * 4` and
+`ResonanceGrid == rosterCount` — four abilities and one grid per character are real per-character
+contracts, so they scale rather than standing as independent magic numbers, and an accidental manifest
+deletion still fails hard. `CharacterManifestTests`' `InitialRosterHasNineUniqueStableIDs` became
+`RosterIDsAreUniqueWellFormedAndComeFromTheManifest`: non-empty, unique, lowercase, space-free, and
+byte-identical in order to the manifest's rows.
+**9. The grammar is aliases of existing pigments, not new numbers.** `UIPalette.UnboundCold` /
+`UnboundColdDischarge` / `UnboundColdDim` and `ResonanceGold` / `ResonanceGoldBright` / `ResonanceAura`
+/ `WardenPortal`. `ResonanceGold` **is** `Gold` and `ResonanceGoldBright` **is** `GoldBright`, asserted
+— the grammar *names* what the game already paints. No theme entries were added, so `UIThemeTests` is
+untouched and green. `ChronalExtractor.DischargeColor` and `ChronalDustPickup.GlowColor` now read the
+constants; the extractor's value is unchanged (it was already correct, merely commented "Apex Archive
+cyan"). **Item 9 of the dossier — the ~50-comment faction sweep — was already done by a Wave 1 agent**:
+`grep -r "Apex Archive" scripts/` returns nothing on this branch.
+**10. `ResonanceGrammarTests` scans regions, not files — and that distinction is the test.** The first
+draft scanned from `BuildFracturePresentation` to end-of-file and flagged three cyan literals in
+`BuildFloor`, `BuildPlatform` and `BuildDecoration`. Those are Level 0's *architecture* — grid lines
+and platform glows — not Unbound machines, and the grammar has nothing to say about them. A pin that
+cannot tell the two apart would either be suppressed or would push floor trim into a faction colour it
+has no business wearing. The suite brace-counts the method body (`TryExtractMember`), and the governed
+set is "the whole extractor, plus Level 0's ignition beat".
+**11. Level 0's beat, and what it replaced.** The old presentation was one violet `ColorRect`
+(`Color(0.5, 0.2, 0.9, 0.85)`) pulsing on a loop — a generic rift, in a colour belonging to neither
+faction, with no gold and no second door. It is now a chained tween: the cold beam **bites** (jagged
+offset shards, never a clean column) → **gold ignites on the hero**, sited at the player's start anchor
+rather than at the wound, because the grammar says gold flows *from* the era *into* its people → the
+beam **breaks** (an Expo-in gut-out, not an even fade) → the **Warden portal** opens beside the tear,
+built from the opposite vocabulary: even, concentric, square to the world, no rotation, **and no
+animation at all**, because steady is half its definition. The rift keeps a slow cold flicker
+afterwards; the portal never moves. The beat's nodes run at `ProcessMode.Always` so it plays underneath
+the intro dialogue's pause rather than waiting for it — the old looping tween froze there. Placeholder
+`ColorRect` treatment at the campaign's era-placeholder bar; the grammar is the deliverable, not the
+art. **No `en.csv` row was needed**: A6 had already retitled `tutorial_fracture_label` to "EXTRACTION
+BEAM — COLD", which is exactly the copy this treatment was waiting for.
+**12. The hero aura is a fifth channel, and the reason is load-bearing.** `GlowPresentationController`
+gains `SetHeroAura(bool[, Color])` / `HasHeroAura` / `AuraLight`. It is **not** a `GlowState` layer and
+**not** a tint override: on the stack the first status would outrank it, and as an override the first
+`FlashHit` would clear it — both are ordinary combat events, so the aura would be gone seconds into the
+first fight with nothing reporting it. It composes into `EffectiveTint` as a warm bias applied *under*
+the transient channels, then A1's Suppression smother runs last, so Suppression drains the gold grey
+and restores it intact. It owns its **own** `PointLight2D`, because the effect light is disabled
+whenever no effect resolves — which is most of the game, and exactly when the aura must be visible. The
+smother dims that light too, so a Suppressed hero reads as unlit rather than as wearing a grey costume.
+`SetHeroAura(bool, Color)` is the seam **A3b's Act III Tremor** needs to gutter it at partial strength
+without owning the channel. `CharacterFactory` applies it on the `applyStoryProgression` seam —
+**Story only**: a Fighter proxy's identity is the F24 ownership edge, and lighting both fighters gold
+would say "both of you are the hero". A1's smother channel and A8's F24 ownership channel are untouched
+and remain independent, which the new tests prove directly.
+**13. The recurrence contract is half-delivered, by design.** A6b implements the Extractor and Dust
+halves (colour re-points, as the dossier scoped them). **The level-seal warm vignette and L14's
+Extraction Hall gold-threads-drawn-off-cold remain scene content** and are unclaimed — they belong to a
+narrative/scene workstream, not a palette pass. Recorded here so they are not assumed done.
+**14. Not delivered.** (a) `FighterCharacterID`, per item 6 — deliberate. (b) The `CharacterFactory`
+ability `switch`, per item 5 — inherent behaviour. (c) `BasicStringProfileTests`' literal array, per
+item 7 — a runtime constraint, not an oversight. (d) The seal vignette and Extraction Hall, per item 13.
+(e) Nobody has looked at the Level 0 beat or the hero aura **on screen**. The headless gates prove the
+scene loads, the nodes exist and the constants are right; whether the gold reads at gameplay scale
+against the placeholder sprites is a human judgement, and it joins the standing "the whole visual layer
+is unreviewed" gap.
+**15. `localization/en.en.translation` is deliberately NOT committed** (§2.11), and A6b added **no
+`en.csv` rows at all** — so there is no `# Package 11 A6b` marker and **no expected-to-fail-until-import
+test**. A local `--headless --import` was run before testing; the regenerated translation binary, the
+312 `.import` files and `resources/Audio/default_bus_layout.tres` were all reverted and are not in the
+commit.
+**Test delta: +8**, exactly the dossier's figure — `CharacterRosterTests` (+3),
+`ResonanceGrammarTests` (+3), `GlowPresentationControllerTests` (+2). Nineteen suites were rewritten in
+place at ±0.

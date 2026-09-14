@@ -1,7 +1,8 @@
-using FTT.Core;
+﻿using FTT.Core;
 using FTT.FighterSim;
 using FTT.Characters;
 using FTT.Combat;
+using System.Collections.Generic;
 using GdUnit4;
 using Godot;
 using static GdUnit4.Assertions;
@@ -439,9 +440,8 @@ public class FighterSimulationTests {
     /// </summary>
     [TestCase]
     public void EveryAuthoredKitCarriesASecondJump() {
-        foreach (string id in new[] {
-                     "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-                     "tesla", "shakespeare", "mozart", "pocahontas" }) {
+        // Package 11 A6b: every AUTHORED kit, read from the manifest roster.
+        foreach (string id in FTT.Core.CharacterRoster.IDs) {
             CharacterData data =
                 FTT.Core.AuthoredResources.Load<CharacterData>($"res://resources/Characters/{id}_data.tres");
             AssertObject(data).IsNotNull();

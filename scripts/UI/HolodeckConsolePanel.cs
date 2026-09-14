@@ -26,10 +26,14 @@ namespace FTT.UI {
         /// <summary>Raised when the panel closes without launching.</summary>
         public event Action Closed;
 
-        private static readonly string[] RosterIDs = {
-            "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-            "tesla", "shakespeare", "mozart", "pocahontas"
-        };
+        /// <summary>
+        /// The CPU opponent list, in manifest order. Package 11 A6b: read from
+        /// <see cref="FTT.Core.CharacterRoster"/> rather than a literal
+        /// nine-element array — the Holodeck builds its OptionButton from the
+        /// roster at runtime, so a new manifest row is offered as a sparring
+        /// partner with no code change.
+        /// </summary>
+        private readonly string[] RosterIDs = FTT.Core.CharacterRoster.ToArray();
 
         private readonly List<string> _stageIDs = new();
         private FighterStageCatalog _stageCatalog;

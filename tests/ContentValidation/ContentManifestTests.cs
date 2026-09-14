@@ -21,9 +21,18 @@ public class ContentManifestTests {
         // three each in parallel, and the merged wave value is 25.
         AssertThat(manifest.ForCategory(ContentCategory.StoryLevel).Count()).IsEqual(25);
         AssertThat(manifest.ForCategory(ContentCategory.FighterStage).Count()).IsEqual(10);
-        AssertThat(manifest.ForCategory(ContentCategory.Character).Count()).IsEqual(9);
-        AssertThat(manifest.ForCategory(ContentCategory.Ability).Count()).IsEqual(36);
-        AssertThat(manifest.ForCategory(ContentCategory.ResonanceGrid).Count()).IsEqual(9);
+        // Package 11 A6b: the roster-sized rows are pinned as AGREEMENT rather
+        // than as the number nine. This is the single surviving manifest
+        // roster-count pin, so an accidental deletion still fails hard, while a
+        // deliberate roster addition flows through every derived count with no
+        // test edit. Four abilities and one Resonance grid per character are
+        // real per-character contracts, so they scale with the roster instead of
+        // standing as independent magic numbers.
+        int rosterCount = FTT.Core.CharacterRoster.Count;
+        AssertThat(rosterCount > 0).IsTrue();
+        AssertThat(manifest.ForCategory(ContentCategory.Character).Count()).IsEqual(rosterCount);
+        AssertThat(manifest.ForCategory(ContentCategory.Ability).Count()).IsEqual(rosterCount * 4);
+        AssertThat(manifest.ForCategory(ContentCategory.ResonanceGrid).Count()).IsEqual(rosterCount);
         AssertThat(manifest.ForCategory(ContentCategory.Enemy).Count() >= 26).IsTrue();
         AssertThat(manifest.ForCategory(ContentCategory.Boss).Count()).IsEqual(15);
         AssertThat(manifest.ForCategory(ContentCategory.Template).Count()).IsEqual(14);
