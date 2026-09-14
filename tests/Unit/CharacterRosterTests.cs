@@ -1,4 +1,5 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using System.Linq;
 using FTT.Core;
 using GdUnit4;
 using Godot;
@@ -64,8 +65,14 @@ public class CharacterRosterTests {
     public void EveryRosterConsumerAgreesWithTheCanonicalList() {
         var issues = new List<string>();
 
-        // The save default: all characters available from the start.
+        // The save default: all characters available from the start. Granted
+        // by SaveManager.EnsureRosterUnlocked, deliberately NOT by the field
+        // initializer or by GlobalSaveData.Normalize — reading the manifest is
+        // Godot file I/O, and both of those also run in the pure-C# test host,
+        // where that call is an access violation that kills the host. Every
+        // SaveManager path that hands out a global payload calls the grant.
         var global = new GlobalSaveData();
+        SaveManager.EnsureRosterUnlocked(global);
         foreach (string id in CharacterRoster.IDs) {
             if (!global.UnlockedCharacters.Contains(id)) issues.Add($"save default missing {id}");
         }
@@ -73,13 +80,18 @@ public class CharacterRosterTests {
             issues.Add($"save default has {global.UnlockedCharacters.Count} entries, roster has {CharacterRoster.Count}");
         }
 
-        // Normalize backfills a payload written before a roster row existed,
-        // which is what stops a new character being permanently unavailable on
-        // every save that already exists.
+        // The same grant rescues a payload written before a roster row existed
+        // — otherwise a new character would be permanently unavailable on every
+        // save that already exists.
         var stale = new GlobalSaveData { UnlockedCharacters = new List<string> { CharacterRoster.At(0) } };
-        stale.Normalize();
+        SaveManager.EnsureRosterUnlocked(stale);
         foreach (string id in CharacterRoster.IDs) {
-            if (!stale.UnlockedCharacters.Contains(id)) issues.Add($"Normalize did not backfill {id}");
+            if (!stale.UnlockedCharacters.Contains(id)) issues.Add($"the grant did not backfill {id}");
+        }
+        // And it is idempotent — no duplicates on a payload that already has them.
+        SaveManager.EnsureRosterUnlocked(stale);
+        if (stale.UnlockedCharacters.Count != CharacterRoster.Count) {
+            issues.Add($"the grant is not idempotent: {stale.UnlockedCharacters.Count} entries");
         }
 
         // The factory gate and the captive roster read the same source.

@@ -100,7 +100,7 @@ public class AbilityVfxAssignmentTests {
         foreach (string character in Characters) {
             accents.Add(VfxAccentPalette.ForCharacter(character));
         }
-        AssertThat(accents.Count).IsEqual(Characters.Length);
+        AssertThat(accents.Count).IsEqual(Characters.Count);
 
         // The accent is derived from the canonical character colour, never re-authored.
         Color expected = CharacterFactory.GetCharacterColor("tesla")

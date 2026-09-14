@@ -1,5 +1,6 @@
-using FTT.Combat;
+﻿using FTT.Combat;
 using FTT.FighterSim;
+using System.Collections.Generic;
 using GdUnit4;
 using static GdUnit4.Assertions;
 
@@ -14,6 +15,19 @@ namespace FTT.Tests.Unit;
 [TestSuite]
 public class BasicStringProfileTests {
 
+    /// <summary>
+    /// <b>Deliberately a literal list, and the one exception in the suite.</b>
+    /// Package 11 A6b repointed every other roster array at
+    /// <c>FTT.Core.CharacterRoster</c>, but this suite is pure C# — no
+    /// <c>[RequireGodotRuntime]</c> — because it tests <c>BasicComboRules</c>,
+    /// which has no Godot dependency and should keep running in the fast host.
+    /// <c>CharacterRoster</c> reads the content manifest through Godot's
+    /// <c>FileAccess</c>, so touching it from here is an access violation that
+    /// takes the whole test host down (0xC0000005, observed). Annotating the
+    /// suite with the Godot runtime purely to read a roster would couple a pure
+    /// rules test to the engine for no gain. A roster addition needs one line
+    /// here; the manifest-backed suites cover the mandate.
+    /// </summary>
     private static readonly string[] RosterIDs = {
         "einstein", "joan", "leonardo", "lincoln", "cleopatra",
         "tesla", "shakespeare", "mozart", "pocahontas"

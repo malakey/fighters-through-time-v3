@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using FTT.Characters;
 using FTT.Core;
 using FTT.Environment;
@@ -300,10 +300,8 @@ public class FighterStageGeometryTests {
     /// </summary>
     [TestCase]
     public void EveryAuthoredPitIsEscapableByEveryCharacter() {
-        string[] roster = {
-            "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-            "tesla", "shakespeare", "mozart", "pocahontas"
-        };
+        // Package 11 A6b: swept over the manifest roster, not a literal list.
+        IReadOnlyList<string> roster = FTT.Core.CharacterRoster.IDs;
         var issues = new List<string>();
         int seed = 7100;
         int drills = 0;

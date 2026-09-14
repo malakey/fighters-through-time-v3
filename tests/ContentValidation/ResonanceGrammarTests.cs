@@ -66,6 +66,37 @@ public class ResonanceGrammarTests {
         @"new\s*(?:Color)?\s*\(\s*(\d*\.?\d+)f?\s*,\s*(\d*\.?\d+)f?\s*,\s*(\d*\.?\d+)f?\s*(?:,\s*(\d*\.?\d+)f?\s*)?\)",
         RegexOptions.Compiled);
 
+    /// <summary>
+    /// The source of one method — from its signature to its matching close
+    /// brace — plus the 1-based line its signature sits on.
+    ///
+    /// <para>Brace-counted rather than "signature to end of file", which is what
+    /// the first draft of this suite did: it swallowed <c>BuildFloor</c>,
+    /// <c>BuildPlatform</c> and <c>BuildDecoration</c>, whose cyan grid lines and
+    /// platform glows are Level 0's <i>architecture</i>. The grammar governs the
+    /// Unbound's machines, not the tutorial's floor.</para>
+    /// </summary>
+    private static bool TryExtractMember(string source, string signature,
+        out string body, out int firstLine) {
+        body = null;
+        firstLine = 0;
+        int start = source.IndexOf(signature, System.StringComparison.Ordinal);
+        if (start < 0) return false;
+        int open = source.IndexOf('{', start);
+        if (open < 0) return false;
+
+        int depth = 0;
+        for (int index = open; index < source.Length; index++) {
+            if (source[index] == '{') depth++;
+            else if (source[index] == '}' && --depth == 0) {
+                body = source[start..(index + 1)];
+                firstLine = source[..start].Split('\n').Length;
+                return true;
+            }
+        }
+        return false;
+    }
+
     /// <summary>Cyan-family: strong blue, strong green, little red.</summary>
     private static bool IsColdFamily(float r, float g, float b) =>
         b >= 0.7f && g >= 0.5f && r <= 0.45f;
@@ -83,10 +114,12 @@ public class ResonanceGrammarTests {
             string source = File.ReadAllText(path);
             int lineOffset = 0;
             if (fromMember != null) {
-                int start = source.IndexOf(fromMember, System.StringComparison.Ordinal);
-                if (start < 0) { issues.Add($"{path} no longer declares {fromMember}"); continue; }
-                lineOffset = source[..start].Split('\n').Length - 1;
-                source = source[start..];
+                if (!TryExtractMember(source, fromMember, out string body, out int firstLine)) {
+                    issues.Add($"{path} no longer declares {fromMember}");
+                    continue;
+                }
+                source = body;
+                lineOffset = firstLine - 1;
             }
             string[] lines = source.Split('\n');
             for (int index = 0; index < lines.Length; index++) {
@@ -154,11 +187,10 @@ public class ResonanceGrammarTests {
         AssertThat(File.Exists(path)).IsTrue();
         string source = File.ReadAllText(path);
 
-        int start = source.IndexOf("private void BuildFracturePresentation()", System.StringComparison.Ordinal);
-        AssertThat(start >= 0)
+        AssertThat(TryExtractMember(source, "private void BuildFracturePresentation()",
+                out string beat, out int _))
             .OverrideFailureMessage("Level00Controller no longer builds the Part 1 ignition beat")
             .IsTrue();
-        string beat = source[start..];
 
         var issues = new List<string>();
 

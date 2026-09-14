@@ -67,9 +67,9 @@ public class DialogueChirpPitchTests {
     [TestCase]
     public void NoTwoCharactersChirpAtTheSamePitch() {
         var issues = new List<string>();
-        for (int left = 0; left < RosterIDs.Length; left++) {
+        for (int left = 0; left < RosterIDs.Count; left++) {
             float leftPitch = Load(RosterIDs[left]).DialogueChirpPitch;
-            for (int right = left + 1; right < RosterIDs.Length; right++) {
+            for (int right = left + 1; right < RosterIDs.Count; right++) {
                 float rightPitch = Load(RosterIDs[right]).DialogueChirpPitch;
                 if (Mathf.Abs(leftPitch - rightPitch) < MinSeparation) {
                     issues.Add(

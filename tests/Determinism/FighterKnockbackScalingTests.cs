@@ -1,7 +1,8 @@
-using FTT.Characters;
+﻿using FTT.Characters;
 using FTT.Combat;
 using FTT.Core;
 using FTT.FighterSim;
+using System.Collections.Generic;
 using GdUnit4;
 using xpTURN.Klotho.Deterministic.Math;
 using static GdUnit4.Assertions;
@@ -30,10 +31,13 @@ public class FighterKnockbackScalingTests {
     /// <summary>Melee reach in <c>FighterCombatSystem</c>, plus the design margin.</summary>
     private static readonly FP64 RequiredFinisherSeparation = FP64.FromDouble(2.5);
 
-    private static readonly string[] RosterIDs = {
-        "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-        "tesla", "shakespeare", "mozart", "pocahontas"
-    };
+    /// <summary>
+    /// Package 11 A6b: the roster is the content manifest, never a literal
+    /// cast list (design §2's standing "the roster will grow" mandate). A
+    /// duplicated array here is exactly what blocks a roster addition — the
+    /// content would be complete and this suite would still fail.
+    /// </summary>
+    private static readonly IReadOnlyList<string> RosterIDs = FTT.Core.CharacterRoster.IDs;
 
     [TestCase]
     public void TheFinisherSeparatesEveryKitBeyondMeleeRangeAtFullVictimHP() {
