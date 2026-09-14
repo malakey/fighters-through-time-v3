@@ -167,10 +167,15 @@ namespace FTT.Environment {
         protected virtual LegacyGateMode SpecialTwoGateMode => LegacyGateMode.Zone;
 
         /// <summary>V01a: this route's own Normal median, rounded up. Never pooled across variants.</summary>
-        public abstract int ParSeconds { get; }
+        public abstract int NexusParSeconds { get; }
+
+        /// <summary>Package 11 integration: forwards the variant's authored par into A3's
+        /// Integrity clock. The earlier <c>abstract int ParSeconds</c> HID the base
+        /// <c>virtual float ParSeconds</c>, so no 4A variant ever started its clock.</summary>
+        public sealed override float ParSeconds => NexusParSeconds;
 
         /// <summary>F11: the Entry recovery budget covering the full mandatory approach.</summary>
-        public virtual int EntryRecoveryBudgetSeconds => ParSeconds;
+        public virtual int EntryRecoveryBudgetSeconds => NexusParSeconds;
 
         protected abstract Vector2 EntryCheckpointPosition { get; }
         protected abstract Vector2 MovementGatePosition { get; }
