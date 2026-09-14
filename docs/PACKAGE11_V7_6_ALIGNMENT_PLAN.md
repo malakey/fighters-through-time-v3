@@ -6056,6 +6056,19 @@ share of the required encounter budget (F05); no flat 20-dust award", but 10 is 
 `EnemyRosterContentTests.TierDustRewardsConformToTheEconomyAcrossTheWholeRoster` accepts today. **A10
 must re-point it at the reward manifest**, and that is a real handoff, not a formality.
 
+**Merge-time reconciliation: the nine Level 4A variants needed no per-variant edit, and that was
+verified rather than assumed.** A7a branched before B1/B2/B3 authored the Cleopatra, Tesla,
+Shakespeare, Mozart and Pocahontas variants, so the re-point was written against four. Every one of
+the nine builds its trigger through `LegacyLevelControllerBase.BuildEraserDebut()`, which sets `Name`,
+`TriggerID` and `Position` and **never** sets `EnemyID` - so the property default is what each variant
+actually spawns, and flipping the default re-points all nine at once.
+`EncounterCompositionTests.TheEraserIsTheOnlyBodyTheDebutTriggerSpawns` now asserts the default
+alongside a nine-entry existence loop over `Level_04A_<hero>.tscn`, so a tenth variant authored later
+cannot quietly reintroduce the placeholder. The merges themselves were append-only collisions in
+`localization/en.csv` and this file, union-resolved with the incoming block first; the compiled
+`en.en.translation` was taken from `main` and then regenerated with `--import`, because a
+conflict-resolved binary translation is always stale by construction.
+
 **Test delta +27, against the dossier's declared +22.** The difference is entirely
 `SiphonSnareTests`, which came out at 21 rather than 16: the F14 matrix's "front / rear / zero-charge /
 final-charge blocks" is four cases not one, and "roll i-frames, cover and range boundaries" is four

@@ -138,7 +138,8 @@ public class EraserDebutTriggerTests {
         // The DEFAULT is the real Eraser, so every Level 4A variant gets it with
         // no per-variant change. The old interim body survives only as a
         // documented fallback an authored scene may still select.
-        AssertString(new EraserDebutTrigger().EnemyID).IsEqual(EraserDebutTrigger.EraserEnemyID);
+        var defaultTrigger = AutoFree(new EraserDebutTrigger())!;
+        AssertString(defaultTrigger.EnemyID).IsEqual(EraserDebutTrigger.EraserEnemyID);
         AssertString(EraserDebutTrigger.PlaceholderEnemyID).IsEqual("chrono_guard_elite");
 
         // And it really is the elite the design describes: Story-only, 190 HP,

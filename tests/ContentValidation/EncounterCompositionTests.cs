@@ -98,7 +98,8 @@ public class EncounterCompositionTests {
         // so the DEFAULT is what each variant actually spawns, and flipping it is
         // what re-points all nine at once.
         AssertString(EraserDebutTrigger.EraserEnemyID).IsEqual(EraserID);
-        AssertString(new EraserDebutTrigger().EnemyID)
+        var defaultTrigger = AutoFree(new EraserDebutTrigger())!;
+        AssertString(defaultTrigger.EnemyID)
             .OverrideFailureMessage("Every Level 4A variant must get the real Eraser by default.")
             .IsEqual(EraserID);
         foreach (string hero in new[] {
