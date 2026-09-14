@@ -1,7 +1,17 @@
 using Godot;
 
 namespace FTT.Combat {
-    public enum OrbEffect { HPRestore, MeterBoost, SpeedBuff, DamageBoost, ShieldRestore }
+    /// <summary>
+    /// Chronal Orb effects. <b>Append-only</b> — the ordinals serialize into
+    /// authored <c>.tres</c> orb resources (plan §2.8).
+    ///
+    /// <para><c>TemporalAegis</c> is the V7.6 addition (Package 11 A1b): Story
+    /// had no Aegis at all, while the design's four orbs are Temporal
+    /// Restoration / Chronal Haste / Tectonic Uplift / <b>Temporal Aegis</b>.
+    /// <c>ShieldRestore</c> is RETAINED because it is shipped behaviour, but
+    /// F17 stops it touching the shatter lockout.</para>
+    /// </summary>
+    public enum OrbEffect { HPRestore, MeterBoost, SpeedBuff, DamageBoost, ShieldRestore, TemporalAegis }
 
     [GlobalClass]
     public partial class ChronalOrbData : Resource {
@@ -34,6 +44,9 @@ namespace FTT.Combat {
             OrbEffect.HPRestore => new Color(0.2f, 1f, 0.35f),
             OrbEffect.MeterBoost => new Color(1f, 0.85f, 0.1f),
             OrbEffect.SpeedBuff => new Color(0.4f, 0.75f, 1f),
+            // Temporal Aegis reads as the protective cyan bubble, distinct from
+            // the violet buff family it would otherwise fall through to.
+            OrbEffect.TemporalAegis => new Color(0.45f, 0.95f, 1f),
             _ => new Color(0.75f, 0.35f, 1f)
         };
 
@@ -123,6 +136,11 @@ namespace FTT.Combat {
                     // Restore through the authoritative BlockSystem; the
                     // controller field is a stale display mirror that nothing
                     // combat-side reads.
+                    //
+                    // V7.6 F17 (Package 11 A1b): RestoreAllCharges no longer
+                    // ends a running shatter lockout, so a pickup during the
+                    // lockout hands back charges that stay unusable until the
+                    // five seconds elapse.
                     var blockSystem = player.GetNodeOrNull<BlockSystem>("BlockSystem");
                     if (blockSystem != null) {
                         blockSystem.RestoreAllCharges();
@@ -130,6 +148,20 @@ namespace FTT.Combat {
                     } else {
                         player.CurrentBlockCharges = player.MaximumBlockCharges;
                     }
+                    break;
+                case OrbEffect.TemporalAegis:
+                    // V7.6 D02e (Package 11 A1b): one active bubble per
+                    // recipient, no time expiry. A pickup while already
+                    // protected is CONSUMED with no second charge, reserve,
+                    // duration, HP, meter or replacement reward - which is what
+                    // an idempotent set expresses. The pickup claim and the
+                    // active flag commit together through this one transaction,
+                    // so a duplicate collision callback grants nothing.
+                    //
+                    // F17: it restores no block charges and does not touch the
+                    // shatter lockout or the regeneration countdown. It is a
+                    // separate one-hit shield, not a block resource.
+                    player.GrantTemporalAegis();
                     break;
             }
             ReturnToPool();

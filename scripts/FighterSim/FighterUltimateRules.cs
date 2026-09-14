@@ -241,6 +241,7 @@ namespace FTT.FighterSim {
             ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
             ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
             ref FighterVerbComponent attackerVerb = ref frame.Get<FighterVerbComponent>(attackerEntity);
+            ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
             ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
             var filter = frame.Filter<FighterPersistentObjectComponent>();
             while (filter.Next(out EntityRef coilEntity)) {
@@ -252,11 +253,17 @@ namespace FTT.FighterSim {
                     || coil.LifetimeFrames <= 0) continue;
                 if (FP64.Abs(target.Position.x - coil.Position.x) <= coil.AttackRange) {
                     // The coil detonation is construct damage — no Rally echo
-                    // reclaim for the caster.
+                    // reclaim for the caster. V7.6 D03h (Package 11 A1b): it is
+                    // ALSO Ultimate-origin damage, the contract's named case
+                    // ("Wardenclyffe Cataclysm's Ultimate-triggered coil
+                    // explosions cannot refill their caster's meter"), so it
+                    // earns zero meter. An ORDINARY coil tick during the same
+                    // Cataclysm still earns — that path is untouched.
                     FighterDamageRules.ApplyFighterHit(
-                        ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, in targetTuning,
+                        ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                         FighterDamageRules.UltimateAttackClass, CoilChainExplosionDamage, CoilChainKnockback,
                         CoilChainHitstunFrames, (int)FTT.Core.StatusType.None, 0, FP64.One, coil.Position.x,
+                        creditInfluence: false,
                         collectsEcho: false);
                 }
                 frame.DestroyEntity(coilEntity);

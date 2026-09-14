@@ -57,6 +57,20 @@ namespace FTT.Core {
         public List<string> ViewedDialogueIDs = new();
         public bool HasSeenCollapseBeat;
 
+        // === Package 11 A1b (V7.6 F10 Defy History, additive) ==============
+        /// <summary>
+        /// F10: Defy History is "once per level", and V7.6 reads that as once
+        /// per ATTEMPT. Before this it was a private PlayerController field with
+        /// no persistence at all, so a mid-level quit and resume - or a death
+        /// rewind that rebuilt the player - handed the run a second saved life.
+        /// Committed together with HP and meter at every checkpoint save, and
+        /// preserved through death rewind, Collapse, Snap, checkpoints, hub
+        /// visits and load. Only a fresh entry or a full Restart Level resets
+        /// it. v5 payloads load with the field initializer (false), which is the
+        /// correct conservative default: an unused Defy, never a spent one.
+        /// </summary>
+        public bool StoryDefyHistoryUsed;
+
         // === Package 11 A2 (V7.6 Time Freeze, additive) ====================
         // Per-attempt Time Freeze cooldown. Activation commits the conservative
         // full 45 s for any reload during that activation; an explicit Save or
@@ -816,6 +830,9 @@ namespace FTT.Core {
             SaveSlots[slot].FoundSecretIDs.Clear();
             SaveSlots[slot].FontUsesConsumed.Clear();
             SaveSlots[slot].LevelIntegrityPercent = 100f;
+            // F10: the completed attempt is over, so the next level's fresh
+            // entry starts with Defy History unused.
+            SaveSlots[slot].StoryDefyHistoryUsed = false;
             SaveStorySlot(slot);
         }
 

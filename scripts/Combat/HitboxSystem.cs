@@ -52,5 +52,19 @@ namespace FTT.Combat {
         public ComboMarkType ComboMark;
         /// <summary>Mark duration in frames; 0 applies nothing.</summary>
         public int ComboMarkFrames;
+        /// <summary>
+        /// V7.6 D03d (Package 11 A1b): the PRIMARY hit of a validated paired
+        /// grab/throw event. A legal primary throw deals normal damage and
+        /// applies its normal launch WITHOUT consuming Temporal Aegis or finite
+        /// HP-barrier capacity — no decrement, no absorption or break, no block
+        /// perk, and the skipped protection is not treated as partial damage
+        /// reduction. Ordinary block is already unreachable for a held victim.
+        ///
+        /// <para>It is never inferred from a projectile's visual, from a broad
+        /// Unblockable flag, or from all hits sharing the attacker's execution:
+        /// Story's secondary thrown-mob collision is a separate projectile hit
+        /// with normal defenses and must NOT set this.</para>
+        /// </summary>
+        public bool BypassesFiniteShields;
     }
 }

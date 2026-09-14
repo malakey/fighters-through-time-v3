@@ -108,6 +108,86 @@ namespace FTT.FighterSim {
         }
     }
 
+    /// <summary>
+    /// V7.6 D01–D04 defensive rules (Package 11 A1b), deterministic half. Pure
+    /// integer state transitions on <see cref="FighterDefenseComponent"/> — no
+    /// float math, no wall clock, no Godot types — so a rollback replays them
+    /// bit-identically.
+    /// </summary>
+    internal static class FighterDefenseRules {
+        /// <summary>D04: 60 active gameplay ticks (1 s at 60 Hz) once control resumes.</summary>
+        public const int DefyProtectionTicks = 60;
+        /// <summary>D02c: eight seconds of live gameplay for a granted HP shield.</summary>
+        public const int GrantedShieldLifetimeTicks = 480;
+
+        /// <summary>
+        /// True while a Defy survivor is protected: through the presentation
+        /// (awaiting control) and for the resumed ticks 1–60. Tick 61 is
+        /// unprotected.
+        /// </summary>
+        public static bool IsDefyProtected(in FighterDefenseComponent defense) =>
+            defense.DefyProtectionAwaitControl != 0 || defense.DefyProtectionFrames > 0;
+
+        /// <summary>
+        /// Installs the window on a successful proc. The identity is derived
+        /// from the player rather than a counter so a resimulated proc produces
+        /// the same value and cannot stage a duplicate presentation.
+        /// </summary>
+        public static void BeginDefyProtection(ref FighterDefenseComponent defense, int playerID) {
+            defense.DefyProtectionAwaitControl = 1;
+            defense.DefyProtectionFrames = DefyProtectionTicks;
+            defense.DefyProcIdentity = playerID + 1;
+        }
+
+        /// <summary>
+        /// Advances the window once per authoritative tick.
+        /// <paramref name="suspended"/> covers global hitstop, menus, Time
+        /// Freeze and suspended-combat presentations — the countdown pauses,
+        /// it never banks catch-up ticks. <paramref name="actionable"/> is the
+        /// first resumed normal-control tick that starts the countdown;
+        /// attacking neither cancels nor refreshes it.
+        /// </summary>
+        public static void Tick(ref FighterDefenseComponent defense, bool suspended, bool actionable) {
+            if (suspended) return;
+            if (defense.DefyProtectionAwaitControl != 0) {
+                if (!actionable) return;
+                defense.DefyProtectionAwaitControl = 0;
+                // Resumed tick 1 is protected; the decrement happens at tick end.
+            }
+            if (defense.DefyProtectionFrames > 0) {
+                defense.DefyProtectionFrames--;
+                if (defense.DefyProtectionFrames <= 0) defense.DefyProcIdentity = 0;
+            }
+            if (defense.BarrierRemainingFrames > 0) {
+                defense.BarrierRemainingFrames--;
+                // D02c expiry: the remaining absorption is discarded with no
+                // heal, meter, block event or expiry proc.
+                if (defense.BarrierRemainingFrames <= 0) ClearBarrier(ref defense);
+            }
+        }
+
+        public static void ClearBarrier(ref FighterDefenseComponent defense) {
+            defense.BarrierPoints = 0;
+            defense.BarrierCapacity = 0;
+            defense.BarrierRemainingFrames = 0;
+            defense.BarrierEffectID = 0;
+        }
+
+        /// <summary>
+        /// Death, stock loss, Death Rewind cleanup, scene reconstruction and
+        /// F22 Sudden Death all clear the transient window and the barrier.
+        /// The spent Defy flag itself lives on the verb component and is
+        /// deliberately untouched here.
+        /// </summary>
+        public static void Clear(ref FighterDefenseComponent defense) {
+            defense.DefyProtectionAwaitControl = 0;
+            defense.DefyProtectionFrames = 0;
+            defense.DefyProcIdentity = 0;
+            defense.AegisActive = 0;
+            ClearBarrier(ref defense);
+        }
+    }
+
     internal static class FighterDamageRules {
         public const int BasicAttackClass = 1;
         public const int SpecialAttackClass = 2;
@@ -139,6 +219,7 @@ namespace FTT.FighterSim {
             ref FighterStateComponent target,
             ref FighterRuntimeComponent targetRuntime,
             ref FighterVerbComponent targetVerb,
+            ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning,
             int attackClass,
             int damage,
@@ -153,12 +234,46 @@ namespace FTT.FighterSim {
             FP64 verticalKnockbackScale = default,
             bool collectsEcho = true,
             bool appliesHitstop = true,
-            bool blockCancelableHitstun = true) {
+            bool blockCancelableHitstun = true,
+            bool bypassesFiniteShields = false) {
             if (target.InvulnerabilityFrames > 0 || target.Stocks <= 0) return false;
+            // V7.6 D04 (Package 11 A1b): the Defy protected-recovery gate sits
+            // ABOVE every other layer. A rejected contact spends no Aegis, no
+            // barrier capacity and no block charge, applies no hitstun, launch
+            // or status, and grants the attacker no damage, Rally or block
+            // reward. It covers every attacker, damaging status tick and
+            // damaging stage hazard, and is not immunity to non-hit deaths.
+            if (FighterDefenseRules.IsDefyProtected(in targetDefense)) return false;
 
-            if (targetRuntime.AegisHits > 0) {
-                targetRuntime.AegisHits--;
-                return false;
+            // V7.6 D02b (Package 11 A1b): eligible projectile immunity →
+            // Temporal Aegis → HP barriers → ordinary block, stopping at the
+            // first layer that fully prevents the hit. The simulation has no
+            // projectile-immunity source, so the order starts at Aegis.
+            //
+            // D03c boundary: zero-damage warnings, non-damaging statuses and
+            // harmless overlaps consume NO Aegis or barrier HP. Before this, a
+            // zero-damage expiry launch or a warning pulse ate the bubble.
+            // D03d: a primary throw skips Aegis AND the barrier without
+            // consuming either, and keeps its normal damage and launch.
+            int resolvedIncoming = damage > 0 ? damage : 0;
+            if (resolvedIncoming > 0 && !bypassesFiniteShields) {
+                if (targetDefense.AegisActive != 0) {
+                    // D03e: Aegis prevents the absorbed contact's damage,
+                    // hitstun, knockback and attached status outright.
+                    targetDefense.AegisActive = 0;
+                    return false;
+                }
+                if (targetDefense.BarrierPoints > 0) {
+                    int absorbed = targetDefense.BarrierPoints < resolvedIncoming
+                        ? targetDefense.BarrierPoints
+                        : resolvedIncoming;
+                    targetDefense.BarrierPoints -= absorbed;
+                    if (targetDefense.BarrierPoints <= 0) FighterDefenseRules.ClearBarrier(ref targetDefense);
+                    damage = resolvedIncoming - absorbed;
+                    // D03a: a full absorb — including one that exactly depletes
+                    // the barrier — suppresses the hit's attached effects too.
+                    if (damage <= 0) return false;
+                }
             }
 
             // Pure tick/status pulses (zone effects) carry no impulse: they bypass
@@ -174,9 +289,11 @@ namespace FTT.FighterSim {
                 ? hitOriginX >= target.Position.x
                 : hitOriginX <= target.Position.x;
             if (targetBlocking && hitInFront && attackClass != UltimateAttackClass && target.BlockCharges > 0) {
-                // blockChargeCost > 0 overrides the class default (shield-shredding
-                // specials like Joan's Divine Piercing deplete exactly 2 charges
-                // instead of the special-class full shatter).
+                // blockChargeCost > 0 overrides the class default (a Story
+                // Guard-Crush costs 2). V7.6 F15 retired the two-charge
+                // "shield-stutter" exception: Divine Piercing and The
+                // Emancipator are ordinary Special-class FULL shatters in both
+                // modes, so nothing passes a cost here for them any more.
                 int cost = blockChargeCost > 0
                     ? blockChargeCost
                     : attackClass == SpecialAttackClass ? target.BlockCharges : 1;
@@ -234,6 +351,26 @@ namespace FTT.FighterSim {
                 target.CurrentHP = 1;
                 // The saved life reads as a hard moment: an extended freeze.
                 FighterVerbRules.ApplyHitstop(ref attackerVerb, ref targetVerb, 12);
+                // V7.6 D04 (Package 11 A1b): protected recovery. The survivor is
+                // RELEASED from the triggering hit — it may not be launched or
+                // stunned by the very blow it defied — and from any capture,
+                // then is invulnerable through the presentation and for 60
+                // active ticks once normal control resumes.
+                FighterDefenseRules.BeginDefyProtection(ref targetDefense, target.PlayerID);
+                target.HitstunFrames = 0;
+                target.DazeFrames = 0;
+                targetVerb.PendingLaunchActive = 0;
+                targetVerb.Tumble = 0;
+                targetVerb.ShieldStunFrames = 0;
+                targetVerb.BeingHeld = 0;
+                targetVerb.GrabPhase = 0;
+                targetVerb.GrabPhaseFrames = 0;
+                // The defied hit contributes no forced motion and imposes no new
+                // attached control/status effect. Position is kept as it stands.
+                knockback = FP64.Zero;
+                hitstunFrames = 0;
+                statusType = (int)StatusType.None;
+                statusFrames = 0;
             }
 
             int actualDamage = previousHP - target.CurrentHP;
@@ -276,22 +413,31 @@ namespace FTT.FighterSim {
             // and keeps draining at the unchanged per-frame rate; the drain only
             // zeroes when the pool empties. Reclaimed HP grants no meter to
             // either player.
+            // V7.6 D03f/D03g (Package 11 A1b): the reclaim is
+            // min(pool, creditedDamage × 2.0, missingHP), and ONLY the HP
+            // actually healed leaves the pool. Before this the full capped
+            // amount was debited even when the heal was clamped at MaxHP, so a
+            // full-health attacker burned their whole pool for nothing.
+            int missingHP = attacker.MaxHP - attacker.CurrentHP;
             if (collectsEcho && attackClass != HazardAttackClass
-                && attackerVerb.EchoPool > FP64.Zero && actualDamage > 0 && attacker.MaxHP > 0) {
+                && attackerVerb.EchoPool > FP64.Zero && actualDamage > 0
+                && attacker.MaxHP > 0 && missingHP > 0) {
                 FP64 reclaimAmount = FP64.Min(
-                    attackerVerb.EchoPool,
-                    FP64.FromInt(actualDamage) * RallyReclaimMultiplier);
+                    FP64.Min(
+                        attackerVerb.EchoPool,
+                        FP64.FromInt(actualDamage) * RallyReclaimMultiplier),
+                    FP64.FromInt(missingHP));
                 long reclaimRaw = (reclaimAmount.RawValue + FP64.One.RawValue / 2) / FP64.One.RawValue;
                 int reclaim = (int)reclaimRaw;
+                if (reclaim > missingHP) reclaim = missingHP;
                 if (reclaim > 0) {
-                    attacker.CurrentHP = attacker.CurrentHP + reclaim > attacker.MaxHP
-                        ? attacker.MaxHP
-                        : attacker.CurrentHP + reclaim;
-                }
-                attackerVerb.EchoPool -= reclaimAmount;
-                if (attackerVerb.EchoPool <= FP64.Zero) {
-                    attackerVerb.EchoPool = FP64.Zero;
-                    attackerVerb.EchoDrainPerFrame = FP64.Zero;
+                    attacker.CurrentHP += reclaim;
+                    // Debit exactly what became HP, never more than the pool held.
+                    attackerVerb.EchoPool -= FP64.Min(attackerVerb.EchoPool, FP64.FromInt(reclaim));
+                    if (attackerVerb.EchoPool <= FP64.Zero) {
+                        attackerVerb.EchoPool = FP64.Zero;
+                        attackerVerb.EchoDrainPerFrame = FP64.Zero;
+                    }
                 }
             }
 
@@ -358,7 +504,7 @@ namespace FTT.FighterSim {
                 FighterBasicAttackRules.CancelString(ref targetRuntime);
             }
             if (target.CurrentHP <= 0) {
-                FighterSimulationRules.ApplyStockLoss(ref target, ref targetRuntime, ref targetVerb, in targetTuning);
+                FighterSimulationRules.ApplyStockLoss(ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning);
             }
             return true;
         }
@@ -375,9 +521,28 @@ namespace FTT.FighterSim {
             ref FighterStateComponent target,
             ref FighterRuntimeComponent targetRuntime,
             ref FighterVerbComponent targetVerb,
+            ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning,
             int damage) {
             if (damage <= 0 || target.Stocks <= 0) return;
+            // D04: the protected window rejects damaging status ticks too, and
+            // a rejected tick is discarded rather than banked.
+            if (FighterDefenseRules.IsDefyProtected(in targetDefense)) return;
+            // D03c: an already-attached DoT's damaging ticks are eligible for
+            // Aegis and the HP barrier, in the D02b order. An absorbed tick
+            // still counts as that scheduled occurrence — no cleanse, no
+            // duration refresh, no retry.
+            if (targetDefense.AegisActive != 0) {
+                targetDefense.AegisActive = 0;
+                return;
+            }
+            if (targetDefense.BarrierPoints > 0) {
+                int absorbedTick = targetDefense.BarrierPoints < damage ? targetDefense.BarrierPoints : damage;
+                targetDefense.BarrierPoints -= absorbedTick;
+                if (targetDefense.BarrierPoints <= 0) FighterDefenseRules.ClearBarrier(ref targetDefense);
+                damage -= absorbedTick;
+                if (damage <= 0) return;
+            }
 
             int previousHP = target.CurrentHP;
             int remainingHP = target.CurrentHP - damage;
@@ -391,6 +556,9 @@ namespace FTT.FighterSim {
                 targetVerb.DefyHistoryUsed = 1;
                 target.Influence = FP64.Zero;
                 target.CurrentHP = 1;
+                FighterDefenseRules.BeginDefyProtection(ref targetDefense, target.PlayerID);
+                target.HitstunFrames = 0;
+                targetVerb.BeingHeld = 0;
             }
 
             int actualDamage = previousHP - target.CurrentHP;
@@ -413,7 +581,7 @@ namespace FTT.FighterSim {
             }
 
             if (target.CurrentHP <= 0) {
-                FighterSimulationRules.ApplyStockLoss(ref target, ref targetRuntime, ref targetVerb, in targetTuning);
+                FighterSimulationRules.ApplyStockLoss(ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning);
             }
         }
 
@@ -436,6 +604,7 @@ namespace FTT.FighterSim {
             ref FighterStateComponent target,
             ref FighterRuntimeComponent targetRuntime,
             ref FighterVerbComponent targetVerb,
+            ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning,
             int damage,
             FP64 knockback,
@@ -444,6 +613,7 @@ namespace FTT.FighterSim {
                 ref target,
                 ref targetRuntime,
                 ref targetVerb,
+                ref targetDefense,
                 in targetTuning,
                 damage,
                 knockback,
@@ -464,6 +634,7 @@ namespace FTT.FighterSim {
             ref FighterStateComponent target,
             ref FighterRuntimeComponent targetRuntime,
             ref FighterVerbComponent targetVerb,
+            ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning,
             int damage,
             FP64 knockback,
@@ -483,6 +654,7 @@ namespace FTT.FighterSim {
                 ref target,
                 ref targetRuntime,
                 ref targetVerb,
+                ref targetDefense,
                 in targetTuning,
                 HazardAttackClass,
                 damage,
@@ -689,7 +861,8 @@ namespace FTT.FighterSim {
             int statusFrames,
             FP64 statusIntensity,
             int lifetimeFrames,
-            FP64 speed) {
+            FP64 speed,
+            bool ultimateOrigin = false) {
             ref FighterMatchComponent match = ref frame.GetSingleton<FighterMatchComponent>();
             int facing = owner.FacingRight != 0 ? 1 : -1;
             FP64 resolvedSpeed = speed > FP64.Zero ? speed : FP64.FromInt(6);
@@ -710,6 +883,9 @@ namespace FTT.FighterSim {
                 StatusType = statusType,
                 StatusFrames = statusFrames,
                 HitstunFrames = 18,
+                // V7.6 D03h: origin rides the projectile, so a delayed Ultimate
+                // shot landing long after the cinematic still earns zero meter.
+                UltimateOrigin = ultimateOrigin ? 1 : 0,
                 StatusIntensity = statusIntensity,
                 GravityPerSecond = fortissimoLob ? LobGravityPerSecond : FP64.Zero,
                 Position = owner.Position + new FPVector2(FP64.FromInt(facing), FP64.One),
@@ -1130,12 +1306,17 @@ namespace FTT.FighterSim {
                 ref FighterVerbComponent ownerVerb = ref frame.Get<FighterVerbComponent>(ownerEntity);
                 ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
                 ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
+                ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
                 FighterDamageRules.ApplyFighterHit(
-                    ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, in targetTuning,
+                    ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     projectile.AttackClass, projectile.Damage, projectile.Knockback.x,
                     projectile.HitstunFrames, projectile.StatusType, projectile.StatusFrames,
-                    projectile.StatusIntensity, projectile.Position.x);
+                    projectile.StatusIntensity, projectile.Position.x,
+                    // V7.6 D03h (Package 11 A1b): an Ultimate-spawned projectile
+                    // awards its caster no damage-dealt meter. A player-fired
+                    // ordinary projectile still reclaims Rally (D03g) either way.
+                    creditInfluence: projectile.UltimateOrigin == 0);
                 frame.DestroyEntity(projectileEntity);
             }
         }
@@ -1189,12 +1370,13 @@ namespace FTT.FighterSim {
                 ref FighterVerbComponent ownerVerb = ref frame.Get<FighterVerbComponent>(ownerEntity);
                 ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
                 ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
+                ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
                 // Construct hits never reclaim the owner's Rally echo (V7.1: only
                 // direct hits collect), and never apply hitstop (V7.3: only
                 // direct player-authored hits carry the freeze).
                 FighterDamageRules.ApplyFighterHit(
-                    ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, in targetTuning,
+                    ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     FighterDamageRules.BasicAttackClass, persistent.Damage, persistent.Knockback,
                     persistent.ObjectTypeID == NestObjectTypeID ? NestBiteHitstunFrames : 10,
                     persistent.StatusType, persistent.StatusFrames, FP64.One, persistent.Position.x,
@@ -1263,11 +1445,12 @@ namespace FTT.FighterSim {
                 ref FighterVerbComponent ownerVerb = ref frame.Get<FighterVerbComponent>(ownerEntity);
                 ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
                 ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
+                ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
                 // Fence ticks are construct damage — no Rally echo reclaim,
                 // no hitstop (V7.3).
                 FighterDamageRules.ApplyFighterHit(
-                    ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, in targetTuning,
+                    ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     FighterDamageRules.BasicAttackClass, FenceDamage, FP64.Zero, FenceHitstunFrames,
                     (int)StatusType.StaticCharge, FenceStaticChargeFrames, FP64.FromDouble(0.5),
                     fenceCenter.x, collectsEcho: false,
@@ -1550,15 +1733,15 @@ namespace FTT.FighterSim {
                 // The drain honours the same pre-effect gates ApplyFighterHit
                 // applies (audit M-11): a fighter pinned on the respawn platform is
                 // "completely invulnerable" (design-godot.md ~1570) and loses
-                // nothing, a dead fighter is skipped, and an Aegis charge absorbs
-                // the tick exactly as it absorbs any other incoming effect.
+                // nothing, and a dead fighter is skipped.
+                //
+                // V7.6 D03c (Package 11 A1b): it no longer spends an Aegis
+                // charge. "Integrity loss, Siphon Snare and other non-HP meter
+                // drains retain their separate rules and do not spend finite
+                // shields to prevent them" — the bubble is for hits, and a pure
+                // drain eating it was a shipped defect.
                 if (type == FighterHazardTypeID.ParisDampeningBeam) {
                     if (fighter.InvulnerabilityFrames > 0 || fighter.Stocks <= 0) continue;
-                    ref FighterRuntimeComponent beamRuntime = ref frame.Get<FighterRuntimeComponent>(fighterEntity);
-                    if (beamRuntime.AegisHits > 0) {
-                        beamRuntime.AegisHits--;
-                        continue;
-                    }
                     fighter.Influence = FP64.Max(FP64.Zero, fighter.Influence - InfluenceDrainPerTick);
                     continue;
                 }
@@ -1567,6 +1750,7 @@ namespace FTT.FighterSim {
 
                 ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(fighterEntity);
                 ref FighterVerbComponent verb = ref frame.Get<FighterVerbComponent>(fighterEntity);
+                ref FighterDefenseComponent defense = ref frame.Get<FighterDefenseComponent>(fighterEntity);
                 ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(fighterEntity);
                 ResolveTickStatus(type, rockPool, out int statusType, out int statusFrames, out FP64 statusIntensity);
                 // The residue pool slows, it does not wound.
@@ -1574,7 +1758,7 @@ namespace FTT.FighterSim {
                 FP64 knockback = rockPool ? FP64.Zero : hazard.Knockback.x;
                 int hitstun = rockPool ? 0 : HitstunFrames;
                 FighterDamageRules.ApplyEnvironmentHit(
-                    ref fighter, ref runtime, ref verb, in tuning,
+                    ref fighter, ref runtime, ref verb, ref defense, in tuning,
                     damage, knockback, hitstun, hazard.Position.x,
                     statusType, statusFrames, statusIntensity);
             }
@@ -1632,9 +1816,10 @@ namespace FTT.FighterSim {
                 hazard.HitMask |= bit;
                 ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(fighterEntity);
                 ref FighterVerbComponent verb = ref frame.Get<FighterVerbComponent>(fighterEntity);
+                ref FighterDefenseComponent defense = ref frame.Get<FighterDefenseComponent>(fighterEntity);
                 ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(fighterEntity);
                 FighterDamageRules.ApplyEnvironmentHit(
-                    ref fighter, ref runtime, ref verb, in tuning,
+                    ref fighter, ref runtime, ref verb, ref defense, in tuning,
                     hazard.Damage, hazard.Knockback.x, HitstunFrames, hazard.Position.x,
                     (int)StatusType.None, 0, FP64.One, verticalKnockbackScale);
             }
@@ -1665,9 +1850,10 @@ namespace FTT.FighterSim {
                 WriteDwell(ref hazard, fighter.PlayerID, 0);
                 ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(fighterEntity);
                 ref FighterVerbComponent verb = ref frame.Get<FighterVerbComponent>(fighterEntity);
+                ref FighterDefenseComponent defense = ref frame.Get<FighterDefenseComponent>(fighterEntity);
                 ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(fighterEntity);
                 FighterDamageRules.ApplyEnvironmentHit(
-                    ref fighter, ref runtime, ref verb, in tuning,
+                    ref fighter, ref runtime, ref verb, ref defense, in tuning,
                     hazard.Damage, hazard.Knockback.x, HitstunFrames, hazard.Position.x,
                     (int)StatusType.None, 0, FP64.One);
             }
@@ -1696,9 +1882,10 @@ namespace FTT.FighterSim {
                 WriteDwell(ref hazard, fighter.PlayerID, 0);
                 ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(fighterEntity);
                 ref FighterVerbComponent verb = ref frame.Get<FighterVerbComponent>(fighterEntity);
+                ref FighterDefenseComponent defense = ref frame.Get<FighterDefenseComponent>(fighterEntity);
                 ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(fighterEntity);
                 FighterDamageRules.ApplyEnvironmentHit(
-                    ref fighter, ref runtime, ref verb, in tuning,
+                    ref fighter, ref runtime, ref verb, ref defense, in tuning,
                     hazard.Damage, hazard.Knockback.x, HitstunFrames,
                     NearestGalleryAnchorX(fighter.Position.x),
                     (int)StatusType.None, 0, FP64.One);
@@ -1843,7 +2030,8 @@ namespace FTT.FighterSim {
                 if (picker < 0 || !FighterEntityQueries.TryFindFighter(ref frame, picker, out EntityRef fighterEntity)) continue;
                 ref FighterStateComponent fighter = ref frame.Get<FighterStateComponent>(fighterEntity);
                 ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(fighterEntity);
-                ApplyEffect(ref fighter, ref runtime, orb.EffectType);
+                ref FighterDefenseComponent defense = ref frame.Get<FighterDefenseComponent>(fighterEntity);
+                ApplyEffect(ref fighter, ref runtime, ref defense, orb.EffectType);
                 frame.DestroyEntity(orbEntity);
             }
         }
@@ -1908,6 +2096,7 @@ namespace FTT.FighterSim {
         private static void ApplyEffect(
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
+            ref FighterDefenseComponent defense,
             int effectType) {
             if (effectType == 0) {
                 int heal = fighter.MaxHP * 20 / 100;
@@ -1918,6 +2107,14 @@ namespace FTT.FighterSim {
             } else if (effectType == 2) {
                 runtime.JumpBuffFrames = BuffDurationFrames;
             } else {
+                // V7.6 D02e (Package 11 A1b): Temporal Aegis is an ACTIVE FLAG
+                // with at most one per recipient and no time expiry, not a
+                // growing charge count. A pickup while already protected is
+                // consumed with no second charge, reserve, duration, HP, meter
+                // or replacement reward — which is exactly what an idempotent
+                // assignment to 1 expresses. AegisHits on the runtime component
+                // is retained as a presentation mirror only.
+                defense.AegisActive = 1;
                 runtime.AegisHits = 1;
             }
         }
@@ -2022,6 +2219,7 @@ namespace FTT.FighterSim {
                 ref FighterVerbComponent attackerVerb = ref frame.Get<FighterVerbComponent>(attackerEntity);
                 ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
                 ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
+                ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
 
                 // Tesla's Lorentz Pulse chains lightning through active coils when
@@ -2094,15 +2292,26 @@ namespace FTT.FighterSim {
                 // Ultimate-slot zones (ZoneTypeID % 10 == FighterUltimateRules
                 // .UltimateSlot) hit with the ultimate attack class so they
                 // bypass shields like every other ultimate.
-                int pulseAttackClass = zone.ZoneTypeID % 10 == FighterUltimateRules.UltimateSlot
+                bool ultimateZone = zone.ZoneTypeID % 10 == FighterUltimateRules.UltimateSlot;
+                int pulseAttackClass = ultimateZone
                     ? FighterDamageRules.UltimateAttackClass
                     : FighterDamageRules.SpecialAttackClass;
                 // Zone pulses are construct-class damage: no hitstop (V7.3 —
                 // only direct player-authored hits carry the freeze).
+                //
+                // V7.6 D03g (Package 11 A1b): a persistent zone tick NEVER
+                // reclaims the owner's Rally pool — "Relativity Rift's chip
+                // ticks and every Sandstorm Vortex tick are excluded, including
+                // the Vortex's final launching tick". These pulses defaulted to
+                // collectsEcho: true and therefore did reclaim.
+                // V7.6 D03h: an Ultimate-spawned zone earns its caster zero
+                // damage-dealt meter; ZoneTypeID's slot digit is the origin.
                 FighterDamageRules.ApplyFighterHit(
-                    ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, in targetTuning,
+                    ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     pulseAttackClass, pulseDamage, pulseKnockback, pulseHitstunFrames,
                     zone.StatusType, zone.StatusFrames, zone.StatusIntensity, zone.Position.x,
+                    creditInfluence: !ultimateZone,
+                    collectsEcho: false,
                     appliesHitstop: false);
             }
         }
@@ -2160,11 +2369,13 @@ namespace FTT.FighterSim {
             ref FighterVerbComponent attackerVerb = ref frame.Get<FighterVerbComponent>(attackerEntity);
             ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
             ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
+            ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
             ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
             FighterDamageRules.ApplyFighterHit(
-                ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, in targetTuning,
+                ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                 FighterDamageRules.SpecialAttackClass, 0, SpiralExpiryKnockback, SpiralExpiryHitstunFrames,
                 (int)StatusType.None, 0, FP64.One, zone.Position.x,
+                collectsEcho: false,
                 appliesHitstop: false);
         }
 
@@ -2215,12 +2426,15 @@ namespace FTT.FighterSim {
             ref FighterVerbComponent attackerVerb = ref frame.Get<FighterVerbComponent>(attackerEntity);
             ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
             ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
+            ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
             ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
             FP64 launchKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
             FighterDamageRules.ApplyFighterHit(
-                ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, in targetTuning,
+                ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                 FighterDamageRules.UltimateAttackClass, 0, launchKnockback, CosmologicalLaunchHitstunFrames,
                 (int)StatusType.None, 0, FP64.One, zone.Position.x,
+                creditInfluence: false,
+                collectsEcho: false,
                 appliesHitstop: false);
         }
 
@@ -2246,12 +2460,15 @@ namespace FTT.FighterSim {
             ref FighterVerbComponent attackerVerb = ref frame.Get<FighterVerbComponent>(attackerEntity);
             ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
             ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
+            ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
             ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
             FP64 explosionKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
             FighterDamageRules.ApplyFighterHit(
-                ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, in targetTuning,
+                ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                 FighterDamageRules.UltimateAttackClass, 0, explosionKnockback, MatrixExpiryHitstunFrames,
                 (int)StatusType.None, 0, FP64.One, zone.Position.x,
+                creditInfluence: false,
+                collectsEcho: false,
                 appliesHitstop: false);
         }
 

@@ -165,6 +165,19 @@ namespace FTT.FighterSim {
                 SourcePlayerID = -1,
                 ChainConsumedExecutionID = 0
             });
+            // V7.6 D01-D04 (Package 11 A1b): the defensive layer - Defy
+            // protected recovery, the Temporal Aegis flag and the D02b HP
+            // barrier. Snapshot and hash state like every other component.
+            frame.Add(entity, new FighterDefenseComponent {
+                DefyProtectionAwaitControl = 0,
+                DefyProtectionFrames = 0,
+                DefyProcIdentity = 0,
+                AegisActive = 0,
+                BarrierPoints = 0,
+                BarrierCapacity = 0,
+                BarrierRemainingFrames = 0,
+                BarrierEffectID = 0
+            });
         }
     }
 
@@ -286,11 +299,16 @@ namespace FTT.FighterSim {
                 // advance an armed wind-up (the snap fires when it reaches 0).
                 AdvanceEchoStep(ref frame, entity, ref fighter, ref verb);
 
+                // V7.6 D01-D04 (Package 11 A1b): the Venom tick inside
+                // TickCounters routes through the defensive layer, so the
+                // component travels with it.
+                ref FighterDefenseComponent defense = ref frame.Get<FighterDefenseComponent>(entity);
+
                 // Landing-tech recovery: invulnerable, in place, no actions.
                 if (verb.TechLockoutFrames > 0) {
                     verb.TechLockoutFrames--;
                     fighter.Velocity = FPVector2.Zero;
-                    TickCounters(ref fighter, ref runtime, ref verb, in tuning);
+                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
                     continue;
                 }
 
@@ -300,11 +318,11 @@ namespace FTT.FighterSim {
                 // the grab phases and the victim's pinning.
                 if (FighterGrabRules.IsBusy(in verb)) {
                     fighter.Velocity = FPVector2.Zero;
-                    TickCounters(ref fighter, ref runtime, ref verb, in tuning);
+                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
                     continue;
                 }
 
-                TickCounters(ref fighter, ref runtime, ref verb, in tuning);
+                TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
 
                 // The Chronal Respawn Platform owns the fighter completely: it is
                 // frozen, invulnerable, and consumes no input until it drops.
@@ -490,8 +508,10 @@ namespace FTT.FighterSim {
                 // window expired, which made the bottom blast zone unreachable on
                 // any stage whose base floor spans the full width.
                 if (fighter.Position.y < _geometry.BottomBlastZone) {
+                    ref FighterDefenseComponent fallDefense = ref frame.Get<FighterDefenseComponent>(entity);
                     FighterSimulationRules.ApplyStockLoss(
-                        ref fighter, ref runtime, ref verb, in tuning, _geometry);
+                        ref fighter, ref runtime, ref verb, ref fallDefense, in tuning, _geometry);
+
                     continue;
                 }
 
@@ -1044,6 +1064,7 @@ namespace FTT.FighterSim {
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
             ref FighterVerbComponent verb,
+            ref FighterDefenseComponent defense,
             in FighterTuningComponent tuning) {
             // Rally drain (V7.1): the Echo Pool bleeds to zero over 150 frames
             // from the last accrual. Echo that finishes draining is permanently
@@ -1119,7 +1140,7 @@ namespace FTT.FighterSim {
                     // credit, no hitstop). A KO'd tick ends this pass.
                     int knockoutsBefore = runtime.KnockoutsSuffered;
                     FighterDamageRules.ApplyUnattributedDamage(
-                        ref fighter, ref runtime, ref verb, in tuning, damage);
+                        ref fighter, ref runtime, ref verb, ref defense, in tuning, damage);
                     if (runtime.KnockoutsSuffered != knockoutsBefore) return;
                 }
                 if (runtime.DamageStatusFrames == 0) {
@@ -1554,10 +1575,12 @@ namespace FTT.FighterSim {
         private const int SpecialOneButton = 1 << 3;
         private const int SpecialTwoButton = 1 << 4;
         private const int UltimateButton = 1 << 7;
-        // Joan's Divine Piercing (design Section 5): the rapid thrusts shred
-        // exactly 2 block charges on block instead of the special-class full
-        // shatter. The multi-hit damage total is baked by FighterLoadoutFactory.
-        private const int DivinePiercingBlockChargeCost = 2;
+        // V7.6 F15 (Package 11 A1b): the two-charge "shield-stutter" exception
+        // is RETIRED. Joan's Divine Piercing and Lincoln's Emancipator are
+        // ordinary Special-class FULL shatters against a charge-based shield in
+        // both modes - 1, 2 or 3 charges all go to 0 with the normal Special
+        // shatter response (shatter-freeze, daze, 5 s lockout). Lincoln's S1
+        // already passed 0 here, so the two modes disagreed until now.
         private static readonly FP64 AttackRange = FP64.FromInt(2);
         private static readonly FP64 AttackVerticalRange = FP64.FromDouble(1.6);
         // V7 normative string hitboxes (design "Hitbox & Hurtbox Geometry"):
@@ -1653,12 +1676,17 @@ namespace FTT.FighterSim {
             // then extends via max-assign, never shortens.
             bool oneFrozen = verbOne.HitstopFrames > 0;
             bool twoFrozen = verbTwo.HitstopFrames > 0;
+            // V7.6 D01-D04 (Package 11 A1b): the defensive layer travels with
+            // every hit path, because the Defy protection gate and the D02b
+            // Aegis/barrier order live at the top of ApplyFighterHit.
+            ref FighterDefenseComponent defenseOne = ref frame.Get<FighterDefenseComponent>(first);
+            ref FighterDefenseComponent defenseTwo = ref frame.Get<FighterDefenseComponent>(second);
 
             // V7.2 grabs & throws advance before every other action: a fighter
             // mid-grab or held takes no other offensive action this tick.
             AdvanceGrabs(
-                ref fighterOne, ref runtimeOne, ref verbOne, in tuningOne,
-                ref fighterTwo, ref runtimeTwo, ref verbTwo, in tuningTwo,
+                ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne,
+                ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo,
                 oneFrozen, twoFrozen);
             bool oneActing = !oneFrozen && !FighterGrabRules.IsBusy(in verbOne);
             bool twoActing = !twoFrozen && !FighterGrabRules.IsBusy(in verbTwo);
@@ -1671,22 +1699,45 @@ namespace FTT.FighterSim {
 
             AttackIntent firstIntent = !oneActing ? default : BuildIntent(in fighterOne, in runtimeOne, in verbOne, in tuningOne, in fighterTwo);
             AttackIntent secondIntent = !twoActing ? default : BuildIntent(in fighterTwo, in runtimeTwo, in verbTwo, in tuningTwo, in fighterOne);
-            ApplyIntent(ref fighterOne, ref runtimeOne, ref verbOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, in tuningTwo, in firstIntent);
-            ApplyIntent(ref fighterTwo, ref runtimeTwo, ref verbTwo, ref fighterOne, ref runtimeOne, ref verbOne, in tuningOne, in secondIntent);
+            ApplyIntent(ref fighterOne, ref runtimeOne, ref verbOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, in firstIntent);
+            ApplyIntent(ref fighterTwo, ref runtimeTwo, ref verbTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, in secondIntent);
             // F07 marks are written onto the VICTIM's component 318.
             ref FighterConductiveComponent conductiveOne = ref frame.Get<FighterConductiveComponent>(first);
             ref FighterConductiveComponent conductiveTwo = ref frame.Get<FighterConductiveComponent>(second);
             FighterConductiveRules.Tick(ref conductiveOne, verbOne.HitstopFrames > 0);
             FighterConductiveRules.Tick(ref conductiveTwo, verbTwo.HitstopFrames > 0);
+            // V7.6 D04 (Package 11 A1b): the protected second does not start
+            // until the survivor's first resumed NORMAL-CONTROL tick, and its
+            // countdown pauses during global hitstop and suspended-combat
+            // presentations. Attacking neither cancels nor refreshes it.
+            FighterDefenseRules.Tick(
+                ref defenseOne, verbOne.HitstopFrames > 0, IsDefyActionable(in fighterOne, in verbOne));
+            FighterDefenseRules.Tick(
+                ref defenseTwo, verbTwo.HitstopFrames > 0, IsDefyActionable(in fighterTwo, in verbTwo));
             if (oneActing) {
-                ApplyBasicSwing(ref fighterOne, ref runtimeOne, ref verbOne, in tuningOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, in tuningTwo, ref conductiveTwo);
+                ApplyBasicSwing(ref fighterOne, ref runtimeOne, ref verbOne, in tuningOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, ref conductiveTwo);
                 ApplyConstructSwing(ref frame, ref fighterOne, ref runtimeOne, in tuningOne);
             }
             if (twoActing) {
-                ApplyBasicSwing(ref fighterTwo, ref runtimeTwo, ref verbTwo, in tuningTwo, ref fighterOne, ref runtimeOne, ref verbOne, in tuningOne, ref conductiveOne);
+                ApplyBasicSwing(ref fighterTwo, ref runtimeTwo, ref verbTwo, in tuningTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, ref conductiveOne);
                 ApplyConstructSwing(ref frame, ref fighterTwo, ref runtimeTwo, in tuningTwo);
             }
         }
+
+        /// <summary>
+        /// The D04 "normal player control has resumed" test: alive, out of the
+        /// Defy presentation freeze, free of hitstun/daze/respawn, and not held.
+        /// Deliberately NOT an input test - the contract says the window opens
+        /// at the first resumed control tick, "not on the player's first input".
+        /// </summary>
+        private static bool IsDefyActionable(
+            in FighterStateComponent fighter, in FighterVerbComponent verb) =>
+            fighter.Stocks > 0
+            && fighter.HitstunFrames <= 0
+            && fighter.DazeFrames <= 0
+            && fighter.RespawnFramesRemaining <= 0
+            && verb.HitstopFrames <= 0
+            && verb.BeingHeld == 0;
 
         /// <summary>
         /// V7.2 grabs &amp; throws, both fighters per tick: initiation from the
@@ -1696,9 +1747,11 @@ namespace FTT.FighterSim {
         /// </summary>
         private static void AdvanceGrabs(
             ref FighterStateComponent one, ref FighterRuntimeComponent runtimeOne,
-            ref FighterVerbComponent verbOne, in FighterTuningComponent tuningOne,
+            ref FighterVerbComponent verbOne, ref FighterDefenseComponent defenseOne,
+            in FighterTuningComponent tuningOne,
             ref FighterStateComponent two, ref FighterRuntimeComponent runtimeTwo,
-            ref FighterVerbComponent verbTwo, in FighterTuningComponent tuningTwo,
+            ref FighterVerbComponent verbTwo, ref FighterDefenseComponent defenseTwo,
+            in FighterTuningComponent tuningTwo,
             bool oneFrozen, bool twoFrozen) {
             // Initiation. Both may start the same frame; the clash resolves it.
             if (!oneFrozen && FighterGrabRules.ChordPressed(in runtimeOne)
@@ -1735,10 +1788,10 @@ namespace FTT.FighterSim {
 
             AdvanceGrabPhase(
                 ref one, ref runtimeOne, ref verbOne, in tuningOne,
-                ref two, ref runtimeTwo, ref verbTwo, in tuningTwo, oneFrozen);
+                ref two, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, oneFrozen);
             AdvanceGrabPhase(
                 ref two, ref runtimeTwo, ref verbTwo, in tuningTwo,
-                ref one, ref runtimeOne, ref verbOne, in tuningOne, twoFrozen);
+                ref one, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, twoFrozen);
         }
 
         private static void BreakGrabIfStruck(
@@ -1799,6 +1852,7 @@ namespace FTT.FighterSim {
             ref FighterStateComponent victim,
             ref FighterRuntimeComponent victimRuntime,
             ref FighterVerbComponent victimVerb,
+            ref FighterDefenseComponent victimDefense,
             in FighterTuningComponent victimTuning,
             bool frozen) {
             if (frozen || grabberVerb.GrabPhase == FighterGrabRules.PhaseNone) return;
@@ -1856,7 +1910,7 @@ namespace FTT.FighterSim {
                 case FighterGrabRules.PhaseThrowAnimation:
                     ResolveThrow(
                         ref grabber, ref grabberRuntime, ref grabberVerb, in grabberTuning,
-                        ref victim, ref victimRuntime, ref victimVerb, in victimTuning);
+                        ref victim, ref victimRuntime, ref victimVerb, ref victimDefense, in victimTuning);
                     break;
             }
         }
@@ -1869,6 +1923,7 @@ namespace FTT.FighterSim {
             ref FighterStateComponent victim,
             ref FighterRuntimeComponent victimRuntime,
             ref FighterVerbComponent victimVerb,
+            ref FighterDefenseComponent victimDefense,
             in FighterTuningComponent victimTuning) {
             int direction = grabberVerb.ThrowDirection;
             // The back throw is a positional reversal: the victim swings to the
@@ -1902,9 +1957,16 @@ namespace FTT.FighterSim {
             // itself must connect, so the animation grant is cleared first.
             victim.InvulnerabilityFrames = 0;
             victimVerb.BeingHeld = 0;
+            // V7.6 D03d (Package 11 A1b): a legal PRIMARY throw bypasses the
+            // finite shields. It deals normal damage and applies its normal
+            // launch WITHOUT consuming Temporal Aegis or HP-barrier capacity -
+            // no decrement, no absorption/break, no block perk, and the skipped
+            // protection is not treated as partial reduction. Before this an
+            // active Aegis absorbed the throw entirely, which is exactly the
+            // case the contract forbids. Defy still applies normally.
             FighterDamageRules.ApplyFighterHit(
                 ref grabber, ref grabberRuntime, ref grabberVerb,
-                ref victim, ref victimRuntime, ref victimVerb, in victimTuning,
+                ref victim, ref victimRuntime, ref victimVerb, ref victimDefense, in victimTuning,
                 FighterDamageRules.BasicAttackClass,
                 grabberTuning.BasicDamage,
                 knockback,
@@ -1913,7 +1975,8 @@ namespace FTT.FighterSim {
                 0,
                 FP64.One,
                 grabber.Position.x,
-                verticalKnockbackScale: verticalScale);
+                verticalKnockbackScale: verticalScale,
+                bypassesFiniteShields: true);
             // Trajectories are fixed — no DI on throws (the throw IS the
             // decision), so the stashed launch never resolves through DI.
             victimVerb.PendingLaunchActive = 0;
@@ -1980,6 +2043,7 @@ namespace FTT.FighterSim {
             ref FighterStateComponent target,
             ref FighterRuntimeComponent targetRuntime,
             ref FighterVerbComponent targetVerb,
+            ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning,
             ref FighterConductiveComponent targetConductive) {
             if (attackerRuntime.AttackPhase != FighterBasicAttackRules.PhaseActive) return;
@@ -1990,7 +2054,7 @@ namespace FTT.FighterSim {
             if (FighterBasicAttackRules.IsVariantSwing(in attackerRuntime)) {
                 ApplyDirectionalSwing(
                     ref attacker, ref attackerRuntime, ref attackerVerb, in attackerTuning,
-                    ref target, ref targetRuntime, ref targetVerb, in targetTuning);
+                    ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning);
                 return;
             }
 
@@ -2033,6 +2097,7 @@ namespace FTT.FighterSim {
                 ref target,
                 ref targetRuntime,
                 ref targetVerb,
+                ref targetDefense,
                 in targetTuning,
                 FighterDamageRules.BasicAttackClass,
                 damage,
@@ -2106,6 +2171,7 @@ namespace FTT.FighterSim {
             ref FighterStateComponent target,
             ref FighterRuntimeComponent targetRuntime,
             ref FighterVerbComponent targetVerb,
+            ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning) {
             bool upAttack = (attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagUpAttack) != 0;
             FP64 horizontalReach = upAttack ? UpAttackHorizontalReach : DownAirHorizontalReach;
@@ -2132,6 +2198,7 @@ namespace FTT.FighterSim {
                 ref target,
                 ref targetRuntime,
                 ref targetVerb,
+                ref targetDefense,
                 in targetTuning,
                 FighterDamageRules.BasicAttackClass,
                 damage,
@@ -2230,10 +2297,7 @@ namespace FTT.FighterSim {
                     tuning.SpecialTwoStatusType,
                     tuning.SpecialTwoStatusFrames,
                     tuning.SpecialTwoStatusIntensity,
-                    tuning.SpecialTwoCooldownFrames,
-                    attacker.CharacterID == (int)FighterCharacterID.Joan
-                        ? DivinePiercingBlockChargeCost
-                        : 0);
+                    tuning.SpecialTwoCooldownFrames);
             }
             // Basic attacks no longer resolve here: the phase machine in
             // FighterMovementSystem starts and times the swing, and
@@ -2248,6 +2312,7 @@ namespace FTT.FighterSim {
             ref FighterStateComponent target,
             ref FighterRuntimeComponent targetRuntime,
             ref FighterVerbComponent targetVerb,
+            ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning,
             in AttackIntent intent) {
             if (intent.Kind == 0) return;
@@ -2280,6 +2345,7 @@ namespace FTT.FighterSim {
                 ref target,
                 ref targetRuntime,
                 ref targetVerb,
+                ref targetDefense,
                 in targetTuning,
                 attackClass,
                 intent.Damage,
@@ -2289,8 +2355,13 @@ namespace FTT.FighterSim {
                 intent.StatusFrames,
                 intent.StatusIntensity,
                 attacker.Position.x,
-                true,
-                intent.BlockChargeCost);
+                // V7.6 D03h (Package 11 A1b): a direct Ultimate impact awards
+                // its caster ZERO damage-dealt meter. The Ultimate still costs
+                // 100 on accepted activation; this only removes the refund.
+                // Direct-hit Rally reclaim from an Ultimate impact is retained
+                // (D03g), which is why collectsEcho is untouched.
+                creditInfluence: attackClass != FighterDamageRules.UltimateAttackClass,
+                blockChargeCost: intent.BlockChargeCost);
         }
 
         private readonly struct AttackIntent {
@@ -2431,11 +2502,24 @@ namespace FTT.FighterSim {
                 verb.BlockLockoutFrames = 0;
                 verb.HitstunBlockCancelBlocked = 0;
                 verb.LedgeGrabsThisAirtime = 0;
-                verb.DefyHistoryUsed = 1;
+                // V7.6 F22/F13 (Package 11 A1b): Sudden Death BARS Defy without
+                // marking it SPENT. The seal read-model must distinguish
+                // "unavailable in this context" from "already used", and
+                // pre-marking DefyHistoryUsed = 1 conflated them. The bar is
+                // derived from match.SuddenDeathActive at the read site
+                // (FighterDefenseRules / FighterDefySeal), so the underlying
+                // spent flag is left exactly as the match left it.
                 verb.OvertimeActive = 0;
                 FighterUniversalMovementRules.Cancel(ref runtime);
                 FighterBasicAttackRules.CancelString(ref runtime);
                 FighterLedgeRules.ClearHang(ref runtime);
+                // D04/D02e: Sudden Death cleanup clears the transient Defy
+                // window, the Aegis bubble and any barrier.
+                if (frame.Has<FighterDefenseComponent>(entity)) {
+                    ref FighterDefenseComponent defense = ref frame.Get<FighterDefenseComponent>(entity);
+                    FighterDefenseRules.Clear(ref defense);
+                    runtime.AegisHits = 0;
+                }
             }
         }
 
@@ -2524,9 +2608,16 @@ namespace FTT.FighterSim {
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
             ref FighterVerbComponent verb,
+            ref FighterDefenseComponent defense,
             in FighterTuningComponent tuning,
             FighterStageGeometry geometry = null) {
             if (fighter.Stocks <= 0) return;
+            // V7.6 D04/D02e (Package 11 A1b): death and stock loss clear the
+            // transient Defy protection window, the Aegis bubble and any HP
+            // barrier. The SPENT Defy flag itself is deliberately untouched -
+            // Defy is once per match, not once per stock.
+            FighterDefenseRules.Clear(ref defense);
+            runtime.AegisHits = 0;
             // V7.1: KO / stock loss clears the Echo Pool and every transient
             // verb-layer state; it never transfers across stocks.
             verb.EchoPool = FP64.Zero;

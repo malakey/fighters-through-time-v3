@@ -35,6 +35,16 @@ namespace FTT.Combat {
         /// </summary>
         public string AbilityID { get; private set; } = "";
 
+        /// <summary>
+        /// V7.6 D03h (Package 11 A1b): true when an ULTIMATE placed this zone,
+        /// so its ticks award the caster zero damage-dealt meter. Derived from
+        /// the same authored <see cref="AbilityData"/> the zone already
+        /// receives - the slot IS the origin - so it adds no second canonical
+        /// value and no new Setup parameter. The deterministic sim reads the
+        /// same signal from <c>ZoneTypeID % 10</c>.
+        /// </summary>
+        public bool UltimateOrigin { get; private set; }
+
         public override void _Ready() => AddToGroup("story_zone");
 
         public void Setup(float damage, float lifetime, float tickInterval, int ownerIndex,
@@ -55,6 +65,7 @@ namespace FTT.Combat {
             _ownerPlayer = ownerPlayer;
             _ownerSpeedMultiplier = ownerSpeedMultiplier;
             AbilityID = data?.AbilityID ?? "";
+            UltimateOrigin = data?.Slot == FTT.Core.AbilitySlot.Ultimate;
 
             EnsureNodes();
             bool usesAuthoredVisual = ApplyAuthoredVisual(data, radius);
@@ -203,10 +214,23 @@ namespace FTT.Combat {
                 damage * specialDamageMultiplier,
                 System.MidpointRounding.AwayFromZero));
 
+        /// <summary>
+        /// V7.6 D03g (Package 11 A1b): a persistent zone tick NEVER reclaims the
+        /// owner's Rally echo pool. "Relativity Rift's chip ticks and every
+        /// Sandstorm Vortex tick are excluded, including the Vortex's final
+        /// launching tick"; applying launch, a status or a mark does not turn a
+        /// tick into a direct hit. Before this, <c>collectsEcho</c> defaulted to
+        /// true here and every Story zone tick reclaimed.
+        ///
+        /// <para>V7.6 D03h: an Ultimate-placed zone also earns the caster zero
+        /// damage-dealt meter - the exclusion follows the source execution into
+        /// its persistent damage zones.</para>
+        /// </summary>
         private void CreditOwner(float damageApplied) {
             if (damageApplied <= 0f) return;
             if (_ownerPlayer == null || !IsInstanceValid(_ownerPlayer)) return;
-            _ownerPlayer.AddInfluenceFromDamageDealt(damageApplied);
+            _ownerPlayer.AddInfluenceFromDamageDealt(
+                damageApplied, collectsEcho: false, ultimateOrigin: UltimateOrigin);
         }
 
         private void RefreshOwnerBuff() {
@@ -225,6 +249,7 @@ namespace FTT.Combat {
             _lifetime = 0f;
             _tickTimer = 0f;
             AbilityID = "";
+            UltimateOrigin = false;
             Modulate = Colors.White;
         }
 
@@ -243,6 +268,7 @@ namespace FTT.Combat {
             _ownerSpeedMultiplier = 1f;
             _ownerPlayer = null;
             AbilityID = "";
+            UltimateOrigin = false;
             if (_authoredVisual != null) {
                 _authoredVisual.Stop();
                 _authoredVisual.Visible = false;

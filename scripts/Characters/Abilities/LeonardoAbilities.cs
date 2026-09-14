@@ -515,7 +515,10 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
                 });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
+                // ZERO damage-dealt meter, regardless of HP removed, target count or
+                // when it lands. Direct-hit Rally reclaim is retained (D03g).
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt, ultimateOrigin: true);
             }
         }
 

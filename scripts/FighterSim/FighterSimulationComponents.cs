@@ -504,6 +504,48 @@ namespace FTT.FighterSim {
     }
 
     /// <summary>
+    /// V7.6 D01–D04 defensive layer (Package 11 A1b), deterministic half.
+    /// <see cref="FighterRuntimeComponent"/> is exactly full at 128 bytes and
+    /// <see cref="FighterVerbComponent"/> has four bytes of headroom, so the
+    /// defensive contract's new snapshot state lives here. Klotho component ID
+    /// assigned by Package 11 §2.7 — A1b only.
+    ///
+    /// <para><b>D04 protected recovery.</b> A successful Defy sets
+    /// <see cref="DefyProtectionAwaitControl"/> and <see cref="DefyProtectionFrames"/>
+    /// (60) together with <see cref="DefyProcIdentity"/>. The countdown does not
+    /// start until the survivor's first resumed normal-control tick, and pauses
+    /// during hitstop and suspended-combat presentations. The proc identity is
+    /// the resimulation dedupe: a rollback that replays the same proc must not
+    /// stage a second presentation.</para>
+    ///
+    /// <para><b>D02b barrier layer.</b> The simulation has no Story grid perks,
+    /// so <see cref="BarrierPoints"/> is zero in every shipped Fighter match —
+    /// but D02b's ordering is authored here rather than left implicit, so a
+    /// future authored Fighter barrier resolves in the contract's order
+    /// (invulnerability → Aegis → barrier → block) without another rewrite.</para>
+    /// </summary>
+    [KlothoComponent(312, MaxCount = 2)]
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public partial struct FighterDefenseComponent : IComponent {
+        /// <summary>1 while a Defy survivor is still in its presentation and has not resumed control.</summary>
+        public int DefyProtectionAwaitControl;
+        /// <summary>Remaining protected ticks once control resumed; 60 on a fresh proc.</summary>
+        public int DefyProtectionFrames;
+        /// <summary>Deterministic identity of the proc that installed this window; 0 when none.</summary>
+        public int DefyProcIdentity;
+        /// <summary>D02e: one active Temporal Aegis per recipient, a flag and never a count.</summary>
+        public int AegisActive;
+        /// <summary>D02b finite HP barrier: remaining absorption.</summary>
+        public int BarrierPoints;
+        /// <summary>The barrier's normal cap, for a D02a refresh.</summary>
+        public int BarrierCapacity;
+        /// <summary>D02c lifetime in active ticks; -1 means "no expiry" (Wardenclyffe-shaped).</summary>
+        public int BarrierRemainingFrames;
+        /// <summary>Which shield effect owns the live barrier instance; 0 when none.</summary>
+        public int BarrierEffectID;
+    }
+
+    /// <summary>
     /// Echo Step's per-fighter position ring (V7.1): 5 entries sampled every
     /// 6 frames; the oldest sample approximates "30 frames ago". Snapshot state
     /// — the ring is part of the rollback hash like everything else.
@@ -596,6 +638,13 @@ namespace FTT.FighterSim {
         public int StatusType;
         public int StatusFrames;
         public int HitstunFrames;
+        /// <summary>
+        /// V7.6 D03h (Package 11 A1b): 1 when this projectile was spawned by an
+        /// Ultimate execution, so its damage awards the caster zero damage-dealt
+        /// meter no matter when it lands. Snapshot state — attribution has to
+        /// survive the cinematic ending, owner interruption and rollback.
+        /// </summary>
+        public int UltimateOrigin;
         public FP64 StatusIntensity;
         /// <summary>Downward pull in units/s² for lobbed arcs (Mozart's Fortissimo Wave); zero = flat flight.</summary>
         public FP64 GravityPerSecond;

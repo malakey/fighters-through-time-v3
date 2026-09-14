@@ -108,8 +108,9 @@ public class BlockShatterLockoutTests {
         verb.HitstunBlockCancelBlocked = 1;
         verb.LedgeGrabsThisAirtime = 2;
         FighterTuningComponent tuning = default;
+        FighterDefenseComponent defense = default;
 
-        FighterSimulationRules.ApplyStockLoss(ref fighter, ref runtime, ref verb, in tuning);
+        FighterSimulationRules.ApplyStockLoss(ref fighter, ref runtime, ref verb, ref defense, in tuning);
 
         AssertThat(verb.BlockLockoutFrames)
             .OverrideFailureMessage("A stock loss must clear the shatter lockout.")
