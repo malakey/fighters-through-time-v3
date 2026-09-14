@@ -310,6 +310,29 @@ namespace FTT.Environment {
             return refunded;
         }
 
+        /// <summary>
+        /// Package 11 A3b (V7.6 F02). The dust a Repository screen may actually
+        /// spend: the character's <b>deposited</b> balance, never the active
+        /// level's undeposited <c>LevelChronalDust</c>.
+        ///
+        /// <para>"Data crosses the field, matter doesn't." At an Act III Warden
+        /// Beacon the player may buy grid nodes and respec for free, but dust
+        /// collected in the level they are standing in is not bankable until that
+        /// level completes and the auto-deposit seals it — so Level 13's earnings
+        /// first become spendable at Level 14's Beacon. Restarting a level clears
+        /// those undeposited earnings under the existing rule, so repeating a
+        /// level cannot bank repeat rewards.</para>
+        ///
+        /// <para>The hub Repository resolves to the same number by a different
+        /// route: it deposits <i>first</i> and then opens, so by the time its
+        /// panel reads a balance the level earnings are already deposited. This
+        /// accessor is the one place that states the rule.</para>
+        /// </summary>
+        public static int SpendableBalance(StorySaveData save, string characterID) =>
+            save == null || string.IsNullOrWhiteSpace(characterID)
+                ? 0
+                : Math.Max(0, save.DepositedChronalDust.GetValueOrDefault(characterID));
+
         public static int DepositActiveDust(StorySaveData save, string characterID, int carriedDust) {
             if (save == null || characterID != save.SelectedCharacterID || carriedDust <= 0) return 0;
             int balance = save.DepositedChronalDust.GetValueOrDefault(characterID);

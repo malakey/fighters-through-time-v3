@@ -14,6 +14,16 @@ namespace FTT.UI {
     /// full-restart option behind the shared confirmation — that option discards
     /// the timeline anchor the player already reached, and it sits directly below
     /// the option that keeps it.
+    ///
+    /// <para><b>Acts I–II only, as of V7.6 (Package 11 A3b).</b> The Act III
+    /// gauntlet never reaches this panel: Levels 13–15 have no hub extraction at
+    /// all. A collapse there is an <b>Anchor Snap</b> back to the last activated
+    /// checkpoint in place — same fee, same resets, one anchor charge spent — or,
+    /// with no charge left, the <b>Smothered</b> Game Over
+    /// (<see cref="GameOverScreen"/>), whose Restart Level is the only way out.
+    /// <see cref="FTT.Core.StoryManager.BeginTimelineCollapse"/> branches to
+    /// <c>ResolveActIIIFailure</c> before any of this runs, so the hub, its
+    /// portal and this panel stay unreachable until the campaign is complete.</para>
     /// </summary>
     public partial class TimelineRestartPanel : Control {
         public event Action<bool> RestartChosen;

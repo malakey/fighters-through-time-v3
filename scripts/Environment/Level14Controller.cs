@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using System;
 using System.Collections.Generic;
 using FTT.Characters;
@@ -345,7 +345,13 @@ namespace FTT.Environment {
             (EraserEnemyID, 4, new Vector2(10150f, StandY))
         };
 
-        /// <summary>Three extractors, each up a real climb. 15 dust each, resource-owned.</summary>
+        /// <summary>
+        /// V7.6 Resonance Hold (Package 11 A3b): Level 14's drain stand-ins are
+        /// <b>cradle intake valves</b> — the reveal that recontextualizes the
+        /// clock as the Forge's intake. Mechanically an Extractor in every
+        /// respect; the array name is retained for the content tests and the
+        /// dust ledger.
+        /// </summary>
         public static readonly (string ID, Vector2 Position)[] ExtractorPlacements = {
             ("level_14_extractor_0", new Vector2(1120f, 1230f)),
             ("level_14_extractor_1", new Vector2(4070f, 730f)),
@@ -395,7 +401,7 @@ namespace FTT.Environment {
             BuildRoom3FabricationSpine();
             BuildRoom4SecurityCore();
             BuildContainmentPockets();
-            BuildExtractors(ExtractorPlacements);
+            BuildResonanceHoldNodes(ResonanceHoldVariant.CradleIntakeValve, ExtractorPlacements);
 
             BuildWall(0f, 0f, LevelHeight);
             BuildWall(ArenaEndX, 0f, LevelHeight);
@@ -637,7 +643,45 @@ namespace FTT.Environment {
         private void EnterFabricationSpine() {
             SetObjective("neo_earth_objective_core_approach");
             SpawnWave(3);
+            PlayExtractionHallReveal();
         }
+
+        // === Package 11 A3b region: the Extraction Hall reveal ==============
+
+        /// <summary>
+        /// The A6-authored Extraction Hall sequence. A6 shipped it and its five
+        /// master-authored lines with nothing to start them; this is the trigger.
+        /// </summary>
+        public const string ExtractionHallDialogueID = "level_14.extraction_hall";
+
+        /// <summary>
+        /// The V7.6 line that recontextualizes the Act III clock. Posted with the
+        /// reveal, once: the Resonance Hold the player has watched drain since
+        /// Level 13 is the Forge's intake, and the cradle intake valves they have
+        /// been breaking are the same machinery in miniature. One line, because
+        /// the recurrence contract says the cradles are recognizable "without a
+        /// line of dialogue" — this names the clock and stops.
+        /// </summary>
+        public const string HoldRevealNoticeKey = "hold_reveal_forge_intake";
+
+        /// <summary>True once the reveal has played this level entry. Test seam.</summary>
+        public bool ExtractionHallRevealed { get; private set; }
+
+        /// <summary>
+        /// Plays the Extraction Hall reveal exactly once. A room transition only
+        /// fires on a crossing, so a checkpoint resume past this room never
+        /// replays it, and the flag guards an ordinary re-entry from the east.
+        /// </summary>
+        public bool PlayExtractionHallReveal() {
+            if (ExtractionHallRevealed) return false;
+            ExtractionHallRevealed = true;
+            if (Player != null && IsInstanceValid(Player)) {
+                EnvironmentNotice.Post(HoldRevealNoticeKey, Player, 5f, new Color(0.24f, 0.86f, 0.94f));
+            }
+            return StartDialogue(ExtractionHallDialogueID);
+        }
+
+        // === end Package 11 A3b region ===
 
         private void EnterSecurityCore() {
             SetObjective("neo_earth_objective_security_core");

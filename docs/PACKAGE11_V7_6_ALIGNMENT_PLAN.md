@@ -5786,6 +5786,102 @@ per-hero, so its sequences are plain IDs.
 `CLAUDE.md` states both Godot executables live under `C:\Users\DavidMcClelland\Documents\FTT\`.
 On this machine they are at `D:\Projects\Godot_v4.7.1-stable_mono_win64*.exe`, which is also what
 `.claude/settings.json` sets `GODOT_BIN` to. The 2026-08-15 relocation note in `CLAUDE.md` is stale.
+### A3b — Act III gauntlet, attempt state, load routing (2026-09-13)
+**Branch** `p11/A3b` · worktree `D:\Projects\ftt-p11\A3b` · merged `main` before validation (already
+up to date). Build clean: 0 errors, 3 warnings, all pre-existing on the merge base (`CS8632` in the
+vendored GdUnit4 API, `KLSG_ECS004` on `FighterTuningComponent`, and A12's `CS0114` on
+`LegacyLevelControllerBase.ParSeconds` — reported here rather than fixed, since that file is A12's).
+**1. `StoryAttemptState` keeps the six loose V7.3 root fields as written mirrors.** F10 says the
+per-attempt state moves into the record, and it does — but `ActivatedCheckpointIDs`,
+`DestroyedExtractorIDs`, `FoundSecretIDs`, `FontUsesConsumed`, `LevelIntegrityPercent` and
+`HasSeenCollapseBeat` are still written in the same transaction. Two reasons: they are the
+"trustworthy existing records" F10 tells the migration to derive from, and deleting them mid-package
+would break A2's and A3's live consumers plus a dozen shipped tests for no behavioural gain.
+`StoryAttemptState.MigrateFromLegacyRoot` is the single function Phase C's v5-to-v6 step calls;
+retiring the mirrors afterwards is a one-line change in `WriteAttemptStateToSave`. **Do not add a new
+consumer of the loose fields.**
+**2. `StoryLevelControllerBase.IsActIII` is wrong for Level 4A, and A3b did not change it.** A3
+defined it as `(int)Level >= (int)CampaignLevel.ChronalVoid`, which is also true for
+`LegacyNexus = 16` — the Legacy Level played between Levels 4 and 5. Its only consumer was
+`BuildCheckpoint`'s Hard-middle rule, where 4A authors no Middle anchor, so nothing is broken today.
+Rather than redefine an A3 member mid-wave, A3b added `StoryManager.IsActIIILevel(CampaignLevel)` (an
+explicit three-member set) and `StoryLevelControllerBase.IsActIIIGauntletLevel`, and every new Act III
+decision reads those. **`IsActIII` is now a trap for the next agent who reaches for it** — it should
+be deleted or redefined at closeout.
+**3. The inert-middle rule moved to a pure static.** `StoryLevelControllerBase.IsMiddleAnchorInert(
+level, role, difficulty)` is now the single statement of F12's rule; `BuildCheckpoint` calls it. This
+was done so the Act III exception could be pinned without standing up a whole level scene, and it
+removes the duplicated `role == Middle && !IsActIII && Hard` expression.
+**4. Baseline encounter IDs ship as a mechanism with a derived default, not fourteen authored
+tables.** `StoryAttemptState.CheckpointRecord.BaselineEncounterIDs` + `BaselineVersion` are persisted
+records, `StoryManager.RegisterEncounterBaseline` / `GetEncounterBaseline` are the registry, and
+`StoryLevelControllerBase.BaselineEncounterIDsFor(checkpointID, role)` is the authoring hook — its
+default derives `{LevelID}_wave_N` from the authored anchor order (the entrance clears nothing; the
+anchor at authored index i > 0 clears waves 1 through i+1). **That default does not match every
+level.** A survey of all fourteen `MarkWavesClearedThrough` overrides found the 1,2 / 1,2,3 shape in
+L05, L07, L12, L13, L14 and L15; L03 and L08 clear no waves at their anchors; L09 clears 2 / 2,3; and
+L02, L04, L06, L10 and L11 override nothing at all. Authoring a real per-level table means editing
+fourteen controllers, which exceeded this workstream — **recorded as open, owner Unassigned**,
+acceptance = each level overrides `BaselineEncounterIDsFor` with its own stable IDs and a bumped
+`BaselineVersion`. Nothing today reads the baseline to respawn encounters, so the wrong default cannot
+mis-restore anything; it would only mis-describe the record.
+**5. The Act III collapse hook is armed but behaviourally equivalent to leaving it null.**
+`BeginLevelRun` sets `ActIIICollapseOverride = RunActIIICollapseBeat` on Levels 13-15. That method
+runs the same `ChronalRewindManager.BeginTimerCollapse()` fracture beat A3's default path runs,
+because the design is explicit that in Act III "the same beat plays and no rift comes" — the
+divergence is in `BeginTimelineCollapse`, which branches to `ResolveActIIIFailure` for the gauntlet
+and therefore catches **both** triggers (timer-zero *and* a lethal event with no rewind charge, which
+`ChronalRewindManager.OnPlayerDied` routes through the same call). The hook is used as the dossier
+asked and is a real seam for a distinct Snap presentation later.
+**6. The Anchor Snap presentation is a localized `EnvironmentNotice`, not an authored 3 s beat.**
+Sarah's *"It nearly had you. Your anchor held — get up."* posts over the frozen world and the
+reconstruction follows. The designed fracture-reassembles-at-the-anchor treatment (~3 s, skippable
+after the first viewing) is presentation work on the shared rewind overlay, which A8 owns; the
+gameplay — one anchor spent, full HP, full rewind pool, the same 20% fee, in place — is complete.
+**7. Rally settlement on reconstruction is done at the restore site, not on `PlayerController`.**
+T01a's "settle uncredited damage-taken meter once" is applied in
+`StoryLevelControllerBase.RestoreSavedCheckpoint` by folding
+`attempt.PlayerResourceTimers.RallyUncreditedMeter` into the meter handed to `RestoreStoryCheckpoint`
+and zeroing it against the attempt revision. The rest of T01a's hero cleanup is structural —
+checkpoint reconstruction builds a brand-new `PlayerController` through `CharacterFactory`, so there
+is no stale status, grab, attachment or Echo pool to clear — and `ClearAllStatusEffects()` is called
+anyway so the contract is stated rather than assumed. **No `PlayerController` edit was made**, because
+A3b owns no region of that file (§5.1). **Nothing yet writes `RallyUncreditedMeter`**; A1b owns the
+Rally pool and is the natural publisher.
+**8. `playerResourceTimers` is persisted but only partly populated.** `TimeFreezeCooldownSeconds` is
+mirrored from A2's field; block charges, regen/lockout, ability and Echo Step cooldowns, the Rally
+remainder and the D02d Wardenclyffe delay have fields, `Normalize()` and round-trip but **no writer** —
+each belongs to the workstream that owns the resource (A1b, A1c, A2). The per-second durable snapshot
+(`StoryManager.CaptureDurableSnapshot`) does capture live HP, meter, the rewind pool and the wallet,
+which is the half that had no durability at all before.
+**9. The ordered async writer is a per-slot `Task` chain, not a dedicated thread.**
+`SaveManager.QueueStorySlotWrite(slot, revision)` serializes the payload on the game thread, then
+chains one continuation per slot; `RunQueuedWrite` refuses a revision older than the last durable one,
+and `FlushStorySlotWrites` drains before every synchronous critical-event commit and at `_ExitTree`.
+`SaveStorySlot` stays the synchronous critical-event path and now reports failure honestly
+(`LastStoryWriteFailed` + `save_notice_write_failed`), so a caller cannot present a transition as
+saved. **`PersistAttempt` returns that bool but its Act III callers do not yet refuse the transition on
+`false`** — the Snap and Smothered routes proceed and the notice is raised. Closing that needs a UI
+surface for the failure, which nobody owns this package.
+**10. `Level15ContentTests`' endgame fixture was changed, not its assertions.** The N05 selector made
+`SelectedEndingDialogueID` resolve to `level_15.ending_scarred` for a save with no recorded per-level
+Integrity — correct behaviour, but it broke two endgame-*chain* cases that assert ordering and one-shot
+completion, not which variant plays. `CheckpointSave` now seeds a 70%-per-level clean run. ±0 cases;
+the selection itself is pinned by the new `EndingSelectionTests`.
+**11. A6's two open items were closed here.** `alexandria_interaction_insert_core` already had a
+consumer (`TemporalCoreAnchor.InteractionPromptKey`), so A6's item (a) needed no work. Item (c), the
+unstarted `level_14.extraction_hall` sequence, is now triggered by `EnterFabricationSpine` via
+`Level14Controller.PlayExtractionHallReveal()`, which also posts the V7.6 one-line clock
+recontextualization (`hold_reveal_forge_intake`, authored under the A3b marker).
+**12. `localization/en.en.translation` is deliberately NOT committed** (§2.11). A3b ran
+`--headless --import` locally to warm its own tests and reverted the binary; the mass `.import`
+line-ending churn that import produced was reverted too and is not in the commit.
+`ScriptTranslationKeyTests`, `SceneVisibleTextTests`, `UnusedTranslationKeyTests` and
+`CampaignLocalizationTests` all pass here with the import applied and are
+**expected-to-fail-until-import** against the committed tree.
+**Test delta: +40**, exactly the dossier's figure — 7 new suites (+34) and 2 extended (+6), with
+`LevelAttemptPersistenceTests` (4 cases) and the `Level15ContentTests` fixture rewritten in place at ±0.
+
 ---
 
 ### A7a — The Eraser, the Null Lance, the Siphon Snare channel, and the two elites' placements (2026-09-13)

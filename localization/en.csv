@@ -1483,6 +1483,24 @@ dlg_l04a_shakespeare_boss_2,You hold my words. You have never once earned a sing
 dlg_l04a_shakespeare_exit_1,The stage is swept. The season can run as it was written.
 dlg_l04a_shakespeare_exit_2,"Wound closed, Warden. Take the applause — that one was yours."
 dlg_l04a_shakespeare_exit_3,They will send a better player next time. Let them try these boards.
+# Package 11 A3b — V7.6 Act III Gauntlet, Warden Beacon, Smothered, F10 persistence
+beacon_interaction_open_repository,Press Interact to open the Warden Beacon
+game_over_title,Smothered
+game_over_smothered_body,"The field closed. The cradle finished what it started, and no rift came."
+game_over_deposited_dust_safe,Deposited Chronal Dust is safe. This level's earnings were never banked.
+game_over_restart_level,Restart Level
+game_over_quit_to_menu,Quit to Menu
+hold_node_severed_conduit_name,Severed Conduit
+hold_node_cradle_valve_name,Cradle Intake Valve
+hold_node_anchor_pylon_name,Anchor Pylon
+hold_drain_slowed_conduit,Conduit severed — the hold is steadier
+hold_drain_slowed_valve,Intake valve shut — the hold is steadier
+hold_drain_slowed_pylon,Anchor pylon down — the hold is steadier
+hold_reveal_forge_intake,"The clock was never the era's. It is the Forge's intake, and you are the era."
+save_notice_write_failed,"Saving failed for slot {0}. The last good save was kept; progress since then is not stored."
+save_notice_legacy_recovery_required,This save predates the current attempt records. Use Restart Level to continue.
+anchor_snap_sarah_line,"It nearly had you. Your anchor held — get up."
+
 # Package 11 A7a
 enemy_unbound_eraser_name,The Eraser
 enemy_ability_null_lance_name,Null Lance
