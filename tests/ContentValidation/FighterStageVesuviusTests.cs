@@ -237,7 +237,7 @@ public class FighterStageVesuviusTests {
     [TestCase]
     public void VesuviusRunsIdenticallyAcrossTwoSimulationsThroughAFullRockfallCycle() {
         FighterMatchRules rules = new(
-            (int)MatchMode.Hybrid,
+            (int)MatchMode.Stock,
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: true,

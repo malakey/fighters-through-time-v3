@@ -595,7 +595,7 @@ public class FighterHazardBehaviorTests {
         public static FighterSimulation NewSimulation(
             FighterStageGeometry geometry, int hazardTypeID, int seed) {
             FighterMatchRules rules = new(
-                (int)MatchMode.Hybrid,
+                (int)MatchMode.Stock,
                 itemsEnabled: false,
                 itemFrequency: 0,
                 hazardsEnabled: true,

@@ -249,7 +249,7 @@ public class FighterStageParisTests {
     [TestCase]
     public void TwoSimulationsOnTheParisGeometryStayHashIdenticalThroughAFullHazardCycle() {
         FighterMatchRules rules = new(
-            (int)MatchMode.Hybrid,
+            (int)MatchMode.Stock,
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: true,

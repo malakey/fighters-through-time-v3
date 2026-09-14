@@ -253,7 +253,7 @@ public class FighterSimulationTests {
     [TestCase]
     public void SelectedStageHazardTypeIsPartOfDeterministicState() {
         FighterMatchRules rules = new(
-            (int)MatchMode.Hybrid,
+            (int)MatchMode.Stock,
             itemsEnabled: false,
             itemFrequency: 0,
             hazardsEnabled: true,
@@ -280,7 +280,7 @@ public class FighterSimulationTests {
         var timed = new FighterSimulation(matchSeconds: 1, rules: new FighterMatchRules(
             (int)MatchMode.TimeLimit, false, 0, false, 0));
         var hybrid = new FighterSimulation(matchSeconds: 1, rules: new FighterMatchRules(
-            (int)MatchMode.Hybrid, false, 0, false, 0));
+            (int)MatchMode.Stock, false, 0, false, 0));
         for (int tick = 0; tick < 60; tick++) {
             PlayerInputFrame empty = Frame(tick, 0, GameplayButtons.None);
             stock.Advance(empty, empty);

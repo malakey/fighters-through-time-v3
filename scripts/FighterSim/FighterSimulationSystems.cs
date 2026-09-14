@@ -2724,25 +2724,26 @@ namespace FTT.FighterSim {
             }
         }
 
+        /// <summary>
+        /// Stock-mode timeout: remaining stocks, then remaining HP <b>as a fraction
+        /// of that fighter's own maximum</b> (V7.3 ruling #8), which is why the
+        /// comparison cross-multiplies rather than comparing HP directly.
+        ///
+        /// <para>F21's "unreclaimed Rally echo is excluded from HP comparisons" needs
+        /// no arithmetic here: the Echo Pool is <em>reclaimable</em> HP held beside
+        /// <c>CurrentHP</c>, and only an actual reclaim adds it
+        /// (<c>FighterDamageRules</c>). Reading <c>CurrentHP</c> therefore excludes it
+        /// by construction — subtracting the pool as well would penalize the victim
+        /// twice.</para>
+        /// </summary>
         private static int FindStockWinner(ref Frame frame, out bool allAlive, out bool trueTie) {
             FighterStateComponent first = default;
             FighterStateComponent second = default;
-            FighterVerbComponent firstVerb = default;
-            FighterVerbComponent secondVerb = default;
             var filter = frame.Filter<FighterStateComponent>();
             while (filter.Next(out EntityRef entity)) {
                 ref readonly FighterStateComponent fighter = ref frame.GetReadOnly<FighterStateComponent>(entity);
-                if (fighter.PlayerID == 0) {
-                    first = fighter;
-                    if (frame.Has<FighterVerbComponent>(entity)) {
-                        firstVerb = frame.GetReadOnly<FighterVerbComponent>(entity);
-                    }
-                } else if (fighter.PlayerID == 1) {
-                    second = fighter;
-                    if (frame.Has<FighterVerbComponent>(entity)) {
-                        secondVerb = frame.GetReadOnly<FighterVerbComponent>(entity);
-                    }
-                }
+                if (fighter.PlayerID == 0) first = fighter;
+                else if (fighter.PlayerID == 1) second = fighter;
             }
 
             allAlive = first.Stocks > 0 && second.Stocks > 0;
@@ -2751,22 +2752,10 @@ namespace FTT.FighterSim {
                 return first.Stocks > second.Stocks ? 0 : 1;
             }
 
-            // Stock-mode timeout: remaining stocks, then remaining HP as a fraction
-            // of that fighter's own maximum, with unreclaimed Rally echo excluded
-            // (the echo is not health until it is reclaimed).
-            long firstHP = (long)EffectiveHP(in first, in firstVerb) * second.MaxHP;
-            long secondHP = (long)EffectiveHP(in second, in secondVerb) * first.MaxHP;
+            long firstHP = (long)first.CurrentHP * second.MaxHP;
+            long secondHP = (long)second.CurrentHP * first.MaxHP;
             trueTie = firstHP == secondHP;
             return trueTie ? -1 : firstHP > secondHP ? 0 : 1;
-        }
-
-        /// <summary>HP with the unreclaimed Rally echo pool excluded (F21).</summary>
-        private static int EffectiveHP(
-            in FighterStateComponent fighter, in FighterVerbComponent verb) {
-            if (verb.EchoPool <= FP64.Zero) return fighter.CurrentHP;
-            int echo = (int)(verb.EchoPool.RawValue / FP64.One.RawValue);
-            int remaining = fighter.CurrentHP - echo;
-            return remaining > 0 ? remaining : 0;
         }
     }
 

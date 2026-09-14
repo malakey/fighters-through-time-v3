@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using FTT.Core;
 using xpTURN.Klotho.Core;
+using xpTURN.Klotho.Deterministic.Math;
 using xpTURN.Klotho.ECS;
 
 namespace FTT.FighterSim {

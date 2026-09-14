@@ -19,7 +19,11 @@ public class FighterAudioRulesTests {
     [TestCase]
     public void OnlyStockBearingModesCanReachTheClimax() {
         AssertThat(FighterAudioRules.ModeUsesStocks((int)MatchMode.Stock)).IsTrue();
-        AssertThat(FighterAudioRules.ModeUsesStocks((int)MatchMode.Hybrid)).IsTrue();
+        // F21 (Package 11 A1c): Stock is the only stock-bearing mode. The retired
+        // Hybrid ordinal used to answer true here; it is not a playable mode any
+        // more, and a legacy saved Hybrid normalizes to Stock before a match is
+        // ever created, so nothing that reaches the audio rules can carry it.
+        AssertThat(FighterAudioRules.ModeUsesStocks(SavedMatchSettings.LegacyHybridMode)).IsFalse();
         AssertThat(FighterAudioRules.ModeUsesStocks((int)MatchMode.TimeLimit)).IsFalse();
     }
 
@@ -51,7 +55,7 @@ public class FighterAudioRulesTests {
     [TestCase]
     public void TheCombinedTestRequiresBothTheModeAndTheStockState() {
         AssertThat(FighterAudioRules.ShouldEnterClimax((int)MatchMode.Stock, 1, 2)).IsTrue();
-        AssertThat(FighterAudioRules.ShouldEnterClimax((int)MatchMode.Hybrid, 2, 1)).IsTrue();
+        AssertThat(FighterAudioRules.ShouldEnterClimax((int)MatchMode.Stock, 2, 1)).IsTrue();
         AssertThat(FighterAudioRules.ShouldEnterClimax((int)MatchMode.TimeLimit, 1, 1)).IsFalse();
         AssertThat(FighterAudioRules.ShouldEnterClimax((int)MatchMode.Stock, 2, 2)).IsFalse();
     }

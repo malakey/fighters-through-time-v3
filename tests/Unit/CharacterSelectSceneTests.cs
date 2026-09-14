@@ -445,7 +445,9 @@ public class CharacterSelectSceneTests {
                     .OverrideFailureMessage($"{path} default band")
                     .IsEqual((int)ChronalOrbFrequency.Medium);
             }
-            AssertThat(screen.GetNode<OptionButton>(StageRoot + "RulesRow/MatchMode").ItemCount).IsEqual(3);
+            // F21 (Package 11 A1c): two selectable modes — Stock and Time. The
+            // retired Stock + Time combination is gone from the selector.
+            AssertThat(screen.GetNode<OptionButton>(StageRoot + "RulesRow/MatchMode").ItemCount).IsEqual(2);
             AssertThat(screen.GetNode<OptionButton>(SelectRoot + "ModeRow/CpuDifficulty").ItemCount).IsEqual(3);
         } finally {
             Teardown(host);
@@ -494,7 +496,7 @@ public class CharacterSelectSceneTests {
             screen.AdvanceCountdown(3.5f);
             AssertThat(screen.Phase).IsEqual(SelectScreenPhase.StageSelect);
 
-            screen.GetNode<OptionButton>(StageRoot + "RulesRow/MatchMode").Select(2);
+            screen.GetNode<OptionButton>(StageRoot + "RulesRow/MatchMode").Select(1);
             screen.GetNode<SpinBox>(StageRoot + "RulesRow/StockCount").Value = 5;
             screen.GetNode<SpinBox>(StageRoot + "RulesRow/TimeLimit").Value = 120;
             screen.GetNode<OptionButton>(StageRoot + "RulesRow/ItemFrequency").Select(0);
@@ -514,7 +516,7 @@ public class CharacterSelectSceneTests {
             AssertThat(session.SelectedStageID.Length > 0).IsTrue();
 
             MatchSettings settings = session.MatchSettings;
-            AssertThat(settings.Mode).IsEqual(MatchMode.Hybrid);
+            AssertThat(settings.Mode).IsEqual(MatchMode.TimeLimit);
             AssertThat(settings.StockCount).IsEqual(5);
             AssertThat(settings.TimeLimit).IsEqual(120f);
             // Off must clear the boolean as well as the band; Low must set both.

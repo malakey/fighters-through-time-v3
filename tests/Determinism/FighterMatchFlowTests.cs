@@ -88,7 +88,7 @@ public class FighterMatchFlowTests {
     public void TheMatchClockDoesNotRunDuringTheCountdown() {
         var simulation = new FighterSimulation(
             matchSeconds: 60,
-            rules: new FighterMatchRules((int)MatchMode.Hybrid, false, 0, false, 0, 1,
+            rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0, 1,
                 FighterMatchFlowRules.CountdownFrames));
         int startFrames = simulation.GetMatchState().RemainingFrames;
 
@@ -308,7 +308,11 @@ public class FighterMatchFlowTests {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
         AssertThat(after.Stocks).IsEqual(2);
         AssertThat(simulation.GetMatchState().MatchState).IsEqual(FighterMatchStates.InProgress);
-        AssertThat(simulation.GetMatchState().PlayerOneKOs).IsEqual(1);
+        // F21 (Package 11 A1c): the match totals are VICTIM-side now. Player two
+        // fell, so player two's stocks-lost total moves and player one's does not —
+        // the retired PlayerOneKOs counted the KO player one SCORED.
+        AssertThat(simulation.GetMatchState().PlayerTwoStocksLost).IsEqual(1);
+        AssertThat(simulation.GetMatchState().PlayerOneStocksLost).IsEqual(0);
     }
 
     // === Package 11 A9: the bottom blast zone on the three Open stages ===
@@ -544,13 +548,15 @@ public class FighterMatchFlowTests {
 
     [TestCase]
     public void TimerExpiryDecidesOnStocksThenHpPercentage() {
-        // Hybrid: equal stocks at the buzzer fall through to HP percentage.
+        // Stock mode with a timer: equal stocks at the buzzer fall through to HP
+        // percentage. (F21: this used to be authored as the retired Hybrid, whose
+        // behaviour was Stock's all along — the match system's silent default arm.)
         var simulation = new FighterSimulation(
             stocks: 3,
             matchSeconds: 2,
             seed: 11,
             spawnDistance: 1,
-            rules: new FighterMatchRules((int)MatchMode.Hybrid, false, 0, false, 0));
+            rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0));
 
         // Player one chips away for the whole two seconds; neither loses a stock,
         // so the decision has to come from the HP-percentage branch.
@@ -570,23 +576,33 @@ public class FighterMatchFlowTests {
 
     [TestCase]
     public void TimerExpiryWithIdenticalStateEntersSuddenDeathNotADraw() {
-        // V7.1: a true tie at the buzzer no longer records an immediate draw —
-        // the match enters Sudden Death (still live, both fighters respawned
-        // at 1 HP with no timer) and the first KO names the winner. The only
-        // remaining path to a recorded Draw is a double-KO inside Sudden Death.
+        // A true tie at the buzzer enters Sudden Death rather than recording a
+        // draw. F22 (Package 11 A1c) retired the old 1-HP clamp: two untouched
+        // fighters enter at FULL HP, and the next ACTUAL death decides it. The
+        // only remaining path to a recorded Draw is a double death inside the
+        // phase. Entry also runs the common ready countdown.
         var simulation = new FighterSimulation(
             matchSeconds: 1, rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, false, 0));
         for (int tick = 0; tick < 60; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
 
         FighterMatchComponent match = simulation.GetMatchState();
-        AssertThat(match.MatchState).IsEqual(FighterMatchStates.InProgress);
         AssertThat(match.SuddenDeathActive).IsEqual(1);
         AssertThat(match.TimerEnabled).IsEqual(0);
         AssertThat(match.WinnerPlayerID).IsEqual(-1);
+        AssertThat(match.MatchState).IsEqual(FighterMatchStates.Countdown);
         for (int playerID = 0; playerID < 2; playerID++) {
             AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent fighter)).IsTrue();
-            AssertThat(fighter.CurrentHP).IsEqual(1);
+            AssertThat(fighter.CurrentHP)
+                .OverrideFailureMessage("F22 preserves living HP; the 1-HP clamp is retired.")
+                .IsEqual(fighter.MaxHP);
+            AssertThat(fighter.Stocks).IsEqual(1);
         }
+        // 0-0 in Time mode is a tie with no HP tiebreak, and the regulation totals
+        // are frozen for the results screen.
+        FighterSuddenDeathComponent phase = simulation.GetSuddenDeathState();
+        AssertThat(phase.PhaseGeneration).IsEqual(1);
+        AssertThat(phase.FrozenPlayerOneStocksLost).IsEqual(0);
+        AssertThat(phase.FrozenPlayerTwoStocksLost).IsEqual(0);
     }
 
     /// <summary>
@@ -612,7 +628,10 @@ public class FighterMatchFlowTests {
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
         AssertThat(runtime.KnockoutsSuffered).IsEqual(1);
         AssertThat(after.Stocks).IsEqual(startingStocks);
-        AssertThat(simulation.GetMatchState().PlayerOneKOs).IsEqual(1);
+        // F21: Time mode has unlimited respawns, and the quantity that decides it
+        // is the VICTIM's stocks-lost total.
+        AssertThat(simulation.GetMatchState().PlayerTwoStocksLost).IsEqual(1);
+        AssertThat(simulation.GetMatchState().PlayerOneStocksLost).IsEqual(0);
         AssertThat(simulation.GetMatchState().MatchState).IsEqual(FighterMatchStates.InProgress);
         AssertThat(FighterMatchFlowRules.IsOnRespawnPlatform(in after)).IsTrue();
     }
@@ -650,7 +669,7 @@ public class FighterMatchFlowTests {
             matchSeconds: 8,
             seed: 21,
             spawnDistance: 1,
-            rules: new FighterMatchRules((int)MatchMode.Hybrid, false, 0, false, 0));
+            rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0));
 
         // P1 chips P2 for 10 (of 100); much later — after the Rally pools have
         // fully drained, so no reclaim muddies the arithmetic — P2 answers
@@ -690,7 +709,7 @@ public class FighterMatchFlowTests {
             matchSeconds: 6,
             seed: 22,
             spawnDistance: 1,
-            rules: new FighterMatchRules((int)MatchMode.Hybrid, false, 0, false, 0));
+            rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0));
 
         // P2 chips P1 for 25 early (its echo fully drains), then P1 lands a 30
         // just before the buzzer so the victim's pool is still live at expiry.
@@ -751,13 +770,28 @@ public class FighterMatchFlowTests {
         AssertThat(match.WinnerPlayerID).IsEqual(-1);
         for (int playerID = 0; playerID < 2; playerID++) {
             AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent fighter)).IsTrue();
-            AssertThat(fighter.CurrentHP).IsEqual(1);
+            // F22 dead-entry resolution, Option A: both fighters ended regulation
+            // dead, so both receive their normal Fighter respawn HP — exactly once,
+            // and with no extra stock loss. The retired 1-HP clamp is gone.
+            AssertThat(fighter.CurrentHP).IsEqual(fighter.MaxHP);
             AssertThat(fighter.Stocks).IsEqual(1);
             AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
+            // F22: Defy is disabled for the phase by DERIVATION from
+            // SuddenDeathActive. Its spent flag is preserved untouched, and entry
+            // consumes no new use — the retired version pre-marked it used here.
             AssertThat(verb.DefyHistoryUsed)
-                .OverrideFailureMessage("Sudden Death pre-marks Defy History used on both fighters.")
-                .IsEqual(1);
+                .OverrideFailureMessage("Sudden Death entry must not consume a Defy use.")
+                .IsEqual(0);
+            // Meter 0, every cooldown ready, block refilled.
+            AssertThat(fighter.Influence.RawValue).IsEqual(0);
+            AssertThat(verb.EchoStepCooldownFrames).IsEqual(0);
+            AssertThat(fighter.BlockCharges > 0).IsTrue();
         }
+        // The regulation totals are frozen for the results screen: both fighters
+        // lost their one stock during regulation, and the decider cannot change it.
+        FighterSuddenDeathComponent phase = simulation.GetSuddenDeathState();
+        AssertThat(phase.FrozenPlayerOneStocksLost).IsEqual(1);
+        AssertThat(phase.FrozenPlayerTwoStocksLost).IsEqual(1);
     }
 
     /// <summary>
@@ -948,7 +982,9 @@ public class FighterMatchFlowTests {
     [TestCase]
     public void MatchSettingsSurviveTheMappingIntoDeterministicRules() {
         var settings = new MatchSettings {
-            Mode = MatchMode.Hybrid,
+            // F21: Time is the second selectable mode; the retired Hybrid this case
+            // used to carry is not mappable any more.
+            Mode = MatchMode.TimeLimit,
             StockCount = 5,
             TimeLimit = 120f,
             ItemsEnabled = true,
@@ -958,7 +994,7 @@ public class FighterMatchFlowTests {
         };
 
         FighterMatchRules rules = FighterSimulationDriver.RulesFor(settings, 7);
-        AssertThat(rules.MatchMode).IsEqual((int)MatchMode.Hybrid);
+        AssertThat(rules.MatchMode).IsEqual((int)MatchMode.TimeLimit);
         AssertThat(rules.ItemsEnabled).IsTrue();
         AssertThat(rules.ItemFrequency).IsEqual((int)ChronalOrbFrequency.Low);
         AssertThat(rules.HazardsEnabled).IsTrue();
@@ -982,7 +1018,7 @@ public class FighterMatchFlowTests {
             matchSeconds: FighterSimulationDriver.MatchSeconds(settings),
             rules: rules);
         FighterMatchComponent match = simulation.GetMatchState();
-        AssertThat(match.MatchMode).IsEqual((int)MatchMode.Hybrid);
+        AssertThat(match.MatchMode).IsEqual((int)MatchMode.TimeLimit);
         AssertThat(match.ItemFrequency).IsEqual((int)ChronalOrbFrequency.Low);
         AssertThat(match.HazardFrequency).IsEqual((int)HazardTriggerFrequency.Medium);
         AssertThat(match.StageHazardTypeID).IsEqual(7);
