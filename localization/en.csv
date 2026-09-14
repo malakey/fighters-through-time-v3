@@ -274,7 +274,6 @@ fighter_items,Chronal Orbs
 fighter_hazards,Stage Hazards
 fighter_mode_stock,Stock
 fighter_mode_time,Time
-fighter_mode_hybrid,Stock + Time
 fighter_stats_unavailable,Stats unavailable.
 fighter_stats_summary,"Max HP: {0}    Speed: {1:0.#}    Attack Damage: {2:0.#}\nKnockback: {3:0.#}    Weight: {4:0.#}    Block Charges: {5}\nStyle: {6}    Jump Force: {7:0.#}    Jumps: {8}"
 fighter_results_title,MATCH COMPLETE
@@ -1344,3 +1343,6 @@ dlg_l04a_einstein_boss_2,"You have my gravity. You have never once understood it
 dlg_l04a_einstein_exit_1,"The lens is cold. The night can finish the way it was written."
 dlg_l04a_einstein_exit_2,"Wound closed, Warden. That one was yours, not history's."
 dlg_l04a_einstein_exit_3,"They will send something worse next time. Let them."
+# Package 11 A1c — F21 results totals
+fighter_results_stocks_lost,Player {0} stocks lost: {1}
+fighter_results_sudden_death,Decided in Sudden Death

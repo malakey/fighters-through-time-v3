@@ -30,7 +30,19 @@ namespace FTT.Characters {
 		UsingMovementAbility,
 		/// <summary>V7.2 grab: startup, active window, hold, throw, and whiff
 		/// recovery all live here (a phase counter drives the sub-states).</summary>
-		Grabbing
+		Grabbing,
+		/// <summary>
+		/// F23 (Package 11 A1c): the grab VICTIM's launched state — from the
+		/// throw's release until its hitstun expires. Distinct from
+		/// <see cref="Stunned"/> because a throw is not a strike: it is
+		/// unblockable by construction, it cannot be landing-teched, and it carries
+		/// no directional influence (the throw IS the decision).
+		///
+		/// <para>Appended <b>after</b> <see cref="Grabbing"/>, per plan §2.8:
+		/// <see cref="Dashing"/> keeps its reserved ordinal and no existing member
+		/// moves, because the ordinals serialize.</para>
+		/// </summary>
+		Thrown
 	}
 
 	public partial class PlayerController : CharacterBody2D, FTT.Combat.IStatusEffectTarget {
@@ -378,16 +390,53 @@ namespace FTT.Characters {
 		// the shattered meter consumed the entire blow.
 		private bool _defyFiredThisHit;
 
-		// === V7.1 Echo Step (Story side) ===
-		// A 5-entry position ring sampled every 6 frames (the oldest sample is
-		// ~30 frames back), mirroring the sim's FighterEchoRingComponent.
-		private readonly Vector2[] _echoStepRing = new Vector2[5];
-		private bool _echoStepRingInitialized;
-		private int _echoStepRingIndex;
-		private int _echoStepSampleCountdown = 6;
+		// === V7.6 Echo Step (Story side) ===
+		// The 31-sample per-tick position ring, mirroring the sim's component bank
+		// (IDs 313-317). One sample per physics tick, recorded BEFORE action input
+		// and movement, and the destination is the EXACT t-30 sample — never a
+		// nearest-sample approximation. The retired V7.1 version kept 5 samples
+		// every 6 frames, so its destination drifted between 24 and 30 frames back
+		// depending on phase. See docs/design-contracts/TEMPORAL_STATE_CONTRACT.md.
+		private readonly Vector2[] _echoStepRing =
+			new Vector2[FTT.Combat.BasicComboRules.EchoStepRingSamples];
+		/// <summary>Next slot to overwrite. With 31 slots it is also the t-30 slot.</summary>
+		private int _echoStepRingHead;
+		/// <summary>Real samples since the last generation reset; spawn fill is not history.</summary>
+		private int _echoStepRingValidCount;
+		/// <summary>Bumped on every forced relocation (spawn, respawn, death rewind, checkpoint).</summary>
+		private int _echoStepHistoryGeneration;
 		private int _echoStepWindupFrames;
 		private int _echoStepCooldownFrames;
+		private bool _echoStepArmed;
 		private Vector2 _echoStepDestination;
+
+		/// <summary>The current Echo Step history generation. Test seam.</summary>
+		public int EchoStepHistoryGeneration => _echoStepHistoryGeneration;
+
+		/// <summary>Real samples in the current generation. Test seam.</summary>
+		public int EchoStepRingValidCount => _echoStepRingValidCount;
+
+		/// <summary>The armed destination while a wind-up runs. Test seam.</summary>
+		public Vector2 EchoStepDestination => _echoStepDestination;
+
+		/// <summary>
+		/// Opens a new Echo Step history generation at the current position: storage
+		/// is filled with that coordinate, but only real subsequent samples count, so
+		/// the player must live 30 further ticks before an exact t-30 position
+		/// exists. Called at spawn and at every forced relocation — a death rewind
+		/// landing or a checkpoint reconstruction must never leave a destination
+		/// pointing into the timeline the player was just pulled out of.
+		/// </summary>
+		public void ResetEchoStepHistory() {
+			for (int index = 0; index < _echoStepRing.Length; index++) {
+				_echoStepRing[index] = GlobalPosition;
+			}
+			_echoStepRingHead = 0;
+			_echoStepRingValidCount = 0;
+			_echoStepHistoryGeneration++;
+			_echoStepArmed = false;
+			_echoStepWindupFrames = 0;
+		}
 
 		/// <summary>Frames left on the Echo Step internal cooldown. Test seam.</summary>
 		public int EchoStepCooldownFramesRemaining => _echoStepCooldownFrames;
@@ -737,9 +786,12 @@ namespace FTT.Characters {
 				}
 
 				if (hit.HitstunDuration > 0f && CurrentState != CharacterState.Dead) {
-					ApplyStun(hit.HitstunDuration);
+					// F23: a throw's hitstun rides out in CharacterState.Thrown.
+					bool thrown = hit.HitboxID == FTT.Combat.BasicComboRules.ThrowHitboxID;
+					ApplyStun(hit.HitstunDuration, thrown);
 					// A launched stun is a tumble: the victim may tech the landing.
-					_stunTumble = hit.Knockback != Vector2.Zero;
+					// A throw is never techable — its trajectory IS the decision.
+					_stunTumble = !thrown && hit.Knockback != Vector2.Zero;
 					// V7.3 hit-2 cancel gate: string hit 1 is never
 					// block-cancelable; from hit two on the escape opens.
 					_hitstunBlockCancelBlocked = hit.HitboxID == "combo_1";
@@ -1072,6 +1124,9 @@ namespace FTT.Characters {
 				case CharacterState.Grabbing:
 					ProcessGrabbing(dt);
 					break;
+				case CharacterState.Thrown:
+					ProcessThrown(dt);
+					break;
 			}
 
 			if (CurrentState != CharacterState.LedgeHanging &&
@@ -1155,6 +1210,7 @@ namespace FTT.Characters {
 				CharacterState.Respawning => false,
 				CharacterState.Stunned => false,
 				CharacterState.Dazed => false,
+				CharacterState.Thrown => false,
 				CharacterState.LedgeHanging => false,
 				_ => true
 			};
@@ -1538,61 +1594,133 @@ namespace FTT.Characters {
 		}
 
 		/// <summary>
-		/// V7.1 Echo Step bookkeeping: rolls the position ring (5 samples, one
-		/// every 6 frames — the oldest is ~30 frames back), ticks the internal
-		/// cooldown, and advances an armed wind-up. The snap moves position
-		/// only: velocity is zeroed, facing preserved, actionable immediately.
-		/// Being struck during the wind-up cancels it with no refund.
+		/// V7.6 Echo Step bookkeeping (Package 11 A1c). Records <b>one sample per
+		/// physics tick</b> into the 31-entry ring, ticks the internal cooldown, and
+		/// advances an armed wind-up.
+		///
+		/// <para>At wind-up completion the <b>same</b> destination is rechecked
+		/// against the world as it is <em>then</em>: a gate that closed or a
+		/// platform that moved during the eight frames cancels the teleport and the
+		/// committed meter and cooldown are <b>retained</b> — no refund and no
+		/// nearby substitute. On a successful snap, position only: velocity is
+		/// zeroed, facing preserved, actionable immediately. Being struck during the
+		/// wind-up cancels it, also with no refund.</para>
 		/// </summary>
 		private void AdvanceEchoStep() {
-			if (!_echoStepRingInitialized) {
-				_echoStepRingInitialized = true;
-				for (int index = 0; index < _echoStepRing.Length; index++) {
-					_echoStepRing[index] = GlobalPosition;
-				}
-			}
+			// A fresh controller has no generation yet: open one at the spawn.
+			if (_echoStepHistoryGeneration == 0) ResetEchoStepHistory();
 			if (_echoStepCooldownFrames > 0) _echoStepCooldownFrames--;
-			if (--_echoStepSampleCountdown <= 0) {
-				_echoStepSampleCountdown = 6;
-				_echoStepRing[_echoStepRingIndex] = GlobalPosition;
-				_echoStepRingIndex = (_echoStepRingIndex + 1) % _echoStepRing.Length;
-			}
+			// Sampled BEFORE this tick's input and movement, so "t-30" is thirty
+			// ticks. With 31 slots the head is also the t-30 slot.
+			_echoStepRing[_echoStepRingHead] = GlobalPosition;
+			_echoStepRingHead = (_echoStepRingHead + 1) % _echoStepRing.Length;
+			if (_echoStepRingValidCount < _echoStepRing.Length) _echoStepRingValidCount++;
 
 			if (_echoStepWindupFrames <= 0) return;
 			if (CurrentState is CharacterState.Stunned or CharacterState.Dazed
-				or CharacterState.Dead or CharacterState.Respawning) {
+				or CharacterState.Dead or CharacterState.Respawning
+				or CharacterState.Thrown) {
 				_echoStepWindupFrames = 0;
+				_echoStepArmed = false;
 				return;
 			}
 			_echoStepWindupFrames--;
-			if (_echoStepWindupFrames == 0) {
-				GlobalPosition = _echoStepDestination;
-				Velocity = Vector2.Zero;
-			}
+			if (_echoStepWindupFrames != 0) return;
+			_echoStepArmed = false;
+			// The second validation. A destination that became blocked cancels the
+			// teleport; the cost stands.
+			if (!IsEchoStepDestinationClear(_echoStepDestination)) return;
+			GlobalPosition = _echoStepDestination;
+			Velocity = Vector2.Zero;
 		}
 
 		/// <summary>
-		/// V7.1 Echo Step initiation: the Block+Roll chord during the recovery
-		/// frames of the player's own swing (basic, directional, or special)
-		/// spends 30 meter and arms the 8-frame wind-up toward the position
-		/// ~30 frames back. Callers gate the "recovery frames" half; hitstop
-		/// cannot reach here (the frozen frame returns before any state
-		/// processing). 120-frame internal cooldown; never an escape.
+		/// The exact <c>t - 30</c> sample, or false when this history generation has
+		/// not produced one yet — a spawn, a death-rewind landing or a checkpoint
+		/// reconstruction genuinely costs the player 30 ticks before the verb is
+		/// available again. Storage filled at a reset is never treated as history.
+		/// </summary>
+		private bool TryGetEchoStepLookback(out Vector2 destination) {
+			destination = GlobalPosition;
+			if (_echoStepRingValidCount < _echoStepRing.Length) return false;
+			destination = _echoStepRing[_echoStepRingHead];
+			return true;
+		}
+
+		/// <summary>
+		/// Story's destination validation, the mirror of the sim's geometry
+		/// predicate: the player's <b>full collision shape</b> is swept against the
+		/// Environment layer at the candidate position. A solid overlap refuses it.
+		///
+		/// <para>The intervening path need not be clear — this is a teleport, not a
+		/// move — and airborne destinations stay legal, so support is never
+		/// required. Headless callers with no physics space get a permissive answer
+		/// rather than a refusal, because a test harness without a world is not
+		/// evidence of an obstruction.</para>
+		/// </summary>
+		private bool IsEchoStepDestinationClear(Vector2 destination) {
+			if (_collisionShape?.Shape == null) return true;
+			PhysicsDirectSpaceState2D space = GetWorld2D()?.DirectSpaceState;
+			if (space == null) return true;
+			var query = new PhysicsShapeQueryParameters2D {
+				Shape = _collisionShape.Shape,
+				Transform = new Transform2D(0f, destination + _collisionShape.Position),
+				CollisionMask = FTT.Core.CollisionLayers.Environment,
+				CollideWithBodies = true,
+				CollideWithAreas = false
+			};
+			Godot.Collections.Array<Godot.Collections.Dictionary> hits = space.IntersectShape(query, 1);
+			using var lifetime = hits.AsDisposable();
+			return hits.Count == 0;
+		}
+
+		/// <summary>
+		/// V7.6 Echo Step initiation. During the recovery frames of the player's own
+		/// swing (basic, directional, or special) the Block+Roll chord — or the
+		/// direct <c>gameplay_echo_step</c> bind — snaps to the position held
+		/// <b>exactly</b> 30 ticks earlier.
+		///
+		/// <para><b>Exact or nothing.</b> The destination is resolved and validated
+		/// before anything is spent: insufficient history, or a target inside
+		/// terrain, refuses the activation at <b>no meter and no cooldown cost</b>
+		/// and does not start the wind-up. Acceptance spends the 30 meter, arms the
+		/// 8-frame wind-up and starts the 120-frame cooldown atomically, once.</para>
+		///
+		/// <para>Callers gate the "recovery frames" half; hitstop cannot reach here
+		/// (the frozen frame returns before any state processing).</para>
 		/// </summary>
 		private bool TryStartEchoStep() {
 			if (TimeFrozen) return false;
 			if (_echoStepWindupFrames > 0 || _echoStepCooldownFrames > 0) return false;
-			if (!CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)
-				|| !CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Roll)) return false;
-			if (!CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Block)
-				&& !CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Roll)) return false;
-			if (CurrentUltimateMeter < FTT.Combat.BasicComboRules.EchoStepMeterCost) return false;
+
+			bool echoLegal =
+				TryGetEchoStepLookback(out Vector2 destination)
+				&& IsEchoStepDestinationClear(destination)
+				&& CurrentUltimateMeter >= FTT.Combat.BasicComboRules.EchoStepMeterCost;
+
+			// V7.6 same-frame chord priority, from the one shared table both modes
+			// read. A direct bind requests the same verb once and grants no extra
+			// priority, cancel, leniency or resource bypass.
+			bool directRequest = CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.EchoStep);
+			bool chordAllowed = !CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.DirectOrigin);
+			FTT.Combat.BasicComboRules.RecoveryVerb chosen =
+				FTT.Combat.BasicComboRules.SelectRecoveryVerb(
+					blockHeld: chordAllowed && CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block),
+					blockPressed: CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Block),
+					rollHeld: CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Roll),
+					rollPressed: CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Roll),
+					basicPressed: CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack),
+					grabLegal: false,
+					echoLegal: echoLegal);
+			if (!directRequest && chosen != FTT.Combat.BasicComboRules.RecoveryVerb.EchoStep) return false;
+			// A refused direct action does nothing and spends nothing.
+			if (!echoLegal) return false;
 
 			DrainUltimateMeter(FTT.Combat.BasicComboRules.EchoStepMeterCost);
 			_echoStepCooldownFrames = FTT.Combat.BasicComboRules.EchoStepCooldownFrames;
 			_echoStepWindupFrames = FTT.Combat.BasicComboRules.EchoStepWindupFrames;
-			// RingIndex points at the next slot to overwrite — the oldest sample.
-			_echoStepDestination = _echoStepRing[_echoStepRingIndex];
+			_echoStepDestination = destination;
+			_echoStepArmed = true;
 			return true;
 		}
 
@@ -1892,6 +2020,23 @@ namespace FTT.Characters {
 			PlayAnimation("block");
 		}
 
+		/// <summary>
+		/// F23: the thrown victim's launched ride-out. No input, no actions, no
+		/// landing tech — the throw's trajectory is fixed, which is exactly what
+		/// distinguishes it from ordinary hitstun. Control returns when the hitstun
+		/// the throw applied expires.
+		/// </summary>
+		private void ProcessThrown(float dt) {
+			ApplyGravity(dt);
+			_stunTimer -= dt;
+			if (_stunTimer > 0f) return;
+			_stunTumble = false;
+			_stunLeftTheGround = false;
+			_hitstunBlockCancelBlocked = false;
+			_hasPendingLaunch = false;
+			TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
+		}
+
 		private void ProcessStunned(float dt) {
 			ApplyGravity(dt);
 			// Track the launch leaving the ground with a per-stun latch.
@@ -2084,7 +2229,17 @@ namespace FTT.Characters {
 			}
 		}
 
-		public void ApplyStun(float duration) {
+		public void ApplyStun(float duration) => ApplyStun(duration, thrown: false);
+
+		/// <summary>
+		/// F23 (Package 11 A1c): the same hitstun entry, told whether the source was
+		/// a <b>throw</b>. A thrown victim rides out <see cref="CharacterState.Thrown"/>
+		/// instead of <see cref="CharacterState.Stunned"/> — the trajectory is fixed,
+		/// so there is no landing tech and no block escape out of it. The Fighter sim
+		/// resolves a throw through the same damage chokepoint as any hit; this is
+		/// Story's mirror of that victim transition.
+		/// </summary>
+		public void ApplyStun(float duration, bool thrown) {
 			if (CurrentState == CharacterState.Dead || CurrentState == CharacterState.Respawning) return;
 			// Being hit cancels the swing and resets the chain (design 752) —
 			// and cleans up an active hitbox the state switch alone would leave
@@ -2107,7 +2262,7 @@ namespace FTT.Characters {
 			_stunTumble = false;
 			_stunLeftTheGround = false;
 			_hitstunBlockCancelBlocked = false;
-			TransitionTo(CharacterState.Stunned);
+			TransitionTo(thrown ? CharacterState.Thrown : CharacterState.Stunned);
 		}
 
 		/// <summary>
@@ -2527,6 +2682,12 @@ namespace FTT.Characters {
 			_echoPool = 0f;
 			_echoDrainPerFrame = 0f;
 			ReleaseGrabState();
+			// V7.6 (Package 11 A1c): a death rewind is a forced relocation to a new
+			// recovery anchor, so the Echo Step history starts a new generation at
+			// the landing. Without this the next Echo Step would snap the player
+			// back into the timeline they were just pulled out of — possibly into
+			// the hazard that killed them.
+			ResetEchoStepHistory();
 			// Package 11 A4: a stock loss / respawn clears every per-airtime
 			// Resonance traversal latch and the Shield of Orleans dedup ledger.
 			ResetAirtimeTraversalLatches();
@@ -2547,6 +2708,9 @@ namespace FTT.Characters {
 			GlobalPosition = position;
 			Velocity = Vector2.Zero;
 			CurrentHP = Math.Clamp(hp, 1, MaximumHP);
+			// Checkpoint reconstruction discards old movement history (V7.6 temporal
+			// contract): a new Echo Step generation opens here too.
+			ResetEchoStepHistory();
 			_ultimateMeter?.SetValue(ultimateMeter);
 			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? Mathf.Clamp(ultimateMeter, 0f, 100f);
 			FTT.Core.EventBus.Instance?.RaisePlayerHPChanged(new FTT.Core.PlayerHPPayload {

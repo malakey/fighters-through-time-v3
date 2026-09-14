@@ -359,6 +359,13 @@ namespace FTT.Combat {
         public const int ThrowAnimationFrames = 12;
         /// <summary>No-regrab window after being thrown.</summary>
         public const int ThrowImmunityFrames = 20;
+        /// <summary>
+        /// F23: the hitbox ID a throw's launch carries. Story routes a hit with this
+        /// ID into <c>CharacterState.Thrown</c> rather than <c>Stunned</c> — a throw
+        /// is unblockable by construction, cannot be landing-teched, and carries no
+        /// directional influence.
+        /// </summary>
+        public const string ThrowHitboxID = "throw";
         /// <summary>Every throw deals 1.0x BasicAttackDamage — priced as position.</summary>
         public const float ThrowDamageMultiplier = 1.0f;
         /// <summary>Forward throw: horizontal 3.0x BasicAttackKnockback.</summary>
@@ -385,6 +392,15 @@ namespace FTT.Combat {
         public const int EchoStepCooldownFrames = 120;
         /// <summary>How far back in time the snap reaches.</summary>
         public const int EchoStepLookbackFrames = 30;
+        /// <summary>
+        /// Consecutive per-tick position samples both modes retain:
+        /// <see cref="EchoStepLookbackFrames"/> + 1. The newest sample is written at
+        /// the START of tick <c>t</c>, before action input and movement, so
+        /// <c>t - 30</c> has to survive that write — 31 slots is the smallest ring
+        /// where it does, and it makes the next-slot-to-overwrite index and the
+        /// <c>t - 30</c> slot the same index.
+        /// </summary>
+        public const int EchoStepRingSamples = EchoStepLookbackFrames + 1;
 
         // === Same-frame chord priority in attack recovery (V7.6, Package 11 A1c) ===
         // Design master 1451-1452. During a swing's recovery frames three verbs
