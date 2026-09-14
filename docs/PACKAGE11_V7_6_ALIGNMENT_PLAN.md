@@ -6232,3 +6232,120 @@ seen once on the first pass did not reproduce across six later runs of Levels 13
 Recorded so nobody repeats it: reverting only `scripts/` + `resources/Bosses/` to baseline leaves the
 test files referencing the new `BossData` fields, the build fails, and the **previous** DLL is what
 actually runs — numbers from that state are meaningless.
+
+---
+### A1c — Echo Step determinism, dedicated inputs, protocol v3, F21/F22 (2026-09-13)
+
+1. **The ring metadata sits on component 313, not A1b's 312.** §2.7 assigns the bank 313–317 and
+   directs the head / latest-tick / valid-count / generation / armed / activation-tick fields onto
+   **A1b's `FighterDefenseComponent` (312)**. A1b and A1c run **in parallel** in Wave 2, so 312 does
+   not exist in this worktree and extending it would have meant blocking on A1b's merge or inventing
+   its shape. The fields live on `FighterEchoStepRing0Component` (313) instead, where they cost 28 of
+   that component's 128 bytes and leave every slice inside budget. **No coordination with A1b is now
+   required in either direction** — 312 is untouched by this branch.
+2. **The bank is 6/6/6/6/7 samples, not 5 × 8.** §2.7's "five at 8 samples each (8 × 16 B + ints,
+   comfortably under 128 B)" does not fit: 8 × `FPVector2` is *exactly* 128 B with no room for the
+   ints. Slice 0 carries 6 samples plus the 7 metadata ints (124 B); slices 1–4 carry 6/6/6/7
+   (96–112 B). Total 31, every component inside the budget. (The 128-byte limit is a Klotho
+   **warning**, `KLSG_ECS004`, not an error — `FighterTuningComponent` has exceeded it since before
+   this package — but it was respected rather than leaned on.)
+3. **`SelectRecoveryVerb` takes seven parameters, not six.** The dossier's signature omits
+   `rollHeld`, but the shipped chord is recognized on **either** edge — Block pressed onto a held
+   Roll, or Roll pressed onto a held Block. A roll-press-only test would have silently narrowed live
+   behaviour this workstream was not asked to change, so the parameter was added and the reason
+   documented on the method.
+4. **The clearance predicate rejects any `y` below the floor plane, and that is what "a pit
+   destination is rejected" means here.** The sim's terrain model is four position-level rules (wall
+   clamp, ceiling clamp, blast zone, floor snap). Below `y = 0` is either the inside of the solid
+   floor (Sealed stages, and the legacy arena mid-drop-through) or the interior of one of A9's
+   authored pits, whose only exit is the blast zone — "solid overlap" and "authored kill region"
+   respectively. Airborne destinations **above** the floor plane stay legal everywhere, which is how
+   "airborne destinations remain legal; support is not required" is honoured.
+5. **The stock-loss history reset is deferred by exactly one tick, deliberately.**
+   `FighterSimulationRules.ApplyStockLoss` is reached from half a dozen damage call sites and has no
+   `Frame` in hand, so the ring cannot be reset there. Slice 0 carries a `LifeEpoch` field holding the
+   `KnockoutsSuffered` value its generation opened at, and the sampler opens a new generation the
+   moment the two disagree. The one-tick lag is **unobservable**: the fighter is on the respawn
+   platform for the next 300 frames and `EchoStepStateAllows` refuses Echo Step there outright.
+   `EchoStepRingTests.AStockLossOpensANewHistoryGeneration` states this rather than hiding it.
+6. **The wind-up recheck is pinned Story-side, not sim-side.** Sim stage geometry is immutable for
+   the life of a match, so no sim test can make a validated destination *become* blocked. The recheck
+   is implemented in both modes; Story's `PhysicsShapeQueryParameters2D` sweep is the one a future
+   test can drive with a gate closing mid-wind-up. The sim side is covered by the pure predicate
+   (`EchoStepDestinationTests`) plus the no-cost activation refusal.
+7. **`GrabPartnerPlayerID` and `ThrowDamageApplied` are packed into `FighterVerbComponent`'s last
+   four bytes.** §2.7 records exactly one `int` of headroom on component 310; the partner (8 bits,
+   `0xFF` = unattached) and the once-only throw guard (1 bit) share it behind properties. That
+   consumes 310's remaining headroom — **the component is now full at 128 bytes**, and the next agent
+   needing sim state there must allocate a new ID.
+8. **A9b's `TryGetEchoStepDestination` survived the merge; A1c's `TryGetEchoStepLookback` did not.**
+   A9b (Wave 2, merged to main first) made the retired 5-sample `OldestRingSample` internal so the F19
+   CPU could read the destination. That ring is gone, so the accessor's **body** was re-pointed at the
+   31-sample bank and the duplicate was deleted — one accessor, not two. Two things changed for the
+   CPU and are noted on the method: the answer is now the **exact** `t−30` sample rather than the
+   retired ring's 24-to-30-frames-ago approximation, and it returns **false** while a generation is
+   still filling, so the CPU stops proposing a destination that does not exist yet.
+9. **Sudden Death entry routes through the shared ready countdown**, which is what the contract's
+   "controls and simulation clocks remain frozen during the transition/countdown; resume both players
+   together" requires. Consequence worth knowing: `MatchState` leaves `InProgress` for `Countdown` on
+   the transition tick, and input is discarded for those frames. Two suites the dossier did not name
+   pinned the old value — see item 11.
+10. **`Hybrid` is `[Obsolete]`, so its 52 usages across 15 test files were retired.** Twelve files
+    were mechanical `(int)MatchMode.Hybrid` → `(int)MatchMode.Stock` substitutions in stage/hazard
+    harnesses where the mode was incidental. That substitution is behaviour-preserving: the retired
+    Hybrid's behaviour **was** Stock's, because it only ever reached `FighterMatchSystem.Update`'s
+    silent `_ =>` default arm, now replaced by an explicit Stock fallback. `FighterMatchRules`' two
+    convenience constructors and `Disabled` also carried the literal `2` and now name
+    `MatchMode.Stock`.
+11. **Two suites outside the dossier's rewrite list pinned behaviour F22 explicitly retires**, and
+    were rewritten in place rather than worked around:
+    `FighterSimulationTests.MatchModesApplyTheirDistinctEndConditions` (asserted `MatchState == 1` on
+    the transition tick) and
+    `FighterTimeSystemsTests.SuddenDeathRespawnsAtOneHPAndTheFirstKnockoutDecidesIt` (the 1-HP clamp
+    and the pre-marked Defy flag, both retired). The latter is renamed
+    `SuddenDeathStartsAtRealHPAndTheNextDeathDecidesIt`. **±0 cases.**
+12. **F21's "unreclaimed Rally echo is excluded from HP comparisons" needed no arithmetic.** The Echo
+    Pool is *reclaimable* HP held beside `CurrentHP`, and only an actual reclaim adds it, so reading
+    `CurrentHP` excludes it by construction. An earlier draft subtracted the pool and would have
+    penalized the victim twice; `UnreclaimedEchoDoesNotCountAtTimeout` already pinned the correct
+    behaviour and is unchanged.
+13. **The two new actions ship Unbound, which is the reading of "default bindings" taken here.** §4's
+    C01c row says "direct slots Unbound by default per device kind"; the shipped route stays the preset
+    chord, so a direct bind is an addition rather than a replacement and no new default key can collide
+    with an existing one. `InputBindingSchemaTests` pins the Unbound slots **and** that both verbs stay
+    reachable through their chords on both device kinds.
+14. **`Actions.Grab` / `Actions.EchoStep` were NOT added to `InputManager.RemappableActions`.** A8
+    already unions `InputShortcuts.DirectActions` into both `InputBindingService.RestorableActions` and
+    `BindableActions()`, and A8's design deliberately lists the C01c rows *after* the fourteen
+    pre-existing ones. Adding them to `RemappableActions` as well would have duplicated them and moved
+    them up the Controls tab. The dossier's "add the two rows to `RemappableActions` **and** to
+    `RestorableActions`" is satisfied by A8's union.
+15. **Count delta is +38, not the projected +44.** The F22 verification matrix is covered by **6**
+    grouped cases in `FighterMatchFlowTests` rather than 12 one-row-per-case, with the remaining rows
+    folded into the three rewritten Sudden Death cases (retained HP, preserved Defy spent flag, meter 0,
+    cooldowns ready, frozen totals) and into `StocksLostTests` (frozen totals, the 0-0 tie). Every row
+    of the contract table is asserted somewhere; the grouping is the only difference.
+16. **Merged `main` before validation.** Two conflicts: `localization/en.csv`, both sides pure appends,
+    resolved by **union** (§2.11); and `FighterSimulationSystems.cs`, where A9b's `OldestRingSample` met
+    this branch's retirement of the ring it reads — resolved per item 8.
+
+**AGENTS.md / CLAUDE.md edits required at Phase C** (not made here, per §5.1): the `MatchMode` enum's
+third member and the Fighter-mode description; the Echo Step ring description (5 samples every 6
+frames → 31 per-tick samples, exact `t−30`); the `FighterVerbComponent` "4 bytes of headroom" note
+(now full); the protocol-v2 reference (now v3); the `GameplayButtons` bit inventory (12–15 were
+"free"); the `CharacterState` canonical list (append `Thrown`); and the Sudden Death description in
+the Combat section (the 1-HP / hazards-forced-on / Defy-pre-marked text is retired).
+
+**Validation.** `dotnet build` clean — 0 errors, 3 pre-existing warnings (`KLSG_ECS004` on
+`FighterTuningComponent`, the vendored GdUnit4 `CS8632`, A12's `CS0114` on
+`LegacyLevelControllerBase.ParSeconds`); none caused by this change. `--headless --import` clean.
+Filtered GdUnit runs, each with its `Get-Process testhost,Godot*` clear-window poll issued **in the
+same shell invocation as the run**: new suites **23/23**; touched suites **98/98**
+(`FighterMatchFlowTests` 38, `InputBindingSchemaTests` 17, `CharacterSelectSceneTests` 15,
+`FighterGrabTests` 10, `FighterAudioRulesTests` 9, `MatchSettingsTests` 5, `HolodeckConsoleTests` 4);
+rollback + protocol **27/27**, including the ten-stage readiness gate; Fighter regression **154/154**;
+stage / Story / presentation **189/189**; Story rewind + drills **43/43**.
+`localization/en.en.translation` is deliberately **not** committed (§2.11), so
+`ScriptTranslationKeyTests`, `SceneVisibleTextTests`, `CampaignLocalizationTests` and
+`UnusedTranslationKeyTests` are **expected to fail on the two new keys until the orchestrator
+imports**.
