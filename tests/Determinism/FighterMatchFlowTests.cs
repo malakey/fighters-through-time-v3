@@ -757,9 +757,13 @@ public class FighterMatchFlowTests {
                 : Frame(tick, 0, GameplayButtons.Down);
             simulation.Advance(falling, falling);
             suddenDeath = simulation.GetMatchState().SuddenDeathActive == 1;
+            // The claim is that no RESULT is recorded — F22 now routes entry through
+            // the shared match-start ready countdown (controls and sim clocks frozen
+            // together for both players), so the state legitimately leaves
+            // InProgress for Countdown on the transition tick.
             AssertThat(simulation.GetMatchState().MatchState)
                 .OverrideFailureMessage("A dual final-stock KO must never record an immediate result.")
-                .IsEqual(FighterMatchStates.InProgress);
+                .IsNotEqual(FighterMatchStates.Complete);
         }
         AssertThat(suddenDeath)
             .OverrideFailureMessage("The simultaneous final-stock KO must enter Sudden Death.")
@@ -1056,18 +1060,27 @@ public class FighterMatchFlowTests {
         for (tick = 1; tick <= 240; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
         simulation.Advance(Neutral(tick), Frame(tick, 0, GameplayButtons.BasicAttack));
 
-        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent beforeOne)).IsTrue();
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent beforeTwo)).IsTrue();
-        int hpOne = beforeOne.CurrentHP;
-        int hpTwo = beforeTwo.CurrentHP;
+        // Run to the LAST regulation tick before capturing. A swing has startup
+        // frames, so reading HP on the input frame reads it before the hit lands —
+        // and the capture has to be the committed end-of-regulation state anyway,
+        // which is what F22 resolves the transition from.
+        int hpOne = 0;
+        int hpTwo = 0;
+        for (tick++; tick < 600; tick++) {
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent liveOne)).IsTrue();
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent liveTwo)).IsTrue();
+            hpOne = liveOne.CurrentHP;
+            hpTwo = liveTwo.CurrentHP;
+            simulation.Advance(Neutral(tick), Neutral(tick));
+            if (simulation.GetMatchState().SuddenDeathActive == 1) break;
+        }
+        AssertThat(simulation.GetMatchState().SuddenDeathActive).IsEqual(1);
         AssertThat(hpOne != hpTwo)
             .OverrideFailureMessage("Harness: the two fighters must enter on different HP.")
             .IsTrue();
-
-        for (tick++; simulation.GetMatchState().SuddenDeathActive == 0 && tick < 600; tick++) {
-            simulation.Advance(Neutral(tick), Neutral(tick));
-        }
-        AssertThat(simulation.GetMatchState().SuddenDeathActive).IsEqual(1);
+        AssertThat(hpOne > 0 && hpTwo > 0)
+            .OverrideFailureMessage("Harness: both fighters must still be alive at the buzzer.")
+            .IsTrue();
 
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent afterOne)).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterTwo)).IsTrue();
@@ -1213,27 +1226,31 @@ public class FighterMatchFlowTests {
     /// </summary>
     [TestCase]
     public void SuddenDeathRemovesEveryRegulationProjectileZoneAndConstruct() {
+        // TimeoutFighter authors no ability kit at all, so it can never deploy
+        // anything: this needs a projectile Special and a persistent-construct
+        // Special to have objects to sweep.
         var simulation = new FighterSimulation(
-            FighterLoadoutFactory.FromCharacterData(TimeoutFighter(maxHP: 100, damage: 5f)),
-            FighterLoadoutFactory.FromCharacterData(TimeoutFighter(maxHP: 100, damage: 5f)),
+            FighterLoadoutFactory.FromCharacterData(DeployingFighter()),
+            FighterLoadoutFactory.FromCharacterData(DeployingFighter()),
             stocks: 5,
-            matchSeconds: 4,
+            matchSeconds: 6,
             seed: 8805,
-            spawnDistance: 1,
+            spawnDistance: 6,
             rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, false, 0));
 
-        // Fire specials until something is deployed, then let the clock run out.
-        for (int tick = 0; tick < 120; tick++) {
-            simulation.Advance(
-                Frame(tick, 0, GameplayButtons.Special1),
-                Frame(tick, 0, GameplayButtons.Special2));
-        }
-        int deployed = simulation.ProjectileCount + simulation.ZoneCount + simulation.PersistentObjectCount;
-        AssertThat(deployed)
-            .OverrideFailureMessage("Harness: something must be deployed before the buzzer.")
+        int tick = 0;
+        simulation.Advance(
+            Frame(tick, 0, GameplayButtons.Special1),
+            Frame(tick, 0, GameplayButtons.Special2));
+        tick++;
+        AssertThat(simulation.ProjectileCount)
+            .OverrideFailureMessage("Harness: the projectile Special must have fired.")
+            .IsGreater(0);
+        AssertThat(simulation.PersistentObjectCount)
+            .OverrideFailureMessage("Harness: the construct Special must have deployed.")
             .IsGreater(0);
 
-        for (int tick = 120; simulation.GetMatchState().SuddenDeathActive == 0 && tick < 600; tick++) {
+        for (; simulation.GetMatchState().SuddenDeathActive == 0 && tick < 600; tick++) {
             simulation.Advance(Neutral(tick), Neutral(tick));
         }
         AssertThat(simulation.GetMatchState().SuddenDeathActive).IsEqual(1);
@@ -1282,6 +1299,45 @@ public class FighterMatchFlowTests {
     }
 
     // === Helpers ===
+
+    /// <summary>
+    /// A kit that actually deploys: Special 1 is a long-lived projectile and
+    /// Special 2 a persistent construct, so the F22 entity sweep has both kinds of
+    /// object to remove.
+    /// </summary>
+    private static CharacterData DeployingFighter() => new() {
+        CharacterID = "tesla",
+        MaxHP = 100,
+        Weight = 1f,
+        MaxBlockCharges = 3,
+        MaxJumpCount = 1,
+        MaxMoveSpeed = 8f,
+        MaxJumpForce = 13f,
+        BasicAttackDamage = 10f,
+        BasicAttackKnockback = 0f,
+        SpecialAttackOne = new AbilityData {
+            ExecutionType = AbilityExecutionType.Projectile,
+            BaseDamage = 1f,
+            KnockbackForce = Godot.Vector2.Zero,
+            ProjectileSpeed = 6f,
+            ProjectileLifetime = 60f,
+            CooldownDuration = 1f
+        },
+        SpecialAttackTwo = new AbilityData {
+            ExecutionType = AbilityExecutionType.PersistentObject,
+            // The construct only spawns with a recognized type ID: the loadout
+            // factory maps the authored string onto the deterministic id, and an
+            // unknown one is 0, which the spawner refuses.
+            PersistentObjectID = "tesla_coil",
+            BaseDamage = 1f,
+            KnockbackForce = Godot.Vector2.Zero,
+            Lifetime = 60f,
+            MaxActiveObjects = 2,
+            CooldownDuration = 1f
+        },
+        MovementAbility = new MovementAbilityData(),
+        UltimateAttack = new AbilityData { BaseDamage = 5f }
+    };
 
     /// <summary>Zero-knockback fighters for the timeout pins: hits chip HP
     /// without moving anyone out of range.</summary>

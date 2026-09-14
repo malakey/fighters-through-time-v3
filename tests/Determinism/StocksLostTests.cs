@@ -154,13 +154,24 @@ public class StocksLostTests {
     /// </summary>
     [TestCase]
     public void SuddenDeathFreezesTheRegulationTotals() {
+        // The regulation window has to outlast BOTH falls plus the respawn platform
+        // between them. Six seconds did not: the buzzer went while the second fall
+        // was still in progress, Sudden Death entered, and its ready countdown
+        // cleared the fall inputs — the fighter simply stood at spawn.
         var simulation = new FighterSimulation(
-            stocks: 5, matchSeconds: 6, seed: 7,
+            stocks: 5, matchSeconds: 30, seed: 7,
             rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, false, 0));
         DriveOffTheBottom(simulation, 0);
+        RideOutTheRespawnPlatform(simulation, 0);
         DriveOffTheBottom(simulation, 1);
+        RideOutTheRespawnPlatform(simulation, 1);
 
-        while (simulation.GetMatchState().SuddenDeathActive == 0 && simulation.CurrentTick < 900) {
+        while (simulation.GetMatchState().SuddenDeathActive == 0 && simulation.CurrentTick < 2400) {
+            int tick = simulation.CurrentTick;
+            simulation.Advance(Neutral(tick), Neutral(tick));
+        }
+        // Ride out the phase's ready countdown so the decider is actually live.
+        for (int step = 0; step < FighterMatchFlowRules.CountdownFrames + 2; step++) {
             int tick = simulation.CurrentTick;
             simulation.Advance(Neutral(tick), Neutral(tick));
         }
@@ -180,6 +191,19 @@ public class StocksLostTests {
     }
 
     // === Helpers ===
+
+    /// <summary>
+    /// Wait out the respawn platform so the next fall starts from solid ground.
+    /// A fighter still held by the platform ignores input entirely.
+    /// </summary>
+    private static void RideOutTheRespawnPlatform(FighterSimulation simulation, int playerID) {
+        for (int step = 0; step < 600; step++) {
+            AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent state)).IsTrue();
+            if (!FighterMatchFlowRules.IsOnRespawnPlatform(in state) && state.IsGrounded != 0) return;
+            int tick = simulation.CurrentTick;
+            simulation.Advance(Neutral(tick), Neutral(tick));
+        }
+    }
 
     /// <summary>Drop through the arena floor and ride out the bottom blast zone.</summary>
     private static void DriveOffTheBottom(FighterSimulation simulation, int playerID) {

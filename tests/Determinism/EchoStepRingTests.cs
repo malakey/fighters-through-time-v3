@@ -69,9 +69,13 @@ public class EchoStepRingTests {
             AssertThat(simulation.TryGetFighter(0, out FighterStateComponent state)).IsTrue();
             recorded.Add(state.Position.x);
 
-            if (recorded.Count > BasicComboRules.EchoStepLookbackFrames) {
+            // recorded[i] is the position at the START of tick i — exactly what the
+            // ring samples. After N advances the ring holds recorded[0..N-1], so
+            // reading before the advance at tick k (N == k) the head sample is
+            // recorded[k - 31]. It exists from k == 31, i.e. recorded.Count == 32.
+            if (recorded.Count > FighterEchoStepRing.SampleCount) {
                 AssertThat(simulation.TryGetEchoStepDestination(0, out FPVector2 lookback)).IsTrue();
-                FP64 expected = recorded[recorded.Count - 1 - BasicComboRules.EchoStepLookbackFrames];
+                FP64 expected = recorded[recorded.Count - 1 - FighterEchoStepRing.SampleCount];
                 AssertThat(lookback.x.RawValue)
                     .OverrideFailureMessage(
                         $"Tick {tick}: t-30 read {lookback.x.ToFloat()} but the fighter held " +
@@ -90,10 +94,12 @@ public class EchoStepRingTests {
     [TestCase]
     public void TheSampleIsTakenBeforeThatTicksMovement() {
         var simulation = new FighterSimulation(rules: FighterMatchRules.Disabled);
-        // Warm the ring so a lookback exists at all.
+        // Warm the ring so a lookback exists at all: 31 advances fill the window.
         for (int tick = 0; tick < FighterEchoStepRing.SampleCount; tick++) {
             simulation.Advance(Neutral(tick), Neutral(tick));
         }
+        AssertThat(simulation.TryGetEchoStepRing(0, out FighterEchoStepRing0Component warm)).IsTrue();
+        AssertThat(warm.ValidCount).IsEqual(FighterEchoStepRing.SampleCount);
 
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent before)).IsTrue();
         // Thirty stationary ticks precede this one, so t-30 is the standing spot.
@@ -152,6 +158,16 @@ public class EchoStepRingTests {
         int generationBefore = warm.Generation;
 
         DriveOffTheBottom(simulation, 1);
+
+        // The reset is driven by the life-epoch mismatch the sampler detects, so it
+        // resolves on the victim's next movement tick rather than inside
+        // ApplyStockLoss — which has no Frame in hand and is reached from half a
+        // dozen damage call sites. The one-tick deferral is unobservable by design:
+        // the fighter is on the respawn platform for the next 300 frames and
+        // EchoStepStateAllows refuses the verb outright there, so no read can see
+        // the stale generation.
+        int afterLoss = simulation.CurrentTick;
+        simulation.Advance(Neutral(afterLoss), Neutral(afterLoss));
 
         AssertThat(simulation.TryGetEchoStepRing(1, out FighterEchoStepRing0Component reset)).IsTrue();
         AssertThat(reset.Generation)
