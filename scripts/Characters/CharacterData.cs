@@ -49,6 +49,28 @@ namespace FTT.Characters {
 		[ExportGroup("Animation")]
 		[Export] public SpriteFrames SpriteFramesResource;
 
+		[ExportGroup("Presentation")]
+		/// <summary>
+		/// Package 11 A6b (recon A §9). This character's placeholder identity
+		/// colours — previously a nine-entry dictionary literal inside
+		/// <see cref="CharacterFactory"/>. They drive the character-select card
+		/// tint, the name label, the placeholder body/accent/detail rectangles
+		/// and <c>VfxAccentPalette</c>'s per-character accent.
+		///
+		/// <para>They live on the resource because the design's standing roster
+		/// mandate forbids enumerating the cast in load-bearing code: a tenth
+		/// character's colours now arrive with its own <c>.tres</c>. An
+		/// unauthored (fully transparent) colour falls back to the neutral
+		/// placeholder grey, which is exactly what an unknown ID produced
+		/// before.</para>
+		///
+		/// <para>Presentation only — nothing in <c>scripts/FighterSim/</c> or any
+		/// damage calculation reads these.</para>
+		/// </summary>
+		[Export] public Color PlaceholderBodyColor = new(0f, 0f, 0f, 0f);
+		[Export] public Color PlaceholderAccentColor = new(0f, 0f, 0f, 0f);
+		[Export] public Color PlaceholderDetailColor = new(0f, 0f, 0f, 0f);
+
 		[ExportGroup("Dialogue")]
 		/// <summary>
 		/// Package 8 B3. Pitch scale for this character's typewriter "text

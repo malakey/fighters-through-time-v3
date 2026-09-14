@@ -151,10 +151,15 @@ namespace FTT.Core {
         };
 
         public int SaveVersion = SaveSchemaMigrator.CurrentVersion;
-        public List<string> UnlockedCharacters = new() {
-            "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-            "tesla", "shakespeare", "mozart", "pocahontas"
-        };
+        /// <summary>
+        /// Every character is available from the start in the initial build
+        /// (AGENTS.md pillar), so the default unlock set is simply the whole
+        /// roster. Package 11 A6b: taken from <see cref="CharacterRoster"/> —
+        /// the content manifest — rather than a literal cast list, so a new
+        /// roster row is unlocked by default instead of being permanently
+        /// missing from every existing global save.
+        /// </summary>
+        public List<string> UnlockedCharacters = CharacterRoster.ToList();
         public List<string> UnlockedStages = new(InitialStageIDs);
         public int TotalPlayTime;
         public int TotalWins;
@@ -233,6 +238,15 @@ namespace FTT.Core {
         public void Normalize() {
             SaveVersion = SaveSchemaMigrator.CurrentVersion;
             UnlockedCharacters ??= new List<string>();
+            // Package 11 A6b: mirror the UnlockedStages backfill below. A global
+            // save written before a roster row existed would otherwise never
+            // offer that character, because the default initializer only runs on
+            // a brand-new payload. The initial-build pillar is "all characters
+            // available from the start", so backfilling is the correct default;
+            // a future unlock phase replaces this rule deliberately.
+            foreach (string characterID in CharacterRoster.IDs) {
+                if (!UnlockedCharacters.Contains(characterID)) UnlockedCharacters.Add(characterID);
+            }
             SeenDialogueIDs ??= new HashSet<string>(StringComparer.Ordinal);
             UnlockedStages ??= new List<string>();
             foreach (string stageID in InitialStageIDs) {

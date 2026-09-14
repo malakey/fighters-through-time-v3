@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
 using FTT.Characters;
 using FTT.Combat;
@@ -11,16 +11,47 @@ namespace FTT.Tests.ContentValidation;
 [TestSuite]
 [RequireGodotRuntime]
 public class CharacterManifestTests {
-    private static readonly string[] InitialRoster = {
-        "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-        "tesla", "shakespeare", "mozart", "pocahontas"
-    };
+    /// <summary>
+    /// Package 11 A6b: the roster is the content manifest, never a literal
+    /// cast list. design-godot.md §2 forbids enumerating the cast in
+    /// load-bearing ways, and a duplicated array here is exactly the thing
+    /// that blocks a roster addition — the content would be complete and the
+    /// test suite would still fail.
+    /// </summary>
+    private static readonly IReadOnlyList<string> InitialRoster = FTT.Core.CharacterRoster.IDs;
 
+    /// <summary>
+    /// Package 11 A6b: this used to assert the literal number 9 twice, which
+    /// meant adding a tenth character failed a test that had nothing to say
+    /// about the tenth character. What matters is that the roster is non-empty,
+    /// that its IDs are unique and well-formed, and that the code's notion of
+    /// the roster is exactly the manifest's — so that is what it pins now. The
+    /// manifest's own row count is pinned in exactly one place
+    /// (<c>ContentManifestTests</c>), so an accidental deletion still fails.
+    /// </summary>
     [TestCase]
-    public void InitialRosterHasNineUniqueStableIDs() {
+    public void RosterIDsAreUniqueWellFormedAndComeFromTheManifest() {
+        AssertThat(InitialRoster.Count > 0).IsTrue();
+
         var ids = new HashSet<string>(InitialRoster);
-        AssertThat(InitialRoster.Length).IsEqual(9);
-        AssertThat(ids.Count).IsEqual(9);
+        AssertThat(ids.Count).IsEqual(InitialRoster.Count);
+
+        var issues = new List<string>();
+        foreach (string id in InitialRoster) {
+            if (string.IsNullOrWhiteSpace(id)) issues.Add("blank roster ID");
+            else if (id != id.ToLowerInvariant()) issues.Add($"'{id}' is not lowercase");
+            else if (id.Contains(' ')) issues.Add($"'{id}' contains a space");
+        }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+
+        // The code's roster IS the manifest's Character rows, in order.
+        FTT.Core.ContentManifest manifest = FTT.Core.ContentManifest.LoadDefault();
+        var manifestIDs = new List<string>();
+        foreach (FTT.Core.ContentManifestEntry entry
+            in manifest.ForCategory(FTT.Core.ContentCategory.Character)) {
+            manifestIDs.Add(entry.ContentID);
+        }
+        AssertThat(string.Join(",", InitialRoster)).IsEqual(string.Join(",", manifestIDs));
     }
 
     [TestCase]

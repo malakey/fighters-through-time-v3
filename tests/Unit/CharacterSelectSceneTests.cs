@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using FTT.Core;
 using FTT.UI;
@@ -67,12 +67,18 @@ public class CharacterSelectSceneTests {
     }
 
     [TestCase]
-    public void TheNineRosterTilesAreCursorDrivenClickableButtonsOutsideTheFocusChain() {
+    public void TheRosterTilesAreCursorDrivenClickableButtonsOutsideTheFocusChain() {
         CharacterSelectScreen screen = Open(out Node host);
         try {
             var grid = screen.GetNode<GridContainer>(SelectRoot + "PlayersRow/Grid");
-            AssertThat(grid.GetChildCount()).IsEqual(9);
-            for (int index = 0; index < 9; index++) {
+            // Package 11 A6b: the scene must carry one authored tile per
+            // ROSTER member, not per the number nine. The screen itself binds
+            // defensively (a roster larger than the grid leaves the tail
+            // unbound rather than throwing), so this assertion is the signal
+            // that says "a character was added — author its tile".
+            int rosterCount = FTT.Core.CharacterRoster.Count;
+            AssertThat(grid.GetChildCount()).IsEqual(rosterCount);
+            for (int index = 0; index < rosterCount; index++) {
                 var tile = grid.GetNodeOrNull<Button>($"CharacterButton{index}");
                 AssertThat(tile != null)
                     .OverrideFailureMessage($"Tile {index} is not a Button")

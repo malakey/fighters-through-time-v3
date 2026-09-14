@@ -11,10 +11,11 @@ namespace FTT.Combat {
     /// existing presentation geometry when an asset is absent.
     /// </summary>
     public static class AbilityVisualLibrary {
-        private static readonly HashSet<string> RosterIDs = new(StringComparer.Ordinal) {
-            "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-            "tesla", "shakespeare", "mozart", "pocahontas"
-        };
+
+        // Package 11 A6b: the roster gate is the content manifest, read through
+        // FTT.Core.CharacterRoster, not a literal cast list. With the old array
+        // a newly added character resolved nothing here — its atlases existed,
+        // its abilities existed, and the VFX layer silently refused them.
 
         public static bool TryResolve(string abilityID, out SpriteFrames frames,
             out StringName animation) {
@@ -25,7 +26,7 @@ namespace FTT.Combat {
             int separator = abilityID.IndexOf('_');
             if (separator <= 0) return false;
             string characterID = abilityID[..separator];
-            if (!RosterIDs.Contains(characterID)) return false;
+            if (!FTT.Core.CharacterRoster.Contains(characterID)) return false;
 
             string path = $"res://resources/SpriteFrames/{characterID}_ability_vfx_frames.tres";
             if (!ResourceLoader.Exists(path)) return false;

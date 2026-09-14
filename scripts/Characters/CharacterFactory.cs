@@ -14,30 +14,52 @@ namespace FTT.Characters {
 			public Color Detail;
 		}
 
-		private static readonly Dictionary<string, CharacterVisual> Visuals = new() {
-			{ "einstein",    new() { Body = new Color(0.2f, 0.5f, 0.9f), Accent = new Color(0.9f, 0.9f, 0.7f), Detail = new Color(0.6f, 0.6f, 0.6f) } },
-			{ "joan",        new() { Body = new Color(0.85f, 0.75f, 0.2f), Accent = new Color(0.7f, 0.7f, 0.75f), Detail = new Color(0.9f, 0.2f, 0.1f) } },
-			{ "leonardo",    new() { Body = new Color(0.3f, 0.7f, 0.3f), Accent = new Color(0.6f, 0.4f, 0.2f), Detail = new Color(0.8f, 0.7f, 0.5f) } },
-			{ "lincoln",     new() { Body = new Color(0.15f, 0.15f, 0.35f), Accent = new Color(0.3f, 0.3f, 0.3f), Detail = new Color(0.9f, 0.85f, 0.7f) } },
-			{ "cleopatra",   new() { Body = new Color(0.6f, 0.2f, 0.8f), Accent = new Color(0.9f, 0.75f, 0.2f), Detail = new Color(0.3f, 0.8f, 0.6f) } },
-			{ "tesla",       new() { Body = new Color(0.1f, 0.8f, 0.9f), Accent = new Color(0.3f, 0.3f, 0.4f), Detail = new Color(0.9f, 0.9f, 0.2f) } },
-			{ "shakespeare", new() { Body = new Color(0.7f, 0.15f, 0.2f), Accent = new Color(0.9f, 0.85f, 0.7f), Detail = new Color(0.4f, 0.2f, 0.5f) } },
-			{ "mozart",      new() { Body = new Color(0.9f, 0.85f, 0.8f), Accent = new Color(0.5f, 0.3f, 0.6f), Detail = new Color(0.8f, 0.6f, 0.7f) } },
-			{ "pocahontas",  new() { Body = new Color(0.55f, 0.35f, 0.2f), Accent = new Color(0.3f, 0.7f, 0.4f), Detail = new Color(0.8f, 0.6f, 0.3f) } }
+		/// <summary>Neutral fallback for an ID carrying no authored colours.</summary>
+		private static readonly CharacterVisual FallbackVisual = new() {
+			Body = Colors.Gray, Accent = Colors.White, Detail = Colors.LightGray
 		};
 
-		public static Color GetCharacterColor(string characterID) {
-			return Visuals.TryGetValue(characterID, out CharacterVisual visual) ? visual.Body : Colors.Gray;
+		/// <summary>
+		/// Package 11 A6b (recon A §9). This was a nine-entry dictionary literal
+		/// — one of five identical hardcoded rosters. The colours now live on
+		/// each <see cref="CharacterData"/> resource
+		/// (<c>PlaceholderBodyColor</c> / <c>Accent</c> / <c>Detail</c>), so a
+		/// tenth character brings its identity colours with its own <c>.tres</c>
+		/// and needs no C# edit. An unauthored (transparent) colour falls back to
+		/// the neutral placeholder — exactly what an unknown ID produced before.
+		/// </summary>
+		public static CharacterVisual ResolveVisual(CharacterData data) {
+			if (data == null) return FallbackVisual;
+			return new CharacterVisual {
+				Body = data.PlaceholderBodyColor.A > 0f ? data.PlaceholderBodyColor : FallbackVisual.Body,
+				Accent = data.PlaceholderAccentColor.A > 0f ? data.PlaceholderAccentColor : FallbackVisual.Accent,
+				Detail = data.PlaceholderDetailColor.A > 0f ? data.PlaceholderDetailColor : FallbackVisual.Detail
+			};
 		}
 
 		/// <summary>
-		/// True when <paramref name="characterID"/> is one of the nine roster IDs
-		/// this factory can build. Callers that interpolate the ID into a
+		/// This character's placeholder identity colour, read from its authored
+		/// resource through <see cref="AuthoredResources"/> (cached for the
+		/// process lifetime, so repeated presentation calls do not re-parse).
+		/// </summary>
+		public static Color GetCharacterColor(string characterID) {
+			if (!IsKnownCharacter(characterID)) return FallbackVisual.Body;
+			var data = AuthoredResources.Load<CharacterData>(
+				$"res://resources/Characters/{characterID}_data.tres");
+			return ResolveVisual(data).Body;
+		}
+
+		/// <summary>
+		/// True when <paramref name="characterID"/> is a roster member this
+		/// factory can build. Callers that interpolate the ID into a
 		/// <c>res://resources/Characters/</c> path must gate on this first so an
 		/// unknown or empty ID never fabricates a resource lookup.
+		///
+		/// <para>Package 11 A6b: the membership test is the content manifest
+		/// (<see cref="FTT.Core.CharacterRoster"/>), not a literal cast list.</para>
 		/// </summary>
 		public static bool IsKnownCharacter(string characterID) =>
-			!string.IsNullOrEmpty(characterID) && Visuals.ContainsKey(characterID);
+			CharacterRoster.Contains(characterID);
 
 		/// <summary>
 		/// Package 11 A5: the ability slots the active story save has restored
@@ -140,9 +162,8 @@ namespace FTT.Characters {
 			bodyShape.Shape = new RectangleShape2D { Size = new Vector2(40, 64) };
 			player.AddChild(bodyShape);
 
-			CharacterVisual visual = Visuals.GetValueOrDefault(characterID,
-				new CharacterVisual { Body = Colors.Gray, Accent = Colors.White, Detail = Colors.LightGray });
-			BuildVisual(player, visual, data);
+			CharacterVisual visual = ResolveVisual(data);
+			BuildVisual(player, visual, data, heroAura: applyStoryProgression);
 			BuildMovementSensors(player);
 			BuildHurtbox(player, playerIndex);
 			BuildPushbox(player, playerIndex);
@@ -158,7 +179,8 @@ namespace FTT.Characters {
 			return player;
 		}
 
-		private static void BuildVisual(PlayerController player, CharacterVisual visual, CharacterData data) {
+		private static void BuildVisual(PlayerController player, CharacterVisual visual, CharacterData data,
+			bool heroAura) {
 			SpriteFrames frames = data.SpriteFramesResource
 				?? GD.Load<SpriteFrames>("res://resources/SpriteFrames/placeholder_character_frames.tres");
 			var sprite = new AnimatedSprite2D {
@@ -179,8 +201,17 @@ namespace FTT.Characters {
 			// Package 8 A3: the gold ChronalArmorOverlay ColorRect is replaced by the
 			// shader-driven hyper-armor shell on the shared glow arbiter, which also
 			// owns status/spawn-invulnerability outlines and the sprite tint.
-			FTT.Combat.GlowPresentationController.AttachTo(
-				player, sprite, player.PlayerIndex, subscribeToStoryEvents: true);
+			FTT.Combat.GlowPresentationController glow =
+				FTT.Combat.GlowPresentationController.AttachTo(
+					player, sprite, player.PlayerIndex, subscribeToStoryEvents: true);
+			// Package 11 A6b (design §2, the two-colour visual grammar): the
+			// campaign hero carries a persistent warm-gold resonance aura for the
+			// whole game, the counterpoint to every cold Unbound light in the
+			// world. Story only — a Fighter proxy's identity is the F24 ownership
+			// edge, and lighting both fighters gold would say "both of you are
+			// the hero", which the grammar must never say. Story/Fighter
+			// isolation is the same seam the Legacy Unlock gate uses above.
+			if (glow != null) glow.SetHeroAura(heroAura);
 
 			var label = new Label {
 				Name = "NameLabel",

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using FTT.Characters;
@@ -41,11 +41,14 @@ public class Level13ContentTests {
     /// <summary>BossController's world-unit conversion; the Mirror reuses the same BossData ranges.</summary>
     private const float PixelsPerUnit = 60f;
 
-    /// <summary>The nine playable characters; the level has to fit every one of them.</summary>
-    private static readonly string[] RosterIDs = {
-        "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-        "tesla", "shakespeare", "mozart", "pocahontas"
-    };
+    /// <summary>
+    /// Package 11 A6b: the roster is the content manifest, never a literal
+    /// cast list. design-godot.md §2 forbids enumerating the cast in
+    /// load-bearing ways, and a duplicated array here is exactly the thing
+    /// that blocks a roster addition — the content would be complete and the
+    /// test suite would still fail.
+    /// </summary>
+    private static readonly IReadOnlyList<string> RosterIDs = FTT.Core.CharacterRoster.IDs;
 
     // === Scene and identity ===
 

@@ -62,6 +62,81 @@ namespace FTT.UI {
         /// <summary>Warning/attention copy (controller disconnect, conflicts).</summary>
         public static readonly Color Warning = new(1f, 0.75f, 0.3f);
 
+        // ---- The two-colour visual grammar (V7.6, Package 11 A6b) -----------
+        //
+        // design-godot.md §2, "The Visual Grammar of Resonance", is an authored
+        // visual language that holds in every mode and every mirror:
+        //
+        //   COLD SYNTHETIC LIGHT = THE UNBOUND.  Extraction beams, siphons,
+        //   neural visors, plasma. Jagged and desaturating — what their machines
+        //   touch drains grey.
+        //
+        //   WARM GOLD = HISTORY'S RESONANCE.  The hero's ignition and persistent
+        //   aura, Chronal Dust, restoration vignettes, the ending release. Gold
+        //   always flows FROM the era INTO its people.
+        //
+        // The pigments below are not new: the repo already painted extractors
+        // cold and Dust gold. What was missing was the CONTRACT — nothing said
+        // the two families were load-bearing, so every new siphon or beam site
+        // invented its own literal and the language quietly eroded (Level 0's
+        // own fracture had drifted to violet). These are the named constants
+        // every such site must use, and ResonanceGrammarTests fails the build
+        // when one defines its own cold literal instead.
+        //
+        // Deliberately expressed as the pigments the game already paints rather
+        // than as new numbers: the grammar names what exists, it does not
+        // re-tune it. They add no theme entries, so UIThemeTests is unaffected.
+
+        /// <summary>
+        /// The Unbound's cold synthetic light: extraction beams, siphon tethers,
+        /// Unbound rift tears, neural visors, plasma. Never used for anything the
+        /// hero or an era generates.
+        /// </summary>
+        public static readonly Color UnboundCold = new(0.2f, 0.95f, 1f);
+
+        /// <summary>
+        /// The same cold light at the alpha every discharge and beam site draws
+        /// it at. <c>ChronalExtractor.DischargeColor</c> is exactly this value —
+        /// the extractor was already correct, merely mislabelled "Apex Archive
+        /// cyan" before the V7.5 faction rename.
+        /// </summary>
+        public static readonly Color UnboundColdDischarge = new(0.2f, 0.95f, 1f, 0.85f);
+
+        /// <summary>
+        /// Dimmed cold, for a siphon's resting state and the halo around a cold
+        /// beam — the light before it bites.
+        /// </summary>
+        public static readonly Color UnboundColdDim = new(0.12f, 0.55f, 0.68f, 0.28f);
+
+        /// <summary>
+        /// History's resonance: the hero's ignition and persistent aura, Chronal
+        /// Dust, restoration vignettes. The warm half of the grammar. Same value
+        /// as <see cref="Gold"/>, named so a grammar site reads as grammar.
+        /// </summary>
+        public static readonly Color ResonanceGold = new(0.95f, 0.8f, 0.3f);
+
+        /// <summary>
+        /// Resonance at full ignition — the brighter gold the Dust tiers and the
+        /// hyper-armor shell already use (<see cref="GoldBright"/>).
+        /// </summary>
+        public static readonly Color ResonanceGoldBright = new(1f, 0.92f, 0.35f);
+
+        /// <summary>
+        /// The persistent hero aura's tint. Warm gold biased toward white so it
+        /// reads as a glow the hero carries rather than a repaint of the sprite.
+        /// Matches <c>ChronalDustPickup.GlowColor</c>'s hue: the recurrence
+        /// contract says every Dust pickup restates the hero's origin.
+        /// </summary>
+        public static readonly Color ResonanceAura = new(1f, 0.86f, 0.42f);
+
+        /// <summary>
+        /// A Warden portal's clean steady geometry. Warm, because the Wardens are
+        /// history's side of the grammar — the contrast with an Unbound rift is
+        /// temperature AND shape, and Level 0's final beat establishes both by
+        /// standing the two doors side by side.
+        /// </summary>
+        public static readonly Color WardenPortal = new(0.98f, 0.84f, 0.38f, 0.85f);
+
         // ---- Derived control colours (what the Theme actually paints) --------
 
         public static readonly Color PanelBackground = new(0.06f, 0.06f, 0.12f, 0.94f);

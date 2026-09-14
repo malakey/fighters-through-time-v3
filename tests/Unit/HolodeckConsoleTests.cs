@@ -1,4 +1,4 @@
-using FTT.Core;
+﻿using FTT.Core;
 using FTT.UI;
 using GdUnit4;
 using Godot;
@@ -30,7 +30,9 @@ public class HolodeckConsoleTests {
         (Node host, HolodeckConsolePanel panel) = CreatePanel("HolodeckPopulateHost");
         try {
             AssertThat(panel.CpuDifficultySelect.ItemCount).IsEqual(3);
-            AssertThat(panel.CpuCharacterSelect.ItemCount).IsEqual(9);
+            // Package 11 A6b: the CPU list is built from the manifest roster.
+            AssertThat(panel.CpuCharacterSelect.ItemCount)
+                .IsEqual(FTT.Core.CharacterRoster.Count);
             AssertThat(panel.StageSelect.ItemCount).IsGreater(0);
             AssertThat(panel.StageSelect.Disabled).IsFalse();
         } finally {

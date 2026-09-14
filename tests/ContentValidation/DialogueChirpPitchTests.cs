@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using FTT.Characters;
 using FTT.Core;
 using FTT.UI;
@@ -27,10 +27,14 @@ namespace FTT.Tests.ContentValidation;
 [RequireGodotRuntime]
 public class DialogueChirpPitchTests {
 
-    private static readonly string[] RosterIDs = {
-        "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-        "tesla", "shakespeare", "mozart", "pocahontas"
-    };
+    /// <summary>
+    /// Package 11 A6b: the roster is the content manifest, never a literal
+    /// cast list. design-godot.md §2 forbids enumerating the cast in
+    /// load-bearing ways, and a duplicated array here is exactly the thing
+    /// that blocks a roster addition — the content would be complete and the
+    /// test suite would still fail.
+    /// </summary>
+    private static readonly IReadOnlyList<string> RosterIDs = FTT.Core.CharacterRoster.IDs;
 
     /// <summary>Below this the chirp sounds broken rather than low; above it, shrill.</summary>
     private const float MinPitch = 0.5f;

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using FTT.Characters;
 using FTT.Combat;
 using FTT.Core;
@@ -11,10 +11,14 @@ namespace FTT.Tests.ContentValidation;
 [TestSuite]
 [RequireGodotRuntime]
 public class CharacterPresentationTests {
-    private static readonly string[] InitialRoster = {
-        "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-        "tesla", "shakespeare", "mozart", "pocahontas"
-    };
+    /// <summary>
+    /// Package 11 A6b: the roster is the content manifest, never a literal
+    /// cast list. design-godot.md §2 forbids enumerating the cast in
+    /// load-bearing ways, and a duplicated array here is exactly the thing
+    /// that blocks a roster addition — the content would be complete and the
+    /// test suite would still fail.
+    /// </summary>
+    private static readonly IReadOnlyList<string> InitialRoster = FTT.Core.CharacterRoster.IDs;
 
     // Runtime states PlayerController plays that the presentation contract does
     // not list yet; the per-character placeholder frames must still carry them.
@@ -133,12 +137,14 @@ public class CharacterPresentationTests {
             AssertThat(portraitPaths.Add(character.CharacterPortrait.ResourcePath)).IsTrue();
         }
 
-        AssertThat(framePaths.Count).IsEqual(9);
-        AssertThat(portraitPaths.Count).IsEqual(9);
+        // Package 11 A6b: every roster member has its OWN frames and portrait
+        // — the contract is distinctness across the roster, not the number 9.
+        AssertThat(framePaths.Count).IsEqual(InitialRoster.Count);
+        AssertThat(portraitPaths.Count).IsEqual(InitialRoster.Count);
     }
 
     [TestCase]
-    public void ManifestPointsAtNineDistinctPerCharacterVisualSets() {
+    public void ManifestPointsAtOneDistinctVisualSetPerRosterCharacter() {
         ContentManifest manifest = ContentManifest.LoadDefault();
         var visualPaths = new HashSet<string>();
 
@@ -157,7 +163,7 @@ public class CharacterPresentationTests {
             AssertThat(visualPaths.Add(match.ResourcePath)).IsTrue();
         }
 
-        AssertThat(visualPaths.Count).IsEqual(9);
+        AssertThat(visualPaths.Count).IsEqual(InitialRoster.Count);
     }
 
     [TestCase]

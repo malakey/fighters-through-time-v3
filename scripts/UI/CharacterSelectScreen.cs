@@ -60,10 +60,13 @@ namespace FTT.UI {
             public bool Ready => LockedIndex >= 0;
         }
 
-        private readonly string[] _characterIDs = {
-            "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-            "tesla", "shakespeare", "mozart", "pocahontas"
-        };
+        /// <summary>
+        /// The Fighter select tiles, in manifest order. Package 11 A6b: read
+        /// from <see cref="FTT.Core.CharacterRoster"/> rather than a literal
+        /// nine-element array, so a new manifest row appears here with no code
+        /// change (design §2's standing "the roster will grow" mandate).
+        /// </summary>
+        private readonly string[] _characterIDs = FTT.Core.CharacterRoster.ToArray();
 
         /// <summary>Token 0 = Player 1; token 1 = Player 2 or the CPU pick.</summary>
         private readonly SelectionToken[] _tokens = { new(), new() { Cursor = 1 } };
@@ -438,7 +441,12 @@ namespace FTT.UI {
             _characterButtons = new Button[_characterIDs.Length];
             for (int index = 0; index < _characterIDs.Length; index++) {
                 int captured = index;
-                var button = grid.GetNode<Button>($"CharacterButton{index}");
+                // Package 11 A6b: the roster is manifest-driven while the grid's
+                // tiles are authored, so bind what the scene actually carries and
+                // let a larger roster degrade to the authored tile count rather
+                // than throwing out of _Ready. Adding tiles is scene work.
+                var button = grid.GetNodeOrNull<Button>($"CharacterButton{index}");
+                if (button == null) continue;
                 // Button icons share a horizontal row with their text, so long
                 // names such as "Wolfgang Amadeus Mozart" can squeeze the icon
                 // down to a sliver. Keep the full name and give every portrait a
@@ -571,6 +579,9 @@ namespace FTT.UI {
             style.SetContentMarginAll(8);
 
             Button button = _characterButtons[index];
+            // A manifest roster larger than the authored tile grid leaves the
+            // tail unbound (see BindCharacterGrid); styling must skip it.
+            if (button == null) return;
             button.AddThemeStyleboxOverride("normal", style);
             button.AddThemeStyleboxOverride("hover", style);
             button.AddThemeStyleboxOverride("pressed", style);

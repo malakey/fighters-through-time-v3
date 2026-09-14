@@ -186,4 +186,96 @@ public class GlowPresentationControllerTests {
         AssertThat(glow.IsGlowing).IsFalse();
         owner.Free();
     }
+
+    /// <summary>
+    /// Package 11 A6b — the persistent hero resonance aura (design §2's
+    /// two-colour grammar). The hero carries warm gold for the <b>entire
+    /// game</b>, which means every transient channel has to leave it alone.
+    ///
+    /// <para>This case is why the aura is its own channel rather than a
+    /// <c>GlowState</c> layer or a tint override. On the stack, the first status
+    /// would outrank it; as an override, the first
+    /// <see cref="GlowPresentationController.FlashHit()"/> would clear it. Both
+    /// are ordinary combat events, so the aura would vanish seconds into the
+    /// first fight — and nothing would report that it was supposed to be
+    /// there.</para>
+    /// </summary>
+    [TestCase]
+    public void TheHeroAuraSurvivesEveryTransientChannel() {
+        (Node2D owner, Sprite2D sprite, GlowPresentationController glow) = CreateSubject();
+
+        Color plainTint = glow.EffectiveTint;
+        glow.SetHeroAura(true);
+
+        AssertThat(glow.HasHeroAura).IsTrue();
+        AssertThat(glow.HeroAuraColor).IsEqual(FTT.UI.UIPalette.ResonanceAura);
+        // The aura warms the tint rather than replacing it: the character keeps
+        // their own identity colour underneath the gold.
+        Color aura = glow.EffectiveTint;
+        AssertThat(aura).IsNotEqual(plainTint);
+        AssertThat(aura.B < plainTint.B).IsTrue();
+        // It owns its own light, because the effect light is off whenever no
+        // effect is resolved — which is most of the game.
+        AssertObject(glow.AuraLight).IsNotNull();
+        AssertThat(glow.AuraLight.Enabled).IsTrue();
+
+        // A status starting and ending leaves it exactly where it was.
+        glow.SetStatus(StatusType.Venom);
+        AssertThat(glow.HasHeroAura).IsTrue();
+        AssertThat(glow.EffectiveTint).IsEqual(aura);
+        glow.SetStatus(StatusType.None);
+        AssertThat(glow.HasHeroAura).IsTrue();
+        AssertThat(glow.EffectiveTint).IsEqual(aura);
+
+        // So do a hit flash and its expiry, hyper-armor, spawn protection, the
+        // F24 ownership edge, and a full stack clear.
+        glow.FlashHit();
+        AssertThat(glow.HasHeroAura).IsTrue();
+        glow.ClearTintOverride();
+        AssertThat(glow.EffectiveTint).IsEqual(aura);
+
+        glow.SetHyperArmor(true);
+        glow.SetSpawnInvulnerability(true);
+        glow.SetSlotIndicator(1);
+        glow.ClearAllStates();
+        AssertThat(glow.HasHeroAura).IsTrue();
+        AssertThat(glow.EffectiveTint).IsEqual(aura);
+        // The two persistent channels are independent of each other as well.
+        AssertThat(glow.HasOwnershipOutline).IsTrue();
+        glow.ClearSlotIndicator();
+        AssertThat(glow.HasHeroAura).IsTrue();
+        AssertThat(sprite.Modulate).IsEqual(aura);
+
+        owner.Free();
+    }
+
+    /// <summary>
+    /// Package 11 A6b × A1 — <i>"what their machines touch drains grey"</i>. The
+    /// Unbound's Suppression smothers the hero's gold, and when it lifts the
+    /// aura returns at full strength: the smother <b>drains</b> the channel, it
+    /// does not clear it.
+    /// </summary>
+    [TestCase]
+    public void SuppressionSmothersTheHeroAuraAndRestoresIt() {
+        (Node2D owner, Sprite2D _, GlowPresentationController glow) = CreateSubject();
+        glow.SetHeroAura(true);
+        Color lit = glow.EffectiveTint;
+        float litEnergy = glow.AuraLight.Energy;
+
+        glow.SetAuraSmothered(true);
+        AssertThat(glow.IsAuraSmothered).IsTrue();
+        // Still on underneath — only its appearance is drained.
+        AssertThat(glow.HasHeroAura).IsTrue();
+        AssertThat(glow.EffectiveTint).IsNotEqual(lit);
+        // Drained, not merely recoloured: the aura's own light dims too, so a
+        // Suppressed hero reads as unlit rather than as wearing a grey costume.
+        AssertThat(glow.AuraLight.Energy < litEnergy).IsTrue();
+
+        glow.SetAuraSmothered(false);
+        AssertThat(glow.IsAuraSmothered).IsFalse();
+        AssertThat(glow.EffectiveTint).IsEqual(lit);
+        AssertThat(glow.AuraLight.Energy).IsEqual(litEnergy);
+
+        owner.Free();
+    }
 }

@@ -67,6 +67,25 @@ namespace FTT.Combat {
         // cannot be cleared by a status ending or a telegraph starting.
         private bool _auraSmothered;
 
+        // --- V7.6 hero resonance aura channel (Package 11 A6b) ---------------
+        // design §2's two-colour grammar: the hero carries a warm-gold aura for
+        // the ENTIRE game. It is a FIFTH independent channel — not a GlowState
+        // layer, not a tint override — precisely because every other channel is
+        // transient. Pushed onto the arbitrated stack, the first status would
+        // outrank it; expressed as a tint override, the first FlashHit would
+        // clear it. The aura is identity, so it sits below the F24 slot
+        // indicator (match identity, which outranks everything) and above
+        // nothing: it never competes with an effect, it underlies them.
+        //
+        // It composes with the two tint channels rather than replacing them —
+        // base tint or override first, then the warm bias, then A1's Suppression
+        // smother — so Suppression correctly drains the gold grey and restores
+        // it intact when the status lifts, which is exactly what the design's
+        // "what their machines touch drains grey" asks for.
+        private bool _heroAura;
+        private Color _heroAuraColor = FTT.UI.UIPalette.ResonanceAura;
+        private PointLight2D _auraLight;
+
         // --- F24 ownership channel ------------------------------------------
         // Deliberately NOT part of _stack. It is set once from match slot
         // identity, re-applied on spawn and rollback, and never popped; no effect
@@ -86,9 +105,30 @@ namespace FTT.Combat {
         public Color EffectiveTint {
             get {
                 Color tint = _tintOverrideActive ? _tintOverride : _baseTint;
+                // A6b: the hero aura warms the tint under whatever the transient
+                // channels are doing, so a status tint or a hit flash rides on
+                // top of the gold instead of erasing it.
+                if (_heroAura) tint = WarmTowardAura(tint);
                 return _auraSmothered ? Desaturate(tint) : tint;
             }
         }
+
+        /// <summary>
+        /// True while this actor carries the persistent V7.6 hero resonance aura.
+        /// Story players only: a Fighter proxy's identity is the F24 ownership
+        /// edge, and giving both fighters a gold aura would say "both of you are
+        /// the hero", which the grammar must never say.
+        /// </summary>
+        public bool HasHeroAura => _heroAura;
+
+        /// <summary>The aura's authored tint; meaningless while it is off.</summary>
+        public Color HeroAuraColor => _heroAuraColor;
+
+        /// <summary>
+        /// The aura light node, or null before one is built. Exposed for the
+        /// presentation tests; nothing in gameplay reads it.
+        /// </summary>
+        public PointLight2D AuraLight => _auraLight;
 
         /// <summary>True while the V7.6 Suppression aura-smother channel is up.</summary>
         public bool IsAuraSmothered => _auraSmothered;
@@ -301,6 +341,95 @@ namespace FTT.Combat {
             _auraSmothered = smothered;
             ApplyTint();
             ApplyResolvedState();
+            // A6b: the smother must reach the hero aura's own light too, or a
+            // Suppressed hero keeps radiating gold while their sprite drains.
+            ApplyHeroAuraLight();
+        }
+
+        /// <summary>
+        /// V7.6 persistent hero resonance aura (Package 11 A6b; design §2's
+        /// two-colour grammar). Warm gold, carried by the campaign hero for the
+        /// entire game — the visible statement that history's resonance lives in
+        /// a person, set against every cold Unbound light in the world.
+        ///
+        /// <para>Its independence is the whole point. A status starting or
+        /// ending, a hit flash decaying, hyper-armor, spawn invulnerability, a
+        /// telegraph and the F24 ownership edge all leave it exactly where it
+        /// was; only this setter and A1's Suppression smother can change what it
+        /// looks like, and the smother only <i>drains</i> it — the aura is still
+        /// on underneath and comes back at full strength when Suppression
+        /// lifts.</para>
+        ///
+        /// <para>Idempotent, so a respawn, a rewind restore or a pooled rebind
+        /// can re-assert it without accumulating state.</para>
+        /// </summary>
+        public void SetHeroAura(bool active) => SetHeroAura(active, FTT.UI.UIPalette.ResonanceAura);
+
+        /// <summary>
+        /// Aura with an explicit tint — the seam A3b's Act III Tremor variant
+        /// needs to gutter it at partial strength without owning this channel.
+        /// </summary>
+        public void SetHeroAura(bool active, Color auraColor) {
+            if (_heroAura == active && (!active || _heroAuraColor == auraColor)) return;
+            _heroAura = active;
+            if (active) _heroAuraColor = auraColor;
+            ApplyTint();
+            ApplyHeroAuraLight();
+        }
+
+        /// <summary>
+        /// How far the aura warms the sprite tint. Small on purpose: the aura
+        /// must read as a glow the hero carries, not as a gold repaint that
+        /// swallows the character's own identity colour.
+        /// </summary>
+        public const float HeroAuraTintWeight = 0.22f;
+
+        /// <summary>Resting energy of the aura's own light.</summary>
+        public const float HeroAuraLightEnergy = 0.45f;
+
+        /// <summary>Aura light scale, relative to the effect light.</summary>
+        public const float HeroAuraLightScale = 1.35f;
+
+        private Color WarmTowardAura(Color source) =>
+            new(
+                Mathf.Lerp(source.R, _heroAuraColor.R, HeroAuraTintWeight),
+                Mathf.Lerp(source.G, _heroAuraColor.G, HeroAuraTintWeight),
+                Mathf.Lerp(source.B, _heroAuraColor.B, HeroAuraTintWeight),
+                source.A);
+
+        /// <summary>
+        /// The aura owns its own <see cref="PointLight2D"/> rather than sharing
+        /// the effect light, because the effect light is driven by the arbitrated
+        /// stack and switches off the moment no effect is resolved — which is
+        /// most of the game, and exactly when the aura must still be visible.
+        /// </summary>
+        private void ApplyHeroAuraLight() {
+            if (!_heroAura) {
+                if (_auraLight != null) {
+                    _auraLight.Enabled = false;
+                    _auraLight.Energy = 0f;
+                }
+                return;
+            }
+            if (_auraLight == null) {
+                var texture = ResourceLoader.Load<Texture2D>(LightTexturePath);
+                if (texture == null) return;
+                _auraLight = new PointLight2D {
+                    Name = "HeroAuraLight",
+                    Texture = texture,
+                    TextureScale = LightScale * HeroAuraLightScale,
+                    BlendMode = Light2D.BlendModeEnum.Add
+                };
+                AddChild(_auraLight);
+            }
+            // Suppression drains the aura's light the same way it drains its
+            // tint, so a smothered hero is visibly unlit rather than merely
+            // recoloured.
+            _auraLight.Color = _auraSmothered ? Desaturate(_heroAuraColor) : _heroAuraColor;
+            _auraLight.Energy = _auraSmothered
+                ? HeroAuraLightEnergy * (1f - AuraSmotherWeight)
+                : HeroAuraLightEnergy;
+            _auraLight.Enabled = true;
         }
 
         /// <summary>Luminance-preserving desaturation toward the cold Suppression grey.</summary>
