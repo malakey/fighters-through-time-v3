@@ -270,6 +270,46 @@ public class BossRosterActIIandIIITests {
         }
     }
 
+    /// <summary>
+    /// Package 11 A7b (V7.5 renames, plan §2.3). The two Act III bosses were renamed
+    /// in <b>display only</b>: the English values in <c>en.csv</c> (A6) and the
+    /// non-localized <c>DisplayName</c> debug field on the resource (A7b). Every
+    /// identifier is deliberately retained — <c>BossID</c>, <c>DisplayNameKey</c>,
+    /// file names, manifest rows, sprite atlas paths, the five ability
+    /// <c>AbilityID</c>/<c>PresentationEventID</c> strings, and the boss-intro
+    /// seen-set keys already persisted in players' saves.
+    /// </summary>
+    [TestCase]
+    public void TheActIIIBossesCarryTheirV75DisplayNamesWithEveryIdentifierRetained() {
+        TranslationServer.SetLocale("en");
+
+        BossData forgeSentinel = Load("archive_prime");
+        AssertThat(forgeSentinel.BossID).IsEqual("archive_prime");
+        AssertThat(forgeSentinel.DisplayNameKey).IsEqual("boss_archive_prime_name");
+        AssertThat(forgeSentinel.DisplayName).IsEqual("The Forge Sentinel");
+        AssertThat(TranslationServer.Translate("boss_archive_prime_name").ToString())
+            .IsEqual("The Forge Sentinel");
+
+        BossData firstUnbound = Load("apex_eraser");
+        AssertThat(firstUnbound.BossID).IsEqual("apex_eraser");
+        AssertThat(firstUnbound.DisplayNameKey).IsEqual("boss_apex_eraser_name");
+        AssertThat(firstUnbound.DisplayName).IsEqual("The First Unbound");
+        AssertThat(TranslationServer.Translate("boss_apex_eraser_name").ToString())
+            .IsEqual("The First Unbound");
+
+        // Ability identifiers are untouched by the rename.
+        foreach (EnemyAbilityData ability in firstUnbound.BossAbilities) {
+            AssertThat(ability.AbilityID.StartsWith("boss.apex_eraser.")).IsTrue();
+            AssertThat(ability.PresentationEventID).IsEqual(ability.AbilityID);
+        }
+
+        // The First Unbound is the one boss authoring the two V7.6 behaviours.
+        AssertThat(firstUnbound.HasHistoricalRecovery).IsTrue();
+        AssertThat(firstUnbound.BorrowsRosterLegacies).IsTrue();
+        AssertThat(forgeSentinel.HasHistoricalRecovery).IsFalse();
+        AssertThat(forgeSentinel.BorrowsRosterLegacies).IsFalse();
+    }
+
     // === Helpers ===
 
     private static int IndexOf(BossData boss, string abilityID) {

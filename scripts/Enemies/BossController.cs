@@ -6,7 +6,12 @@ using FTT.Environment;
 
 namespace FTT.Enemies {
 
-    public enum BossState { Idle, Chase, Attacking, PhaseTransitioning, RestWindow, Dead }
+    /// <summary>
+    /// APPEND-ONLY. <c>HistoricalRecovery</c> was appended by Package 11 A7b for
+    /// T01b's suspended self-rewind beat; it is deliberately distinct from
+    /// <c>PhaseTransitioning</c>, which zeroes timers the contract requires preserved.
+    /// </summary>
+    public enum BossState { Idle, Chase, Attacking, PhaseTransitioning, RestWindow, Dead, HistoricalRecovery }
 
     /// <summary>
     /// Story-side boss runtime. Executes authored <see cref="EnemyAbilityData"/>
@@ -25,6 +30,12 @@ namespace FTT.Enemies {
         [Export] public BossData Data;
         /// <summary>Non-zero pins the attack-selection RNG for tests and replays.</summary>
         [Export] public ulong SelectionSeed;
+        /// <summary>
+        /// T01b's third and last destination fallback: "a stable authored safe
+        /// anchor". Arena authoring must guarantee it is valid. Levels that never
+        /// use the historical recovery leave it unset.
+        /// </summary>
+        [Export] public Node2D HistoricalRecoveryAnchor;
         [Export] public StoryRewindPolicy RewindPolicy { get; set; } = StoryRewindPolicy.PreserveCurrentState;
 
         public BossState CurrentState { get; private set; } = BossState.Idle;
@@ -71,6 +82,31 @@ namespace FTT.Enemies {
         private Vector2 _checkpointPosition;
         private int _checkpointHP;
         private bool _checkpointCaptured;
+
+        // === Package 11 A7b — T01b capped historical recovery ===
+
+        /// <summary>One authoritative 60 Hz sample: where the boss stood and how
+        /// much HP it had at the start of that tick, with its encounter-local ID.</summary>
+        private readonly struct HistorySample {
+            public readonly int Tick;
+            public readonly Vector2 Position;
+            public readonly int HP;
+            public HistorySample(int tick, Vector2 position, int hp) {
+                Tick = tick;
+                Position = position;
+                HP = hp;
+            }
+        }
+
+        /// <summary>Allocated only for a boss that actually authors T01b.</summary>
+        private HistorySample[] _history;
+        private int _historyCount;
+        private int _historyHead = -1;
+        private int _historyTick = -1;
+        private bool _historicalRecoveryUsed;
+        private int _historicalRecoverySuspendFrames;
+        private int _historicalRecoveryResolvedHP;
+        private Vector2 _historicalRecoveryDestination;
 
         public StatusType ControlStatusType { get; private set; } = StatusType.None;
         public StatusType DamageStatusType { get; private set; } = StatusType.None;
@@ -248,6 +284,10 @@ namespace FTT.Enemies {
             CurrentPhase = 0;
             Executor.SourceID = Data?.BossID ?? "";
             Executor.DamageMultiplier = StoryDifficultyTuning.GetEnemyDamageMultiplier(difficulty);
+            // V7.5 Borrowed Legacies + T01b: the composite kit and the encounter's
+            // history ring are both rebuilt from the (possibly new) BossData.
+            BuildAbilityKit();
+            ResetHistoricalRecoveryState();
             if (_sprite != null) {
                 bool hasAuthoredFrames = Data?.SpriteFramesResource != null;
                 if (hasAuthoredFrames) _sprite.SpriteFrames = Data.SpriteFramesResource;
@@ -287,6 +327,14 @@ namespace FTT.Enemies {
                 return;
             }
 
+            // T01b: the suspended rewind beat runs before every other clock on this
+            // controller, so statuses, the Conductive mark, ability cooldowns, an
+            // in-flight hitstop and the executor all hold their remaining values.
+            if (CurrentState == BossState.HistoricalRecovery) {
+                ProcessHistoricalRecovery();
+                return;
+            }
+
             // V7.1 hitstop: the boss freezes for the shared window like every
             // other combatant (its knockback stays unscaled — bosses do not
             // fly — but the hit-weight freeze is universal).
@@ -296,6 +344,11 @@ namespace FTT.Enemies {
                 if (_hitstopFramesRemaining <= 0 && _sprite != null) _sprite.SpeedScale = 1f;
                 return;
             }
+
+            // T01b: one history sample per authoritative simulation tick, taken at
+            // tick start before movement, ability and damage resolution. A frozen or
+            // hitstopped tick advances no gameplay clock and records nothing.
+            RecordHistorySample();
 
             TickStatus(dt);
             // F07: the Conductive mark is not a status — it ticks on its own
@@ -466,9 +519,102 @@ namespace FTT.Enemies {
             PlayAnimation("move");
         }
 
+        // === Package 11 A7b — V7.5 Borrowed Legacies composite kit ===
+        //
+        // A boss kit is normally the static authored BossData.BossAbilities array.
+        // A boss that authors BorrowsRosterLegacies gets a RUNTIME COMPOSITE: the
+        // authored array, followed by one projected ability per roster character the
+        // player did not pick (BorrowedLegacies, plan §2.5). Everything downstream —
+        // selection, phase gating, cooldowns, execution — reads the composite through
+        // ActiveAbilityArray / GetActiveAbilityMinPhase, so there is exactly one kit
+        // concept rather than two parallel selection paths.
+        //
+        // The borrowed entries are gated to the boss's FINAL phase through the
+        // existing AbilityMinPhase mechanism (phase 2 for the First Unbound's
+        // [0.66, 0.33] thresholds = P3), and they all carry the default
+        // SelectionWeight of 1, so the existing weighted roll is weighted-uniform
+        // across the projected set exactly as §2.5 requires.
+
+        private EnemyAbilityData[] _activeAbilities;
+        private int[] _activeMinPhase;
+        private int _borrowedStartIndex = -1;
+        private string _borrowedForHeroID;
+        private bool _borrowedKitBuilt;
+
+        /// <summary>The kit actually in play: authored, or authored + borrowed.</summary>
+        private EnemyAbilityData[] ActiveAbilityArray =>
+            _activeAbilities ?? Data?.BossAbilities ?? System.Array.Empty<EnemyAbilityData>();
+
+        /// <summary>Read-only view of the live kit for tests and encounter logic.</summary>
+        public System.Collections.Generic.IReadOnlyList<EnemyAbilityData> ActiveAbilities =>
+            ActiveAbilityArray;
+
+        /// <summary>How many entries of <see cref="ActiveAbilities"/> are borrowed.</summary>
+        public int BorrowedAbilityCount =>
+            _borrowedStartIndex < 0 ? 0 : ActiveAbilityArray.Length - _borrowedStartIndex;
+
+        /// <summary>Index of the first borrowed ability, or -1 when none were projected.</summary>
+        public int BorrowedAbilityStartIndex => _borrowedStartIndex;
+
+        /// <summary>Phase gate for a composite index; falls back to the authored table.</summary>
+        public int GetActiveAbilityMinPhase(int index) {
+            if (_activeMinPhase != null && index >= 0 && index < _activeMinPhase.Length) {
+                return Math.Max(0, _activeMinPhase[index]);
+            }
+            return Data?.GetAbilityMinPhase(index) ?? 0;
+        }
+
+        /// <summary>
+        /// Builds the composite kit for the session's locked hero. Cheap and
+        /// idempotent: a rebuild for the same hero is skipped, so a pooled boss
+        /// respawning does not re-project the whole roster every cycle.
+        /// </summary>
+        private void BuildAbilityKit() {
+            if (Data?.BorrowsRosterLegacies != true) {
+                _activeAbilities = null;
+                _activeMinPhase = null;
+                _borrowedStartIndex = -1;
+                _borrowedForHeroID = null;
+                _borrowedKitBuilt = false;
+                return;
+            }
+
+            string heroID = GameManager.Instance?.CurrentSession.SelectedCharacterID ?? "";
+            if (_borrowedKitBuilt && _borrowedForHeroID == heroID) return;
+            _borrowedForHeroID = heroID;
+            _borrowedKitBuilt = true;
+
+            EnemyAbilityData[] authored = Data.BossAbilities ?? System.Array.Empty<EnemyAbilityData>();
+            EnemyAbilityData[] borrowed = BorrowedLegacies.ProjectFor(heroID);
+            if (borrowed.Length == 0) {
+                _activeAbilities = null;
+                _activeMinPhase = null;
+                _borrowedStartIndex = -1;
+                return;
+            }
+
+            // The final phase is derived from the authored thresholds, never a
+            // second authored number: [0.66, 0.33] => PhaseCount 3 => phase index 2.
+            int finalPhase = Math.Max(0, Data.PhaseCount - 1);
+            var abilities = new EnemyAbilityData[authored.Length + borrowed.Length];
+            var minPhase = new int[abilities.Length];
+            for (int index = 0; index < authored.Length; index++) {
+                abilities[index] = authored[index];
+                minPhase[index] = Data.GetAbilityMinPhase(index);
+            }
+            for (int index = 0; index < borrowed.Length; index++) {
+                abilities[authored.Length + index] = borrowed[index];
+                minPhase[authored.Length + index] = finalPhase;
+            }
+            _borrowedStartIndex = authored.Length;
+            _activeAbilities = abilities;
+            _activeMinPhase = minPhase;
+            _abilityCooldownTimers = null;
+        }
+
         // === Attack selection ===
 
-        // Per-ability cooldown timers, indexed like Data.BossAbilities. The
+        // Per-ability cooldown timers, indexed like ActiveAbilityArray. The
         // authored EnemyAbilityData.CooldownSeconds was previously never read
         // (design §6: "the data exists; the algorithm must read it") — an
         // ability on cooldown is excluded from the weighted roll, which is what
@@ -484,7 +630,7 @@ namespace FTT.Enemies {
 
         /// <summary>Arms the authored cooldown for the ability at <paramref name="index"/>.</summary>
         private void ArmAbilityCooldown(int index) {
-            EnemyAbilityData[] abilities = Data?.BossAbilities;
+            EnemyAbilityData[] abilities = ActiveAbilityArray;
             if (abilities == null || index < 0 || index >= abilities.Length) return;
             _abilityCooldownTimers ??= new float[abilities.Length];
             if (_abilityCooldownTimers.Length < abilities.Length) {
@@ -507,7 +653,7 @@ namespace FTT.Enemies {
         /// downtime, never a repeat cast.
         /// </summary>
         public int SelectAbilityIndex(float distancePixels) {
-            EnemyAbilityData[] abilities = Data?.BossAbilities;
+            EnemyAbilityData[] abilities = ActiveAbilityArray;
             if (abilities == null || abilities.Length == 0) return -1;
 
             _selectionBuffer.Clear();
@@ -516,7 +662,7 @@ namespace FTT.Enemies {
             for (int index = 0; index < abilities.Length; index++) {
                 EnemyAbilityData ability = abilities[index];
                 if (ability == null) continue;
-                if (CurrentPhase < Data.GetAbilityMinPhase(index)) continue;
+                if (CurrentPhase < GetActiveAbilityMinPhase(index)) continue;
                 if (AbilityOnCooldown(index)) continue;
                 unlocked.Add(index);
                 if (Data.AttackPattern != BossAttackPattern.DistanceBased) {
@@ -571,7 +717,7 @@ namespace FTT.Enemies {
                 return;
             }
 
-            SelectedAbility = Data.BossAbilities[SelectedAbilityIndex];
+            SelectedAbility = ActiveAbilityArray[SelectedAbilityIndex];
             ArmAbilityCooldown(SelectedAbilityIndex);
             Vector2 targetPosition = _target?.GlobalPosition
                 ?? GlobalPosition + new Vector2(_facingRight ? 200f : -200f, 0f);
@@ -595,7 +741,13 @@ namespace FTT.Enemies {
         }
 
         private int ApplyBossDamage(int damage) {
-            if (CurrentState == BossState.Dead || CurrentState == BossState.PhaseTransitioning) return 0;
+            // T01b: during the suspended rewind beat "player, boss, other actors,
+            // projectiles, constructs, hazards and platforms cannot act or deal
+            // damage", so the boss refuses incoming damage exactly as it does
+            // during a phase-transition window.
+            if (CurrentState == BossState.Dead
+                || CurrentState == BossState.PhaseTransitioning
+                || CurrentState == BossState.HistoricalRecovery) return 0;
 
             float incoming = Math.Max(0, damage) * StatusDamageTakenMultiplier;
             int applied = Math.Max(0, (int)MathF.Round(incoming));
@@ -630,6 +782,7 @@ namespace FTT.Enemies {
             if (thresholds == null || thresholds.Length == 0) return;
             float hpPercent = ScaledMaxHP > 0 ? (float)CurrentHP / ScaledMaxHP : 0f;
 
+            int previousPhase = CurrentPhase;
             int crossed = 0;
             while (CurrentPhase < thresholds.Length && hpPercent <= thresholds[CurrentPhase]) {
                 CurrentPhase++;
@@ -638,13 +791,277 @@ namespace FTT.Enemies {
             }
             if (crossed == 0) return;
 
+            // Shared "normal transition cleanup" — the current attack is cancelled
+            // and its attached hitboxes removed. Deliberately NOT touching
+            // _abilityCooldownTimers: T01b requires "do not reset spent resources or
+            // remaining cooldowns", and the phase path never reset them either.
             Executor.Cancel();
             _attackHitbox?.Deactivate();
             _attackCommitted = false;
             _reactionFramesRemaining = 0;
+
+            // T01b: the boss's own capped historical recovery replaces the ordinary
+            // invincibility window on the FIRST threshold crossing only. Phase
+            // progression has already been latched above, including a Phase 3
+            // crossing the same nonlethal hit produced — healing cannot erase it,
+            // because the loop reads CurrentPhase, never the healed HP.
+            if (previousPhase == 0 && CanBeginHistoricalRecovery()) {
+                BeginHistoricalRecovery();
+                return;
+            }
+
             _transitionTimer = Mathf.Max(0f, Data.PhaseTransitionInvincibilityDuration);
             CurrentState = BossState.PhaseTransitioning;
             PlayAnimation("phase_transition");
+        }
+
+        // === Package 11 A7b — T01b Option A: capped historical recovery ===
+        //
+        // The First Unbound's Phase 2 self-rewind
+        // (docs/design-contracts/TEMPORAL_STATE_CONTRACT.md). Once per encounter, on
+        // the first NONLETHAL crossing of the authored 66% threshold, the boss
+        // rewinds its own position 180 ticks and recovers toward the HP it had then,
+        // capped at 20% of its difficulty-scaled maximum. A lethal hit wins: Die()
+        // runs before CheckPhaseTransition is ever reached, so this cannot resurrect
+        // the boss.
+
+        /// <summary>True for a boss whose <see cref="BossData"/> authors T01b.</summary>
+        public bool HasHistoricalRecovery => Data?.HasHistoricalRecovery == true;
+
+        /// <summary>Latched the moment the recovery commits; never re-armed.</summary>
+        public bool HistoricalRecoveryUsed => _historicalRecoveryUsed;
+
+        /// <summary>Combat is suspended for the recovery presentation.</summary>
+        public bool IsHistoricalRecoverySuspended => CurrentState == BossState.HistoricalRecovery;
+
+        public int HistoricalRecoverySuspendFramesRemaining => _historicalRecoverySuspendFrames;
+
+        /// <summary>Consecutive authoritative samples currently retained (max 181).</summary>
+        public int HistorySampleCount => _historyCount;
+
+        /// <summary>The destination the fallback chain settled on.</summary>
+        public Vector2 HistoricalRecoveryDestination => _historicalRecoveryDestination;
+
+        /// <summary>True when the historical coordinate failed validation.</summary>
+        public bool HistoricalRecoveryUsedFallbackDestination { get; private set; }
+
+        /// <summary>
+        /// True when none of the three tiers validated. The contract's answer is to
+        /// "retain the pending transition and report the invalid arena configuration
+        /// without spawning into danger" — the heal and the once-only event still
+        /// resolve; only the relocation is abandoned.
+        /// </summary>
+        public bool HistoricalRecoveryDestinationInvalid { get; private set; }
+
+        /// <summary>
+        /// Destination-clearance predicate. The default is a real collision-shape
+        /// query against the current arena; a level may install a stricter one
+        /// (kill regions, arena bounds, authored locomotion support), and tests
+        /// drive the three-tier fallback chain through it.
+        /// </summary>
+        public Func<Vector2, bool> HistoricalRecoveryDestinationValidator { get; set; }
+
+        /// <summary>
+        /// Encounter-local reset. A newly constructed or newly reconstructed
+        /// encounter "starts new encounter-local history/phase flags"; a live player
+        /// Death Rewind deliberately does <b>not</b> call this, so it can never
+        /// re-arm a consumed recovery.
+        /// </summary>
+        private void ResetHistoricalRecoveryState() {
+            _historicalRecoveryUsed = false;
+            _historicalRecoverySuspendFrames = 0;
+            _historicalRecoveryResolvedHP = 0;
+            _historicalRecoveryDestination = GlobalPosition;
+            HistoricalRecoveryUsedFallbackDestination = false;
+            HistoricalRecoveryDestinationInvalid = false;
+            ResetHistory();
+        }
+
+        private bool CanBeginHistoricalRecovery() =>
+            HasHistoricalRecovery
+            && !_historicalRecoveryUsed
+            && CurrentState != BossState.Dead
+            && CurrentHP > 0;
+
+        /// <summary>
+        /// Seeds one <b>actual</b> sample at combat start — never fabricated
+        /// pre-fight history — and drops anything an earlier encounter left behind.
+        /// </summary>
+        private void ResetHistory() {
+            _historyCount = 0;
+            _historyHead = -1;
+            _historyTick = -1;
+            if (!HasHistoricalRecovery) {
+                _history = null;
+                return;
+            }
+            _history ??= new HistorySample[BossData.HistoricalRecoveryHistorySamples];
+            RecordHistorySample();
+        }
+
+        /// <summary>One sample per authoritative 60 Hz tick, taken at tick start.</summary>
+        private void RecordHistorySample() {
+            if (!HasHistoricalRecovery) return;
+            _history ??= new HistorySample[BossData.HistoricalRecoveryHistorySamples];
+            _historyTick++;
+            _historyHead = (_historyHead + 1) % _history.Length;
+            _history[_historyHead] = new HistorySample(_historyTick, GlobalPosition, CurrentHP);
+            if (_historyCount < _history.Length) _historyCount++;
+        }
+
+        /// <summary>
+        /// The locked sample at <c>t - lookback</c>, or the oldest real sample from
+        /// this encounter when the history is younger than the lookback. The same
+        /// sample supplies both position and HP even when the spatial fallback fires.
+        /// </summary>
+        private bool TryResolveHistorySample(int lookbackFrames, out HistorySample sample) {
+            sample = default;
+            if (_history == null || _historyCount <= 0) return false;
+            int oldestTick = _historyTick - (_historyCount - 1);
+            int targetTick = Math.Max(oldestTick, _historyTick - Math.Max(0, lookbackFrames));
+            int offset = _historyTick - targetTick;
+            int index = ((_historyHead - offset) % _history.Length + _history.Length) % _history.Length;
+            sample = _history[index];
+            return true;
+        }
+
+        /// <summary>
+        /// Commits the recovery: locks the sample, resolves the capped heal, walks
+        /// the three-tier destination chain, and enters the suspended beat. Latched
+        /// first, so repeated contacts or callbacks can never create a second event.
+        /// </summary>
+        private void BeginHistoricalRecovery() {
+            _historicalRecoveryUsed = true;
+
+            if (!TryResolveHistorySample(BossData.HistoricalRecoveryLookbackFrames,
+                    out HistorySample sample)) {
+                sample = new HistorySample(_historyTick, GlobalPosition, CurrentHP);
+            }
+
+            // heal = max(0, min(P - H, floor(0.20 * M), M - H)); resultHP = H + heal.
+            // Never lowers HP from a lower sample, never a flat 20%, never over max.
+            int currentHP = CurrentHP;
+            int maximum = Math.Max(1, ScaledMaxHP);
+            int cap = (int)MathF.Floor(BossData.HistoricalRecoveryHealCapFraction * maximum);
+            int heal = Math.Max(0, Math.Min(Math.Min(sample.HP - currentHP, cap), maximum - currentHP));
+            _historicalRecoveryResolvedHP = currentHP + heal;
+
+            bool valid = TryResolveRecoveryDestination(
+                sample.Position, out _historicalRecoveryDestination);
+            HistoricalRecoveryDestinationInvalid = !valid;
+            HistoricalRecoveryUsedFallbackDestination =
+                !valid || _historicalRecoveryDestination != sample.Position;
+            if (!valid) {
+                GD.PushWarning(
+                    $"Boss '{Data?.BossID}' found no valid historical-recovery destination; "
+                    + "the arena must author a safe anchor. Staying in place.");
+            }
+
+            _historicalRecoverySuspendFrames = BossData.HistoricalRecoverySuspendFrames;
+            CurrentState = BossState.HistoricalRecovery;
+            Velocity = Vector2.Zero;
+            PlayAnimation("phase_transition");
+            EventBus.Instance?.RaiseBossHistoricalRecovery(new BossHistoricalRecoveryPayload {
+                BossID = Data?.BossID ?? "",
+                HistoricalPosition = sample.Position,
+                ResolvedPosition = _historicalRecoveryDestination,
+                UsedFallbackDestination = HistoricalRecoveryUsedFallbackDestination,
+                HPBeforeHeal = currentHP,
+                HPAfterHeal = _historicalRecoveryResolvedHP,
+                SuspendSeconds = BossData.HistoricalRecoverySuspendFrames / 60f
+            });
+        }
+
+        /// <summary>
+        /// Historical coordinate, then the boss's current coordinate, then a stable
+        /// authored anchor. Nothing searches nearby points, moves platforms or moves
+        /// the player to make a destination fit.
+        /// </summary>
+        private bool TryResolveRecoveryDestination(Vector2 historical, out Vector2 destination) {
+            if (IsRecoveryDestinationValid(historical)) {
+                destination = historical;
+                return true;
+            }
+            if (IsRecoveryDestinationValid(GlobalPosition)) {
+                destination = GlobalPosition;
+                return true;
+            }
+            Node2D anchor = HistoricalRecoveryAnchor;
+            if (anchor != null && IsInstanceValid(anchor)
+                && IsRecoveryDestinationValid(anchor.GlobalPosition)) {
+                destination = anchor.GlobalPosition;
+                return true;
+            }
+            destination = GlobalPosition;
+            return false;
+        }
+
+        private bool IsRecoveryDestinationValid(Vector2 point) =>
+            HistoricalRecoveryDestinationValidator?.Invoke(point) ?? IsRecoveryDestinationClear(point);
+
+        /// <summary>
+        /// Default clearance test: the boss's own collision shape must fit at the
+        /// destination against the Environment layer. Headless and shape-less setups
+        /// accept — there is no arena to collide with, and refusing every tier would
+        /// turn a missing test fixture into a failed recovery.
+        /// </summary>
+        private bool IsRecoveryDestinationClear(Vector2 point) {
+            if (!IsInsideTree()) return true;
+            var shapeNode = GetNodeOrNull<CollisionShape2D>("CollisionShape2D");
+            if (shapeNode?.Shape == null) return true;
+            PhysicsDirectSpaceState2D space = GetWorld2D()?.DirectSpaceState;
+            if (space == null) return true;
+            using var query = new PhysicsShapeQueryParameters2D {
+                Shape = shapeNode.Shape,
+                Transform = new Transform2D(0f, point + shapeNode.Position),
+                CollisionMask = CollisionLayers.Environment,
+                CollideWithBodies = true,
+                CollideWithAreas = false
+            };
+            Godot.Collections.Array<Godot.Collections.Dictionary> hits =
+                space.IntersectShape(query, maxResults: 1);
+            using var hitsLifetime = hits.AsDisposable();
+            return hits.Count == 0;
+        }
+
+        /// <summary>
+        /// The suspended beat. Nothing else on this controller ticks while it runs —
+        /// statuses, the Conductive mark, ability cooldowns, the rest timer, the
+        /// executor and gravity are all frozen at their remaining values, which is
+        /// exactly the contract's "pause statuses, lifetimes, cooldowns, Rally drain
+        /// and gameplay clocks".
+        /// </summary>
+        private void ProcessHistoricalRecovery() {
+            Velocity = Vector2.Zero;
+            if (_historicalRecoverySuspendFrames > 0) {
+                _historicalRecoverySuspendFrames--;
+                if (_historicalRecoverySuspendFrames > 0) return;
+            }
+            CompleteHistoricalRecovery();
+        }
+
+        /// <summary>
+        /// Applies the resolved position and HP exactly once, zeroes the relocation
+        /// velocity, retains facing, and hands the boss back to Chase so its next
+        /// attack runs a full normal telegraph rather than resuming the cancelled
+        /// one. The rest cooldown is bypassed (the existing transition rule) and no
+        /// ability cooldown is refilled.
+        /// </summary>
+        private void CompleteHistoricalRecovery() {
+            _historicalRecoverySuspendFrames = 0;
+            if (!HistoricalRecoveryDestinationInvalid) {
+                GlobalPosition = _historicalRecoveryDestination;
+            }
+            Velocity = Vector2.Zero;
+            int previousHP = CurrentHP;
+            CurrentHP = Math.Clamp(_historicalRecoveryResolvedHP, 1, Math.Max(1, ScaledMaxHP));
+            if (CurrentHP != previousHP) RaiseHPChanged();
+            _restTimer = 0f;
+            _restStandOffEngaged = false;
+            _attackCommitted = false;
+            _reactionFramesRemaining = 0;
+            CurrentState = BossState.Chase;
+            PlayAnimation("idle");
         }
 
         private void Die() {

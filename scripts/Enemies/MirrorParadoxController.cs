@@ -11,18 +11,32 @@ namespace FTT.Enemies {
 
     /// <summary>
     /// Level 13 Mirror Paradox (design-godot.md Section 6): a clone of the player's
-    /// locked campaign character driven by the Hard-difficulty Fighter CPU decision
-    /// engine. It deliberately bypasses <see cref="BossController"/> entirely — there
-    /// is no <see cref="BossData.BossAbilities"/> pattern, no phase threshold, and no
+    /// locked campaign character driven by the Fighter CPU decision engine at the
+    /// <b>active Story difficulty</b>. It deliberately bypasses
+    /// <see cref="BossController"/> entirely — there is no
+    /// <see cref="BossData.BossAbilities"/> pattern, no phase threshold, and no
     /// telegraph/rest cadence. The clone fights with the player's own basic string,
     /// specials, movement ability, and ultimate.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The clone is built from <b>normalized base resources only</b>:
-    /// <c>CharacterFactory.CreateCharacter(..., applyStoryProgression: false)</c>.
-    /// No Resonance stat profile and no <see cref="PlayerController.StoryAbilityPerks"/>
-    /// are copied — the mirror reflects the character, not the player's build.
+    /// <b>V7.6 F20 campaign profile</b> (<c>docs/design-contracts/MIRROR_PARADOX.md</c>).
+    /// The tier is the Story difficulty, never the saved Holodeck CPU setting, and it
+    /// selects the reaction window (30–45 / 15–20 / 4–8 frames), the block/hitstun/DI
+    /// attempt rates (10-40-80 / 10-45-85 / 0-40-80), the HP pool (700 / 1000 / 1500
+    /// from the authored 1000 base) and the outgoing damage multiplier
+    /// (0.5x / 1.0x / 1.5x). The band comes from
+    /// <see cref="CpuBandTuning.BossOverride"/>, so the boss keeps its <b>full core
+    /// kit on every difficulty</b> — Easy's practice preset would otherwise zero both
+    /// Specials, the movement ability and the Ultimate.
+    /// </para>
+    /// <para>
+    /// On Easy and Normal the clone is built from <b>normalized base resources
+    /// only</b>. On <b>Hard</b> it mirrors the player's purchased Resonance grid
+    /// nodes — stat profile and <see cref="PlayerController.StoryAbilityPerks"/> —
+    /// and nothing else: no wallet, no current HP, no cooldowns, no spent flags. The
+    /// V7.5 Legacy ability-slot gate is never installed on any tier, because F20 puts
+    /// core-kit access outside Story ability locks. The encounter stays one phase.
     /// </para>
     /// <para>
     /// Decisions come from <see cref="FighterCpuController"/> itself, driven through
@@ -69,6 +83,41 @@ namespace FTT.Enemies {
 
         /// <summary>Story difficulty-scaled HP pool; the canonical 1000 stays in BossData.</summary>
         public int ScaledMaxHP { get; private set; }
+
+        // === Package 11 A7b — F20 campaign AI profile ===
+
+        /// <summary>
+        /// The Story difficulty this encounter was built at, latched at spawn.
+        /// F20: "Select this boss profile from the active Story difficulty,
+        /// independently of the saved Holodeck CPU setting." Nothing here reads the
+        /// Holodeck preference, so that independence is structural.
+        /// </summary>
+        public Difficulty EncounterDifficulty { get; private set; } = Difficulty.Normal;
+
+        /// <summary>The CPU tier the profile selected; 1:1 with the Story tier.</summary>
+        public CpuDifficulty EncounterCpuDifficulty => ToCpuDifficulty(EncounterDifficulty);
+
+        /// <summary>
+        /// F20: the clone mirrors the player's <b>purchased</b> grid perks on Hard
+        /// only. Easy and Normal fight the normalized character.
+        /// </summary>
+        public bool MirrorsPurchasedPerks => EncounterDifficulty == Difficulty.Hard;
+
+        /// <summary>
+        /// The campaign outgoing-damage multiplier applied to the clone
+        /// (0.5x / 1.0x / 1.5x), from the single Story source
+        /// <see cref="StoryDifficultyTuning.GetEnemyDamageMultiplier"/>. Applied
+        /// exactly once, at spawn.
+        /// </summary>
+        public float OutgoingDamageMultiplier =>
+            StoryDifficultyTuning.GetEnemyDamageMultiplier(EncounterDifficulty);
+
+        /// <summary>Story tier to CPU tier. One mapping, no third ladder.</summary>
+        public static CpuDifficulty ToCpuDifficulty(Difficulty difficulty) => difficulty switch {
+            Difficulty.Easy => CpuDifficulty.Easy,
+            Difficulty.Hard => CpuDifficulty.Hard,
+            _ => CpuDifficulty.Normal
+        };
 
         public int CurrentHP => Clone != null && IsInstanceValid(Clone) ? Clone.CurrentHP : 0;
 
@@ -158,14 +207,36 @@ namespace FTT.Enemies {
                 return null;
             }
 
-            ScaledMaxHP = StoryDifficultyTuning.ScaleEnemyHP(
-                Data?.MaxHP ?? 1000, StoryDifficultyTuning.CurrentStoryDifficulty);
+            // F20: the whole profile keys off the Story difficulty, latched once
+            // here so a mid-encounter settings change cannot re-tier the fight.
+            EncounterDifficulty = StoryDifficultyTuning.CurrentStoryDifficulty;
 
-            // Normalized base resources only: no Resonance stats, no Story perks.
+            // 1000 base x 0.7/1.0/1.5 = the contract's 700/1000/1500, applied once.
+            ScaledMaxHP = StoryDifficultyTuning.ScaleEnemyHP(
+                Data?.MaxHP ?? 1000, EncounterDifficulty);
+
+            // F20 clone construction:
+            //  - Hard mirrors the player's PURCHASED Resonance nodes (stat profile
+            //    and ability perks). Easy and Normal get normalized base resources
+            //    only, exactly as before.
+            //  - The V7.5 Legacy ability-slot gate is never installed on either
+            //    tier: "Core-kit access is independent of Story ability locks at
+            //    encounter time", so a half-unlocked campaign still faces a mirror
+            //    with both Specials, its movement ability and its Ultimate.
+            //  - Nothing copies the player's wallet, current HP, cooldowns or spent
+            //    flags: CreateCharacter reads only the grid, never live state.
             Clone = CharacterFactory.CreateCharacter(
-                MirroredCharacterID, MirrorPlayerIndex, applyStoryProgression: false);
+                MirroredCharacterID, MirrorPlayerIndex,
+                applyStoryProgression: MirrorsPurchasedPerks,
+                applyLegacyUnlockLocks: false);
             Clone.Name = "MirrorParadox";
+            // Single application of the HP modifier: EncounterMaxHPOverride REPLACES
+            // the character baseline outright (PlayerController.MaximumHP), so a
+            // mirrored MaxHP perk can never stack a second base pool on top of the
+            // boss pool. F20: "without copying the player's current HP or stacking a
+            // second character base-HP pool."
             Clone.EncounterMaxHPOverride = ScaledMaxHP;
+            ApplyCampaignDamageMultiplier(Clone);
             // Hostile marker: the clone's projectiles join the enemy_projectile
             // group so a rewind's world clear removes them (audit H-8).
             Clone.IsStoryHostile = true;
@@ -177,7 +248,8 @@ namespace FTT.Enemies {
             Clone.RemoveFromGroup("StoryPlayer");
             Clone.AddToGroup(MirrorGroup);
 
-            Decisions = new MirrorParadoxDecisionAdapter(ResolveDecisionSeed());
+            Decisions = new MirrorParadoxDecisionAdapter(
+                ResolveDecisionSeed(), EncounterCpuDifficulty);
             Decisions.Bind(Clone, FindCampaignPlayer());
 
             // The clone stands inert until the encounter actually begins. Before
@@ -201,6 +273,45 @@ namespace FTT.Enemies {
             InputManager.Instance?.SetInputSource(MirrorPlayerIndex, Decisions);
             _inputSourceRegistered = InputManager.Instance != null;
             Clone.SetPhysicsProcess(true);
+        }
+
+        /// <summary>
+        /// F20's "Outgoing campaign damage multiplier" row (0.5x / 1.0x / 1.5x),
+        /// applied exactly once at spawn.
+        /// </summary>
+        /// <remarks>
+        /// <para>
+        /// The clone is a <see cref="PlayerController"/>, so it never passes through
+        /// <c>EnemyAbilityExecutor.DamageMultiplier</c> — the chokepoint every
+        /// ordinary Story enemy uses. The equivalent seam on a character body is the
+        /// pair of Story damage multipliers, which both the basic string
+        /// (<c>StartComboHit</c> / <c>StartDirectionalAttack</c> recompute
+        /// <c>BasicAttackDamage x StoryBasicDamageMultiplier</c> every swing) and
+        /// every <c>BaseSpecial</c> (which reads
+        /// <c>Owner.StorySpecialDamageMultiplier</c> when it builds a hitbox) already
+        /// consume. On Hard those lanes may already carry the mirrored Resonance
+        /// damage perks, so this composes with them rather than replacing them —
+        /// each modifier applied once, which is exactly F20's rule.
+        /// </para>
+        /// <para>
+        /// The one gap that multiplication alone leaves is the handful of hitboxes
+        /// <c>CharacterFactory</c> builds at construction time and an ability never
+        /// re-damages; those are scaled in place below. A hitbox that <i>is</i>
+        /// re-damaged at cast simply has that construction-time value overwritten by
+        /// the multiplied one, so nothing is scaled twice.
+        /// </para>
+        /// </remarks>
+        private void ApplyCampaignDamageMultiplier(PlayerController clone) {
+            float multiplier = OutgoingDamageMultiplier;
+            clone.StoryBasicDamageMultiplier *= multiplier;
+            clone.StorySpecialDamageMultiplier *= multiplier;
+            if (Mathf.IsEqualApprox(multiplier, 1f)) return;
+            ScaleAuthoredHitboxDamage(clone, multiplier);
+        }
+
+        private static void ScaleAuthoredHitboxDamage(Node node, float multiplier) {
+            if (node is Hitbox hitbox) hitbox.Damage *= multiplier;
+            foreach (Node child in node.GetChildren()) ScaleAuthoredHitboxDamage(child, multiplier);
         }
 
         private string ResolveCharacterID() {
@@ -367,13 +478,31 @@ namespace FTT.Enemies {
         private readonly FighterCpuController _cpu;
         private PlayerController _self;
 
-        public MirrorParadoxDecisionAdapter(int seed) {
-            _cpu = new FighterCpuController(CpuDifficulty.Hard, seed);
+        /// <summary>
+        /// Package 11 A7b (F20). The tier is supplied by the encounter, mapped from
+        /// the active <b>Story</b> difficulty — it is no longer hardcoded to Hard.
+        /// The band comes from <see cref="CpuBandTuning.BossOverride"/> rather than
+        /// <c>CpuBandTuning.For</c>, so Easy keeps the boss's full core kit instead
+        /// of inheriting the practice CPU's stripped preset.
+        /// </summary>
+        public MirrorParadoxDecisionAdapter(int seed, CpuDifficulty difficulty) {
+            _cpu = new FighterCpuController(
+                difficulty, seed, geometry: null, world: null,
+                tuningOverride: CpuBandTuning.BossOverride(difficulty));
         }
 
         public PlayerController Target { get; private set; }
 
-        /// <summary>Hard-difficulty reaction window; design pins this at 4–8 frames.</summary>
+        /// <summary>The tier this adapter's decision engine runs at.</summary>
+        public CpuDifficulty Difficulty => _cpu.Difficulty;
+
+        /// <summary>The boss-override band in force; tests pin the F20 matrix here.</summary>
+        public CpuBandTuning Tuning => _cpu.Tuning;
+
+        /// <summary>
+        /// Reaction window for the selected tier: F20's 30–45 / 15–20 / 4–8 frames,
+        /// read straight from the shared engine so the two can never drift.
+        /// </summary>
         public int ReactionDelayMinFrames => _cpu.GetReactionDelayBounds(out _);
 
         public int ReactionDelayMaxFrames {

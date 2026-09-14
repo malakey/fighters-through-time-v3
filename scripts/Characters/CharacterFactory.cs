@@ -74,7 +74,27 @@ namespace FTT.Characters {
 			return slots;
 		}
 
-		public static PlayerController CreateCharacter(string characterID, int playerIndex = 0, bool applyStoryProgression = true) {
+		/// <param name="applyStoryProgression">
+		/// Copies the active save's Resonance stat profile and purchased ability
+		/// perks onto the built character. The <c>false</c> seam is the Story/Fighter
+		/// isolation boundary (Fighter Mode, the Holodeck, the Calibration Drills).
+		/// </param>
+		/// <param name="applyLegacyUnlockLocks">
+		/// Package 11 A7b (F20). Separates the V7.5 Legacy ability-slot gate from the
+		/// perk copy, which used to be a single switch. The Mirror Paradox needs the
+		/// two apart: on Hard it mirrors the player's <b>purchased grid perks</b>
+		/// (MIRROR_PARADOX.md, "initialize the clone's copied perk set from the
+		/// player's purchased/unlocked grid nodes"), while its core kit access stays
+		/// "independent of Story ability locks at encounter time" on every difficulty
+		/// — a half-unlocked campaign must still face a mirror with both Specials, its
+		/// movement ability and its Ultimate. Every other caller leaves this at the
+		/// default, so the gate installs exactly where it did before.
+		/// </param>
+		public static PlayerController CreateCharacter(
+			string characterID,
+			int playerIndex = 0,
+			bool applyStoryProgression = true,
+			bool applyLegacyUnlockLocks = true) {
 			// Pinned, not GD.Load: a character .tres pulls in four AbilityData
 			// sub-resources and its SpriteFrames, all C#-scripted. Loading and
 			// dropping that graph on every spawn cycles a dozen script instances
@@ -131,7 +151,7 @@ namespace FTT.Characters {
 			// applyStoryProgression: false seam — Fighter Mode, the hub
 			// Holodeck, the Calibration Drills and the Mirror Paradox clone —
 			// never installs the gate, so those paths always run the full kit.
-			if (applyStoryProgression) {
+			if (applyStoryProgression && applyLegacyUnlockLocks) {
 				HashSet<AbilitySlot> unlocked = ResolveStoryUnlockedSlots(characterID);
 				if (unlocked != null) player.ApplyLegacyUnlockLocks(unlocked);
 			}
