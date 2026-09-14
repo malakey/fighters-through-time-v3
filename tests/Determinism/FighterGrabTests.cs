@@ -294,6 +294,167 @@ public class FighterGrabTests {
 
     /// <summary>Walks player one toward the victim until the pushboxes hold
     /// them at contact range (inside the 0.8-unit grab reach).</summary>
+    // === C01c direct bind / preset chord, and F23 (Package 11 A1c) ===
+
+    /// <summary>
+    /// C01c: the direct <c>gameplay_grab</c> bind and the Block+BasicAttack preset
+    /// chord request the <b>same verb once</b>. A frame carrying both routes starts
+    /// exactly one grab — no double-fire — and the direct route grants no extra
+    /// priority, leniency or resource bypass.
+    /// </summary>
+    [TestCase]
+    public void TheDirectBindAndTheChordProduceOneGrabRequest() {
+        // The direct bit alone, with no chord present at all.
+        var direct = NewSimulation(seed: 4101);
+        int tick = WalkIntoGrabRange(direct);
+        direct.Advance(
+            FrameChord(tick, GameplayButtons.Grab, GameplayButtons.Grab),
+            FrameHeld(tick, GameplayButtons.None));
+        AssertThat(direct.TryGetFighterVerb(0, out FighterVerbComponent fromBind)).IsTrue();
+        AssertThat(fromBind.GrabPhase)
+            .OverrideFailureMessage("The direct gameplay_grab bind must start a grab on its own.")
+            .IsEqual(1);
+
+        // The chord alone, exactly as it shipped.
+        var chord = NewSimulation(seed: 4101);
+        tick = WalkIntoGrabRange(chord);
+        chord.Advance(
+            FrameChord(tick, GameplayButtons.Block | GameplayButtons.BasicAttack, GameplayButtons.BasicAttack),
+            FrameHeld(tick, GameplayButtons.None));
+        AssertThat(chord.TryGetFighterVerb(0, out FighterVerbComponent fromChord)).IsTrue();
+        AssertThat(fromChord.GrabPhase).IsEqual(1);
+
+        // Both at once: one request, one grab, at the same phase frame count as
+        // either route alone — nothing double-fires and nothing is skipped.
+        var both = NewSimulation(seed: 4101);
+        tick = WalkIntoGrabRange(both);
+        both.Advance(
+            FrameChord(
+                tick,
+                GameplayButtons.Block | GameplayButtons.BasicAttack | GameplayButtons.Grab,
+                GameplayButtons.BasicAttack | GameplayButtons.Grab),
+            FrameHeld(tick, GameplayButtons.None));
+        AssertThat(both.TryGetFighterVerb(0, out FighterVerbComponent fromBoth)).IsTrue();
+        AssertThat(fromBoth.GrabPhase).IsEqual(1);
+        AssertThat(fromBoth.GrabPhaseFrames)
+            .OverrideFailureMessage("Two routes must not advance the grab twice on one tick.")
+            .IsEqual(fromChord.GrabPhaseFrames);
+    }
+
+    /// <summary>
+    /// C01c's normalized origin flag: when the originating machine has its preset
+    /// chords switched <b>off</b> it sets <see cref="GameplayButtons.DirectOrigin"/>,
+    /// and the simulation must not re-recognize the component bits as a chord.
+    /// Block+BasicAttack then means what it plainly says — block, plus an attack
+    /// input the stance ignores.
+    ///
+    /// <para>This is what stops a peer resolving a remote frame with its own
+    /// shortcut settings, which is the whole reason protocol v3 exists.</para>
+    /// </summary>
+    [TestCase]
+    public void DirectOriginSuppressesChordRecognition() {
+        var simulation = NewSimulation(seed: 4102);
+        int tick = WalkIntoGrabRange(simulation);
+        simulation.Advance(
+            FrameChord(
+                tick,
+                GameplayButtons.Block | GameplayButtons.BasicAttack | GameplayButtons.DirectOrigin,
+                GameplayButtons.BasicAttack),
+            FrameHeld(tick, GameplayButtons.None));
+
+        AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent verb)).IsTrue();
+        AssertThat(verb.GrabPhase)
+            .OverrideFailureMessage("A chord must not be re-recognized when the sender disabled it.")
+            .IsEqual(0);
+
+        // The direct bit still works from that same machine, which is the point of
+        // disabling the chord rather than the verb.
+        var withBind = NewSimulation(seed: 4102);
+        tick = WalkIntoGrabRange(withBind);
+        withBind.Advance(
+            FrameChord(tick, GameplayButtons.Grab | GameplayButtons.DirectOrigin, GameplayButtons.Grab),
+            FrameHeld(tick, GameplayButtons.None));
+        AssertThat(withBind.TryGetFighterVerb(0, out FighterVerbComponent bound)).IsTrue();
+        AssertThat(bound.GrabPhase).IsEqual(1);
+    }
+
+    /// <summary>
+    /// F23: the grab attachment is explicit snapshot state. The partner used to be
+    /// resolved positionally by the two-fighter systems — something no restored
+    /// snapshot could describe — and the throw carried no once-only damage guard
+    /// beyond the phase machine.
+    ///
+    /// <para>Also pins the block-stance rule for the whole grab: a grabbing fighter
+    /// is never in the block stance, including through whiff recovery, so the
+    /// attack-beats-grab triangle cannot be short-circuited by a phantom shield.</para>
+    /// </summary>
+    [TestCase]
+    public void TheGrabAttachmentIsExplicitAndTheStanceIsNeverUpDuringIt() {
+        var simulation = NewSimulation(seed: 4103);
+        int tick = WalkIntoGrabRange(simulation);
+
+        AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent idle)).IsTrue();
+        AssertThat(idle.GrabPartnerPlayerID)
+            .OverrideFailureMessage("An unattached fighter must read -1, not player 0.")
+            .IsEqual(-1);
+
+        simulation.Advance(
+            FrameChord(tick, GameplayButtons.Block | GameplayButtons.BasicAttack, GameplayButtons.BasicAttack),
+            FrameHeld(tick, GameplayButtons.None));
+        tick++;
+
+        bool sawHold = false;
+        for (int step = 0; step < 40; step++) {
+            AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent grabber)).IsTrue();
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent grabberState)).IsTrue();
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent grabberRuntime)).IsTrue();
+            if (grabber.GrabPhase != 0) {
+                // Block is held on every one of these frames, and the stance is
+                // still never up for any part of the grab.
+                AssertThat(FighterBasicAttackRules.IsBlockStance(
+                        in grabberState, in grabberRuntime, in grabber))
+                    .OverrideFailureMessage(
+                        $"The block stance was up during grab phase {grabber.GrabPhase}.")
+                    .IsFalse();
+            }
+            if (grabber.GrabPhase == 4) {
+                sawHold = true;
+                AssertThat(grabber.GrabPartnerPlayerID)
+                    .OverrideFailureMessage("A holding grabber must record its victim.")
+                    .IsEqual(1);
+                AssertThat(grabber.ThrowDamageApplied)
+                    .OverrideFailureMessage("The once-only throw guard must start down.")
+                    .IsFalse();
+                AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent held)).IsTrue();
+                AssertThat(held.GrabPartnerPlayerID).IsEqual(0);
+                break;
+            }
+            simulation.Advance(
+                FrameHeld(tick, GameplayButtons.Block),
+                FrameHeld(tick, GameplayButtons.None));
+            tick++;
+        }
+        AssertThat(sawHold)
+            .OverrideFailureMessage("Harness: the grab never reached its hold phase.")
+            .IsTrue();
+
+        // Ride the throw out; the attachment is released on both sides afterwards.
+        for (int step = 0; step < 90; step++) {
+            simulation.Advance(
+                FrameHeld(tick, GameplayButtons.None),
+                FrameHeld(tick, GameplayButtons.None));
+            tick++;
+            AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent grabber)).IsTrue();
+            if (grabber.GrabPhase == 0) {
+                AssertThat(grabber.GrabPartnerPlayerID)
+                    .OverrideFailureMessage("A finished grab must release its attachment.")
+                    .IsEqual(-1);
+                return;
+            }
+        }
+        AssertThat(false).OverrideFailureMessage("Harness: the grab never resolved.").IsTrue();
+    }
+
     private static int WalkIntoGrabRange(FighterSimulation simulation) {
         int tick = 0;
         for (; tick < 90; tick++) {
