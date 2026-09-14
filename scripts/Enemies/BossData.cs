@@ -52,6 +52,55 @@ namespace FTT.Enemies {
         [Export] public bool InterruptibleDuringTelegraph;
         [Export] public float InterruptDamageThreshold = 25f;
 
+        [ExportGroup("V7.6 boss behaviours (Package 11 A7b)")]
+        /// <summary>
+        /// T01b Option A — capped historical recovery. Once per encounter, on the
+        /// first <b>nonlethal</b> crossing of the boss's first phase threshold, the
+        /// boss rewinds its own position to
+        /// <see cref="HistoricalRecoveryLookbackFrames"/> ago and recovers toward the
+        /// HP it had then, capped at
+        /// <see cref="HistoricalRecoveryHealCapFraction"/> of its difficulty-scaled
+        /// maximum. Authored on the First Unbound (<c>apex_eraser</c>) alone today;
+        /// every other boss loads the <c>false</c> default and behaves exactly as
+        /// before. Additive export — no schema bump.
+        /// </summary>
+        [Export] public bool HasHistoricalRecovery;
+        /// <summary>
+        /// V7.5 Borrowed Legacies. In its <b>final</b> phase the boss fights with the
+        /// projected Special 1 of every roster character the player did not pick
+        /// (<see cref="BorrowedLegacies"/>). The set is built from the content
+        /// manifest at encounter start, never authored, so it scales with the roster.
+        /// Authored on the First Unbound alone today. Additive export.
+        /// </summary>
+        [Export] public bool BorrowsRosterLegacies;
+
+        /// <summary>
+        /// T01b: the lookback, in 60 Hz simulation frames — the contract's
+        /// "180 simulation frames (3 seconds)". A global rule, not per-boss tuning,
+        /// so it lives here as a constant rather than as a second authored number.
+        /// </summary>
+        public const int HistoricalRecoveryLookbackFrames = 180;
+
+        /// <summary>
+        /// T01b: consecutive samples the history ring retains — the contract's
+        /// "181 consecutive samples with tick IDs" (the lookback plus the trigger
+        /// tick itself).
+        /// </summary>
+        public const int HistoricalRecoveryHistorySamples = HistoricalRecoveryLookbackFrames + 1;
+
+        /// <summary>
+        /// T01b: the heal ceiling, as a fraction of the boss's current
+        /// difficulty-scaled maximum HP — the contract's 20%, explicitly
+        /// <b>provisional pending balance validation</b>.
+        /// </summary>
+        public const float HistoricalRecoveryHealCapFraction = 0.20f;
+
+        /// <summary>
+        /// T01b: frames combat stays suspended for the rewind presentation — the
+        /// contract's "1.5-second (90 presentation-tick) rewind".
+        /// </summary>
+        public const int HistoricalRecoverySuspendFrames = 90;
+
         [ExportGroup("Animation")]
         [Export] public SpriteFrames SpriteFramesResource;
         [Export] public Color PlaceholderTint = Colors.White;

@@ -126,7 +126,12 @@ public class MirrorParadoxTests {
     // === Story-progression isolation ===
 
     [TestCase]
-    public void CloneNeverInheritsStoryResonancePerksEvenWhenTheActiveSaveHasThem() {
+    public void CloneNeverInheritsStoryResonancePerksOnEasyOrNormalEvenWithAPopulatedSave() {
+        // Package 11 A7b (F20): perk mirroring is a HARD-only rule, so this
+        // isolation case pins Normal explicitly rather than relying on the
+        // session default. The Hard half lives in the F20 matrix below.
+        Difficulty originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
+        GameManager.Instance.CurrentSession.Difficulty = Difficulty.Normal;
         int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
         string originalCharacter = GameManager.Instance.CurrentSession.SelectedCharacterID;
         StorySaveData originalSave = SaveManager.Instance.SaveSlots[0];
@@ -169,24 +174,31 @@ public class MirrorParadoxTests {
             SaveManager.Instance.SaveSlots[0] = originalSave;
             GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
             GameManager.Instance.CurrentSession.SelectedCharacterID = originalCharacter;
+            GameManager.Instance.CurrentSession.Difficulty = originalDifficulty;
         }
     }
 
     // === Decision engine reuse ===
 
     [TestCase]
-    public void DecisionsComeFromTheSharedHardFighterCpuTableAndNothingElse() {
+    public void DecisionsComeFromTheSharedFighterCpuTableAtTheStoryTierAndNothingElse() {
+        // Package 11 A7b (F20): the tier is now the Story difficulty, and the band
+        // is the BOSS override rather than the practice band. The parity proof is
+        // unchanged in kind - a bare FighterCpuController built the same way, fed
+        // the adapter's own observation each tick, must emit byte-identical frames.
+        Difficulty originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
+        GameManager.Instance.CurrentSession.Difficulty = Difficulty.Hard;
         MirrorParadoxController mirror = CreateMirror(seed: 20260807);
         try {
             MirrorParadoxDecisionAdapter adapter = mirror.Decisions;
             AssertObject(adapter).IsNotNull();
+            AssertThat(adapter.Difficulty).IsEqual(FTT.Core.CpuDifficulty.Hard);
             AssertThat(adapter.ReactionDelayMinFrames).IsEqual(4);
             AssertThat(adapter.ReactionDelayMaxFrames).IsEqual(8);
 
-            // A bare FighterCpuController on the same seed, fed the adapter's own
-            // observation each tick, must emit byte-identical frames. That is the
-            // proof the Story side reuses the engine rather than porting it.
-            var reference = new FighterCpuController(FTT.Core.CpuDifficulty.Hard, 20260807);
+            var reference = new FighterCpuController(
+                FTT.Core.CpuDifficulty.Hard, 20260807, null, null,
+                CpuBandTuning.BossOverride(FTT.Core.CpuDifficulty.Hard));
             PlayerInputFrame adapterPrevious = default;
             PlayerInputFrame referencePrevious = default;
             for (uint tick = 0; tick < 240; tick++) {
@@ -199,6 +211,7 @@ public class MirrorParadoxTests {
             }
         } finally {
             FreeMirror(mirror);
+            GameManager.Instance.CurrentSession.Difficulty = originalDifficulty;
         }
     }
 
@@ -614,6 +627,229 @@ public class MirrorParadoxTests {
             if (mirror != null) FreeMirror(mirror);
             host.Free();
             StoryManager.Instance?.SetRewinds(3);
+        }
+    }
+
+
+    // === V7.6 F20 campaign AI profile (Package 11 A7b) ===
+    // docs/design-contracts/MIRROR_PARADOX.md. The encounter's tier is the ACTIVE
+    // STORY DIFFICULTY, never the saved Holodeck CPU setting, and the boss keeps
+    // its full core kit on every tier.
+
+    [TestCase]
+    public void TheProfileTiersReactionsAndDefenceRatesFromTheStoryDifficulty() {
+        Difficulty original = GameManager.Instance.CurrentSession.Difficulty;
+        try {
+            AssertProfile(Difficulty.Easy, FTT.Core.CpuDifficulty.Easy,
+                reactionMin: 30, reactionMax: 45, block: 10, hitstunDefense: 10, di: 0);
+            AssertProfile(Difficulty.Normal, FTT.Core.CpuDifficulty.Normal,
+                reactionMin: 15, reactionMax: 20, block: 40, hitstunDefense: 45, di: 40);
+            AssertProfile(Difficulty.Hard, FTT.Core.CpuDifficulty.Hard,
+                reactionMin: 4, reactionMax: 8, block: 80, hitstunDefense: 85, di: 80);
+        } finally {
+            GameManager.Instance.CurrentSession.Difficulty = original;
+        }
+    }
+
+    [TestCase]
+    public void TheHPPoolIsSevenHundredOneThousandOrFifteenHundredFromTheAuthoredBase() {
+        Difficulty original = GameManager.Instance.CurrentSession.Difficulty;
+        try {
+            AssertPool(Difficulty.Easy, 700);
+            AssertPool(Difficulty.Normal, 1000);
+            AssertPool(Difficulty.Hard, 1500);
+        } finally {
+            GameManager.Instance.CurrentSession.Difficulty = original;
+        }
+    }
+
+    [TestCase]
+    public void TheFullCoreKitIsAvailableOnEveryDifficultyIncludingEasy() {
+        // The practice Easy CPU zeroes both Specials, the movement ability and the
+        // Ultimate. F20: "do not load a complete practice-CPU preset and
+        // accidentally disable the boss's signature abilities."
+        CpuBandTuning practiceEasy = CpuBandTuning.For(FTT.Core.CpuDifficulty.Easy);
+        AssertThat(practiceEasy.SpecialOneClosePercent).IsEqual(0);
+        AssertThat(practiceEasy.UltimatePercent).IsEqual(0);
+
+        Difficulty original = GameManager.Instance.CurrentSession.Difficulty;
+        try {
+            foreach (Difficulty difficulty in new[] { Difficulty.Easy, Difficulty.Normal, Difficulty.Hard }) {
+                GameManager.Instance.CurrentSession.Difficulty = difficulty;
+                MirrorParadoxController mirror = CreateMirror();
+                try {
+                    CpuBandTuning tuning = mirror.Decisions.Tuning;
+                    var issues = new List<string>();
+                    if (tuning.SpecialOneClosePercent <= 0) issues.Add($"{difficulty}: Special 1 (close) disabled");
+                    if (tuning.SpecialOneRangedPercent <= 0) issues.Add($"{difficulty}: Special 1 (ranged) disabled");
+                    if (tuning.SpecialTwoPercent <= 0) issues.Add($"{difficulty}: Special 2 disabled");
+                    if (tuning.MovementAbilityPercent <= 0) issues.Add($"{difficulty}: movement ability disabled");
+                    if (tuning.UltimatePercent <= 0) issues.Add($"{difficulty}: Ultimate disabled");
+                    if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+
+                    // Easy and Normal fire the Ultimate at the first legal
+                    // opportunity at full meter; only Hard seeks a confirm.
+                    if (difficulty != Difficulty.Hard) {
+                        AssertThat(tuning.UltimatePercent).IsEqual(100);
+                        AssertThat(tuning.RequiresUltimateSetup).IsFalse();
+                    } else {
+                        AssertThat(tuning.RequiresUltimateSetup).IsTrue();
+                    }
+                } finally {
+                    FreeMirror(mirror);
+                }
+            }
+        } finally {
+            GameManager.Instance.CurrentSession.Difficulty = original;
+        }
+    }
+
+    [TestCase]
+    public void HardMirrorsPurchasedGridPerksWithoutStackingASecondHPPool() {
+        Difficulty originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        string originalCharacter = GameManager.Instance.CurrentSession.SelectedCharacterID;
+        StorySaveData originalSave = SaveManager.Instance.SaveSlots[0];
+
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = 0;
+        GameManager.Instance.CurrentSession.SelectedCharacterID = MirroredCharacter;
+        SaveManager.Instance.SaveSlots[0] = new StorySaveData {
+            SelectedCharacterID = MirroredCharacter,
+            DepositedChronalDust = new Dictionary<string, int>(),
+            GridProgress = new Dictionary<string, List<string>> {
+                [MirroredCharacter] = new() {
+                    "einstein_momentum", "einstein_mass", "einstein_chalk_edge",
+                    "einstein_rift_range", "einstein_event_horizon"
+                }
+            }
+        };
+
+        MirrorParadoxController hard = null;
+        MirrorParadoxController normal = null;
+        try {
+            GameManager.Instance.CurrentSession.Difficulty = Difficulty.Hard;
+            hard = CreateMirror();
+            AssertThat(hard.MirrorsPurchasedPerks).IsTrue();
+            AssertThat(hard.Clone.StoryAbilityPerks.Count > 0)
+                .OverrideFailureMessage("Hard must mirror the player's purchased grid perks.")
+                .IsTrue();
+            // Single application of stat modifiers: the encounter pool REPLACES the
+            // character baseline, so a mirrored MaxHP perk can never stack a second
+            // base pool on top of the 1500.
+            AssertThat(hard.ScaledMaxHP).IsEqual(1500);
+            AssertThat(hard.Clone.MaximumHP)
+                .OverrideFailureMessage("The boss pool must not stack with a mirrored MaxHP perk.")
+                .IsEqual(1500);
+            AssertThat(hard.Clone.CurrentHP).IsEqual(1500);
+            // And the V7.5 Legacy ability gate is never installed: core-kit access
+            // is independent of Story ability locks at encounter time.
+            AssertObject(hard.Clone.GetNodeOrNull("Special1")).IsNotNull();
+            AssertObject(hard.Clone.GetNodeOrNull("Ultimate")).IsNotNull();
+
+            // Normal borrows nothing from the player's build.
+            GameManager.Instance.CurrentSession.Difficulty = Difficulty.Normal;
+            normal = CreateMirror();
+            AssertThat(normal.MirrorsPurchasedPerks).IsFalse();
+            AssertThat(normal.Clone.StoryAbilityPerks.Count).IsEqual(0);
+            AssertThat(normal.Clone.StoryMaxHPBonus).IsEqual(0);
+        } finally {
+            if (hard != null) FreeMirror(hard);
+            if (normal != null) FreeMirror(normal);
+            SaveManager.Instance.SaveSlots[0] = originalSave;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            GameManager.Instance.CurrentSession.SelectedCharacterID = originalCharacter;
+            GameManager.Instance.CurrentSession.Difficulty = originalDifficulty;
+        }
+    }
+
+    [TestCase]
+    public void TheSavedHolodeckCpuSettingCannotChangeTheEncounter() {
+        Difficulty originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
+        FTT.Core.CpuDifficulty originalCpu = GameManager.Instance.CurrentSession.CpuDifficulty;
+        try {
+            // A player who practises against an Easy Holodeck CPU still meets the
+            // Hard mirror when the campaign is Hard, and the reverse.
+            GameManager.Instance.CurrentSession.Difficulty = Difficulty.Hard;
+            GameManager.Instance.CurrentSession.CpuDifficulty = FTT.Core.CpuDifficulty.Easy;
+            MirrorParadoxController hardStory = CreateMirror();
+            try {
+                AssertThat(hardStory.EncounterCpuDifficulty).IsEqual(FTT.Core.CpuDifficulty.Hard);
+                AssertThat(hardStory.Decisions.ReactionDelayMinFrames).IsEqual(4);
+            } finally {
+                FreeMirror(hardStory);
+            }
+
+            GameManager.Instance.CurrentSession.Difficulty = Difficulty.Easy;
+            GameManager.Instance.CurrentSession.CpuDifficulty = FTT.Core.CpuDifficulty.Hard;
+            MirrorParadoxController easyStory = CreateMirror();
+            try {
+                AssertThat(easyStory.EncounterCpuDifficulty).IsEqual(FTT.Core.CpuDifficulty.Easy);
+                AssertThat(easyStory.Decisions.ReactionDelayMinFrames).IsEqual(30);
+            } finally {
+                FreeMirror(easyStory);
+            }
+        } finally {
+            GameManager.Instance.CurrentSession.Difficulty = originalDifficulty;
+            GameManager.Instance.CurrentSession.CpuDifficulty = originalCpu;
+        }
+    }
+
+    [TestCase]
+    public void TheOutgoingCampaignDamageMultiplierIsAppliedOnceAtEachTier() {
+        Difficulty original = GameManager.Instance.CurrentSession.Difficulty;
+        try {
+            AssertOutgoingDamage(Difficulty.Easy, 0.5f);
+            AssertOutgoingDamage(Difficulty.Normal, 1.0f);
+            AssertOutgoingDamage(Difficulty.Hard, 1.5f);
+        } finally {
+            GameManager.Instance.CurrentSession.Difficulty = original;
+        }
+    }
+
+    private static void AssertProfile(
+        Difficulty story, FTT.Core.CpuDifficulty expectedTier,
+        int reactionMin, int reactionMax, int block, int hitstunDefense, int di) {
+        GameManager.Instance.CurrentSession.Difficulty = story;
+        MirrorParadoxController mirror = CreateMirror();
+        try {
+            AssertThat(mirror.EncounterDifficulty).IsEqual(story);
+            AssertThat(mirror.EncounterCpuDifficulty).IsEqual(expectedTier);
+            AssertThat(mirror.Decisions.Difficulty).IsEqual(expectedTier);
+            AssertThat(mirror.Decisions.ReactionDelayMinFrames).IsEqual(reactionMin);
+            AssertThat(mirror.Decisions.ReactionDelayMaxFrames).IsEqual(reactionMax);
+
+            CpuBandTuning tuning = mirror.Decisions.Tuning;
+            AssertThat(tuning.BlockPercent).IsEqual(block);
+            AssertThat(tuning.HitstunDefensePercent).IsEqual(hitstunDefense);
+            AssertThat(tuning.DiPercent).IsEqual(di);
+        } finally {
+            FreeMirror(mirror);
+        }
+    }
+
+    private static void AssertPool(Difficulty story, int expectedHP) {
+        GameManager.Instance.CurrentSession.Difficulty = story;
+        MirrorParadoxController mirror = CreateMirror();
+        try {
+            AssertThat(mirror.ScaledMaxHP).IsEqual(expectedHP);
+            AssertThat(mirror.Clone.MaximumHP).IsEqual(expectedHP);
+            AssertThat(mirror.Clone.CurrentHP).IsEqual(expectedHP);
+        } finally {
+            FreeMirror(mirror);
+        }
+    }
+
+    private static void AssertOutgoingDamage(Difficulty story, float expected) {
+        GameManager.Instance.CurrentSession.Difficulty = story;
+        MirrorParadoxController mirror = CreateMirror();
+        try {
+            AssertThat(mirror.OutgoingDamageMultiplier).IsEqualApprox(expected, 0.0001f);
+            // The seam the clone actually attacks through: both Story damage lanes
+            // carry the campaign multiplier, applied exactly once.
+            AssertThat(mirror.Clone.StoryBasicDamageMultiplier).IsEqualApprox(expected, 0.0001f);
+            AssertThat(mirror.Clone.StorySpecialDamageMultiplier).IsEqualApprox(expected, 0.0001f);
+        } finally {
+            FreeMirror(mirror);
         }
     }
 

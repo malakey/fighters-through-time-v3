@@ -1614,6 +1614,27 @@ namespace FTT.FighterSim {
         };
 
         /// <summary>
+        /// Package 11 A7b (F20). The campaign <b>boss</b> band for a Story encounter
+        /// that borrows this engine — today only the Level 13 Mirror Paradox.
+        /// <c>MIRROR_PARADOX.md</c>: "Reuse the CPU utility engine with explicit boss
+        /// overrides; do not load a complete practice-CPU preset and accidentally
+        /// disable the boss's signature abilities." The boss keeps its <b>full core
+        /// kit on every difficulty</b>, so only Easy needs overriding — Normal and
+        /// Hard already carry the contract's rates verbatim.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately not a Fighter band: <see cref="For"/> still answers for
+        /// practice/Holodeck CPUs, and a Holodeck setting can never reach a boss
+        /// encounter because the encounter selects its own difficulty from the Story
+        /// session.
+        /// </remarks>
+        public static CpuBandTuning BossOverride(CpuDifficulty difficulty) => difficulty switch {
+            CpuDifficulty.Easy => EasyBoss,
+            CpuDifficulty.Hard => Hard,
+            _ => Normal
+        };
+
+        /// <summary>
         /// Easy: straightforward walking and basic attacks. No neutral specials, no
         /// neutral movement ability, no Ultimate, no orb pathing, no hazard
         /// reaction, and — F19, Package 11 A9b — <b>no Specials at all, including
@@ -1768,6 +1789,31 @@ namespace FTT.FighterSim {
             EchoStepAdmissionPercent = 75,
             UltimateBeatsEchoStep = false,
             ReservesMeterForDefy = true
+        };
+
+        /// <summary>
+        /// Easy's boss band. The practice Easy CPU zeroes both Specials, the movement
+        /// ability and the Ultimate; F20 forbids inheriting those restrictions, so the
+        /// kit rates are taken <b>from the Normal band</b> rather than invented as a
+        /// third ladder — no Easy-boss kit ladder is authored anywhere, and the
+        /// contract only asks for "suitable Specials rather than only basics". Easy's
+        /// separation comes from the numbers F20 does specify and which are untouched
+        /// here: the 30-45-frame reaction window, the 10% block rate, 10%/0% hitstun
+        /// defense and DI, 0.7x HP and 0.5x outgoing damage. The Ultimate follows the
+        /// contract's "first legal opportunity at full meter" — Normal's policy, not
+        /// Hard's confirmed-setup policy. Grabs and Echo Step stay off: the override
+        /// "does not enable Easy grabs or Echo Step", and neither verb exists in this
+        /// controller yet (A9b's F19 work).
+        /// </summary>
+        public static CpuBandTuning EasyBoss { get; } = Easy with {
+            ApproachJumpPercent = Normal.ApproachJumpPercent,
+            MovementAbilityPercent = Normal.MovementAbilityPercent,
+            UltimatePercent = Normal.UltimatePercent,
+            RequiresUltimateSetup = false,
+            UltimateFinishHPPercent = Normal.UltimateFinishHPPercent,
+            SpecialOneClosePercent = Normal.SpecialOneClosePercent,
+            SpecialOneRangedPercent = Normal.SpecialOneRangedPercent,
+            SpecialTwoPercent = Normal.SpecialTwoPercent
         };
     }
 }
