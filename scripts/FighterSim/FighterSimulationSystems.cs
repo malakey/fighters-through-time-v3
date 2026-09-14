@@ -59,6 +59,9 @@ namespace FTT.FighterSim {
                 RandomState1 = state1
             });
 
+            // F22 phase identity + frozen regulation totals (Package 11 A1c).
+            frame.Add(matchEntity, new FighterSuddenDeathComponent());
+
             SpawnFighter(ref frame, 0, in _playerOne, -_spawnDistance);
             SpawnFighter(ref frame, 1, in _playerTwo, _spawnDistance);
         }
@@ -149,15 +152,22 @@ namespace FTT.FighterSim {
             // V7/V7.1/V7.2 verb-layer state (hitstop, DI, tech, Rally, Defy,
             // Echo Step, Momentum, grabs) — the new snapshot components the
             // design mandates (ID 310+).
-            frame.Add(entity, new FighterVerbComponent());
-            frame.Add(entity, new FighterEchoRingComponent {
-                Sample0X = spawn.x, Sample0Y = spawn.y,
-                Sample1X = spawn.x, Sample1Y = spawn.y,
-                Sample2X = spawn.x, Sample2Y = spawn.y,
-                Sample3X = spawn.x, Sample3Y = spawn.y,
-                Sample4X = spawn.x, Sample4Y = spawn.y,
-                SampleCountdown = 6
-            });
+            // Klotho zero-initializes, and 0 is a real player ID, so the grab
+            // attachment's "unattached" sentinel has to be written in (F23).
+            var verb = new FighterVerbComponent();
+            verb.ClearGrabPartner();
+            frame.Add(entity, verb);
+            // V7.6 Echo Step history (Package 11 A1c): the 31-sample per-tick ring
+            // across components 313-317. Storage is filled with the spawn
+            // coordinate, but ValidCount is 0 — filled slots are NOT fabricated
+            // history, so the fighter must live 30 further ticks before an exact
+            // t-30 sample exists (TEMPORAL_STATE_CONTRACT.md).
+            frame.Add(entity, new FighterEchoStepRing0Component());
+            frame.Add(entity, new FighterEchoStepRing1Component());
+            frame.Add(entity, new FighterEchoStepRing2Component());
+            frame.Add(entity, new FighterEchoStepRing3Component());
+            frame.Add(entity, new FighterEchoStepRing4Component());
+            FighterEchoStepHistory.Reset(ref frame, entity, in spawn, lifeEpoch: 0);
             // V7.6 F07 (Package 11 A1): the caster-owned Conductive mark. Not a
             // status — no slot, no action lock, zero stagger budget.
             frame.Add(entity, new FighterConductiveComponent {
@@ -231,6 +241,10 @@ namespace FTT.FighterSim {
         private const int BasicButton = 1 << 2;
         private const int BlockButton = 1 << 6;
         private const int RollButton = 1 << 10;
+        /// <summary>C01c logical Echo Step request (direct bind or enabled chord).</summary>
+        private const int EchoStepButton = 1 << 12;
+        /// <summary>C01c "chords are off on the originating device" flag; see GameplayButtons.DirectOrigin.</summary>
+        private const int DirectOriginButton = 1 << 14;
         private static readonly FP64 FixedDelta = FP64.One / FP64.FromInt(60);
         private static readonly FP64 Gravity = FP64.FromInt(-30);
         /// <summary>Signed floor for fast-fall: -<c>UniversalMovementRules.FastFallSpeed</c>.</summary>
@@ -262,6 +276,15 @@ namespace FTT.FighterSim {
                 ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(entity);
                 ref FighterVerbComponent verb = ref frame.Get<FighterVerbComponent>(entity);
 
+                // V7.6 Echo Step history (Package 11 A1c): exactly one sample per
+                // authoritative tick, recorded HERE — above the hitstop
+                // short-circuit and above every input and movement read — because
+                // the contract's "t - 30" has to mean thirty ticks, not thirty
+                // ticks in which the fighter happened not to be frozen. An
+                // advancing hitstop tick records the same position, as specified.
+                FighterEchoStepHistory.Sample(
+                    ref frame, entity, in fighter.Position, runtime.KnockoutsSuffered);
+
                 // V7 universal hitstop: both parties of a hit are fully suspended
                 // — velocity, position, phases, and every per-fighter timer. The
                 // world (projectiles, constructs, hazards, the match clock) keeps
@@ -282,8 +305,9 @@ namespace FTT.FighterSim {
                     verb.PendingLaunchActive = 0;
                 }
 
-                // V7.1 Echo Step bookkeeping: sample the position ring and
-                // advance an armed wind-up (the snap fires when it reaches 0).
+                // V7.6 Echo Step: advance an armed wind-up (the snap fires when it
+                // reaches 0, after the destination is rechecked). Sampling already
+                // happened above, before the hitstop gate.
                 AdvanceEchoStep(ref frame, entity, ref fighter, ref verb);
 
                 // Landing-tech recovery: invulnerable, in place, no actions.
@@ -942,102 +966,128 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
-        /// Echo Step ring sampling (5 entries, one every 6 frames — the oldest
-        /// approximates "30 frames ago") plus wind-up advancement. The snap
-        /// fires when the wind-up reaches zero: position only, velocity zeroed,
-        /// facing preserved, actionable immediately. Being struck during the
-        /// wind-up cancels it with no refund — the ghost telegraph was the
-        /// opponent's read and they took it.
+        /// Advances an armed Echo Step wind-up. At completion the <b>same</b>
+        /// destination is rechecked against then-current geometry: if it became
+        /// blocked the teleport is cancelled and the committed meter and cooldown
+        /// are <b>retained</b> — no refund, no nearby substitute, no extra recovery
+        /// penalty (TEMPORAL_STATE_CONTRACT.md step 5). On a successful arrival
+        /// velocity is zeroed, facing is preserved, and grounded-versus-airborne
+        /// locomotion is chosen from the destination's actual contact.
+        ///
+        /// <para>An effective interruption — hitstun, daze, death, or entering a
+        /// grab on either side — cancels the wind-up outright: the pending teleport
+        /// must never fire afterwards. The ghost telegraph was the opponent's read
+        /// and they took it, so the cost stands.</para>
         /// </summary>
-        private const int EchoRingSampleIntervalFrames = 6;
-        private const int EchoRingSampleCount = 5;
-
-        private static void AdvanceEchoStep(
+        private void AdvanceEchoStep(
             ref Frame frame,
             EntityRef entity,
             ref FighterStateComponent fighter,
             ref FighterVerbComponent verb) {
-            ref FighterEchoRingComponent ring = ref frame.Get<FighterEchoRingComponent>(entity);
-            ring.SampleCountdown--;
-            if (ring.SampleCountdown <= 0) {
-                ring.SampleCountdown = EchoRingSampleIntervalFrames;
-                WriteRingSample(ref ring, in fighter.Position);
-            }
-
             if (verb.EchoStepWindupFrames <= 0) return;
             if (fighter.HitstunFrames > 0 || fighter.DazeFrames > 0 || fighter.Stocks <= 0
-                // V7.3: entering a grab — as grabber or victim — cancels an
-                // armed wind-up outright: no snap, no refund, cooldown stands.
-                // This runs BEFORE the movement loop's IsBusy short-circuit,
-                // so it is the one place the cancel can happen.
                 || FighterGrabRules.IsBusy(in verb)) {
-                verb.EchoStepWindupFrames = 0;
+                CancelArmedEchoStep(ref frame, entity, ref verb);
                 return;
             }
             verb.EchoStepWindupFrames--;
-            if (verb.EchoStepWindupFrames == 0) {
-                fighter.Position = new FPVector2(verb.EchoStepDestX, verb.EchoStepDestY);
-                fighter.Velocity = FPVector2.Zero;
-                // The ground snap re-resolves against the destination's terrain
-                // on this tick's integration; an elevated destination falls.
-                if (fighter.Position.y > FP64.Zero) fighter.IsGrounded = 0;
-            }
+            if (verb.EchoStepWindupFrames != 0) return;
+
+            var destination = new FPVector2(verb.EchoStepDestX, verb.EchoStepDestY);
+            ref FighterEchoStepRing0Component ring = ref frame.Get<FighterEchoStepRing0Component>(entity);
+            ring.Armed = 0;
+            // Blocked at completion: cancel the teleport, keep the cost.
+            if (!FighterEchoStepRules.IsDestinationClear(_geometry, in destination)) return;
+            fighter.Position = destination;
+            fighter.Velocity = FPVector2.Zero;
+            // Grounded versus airborne comes from the destination's actual contact:
+            // the ground snap re-resolves on this tick's integration, and an
+            // elevated destination falls.
+            if (fighter.Position.y > FP64.Zero) fighter.IsGrounded = 0;
         }
 
-        private static void WriteRingSample(ref FighterEchoRingComponent ring, in FPVector2 position) {
-            switch (ring.RingIndex) {
-                case 0: ring.Sample0X = position.x; ring.Sample0Y = position.y; break;
-                case 1: ring.Sample1X = position.x; ring.Sample1Y = position.y; break;
-                case 2: ring.Sample2X = position.x; ring.Sample2Y = position.y; break;
-                case 3: ring.Sample3X = position.x; ring.Sample3Y = position.y; break;
-                default: ring.Sample4X = position.x; ring.Sample4Y = position.y; break;
-            }
-            ring.RingIndex = (ring.RingIndex + 1) % EchoRingSampleCount;
+        private static void CancelArmedEchoStep(
+            ref Frame frame, EntityRef entity, ref FighterVerbComponent verb) {
+            verb.EchoStepWindupFrames = 0;
+            ref FighterEchoStepRing0Component ring = ref frame.Get<FighterEchoStepRing0Component>(entity);
+            ring.Armed = 0;
         }
-
-        /// <summary>RingIndex points at the next slot to overwrite — the oldest sample.</summary>
-        private static FPVector2 OldestRingSample(in FighterEchoRingComponent ring) => ring.RingIndex switch {
-            0 => new FPVector2(ring.Sample0X, ring.Sample0Y),
-            1 => new FPVector2(ring.Sample1X, ring.Sample1Y),
-            2 => new FPVector2(ring.Sample2X, ring.Sample2Y),
-            3 => new FPVector2(ring.Sample3X, ring.Sample3Y),
-            _ => new FPVector2(ring.Sample4X, ring.Sample4Y)
-        };
 
         /// <summary>
-        /// Echo Step initiation (V7.1): the Block+Roll chord during the
-        /// recovery frames of the fighter's own swing spends 30 meter, arms the
-        /// 8-frame wind-up toward the position ~30 frames back, and starts the
-        /// 120-frame internal cooldown. Never an escape: hitstun, daze, ledge
-        /// hang, the respawn platform, and hitstop (the movement loop skips
-        /// frozen fighters entirely) all refuse it.
+        /// Echo Step initiation (V7.6). During the recovery frames of the fighter's
+        /// own swing the Block+Roll chord — or the direct <c>gameplay_echo_step</c>
+        /// bind — snaps to the position held <b>exactly</b> 30 ticks earlier.
+        ///
+        /// <para><b>Exact or nothing.</b> The destination is resolved before
+        /// anything is spent, and a refusal (insufficient history, or a destination
+        /// inside terrain / an authored kill region) costs <b>no meter and no
+        /// cooldown</b> and does not start the wind-up. An accepted activation
+        /// spends the 30 meter, starts the 120-frame cooldown and arms the 8-frame
+        /// wind-up atomically, once.</para>
+        ///
+        /// <para>Never an escape: hitstun, daze, a ledge hang, the respawn platform,
+        /// a grab on either side, and hitstop (the movement loop skips frozen
+        /// fighters before reaching here) all refuse it.</para>
         /// </summary>
-        private static void TryStartEchoStep(
+        private void TryStartEchoStep(
             ref Frame frame,
             EntityRef entity,
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
             ref FighterVerbComponent verb) {
-            if (verb.EchoStepWindupFrames > 0 || verb.EchoStepCooldownFrames > 0) return;
+            if (!EchoStepStateAllows(in fighter, in runtime, in verb)) return;
             if (runtime.AttackPhase != FighterBasicAttackRules.PhaseRecovery) return;
-            if ((runtime.HeldButtons & BlockButton) == 0 || (runtime.HeldButtons & RollButton) == 0) return;
-            if ((runtime.PressedButtons & (BlockButton | RollButton)) == 0) return;
-            if (fighter.HitstunFrames > 0 || fighter.DazeFrames > 0 || fighter.Stocks <= 0) return;
-            // V7.3: never from inside a grab — grabbing, whiff recovery, being
-            // held, or the throw animation all refuse the step.
-            if (FighterGrabRules.IsBusy(in verb)) return;
-            if (FighterMatchFlowRules.IsOnRespawnPlatform(in fighter)) return;
-            if (FighterLedgeRules.IsHanging(in runtime)) return;
+
+            // Resolve the destination FIRST: its availability is part of whether the
+            // activation is legal at all, so an illegal activation never reaches the
+            // meter.
+            bool hasDestination =
+                FighterEchoStepHistory.TryGetLookback(ref frame, entity, out FPVector2 destination)
+                && FighterEchoStepRules.IsDestinationClear(_geometry, in destination);
             FP64 cost = FP64.FromInt(FTT.Combat.BasicComboRules.EchoStepMeterCost);
-            if (fighter.Influence < cost) return;
+            bool echoLegal = hasDestination && fighter.Influence >= cost;
+
+            // V7.6 same-frame chord priority, from the one shared table both modes
+            // read. A direct bind requests the same verb once and grants no extra
+            // priority, cancel, leniency or resource bypass.
+            bool chordAllowed = (runtime.HeldButtons & DirectOriginButton) == 0;
+            bool directRequest = (runtime.PressedButtons & EchoStepButton) != 0;
+            FTT.Combat.BasicComboRules.RecoveryVerb chosen =
+                FTT.Combat.BasicComboRules.SelectRecoveryVerb(
+                    blockHeld: chordAllowed && (runtime.HeldButtons & BlockButton) != 0,
+                    blockPressed: (runtime.PressedButtons & BlockButton) != 0,
+                    rollHeld: (runtime.HeldButtons & RollButton) != 0,
+                    rollPressed: (runtime.PressedButtons & RollButton) != 0,
+                    basicPressed: (runtime.PressedButtons & BasicButton) != 0,
+                    grabLegal: FighterGrabRules.CanStartGrab(in fighter, in runtime, in verb),
+                    echoLegal: echoLegal);
+            bool requested =
+                directRequest || chosen == FTT.Combat.BasicComboRules.RecoveryVerb.EchoStep;
+            if (!requested) return;
+            // A refused direct action does nothing and spends nothing.
+            if (!echoLegal) return;
 
             fighter.Influence -= cost;
             verb.EchoStepCooldownFrames = FTT.Combat.BasicComboRules.EchoStepCooldownFrames;
             verb.EchoStepWindupFrames = FTT.Combat.BasicComboRules.EchoStepWindupFrames;
-            ref readonly FighterEchoRingComponent ring = ref frame.GetReadOnly<FighterEchoRingComponent>(entity);
-            FPVector2 destination = OldestRingSample(in ring);
             verb.EchoStepDestX = destination.x;
             verb.EchoStepDestY = destination.y;
+            ref FighterEchoStepRing0Component ring = ref frame.Get<FighterEchoStepRing0Component>(entity);
+            ring.Armed = 1;
+            ring.ActivationTick = ring.LatestTick;
+        }
+
+        /// <summary>The state gates an Echo Step shares with every other verb.</summary>
+        private static bool EchoStepStateAllows(
+            in FighterStateComponent fighter,
+            in FighterRuntimeComponent runtime,
+            in FighterVerbComponent verb) {
+            if (verb.EchoStepWindupFrames > 0 || verb.EchoStepCooldownFrames > 0) return false;
+            if (fighter.HitstunFrames > 0 || fighter.DazeFrames > 0 || fighter.Stocks <= 0) return false;
+            if (FighterGrabRules.IsBusy(in verb)) return false;
+            if (FighterMatchFlowRules.IsOnRespawnPlatform(in fighter)) return false;
+            if (FighterLedgeRules.IsHanging(in runtime)) return false;
+            return true;
         }
 
         private static void TickCounters(
@@ -1701,15 +1751,19 @@ namespace FTT.FighterSim {
             ref FighterVerbComponent verbTwo, in FighterTuningComponent tuningTwo,
             bool oneFrozen, bool twoFrozen) {
             // Initiation. Both may start the same frame; the clash resolves it.
-            if (!oneFrozen && FighterGrabRules.ChordPressed(in runtimeOne)
+            // C01c: the direct bind and the preset chord request the same verb,
+            // once (FighterGrabRules.Requested deduplicates them).
+            if (!oneFrozen && FighterGrabRules.Requested(in runtimeOne)
                 && FighterGrabRules.CanStartGrab(in one, in runtimeOne, in verbOne)) {
                 verbOne.GrabPhase = FighterGrabRules.PhaseStartup;
                 verbOne.GrabPhaseFrames = FTT.Combat.BasicComboRules.GrabStartupFrames;
+                verbOne.ClearGrabPartner();
             }
-            if (!twoFrozen && FighterGrabRules.ChordPressed(in runtimeTwo)
+            if (!twoFrozen && FighterGrabRules.Requested(in runtimeTwo)
                 && FighterGrabRules.CanStartGrab(in two, in runtimeTwo, in verbTwo)) {
                 verbTwo.GrabPhase = FighterGrabRules.PhaseStartup;
                 verbTwo.GrabPhaseFrames = FTT.Combat.BasicComboRules.GrabStartupFrames;
+                verbTwo.ClearGrabPartner();
             }
 
             // A hit breaks a grab in every pre-throw phase (attack beats grab);
@@ -1749,9 +1803,11 @@ namespace FTT.FighterSim {
             if (fighter.HitstunFrames <= 0 && fighter.DazeFrames <= 0 && fighter.Stocks > 0) return;
             if (verb.GrabPhase == FighterGrabRules.PhaseHolding) {
                 FighterGrabRules.ReleaseHeldVictim(ref opponentVerb);
+                opponentVerb.ClearGrabPartner();
             }
             verb.GrabPhase = FighterGrabRules.PhaseNone;
             verb.GrabPhaseFrames = 0;
+            verb.ClearGrabPartner();
         }
 
         private static void ConnectGrab(
@@ -1763,6 +1819,14 @@ namespace FTT.FighterSim {
             grabberVerb.GrabPhase = FighterGrabRules.PhaseHolding;
             grabberVerb.GrabPhaseFrames = FTT.Combat.BasicComboRules.ThrowDecisionFrames;
             victimVerb.BeingHeld = 1;
+            // F23 (Package 11 A1c): the attachment is explicit snapshot state now.
+            // The two-fighter systems used to resolve the partner positionally,
+            // which no restored snapshot could describe, and the throw had no
+            // once-only damage guard beyond the phase machine.
+            grabberVerb.GrabPartnerPlayerID = victim.PlayerID;
+            grabberVerb.ThrowDamageApplied = false;
+            victimVerb.GrabPartnerPlayerID = grabber.PlayerID;
+            victimVerb.ThrowDamageApplied = false;
             // Being seized ends the victim's own grab attempt outright — two
             // simultaneous holders would otherwise pin each other into a
             // position feedback loop.
@@ -1816,6 +1880,7 @@ namespace FTT.FighterSim {
                 if (victimVerb.BeingHeld == 0) {
                     grabberVerb.GrabPhase = FighterGrabRules.PhaseNone;
                     grabberVerb.GrabPhaseFrames = 0;
+                    grabberVerb.ClearGrabPartner();
                     return;
                 }
                 PinHeldVictim(in grabber, ref victim, ref victimRuntime);
@@ -1837,6 +1902,7 @@ namespace FTT.FighterSim {
                     break;
                 case FighterGrabRules.PhaseRecovery:
                     grabberVerb.GrabPhase = FighterGrabRules.PhaseNone;
+                    grabberVerb.ClearGrabPartner();
                     break;
                 case FighterGrabRules.PhaseHolding:
                     // The decision window closed: the held direction picks the
@@ -1902,6 +1968,16 @@ namespace FTT.FighterSim {
             // itself must connect, so the animation grant is cleared first.
             victim.InvulnerabilityFrames = 0;
             victimVerb.BeingHeld = 0;
+            // F23 once-only guard: a duplicate resolve (a restored snapshot that
+            // re-enters the same throw frame) must not deal the damage twice.
+            if (grabberVerb.ThrowDamageApplied) {
+                grabberVerb.GrabPhase = FighterGrabRules.PhaseNone;
+                grabberVerb.GrabPhaseFrames = 0;
+                grabberVerb.ClearGrabPartner();
+                victimVerb.ClearGrabPartner();
+                return;
+            }
+            grabberVerb.ThrowDamageApplied = true;
             FighterDamageRules.ApplyFighterHit(
                 ref grabber, ref grabberRuntime, ref grabberVerb,
                 ref victim, ref victimRuntime, ref victimVerb, in victimTuning,
@@ -1920,6 +1996,8 @@ namespace FTT.FighterSim {
             victimVerb.ThrowImmunityFrames = FTT.Combat.BasicComboRules.ThrowImmunityFrames;
             grabberVerb.GrabPhase = FighterGrabRules.PhaseNone;
             grabberVerb.GrabPhaseFrames = 0;
+            grabberVerb.ClearGrabPartner();
+            victimVerb.ClearGrabPartner();
         }
 
         /// <summary>
@@ -2331,6 +2409,12 @@ namespace FTT.FighterSim {
         /// <summary>V7.1 Overtime: the final 60 seconds of any timed match.</summary>
         public const int OvertimeFrames = 3600;
 
+        private readonly FighterStageGeometry _geometry;
+
+        public FighterMatchSystem(FighterStageGeometry geometry = null) {
+            _geometry = geometry ?? FighterStageGeometry.Default;
+        }
+
         public void Update(ref Frame frame) {
             ref FighterMatchComponent match = ref frame.GetSingleton<FighterMatchComponent>();
             if (match.MatchState != 1) return;
@@ -2341,11 +2425,11 @@ namespace FTT.FighterSim {
             if (match.TimerEnabled == 1 && match.RemainingFrames > 0) match.RemainingFrames--;
             bool timerExpired = match.TimerEnabled == 1 && match.RemainingFrames <= 0;
             UpdateOvertimeFlags(ref frame, in match);
-            TrackKnockouts(ref frame, ref match, out int playerOneFell, out int playerTwoFell);
+            TrackStockLosses(ref frame, ref match, out int playerOneFell, out int playerTwoFell);
 
-            // V7.1 Sudden Death: the first KO ends it — a simultaneous
-            // double-KO is the one recorded Draw. Nothing else can end SD
-            // (there is no timer and stocks are phantom).
+            // F22: the next ACTUAL death ends it — one dead fighter loses, two in
+            // the same tick is the existing Draw. Nothing else can end Sudden Death
+            // (there is no timer and no stock pool).
             if (match.SuddenDeathActive == 1) {
                 if (playerOneFell > 0 || playerTwoFell > 0) {
                     bool doubleKO = playerOneFell > 0 && playerTwoFell > 0;
@@ -2357,91 +2441,234 @@ namespace FTT.FighterSim {
             }
 
             int winner = FindStockWinner(ref frame, out bool allAlive, out bool trueTie);
-            bool shouldEnd = match.MatchMode switch {
-                (int)FTT.Core.MatchMode.Stock => !allAlive || timerExpired,
-                (int)FTT.Core.MatchMode.TimeLimit => timerExpired,
-                _ => !allAlive || timerExpired
-            };
-            if (shouldEnd) {
-                if (match.MatchMode == (int)FTT.Core.MatchMode.TimeLimit) {
-                    trueTie = match.PlayerOneKOs == match.PlayerTwoKOs;
-                    winner = trueTie ? -1 : match.PlayerOneKOs > match.PlayerTwoKOs ? 0 : 1;
-                }
-                // V7.1: a true tie no longer records an immediate draw — the
-                // match enters Sudden Death and the first hit decides it.
-                if (trueTie) {
-                    EnterSuddenDeath(ref frame, ref match);
-                    return;
-                }
-                match.MatchState = 2;
-                match.WinnerPlayerID = winner;
-                match.IsTrueTie = 0;
+            // F21: the silent `_ =>` default arm is gone. Hybrid is retired, and an
+            // unrecognized mode falls back to Stock explicitly rather than
+            // inheriting whatever the last arm happened to be.
+            bool shouldEnd = match.MatchMode == (int)FTT.Core.MatchMode.TimeLimit
+                ? timerExpired
+                : !allAlive || timerExpired;
+            if (!shouldEnd) return;
+
+            if (match.MatchMode == (int)FTT.Core.MatchMode.TimeLimit) {
+                // F21 Time mode: FEWEST STOCKS LOST, no HP tiebreak and no
+                // attacker credit. The fields this reads used to count KOs SCORED
+                // and the comparison picked the larger — the opposite bookkeeping.
+                // Every KO in this regulation tick has already been settled by
+                // TrackStockLosses above, so both totals are final here.
+                trueTie = match.PlayerOneStocksLost == match.PlayerTwoStocksLost;
+                winner = trueTie ? -1 : match.PlayerOneStocksLost < match.PlayerTwoStocksLost ? 0 : 1;
             }
+            // A true tie — including Time's 0-0 — enters Sudden Death rather than
+            // recording a draw.
+            if (trueTie) {
+                EnterSuddenDeath(ref frame, ref match);
+                return;
+            }
+            match.MatchState = 2;
+            match.WinnerPlayerID = winner;
+            match.IsTrueTie = 0;
         }
 
         /// <summary>
-        /// Sudden Death (V7.1, replaces the immediate draw): both fighters
-        /// respawn at their spawn points with 1 HP, the timer is off, hazards
-        /// are forced on at the accelerated cadence, Defy History is disabled
-        /// (pre-marked used — the first hit must end it), and Rally is moot at
-        /// 1 HP (the pool is cleared and nothing survivable accrues).
+        /// F22 Sudden Death entry (Package 11 A1c) — a shared <b>round reset</b>
+        /// that keeps what the contract says to keep and clears everything else.
+        /// The retired V7.1 version clamped both fighters to 1 HP, forced hazards
+        /// on over the house rules, and marked Defy used; all three are gone.
+        ///
+        /// <para>Per <c>FIGHTER_MATCH_RULES.md</c> "Transition state":</para>
+        /// <list type="bullet">
+        /// <item>a <b>living</b> fighter keeps its exact current positive HP,
+        /// including unequal HP in a Time tie — no heal, no normalization, no clamp
+        /// to 1;</item>
+        /// <item>a fighter already dead or mid-respawn at the end of regulation
+        /// receives its <b>normal Fighter respawn HP</b> exactly once, resolved
+        /// from the committed end-of-regulation life state and recorded on
+        /// component 319 so a duplicate transition cannot grant it twice. No extra
+        /// stock loss, no change to the frozen totals, no new spawn protection;</item>
+        /// <item>hazards <b>respect the match toggle</b> — Off stays Off. If On, the
+        /// first full warning starts after play resumes at twice-normal cadence,
+        /// and the regulation Overtime multiplier does not carry in;</item>
+        /// <item>meter goes to 0, every cooldown is ready, block refills, both
+        /// status slots, the Rally pool and the Echo Step history are cleared, and
+        /// every regulation projectile, zone, construct and orb is removed;</item>
+        /// <item>Defy is disabled for the phase by <em>derivation</em> from
+        /// <c>SuddenDeathActive</c> — its spent flag is preserved untouched, so no
+        /// new use is consumed merely on entry;</item>
+        /// <item>the regulation stocks-lost totals are frozen for the results
+        /// screen, and the transition is committed together with the phase
+        /// generation so a late regulation event is discarded by identity.</item>
+        /// </list>
         /// </summary>
-        private static void EnterSuddenDeath(ref Frame frame, ref FighterMatchComponent match) {
+        private void EnterSuddenDeath(ref Frame frame, ref FighterMatchComponent match) {
+            ref FighterSuddenDeathComponent phase = ref frame.GetSingleton<FighterSuddenDeathComponent>();
+            // Committed together with the phase flip: identity first, so anything
+            // reading the generation sees the new phase and the frozen totals as
+            // one state.
+            phase.PhaseGeneration++;
+            phase.FrozenPlayerOneStocksLost = match.PlayerOneStocksLost;
+            phase.FrozenPlayerTwoStocksLost = match.PlayerTwoStocksLost;
             match.SuddenDeathActive = 1;
             match.TimerEnabled = 0;
             match.RemainingFrames = 0;
-            // V7.3 ruling #9: Chronal Orbs are OFF in Sudden Death. Live orbs
-            // are cleared here and FighterOrbSystem early-returns for the rest
-            // of the match, so nothing spawns, lingers, or awards.
+
+            // Remove every regulation orb and disable spawning/collection for the
+            // rest of the match (V7.3 ruling #9; FighterOrbSystem early-returns).
             var orbFilter = frame.Filter<FighterOrbComponent>();
-            while (orbFilter.Next(out EntityRef orbEntity)) {
-                frame.DestroyEntity(orbEntity);
+            while (orbFilter.Next(out EntityRef orbEntity)) frame.DestroyEntity(orbEntity);
+            // "Remove every regulation projectile, attack zone, summon, construct
+            // and temporary ability platform, including objects whose owner died.
+            // Clear pending damage/events associated with them."
+            var projectileFilter = frame.Filter<FighterProjectileComponent>();
+            while (projectileFilter.Next(out EntityRef projectile)) frame.DestroyEntity(projectile);
+            var zoneFilter = frame.Filter<FighterZoneComponent>();
+            while (zoneFilter.Next(out EntityRef zone)) frame.DestroyEntity(zone);
+            var constructFilter = frame.Filter<FighterPersistentObjectComponent>();
+            while (constructFilter.Next(out EntityRef construct)) frame.DestroyEntity(construct);
+            // The arena returns to its authored round-start state: live hazards are
+            // cleared and the first warning is scheduled fresh below.
+            var hazardFilter = frame.Filter<FighterHazardComponent>();
+            while (hazardFilter.Next(out EntityRef hazard)) frame.DestroyEntity(hazard);
+
+            // "Respect the match's hazard toggle. If Off, no hazard warnings or
+            // damage." The retired version forced HazardsEnabled = 1 here, which
+            // overrode the house rules outright.
+            if (match.HazardsEnabled == 1 && match.HazardFrequency > 0) {
+                // Twice-normal cadence by halving idle and recovery while warning
+                // and active durations are retained, and never multiplied again by
+                // regulation Overtime (every OvertimeActive flag is cleared below).
+                int interval = FighterSpawnIntervals.HazardFrames(match.HazardFrequency) / 2;
+                match.NextHazardSpawnFrames = interval > 0 ? interval : 1;
+            } else {
+                match.NextHazardSpawnFrames = 0;
             }
-            // Hazards are forced on at the accelerated cadence even when the
-            // house rules had them off (a disabled match carries frequency 0,
-            // which would leave the forced flag inert).
-            match.HazardsEnabled = 1;
-            if (match.HazardFrequency <= 0) match.HazardFrequency = 3;
-            if (match.NextHazardSpawnFrames <= 0) {
-                match.NextHazardSpawnFrames = FighterSpawnIntervals.HazardFrames(match.HazardFrequency);
-            }
+            match.NextOrbSpawnFrames = 0;
+
             var filter = frame.Filter<FighterStateComponent, FighterRuntimeComponent, FighterVerbComponent>();
             while (filter.Next(out EntityRef entity)) {
                 ref FighterStateComponent fighter = ref frame.Get<FighterStateComponent>(entity);
                 ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(entity);
                 ref FighterVerbComponent verb = ref frame.Get<FighterVerbComponent>(entity);
-                // A double-elimination tie arrives with 0 stocks: grant one
-                // phantom stock so the KO machinery can record the deciding hit.
-                if (fighter.Stocks < 1) fighter.Stocks = 1;
-                fighter.CurrentHP = 1;
+                ref readonly FighterTuningComponent tuning = ref frame.GetReadOnly<FighterTuningComponent>(entity);
+
+                // Dead-entry resolution, Option A. "Already dead or in the normal
+                // respawn sequence" is exactly HP <= 0, out of stocks, or still on
+                // the respawn platform; anything else is a living fighter whose
+                // current positive HP is preserved untouched.
+                bool deadOrRespawning = fighter.CurrentHP <= 0
+                    || fighter.Stocks <= 0
+                    || fighter.RespawnFramesRemaining > 0;
+                if (deadOrRespawning && !RespawnHPAlreadyGranted(in phase, fighter.PlayerID)) {
+                    fighter.CurrentHP = fighter.MaxHP;
+                    MarkRespawnHPGranted(ref phase, fighter.PlayerID);
+                }
+                // One decisive life each: no stock pool, no further respawns. This
+                // is not a stock LOSS — the frozen regulation totals are untouched.
+                fighter.Stocks = 1;
+
                 fighter.Position = fighter.SpawnPosition;
                 fighter.Velocity = FPVector2.Zero;
                 fighter.IsGrounded = 1;
                 fighter.HitstunFrames = 0;
                 fighter.DazeFrames = 0;
+                fighter.HyperArmorFrames = 0;
+                fighter.DropThroughFrames = 0;
                 fighter.RespawnFramesRemaining = 0;
+                // "Clear prior respawn platforms and invulnerability, plus old
+                // attack/roll invulnerability... once play resumes, no new
+                // spawn-invulnerability period is granted."
                 fighter.InvulnerabilityFrames = 0;
+                fighter.BlockCharges = tuning.MaxBlockCharges;
+                fighter.RemainingJumps = tuning.MaxJumpCount;
+                // Meter 0; no pending Ultimate.
+                fighter.Influence = FP64.Zero;
+
                 verb.EchoPool = FP64.Zero;
                 verb.EchoDrainPerFrame = FP64.Zero;
                 verb.HitstopFrames = 0;
                 verb.Tumble = 0;
                 verb.PendingLaunchActive = 0;
+                verb.TechLockoutFrames = 0;
                 verb.EchoStepWindupFrames = 0;
+                verb.EchoStepCooldownFrames = 0;
                 verb.ShieldStunFrames = 0;
                 verb.BlockLockoutFrames = 0;
                 verb.HitstunBlockCancelBlocked = 0;
                 verb.LedgeGrabsThisAirtime = 0;
-                verb.DefyHistoryUsed = 1;
+                verb.GrabPhase = FighterGrabRules.PhaseNone;
+                verb.GrabPhaseFrames = 0;
+                verb.BeingHeld = 0;
+                verb.ThrowImmunityFrames = 0;
+                verb.ClearGrabPartner();
+                verb.MomentumRefundsSlotOne = 0;
+                verb.MomentumRefundsSlotTwo = 0;
+                // No Overtime multiplier inside the phase.
                 verb.OvertimeActive = 0;
+                // "Preserve its spent flag": DefyHistoryUsed is deliberately NOT
+                // written here. The phase disable is derived from
+                // match.SuddenDeathActive at the read site, so entry consumes no
+                // new use and restoring a snapshot cannot resurrect a stale copy.
+
+                runtime.SpecialOneCooldownFrames = 0;
+                runtime.SpecialTwoCooldownFrames = 0;
+                runtime.MovementCooldownFrames = 0;
+                runtime.BasicCooldownFrames = 0;
+                runtime.BlockRegenFrames = 0;
+                runtime.SpeedBuffFrames = 0;
+                runtime.JumpBuffFrames = 0;
+                runtime.ZoneSpeedBonusFrames = 0;
+                runtime.FloatFrames = 0;
+                runtime.AegisHits = 0;
+                // Both status slots, plus marks and tethers.
+                runtime.StatusType = (int)FTT.Core.StatusType.None;
+                runtime.StatusFrames = 0;
+                runtime.StatusIntensity = FP64.One;
+                runtime.DamageStatusType = (int)FTT.Core.StatusType.None;
+                runtime.DamageStatusFrames = 0;
+                runtime.DamageStatusIntensity = FP64.One;
+                runtime.StatusTickFrames = 0;
+                // Empty input buffers: no queued regulation attack fires after the
+                // restart.
+                runtime.MoveX = 0;
+                runtime.MoveY = 0;
+                runtime.HeldButtons = 0;
+                runtime.PressedButtons = 0;
+                runtime.ReleasedButtons = 0;
                 FighterUniversalMovementRules.Cancel(ref runtime);
                 FighterBasicAttackRules.CancelString(ref runtime);
                 FighterLedgeRules.ClearHang(ref runtime);
+                runtime.LedgeRegrabLockoutFrames = 0;
+                if (frame.Has<FighterConductiveComponent>(entity)) {
+                    ref FighterConductiveComponent conductive =
+                        ref frame.Get<FighterConductiveComponent>(entity);
+                    conductive.FramesRemaining = 0;
+                    conductive.SourcePlayerID = -1;
+                    conductive.ChainConsumedExecutionID = 0;
+                }
+                // "Initialize a new Echo Step history generation at the spawn...
+                // Require 30 subsequent simulation ticks before use; never teleport
+                // into regulation history."
+                FighterEchoStepHistory.Reset(
+                    ref frame, entity, in fighter.SpawnPosition, runtime.KnockoutsSuffered);
             }
+
+            // The common match-start ready countdown: controls and simulation
+            // clocks are frozen together for both players and resume together.
+            match.CountdownFramesRemaining = FighterMatchFlowRules.CountdownFrames;
+            match.MatchState = FighterMatchStates.Countdown;
+            match.GoBannerFramesRemaining = 0;
+        }
+
+        private static bool RespawnHPAlreadyGranted(in FighterSuddenDeathComponent phase, int playerID) =>
+            playerID == 0 ? phase.PlayerOneRespawnHPGranted != 0 : phase.PlayerTwoRespawnHPGranted != 0;
+
+        private static void MarkRespawnHPGranted(ref FighterSuddenDeathComponent phase, int playerID) {
+            if (playerID == 0) phase.PlayerOneRespawnHPGranted = 1;
+            else phase.PlayerTwoRespawnHPGranted = 1;
         }
 
         /// <summary>
         /// V7.1 Overtime: the final 3,600 frames of a timed match set every
-        /// fighter's OvertimeActive flag (echo fraction ×1.5 capped 0.60 in the
+        /// fighter's OvertimeActive flag (echo fraction x1.5 capped 0.60 in the
         /// damage chokepoint; hazard cadence doubles in the hazard system).
         /// Not applied in Sudden Death or untimed matches.
         /// </summary>
@@ -2457,7 +2684,22 @@ namespace FTT.FighterSim {
             }
         }
 
-        private static void TrackKnockouts(
+        /// <summary>
+        /// F21: mirrors each fighter's own <c>KnockoutsSuffered</c> — the victim-side
+        /// count the single chokepoint <c>FighterSimulationRules.ApplyStockLoss</c>
+        /// already raises for every cause — onto the match totals.
+        ///
+        /// <para>Because the source is that one chokepoint, the increment is
+        /// atomic with the living-to-KO transition and before respawn, every cause
+        /// (opponent damage, pit, hazard, self-KO, DoT, a surviving projectile or
+        /// construct) counts identically with no attacker credit, a hit prevented
+        /// by Defy or invulnerability never reaches it, co-occurring lethal damage
+        /// and a blast-zone crossing produce one death and one increment, and
+        /// duplicate callbacks cannot repeat it. The totals are rollback snapshot
+        /// and hash state, so resimulation replaces them rather than adding to an
+        /// external counter.</para>
+        /// </summary>
+        private static void TrackStockLosses(
             ref Frame frame,
             ref FighterMatchComponent match,
             out int playerOneFell,
@@ -2470,12 +2712,12 @@ namespace FTT.FighterSim {
                 ref readonly FighterRuntimeComponent runtime = ref frame.GetReadOnly<FighterRuntimeComponent>(entity);
                 if (fighter.PlayerID == 0) {
                     int gained = runtime.KnockoutsSuffered - match.LastPlayerOneKnockoutsSuffered;
-                    if (gained > 0) match.PlayerTwoKOs += gained;
+                    if (gained > 0 && match.SuddenDeathActive == 0) match.PlayerOneStocksLost += gained;
                     playerOneFell = gained;
                     match.LastPlayerOneKnockoutsSuffered = runtime.KnockoutsSuffered;
                 } else if (fighter.PlayerID == 1) {
                     int gained = runtime.KnockoutsSuffered - match.LastPlayerTwoKnockoutsSuffered;
-                    if (gained > 0) match.PlayerOneKOs += gained;
+                    if (gained > 0 && match.SuddenDeathActive == 0) match.PlayerTwoStocksLost += gained;
                     playerTwoFell = gained;
                     match.LastPlayerTwoKnockoutsSuffered = runtime.KnockoutsSuffered;
                 }
@@ -2485,11 +2727,22 @@ namespace FTT.FighterSim {
         private static int FindStockWinner(ref Frame frame, out bool allAlive, out bool trueTie) {
             FighterStateComponent first = default;
             FighterStateComponent second = default;
+            FighterVerbComponent firstVerb = default;
+            FighterVerbComponent secondVerb = default;
             var filter = frame.Filter<FighterStateComponent>();
             while (filter.Next(out EntityRef entity)) {
                 ref readonly FighterStateComponent fighter = ref frame.GetReadOnly<FighterStateComponent>(entity);
-                if (fighter.PlayerID == 0) first = fighter;
-                else if (fighter.PlayerID == 1) second = fighter;
+                if (fighter.PlayerID == 0) {
+                    first = fighter;
+                    if (frame.Has<FighterVerbComponent>(entity)) {
+                        firstVerb = frame.GetReadOnly<FighterVerbComponent>(entity);
+                    }
+                } else if (fighter.PlayerID == 1) {
+                    second = fighter;
+                    if (frame.Has<FighterVerbComponent>(entity)) {
+                        secondVerb = frame.GetReadOnly<FighterVerbComponent>(entity);
+                    }
+                }
             }
 
             allAlive = first.Stocks > 0 && second.Stocks > 0;
@@ -2498,10 +2751,22 @@ namespace FTT.FighterSim {
                 return first.Stocks > second.Stocks ? 0 : 1;
             }
 
-            long firstHP = (long)first.CurrentHP * second.MaxHP;
-            long secondHP = (long)second.CurrentHP * first.MaxHP;
+            // Stock-mode timeout: remaining stocks, then remaining HP as a fraction
+            // of that fighter's own maximum, with unreclaimed Rally echo excluded
+            // (the echo is not health until it is reclaimed).
+            long firstHP = (long)EffectiveHP(in first, in firstVerb) * second.MaxHP;
+            long secondHP = (long)EffectiveHP(in second, in secondVerb) * first.MaxHP;
             trueTie = firstHP == secondHP;
             return trueTie ? -1 : firstHP > secondHP ? 0 : 1;
+        }
+
+        /// <summary>HP with the unreclaimed Rally echo pool excluded (F21).</summary>
+        private static int EffectiveHP(
+            in FighterStateComponent fighter, in FighterVerbComponent verb) {
+            if (verb.EchoPool <= FP64.Zero) return fighter.CurrentHP;
+            int echo = (int)(verb.EchoPool.RawValue / FP64.One.RawValue);
+            int remaining = fighter.CurrentHP - echo;
+            return remaining > 0 ? remaining : 0;
         }
     }
 
@@ -2544,6 +2809,14 @@ namespace FTT.FighterSim {
             verb.BlockLockoutFrames = 0;
             verb.HitstunBlockCancelBlocked = 0;
             verb.LedgeGrabsThisAirtime = 0;
+            verb.ClearGrabPartner();
+            // F21: the single victim-side increment, atomic with the living-to-KO
+            // transition and before the respawn placement below. Every cause
+            // reaches this one chokepoint, so nothing needs attacker credit and no
+            // duplicate callback can repeat it. It is also the Echo Step history's
+            // life epoch — the movement sampler opens a new generation the moment
+            // this value moves, which is how a chokepoint with no Frame in hand
+            // still resets the ring (Package 11 A1c).
             runtime.KnockoutsSuffered++;
             if (runtime.UsesStocks != 0) fighter.Stocks--;
             fighter.Influence = fighter.Influence * FP64.FromInt(3) / FP64.FromInt(4);

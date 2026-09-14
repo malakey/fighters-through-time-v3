@@ -97,10 +97,12 @@ namespace FTT.UI {
             PopulateStages(session.SelectedStageID);
 
             _matchMode = AddOptionRow(layout, "MatchMode", "holodeck_rules");
+            // F21: two modes. The retired Stock + Time combination is gone from
+            // both selectors; a legacy saved Hybrid has already normalized to
+            // timed Stock by the time these settings are read.
             _matchMode.AddItem(Tr("fighter_mode_stock"), (int)MatchMode.Stock);
             _matchMode.AddItem(Tr("fighter_mode_time"), (int)MatchMode.TimeLimit);
-            _matchMode.AddItem(Tr("fighter_mode_hybrid"), (int)MatchMode.Hybrid);
-            _matchMode.Select((int)settings.Mode);
+            _matchMode.Select(SelectableModeIndex(settings.Mode));
 
             var rulesRow = new HBoxContainer { Name = "RulesRow" };
             rulesRow.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);

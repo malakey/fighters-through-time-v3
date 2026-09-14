@@ -17,6 +17,9 @@ namespace FTT.UI {
         private Control _panel;
         private Label _stamp;
         private Label _outcome;
+        private Label _stocksLostOne;
+        private Label _stocksLostTwo;
+        private Label _suddenDeathNote;
         private Button _rematchButton;
         private bool _shown;
         // V7 "Rematch requires both": in local-human matches the Rematch press
@@ -35,6 +38,15 @@ namespace FTT.UI {
 
         /// <summary>Stamp colour currently in force. Test seam.</summary>
         public Color StampColor => _stamp != null ? _stamp.GetThemeColor("font_color") : default;
+
+        /// <summary>The two F21 stocks-lost lines, in player order. Test seam.</summary>
+        public string StocksLostTextOne => _stocksLostOne?.Text ?? "";
+
+        /// <inheritdoc cref="StocksLostTextOne"/>
+        public string StocksLostTextTwo => _stocksLostTwo?.Text ?? "";
+
+        /// <summary>Whether the stocks-lost totals are currently displayed. Test seam.</summary>
+        public bool StocksLostVisible => _stocksLostOne?.Visible == true;
 
         public override void _Ready() {
             Layer = 90;
@@ -57,10 +69,39 @@ namespace FTT.UI {
                     ? Tr("fighter_results_draw")
                     : string.Format(Tr("fighter_results_winner"), result.WinnerPlayerID + 1);
             }
+            ApplyStocksLostTotals(result);
             // Focus is authored only once the panel is on screen: a chain built
             // against a hidden subtree collects nothing (FocusChainBuilder skips
             // invisible branches), and a controller player would land on nothing.
             FocusChainBuilder.Apply(_panel);
+        }
+
+        /// <summary>
+        /// F21's results lines (Package 11 A1c). Time mode is decided by fewest
+        /// stocks lost, so the totals that decided it are shown — the regulation
+        /// totals, frozen at Sudden Death entry, never the decider's own life.
+        ///
+        /// <para>Stock mode hides them: its own elimination and HP-percentage rules
+        /// decided the match, and a "stocks lost" line there would read as the
+        /// deciding quantity when it is not. The contract forbids labelling this
+        /// KOs scored, points or remaining lives — lower is better.</para>
+        /// </summary>
+        private void ApplyStocksLostTotals(FighterMatchResult result) {
+            bool timeMode = FighterHudModel.UsesStocksLostDisplay(result.MatchMode);
+            if (_stocksLostOne != null) {
+                _stocksLostOne.Visible = timeMode;
+                _stocksLostOne.Text = string.Format(
+                    Tr("fighter_results_stocks_lost"), 1, result.PlayerOneStocksLost);
+            }
+            if (_stocksLostTwo != null) {
+                _stocksLostTwo.Visible = timeMode;
+                _stocksLostTwo.Text = string.Format(
+                    Tr("fighter_results_stocks_lost"), 2, result.PlayerTwoStocksLost);
+            }
+            if (_suddenDeathNote != null) {
+                _suddenDeathNote.Visible = result.DecidedInSuddenDeath;
+                _suddenDeathNote.Text = Tr("fighter_results_sudden_death");
+            }
         }
 
         /// <summary>
@@ -134,6 +175,13 @@ namespace FTT.UI {
             };
             layout.AddChild(_outcome);
 
+            _stocksLostOne = MakeTotalsLine("StocksLostOne");
+            layout.AddChild(_stocksLostOne);
+            _stocksLostTwo = MakeTotalsLine("StocksLostTwo");
+            layout.AddChild(_stocksLostTwo);
+            _suddenDeathNote = MakeTotalsLine("SuddenDeathNote");
+            layout.AddChild(_suddenDeathNote);
+
             var rematch = MakeButton(Tr("fighter_rematch"));
             rematch.Pressed += OnRematchPressed;
             layout.AddChild(rematch);
@@ -194,6 +242,18 @@ namespace FTT.UI {
                 GameManager.Instance?.LoadScene(RematchScenePath());
             }
         }
+
+        /// <summary>
+        /// A totals line. Hidden until <see cref="ShowResult"/> decides it applies,
+        /// and on the SmallLabel role rather than a font-size override so it follows
+        /// the accessibility UI scale (V7.3 type-scale rule).
+        /// </summary>
+        private static Label MakeTotalsLine(string name) => new() {
+            Name = name,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            ThemeTypeVariation = UIPalette.SmallLabelVariation,
+            Visible = false
+        };
 
         private static Button MakeButton(string text) => new() {
             Text = text,

@@ -386,6 +386,79 @@ namespace FTT.Combat {
         /// <summary>How far back in time the snap reaches.</summary>
         public const int EchoStepLookbackFrames = 30;
 
+        // === Same-frame chord priority in attack recovery (V7.6, Package 11 A1c) ===
+        // Design master 1451-1452. During a swing's recovery frames three verbs
+        // read the same Block input, so an ordering has to be authored rather
+        // than inherited from whichever system happens to run first. Before this
+        // it WAS incidental: the sim called TryStartEchoStep at movement time and
+        // evaluated the roll cancel eight lines later, so Echo Step won by
+        // accident, while the grab chord was resolved in a different system
+        // entirely. One rule now, read by both modes from this one table:
+        //
+        //     the chord beats the single input, and the priced verb beats the
+        //     free one.
+
+        /// <summary>The verb a recovery-frame input resolves to. See <see cref="SelectRecoveryVerb"/>.</summary>
+        public enum RecoveryVerb {
+            /// <summary>No Block input: the swing runs its recovery out.</summary>
+            None,
+            /// <summary>Block + Roll with Echo Step legal: the priced verb wins.</summary>
+            EchoStep,
+            /// <summary>Block + BasicAttack where grabs are legal.</summary>
+            Grab,
+            /// <summary>Block alone, or a chord whose priced verb is unavailable.</summary>
+            BlockCancel
+        }
+
+        /// <summary>
+        /// Resolves one tick of recovery-frame input to exactly one verb. Both
+        /// <c>PlayerController</c> (Story) and <c>FighterMovementSystem</c> /
+        /// <c>FighterCombatSystem</c> (the deterministic sim) call this, so the
+        /// table cannot drift between modes.
+        ///
+        /// <para>The authored table:</para>
+        /// <list type="bullet">
+        /// <item>same-frame <b>Block + Roll</b> with Echo Step legal → Echo Step
+        /// (the priced verb beats the free stance);</item>
+        /// <item>same-frame <b>Block + BasicAttack</b> with grabs legal → a grab
+        /// attempt, otherwise the block-cancel;</item>
+        /// <item><b>Block alone</b> → the block-cancel;</item>
+        /// <item>a chord whose priced verb is illegal (meter, cooldown, an
+        /// unavailable destination) falls back to the block-cancel rather than
+        /// doing nothing — it must never eat the input.</item>
+        /// </list>
+        ///
+        /// <para><paramref name="rollHeld"/> is a deliberate widening of the
+        /// plan's authored six-parameter signature: the shipped chord is
+        /// recognized on <em>either</em> edge (Block pressed onto a held Roll, or
+        /// Roll pressed onto a held Block), and a Roll-press-only test would have
+        /// silently narrowed live behaviour this workstream was not asked to
+        /// change. Recorded in the plan's §9.</para>
+        /// </summary>
+        /// <param name="blockHeld">Block is held this tick.</param>
+        /// <param name="blockPressed">Block went down this tick.</param>
+        /// <param name="rollHeld">Roll is held this tick.</param>
+        /// <param name="rollPressed">Roll went down this tick.</param>
+        /// <param name="basicPressed">BasicAttack went down this tick.</param>
+        /// <param name="grabLegal">A grab could start right now (reach aside).</param>
+        /// <param name="echoLegal">Echo Step could start right now: meter, cooldown, history and a clear destination.</param>
+        public static RecoveryVerb SelectRecoveryVerb(
+            bool blockHeld,
+            bool blockPressed,
+            bool rollHeld,
+            bool rollPressed,
+            bool basicPressed,
+            bool grabLegal,
+            bool echoLegal) {
+            if (!blockHeld) return RecoveryVerb.None;
+            // A chord is only a chord on the tick one of its halves arrives; a
+            // Block+Roll the player has simply been leaning on is a stale hold.
+            bool echoChord = rollHeld && (rollPressed || blockPressed);
+            if (echoChord) return echoLegal ? RecoveryVerb.EchoStep : RecoveryVerb.BlockCancel;
+            if (basicPressed) return grabLegal ? RecoveryVerb.Grab : RecoveryVerb.BlockCancel;
+            return RecoveryVerb.BlockCancel;
+        }
+
         // === Resonance Momentum (V7.1, applied 2026-08-24) ===
         // A CONNECTING basic-string finisher (Hit 3) refunds frames on both
         // special cooldowns — never hits 1-2, the directional strikes, a

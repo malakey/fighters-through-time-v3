@@ -9,10 +9,29 @@ namespace FTT.Core {
         Hard
     }
 
+    /// <summary>
+    /// F21 (Package 11 A1c): the selectable modes are <b>Stock</b> and <b>Time</b>.
+    /// The ordinals are explicit because they serialize into the global save's
+    /// <c>SavedMatchSettings.Mode</c> and into the deterministic
+    /// <c>FighterMatchComponent.MatchMode</c>.
+    /// </summary>
     public enum MatchMode {
-        Stock,
-        TimeLimit,
-        Hybrid
+        /// <summary>Limited stocks (default 3, range 1-5); the timer is optional, including Off.</summary>
+        Stock = 0,
+        /// <summary>
+        /// Labelled <b>Time</b> in every menu; the identifier is retained for
+        /// compatibility. Unlimited respawns, a positive timer required, decided by
+        /// fewest stocks lost with no HP tiebreak.
+        /// </summary>
+        TimeLimit = 1,
+        /// <summary>
+        /// The retired Stock + Time combination. <b>Reserved, never reused, and
+        /// never offered as a third playable mode</b> — it exists only so a legacy
+        /// saved value decodes to something recognizable before
+        /// <c>SavedMatchSettings.Normalize</c> rewrites it to timed Stock.
+        /// </summary>
+        [System.Obsolete("F21: retired. Legacy decoding only; SavedMatchSettings.Normalize maps it to timed Stock.")]
+        Hybrid = 2
     }
 
     public enum ChronalOrbFrequency {
@@ -56,6 +75,7 @@ namespace FTT.Core {
             // V7.3 ruling #18: items and hazards default to Medium (still on;
             // High remains a house-rule choice).
             return new MatchSettings {
+                // F21: Stock is 0 explicitly now, and Hybrid is not offered.
                 Mode = MatchMode.Stock,
                 StockCount = 3,
                 TimeLimit = 480.0f,
@@ -124,11 +144,16 @@ namespace FTT.Core {
             _matchSettingsLoaded = true;
             SavedMatchSettings saved = SaveManager.Instance?.GlobalData?.LastMatchSettings;
             if (saved == null || !saved.Saved) return;
+            // F21 migration, run before the loaded settings are ever displayed or a
+            // match is created from them: a recognized legacy Hybrid becomes timed
+            // Stock with its timer and stock count preserved and repaired. The
+            // normalization is idempotent and never touches a running match.
+            saved.Normalize();
             var itemRate = (ChronalOrbFrequency)saved.ItemSpawnRate;
             var hazardRate = (HazardTriggerFrequency)saved.HazardRate;
             CurrentSession.MatchSettings = new MatchSettings {
                 Mode = (MatchMode)saved.Mode,
-                StockCount = Mathf.Max(1, saved.StockCount),
+                StockCount = Mathf.Clamp(saved.StockCount, SavedMatchSettings.MinStockCount, SavedMatchSettings.MaxStockCount),
                 TimeLimit = Mathf.Max(0f, saved.TimeLimit),
                 ItemSpawnRate = itemRate,
                 ItemsEnabled = itemRate != ChronalOrbFrequency.Off,

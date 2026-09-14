@@ -40,6 +40,23 @@ namespace FTT.Core {
             public const string TimeFreeze = "gameplay_time_freeze";
 
             /// <summary>
+            /// C01c direct <b>Grab</b> action (Package 11 A1c). Its direct slot is
+            /// authored <b>Unbound</b> on both device kinds: the shipped route is
+            /// the Block+BasicAttack preset chord, and C01c's promise is that a
+            /// direct bind is an addition, not a replacement. Carries
+            /// <see cref="GameplayButtons.Grab"/>, so it reaches the deterministic
+            /// input frame — unlike <see cref="TimeFreeze"/>, which must not.
+            /// </summary>
+            public const string Grab = "gameplay_grab";
+
+            /// <summary>
+            /// C01c direct <b>Echo Step</b> action (Package 11 A1c). Authored
+            /// Unbound; the shipped route is the Block+Roll preset chord. Carries
+            /// <see cref="GameplayButtons.EchoStep"/>.
+            /// </summary>
+            public const string EchoStep = "gameplay_echo_step";
+
+            /// <summary>
             /// The retired V7.2 manual-rewind action name. Kept only so the
             /// global binding payload's key-rename migration has a literal to
             /// match; never bound, never polled.
@@ -320,8 +337,53 @@ namespace FTT.Core {
             AddIfHeld(ref held, GameplayButtons.Interact, ReadActionPressed(Actions.Interact, deviceId));
             AddIfHeld(ref held, GameplayButtons.Pause, ReadActionPressed(Actions.Pause, deviceId));
 
+            // C01c combined verbs (Package 11 A1c). Both routes request the SAME
+            // verb once: a direct bind, or the preset chord while that chord is
+            // enabled for this device kind. Nothing here synthesizes a component
+            // press, and a direct bind never disables the chord — the two simply
+            // OR into one bit, so a player holding both can only fire once.
+            InputDeviceKind deviceKind = deviceId == KeyboardDevice
+                ? InputDeviceKind.Keyboard
+                : InputDeviceKind.Joypad;
+            bool grabShortcut = ShortcutEnabled(InputShortcuts.GrabAction, deviceKind);
+            bool echoShortcut = ShortcutEnabled(InputShortcuts.EchoStepAction, deviceKind);
+            bool blockHeld = held.HasFlag(GameplayButtons.Block);
+            bool directGrab = ReadDirectAction(Actions.Grab, deviceId);
+            bool directEcho = ReadDirectAction(Actions.EchoStep, deviceId);
+            AddIfHeld(
+                ref held,
+                GameplayButtons.Grab,
+                directGrab || (grabShortcut && blockHeld && held.HasFlag(GameplayButtons.BasicAttack)));
+            AddIfHeld(
+                ref held,
+                GameplayButtons.EchoStep,
+                directEcho || (echoShortcut && blockHeld && held.HasFlag(GameplayButtons.Roll)));
+            // The normalized instruction to a peer: "my chords are off, so do not
+            // read my component bits as a chord." Protocol v3 carries it so a
+            // remote machine's own shortcut settings can never re-recognize this
+            // frame differently (see GameplayButtons.DirectOrigin).
+            AddIfHeld(ref held, GameplayButtons.DirectOrigin, !grabShortcut && !echoShortcut);
+
             return PlayerInputFrame.Create(tick, horizontal, vertical, held, previousHeld);
         }
+
+        /// <summary>
+        /// A C01c direct action that the InputMap may not carry yet (the two rows
+        /// are authored Unbound, and a project without them at all is a valid
+        /// state for older scenes). Missing or unbound reads as "not pressed",
+        /// which is exactly a refused direct action: it does nothing and spends
+        /// nothing.
+        /// </summary>
+        private static bool ReadDirectAction(string action, int deviceId) =>
+            InputMap.HasAction(action) && ReadActionPressed(action, deviceId);
+
+        /// <summary>
+        /// Whether a preset chord is switched on for a device kind. Reads the saved
+        /// profile directly: a missing flag — and a missing SaveManager, which is
+        /// every headless test — is On, reproducing the shipped chords.
+        /// </summary>
+        private static bool ShortcutEnabled(string action, InputDeviceKind deviceKind) =>
+            SaveManager.Instance?.GlobalData?.InputBindings?.IsShortcutEnabled(action, deviceKind) ?? true;
 
         /// <summary>
         /// Scratch buffer for <see cref="ReadUltimatePressed"/> (audit M-26): this
@@ -391,6 +453,8 @@ namespace FTT.Core {
             Actions.Ultimate => GameplayButtons.Ultimate,
             Actions.Interact => GameplayButtons.Interact,
             Actions.Pause => GameplayButtons.Pause,
+            Actions.Grab => GameplayButtons.Grab,
+            Actions.EchoStep => GameplayButtons.EchoStep,
             _ => GameplayButtons.None
         };
 

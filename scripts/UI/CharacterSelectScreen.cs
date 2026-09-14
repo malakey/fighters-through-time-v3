@@ -622,16 +622,18 @@ namespace FTT.UI {
             PopulateStages();
             UpdateStagePreview();
 
+            // F21: two modes. The retired Stock + Time combination is gone from
+            // both selectors; a legacy saved Hybrid has already normalized to
+            // timed Stock by the time these settings are read.
             _matchMode.AddItem(Tr("fighter_mode_stock"), (int)MatchMode.Stock);
             _matchMode.AddItem(Tr("fighter_mode_time"), (int)MatchMode.TimeLimit);
-            _matchMode.AddItem(Tr("fighter_mode_hybrid"), (int)MatchMode.Hybrid);
 
             // V7 "Match Settings Persist": the rule controls initialize from the
             // session settings (which EnsureMatchSettingsLoaded pre-loaded from
             // the global save) instead of hardcoded defaults.
             MatchSettings settings = GameManager.Instance?.CurrentSession.MatchSettings
                 ?? MatchSettings.GetDefault();
-            _matchMode.Select((int)settings.Mode);
+            _matchMode.Select(SelectableModeIndex(settings.Mode));
             if (_stockCount != null) _stockCount.Value = settings.StockCount;
             if (_timeLimit != null) _timeLimit.Value = settings.TimeLimit;
 

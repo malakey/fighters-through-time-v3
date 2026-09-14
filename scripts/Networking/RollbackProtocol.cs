@@ -11,7 +11,23 @@ namespace FTT.Networking {
 
     public readonly struct RollbackInputPacket {
         public const uint ProtocolMagic = 0x46545452;
-        public const ushort ProtocolVersion = 2;
+        /// <summary>
+        /// v3 (Package 11 A1c, C01c): the input frame now carries the logical
+        /// combined verbs <see cref="FTT.Core.GameplayButtons.EchoStep"/> and
+        /// <see cref="FTT.Core.GameplayButtons.Grab"/> plus the
+        /// <see cref="FTT.Core.GameplayButtons.DirectOrigin"/> flag, so peers
+        /// replay normalized <em>action requests</em> instead of re-recognizing a
+        /// remote chord with their own shortcut settings.
+        ///
+        /// <para>The three flags occupy previously free button bits 12-14, so
+        /// <see cref="SerializedSize"/> and
+        /// <see cref="FTT.Core.PlayerInputFrame.SerializedSize"/> are both
+        /// unchanged; the version bump exists because the <em>meaning</em> of a
+        /// frame changed and a v2 peer would resolve a chord differently. A
+        /// mismatched version already fails the exact-length-plus-version check in
+        /// <c>TryDeserialize</c>.</para>
+        /// </summary>
+        public const ushort ProtocolVersion = 3;
         public const int SerializedSize = 47;
         public readonly uint SessionID;
         public readonly uint Sequence;
