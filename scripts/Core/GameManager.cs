@@ -81,6 +81,21 @@ namespace FTT.Core {
         /// <summary>Post-match "New Stage" (V7): re-enter CharacterSelect with both
         /// characters kept and jump straight to the stage phase. Consumed on read.</summary>
         public bool ResumeAtStageSelect;
+        /// <summary>
+        /// Package 11 A11 (F18 Calibration Drills): where "Exit Calibration" and a
+        /// Back out of the drill route land — the Main Menu for the standalone
+        /// route, the originating hub for the Holodeck console route. Empty outside
+        /// the route; <c>FTT.Combat.CalibrationRoute</c> owns the routing rules.
+        /// Deliberately a scene path rather than a campaign field: the drill route
+        /// never creates, loads or resumes a Story attempt.
+        /// </summary>
+        public string CalibrationReturnScenePath;
+        /// <summary>
+        /// Package 11 A11: which drill of <c>CalibrationDrillCatalog</c> the shared
+        /// Holodeck drill scene should load. Never persisted — quitting or
+        /// relaunching can therefore never resume a drill.
+        /// </summary>
+        public int CalibrationDrillIndex;
     }
 
     public partial class GameManager : Node {
@@ -107,6 +122,7 @@ namespace FTT.Core {
                 Difficulty = Difficulty.Normal,
                 FighterOpponentType = FighterOpponentType.Cpu,
                 CpuDifficulty = CpuDifficulty.Normal,
+                CalibrationReturnScenePath = "",
                 MatchSettings = MatchSettings.GetDefault()
             };
             _scenePoolCatalog = ScenePoolCatalog.LoadDefault();
