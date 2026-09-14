@@ -31,12 +31,22 @@ namespace FTT.Tests.ContentValidation;
 [RequireGodotRuntime]
 public class CampaignLocalizationTests {
     /// <summary>
-    /// Authored campaign levels. Package 11 A12 (V7.6) added a seventeenth — Level 4A,
-    /// the per-character Legacy Level — as the Einstein exemplar; <b>B1-B3 raise this to
-    /// 25</b> with the other eight heroes. It counts authored levels, not route length:
-    /// one playthrough still visits sixteen levels plus one 4A variant.
+    /// Authored campaign level scenes: the sixteen shared levels plus <b>one per
+    /// Level 4A variant</b>. Package 11 A12 (V7.6) added the first (the Einstein
+    /// exemplar) and B1-B3 add the other eight, so this is derived from the content
+    /// manifest rather than hardcoded — the three B agents author their heroes in
+    /// parallel and land in any order. The manifest's own count is pinned
+    /// independently by <c>ContentManifestValidator.ExactRequiredCounts</c>.
+    ///
+    /// <para>This is not the route length: all nine 4A variants share the single
+    /// <see cref="CampaignLevel.LegacyNexus"/> slot, so one playthrough still visits
+    /// sixteen levels plus one 4A variant.</para>
     /// </summary>
-    private const int CampaignLevelCount = 17;
+    private static int AuthoredLevelCount =>
+        ContentManifest.LoadDefault().ForCategory(ContentCategory.StoryLevel).Count();
+
+    /// <summary>Route slots, including the one shared Legacy Nexus slot.</summary>
+    private const int CampaignRouteSlotCount = 17;
     private const string DialogueDirectory = "res://resources/Dialogue/";
 
     /// <summary>
@@ -88,7 +98,7 @@ public class CampaignLocalizationTests {
 
         AssertThat(sets).OverrideFailureMessage(
             $"Only {sets} dialogue sets were reached; the directory walk is broken.")
-            .IsEqual(CampaignLevelCount + 1); // the authored levels (incl. Level 4A) + the hub.
+            .IsEqual(AuthoredLevelCount + 1); // every authored level (incl. each 4A variant) + the hub.
         AssertThat(sequences).OverrideFailureMessage(
             $"Only {sequences} dialogue sequences were reached.").IsGreaterEqual(48);
         AssertThat(lines).IsGreater(300);
@@ -118,9 +128,9 @@ public class CampaignLocalizationTests {
         // otherwise make this suite pass by checking nothing).
         var families = new (string Label, System.Func<string, bool> Match, int Minimum)[] {
             ("dlg_l* dialogue lines", key => key.StartsWith("dlg_l"), 160),
-            ("*_level_title", key => key.EndsWith("_level_title"), CampaignLevelCount),
+            ("*_level_title", key => key.EndsWith("_level_title"), AuthoredLevelCount),
             ("*_objective_*", key => key.Contains("_objective_"), 60),
-            ("campaign_level_*", key => key.StartsWith("campaign_level_"), CampaignLevelCount),
+            ("campaign_level_*", key => key.StartsWith("campaign_level_"), CampaignRouteSlotCount),
             ("speaker_*", key => key.StartsWith("speaker_"), 10)
         };
 
@@ -161,7 +171,7 @@ public class CampaignLocalizationTests {
         string[] titles = csvKeys.Where(key => key.EndsWith("_level_title")).OrderBy(key => key).ToArray();
         AssertThat(titles.Length).OverrideFailureMessage(
             "Expected one *_level_title per campaign level; found: " + string.Join(", ", titles))
-            .IsEqual(CampaignLevelCount);
+            .IsEqual(AuthoredLevelCount);
 
         var rendered = new HashSet<string>();
         foreach (string key in titles) {

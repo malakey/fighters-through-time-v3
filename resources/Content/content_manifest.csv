@@ -8,6 +8,14 @@ StoryLevel,level_03_chicago,3|7,res://scenes/campaign/Level_03_Chicago.tscn,Stor
 StoryLevel,level_04_paris,3|7,res://scenes/campaign/Level_04_Paris.tscn,StoryManager,Implemented,ReadyForReplacement,Valid,true
 # Package 11 A12 - Level 4A Legacy Levels (one per roster character; B1-B3 add the other eight)
 StoryLevel,level_04a_einstein,3|7,res://scenes/campaign/Level_04A_einstein.tscn,StoryManager,Implemented,Placeholder,Valid,true
+StoryLevel,level_04a_joan,3|7,res://scenes/campaign/Level_04A_joan.tscn,StoryManager,Implemented,Placeholder,Valid,true
+StoryLevel,level_04a_leonardo,3|7,res://scenes/campaign/Level_04A_leonardo.tscn,StoryManager,Implemented,Placeholder,Valid,true
+StoryLevel,level_04a_lincoln,3|7,res://scenes/campaign/Level_04A_lincoln.tscn,StoryManager,Implemented,Placeholder,Valid,true
+StoryLevel,level_04a_mozart,3|7,res://scenes/campaign/Level_04A_mozart.tscn,StoryManager,Implemented,Placeholder,Valid,true
+StoryLevel,level_04a_pocahontas,3|7,res://scenes/campaign/Level_04A_pocahontas.tscn,StoryManager,Implemented,Placeholder,Valid,true
+StoryLevel,level_04a_cleopatra,3|7,res://scenes/campaign/Level_04A_cleopatra.tscn,StoryManager,Implemented,Placeholder,Valid,true
+StoryLevel,level_04a_tesla,3|7,res://scenes/campaign/Level_04A_tesla.tscn,StoryManager,Implemented,Placeholder,Valid,true
+StoryLevel,level_04a_shakespeare,3|7,res://scenes/campaign/Level_04A_shakespeare.tscn,StoryManager,Implemented,Placeholder,Valid,true
 StoryLevel,level_05_titanic,3|7,res://scenes/campaign/Level_05_Titanic.tscn,StoryManager,Implemented,ReadyForReplacement,Valid,true
 StoryLevel,level_06_pompeii,3|7,res://scenes/campaign/Level_06_Pompeii.tscn,StoryManager,Implemented,ReadyForReplacement,Valid,true
 StoryLevel,level_07_nassau,3|7,res://scenes/campaign/Level_07_Nassau.tscn,StoryManager,Implemented,ReadyForReplacement,Valid,true
@@ -139,6 +147,14 @@ DialogueSet,dialogue_level_02,16,res://resources/Dialogue/level_02_dialogue.tres
 DialogueSet,dialogue_level_03,16,res://resources/Dialogue/level_03_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
 DialogueSet,dialogue_level_04,16,res://resources/Dialogue/level_04_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
 DialogueSet,dialogue_level_04a_einstein,16,res://resources/Dialogue/level_04a_einstein_dialogue.tres,DialogueManager,Implemented,Placeholder,Valid,true
+DialogueSet,dialogue_level_04a_joan,16,res://resources/Dialogue/level_04a_joan_dialogue.tres,DialogueManager,Implemented,Placeholder,Valid,true
+DialogueSet,dialogue_level_04a_leonardo,16,res://resources/Dialogue/level_04a_leonardo_dialogue.tres,DialogueManager,Implemented,Placeholder,Valid,true
+DialogueSet,dialogue_level_04a_lincoln,16,res://resources/Dialogue/level_04a_lincoln_dialogue.tres,DialogueManager,Implemented,Placeholder,Valid,true
+DialogueSet,dialogue_level_04a_mozart,16,res://resources/Dialogue/level_04a_mozart_dialogue.tres,DialogueManager,Implemented,Placeholder,Valid,true
+DialogueSet,dialogue_level_04a_pocahontas,16,res://resources/Dialogue/level_04a_pocahontas_dialogue.tres,DialogueManager,Implemented,Placeholder,Valid,true
+DialogueSet,dialogue_level_04a_cleopatra,16,res://resources/Dialogue/level_04a_cleopatra_dialogue.tres,DialogueManager,Implemented,Placeholder,Valid,true
+DialogueSet,dialogue_level_04a_tesla,16,res://resources/Dialogue/level_04a_tesla_dialogue.tres,DialogueManager,Implemented,Placeholder,Valid,true
+DialogueSet,dialogue_level_04a_shakespeare,16,res://resources/Dialogue/level_04a_shakespeare_dialogue.tres,DialogueManager,Implemented,Placeholder,Valid,true
 DialogueSet,dialogue_level_05,16,res://resources/Dialogue/level_05_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
 DialogueSet,dialogue_level_06,16,res://resources/Dialogue/level_06_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true
 DialogueSet,dialogue_level_07,16,res://resources/Dialogue/level_07_dialogue.tres,DialogueManager,Implemented,ReadyForReplacement,Valid,true

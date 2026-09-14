@@ -168,18 +168,29 @@ public class FighterPresentationSyncTests {
         (FighterSimulationDriver driver, Node host, PlayerController one, PlayerController two) =
             CreateDriver("SlotIndicatorHost", attachGlow: true);
 
-        AssertObject(one.Glow).IsNotNull();
-        AssertObject(two.Glow).IsNotNull();
-        AssertThat(one.Glow.IsLayerActive(GlowLayer.SlotIndicator)).IsTrue();
-        AssertThat(two.Glow.IsLayerActive(GlowLayer.SlotIndicator)).IsTrue();
-        AssertThat(one.Glow.ResolvedState.OutlineColor).IsEqual(GlowPalette.SlotColor(0));
-        AssertThat(two.Glow.ResolvedState.OutlineColor).IsEqual(GlowPalette.SlotColor(1));
+        try {
+            AssertObject(one.Glow).IsNotNull();
+            AssertObject(two.Glow).IsNotNull();
 
-        // The indicator persists for the match rather than being re-pushed per frame.
-        for (int frame = 0; frame < 30; frame++) driver._PhysicsProcess(Step);
-        AssertThat(one.Glow.ResolvedState.OutlineColor).IsEqual(GlowPalette.SlotColor(0));
+            // F24 (A8): the ownership edge is its own shader channel, NOT a layer on
+            // the arbitrated effect stack — that is exactly what stops a status,
+            // hyper-armor or spawn aura from recolouring it. Read the channel.
+            AssertThat(one.Glow.HasOwnershipOutline).IsTrue();
+            AssertThat(two.Glow.HasOwnershipOutline).IsTrue();
+            AssertThat(one.Glow.OwnershipSlot).IsEqual(0);
+            AssertThat(two.Glow.OwnershipSlot).IsEqual(1);
+            AssertThat(one.Glow.OwnershipOutlineColor).IsEqual(GlowPalette.SlotColor(0));
+            AssertThat(two.Glow.OwnershipOutlineColor).IsEqual(GlowPalette.SlotColor(1));
 
-        host.Free();
+            // The indicator persists for the match rather than being re-pushed per frame.
+            for (int frame = 0; frame < 30; frame++) driver._PhysicsProcess(Step);
+            AssertThat(one.Glow.HasOwnershipOutline).IsTrue();
+            AssertThat(one.Glow.OwnershipOutlineColor).IsEqual(GlowPalette.SlotColor(0));
+        } finally {
+            // A leaked host keeps its two StoryPlayer-grouped presentation bodies in
+            // the tree and poisons every Story suite that runs after it.
+            host.Free();
+        }
     }
 
     [TestCase]

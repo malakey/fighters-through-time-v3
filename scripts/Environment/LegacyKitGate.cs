@@ -128,7 +128,10 @@ namespace FTT.Environment {
             var surface = new EnvironmentHurtboxAdapter {
                 Name = "GateSurface",
                 OwnerPlayerIndex = -1,
-                CollisionLayer = CollisionLayers.PersistentObject,
+                // Package 11 integration (B1/B2): hurtbox-masked specials (Divine Piercing,
+                // the Clockwork Turret, Tesla coils, the Serpent Nest) query EnemyHurtbox,
+                // so the gate surface answers on that layer as well as PersistentObject.
+                CollisionLayer = CollisionLayers.PersistentObject | CollisionLayers.EnemyHurtbox,
                 CollisionMask = CollisionLayers.PlayerHitbox,
                 Monitoring = true,
                 Monitorable = true
