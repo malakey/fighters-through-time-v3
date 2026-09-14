@@ -80,21 +80,46 @@ namespace FTT.Environment {
         // === Compilation ====================================================
 
         /// <summary>
-        /// Compiles (or reuses) the ledger for the level and difficulty the
-        /// session is currently on. Safe to call from anywhere and on every
-        /// award — it only rebuilds when the level or difficulty changes.
+        /// Test seam. Holds the directory in the <b>no compiled ledger</b> state —
+        /// the advisory-fallback path a sandbox scene runs on, where
+        /// <c>EnemyData.ChronalDustDrop</c> and <c>ChronalExtractor.DustReward</c>
+        /// still apply.
+        ///
+        /// <para>A synthetic harness level is not a campaign level, but the
+        /// session is always parked on one, so without this a fixture silently
+        /// inherits whichever campaign ledger the previous test left live and
+        /// every unauthored source in it correctly pays nothing — which reads as
+        /// "the drop system spawned no pickup". Cleared by
+        /// <see cref="ResetAttempt"/>; never set by shipping code.</para>
+        /// </summary>
+        internal static bool SuppressLedgerForTest { get; set; }
+
+        /// <summary>
+        /// Compiles (or reuses) the ledger for the level, hero and difficulty
+        /// the session is currently on. Safe to call from anywhere and on every
+        /// award — it only rebuilds when one of those three changes.
         /// </summary>
         public static LevelRewardLedger EnsureCompiled() {
+            if (SuppressLedgerForTest) return null;
             StoryManager story = StoryManager.Instance;
             if (story == null) return _ledger;
             int levelIndex = (int)story.CurrentLevel;
             Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
-            if (_ledger != null && _ledgerLevelIndex == levelIndex && _ledgerDifficulty == difficulty) {
+            // Level 4A's manifest is per hero: the nine Legacy Levels share
+            // campaign index 16 and each authors its own approach inventory, so
+            // the locked character belongs in the cache key — otherwise a
+            // ledger compiled for one hero is reused for the next run's.
+            string heroID = levelIndex == LevelRewardManifest.LegacyLevelIndex
+                ? (GameManager.Instance?.CurrentSession.SelectedCharacterID ?? "")
+                : "";
+            if (_ledger != null && _ledgerLevelIndex == levelIndex && _ledgerDifficulty == difficulty
+                && string.Equals(_ledgerHeroID, heroID, StringComparison.Ordinal)) {
                 return _ledger;
             }
             _ledgerLevelIndex = levelIndex;
+            _ledgerHeroID = heroID;
             _ledgerDifficulty = difficulty;
-            _ledger = Compile(LevelRewardManifest.LoadFor(levelIndex), difficulty);
+            _ledger = Compile(LevelRewardManifest.LoadFor(levelIndex, heroID), difficulty);
             return _ledger;
         }
 
@@ -249,6 +274,31 @@ namespace FTT.Environment {
             return false;
         }
 
+        /// <summary>
+        /// The award a boss encounter firing right now should pay, and the source
+        /// ID to claim it against.
+        ///
+        /// <para>When the live level's ledger authors a boss, the ledger is
+        /// authoritative: the level's single 25, once — repeated phases of one
+        /// boss share it, and an already-claimed source pays nothing rather than
+        /// falling back to a flat value.</para>
+        ///
+        /// <para>When there is no ledger at all, or the live level's ledger
+        /// authors no boss, this encounter is not part of that ledger (the Test
+        /// Arena, the unit harness, a boss driven outside its own level) and the
+        /// authored <c>BossData.ChronalDustDrop</c> applies as the advisory
+        /// fallback, exactly as <c>docs/DUST_ECONOMY.md</c> describes for enemy
+        /// and Extractor values.</para>
+        /// </summary>
+        public static int ResolveBossAward(int authoredFallback, out string sourceID) {
+            sourceID = "";
+            LevelRewardLedger ledger = EnsureCompiled();
+            if (ledger == null || string.IsNullOrEmpty(ledger.BossSourceID)) {
+                return Math.Max(0, authoredFallback);
+            }
+            return TryIssueBossAward(out sourceID, out int amount) ? amount : 0;
+        }
+
         /// <summary>Issues the level's single boss reward. Repeated phases share it.</summary>
         public static bool TryIssueBossAward(out string sourceID, out int amount) {
             sourceID = "";
@@ -303,6 +353,8 @@ namespace FTT.Environment {
             LastTierBonusDust = 0;
             _ledger = null;
             _ledgerLevelIndex = -1;
+            _ledgerHeroID = "";
+            SuppressLedgerForTest = false;
         }
 
         /// <summary>Mid-level resume: collected claims come back, issues do not.</summary>

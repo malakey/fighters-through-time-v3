@@ -69,9 +69,15 @@ public class DustEconomyTests {
     /// <summary>Level 1 is untimed and can never pay an Integrity tier bonus.</summary>
     private static bool IsTimed(int campaignLevelIndex) => campaignLevelIndex != 1;
 
-    private static LevelRewardManifest Manifest(int campaignLevelIndex) =>
+    /// <summary>
+    /// A run visits Levels 1-15 plus EXACTLY ONE character's 4A, so the ledger-row
+    /// arithmetic below reads 4A once. With no hero this resolves to the
+    /// representative variant; all nine carry the identical row, which
+    /// <c>RewardManifestTests</c> proves per hero against each controller's own table.
+    /// </summary>
+    private static LevelRewardManifest Manifest(int campaignLevelIndex, string heroCharacterID = "") =>
         AuthoredResources.Load<LevelRewardManifest>(
-            LevelRewardManifest.PathFor(campaignLevelIndex));
+            LevelRewardManifest.PathFor(campaignLevelIndex, heroCharacterID));
 
     [TestCase]
     public void AllNineGridsShareTheDocumentedCostCurve() {
@@ -170,10 +176,14 @@ public class DustEconomyTests {
                 issues.Add($"{path} pays {boss.ChronalDustDrop}, not {BossAward}");
             }
         }
-        BossData legacyBoss = AuthoredResources.Load<BossData>(
-            "res://resources/Bosses/legacy/einstein_legacy_boss.tres");
-        if (legacyBoss != null && legacyBoss.ChronalDustDrop != BossAward) {
-            issues.Add($"the Level 4A boss pays {legacyBoss.ChronalDustDrop}, not {BossAward}");
+        // All nine Legacy bosses, not just one: a run visits exactly one of them,
+        // so any variant paying a different number silently changes that run's row.
+        foreach (string path in TopLevelResources("res://resources/Bosses/legacy")) {
+            BossData legacyBoss = AuthoredResources.Load<BossData>(path);
+            if (legacyBoss == null) continue;
+            if (legacyBoss.ChronalDustDrop != BossAward) {
+                issues.Add($"the Level 4A boss {path} pays {legacyBoss.ChronalDustDrop}, not {BossAward}");
+            }
         }
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
 
@@ -181,8 +191,11 @@ public class DustEconomyTests {
         var fresh = new BossData();
         AssertThat(fresh.ChronalDustDrop).IsEqual(BossAward);
 
-        // Every manifest reserves that same 25 as its single boss award.
-        foreach (int[] row in LedgerRows) AssertThat(Manifest(row[0]).BossAward).IsEqual(BossAward);
+        // Every manifest reserves that same 25 as its single boss award. Level
+        // 4A's manifest is per hero, so all nine are checked.
+        foreach ((int levelIndex, string hero) in RewardManifestTests.LedgerManifests()) {
+            AssertThat(Manifest(levelIndex, hero).BossAward).IsEqual(BossAward);
+        }
     }
 
     [TestCase]

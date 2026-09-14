@@ -512,7 +512,9 @@ public class Level15ContentTests {
             .OverrideFailureMessage("The Eraser's defeat spawned no dust pickup.")
             .IsNotNull();
         bossDust.Collect();
-        AssertThat(level.DustEarnedThisLevel).IsGreaterEqual(50);
+        // P11 A10 (F05): every boss pays the locked 25, and it is the level's single
+        // boss award — the collected plate is exactly that, nothing else has paid yet.
+        AssertThat(level.DustEarnedThisLevel).IsEqual(25);
         // ... the gate opened on the defeat itself, not at the end of a beat chain ...
         AssertThat(level.PrimeAnchor.IsArmed)
             .OverrideFailureMessage("The anchor must arm the instant the Eraser dies.").IsTrue();

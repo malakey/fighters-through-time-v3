@@ -138,7 +138,7 @@ Where each rule above lives. This section is the only part of this file that is 
 
 | Thing | Where |
 |---|---|
-| Per-level budget rows + the stable source inventory | `resources/Content/reward_manifests/level_NN_rewards.tres` (17 files: levels 0-15 plus `level_04a_rewards.tres`) |
+| Per-level budget rows + the stable source inventory | `resources/Content/reward_manifests/level_NN_rewards.tres` — 25 files: levels 0-15, plus `level_04a_<hero>_rewards.tres` for each of the nine Legacy Levels. 4A is the one slot whose manifest depends on the locked character (the nine variants share campaign index 16 and each authors its own approach inventory), so `LevelRewardManifest.FileNameFor` takes the hero for that index. |
 | Manifest schema | `scripts/Environment/LevelRewardManifest.cs` (`[GlobalClass] LevelRewardManifest : Resource`) |
 | Boss award (25, all sixteen) | `resources/Bosses/*.tres` + `resources/Bosses/legacy/*.tres` `ChronalDustDrop`, and the `BossData.ChronalDustDrop` default |
 | Enemy `ChronalDustDrop`, `ChronalExtractor.DustReward` | **Advisory fallbacks only.** They apply in a context with no compiled ledger (the Test Arena, the unit harness). A ledgered level never reads them. |
@@ -178,7 +178,7 @@ secret is an ordinary case.
 |---|---|
 | `tests/Unit/DustAllocatorTests.cs` | The allocator's arithmetic: the contract's worked example, ID tie-breaking, distribution-not-total, zero allocations, fixed shares, the Extractor even-split examples |
 | `tests/Unit/TierBonusTests.cs` | `floor(retained x rate)` at 10/5/0, no compounding, no bonus on an untimed level |
-| `tests/ContentValidation/RewardManifestTests.cs` | Every level's authored sources sum exactly to its budget row on all three difficulties; source IDs are stable, unique and single-category; every authored enemy ID resolves |
+| `tests/ContentValidation/RewardManifestTests.cs` | Every level's authored sources sum exactly to its budget row on all three difficulties; source IDs are stable, unique and single-category; every authored enemy ID resolves. The 4A rows expand per roster hero (read from `content_manifest.csv`, never a literal list), and each variant's manifest is checked against its controller's own `ApproachSpawns` table |
 | `tests/ContentValidation/DustEconomyTests.cs` | The ledger itself: the 17 budget rows, 320/400/280, 720/1,000, 16 x 25, the icon bands, 787/1,094 with Level 1 excluded, Level 0 paying nothing, and the upgrade-pacing thresholds |
 | `tests/Unit/StoryDropsAndRewindTests.cs` | The boss's Large plate, an Extractor's real-quantity icon, and claim-commits-at-collection |
 | `tests/Unit/MirrorParadoxTests.cs` | The Mirror pays the same 25-dust physical pickup, with no wallet-direct path |
@@ -188,7 +188,12 @@ secret is an ordinary case.
 1. **No level authors a `SecretCache`.** The discovery half of every level's optional pool is
    budgeted and allocated (`level_NN.secret`) but has no content to issue it, so a thorough run
    cannot actually reach 1,000 today. `SecretCache` exists and A3 retained `IsSpecialSecret` as
-   authoring metadata; placing the caches is level-content work.
+   authoring metadata; placing the caches is level-content work. **The nine Level 4A variants are
+   the sharpest case:** `LegacyLevelControllerBase` builds no `SecretCache` and no
+   `ChronalExtractor` at all (its own content suites assert `Extractors.Count == 0` and their prose
+   says the optional allocation "is its secret, not a machine row"), so 4A's whole 10-dust optional
+   pool is currently unreachable. Each variant's manifest reserves `level_04a_<hero>.secret` for the
+   B wave to attach a cache to; nothing else needs to change when it does.
 2. **Boss summons can consume a skipped mandatory source of the same enemy ID.** Issuing is keyed by
    enemy ID against a finite queue, so the level total is never exceeded — but a summoned
    `chrono_slasher` in Level 15 can draw a mandatory `chrono_slasher`'s unissued allocation if the

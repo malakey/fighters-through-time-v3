@@ -149,6 +149,10 @@ public class PuzzleEnvironmentToolkitTests {
         void OnDust(int amount) => dustAwarded += amount;
         tree.Root.AddChild(extractor);
         tree.Root.AddChild(player);
+        // Advisory-fallback path: a toolkit sandbox is not a campaign level, so the
+        // Extractor's authored DustReward applies rather than some campaign
+        // ledger's optional share (P11 A10, F05).
+        FTT.Environment.LevelRewardDirectory.SuppressLedgerForTest = true;
         EventBus.Instance.OnChronalDustCollected += OnDust;
         try {
             player.RestoreStoryCheckpoint(Vector2.Zero, player.MaximumHP, 50f);
@@ -174,8 +178,10 @@ public class PuzzleEnvironmentToolkitTests {
             AssertThat(extractor.IsDestroyed).IsTrue();
             AssertThat(extractor.VisualState).IsEqual(ChronalExtractorVisualState.Destroyed);
             // V7.3 Single Icon Rule: destruction spawns a physical pickup; the
-            // wallet is paid only when it is collected. 15 dust per the Package 3
-            // economy balance pass (docs/DUST_ECONOMY.md Section 1).
+            // wallet is paid only when it is collected. P11 A10 (F05) retired the
+            // flat per-machine rate: in a ledgered level the amount is this
+            // Extractor's authored share of the level's optional pool, and the
+            // resource value below is the advisory fallback a sandbox runs on.
             AssertThat(dustAwarded).IsEqual(0);
             ChronalDustPickup pickup = null;
             Godot.Collections.Array<Node> loot = tree.GetNodesInGroup("chronal_dust");
@@ -191,9 +197,10 @@ public class PuzzleEnvironmentToolkitTests {
                 .OverrideFailureMessage("Extractor destruction spawned no dust pickup.")
                 .IsNotNull();
             pickup.Collect();
-            AssertThat(dustAwarded).IsEqual(15);
+            AssertThat(dustAwarded).IsEqual(extractor.DustReward);
         } finally {
             EventBus.Instance.OnChronalDustCollected -= OnDust;
+            FTT.Environment.LevelRewardDirectory.ResetAttempt();
             extractor.Free();
             player.Free();
         }

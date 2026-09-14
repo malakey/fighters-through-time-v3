@@ -4,14 +4,14 @@
 
 [resource]
 script = ExtResource("1_manifest")
-LevelID = "level_04a"
+LevelID = "level_04a_tesla"
 CampaignLevelIndex = 16
 RequiredEncounterPool = 15
 BossAward = 25
 OptionalPool = 10
-BossSourceID = "level_04a.boss"
-RequiredWaves = PackedStringArray("level_04a.approach@0:chrono_slasher,chrono_slasher,hologram_drone,chrono_slasher,hologram_drone,chrono_slasher", "level_04a.eraser_debut@0:chrono_guard_elite")
+BossSourceID = "level_04a_tesla.boss"
+RequiredWaves = PackedStringArray("level_04a_tesla.approach@0:chrono_slasher,chrono_slasher,voltaic_shock_drone,chrono_slasher,voltaic_shock_drone,chrono_slasher", "level_04a_tesla.eraser_debut@0:chrono_guard_elite")
 ScriptedRequiredSources = PackedStringArray()
 ExtractorSourceIDs = PackedStringArray()
-SecretSourceID = "level_04a.secret"
+SecretSourceID = "level_04a_tesla.secret"
 OptionalPoolAllToExtractors = false

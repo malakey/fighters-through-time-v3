@@ -270,6 +270,9 @@ namespace FTT.Core {
         /// uses, destroyed extractors, found secrets, live Timeline Integrity)
         /// plus the viewed-dialogue and collapse-beat flags — so v4 payloads
         /// load with field-initializer defaults and need no migration step.
+        /// P11 A10's <c>ClaimedRewardSourceIDs</c> joins that same additive
+        /// per-attempt group (field initializer plus a <c>Normalize</c> null
+        /// guard), so it needs no version step either.
         /// </summary>
         public const int CurrentVersion = 5;
 

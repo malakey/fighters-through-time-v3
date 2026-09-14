@@ -205,13 +205,8 @@ namespace FTT.Enemies {
             // source ID, so repeated phases of one boss share it. An unledgered
             // context falls back to the authored BossData value.
             if (AwardDustOnDefeat) {
-                int reward = payload.ChronalDustDrop;
-                string rewardSourceID = "";
-                if (FTT.Environment.LevelRewardDirectory.EnsureCompiled() != null
-                    && !FTT.Environment.LevelRewardDirectory.TryIssueBossAward(
-                        out rewardSourceID, out reward)) {
-                    reward = 0;
-                }
+                int reward = FTT.Environment.LevelRewardDirectory.ResolveBossAward(
+                    payload.ChronalDustDrop, out string rewardSourceID);
                 if (reward > 0) {
                     StoryDropSystem.SpawnDustAward(
                         reward, payload.Position,

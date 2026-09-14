@@ -140,12 +140,8 @@ namespace FTT.Enemies {
             // Rule's shared award spawner, with the explicit Boss attribution
             // Level 13 used to supply by hand.
             if (AwardDustOnDefeat) {
-                int reward = payload.ChronalDustDrop;
-                string rewardSourceID = "";
-                if (LevelRewardDirectory.EnsureCompiled() != null
-                    && !LevelRewardDirectory.TryIssueBossAward(out rewardSourceID, out reward)) {
-                    reward = 0;
-                }
+                int reward = LevelRewardDirectory.ResolveBossAward(
+                    payload.ChronalDustDrop, out string rewardSourceID);
                 if (reward > 0) {
                     StoryDropSystem.SpawnDustAward(
                         reward, payload.Position != Vector2.Zero ? payload.Position : GlobalPosition,

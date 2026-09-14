@@ -381,9 +381,12 @@ public class Level04APocahontasContentTests {
         AssertThat(shared.MaxHP)
             .OverrideFailureMessage("The shared era boss must be untouched by the Legacy duplicate.")
             .IsEqual(640);
+        // P11 A10 (F05) relocked every boss in the game at 25; the shared era boss
+        // moved 50 -> 25 with the rest of resources/Bosses/. MaxHP above is what
+        // proves the Legacy duplicate did not rewrite this resource.
         AssertThat(shared.ChronalDustDrop)
-            .OverrideFailureMessage("The Legacy duplicate must not have rewritten the shared boss's dust.")
-            .IsEqual(50);
+            .OverrideFailureMessage("The shared era boss must carry the locked 25-dust row.")
+            .IsEqual(LegacyLevelControllerBase.BossDust);
 
         using var fixture = new Level04AFixture();
         AssertThat(fixture.Level.BossEncounters.Count).IsEqual(1);
