@@ -314,6 +314,20 @@ public class FighterVerbLayerTests {
         AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent used)).IsTrue();
         AssertThat(used.DefyHistoryUsed).IsEqual(1);
 
+        // V7.6 D04 (Package 11 A1b): the survivor is invulnerable through the
+        // Defy presentation and for 60 resumed control ticks afterwards, so the
+        // follow-up has to wait that window out before "once per match" can be
+        // observed at all. The 60 idle steps above are consumed partly by the
+        // 12-frame Defy hitstop, which pauses the countdown.
+        for (int step = 0; step < 60; step++) {
+            tick++;
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighterDefense(1, out FighterDefenseComponent window)).IsTrue();
+        AssertThat(FighterDefenseRules.IsDefyProtected(in window))
+            .OverrideFailureMessage("The protected second must have elapsed before the follow-up.")
+            .IsFalse();
+
         // Once per match: the next lethal hit kills normally.
         tick++;
         simulation.Advance(Frame(tick, 0, GameplayButtons.BasicAttack), Frame(tick, 0, GameplayButtons.None));

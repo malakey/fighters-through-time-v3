@@ -18,7 +18,8 @@ namespace FTT.Characters.Abilities {
         public const string WardenclyffeShieldPerkKey = "wardenclyffe_shield";
 
         private const float ShieldNearCoilRangePixels = 240f;
-        private const float ShieldRechargePerSecond = 2f;
+        /// <summary>D02a grant identity for the perk's one-time installation.</summary>
+        private bool _wardenclyffeInstalled;
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
@@ -94,21 +95,80 @@ namespace FTT.Characters.Abilities {
         }
 
         /// <summary>
-        /// Wardenclyffe Shield (Story-only): while Tesla stands near an active
-        /// coil, a slow-recharging electromagnetic shield absorbs up to 15% of his
-        /// max HP in damage. Recharge rate is a placeholder-tuning choice; the
-        /// design specifies "slow-recharging" without a number.
+        /// Wardenclyffe Shield (Story-only). <b>V7.6 D02d (Package 11 A1b)</b>,
+        /// replacing three shipped defects: a flat 2 HP/s recharge that ignored
+        /// MaxHP, no damage delay at all, and absorption that was never disabled
+        /// out of range (only the recharge was gated).
+        ///
+        /// <list type="bullet">
+        /// <item>The 15%-max-HP cap is unchanged.</item>
+        /// <item>Both <b>protection and recharge</b> require Tesla inside the
+        /// authored radius of at least one of his <b>own</b> active coils.
+        /// Overlapping owned coils supply one shield and one rate; a linked
+        /// fence is not an extra radius.</item>
+        /// <item>Recharge is <b>2.5% of current max HP per live second</b>, so
+        /// empty to full is exactly six seconds at any MaxHP.</item>
+        /// <item>A three-second delay is armed by the damage chokepoint whenever
+        /// damage actually reduces Tesla's HP or this shield's absorption; it
+        /// counts down in or out of range and blocks recharge until it elapses.
+        /// Damage resolves before recharge in the same update, so there is no
+        /// refill on the same update as qualifying damage.</item>
+        /// <item>Leaving range immediately disables absorption and recharge but
+        /// <b>preserves</b> the stored charge; returning re-enables only the
+        /// charge actually retained. Coil destruction, expiry, replacement and
+        /// Ultimate detonation all recompute eligibility through the same live
+        /// membership test. Continuous radius membership is a condition, not a
+        /// repeated D02a refill event, so re-entry never refills.</item>
+        /// <item>First acquisition initialises to <b>zero</b> charge with no
+        /// delay and builds at the normal rate; it never starts full. D02c's
+        /// eight-second lifetime explicitly does not apply here.</item>
+        /// </list>
         /// </summary>
         private void UpdateWardenclyffeShield(float dt) {
-            if (Owner == null || !Owner.HasStoryPerk(WardenclyffeShieldPerkKey)) return;
-            Owner.ConfigureStoryShield(0.15f * Owner.MaximumHP);
+            if (Owner == null) return;
+            if (!Owner.HasStoryPerk(WardenclyffeShieldPerkKey)) {
+                // Respec removes the shield; a reacquisition cannot clear an
+                // existing same-attempt damage delay, which lives on the owner.
+                if (_wardenclyffeInstalled) {
+                    _wardenclyffeInstalled = false;
+                    Owner.WardenclyffeInCoilRange = false;
+                }
+                return;
+            }
+            if (!_wardenclyffeInstalled) {
+                _wardenclyffeInstalled = true;
+                Owner.ConfigureStoryShield(
+                    FTT.Combat.StoryDefenseRules.WardenclyffeCapacityShare * Owner.MaximumHP);
+            } else {
+                // Keep the cap in step with a changed MaxHP without refilling.
+                Owner.ConfigureStoryShield(
+                    FTT.Combat.StoryDefenseRules.WardenclyffeCapacityShare * Owner.MaximumHP);
+            }
+
+            bool inRange = IsInsideAnOwnedCoilRadius();
+            Owner.WardenclyffeInCoilRange = inRange;
+            if (!inRange) return;
+            // The delay itself ticks on the owner's suspended-effect clock.
+            if (Owner.WardenclyffeDamageDelaySeconds > 0f) return;
+            Owner.RechargeStoryShield(
+                FTT.Combat.StoryDefenseRules.WardenclyffeRechargeSharePerSecond
+                * Owner.MaximumHP * dt);
+        }
+
+        /// <summary>
+        /// D02d membership: inside the authored radius of at least one of
+        /// Tesla's OWN live coils. Recomputed every frame, so a destroyed,
+        /// expired, replaced or Cataclysm-detonated coil drops eligibility
+        /// immediately with the stored charge retained.
+        /// </summary>
+        private bool IsInsideAnOwnedCoilRadius() {
             foreach (Node2D node in Owner.ActivePersistentObjects) {
                 if (node is TeslaCoilNode coil && IsInstanceValid(coil) && !coil.IsCoilDestroyed
                     && Owner.GlobalPosition.DistanceTo(coil.GlobalPosition) <= ShieldNearCoilRangePixels) {
-                    Owner.RechargeStoryShield(ShieldRechargePerSecond * dt);
-                    return;
+                    return true;
                 }
             }
+            return false;
         }
     }
 
@@ -418,7 +478,10 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
                 });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
+                // ZERO damage-dealt meter, regardless of HP removed, target count or
+                // when it lands. Direct-hit Rally reclaim is retained (D03g).
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt, ultimateOrigin: true);
             }
         }
 

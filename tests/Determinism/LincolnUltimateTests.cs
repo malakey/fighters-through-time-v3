@@ -48,7 +48,10 @@ public class LincolnUltimateTests {
         // hitstun) landed this frame — a generic double-fire would have set 30
         // hitstun frames and doubled the damage.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent lincoln)).IsTrue();
-        AssertThat(lincoln.Influence.RawValue).IsEqual(FP64.FromInt(14).RawValue);
+        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
+        // caster ZERO damage-dealt meter, so the same-frame tick no longer
+        // re-credits anything - the meter reads exactly 0 after the cast.
+        AssertThat(lincoln.Influence.RawValue).IsEqual(FP64.Zero.RawValue);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(target.CurrentHP).IsEqual(286);
         AssertThat(target.HitstunFrames).IsEqual(0);

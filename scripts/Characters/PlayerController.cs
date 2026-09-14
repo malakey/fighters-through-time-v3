@@ -231,22 +231,266 @@ namespace FTT.Characters {
 
 		// === end Package 11 A5 region (gate declaration) ===
 
-		// Story-only perk shield (Wardenclyffe Shield, Royal Aegis, Leaf Barrier,
-		// ...): absorbs damage before HP. Capacity is configured by the owning
-		// perk's ability code; Fighter Mode never reads these fields because the
-		// deterministic simulation is authoritative there.
-		public float StoryShieldPoints { get; private set; }
-		public float StoryShieldCapacity { get; private set; }
+		// === Package 11 A1b region (V7.6 defensive contract D01-D04) ==========
 
+		// Story-only perk shield (Wardenclyffe Shield, Henry's Bastion, Royal
+		// Aegis, Leaf Barrier): a finite HP barrier absorbed BEFORE ordinary
+		// block (D01 / D02b), never after it. Fighter Mode never reads these
+		// fields because the deterministic simulation is authoritative there.
+		private FTT.Combat.StoryShieldInstance _storyShield;
+
+		public float StoryShieldPoints => _storyShield.Points;
+		public float StoryShieldCapacity => _storyShield.Capacity;
+		public FTT.Combat.StoryShieldEffect StoryShieldEffectId => _storyShield.EffectId;
+		/// <summary>Remaining D02c lifetime in active ticks; -1 for Wardenclyffe.</summary>
+		public int StoryShieldRemainingFrames => _storyShield.RemainingFrames;
+
+		/// <summary>
+		/// V7.6 D02a/D02c: grant or REFRESH one finite HP barrier.
+		///
+		/// <para>A repeat grant of the same effect sets remaining absorption to
+		/// that effect's normal cap and restarts its authored duration. It never
+		/// adds capacity and never adds duration — a 10-HP shield with 4 left
+		/// returns to 10, not 14 and not 20. A full shield may refresh its
+		/// timer.</para>
+		///
+		/// <para><paramref name="grantEventId"/> is D02a's unique grant-event
+		/// identity: a refused input, polling the active condition, a duplicate
+		/// animation or collision callback, a recreated visual or restored state
+		/// reuses the same ID and is rejected outright. Pass 0 only when the
+		/// caller genuinely cannot deduplicate.</para>
+		///
+		/// <para>The grant itself confers no HP, Rally or damage-based meter.</para>
+		/// </summary>
+		public bool GrantStoryShield(
+			FTT.Combat.StoryShieldEffect effect,
+			float capacity,
+			int lifetimeFrames = FTT.Combat.StoryDefenseRules.GrantedShieldLifetimeFrames,
+			int grantEventId = 0) {
+			if (effect == FTT.Combat.StoryShieldEffect.None || capacity <= 0f) return false;
+			if (grantEventId != 0
+				&& _storyShield.EffectId == effect
+				&& _storyShield.GrantEventId == grantEventId) {
+				return false;
+			}
+			_storyShield = new FTT.Combat.StoryShieldInstance {
+				EffectId = effect,
+				Capacity = MathF.Max(0f, capacity),
+				Points = MathF.Max(0f, capacity),
+				RemainingFrames = lifetimeFrames,
+				GrantEventId = grantEventId
+			};
+			return true;
+		}
+
+		/// <summary>
+		/// Wardenclyffe only (D02d). The shield is a CONTINUOUSLY RECHARGING
+		/// pool with no eight-second lifetime, so it is installed at zero charge
+		/// and filled by <see cref="RechargeStoryShield"/> at the authored rate.
+		/// Re-entering a coil radius is a condition, not a repeat D02a grant,
+		/// so this never refills.
+		/// </summary>
 		public void ConfigureStoryShield(float capacity) {
-			StoryShieldCapacity = MathF.Max(0f, capacity);
-			StoryShieldPoints = MathF.Min(StoryShieldPoints, StoryShieldCapacity);
+			float resolved = MathF.Max(0f, capacity);
+			if (_storyShield.EffectId != FTT.Combat.StoryShieldEffect.Wardenclyffe) {
+				// First acquisition initialises to ZERO charge with no delay; it
+				// builds at the normal rate and never starts full.
+				_storyShield = new FTT.Combat.StoryShieldInstance {
+					EffectId = FTT.Combat.StoryShieldEffect.Wardenclyffe,
+					Capacity = resolved,
+					Points = 0f,
+					RemainingFrames = FTT.Combat.StoryShieldInstance.NoExpiry,
+					GrantEventId = 0
+				};
+				return;
+			}
+			_storyShield.Capacity = resolved;
+			_storyShield.Points = MathF.Min(_storyShield.Points, resolved);
 		}
 
 		public void RechargeStoryShield(float amount) {
-			if (StoryShieldCapacity <= 0f || amount <= 0f) return;
-			StoryShieldPoints = MathF.Min(StoryShieldCapacity, StoryShieldPoints + amount);
+			if (_storyShield.Capacity <= 0f || amount <= 0f) return;
+			_storyShield.Points = MathF.Min(_storyShield.Capacity, _storyShield.Points + amount);
 		}
+
+		/// <summary>
+		/// D02d: while Tesla stands outside every owned coil radius the stored
+		/// charge is PRESERVED but absorption and recharge are disabled. Set by
+		/// <c>TeslaWardenclyffe</c> every frame; irrelevant to every other
+		/// barrier, which is always enabled while it lives.
+		/// </summary>
+		public bool WardenclyffeInCoilRange { get; set; }
+
+		/// <summary>
+		/// D02d: remaining seconds of the three-second recharge delay, armed
+		/// whenever damage actually reduces Tesla's HP or Wardenclyffe
+		/// absorption. Preserved across same-attempt recovery/load so a reload
+		/// cannot accelerate recovery.
+		/// </summary>
+		public float WardenclyffeDamageDelaySeconds { get; set; }
+
+		/// <summary>True when the live barrier may absorb right now (D02d range gate).</summary>
+		private bool StoryShieldAbsorbing =>
+			_storyShield.IsActive
+			&& (_storyShield.EffectId != FTT.Combat.StoryShieldEffect.Wardenclyffe || WardenclyffeInCoilRange);
+
+		/// <summary>
+		/// V7.6 D02e: Temporal Aegis — a ONE-HIT bubble with no time expiry and
+		/// at most one active per recipient. An active flag, deliberately not a
+		/// growing charge count. A pickup while already protected is consumed
+		/// with no second charge, reserve, duration, HP, meter or replacement
+		/// reward, which is exactly what an idempotent set expresses.
+		/// </summary>
+		public bool HasTemporalAegis => _temporalAegisActive;
+
+		public void GrantTemporalAegis() => _temporalAegisActive = true;
+
+		public void ClearTemporalAegis() => _temporalAegisActive = false;
+
+		private bool _temporalAegisActive;
+
+		/// <summary>
+		/// V7.6 D04: true while a Defy survivor is protected — through the
+		/// presentation (awaiting control) and for the 60 resumed control ticks.
+		/// The gate rejects damaging hits, damaging status ticks and damaging
+		/// stage hazards BEFORE Aegis, HP barriers and block; a rejected contact
+		/// spends no protection, applies no effects and grants no reward.
+		/// It is not immunity to non-hit deaths (pits, Integrity zero).
+		/// </summary>
+		public bool IsDefyProtected => _defyProtectionAwaitControl || _defyProtectionFrames > 0;
+
+		/// <summary>Remaining protected ticks once control has resumed. Test seam.</summary>
+		public int DefyProtectionFramesRemaining => _defyProtectionFrames;
+
+		/// <summary>True while the survivor is still inside the Defy presentation.</summary>
+		public bool DefyProtectionAwaitingControl => _defyProtectionAwaitControl;
+
+		private bool _defyProtectionAwaitControl;
+		private int _defyProtectionFrames;
+		// Set for the duration of one hit's resolution when that hit fired Defy:
+		// the defied blow may not launch, stun or re-lock the survivor it spared.
+		private bool _defySuppressHitEffects;
+
+		/// <summary>
+		/// F10 persistence: "once per level" means once per ATTEMPT. Restored by
+		/// <c>StoryManager.ApplyResumedAttemptState</c> so a mid-level quit and
+		/// resume, or a death rewind that rebuilds the player, cannot hand the
+		/// run a second saved life. Only a fresh entry or a full Restart Level
+		/// resets it.
+		/// </summary>
+		public void SetStoryDefyHistoryUsed(bool used) => _storyDefyHistoryUsed = used;
+
+		/// <summary>
+		/// F10 checkpoint reconstruction clears the transient protection and the
+		/// pending presentation while retaining committed HP, meter and the
+		/// spent use. Loading never replays the proc or grants a fresh second.
+		/// </summary>
+		public void ClearDefyProtection() {
+			_defyProtectionAwaitControl = false;
+			_defyProtectionFrames = 0;
+		}
+
+		/// <summary>
+		/// The F13 seal read-model, derived from authoritative meter / Defy-used
+		/// / life state at the end of the gameplay update. Never persisted as a
+		/// separate cosmetic flag; recomputed on gain, spend, drain, proc,
+		/// death/respawn, load and rollback.
+		/// </summary>
+		public FTT.Core.DefySealState DefySeal =>
+			CurrentState == CharacterState.Dead || CurrentState == CharacterState.Respawning
+				? FTT.Core.DefySealState.Barred
+				: _storyDefyHistoryUsed
+					? FTT.Core.DefySealState.Spent
+					: CurrentUltimateMeter >= FTT.Combat.UltimateMeter.MaxValue
+						? FTT.Core.DefySealState.Ready
+						: FTT.Core.DefySealState.Building;
+
+		private FTT.Core.DefySealState _publishedDefySeal = (FTT.Core.DefySealState)(-1);
+
+		/// <summary>
+		/// Publishes the seal only when it actually changes, so the HUD never
+		/// sees a per-frame storm. Called at the end of the gameplay update.
+		/// </summary>
+		private void PublishDefySealIfChanged() {
+			FTT.Core.DefySealState state = DefySeal;
+			if (state == _publishedDefySeal) return;
+			_publishedDefySeal = state;
+			FTT.Core.EventBus.Instance?.RaiseDefySealChanged(new FTT.Core.DefySealPayload {
+				PlayerIndex = PlayerIndex,
+				State = state
+			});
+		}
+
+		/// <summary>
+		/// The ONE ordered resolution of the D01/D02b protection stack for one
+		/// distinct eligible hit contact, shared by the hurtbox path, DoT ticks
+		/// and environmental hazards.
+		///
+		/// <para>Order: Temporal Aegis, then the finite HP barrier. Invulnerability
+		/// and projectile immunity are checked by the callers before this runs,
+		/// because they are per-source. Resolution stops at the first layer that
+		/// fully prevents the hit; only the remainder continues.</para>
+		///
+		/// <para>D03c boundary: a zero-damage warning, a non-damaging status and
+		/// a harmless overlap consume no Aegis and no barrier HP.</para>
+		///
+		/// <para>Returns the damage still to resolve. A return of 0 with a
+		/// positive <paramref name="damage"/> means the contact was fully
+		/// prevented and D03a/D03e suppress its attached effects entirely.</para>
+		/// </summary>
+		private int ResolveProtectionLayers(int damage, bool bypassesFiniteShields = false) {
+			if (damage <= 0 || bypassesFiniteShields) return damage;
+			if (_temporalAegisActive) {
+				_temporalAegisActive = false;
+				return 0;
+			}
+			if (!StoryShieldAbsorbing) return damage;
+			int absorbed = Math.Min(damage, (int)MathF.Floor(_storyShield.Points));
+			if (absorbed <= 0) return damage;
+			_storyShield.Points -= absorbed;
+			// D02d: losing capacity restarts Tesla's recharge delay even when no
+			// HP was lost and no attached effect landed.
+			if (_storyShield.EffectId == FTT.Combat.StoryShieldEffect.Wardenclyffe) {
+				WardenclyffeDamageDelaySeconds = FTT.Combat.StoryDefenseRules.WardenclyffeDamageDelaySeconds;
+			}
+			// A broken shield disappears immediately and needs a new valid grant.
+			if (_storyShield.Points <= 0f) ClearStoryShield();
+			return damage - absorbed;
+		}
+
+		private void ClearStoryShield() => _storyShield = default;
+
+		/// <summary>
+		/// D02c/D04 clocks. Both use the suspended-effect clock — Time Freeze,
+		/// hitstop and world-frozen presentations consume neither lifetime nor a
+		/// protected tick, and neither awards catch-up ticks.
+		/// </summary>
+		private void TickStoryDefense() {
+			if (IsInHitstop || TimeFrozen) return;
+			if (_storyShield.RemainingFrames > 0) {
+				_storyShield.RemainingFrames--;
+				// Expiry discards the remaining absorption with no heal, meter,
+				// block event or expiry proc.
+				if (_storyShield.RemainingFrames <= 0) ClearStoryShield();
+			}
+			if (WardenclyffeDamageDelaySeconds > 0f) {
+				WardenclyffeDamageDelaySeconds = MathF.Max(
+					0f, WardenclyffeDamageDelaySeconds - 1f / 60f);
+			}
+			if (_defyProtectionAwaitControl) {
+				// The window opens at the first RESUMED NORMAL-CONTROL tick, not
+				// on the player's first input and not while stunned or dead.
+				bool actionable = CurrentState != CharacterState.Dead
+					&& CurrentState != CharacterState.Respawning
+					&& CurrentState != CharacterState.Stunned
+					&& CurrentState != CharacterState.Dazed;
+				if (!actionable) return;
+				_defyProtectionAwaitControl = false;
+			}
+			if (_defyProtectionFrames > 0) _defyProtectionFrames--;
+		}
+
+		// === end Package 11 A1b region (defensive state) =====================
 
 		// Story-only projectile immunity (Virtuoso Dash, Rest Shield, ...): while
 		// active, hits whose HitboxID is "projectile" (the placeholder-projectile
@@ -660,11 +904,63 @@ namespace FTT.Characters {
 			}
 		}
 
-		private float OnHurtboxHit(FTT.Combat.HitPayload hit) {
+		private float OnHurtboxHit(FTT.Combat.HitPayload hit) => ResolveIncomingHit(hit);
+
+		/// <summary>
+		/// The ONE Story damage-resolution chokepoint (Package 11 A1b, V7.6
+		/// D01/D02b). Per distinct eligible hit contact:
+		///
+		/// <list type="number">
+		/// <item>hit eligibility / invulnerability (dead, roll i-frames, the D04
+		/// Defy protected window),</item>
+		/// <item>authored projectile immunity,</item>
+		/// <item>Temporal Aegis — one hit, consumed whole,</item>
+		/// <item>the finite HP barrier,</item>
+		/// <item>ordinary charge-based block,</item>
+		/// <item>HP and the victim-side pipeline.</item>
+		/// </list>
+		///
+		/// <para>Resolution STOPS at the first layer that fully prevents the
+		/// hit. A full absorption spends no block charge, causes no block
+		/// response (no shieldstun, shatter, daze or lockout), awards no
+		/// successful-block perk and — under D03a/D03e — applies no hitstun,
+		/// knockback, status or mark: "holding Block does not turn a shield
+		/// absorption into a successful block". A PARTIAL absorption passes only
+		/// the remainder to a legal block, charged at the ORIGINAL attack
+		/// classification.</para>
+		///
+		/// <para>Before this the barrier drained inside <see cref="ApplyDamage"/>,
+		/// i.e. AFTER block — exactly backwards. A blocking Shakespeare with a
+		/// live Bastion spent a charge, and could shatter, on a hit the guard
+		/// should have absorbed for free.</para>
+		/// </summary>
+		private float ResolveIncomingHit(FTT.Combat.HitPayload hit) {
 			if (CurrentState == CharacterState.Dead || CurrentState == CharacterState.Respawning) return 0f;
 			if (_rollInvulnerable) return 0f;
+			// D04: the protected window sits above every other layer. A rejected
+			// contact spends no shield capacity or block charge, applies no
+			// hitstun, launch or status, and grants no damage, Rally or block
+			// reward. Existing statuses are NOT cleansed.
+			if (IsDefyProtected) return 0f;
 			if (HasStoryProjectileImmunity && hit.HitboxID == "projectile") return 0f;
 			bool wasLedgeHanging = CurrentState == CharacterState.LedgeHanging;
+
+			// D02b layers two and three, ahead of block. The class identity and
+			// the authored BlockChargeCost are carried through untouched: an
+			// absorbed Unblockable is still Unblockable, never relabelled.
+			int incoming = Math.Max(0, (int)MathF.Round(hit.Damage));
+			int remaining = ResolveProtectionLayers(incoming, hit.BypassesFiniteShields);
+			if (incoming > 0 && remaining <= 0) {
+				// Fully absorbed: shield-impact feedback, and nothing else. No
+				// ResolveHit call, no Henry's Bastion grant, no shieldstun.
+				FTT.Core.CameraShake.Instance?.Shake(2f, 0.06f);
+				return 0f;
+			}
+			if (remaining != incoming) {
+				// Partial absorption: only the remainder continues, at the
+				// original attack classification and charge cost.
+				hit.Damage = remaining;
+			}
 
 			if (CurrentState == CharacterState.Blocking && _blockSystem != null) {
 				FTT.Combat.BlockResult blockResult = _blockSystem.ResolveHit(hit);
@@ -709,8 +1005,14 @@ namespace FTT.Characters {
 				TransitionTo(CharacterState.Airborne);
 			}
 
+			// V7.6 D04: the defied hit imposes no forced motion, no stun and no
+			// new attached control/status effect on the survivor it spared. The
+			// flag is consumed here, once, by the hit that set it.
+			bool defySuppressed = _defySuppressHitEffects;
+			_defySuppressHitEffects = false;
+
 			bool hasHyperArmor = HasActiveHyperArmorAgainst(hit.AttackClass);
-			if (!hasHyperArmor) {
+			if (!hasHyperArmor && !defySuppressed) {
 				// An impulse-free hit (construct arcs/bites carry zero
 				// knockback) must not replace the velocity — a zero vector
 				// would freeze the victim mid-motion.
@@ -764,13 +1066,15 @@ namespace FTT.Characters {
 				_hasPendingLaunch = false;
 			}
 
-			if (hit.AppliedStatus != FTT.Core.StatusType.None && CurrentState != CharacterState.Dead) {
+			if (hit.AppliedStatus != FTT.Core.StatusType.None && !defySuppressed
+				&& CurrentState != CharacterState.Dead) {
 				_statusController?.ApplyStatus(hit.AppliedStatus, hit.StatusDuration, hit.StatusIntensity);
 			}
 
 			// V7.6 F07: the caster-owned combo mark rides the same hit but is not
 			// a status — no slot, no action lock, no stagger budget.
-			if (hit.ComboMark == FTT.Combat.ComboMarkType.Conductive && hit.ComboMarkFrames > 0) {
+			if (!defySuppressed
+				&& hit.ComboMark == FTT.Combat.ComboMarkType.Conductive && hit.ComboMarkFrames > 0) {
 				ApplyConductiveMark(hit.AttackerIndex, hit.ComboMarkFrames);
 			}
 
@@ -997,6 +1301,14 @@ namespace FTT.Characters {
 			}
 
 			UpdateStoryTemporaryEffects();
+			// V7.6 D02c/D02d/D04 (Package 11 A1b): the granted-shield lifetime,
+			// Wardenclyffe's recharge delay and the Defy protected second all
+			// run on the suspended-effect clock.
+			TickStoryDefense();
+			// F13: the Defy seal is DERIVED from authoritative meter / Defy-used
+			// / life state after the gameplay update, never persisted as its own
+			// cosmetic flag.
+			PublishDefySealIfChanged();
 
 			// V7.6: the freeze suspends ability cooldowns (block-charge regen and
 			// status durations suspend in BlockSystem/StatusController for the
@@ -1802,6 +2114,15 @@ namespace FTT.Characters {
 
 			// 1.0x BasicAttackDamage — priced as position, meter accrues
 			// normally through the ordinary chokepoint (a direct hit).
+			//
+			// V7.6 D03d (Package 11 A1b): this is the PRIMARY hit of a validated
+			// paired grab/throw event, so it bypasses the victim's finite
+			// shields without consuming them. Story mobs carry neither an Aegis
+			// nor a barrier today, so the rule is authored for symmetry with the
+			// simulation (where an active Aegis used to absorb the throw
+			// outright) rather than to fix a live Story defect. The SECONDARY
+			// thrown-mob collision below is a separate projectile hit with
+			// normal defenses and must never inherit the bypass.
 			int damage = Math.Max(0, (int)MathF.Round(
 				(Data?.BasicAttackDamage ?? 10f) * FTT.Combat.BasicComboRules.ThrowDamageMultiplier
 				* StoryTemporaryDamageMultiplier));
@@ -2188,7 +2509,24 @@ namespace FTT.Characters {
 
 		public int ApplyDamage(int damage) => ApplyDamage(damage, ignoreRollInvulnerability: false);
 
-		public int ApplyPersistentDamage(int damage) => ApplyDamage(damage, ignoreRollInvulnerability: true);
+		/// <summary>
+		/// One scheduled damaging tick of an already-applied status (Venom).
+		///
+		/// <para>V7.6 D03c (Option B, Package 11 A1b): actual HP-damaging ticks
+		/// are eligible for Temporal Aegis and the active HP barrier, in the
+		/// D02b order. A status tick is NOT a projectile, so projectile-only
+		/// immunity never rejects it, and there is no block opportunity against
+		/// an already-attached DoT. An absorbed tick still counts as that
+		/// scheduled occurrence: no cleanse, no duration refresh, no delayed
+		/// damage debt, no immediate retry. Ticks keep zero hitstop.</para>
+		/// </summary>
+		public int ApplyPersistentDamage(int damage) {
+			// D04: a protected survivor discards the tick rather than banking it.
+			if (IsDefyProtected) return 0;
+			int remaining = ResolveProtectionLayers(damage);
+			if (damage > 0 && remaining <= 0) return 0;
+			return ApplyDamage(remaining, ignoreRollInvulnerability: true);
+		}
 
 		/// <summary>
 		/// V7.3 environmental-damage chokepoint — the Story mirror of the sim's
@@ -2202,7 +2540,14 @@ namespace FTT.Characters {
 		/// attacker credit, and no hitstop unless the source opts in.
 		/// </summary>
 		public int ApplyEnvironmentalDamage(int damage, bool appliesHitstop = false) {
-			int damageApplied = ApplyDamage(damage);
+			// D04: the protected window covers damaging stage hazards too.
+			if (IsDefyProtected) return 0;
+			// V7.6 D03c: an ordinary external damaging hazard (spikes, lava,
+			// stage-hazard ticks) can consume an eligible Aegis or barrier in
+			// the D02b order; only the remainder reaches HP.
+			int remaining = ResolveProtectionLayers(damage);
+			if (damage > 0 && remaining <= 0) return 0;
+			int damageApplied = ApplyDamage(remaining);
 			// Consume the Defy flag whether or not damage landed — the flag
 			// belongs to this hit's accounting alone.
 			bool defied = _defyFiredThisHit;
@@ -2242,16 +2587,26 @@ namespace FTT.Characters {
 			// like the sim's InvulnerabilityFrames grant.
 			if (_techInvulnerabilitySeconds > 0f) return 0;
 			damage = Math.Max(0, (int)MathF.Round(damage * StatusDamageTakenMultiplier));
-			if (StoryShieldPoints > 0f && damage > 0) {
-				int absorbed = Math.Min(damage, (int)MathF.Floor(StoryShieldPoints));
-				if (absorbed > 0) {
-					StoryShieldPoints -= absorbed;
-					damage -= absorbed;
-				}
-			}
+			// V7.6 D01/D02b (Package 11 A1b): the finite HP barrier is NO LONGER
+			// drained here. It used to absorb inside ApplyDamage — after block —
+			// which is exactly backwards under D01. Absorption now happens in
+			// ResolveIncomingHit (the hurtbox path) and at the DoT/environmental
+			// entry points, all BEFORE the block layer.
 			int previousHP = CurrentHP;
 			CurrentHP = Math.Max(0, CurrentHP - damage);
 			int damageApplied = previousHP - CurrentHP;
+			// V7.6 D02d (Package 11 A1b): damage that actually reduces Tesla's HP
+			// restarts the three-second Wardenclyffe recharge delay, in or out of
+			// range. Hits fully rejected by invulnerability, projectile immunity
+			// or Aegis never reach here, and a blocked hit that reduces neither
+			// shield nor HP does not restart it - both exactly as D02d requires.
+			// A throw's HP damage restarts it too, even though the bypass spent
+			// no capacity.
+			if (damageApplied > 0
+				&& _storyShield.EffectId == FTT.Combat.StoryShieldEffect.Wardenclyffe) {
+				WardenclyffeDamageDelaySeconds =
+					FTT.Combat.StoryDefenseRules.WardenclyffeDamageDelaySeconds;
+			}
 
 			// V7.1 Defy History: a lethal hit against a full Ultimate Meter does
 			// not kill — the meter shatters to 0 and the player survives at
@@ -2261,6 +2616,12 @@ namespace FTT.Characters {
 			if (CurrentHP <= 0 && !_storyDefyHistoryUsed
 				&& CurrentUltimateMeter >= FTT.Combat.UltimateMeter.MaxValue) {
 				_storyDefyHistoryUsed = true;
+				// F10: commit the spent use to the per-attempt registry in the
+				// same breath as HP and meter, so a quit-and-resume or a death
+				// rewind that rebuilds this controller cannot restore it.
+				if (FTT.Core.StoryManager.Instance != null) {
+					FTT.Core.StoryManager.Instance.StoryDefyHistoryUsed = true;
+				}
 				_defyFiredThisHit = true;
 				CurrentHP = 1;
 				damageApplied = previousHP - CurrentHP;
@@ -2270,6 +2631,22 @@ namespace FTT.Characters {
 				// a heavy shake (the sim applies the same 12-frame hitstop).
 				ApplyHitstop(12);
 				FTT.Core.CameraShake.Instance?.Shake(10f, 0.35f);
+				// V7.6 D04 (Package 11 A1b): protected recovery. The survivor is
+				// RELEASED from the triggering hit's forced hitstun, stagger,
+				// knockback/launch and capture — it may not be launched or
+				// stunned by the very blow it defied — keeps its current legal
+				// position (no teleport, no granted jumps, cooldowns or
+				// resources), and is invulnerable through the presentation plus
+				// 60 active ticks once normal control resumes.
+				_defyProtectionAwaitControl = true;
+				_defyProtectionFrames = FTT.Combat.StoryDefenseRules.DefyProtectionFrames;
+				_defySuppressHitEffects = true;
+				_hasPendingLaunch = false;
+				_stunTumble = false;
+				ReleaseGrabState();
+				if (CurrentState == CharacterState.Stunned || CurrentState == CharacterState.Dazed) {
+					TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
+				}
 			}
 
 			FTT.Core.EventBus.Instance?.RaisePlayerHPChanged(new FTT.Core.PlayerHPPayload {
@@ -2317,7 +2694,7 @@ namespace FTT.Characters {
 			if (CurrentState == CharacterState.Dead || CurrentState == CharacterState.Respawning) return;
 			int previousHP = CurrentHP;
 			CurrentHP = 0;
-			StoryShieldPoints = 0f;
+			ClearStoryShield();
 			if (CurrentState == CharacterState.Attacking) CancelActiveAttack();
 			InterruptActiveAbilities();
 			ReleaseGrabState();
@@ -2333,30 +2710,60 @@ namespace FTT.Characters {
 
 		/// <summary>
 		/// The Story chokepoint every damage-dealer already routes through for
-		/// meter-from-damage-dealt. V7.1 Rally rides the same choke: a landed
-		/// *direct* hit (melee, directional, special, ultimate, projectile,
-		/// zone pulse) also reclaims from the player's remaining Echo Pool as
-		/// real HP — capped (V7.3) at the reclaiming hit's own damage ×
-		/// RallyReclaimDamageMultiplier; the remainder persists and keeps
-		/// draining. Construct nodes (turret, nest, coil, snare) pass
-		/// <paramref name="collectsEcho"/> false — no passive farming —
-		/// mirroring the sim's collectsEcho flag on ApplyFighterHit.
+		/// meter-from-damage-dealt. V7.1 Rally rides the same choke.
+		///
+		/// <para><b>V7.6 D03g (Package 11 A1b).</b> Only a landed <i>direct</i>
+		/// hit reclaims: basic and directional strikes, direct Special or
+		/// Ultimate impacts, player-fired projectiles (including delayed ones
+		/// landing after the firing animation), primary throws, and the
+		/// secondary Story thrown-mob collision. <b>Persistent zone ticks do
+		/// not</b> — Relativity Rift's chip and every Sandstorm Vortex tick,
+		/// explicitly including the Vortex's final launching tick — and neither
+		/// do autonomous construct damage, coil-fence ticks, attached DoT ticks
+		/// or stage-hazard ticks. Those callers pass
+		/// <paramref name="collectsEcho"/> false, mirroring the sim's flag on
+		/// ApplyFighterHit. The pre-V7.6 doc comment enshrined the wrong rule by
+		/// listing "zone pulse" as a reclaiming source.</para>
+		///
+		/// <para><b>V7.6 D03f.</b> The reclaim is
+		/// <c>min(pool, credited × 2.0, missingHP)</c>, and only the HP actually
+		/// healed leaves the pool. The old shape debited the full capped amount
+		/// even when the heal was clamped at MaximumHP, so a full-health
+		/// attacker burned their whole pool for nothing.</para>
+		///
+		/// <para><b>V7.6 D03h.</b> <paramref name="ultimateOrigin"/> damage
+		/// awards the caster ZERO damage-dealt meter regardless of HP removed,
+		/// target count or when it lands. It is a SOURCE rule, not a global
+		/// meter lock: an independent non-Ultimate attack, and pre-existing
+		/// ordinary construct or status damage, keep their eligibility while an
+		/// Ultimate effect survives. Direct-hit Rally reclaim from an Ultimate
+		/// impact is retained (D03g).</para>
 		/// </summary>
-		public void AddInfluenceFromDamageDealt(float damageApplied, bool collectsEcho = true) {
-			_ultimateMeter?.AddFromDamageDealt(damageApplied);
-			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
+		public void AddInfluenceFromDamageDealt(
+			float damageApplied, bool collectsEcho = true, bool ultimateOrigin = false) {
+			if (!ultimateOrigin) {
+				_ultimateMeter?.AddFromDamageDealt(damageApplied);
+				CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
+			}
 			if (!collectsEcho || damageApplied <= 0f || _echoPool <= 0f) return;
+			int missing = MaximumHP - CurrentHP;
+			if (missing <= 0) return;
 			// Reclaimed HP grants no meter to anyone (HealStory is HP-only).
 			float reclaimAmount = MathF.Min(
-				_echoPool,
-				damageApplied * FTT.Combat.BasicComboRules.RallyReclaimDamageMultiplier);
-			int reclaim = (int)MathF.Round(reclaimAmount);
-			_echoPool -= reclaimAmount;
+				MathF.Min(
+					_echoPool,
+					damageApplied * FTT.Combat.BasicComboRules.RallyReclaimDamageMultiplier),
+				missing);
+			int reclaim = Math.Min(missing, (int)MathF.Round(reclaimAmount));
+			if (reclaim <= 0) return;
+			int healed = HealStory(reclaim);
+			if (healed <= 0) return;
+			// Subtract ONLY the HP that actually became health.
+			_echoPool = MathF.Max(0f, _echoPool - healed);
 			if (_echoPool <= 0.0001f) {
 				_echoPool = 0f;
 				_echoDrainPerFrame = 0f;
 			}
-			if (reclaim > 0) HealStory(reclaim);
 		}
 
 		public void DrainUltimateMeter(float points) {
@@ -2526,6 +2933,16 @@ namespace FTT.Characters {
 			_techLockoutSeconds = 0f;
 			_echoPool = 0f;
 			_echoDrainPerFrame = 0f;
+			// V7.6 T01a/D02c/D02e/D04 (Package 11 A1b): a Death Rewind clears the
+			// hero's TEMPORARY protection - the granted HP barrier, the Aegis
+			// bubble and the transient Defy window - while retaining actual
+			// block resources. The Defy History SPENT flag deliberately survives
+			// (once per attempt, not once per life). Wardenclyffe's stored charge
+			// is discarded with the barrier but its remaining damage delay is
+			// preserved, so a reload cannot accelerate recovery (D02d).
+			ClearStoryShield();
+			ClearTemporalAegis();
+			ClearDefyProtection();
 			ReleaseGrabState();
 			// Package 11 A4: a stock loss / respawn clears every per-airtime
 			// Resonance traversal latch and the Shield of Orleans dedup ledger.

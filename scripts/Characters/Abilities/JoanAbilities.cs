@@ -60,18 +60,15 @@ namespace FTT.Characters.Abilities {
     /// </summary>
     public partial class JoanDivinePiercing : BaseSpecial {
 
-        private const int BlockChargeDepletion = 2;
         private const int MaxQueryResults = 16;
 
         private int _thrustsDone;
         private int _activeFramesElapsed;
-        private bool _blockChargesShredded;
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
             _thrustsDone = 0;
             _activeFramesElapsed = 0;
-            _blockChargesShredded = false;
         }
 
         protected override void OnActive() {
@@ -118,8 +115,20 @@ namespace FTT.Characters.Abilities {
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, MaxQueryResults)) {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
-                if (TryShredBlock(hurtbox)) continue;
 
+                // V7.6 F15 (Package 11 A1b): Divine Piercing is an ORDINARY
+                // Special-class FULL shatter. The bespoke two-charge
+                // "shield-stutter" path is deleted - the payload below carries
+                // AttackClass.Special, and BlockSystem.ResolveHit takes 1, 2 or
+                // 3 charges to 0 with the normal Special shatter response
+                // (shatter-freeze, daze, 5 s lockout).
+                //
+                // The multi-hit shatters exactly ONCE per execution without a
+                // separate latch: the shatter transitions the victim to Dazed,
+                // so no later thrust in this execution can find a live stance,
+                // and each thrust's IntersectShape yields a hurtbox once. Later
+                // distinct contacts then follow normal hit eligibility with no
+                // extra absorption and no invulnerability.
                 float dealt = hurtbox.TakeHit(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "joan_divine_piercing",
@@ -140,28 +149,6 @@ namespace FTT.Characters.Abilities {
             }
         }
 
-        /// <summary>
-        /// Blocked flurries shred exactly 2 charges once per cast. Handled before
-        /// the generic hurtbox path because a special-class payload would shatter
-        /// every remaining charge.
-        /// </summary>
-        private bool TryShredBlock(Hurtbox hurtbox) {
-            if (hurtbox.GetParent() is not PlayerController target) return false;
-            if (target.CurrentState != CharacterState.Blocking) return false;
-            var blockSystem = target.GetNodeOrNull<BlockSystem>("BlockSystem");
-            if (blockSystem == null || !blockSystem.IsBlocking || blockSystem.CurrentCharges <= 0) return false;
-            if (!BlockRules.IsHitInFront(target.GlobalPosition, target.IsFacingRight, Owner.GlobalPosition)) {
-                return false;
-            }
-
-            if (!_blockChargesShredded) {
-                _blockChargesShredded = true;
-                blockSystem.DepleteCharges(BlockChargeDepletion);
-                target.CurrentBlockCharges = blockSystem.CurrentCharges;
-                FTT.Core.CameraShake.Instance?.Shake(3f, 0.08f);
-            }
-            return true;
-        }
     }
 
     /// <summary>
@@ -359,7 +346,10 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
                 });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards
+                // its caster ZERO damage-dealt meter. Direct-hit Rally reclaim
+                // from an Ultimate impact is retained (D03g).
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt, ultimateOrigin: true);
             }
         }
     }

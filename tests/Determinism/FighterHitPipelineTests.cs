@@ -33,11 +33,12 @@ public class FighterHitPipelineTests {
         FighterStateComponent target = NewFighter(1);
         FighterRuntimeComponent targetRuntime = default;
         FighterVerbComponent targetVerb = default;
+        FighterDefenseComponent targetDefense = default;
         FighterTuningComponent tuning = default;
 
         FighterDamageRules.ApplyFighterHit(
             ref attacker, ref attackerRuntime, ref attackerVerb,
-            ref target, ref targetRuntime, ref targetVerb, in tuning,
+            ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in tuning,
             FighterDamageRules.SpecialAttackClass,
             0, FP64.FromInt(4), 20,
             (int)StatusType.None, 0, FP64.One,
@@ -57,7 +58,7 @@ public class FighterHitPipelineTests {
         // launch waiting to replay when that freeze ends.
         FighterDamageRules.ApplyFighterHit(
             ref attacker, ref attackerRuntime, ref attackerVerb,
-            ref target, ref targetRuntime, ref targetVerb, in tuning,
+            ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in tuning,
             FighterDamageRules.BasicAttackClass,
             10, FP64.Zero, 10,
             (int)StatusType.None, 0, FP64.One,
@@ -113,10 +114,11 @@ public class FighterHitPipelineTests {
         FighterStateComponent target = NewFighter(1);
         FighterRuntimeComponent targetRuntime = default;
         FighterVerbComponent targetVerb = default;
+        FighterDefenseComponent targetDefense = default;
         FighterTuningComponent tuning = default;
 
         bool landed = FighterDamageRules.ApplyEnvironmentHit(
-            ref target, ref targetRuntime, ref targetVerb, in tuning,
+            ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in tuning,
             6, FP64.FromInt(2), 10, target.Position.x - FP64.One);
         AssertThat(landed).IsTrue();
         AssertThat(target.CurrentHP).IsEqual(94);
@@ -129,8 +131,9 @@ public class FighterHitPipelineTests {
         FighterStateComponent blocker = NewFighter(1);
         var blockerRuntime = new FighterRuntimeComponent { HeldButtons = (int)GameplayButtons.Block };
         FighterVerbComponent blockerVerb = default;
+        FighterDefenseComponent blockerDefense = default;
         bool blockedLanded = FighterDamageRules.ApplyEnvironmentHit(
-            ref blocker, ref blockerRuntime, ref blockerVerb, in tuning,
+            ref blocker, ref blockerRuntime, ref blockerVerb, ref blockerDefense, in tuning,
             6, FP64.FromInt(2), 10, blocker.Position.x + FP64.One);
         AssertThat(blockedLanded).IsFalse();
         AssertThat(blocker.CurrentHP).IsEqual(100);
@@ -152,9 +155,10 @@ public class FighterHitPipelineTests {
         fighter.Influence = FP64.FromInt(100);
         var runtime = new FighterRuntimeComponent { UsesStocks = 1 };
         FighterVerbComponent verb = default;
+        FighterDefenseComponent defense = default;
         FighterTuningComponent tuning = default;
 
-        FighterDamageRules.ApplyUnattributedDamage(ref fighter, ref runtime, ref verb, in tuning, 2);
+        FighterDamageRules.ApplyUnattributedDamage(ref fighter, ref runtime, ref verb, ref defense, in tuning, 2);
 
         AssertThat(fighter.CurrentHP)
             .OverrideFailureMessage("A lethal venom tick against a full meter must not KO.")
@@ -166,8 +170,18 @@ public class FighterHitPipelineTests {
             .IsEqual(0L);
         AssertThat(verb.DefyHistoryUsed).IsEqual(1);
 
+        // V7.6 D04 (Package 11 A1b): the Defy survivor is protected through
+        // the presentation and for 60 resumed control ticks, so the follow-up
+        // tick has to wait the window out before "once per match" can bite.
+        for (int tick = 0; tick < 61; tick++) {
+            FighterDefenseRules.Tick(ref defense, suspended: false, actionable: true);
+        }
+        AssertThat(FighterDefenseRules.IsDefyProtected(in defense))
+            .OverrideFailureMessage("Tick 61 must be unprotected.")
+            .IsFalse();
+
         // Once per match: the next lethal tick takes the stock.
-        FighterDamageRules.ApplyUnattributedDamage(ref fighter, ref runtime, ref verb, in tuning, 2);
+        FighterDamageRules.ApplyUnattributedDamage(ref fighter, ref runtime, ref verb, ref defense, in tuning, 2);
         AssertThat(runtime.KnockoutsSuffered).IsEqual(1);
         AssertThat(fighter.Stocks).IsEqual(2);
     }

@@ -6418,3 +6418,112 @@ sources do not survive, so an uncollected drop can be re-earned.
   `RewardManifestTests` pins that against `EraserDebutTrigger.PlaceholderEnemyID`, so **B3's
   re-point to `EraserEnemyID` after A7a merges fails this suite by name** and the nine manifest rows
   are updated in the same change.
+### A1b — Defensive contract D01–D04, both modes (2026-09-13)
+**Shipped.** The D01/D02b resolution order is now authored once per mode and the barrier resolves
+**before** block in both. Story gained `PlayerController.ResolveIncomingHit` — invulnerability → the
+D04 Defy window → projectile immunity → Temporal Aegis → the finite HP barrier → block → HP — with
+`ResolveProtectionLayers` shared by the hurtbox path, `ApplyPersistentDamage` (D03c DoT ticks) and
+`ApplyEnvironmentalDamage` (D03c hazards). The sim's `FighterDamageRules.ApplyFighterHit` gained the
+same order at its top, plus Klotho component **312 `FighterDefenseComponent`** (§2.7) carrying the
+D04 window, the D02e Aegis flag, the D02b barrier and the F22 bar. Also landed: D02a grant identity
+and refresh-without-stacking, D02c's 480-active-tick lifetime on the suspended clock, the D02d
+Wardenclyffe rewrite, D03a/D03e effect suppression, D03d's primary-throw bypass, D03g (zone ticks
+never reclaim, both modes), D03h (Ultimate-origin damage earns zero caster meter), the D03f Rally
+clamp at both chokepoints, F15's full shatter, F17's lockout fix, F10's per-attempt Defy persistence
+and the F13 seal publisher.
+**Deviations and judgement calls, in order of how much they matter.**
+1. **Cleopatra's sand decoy was NOT built, so Royal Aegis still grants to Cleopatra.** D02a says
+   "treat the decoy as a separate recipient under its existing inherited-shield rule", and the
+   dossier authorised A1b to build a 1 s decoy because Royal Aegis depends on it. The decoy is a V7
+   *baseline* object that has never existed in this repository (A4's handoff §3.6 records the same
+   gap independently). Building a hurtbox-bearing decoy that can be targeted, absorb a hit and expire
+   is a **kit feature**, not a defensive-contract fix, and it would have been the only new authored
+   world object in a workstream that is otherwise pure rule-ordering. The shield instance model is
+   already recipient-shaped (`StoryShieldInstance` is a value carried by its owner), so routing it to
+   a decoy later is a one-line change at the grant site. **Owner: unassigned — the kit workstream.**
+   The Royal Aegis grant carries a `// DEVIATION` comment at `CleopatraAbilities.ApplyCastPerks`.
+2. **The F22 Sudden Death bar is STORED on component 312, not derived at the read site.** Recon
+   I §3.2 recommended deriving `SuddenDeathDefyDisabled` from `match.SuddenDeathActive` rather than
+   storing it per fighter, and the dossier repeated that. `ApplyFighterHit` is a static function over
+   component refs with **no access to the match singleton**, and threading the singleton into the
+   chokepoint is a far larger change than one `int`. So `FighterDefenseComponent.DefyBarred` is set
+   by `EnterSuddenDeath` and read by the Defy branch. This satisfies what F13 actually asked for —
+   *Spent* and *Unavailable* are now genuinely distinguishable, and the bar never touches
+   `FighterVerbComponent.DefyHistoryUsed` — but it is a stored flag, so it is snapshot and hash state
+   and it deliberately survives `FighterDefenseRules.Clear` (Sudden Death produces stock losses, and
+   a stock loss must not lift the bar). **This also closed a real gap the dossier's own wording would
+   have left open:** removing the pre-mark without adding a bar would have *enabled* Defy in Sudden
+   Death, which F22 forbids.
+3. **No `en.csv` rows were added, and the Systems Card section was not authored.** The dossier asked
+   for "the four `Defy: …` state labels + the Systems Card section". A8 has already shipped
+   `scripts/UI/DefySealModel.cs` with `hud_defy_ready` / `hud_defy_spent` / `hud_defy_unavailable`
+   and their glyphs and tints, so a second family of `hud_defy_seal_*` rows would have been four
+   immediate orphans against `UnusedTranslationKeyTests`' fail-on-new-orphan gate. The Systems Card
+   is A5's script-less `scenes/ui/SystemsCard.tscn`, pinned by `SystemsCardContentTests`' exact
+   section list; adding a ninth section is A5/A8's surface, not a defensive-rule change. **Phase C or
+   A8 should add one `systems_card_defense_*` pair** describing the layer order — draft copy is in
+   the handoff. Nothing in this workstream is expected-to-fail-until-import.
+4. **`BlockSystem.DepleteCharges` was retained, not removed.** The dossier allowed removing it "if
+   nothing else needs them". Both F15 call sites are deleted, but seven test suites use it as a plain
+   charge-spend for setup. It is retained with a rewritten doc comment saying it is no longer a combat
+   rule, and its Guard Impact haptic is gone — nothing routed through it is a "successful block" any
+   more. `BlockChargeDepletion` (the `= 2` constant) is deleted from both ability scripts, and
+   `DivinePiercingBlockChargeCost` plus the Joan branch are deleted from the sim.
+5. **The Story HP barrier remains a single-slot instance.** DEFENSIVE_EFFECTS leaves "one recipient
+   holding two different finite HP-barrier types" explicitly unauthored, and no shipped kit can reach
+   that state (each character owns exactly one barrier perk). `StoryShieldEffect` therefore carries a
+   single slot rather than inventing a stacking or overflow policy design has not chosen; a grant of
+   a *different* effect replaces. This is the same boundary the shipped shared scalar already had,
+   now made explicit and identified.
+6. **D03h attribution is read from the attack class at the shared Story strike path**, not from a
+   per-call flag at every site. `Hitbox.OnAreaEntered` gates on `payload.AttackClass == Ultimate`,
+   which is the one place every Ultimate-class hitbox lands, and `PlaceholderZone` derives it from
+   the authored `AbilityData.Slot` it already receives — so neither adds a second canonical value.
+   The nine ultimate scripts' direct `AddInfluenceFromDamageDealt` calls pass `ultimateOrigin: true`
+   explicitly. **Three of those files (Einstein, Leonardo, Mozart) are outside A1b's named six**; the
+   edits are one line plus a comment each and no Wave 2 agent owns those files.
+7. **`ApplyFighterHit`, `ApplyEnvironmentHit`, `ApplyUnattributedDamage` and `ApplyStockLoss` all
+   gained a `ref FighterDefenseComponent` parameter.** There is no way to reject a hit *at the top of
+   the chokepoint* without the component being there, and `ref` parameters cannot be optional. Sixteen
+   production call sites and four test files were threaded. **A1c inherits this**: every new call site
+   in `FighterSimulationSystems.cs` needs the defense ref, and `FighterCombatSystem.Update` already
+   binds `defenseOne` / `defenseTwo` next to A1's `conductiveOne` / `conductiveTwo`.
+8. **`FighterProjectileComponent` gained `UltimateOrigin`** (116 → 120 bytes, still under Klotho's
+   128). No shipped ultimate spawns a projectile, so the field is inert today; it is authored because
+   D03h requires attribution to survive into delayed projectiles and the plan named the field.
+9. **`FighterRuntimeComponent.AegisHits` is retained as a presentation mirror.** The authoritative
+   D02e flag is `FighterDefenseComponent.AegisActive`; `AegisHits` is still written alongside it so
+   the driver's existing bubble presentation keeps working without an A8 edit. They are set and
+   cleared together at every site. A later pass may delete the mirror.
+10. **Story hazards still have no block opportunity.** D03c says an external stage-hazard remainder
+    "retains its authored Basic-class block rule (1 charge)". The **sim** does this already
+    (`ApplyEnvironmentHit` pins `blockChargeCost` to 1). **Story's `ApplyEnvironmentalDamage` has
+    never had a block layer at all**, and adding one would change hazard survivability across every
+    campaign level — a balance change, not a defensive-ordering fix. The shield absorption was added;
+    the block opportunity was not. Recorded as an open cross-mode divergence.
+11. **Tests rewritten in place rather than added.** Ten ultimate-meter assertions across nine
+    `*UltimateTests` files asserted that an ultimate's own first tick re-credits the caster — the
+    exact behaviour D03h retires — and now assert zero. `JoanKitTests`'
+    `DivinePiercingDealsFullMultiHitTotalAndShredsExactlyTwoBlockCharges` is renamed and rewritten to
+    the F15 full shatter. `StoryBlockModelTests.AShieldRestoreEndsTheShatterLockout` is renamed and
+    inverted for F17. Six more cases (`FighterVerbLayerTests`, `FighterMatchFlowTests`,
+    `FighterTimeSystemsTests`, `StoryEnvironmentalDamageTests`, `TutorialCalibrationV76Tests`,
+    `FighterHitPipelineTests`) now wait out or clear the D04 window before their follow-up hit,
+    because a Defy survivor is legitimately invulnerable for the next second.
+12. **Test delta is +44, not the dossier's +60.** Six new suites cover every acceptance criterion and
+    the DEFENSIVE_EFFECTS validation matrix at the level that discriminates the new rules from the old
+    ones. The shortfall is concentrated in breadth the dossier enumerated but that no code path
+    distinguishes today: the front/rear × grounded/airborne × 0/1/2/3-charge cross-product (the same
+    two branches), and the decoy and Second-Glide-re-entry cases that depend on deviation 1.
+**Acceptance criteria, each verified.** A blocking Shakespeare with a live Bastion spends no block
+charge on a fully absorbed hit (`StoryDefenceOrderTests`). A granted shield expires at exactly 480
+active ticks and does not advance while frozen (both modes). A defied hit leaves the survivor free,
+invulnerable for exactly 60 resumed control ticks, and vulnerable on tick 61. Joan's Divine Piercing
+takes a 3-charge shield to 0 in both modes. A Rally reclaim at full HP costs nothing from the pool.
+An Ultimate earns its caster zero meter through direct hits, zones and the Cataclysm coil chain. A
+Story Defy survives a mid-level quit and resume as spent.
+**Not verified by anything here:** no human has played a match or a level with any of it. The D02d
+Wardenclyffe numbers (3 s delay, 2.5%/s) are design values pending playtest, the contract says so,
+and the coil-range membership is exercised through the `WardenclyffeInCoilRange` seam rather than by
+deploying live coils in a physics scene.
+**AGENTS.md / CLAUDE.md edits required at Phase C** — listed in `docs/handoffs/P11_A1b.md` §6.

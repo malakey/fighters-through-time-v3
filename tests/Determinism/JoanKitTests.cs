@@ -59,7 +59,7 @@ public class JoanKitTests {
     }
 
     [TestCase]
-    public void DivinePiercingDealsFullMultiHitTotalAndShredsExactlyTwoBlockCharges() {
+    public void DivinePiercingDealsFullMultiHitTotalAndFullShattersABlockedStance() {
         // Unblocked: the rapid thrusts resolve as their full 3 x 4 = 12 total.
         var open = new FighterSimulation(
             FighterLoadoutFactory.FromCharacterData(BuildPiercingCharacter()),
@@ -71,8 +71,13 @@ public class JoanKitTests {
         AssertThat(open.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();
         AssertThat(struck.CurrentHP).IsEqual(88);
 
-        // Blocked: exactly 2 of the 3 charges are depleted (not the special-class
-        // full shatter), no damage, and no guard-break daze.
+        // V7.6 F15 (Package 11 A1b), rewritten in place: Divine Piercing is an
+        // ORDINARY Special-class FULL shatter in both modes. The retired
+        // two-charge "shield-stutter" exception took 3 charges to 1 and left the
+        // defender undazed; the Special class now takes 1, 2 or 3 charges to 0
+        // with the normal shatter response (shatter-freeze, daze, 5 s lockout).
+        // Lincoln's Emancipator already passed 0 here, so the two modes
+        // disagreed with each other until this pass.
         var blocked = new FighterSimulation(
             FighterLoadoutFactory.FromCharacterData(BuildPiercingCharacter()),
             FighterLoadout.Default(FighterCharacterID.Tesla),
@@ -82,9 +87,19 @@ public class JoanKitTests {
         blocked.Advance(Frame(0, 0, GameplayButtons.None), Frame(0, 0, GameplayButtons.Block));
         blocked.Advance(Frame(1, 0, GameplayButtons.Special2), Frame(1, 0, GameplayButtons.Block));
         AssertThat(blocked.TryGetFighter(1, out FighterStateComponent defender)).IsTrue();
-        AssertThat(defender.BlockCharges).IsEqual(1);
-        AssertThat(defender.CurrentHP).IsEqual(100);
-        AssertThat(defender.DazeFrames).IsEqual(0);
+        AssertThat(defender.BlockCharges)
+            .OverrideFailureMessage("A full shatter takes every remaining charge to zero.")
+            .IsEqual(0);
+        AssertThat(defender.CurrentHP)
+            .OverrideFailureMessage("The absorbed contact still deals no HP damage.")
+            .IsEqual(100);
+        AssertThat(defender.DazeFrames)
+            .OverrideFailureMessage("The Special shatter dazes for the shared 1 s window.")
+            .IsEqual(60);
+        AssertThat(blocked.TryGetFighterVerb(1, out FighterVerbComponent shattered)).IsTrue();
+        AssertThat(shattered.BlockLockoutFrames)
+            .OverrideFailureMessage("...and arms the five-second lockout.")
+            .IsEqual(FTT.Combat.BasicComboRules.BlockShatterLockoutFrames);
     }
 
     [TestCase]

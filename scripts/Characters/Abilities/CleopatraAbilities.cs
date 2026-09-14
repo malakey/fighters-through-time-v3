@@ -319,6 +319,8 @@ namespace FTT.Characters.Abilities {
         private MovementAbilityData MovementData => Data as MovementAbilityData;
 
         private bool _vortexStepApplied;
+        /// <summary>D02a grant identity: one per ACCEPTED Desert Mirage cast.</summary>
+        private int _mirageCastId;
 
         /// <summary>True when this cast consumed a Vortex Step. Test seam.</summary>
         public bool VortexStepApplied => _vortexStepApplied;
@@ -399,10 +401,26 @@ namespace FTT.Characters.Abilities {
                 vortex?.RootVortexTargets(QuicksandRootDuration);
             }
             if (Owner.HasStoryPerk(RoyalAegisPerkKey)) {
-                // Royal Aegis grants the shield in full each time Mirage is cast.
-                float capacity = 0.10f * Owner.MaximumHP;
-                Owner.ConfigureStoryShield(capacity);
-                Owner.RechargeStoryShield(capacity);
+                // V7.6 D02a/D02c (Package 11 A1b): a valid Desert Mirage grant
+                // REFRESHES the 10%-max-HP shield to its cap and restarts the
+                // eight-second lifetime; it never adds capacity or duration.
+                // The grant identity is the accepted cast, so a duplicate
+                // animation or collision callback for the same cast is refused.
+                //
+                // DEVIATION, recorded in plan §9: D02a also says "treat the
+                // decoy as a separate recipient under its existing
+                // inherited-shield rule". Cleopatra's sand decoy is a V7
+                // baseline object that HAS NEVER BEEN IMPLEMENTED (A4's handoff
+                // §3.6 records the same gap), so there is no decoy node to
+                // route the grant to and no second recipient to give its own
+                // lifetime. Building a hurtbox-bearing decoy is a kit feature,
+                // not a defensive-contract fix. Until it exists the shield
+                // stays on Cleopatra, exactly as it shipped.
+                Owner.GrantStoryShield(
+                    FTT.Combat.StoryShieldEffect.RoyalAegis,
+                    FTT.Combat.StoryDefenseRules.GrantedShieldCapacityShare * Owner.MaximumHP,
+                    FTT.Combat.StoryDefenseRules.GrantedShieldLifetimeFrames,
+                    ++_mirageCastId);
             }
         }
     }
@@ -502,7 +520,10 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
                 });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
+                // ZERO damage-dealt meter, regardless of HP removed, target count or
+                // when it lands. Direct-hit Rally reclaim is retained (D03g).
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt, ultimateOrigin: true);
             }
         }
 

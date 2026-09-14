@@ -73,6 +73,16 @@ public class StoryEnvironmentalDamageTests {
                 .OverrideFailureMessage("A defied environmental hit must accrue no victim meter.")
                 .IsEqual(0f);
 
+            // V7.6 D04 (Package 11 A1b): the survivor is now invulnerable
+            // through the presentation and for 60 resumed control ticks, so the
+            // follow-up hit has to wait that window out before the ordinary
+            // accounting can be observed at all.
+            HoldInput(player, GameplayButtons.None,
+                StoryDefenseRules.DefyProtectionFrames + BasicComboRules.HitstopFrames(20) + 10);
+            AssertThat(player.IsDefyProtected)
+                .OverrideFailureMessage("The protected second must have elapsed.")
+                .IsFalse();
+
             // The regression: the Defy flag must have been CONSUMED by the
             // environmental path — the next ordinary hurtbox hit's echo and
             // meter accounting must run normally.
@@ -160,6 +170,14 @@ public class StoryEnvironmentalDamageTests {
     }
 
     // ---- Harness -------------------------------------------------------------
+
+    /// <summary>Advances the controller's own physics loop for N frames.</summary>
+    private static void HoldInput(PlayerController player, GameplayButtons buttons, int frames) {
+        var source = new BufferedInputSource();
+        source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, buttons));
+        InputManager.Instance.SetInputSource(player.PlayerIndex, source);
+        for (int frame = 0; frame < frames; frame++) player._PhysicsProcess(1.0 / 60.0);
+    }
 
     /// <summary>An impulse-free, stun-free test hit so state stays Idle.</summary>
     private static HitPayload Hit(float damage) => new() {

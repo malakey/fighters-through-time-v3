@@ -908,7 +908,19 @@ namespace FTT.Core {
             LevelSecretsFound = 0;
             // A fresh attempt starts with Time Freeze Ready.
             TimeFreezeCooldownRemaining = 0f;
+            // Package 11 A1b (V7.6 F10): only a fresh entry or a full Restart
+            // Level hands the run back its one saved life.
+            StoryDefyHistoryUsed = false;
         }
+
+        /// <summary>
+        /// Per-attempt Defy History (V7.6 F10, Package 11 A1b). The authority
+        /// lives here rather than on <c>PlayerController</c> so it survives a
+        /// death rewind that rebuilds the player, a mid-level quit and resume,
+        /// a Collapse recovery and a hub visit. <c>CharacterFactory</c> seeds
+        /// the controller from it; the controller writes back on a proc.
+        /// </summary>
+        public bool StoryDefyHistoryUsed { get; set; }
 
         /// <summary>Checkpoint saves (and the collapse save) carry the attempt.</summary>
         public void WriteAttemptStateToSave(StorySaveData save) {
@@ -927,6 +939,9 @@ namespace FTT.Core {
             save.CheckpointIntegrityPercent = CheckpointIntegrityPercent;
             save.HasSeenCollapseBeat = HasSeenCollapseBeat;
             save.TimeFreezeCooldownSeconds = TimeFreezeCooldownRemaining;
+            // Package 11 A1b (V7.6 F10): Defy History is once per ATTEMPT, and
+            // it commits in the same envelope write as HP and meter.
+            save.StoryDefyHistoryUsed = StoryDefyHistoryUsed;
             WriteAttemptRecord(save);
         }
 
@@ -1004,6 +1019,9 @@ namespace FTT.Core {
                 save.CheckpointIntegrityPercent, 0f, TimelineIntegrityRules.StartPercent);
             LevelSecretsFound = _foundSecrets.Count;
             HasSeenCollapseBeat = save.HasSeenCollapseBeat;
+            // Package 11 A1b (V7.6 F10): the parked attempt comes back with its
+            // Defy already spent - a resume can never restore the saved life.
+            StoryDefyHistoryUsed = save.StoryDefyHistoryUsed;
             RestoreAttemptRecord(save);
             // F10 supersedes the V7.3 rule that a reload restores the gauge the
             // checkpoint banked: ordinary loading restores the LATEST DURABLE

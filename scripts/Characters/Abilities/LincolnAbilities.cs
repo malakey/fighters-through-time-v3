@@ -18,7 +18,6 @@ namespace FTT.Characters.Abilities {
 
         public const string ExecutiveOrderPerkKey = "executive_order";
 
-        private const int BlockChargeDepletion = 2;
         private const float ExecutiveOrderTravelMultiplier = 1.5f;
         private const float ExecutiveOrderDamageMultiplier = 1.2f;
         private const int WaveVisualIntervalFrames = 6;
@@ -112,10 +111,12 @@ namespace FTT.Characters.Abilities {
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
                 if (!_struckHurtboxes.Add(hurtbox.GetInstanceId())) continue;
 
-                // Design: the ground wave depletes exactly 2 block charges
-                // instead of the generic special full-shatter rule.
-                if (TryDepleteBlockCharges(hurtbox)) continue;
-
+                // V7.6 F15 (Package 11 A1b): The Emancipator is an ORDINARY
+                // Special-class FULL shatter. The bespoke two-charge
+                // "shield-stutter" path is deleted; the Special-class payload
+                // below takes 1, 2 or 3 charges to 0 through the normal
+                // BlockSystem.ResolveHit response. The sim already passed 0 for
+                // Lincoln's S1, so the two modes disagreed until now.
                 float dealt = hurtbox.TakeHit(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "lincoln_emancipator",
@@ -136,24 +137,6 @@ namespace FTT.Characters.Abilities {
             }
         }
 
-        private bool TryDepleteBlockCharges(Hurtbox hurtbox) {
-            Node current = hurtbox.GetParent();
-            while (current != null) {
-                if (current is PlayerController target) {
-                    if (target.CurrentState != CharacterState.Blocking) return false;
-                    if (!BlockRules.IsHitInFront(target.GlobalPosition, target.IsFacingRight, _waveFront)) {
-                        return false;
-                    }
-                    var blockSystem = target.GetNodeOrNull<BlockSystem>("BlockSystem");
-                    if (blockSystem == null || !blockSystem.IsBlocking) return false;
-                    blockSystem.DepleteCharges(BlockChargeDepletion);
-                    FTT.Core.CameraShake.Instance?.Shake(3f, 0.08f);
-                    return true;
-                }
-                current = current.GetParent();
-            }
-            return false;
-        }
     }
 
     /// <summary>
@@ -587,7 +570,10 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
                 });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
+                // ZERO damage-dealt meter, regardless of HP removed, target count or
+                // when it lands. Direct-hit Rally reclaim is retained (D03g).
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt, ultimateOrigin: true);
             }
         }
 

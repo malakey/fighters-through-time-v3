@@ -53,7 +53,10 @@ public class TeslaUltimateTests {
         // ultimate-slot column zone. The same-frame column tick re-credits its
         // 18 damage as influence, so the meter reads exactly 18 — not 100.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
-        AssertThat(attacker.Influence == FP64.FromInt(18)).IsTrue();
+        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
+        // caster ZERO damage-dealt meter, so the same-frame tick no longer
+        // re-credits anything - the meter reads exactly 0 after the cast.
+        AssertThat(attacker.Influence == FP64.Zero).IsTrue();
         AssertThat(simulation.ZoneCount).IsEqual(1);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual((int)FighterCharacterID.Tesla * 10 + 3);
@@ -110,7 +113,10 @@ public class TeslaUltimateTests {
 
         // Meter consumed (only the same-frame tick's 18-damage credit remains).
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent spent)).IsTrue();
-        AssertThat(spent.Influence == FP64.FromInt(18)).IsTrue();
+        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
+        // caster ZERO damage-dealt meter, so the same-frame tick no longer
+        // re-credits anything - the meter reads exactly 0 after the cast.
+        AssertThat(spent.Influence == FP64.Zero).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(before.CurrentHP - target.CurrentHP).IsEqual(18);
     }

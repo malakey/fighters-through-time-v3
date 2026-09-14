@@ -496,10 +496,11 @@ public class FighterSimulationTests {
         FighterRuntimeComponent targetRuntime = default;
         FighterVerbComponent attackerVerb = default;
         FighterVerbComponent targetVerb = default;
+        FighterDefenseComponent targetDefense = default;
         FighterTuningComponent tuning = new() { MaxBlockCharges = 3, MaxJumpCount = 1 };
 
         bool basicHit = FighterDamageRules.ApplyFighterHit(
-            ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, in tuning,
+            ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in tuning,
             FighterDamageRules.BasicAttackClass, 10,
             xpTURN.Klotho.Deterministic.Math.FP64.FromInt(4), 15,
             0, 0, xpTURN.Klotho.Deterministic.Math.FP64.One,
@@ -511,7 +512,7 @@ public class FighterSimulationTests {
         AssertThat(target.HitstunFrames).IsEqual(0);
 
         bool ultimateHit = FighterDamageRules.ApplyFighterHit(
-            ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, in tuning,
+            ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in tuning,
             FighterDamageRules.UltimateAttackClass, 10,
             xpTURN.Klotho.Deterministic.Math.FP64.FromInt(4), 15,
             0, 0, xpTURN.Klotho.Deterministic.Math.FP64.One,

@@ -52,12 +52,12 @@ public class ShakespeareUltimateTests {
         simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
 
         // The bespoke dispatch consumed the meter and spawned the stage zone.
-        // The dispatch zeroes Influence; the first phantom strike then lands in
-        // the same frame and re-credits its 14 damage dealt (the normal 1
-        // point per HP), so the observable post-press value is exactly 14.
+        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
+        // caster ZERO damage-dealt meter, so the same-frame tick no longer
+        // re-credits anything - the meter reads exactly 0 after the cast.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent spent)).IsTrue();
         AssertThat(spent.Influence.RawValue).IsEqual(
-            xpTURN.Klotho.Deterministic.Math.FP64.FromInt(StrikeDamage).RawValue);
+            xpTURN.Klotho.Deterministic.Math.FP64.Zero.RawValue);
         AssertThat(simulation.ZoneCount).IsEqual(1);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual(StageZoneTypeID);

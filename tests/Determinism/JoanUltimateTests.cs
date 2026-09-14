@@ -49,10 +49,12 @@ public class JoanUltimateTests {
         AssertThat(joan.Velocity.x > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(target.CurrentHP).IsEqual(1000 - MeterChargeDamage - UltimateDamagePerHit);
-        // Meter reset on use: only the first pulse's damage has re-credited it.
+        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
+        // caster ZERO damage-dealt meter, so the same-frame tick no longer
+        // re-credits anything - the meter reads exactly 0 after the cast.
         AssertThat(simulation.TryGetFighter(0, out joan)).IsTrue();
         AssertThat(joan.Influence.RawValue)
-            .IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.FromInt(UltimateDamagePerHit).RawValue);
+            .IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.Zero.RawValue);
     }
 
     [TestCase]

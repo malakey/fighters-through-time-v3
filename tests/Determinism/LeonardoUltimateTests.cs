@@ -56,7 +56,10 @@ public class LeonardoUltimateTests {
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
         // The cast zeroes the meter; the only influence left is the standard
         // 1-per-HP credit from the first 10-damage bombardment tick.
-        AssertThat(caster.Influence.ToFloat()).IsEqual(10f);
+        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
+        // caster ZERO damage-dealt meter, so the same-frame tick no longer
+        // re-credits anything - the meter reads exactly 0 after the cast.
+        AssertThat(caster.Influence.ToFloat()).IsEqual(0f);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterCast)).IsTrue();
         AssertThat(afterCast.CurrentHP).IsEqual(290);
     }

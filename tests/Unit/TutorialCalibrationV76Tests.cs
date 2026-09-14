@@ -241,6 +241,14 @@ public class TutorialCalibrationV76Tests {
                 .OverrideFailureMessage("The meter shatters to zero — that is what the broken seal means.")
                 .IsEqual(0f);
 
+            // V7.6 D04 (Package 11 A1b): the survivor is invulnerable through
+            // the presentation and for 60 resumed control ticks, so the second
+            // lethal hit has to wait that window out. Clearing it directly keeps
+            // this case about the SEAL rather than about the timer, which
+            // DefyProtectedRecoveryTests pins on its own.
+            player.ClearDefyProtection();
+            AssertThat(player.IsDefyProtected).IsFalse();
+
             // Refilling the meter does NOT restore the spent Defy: the next
             // lethal hit kills.
             player.AddInfluenceFromDamageDealt(UltimateMeter.MaxValue, collectsEcho: false);

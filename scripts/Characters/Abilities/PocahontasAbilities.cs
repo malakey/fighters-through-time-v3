@@ -280,14 +280,30 @@ namespace FTT.Characters.Abilities {
 
         /// <summary>
         /// Leaf Barrier (Story-only): entering a Breeze Glide grants a shield
-        /// that absorbs 10% of maximum health before HP is touched.
+        /// absorbing 10% of maximum health before HP is touched.
+        ///
+        /// <para><b>V7.6 D02a/D02c (Package 11 A1b).</b> A valid glide ENTRY
+        /// grants or refreshes the shield to its full cap and restarts the
+        /// eight-second lifetime; it never adds capacity or duration. An
+        /// accepted <b>Second Glide re-entry</b> qualifies as a new entry -
+        /// merely continuing the same glide or holding its input does not, which
+        /// is why the grant identity is the entry counter rather than the call.
+        /// Before this, any <c>ApplyLeafBarrier()</c> call re-granted.</para>
         /// </summary>
         private void ApplyLeafBarrier() {
             if (Owner == null || !Owner.HasStoryPerk(LeafBarrierPerkKey)) return;
-            float capacity = 0.10f * Owner.MaximumHP;
-            Owner.ConfigureStoryShield(capacity);
-            Owner.RechargeStoryShield(capacity);
+            Owner.GrantStoryShield(
+                FTT.Combat.StoryShieldEffect.LeafBarrier,
+                FTT.Combat.StoryDefenseRules.GrantedShieldCapacityShare * Owner.MaximumHP,
+                FTT.Combat.StoryDefenseRules.GrantedShieldLifetimeFrames,
+                ++_glideEntryId);
         }
+
+        /// <summary>
+        /// D02a grant identity: one per ACCEPTED glide entry. A refused input
+        /// never reaches OnStartup, and holding the glide never increments it.
+        /// </summary>
+        private int _glideEntryId;
     }
 
     /// <summary>
@@ -398,7 +414,10 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
                 });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
+                // ZERO damage-dealt meter, regardless of HP removed, target count or
+                // when it lands. Direct-hit Rally reclaim is retained (D03g).
+                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt, ultimateOrigin: true);
             }
         }
     }

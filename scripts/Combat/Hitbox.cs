@@ -149,7 +149,16 @@ namespace FTT.Combat {
             using var scope = PhysicsCallbackGuard.Enter();
             HitPayload payload = CreatePayload(hurtbox.OwnerPlayerIndex);
             float damageApplied = hurtbox.TakeHit(payload);
-            if (damageApplied > 0f) SourcePlayer?.AddInfluenceFromDamageDealt(damageApplied);
+            // V7.6 D03h (Package 11 A1b): the shared strike path is the one
+            // place every Ultimate-class hitbox lands, so the origin is read
+            // from the payload's own attack class rather than from a second
+            // flag. An Ultimate earns its caster zero damage-dealt meter; the
+            // direct-hit Rally reclaim on the same contact is retained (D03g).
+            if (damageApplied > 0f) {
+                SourcePlayer?.AddInfluenceFromDamageDealt(
+                    damageApplied,
+                    ultimateOrigin: payload.AttackClass == AttackClass.Ultimate);
+            }
             // Package 11 A4: the shared Story "a hit of mine landed" hook the
             // V7.6 traversal flags read (Joan's Wings Refresh). Runs for every
             // Hitbox-delivered hit - melee, special and pooled projectile -

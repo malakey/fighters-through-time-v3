@@ -104,7 +104,7 @@ namespace FTT.Combat {
                 // V7.3 shieldstun: every non-shatter blocked hit locks the
                 // stance up for the shared window (the sim mirrors this).
                 _shieldStunTimer = ShieldStunSeconds;
-                GrantHenrysBastion();
+                GrantHenrysBastion(++_blockGrantEventId);
                 FTT.Core.EventBus.Instance?.RaiseBlockAbsorbed(_owner.PlayerIndex, CurrentCharges);
                 return BlockResult.Blocked;
             }
@@ -118,18 +118,36 @@ namespace FTT.Combat {
         private const float HenrysBastionCapacityShare = 0.10f;
 
         /// <summary>
-        /// Henry's Bastion (Story-only): successfully blocking an attack summons a
-        /// phantom royal shield guard absorbing up to 10% of Shakespeare's maximum
-        /// HP. The guard is granted fully charged on each successful block; the
-        /// design's "temporary" guard lapses by absorbing damage rather than on a
-        /// timer (approximation noted in docs/PACKAGE3_KIT_AUDIT.md).
+        /// Henry's Bastion (Story-only): a qualifying REAL block summons a
+        /// phantom royal shield guard absorbing up to 10% of Shakespeare's
+        /// maximum HP.
+        ///
+        /// <para><b>V7.6 D01/D02a/D02c (Package 11 A1b).</b> It is granted only
+        /// AFTER that block resolves and cannot absorb its own triggering hit —
+        /// and because D01 resolves an existing barrier BEFORE block, a hit the
+        /// guard absorbs in full never reaches <see cref="ResolveHit"/> and can
+        /// therefore never summon or refresh the guard through a false block
+        /// event. The guard now carries a real 8-second (480 active tick)
+        /// lifetime instead of the old "lapses by absorbing damage" approximation.
+        /// A repeat grant refills capacity and restarts the timer; it never adds
+        /// either. <paramref name="grantEventId"/> is the D02a grant identity, so
+        /// a duplicate callback for the same block contact grants nothing.</para>
         /// </summary>
-        private void GrantHenrysBastion() {
+        private void GrantHenrysBastion(int grantEventId) {
             if (_owner == null || !_owner.HasStoryPerk(HenrysBastionPerkKey)) return;
-            float capacity = HenrysBastionCapacityShare * _owner.MaximumHP;
-            _owner.ConfigureStoryShield(capacity);
-            _owner.RechargeStoryShield(capacity);
+            _owner.GrantStoryShield(
+                StoryShieldEffect.HenrysBastion,
+                HenrysBastionCapacityShare * _owner.MaximumHP,
+                StoryDefenseRules.GrantedShieldLifetimeFrames,
+                grantEventId);
         }
+
+        /// <summary>
+        /// D02a grant identity for a block contact: monotonically increasing per
+        /// resolved block, so a duplicate animation or collision callback for the
+        /// same contact reuses the same value and is refused.
+        /// </summary>
+        private int _blockGrantEventId;
 
         /// <summary>
         /// Package 11 A4 (Shield of Orleans, V7.6 F06 Option A). Hands back
@@ -162,34 +180,45 @@ namespace FTT.Combat {
         /// Restores every charge without touching the blocking stance — the
         /// Chronal Orb shield-restore pickup's entry point. Writing here keeps
         /// this system authoritative; the PlayerController.CurrentBlockCharges
-        /// field is only a display mirror. V7.3 ruling: a shield restore also
-        /// ends a running shatter lockout — a full shield with no stance would
-        /// read as a bug.
+        /// field is only a display mirror.
+        ///
+        /// <para><b>V7.6 F17 (Package 11 A1b).</b> A charge restore does NOT end
+        /// a running shatter lockout, and does not change the regeneration
+        /// countdown's relationship to it. The V7.3 sentence "a Chronal
+        /// Shield-Restore orb ends the lockout along with restoring charges (the
+        /// orb is the authored fast exit)" is <b>deleted</b>: the only specified
+        /// block-recovery rules are normal regeneration and the existing perk
+        /// exceptions — Shield of Orléans can refund one charge after a
+        /// Guard-Crush shatter, but that charge stays unusable until the five
+        /// second lockout ends. Temporal Aegis is a separate one-hit shield and
+        /// restores nothing here at all.</para>
         /// </summary>
         public void RestoreAllCharges() {
             CurrentCharges = Mathf.Max(0, MaxCharges);
             _regenTimer = 0f;
-            _lockoutTimer = 0f;
             RaiseChargesChanged();
         }
 
         /// <summary>
-        /// Depletes a fixed number of charges outside the per-class cost table.
-        /// Design-specified "shield-stutter" specials (Lincoln's Emancipator,
-        /// Joan's Divine Piercing) drain exactly 2 charges instead of the generic
-        /// special full shatter. Breaks the guard when the last charge is spent.
+        /// Spends a fixed number of charges outside the per-class cost table,
+        /// breaking the guard when the last charge goes.
+        ///
+        /// <para><b>V7.6 F15 (Package 11 A1b).</b> This is no longer a combat
+        /// rule. It used to implement the retired two-charge "shield-stutter"
+        /// exception for Lincoln's Emancipator and Joan's Divine Piercing, which
+        /// are now ordinary Special-class FULL shatters resolved through
+        /// <see cref="ResolveHit"/> like every other Special — both call sites
+        /// are deleted. What remains is a plain charge-spend utility for
+        /// scripted and test setup, and it deliberately no longer fires the
+        /// Guard Impact haptic, because nothing routed through it is a
+        /// "successful block" any more.</para>
         /// </summary>
         public BlockResult DepleteCharges(int count) {
             if (CurrentCharges <= 0 || count <= 0) return BlockResult.NotBlocked;
             CurrentCharges = Mathf.Max(0, CurrentCharges - count);
             _regenTimer = 0f;
             RaiseChargesChanged();
-            if (CurrentCharges > 0) {
-                // Guard Impact haptic: a shield-stutter special absorbed without a
-                // break is still a successful block (design haptic table).
-                FTT.Core.HapticFeedbackManager.Instance?.OnGuardImpact(_owner?.PlayerIndex ?? -1);
-                return BlockResult.Blocked;
-            }
+            if (CurrentCharges > 0) return BlockResult.Blocked;
 
             BreakGuard();
             return BlockResult.GuardBroken;

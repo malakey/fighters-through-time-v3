@@ -154,6 +154,16 @@ namespace FTT.Characters {
 			if (applyStoryProgression && applyLegacyUnlockLocks) {
 				HashSet<AbilitySlot> unlocked = ResolveStoryUnlockedSlots(characterID);
 				if (unlocked != null) player.ApplyLegacyUnlockLocks(unlocked);
+				// Package 11 A1b (V7.6 F10): Defy History is once per ATTEMPT.
+				// The per-attempt authority lives on StoryManager, so a death
+				// rewind or a mid-level resume that rebuilds the player seeds a
+				// SPENT Defy rather than handing the run a second saved life.
+				// The isolation seam is deliberate: Fighter Mode, the Holodeck,
+				// the Calibration Drills and the Mirror Paradox clone always
+				// start with an unused Defy.
+				if (FTT.Core.StoryManager.Instance?.StoryDefyHistoryUsed == true) {
+					player.SetStoryDefyHistoryUsed(true);
+				}
 			}
 
 			var bodyShape = new CollisionShape2D { Name = "CollisionShape2D", Position = new Vector2(0, -32) };

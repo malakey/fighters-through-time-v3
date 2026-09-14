@@ -305,8 +305,16 @@ public class FighterTimeSystemsTests {
                 .OverrideFailureMessage("Sudden Death respawns both fighters at 1 HP.")
                 .IsEqual(1);
             AssertThat(fighter.Position.x.RawValue).IsEqual(fighter.SpawnPosition.x.RawValue);
+            // V7.6 F22/F13 (Package 11 A1b): Defy is BARRED in Sudden Death
+            // rather than pre-marked SPENT - the seal must be able to show
+            // "unavailable in this context" without overwriting the underlying
+            // spent flag, which the old pre-mark conflated.
             AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
             AssertThat(verb.DefyHistoryUsed)
+                .OverrideFailureMessage("Sudden Death must not mark an unused Defy as spent.")
+                .IsEqual(0);
+            AssertThat(simulation.TryGetFighterDefense(playerID, out FighterDefenseComponent defense)).IsTrue();
+            AssertThat(defense.DefyBarred)
                 .OverrideFailureMessage("Defy History is disabled during Sudden Death.")
                 .IsEqual(1);
         }
