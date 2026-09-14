@@ -1,6 +1,8 @@
 # Fighters Through Time: Implementation Gap Analysis
 
-Last audited: 2026-08-08 against `design-godot.md` and the current codebase.
+Last audited: 2026-09-13 against `design-godot.md` (V7.6 + F01–F24), `docs/design-contracts/` and the current codebase.
+
+**Read the authority rule first (`AGENTS.md`).** Since P04 (2026-09-13) the GDD and the adopted contracts under `docs/design-contracts/` define intended behaviour; code and `.tres` data describe the current build. This document is **build evidence**, not a design target, and where it disagrees with a contract the contract wins. Open divergences live in `docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md`.
 
 P0 remediation update: Packages 0 and 1 in `IMPLEMENTATION_PLAN.md` are implemented and verified. Shared content contracts, the placeholder pipeline, combat/movement edges, the puzzle/environment toolkit, Story pools/drops, and rewind/timeline-collapse contracts now exist; production content and final presentation remain later packages.
 
@@ -11,6 +13,21 @@ Package 5 update (2026-08-08): **Section 1 below is superseded.** All sixteen ca
 Package 6 update (2026-08-08): **Sections 2, 21 and 22 below are superseded.** All ten Fighter stages are independently authored production-contract scenes with their own fixed-point geometry, era-specific deterministic hazard, placeholder parallax presentation, pool config, audio set and preview plate; the match flow is complete end to end (countdown, respawn platform, KO presentation, pause, disconnect handling, results, rematch, all five end conditions); the CPU is complete at all three difficulty bands; and the rollback-readiness gate passes across all nine kits and all ten stages. What remains for Fighter Mode is production art, music, VFX and cinematic KO presentation (Package 8), rendering-cost measurement on target hardware (Package 9), and the online work (Package 7).
 
 Package 8 update (2026-08-08): **Sections 11, 12, 13, 17, 18 and 19 below are superseded and have been rewritten in place.** Every production UI screen is an authored, themed, focus-authored scene; the audio framework (bus layout, stem director, snapshot mixer, voice pool) is complete with all 27 audio sets authored on placeholder stems; the visual framework (outline/glow shader, glow arbiter, VFX emitter with all 78 roster and ability hooks bound, particle budget, off-screen suspension, `Parallax2D`, era lighting rigs) is complete; input remapping, conflict UX, reset-to-default and display persistence are complete; and localization is gated in both directions by three new permanent tools. **The distinction that matters for everything below: Package 8 delivered frameworks and placeholder content, not assets.** Production art, music and VFX remain Package 10. Nothing in the visual layer has been judged by a human — no headless gate can do it.
+
+Package 11 update (2026-09-13): **Sections 1, 3, 5, 6, 7, 9, 10, 11, 12, 14, 17, 18, 21, 22, 23 and 24 below are superseded in part.** The V7.5/V7.6 alignment package landed across twenty workstreams in two parallel waves. In summary — the detail is in `docs/PACKAGE11_V7_6_ALIGNMENT_PLAN.md` and the twenty-one `docs/handoffs/P11_*.md`:
+
+- **Campaign (§1, §23).** Seventeen route slots, not sixteen: `CampaignLevel.LegacyNexus = 16` adds Level 4A between Levels 4 and 5, with nine per-character variants on a sealed `LegacyLevelControllerBase`. Levels 13–15 are an Act III gauntlet that never returns to the hub. Checkpoints carry authored roles; the F10 attempt record drives load routing; Smothered is the game's only Game Over.
+- **Time mechanics (§10).** Manual Rewind, the Stasis Anchor, the Stasis Echo and the 12 s cooldown are **deleted**. Time Freeze (5 s, 45 s cooldown at thaw, Story-only, no charges) replaces them. The death rewind is unchanged.
+- **Integrity (§23).** Timeline Integrity is now the level timer with no restoration path at all; the whole siphon share/grace/restore model is gone, tier lines are 50/20, and the Collapse Tremor is a real mechanic below 20 % / 10 %.
+- **Combat (§9, §22).** The D01–D04 defensive order, Defy protected recovery, F15's full shatter, the F17 lockout fix, the Rally clamp, zone/ultimate meter-origin rules, the exact 31-sample Echo Step, two status slots with stronger-wins replacement, `Suppression`, the Conductive mark, F21 mode consolidation and the F22 Sudden Death rewrite.
+- **Progression (§6, §7).** Nine unique V7.6 Resonance topologies with a real topology renderer and nine wired traversal flags; the V7.5 Legacy Unlock Schedule gating ability slots by campaign milestone; save schema **v6**.
+- **Enemies and bosses (§4).** A 28th enemy (the Eraser, with the Null Lance and the Siphon Snare channel), spawn placements for it and for the never-placed Chrono-Warden, the four V7.6 boss HP rows, the F20 Mirror Paradox profile and the First Unbound's P2 self-rewind and P3 Borrowed Legacies.
+- **Economy (§24).** Per-source dust is an authored manifest, not a rate card; an unauthored source pays nothing, a difficulty changes the distribution but never the total, and every boss pays 25.
+- **Fighter (§2, §21).** Three Open stages with real, reachable pits (closing audit H-11), floor-segment ledges, and the F19 tiered CPU recovery planner with pit-aware DI and per-band grab/Echo Step policy.
+- **Presentation and settings (§11, §12, §17, §18).** The HUD_CONTRACT Story HUD rewrite, the F24 ownership outline channel, C01a Reduced Temporal Effects, C01b prioritized audio with `CriticalCues` and `Dialogue` buses, and the C01c binding shape with explicit Unbound slots and per-device shortcut toggles.
+- **Narrative and onboarding (§14, §11).** The V7.5 canon (the Unbound, the Wardens, the Meridian), the retired power-fade arc, 21 hero-conditional dialogue sequences, universal hold-to-skip with a global seen set, and F18's six Calibration Drills on a standalone main-menu route.
+
+**None of it has been played.** Package 11 aligned the build to the design; it validated nothing by hand and balanced nothing.
 
 This document provides a detailed comparison of what has been implemented versus what is documented in the design specification. It covers every major system, feature, and content area.
 

@@ -6784,3 +6784,203 @@ commit.
 **Test delta: +8**, exactly the dossier's figure — `CharacterRosterTests` (+3),
 `ResonanceGrammarTests` (+3), `GlowPresentationControllerTests` (+2). Nineteen suites were rewritten in
 place at ±0.
+
+---
+
+### Phase C — closeout (2026-09-13, main checkout)
+
+**Shipped.** Save schema flipped to **v6** with the single v5 → v6 migration step composing every
+per-workstream derivation; the compiled translation verified current and the localization gates
+re-run; `AGENTS.md` and `CLAUDE.md` rewritten against all twenty-one handoffs; the four ledgers
+updated; three consecutive full-suite runs at **Failed 0, Total 2237**.
+
+**Deviation 1 — the v6 step is one method plus one deferred half, not one method.** §6 asks for "the
+single v5→v6 migration step". `SaveSchemaMigrator.MigrateStoryToV6` and `MigrateGlobalToV6` are that
+step, but the global `SeenDialogueIDs` seed **cannot** live in `DeserializeGlobal`: it is the union of
+every story slot's `ViewedDialogueIDs`, and `SaveManager._Ready` loads the global payload *before* the
+slot loop. It ships as `SaveSchemaMigrator.SeedGlobalSeenDialogue(global, slots)` — pure, idempotent,
+independently testable — called once from `SaveManager` after the slots are in, gated on the loaded
+version through a new `DeserializeGlobal(json, out int loadedVersion)` overload. Pinned by
+`SaveEnvelopeTests.VersionSixPayloadsRoundTripOnBothSides`.
+
+**Deviation 2 — `DeserializeStory` now requires the Godot runtime.** A4's grid refund loads authored
+Resonance grids, so composing it into the migration step gives the migrator an engine dependency it
+did not have. Every caller is an autoload or a `[RequireGodotRuntime]` suite, which was verified
+rather than assumed, and the constraint is documented on `CurrentVersion`. The alternative — running
+the refund from `SaveManager` instead — would have split the step across two files for one call, which
+is what §2.6 was trying to prevent. If a pure-C# caller ever appears, move the refund out rather than
+weakening the rule.
+
+**Deviation 3 — two `SaveEnvelopeTests` cases were rewritten rather than left alone.** The v5
+attempt-state round trip asserted `decoded.SchemaVersion == 5`, which `Normalize()` makes impossible
+once `CurrentVersion` moves; its version fence moved from v6 to v7 and it was renamed
+`AttemptStateFieldsRoundTripAndTheFutureIsStillRejected`. `LegacyStoryPayloadMigratesIntoCharacterScopedProgress`
+seeded `joan_minor_01`, a node the V7.6 topologies retired — so A4's refund correctly dropped and
+refunded it, and the case failed on an index. The fixture now uses `joan_zeal`, a current node, so the
+case keeps testing what it exists to test (the v1 character scoping) rather than the refund.
+
+**Deviation 4 — the three `captive_name_*` orphans moved to `DynamicKeyPrefixes`, not off the list.**
+A6 recorded them as orphans "until the resolver merges". A5's `CampaignCaptiveRoster` builds
+`$"captive_name_{characterID}"` at runtime, so no literal exists to find — precisely the case
+`DynamicKeyPrefixes` exists for, and it pins the exemption to the code that justifies it.
+`RecordedOrphanCeiling` 15 → **12**.
+
+**Deviation 5 — the `# Package 11 <WS-ID>` marker rows stay in `en.csv`.** A1's risk flag is correct:
+Godot's CSV translation importer has no comment syntax, so each marker compiles into
+`en.en.translation` as a real key with an empty message — roughly twenty inert entries in the shipped
+binary. **Decision: keep them.** They are never queried, they document provenance for the next
+package's merges, and stripping them means rewriting twenty rows of the most contended file in the
+repository at the moment the package closes. Revisit at the Package 10 asset pass, when the table is
+being handed to a translator anyway.
+
+**Not a deviation, worth recording.** `LegacyLevelControllerBase.ParSeconds` — the `CS0114` shadowing
+defect B1, B2 and B3 all reported independently, which left every Level 4A variant with no Integrity
+clock — was **already fixed upstream** during the Wave 2 merges (`public sealed override float
+ParSeconds => NexusParSeconds`), and the build carries no `CS0114` warning. `StoryLevelControllerBase.IsActIII`
+is still wrong for `LegacyNexus = 16`; it is recorded in §10's not-delivered list rather than fixed at
+closeout, because redefining it touches Act III routing A3b owns.
+
+---
+
+## 10. Closeout report (2026-09-13)
+
+### What shipped, one line per workstream
+
+| WS | Shipped |
+|---|---|
+| **A1** | Two status slots over one `StatusSlots` / `StatusRouting` contract with stronger-wins replacement at all four sites, `StatusType.Suppression = 6` (Story-only, refused by the sim), `IStatusEffectTarget` on all three controllers, and the F07 Conductive mark with its double-stun fix and component 318. |
+| **A2** | `TimeFreezeController` (5 s, 45 s cooldown at thaw, no charges, Story-only) plus the world freeze via `IStoryTimeFreezable`, and the outright deletion of manual rewind, the Stasis Anchor, the Stasis Echo, the scrub API and the 12 s cooldown. |
+| **A3** | Timeline Integrity as the level timer (normalized drain, 2.0/1.5/1.2, fixed denominator, no restoration path, collapse at zero, 50/20 tiers), authored checkpoint roles, F11 minima, the Collapse Tremor with pooled debris, F16's non-hit death chokepoint, Florence's three Extractors, and the retirement of the abnormal-exit fee and Chronal Rating. |
+| **A4** | Nine unique V7.6 Resonance topologies at 9 nodes / 975 dust, `PrerequisiteMode`, ability-scoped stat lanes, `ResonanceNodeType.Traversal`, nine wired traversal flags, eight reworked Majors, a real topology renderer with All-of/Any-of edges and dormant stars, and the F08 retired-node refund. |
+| **A5** | The V7.5 Legacy Unlock Schedule with Dormant/Suppressed/Clear slot locks, the rebuilt Level 0 calibration (Grab, Hitstun Agency/DI/tech, Meter + Defy), and the dialogue mechanisms: hero variants, captive-name tokens, universal hold-to-skip on a global seen set, and an idempotent effect ledger. |
+| **A6** | The V7.5 canon in 131 rewritten and 57 new `en.csv` values — the Unbound and the Wardens, the First Strike, the retired power-fade arc, the L14/L15 retheme — plus 21 hero-conditional sequences, the Mystery Thread beats and the `NarrativeKnowledgeBoundaryTests` gate. |
+| **A8** | The HUD_CONTRACT Story HUD rewrite (two status slots, radials, lock overlays, Defy seal, an independent Time Freeze indicator, anchor pips, the Integrity era-clock), the Fighter HUD's F21/F22 work, the F24 ownership outline channel, C01a Reduced Temporal Effects, C01b prioritized audio, and the C01c binding shape. |
+| **A9** | Three Open Fighter stages with real reachable pits, `FighterStageGeometry.FloorSegments` with per-x ground handling, floor-segment ledges on the existing anchor int, per-stage respawn anchors, the Open/Sealed catalog badge, and the CPU floor-topology observation fields. |
+| **A12** | The seventeen-slot explicit campaign route with `LegacyNexus = 16` and hero-resolved paths, the sealed `LegacyLevelControllerBase`, the F04 Nexus Resonance Source, `LegacyKitGate`, `EraserDebutTrigger`, and the Einstein exemplar. |
+| **A1b** | The V7.6 defensive contract D01–D04 in both modes — one ordered resolution, the Story shield model with grant identity, the Wardenclyffe rewrite, Story Temporal Aegis, Defy protected recovery on component 312 — plus F15, F17, the Rally clamp and the D03g/D03h meter-origin rules. |
+| **A1c** | The 31-sample per-tick Echo Step ring on components 313–317 with the exact `t − 30` destination and exact-or-no-teleport validation, dedicated `gameplay_grab` / `gameplay_echo_step` actions, protocol v3, `CharacterState.Thrown`, one shared chord-priority table, F21 mode consolidation and the F22 Sudden Death rewrite on component 319. |
+| **A3b** | The F10 `StoryAttemptState` record with status-driven load routing and an ordered per-slot async writer, the Act III gauntlet (anchor charges, Anchor Snap, Smothered, no-hub chaining, completion auto-deposit), the Warden Beacon, the Resonance Hold, the Game Over surface and N05 ending selection. |
+| **A6b** | The manifest-backed `FTT.Core.CharacterRoster` with the five load-bearing arrays repointed, `CharacterData`'s three placeholder colour exports, the two-colour visual grammar in `UIPalette`, Level 0's four-beat ignition, and the persistent hero resonance aura. |
+| **A7a** | The Eraser elite with the Null Lance (the one authored Guard-Crush opt-out), the Siphon Snare channel on the new `SiphonTether` archetype, `ResolveGuardCrush` as the single decision point, and eleven campaign placements — including the Chrono-Warden's first spawn sites anywhere. |
+| **A7b** | The four V7.6 boss HP rows, the two display renames, the F20 Mirror Paradox profile (Story tier, boss-override band, Hard-only perk mirroring, the damage multiplier finally applied), the First Unbound's 180-frame self-rewind, and manifest-driven Borrowed Legacies. |
+| **A9b** | The F19 tiered CPU recovery planner with its offstage-episode latch and delivery-time charging, `CpuRecoveryProfile` built from the normalized loadout, pit-aware DI, and per-band grab and Echo Step policy rolled once per opportunity. |
+| **A10** | The F05 authored reward economy: 25 `LevelRewardManifest` resources, a pure allocator, per-difficulty ledgers, an unauthored source paying nothing, every boss at 25, and six-category results itemization. |
+| **A11** | F18's six Calibration Drills, the standalone main-menu route with its picker and list, the retained hub entry, and a `FighterSimulationDriver`-backed sandbox that touches no save and no campaign state. |
+| **B1 / B2 / B3** | The remaining eight Level 4A variants (Joan, Leonardo, Lincoln, Cleopatra, Tesla, Shakespeare, Mozart, Pocahontas), each with its own scene, controller, dialogue set, legacy boss, pool config and 14-case content suite, plus the roster-driven nine-hero coverage gate. |
+| **Phase C** | Save schema v6 and its single migration step, the verified compiled translation, the `AGENTS.md` / `CLAUDE.md` rewrite, the four ledgers, and the three-run validation. |
+
+### What Package 11 did NOT deliver
+
+**The standing truth first: nobody has played any of it.** No campaign level, no Level 4A variant, no
+Open-stage match, no Calibration Drill and no Fighter match was played by a person during this
+package. Every claim above the level of a unit test is reasoned from shipped code. No automated gate
+can say whether the Integrity clock reads at gameplay scale, whether the Collapse Tremor is legible,
+whether the two-colour grammar lands, whether an Open stage's pit is readable at the camera's framing,
+whether a scripted drill is learnable, or whether a 4A variant is fun. **Treat the whole visual and
+experiential layer as unreviewed.** And nothing here is **balanced**: F09 frame-advantage validation
+and V02 controlled-stall validation were both out of scope, and a randomized CPU attempt rate does not
+prove any pressure sequence is escapable.
+
+**Open in the ledger, with acceptance criteria** (`docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md`,
+all owner `Unassigned`): `VERIFY-BOSS-HP`, `VERIFY-PAR-SECONDS`, `VERIFY-STORY-PITS`,
+`VERIFY-SERPENT-NEST`, `VERIFY-CPU-MOBILITY-SPECIALS`, `VERIFY-PARIS-DEEP-PIT-RECOVERY`,
+`VERIFY-SECRET-CACHE`, `DEFER-CPU-SNAPSHOT`, `DEFER-ROSTER-ENUM`, `DEFER-SEALING-ANCHOR`,
+`DEFER-STEAM-RPT`, `DEFER-SAVE-VERSION-SPLIT`.
+
+**Open and unassigned, by area:**
+
+| Area | Not delivered | Source |
+|---|---|---|
+| Campaign | The Levels 1–4 route-reachability audit under the locked kit — never run; risk concentrates in Levels 3 and 4 | A5 |
+| Campaign | Per-level authored encounter baselines; the default `{LevelID}_wave_N` derivation matches 6 of 14 controllers. Nothing reads it to respawn yet, so it cannot mis-restore today | A3b |
+| Campaign | The hub act-boundary gate, so A6's six `hub.sarah_act*` / `hub.okafor_act*` sequences have no caller | A6 |
+| Campaign | The N04 ending-montage return shots — three keys deliberately not authored, because they would describe shots no presentation work has scheduled | A6 |
+| Campaign | No level authors a `SecretCache`, so every optional dust pool's discovery half is physically unreachable (`VERIFY-SECRET-CACHE`) | A10 |
+| Combat | Cleopatra's sand decoy does not exist, so Royal Aegis's decoy clause has no recipient | A1b, A4 |
+| Combat | Story hazards have no block layer at all, so D03c's Basic-class remainder rule is sim-only. Adding one changes hazard survivability campaign-wide | A1b |
+| Combat | `FighterConductiveRules.TryConsumeChain` has no sim consumer — implemented and pinned against the day a bespoke multi-hit Lorentz Pulse exists | A1 |
+| Combat | F04's "cannot damage actors" is enforced by placement, not at the damage pipeline (it needs an `ultimateOrigin` flag through `ResolveIncomingHit`) | A12 |
+| Combat | `attemptState.playerResourceTimers` has one writer; block charges, ability and Echo Step cooldowns, the uncredited Rally meter and the D02d delay are persisted with no publisher | A3b |
+| Combat | Tesla's Lorentz Attraction root bonus (1.0 → 0.5) and Long Blink's +0.5 unit distance — two one-line edits A4 deferred to avoid a Wave 1 file collision | A4 |
+| Bosses | The T01b world-wide combat suspension is boss-side only; `EventBus.OnBossHistoricalRecovery` is published and nothing subscribes | A7b |
+| Bosses | Level 15 authors no `HistoricalRecoveryAnchor`, so the destination chain resolves at tier 1 or 2 in practice | A7b |
+| Enemies | The Eraser's `ChronalDustDrop` is an interim 10; the Sarah ambush barks for the Level 13 pair and the 4A debuts are unwritten | A7a |
+| Presentation | The Collapse Tremor's decorative half (crack lines, desaturation, prop time-ghosting, vignette) and all Tremor audio | A3, A8 |
+| Presentation | The Anchor Snap's authored 3 s fracture-reassembles beat — an `EnvironmentNotice` line today | A3b |
+| Presentation | The glow effect stack was never re-prioritized (`spawn → armor → control status → damage status`), and spawn invulnerability still does not read `FighterStateComponent.InvulnerabilityFrames` | A8 |
+| Presentation | Mozart's musical-staff grid treatment; the level-seal warm vignette; L14's Extraction Hall gold threads | A4, A6b |
+| Environment | Level 10's Globe audience keeps arming during a Time Freeze — a two-line fix in a file A2 did not own | A2 |
+| Architecture | A fifth `LegacyGateMode` (`Cast` / `Construct`). `LegacyCastGateWatcher` and `VineSnareGateResolver` are variant-local stand-ins; `LegacyResonantEffigy` stands in for adding `EnemyHurtbox` to the gate strike surface | B1, B2, B3 |
+| Architecture | `StoryLevelControllerBase.IsActIII` is an ordinal comparison **also true for `LegacyNexus = 16`** — use `StoryManager.IsActIIILevel`; the member should be deleted or redefined | A3b |
+| Architecture | `IStatusEffectTarget` does not inherit a damage interface, because `IDamageable` does not exist in this repository | A1 |
+| Architecture | `StatusController.ClearSlot`'s re-announce-the-survivor hack survives | A1, A8 |
+| Architecture | Three shipped Story specials deliver through `EnemyHurtbox`-masked shape queries rather than a `Hitbox`, so they cannot damage `PersistentObject` environment hurtboxes | B1 |
+
+**Out of scope by decision** (§8, unchanged): Package 7 native online/LAN, achievements, the retired
+Level Select and records surfaces, Package 10 artist assets, Steam SDK integration, advanced Training
+Mode, the H-7 gravity unification, the M-18 drop-through divergence, N01's sealing anchor, F09/V02
+validation, the S01 rollback field manifest and CPU snapshot migration, cross-platform determinism
+re-measurement, illustrated-still cinematics, and V01b/V01c puzzle reset and prop eligibility.
+
+### Full-suite totals
+
+Three consecutive runs in verified clear windows (`Get-Process testhost,Godot*` empty before each; no
+competing checkout existed), `dotnet test FightersThroughTime.csproj --settings .runsettings`:
+
+```text
+Run 1  Passed!  - Failed:     0, Passed:  2237, Skipped:     0, Total:  2237, Duration: 1 m 12 s
+Run 2  Passed!  - Failed:     0, Passed:  2237, Skipped:     0, Total:  2237, Duration: 1 m 12 s
+Run 3  Passed!  - Failed:     0, Passed:  2237, Skipped:     0, Total:  2237, Duration: 1 m 12 s
+```
+
+All three agree. `dotnet build` is clean (the two pre-existing warnings only: `KLSG_ECS004` on
+`FighterTuningComponent`, vendored `CS8632` in GdUnit4), and `--headless --quit` loads the project with
+no script or resource errors. GdUnit's `Detected <N> orphan nodes` **warning** differs between runs on
+an identical build (the three runs reported none, then 328 and 1, then 41, 328 and 1); it is a warning,
+not a failure, and the `Failed:` and `Total:` lines were identical every time.
+
+### Reconciling the baseline
+
+**The closing baseline is 2237, not §6's projected 2107.** The projection was built from the dossiers'
+pre-implementation estimates; ten workstreams delivered more tests than estimated, and the difference
+is entirely explained by one structural undercount plus honest scope growth:
+
+- **`LevelNNContentTests` is a *suite*, not a case.** The dossiers costed each new per-level content
+  suite at +1 to +3; the established pattern is ~13–14 cases. That alone accounts for roughly +129
+  across A12 (+38 vs +23) and B1/B2/B3 (+42/+42/+32 vs +3/+3/+4).
+- **A4 (+42 vs +29), A11 (+25 vs +12) and A7a (+27 vs +22)** each explain their own delta in §9: A4's
+  wholesale-rewritten resolver suite, A11's content assertions moving into the pure-C# script suite
+  plus a new scene-smoke suite, and A7a's four-case F14 block matrix.
+- A1 (+24), A2 (+16), A6 (+7), A3 (+33), A5 (+27), A8 (+42), A9 (+11), A3b (+40), A7b (+20),
+  A9b (+26), A1b (+44), A1c (+38) and A6b (+8) came in at or within one of their estimates.
+
+The arithmetic that actually holds:
+
+| Stage | Total | Note |
+|---|---:|---|
+| Baseline at `31fed14` | 1638 | |
+| Wave 1 merged + seam repair | **1871** | Nine branches; seven fewer than the sum of their isolated deltas, absorbed by union merges and in-place rewrites |
+| Wave 2 through A3b, A11, B1–B3, A7a, A7b, A9b, A10 | **2145** | Measured on merged `main` before the last three branches |
+| + A1b (+44), A1c (+38), A6b (+8) | **2235** | Each exactly its declared delta |
+| + Phase C's v6 migration pair | **2237** | v5 loads with v6 defaults and derives its attempt; v6 round trips on both sides |
+
+**2145 + 44 + 38 + 8 + 2 = 2237.** No unexplained movement.
+
+### Human-verification debt
+
+Carried to Package 9 and to whoever schedules a playtest:
+
+1. A human end-to-end playthrough of Levels 0–15 **plus a Level 4A** at each difficulty. Still the
+   oldest outstanding exit criterion in the project.
+2. A human playthrough of all ten Fighter stages, including the three new Open ones.
+3. A human visual review of the entire presentation layer — never performed for Package 8, and now
+   owed for Package 11's HUD rewrite, Integrity clock, Collapse Tremor, two-colour grammar, hero aura,
+   Level 0 ignition beat and Open-stage pits as well.
+4. Playing the six Calibration Drills, which are unreviewed as *teaching*: no gate can say whether a
+   scripted string at a 20-frame interval is learnable, or whether the coaching lands.
+5. F09 frame-advantage validation and V02 controlled-stall validation — V02 is now *runnable*, because
+   A9 delivered the Open stages it was blocked on.
+6. V01a par measurement: Normal-difficulty median required-route times per level and per 4A variant,
+   which is what turns `VERIFY-PAR-SECONDS` from provisional into authored.
+7. Re-measuring `docs/PERFORMANCE_BASELINE.md`'s resimulation and snapshot figures. Package 11 grew the
+   component set substantially (312, 313–317, 318, 319), and the existing numbers predate it.

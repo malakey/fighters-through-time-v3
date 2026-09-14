@@ -80,6 +80,7 @@ The ordered work packages below are dependency gates, not date estimates. Work m
 | 8 - Product-wide UI, audio, visuals, controls | P2 | Continuous; final pass after Packages 5-7 | Feature-complete presentation with placeholders |
 | 9 - QA, performance, balance, and exports | P3 | Packages 5-8 | Content/platform-complete candidate |
 | 10 - Production asset replacement | P3 | Approved final assets and Package 9 contracts | Asset-complete release candidate |
+| **11 - V7.5/V7.6 design alignment** | **P1** | **Packages 4-6 and 8; inserted out of order because it retires shipped mechanics the later packages would otherwise build on** | **The build matches the V7.6 design master and its F01-F24 contracts** |
 
 ## Definition of done for every package
 
@@ -474,6 +475,39 @@ Every numbered section in `IMPLEMENTATION_STATUS.md` has an implementation packa
 | 23. Story campaign flow | 2, 5, 8, 9 |
 | 24. Items and power-ups | 1, 2, 5, 8 |
 | 25. Performance and targets | Baseline in 0, package-level checks throughout, final gates in 9-10 |
+
+## Package 11 - V7.5/V7.6 design alignment
+
+**Closed 2026-09-13.** The single brief is `docs/PACKAGE11_V7_6_ALIGNMENT_PLAN.md`; the per-workstream record is `docs/handoffs/P11_*.md`, the deviation log is that plan's §9 and the closeout report is its §10.
+
+This package is out of the numbered sequence on purpose. The V7.5/V7.6 design master and its F01–F24 resolution contracts retired several mechanics that Packages 4–8 had already shipped — Manual Rewind, the Stasis Echo, the siphon-share Integrity model, Chronal Rating, the abnormal-exit fee, Hybrid match mode, the 1-HP Sudden Death — so leaving them in place would have meant Packages 9 and 10 profiling and art-passing systems the design had deleted.
+
+### Shape
+
+Twenty workstreams across two parallel waves plus a serial closeout, in isolated git worktrees:
+
+- **Wave 1 (nine):** A1 status architecture · A2 Time Freeze · A3 Timeline Integrity as the level timer · A4 Resonance Grids V7.6 · A5 Legacy Unlock Schedule and dialogue mechanisms · A6 narrative content · A8 HUD, presentation and comfort settings · A9 three Open Fighter stages · A12 the Level 4A framework and Einstein exemplar.
+- **Wave 2 (eleven):** A1b defensive contract D01–D04 · A1c Echo Step determinism, protocol v3, F21/F22 · A3b Act III gauntlet and attempt state · A6b roster de-hardcoding and the two-colour grammar · A7a the Eraser · A7b bosses · A9b Fighter CPU recovery and verb policy · A10 the F05 dust economy · A11 Calibration Drills · B1/B2/B3 the remaining eight Level 4A variants.
+- **Phase C (serial):** the single save-schema v6 migration, the compiled translation, the `AGENTS.md`/`CLAUDE.md` rewrite, the ledgers, and three consecutive full-suite runs.
+
+### Standing decisions worth carrying forward
+
+- **The authority rule inverted (P04):** the GDD and `docs/design-contracts/` define intent, code and `.tres` are build evidence, and divergence is recorded in `docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md` rather than silently adopted. "Never a second canonical value" survives untouched.
+- **Legacy identifiers are never renamed** — scene IDs and paths, enum members, level IDs, resource IDs, ability IDs, presentation events, atlas paths, pool config IDs, dialogue sequence IDs and every translation key name. Only English values and prose changed.
+- **Klotho component IDs are assigned centrally**, in one table, and never reused. 311 is permanently retired; 305 and 310 are full.
+- **Publishers never edit the HUD.** They append a typed payload to `EventBus`; the HUD workstream subscribes. That is what let nine Wave 1 worktrees run in parallel.
+- **`localization/en.csv` is append-all with owned deletes**, under a per-workstream marker comment, and only the orchestrator regenerates the compiled translation.
+
+### Exit criteria (met)
+
+- The build is clean, the headless project load is clean, and the full suite passes three consecutive times in verified clear windows.
+- Every retired mechanic is deleted rather than deprecated, and every retired claim is removed from `AGENTS.md` and `CLAUDE.md`.
+- Save schema bumps exactly once, to v6, with one migration step composing the per-workstream derivations, and F10's rule that an unreconstructable legacy attempt is preserved and marked rather than defaulted.
+- Every deferral is recorded with an owner and acceptance criteria in the deviation ledger, and the honest not-delivered list is written into the plan's §10 and `AGENTS.md`.
+
+### Explicitly NOT met
+
+**Nothing in this package was played, validated by hand, or balanced.** F09 frame-advantage validation and V02 controlled-stall validation stayed out of scope by decision, and no human has judged the new presentation. Package 9 inherits both.
 
 ## Recommended next implementation batch
 
