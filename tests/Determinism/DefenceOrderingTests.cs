@@ -249,9 +249,9 @@ public class DefenceOrderingTests {
             int statusType = (int)StatusType.None,
             int statusFrames = 0,
             bool bypassesFiniteShields = false) {
-            // The attacker stands to the target's LEFT and the target faces
-            // right, so a blocking target is hit in front.
-            Attacker.Position = new FPVector2(Target.Position.x - FP64.One, Target.Position.y);
+            // The target faces RIGHT, so "in front" is +x: the attacker stands
+            // to the target's right and a held stance can legally absorb.
+            Attacker.Position = new FPVector2(Target.Position.x + FP64.One, Target.Position.y);
             return FighterDamageRules.ApplyFighterHit(
                 ref Attacker, ref AttackerRuntime, ref AttackerVerb,
                 ref Target, ref Runtime, ref Verb, ref Defense, in Tuning,

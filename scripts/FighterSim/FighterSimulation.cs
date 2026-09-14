@@ -166,6 +166,24 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// V7.6 D01-D04 (Package 11 A1b): reads a fighter's defensive layer
+        /// (component 312) - the Defy protected-recovery window and bar, the
+        /// Temporal Aegis flag and the HP barrier. Snapshot and hash state.
+        /// </summary>
+        public bool TryGetFighterDefense(int playerID, out FighterDefenseComponent defense) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterDefenseComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID == playerID) {
+                    defense = _simulation.Frame.GetReadOnly<FighterDefenseComponent>(entity);
+                    return true;
+                }
+            }
+            defense = default;
+            return false;
+        }
+
+        /// <summary>
         /// V7.6 F07 (Package 11 A1): reads a fighter's caster-owned Conductive
         /// mark (component 318). Snapshot and hash state like everything else.
         /// </summary>

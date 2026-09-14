@@ -753,9 +753,17 @@ public class FighterMatchFlowTests {
             AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent fighter)).IsTrue();
             AssertThat(fighter.CurrentHP).IsEqual(1);
             AssertThat(fighter.Stocks).IsEqual(1);
+            // V7.6 F22/F13 (Package 11 A1b): Sudden Death BARS Defy rather than
+            // pre-marking it SPENT. The seal must be able to show "unavailable
+            // in this context" without clearing the underlying spent flag, and
+            // the old pre-mark conflated the two.
             AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
             AssertThat(verb.DefyHistoryUsed)
-                .OverrideFailureMessage("Sudden Death pre-marks Defy History used on both fighters.")
+                .OverrideFailureMessage("Sudden Death must not mark an unused Defy as spent.")
+                .IsEqual(0);
+            AssertThat(simulation.TryGetFighterDefense(playerID, out FighterDefenseComponent defense)).IsTrue();
+            AssertThat(defense.DefyBarred)
+                .OverrideFailureMessage("Sudden Death bars Defy for the rest of the match.")
                 .IsEqual(1);
         }
     }

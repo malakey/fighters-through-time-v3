@@ -533,6 +533,14 @@ namespace FTT.FighterSim {
         public int DefyProtectionFrames;
         /// <summary>Deterministic identity of the proc that installed this window; 0 when none.</summary>
         public int DefyProcIdentity;
+        /// <summary>
+        /// V7.6 F22/F13: 1 while this context BARS Defy — Sudden Death today.
+        /// Deliberately separate from <c>FighterVerbComponent.DefyHistoryUsed</c>
+        /// so the seal can show <b>Unavailable</b> without the underlying
+        /// <b>Spent</b> flag being overwritten, which is exactly what the old
+        /// pre-mark on Sudden Death entry conflated.
+        /// </summary>
+        public int DefyBarred;
         /// <summary>D02e: one active Temporal Aegis per recipient, a flag and never a count.</summary>
         public int AegisActive;
         /// <summary>D02b finite HP barrier: remaining absorption.</summary>

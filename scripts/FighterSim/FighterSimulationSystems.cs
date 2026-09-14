@@ -2519,6 +2519,9 @@ namespace FTT.FighterSim {
                     ref FighterDefenseComponent defense = ref frame.Get<FighterDefenseComponent>(entity);
                     FighterDefenseRules.Clear(ref defense);
                     runtime.AegisHits = 0;
+                    // F22: Defy is BARRED for the rest of the match, and the bar
+                    // survives the stock losses Sudden Death produces.
+                    defense.DefyBarred = 1;
                 }
             }
         }

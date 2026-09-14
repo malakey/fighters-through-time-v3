@@ -47,12 +47,12 @@ public class CleopatraUltimateTests {
         tick++;
 
         // The meter is consumed by the dispatch; the storm's first tick (the
-        // zone system runs later in the same frame) then credits its 8 damage
-        // back as influence, so the caster sits at exactly 8 — not at the 100
-        // a failed consume would leave.
+        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
+        // caster ZERO damage-dealt meter, so the same-frame tick no longer
+        // re-credits anything - the meter reads exactly 0 after the cast.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
         AssertThat(caster.Influence.RawValue).IsEqual(
-            xpTURN.Klotho.Deterministic.Math.FP64.FromInt(8).RawValue);
+            xpTURN.Klotho.Deterministic.Math.FP64.Zero.RawValue);
         AssertThat(simulation.ZoneCount).IsEqual(1);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual(StormZoneTypeID);

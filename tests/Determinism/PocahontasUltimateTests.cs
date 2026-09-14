@@ -56,7 +56,10 @@ public class PocahontasUltimateTests {
             Frame(ultimatePressTick, 0, GameplayButtons.Ultimate),
             Frame(ultimatePressTick, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent spent)).IsTrue();
-        AssertThat(spent.Influence.ToFloat()).IsEqual(10f);
+        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
+        // caster ZERO damage-dealt meter, so the same-frame tick no longer
+        // re-credits anything - the meter reads exactly 0 after the cast.
+        AssertThat(spent.Influence.ToFloat()).IsEqual(0f);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent storm)).IsTrue();
         AssertThat(storm.ZoneTypeID).IsEqual(TempestZoneTypeID);
         AssertThat(storm.TickIntervalFrames).IsEqual(21);

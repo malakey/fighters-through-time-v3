@@ -70,10 +70,13 @@ public class DefyProtectedRecoveryTests {
         Fixture f = Fixture.New();
         f.Target.CurrentHP = 5;
         f.Target.Influence = FP64.FromInt(100);
+        f.Hit(damage: 40, knockback: FP64.FromInt(8), hitstunFrames: 30);
+        // Installed AFTER the proc: the Defy hit itself must reach HP, and the
+        // point of this case is that the window rejects the FOLLOW-UP before
+        // any of these layers is consulted.
         f.Defense.BarrierPoints = 10;
         f.Defense.BarrierCapacity = 10;
         f.Defense.AegisActive = 1;
-        f.Hit(damage: 40, knockback: FP64.FromInt(8), hitstunFrames: 30);
 
         bool landed = f.Hit(damage: 10, knockback: FP64.FromInt(4), hitstunFrames: 20);
 

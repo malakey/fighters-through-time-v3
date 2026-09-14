@@ -51,11 +51,11 @@ public class EinsteinUltimateTests {
         simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
 
         // The bespoke dispatch consumed the meter and spawned the singularity.
-        // The zone's first pulse lands later in the same frame and re-credits
-        // exactly its 15 damage as fresh influence (the standard damage-dealt
-        // rate), so the full 100 collapsed to the one-tick credit.
+        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
+        // caster ZERO damage-dealt meter, so the same-frame tick no longer
+        // re-credits anything - the meter reads exactly 0 after the cast.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent castAttacker)).IsTrue();
-        AssertThat(castAttacker.Influence).IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.FromInt(PerTickDamage));
+        AssertThat(castAttacker.Influence).IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.Zero);
         AssertThat(simulation.ZoneCount).IsEqual(1);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual(UltimateZoneTypeID);
@@ -163,7 +163,7 @@ public class EinsteinUltimateTests {
         simulation.Advance(Frame(tick++, 0, GameplayButtons.Ultimate), blockHeld);
         // The full meter collapsed to the first pulse's fresh 15-damage credit.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent castAttacker)).IsTrue();
-        AssertThat(castAttacker.Influence).IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.FromInt(PerTickDamage));
+        AssertThat(castAttacker.Influence).IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.Zero);
         AssertThat(simulation.ZoneCount).IsEqual(1);
         for (int i = 0; i < 100; i++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), blockHeld);

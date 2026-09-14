@@ -53,7 +53,10 @@ public class MozartUltimateTests {
         // same-frame meteor's 8 damage has re-credited it) and the stage-wide
         // bombardment zone (type 73 = Mozart 7 * 10 + ultimate slot 3) is live.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
-        AssertThat(caster.Influence.RawValue).IsEqual(FP64.FromInt(MeteorDamage).RawValue);
+        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
+        // caster ZERO damage-dealt meter, so the same-frame tick no longer
+        // re-credits anything - the meter reads exactly 0 after the cast.
+        AssertThat(caster.Influence.RawValue).IsEqual(FP64.Zero.RawValue);
         AssertThat(simulation.ZoneCount).IsEqual(1);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual(73);
@@ -107,7 +110,10 @@ public class MozartUltimateTests {
         // Meter consumed (only the first same-frame meteor has re-credited it)
         // even though the generic melee ultimate could never reach from here.
         AssertThat(simulation.TryGetFighter(0, out caster)).IsTrue();
-        AssertThat(caster.Influence.RawValue).IsEqual(FP64.FromInt(MeteorDamage).RawValue);
+        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
+        // caster ZERO damage-dealt meter, so the same-frame tick no longer
+        // re-credits anything - the meter reads exactly 0 after the cast.
+        AssertThat(caster.Influence.RawValue).IsEqual(FP64.Zero.RawValue);
         AssertThat(simulation.ZoneCount).IsEqual(1);
 
         // Track the final meteor: the last pulse carries the authored ultimate

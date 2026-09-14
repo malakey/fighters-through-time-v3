@@ -58,19 +58,23 @@ public class StoryBlockModelTests {
     }
 
     [TestCase]
-    public void AShieldRestoreEndsTheShatterLockout() {
+    public void AShieldRestoreDoesNotEndTheShatterLockout() {
+        // V7.6 F17 (Package 11 A1b), rewritten in place: the V7.3 sentence
+        // "a Chronal Shield-Restore orb ends the lockout along with restoring
+        // charges (the orb is the authored fast exit)" is DELETED. Temporal
+        // Aegis is a separate one-hit shield; the only specified block-recovery
+        // rules are normal regeneration and the existing perk exceptions, and a
+        // refunded charge stays unusable until the five seconds elapse.
         PlayerController player = NewPlayer(out BlockSystem block);
         try {
             AssertThat(block.DepleteCharges(block.MaxCharges)).IsEqual(BlockResult.GuardBroken);
             AssertThat(block.CanRaiseStance).IsFalse();
 
-            // V7.3 ruling: the Chronal Orb shield restore ends the lockout —
-            // a full shield with no stance would read as a bug.
             block.RestoreAllCharges();
             AssertThat(block.CurrentCharges).IsEqual(block.MaxCharges);
             AssertThat(block.CanRaiseStance)
-                .OverrideFailureMessage("A shield restore must end the shatter lockout.")
-                .IsTrue();
+                .OverrideFailureMessage("F17: restored charges stay unusable until the lockout ends.")
+                .IsFalse();
         } finally {
             player.Free();
         }

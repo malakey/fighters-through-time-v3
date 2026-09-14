@@ -185,6 +185,21 @@ namespace FTT.FighterSim {
             defense.DefyProcIdentity = 0;
             defense.AegisActive = 0;
             ClearBarrier(ref defense);
+            // The Sudden Death bar is a PHASE property, not per-life state: a
+            // stock loss inside Sudden Death must not lift it.
+        }
+
+        /// <summary>
+        /// The F13 read-model source. <c>Spent</c> and <c>Unavailable</c> are
+        /// distinct states and the bar never clears the spent flag.
+        /// </summary>
+        public static FTT.Core.DefySealState Seal(
+            in FighterDefenseComponent defense, bool defyUsed, bool alive, FP64 influence) {
+            if (!alive || defense.DefyBarred != 0) return FTT.Core.DefySealState.Barred;
+            if (defyUsed) return FTT.Core.DefySealState.Spent;
+            return influence >= FP64.FromInt(100)
+                ? FTT.Core.DefySealState.Ready
+                : FTT.Core.DefySealState.Building;
         }
     }
 
@@ -344,6 +359,11 @@ namespace FTT.FighterSim {
             bool defied = false;
             if (target.CurrentHP <= 0
                 && targetVerb.DefyHistoryUsed == 0
+                // V7.6 F22: "the next actual death decides the match; there is
+                // no Defy survival proc" in Sudden Death. The BAR is a separate
+                // read from the spent flag (F13), so a fighter who never used
+                // Defy still shows Unavailable rather than Spent.
+                && targetDefense.DefyBarred == 0
                 && target.Influence >= MaxInfluence) {
                 defied = true;
                 targetVerb.DefyHistoryUsed = 1;
