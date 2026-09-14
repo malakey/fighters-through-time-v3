@@ -1220,11 +1220,21 @@ namespace FTT.FighterSim {
             FighterMatchComponent match = Simulation.GetMatchState();
             if (match.MatchState != FighterMatchStates.Complete) return;
             _completionRaised = true;
+            // F21/F22 (Package 11 A1c): the results screen reports the REGULATION
+            // stocks-lost totals. In a match that went to Sudden Death those were
+            // frozen at entry (component 319) and the decider never touches them;
+            // otherwise the live match totals are the regulation totals.
+            FighterSuddenDeathComponent phase = Simulation.GetSuddenDeathState();
+            bool wentToSuddenDeath = phase.PhaseGeneration > 0;
             var result = new FighterMatchResult(
                 match.WinnerPlayerID,
                 match.IsTrueTie != 0,
                 Simulation.CurrentTick,
-                Simulation.CurrentHash);
+                Simulation.CurrentHash,
+                wentToSuddenDeath ? phase.FrozenPlayerOneStocksLost : match.PlayerOneStocksLost,
+                wentToSuddenDeath ? phase.FrozenPlayerTwoStocksLost : match.PlayerTwoStocksLost,
+                match.MatchMode,
+                wentToSuddenDeath);
             RecordStatistics(result);
             BeginKnockoutSequence(result);
         }
@@ -1260,12 +1270,36 @@ namespace FTT.FighterSim {
         public readonly bool IsTrueTie;
         public readonly int CompletedTick;
         public readonly long FinalHash;
+        /// <summary>
+        /// F21 (Package 11 A1c): stocks player one LOST during regulation — the
+        /// quantity Time mode is decided by, and the one the results screen shows.
+        /// Frozen at Sudden Death entry, so the decider cannot change it.
+        /// </summary>
+        public readonly int PlayerOneStocksLost;
+        /// <inheritdoc cref="PlayerOneStocksLost"/>
+        public readonly int PlayerTwoStocksLost;
+        /// <summary>The match mode ordinal, so the screen knows whether the totals are the deciding rule.</summary>
+        public readonly int MatchMode;
+        /// <summary>True when regulation tied and the match was decided in Sudden Death.</summary>
+        public readonly bool DecidedInSuddenDeath;
 
-        public FighterMatchResult(int winnerPlayerID, bool isTrueTie, int completedTick, long finalHash) {
+        public FighterMatchResult(
+            int winnerPlayerID,
+            bool isTrueTie,
+            int completedTick,
+            long finalHash,
+            int playerOneStocksLost = 0,
+            int playerTwoStocksLost = 0,
+            int matchMode = (int)FTT.Core.MatchMode.Stock,
+            bool decidedInSuddenDeath = false) {
             WinnerPlayerID = winnerPlayerID;
             IsTrueTie = isTrueTie;
             CompletedTick = completedTick;
             FinalHash = finalHash;
+            PlayerOneStocksLost = playerOneStocksLost;
+            PlayerTwoStocksLost = playerTwoStocksLost;
+            MatchMode = matchMode;
+            DecidedInSuddenDeath = decidedInSuddenDeath;
         }
     }
 }

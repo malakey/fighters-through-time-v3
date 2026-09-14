@@ -88,7 +88,7 @@ public class FighterMatchFlowTests {
     public void TheMatchClockDoesNotRunDuringTheCountdown() {
         var simulation = new FighterSimulation(
             matchSeconds: 60,
-            rules: new FighterMatchRules((int)MatchMode.Hybrid, false, 0, false, 0, 1,
+            rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0, 1,
                 FighterMatchFlowRules.CountdownFrames));
         int startFrames = simulation.GetMatchState().RemainingFrames;
 
@@ -308,7 +308,11 @@ public class FighterMatchFlowTests {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
         AssertThat(after.Stocks).IsEqual(2);
         AssertThat(simulation.GetMatchState().MatchState).IsEqual(FighterMatchStates.InProgress);
-        AssertThat(simulation.GetMatchState().PlayerOneKOs).IsEqual(1);
+        // F21 (Package 11 A1c): the match totals are VICTIM-side now. Player two
+        // fell, so player two's stocks-lost total moves and player one's does not —
+        // the retired PlayerOneKOs counted the KO player one SCORED.
+        AssertThat(simulation.GetMatchState().PlayerTwoStocksLost).IsEqual(1);
+        AssertThat(simulation.GetMatchState().PlayerOneStocksLost).IsEqual(0);
     }
 
     // === Package 11 A9: the bottom blast zone on the three Open stages ===
@@ -544,13 +548,15 @@ public class FighterMatchFlowTests {
 
     [TestCase]
     public void TimerExpiryDecidesOnStocksThenHpPercentage() {
-        // Hybrid: equal stocks at the buzzer fall through to HP percentage.
+        // Stock mode with a timer: equal stocks at the buzzer fall through to HP
+        // percentage. (F21: this used to be authored as the retired Hybrid, whose
+        // behaviour was Stock's all along — the match system's silent default arm.)
         var simulation = new FighterSimulation(
             stocks: 3,
             matchSeconds: 2,
             seed: 11,
             spawnDistance: 1,
-            rules: new FighterMatchRules((int)MatchMode.Hybrid, false, 0, false, 0));
+            rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0));
 
         // Player one chips away for the whole two seconds; neither loses a stock,
         // so the decision has to come from the HP-percentage branch.
@@ -570,23 +576,33 @@ public class FighterMatchFlowTests {
 
     [TestCase]
     public void TimerExpiryWithIdenticalStateEntersSuddenDeathNotADraw() {
-        // V7.1: a true tie at the buzzer no longer records an immediate draw —
-        // the match enters Sudden Death (still live, both fighters respawned
-        // at 1 HP with no timer) and the first KO names the winner. The only
-        // remaining path to a recorded Draw is a double-KO inside Sudden Death.
+        // A true tie at the buzzer enters Sudden Death rather than recording a
+        // draw. F22 (Package 11 A1c) retired the old 1-HP clamp: two untouched
+        // fighters enter at FULL HP, and the next ACTUAL death decides it. The
+        // only remaining path to a recorded Draw is a double death inside the
+        // phase. Entry also runs the common ready countdown.
         var simulation = new FighterSimulation(
             matchSeconds: 1, rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, false, 0));
         for (int tick = 0; tick < 60; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
 
         FighterMatchComponent match = simulation.GetMatchState();
-        AssertThat(match.MatchState).IsEqual(FighterMatchStates.InProgress);
         AssertThat(match.SuddenDeathActive).IsEqual(1);
         AssertThat(match.TimerEnabled).IsEqual(0);
         AssertThat(match.WinnerPlayerID).IsEqual(-1);
+        AssertThat(match.MatchState).IsEqual(FighterMatchStates.Countdown);
         for (int playerID = 0; playerID < 2; playerID++) {
             AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent fighter)).IsTrue();
-            AssertThat(fighter.CurrentHP).IsEqual(1);
+            AssertThat(fighter.CurrentHP)
+                .OverrideFailureMessage("F22 preserves living HP; the 1-HP clamp is retired.")
+                .IsEqual(fighter.MaxHP);
+            AssertThat(fighter.Stocks).IsEqual(1);
         }
+        // 0-0 in Time mode is a tie with no HP tiebreak, and the regulation totals
+        // are frozen for the results screen.
+        FighterSuddenDeathComponent phase = simulation.GetSuddenDeathState();
+        AssertThat(phase.PhaseGeneration).IsEqual(1);
+        AssertThat(phase.FrozenPlayerOneStocksLost).IsEqual(0);
+        AssertThat(phase.FrozenPlayerTwoStocksLost).IsEqual(0);
     }
 
     /// <summary>
@@ -612,7 +628,10 @@ public class FighterMatchFlowTests {
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
         AssertThat(runtime.KnockoutsSuffered).IsEqual(1);
         AssertThat(after.Stocks).IsEqual(startingStocks);
-        AssertThat(simulation.GetMatchState().PlayerOneKOs).IsEqual(1);
+        // F21: Time mode has unlimited respawns, and the quantity that decides it
+        // is the VICTIM's stocks-lost total.
+        AssertThat(simulation.GetMatchState().PlayerTwoStocksLost).IsEqual(1);
+        AssertThat(simulation.GetMatchState().PlayerOneStocksLost).IsEqual(0);
         AssertThat(simulation.GetMatchState().MatchState).IsEqual(FighterMatchStates.InProgress);
         AssertThat(FighterMatchFlowRules.IsOnRespawnPlatform(in after)).IsTrue();
     }
@@ -650,7 +669,7 @@ public class FighterMatchFlowTests {
             matchSeconds: 8,
             seed: 21,
             spawnDistance: 1,
-            rules: new FighterMatchRules((int)MatchMode.Hybrid, false, 0, false, 0));
+            rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0));
 
         // P1 chips P2 for 10 (of 100); much later — after the Rally pools have
         // fully drained, so no reclaim muddies the arithmetic — P2 answers
@@ -690,7 +709,7 @@ public class FighterMatchFlowTests {
             matchSeconds: 6,
             seed: 22,
             spawnDistance: 1,
-            rules: new FighterMatchRules((int)MatchMode.Hybrid, false, 0, false, 0));
+            rules: new FighterMatchRules((int)MatchMode.Stock, false, 0, false, 0));
 
         // P2 chips P1 for 25 early (its echo fully drains), then P1 lands a 30
         // just before the buzzer so the victim's pool is still live at expiry.
@@ -738,9 +757,13 @@ public class FighterMatchFlowTests {
                 : Frame(tick, 0, GameplayButtons.Down);
             simulation.Advance(falling, falling);
             suddenDeath = simulation.GetMatchState().SuddenDeathActive == 1;
+            // The claim is that no RESULT is recorded — F22 now routes entry through
+            // the shared match-start ready countdown (controls and sim clocks frozen
+            // together for both players), so the state legitimately leaves
+            // InProgress for Countdown on the transition tick.
             AssertThat(simulation.GetMatchState().MatchState)
                 .OverrideFailureMessage("A dual final-stock KO must never record an immediate result.")
-                .IsEqual(FighterMatchStates.InProgress);
+                .IsNotEqual(FighterMatchStates.Complete);
         }
         AssertThat(suddenDeath)
             .OverrideFailureMessage("The simultaneous final-stock KO must enter Sudden Death.")
@@ -751,13 +774,19 @@ public class FighterMatchFlowTests {
         AssertThat(match.WinnerPlayerID).IsEqual(-1);
         for (int playerID = 0; playerID < 2; playerID++) {
             AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent fighter)).IsTrue();
-            AssertThat(fighter.CurrentHP).IsEqual(1);
+            // F22 dead-entry resolution, Option A: both fighters ended regulation
+            // dead, so both receive their normal Fighter respawn HP — exactly once,
+            // and with no extra stock loss. The retired 1-HP clamp is gone.
+            AssertThat(fighter.CurrentHP).IsEqual(fighter.MaxHP);
             AssertThat(fighter.Stocks).IsEqual(1);
             // V7.6 F22/F13 (Package 11 A1b): Sudden Death BARS Defy rather than
             // pre-marking it SPENT. The seal must be able to show "unavailable
             // in this context" without clearing the underlying spent flag, and
             // the old pre-mark conflated the two.
             AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
+            // F22: Defy is disabled for the phase by DERIVATION from
+            // SuddenDeathActive. Its spent flag is preserved untouched, and entry
+            // consumes no new use — the retired version pre-marked it used here.
             AssertThat(verb.DefyHistoryUsed)
                 .OverrideFailureMessage("Sudden Death must not mark an unused Defy as spent.")
                 .IsEqual(0);
@@ -765,7 +794,16 @@ public class FighterMatchFlowTests {
             AssertThat(defense.DefyBarred)
                 .OverrideFailureMessage("Sudden Death bars Defy for the rest of the match.")
                 .IsEqual(1);
+            // Meter 0, every cooldown ready, block refilled.
+            AssertThat(fighter.Influence.RawValue).IsEqual(0);
+            AssertThat(verb.EchoStepCooldownFrames).IsEqual(0);
+            AssertThat(fighter.BlockCharges > 0).IsTrue();
         }
+        // The regulation totals are frozen for the results screen: both fighters
+        // lost their one stock during regulation, and the decider cannot change it.
+        FighterSuddenDeathComponent phase = simulation.GetSuddenDeathState();
+        AssertThat(phase.FrozenPlayerOneStocksLost).IsEqual(1);
+        AssertThat(phase.FrozenPlayerTwoStocksLost).IsEqual(1);
     }
 
     /// <summary>
@@ -956,7 +994,9 @@ public class FighterMatchFlowTests {
     [TestCase]
     public void MatchSettingsSurviveTheMappingIntoDeterministicRules() {
         var settings = new MatchSettings {
-            Mode = MatchMode.Hybrid,
+            // F21: Time is the second selectable mode; the retired Hybrid this case
+            // used to carry is not mappable any more.
+            Mode = MatchMode.TimeLimit,
             StockCount = 5,
             TimeLimit = 120f,
             ItemsEnabled = true,
@@ -966,7 +1006,7 @@ public class FighterMatchFlowTests {
         };
 
         FighterMatchRules rules = FighterSimulationDriver.RulesFor(settings, 7);
-        AssertThat(rules.MatchMode).IsEqual((int)MatchMode.Hybrid);
+        AssertThat(rules.MatchMode).IsEqual((int)MatchMode.TimeLimit);
         AssertThat(rules.ItemsEnabled).IsTrue();
         AssertThat(rules.ItemFrequency).IsEqual((int)ChronalOrbFrequency.Low);
         AssertThat(rules.HazardsEnabled).IsTrue();
@@ -990,7 +1030,7 @@ public class FighterMatchFlowTests {
             matchSeconds: FighterSimulationDriver.MatchSeconds(settings),
             rules: rules);
         FighterMatchComponent match = simulation.GetMatchState();
-        AssertThat(match.MatchMode).IsEqual((int)MatchMode.Hybrid);
+        AssertThat(match.MatchMode).IsEqual((int)MatchMode.TimeLimit);
         AssertThat(match.ItemFrequency).IsEqual((int)ChronalOrbFrequency.Low);
         AssertThat(match.HazardFrequency).IsEqual((int)HazardTriggerFrequency.Medium);
         AssertThat(match.StageHazardTypeID).IsEqual(7);
@@ -999,7 +1039,313 @@ public class FighterMatchFlowTests {
         AssertThat(fighter.Stocks).IsEqual(5);
     }
 
+    // === F22 Sudden Death transition contract (Package 11 A1c) ===
+    //
+    // docs/design-contracts/FIGHTER_MATCH_RULES.md "Sudden Death — F22". The V7.1
+    // version these replace clamped both fighters to 1 HP, forced hazards on over
+    // the house rules, and pre-marked Defy History used. All three are retired.
+
+    /// <summary>
+    /// The headline amendment: <b>living fighters keep their exact current positive
+    /// HP</b>, unequal HP included. A Time-mode tie at 0-0 losses can sit at wildly
+    /// different health, and the decider starts from it.
+    /// </summary>
+    [TestCase]
+    public void SuddenDeathPreservesUnequalLivingHP() {
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(TimeoutFighter(maxHP: 100, damage: 30f)),
+            FighterLoadoutFactory.FromCharacterData(TimeoutFighter(maxHP: 100, damage: 80f)),
+            stocks: 5,
+            matchSeconds: 8,
+            seed: 8801,
+            spawnDistance: 1,
+            rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, false, 0));
+
+        // One trade each: neither loses a stock, so the Time tie is 0-0 and the HP
+        // is deliberately lopsided.
+        int tick = 0;
+        simulation.Advance(Frame(tick, 0, GameplayButtons.BasicAttack), Neutral(tick));
+        for (tick = 1; tick <= 240; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+        simulation.Advance(Neutral(tick), Frame(tick, 0, GameplayButtons.BasicAttack));
+
+        // Run to the LAST regulation tick before capturing. A swing has startup
+        // frames, so reading HP on the input frame reads it before the hit lands —
+        // and the capture has to be the committed end-of-regulation state anyway,
+        // which is what F22 resolves the transition from.
+        int hpOne = 0;
+        int hpTwo = 0;
+        for (tick++; tick < 600; tick++) {
+            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent liveOne)).IsTrue();
+            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent liveTwo)).IsTrue();
+            hpOne = liveOne.CurrentHP;
+            hpTwo = liveTwo.CurrentHP;
+            simulation.Advance(Neutral(tick), Neutral(tick));
+            if (simulation.GetMatchState().SuddenDeathActive == 1) break;
+        }
+        AssertThat(simulation.GetMatchState().SuddenDeathActive).IsEqual(1);
+        AssertThat(hpOne != hpTwo)
+            .OverrideFailureMessage("Harness: the two fighters must enter on different HP.")
+            .IsTrue();
+        AssertThat(hpOne > 0 && hpTwo > 0)
+            .OverrideFailureMessage("Harness: both fighters must still be alive at the buzzer.")
+            .IsTrue();
+
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent afterOne)).IsTrue();
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterTwo)).IsTrue();
+        AssertThat(afterOne.CurrentHP)
+            .OverrideFailureMessage("A living fighter must keep its exact HP — no heal, no clamp to 1.")
+            .IsEqual(hpOne);
+        AssertThat(afterTwo.CurrentHP).IsEqual(hpTwo);
+    }
+
+    /// <summary>
+    /// <b>Hazards Off stays Off.</b> The retired version wrote
+    /// <c>HazardsEnabled = 1</c> and invented a frequency, overriding the house
+    /// rules outright — a player who switched hazards off got them anyway at the
+    /// most decisive moment of the match.
+    /// </summary>
+    [TestCase]
+    public void SuddenDeathRespectsHazardsOff() {
+        var simulation = new FighterSimulation(
+            matchSeconds: 2, seed: 8802,
+            rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, false, 0));
+        for (int tick = 0; tick < 130; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+
+        FighterMatchComponent match = simulation.GetMatchState();
+        AssertThat(match.SuddenDeathActive).IsEqual(1);
+        AssertThat(match.HazardsEnabled)
+            .OverrideFailureMessage("Hazards Off must stay Off in Sudden Death.")
+            .IsEqual(0);
+
+        // Two full spawn intervals: nothing appears.
+        for (int tick = 0; tick < 1200; tick++) {
+            int current = simulation.CurrentTick;
+            simulation.Advance(Neutral(current), Neutral(current));
+            AssertThat(simulation.HazardCount)
+                .OverrideFailureMessage("No hazard may spawn with the toggle off.")
+                .IsEqual(0);
+        }
+    }
+
+    /// <summary>
+    /// Hazards On get the twice-normal cadence — and a <b>full first warning</b>
+    /// after play resumes, never a mid-cycle hazard inherited from regulation.
+    /// The acceleration is not stacked on top of regulation Overtime.
+    /// </summary>
+    [TestCase]
+    public void SuddenDeathWithHazardsOnStartsAFullWarningAtTwiceCadence() {
+        var simulation = new FighterSimulation(
+            matchSeconds: 2, seed: 8803,
+            rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, true, 3, 1));
+        for (int tick = 0; tick < 130; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+
+        FighterMatchComponent match = simulation.GetMatchState();
+        AssertThat(match.SuddenDeathActive).IsEqual(1);
+        AssertThat(match.HazardsEnabled).IsEqual(1);
+        // Every regulation hazard was swept; the arena is back at its round-start state.
+        AssertThat(simulation.HazardCount)
+            .OverrideFailureMessage("Entering Sudden Death must clear live regulation hazards.")
+            .IsEqual(0);
+        int normal = FighterSpawnIntervals.HazardFrames(match.HazardFrequency);
+        AssertThat(match.NextHazardSpawnFrames)
+            .OverrideFailureMessage("The first Sudden Death hazard must be scheduled at twice cadence.")
+            .IsEqual(normal / 2);
+
+        // When it does arrive it begins in its warning phase, not mid-active.
+        bool sawWarning = false;
+        for (int tick = 0; tick < 1200 && !sawWarning; tick++) {
+            int current = simulation.CurrentTick;
+            simulation.Advance(Neutral(current), Neutral(current));
+            if (simulation.TryGetFirstHazard(out FighterHazardComponent hazard)) {
+                AssertThat(hazard.Phase)
+                    .OverrideFailureMessage("The first Sudden Death hazard must open with a full warning.")
+                    .IsEqual(0);
+                sawWarning = true;
+            }
+        }
+        AssertThat(sawWarning)
+            .OverrideFailureMessage("Harness: no hazard spawned inside the observation window.")
+            .IsTrue();
+    }
+
+    /// <summary>
+    /// The phase starts clean: meter 0, every cooldown ready, block refilled, both
+    /// status slots and the Rally pool cleared, and no carried spawn invulnerability
+    /// once play resumes.
+    /// </summary>
+    [TestCase]
+    public void SuddenDeathResetsResourcesStatusesAndOldInvulnerability() {
+        var simulation = new FighterSimulation(
+            matchSeconds: 3, seed: 8804, spawnDistance: 1,
+            rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, false, 0));
+
+        // Trade for a while so meter, Rally echo and cooldowns are all live.
+        for (int tick = 0; tick < 60; tick++) {
+            simulation.Advance(
+                Frame(tick, 0, tick % 12 == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None),
+                Frame(tick, 0, tick % 17 == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent charged)).IsTrue();
+        AssertThat(charged.Influence > FP64.Zero)
+            .OverrideFailureMessage("Harness: meter must be live before the buzzer.")
+            .IsTrue();
+
+        for (int tick = 60; simulation.GetMatchState().SuddenDeathActive == 0 && tick < 400; tick++) {
+            simulation.Advance(Neutral(tick), Neutral(tick));
+        }
+        AssertThat(simulation.GetMatchState().SuddenDeathActive).IsEqual(1);
+
+        for (int playerID = 0; playerID < 2; playerID++) {
+            AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent state)).IsTrue();
+            AssertThat(simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime)).IsTrue();
+            AssertThat(simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)).IsTrue();
+
+            AssertThat(state.Influence.RawValue)
+                .OverrideFailureMessage("Meter must be zeroed on entry.")
+                .IsEqual(0);
+            AssertThat(state.InvulnerabilityFrames)
+                .OverrideFailureMessage("Old respawn/attack invulnerability must be cleared.")
+                .IsEqual(0);
+            AssertThat(state.RespawnFramesRemaining).IsEqual(0);
+            AssertThat(state.BlockCharges > 0).IsTrue();
+            AssertThat(runtime.SpecialOneCooldownFrames).IsEqual(0);
+            AssertThat(runtime.SpecialTwoCooldownFrames).IsEqual(0);
+            AssertThat(runtime.MovementCooldownFrames).IsEqual(0);
+            AssertThat(verb.EchoStepCooldownFrames)
+                .OverrideFailureMessage("Echo Step's cooldown must be ready.")
+                .IsEqual(0);
+            AssertThat(runtime.StatusType).IsEqual((int)StatusType.None);
+            AssertThat(runtime.DamageStatusType).IsEqual((int)StatusType.None);
+            AssertThat(verb.EchoPool.RawValue)
+                .OverrideFailureMessage("The Rally echo pool must be cleared.")
+                .IsEqual(0);
+            AssertThat(verb.BlockLockoutFrames).IsEqual(0);
+            AssertThat(verb.ShieldStunFrames).IsEqual(0);
+            AssertThat(verb.OvertimeActive)
+                .OverrideFailureMessage("The Overtime multiplier must not carry into the phase.")
+                .IsEqual(0);
+        }
+    }
+
+    /// <summary>
+    /// Every regulation projectile, zone and construct is removed — including
+    /// objects whose owner died — so nothing carried across the boundary can damage
+    /// or protect either fighter.
+    /// </summary>
+    [TestCase]
+    public void SuddenDeathRemovesEveryRegulationProjectileZoneAndConstruct() {
+        // TimeoutFighter authors no ability kit at all, so it can never deploy
+        // anything: this needs a projectile Special and a persistent-construct
+        // Special to have objects to sweep.
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(DeployingFighter()),
+            FighterLoadoutFactory.FromCharacterData(DeployingFighter()),
+            stocks: 5,
+            matchSeconds: 6,
+            seed: 8805,
+            spawnDistance: 6,
+            rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, false, 0));
+
+        int tick = 0;
+        simulation.Advance(
+            Frame(tick, 0, GameplayButtons.Special1),
+            Frame(tick, 0, GameplayButtons.Special2));
+        tick++;
+        AssertThat(simulation.ProjectileCount)
+            .OverrideFailureMessage("Harness: the projectile Special must have fired.")
+            .IsGreater(0);
+        AssertThat(simulation.PersistentObjectCount)
+            .OverrideFailureMessage("Harness: the construct Special must have deployed.")
+            .IsGreater(0);
+
+        for (; simulation.GetMatchState().SuddenDeathActive == 0 && tick < 600; tick++) {
+            simulation.Advance(Neutral(tick), Neutral(tick));
+        }
+        AssertThat(simulation.GetMatchState().SuddenDeathActive).IsEqual(1);
+        AssertThat(simulation.ProjectileCount)
+            .OverrideFailureMessage("Regulation projectiles must be removed.")
+            .IsEqual(0);
+        AssertThat(simulation.ZoneCount).IsEqual(0);
+        AssertThat(simulation.PersistentObjectCount).IsEqual(0);
+    }
+
+    /// <summary>
+    /// The phase transition and the match state commit together and survive a
+    /// rollback across the boundary: the phase generation, the frozen totals and the
+    /// reset life state all restore atomically, so a resimulated branch cannot
+    /// transition twice or restore HP twice.
+    /// </summary>
+    [TestCase]
+    public void TheSuddenDeathTransitionSurvivesARollbackAcrossItsBoundary() {
+        var reference = new FighterSimulation(
+            matchSeconds: 2, seed: 8806,
+            rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, false, 0));
+        var rolled = new FighterSimulation(
+            matchSeconds: 2, seed: 8806,
+            rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, false, 0));
+
+        for (int tick = 0; tick < 150; tick++) {
+            PlayerInputFrame one = Frame(tick, (sbyte)(tick % 2 == 0 ? 70 : -70), GameplayButtons.None);
+            PlayerInputFrame two = Frame(tick, (sbyte)(tick % 3 == 0 ? -50 : 50), GameplayButtons.None);
+            reference.Advance(one, two);
+            rolled.AdvanceWithPredictedPlayerTwo(one);
+            rolled.CorrectPlayerTwoInput(tick, two);
+        }
+
+        AssertThat(reference.GetMatchState().SuddenDeathActive).IsEqual(1);
+        AssertThat(rolled.CurrentHash)
+            .OverrideFailureMessage("The Sudden Death transition must converge across a rollback.")
+            .IsEqual(reference.CurrentHash);
+
+        FighterSuddenDeathComponent expected = reference.GetSuddenDeathState();
+        FighterSuddenDeathComponent actual = rolled.GetSuddenDeathState();
+        AssertThat(actual.PhaseGeneration)
+            .OverrideFailureMessage("A resimulated branch must not transition twice.")
+            .IsEqual(expected.PhaseGeneration);
+        AssertThat(actual.FrozenPlayerOneStocksLost).IsEqual(expected.FrozenPlayerOneStocksLost);
+        AssertThat(actual.FrozenPlayerTwoStocksLost).IsEqual(expected.FrozenPlayerTwoStocksLost);
+    }
+
     // === Helpers ===
+
+    /// <summary>
+    /// A kit that actually deploys: Special 1 is a long-lived projectile and
+    /// Special 2 a persistent construct, so the F22 entity sweep has both kinds of
+    /// object to remove.
+    /// </summary>
+    private static CharacterData DeployingFighter() => new() {
+        CharacterID = "tesla",
+        MaxHP = 100,
+        Weight = 1f,
+        MaxBlockCharges = 3,
+        MaxJumpCount = 1,
+        MaxMoveSpeed = 8f,
+        MaxJumpForce = 13f,
+        BasicAttackDamage = 10f,
+        BasicAttackKnockback = 0f,
+        SpecialAttackOne = new AbilityData {
+            ExecutionType = AbilityExecutionType.Projectile,
+            BaseDamage = 1f,
+            KnockbackForce = Godot.Vector2.Zero,
+            ProjectileSpeed = 6f,
+            ProjectileLifetime = 60f,
+            CooldownDuration = 1f
+        },
+        SpecialAttackTwo = new AbilityData {
+            ExecutionType = AbilityExecutionType.PersistentObject,
+            // The construct only spawns with a recognized type ID: the loadout
+            // factory maps the authored string onto the deterministic id, and an
+            // unknown one is 0, which the spawner refuses.
+            PersistentObjectID = "tesla_coil",
+            BaseDamage = 1f,
+            KnockbackForce = Godot.Vector2.Zero,
+            Lifetime = 60f,
+            MaxActiveObjects = 2,
+            CooldownDuration = 1f
+        },
+        MovementAbility = new MovementAbilityData(),
+        UltimateAttack = new AbilityData { BaseDamage = 5f }
+    };
 
     /// <summary>Zero-knockback fighters for the timeout pins: hits chip HP
     /// without moving anyone out of range.</summary>

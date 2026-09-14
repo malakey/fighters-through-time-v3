@@ -23,7 +23,38 @@ namespace FTT.Core {
         /// the bit stays allocated so the protocol v2 packet layout is unchanged.
         /// Nothing sets it and nothing consumes it.
         /// </summary>
-        Dash = 1 << 11
+        Dash = 1 << 11,
+        /// <summary>
+        /// C01c (Package 11 A1c): the logical <b>Echo Step</b> request — the verb,
+        /// not the keys. Raised by the direct <c>gameplay_echo_step</c> binding,
+        /// and by the Block+Roll preset chord when that chord is enabled for the
+        /// device. Bits 12-15 were free, so protocol v3 carries all three new flags
+        /// without changing <see cref="PlayerInputFrame.SerializedSize"/> (12 B) or
+        /// the 47-byte rollback packet.
+        /// </summary>
+        EchoStep = 1 << 12,
+        /// <summary>
+        /// C01c (Package 11 A1c): the logical <b>Grab</b> request. Raised by the
+        /// direct <c>gameplay_grab</c> binding, and by the Block+BasicAttack preset
+        /// chord when that chord is enabled for the device.
+        /// </summary>
+        Grab = 1 << 13,
+        /// <summary>
+        /// C01c origin flag: set when the combined-verb requests on this frame came
+        /// from <b>direct bindings only</b> — that is, the originating machine's
+        /// preset chords are off (or absent) for the device that produced it.
+        ///
+        /// <para>This is what stops a peer re-recognizing a remote chord with its
+        /// own shortcut settings. The simulation accepts a verb from
+        /// <c>Pressed(Grab)</c> / <c>Pressed(EchoStep)</c> <em>or</em> from the
+        /// component bits, and this flag is the normalized instruction to skip the
+        /// second route: the sender already decided, so the component bits on this
+        /// frame mean plain Block, Roll and BasicAttack. Serializing the logical
+        /// request plus this flag — never local key codes — is what makes two peers
+        /// replay identically.</para>
+        /// </summary>
+        DirectOrigin = 1 << 14
+        // Bit 15 is free.
     }
 
     /// <summary>

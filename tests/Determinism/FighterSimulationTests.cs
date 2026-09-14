@@ -253,7 +253,7 @@ public class FighterSimulationTests {
     [TestCase]
     public void SelectedStageHazardTypeIsPartOfDeterministicState() {
         FighterMatchRules rules = new(
-            (int)MatchMode.Hybrid,
+            (int)MatchMode.Stock,
             itemsEnabled: false,
             itemFrequency: 0,
             hazardsEnabled: true,
@@ -279,8 +279,11 @@ public class FighterSimulationTests {
             (int)MatchMode.Stock, false, 0, false, 0));
         var timed = new FighterSimulation(matchSeconds: 1, rules: new FighterMatchRules(
             (int)MatchMode.TimeLimit, false, 0, false, 0));
+        // F21 retired the third mode; this arm was authored as Hybrid and is kept
+        // as a second timed Stock match, because Hybrid's behaviour WAS Stock's —
+        // it only ever reached the match system's silent default arm.
         var hybrid = new FighterSimulation(matchSeconds: 1, rules: new FighterMatchRules(
-            (int)MatchMode.Hybrid, false, 0, false, 0));
+            (int)MatchMode.Stock, false, 0, false, 0));
         for (int tick = 0; tick < 60; tick++) {
             PlayerInputFrame empty = Frame(tick, 0, GameplayButtons.None);
             stock.Advance(empty, empty);
@@ -289,16 +292,19 @@ public class FighterSimulationTests {
             hybrid.Advance(empty, empty);
         }
 
-        // V7.1: a true tie at expiry no longer records an immediate draw — the
-        // match enters Sudden Death (still live, first KO decides it). The
-        // untimed stock match simply keeps running.
-        AssertThat(stock.GetMatchState().MatchState).IsEqual(1);
+        // A true tie at expiry records no draw — the match enters Sudden Death.
+        // F22 (Package 11 A1c): entry runs the shared match-start ready countdown,
+        // with controls and sim clocks frozen together for both players, so the
+        // transition tick leaves MatchState at Countdown rather than InProgress.
+        // Neither is Complete, which is the claim that matters here. The untimed
+        // stock match simply keeps running.
+        AssertThat(stock.GetMatchState().MatchState).IsEqual(FighterMatchStates.Countdown);
         AssertThat(stock.GetMatchState().SuddenDeathActive).IsEqual(1);
-        AssertThat(stockUntimed.GetMatchState().MatchState).IsEqual(1);
+        AssertThat(stockUntimed.GetMatchState().MatchState).IsEqual(FighterMatchStates.InProgress);
         AssertThat(stockUntimed.GetMatchState().SuddenDeathActive).IsEqual(0);
-        AssertThat(timed.GetMatchState().MatchState).IsEqual(1);
+        AssertThat(timed.GetMatchState().MatchState).IsEqual(FighterMatchStates.Countdown);
         AssertThat(timed.GetMatchState().SuddenDeathActive).IsEqual(1);
-        AssertThat(hybrid.GetMatchState().MatchState).IsEqual(1);
+        AssertThat(hybrid.GetMatchState().MatchState).IsEqual(FighterMatchStates.Countdown);
         AssertThat(hybrid.GetMatchState().SuddenDeathActive).IsEqual(1);
     }
 

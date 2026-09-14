@@ -622,16 +622,18 @@ namespace FTT.UI {
             PopulateStages();
             UpdateStagePreview();
 
+            // F21: two modes. The retired Stock + Time combination is gone from
+            // both selectors; a legacy saved Hybrid has already normalized to
+            // timed Stock by the time these settings are read.
             _matchMode.AddItem(Tr("fighter_mode_stock"), (int)MatchMode.Stock);
             _matchMode.AddItem(Tr("fighter_mode_time"), (int)MatchMode.TimeLimit);
-            _matchMode.AddItem(Tr("fighter_mode_hybrid"), (int)MatchMode.Hybrid);
 
             // V7 "Match Settings Persist": the rule controls initialize from the
             // session settings (which EnsureMatchSettingsLoaded pre-loaded from
             // the global save) instead of hardcoded defaults.
             MatchSettings settings = GameManager.Instance?.CurrentSession.MatchSettings
                 ?? MatchSettings.GetDefault();
-            _matchMode.Select((int)settings.Mode);
+            _matchMode.Select(SelectableModeIndex(settings.Mode));
             if (_stockCount != null) _stockCount.Value = settings.StockCount;
             if (_timeLimit != null) _timeLimit.Value = settings.TimeLimit;
 
@@ -817,7 +819,7 @@ namespace FTT.UI {
             MatchSettings settings = session.MatchSettings;
             settings.Mode = (MatchMode)_matchMode.GetSelectedId();
             settings.StockCount = (int)_stockCount.Value;
-            settings.TimeLimit = (float)_timeLimit.Value;
+            settings.TimeLimit = ResolveTimeLimitForMode(settings.Mode, (float)_timeLimit.Value);
             var itemRate = (ChronalOrbFrequency)_itemFrequency.GetSelectedId();
             var hazardRate = (HazardTriggerFrequency)_hazardFrequency.GetSelectedId();
             settings.ItemSpawnRate = itemRate;
@@ -846,5 +848,32 @@ namespace FTT.UI {
         private void OnBack() {
             GameManager.Instance?.LoadScene(ResolveBackScenePath());
         }
+
+        /// <summary>
+        /// F21: the option list carries only the two selectable modes, so the index
+        /// a saved mode maps to is its ordinal — clamped, because an out-of-range
+        /// stored value (the retired Hybrid, or a corrupt payload that reached the
+        /// menu before <c>SavedMatchSettings.Normalize</c> could run) would
+        /// otherwise index past the list.
+        /// </summary>
+        private static int SelectableModeIndex(MatchMode mode) =>
+            mode == MatchMode.TimeLimit ? 1 : 0;
+
+        /// <summary>
+        /// F21: <b>Time requires a positive timer and Off is unavailable there</b>,
+        /// so switching from untimed Stock to Time selects the default 480 s. The
+        /// spin box is written before launch, which is what "shows it before launch"
+        /// asks for — the player sees the repaired value in the rules row. Stock
+        /// keeps its own timer, Off included, and characters, stage, items and
+        /// hazards are untouched by the switch.
+        /// </summary>
+        private float ResolveTimeLimitForMode(MatchMode mode, float requested) {
+            if (mode != MatchMode.TimeLimit) return requested;
+            if (requested > 0f && !float.IsNaN(requested) && !float.IsInfinity(requested)) return requested;
+            float repaired = SavedMatchSettings.DefaultTimeLimitSeconds;
+            if (_timeLimit != null) _timeLimit.Value = repaired;
+            return repaired;
+        }
+
     }
 }

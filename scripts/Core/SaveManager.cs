@@ -171,12 +171,80 @@ namespace FTT.Core {
     /// schema bump — defaults apply until the first Fighter match is configured.
     /// </summary>
     public class SavedMatchSettings {
+        /// <summary>The retired Hybrid ordinal. Recognized for decoding, never written.</summary>
+        public const int LegacyHybridMode = 2;
+        /// <summary>Default timer, in seconds (8:00).</summary>
+        public const float DefaultTimeLimitSeconds = 480f;
+        public const int MinStockCount = 1;
+        public const int MaxStockCount = 5;
+        public const int DefaultStockCount = 3;
+
         public bool Saved;
         public int Mode;
-        public int StockCount = 3;
-        public float TimeLimit = 480f;
+        public int StockCount = DefaultStockCount;
+        public float TimeLimit = DefaultTimeLimitSeconds;
         public int ItemSpawnRate = 3;
         public int HazardRate = 3;
+
+        /// <summary>
+        /// True once <see cref="Normalize"/> has repaired a legacy Hybrid timer, so
+        /// the menus can show the repaired value before launch as F21 requires.
+        /// Presentation only — never persisted.
+        /// </summary>
+        [Newtonsoft.Json.JsonIgnore]
+        public bool TimerRepaired;
+
+        /// <summary>
+        /// F21 migration (Package 11 A1c). Idempotent, and run before loaded
+        /// settings are displayed or the next match is created — never against a
+        /// running match.
+        ///
+        /// <list type="bullet">
+        /// <item>A recognized legacy <b>Hybrid</b> becomes <b>timed Stock</b>, keeping
+        /// a valid positive timer and stock count and every other house rule. A
+        /// Hybrid timer that is Off, missing or nonfinite becomes the default 480 s
+        /// and is flagged <see cref="TimerRepaired"/> so the summary can show it.
+        /// A valid timed Hybrid never becomes untimed Stock.</item>
+        /// <item><b>Unknown</b> mode values are <em>not</em> Hybrid: the source
+        /// settings are preserved and the mode is left for the player to choose
+        /// rather than guessing a winner rule. The stored value is clamped to a
+        /// selectable mode so a menu cannot index past its list.</item>
+        /// <item><b>Time</b> requires a positive timer; Off is unavailable there, so
+        /// a Time entry with no timer is repaired to 480 s.</item>
+        /// <item>Existing valid Stock settings — <b>including timer Off</b> — and
+        /// valid Time settings keep their meanings.</item>
+        /// </list>
+        /// </summary>
+        public void Normalize() {
+            TimerRepaired = false;
+            bool validTimer = !float.IsNaN(TimeLimit) && !float.IsInfinity(TimeLimit) && TimeLimit > 0f;
+
+            if (Mode == LegacyHybridMode) {
+                Mode = (int)MatchMode.Stock;
+                if (!validTimer) {
+                    TimeLimit = DefaultTimeLimitSeconds;
+                    TimerRepaired = true;
+                    validTimer = true;
+                }
+            } else if (Mode != (int)MatchMode.Stock && Mode != (int)MatchMode.TimeLimit) {
+                // Unknown: preserve the source settings, require a valid selection.
+                Mode = (int)MatchMode.Stock;
+            }
+
+            if (Mode == (int)MatchMode.TimeLimit && !validTimer) {
+                TimeLimit = DefaultTimeLimitSeconds;
+                TimerRepaired = true;
+            }
+            // Stock's timer may legitimately be Off (0); only a nonfinite or
+            // negative value is invalid there.
+            if (float.IsNaN(TimeLimit) || float.IsInfinity(TimeLimit) || TimeLimit < 0f) {
+                TimeLimit = DefaultTimeLimitSeconds;
+                TimerRepaired = true;
+            }
+            if (StockCount < MinStockCount || StockCount > MaxStockCount) {
+                StockCount = DefaultStockCount;
+            }
+        }
     }
 
     public class GlobalSaveData {

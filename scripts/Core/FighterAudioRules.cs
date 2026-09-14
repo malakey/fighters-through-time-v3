@@ -12,12 +12,17 @@ namespace FTT.Core {
         public const int LastStockThreshold = 1;
 
         /// <summary>
-        /// Only stock-bearing modes can have a "last stock". A pure time-limit match
-        /// never removes a stock, so a climax keyed on stocks would never fire there;
-        /// its own final-seconds climax is a separate rule and is not implemented.
+        /// Only stock-bearing modes can have a "last stock". Time mode has unlimited
+        /// respawns and never removes a stock, so a climax keyed on stocks would
+        /// never fire there; its own final-seconds climax is a separate rule and is
+        /// not implemented.
+        ///
+        /// <para>F21 (Package 11 A1c): Stock is now the only stock-bearing mode. The
+        /// retired Hybrid used to answer true here, and a legacy saved Hybrid
+        /// normalizes to Stock before any match is created, so nothing regresses.</para>
         /// </summary>
         public static bool ModeUsesStocks(int matchMode) =>
-            matchMode == (int)MatchMode.Stock || matchMode == (int)MatchMode.Hybrid;
+            matchMode == (int)MatchMode.Stock;
 
         /// <summary>
         /// True when a stock loss has left either fighter on their last stock.

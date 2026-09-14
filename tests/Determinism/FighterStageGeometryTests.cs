@@ -360,7 +360,7 @@ public class FighterStageGeometryTests {
     [TestCase]
     public void EveryAuthoredStageRunsIdenticallyAcrossTwoSimulations() {
         FighterMatchRules rules = new(
-            (int)MatchMode.Hybrid,
+            (int)MatchMode.Stock,
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: true,
@@ -388,7 +388,7 @@ public class FighterStageGeometryTests {
         int seed = 1300;
         foreach (FighterStageGeometry geometry in FighterStageGeometry.AllAuthored) {
             FighterMatchRules rules = new(
-                (int)MatchMode.Hybrid,
+                (int)MatchMode.Stock,
                 itemsEnabled: true,
                 itemFrequency: (int)ChronalOrbFrequency.High,
                 hazardsEnabled: true,
@@ -484,7 +484,7 @@ public class FighterStageGeometryTests {
     [TestCase]
     public void FlorenceHazardsSpawnOnAuthoredAnchorsOnly() {
         FighterMatchRules rules = new(
-            (int)MatchMode.Hybrid,
+            (int)MatchMode.Stock,
             itemsEnabled: false,
             itemFrequency: 0,
             hazardsEnabled: true,
@@ -505,7 +505,7 @@ public class FighterStageGeometryTests {
     [TestCase]
     public void FlorenceOrbsSpawnOnAuthoredAnchorsOnly() {
         FighterMatchRules rules = new(
-            (int)MatchMode.Hybrid,
+            (int)MatchMode.Stock,
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: false,

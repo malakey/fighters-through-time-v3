@@ -64,7 +64,7 @@ namespace FTT.FighterSim {
             _simulation.AddSystem(new FighterZoneSystem(), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterHazardSystem(geometry), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterOrbSystem(geometry), SystemPhase.PostUpdate);
-            _simulation.AddSystem(new FighterMatchSystem(), SystemPhase.LateUpdate);
+            _simulation.AddSystem(new FighterMatchSystem(geometry), SystemPhase.LateUpdate);
             _simulation.Initialize();
         }
 
@@ -168,21 +168,27 @@ namespace FTT.FighterSim {
 
         /// <summary>
         /// Package 11 A9b: the exact historical position Echo Step would restore
-        /// for <paramref name="playerID"/>, read through the movement system's
-        /// own ring accessor rather than a second copy of the resolution rule.
-        /// The F19 CPU policy has to check that destination against current
-        /// geometry and pit risk before it may select the action.
+        /// for <paramref name="playerID"/>, read through the shared ring accessor
+        /// rather than a second copy of the resolution rule. The F19 CPU policy has
+        /// to check that destination against current geometry and pit risk before it
+        /// may select the action.
+        ///
+        /// <para>Package 11 A1c re-pointed this at the V7.6 31-sample bank. Two
+        /// things changed for the CPU: the answer is now the <b>exact</b> t-30
+        /// sample rather than the retired ring's 24-to-30-frames-ago approximation,
+        /// and it returns <b>false</b> while a history generation is still filling,
+        /// so the CPU stops proposing a destination that does not exist yet.</para>
         /// </summary>
         public bool TryGetEchoStepDestination(int playerID, out FPVector2 destination) {
-            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterEchoRingComponent>();
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterEchoStepRing0Component>();
             while (filter.Next(out EntityRef entity)) {
-                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                ref readonly FighterStateComponent fighter =
+                    ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
                 if (fighter.PlayerID != playerID) continue;
-                destination = FighterMovementSystem.OldestRingSample(
-                    _simulation.Frame.GetReadOnly<FighterEchoRingComponent>(entity));
-                return true;
+                Frame frame = _simulation.Frame;
+                return FighterEchoStepHistory.TryGetLookback(ref frame, entity, out destination);
             }
-            destination = default;
+            destination = FPVector2.Zero;
             return false;
         }
 
@@ -223,6 +229,34 @@ namespace FTT.FighterSim {
 
         public FighterMatchComponent GetMatchState() =>
             _simulation.Frame.GetReadOnlySingleton<FighterMatchComponent>();
+
+        /// <summary>
+        /// F22 phase identity and the frozen regulation stocks-lost totals
+        /// (Package 11 A1c). Restored atomically with the match state, so a result
+        /// built from both is the committed one.
+        /// </summary>
+        public FighterSuddenDeathComponent GetSuddenDeathState() =>
+            _simulation.Frame.GetReadOnlySingleton<FighterSuddenDeathComponent>();
+
+        /// <summary>
+        /// The V7.6 Echo Step history head for a player: head slot, newest tick,
+        /// valid-sample count, generation and the armed activation. Exposed for the
+        /// determinism suites, which have to prove the ring is one sample per tick
+        /// and survives a snapshot round trip.
+        /// </summary>
+        public bool TryGetEchoStepRing(int playerID, out FighterEchoStepRing0Component ring) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterEchoStepRing0Component>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter =
+                    ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID == playerID) {
+                    ring = _simulation.Frame.GetReadOnly<FighterEchoStepRing0Component>(entity);
+                    return true;
+                }
+            }
+            ring = default;
+            return false;
+        }
 
         public int ProjectileCount => CountComponents<FighterProjectileComponent>();
         public int PersistentObjectCount => CountComponents<FighterPersistentObjectComponent>();

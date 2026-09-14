@@ -79,7 +79,7 @@ namespace FTT.FighterSim {
         public readonly int PreMatchCountdownFrames;
 
         public FighterMatchRules(bool itemsEnabled, int itemFrequency, bool hazardsEnabled, int hazardFrequency)
-            : this(2, itemsEnabled, itemFrequency, hazardsEnabled, hazardFrequency, 1, 0) { }
+            : this((int)FTT.Core.MatchMode.Stock, itemsEnabled, itemFrequency, hazardsEnabled, hazardFrequency, 1, 0) { }
 
         public FighterMatchRules(int matchMode, bool itemsEnabled, int itemFrequency, bool hazardsEnabled, int hazardFrequency)
             : this(matchMode, itemsEnabled, itemFrequency, hazardsEnabled, hazardFrequency, 1, 0) { }
@@ -119,7 +119,14 @@ namespace FTT.FighterSim {
             StageHazardTypeID,
             preMatchCountdownFrames);
 
-        public static FighterMatchRules Disabled => new(2, false, 0, false, 0);
+        /// <summary>
+        /// Items and hazards off. F21 (Package 11 A1c): the mode is explicit Stock
+        /// now — it used to be the literal <c>2</c>, the retired Hybrid ordinal,
+        /// which only worked because <c>FighterMatchSystem.Update</c> carried a
+        /// silent <c>_ =&gt;</c> default arm. That arm is gone.
+        /// </summary>
+        public static FighterMatchRules Disabled =>
+            new((int)FTT.Core.MatchMode.Stock, false, 0, false, 0);
     }
 
     public readonly struct FighterLoadout {
@@ -501,6 +508,34 @@ namespace FTT.FighterSim {
         // --- Ledge V7 (consumed by the ledge-trump PR; snapshotted with the rest) ---
         /// <summary>Ledge grabs taken since the fighter was last grounded.</summary>
         public int LedgeGrabsThisAirtime;
+        /// <summary>
+        /// F23 (Package 11 A1c): the grab partner and the once-only throw-damage
+        /// guard, packed into this component's <b>last</b> four bytes. The partner
+        /// used to be resolved positionally by the two-fighter systems and the
+        /// throw had no guard beyond the phase machine; both are explicit snapshot
+        /// state now. Read and write through <see cref="GrabPartnerPlayerID"/> and
+        /// <see cref="ThrowDamageApplied"/>, never through this field. Packing
+        /// rather than two ints is forced: 19 ints + 6 FP64 was 124 B and Klotho's
+        /// per-component budget is 128 (plan §2.7).
+        /// </summary>
+        private int _grabPartnerState;
+
+        /// <summary>Player ID this fighter is grabbing or held by; -1 when unattached.</summary>
+        public int GrabPartnerPlayerID {
+            readonly get => (_grabPartnerState & 0xFF) == 0xFF ? -1 : _grabPartnerState & 0xFF;
+            set => _grabPartnerState = (_grabPartnerState & ~0xFF) | (value < 0 ? 0xFF : value & 0xFF);
+        }
+
+        /// <summary>Once-only guard: this grab's throw has already dealt its damage.</summary>
+        public bool ThrowDamageApplied {
+            readonly get => (_grabPartnerState & 0x100) != 0;
+            set => _grabPartnerState = value
+                ? _grabPartnerState | 0x100
+                : _grabPartnerState & ~0x100;
+        }
+
+        /// <summary>Clears the packed grab attachment: partner -1, throw guard down.</summary>
+        public void ClearGrabPartner() => _grabPartnerState = 0xFF;
     }
 
     /// <summary>
@@ -554,20 +589,319 @@ namespace FTT.FighterSim {
     }
 
     /// <summary>
-    /// Echo Step's per-fighter position ring (V7.1): 5 entries sampled every
-    /// 6 frames; the oldest sample approximates "30 frames ago". Snapshot state
-    /// — the ring is part of the rollback hash like everything else.
+    /// Slice 0 of the V7.6 Echo Step position ring (Package 11 A1c, plan §2.7):
+    /// samples 0..5 of the 31-sample, one-per-tick history.
+    /// <para>31 x FPVector2 is 496 bytes, so the ring cannot live in one Klotho
+    /// component; §2.7 assigns the bank IDs 313-317. Every slice is snapshot and
+    /// hash state exactly like the component it replaced (the retired ID 311
+    /// <c>FighterEchoRingComponent</c>, 5 samples every 6 frames).</para>
     /// </summary>
-    [KlothoComponent(311, MaxCount = 2)]
+    [KlothoComponent(313, MaxCount = 2)]
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
-    public partial struct FighterEchoRingComponent : IComponent {
-        public FP64 Sample0X; public FP64 Sample0Y;
-        public FP64 Sample1X; public FP64 Sample1Y;
-        public FP64 Sample2X; public FP64 Sample2Y;
-        public FP64 Sample3X; public FP64 Sample3Y;
-        public FP64 Sample4X; public FP64 Sample4Y;
-        public int RingIndex;
-        public int SampleCountdown;
+    public partial struct FighterEchoStepRing0Component : IComponent {
+        public FP64 Sample00X; public FP64 Sample00Y;
+        public FP64 Sample01X; public FP64 Sample01Y;
+        public FP64 Sample02X; public FP64 Sample02Y;
+        public FP64 Sample03X; public FP64 Sample03Y;
+        public FP64 Sample04X; public FP64 Sample04Y;
+        public FP64 Sample05X; public FP64 Sample05Y;
+        /// <summary>Next slot to overwrite, in whole-ring coordinates (0..30).</summary>
+        public int Head;
+        /// <summary>Tick ID of the newest sample. Monotonic, one per simulation tick.</summary>
+        public int LatestTick;
+        /// <summary>Real samples written since the last generation reset, capped at <see cref="FighterEchoStepRing.SampleCount"/>.</summary>
+        public int ValidCount;
+        /// <summary>Bumped on every forced relocation (spawn, respawn, stock loss, Sudden Death setup).</summary>
+        public int Generation;
+        /// <summary>
+        /// The <see cref="FighterRuntimeComponent.KnockoutsSuffered"/> value this
+        /// generation was opened at. It is how a stock loss resets the history
+        /// without <c>FighterSimulationRules.ApplyStockLoss</c> needing a
+        /// <c>Frame</c>: the sampler resets whenever the two disagree. Pure
+        /// snapshot state, so a rollback across a KO restores the same answer.
+        /// </summary>
+        public int LifeEpoch;
+        /// <summary>1 while an accepted activation's wind-up owns a locked destination.</summary>
+        public int Armed;
+        /// <summary>Tick ID the armed activation was accepted on.</summary>
+        public int ActivationTick;
+
+        /// <summary>Reads a sample by its index within this slice.</summary>
+        public readonly FPVector2 Local(int index) => index switch {
+            0 => new FPVector2(Sample00X, Sample00Y),
+            1 => new FPVector2(Sample01X, Sample01Y),
+            2 => new FPVector2(Sample02X, Sample02Y),
+            3 => new FPVector2(Sample03X, Sample03Y),
+            4 => new FPVector2(Sample04X, Sample04Y),
+            _ => new FPVector2(Sample05X, Sample05Y)
+        };
+
+        /// <summary>Writes a sample by its index within this slice.</summary>
+        public void SetLocal(int index, in FPVector2 value) {
+            switch (index) {
+                case 0: Sample00X = value.x; Sample00Y = value.y; break;
+                case 1: Sample01X = value.x; Sample01Y = value.y; break;
+                case 2: Sample02X = value.x; Sample02Y = value.y; break;
+                case 3: Sample03X = value.x; Sample03Y = value.y; break;
+                case 4: Sample04X = value.x; Sample04Y = value.y; break;
+                default: Sample05X = value.x; Sample05Y = value.y; break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Slice 1 of the V7.6 Echo Step position ring (Package 11 A1c, plan §2.7):
+    /// samples 6..11 of the 31-sample, one-per-tick history.
+    /// <para>31 x FPVector2 is 496 bytes, so the ring cannot live in one Klotho
+    /// component; §2.7 assigns the bank IDs 313-317. Every slice is snapshot and
+    /// hash state exactly like the component it replaced (the retired ID 311
+    /// <c>FighterEchoRingComponent</c>, 5 samples every 6 frames).</para>
+    /// </summary>
+    [KlothoComponent(314, MaxCount = 2)]
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public partial struct FighterEchoStepRing1Component : IComponent {
+        public FP64 Sample06X; public FP64 Sample06Y;
+        public FP64 Sample07X; public FP64 Sample07Y;
+        public FP64 Sample08X; public FP64 Sample08Y;
+        public FP64 Sample09X; public FP64 Sample09Y;
+        public FP64 Sample10X; public FP64 Sample10Y;
+        public FP64 Sample11X; public FP64 Sample11Y;
+        /// <summary>Reads a sample by its index within this slice.</summary>
+        public readonly FPVector2 Local(int index) => index switch {
+            0 => new FPVector2(Sample06X, Sample06Y),
+            1 => new FPVector2(Sample07X, Sample07Y),
+            2 => new FPVector2(Sample08X, Sample08Y),
+            3 => new FPVector2(Sample09X, Sample09Y),
+            4 => new FPVector2(Sample10X, Sample10Y),
+            _ => new FPVector2(Sample11X, Sample11Y)
+        };
+
+        /// <summary>Writes a sample by its index within this slice.</summary>
+        public void SetLocal(int index, in FPVector2 value) {
+            switch (index) {
+                case 0: Sample06X = value.x; Sample06Y = value.y; break;
+                case 1: Sample07X = value.x; Sample07Y = value.y; break;
+                case 2: Sample08X = value.x; Sample08Y = value.y; break;
+                case 3: Sample09X = value.x; Sample09Y = value.y; break;
+                case 4: Sample10X = value.x; Sample10Y = value.y; break;
+                default: Sample11X = value.x; Sample11Y = value.y; break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Slice 2 of the V7.6 Echo Step position ring (Package 11 A1c, plan §2.7):
+    /// samples 12..17 of the 31-sample, one-per-tick history.
+    /// <para>31 x FPVector2 is 496 bytes, so the ring cannot live in one Klotho
+    /// component; §2.7 assigns the bank IDs 313-317. Every slice is snapshot and
+    /// hash state exactly like the component it replaced (the retired ID 311
+    /// <c>FighterEchoRingComponent</c>, 5 samples every 6 frames).</para>
+    /// </summary>
+    [KlothoComponent(315, MaxCount = 2)]
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public partial struct FighterEchoStepRing2Component : IComponent {
+        public FP64 Sample12X; public FP64 Sample12Y;
+        public FP64 Sample13X; public FP64 Sample13Y;
+        public FP64 Sample14X; public FP64 Sample14Y;
+        public FP64 Sample15X; public FP64 Sample15Y;
+        public FP64 Sample16X; public FP64 Sample16Y;
+        public FP64 Sample17X; public FP64 Sample17Y;
+        /// <summary>Reads a sample by its index within this slice.</summary>
+        public readonly FPVector2 Local(int index) => index switch {
+            0 => new FPVector2(Sample12X, Sample12Y),
+            1 => new FPVector2(Sample13X, Sample13Y),
+            2 => new FPVector2(Sample14X, Sample14Y),
+            3 => new FPVector2(Sample15X, Sample15Y),
+            4 => new FPVector2(Sample16X, Sample16Y),
+            _ => new FPVector2(Sample17X, Sample17Y)
+        };
+
+        /// <summary>Writes a sample by its index within this slice.</summary>
+        public void SetLocal(int index, in FPVector2 value) {
+            switch (index) {
+                case 0: Sample12X = value.x; Sample12Y = value.y; break;
+                case 1: Sample13X = value.x; Sample13Y = value.y; break;
+                case 2: Sample14X = value.x; Sample14Y = value.y; break;
+                case 3: Sample15X = value.x; Sample15Y = value.y; break;
+                case 4: Sample16X = value.x; Sample16Y = value.y; break;
+                default: Sample17X = value.x; Sample17Y = value.y; break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Slice 3 of the V7.6 Echo Step position ring (Package 11 A1c, plan §2.7):
+    /// samples 18..23 of the 31-sample, one-per-tick history.
+    /// <para>31 x FPVector2 is 496 bytes, so the ring cannot live in one Klotho
+    /// component; §2.7 assigns the bank IDs 313-317. Every slice is snapshot and
+    /// hash state exactly like the component it replaced (the retired ID 311
+    /// <c>FighterEchoRingComponent</c>, 5 samples every 6 frames).</para>
+    /// </summary>
+    [KlothoComponent(316, MaxCount = 2)]
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public partial struct FighterEchoStepRing3Component : IComponent {
+        public FP64 Sample18X; public FP64 Sample18Y;
+        public FP64 Sample19X; public FP64 Sample19Y;
+        public FP64 Sample20X; public FP64 Sample20Y;
+        public FP64 Sample21X; public FP64 Sample21Y;
+        public FP64 Sample22X; public FP64 Sample22Y;
+        public FP64 Sample23X; public FP64 Sample23Y;
+        /// <summary>Reads a sample by its index within this slice.</summary>
+        public readonly FPVector2 Local(int index) => index switch {
+            0 => new FPVector2(Sample18X, Sample18Y),
+            1 => new FPVector2(Sample19X, Sample19Y),
+            2 => new FPVector2(Sample20X, Sample20Y),
+            3 => new FPVector2(Sample21X, Sample21Y),
+            4 => new FPVector2(Sample22X, Sample22Y),
+            _ => new FPVector2(Sample23X, Sample23Y)
+        };
+
+        /// <summary>Writes a sample by its index within this slice.</summary>
+        public void SetLocal(int index, in FPVector2 value) {
+            switch (index) {
+                case 0: Sample18X = value.x; Sample18Y = value.y; break;
+                case 1: Sample19X = value.x; Sample19Y = value.y; break;
+                case 2: Sample20X = value.x; Sample20Y = value.y; break;
+                case 3: Sample21X = value.x; Sample21Y = value.y; break;
+                case 4: Sample22X = value.x; Sample22Y = value.y; break;
+                default: Sample23X = value.x; Sample23Y = value.y; break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Slice 4 of the V7.6 Echo Step position ring (Package 11 A1c, plan §2.7):
+    /// samples 24..30 of the 31-sample, one-per-tick history.
+    /// <para>31 x FPVector2 is 496 bytes, so the ring cannot live in one Klotho
+    /// component; §2.7 assigns the bank IDs 313-317. Every slice is snapshot and
+    /// hash state exactly like the component it replaced (the retired ID 311
+    /// <c>FighterEchoRingComponent</c>, 5 samples every 6 frames).</para>
+    /// </summary>
+    [KlothoComponent(317, MaxCount = 2)]
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public partial struct FighterEchoStepRing4Component : IComponent {
+        public FP64 Sample24X; public FP64 Sample24Y;
+        public FP64 Sample25X; public FP64 Sample25Y;
+        public FP64 Sample26X; public FP64 Sample26Y;
+        public FP64 Sample27X; public FP64 Sample27Y;
+        public FP64 Sample28X; public FP64 Sample28Y;
+        public FP64 Sample29X; public FP64 Sample29Y;
+        public FP64 Sample30X; public FP64 Sample30Y;
+        /// <summary>Reads a sample by its index within this slice.</summary>
+        public readonly FPVector2 Local(int index) => index switch {
+            0 => new FPVector2(Sample24X, Sample24Y),
+            1 => new FPVector2(Sample25X, Sample25Y),
+            2 => new FPVector2(Sample26X, Sample26Y),
+            3 => new FPVector2(Sample27X, Sample27Y),
+            4 => new FPVector2(Sample28X, Sample28Y),
+            5 => new FPVector2(Sample29X, Sample29Y),
+            _ => new FPVector2(Sample30X, Sample30Y)
+        };
+
+        /// <summary>Writes a sample by its index within this slice.</summary>
+        public void SetLocal(int index, in FPVector2 value) {
+            switch (index) {
+                case 0: Sample24X = value.x; Sample24Y = value.y; break;
+                case 1: Sample25X = value.x; Sample25Y = value.y; break;
+                case 2: Sample26X = value.x; Sample26Y = value.y; break;
+                case 3: Sample27X = value.x; Sample27Y = value.y; break;
+                case 4: Sample28X = value.x; Sample28Y = value.y; break;
+                case 5: Sample29X = value.x; Sample29Y = value.y; break;
+                default: Sample30X = value.x; Sample30Y = value.y; break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whole-ring addressing for the V7.6 Echo Step position history (Package 11
+    /// A1c). The bank is five Klotho components (IDs 313-317) holding
+    /// <see cref="SampleCount"/> = 31 consecutive per-tick position samples; this
+    /// class is the only place that knows how a whole-ring slot maps onto a slice,
+    /// so no consumer ever has to.
+    ///
+    /// <para>Why 31 and not 30: the newest sample is written at the START of tick
+    /// <c>t</c>, before action input and movement, so <c>t - 30</c> must survive
+    /// that write. 31 slots is the smallest ring where it does.</para>
+    /// </summary>
+    public static class FighterEchoStepRing {
+        /// <summary>Consecutive per-tick samples retained: t, t-1, ... t-30.</summary>
+        public const int SampleCount = 31;
+
+        /// <summary>Samples in slices 0-3; slice 4 holds the remaining seven.</summary>
+        private const int SliceStride = 6;
+
+        /// <summary>Reads whole-ring slot <paramref name="slot"/> (0..30).</summary>
+        public static FPVector2 Read(
+            in FighterEchoStepRing0Component slice0,
+            in FighterEchoStepRing1Component slice1,
+            in FighterEchoStepRing2Component slice2,
+            in FighterEchoStepRing3Component slice3,
+            in FighterEchoStepRing4Component slice4,
+            int slot) {
+            int wrapped = Wrap(slot);
+            return wrapped switch {
+                < SliceStride => slice0.Local(wrapped),
+                < SliceStride * 2 => slice1.Local(wrapped - SliceStride),
+                < SliceStride * 3 => slice2.Local(wrapped - SliceStride * 2),
+                < SliceStride * 4 => slice3.Local(wrapped - SliceStride * 3),
+                _ => slice4.Local(wrapped - SliceStride * 4)
+            };
+        }
+
+        /// <summary>Writes whole-ring slot <paramref name="slot"/> (0..30).</summary>
+        public static void Write(
+            ref FighterEchoStepRing0Component slice0,
+            ref FighterEchoStepRing1Component slice1,
+            ref FighterEchoStepRing2Component slice2,
+            ref FighterEchoStepRing3Component slice3,
+            ref FighterEchoStepRing4Component slice4,
+            int slot,
+            in FPVector2 value) {
+            int wrapped = Wrap(slot);
+            if (wrapped < SliceStride) slice0.SetLocal(wrapped, in value);
+            else if (wrapped < SliceStride * 2) slice1.SetLocal(wrapped - SliceStride, in value);
+            else if (wrapped < SliceStride * 3) slice2.SetLocal(wrapped - SliceStride * 2, in value);
+            else if (wrapped < SliceStride * 4) slice3.SetLocal(wrapped - SliceStride * 3, in value);
+            else slice4.SetLocal(wrapped - SliceStride * 4, in value);
+        }
+
+        /// <summary>Non-negative modulo; the ring index is never allowed to go negative.</summary>
+        public static int Wrap(int slot) {
+            int wrapped = slot % SampleCount;
+            return wrapped < 0 ? wrapped + SampleCount : wrapped;
+        }
+    }
+
+    /// <summary>
+    /// F22 Sudden Death phase state (Package 11 A1c, plan §2.7 ID 319). A
+    /// singleton beside <see cref="FighterMatchComponent"/> holding the pieces the
+    /// contract requires to be committed <em>with</em> the phase transition:
+    /// the phase generation (so a late regulation event is discarded by identity
+    /// rather than by timing), the frozen regulation stocks-lost totals, and the
+    /// per-fighter once-only respawn-HP grant.
+    ///
+    /// <para>The Defy disable is deliberately <b>not</b> stored here: it is derived
+    /// from <see cref="FighterMatchComponent.SuddenDeathActive"/> at the read site,
+    /// so nothing can restore a stale copy of it.</para>
+    /// </summary>
+    [KlothoComponent(319)]
+    [KlothoSingletonComponent]
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public partial struct FighterSuddenDeathComponent : IComponent {
+        /// <summary>
+        /// Bumped once on entry. Zero means regulation has never ended; every
+        /// gameplay event carries no generation of its own, so this is read as
+        /// "the phase identity the match is currently in".
+        /// </summary>
+        public int PhaseGeneration;
+        /// <summary>Player one's regulation stocks-lost total, frozen at entry.</summary>
+        public int FrozenPlayerOneStocksLost;
+        /// <summary>Player two's regulation stocks-lost total, frozen at entry.</summary>
+        public int FrozenPlayerTwoStocksLost;
+        /// <summary>1 once player one's dead-entry respawn HP has been granted (F22 Option A: exactly once).</summary>
+        public int PlayerOneRespawnHPGranted;
+        /// <summary>1 once player two's dead-entry respawn HP has been granted.</summary>
+        public int PlayerTwoRespawnHPGranted;
     }
 
     /// <summary>
@@ -618,8 +952,20 @@ namespace FTT.FighterSim {
         public int StageHazardTypeID;
         public int NextOrbSpawnFrames;
         public int NextHazardSpawnFrames;
-        public int PlayerOneKOs;
-        public int PlayerTwoKOs;
+        /// <summary>
+        /// F21 (Package 11 A1c): stocks player one has <b>lost</b>, every cause.
+        /// The field it replaces (<c>PlayerOneKOs</c>) counted KOs player one
+        /// SCORED, and the Time-mode winner test read it as "most KOs scored
+        /// wins" — the opposite bookkeeping to the contract. Fed from the victim's
+        /// own <see cref="FighterRuntimeComponent.KnockoutsSuffered"/> through the
+        /// single chokepoint <c>FighterSimulationRules.ApplyStockLoss</c>, so
+        /// every cause (opponent damage, pit, hazard, self-KO, DoT, a surviving
+        /// projectile or construct) increments it exactly once, atomically with
+        /// the living-to-KO transition and before respawn.
+        /// </summary>
+        public int PlayerOneStocksLost;
+        /// <inheritdoc cref="PlayerOneStocksLost"/>
+        public int PlayerTwoStocksLost;
         public int LastPlayerOneKnockoutsSuffered;
         public int LastPlayerTwoKnockoutsSuffered;
         /// <summary>Frames left in the pre-match 3-2-1 countdown while MatchState is 0.</summary>

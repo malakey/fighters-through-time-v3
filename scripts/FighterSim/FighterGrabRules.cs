@@ -32,12 +32,36 @@ namespace FTT.FighterSim {
 
         private const int BasicButton = 1 << 2;
         private const int BlockButton = 1 << 6;
+        /// <summary>C01c logical Grab request (direct bind or enabled chord).</summary>
+        private const int GrabButton = 1 << 13;
+        /// <summary>C01c "chords are off on the originating device"; see GameplayButtons.DirectOrigin.</summary>
+        private const int DirectOriginButton = 1 << 14;
         private static readonly FP64 GrabReach = FP64.FromDouble(FTT.Combat.BasicComboRules.GrabReachUnits);
         private static readonly FP64 ClashPushSpeed = FP64.FromInt(3);
 
-        /// <summary>The chord: BasicAttack pressed while Block is held.</summary>
+        /// <summary>The preset chord: BasicAttack pressed while Block is held.</summary>
         public static bool ChordPressed(in FighterRuntimeComponent runtime) =>
             (runtime.PressedButtons & BasicButton) != 0 && (runtime.HeldButtons & BlockButton) != 0;
+
+        /// <summary>
+        /// C01c (Package 11 A1c): whether this tick requests a grab, from
+        /// <b>either</b> route — the direct <c>gameplay_grab</c> bind or the
+        /// Block+BasicAttack preset chord — deduplicated to one request per actor
+        /// per tick.
+        ///
+        /// <para>Neither route synthesizes a component press, and the direct bind
+        /// grants no extra priority, cancel, leniency or resource bypass: it is the
+        /// same verb, asked for a different way. When the originating machine has
+        /// its chords switched off it sets
+        /// <see cref="FTT.Core.GameplayButtons.DirectOrigin"/>, and the chord route
+        /// is skipped here — which is what stops a peer re-recognizing a remote
+        /// chord with its own shortcut settings.</para>
+        /// </summary>
+        public static bool Requested(in FighterRuntimeComponent runtime) {
+            if ((runtime.PressedButtons & GrabButton) != 0) return true;
+            if ((runtime.HeldButtons & DirectOriginButton) != 0) return false;
+            return ChordPressed(in runtime);
+        }
 
         /// <summary>A fighter occupied by any part of the grab/held state.</summary>
         public static bool IsBusy(in FighterVerbComponent verb) =>

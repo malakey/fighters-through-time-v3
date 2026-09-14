@@ -286,8 +286,16 @@ public class FighterTimeSystemsTests {
         }
     }
 
+    /// <summary>
+    /// F22 (Package 11 A1c) replaced the V7.1 rule this case used to pin. Two
+    /// untouched fighters tie at the buzzer and enter Sudden Death at their
+    /// <b>real HP</b> — the 1-HP clamp is retired, so the decider is the next
+    /// actual death rather than the first hit. Defy's spent flag is preserved
+    /// rather than pre-marked used: the phase disable is derived from
+    /// <c>SuddenDeathActive</c>, so entry consumes no use.
+    /// </summary>
     [TestCase]
-    public void SuddenDeathRespawnsAtOneHPAndTheFirstKnockoutDecidesIt() {
+    public void SuddenDeathStartsAtRealHPAndTheNextDeathDecidesIt() {
         var simulation = new FighterSimulation(matchSeconds: 1, rules: new FighterMatchRules(
             (int)MatchMode.Stock, false, 0, false, 0));
         int tick = 0;
@@ -296,14 +304,15 @@ public class FighterTimeSystemsTests {
         }
 
         FighterMatchComponent match = simulation.GetMatchState();
-        AssertThat(match.MatchState).IsEqual(1);
         AssertThat(match.SuddenDeathActive).IsEqual(1);
         AssertThat(match.TimerEnabled).IsEqual(0);
+        // Entry runs the shared ready countdown; the match is not Complete.
+        AssertThat(match.MatchState).IsNotEqual(FighterMatchStates.Complete);
         for (int playerID = 0; playerID < 2; playerID++) {
             AssertThat(simulation.TryGetFighter(playerID, out FighterStateComponent fighter)).IsTrue();
             AssertThat(fighter.CurrentHP)
-                .OverrideFailureMessage("Sudden Death respawns both fighters at 1 HP.")
-                .IsEqual(1);
+                .OverrideFailureMessage("F22: a living fighter keeps its real HP — the 1-HP clamp is retired.")
+                .IsEqual(fighter.MaxHP);
             AssertThat(fighter.Position.x.RawValue).IsEqual(fighter.SpawnPosition.x.RawValue);
             // V7.6 F22/F13 (Package 11 A1b): Defy is BARRED in Sudden Death
             // rather than pre-marked SPENT - the seal must be able to show
@@ -319,23 +328,31 @@ public class FighterTimeSystemsTests {
                 .IsEqual(1);
         }
 
-        // Walk player one in and land any hit: at 1 HP it is the KO, and the
-        // match resolves with a real winner — no draw.
-        for (int step = 0; step < 300 && simulation.GetMatchState().MatchState == 1; step++) {
-            AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
-            AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-            sbyte toward = target.Position.x >= attacker.Position.x ? (sbyte)127 : (sbyte)-127;
-            bool inRange = FP64.Abs(target.Position.x - attacker.Position.x) < FP64.FromInt(2);
+        // The ready countdown freezes controls for both players and discards their
+        // input, so the fall has to start after play resumes — an input spent
+        // during the countdown is simply dropped.
+        for (int step = 0; step < FighterMatchFlowRules.CountdownFrames + 2
+            && simulation.GetMatchState().MatchState != FighterMatchStates.InProgress; step++) {
             simulation.Advance(
-                Frame(tick, inRange ? (sbyte)0 : toward, inRange ? GameplayButtons.BasicAttack : GameplayButtons.None),
-                Frame(tick, 0, GameplayButtons.None));
+                Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            tick++;
+        }
+        AssertThat(simulation.GetMatchState().MatchState).IsEqual(FighterMatchStates.InProgress);
+
+        // One decisive life each: player two rides the floor out of the stage and
+        // the real death — not a first hit — resolves the match.
+        for (int step = 0; step < 600 && simulation.GetMatchState().MatchState != FighterMatchStates.Complete; step++) {
+            PlayerInputFrame falling = step == 0
+                ? Frame(tick, 0, GameplayButtons.Jump | GameplayButtons.Down)
+                : Frame(tick, 0, GameplayButtons.Down);
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), falling);
             tick++;
         }
 
         match = simulation.GetMatchState();
         AssertThat(match.MatchState)
-            .OverrideFailureMessage("The first KO must end Sudden Death.")
-            .IsEqual(2);
+            .OverrideFailureMessage("The next actual death must end Sudden Death.")
+            .IsEqual(FighterMatchStates.Complete);
         AssertThat(match.WinnerPlayerID).IsEqual(0);
         AssertThat(match.IsTrueTie).IsEqual(0);
     }

@@ -290,7 +290,7 @@ public class FighterStageNassauTests {
     [TestCase]
     public void NassauRunsIdenticallyAcrossTwoSimulationsThroughAFullMortarCycle() {
         FighterMatchRules rules = new(
-            (int)MatchMode.Hybrid,
+            (int)MatchMode.Stock,
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: true,
