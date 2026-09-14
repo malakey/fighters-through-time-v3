@@ -123,16 +123,36 @@ public class EraserDebutTriggerTests {
     }
 
     [TestCase]
-    public void TheInterimBodyIsAnAuthoredEliteAndTheEraserIDIsReserved() {
-        // A7a (Wave 2) ships resources/Enemies/eraser.tres; until then the debut
-        // runs against an authored elite that exists today, and B3 re-points all
-        // nine variants in one change.
-        AssertString(EraserDebutTrigger.EraserEnemyID).IsEqual("eraser");
-        AssertString(EraserDebutTrigger.PlaceholderEnemyID).IsEqual("chrono_guard_elite");
+    public void TheDebutSpawnsTheRealEraserNowThatA7aHasLanded() {
+        // A12 reserved this constant against a placeholder body; A7a (Wave 2)
+        // shipped the enemy and re-pointed it. The spelling is unbound_eraser, not
+        // the bare "eraser" originally reserved: two BOSSES already carry that
+        // word (tidal_eraser at L5, apex_eraser at L15), and a bare ID would make
+        // every grep and the VFX library's owner parse ambiguous against them.
+        AssertString(EraserDebutTrigger.EraserEnemyID).IsEqual("unbound_eraser");
         AssertThat(FileAccess.FileExists(
-            $"res://resources/Enemies/{EraserDebutTrigger.PlaceholderEnemyID}.tres"))
-            .OverrideFailureMessage("The interim Eraser body must be an enemy resource that exists.")
+            $"res://resources/Enemies/{EraserDebutTrigger.EraserEnemyID}.tres"))
+            .OverrideFailureMessage("The debut's enemy must be an authored resource.")
             .IsTrue();
+
+        // The DEFAULT is the real Eraser, so every Level 4A variant gets it with
+        // no per-variant change. The old interim body survives only as a
+        // documented fallback an authored scene may still select.
+        var defaultTrigger = AutoFree(new EraserDebutTrigger())!;
+        AssertString(defaultTrigger.EnemyID).IsEqual(EraserDebutTrigger.EraserEnemyID);
+        AssertString(EraserDebutTrigger.PlaceholderEnemyID).IsEqual("chrono_guard_elite");
+
+        // And it really is the elite the design describes: Story-only, 190 HP,
+        // stun resistance 0.5, with the Suppression lance and the Siphon channel.
+        var eraser = FTT.Core.AuthoredResources.Load<FTT.Enemies.EnemyData>(
+            $"res://resources/Enemies/{EraserDebutTrigger.EraserEnemyID}.tres");
+        AssertObject(eraser).IsNotNull();
+        AssertThat(eraser.Tier).IsEqual(FTT.Enemies.EnemyTier.Elite);
+        AssertThat(eraser.MaxHP).IsEqual(190);
+        AssertThat(eraser.EliteAbilities.Length).IsEqual(2);
+        AssertThat(eraser.EliteAbilities[0].AppliedStatus).IsEqual(FTT.Core.StatusType.Suppression);
+        AssertThat(eraser.EliteAbilities[1].Archetype)
+            .IsEqual(FTT.Enemies.EnemyAbilityArchetype.SiphonTether);
 
         TranslationServer.SetLocale("en");
         AssertThat(TranslationServer.Translate(EraserDebutTrigger.DebutBarkKey).ToString())

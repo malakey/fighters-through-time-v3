@@ -25,7 +25,23 @@ namespace FTT.Enemies {
         /// refreshing the authored status while a player stands inside.
         /// APPEND-ONLY enum: resources serialize the ordinal — never reorder.
         /// </summary>
-        PersistentFieldAtTarget
+        PersistentFieldAtTarget,
+        /// <summary>
+        /// V7.6 F14 (Package 11 A7a — the Eraser's Siphon Snare): a
+        /// <b>cast → attachment check → channel</b>, not a hitbox. At active-start
+        /// the executor runs ONE attachment check against the living player within
+        /// <see cref="EnemyAbilityData.PulseRadius"/> centre-to-centre with
+        /// unobstructed line of sight through authored solid cover, and on success
+        /// builds a <see cref="SiphonTetherChannel"/> that drains
+        /// <see cref="EnemyAbilityData.MeterDrainPerSecond"/> Influence points per
+        /// live second, capped at <see cref="EnemyAbilityData.MeterDrainCap"/> for
+        /// the whole cast and at <see cref="EnemyAbilityData.FieldDurationSeconds"/>
+        /// of tether. It deals no HP damage and applies no hitstun, knockback,
+        /// status, Rally echo or hitstop; the caster is stationary and cannot
+        /// attack while it maintains.
+        /// APPEND-ONLY enum: resources serialize the ordinal — never reorder.
+        /// </summary>
+        SiphonTether
     }
 
     /// <summary>Distance band a boss may select this ability from.</summary>
@@ -75,6 +91,17 @@ namespace FTT.Enemies {
         /// on standard or elite mobs; the executor ignores it for them.
         /// </summary>
         [Export] public bool IsUnblockable;
+        /// <summary>
+        /// V7.6 (Package 11 A7a): forces this ability to resolve <b>Basic-class</b>
+        /// against the block — one charge, white/yellow telegraph, circle glyph —
+        /// even when it is an elite signature ability, which
+        /// <see cref="EnemyController.BeginAttack"/> would otherwise flag
+        /// Guard-Crush implicitly. Authored on the Eraser's Null Lance because the
+        /// design is explicit that "blocking is never a trap": a suppression bolt
+        /// the stance cannot answer for one charge would make raising the shield
+        /// the wrong move. Overrides <see cref="IsGuardCrushing"/> as well.
+        /// </summary>
+        [Export] public bool ForcesBasicBlockClass;
 
         [ExportGroup("Hitbox")]
         [Export] public Vector2 HitboxSize = new(48f, 48f);
@@ -107,6 +134,20 @@ namespace FTT.Enemies {
         /// <summary>V7.3: lifetime of a PersistentFieldAtTarget zone. Additive
         /// export — older resources load the 4 s default with no schema bump.</summary>
         [Export] public float FieldDurationSeconds = 4f;
+        /// <summary>
+        /// V7.6 F14 (A7a): Influence points a <see cref="EnemyAbilityArchetype.SiphonTether"/>
+        /// drains per LIVE second of tether. Fractions are preserved — the drain is
+        /// <c>min(currentMeter, MeterDrainPerSecond × liveDeltaSeconds)</c> per tick,
+        /// never a lump sum at attachment.
+        /// </summary>
+        [Export] public float MeterDrainPerSecond = 10f;
+        /// <summary>
+        /// V7.6 F14 (A7a): the hard ceiling on Influence a single Siphon cast may
+        /// take, regardless of channel length. 10/s × 3 s = 30, so the cap and the
+        /// duration agree; the cap is authored separately so a retune of one cannot
+        /// silently move the other.
+        /// </summary>
+        [Export] public float MeterDrainCap = 30f;
 
         [ExportGroup("Presentation")]
         [Export] public Color TelegraphTint = new(1f, 0.55f, 0.2f);
@@ -154,6 +195,8 @@ namespace FTT.Enemies {
                     TeleportRangeMax >= TeleportRangeMin && TeleportRangeMax > 0f,
                 EnemyAbilityArchetype.PersistentFieldAtTarget =>
                     PulseRadius > 0f && FieldDurationSeconds > 0f,
+                EnemyAbilityArchetype.SiphonTether =>
+                    PulseRadius > 0f && FieldDurationSeconds > 0f && MeterDrainPerSecond > 0f,
                 _ => HitboxSize.X > 0f && HitboxSize.Y > 0f
             };
         }

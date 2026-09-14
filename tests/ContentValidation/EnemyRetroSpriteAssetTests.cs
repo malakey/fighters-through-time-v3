@@ -53,8 +53,11 @@ public class EnemyRetroSpriteAssetTests {
             if (data == null) issues.Add($"{path}: failed to load");
             else CheckAnimations(data.SpriteFramesResource, EnemyAnimations, path, issues);
         }
-        // 27 originals plus the V7.1 Chrono-Warden (V7 behaviour-variety elite).
-        AssertThat(inspected).IsEqual(28);
+        // 27 originals, plus the V7.1 Chrono-Warden, plus the V7.6 Eraser. The
+        // Eraser reuses tech_enforcer_frames.tres until its own art exists, which
+        // is what satisfies the six-animation contract here (the Warden reuses
+        // chrono_guard_elite_frames.tres the same way).
+        AssertThat(inspected).IsEqual(29);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 
@@ -81,8 +84,11 @@ public class EnemyRetroSpriteAssetTests {
         foreach (string root in new[] { "res://resources/Enemies/Abilities", "res://resources/Bosses/Abilities" }) {
             Walk(root, pattern, issues, ref inspected);
         }
-        // 76 originals plus the Chrono-Warden's three authored abilities.
-        AssertThat(inspected).IsEqual(79);
+        // 76 originals, plus the Chrono-Warden's three authored abilities, plus the
+        // V7.6 Eraser's three. Every authored event must RESOLVE, which is why the
+        // Eraser carries its own unbound_eraser_ability_vfx_frames.tres - reusing
+        // the tech_enforcer atlas exactly as the Warden reuses chrono_guard_elite's.
+        AssertThat(inspected).IsEqual(82);
         foreach (string fallback in new[] {
             "chrono_rioter.basic", "chrono_slasher.basic",
             "rift_phantom.basic", "shock_shield_legionnaire.basic"

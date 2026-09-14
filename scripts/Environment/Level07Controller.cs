@@ -212,6 +212,13 @@ namespace FTT.Environment {
         public const string StandardEnemyID = "laser_pistol_deckhand";
         public const string CultistEnemyID = "chrono_slasher";
         public const string EliteEnemyID = "overcharged_cannon_master";
+        /// <summary>
+        /// V7.6 (Package 11 A7a): the Eraser, salted through Levels 7-15. Not an
+        /// era enemy - it is an Unbound hunter that followed the hero here, which
+        /// is exactly why it reads wrong against a 1715 gun pier. Never authored into a room
+        /// with a Chrono-Warden before Act III (EncounterCompositionTests).
+        /// </summary>
+        public const string EraserEnemyID = "unbound_eraser";
         public const string BossResourcePath = "res://resources/Bosses/dread_admiral.tres";
 
         /// <summary>
@@ -234,7 +241,10 @@ namespace FTT.Environment {
             (CultistEnemyID, 3, new Vector2(6420f, EnemyDeckY)),
             (StandardEnemyID, 3, new Vector2(8080f, EnemyDeckY)),
             (CultistEnemyID, 3, new Vector2(8380f, EnemyDeckY)),
-            (EliteEnemyID, 3, new Vector2(8230f, EnemyDeckY))
+            (EliteEnemyID, 3, new Vector2(8230f, EnemyDeckY)),
+            // The hunter on the boarding ramp: a visored silhouette among the
+            // Ranger's crew, in nothing anyone in 1715 could have made.
+            (EraserEnemyID, 3, new Vector2(7900f, EnemyDeckY))
         };
 
         /// <summary>Three extractors, each up an off-route climb. 15 dust each, resource-owned.</summary>
@@ -248,10 +258,19 @@ namespace FTT.Environment {
         public static int EliteEnemyCount => CountOfTier(EnemyTier.Elite);
         public static int ExtractorCount => ExtractorPlacements.Length;
 
+        /// <summary>How many Erasers this level authors. Test seam for the salt rules.</summary>
+        public static int EraserCount {
+            get {
+                int total = 0;
+                foreach ((string id, int _, Vector2 _) in SpawnTable) if (id == EraserEnemyID) total++;
+                return total;
+            }
+        }
+
         private static int CountOfTier(EnemyTier tier) {
             int total = 0;
             foreach ((string id, int _, Vector2 _) in SpawnTable) {
-                bool isElite = id == EliteEnemyID;
+                bool isElite = id == EliteEnemyID || id == EraserEnemyID;
                 if (isElite == (tier == EnemyTier.Elite)) total++;
             }
             return total;

@@ -174,10 +174,10 @@ public class Level06ContentTests {
         }
     }
 
-    // === Locked encounter economy: 10 standards / 0 elites / 1 boss / 3 extractors ===
+    // === Encounter economy: 10 standards / 1 elite (V7.6) / 1 boss / 3 extractors ===
 
     [TestCase]
-    public void TheAuthoredSpawnTableIsExactlyTenStandardsAndNoElites() {
+    public void TheAuthoredSpawnTableIsTenStandardsAndTheChronoWardenDebut() {
         var byTier = new Dictionary<EnemyTier, int>();
         var byID = new Dictionary<string, int>(StringComparer.Ordinal);
         int total = 0;
@@ -191,22 +191,31 @@ public class Level06ContentTests {
             byID[enemyID] = byID.GetValueOrDefault(enemyID) + 1;
         }
 
-        // docs/DUST_ECONOMY.md level 6 row: S=10, E=0.
-        AssertThat(total).IsEqual(10);
+        // docs/DUST_ECONOMY.md level 6 row was S=10, E=0. V7.6 (Package 11 A7a)
+        // places the Chrono-Warden here, which is the enemy's authored DEBUT under
+        // V7.1 design law ("first appearance Level 6, then salted through Levels
+        // 7-15") - a law that had never been executed: the resource, its three
+        // ability kits and its tests all existed with zero spawn sites anywhere in
+        // the campaign (recon G8). The elite row moves 0 -> 1; F05 (A10) retires
+        // the flat per-tier award this row encoded in the same wave.
+        AssertThat(total).IsEqual(11);
         AssertThat(Level06Controller.AuthoredStandardCount).IsEqual(10);
-        AssertThat(Level06Controller.AuthoredEliteCount).IsEqual(0);
+        AssertThat(Level06Controller.AuthoredEliteCount).IsEqual(1);
         AssertThat(byTier.GetValueOrDefault(EnemyTier.Standard)).IsEqual(10);
-        AssertThat(byTier.GetValueOrDefault(EnemyTier.Elite)).IsEqual(0);
+        AssertThat(byTier.GetValueOrDefault(EnemyTier.Elite)).IsEqual(1);
 
-        // Era roster: the Pompeii standard mixed with the cultist standard, nothing else.
-        AssertThat(byID.Count).IsEqual(2);
+        // Era roster: the Pompeii standard, the cultist standard, and the Warden.
+        // No Eraser: the two elites may not share a room before Act III.
+        AssertThat(byID.Count).IsEqual(3);
         AssertThat(byID["shock_shield_legionnaire"]).IsEqual(6);
         AssertThat(byID["chrono_slasher"]).IsEqual(4);
+        AssertThat(byID[Level06Controller.WardenEnemyID]).IsEqual(1);
 
-        // Per-wave concurrency must fit level_06_pool_config's standard_enemy warm 12.
+        // Per-wave concurrency must fit level_06_pool_config's standard_enemy warm
+        // 12 and elite_enemy warm 3.
         AssertThat(Level06Controller.Room1Spawns.Length).IsEqual(3);
         AssertThat(Level06Controller.Room2Spawns.Length).IsEqual(3);
-        AssertThat(Level06Controller.Room3Spawns.Length).IsEqual(4);
+        AssertThat(Level06Controller.Room3Spawns.Length).IsEqual(5);
     }
 
     [TestCase]

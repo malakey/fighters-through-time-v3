@@ -1540,3 +1540,11 @@ drill_rally_reclaim_name,Reclaim the Echo
 drill_rally_reclaim_objective,"Take the dummy's hit, then land one of your own before the echo drains away."
 drill_rally_reclaim_pass,"Reclaimed. Damage taken leaves an echo for a moment; hitting back turns it straight back into health."
 drill_rally_reclaim_fail,"The echo drained away. Answer faster - a reclaim lands only while the echo is still on the bar."
+
+
+# Package 11 A7a
+enemy_unbound_eraser_name,The Eraser
+enemy_ability_null_lance_name,Null Lance
+enemy_ability_siphon_snare_name,Siphon Snare
+enemy_ability_lance_jab_name,Lance Jab
+telegraph_siphon_tether_tooltip,"Siphon tether: drains Influence inside the ring. Block it, break line of sight, or leave the circle."

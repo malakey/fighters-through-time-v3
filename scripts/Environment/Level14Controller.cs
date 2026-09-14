@@ -293,6 +293,19 @@ namespace FTT.Environment {
         public const string DroneEnemyID = "hologram_drone";
         /// <summary>Unbound shock-trooper elite.</summary>
         public const string EliteEnemyID = "tech_enforcer";
+        /// <summary>
+        /// V7.6 (Package 11 A7a): the Eraser, salted through Levels 7-15. In the
+        /// Bastion it is finally at home - this is the factory the hunters come
+        /// out of, so the visored silhouette reads as local for the first time.
+        /// </summary>
+        public const string EraserEnemyID = "unbound_eraser";
+        /// <summary>
+        /// V7.1 design law, first actually placed in V7.6 (Package 11 A7a): the
+        /// Chrono-Warden is "salted through Levels 7-15 alongside the Tech-Enforcer"
+        /// and had never been spawned anywhere (recon G8). Act III permits it to
+        /// share a room with an Eraser; before Level 13 that pairing is forbidden.
+        /// </summary>
+        public const string WardenEnemyID = "chrono_warden";
         public const string BossResourcePath = "res://resources/Bosses/archive_prime.tres";
 
         private const float StandY = DeckY - 50f;
@@ -321,10 +334,15 @@ namespace FTT.Environment {
             (SlasherEnemyID, 3, new Vector2(7700f, StandY)),
             (DroneEnemyID, 3, new Vector2(8150f, 1220f)),
             (EliteEnemyID, 3, new Vector2(8900f, StandY)),
+            // Act III pairing, legal from Level 13 on: a Warden slowing the
+            // approach while an Eraser drains the meter that would have answered
+            // it. This is the composition the earlier levels are forbidden.
+            (WardenEnemyID, 3, new Vector2(8480f, StandY)),
             // Wave 4 - the core garrison, fought before Archive Prime reveals.
             (SlasherEnemyID, 4, new Vector2(9550f, StandY)),
             (DroneEnemyID, 4, new Vector2(9950f, 1350f)),
-            (DroneEnemyID, 4, new Vector2(10450f, 1350f))
+            (DroneEnemyID, 4, new Vector2(10450f, 1350f)),
+            (EraserEnemyID, 4, new Vector2(10150f, StandY))
         };
 
         /// <summary>
@@ -341,7 +359,14 @@ namespace FTT.Environment {
         };
 
         public static int StandardEnemyCount => CountOf(SlasherEnemyID) + CountOf(DroneEnemyID);
-        public static int EliteEnemyCount => CountOf(EliteEnemyID);
+        public static int EliteEnemyCount =>
+            CountOf(EliteEnemyID) + CountOf(EraserEnemyID) + CountOf(WardenEnemyID);
+
+        /// <summary>How many Erasers this level authors. Test seam for the salt rules.</summary>
+        public static int EraserCount => CountOf(EraserEnemyID);
+
+        /// <summary>How many Chrono-Wardens this level authors. Test seam for the salt rules.</summary>
+        public static int WardenCount => CountOf(WardenEnemyID);
 
         private static int CountOf(string enemyID) {
             int total = 0;

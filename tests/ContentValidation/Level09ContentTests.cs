@@ -223,18 +223,25 @@ public class Level09ContentTests {
             perWave[wave] = perWave.GetValueOrDefault(wave) + 1;
         }
 
-        // docs/DUST_ECONOMY.md level 9 row: S=12, E=1.
+        // docs/DUST_ECONOMY.md level 9 row was S=12, E=1. V7.6 (Package 11 A7a)
+        // adds the Chrono-Warden, whose V7.1 design law ("first appearance Level 6,
+        // then salted through Levels 7-15") had never actually been executed - the
+        // resource had zero spawn sites anywhere in the campaign. F05 (A10) retires
+        // the flat per-tier award this row encoded.
         AssertThat(byTier.GetValueOrDefault(EnemyTier.Standard)).IsEqual(12);
-        AssertThat(byTier.GetValueOrDefault(EnemyTier.Elite)).IsEqual(1);
+        AssertThat(byTier.GetValueOrDefault(EnemyTier.Elite)).IsEqual(2);
         AssertThat(Level09Controller.StandardEnemyCount).IsEqual(12);
-        AssertThat(Level09Controller.EliteEnemyCount).IsEqual(1);
+        AssertThat(Level09Controller.EliteEnemyCount).IsEqual(2);
+        AssertThat(Level09Controller.WardenCount).IsEqual(1);
 
-        // Era roster: the Berlin standard mixed with the cultist standard, plus the
-        // single Berlin elite. Nothing else.
-        AssertThat(byID.Count).IsEqual(3);
+        // Era roster: the Berlin standard mixed with the cultist standard, the
+        // single Berlin elite, and the salted Warden. Nothing else - and NO Eraser:
+        // the two may not share a level before Act III.
+        AssertThat(byID.Count).IsEqual(4);
         AssertThat(byID[Level09Controller.SentryEnemyID]).IsEqual(7);
         AssertThat(byID[Level09Controller.CultistEnemyID]).IsEqual(5);
         AssertThat(byID[Level09Controller.EliteEnemyID]).IsEqual(1);
+        AssertThat(byID[Level09Controller.WardenEnemyID]).IsEqual(1);
 
         // Concurrency must fit level_09_pool_config: standard warm 14, elite warm 4.
         AssertThat(perWave.Count).IsEqual(3);

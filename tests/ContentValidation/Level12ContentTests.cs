@@ -209,10 +209,16 @@ public class Level12ContentTests {
         AssertThat(Level12Controller.StandardEnemyCount)
             .OverrideFailureMessage("Level 12 is locked at 14 standard enemies by DUST_ECONOMY.md.")
             .IsEqual(14);
+        // V7.6 (Package 11 A7a): the Eraser is salted through Levels 7-15 on top
+        // of the pre-F05 locked row. It is an Unbound hunter, not an era enemy, and
+        // it draws its share of the required-encounter budget rather than a flat
+        // per-tier award (F05, A10) - which is why the elite count moves without
+        // the era roster changing.
         AssertThat(Level12Controller.EliteEnemyCount)
-            .OverrideFailureMessage("Level 12 is locked at 2 elites by DUST_ECONOMY.md.")
-            .IsEqual(2);
-        AssertThat(Level12Controller.SpawnTable.Length).IsEqual(16);
+            .OverrideFailureMessage("Level 12 authors 2 era elites plus 1 salted Eraser.")
+            .IsEqual(3);
+        AssertThat(Level12Controller.EraserCount).IsEqual(1);
+        AssertThat(Level12Controller.SpawnTable.Length).IsEqual(17);
         AssertThat(Level12Controller.ExtractorPlacements.Length)
             .OverrideFailureMessage("Level 12 is locked at 4 Chronal Extractors.")
             .IsEqual(4);
@@ -229,7 +235,8 @@ public class Level12ContentTests {
         foreach ((string enemyID, int wave, Vector2 _) in Level12Controller.SpawnTable) {
             AssertThat(enemyID is Level12Controller.DiggerEnemyID
                             or Level12Controller.CultistEnemyID
-                            or Level12Controller.EliteEnemyID)
+                            or Level12Controller.EliteEnemyID
+                            or Level12Controller.EraserEnemyID)
                 .OverrideFailureMessage($"'{enemyID}' is not on the Lunar roster.").IsTrue();
             AssertThat(wave >= 1 && wave <= 4).IsTrue();
         }
@@ -261,7 +268,7 @@ public class Level12ContentTests {
         var standardsPerWave = new Dictionary<int, int>();
         var elitesPerWave = new Dictionary<int, int>();
         foreach ((string enemyID, int wave, Vector2 _) in Level12Controller.SpawnTable) {
-            bool isElite = enemyID == Level12Controller.EliteEnemyID;
+            bool isElite = enemyID is Level12Controller.EliteEnemyID or Level12Controller.EraserEnemyID;
             Dictionary<int, int> table = isElite ? elitesPerWave : standardsPerWave;
             table.TryGetValue(wave, out int running);
             table[wave] = running + 1;

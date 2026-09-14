@@ -21,7 +21,7 @@ namespace FTT.Combat {
             "neural_linked_knight", "neural_mech_walker",
             "overcharged_cannon_master", "plasma_sabre_captain",
             "plasma_spear_ward", "rift_phantom", "shock_shield_legionnaire",
-            "steam_automaton", "tech_enforcer", "tesla_exo_baron",
+            "steam_automaton", "tech_enforcer", "tesla_exo_baron", "unbound_eraser",
             "vacuum_digger", "void_enforcer", "voltaic_shock_drone"
         };
 

@@ -203,6 +203,13 @@ namespace FTT.Environment {
         public const string CultistEnemyID = "chrono_slasher";
         /// <summary>Lunar era elite.</summary>
         public const string EliteEnemyID = "void_enforcer";
+        /// <summary>
+        /// V7.6 (Package 11 A7a): the Eraser, salted through Levels 7-15. Not an
+        /// era enemy - it is an Unbound hunter that followed the hero here, which
+        /// is exactly why it reads wrong against the 1969 landing pad. Never authored into a room
+        /// with a Chrono-Warden before Act III (EncounterCompositionTests).
+        /// </summary>
+        public const string EraserEnemyID = "unbound_eraser";
         public const string BossResourcePath = "res://resources/Bosses/gravity_overseer.tres";
 
         private const float StandY = SurfaceY - 50f;
@@ -232,7 +239,11 @@ namespace FTT.Environment {
             (DiggerEnemyID, 4, new Vector2(9200f, StandY)),
             (CultistEnemyID, 4, new Vector2(9450f, StandY)),
             (CultistEnemyID, 4, new Vector2(9700f, StandY)),
-            (EliteEnemyID, 4, new Vector2(9350f, StandY))
+            (EliteEnemyID, 4, new Vector2(9350f, StandY)),
+            // The Act II finale's hunter, waiting at the pad. The low-gravity
+            // room is the cruellest place to be tethered: the counterplay is to
+            // leave the circle, and here leaving anywhere takes a long arc.
+            (EraserEnemyID, 4, new Vector2(9900f, StandY))
         };
 
         /// <summary>Four extractors, each behind a real detour. 15 dust each, resource-owned.</summary>
@@ -244,7 +255,9 @@ namespace FTT.Environment {
         };
 
         public static int StandardEnemyCount => CountOf(DiggerEnemyID) + CountOf(CultistEnemyID);
-        public static int EliteEnemyCount => CountOf(EliteEnemyID);
+        public static int EliteEnemyCount => CountOf(EliteEnemyID) + CountOf(EraserEnemyID);
+        /// <summary>How many Erasers this level authors. Test seam for the salt rules.</summary>
+        public static int EraserCount => CountOf(EraserEnemyID);
 
         private static int CountOf(string enemyID) {
             int total = 0;

@@ -263,6 +263,14 @@ namespace FTT.Environment {
         /// <summary>Unbound shock-trooper standard: the Unbound's own people, dug in on the approach.</summary>
         public const string CultistEnemyID = "chrono_slasher";
         public const string EliteEnemyID = "chrono_guard_elite";
+        /// <summary>
+        /// V7.6 (Package 11 A7a): the Eraser's Act III entry. Two of them, a
+        /// scripted ambush on the arena approach, with Sarah's naming line - this
+        /// is where the hunters stop being a rumour. Level 13 is the first room
+        /// in the campaign allowed to pair an Eraser with a Chrono-Warden-class
+        /// elite, per the design's "never in the same room until Act III" rule.
+        /// </summary>
+        public const string EraserEnemyID = "unbound_eraser";
 
         /// <summary>
         /// Deliberately <b>not</b> a BossData path. Level 13 has no boss row: the
@@ -293,7 +301,12 @@ namespace FTT.Environment {
             // Wave 3 - the approach to the arena, with the level's single elite.
             (PhantomEnemyID, 3, new Vector2(5980f, 940f)),
             (CultistEnemyID, 3, new Vector2(6740f, StandY)),
-            (EliteEnemyID, 3, new Vector2(7020f, StandY))
+            (EliteEnemyID, 3, new Vector2(7020f, StandY)),
+            // V7.6 (A7a): the Eraser pair. They flank the approach rather than
+            // holding it - the Snare wants a clear line, and the whole point of
+            // the pair is that one tethers while the other closes.
+            (EraserEnemyID, 3, new Vector2(6900f, 940f)),
+            (EraserEnemyID, 3, new Vector2(7180f, StandY))
         };
 
         /// <summary>
@@ -310,7 +323,10 @@ namespace FTT.Environment {
         };
 
         public static int StandardEnemyCount => CountOf(PhantomEnemyID) + CountOf(CultistEnemyID);
-        public static int EliteEnemyCount => CountOf(EliteEnemyID);
+        public static int EliteEnemyCount => CountOf(EliteEnemyID) + CountOf(EraserEnemyID);
+
+        /// <summary>How many Erasers this level authors. Test seam for the salt rules.</summary>
+        public static int EraserCount => CountOf(EraserEnemyID);
 
         private static int CountOf(string enemyID) {
             int total = 0;

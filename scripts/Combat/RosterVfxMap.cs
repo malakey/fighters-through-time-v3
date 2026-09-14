@@ -77,7 +77,12 @@ namespace FTT.Combat {
                 "bolt", "bolts", "arrow", "arrows", "volley", "salvo", "barrage",
                 "mortar", "shell", "grapeshot", "spread", "shard", "rocket",
                 "javelin", "flintlock", "dagger", "beam", "grid", "rifle",
-                "cannon", "autocannon", "laser", "gatling"
+                "cannon", "autocannon", "laser", "gatling",
+                // V7.6 (A7a) the Eraser. "null" sits here, AHEAD of Slash's
+                // "lance", so null_lance reads as the slow visible bolt it is
+                // rather than as a swung weapon; the Siphon Snare's tether is a
+                // sustained line between two points, which is the Beam read.
+                "null", "snare", "siphon", "tether"
             }),
             // Things swung or thrust at contact range.
             (VfxEffectFamily.Slash, new[] {

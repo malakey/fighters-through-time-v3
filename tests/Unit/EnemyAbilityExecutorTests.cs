@@ -447,6 +447,104 @@ public class EnemyAbilityExecutorTests {
         Cleanup(owner, ability);
     }
 
+    // === V7.6 F14 (Package 11 A7a): the Null Lance's Basic-class override ===
+
+    [TestCase]
+    public void TheNullLanceCarriesSuppressionOntoItsProjectileAndStaysBasicClass() {
+        (PoolManager pools, Node parent) = CreatePools();
+        (Node2D owner, EnemyAbilityExecutor executor, _, _) = CreateSubject(parent);
+        var lance = FTT.Core.AuthoredResources.Load<EnemyAbilityData>(
+            "res://resources/Enemies/Abilities/unbound_eraser/null_lance.tres");
+        try {
+            // Basic-class means the caller passes guardCrush: false even though
+            // this is an elite signature ability - EnemyController.ResolveGuardCrush
+            // is what makes that decision, and it is pinned in EnemyControllerTests.
+            executor.Begin(lance, owner.GlobalPosition + new Vector2(200f, 0f),
+                facingRight: true, guardCrush: false, unblockable: false);
+            for (int frame = 0; frame < lance.TelegraphFrames; frame++) executor.Tick(1f / 60f);
+            AssertThat(executor.Phase).IsEqual(EnemyAbilityPhase.Active);
+
+            EnemyProjectile bolt = null;
+            Godot.Collections.Array<Node> children = parent.GetChildren();
+            using var childrenLifetime = children.AsDisposable();
+            foreach (Node child in children) if (child is EnemyProjectile found) { bolt = found; break; }
+            AssertObject(bolt)
+                .OverrideFailureMessage("The Null Lance must put a real pooled bolt on the field.")
+                .IsNotNull();
+
+            var hitbox = bolt.GetNode<FTT.Combat.Hitbox>("Hitbox");
+            AssertThat(hitbox.AppliedStatus)
+                .OverrideFailureMessage("The lance's whole point is the Suppression rider.")
+                .IsEqual(StatusType.Suppression);
+            AssertFloat(hitbox.StatusDuration).IsEqual(2f);
+            // Basic class costs ONE charge: BlockChargeCost 0 defers to the class
+            // default, which BlockRules.ChargeCost resolves to 1 for Basic.
+            AssertThat(hitbox.BlockChargeCost)
+                .OverrideFailureMessage("A Guard-Crush lance would author 2 here; Basic defers to the class.")
+                .IsEqual(0);
+            AssertThat(FTT.Combat.BlockRules.ChargeCost(hitbox.AttackClass, 3)).IsEqual(1);
+            AssertThat(hitbox.Unblockable).IsFalse();
+        } finally {
+            owner.Free();
+            CleanupPools(pools, parent);
+        }
+    }
+
+    [TestCase]
+    public void ABasicClassTelegraphDrawsTheWhiteYellowCircleNotTheGuardCrushDiamond() {
+        (Node2D owner, EnemyAbilityExecutor executor, _, AnimatedSprite2D sprite) = CreateSubject();
+        var lance = FTT.Core.AuthoredResources.Load<EnemyAbilityData>(
+            "res://resources/Enemies/Abilities/unbound_eraser/null_lance.tres");
+        try {
+            executor.SetBaseModulate(Colors.White);
+            executor.Begin(lance, owner.GlobalPosition + new Vector2(200f, 0f),
+                facingRight: true, guardCrush: false, unblockable: false);
+
+            // Shape channel: the promise reads without colour vision.
+            AssertObject(executor.Glyph).IsNotNull();
+            AssertThat(executor.Glyph.Shape).IsEqual(TelegraphGlyphShape.Basic);
+            AssertThat(executor.Glyph.Accent)
+                .OverrideFailureMessage("Only the Siphon Snare carries the tether accent.")
+                .IsEqual(TelegraphGlyphAccent.None);
+
+            // Colour channel: the authored cold-white tint, inside the Basic
+            // white/yellow family rather than the Guard-Crush orange.
+            AssertThat(sprite.Modulate).IsEqual(lance.TelegraphTint);
+            AssertThat(sprite.Modulate.B >= 0.8f && sprite.Modulate.R >= 0.8f)
+                .OverrideFailureMessage($"The lance tip is cold-white; {sprite.Modulate} is not.")
+                .IsTrue();
+            AssertThat(EnemyAbilityExecutor.ResolveGlyphShape(guardCrush: true, unblockable: false))
+                .IsEqual(TelegraphGlyphShape.GuardCrush);
+        } finally {
+            owner.Free();
+        }
+    }
+
+    [TestCase]
+    public void TheSiphonTelegraphAddsATetherAccentAndDrawsItsThreeUnitBoundary() {
+        (Node2D owner, EnemyAbilityExecutor executor, _, _) = CreateSubject();
+        var snare = FTT.Core.AuthoredResources.Load<EnemyAbilityData>(
+            "res://resources/Enemies/Abilities/unbound_eraser/siphon_snare.tres");
+        try {
+            executor.Begin(snare, owner.GlobalPosition, facingRight: true);
+
+            // The accent is ADDITIVE: the Basic circle stays, because a shield
+            // still answers the cast for one charge.
+            AssertObject(executor.Glyph).IsNotNull();
+            AssertThat(executor.Glyph.Shape).IsEqual(TelegraphGlyphShape.Basic);
+            AssertThat(executor.Glyph.Accent).IsEqual(TelegraphGlyphAccent.Tether);
+            AssertFloat(executor.Glyph.BoundaryRadiusPixels)
+                .OverrideFailureMessage("The telegraph must draw the real 3-unit attachment circle.")
+                .IsEqual(snare.PulseRadius);
+
+            // And it clears with the telegraph rather than lingering.
+            executor.Cancel();
+            AssertThat(executor.Glyph.Visible).IsFalse();
+        } finally {
+            owner.Free();
+        }
+    }
+
     // === Helpers ===
 
     private static EnemyAbilityData MeleeAbility(int telegraph, int active, int recovery) => new() {

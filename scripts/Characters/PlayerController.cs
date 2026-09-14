@@ -3515,5 +3515,67 @@ namespace FTT.Characters {
 				? FTT.Combat.BasicComboRules.ConductiveMarkUpgradedFrames
 				: frames;
 		}
+
+		// === Package 11 A7a (V7.6 F14): the non-damaging block entry point ====
+
+		/// <summary>
+		/// Whether the roll's opening invulnerability window is live. Exposed
+		/// because the Siphon Snare's break list names roll i-frames explicitly:
+		/// rolling through a tether severs it before the next drain tick.
+		/// </summary>
+		public bool IsRollInvulnerable => _rollInvulnerable;
+
+		/// <summary>
+		/// Absorbs a cast that is <b>not a hit</b> — no HP damage, no hitstun, no
+		/// knockback, no hitstop — with the ordinary Basic block response. The
+		/// Eraser's Siphon Snare is the only caller today.
+		///
+		/// <para><see cref="FTT.Combat.BlockSystem.ResolveHit"/> assumes a damaging
+		/// hit, so this builds a zero-damage Basic-class payload and routes it
+		/// through the same rules rather than reimplementing them: the grounded
+		/// stance (only <see cref="CharacterState.Blocking"/> reaches here, and the
+		/// stance cannot rise airborne, at zero charges, or under a shatter
+		/// lockout), the front-facing test, one charge spent, shieldstun on a
+		/// non-shatter absorb, and the normal shatter when it was the last charge.
+		/// Distinct-block perks — Henry's Bastion inside the block system, Shield
+		/// of Orleans here — fire exactly once through the existing execution
+		/// dedup. Because the payload's damage is zero, nothing downstream can
+		/// chip HP.</para>
+		///
+		/// <para>Returns <see cref="FTT.Combat.BlockResult.NotBlocked"/> when the
+		/// stance was not up, faced the wrong way, or had nothing left to spend —
+		/// the caller then proceeds as if no block existed.</para>
+		/// </summary>
+		public FTT.Combat.BlockResult TryAbsorbNonDamagingCast(
+			Vector2 castOrigin, string attackID, string hitboxID) {
+			if (CurrentState != CharacterState.Blocking || _blockSystem == null) {
+				return FTT.Combat.BlockResult.NotBlocked;
+			}
+			var cast = new FTT.Combat.HitPayload {
+				AttackerIndex = -1,
+				TargetIndex = PlayerIndex,
+				AttackID = attackID ?? "",
+				HitboxID = hitboxID ?? "",
+				AttackClass = FTT.Combat.AttackClass.Basic,
+				Damage = 0f,
+				Knockback = Vector2.Zero,
+				HitstunDuration = 0f,
+				HitOrigin = castOrigin,
+				AttackerFacingRight = castOrigin.X <= GlobalPosition.X,
+				AppliedStatus = FTT.Core.StatusType.None,
+				BlockChargeCost = 1,
+				// Never a hit, so never a freeze — the construct/DoT exemption
+				// covers exactly this shape of contact.
+				ExemptFromHitstop = true
+			};
+			FTT.Combat.BlockResult result = _blockSystem.ResolveHit(cast);
+			CurrentBlockCharges = _blockSystem.CurrentCharges;
+			if (result == FTT.Combat.BlockResult.NotBlocked) return result;
+			if (HasStoryPerk(ShieldOfOrleansPerkKey)) ApplyShieldOfOrleans(cast, result);
+			if (result == FTT.Combat.BlockResult.Blocked) {
+				FTT.Core.HapticFeedbackManager.Instance?.OnGuardImpact(PlayerIndex);
+			}
+			return result;
+		}
 	}
 }
