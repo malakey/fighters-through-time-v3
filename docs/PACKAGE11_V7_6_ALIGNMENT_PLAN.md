@@ -5881,3 +5881,86 @@ line-ending churn that import produced was reverted too and is not in the commit
 **expected-to-fail-until-import** against the committed tree.
 **Test delta: +40**, exactly the dossier's figure — 7 new suites (+34) and 2 extended (+6), with
 `LevelAttemptPersistenceTests` (4 cases) and the `Level15ContentTests` fixture rewritten in place at ±0.
+### A11 — Calibration Drills: the standalone route, the shared drill scene, and six scripted lessons (2026-09-13)
+
+**A drill's reset is a rebuilt sandbox, not a write into the simulation.** F18 requires each drill to
+"supply and reset only the resources its scripted lesson needs, on start **and** on retry", and the
+deterministic simulation deliberately exposes no external state-write seam (`FighterSimulation` offers
+`CaptureFullState`/`RestoreFullState`, which nothing in the repository has ever exercised, and
+`scripts/FighterSim/` is outside A11's ownership). `CalibrationDrillRunner.StartDrill` therefore frees
+both presentation fighters and the `FighterSimulationDriver` and builds them again — the only reset
+that is correct by construction for HP, meter, shield charges, cooldowns, status, facing and position
+at once. Retry and start are literally the same code path. `DrillSceneSmokeTests.
+RetryRebuildsTheSandboxAndResetsTheAttemptAndItsResources` pins a fresh driver at tick 0 with full HP,
+zero meter and full shield charges.
+
+**Resources a lesson needs are earned in a scripted lead-in beat, not granted.** The consequence of
+the above: Echo Step costs 30 Influence and a fresh sandbox starts at zero, so drill 5 is authored as
+two beats — "charge Influence to 30 by attacking the training bag", then "fold the recovery" —
+carried by a second objective line (`ObjectiveStageTwoKey`) and `CalibrationDrillProgress.Stage`. It
+teaches the cost, which is arguably better coaching than a granted meter, but it is a deviation from
+"supplies … the resources its scripted lesson needs" and is recorded as one.
+
+**Drill 5 teaches the Echo Step the build has, not the one the design line names.** The design says
+"Echo Step a whiffed **special**"; the shipped V7.1 rule (`FighterSimulationSystems.TryStartEchoStep`)
+fires the Block+Roll chord out of the recovery frames of the fighter's own **basic** swing, hit or
+whiff. The drill's objective copy is written to the shipped rule and its pass condition is the
+neutral observable `EchoStepWindupFrames` rising from zero, so **A1c's V7.6 Echo Step rework (the
+dedicated `gameplay_echo_step` action, the exact `t−30` destination) needs no change here** — only
+`drill_echo_step_objective_two`'s wording, if the input changes.
+
+**Drill 1 passes on two blocked hits rather than on a detected hitstun escape.** "Block the string
+then escape after Hit 2" is exactly what holding Block through a string produces (V7.3: a grounded
+blocking victim escapes hitstun into the stance from hit two on), but the escape frame itself has no
+unambiguous observable — the escape sets the block stance, not a flag. The pass is therefore two
+non-shatter blocked hits, counted on the rising edge of `ShieldStunFrames`, and the *coaching* line
+names the hit-2 escape. Eating three connected hits with nothing blocked fails the attempt.
+
+**The drill scene borrows `LocalFighterPause` and the runner never touches `SceneTree.Paused`.** The
+driver attaches the pause menu, the HUD and the results screen as it does for any stage; the runner
+suspends its sandbox for the pass/fail card by setting the **driver's** `ProcessMode` to `Disabled`,
+because the card lives on its own `CanvasLayer` and must keep taking input. Pause ownership stays in
+`PauseMenuBase`, which is the only thing in the scene that writes the tree pause.
+
+**`LocalFighterPause.ExitToLobby` gained a calibration branch — a file §5.1 assigns to nobody.** A
+drill borrows that pause, and its exit is "Exit Calibration", never the Fighter character-select lobby
+the player never passed through. Three lines: a non-empty
+`SessionData.CalibrationReturnScenePath` routes to `CalibrationRoute.ExitDestination` and disarms the
+route. Every path that leaves calibration calls `CalibrationRoute.Cleared` on the way out, so an
+ordinary Fighter match afterwards still exits to the lobby and a relaunch can never resume a drill.
+
+**Route naming follows the dossier, not the orchestrator brief, where the two differ.** The brief
+names `scenes/ui/DrillList.tscn`; §4 A11's change list names `CalibrationDrillList.tscn`. The dossier
+spelling shipped, for all three scenes. The brief's test-suite names shipped instead of the dossier's:
+`CalibrationDrillsRouteTests` (8) + `CalibrationDrillScriptTests` (11) + `DrillSceneSmokeTests` (4)
+rather than `CalibrationDrillFlowTests` (8) + `CalibrationDrillContentTests` (2) — the content
+assertions live inside the pure script suite, which is where the catalog they assert lives.
+
+**Two screens' actions are split into an `Apply…ToSession` half.** `MainMenu.ArmCalibrationRoute`,
+`CalibrationDrillPicker.ApplyChoiceToSession` / `ApplyBackToSession`, `CalibrationDrillList.
+ApplyDrillToSession` / `ApplyBackToSession` / `ApplyExitToSession`, `CalibrationDrillRunner.
+ApplyExitToSession` and `HolodeckConsolePanel.ApplyCalibrationRouteToSession` all write the session
+and return a destination path without changing scene. This is the existing `HolodeckConsolePanel.
+ApplyToSession` idiom and it is not cosmetic: calling `GameManager.LoadScene` inside the GdUnit host
+hands the **runner's** current scene to a threaded load and kills the session, which is why no menu
+test presses the Fighter button either.
+
+**The dummy is a scripted bag on the Level 0 pattern, injected through `InputManager.SetInputSource`.**
+`CalibrationDrillDummyScript` is pure C# — a fixed beat schedule (approach, three swings, rest), a
+guard that never drops Block, an idle bag, and a one-hit poker — and
+`CalibrationDrillDummySource` derives real Pressed/Released edges from the previous frame, because a
+permanently-set button bit never starts a swing. The runner sets `FighterOpponentType.LocalHuman` for
+the scene's lifetime (otherwise the driver builds a CPU controller for player 1 and the script is
+never heard) and restores the previous value in `_ExitTree`.
+
+**No exit fee is possible, and the pin is behavioural.** A3 already deleted
+`SessionExitGuard.ApplyAbnormalExitFee` under ruling 2.B, so the fee has no caller at all; the hub
+route additionally never writes, clears or re-slots the session marker, which
+`CalibrationDrillsRouteTests.TheHubConsoleKeepsItsPracticeBoutAndItsDrillsEntryCostsTheCampaignNothing`
+asserts directly.
+
+**Not delivered:** a human has judged none of it — no drill has been played, so whether a scripted
+string is *learnable* at these timings (`StringSwingIntervalFrames = 20`, a 90-frame rest) is
+unverified; the drill scene's presentation is holodeck-styled placeholder geometry, not art; and the
+sandbox runs on Florence's Sealed geometry with the stage's own platforms and no hazard, which is a
+deliberate choice (a Sealed floor means no lesson can end in a pit) rather than an authored drill room.

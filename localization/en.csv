@@ -1500,3 +1500,43 @@ hold_reveal_forge_intake,"The clock was never the era's. It is the Forge's intak
 save_notice_write_failed,"Saving failed for slot {0}. The last good save was kept; progress since then is not stored."
 save_notice_legacy_recovery_required,This save predates the current attempt records. Use Restart Level to continue.
 anchor_snap_sarah_line,"It nearly had you. Your anchor held — get up."
+# Package 11 A11 - F18 Calibration Drills
+menu_calibration_drills,Calibration Drills
+holodeck_calibration_drills,Calibration Drills
+drill_picker_title,Calibration Drills
+drill_picker_hint,"Pick a legend to train with. Every kit here is the normalized Fighter loadout - no Resonance, no campaign progress, nothing to lose."
+drill_list_title,Calibration Drills
+drill_list_hint,"Six short lessons in the universal verbs. Each one is pass or fail, and you can retry as often as you like."
+drill_list_character,"Training as {0}"
+drill_progress,"Drill {0} of {1}"
+drill_retry,Retry
+drill_next,Next Drill
+drill_list_button,Drill List
+drill_exit,Exit Calibration
+drill_result_pass,Calibrated
+drill_result_fail,Not yet
+drill_block_string_name,Hold the Line
+drill_block_string_objective,"Stand your ground and hold Block. Let two of the dummy's string break on your shield."
+drill_block_string_pass,"That is the shield doing its job - and from the second hit of a string you can escape the stun straight back into it."
+drill_block_string_fail,"You ate the whole string. Block works only on the ground, and only while you hold it."
+drill_landing_tech_name,Catch the Ground
+drill_landing_tech_objective,"Let the dummy launch you, then hold Block as you hit the floor to tech the landing."
+drill_landing_tech_pass,"Clean tech. A teched landing is invulnerable and instant - it is how you refuse the follow-up."
+drill_landing_tech_fail,"You landed flat. Hold Block through the landing itself, not at the moment of the launch."
+drill_launch_di_name,Steer the Launch
+drill_launch_di_objective,"Take the dummy's finisher and hold a direction during the hit freeze. That is Directional Influence."
+drill_launch_di_pass,"You steered it. DI cannot cancel a launch, but it decides where the launch leaves you."
+drill_launch_di_fail,"You went wherever they sent you. Hold a direction during the freeze, before the launch resolves."
+drill_grab_throw_name,Break the Guard
+drill_grab_throw_objective,"The dummy is holding Block and will not drop it. Walk in, grab it, and throw."
+drill_grab_throw_pass,"Attack loses to block, block loses to grab, grab loses to attack. You just closed the triangle."
+drill_grab_throw_fail,"No throw landed. A grab is Block plus Attack, on the ground, inside jab range."
+drill_echo_step_name,Fold the Recovery
+drill_echo_step_objective,Charge Influence to 30 by attacking the training bag.
+drill_echo_step_objective_two,"Now swing, and press Block plus Roll during the recovery - Echo Step folds you back to where you stood."
+drill_echo_step_pass,"That is a swing you no longer have to finish standing still. It costs 30 Influence and will not answer again immediately."
+drill_echo_step_fail,"No step fired. It answers only out of your own swing's recovery frames, and only with 30 Influence banked."
+drill_rally_reclaim_name,Reclaim the Echo
+drill_rally_reclaim_objective,"Take the dummy's hit, then land one of your own before the echo drains away."
+drill_rally_reclaim_pass,"Reclaimed. Damage taken leaves an echo for a moment; hitting back turns it straight back into health."
+drill_rally_reclaim_fail,"The echo drained away. Answer faster - a reclaim lands only while the echo is still on the bar."

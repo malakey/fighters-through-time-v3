@@ -75,6 +75,31 @@ public class HolodeckConsoleTests {
     }
 
     [TestCase]
+    public void TheConsoleKeepsItsPracticeBoutAndGainsACalibrationDrillsEntryBesideIt() {
+        // Package 11 A11 (F18): the hub console's Calibration Drills entry is an
+        // addition, never a replacement — the CPU practice bout is the interim
+        // training mode and stays exactly where it was.
+        (Node host, HolodeckConsolePanel panel) = CreatePanel("HolodeckDrillsEntryHost");
+        try {
+            AssertThat(panel.GetNodeOrNull<Button>("Panel/Layout/LaunchButton") != null)
+                .OverrideFailureMessage("The CPU practice bout's launch button is gone")
+                .IsTrue();
+            var drills = panel.GetNodeOrNull<Button>("Panel/Layout/CalibrationDrillsButton");
+            AssertThat(drills != null)
+                .OverrideFailureMessage("The console has no Calibration Drills entry")
+                .IsTrue();
+            // Resolved copy, not a raw key: this panel is code-built, so it
+            // translates at build time rather than through control auto-translation.
+            AssertThat(drills.Text).IsNotEqual("holodeck_calibration_drills");
+            AssertThat(drills.Text.Length > 0).IsTrue();
+            // Both entries are reachable by keyboard and controller.
+            AssertThat(drills.FocusMode).IsEqual(Control.FocusModeEnum.All);
+        } finally {
+            host.Free();
+        }
+    }
+
+    [TestCase]
     public void TheBackButtonClosesWithoutTouchingTheSession() {
         GameManager gameManager = GameManager.Instance;
         AssertObject(gameManager).IsNotNull();

@@ -233,6 +233,18 @@ namespace FTT.UI {
         /// <summary>Design: exit returns local players to the Fighter character select lobby.</summary>
         private void ExitToLobby() {
             SetPaused(false);
+            // Package 11 A11 (F18): a Calibration Drill borrows this pause menu, and
+            // its exit is "Exit Calibration" — the Main Menu on the standalone
+            // route, the originating hub on the console route. Never the Fighter
+            // lobby, which a drill player never passed through to get here.
+            string calibration = GameManager.Instance?.CurrentSession.CalibrationReturnScenePath;
+            if (!string.IsNullOrWhiteSpace(calibration)) {
+                string destination = FTT.Combat.CalibrationRoute.ExitDestination(calibration);
+                GameManager.Instance.CurrentSession =
+                    FTT.Combat.CalibrationRoute.Cleared(GameManager.Instance.CurrentSession);
+                GameManager.Instance.LoadScene(destination);
+                return;
+            }
             bool holodeck = GameManager.Instance?.CurrentSession.ReturnToHubAfterFighterMatch == true;
             GameManager.Instance?.LoadScene(holodeck
                 ? "res://scenes/campaign/HubWorld.tscn"
