@@ -80,6 +80,28 @@ namespace FTT.Core {
         public int MaxHP;
     }
 
+    /// <summary>
+    /// Package 11 A7b — T01b Option A. Raised once, at the instant a boss commits
+    /// its capped historical recovery (the First Unbound's Phase 2 self-rewind).
+    /// The presentation and world-suspend layers subscribe; the boss itself already
+    /// holds its own gameplay clock for <see cref="SuspendSeconds"/>.
+    /// </summary>
+    public struct BossHistoricalRecoveryPayload {
+        public string BossID;
+        /// <summary>Where the boss stood at the locked historical tick.</summary>
+        public Vector2 HistoricalPosition;
+        /// <summary>Where it will actually arrive after destination validation.</summary>
+        public Vector2 ResolvedPosition;
+        /// <summary>True when the historical coordinate failed validation.</summary>
+        public bool UsedFallbackDestination;
+        /// <summary>HP after the triggering damage, before the heal.</summary>
+        public int HPBeforeHeal;
+        /// <summary>HP the boss resumes with; the cue shows actual recovery.</summary>
+        public int HPAfterHeal;
+        /// <summary>Combat-suspension length, the contract's 1.5 s.</summary>
+        public float SuspendSeconds;
+    }
+
     public struct BossDefeatedPayload {
         public string BossID;
         public Vector2 Position;
@@ -566,6 +588,12 @@ namespace FTT.Core {
 
         public event Action<BossDefeatedPayload> OnBossDefeated;
         public void RaiseBossDefeated(BossDefeatedPayload payload) => OnBossDefeated?.Invoke(payload);
+
+        /// <summary>Package 11 A7b (T01b): a boss committed its once-only
+        /// capped historical recovery. See <see cref="BossHistoricalRecoveryPayload"/>.</summary>
+        public event Action<BossHistoricalRecoveryPayload> OnBossHistoricalRecovery;
+        public void RaiseBossHistoricalRecovery(BossHistoricalRecoveryPayload payload) =>
+            OnBossHistoricalRecovery?.Invoke(payload);
 
         // === Match Reset ===
         public event Action OnMatchReset;

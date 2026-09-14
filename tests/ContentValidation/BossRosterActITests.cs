@@ -53,17 +53,35 @@ public class BossRosterActITests {
         }
     }
 
+    /// <summary>
+    /// Package 11 A7b (V7.6 ruling 2.E). The original 500-anchor / 500-700 band
+    /// with a strictly ascending sweep across levels 1-7 is <b>retired</b>: the
+    /// four authored V7.6 rows put 350 below that floor, 850 above its ceiling,
+    /// and 850 &gt; 640 (<c>tidal_eraser</c>, level 5) breaks ascension across the
+    /// Act I/II boundary. The four V7.6 values are pinned literally; ascension is
+    /// asserted only over the deliberately untouched Act II/III tail. Whether the
+    /// whole fifteen-boss curve should be re-tuned to the design table is the open
+    /// <c>VERIFY-BOSS-HP</c> entry in
+    /// <c>docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md</c>.
+    /// </summary>
     [TestCase]
-    public void ActIHealthPoolsStayInBandAndAscendWithTheCampaignLevel() {
-        // borgia_inquisitor (level 1) anchors the band at 500.
-        int previous = Load("borgia_inquisitor").MaxHP;
-        AssertThat(previous).IsEqual(500);
-        foreach (string bossID in ActIBosses) {
+    public void ActIHealthPoolsPinTheAuthoredV76RowsAndAscendAcrossTheUnchangedTail() {
+        AssertThat(Load("borgia_inquisitor").MaxHP).IsEqual(350);      // level 1
+        AssertThat(Load("siegemaster_duke").MaxHP).IsEqual(520);       // level 2
+        AssertThat(Load("chronal_inventor").MaxHP).IsEqual(700);       // level 3
+        AssertThat(Load("revolutionary_tribunal").MaxHP).IsEqual(850); // level 4
+
+        // Levels 5-7 keep their shipped pools and still ascend with the campaign.
+        string[] unchangedTail = { "tidal_eraser", "vulcan_decimator", "dread_admiral" };
+        int previous = 0;
+        foreach (string bossID in unchangedTail) {
             int hp = Load(bossID).MaxHP;
-            AssertThat(hp >= 500 && hp <= 700).IsTrue();
             AssertThat(hp > previous).IsTrue();
             previous = hp;
         }
+
+        // The V7.6 rows deliberately overshoot that tail — recorded, not accidental.
+        AssertThat(Load("revolutionary_tribunal").MaxHP > Load("tidal_eraser").MaxHP).IsTrue();
     }
 
     [TestCase]

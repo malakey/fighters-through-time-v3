@@ -322,6 +322,25 @@ assassin: fast melee combo, ChargeDash cross-slash, phase 2 speed up).
 | `archive_prime` | 14 Neo-Earth | 3 | Projectile patterns (laser grid), AreaPulse, SummonMinions (`hologram_drone` ×2) |
 | `apex_eraser` | 15 Alexandria | 3 | Teleport, Projectile, AreaPulse (TimeDilation), SummonMinions (`chrono_slasher` ×2); final-boss stat block |
 
+
+**V7.6 addendum (Package 11 A7b, 2026-09-13).** Two behaviours were added to `BossData` as additive
+exports, authored on `apex_eraser` alone; every other boss loads the `false` default and is
+unchanged.
+
+| Field | Boss | Behaviour |
+|---|---|---|
+| `HasHistoricalRecovery` | `apex_eraser` | T01b Option A: once per encounter, on the first **nonlethal** crossing of the first phase threshold, the boss rewinds its own position by `BossData.HistoricalRecoveryLookbackFrames` (180) and recovers toward its historical HP, capped at `HistoricalRecoveryHealCapFraction` (0.20, provisional) of its difficulty-scaled maximum; combat suspends for `HistoricalRecoverySuspendFrames` (90). Contract: `docs/design-contracts/TEMPORAL_STATE_CONTRACT.md#first-unbound-capped-historical-recovery-t01b--option-a`. |
+| `BorrowsRosterLegacies` | `apex_eraser` | V7.5 Borrowed Legacies: in its **final** phase the boss also fights with the projected Special 1 of every roster character the player did not pick. The set is built at encounter start from the content manifest (`FTT.Enemies.BorrowedLegacies`), gated through the existing `AbilityMinPhase` mechanism, and never written to disk or the manifest. |
+
+`archive_remnants.tres` (the authored `SummonMinions` P3 slot) is **retained unchanged** and the
+borrowed projections are appended alongside it, so the boss keeps a working P3 attack when the
+roster is unavailable. Its display name is already "Borrowed Legacies" in `en.csv` (A6).
+
+The two display renames are values only: `archive_prime.DisplayName` = "The Forge Sentinel" and
+`apex_eraser.DisplayName` = "The First Unbound". `BossID`, `DisplayNameKey`, every ability
+`AbilityID`/`PresentationEventID`, the manifest rows and the sprite atlas paths are all retained
+(plan §2.3).
+
 ## 5. Test plan (new/extended, all GdUnit4)
 
 - `tests/unit/EnemyControllerTests.cs`: patrol↔chase↔attack↔stunned↔dead transitions, de-aggro
@@ -533,6 +552,17 @@ London, Gettysburg, Lunar Landing, and Alexandria: 8 `EnemyData` + 9 `EnemyAbili
 5. **B4: Act I HP band is 540/560/590/640/660/700** for levels 2-7, ascending, above the
    `borgia_inquisitor` 500 anchor and inside the 500-700 band. `BossRosterActITests` pins the
    ascent and the band.
+   **Superseded in part on 2026-09-13 by Package 11 A7b (V7.6 ruling 2.E).** Four rows changed:
+   `borgia_inquisitor` 500 -> **350**, `siegemaster_duke` 540 -> **520**, `chronal_inventor`
+   560 -> **700**, `revolutionary_tribunal` 590 -> **850**. Levels 5-7 (`tidal_eraser` 640,
+   `vulcan_decimator` 660, `dread_admiral` 700) are unchanged, as is every Act II/III pool. The
+   500-anchor / 500-700 band and the single ascending sweep are therefore **retired**: 350 is below
+   that floor, 850 above its ceiling, and 850 > 640 breaks ascension across the Act I/II boundary.
+   `BossRosterActITests.ActIHealthPoolsPinTheAuthoredV76RowsAndAscendAcrossTheUnchangedTail` now
+   pins the four V7.6 values literally and asserts ascension only over the untouched L5-L7 tail.
+   Whether the whole fifteen-boss curve should move to the design table's ~2.5x scaling is the open
+   **`VERIFY-BOSS-HP`** entry in `docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md`; nothing here
+   reconciles it.
 6. **B4: 19 abilities across 6 bosses** (3 each except `revolutionary_tribunal`'s 4, which carries
    the phase-gated summon). All follow the `boss.{boss_id}.{ability}` ID convention with
    `PresentationEventID` equal to `AbilityID`, and all telegraph >= 16 frames.

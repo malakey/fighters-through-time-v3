@@ -46,7 +46,7 @@ public class MainMenuSceneTests {
 
             foreach (string button in new[] {
                          "QuickPlayButton", "StoryButton", "LevelSelectButton", "FighterButton",
-                         "SettingsButton", "QuitButton" }) {
+                         "CalibrationDrillsButton", "SettingsButton", "QuitButton" }) {
                 AssertThat(menu.GetNodeOrNull<Button>(RootLayout + button) != null)
                     .OverrideFailureMessage($"Missing authored root button {button}")
                     .IsTrue();
@@ -90,7 +90,8 @@ public class MainMenuSceneTests {
 
             foreach (string key in new[] {
                          "game_title", "menu_subtitle", "menu_quick_play", "menu_story_mode",
-                         "menu_fighter_mode", "menu_settings", "menu_quit", "save_select_title",
+                         "menu_fighter_mode", "menu_calibration_drills", "menu_settings",
+                         "menu_quit", "save_select_title",
                          "save_delete", "common_back", "story_select_character",
                          "story_select_difficulty", "menu_level_select", "dev_level_select_title" }) {
                 AssertThat(TranslationServer.Translate(key).ToString())
@@ -133,11 +134,11 @@ public class MainMenuSceneTests {
         StorySaveData[] originals = ClearAllSlots();
         MainMenu menu = Open(out Node host);
         try {
-            // Root screen: five production buttons (Quick Play, Story, Fighter,
-            // Settings, Quit) plus the debug-build developer level select (the
-            // test host is a debug build), all chained and reachable. LAN was
-            // de-scoped to Package 7 (V7.3).
-            AssertChainCoversScreen(menu, "RootScreen", 6);
+            // Root screen: six production buttons (Quick Play, Story, Fighter,
+            // Calibration Drills, Settings, Quit) plus the debug-build developer
+            // level select (the test host is a debug build), all chained and
+            // reachable. LAN was de-scoped to Package 7 (V7.3).
+            AssertChainCoversScreen(menu, "RootScreen", 7);
 
             Press(menu, RootLayout + "StoryButton");
             AssertThat(menu.CurrentScreen).IsEqual(MainMenuScreen.SlotSelect);
@@ -447,7 +448,7 @@ public class MainMenuSceneTests {
             MainMenu menu = Open(out Node host);
             try {
                 AssertThat(menu.GetNode<Button>(RootLayout + "LevelSelectButton").Visible).IsFalse();
-                AssertChainCoversScreen(menu, "RootScreen", 5);
+                AssertChainCoversScreen(menu, "RootScreen", 6);
             } finally {
                 Teardown(host);
             }
@@ -492,6 +493,32 @@ public class MainMenuSceneTests {
         } finally {
             StoryManager.Instance.ResetCampaignState(before.Difficulty);
             GameManager.Instance.CurrentSession = before;
+            RestoreSlots(originals);
+        }
+    }
+
+    [TestCase]
+    public void CalibrationDrillsSitsBetweenFighterAndSettingsAndIsAvailableWithNoStorySave() {
+        // Package 11 A11 (F18 Option B). The design's root options are Story,
+        // Fighter, Calibration Drills, Settings, Quit; the repo's Quick Play and
+        // developer Level Select are accepted extras. Position matters because the
+        // vertical order is the read order on a controller.
+        StorySaveData[] originals = ClearAllSlots();
+        MainMenu menu = Open(out Node host);
+        try {
+            var layout = menu.GetNode<VBoxContainer>("RootScreen/Center/Panel/Layout");
+            int fighter = layout.GetNode<Button>("FighterButton").GetIndex();
+            int drills = layout.GetNode<Button>("CalibrationDrillsButton").GetIndex();
+            int settings = layout.GetNode<Button>("SettingsButton").GetIndex();
+            AssertThat(drills > fighter && drills < settings)
+                .OverrideFailureMessage("Calibration Drills is not between Fighter Mode and Settings")
+                .IsTrue();
+
+            // Available on a first boot: never gated on, or disabled by, a save.
+            AssertThat(layout.GetNode<Button>("CalibrationDrillsButton").Disabled).IsFalse();
+            AssertThat(layout.GetNode<Button>("CalibrationDrillsButton").Visible).IsTrue();
+        } finally {
+            Teardown(host);
             RestoreSlots(originals);
         }
     }

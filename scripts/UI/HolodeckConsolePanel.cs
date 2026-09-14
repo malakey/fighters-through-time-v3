@@ -137,6 +137,18 @@ namespace FTT.UI {
             launch.Pressed += OnLaunchPressed;
             layout.AddChild(launch);
 
+            // Package 11 A11 (F18): the console keeps the CPU practice bout and
+            // gains a second entry alongside it. Same drill list and content as the
+            // standalone Main Menu route, run with the campaign character's
+            // *normalized* Fighter kit; Exit Calibration returns to this hub.
+            var drills = new Button {
+                Name = "CalibrationDrillsButton",
+                Text = Tr("holodeck_calibration_drills"),
+                CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight)
+            };
+            drills.Pressed += OnCalibrationDrillsPressed;
+            layout.AddChild(drills);
+
             var back = new Button {
                 Name = "BackButton",
                 Text = Tr("common_back"),
@@ -224,6 +236,29 @@ namespace FTT.UI {
             FighterStageData stage = ApplyToSession();
             if (stage == null || !ResourceLoader.Exists(stage.ScenePath)) return;
             GameManager.Instance.LoadScene(stage.ScenePath);
+        }
+
+        private void OnCalibrationDrillsPressed() {
+            if (GameManager.Instance == null) return;
+            GameManager.Instance.LoadScene(ApplyCalibrationRouteToSession());
+        }
+
+        /// <summary>
+        /// Arms the hub's calibration route and returns the scene to open. The hub
+        /// route skips the character picker — a campaign save locks its character —
+        /// and records the hub as the Exit Calibration destination. Nothing else in
+        /// the session moves: the active save slot, difficulty, campaign level and
+        /// the player's saved match settings are all left exactly as they are, so
+        /// the attempt and its resources survive the detour and no exit fee applies.
+        /// Split from the button handler so the session contract is testable without
+        /// a scene change.
+        /// </summary>
+        public static string ApplyCalibrationRouteToSession() {
+            SessionData session = GameManager.Instance.CurrentSession;
+            session.CalibrationReturnScenePath = FTT.Combat.CalibrationRoute.HubScenePath;
+            session.CalibrationDrillIndex = 0;
+            GameManager.Instance.CurrentSession = session;
+            return FTT.Combat.CalibrationRoute.DrillListScenePath;
         }
 
         /// <summary>

@@ -167,6 +167,32 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// Package 11 A9b: the exact historical position Echo Step would restore
+        /// for <paramref name="playerID"/>, read through the shared ring accessor
+        /// rather than a second copy of the resolution rule. The F19 CPU policy has
+        /// to check that destination against current geometry and pit risk before it
+        /// may select the action.
+        ///
+        /// <para>Package 11 A1c re-pointed this at the V7.6 31-sample bank. Two
+        /// things changed for the CPU: the answer is now the <b>exact</b> t-30
+        /// sample rather than the retired ring's 24-to-30-frames-ago approximation,
+        /// and it returns <b>false</b> while a history generation is still filling,
+        /// so the CPU stops proposing a destination that does not exist yet.</para>
+        /// </summary>
+        public bool TryGetEchoStepDestination(int playerID, out FPVector2 destination) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterEchoStepRing0Component>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter =
+                    ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                Frame frame = _simulation.Frame;
+                return FighterEchoStepHistory.TryGetLookback(ref frame, entity, out destination);
+            }
+            destination = FPVector2.Zero;
+            return false;
+        }
+
+        /// <summary>
         /// V7.6 F07 (Package 11 A1): reads a fighter's caster-owned Conductive
         /// mark (component 318). Snapshot and hash state like everything else.
         /// </summary>
@@ -211,24 +237,6 @@ namespace FTT.FighterSim {
                 }
             }
             ring = default;
-            return false;
-        }
-
-        /// <summary>
-        /// The exact <c>t - 30</c> Echo Step destination a player would read right
-        /// now, or false when this history generation has not produced one yet.
-        /// Pure read: it spends nothing and arms nothing.
-        /// </summary>
-        public bool TryGetEchoStepLookback(int playerID, out FPVector2 sample) {
-            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterEchoStepRing0Component>();
-            while (filter.Next(out EntityRef entity)) {
-                ref readonly FighterStateComponent fighter =
-                    ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
-                if (fighter.PlayerID != playerID) continue;
-                Frame frame = _simulation.Frame;
-                return FighterEchoStepHistory.TryGetLookback(ref frame, entity, out sample);
-            }
-            sample = FPVector2.Zero;
             return false;
         }
 

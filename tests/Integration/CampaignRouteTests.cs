@@ -36,6 +36,23 @@ public class CampaignRouteTests {
 
     private const string ExemplarHero = "einstein";
 
+    /// <summary>
+    /// The manifest's expected StoryLevel row count: the sixteen shared levels plus
+    /// <b>one row per authored Level 4A variant</b> — not the route length.
+    ///
+    /// <para>Package 11 B1: these two numbers coincided only while A12's Einstein
+    /// exemplar was the single variant. B1/B2/B3 each add three more, so the
+    /// assertion is expressed against the rows actually present rather than a literal
+    /// that every B agent would have to bump in turn.</para>
+    /// </summary>
+    private static int ExpectedStoryLevelRowCount(IEnumerable<ContentManifestEntry> rows) {
+        int legacyRows = rows.Count(entry =>
+            entry.ContentID.StartsWith(StoryManager.LegacyLevelIDPrefix, StringComparison.Ordinal));
+        AssertThat(legacyRows >= 1).OverrideFailureMessage(
+            "At least the Einstein Level 4A variant must be registered in the manifest.").IsTrue();
+        return SharedCampaignLevelCount + legacyRows;
+    }
+
     // === Route shape ===
 
     [TestCase]
@@ -88,7 +105,7 @@ public class CampaignRouteTests {
         using var session = new ScratchSession(ExemplarHero);
         ContentManifest manifest = ContentManifest.LoadDefault();
         List<ContentManifestEntry> rows = manifest.ForCategory(ContentCategory.StoryLevel).ToList();
-        AssertThat(rows.Count).IsEqual(CampaignRouteLength);
+        AssertThat(rows.Count).IsEqual(ExpectedStoryLevelRowCount(rows));
 
         for (int index = 0; index < SharedCampaignLevelCount; index++) {
             string prefix = $"level_{index:00}_";
@@ -191,7 +208,7 @@ public class CampaignRouteTests {
     public void EveryManifestStoryLevelRowPointsAtAnAuthoredScene() {
         ContentManifest manifest = ContentManifest.LoadDefault();
         List<ContentManifestEntry> rows = manifest.ForCategory(ContentCategory.StoryLevel).ToList();
-        AssertThat(rows.Count).IsEqual(CampaignRouteLength);
+        AssertThat(rows.Count).IsEqual(ExpectedStoryLevelRowCount(rows));
 
         foreach (ContentManifestEntry row in rows) {
             AssertThat(ResourceLoader.Exists(row.ResourcePath)).OverrideFailureMessage(

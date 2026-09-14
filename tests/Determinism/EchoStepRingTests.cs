@@ -70,7 +70,7 @@ public class EchoStepRingTests {
             recorded.Add(state.Position.x);
 
             if (recorded.Count > BasicComboRules.EchoStepLookbackFrames) {
-                AssertThat(simulation.TryGetEchoStepLookback(0, out FPVector2 lookback)).IsTrue();
+                AssertThat(simulation.TryGetEchoStepDestination(0, out FPVector2 lookback)).IsTrue();
                 FP64 expected = recorded[recorded.Count - 1 - BasicComboRules.EchoStepLookbackFrames];
                 AssertThat(lookback.x.RawValue)
                     .OverrideFailureMessage(
@@ -97,7 +97,7 @@ public class EchoStepRingTests {
 
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent before)).IsTrue();
         // Thirty stationary ticks precede this one, so t-30 is the standing spot.
-        AssertThat(simulation.TryGetEchoStepLookback(0, out FPVector2 standing)).IsTrue();
+        AssertThat(simulation.TryGetEchoStepDestination(0, out FPVector2 standing)).IsTrue();
         AssertThat(standing.x.RawValue).IsEqual(before.Position.x.RawValue);
 
         // Now walk one tick. The ring's newest sample must be the PRE-move position.
@@ -123,7 +123,7 @@ public class EchoStepRingTests {
         AssertThat(fresh.Generation).IsEqual(1);
 
         for (int tick = 0; tick < BasicComboRules.EchoStepLookbackFrames; tick++) {
-            AssertThat(simulation.TryGetEchoStepLookback(0, out FPVector2 _))
+            AssertThat(simulation.TryGetEchoStepDestination(0, out FPVector2 _))
                 .OverrideFailureMessage($"A lookback existed after only {tick} real samples.")
                 .IsFalse();
             simulation.Advance(Neutral(tick), Neutral(tick));
@@ -132,7 +132,7 @@ public class EchoStepRingTests {
         simulation.Advance(
             Neutral(BasicComboRules.EchoStepLookbackFrames),
             Neutral(BasicComboRules.EchoStepLookbackFrames));
-        AssertThat(simulation.TryGetEchoStepLookback(0, out FPVector2 _)).IsTrue();
+        AssertThat(simulation.TryGetEchoStepDestination(0, out FPVector2 _)).IsTrue();
     }
 
     /// <summary>
@@ -160,7 +160,7 @@ public class EchoStepRingTests {
         AssertThat(reset.ValidCount)
             .OverrideFailureMessage("The new generation counted spawn-filled slots as history.")
             .IsLess(FighterEchoStepRing.SampleCount);
-        AssertThat(simulation.TryGetEchoStepLookback(1, out FPVector2 _)).IsFalse();
+        AssertThat(simulation.TryGetEchoStepDestination(1, out FPVector2 _)).IsFalse();
     }
 
     /// <summary>
@@ -180,7 +180,7 @@ public class EchoStepRingTests {
             AssertThat(ring.Generation)
                 .OverrideFailureMessage("Sudden Death must open a new Echo Step generation.")
                 .IsGreater(1);
-            AssertThat(simulation.TryGetEchoStepLookback(playerID, out FPVector2 _))
+            AssertThat(simulation.TryGetEchoStepDestination(playerID, out FPVector2 _))
                 .OverrideFailureMessage("Sudden Death must require 30 fresh ticks before Echo Step.")
                 .IsFalse();
         }
@@ -210,8 +210,8 @@ public class EchoStepRingTests {
             .OverrideFailureMessage("The Echo Step ring must converge across a rollback.")
             .IsEqual(reference.CurrentHash);
         for (int playerID = 0; playerID < 2; playerID++) {
-            AssertThat(reference.TryGetEchoStepLookback(playerID, out FPVector2 expected)).IsTrue();
-            AssertThat(rolled.TryGetEchoStepLookback(playerID, out FPVector2 actual)).IsTrue();
+            AssertThat(reference.TryGetEchoStepDestination(playerID, out FPVector2 expected)).IsTrue();
+            AssertThat(rolled.TryGetEchoStepDestination(playerID, out FPVector2 actual)).IsTrue();
             AssertThat(actual.x.RawValue).IsEqual(expected.x.RawValue);
             AssertThat(actual.y.RawValue).IsEqual(expected.y.RawValue);
         }

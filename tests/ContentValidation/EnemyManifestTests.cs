@@ -33,7 +33,7 @@ public class EnemyManifestTests {
         BossData boss = FTT.Core.AuthoredResources.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
         AssertObject(boss).IsNotNull();
         AssertThat(boss.BossID == "borgia_inquisitor").IsTrue();
-        AssertThat(boss.MaxHP).IsEqual(500);
+        AssertThat(boss.MaxHP).IsEqual(350); // V7.6 ruling 2.E (Package 11 A7b), was 500
         AssertThat(boss.PhaseThresholds.Length).IsEqual(1);
     }
 }

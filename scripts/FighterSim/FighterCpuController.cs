@@ -67,11 +67,31 @@ namespace FTT.FighterSim {
         /// is nowhere to flee to, so flee-evasion is pointless (M-9, Globe heckle).
         /// </summary>
         private static readonly FP64 MinimumHazardEscapeRoom = FP64.One;
+        /// <summary>Canonical grab reach, from the shared rules — never an AI constant.</summary>
+        private static readonly FP64 GrabReach = FP64.FromDouble(FTT.Combat.BasicComboRules.GrabReachUnits);
+        /// <summary>Canonical Echo Step meter cost, from the shared rules.</summary>
+        private static readonly FP64 EchoStepMeterCost =
+            FP64.FromInt(FTT.Combat.BasicComboRules.EchoStepMeterCost);
+        /// <summary>Vertical slack that still counts as standing on an authored platform.</summary>
+        private static readonly FP64 PlatformLandingTolerance = FP64.FromDouble(0.35);
+        /// <summary><c>FighterGrabRules</c> phase 4: the grab is holding its victim.</summary>
+        private const int GrabPhaseHolding = 4;
+
+        /// <summary>
+        /// The verb a scheduled decision intends to emit, so delivery can revalidate
+        /// self-legality before the chord reaches the simulation.
+        /// </summary>
+        private enum CpuVerbAction {
+            None = 0,
+            Grab = 1,
+            EchoStep = 2
+        }
 
         private readonly CpuDifficulty _difficulty;
         private readonly CpuBandTuning _tuning;
         private readonly FighterStageGeometry _geometry;
         private readonly ICpuWorldObserver _world;
+        private readonly CpuRecoveryProfile _profile;
         private readonly ScheduledDecision[] _schedule = new ScheduledDecision[ScheduleCapacity];
         private uint _randomState;
         private GameplayButtons _sustainedHeld;
@@ -97,10 +117,66 @@ namespace FTT.FighterSim {
         /// </summary>
         private const int TrajectoryProbeTicks = 240;
 
+        /// <summary>
+        /// Frames an offstage episode may run before Hard drops every optional
+        /// hesitation and commits its highest-progress route. The contract's
+        /// "no indefinite offstage cooldown/ledge stalls" rule needs a bound, and
+        /// four seconds is longer than any authored recovery route.
+        /// </summary>
+        private const int OffstageStallLimitFrames = 240;
+
         private int _lastObservedHitstunFrames;
         private int _escapeStanceLingerRemaining;
         private bool _hitstunHoldBlockActive;
         private bool _hitstunDiActive;
+
+        // === F19 recovery episode (Package 11 A9b; input-side latch, not sim state) ===
+        /// <summary>
+        /// An offstage <b>episode</b> per <c>CPU_RECOVERY.md</c>: it opens when
+        /// the fighter first becomes unsupported over a stage gap or past a wall,
+        /// and ends only on a stable landing on authored stage floor/platform, a
+        /// legal ledge capture, or a KO. Easy and Medium may activate the movement
+        /// ability <b>once</b> per episode; a jump refund or a temporary
+        /// staff-platform landing does not reset that limit, which is exactly why
+        /// the latch is an episode rather than a per-airtime counter.
+        /// </summary>
+        private bool _episodeActive;
+        private int _episodeMovementActivations;
+        /// <summary>
+        /// Delivery tick of a movement activation that has been planned but not
+        /// yet emitted, or −1. The per-episode limit is spent when the input
+        /// actually reaches the simulation, not when the plan is formed — and the
+        /// schedule ring can overwrite a pending slot, so a marker whose tick has
+        /// passed unconsumed is released rather than charged.
+        /// </summary>
+        private int _movementActivationDeliveryTick = -1;
+        private int _episodeMobilitySpecialActivations;
+        private int _episodeFrames;
+        private int _episodeStocksAtStart;
+
+        // === F19 verb policy: grabs and Echo Step ===
+        /// <summary>
+        /// Admission is rolled <b>once per opportunity</b>, never once per
+        /// three-frame evaluation, and a failed roll never reopens the same
+        /// continuing opportunity (<c>CPU_COMBAT_POLICY.md</c>). Opportunity
+        /// identity is what makes that enforceable: a grab opportunity is the run
+        /// of decisions over which the blocking/grounded/range conditions hold
+        /// continuously, and an Echo Step opportunity is keyed to the CPU's own
+        /// attack execution ID.
+        /// </summary>
+        private int _grabOpportunityID;
+        private int _grabOpportunityRolledID;
+        private bool _grabOpportunityAdmitted;
+        private bool _grabOpportunityOpen;
+        private int _attackExecutionID;
+        private int _lastObservedAttackPhase;
+        /// <summary>−1, not 0, so the very first execution is still an unrolled one.</summary>
+        private int _echoOpportunityRolledExecutionID = -1;
+        private bool _echoOpportunityAdmitted;
+        /// <summary>Verb the decision currently being built intends to emit.</summary>
+        private CpuVerbAction _pendingVerb;
+        /// <summary>Whether the decision being built spends a movement activation.</summary>
+        private bool _pendingMovementActivation;
 
         public FighterCpuController(CpuDifficulty difficulty, int seed)
             : this(difficulty, seed, null, null) {
@@ -109,21 +185,27 @@ namespace FTT.FighterSim {
         /// <summary>
         /// Full construction. <paramref name="geometry"/> supplies the stage bounds
         /// and platform summary the observation carries; <paramref name="world"/>
-        /// supplies live orbs/hazards and the match-live gate. Both are optional —
-        /// omitting them yields the Story-equivalent "absent" sentinels.
-        /// <paramref name="tuningOverride"/> replaces the difficulty band's rates —
-        /// a test seam for pinning roll gates at 0%/100%; production callers omit it.
+        /// supplies live orbs/hazards, the verb layer and the match-live gate. Both
+        /// are optional — omitting them yields the Story-equivalent "absent"
+        /// sentinels. <paramref name="tuningOverride"/> replaces the difficulty
+        /// band's rates — a test seam for pinning roll gates at 0%/100%; production
+        /// callers omit it. <paramref name="recoveryProfile"/> is the F19
+        /// per-character planning profile built from the same normalized
+        /// <see cref="FighterLoadout"/> the fighter itself was built from; omitting
+        /// it leaves the planner on universal movement only.
         /// </summary>
         public FighterCpuController(
             CpuDifficulty difficulty,
             int seed,
             FighterStageGeometry geometry,
             ICpuWorldObserver world,
-            CpuBandTuning? tuningOverride = null) {
+            CpuBandTuning? tuningOverride = null,
+            CpuRecoveryProfile? recoveryProfile = null) {
             _difficulty = difficulty;
             _tuning = tuningOverride ?? CpuBandTuning.For(difficulty);
             _geometry = geometry;
             _world = world;
+            _profile = recoveryProfile ?? default;
             _randomState = unchecked((uint)seed) ^ 0xA511E9B3u;
             if (_randomState == 0) _randomState = 0x6D2B79F5u;
         }
@@ -132,6 +214,30 @@ namespace FTT.FighterSim {
 
         /// <summary>Per-band rates in force, exposed so tests can pin the matrices.</summary>
         public CpuBandTuning Tuning => _tuning;
+
+        /// <summary>The F19 recovery profile in force; <c>HasKit</c> is false when none was supplied.</summary>
+        public CpuRecoveryProfile RecoveryProfile => _profile;
+
+        /// <summary>
+        /// Movement-ability activations spent in the current offstage episode.
+        /// Exposed for the F19 drills — the once-per-episode limit is a policy
+        /// claim that has to be observable to be pinned.
+        /// </summary>
+        public int EpisodeMovementActivations => _episodeMovementActivations;
+
+        /// <summary>
+        /// Identity of the grab opportunity whose admission has been rolled, and
+        /// the CPU's attack execution whose Echo Step admission has been rolled.
+        /// <c>DEFER-CPU-SNAPSHOT</c>: <c>CPU_COMBAT_POLICY.md</c> asks for these
+        /// to be snapshotted for resimulation, but the controller is an input
+        /// source outside the rollback snapshot by design (Package 6 §2.5) — the
+        /// produced frames are recorded and replayed instead. Exposed here so the
+        /// once-per-opportunity rule is testable without re-architecting that.
+        /// </summary>
+        public int GrabOpportunityID => _grabOpportunityID;
+
+        /// <inheritdoc cref="GrabOpportunityID"/>
+        public int AttackExecutionID => _attackExecutionID;
 
         public PlayerInputFrame Sample(
             uint tick,
@@ -153,7 +259,15 @@ namespace FTT.FighterSim {
             uint tick,
             in CpuDecisionObservation observation,
             in PlayerInputFrame previousFrame) {
+            TrackEpisodeAndExecution(in observation);
+            if (_movementActivationDeliveryTick >= 0 && _movementActivationDeliveryTick < (int)tick) {
+                // Its slot was overwritten by a later decision, so the activation
+                // never reached the simulation and must not be charged.
+                _movementActivationDeliveryTick = -1;
+            }
             if (tick % DecisionIntervalTicks == 0) {
+                _pendingVerb = CpuVerbAction.None;
+                _pendingMovementActivation = false;
                 GameplayButtons decision = Decide(in observation, out sbyte moveX, out sbyte moveY);
                 int deliveryTick = checked((int)tick + NextReactionDelay());
                 int slot = deliveryTick % ScheduleCapacity;
@@ -161,20 +275,38 @@ namespace FTT.FighterSim {
                     Tick = deliveryTick,
                     MoveX = moveX,
                     MoveY = moveY,
-                    Held = decision
+                    Held = decision,
+                    Verb = _pendingVerb,
+                    SpendsMovementActivation = _pendingMovementActivation
                 };
+                if (_pendingMovementActivation) _movementActivationDeliveryTick = deliveryTick;
             }
 
             sbyte outputMoveX = previousFrame.MoveX;
             sbyte outputMoveY = previousFrame.MoveY;
             int outputSlot = (int)(tick % ScheduleCapacity);
             if (_schedule[outputSlot].Tick == (int)tick) {
-                outputMoveX = _schedule[outputSlot].MoveX;
-                outputMoveY = _schedule[outputSlot].MoveY;
-                _sustainedHeld = _schedule[outputSlot].Held & ~EdgeButtons;
-                GameplayButtons edges = _schedule[outputSlot].Held & EdgeButtons;
-                if (edges != GameplayButtons.None) _pendingEdges = edges;
+                ScheduledDecision delivery = _schedule[outputSlot];
                 _schedule[outputSlot].Tick = -1;
+                // "Revalidate legality immediately before each planned action"
+                // (CPU_RECOVERY.md) / "Use current self-state for legality"
+                // (CPU_COMBAT_POLICY.md). Opponent reads stay delayed — an
+                // opponent who stops blocking is allowed to make a planned grab
+                // whiff — but a verb the CPU itself can no longer legally start
+                // is dropped rather than mashed, and a missed window produces no
+                // retroactive cancel, reroll or refund.
+                if (delivery.Verb == CpuVerbAction.None
+                    || VerbStillLegalForSelf(delivery.Verb, in observation)) {
+                    if (delivery.SpendsMovementActivation) {
+                        _episodeMovementActivations++;
+                        _movementActivationDeliveryTick = -1;
+                    }
+                    outputMoveX = delivery.MoveX;
+                    outputMoveY = delivery.MoveY;
+                    _sustainedHeld = delivery.Held & ~EdgeButtons;
+                    GameplayButtons edges = delivery.Held & EdgeButtons;
+                    if (edges != GameplayButtons.None) _pendingEdges = edges;
+                }
             }
 
             AdvanceEdgePulse();
@@ -199,16 +331,21 @@ namespace FTT.FighterSim {
         /// runs, which is exactly what <c>FighterVerbRules.ResolvePendingLaunch</c>
         /// reads when the launch hitstop ends.
         ///
-        /// <para><b>Pit-aware DI is now possible and is A9b's to implement.</b> The
-        /// V7.4 deferral ("no cheap launch-trajectory-vs-pit test, and the authored
-        /// stages run solid floors") expired with Package 11 A9: three Open stages
-        /// author real pits, and <c>CpuDecisionObservation</c> carries the floor
-        /// topology — <c>HasFloorSegments</c>, <c>HasFloorSupportUnderSelf</c>,
-        /// <c>LaunchTrajectoryCrossesGap</c>, the two nearest pit-facing floor
-        /// edges and <c>CurrentGapWidthRaw</c>. A9 ships the observation only and
-        /// deliberately changes no DI policy (V7.6 ruling 2.D sequencing: the pits
-        /// land before any further Fighter tuning pass), so the hold below is still
-        /// toward-centre on every stage.</para>
+        /// <para><b>Pit-aware DI shipped with Package 11 A9b.</b> The V7.4 deferral
+        /// ("no cheap launch-trajectory-vs-pit test, and the authored stages run
+        /// solid floors") expired with A9's three Open stages, and
+        /// <see cref="ResolveDiHold"/> now reads that floor topology: while the
+        /// launch trajectory ends over a gap the hold aims at the nearest
+        /// pit-facing floor edge instead of stage centre, which on Paris is the
+        /// hole itself. Sealed stages and any trajectory already ending over floor
+        /// keep the original toward-centre hold exactly.</para>
+        /// <para>
+        /// This reflex deliberately bypasses the decision schedule, and
+        /// <c>CPU_RECOVERY.md</c> now says so in as many words: "Geometry and the
+        /// CPU's own current state may be checked directly for input legality;
+        /// opponent information still passes through the reaction buffer."
+        /// Hitstun is self-state.
+        /// </para>
         /// The RNG draws live in the same recorded-input path as every other
         /// roll (BlockPercent and friends): the produced frame is recorded and
         /// replayed like human input, so rollback never re-samples them. The
@@ -248,10 +385,38 @@ namespace FTT.FighterSim {
             // escape stance must never convert itself into a grab attempt.
             held = GameplayButtons.Block;
             if (_hitstunDiActive && hitstun > 0 && observation.HasStageBounds != 0) {
-                long centerRaw = (observation.LeftWallRaw + observation.RightWallRaw) / 2;
-                moveX = observation.SelfPositionXRaw < centerRaw ? (sbyte)127 : (sbyte)-127;
+                moveX = ResolveDiHold(in observation);
             }
             return held;
+        }
+
+        /// <summary>
+        /// Pit-aware DI (Package 11 A9b; the V7.4 deferral expired with A9's Open
+        /// stages). While the current launch trajectory ends over a gap, the
+        /// useful hold is toward the nearest pit-facing floor edge — the direction
+        /// that puts solid ground under the fighter — not toward stage centre,
+        /// which on Paris <i>is</i> the hole. Everywhere else (Sealed stages, the
+        /// legacy arena, any trajectory that already ends over floor) the answer
+        /// is the unchanged toward-centre fallback, so no Closed-stage behaviour
+        /// moves. Pure fixed-point reads off A9's observation block; no new
+        /// geometry query and no float.
+        /// </summary>
+        private static sbyte ResolveDiHold(in CpuDecisionObservation observation) {
+            long centerRaw = (observation.LeftWallRaw + observation.RightWallRaw) / 2;
+            sbyte towardCentre = observation.SelfPositionXRaw < centerRaw ? (sbyte)127 : (sbyte)-127;
+            if (observation.HasFloorSegments == 0) return towardCentre;
+            bool overGap = observation.HasFloorSupportUnderSelf == 0;
+            if (!overGap && observation.LaunchTrajectoryCrossesGap == 0) return towardCentre;
+
+            bool hasLeft = observation.HasFloorEdgeLeft != 0;
+            bool hasRight = observation.HasFloorEdgeRight != 0;
+            if (!hasLeft && !hasRight) return towardCentre;
+            if (!hasLeft) return 127;
+            if (!hasRight) return -127;
+            long leftGap = observation.SelfPositionXRaw - observation.NearestFloorEdgeLeftXRaw;
+            long rightGap = observation.NearestFloorEdgeRightXRaw - observation.SelfPositionXRaw;
+            // Ties resolve rightward, deterministically, on every peer.
+            return Absolute(leftGap) < Absolute(rightGap) ? (sbyte)-127 : (sbyte)127;
         }
 
         /// <summary>
@@ -372,9 +537,58 @@ namespace FTT.FighterSim {
                     observation.ProjectileVelocityXRaw = projectile.Velocity.x.RawValue;
                     observation.ProjectileVelocityYRaw = projectile.Velocity.y.RawValue;
                 }
+                FillVerbLayer(ref observation, in self, in selfRuntime, in target, in targetRuntime, world);
             }
 
             return observation;
+        }
+
+        /// <summary>
+        /// Fills the F19 verb block (Package 11 A9b). Every field is gated behind
+        /// an observer that can actually resolve a <c>FighterVerbComponent</c>, so
+        /// a Story adapter — which has none — leaves <c>HasVerbState</c> and
+        /// <c>HasTargetVerbState</c> at zero and the grab / Echo Step branches are
+        /// unreachable there by construction, exactly like the stage, orb and
+        /// floor-topology blocks.
+        /// </summary>
+        private static void FillVerbLayer(
+            ref CpuDecisionObservation observation,
+            in FighterStateComponent self,
+            in FighterRuntimeComponent selfRuntime,
+            in FighterStateComponent target,
+            in FighterRuntimeComponent targetRuntime,
+            ICpuWorldObserver world) {
+            if (world.TryGetVerbState(self.PlayerID, out CpuVerbState selfVerb)) {
+                observation.HasVerbState = 1;
+                observation.SelfFacingRight = self.FacingRight != 0 ? 1 : 0;
+                observation.SelfAttackPhase = selfRuntime.AttackPhase;
+                observation.SelfAttackMadeContact =
+                    (selfRuntime.AttackFlags & FighterBasicAttackRules.FlagHitResolved) != 0 ? 1 : 0;
+                observation.SelfRolling =
+                    selfRuntime.UniversalMovementState != (int)UniversalMovementPhase.None ? 1 : 0;
+                observation.SelfGrabPhase = selfVerb.GrabPhase;
+                observation.SelfBeingHeld = selfVerb.BeingHeld;
+                observation.SelfShieldStunFrames = selfVerb.ShieldStunFrames;
+                observation.SelfEchoStepCooldownFrames = selfVerb.EchoStepCooldownFrames;
+                observation.SelfEchoStepWindupFrames = selfVerb.EchoStepWindupFrames;
+                observation.SelfDefyAvailable = selfVerb.DefyHistoryUsed == 0 ? 1 : 0;
+                if (world.TryGetEchoStepDestination(self.PlayerID, out FPVector2 destination)) {
+                    observation.HasEchoStepDestination = 1;
+                    observation.EchoStepDestinationXRaw = destination.x.RawValue;
+                    observation.EchoStepDestinationYRaw = destination.y.RawValue;
+                }
+            }
+            if (!world.TryGetVerbState(target.PlayerID, out CpuVerbState targetVerb)) return;
+            observation.HasTargetVerbState = 1;
+            observation.TargetIsGrounded = target.IsGrounded != 0 ? 1 : 0;
+            observation.TargetBlockStance = targetVerb.BlockStance;
+            observation.TargetShieldStunFrames = targetVerb.ShieldStunFrames;
+            observation.TargetInvulnerabilityFrames = target.InvulnerabilityFrames;
+            observation.TargetDazeFrames = target.DazeFrames;
+            observation.TargetRolling =
+                targetRuntime.UniversalMovementState != (int)UniversalMovementPhase.None ? 1 : 0;
+            observation.TargetThrowImmune =
+                targetVerb.ThrowImmunityFrames > 0 || targetVerb.BeingHeld != 0 ? 1 : 0;
         }
 
         /// <summary>
@@ -493,7 +707,22 @@ namespace FTT.FighterSim {
             // the jump budget the grab refilled.
             if (observation.IsLedgeHanging != 0) return GameplayButtons.Jump;
 
+            // A grab already holding the opponent: the only meaningful "decision"
+            // left is the throw direction, which the shared rules read off held
+            // input when the hold's decision window closes.
+            if (observation.HasVerbState != 0 && observation.SelfGrabPhase == GrabPhaseHolding) {
+                moveX = ResolveThrowHold(in observation);
+                return GameplayButtons.None;
+            }
+
+            // "Recovery planning takes priority over optional offense and orb
+            // pursuit while return is at risk" (CPU_RECOVERY.md) — which is why
+            // this stays ahead of every other branch.
             if (IsOffStage(in observation)) return DecideRecovery(in observation, out moveX, out moveY);
+            // Echo Step sits here, above hazard and orb behaviour: it is the
+            // defensive cancel out of the CPU's own whiffed swing, and during
+            // those recovery frames no other branch has a legal answer anyway.
+            if (TryDecideEchoStep(in observation, out GameplayButtons echoStep, out moveX)) return echoStep;
             if (TryDecideHazardEvasion(in observation, out GameplayButtons evasion, out moveX)) return evasion;
             if (TryDecideProjectileDefense(in observation, out GameplayButtons defense, out moveX)) return defense;
             if (TryDecideOrbPursuit(in observation, out GameplayButtons pursuit, out moveX)) return pursuit;
@@ -503,42 +732,533 @@ namespace FTT.FighterSim {
         // === Off-stage recovery ===
 
         /// <summary>
-        /// True when the fighter is past a solid wall or has fallen below the stage
-        /// floor plane with nothing beneath it but the blast zone. Requires authored
-        /// bounds, which is what keeps a Story adapter (no stage concept, arbitrary
-        /// world origin) out of this branch entirely.
+        /// F19 recovery detection (Package 11 A9b). Recovery means "returning from
+        /// an unsupported position over a <b>stage gap</b> to a reachable platform
+        /// or legal ledge before the bottom blast zone", detected from authored
+        /// floor segments, position and velocity — never from camera bounds or a
+        /// universal main-platform Y threshold.
+        ///
+        /// <para>Two branches, both requiring authored bounds (which is what keeps
+        /// a Story adapter, with no stage concept and an arbitrary world origin,
+        /// out of here entirely):</para>
+        /// <list type="bullet">
+        /// <item>past a solid side wall — unchanged;</item>
+        /// <item><b>unsupported over a gap</b> — either already below the floor
+        /// plane with no floor under this X, or airborne on a trajectory that ends
+        /// over a pit (A9's <c>LaunchTrajectoryCrossesGap</c>).</item>
+        /// </list>
+        /// <para>On a <b>Sealed</b> stage <c>HasFloorSegments</c> is zero, so the
+        /// gap branch cannot fire at all and ordinary supported traversal — a
+        /// routine jump above solid floor — never triggers an emergency cast.
+        /// That is the contract's explicit Closed-stage requirement, satisfied by
+        /// construction rather than by a threshold. The legacy pre-A9 test (below
+        /// the floor plane and airborne, on <i>any</i> stage) is kept only for
+        /// stages with no authored segments <b>and</b> a solid base floor, where
+        /// being under the floor plane really does mean falling past it.</para>
         /// </summary>
         private static bool IsOffStage(in CpuDecisionObservation observation) {
             if (observation.HasStageBounds == 0) return false;
             if (observation.SelfPositionXRaw < observation.LeftWallRaw
                 || observation.SelfPositionXRaw > observation.RightWallRaw) return true;
+            if (observation.HasFloorSegments != 0) {
+                if (observation.IsGrounded != 0) return false;
+                return observation.HasFloorSupportUnderSelf == 0
+                    || observation.LaunchTrajectoryCrossesGap != 0;
+            }
             return observation.SelfPositionYRaw < 0 && observation.IsGrounded == 0;
         }
 
+        /// <summary>
+        /// True once the fighter is back on authored stage geometry: solid main
+        /// floor under this X, or standing on one of the stage's own one-way
+        /// platforms. A temporary support — Mozart's three-second staff platform,
+        /// a construct — is deliberately <b>not</b> a stable landing, because the
+        /// contract says such a landing must not reset Easy/Medium's
+        /// one-activation planning limit.
+        /// </summary>
+        private static bool IsStableStageLanding(in CpuDecisionObservation observation) {
+            if (observation.IsGrounded == 0) return false;
+            if (observation.HasStageBounds == 0) return true;
+            if (observation.HasFloorSegments == 0) return true;
+            if (observation.HasFloorSupportUnderSelf != 0) return true;
+            if (observation.PlatformCount <= 0) return false;
+            long surfaceDelta = observation.SelfPositionYRaw - observation.NearestPlatformSurfaceYRaw;
+            long centreDelta = observation.SelfPositionXRaw - observation.NearestPlatformCenterXRaw;
+            return Absolute(surfaceDelta) <= PlatformLandingTolerance.RawValue
+                && Absolute(centreDelta) <= observation.NearestPlatformHalfWidthRaw;
+        }
+
+        /// <summary>
+        /// Maintains the offstage episode latch and the attack-execution counter.
+        /// Runs every tick, before the decision cadence, because both are
+        /// self-state facts rather than decisions.
+        /// </summary>
+        private void TrackEpisodeAndExecution(in CpuDecisionObservation observation) {
+            // A swing entering startup — from neutral or chained straight out of
+            // the previous hit's recovery — is a new attack execution, which is
+            // what Echo Step admission is keyed to.
+            if (observation.SelfAttackPhase == FighterBasicAttackRules.PhaseStartup
+                && _lastObservedAttackPhase != FighterBasicAttackRules.PhaseStartup) {
+                _attackExecutionID++;
+            }
+            _lastObservedAttackPhase = observation.SelfAttackPhase;
+
+            bool offStage = IsOffStage(in observation);
+            if (!_episodeActive) {
+                if (!offStage) return;
+                _episodeActive = true;
+                _episodeMovementActivations = 0;
+                _episodeMobilitySpecialActivations = 0;
+                _movementActivationDeliveryTick = -1;
+                _episodeFrames = 0;
+                _episodeStocksAtStart = observation.Stocks;
+                return;
+            }
+            _episodeFrames++;
+            // The three endings the contract allows, and only those: a stable
+            // landing on authored stage geometry, a legal ledge capture, or a KO.
+            if (IsStableStageLanding(in observation)
+                || observation.IsLedgeHanging != 0
+                || observation.Stocks < _episodeStocksAtStart
+                || observation.Stocks <= 0) {
+                _episodeActive = false;
+                _episodeMovementActivations = 0;
+                _episodeMobilitySpecialActivations = 0;
+                _movementActivationDeliveryTick = -1;
+                _episodeFrames = 0;
+            }
+        }
+
+        /// <summary>
+        /// The F19 tiered recovery planner, replacing the inverted
+        /// jump → movement → Special 2 percentage ladder.
+        ///
+        /// <para><b>Easy</b> steers at the nearest plausible legal landing, spends
+        /// remaining jumps, and may activate its movement ability <b>at most once
+        /// per offstage episode</b>. Specials stay disabled — that is the whole
+        /// correction: the shipped band used Special 2 at 55% and the movement
+        /// ability never.</para>
+        /// <para><b>Medium</b> estimates whether the return is reachable with the
+        /// jumps it still has, and otherwise spends <b>one</b> suitable recovery
+        /// ability — the movement ability by default, or a validated mobility
+        /// Special where the profile approves one (none do today). No multi-ability
+        /// chains, no platform/refund planning.</para>
+        /// <para><b>Hard</b> compares routes: it holds a jump back when the
+        /// movement ability alone already covers the gap and the ability is the
+        /// better opener, chains jump → movement → refunded jump where the kit
+        /// actually refunds (Breeze Glide), re-evaluates every decision, and past
+        /// <see cref="OffstageStallLimitFrames"/> drops every optional hesitation so
+        /// it cannot stall offstage on cooldown cycles.</para>
+        /// <para>Every distance, duration and trajectory comes from
+        /// <see cref="CpuRecoveryProfile"/>, which is built from the same
+        /// normalized <see cref="FighterLoadout"/> the human's fighter is built
+        /// from. There are no CPU-only jump resets, cooldown refunds,
+        /// invulnerability or teleport reach anywhere in this method.</para>
+        /// </summary>
         private GameplayButtons DecideRecovery(
             in CpuDecisionObservation observation, out sbyte moveX, out sbyte moveY) {
             moveY = 0;
-            long centerRaw = (observation.LeftWallRaw + observation.RightWallRaw) / 2;
-            moveX = observation.SelfPositionXRaw < centerRaw ? (sbyte)127 : (sbyte)-127;
-
+            moveX = ResolveReturnDirection(in observation);
             GameplayButtons held = GameplayButtons.None;
             bool falling = observation.SelfVelocityYRaw <= 0;
-            // One recovery tool per decision, in priority order, so the options chain
-            // across successive decisions instead of firing on the same frame.
-            if (observation.RemainingJumps > 0 && falling
-                && NextPercent() < _tuning.RecoveryJumpPercent) {
-                held |= GameplayButtons.Jump;
-            } else if (observation.MovementCooldownFrames <= 0
-                && NextPercent() < _tuning.RecoveryMovementPercent) {
-                held |= GameplayButtons.MovementAbility;
-                // World Y is up and the stick is Y-down, so a negative axis aims the
-                // directional warp/blink upward.
-                moveY = -127;
-            } else if (observation.SpecialTwoCooldownFrames <= 0
-                && NextPercent() < _tuning.RecoverySpecialTwoPercent) {
-                held |= GameplayButtons.Special2;
+            bool desperate = _episodeFrames >= OffstageStallLimitFrames;
+
+            bool movementReady = observation.MovementCooldownFrames <= 0
+                && MovementActivationsAllowed();
+            bool jumpsLeft = observation.RemainingJumps > 0;
+            // Route comparison, Hard only: when the jumps in hand cannot cover the
+            // remaining horizontal distance but the movement ability can, opening
+            // with the ability is the feasible route rather than the fallback.
+            bool preferAbilityFirst = _tuning.PlansMultiActionRecovery
+                && movementReady
+                && !JumpsAloneCanReturn(in observation);
+
+            if (jumpsLeft && falling && !preferAbilityFirst
+                && (desperate || NextPercent() < _tuning.RecoveryJumpPercent)) {
+                return held | GameplayButtons.Jump;
+            }
+            if (movementReady && (desperate || NextPercent() < _tuning.RecoveryMovementPercent)) {
+                _pendingMovementActivation = true;
+                AimMovementAbility(in observation, ref moveX, ref moveY);
+                return held | GameplayButtons.MovementAbility;
+            }
+            // A jump the ability-first branch deferred is still worth taking once
+            // the ability has fired or turned out to be unavailable.
+            if (jumpsLeft && falling
+                && (desperate || NextPercent() < _tuning.RecoveryJumpPercent)) {
+                return held | GameplayButtons.Jump;
+            }
+            // The validated optional mobility Special. CPU_RECOVERY.md forbids
+            // casting a Special merely because it occupies a slot, and
+            // CpuRecoveryProfile approves none for any of the nine characters
+            // today, so this branch is unreachable in the shipped build — it
+            // exists so approving one is a profile edit, not a planner rewrite.
+            if (_profile.MobilitySpecial != CpuMobilitySpecialSlot.None
+                && _tuning.RecoveryMobilitySpecialPercent > 0
+                && MobilitySpecialActivationsAllowed()
+                && MobilitySpecialReady(in observation)
+                && NextPercent() < _tuning.RecoveryMobilitySpecialPercent) {
+                _episodeMobilitySpecialActivations++;
+                return held | (_profile.MobilitySpecial == CpuMobilitySpecialSlot.SpecialOne
+                    ? GameplayButtons.Special1
+                    : GameplayButtons.Special2);
             }
             return held;
+        }
+
+        /// <summary>
+        /// Easy and Medium plan <b>one</b> movement-ability activation per offstage
+        /// episode; Hard is limited only by the ability's own cooldown.
+        /// </summary>
+        private bool MovementActivationsAllowed() =>
+            _tuning.RecoveryMovementActivationsPerEpisode <= 0
+            || _episodeMovementActivations + (_movementActivationDeliveryTick >= 0 ? 1 : 0)
+                < _tuning.RecoveryMovementActivationsPerEpisode;
+
+        private bool MobilitySpecialActivationsAllowed() =>
+            _tuning.RecoveryMovementActivationsPerEpisode <= 0
+            || _episodeMobilitySpecialActivations + _episodeMovementActivations
+                < _tuning.RecoveryMovementActivationsPerEpisode;
+
+        private bool MobilitySpecialReady(in CpuDecisionObservation observation) =>
+            _profile.MobilitySpecial == CpuMobilitySpecialSlot.SpecialOne
+                ? observation.SpecialOneCooldownFrames <= 0
+                : observation.SpecialTwoCooldownFrames <= 0;
+
+        /// <summary>
+        /// Which way the return lies. Over a pit with A9's floor topology in hand
+        /// that is the nearer pit-facing floor edge; otherwise it is the old
+        /// toward-centre steer, which is still correct for a fighter pushed past a
+        /// side wall on a Sealed stage.
+        /// </summary>
+        private static sbyte ResolveReturnDirection(in CpuDecisionObservation observation) {
+            if (observation.SelfPositionXRaw < observation.LeftWallRaw) return 127;
+            if (observation.SelfPositionXRaw > observation.RightWallRaw) return -127;
+            return ResolveDiHold(in observation);
+        }
+
+        /// <summary>
+        /// Estimates whether the jumps still in hand cover the remaining
+        /// horizontal distance to the return target, using the profile's
+        /// normalized per-jump reach. Deliberately optimistic on Hard's side of
+        /// the comparison: the question is only which action opens the route.
+        /// </summary>
+        private bool JumpsAloneCanReturn(in CpuDecisionObservation observation) {
+            if (observation.RemainingJumps <= 0) return false;
+            if (!_profile.HasKit) return true;
+            long targetRaw = ResolveReturnTargetX(in observation);
+            long distanceRaw = Absolute(targetRaw - observation.SelfPositionXRaw);
+            long reachRaw = _profile.JumpHorizontalReach.RawValue * observation.RemainingJumps;
+            return reachRaw >= distanceRaw;
+        }
+
+        /// <summary>The X the fighter is trying to get back to.</summary>
+        private static long ResolveReturnTargetX(in CpuDecisionObservation observation) {
+            if (observation.HasFloorSegments != 0) {
+                bool hasLeft = observation.HasFloorEdgeLeft != 0;
+                bool hasRight = observation.HasFloorEdgeRight != 0;
+                if (hasLeft && hasRight) {
+                    long leftGap = Absolute(observation.SelfPositionXRaw - observation.NearestFloorEdgeLeftXRaw);
+                    long rightGap = Absolute(observation.NearestFloorEdgeRightXRaw - observation.SelfPositionXRaw);
+                    return leftGap < rightGap
+                        ? observation.NearestFloorEdgeLeftXRaw
+                        : observation.NearestFloorEdgeRightXRaw;
+                }
+                if (hasLeft) return observation.NearestFloorEdgeLeftXRaw;
+                if (hasRight) return observation.NearestFloorEdgeRightXRaw;
+            }
+            return (observation.LeftWallRaw + observation.RightWallRaw) / 2;
+        }
+
+        /// <summary>
+        /// Aims the movement ability the way the <i>shipped simulation</i> reads
+        /// it, which is the difference between a recovery and a suicide:
+        /// Blink/Teleport/Warp translate along the held stick, while Glide, Dash
+        /// and Float launch along current <b>facing</b>. For the facing-driven
+        /// kinds the stick is already held toward the stage (it is the return
+        /// steer), which is also what turns the fighter around before the boost.
+        /// Lincoln's purely horizontal Rail Charge is never aimed upward, because
+        /// it cannot go there — his height comes from legal jumps.
+        /// </summary>
+        private void AimMovementAbility(
+            in CpuDecisionObservation observation, ref sbyte moveX, ref sbyte moveY) {
+            if (!_profile.HasKit || _profile.MovementIsDirectional) {
+                // World Y is up and the stick is Y-down, so a negative axis aims a
+                // directional warp/blink upward. The simulation applies the
+                // authored distance on each held axis independently, so a diagonal
+                // hold is strictly better than either axis alone — the return
+                // steer in <paramref name="moveX"/> stays, and the up-hold is
+                // added while the fighter is still below or falling toward the
+                // floor plane.
+                bool needsHeight = !_profile.HasKit
+                    || observation.SelfPositionYRaw < 0
+                    || observation.SelfVelocityYRaw < 0;
+                if (needsHeight) moveY = -127;
+                return;
+            }
+            // Glide, Dash and Float launch along current facing, which the return
+            // steer has already been turning toward the stage. Never hold up here:
+            // an Up hold selects the up-attack variant on the shared verb resolver
+            // and buys no height on a facing-driven ability.
+            moveY = 0;
+        }
+
+        // === F19 verb policy: grabs and Echo Step (CPU_COMBAT_POLICY.md) ===
+
+        /// <summary>
+        /// Whether the CPU could still legally start <paramref name="verb"/> right
+        /// now, from <b>self</b> state only. Called at delivery, after the tier's
+        /// reaction delay, because a plan formed 4–20 frames ago may have been
+        /// overtaken by the CPU's own state. Opponent conditions are deliberately
+        /// not rechecked: the contract says contact resolves against the actual
+        /// current world and a planned grab is allowed to miss.
+        /// </summary>
+        private static bool VerbStillLegalForSelf(
+            CpuVerbAction verb, in CpuDecisionObservation observation) => verb switch {
+                CpuVerbAction.Grab => CanStartGrab(in observation),
+                CpuVerbAction.EchoStep => CanStartEchoStep(in observation),
+                _ => true
+            };
+
+        /// <summary>
+        /// Self-side grab legality, mirroring <c>FighterGrabRules.CanStartGrab</c>
+        /// rather than inventing a second rule: grounded, alive, free of
+        /// hitstun/daze/shieldstun/roll/swing/hang, and not already in a grab.
+        /// </summary>
+        private static bool CanStartGrab(in CpuDecisionObservation observation) =>
+            observation.HasVerbState != 0
+            && observation.SuppressGameplayInput == 0
+            && observation.Stocks > 0
+            && observation.IsGrounded != 0
+            && observation.HitstunFrames <= 0
+            && observation.DazeFrames <= 0
+            && observation.SelfShieldStunFrames <= 0
+            && observation.SelfGrabPhase == 0
+            && observation.SelfBeingHeld == 0
+            && observation.SelfRolling == 0
+            && observation.IsLedgeHanging == 0
+            && observation.SelfAttackPhase == FighterBasicAttackRules.PhaseNone;
+
+        /// <summary>
+        /// Self-side Echo Step legality, mirroring the simulation's own
+        /// <c>TryStartEchoStep</c> gate: the recovery frames of the CPU's own
+        /// swing, 30 meter, the 120-frame cooldown ready, no armed wind-up, and
+        /// none of the canonical forbidden states (hitstun, daze, ledge hang, any
+        /// grab state). The destination must also be resolvable — the temporal
+        /// contract forbids a nearby substitute, so "no destination" means "do not
+        /// select the action" rather than "teleport somewhere else".
+        /// </summary>
+        private static bool CanStartEchoStep(in CpuDecisionObservation observation) =>
+            observation.HasVerbState != 0
+            && observation.SuppressGameplayInput == 0
+            && observation.Stocks > 0
+            && observation.HitstunFrames <= 0
+            && observation.DazeFrames <= 0
+            && observation.SelfShieldStunFrames <= 0
+            && observation.SelfGrabPhase == 0
+            && observation.SelfBeingHeld == 0
+            && observation.IsLedgeHanging == 0
+            && observation.SelfAttackPhase == FighterBasicAttackRules.PhaseRecovery
+            && observation.SelfEchoStepCooldownFrames <= 0
+            && observation.SelfEchoStepWindupFrames <= 0
+            && observation.HasEchoStepDestination != 0
+            && observation.InfluenceRaw >= EchoStepMeterCost.RawValue;
+
+        /// <summary>
+        /// The Echo Step decision. Medium undoes a vulnerable whiff at its
+        /// provisional 25% admission per attack execution; Hard scores the
+        /// 30-meter spend against a viable Ultimate setup and an unused, eligible
+        /// Defy, and may still spend it to dodge a credible punish.
+        /// </summary>
+        private bool TryDecideEchoStep(
+            in CpuDecisionObservation observation, out GameplayButtons held, out sbyte moveX) {
+            held = GameplayButtons.None;
+            moveX = 0;
+            if (_tuning.EchoStepAdmissionPercent <= 0) return false;
+            if (!CanStartEchoStep(in observation)) return false;
+            // The design's candidate is a WHIFF: an attack execution with no hit
+            // and no block contact. A swing that connected is not being undone.
+            if (observation.SelfAttackMadeContact != 0) return false;
+            if (!IsSafeEchoStepDestination(in observation)) return false;
+
+            bool ultimateLegal = CanCommitUltimate(in observation);
+            // Medium keeps its immediate-Ultimate policy: when both are legal in
+            // one decision, the Ultimate takes priority. Hard values a viable
+            // Ultimate setup for the same reason without the hard rule.
+            if (ultimateLegal && (_tuning.UltimateBeatsEchoStep || _tuning.ReservesMeterForDefy)) {
+                return false;
+            }
+            // Hard's meter tradeoff: full meter behind an unused, eligible Defy is
+            // worth keeping — but this is a utility judgement, not a meter floor,
+            // so a credible punish threat still buys the escape.
+            if (_tuning.ReservesMeterForDefy
+                && observation.SelfDefyAvailable != 0
+                && observation.InfluenceRaw >= MaxInfluence.RawValue
+                && !IsCrediblePunishThreat(in observation)) {
+                return false;
+            }
+
+            if (_echoOpportunityRolledExecutionID != _attackExecutionID) {
+                _echoOpportunityRolledExecutionID = _attackExecutionID;
+                _echoOpportunityAdmitted = NextPercent() < _tuning.EchoStepAdmissionPercent;
+            }
+            if (!_echoOpportunityAdmitted) return false;
+
+            _pendingVerb = CpuVerbAction.EchoStep;
+            // The shared chord, through the ordinary action resolver: Block held
+            // plus a Roll edge during the swing's recovery frames. The CPU never
+            // reaches into the ability directly.
+            held = GameplayButtons.Block | GameplayButtons.Roll;
+            return true;
+        }
+
+        /// <summary>
+        /// "Check the resolved historical destination against current geometry and
+        /// perceived danger before selection, including pit risk; a teleport
+        /// toward a worse or unsupported location is not a defensive improvement."
+        /// Inside the walls, above the blast zone, not inside an active hazard
+        /// band, and — on an Open stage — not hanging over a pit.
+        /// </summary>
+        private static bool IsSafeEchoStepDestination(in CpuDecisionObservation observation) {
+            if (observation.HasEchoStepDestination == 0) return false;
+            if (observation.HasStageBounds == 0) return true;
+            long destinationX = observation.EchoStepDestinationXRaw;
+            long destinationY = observation.EchoStepDestinationYRaw;
+            if (destinationX < observation.LeftWallRaw || destinationX > observation.RightWallRaw) return false;
+            if (destinationY <= observation.BottomBlastZoneRaw) return false;
+            if (observation.HasHazard != 0 && observation.HazardPhase == 1) {
+                long hazardGap = Absolute(observation.HazardPositionXRaw - destinationX)
+                    - observation.HazardHalfWidthRaw;
+                if (hazardGap < 0) return false;
+            }
+            if (observation.HasFloorSegments == 0) return true;
+            // Pit risk. The observation reports support under the fighter's own X,
+            // so the only exactly-known pit span is the one bounded by the two
+            // nearest floor edges; a destination inside it is over the hole.
+            if (observation.HasFloorSupportUnderSelf == 0
+                && observation.HasFloorEdgeLeft != 0
+                && observation.HasFloorEdgeRight != 0
+                && destinationX > observation.NearestFloorEdgeLeftXRaw
+                && destinationX < observation.NearestFloorEdgeRightXRaw) {
+                return false;
+            }
+            return true;
+        }
+
+        /// <summary>The opponent is close and swinging — the punish Echo Step exists to dodge.</summary>
+        private static bool IsCrediblePunishThreat(in CpuDecisionObservation observation) {
+            long gap = Absolute(observation.TargetPositionXRaw - observation.SelfPositionXRaw);
+            if (gap > CloseRange.RawValue) return false;
+            return (observation.TargetPressedButtons
+                & ((int)GameplayButtons.BasicAttack
+                    | (int)GameplayButtons.Special1
+                    | (int)GameplayButtons.Special2)) != 0;
+        }
+
+        /// <summary>
+        /// Whether the delayed observation shows a grab opportunity: a blocking,
+        /// grounded opponent inside the canonical grab reach and in front, none of
+        /// the states a grab may not intentionally target. Reach and the forbidden
+        /// states come from the shared rules, never from AI constants.
+        /// </summary>
+        private static bool IsGrabOpportunity(in CpuDecisionObservation observation) {
+            if (!CanStartGrab(in observation)) return false;
+            if (observation.HasTargetVerbState == 0) return false;
+            if (observation.TargetBlockStance == 0) return false;
+            if (observation.TargetIsGrounded == 0) return false;
+            // Never intentionally target a victim the shared rules would whiff on.
+            if (observation.TargetHitstunFrames > 0
+                || observation.TargetDazeFrames > 0
+                || observation.TargetShieldStunFrames > 0
+                || observation.TargetInvulnerabilityFrames > 0
+                || observation.TargetRolling != 0
+                || observation.TargetThrowImmune != 0) {
+                return false;
+            }
+            long dx = observation.TargetPositionXRaw - observation.SelfPositionXRaw;
+            long front = observation.SelfFacingRight != 0 ? dx : -dx;
+            return front >= 0 && front <= GrabReach.RawValue;
+        }
+
+        /// <summary>
+        /// The grab decision. Medium takes its provisional 25% admission per
+        /// eligible blocking opportunity; Hard scores it — it will not grab every
+        /// block, and it wants a throw direction that actually improves position.
+        /// Either way the roll happens <b>once per opportunity</b>: a failed roll
+        /// never reopens the same continuing opportunity.
+        /// </summary>
+        private bool TryDecideGrab(in CpuDecisionObservation observation, out GameplayButtons held) {
+            held = GameplayButtons.None;
+            if (!IsGrabOpportunity(in observation)) {
+                _grabOpportunityOpen = false;
+                return false;
+            }
+            // The opportunity is tracked before the band gate, so "one
+            // opportunity" means the same run of decisions on every band — a
+            // disabled band simply never rolls against it.
+            if (!_grabOpportunityOpen) {
+                _grabOpportunityOpen = true;
+                _grabOpportunityID++;
+            }
+            if (_tuning.GrabAdmissionPercent <= 0) return false;
+            if (_tuning.ScoresGrabTactically && !HasUsefulThrow(in observation)) return false;
+            if (_grabOpportunityRolledID != _grabOpportunityID) {
+                _grabOpportunityRolledID = _grabOpportunityID;
+                _grabOpportunityAdmitted = NextPercent() < _tuning.GrabAdmissionPercent;
+            }
+            if (!_grabOpportunityAdmitted) return false;
+
+            _pendingVerb = CpuVerbAction.Grab;
+            // The canonical chord through the shared resolver: BasicAttack pressed
+            // while Block is held. The grabber drops block as part of the attempt,
+            // which is the shared rule, not an AI special case.
+            held = GameplayButtons.Block | GameplayButtons.BasicAttack;
+            return true;
+        }
+
+        /// <summary>
+        /// Hard's positional test: a throw is worth taking when it sends the
+        /// opponent toward a stage edge or pit they are not already past. A
+        /// blocking opponent already backed into the edge offers nothing, so Hard
+        /// keeps attacking instead of grabbing on reflex.
+        /// </summary>
+        private static bool HasUsefulThrow(in CpuDecisionObservation observation) {
+            long edgeX = ResolveThrowEdgeX(in observation);
+            long selfToEdge = Absolute(edgeX - observation.SelfPositionXRaw);
+            long targetToEdge = Absolute(edgeX - observation.TargetPositionXRaw);
+            return targetToEdge < selfToEdge;
+        }
+
+        /// <summary>
+        /// The edge a throw should aim at: the nearest pit-facing floor edge on an
+        /// Open stage, otherwise the nearer side wall. Hard additionally refuses an
+        /// edge that would put the opponent inside an active hazard band and takes
+        /// the other side instead.
+        /// </summary>
+        private static long ResolveThrowEdgeX(in CpuDecisionObservation observation) {
+            long left = observation.HasFloorSegments != 0 && observation.HasFloorEdgeLeft != 0
+                ? observation.NearestFloorEdgeLeftXRaw
+                : observation.LeftWallRaw;
+            long right = observation.HasFloorSegments != 0 && observation.HasFloorEdgeRight != 0
+                ? observation.NearestFloorEdgeRightXRaw
+                : observation.RightWallRaw;
+            long toLeft = Absolute(observation.SelfPositionXRaw - left);
+            long toRight = Absolute(right - observation.SelfPositionXRaw);
+            // Deterministic tie-break: the right edge.
+            return toLeft < toRight ? left : right;
+        }
+
+        /// <summary>
+        /// While the grab holds, the stick <i>is</i> the throw choice — the shared
+        /// <c>FighterGrabRules</c> resolves direction from held input when the
+        /// decision window closes. Holding toward the chosen edge yields the
+        /// forward throw when that edge lies ahead and the back throw when it lies
+        /// behind, with no invented throw of any kind.
+        /// </summary>
+        private static sbyte ResolveThrowHold(in CpuDecisionObservation observation) {
+            if (observation.HasStageBounds == 0) return observation.SelfFacingRight != 0 ? (sbyte)127 : (sbyte)-127;
+            long edgeX = ResolveThrowEdgeX(in observation);
+            return edgeX >= observation.SelfPositionXRaw ? (sbyte)127 : (sbyte)-127;
         }
 
         // === Projectile defense (M-8) ===
@@ -696,6 +1416,12 @@ namespace FTT.FighterSim {
             if (absoluteRaw <= closeRaw) {
                 if (CanCommitUltimate(in observation) && NextPercent() < _tuning.UltimatePercent) {
                     held |= GameplayButtons.Ultimate;
+                } else if (TryDecideGrab(in observation, out GameplayButtons grab)) {
+                    // The grab answers the block stance. It is evaluated after the
+                    // Ultimate (which bypasses shields outright) and before the
+                    // specials ladder, because a shielding opponent is precisely
+                    // the case the specials ladder handles worst.
+                    return held | grab;
                 } else if (observation.SpecialOneCooldownFrames <= 0
                     && NextPercent() < _tuning.SpecialOneClosePercent) {
                     held |= GameplayButtons.Special1;
@@ -760,6 +1486,8 @@ namespace FTT.FighterSim {
             public sbyte MoveX;
             public sbyte MoveY;
             public GameplayButtons Held;
+            public CpuVerbAction Verb;
+            public bool SpendsMovementActivation;
         }
     }
 
@@ -823,8 +1551,61 @@ namespace FTT.FighterSim {
         /// <summary>Extra clearance beyond the hazard half-width, raw <c>FP64</c>.</summary>
         public long HazardClearanceRaw { get; init; }
         public int RecoveryJumpPercent { get; init; }
+        /// <summary>
+        /// F19: admission for the character's own movement ability — the default
+        /// recovery tool on Medium and Hard, and Easy's single permitted
+        /// activation. It was <b>0 on Easy and Medium</b> before Package 11 A9b,
+        /// which is the inversion F19 corrects.
+        /// </summary>
         public int RecoveryMovementPercent { get; init; }
-        public int RecoverySpecialTwoPercent { get; init; }
+        /// <summary>
+        /// Movement-ability activations the planner may spend per offstage
+        /// episode. <b>1</b> on Easy and Medium per <c>CPU_RECOVERY.md</c>; 0 means
+        /// "no planning limit", which is Hard, where the ability's own cooldown is
+        /// the only constraint.
+        /// </summary>
+        public int RecoveryMovementActivationsPerEpisode { get; init; }
+        /// <summary>
+        /// Admission for a <b>validated</b> mobility Special, gated behind
+        /// <see cref="CpuRecoveryProfile.MobilitySpecial"/>. This replaces the
+        /// retired <c>RecoverySpecialTwoPercent</c>, whose whole premise — that
+        /// slot 2 is a universal recovery move — the design rejects: "Special 2 is
+        /// not a universal recovery move", and Specials are forbidden outright on
+        /// Easy. No character approves one today, so the rate is currently inert on
+        /// every band; it is not zero because approving a Special later must be a
+        /// profile edit, not a tuning archaeology exercise.
+        /// </summary>
+        public int RecoveryMobilitySpecialPercent { get; init; }
+        /// <summary>
+        /// Hard only: compare feasible routes and plan longer legal sequences
+        /// rather than running a fixed jump-first script.
+        /// </summary>
+        public bool PlansMultiActionRecovery { get; init; }
+        /// <summary>
+        /// F19 grab admission per eligible blocking opportunity. Easy 0 (disabled),
+        /// Medium the design's provisional 25%, Hard a scored rate — it still does
+        /// not grab every block, because <see cref="ScoresGrabTactically"/> also
+        /// requires a throw that improves position.
+        /// </summary>
+        public int GrabAdmissionPercent { get; init; }
+        /// <summary>Hard only: score the grab rather than rolling a flat admission.</summary>
+        public bool ScoresGrabTactically { get; init; }
+        /// <summary>
+        /// F19 Echo Step admission per eligible attack execution. Easy 0
+        /// (disabled), Medium the design's provisional 25%, Hard tactical.
+        /// </summary>
+        public int EchoStepAdmissionPercent { get; init; }
+        /// <summary>
+        /// Medium: "If both actions are legal in one decision, that policy takes
+        /// priority" — the immediate-Ultimate policy beats Echo Step.
+        /// </summary>
+        public bool UltimateBeatsEchoStep { get; init; }
+        /// <summary>
+        /// Hard: full meter behind an unused, eligible Defy has reserve value, so
+        /// the 30-meter Echo Step spend is weighed against it. A utility tradeoff,
+        /// never a meter floor — a credible punish still buys the escape.
+        /// </summary>
+        public bool ReservesMeterForDefy { get; init; }
 
         public static CpuBandTuning For(CpuDifficulty difficulty) => difficulty switch {
             CpuDifficulty.Easy => Easy,
@@ -833,9 +1614,33 @@ namespace FTT.FighterSim {
         };
 
         /// <summary>
+        /// Package 11 A7b (F20). The campaign <b>boss</b> band for a Story encounter
+        /// that borrows this engine — today only the Level 13 Mirror Paradox.
+        /// <c>MIRROR_PARADOX.md</c>: "Reuse the CPU utility engine with explicit boss
+        /// overrides; do not load a complete practice-CPU preset and accidentally
+        /// disable the boss's signature abilities." The boss keeps its <b>full core
+        /// kit on every difficulty</b>, so only Easy needs overriding — Normal and
+        /// Hard already carry the contract's rates verbatim.
+        /// </summary>
+        /// <remarks>
+        /// Deliberately not a Fighter band: <see cref="For"/> still answers for
+        /// practice/Holodeck CPUs, and a Holodeck setting can never reach a boss
+        /// encounter because the encounter selects its own difficulty from the Story
+        /// session.
+        /// </remarks>
+        public static CpuBandTuning BossOverride(CpuDifficulty difficulty) => difficulty switch {
+            CpuDifficulty.Easy => EasyBoss,
+            CpuDifficulty.Hard => Hard,
+            _ => Normal
+        };
+
+        /// <summary>
         /// Easy: straightforward walking and basic attacks. No neutral specials, no
-        /// movement ability, no Ultimate, no orb pathing, no hazard reaction. Special 2
-        /// exists only as the off-stage recovery button, exactly as the design states.
+        /// neutral movement ability, no Ultimate, no orb pathing, no hazard
+        /// reaction, and — F19, Package 11 A9b — <b>no Specials at all, including
+        /// off-stage</b>. Its one recovery tool beyond jumps is a single movement-
+        /// ability activation per offstage episode. It grabs nothing and never
+        /// Echo Steps.
         /// </summary>
         public static CpuBandTuning Easy { get; } = new() {
             ApproachJumpPercent = 0,
@@ -866,9 +1671,22 @@ namespace FTT.FighterSim {
             AvoidsHazardWarning = false,
             HazardEscapeMovementPercent = 0,
             HazardClearanceRaw = 0,
+            // F19 (Package 11 A9b): Easy "steers toward the nearest plausible
+            // legal ledge or landing, uses remaining jumps and AT MOST ONE
+            // activation of the character's movement ability per offstage
+            // episode", and "Specials remain disabled on Easy". The shipped band
+            // was exactly inverted — Special 2 at 55%, the movement ability never.
             RecoveryJumpPercent = 60,
-            RecoveryMovementPercent = 0,
-            RecoverySpecialTwoPercent = 55
+            RecoveryMovementPercent = 55,
+            RecoveryMovementActivationsPerEpisode = 1,
+            RecoveryMobilitySpecialPercent = 0,
+            PlansMultiActionRecovery = false,
+            // CPU_COMBAT_POLICY.md: "Easy | Disabled. | Disabled."
+            GrabAdmissionPercent = 0,
+            ScoresGrabTactically = false,
+            EchoStepAdmissionPercent = 0,
+            UltimateBeatsEchoStep = false,
+            ReservesMeterForDefy = false
         };
 
         public static CpuBandTuning Normal { get; } = new() {
@@ -901,9 +1719,24 @@ namespace FTT.FighterSim {
             AvoidsHazardWarning = false,
             HazardEscapeMovementPercent = 0,
             HazardClearanceRaw = 0,
+            // F19: "remaining jumps plus ONE suitable recovery ability
+            // activation. The movement ability is the default; a validated
+            // mobility Special may substitute where its trajectory fits better."
+            // No multi-ability or platform/refund chains.
             RecoveryJumpPercent = 90,
-            RecoveryMovementPercent = 0,
-            RecoverySpecialTwoPercent = 85
+            RecoveryMovementPercent = 85,
+            RecoveryMovementActivationsPerEpisode = 1,
+            RecoveryMobilitySpecialPercent = 85,
+            PlansMultiActionRecovery = false,
+            // CPU_COMBAT_POLICY.md Medium: "Initial tuning target: 25% admission
+            // chance per eligible blocking opportunity" and the same per eligible
+            // attack execution for Echo Step. Provisional tuning values, not
+            // measured balance results.
+            GrabAdmissionPercent = 25,
+            ScoresGrabTactically = false,
+            EchoStepAdmissionPercent = 25,
+            UltimateBeatsEchoStep = true,
+            ReservesMeterForDefy = false
         };
 
         public static CpuBandTuning Hard { get; } = new() {
@@ -939,9 +1772,48 @@ namespace FTT.FighterSim {
             // 1.5 units of extra clearance so Hard leaves the telegraphed band, not
             // merely its edge.
             HazardClearanceRaw = HardHazardClearance.RawValue,
+            // F19: "Compare feasible routes and plan longer legal sequences...
+            // do not execute a fixed jump -> movement -> Special 2 script."
+            // The episode limit is lifted (0); the ability's own cooldown is the
+            // constraint, exactly as it is for a human.
             RecoveryJumpPercent = 100,
             RecoveryMovementPercent = 90,
-            RecoverySpecialTwoPercent = 100
+            RecoveryMovementActivationsPerEpisode = 0,
+            RecoveryMobilitySpecialPercent = 100,
+            PlansMultiActionRecovery = true,
+            // CPU_COMBAT_POLICY.md Hard: score both tactically. "No automatic grab
+            // on every block" and "No automatic cancel of every whiff", hence a
+            // scored gate plus a rate below 100.
+            GrabAdmissionPercent = 70,
+            ScoresGrabTactically = true,
+            EchoStepAdmissionPercent = 75,
+            UltimateBeatsEchoStep = false,
+            ReservesMeterForDefy = true
+        };
+
+        /// <summary>
+        /// Easy's boss band. The practice Easy CPU zeroes both Specials, the movement
+        /// ability and the Ultimate; F20 forbids inheriting those restrictions, so the
+        /// kit rates are taken <b>from the Normal band</b> rather than invented as a
+        /// third ladder — no Easy-boss kit ladder is authored anywhere, and the
+        /// contract only asks for "suitable Specials rather than only basics". Easy's
+        /// separation comes from the numbers F20 does specify and which are untouched
+        /// here: the 30-45-frame reaction window, the 10% block rate, 10%/0% hitstun
+        /// defense and DI, 0.7x HP and 0.5x outgoing damage. The Ultimate follows the
+        /// contract's "first legal opportunity at full meter" — Normal's policy, not
+        /// Hard's confirmed-setup policy. Grabs and Echo Step stay off: the override
+        /// "does not enable Easy grabs or Echo Step", and neither verb exists in this
+        /// controller yet (A9b's F19 work).
+        /// </summary>
+        public static CpuBandTuning EasyBoss { get; } = Easy with {
+            ApproachJumpPercent = Normal.ApproachJumpPercent,
+            MovementAbilityPercent = Normal.MovementAbilityPercent,
+            UltimatePercent = Normal.UltimatePercent,
+            RequiresUltimateSetup = false,
+            UltimateFinishHPPercent = Normal.UltimateFinishHPPercent,
+            SpecialOneClosePercent = Normal.SpecialOneClosePercent,
+            SpecialOneRangedPercent = Normal.SpecialOneRangedPercent,
+            SpecialTwoPercent = Normal.SpecialTwoPercent
         };
     }
 }

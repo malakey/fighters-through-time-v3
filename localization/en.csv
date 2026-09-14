@@ -1346,3 +1346,199 @@ dlg_l04a_einstein_exit_3,"They will send something worse next time. Let them."
 # Package 11 A1c — F21 results totals
 fighter_results_stocks_lost,Player {0} stocks lost: {1}
 fighter_results_sudden_death,Decided in Sudden Death
+# Package 11 B1
+legacy_joan_level_title,"Orléans, 1429 — The Legacy Nexus"
+legacy_joan_room_bank,The Drowned Bank
+legacy_joan_room_boulevard,The Tourelles Boulevard
+legacy_joan_room_banner,The Banner Ground
+legacy_joan_objective_gates,"Reclaim the nexus ({0}/{1} resonances answered)"
+legacy_joan_objective_boss,Break the Overseer's hold on the boulevard
+legacy_joan_objective_complete,The nexus is yours again
+boss_joan_legacy_overseer_name,The Tourelles Overseer
+speaker_joan_legacy_overseer,The Tourelles Overseer
+dlg_l04a_joan_entrance_1,"Warden, that rift is anchored on your own banner-day. They came back for the girl they failed to take."
+dlg_l04a_joan_entrance_2,"Then they will meet her on the bank where she crossed, and not one step past it."
+dlg_l04a_joan_entrance_3,"Everything you were is on the far side of that water. Go and take it back."
+dlg_l04a_joan_boss_1,"A farm girl's relic carrying a borrowed fire. Kneel, and be filed."
+dlg_l04a_joan_boss_2,"You have taken my siege. You have never once understood why the tower fell."
+dlg_l04a_joan_exit_1,"The boulevard is quiet. The morning can arrive the way it was promised."
+dlg_l04a_joan_exit_2,"Wound closed, Warden. That one was yours, not history's."
+dlg_l04a_joan_exit_3,"They will send something worse. Let it come to Orléans."
+legacy_leonardo_level_title,"Florence, 1503 — The Legacy Nexus"
+legacy_leonardo_room_arno,The Broken Span
+legacy_leonardo_room_workshop,The Workshop and the Long Gallery
+legacy_leonardo_room_hall,The Commission Hall
+legacy_leonardo_objective_gates,"Reclaim the nexus ({0}/{1} resonances answered)"
+legacy_leonardo_objective_boss,Break the Overseer's hold on the workshop
+legacy_leonardo_objective_complete,The nexus is yours again
+boss_leonardo_legacy_overseer_name,The Workshop Overseer
+speaker_leonardo_legacy_overseer,The Workshop Overseer
+dlg_l04a_leonardo_entrance_1,"Warden, the signature is your own workshop. They came back for the day you never finished."
+dlg_l04a_leonardo_entrance_2,"Then they are standing among my drawings with no idea what a single one of them does."
+dlg_l04a_leonardo_entrance_3,"Everything you were is past that river. Go and take it back."
+dlg_l04a_leonardo_boss_1,"An unfinished man in an unfinished room. Hold still; I will complete you."
+dlg_l04a_leonardo_boss_2,"You have taken my proportions. You have never once understood the measure."
+dlg_l04a_leonardo_exit_1,"The frame is level again. The flight can happen on the day it was drawn for."
+dlg_l04a_leonardo_exit_2,"Wound closed, Warden. That one was yours, not history's."
+dlg_l04a_leonardo_exit_3,"They will send something worse. Let it find the workshop open."
+legacy_lincoln_level_title,"Gettysburg, 1863 — The Legacy Nexus"
+legacy_lincoln_room_cut,The Unfinished Railway Cut
+legacy_lincoln_room_ridge,Cemetery Ridge
+legacy_lincoln_room_platform,The Dedication Platform
+legacy_lincoln_objective_gates,"Reclaim the nexus ({0}/{1} resonances answered)"
+legacy_lincoln_objective_boss,Break the Overseer's hold on the ridge
+legacy_lincoln_objective_complete,The nexus is yours again
+boss_lincoln_legacy_overseer_name,The Ridge Overseer
+speaker_lincoln_legacy_overseer,The Ridge Overseer
+dlg_l04a_lincoln_entrance_1,"Warden, the rift is sitting on your own dedication. They came back for the words you never got to say."
+dlg_l04a_lincoln_entrance_2,"Then they have chosen the one piece of ground in this country I will not yield."
+dlg_l04a_lincoln_entrance_3,"Everything you were is up on that ridge. Go and take it back."
+dlg_l04a_lincoln_boss_1,"An address unwritten is an address we may write for you. Be still."
+dlg_l04a_lincoln_boss_2,"You have taken my rails. You have never once understood what a union costs."
+dlg_l04a_lincoln_exit_1,"The platform stands. The day can be spoken for after all."
+dlg_l04a_lincoln_exit_2,"Wound closed, Warden. That one was yours, not history's."
+dlg_l04a_lincoln_exit_3,"They will send something worse. Let it stand where these men stood."
+# Package 11 B3
+legacy_mozart_level_title,"Vienna, 1782 — The Legacy Nexus"
+legacy_mozart_room_platz,Michaelerplatz
+legacy_mozart_room_stage,The Burgtheater Stage
+legacy_mozart_room_vault,The Gilded Vault
+legacy_mozart_objective_gates,"Reclaim the nexus ({0}/{1} resonances answered)"
+legacy_mozart_objective_boss,Silence the Impresario
+legacy_mozart_objective_complete,The nexus is yours again
+boss_mozart_legacy_impresario_name,The Burgtheater Impresario
+speaker_mozart_legacy_impresario,The Burgtheater Impresario
+dlg_l04a_mozart_entrance_1,"Warden, the rift signature is your own. They came back for the night they lost you."
+dlg_l04a_mozart_entrance_2,"Then they have chosen the one house where I know every door."
+dlg_l04a_mozart_entrance_3,"Everything you are is waiting past that pit. Go and take it back."
+dlg_l04a_mozart_boss_1,"An unfinished man writing unfinished work. We only came to close the score."
+dlg_l04a_mozart_boss_2,"You have my music. You have never once heard it."
+dlg_l04a_mozart_exit_1,"The house is quiet. The premiere can finish the way it was written."
+dlg_l04a_mozart_exit_2,"Wound closed, Warden. That one was yours, not history's."
+dlg_l04a_mozart_exit_3,"They will send something worse next time. Let them."
+legacy_pocahontas_level_title,"Tsenacommacah, 1607 — The Legacy Nexus"
+legacy_pocahontas_room_riverbank,The Cut Riverbank
+legacy_pocahontas_room_weir,The Weir and the Terraces
+legacy_pocahontas_room_hollow,The Flooded Hollow
+legacy_pocahontas_objective_gates,"Reclaim the nexus ({0}/{1} resonances answered)"
+legacy_pocahontas_objective_boss,Break the Reaver's hold on the river
+legacy_pocahontas_objective_complete,The nexus is yours again
+boss_pocahontas_legacy_tidereaver_name,The Tidewater Reaver
+speaker_pocahontas_legacy_tidereaver,The Tidewater Reaver
+dlg_l04a_pocahontas_entrance_1,"Warden, the rift signature is your own. They came back for the season they lost you."
+dlg_l04a_pocahontas_entrance_2,"They cut the bank to keep me from the water. They do not know this river."
+dlg_l04a_pocahontas_entrance_3,"Everything you are is on the far side of that gorge. Go and take it back."
+dlg_l04a_pocahontas_boss_1,"A girl the record could not hold. Stand still and be simplified."
+dlg_l04a_pocahontas_boss_2,"You have my river. You have never once listened to it."
+dlg_l04a_pocahontas_exit_1,"The weir is open. The season can finish the way it was written."
+dlg_l04a_pocahontas_exit_2,"Wound closed, Warden. That one was yours, not history's."
+dlg_l04a_pocahontas_exit_3,"They will send something worse next time. Let them."
+# Package 11 B2
+legacy_cleopatra_level_title,"Alexandria, 30 BC — The Legacy Nexus"
+legacy_cleopatra_room_harbour,Harbour Steps
+legacy_cleopatra_room_mausoleum,The Royal Mausoleum
+legacy_cleopatra_room_asp_hall,The Asp's Hall
+legacy_cleopatra_objective_gates,Reclaim the nexus ({0}/{1} resonances answered)
+legacy_cleopatra_objective_boss,Break the Jackal's hold on the mausoleum
+legacy_cleopatra_objective_complete,The nexus is yours again
+boss_cleopatra_legacy_priest_name,The Mausoleum Jackal
+speaker_cleopatra_legacy_priest,The Mausoleum Jackal
+dlg_l04a_cleopatra_entrance_1,"Warden, the rift signature is your own. The Unbound came back for the night Alexandria lost you."
+dlg_l04a_cleopatra_entrance_2,Then they will meet the queen who was still standing when the basket arrived.
+dlg_l04a_cleopatra_entrance_3,Everything you are is past that causeway. Go and take it back.
+dlg_l04a_cleopatra_boss_1,"A queen filed under 'ended'. Kneel, and the record stays tidy."
+dlg_l04a_cleopatra_boss_2,You hold my serpents. Not one of them has ever obeyed you.
+dlg_l04a_cleopatra_exit_1,The seal is quiet. The night can finish the way it was written.
+dlg_l04a_cleopatra_exit_2,"Wound closed, Warden. That one was yours, not history's."
+dlg_l04a_cleopatra_exit_3,They will send something worse. Let it come to my harbour.
+legacy_tesla_level_title,"Chicago, 1893 — The Legacy Nexus"
+legacy_tesla_room_court,Court of Honor
+legacy_tesla_room_electricity,The Electricity Building
+legacy_tesla_room_dynamo,The Dynamo Vault
+legacy_tesla_objective_gates,Reclaim the nexus ({0}/{1} resonances answered)
+legacy_tesla_objective_boss,Break the Inventor's hold on the dynamo
+legacy_tesla_objective_complete,The nexus is yours again
+boss_tesla_legacy_inventor_name,The Exposition Inventor
+speaker_tesla_legacy_inventor,The Exposition Inventor
+dlg_l04a_tesla_entrance_1,"Warden, the rift signature is your own. The Unbound came back for the night the Fair first lit."
+dlg_l04a_tesla_entrance_2,Then they can stand in my current and call it an accident afterwards.
+dlg_l04a_tesla_entrance_3,Everything you are is past that gantry. Go and switch it on.
+dlg_l04a_tesla_boss_1,"An unfiled genius. Hold still — correction is only current, properly applied."
+dlg_l04a_tesla_boss_2,You hold my coils. You have never once understood the ground.
+dlg_l04a_tesla_exit_1,The dynamo is turning. Let the Fair have its night.
+dlg_l04a_tesla_exit_2,"Wound closed, Warden. The Unbound just lost their claim on you."
+dlg_l04a_tesla_exit_3,Let them come again. I know where every switch in this building is.
+legacy_shakespeare_level_title,"London, 1599 — The Legacy Nexus"
+legacy_shakespeare_room_bankside,Bankside Approach
+legacy_shakespeare_room_yard,The Globe's Yard
+legacy_shakespeare_room_understage,Beneath the Stage
+legacy_shakespeare_objective_gates,Reclaim the nexus ({0}/{1} resonances answered)
+legacy_shakespeare_objective_boss,Break the Understudy's hold on the stage
+legacy_shakespeare_objective_complete,The nexus is yours again
+boss_shakespeare_legacy_king_name,The Understudy King
+speaker_shakespeare_legacy_king,The Understudy King
+dlg_l04a_shakespeare_entrance_1,"Warden, the rift signature is your own. The Unbound came back for the night the Globe first opened."
+dlg_l04a_shakespeare_entrance_2,"Then they shall have a performance, and no exit but the one I write them."
+dlg_l04a_shakespeare_entrance_3,Everything you are is past that span. Go and call the house to order.
+dlg_l04a_shakespeare_boss_1,An author we failed to strike from the cast. Step aside — I have the part now.
+dlg_l04a_shakespeare_boss_2,You hold my words. You have never once earned a single one.
+dlg_l04a_shakespeare_exit_1,The stage is swept. The season can run as it was written.
+dlg_l04a_shakespeare_exit_2,"Wound closed, Warden. Take the applause — that one was yours."
+dlg_l04a_shakespeare_exit_3,They will send a better player next time. Let them try these boards.
+# Package 11 A3b — V7.6 Act III Gauntlet, Warden Beacon, Smothered, F10 persistence
+beacon_interaction_open_repository,Press Interact to open the Warden Beacon
+game_over_title,Smothered
+game_over_smothered_body,"The field closed. The cradle finished what it started, and no rift came."
+game_over_deposited_dust_safe,Deposited Chronal Dust is safe. This level's earnings were never banked.
+game_over_restart_level,Restart Level
+game_over_quit_to_menu,Quit to Menu
+hold_node_severed_conduit_name,Severed Conduit
+hold_node_cradle_valve_name,Cradle Intake Valve
+hold_node_anchor_pylon_name,Anchor Pylon
+hold_drain_slowed_conduit,Conduit severed — the hold is steadier
+hold_drain_slowed_valve,Intake valve shut — the hold is steadier
+hold_drain_slowed_pylon,Anchor pylon down — the hold is steadier
+hold_reveal_forge_intake,"The clock was never the era's. It is the Forge's intake, and you are the era."
+save_notice_write_failed,"Saving failed for slot {0}. The last good save was kept; progress since then is not stored."
+save_notice_legacy_recovery_required,This save predates the current attempt records. Use Restart Level to continue.
+anchor_snap_sarah_line,"It nearly had you. Your anchor held — get up."
+# Package 11 A11 - F18 Calibration Drills
+menu_calibration_drills,Calibration Drills
+holodeck_calibration_drills,Calibration Drills
+drill_picker_title,Calibration Drills
+drill_picker_hint,"Pick a legend to train with. Every kit here is the normalized Fighter loadout - no Resonance, no campaign progress, nothing to lose."
+drill_list_title,Calibration Drills
+drill_list_hint,"Six short lessons in the universal verbs. Each one is pass or fail, and you can retry as often as you like."
+drill_list_character,"Training as {0}"
+drill_progress,"Drill {0} of {1}"
+drill_retry,Retry
+drill_next,Next Drill
+drill_list_button,Drill List
+drill_exit,Exit Calibration
+drill_result_pass,Calibrated
+drill_result_fail,Not yet
+drill_block_string_name,Hold the Line
+drill_block_string_objective,"Stand your ground and hold Block. Let two of the dummy's string break on your shield."
+drill_block_string_pass,"That is the shield doing its job - and from the second hit of a string you can escape the stun straight back into it."
+drill_block_string_fail,"You ate the whole string. Block works only on the ground, and only while you hold it."
+drill_landing_tech_name,Catch the Ground
+drill_landing_tech_objective,"Let the dummy launch you, then hold Block as you hit the floor to tech the landing."
+drill_landing_tech_pass,"Clean tech. A teched landing is invulnerable and instant - it is how you refuse the follow-up."
+drill_landing_tech_fail,"You landed flat. Hold Block through the landing itself, not at the moment of the launch."
+drill_launch_di_name,Steer the Launch
+drill_launch_di_objective,"Take the dummy's finisher and hold a direction during the hit freeze. That is Directional Influence."
+drill_launch_di_pass,"You steered it. DI cannot cancel a launch, but it decides where the launch leaves you."
+drill_launch_di_fail,"You went wherever they sent you. Hold a direction during the freeze, before the launch resolves."
+drill_grab_throw_name,Break the Guard
+drill_grab_throw_objective,"The dummy is holding Block and will not drop it. Walk in, grab it, and throw."
+drill_grab_throw_pass,"Attack loses to block, block loses to grab, grab loses to attack. You just closed the triangle."
+drill_grab_throw_fail,"No throw landed. A grab is Block plus Attack, on the ground, inside jab range."
+drill_echo_step_name,Fold the Recovery
+drill_echo_step_objective,Charge Influence to 30 by attacking the training bag.
+drill_echo_step_objective_two,"Now swing, and press Block plus Roll during the recovery - Echo Step folds you back to where you stood."
+drill_echo_step_pass,"That is a swing you no longer have to finish standing still. It costs 30 Influence and will not answer again immediately."
+drill_echo_step_fail,"No step fired. It answers only out of your own swing's recovery frames, and only with 30 Influence banked."
+drill_rally_reclaim_name,Reclaim the Echo
+drill_rally_reclaim_objective,"Take the dummy's hit, then land one of your own before the echo drains away."
+drill_rally_reclaim_pass,"Reclaimed. Damage taken leaves an echo for a moment; hitting back turns it straight back into health."
+drill_rally_reclaim_fail,"The echo drained away. Answer faster - a reclaim lands only while the echo is still on the bar."

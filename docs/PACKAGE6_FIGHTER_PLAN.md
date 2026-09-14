@@ -1741,3 +1741,37 @@ Recorded for later: `FighterCpuController` gained the floor-topology observation
 corrected DI comment only. The V7.4 deferral of pit-aware DI ("the authored stages run solid floors")
 has expired, but the policy change is **A9b's**, deliberately, so the pits land before any CPU or
 balance tuning moves with them.
+
+### Package 11 A9b — the F19 CPU pass that consumes A9's floor topology
+
+A9's closing note above said the pit-aware DI policy was A9b's, deliberately. It landed on
+2026-09-13 together with the rest of F19, and the CPU section of this plan should now be read as
+follows.
+
+* **`FighterCpuController.DecideRecovery` is a tiered planner, not a percentage ladder.** Easy steers
+  at the nearest legal landing, spends remaining jumps and activates its movement ability **at most
+  once per offstage episode**, with Specials disabled everywhere. Medium estimates whether the jumps
+  in hand cover the return and otherwise spends one suitable ability — the movement ability by
+  default. Hard compares routes: it opens with the ability when jumps alone cannot cover the gap,
+  chains where the kit actually refunds (Breeze Glide), re-evaluates every decision, and past a
+  240-frame bound drops every optional hesitation so it cannot stall offstage.
+* **`IsOffStage` reads A9's floor segments.** "Unsupported over a gap" replaces the old
+  below-the-floor-plane test on Open stages; a Sealed stage's `HasFloorSegments == 0` makes the gap
+  branch unreachable, which is how the design's "closed stages must not trigger emergency casts"
+  requirement is met by construction.
+* **`CpuRecoveryProfile` is new and is code-owned**, like `CpuBandTuning`. It is built from the CPU
+  fighter's own normalized `FighterLoadout`, so every distance, duration, cooldown and jump number
+  the planner reasons about is the authored one. No character approves an optional mobility Special;
+  Pocahontas's Spirit Strike is rejected after validation because the simulation translates the
+  caster only inside `ApplyMovement`.
+* **Grabs and Echo Step reach the simulation as the shared chords** — `Block` + a `BasicAttack` edge,
+  and `Block` + a `Roll` edge during the swing's recovery frames. Admission is rolled once per
+  opportunity (grab) or per attack execution (Echo Step), and a scheduled verb is re-validated
+  against current self-state at delivery.
+* **Echo Step destination safety is checked before selection**, including pit risk, through
+  `FighterSimulation.TryGetEchoStepDestination` — which reads the same ring the simulation's own
+  `TryStartEchoStep` resolves from. **Package 11 A1c must re-point that accessor and
+  `FighterMovementSystem.OldestRingSample` when the 5-sample ring becomes the exact 31-sample bank.**
+* **The rollback readiness gate was re-run** after the change: `RollbackReadinessTests`,
+  `FighterStageGeometry*` and `FighterMatchFlow*` pass together at 109/109. Nothing A9b added is
+  simulation state — the controller remains an input source outside the snapshot.

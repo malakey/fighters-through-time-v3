@@ -1,4 +1,4 @@
-using FTT.Core;
+﻿using FTT.Core;
 using FTT.Environment;
 using GdUnit4;
 using Godot;
@@ -7,11 +7,19 @@ using static GdUnit4.Assertions;
 namespace FTT.Tests.Unit;
 
 /// <summary>
-/// V7.3 mid-level resume persistence: a checkpoint save carries the whole
-/// attempt (activated checkpoints, destroyed extractors, found secrets, font
-/// uses, live Timeline Integrity), a resume restores it, a fresh entry or
-/// Restart clears it — and the scene-side restore pays nothing twice (no
-/// dust from a re-broken extractor, no double secret count).
+/// Mid-level resume persistence: a checkpoint save carries the whole attempt
+/// (activated checkpoints, destroyed extractors, found secrets, font uses, live
+/// Timeline Integrity), a resume restores it, a fresh entry or Restart clears it
+/// — and the scene-side restore pays nothing twice (no dust from a re-broken
+/// extractor, no double secret count).
+///
+/// <para><b>Package 11 A3b rewrite.</b> The same four boundaries, now asserted
+/// against the F10 <see cref="StoryAttemptState"/> record rather than only the
+/// six loose V7.3 root fields. Those fields are still written — they are the
+/// trustworthy existing records Phase C's v5→v6 step migrates from — but the
+/// record is the authority, and the attempt ID is what makes "the same attempt"
+/// a checkable claim rather than an inference from a non-empty checkpoint
+/// string.</para>
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -39,6 +47,14 @@ public class LevelAttemptPersistenceTests {
             AssertThat(save.FoundSecretIDs).Contains("attempt_secret");
             AssertThat(save.FontUsesConsumed["Orleans:attempt_font"]).IsEqual(1);
             AssertThat(save.LevelIntegrityPercent).IsEqual(integrity);
+            // F10: the same facts ride the attempt record, which is what the
+            // load router and the recovery ledger actually read.
+            AssertThat(save.AttemptState.CurrentIntegrity).IsEqual(integrity);
+            AssertThat(save.AttemptState.DestroyedExtractorIDs).Contains("attempt_extractor");
+            AssertThat(save.AttemptState.FoundSecretIDs).Contains("attempt_secret");
+            AssertThat(save.AttemptState.FontUsesByID["Orleans:attempt_font"]).IsEqual(1);
+            AssertThat(save.AttemptState.CheckpointRecord.AnchorID).IsEqual("attempt_checkpoint_1");
+            string attemptID = save.AttemptState.AttemptID;
 
             // Clear (a Restart), then restore (a resume): everything returns.
             story.ClearLevelAttemptState();
@@ -46,6 +62,9 @@ public class LevelAttemptPersistenceTests {
             AssertThat(story.TimelineIntegrityPercent).IsEqual(100f);
 
             story.RestoreAttemptStateFromSave(save);
+            AssertThat(story.CurrentAttempt.AttemptID)
+                .OverrideFailureMessage("A resume is the same attempt coming back, not a new one.")
+                .IsEqual(attemptID);
             AssertThat(story.IsCheckpointActivated("attempt_checkpoint_1")).IsTrue();
             AssertThat(story.IsExtractorDestroyed("attempt_extractor")).IsTrue();
             AssertThat(story.IsSecretFound("attempt_secret")).IsTrue();
@@ -94,9 +113,22 @@ public class LevelAttemptPersistenceTests {
             AssertThat(story.ChronalRewindsRemaining)
                 .OverrideFailureMessage("A mid-level resume keeps the parked rewind pool.")
                 .IsEqual(1);
+            // A v5 payload has no attempt record; the migration derives one from
+            // the loose fields rather than inventing resources for it.
+            AssertThat(parked.AttemptState.Status)
+                .OverrideFailureMessage(
+                    "A legacy payload parked mid-level cannot have its anchors, Defy or reward " +
+                    "claims reconstructed, so it is preserved and flagged.")
+                .IsEqual(StoryAttemptStatus.LegacyRecoveryRequired);
+            AssertThat(story.PendingAttemptNoticeKey)
+                .IsEqual(StoryManager.LegacyRecoveryNoticeKey);
 
             // Fresh entry: everything resets and the pool refills (V7.3).
+            string resumedAttempt = story.CurrentAttempt.AttemptID;
             story.BeginLevelRun();
+            AssertThat(story.CurrentAttempt.AttemptID)
+                .OverrideFailureMessage("Fresh entry is one of the two events that mint an attempt.")
+                .IsNotEqual(resumedAttempt);
             AssertThat(story.IsCheckpointActivated("parked_checkpoint_1")).IsFalse();
             AssertThat(story.IsExtractorDestroyed("parked_extractor")).IsFalse();
             AssertThat(story.IsSecretFound("parked_secret")).IsFalse();

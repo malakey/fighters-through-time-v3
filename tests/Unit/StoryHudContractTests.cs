@@ -127,7 +127,7 @@ public class StoryHudContractTests {
     /// counting different things.
     /// </summary>
     [TestCase]
-    public void TheRetiredManualRewindCooldownPipIsNotReintroduced() {
+    public void TheRetiredRewindCooldownPipIsNotReintroduced() {
         Node host = CreateHost("StoryHudNoPipHost");
         try {
             StoryHUD hud = AddHud(host);

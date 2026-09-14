@@ -80,8 +80,34 @@ namespace FTT.Core {
         // reads it, and only to floor the granted recovery.
         public float CheckpointIntegrityPercent = 100f;
 
+        // === Package 11 A3b (V7.6 F10), additive ===========================
+        /// <summary>
+        /// The F10 per-attempt record. Everything per-attempt lives here; the
+        /// root fields above stay root and are deliberately <b>not</b> duplicated
+        /// inside it (STORY_PERSISTENCE: "Do not duplicate mutable copies of a
+        /// root field").
+        ///
+        /// <para>Additive per plan §2.6: a v5 payload loads with a default-
+        /// constructed record, and <see cref="StoryAttemptState.MigrateFromLegacyRoot"/>
+        /// fills it from the six loose V7.3 attempt fields — the trustworthy
+        /// existing records F10 tells the migration to derive from. Phase C's
+        /// single v5→v6 step makes that call explicit.</para>
+        /// </summary>
+        public StoryAttemptState AttemptState = new();
+
+        /// <summary>
+        /// Act III Warden Beacon anchor charges left; zero outside Act III. A
+        /// root mirror of <c>AttemptState.AnchorChargesRemaining</c>, kept flat
+        /// because the HUD and the save-select summary read it without touching
+        /// the whole attempt record.
+        /// </summary>
+        public int AnchorCharges;
+
         public void Normalize() {
             SaveVersion = SaveSchemaMigrator.CurrentVersion;
+            AttemptState ??= new StoryAttemptState();
+            AttemptState.Normalize();
+            AnchorCharges = Math.Max(0, AnchorCharges);
             SelectedCharacterID ??= "";
             CurrentLevelID ??= "res://scenes/campaign/Level_00_Tutorial.tscn";
             LastCheckpointID ??= "";
@@ -527,6 +553,9 @@ namespace FTT.Core {
                 EventBus.Instance.OnLevelComplete -= SaveLevelCompletion;
                 EventBus.Instance.OnTalentNodeUnlocked -= SaveTalentUnlock;
             }
+            // Package 11 A3b (F10): an orderly exit flushes the latest state
+            // before the process goes away.
+            FlushStorySlotWrites();
             // Clean shutdown: the session is settled, no abnormal-exit fee.
             SessionExitGuard.ClearMarker();
             if (_masterKey != null) System.Security.Cryptography.CryptographicOperations.ZeroMemory(_masterKey);
@@ -589,13 +618,124 @@ namespace FTT.Core {
             return data;
         }
 
+        /// <summary>
+        /// Commits a story slot synchronously. This is the <b>critical-event</b>
+        /// path (F10): the caller may not treat the event as safely saved, or
+        /// continue past a recovery/scene-transition boundary, until it returns
+        /// true. Any queued asynchronous writes for the slot are drained first so
+        /// an older revision can never land on top of this one.
+        /// </summary>
         public bool SaveStorySlot(int slotIndex) {
             ValidateSlot(slotIndex);
             StorySaveData data = SaveSlots[slotIndex];
             if (data == null) return false;
+            FlushStorySlotWrites(slotIndex);
             data.Normalize();
             data.LastSavedTimestamp = DateTimeOffset.UtcNow.UtcDateTime.ToString("O");
-            return WritePayload(GetStoryPath(slotIndex), "story", data.SaveVersion, JsonConvert.SerializeObject(data));
+            bool written = WritePayload(
+                GetStoryPath(slotIndex), "story", data.SaveVersion, JsonConvert.SerializeObject(data));
+            long revision = data.AttemptState?.Revision ?? 0;
+            lock (_writeLock) {
+                if (written) {
+                    _slotWrittenRevision[slotIndex] = Math.Max(revision, _slotWrittenRevision[slotIndex]);
+                    _slotQueuedRevision[slotIndex] = _slotWrittenRevision[slotIndex];
+                    LastStoryWriteFailed = false;
+                } else {
+                    // F10: retain the prior valid revision, report the failure,
+                    // and let the caller refuse the transition.
+                    LastStoryWriteFailed = true;
+                }
+            }
+            if (!written) SetNotice(WriteFailedNoticeKey, (slotIndex + 1).ToString());
+            return written;
+        }
+
+        // === Package 11 A3b — the ordered per-slot writer (F10) =============
+        // "Capture immutable state on the game thread; serialize/write
+        // asynchronously through one ordered writer per slot. Ignore obsolete
+        // revisions; never let an older asynchronous write replace a newer one.
+        // On write failure, retain the prior valid save and pending event,
+        // report that saving failed, and prevent a transition from pretending it
+        // saved successfully."
+
+        /// <summary>Notice key raised when a slot write fails. A transition must not claim it saved.</summary>
+        public const string WriteFailedNoticeKey = "save_notice_write_failed";
+
+        private readonly object _writeLock = new();
+        private readonly System.Threading.Tasks.Task[] _slotWriteChains =
+            new System.Threading.Tasks.Task[3];
+        private readonly long[] _slotWrittenRevision = new long[3];
+        private readonly long[] _slotQueuedRevision = new long[3];
+
+        /// <summary>True when the most recent story write failed. Cleared by the next success.</summary>
+        public bool LastStoryWriteFailed { get; private set; }
+
+        /// <summary>The highest attempt revision durably written for a slot. Test seam.</summary>
+        public long WrittenRevision(int slotIndex) {
+            if (slotIndex < 0 || slotIndex >= _slotWrittenRevision.Length) return 0;
+            lock (_writeLock) return _slotWrittenRevision[slotIndex];
+        }
+
+        /// <summary>
+        /// Queues one ordered asynchronous write for a slot. The payload is
+        /// serialized here, on the game thread, so the background write can never
+        /// observe a half-mutated save. Returns false when the revision is
+        /// obsolete (an equal or newer one is already queued) — that is the
+        /// designed no-op, not a failure.
+        /// </summary>
+        public bool QueueStorySlotWrite(int slotIndex, long revision) {
+            if (slotIndex < 0 || slotIndex >= SaveSlots.Length) return false;
+            StorySaveData data = SaveSlots[slotIndex];
+            if (data == null) return false;
+            lock (_writeLock) {
+                if (revision > 0 && revision <= _slotQueuedRevision[slotIndex]) return false;
+                _slotQueuedRevision[slotIndex] = Math.Max(revision, _slotQueuedRevision[slotIndex]);
+            }
+            data.Normalize();
+            data.LastSavedTimestamp = DateTimeOffset.UtcNow.UtcDateTime.ToString("O");
+            string json = JsonConvert.SerializeObject(data);
+            int schemaVersion = data.SaveVersion;
+            string path = GetStoryPath(slotIndex);
+            lock (_writeLock) {
+                System.Threading.Tasks.Task previous =
+                    _slotWriteChains[slotIndex] ?? System.Threading.Tasks.Task.CompletedTask;
+                _slotWriteChains[slotIndex] = previous.ContinueWith(
+                    _ => RunQueuedWrite(slotIndex, revision, path, schemaVersion, json),
+                    System.Threading.Tasks.TaskScheduler.Default);
+            }
+            return true;
+        }
+
+        private void RunQueuedWrite(int slotIndex, long revision, string path, int schemaVersion, string json) {
+            lock (_writeLock) {
+                // An older asynchronous write must never replace a newer one,
+                // however the scheduler reorders the continuations.
+                if (revision > 0 && revision < _slotWrittenRevision[slotIndex]) return;
+                bool written = WritePayload(path, "story", schemaVersion, json);
+                if (written) {
+                    _slotWrittenRevision[slotIndex] = Math.Max(revision, _slotWrittenRevision[slotIndex]);
+                    LastStoryWriteFailed = false;
+                    return;
+                }
+                LastStoryWriteFailed = true;
+            }
+        }
+
+        /// <summary>
+        /// Drains a slot's queued writes (or every slot with <c>-1</c>). Called
+        /// before any synchronous critical-event commit, and at shutdown.
+        /// </summary>
+        public void FlushStorySlotWrites(int slotIndex = -1) {
+            var pending = new List<System.Threading.Tasks.Task>();
+            lock (_writeLock) {
+                for (int slot = 0; slot < _slotWriteChains.Length; slot++) {
+                    if (slotIndex >= 0 && slot != slotIndex) continue;
+                    if (_slotWriteChains[slot] != null) pending.Add(_slotWriteChains[slot]);
+                }
+            }
+            foreach (System.Threading.Tasks.Task task in pending) {
+                try { task.Wait(TimeSpan.FromSeconds(5)); } catch (AggregateException) { }
+            }
         }
 
         public bool DeleteStorySlot(int slotIndex) {
@@ -884,6 +1024,11 @@ namespace FTT.Core {
             SaveSlots[slot].FoundSecretIDs.Clear();
             SaveSlots[slot].FontUsesConsumed.Clear();
             SaveSlots[slot].LevelIntegrityPercent = 100f;
+            // Package 11 A3b: the completed attempt is over. The next level's
+            // entry mints its own record; leaving this one behind would let a
+            // stale Smothered status or anchor count route the next load.
+            SaveSlots[slot].AttemptState = new StoryAttemptState();
+            SaveSlots[slot].AnchorCharges = 0;
             SaveStorySlot(slot);
         }
 

@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
+
+[sub_resource type="Resource" id="Entrance"]
+script = ExtResource("2")
+DialogueID = "level_04a_lincoln.entrance"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l04a_lincoln_entrance_1", "dlg_l04a_lincoln_entrance_2", "dlg_l04a_lincoln_entrance_3")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="BossIntro"]
+script = ExtResource("2")
+DialogueID = "level_04a_lincoln.boss_intro"
+SpeakerNameKeys = PackedStringArray("speaker_lincoln_legacy_overseer", "speaker_player")
+LineKeys = PackedStringArray("dlg_l04a_lincoln_boss_1", "dlg_l04a_lincoln_boss_2")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="Exit"]
+script = ExtResource("2")
+DialogueID = "level_04a_lincoln.exit"
+SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_player")
+LineKeys = PackedStringArray("dlg_l04a_lincoln_exit_1", "dlg_l04a_lincoln_exit_2", "dlg_l04a_lincoln_exit_3")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[resource]
+script = ExtResource("1")
+DialogueSetID = "dialogue_level_04a_lincoln"
+Sequences = [SubResource("Entrance"), SubResource("BossIntro"), SubResource("Exit")]
