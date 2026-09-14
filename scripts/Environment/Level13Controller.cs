@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using System;
 using System.Collections.Generic;
 using FTT.Characters;
@@ -296,7 +296,14 @@ namespace FTT.Environment {
             (EliteEnemyID, 3, new Vector2(7020f, StandY))
         };
 
-        /// <summary>Two extractors, both up the drifting high road. 15 dust each, resource-owned.</summary>
+        /// <summary>
+        /// V7.6 Resonance Hold (Package 11 A3b): Level 13's drain stand-ins are
+        /// <b>severed conduits</b>, not Chronal Extractors — the Void has no era
+        /// to drain, so what bleeds here is the hero's own charge. Same drain
+        /// weight, same F05 optional-dust share, same registry: only the fiction
+        /// and the strings change. The array name is retained so the content
+        /// tests and the dust ledger keep resolving.
+        /// </summary>
         public static readonly (string ID, Vector2 Position)[] ExtractorPlacements = {
             ("level_13_extractor_0", new Vector2(2380f, 890f)),
             ("level_13_extractor_1", new Vector2(5980f, 940f))
@@ -347,7 +354,7 @@ namespace FTT.Environment {
             BuildRoom2Drift();
             BuildRoom3MirrorArena();
             BuildGravityFields();
-            BuildExtractors(ExtractorPlacements);
+            BuildResonanceHoldNodes(ResonanceHoldVariant.SeveredConduit, ExtractorPlacements);
 
             BuildWall(0f, 0f, LevelHeight);
             BuildWall(ArenaEndX - DefaultWallThickness, 0f, LevelHeight);
