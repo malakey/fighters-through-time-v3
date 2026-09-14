@@ -575,6 +575,11 @@ namespace FTT.Core {
             // it can run is after this autoload's _Ready, so this is the boundary.
             GlobalData?.ApplyComfortSettings();
             for (int slot = 0; slot < SaveSlots.Length; slot++) LoadStorySlot(slot);
+            // Schema v5 -> v6, deferred half: the global seen-dialogue set is the
+            // union of every slot's per-slot ViewedDialogueIDs, and the global
+            // payload loads before the slots do. Runs once per upgraded payload,
+            // and is idempotent if it ever runs twice.
+            SeedGlobalSeenDialogueIfPending();
             // V7.6 ruling 2.B (Package 11 A3): crashes are free. The boot
             // billing is gone; the marker survives only as F10's attempt-status
             // router, which A3b consumes. The VOLUNTARY 20% exit fee the pause
@@ -876,6 +881,30 @@ namespace FTT.Core {
             }
         }
 
+        /// <summary>
+        /// True while a global payload written at schema v5 or earlier is loaded
+        /// and its <c>SeenDialogueIDs</c> has not yet been seeded from the story
+        /// slots. Set by <see cref="LoadGlobalData"/>, consumed once by
+        /// <see cref="SeedGlobalSeenDialogueIfPending"/>.
+        /// </summary>
+        private bool _globalSeenDialogueSeedPending;
+
+        /// <summary>
+        /// Package 11 Phase C: the deferred half of the v5 → v6 global migration.
+        /// Unions every loaded slot's <c>ViewedDialogueIDs</c> into the global
+        /// seen set, then persists the upgraded payload so the seed is not
+        /// recomputed on every boot. A no-op on a payload that was already v6.
+        /// </summary>
+        /// <remarks><c>internal</c> so <c>SaveEnvelopeTests</c> can drive it
+        /// without a full encrypted boot.</remarks>
+        internal void SeedGlobalSeenDialogueIfPending() {
+            if (!_globalSeenDialogueSeedPending) return;
+            _globalSeenDialogueSeedPending = false;
+            if (GlobalData == null) return;
+            int added = SaveSchemaMigrator.SeedGlobalSeenDialogue(GlobalData, SaveSlots);
+            if (added > 0) SaveGlobalData();
+        }
+
         public bool SaveGlobalData() {
             GlobalData ??= new GlobalSaveData();
             GlobalData.Normalize();
@@ -902,7 +931,8 @@ namespace FTT.Core {
             }
             if (TryLoadPayload(path, "global", out string json, out bool backupUsed)) {
                 try {
-                    GlobalData = SaveSchemaMigrator.DeserializeGlobal(json);
+                    GlobalData = SaveSchemaMigrator.DeserializeGlobal(json, out int loadedVersion);
+                    _globalSeenDialogueSeedPending = loadedVersion < SaveSchemaMigrator.CurrentVersion;
                     EnsureRosterUnlocked(GlobalData);
                     if (backupUsed) SetNotice("save_notice_global_recovered");
                     return true;

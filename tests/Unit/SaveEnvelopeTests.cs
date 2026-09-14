@@ -42,7 +42,11 @@ public class SaveEnvelopeTests {
             CurrentLevelIndex = 1,
             ChronalDust = 45,
             DepositedChronalDust = 120,
-            UnlockedResonanceNodes = new[] { "joan_minor_01" },
+            // A current V7.6 Joan node. Package 11's v6 step runs A4's grid
+            // refund on any pre-v6 payload, so a retired node ID here would be
+            // dropped and refunded — correct behaviour, but it would stop this
+            // case testing what it exists to test (the v1 character scoping).
+            UnlockedResonanceNodes = new[] { "joan_zeal" },
             PlaytimeSeconds = 37.5f,
             LastSaveTimestamp = 1700000000L
         });
@@ -53,7 +57,7 @@ public class SaveEnvelopeTests {
         AssertThat(migrated.CurrentLevelID).IsEqual("res://scenes/campaign/Level_01_Florence.tscn");
         AssertThat(migrated.LevelChronalDust).IsEqual(45);
         AssertThat(migrated.DepositedChronalDust["joan"]).IsEqual(120);
-        AssertThat(migrated.GridProgress["joan"][0]).IsEqual("joan_minor_01");
+        AssertThat(migrated.GridProgress["joan"][0]).IsEqual("joan_zeal");
     }
 
     [TestCase]
@@ -135,15 +139,16 @@ public class SaveEnvelopeTests {
     /// <summary>
     /// V7.3 schema v5 is purely additive: a v4 story payload (written before
     /// the per-attempt fields existed) must load with the documented defaults
-    /// — empty registries, Integrity 100, both flags false.
+    /// — empty registries, Integrity 100, both flags false. Package 11's v6 step
+    /// keeps that true: it derives, it never invents.
     /// </summary>
     [TestCase]
-    public void VersionFourStoryPayloadLoadsWithVersionFiveDefaults() {
+    public void VersionFourStoryPayloadLoadsWithVersionSixDefaults() {
         StorySaveData migrated = SaveSchemaMigrator.DeserializeStory(
             "{\"SaveVersion\":4,\"SelectedCharacterID\":\"joan\",\"LevelChronalDust\":42}");
 
-        AssertThat(SaveSchemaMigrator.CurrentVersion).IsEqual(5);
-        AssertThat(migrated.SaveVersion).IsEqual(5);
+        AssertThat(SaveSchemaMigrator.CurrentVersion).IsEqual(6);
+        AssertThat(migrated.SaveVersion).IsEqual(6);
         AssertThat(migrated.LevelChronalDust).IsEqual(42);
         AssertObject(migrated.ActivatedCheckpointIDs).IsNotNull();
         AssertThat(migrated.ActivatedCheckpointIDs.Count).IsEqual(0);
@@ -172,7 +177,7 @@ public class SaveEnvelopeTests {
     }
 
     [TestCase]
-    public void VersionFiveAttemptStateRoundTripsAndTheFutureIsStillRejected() {
+    public void AttemptStateFieldsRoundTripAndTheFutureIsStillRejected() {
         var data = new StorySaveData {
             SelectedCharacterID = "einstein",
             ActivatedCheckpointIDs = new System.Collections.Generic.List<string> {
@@ -192,7 +197,7 @@ public class SaveEnvelopeTests {
         byte[] envelope = SaveEnvelopeCodec.Encode(
             "story", data.SaveVersion, JsonConvert.SerializeObject(data), TestKey, 11L, TestIV);
         AssertThat(SaveEnvelopeCodec.TryDecode(envelope, TestKey, out DecodedSaveEnvelope decoded, out _)).IsTrue();
-        AssertThat(decoded.SchemaVersion).IsEqual(5);
+        AssertThat(decoded.SchemaVersion).IsEqual(SaveSchemaMigrator.CurrentVersion);
 
         StorySaveData restored = SaveSchemaMigrator.DeserializeStory(decoded.Json);
         AssertThat(restored.ActivatedCheckpointIDs.Count).IsEqual(2);
@@ -204,14 +209,138 @@ public class SaveEnvelopeTests {
         AssertThat(restored.ViewedDialogueIDs[0]).IsEqual("level_02.entrance");
         AssertThat(restored.HasSeenCollapseBeat).IsTrue();
 
-        // The version fence still holds: v6 is the future and stays rejected.
+        // The version fence still holds: v7 is the future and stays rejected.
         bool rejected = false;
         try {
-            SaveSchemaMigrator.DeserializeStory("{\"SaveVersion\":6}");
+            SaveSchemaMigrator.DeserializeStory("{\"SaveVersion\":7}");
         } catch (SaveVersionException) {
             rejected = true;
         }
         AssertThat(rejected).IsTrue();
+    }
+
+    /// <summary>
+    /// Package 11 Phase C — the v5 → v6 step. A v5 payload loads with v6
+    /// defaults, and the derivations the workstreams wrote actually run:
+    /// the F10 attempt record is built from the loose fields, the paid-recovery
+    /// allowance is seeded from the live gauge rather than invented, and the
+    /// Legacy Unlock Schedule is backfilled from the completed levels.
+    ///
+    /// <para>F10's hard rule is the load-bearing half: a payload parked
+    /// mid-level cannot have its anchors, Defy or reward claims reconstructed,
+    /// so it is preserved with <b>zero</b> anchors, a spent Defy and
+    /// <c>LegacyRecoveryRequired</c> — never defaulted to a full attempt.</para>
+    /// </summary>
+    [TestCase]
+    public void VersionFiveStoryPayloadLoadsWithVersionSixDefaultsAndDerivesItsAttempt() {
+        // Between levels: nothing to lose, so the attempt migrates cleanly.
+        StorySaveData clean = SaveSchemaMigrator.DeserializeStory(
+            "{\"SaveVersion\":5,\"SelectedCharacterID\":\"joan\","
+            + "\"CompletedLevels\":[\"level_00_tutorial\",\"level_01_florence\",\"level_02_orleans\"],"
+            + "\"LevelIntegrityPercent\":72.5}");
+
+        AssertThat(clean.SaveVersion).IsEqual(6);
+        AssertThat(clean.AttemptState.HasAttempt).IsTrue();
+        AssertThat(clean.AttemptState.Status).IsEqual(StoryAttemptStatus.Active);
+        AssertThat(clean.AttemptState.DefyHistoryUsed).IsFalse();
+        AssertThat(clean.AnchorCharges).IsEqual(0);
+        // Seeded from the live gauge, not invented as 100.
+        AssertThat(clean.CheckpointIntegrityPercent).IsEqual(72.5f);
+        // A5: Movement after L1 and Special 1 after L2 are restored; Special 2
+        // and the Ultimate are not.
+        AssertThat(clean.UnlockedLegacyAbilities.ContainsKey("joan")).IsTrue();
+        AssertArray(clean.UnlockedLegacyAbilities["joan"])
+            .Contains(LegacyUnlockSchedule.MovementKey, LegacyUnlockSchedule.SpecialOneKey);
+        AssertThat(clean.UnlockedLegacyAbilities["joan"].Contains(LegacyUnlockSchedule.UltimateKey)).IsFalse();
+        // A1b / A2 / A10: additive fields load on their conservative initializers.
+        AssertThat(clean.StoryDefyHistoryUsed).IsFalse();
+        AssertThat(clean.TimeFreezeCooldownSeconds).IsEqual(0f);
+        AssertThat(clean.ClaimedRewardSourceIDs.Count).IsEqual(0);
+
+        // Parked mid-level: preserved, marked, and never handed a fresh attempt.
+        StorySaveData parked = SaveSchemaMigrator.DeserializeStory(
+            "{\"SaveVersion\":5,\"SelectedCharacterID\":\"joan\","
+            + "\"LastCheckpointID\":\"level_13_chronal_void_checkpoint_1\","
+            + "\"LevelChronalDust\":180,\"LevelIntegrityPercent\":40.0}");
+
+        AssertThat(parked.AttemptState.Status).IsEqual(StoryAttemptStatus.LegacyRecoveryRequired);
+        AssertThat(parked.AttemptState.AnchorChargesRemaining).IsEqual(0);
+        AssertThat(parked.AnchorCharges).IsEqual(0);
+        AssertThat(parked.AttemptState.DefyHistoryUsed).IsTrue();
+        AssertThat(parked.LevelChronalDust).IsEqual(180);
+        AssertThat(parked.CheckpointIntegrityPercent).IsEqual(40f);
+
+        // Global side: a v5 payload's retired Hybrid mode normalizes to timed
+        // Stock, the dead rewind bind moves onto Time Freeze, and the C01a/C01c
+        // defaults are Off / chords-enabled without being written anywhere.
+        GlobalSaveData global = SaveSchemaMigrator.DeserializeGlobal(
+            "{\"SaveVersion\":5,\"LastMatchSettings\":{\"Saved\":true,\"Mode\":2,\"TimeLimit\":0.0},"
+            + "\"InputBindings\":{\"Actions\":{\"gameplay_rewind\":[{\"Kind\":0,\"Code\":82}]}}}");
+
+        AssertThat(global.SaveVersion).IsEqual(6);
+        AssertThat(global.LastMatchSettings.Mode).IsEqual((int)MatchMode.Stock);
+        AssertThat(global.LastMatchSettings.TimeLimit).IsEqual(SavedMatchSettings.DefaultTimeLimitSeconds);
+        AssertThat(global.InputBindings.For(InputManager.Actions.LegacyRewind).Count).IsEqual(0);
+        AssertThat(global.InputBindings.For(InputManager.Actions.TimeFreeze).Count).IsEqual(1);
+        AssertThat(global.ReducedTemporalEffects).IsFalse();
+        AssertThat(global.InputBindings.IsShortcutEnabled(
+            InputManager.Actions.Grab, InputDeviceKind.Keyboard)).IsTrue();
+        AssertThat(global.SeenDialogueIDs.Count).IsEqual(0);
+    }
+
+    /// <summary>
+    /// Package 11 Phase C — a v6 payload round trips on both sides with no
+    /// migration step re-running, and the deferred global half (the seen-dialogue
+    /// union, which needs the story slots the global payload loads before) is
+    /// idempotent and additive.
+    /// </summary>
+    [TestCase]
+    public void VersionSixPayloadsRoundTripOnBothSides() {
+        var story = new StorySaveData {
+            SelectedCharacterID = "tesla",
+            LastCheckpointID = "level_14_neo_earth_checkpoint_2",
+            CheckpointIntegrityPercent = 63.25f,
+            LevelIntegrityPercent = 55f,
+            StoryDefyHistoryUsed = true,
+            TimeFreezeCooldownSeconds = 45f,
+            AnchorCharges = 2,
+            ClaimedRewardSourceIDs = new System.Collections.Generic.List<string> { "level_14.wave_3" },
+            ViewedDialogueIDs = new System.Collections.Generic.List<string> { "level_14.entrance" },
+            UnlockedLegacyAbilities = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<string>> {
+                ["tesla"] = new() { LegacyUnlockSchedule.MovementKey, LegacyUnlockSchedule.SpecialOneKey }
+            }
+        };
+        story.AttemptState = StoryAttemptState.CreateFresh("level_14_neo_earth", 2);
+        story.AttemptState.DefyHistoryUsed = true;
+        story.Normalize();
+        AssertThat(story.SaveVersion).IsEqual(6);
+
+        byte[] envelope = SaveEnvelopeCodec.Encode(
+            "story", story.SaveVersion, JsonConvert.SerializeObject(story), TestKey, 21L, TestIV);
+        AssertThat(SaveEnvelopeCodec.TryDecode(envelope, TestKey, out DecodedSaveEnvelope decoded, out _)).IsTrue();
+        AssertThat(decoded.SchemaVersion).IsEqual(6);
+
+        StorySaveData restored = SaveSchemaMigrator.DeserializeStory(decoded.Json, out int loadedVersion);
+        AssertThat(loadedVersion).IsEqual(6);
+        AssertThat(restored.CheckpointIntegrityPercent).IsEqual(63.25f);
+        AssertThat(restored.StoryDefyHistoryUsed).IsTrue();
+        AssertThat(restored.TimeFreezeCooldownSeconds).IsEqual(45f);
+        AssertThat(restored.AnchorCharges).IsEqual(2);
+        AssertThat(restored.AttemptState.AttemptID).IsEqual(story.AttemptState.AttemptID);
+        AssertThat(restored.AttemptState.AnchorChargesRemaining).IsEqual(2);
+        AssertThat(restored.AttemptState.DefyHistoryUsed).IsTrue();
+        AssertThat(restored.ClaimedRewardSourceIDs[0]).IsEqual("level_14.wave_3");
+
+        // The deferred global seed: union from the slots, idempotent on a rerun.
+        var global = new GlobalSaveData();
+        int added = SaveSchemaMigrator.SeedGlobalSeenDialogue(
+            global, new[] { restored, null, new StorySaveData {
+                ViewedDialogueIDs = new System.Collections.Generic.List<string> { "level_02.entrance", "" }
+            } });
+        AssertThat(added).IsEqual(2);
+        AssertThat(global.SeenDialogueIDs.Contains("level_14.entrance")).IsTrue();
+        AssertThat(global.SeenDialogueIDs.Contains("level_02.entrance")).IsTrue();
+        AssertThat(SaveSchemaMigrator.SeedGlobalSeenDialogue(global, new[] { restored })).IsEqual(0);
     }
 
     [TestCase]

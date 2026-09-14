@@ -273,28 +273,61 @@ namespace FTT.Core {
         /// P11 A10's <c>ClaimedRewardSourceIDs</c> joins that same additive
         /// per-attempt group (field initializer plus a <c>Normalize</c> null
         /// guard), so it needs no version step either.
+        ///
+        /// <para>v6 (Package 11, Phase C) is the package's single schema bump.
+        /// Every workstream added its fields additively, so the bulk of the step
+        /// is covered by field initializers; what v6 actually does is compose the
+        /// handful of derivations the workstreams wrote —
+        /// <see cref="MigrateStoryToV6"/> and <see cref="MigrateGlobalToV6"/>.
+        /// <b>The version counter is shared by both payloads</b>, so a global-only
+        /// change also bumps story payloads; splitting the two counters was
+        /// considered and deliberately deferred (plan §6 item 1).</para>
+        ///
+        /// <para><b>Runtime note.</b> <see cref="DeserializeStory"/> reads authored
+        /// Resonance grids through the A4 refund, so it needs the Godot runtime.
+        /// Every caller is either an autoload or a <c>[RequireGodotRuntime]</c>
+        /// suite; never call it from a pure-C# GdUnit suite (a Godot file read
+        /// there is an uncatchable access violation — CLAUDE.md failure
+        /// signature A6b).</para>
         /// </summary>
-        public const int CurrentVersion = 5;
+        public const int CurrentVersion = 6;
 
-        public static StorySaveData DeserializeStory(string json) {
+        public static StorySaveData DeserializeStory(string json) => DeserializeStory(json, out _);
+
+        /// <param name="loadedVersion">The schema version the payload was written at,
+        /// before migration. Callers that need to run an out-of-band step (or persist
+        /// the upgraded payload) read it from here rather than from the returned data,
+        /// whose <c>SaveVersion</c> is always <see cref="CurrentVersion"/>.</param>
+        public static StorySaveData DeserializeStory(string json, out int loadedVersion) {
             JObject root = JObject.Parse(string.IsNullOrWhiteSpace(json) ? "{}" : json);
             int version = ReadVersion(root);
+            loadedVersion = version;
             RejectFutureVersion(version);
             if (version < 2) MigrateLegacyStory(root);
             if (version < 3) MigratePuzzleState(root);
+            if (version < 6) MigrateStoryCheckpointIntegrity(root);
             root[nameof(StorySaveData.SaveVersion)] = CurrentVersion;
             StorySaveData data = root.ToObject<StorySaveData>() ?? new StorySaveData();
+            if (version < 6) MigrateStoryToV6(data);
             data.Normalize();
             return data;
         }
 
-        public static GlobalSaveData DeserializeGlobal(string json) {
+        public static GlobalSaveData DeserializeGlobal(string json) => DeserializeGlobal(json, out _);
+
+        /// <param name="loadedVersion">See <see cref="DeserializeStory(string, out int)"/>.
+        /// <see cref="SaveManager"/> uses it to decide whether to run
+        /// <see cref="SeedGlobalSeenDialogue"/>, which cannot run here because it
+        /// needs the story slots and the global payload loads first.</param>
+        public static GlobalSaveData DeserializeGlobal(string json, out int loadedVersion) {
             JObject root = JObject.Parse(string.IsNullOrWhiteSpace(json) ? "{}" : json);
             int version = ReadVersion(root);
+            loadedVersion = version;
             RejectFutureVersion(version);
             if (version < 4) MigrateGlobalInputBindings(root);
             root[nameof(GlobalSaveData.SaveVersion)] = CurrentVersion;
             GlobalSaveData data = root.ToObject<GlobalSaveData>() ?? new GlobalSaveData();
+            if (version < 6) MigrateGlobalToV6(data);
             data.Normalize();
             return data;
         }
@@ -345,6 +378,134 @@ namespace FTT.Core {
         /// defaults and can rebind. A payload already carrying the structured shape
         /// (an <c>Actions</c> object) is left untouched.
         /// </summary>
+        /// <summary>
+        /// Story v5 → v6, JSON half. <c>CheckpointIntegrityPercent</c> (A3's F11
+        /// paid-recovery allowance) is seeded from the live gauge the payload
+        /// actually recorded — <b>with no invention</b>. A payload that carries
+        /// neither field keeps the 100 field initializer, which is the entrance
+        /// allowance F11 specifies.
+        ///
+        /// <para>It has to happen on the JObject rather than on the object,
+        /// because after deserialization an absent key and an authored 100 are
+        /// indistinguishable.</para>
+        ///
+        /// <para><b>Recorded caveat.</b> <c>IntegrityByLevel</c> (the per-completed-
+        /// level record N05 averages) is re-scoped by F01 to mean the
+        /// <i>PreBoss-locked</i> gauge, not the value at the moment of completion.
+        /// A pre-v6 payload's rows were written under the old meaning and are
+        /// carried across unchanged: re-deriving them is impossible from the save
+        /// alone, and discarding them would silently shrink N05's denominator.
+        /// Recorded in the deviation ledger rather than guessed at.</para>
+        /// </summary>
+        private static void MigrateStoryCheckpointIntegrity(JObject root) {
+            const string allowance = nameof(StorySaveData.CheckpointIntegrityPercent);
+            if (root[allowance] != null) return;
+            float? live = root.Value<float?>(nameof(StorySaveData.LevelIntegrityPercent));
+            if (live.HasValue) root[allowance] = live.Value;
+        }
+
+        /// <summary>
+        /// Story v5 → v6, object half — the single step, composing the derivations
+        /// the Package 11 workstreams wrote. Every other new story field is purely
+        /// additive and loads on its field initializer.
+        ///
+        /// <list type="number">
+        /// <item><b>A3b, F10.</b> <see cref="StoryAttemptState.MigrateFromLegacyRoot"/>
+        /// derives the attempt record from the six loose V7.3 fields. A payload
+        /// parked mid-level cannot have its anchors, Defy or reward claims
+        /// reconstructed, so that function preserves it untouched and marks it
+        /// <see cref="StoryAttemptStatus.LegacyRecoveryRequired"/>. F10's hard rule
+        /// — <i>never default an active legacy attempt to full anchors / unused
+        /// Defy / unused healing / unclaimed rewards</i> — is honoured there and
+        /// re-honoured here: the root <c>AnchorCharges</c> mirror is copied from
+        /// the record, never seeded from a difficulty cap.</item>
+        /// <item><b>A5, Legacy Unlock Schedule.</b> Backfilled from
+        /// <c>CompletedLevels</c> for the save's own character, and only when that
+        /// character has no entry yet — a payload that already carries the map
+        /// keeps it verbatim.</item>
+        /// <item><b>A4, F08.</b> The grid refund drops any purchased node the V7.6
+        /// topologies retired and refunds its recorded price into that character's
+        /// deposited balance. Idempotent.</item>
+        /// <item><b>A1b / A2 / A8 / A10</b> — <c>StoryDefyHistoryUsed</c> (false =
+        /// an unused Defy, the conservative default), <c>TimeFreezeCooldownSeconds</c>
+        /// (0 = Ready), <c>ClaimedRewardSourceIDs</c> — are additive and need no
+        /// step.</item>
+        /// </list>
+        /// </summary>
+        private static void MigrateStoryToV6(StorySaveData data) {
+            if (data == null) return;
+
+            StoryAttemptState.MigrateFromLegacyRoot(data);
+            data.AttemptState ??= new StoryAttemptState();
+            data.AnchorCharges = data.AttemptState.AnchorChargesRemaining;
+
+            string characterID = data.SelectedCharacterID;
+            data.UnlockedLegacyAbilities ??= new Dictionary<string, List<string>>();
+            if (!string.IsNullOrWhiteSpace(characterID)
+                && !data.UnlockedLegacyAbilities.ContainsKey(characterID)) {
+                data.UnlockedLegacyAbilities[characterID] =
+                    LegacyUnlockSchedule.UnlockedKeysFor(data.CompletedLevels ?? new List<string>());
+            }
+
+            SaveManager.MigrateResonanceGridsToV76(data);
+        }
+
+        /// <summary>
+        /// Global v5 → v6. Two real derivations, two recorded no-ops.
+        ///
+        /// <list type="bullet">
+        /// <item><b>A2.</b> A saved <c>gameplay_rewind</c> override moves onto
+        /// <c>gameplay_time_freeze</c>; an explicit newer Time Freeze bind always
+        /// wins, and the dead row is dropped either way.</item>
+        /// <item><b>A1c, F21.</b> A saved Hybrid mode (the retired ordinal 2)
+        /// normalizes to timed Stock with a valid positive timer.</item>
+        /// <item><b>A8, C01a.</b> <c>ReducedTemporalEffects</c> defaults false —
+        /// Off, never inferred from Screen Shake — on its field initializer.</item>
+        /// <item><b>A8/A1c, C01c.</b> The per-device shortcut flags default
+        /// <b>On</b> by construction: <see cref="InputBindingSet.IsShortcutEnabled"/>
+        /// returns true for an absent key, so an empty dictionary already
+        /// reproduces today's chords. <c>UnboundActions</c> likewise defaults
+        /// empty, meaning "nothing explicitly unbound".</item>
+        /// </list>
+        ///
+        /// <para><c>SeenDialogueIDs</c> is <b>not</b> seeded here — it is the union
+        /// of every story slot's <c>ViewedDialogueIDs</c> and the global payload
+        /// loads before the slots. <see cref="SeedGlobalSeenDialogue"/> runs it
+        /// from <see cref="SaveManager"/> once the slots are in.</para>
+        /// </summary>
+        private static void MigrateGlobalToV6(GlobalSaveData data) {
+            if (data == null) return;
+            data.InputBindings ??= new InputBindingSet();
+            data.InputBindings.MigrateLegacyRewindAction();
+            data.LastMatchSettings ??= new SavedMatchSettings();
+            data.LastMatchSettings.Normalize();
+        }
+
+        /// <summary>
+        /// Global v5 → v6, deferred half (plan §6 item 1). Unions every story
+        /// slot's per-slot <c>ViewedDialogueIDs</c> into the new global
+        /// <c>SeenDialogueIDs</c>, so a player who has already watched a scene on
+        /// one slot is not asked "skip this? it won't replay" again on another.
+        ///
+        /// <para>Idempotent and additive: it only ever adds IDs the player
+        /// genuinely finished, and the global set is never cleared by a level
+        /// restart or a slot change. Null slots are ignored.</para>
+        /// </summary>
+        /// <returns>The number of IDs actually added.</returns>
+        public static int SeedGlobalSeenDialogue(GlobalSaveData global, IEnumerable<StorySaveData> slots) {
+            if (global == null || slots == null) return 0;
+            global.SeenDialogueIDs ??= new HashSet<string>(StringComparer.Ordinal);
+            int added = 0;
+            foreach (StorySaveData slot in slots) {
+                if (slot?.ViewedDialogueIDs == null) continue;
+                foreach (string sequenceID in slot.ViewedDialogueIDs) {
+                    if (string.IsNullOrWhiteSpace(sequenceID)) continue;
+                    if (global.SeenDialogueIDs.Add(sequenceID)) added++;
+                }
+            }
+            return added;
+        }
+
         private static void MigrateGlobalInputBindings(JObject root) {
             const string field = nameof(GlobalSaveData.InputBindings);
             JToken existing = root[field];

@@ -92,9 +92,9 @@ public class DisplaySettingsPersistenceTests {
 
         GlobalSaveData migrated = SaveSchemaMigrator.DeserializeGlobal(legacy);
 
-        // CurrentVersion is shared by both payloads and moved to 5 with the
-        // story-side V7.3 attempt-state fields; the v3 -> v4 binding step
-        // still runs, and the payload lands on whatever is current.
+        // CurrentVersion is shared by both payloads and moved to 6 with
+        // Package 11's single schema bump; the v3 -> v4 binding step still
+        // runs, and the payload lands on whatever is current.
         AssertThat(migrated.SaveVersion).IsEqual(SaveSchemaMigrator.CurrentVersion);
         AssertObject(migrated.InputBindings).IsNotNull();
         AssertThat(migrated.InputBindings.Actions.Count).IsEqual(0);
