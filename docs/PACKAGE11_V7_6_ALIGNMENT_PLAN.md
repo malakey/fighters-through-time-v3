@@ -5964,6 +5964,275 @@ string is *learnable* at these timings (`StringSwingIntervalFrames = 20`, a 90-f
 unverified; the drill scene's presentation is holodeck-styled placeholder geometry, not art; and the
 sandbox runs on Florence's Sealed geometry with the stage's own platforms and no hazard, which is a
 deliberate choice (a Sealed floor means no lesson can end in a pit) rather than an authored drill room.
+---
+### A9b — Fighter CPU: F19 recovery profiles, pit-aware DI and the grab/Echo Step verb policy (2026-09-13)
+**The shipped recovery ladder was not merely mistuned, it was inverted, and correcting it required an
+episode concept the controller did not have.** `DecideRecovery`'s three-branch percentage ladder ran
+jump → movement → Special 2 with `RecoveryMovementPercent = 0` and `RecoverySpecialTwoPercent = 55/85`
+on Easy and Medium, so the two bands the design says must lean on the character's movement ability
+used it never, and the band the design forbids Specials to outright used Special 2 as its main
+recovery button. Swapping the numbers is not enough: `CPU_RECOVERY.md` caps Easy and Medium at **one
+movement activation per offstage episode**, and an episode is explicitly not an airtime — "a jump
+refund or temporary staff-platform landing alone does not reset" it. The latch (`_episodeActive`,
+`_episodeMovementActivations`, `_episodeFrames`) is therefore input-side controller state, alongside
+`_hitstunHoldBlockActive` and friends and deliberately outside the rollback snapshot, and it ends only
+on a stable landing on **authored** stage geometry, a legal ledge capture, or a KO.
+`IsStableStageLanding` is what makes "authored" real: grounded plus floor support under this X, or
+standing on one of the stage's own one-way platforms — a construct or Mozart's three-second staff is
+not a landing. Pinned by `CpuRecoveryMatrixTests` (81 drills) and
+`FighterCpuBehaviorTests.EveryBandRecoversWithItsMovementAbilityAndOnlyEasyAndMediumAreCappedPerEpisode`.
+**The per-episode activation is charged at delivery, not at decision, and that is a real bug class
+rather than a style choice.** Decisions are scheduled into a 128-slot ring and delivered after the
+band's reaction delay; with Easy's 30–45-frame jitter a later decision can overwrite a pending slot.
+Charging the activation when the plan was formed meant Easy could spend its one activation on a
+decision that never reached the simulation and then be capped out for the rest of the episode — it
+produced literally zero movement-ability presses. `_movementActivationDeliveryTick` marks the
+in-flight plan, `MovementActivationsAllowed` counts it against the cap so the CPU cannot queue two,
+and a marker whose delivery tick passes unconsumed is released rather than charged.
+**No character approves an optional mobility Special, and Pocahontas's Spirit Strike is a rejection
+with evidence rather than an omission.** `CPU_RECOVERY.md` admits it "only after confirming aerial
+legality and the implemented trajectory". The shipped simulation translates the caster in exactly one
+place — `FighterAbilitySystem.ApplyMovement`, reachable only by the movement ability — and
+`pocahontas/special_1.tres` is `ExecutionType = 0` (Melee) with no caster translation, so the design's
+forced diagonal-up dash does not exist to plan against. The contract's own instruction applies:
+"Reject missing or unvalidated optional Special mappings; fall back to verified jumps/movement instead
+of treating a slot number as a capability." `CpuRecoveryProfile.MobilitySpecialFor` returns `None` for
+all nine, the planner branch behind it is therefore unreachable in the shipped build, and re-approving
+Spirit Strike later is a one-line profile edit.
+`CpuRecoveryProfileTests.PocahontasPlansBreezeGlideWithItsJumpResetAndRejectsSpiritStrike` pins the
+authored execution type so the rejection breaks loudly if the trajectory ever lands.
+**`RecoverySpecialTwoPercent` is retired, not renumbered.** Its premise — that slot 2 is a universal
+recovery move — is what the design rejects in as many words, so keeping the name with a new value
+would have preserved the bug in the vocabulary. It becomes `RecoveryMobilitySpecialPercent`, gated
+behind the profile's explicit approval, plus the new `RecoveryMovementActivationsPerEpisode`
+(1 / 1 / 0) and `PlansMultiActionRecovery` (false / false / true). **A7b's boss-override
+`CpuBandTuning` must not set the retired property**; every new member is an ordinary `init` property,
+so a `with` expression that names only what it changes keeps working.
+**Recovery detection is now "unsupported over a gap", and Closed stages are excluded by construction
+rather than by a threshold.** `IsOffStage` keeps the past-a-wall branch; the floor-plane branch is
+replaced, on Open stages only, by A9's `HasFloorSupportUnderSelf == 0 || LaunchTrajectoryCrossesGap
+!= 0`. On a Sealed stage `HasFloorSegments` is zero, so the gap branch cannot fire at all — which is
+how "closed stages and ordinary supported traversal must not trigger emergency casts" is satisfied
+without inventing a Y threshold the contract forbids. The legacy below-the-floor test survives only
+for stages with no authored segments. `CpuRecoveryMatrixTests.AssertNoFalseTriggerOnASealedStage` runs
+in all nine cases.
+**Pit-aware DI shipped; the V7.4 deferral is closed.** `ResolveDiHold` aims at the nearest pit-facing
+floor edge while the launch trajectory ends over a gap, and keeps the unchanged toward-centre hold
+everywhere else — Sealed stages, the legacy arena, and any Open-stage launch that already ends over
+floor. On Paris this is the difference between DI and suicide: stage centre *is* the hole. Pinned in
+`FighterCpuHitstunDefenseTests.ASuccessfulDiRollHoldsTowardSafetyDuringTheLaunchWindow`, which keeps
+both original toward-centre assertions and adds the pit branch plus a supported-trajectory control.
+**Both new verbs are emitted as the shared chords a human presses, and re-validated at delivery.** The
+CPU never reaches into grab or Echo Step directly: it schedules `Block | BasicAttack` and
+`Block | Roll` and lets the ordinary resolver and every canonical eligibility rule decide. Because a
+plan formed 4–20 frames earlier can be overtaken by the CPU's own state, `ScheduledDecision` carries
+the intended verb and `VerbStillLegalForSelf` drops it at delivery if self-legality has lapsed —
+`CanStartGrab` / `CanStartEchoStep` mirror `FighterGrabRules.CanStartGrab` and the simulation's
+`TryStartEchoStep` gate rather than restating them. **Opponent** conditions are deliberately *not*
+rechecked: the contract says contact resolves against the actual current world and a planned grab is
+allowed to whiff. `_grabOpportunityID` and `_attackExecutionID` give the once-per-opportunity rule an
+identity, tracked before the band gate so "one opportunity" means the same run of decisions on every
+band and a disabled band simply never rolls against it.
+**`DEFER-CPU-SNAPSHOT` is opened rather than silently resolved.** `CPU_COMBAT_POLICY.md` asks the
+admission roll to "snapshot the admission result, opportunity/attack IDs and PRNG state for
+deterministic resimulation". The controller is an *input source* whose RNG and schedule ring are
+deliberately outside the rollback snapshot (Package 6 §2.5) — determinism comes from the seed plus the
+observation sequence, and
+`FighterCpuBehaviorTests.TheExpandedTableStaysBitIdenticalForTheSameSeedAndObservationStream` is the
+pin that makes CPU frames recordable and replayable exactly like a human pad. Re-architecting that to
+satisfy the document's letter would break the property its intent actually wants. The IDs are exposed
+as read-only controller properties for the tests; the ledger entry carries the acceptance criteria.
+**Not resolved here, by design.**
+**Also recorded:** `Observe` gained the verb block behind `HasVerbState` / `HasTargetVerbState`, filled
+only when an `ICpuWorldObserver` can resolve a `FighterVerbComponent`. The two new observer members
+are **default interface methods returning false**, so every existing implementer — including the test
+fakes — compiles untouched and a Story adapter is absent by default. `MirrorParadoxDecisionAdapter`
+needed no code change, only its comment, and
+`MirrorParadoxTests.TheStoryAdapterLeavesTheVerbLayerAbsentSoFighterVerbsStayOutOfTheCampaign`
+re-proves frame-identical parity. `FighterSimulation.TryGetEchoStepDestination` and the promotion of
+`FighterMovementSystem.OldestRingSample` to `internal` are the only sim-side edits, both read-only —
+**A1c must re-point both when it replaces the 5-sample ring with the exact 31-sample bank.**
+**Difficulty-matrix wording delta, doc-only:** Medium's hitstun-defense row is now "A randomized CPU
+attempt rate does **not** prove any pressure sequence is escapable". `FighterCpuHitstunDefenseTests`
+remains valid as a pin on the CPU's *input* behaviour, but it must no longer be cited as evidence that
+a string is escapable — that claim needs a combat-rules test, not a CPU success rate.
+**Not delivered:** the Mirror Paradox does not gain grabs or Echo Step. `CPU_COMBAT_POLICY.md`'s F20
+paragraph routes that through `MIRROR_PARADOX.md`, which is **A7b's** dossier, and the Story adapter
+has no verb layer to project; the sentinels keep the branches inert until someone builds one. The
+Paris drill also records a real limit rather than hiding it: dropped dead centre in the 5.0-wide
+courtyard pit, Lincoln cannot return — horizontal-only Rail Charge plus the roster's lowest jump
+cannot cover 2.5 units of climb. That is the contract's "an unreachable route may still end in a KO",
+not a planner defect, so the drill uses the shallow knock 0.5 units past the ledge and the deep-centre
+case is left as a balance observation for a human pass.
+### A7b — Bosses: HP rows, renames, Mirror Paradox F20, First Unbound P2/P3 (2026-09-13)
+**Shipped in full.** The four V7.6 2.E HP rows, the two display renames, the F20 Mirror Paradox
+campaign profile, the T01b Phase 2 self-rewind and the V7.5 Borrowed Legacies P3 composite kit.
+Test delta **+20**, exactly as dossiered.
+1. **Boss HP — exactly four rows, nothing else.** `borgia_inquisitor` 500 → 350,
+   `siegemaster_duke` 540 → 520, `chronal_inventor` 560 → 700, `revolutionary_tribunal` 590 → 850.
+   `git diff resources/Bosses/` carries **six** changed lines in total across the whole directory:
+   those four plus the two `DisplayName` strings. The ten Act II/III pools are untouched and are now
+   recorded as the open `VERIFY-BOSS-HP` entry in
+   `docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md`, with the full fifteen-row table (repo value vs
+   design-table value), the secondary `Sequential`/`Random` pattern and Tribunal-threshold
+   discrepancies, and an acceptance criterion of one explicit user ruling applied to all fifteen rows
+   at once.
+2. **`BossRosterActITests`'s 500-anchor band is retired, not re-tuned.**
+   `ActIHealthPoolsStayInBandAndAscendWithTheCampaignLevel` was rewritten in place as
+   `ActIHealthPoolsPinTheAuthoredV76RowsAndAscendAcrossTheUnchangedTail` (±0). 350 fell below the old
+   floor, 850 above its ceiling, and 850 > 640 (`tidal_eraser`) broke ascension across the Act I/II
+   boundary, so the four V7.6 values are now pinned literally and ascension is asserted only over the
+   deliberately unchanged L5–L7 tail. A closing assertion records that the V7.6 rows overshoot that
+   tail on purpose. `EnemyManifestTests:36` 500 → 350. `docs/PACKAGE4_ROSTER_PLAN.md` §8 deviation 5
+   is annotated as superseded-in-part rather than rewritten.
+3. **Renames are display-only.** `archive_prime.DisplayName` → "The Forge Sentinel",
+   `apex_eraser.DisplayName` → "The First Unbound". Nothing else moved: `BossID`, `DisplayNameKey`,
+   the five `apex_eraser` ability `AbilityID`/`PresentationEventID` strings, the manifest rows, the
+   sprite atlas paths, `EnemyAbilityVisualLibrary`'s `BossIDs` set and the persisted boss-intro
+   seen-set keys are all retained per §2.3. A6 had already landed the `en.csv` values, so **A7b added
+   no `en.csv` rows at all** — no `# Package 11 A7b` marker exists, and no test in this workstream is
+   expected-to-fail-until-import. The borrowed P3 moves reuse each source ability's existing
+   `DisplayNameKey`, so they need no new copy either.
+4. **F20: the tier is the Story difficulty, and the band is a boss override.**
+   `MirrorParadoxDecisionAdapter`'s constructor no longer hardcodes `CpuDifficulty.Hard`; it takes
+   the tier, which `MirrorParadoxController` latches once at spawn from
+   `StoryDifficultyTuning.CurrentStoryDifficulty`. The saved Holodeck `CpuDifficulty` is never read,
+   so that independence is structural rather than asserted. The adapter now builds its engine with
+   `CpuBandTuning.BossOverride(difficulty)` through the existing `tuningOverride` seam — the one
+   region of `FighterCpuController.cs` A7b touched; A9b's recovery planner is untouched.
+5. **Easy's boss band borrows Normal's kit rates rather than inventing a third ladder.**
+   `CpuBandTuning.EasyBoss` is `Easy with { … }`, lifting `SpecialOneClose/Ranged`, `SpecialTwo`,
+   `MovementAbility`, `ApproachJump` and the Ultimate policy from `Normal`. **Recorded as a judgement
+   call:** F20 specifies Easy's reaction window, block/hitstun/DI rates, HP and damage numerically
+   but describes its *attack selection* only as "simple sequences, limited follow-ups; use suitable
+   Specials rather than only basics". Rather than author an unsourced third set of percentages, the
+   kit admission rates are single-sourced from Normal and the tier's difficulty separation is left
+   entirely to the numbers the contract does specify. If a balance pass wants a distinct Easy-boss
+   kit ladder, `EasyBoss` is the one place to author it.
+   `EasyBoss` is declared **after** `Easy` and `Hard` in the file on purpose: static property
+   initialisers on a struct run in textual order, and declaring it earlier would have silently
+   captured a default-initialised `Normal`.
+6. **Hard-only perk mirroring needed the Legacy gate split off from the perk copy.**
+   `CharacterFactory.CreateCharacter` gained a fourth optional parameter,
+   `bool applyLegacyUnlockLocks = true` (additive; every existing caller is unchanged). F20 requires
+   Hard to mirror the player's purchased grid nodes *and* requires core-kit access to be
+   "independent of Story ability locks at encounter time" — under the old single
+   `applyStoryProgression` switch those two are the same flag, so a half-unlocked Hard campaign would
+   have faced a mirror missing its own Ultimate. The mirror now calls
+   `applyStoryProgression: <isHard>, applyLegacyUnlockLocks: false`. This is inside A5's region of
+   that file; the edit is one parameter and one `&&`, and A5's block is otherwise untouched.
+   **Single application of stat modifiers is structural**: `EncounterMaxHPOverride` *replaces* the
+   character baseline in `PlayerController.MaximumHP`, so a mirrored `MaxHP` perk can never stack a
+   second base pool on the 700/1000/1500 — pinned by a test rather than left to inspection.
+7. **The outgoing campaign damage multiplier was a real gap, and is now applied at the two Story
+   damage lanes.** The clone is a `PlayerController`, so it never passes through
+   `EnemyAbilityExecutor.DamageMultiplier`, the chokepoint every other Story enemy uses — F20's
+   0.5×/1.0×/1.5× row was simply not applied to it. `MirrorParadoxController` now multiplies
+   `StoryBasicDamageMultiplier` and `StorySpecialDamageMultiplier` (the values the basic string
+   recomputes every swing and every `BaseSpecial` reads at cast) and, for the handful of hitboxes
+   `CharacterFactory` damages once at construction and no ability re-damages, scales those in place.
+   A hitbox that *is* re-damaged at cast simply overwrites the construction-time value, so nothing is
+   scaled twice. On Hard this composes with the mirrored Resonance damage perks — each modifier
+   applied once, which is F20's rule.
+8. **T01b lives on `BossController` and is authored, not ID-matched.** `BossData` gained two additive
+   bool exports (`HasHistoricalRecovery`, `BorrowsRosterLegacies`) plus four constants
+   (`HistoricalRecoveryLookbackFrames` 180, `HistoricalRecoveryHistorySamples` 181,
+   `HistoricalRecoveryHealCapFraction` 0.20, `HistoricalRecoverySuspendFrames` 90). The two bools are
+   authored on `apex_eraser.tres` — **the only non-`MaxHP`/`DisplayName` lines A7b added to any boss
+   resource**, and deliberately non-numeric so the §2.2 acceptance criterion still reads true. The
+   thresholds and the cap are global rules, not per-boss tuning, so they are constants rather than a
+   second authored number.
+   Implementation: a lazily allocated 181-sample position/HP ring recorded once per *authoritative*
+   tick (after the rewind-frozen, dead and hitstop early-returns, before status/cooldown/movement
+   resolution), an oldest-real-sample fallback when the history is younger than the lookback, the
+   contract's exact `heal = max(0, min(P − H, floor(0.20·M), M − H))`, a three-tier
+   historical → current → authored-anchor destination chain, and a new `BossState.HistoricalRecovery`
+   (appended; the enum is append-only) whose 90-frame beat runs **before every other clock on the
+   controller**, so statuses, the F07 Conductive mark, ability cooldowns, an in-flight hitstop and the
+   executor all hold their remaining values. `ApplyBossDamage` refuses damage in that state the way it
+   already did during `PhaseTransitioning`. Lethal damage wins for free: `Die()` already runs before
+   `CheckPhaseTransition` is reached. The 33%-queues-P3 rule also came free — the existing
+   `while` loop latches every crossed threshold from one resolution and reads `CurrentPhase`, never
+   the healed HP — and is now pinned.
+9. **World-wide combat suspension is raised, not implemented here.** The contract's beat suspends
+   "player, boss, other actors, projectiles, constructs, hazards and platforms". A7b owns the boss
+   side and implements it completely; the world side is published as the new additive EventBus event
+   `OnBossHistoricalRecovery` / `BossHistoricalRecoveryPayload` (boss ID, historical and resolved
+   positions, fallback flag, HP before/after, suspend seconds). **Open:** no level currently
+   subscribes, so during the 1.5 s the boss is inert and invulnerable but the player and the rest of
+   the world still act. Wiring it to A2's `IStoryTimeFreezable` world-freeze service is the natural
+   home and was deliberately not done from this workstream, which does not own that service or the
+   Level 15 controller.
+10. **Destination validation is clearance + an injectable predicate.** The default validator runs a
+    real `IntersectShape` of the boss's own collision shape against the Environment layer, and is
+    headless-safe (no tree, no shape or no space state accepts, so a missing fixture cannot turn into
+    a failed recovery). `HistoricalRecoveryDestinationValidator` lets a level install a stricter test.
+    **Open:** the contract also names arena bounds, kill regions and "suitable support … by the
+    boss's authored locomotion"; `BossController` has no access to arena bounds, so those are
+    delegated to the authored `HistoricalRecoveryAnchor` and the injectable predicate. **Level 15 has
+    not authored an anchor**, so today the chain resolves at tier 1 or 2 in practice.
+11. **Borrowed Legacies is a runtime composite kit, and `archive_remnants` was augmented, not
+    replaced.** `FTT.Enemies.BorrowedLegacies` projects each borrowed character's **Special 1** into a
+    runtime `EnemyAbilityData`: archetype by `AbilityExecutionType` (Projectile → `Projectile`;
+    Area and PersistentObject → `AreaPulse`; everything else → `MeleeStrike`), `Damage` from
+    `BaseDamage`, `TelegraphFrames` from the authored startup frames, `PresentationEventID` set to the
+    source ability's canonical ID so the move tears out wearing its owner's effect through
+    `AbilityVisualLibrary`, and every other field left at the archetype default. The roster comes from
+    **A5's manifest-backed `CampaignCaptiveRoster`** minus the active hero — never a literal list —
+    and A6b's `CharacterRoster` was not yet merged when this branch forked.
+    `BossController` appends the projections to a composite kit gated to the boss's **final** phase
+    (derived from `PhaseCount`, not authored) through the existing `AbilityMinPhase` mechanism; all
+    projections carry the default `SelectionWeight` of 1, so the existing weighted roll is
+    weighted-uniform across them as §2.5 requires. Selection, cooldowns and execution all read the
+    composite through `ActiveAbilityArray` / `GetActiveAbilityMinPhase`, so there is one kit concept
+    rather than two selection paths. The kit is rebuilt only when the locked hero changes, so a
+    pooled boss does not re-project the roster every respawn.
+    **`archive_remnants.tres` is untouched.** Replacing its `SummonMinions` archetype would have
+    broken `EnemyRosterContentTests`' five-boss-summon pin and its `RosterVfxMap` binding for no
+    behavioural gain; keeping it also guarantees the boss has a working P3 attack if the manifest is
+    unavailable. Its `en.csv` value is already "Borrowed Legacies" (A6), so the authored slot and the
+    projected set now share one name.
+12. **Cosmetic `mirror_paradox.tres` metadata left as-is, as the dossier directs.** Melee/ranged
+    thresholds stay 2.0/5.0 (design annotates 3.0/8.0) and the pattern stays `WeightedRandom`
+    (design annotates `DistanceBased`). The design itself calls that metadata "generic … the F20
+    campaign CPU profile governs decisions", the mirror carries no `BossAbilities` for a pattern to
+    act on, and `EnemyRosterContentTests` already exempts it from the distance-band rule.
+13. **Not in scope and not done, by dossier instruction:** the Mirror Paradox's 50 → 25 physical dust
+    (A10 owns `ChronalDustDrop` on these resources — `MirrorParadoxTests` still pins 50, and A10's
+    change will move that pin), and CPU grabs / Echo Step tiering (A9b's F19 work; `EasyBoss`
+    deliberately enables neither, and neither verb exists in `FighterCpuController` yet).
+14. **Merged `main` @ `1323c08` before validation** (Wave 1 seam repair, A3b's Act III /
+    attempt-state work, all nine Level 4A variants). One conflict, in this file's §9, resolved by
+    **union** with A7b's block last; nothing else conflicted and no A7b behaviour changed.
+    **The nine new `resources/Bosses/legacy/*_legacy_boss.tres` stay outside every A7b sweep by
+    construction:** `BossRosterActITests`, `BossRosterActIIandIIITests` and `EnemyManifestTests` all
+    load from explicit boss-ID arrays via `res://resources/Bosses/{id}.tres` and none enumerates the
+    directory, so the Legacy bosses are neither swept for the V7.6 HP rows nor counted in the
+    fifteen-boss contracts. They carry neither new `BossData` flag, so both V7.6 behaviours stay
+    confined to `apex_eraser`.
+**Validation (post-merge).** `dotnet build` clean — 0 errors, 2 pre-existing warnings
+(`KLSG_ECS004` on `FighterTuningComponent`, the vendored GdUnit4 `CS8632`). `--headless --import`
+then `--headless --quit` both clean. Filtered GdUnit runs, each with its
+`Get-Process testhost,Godot*` clear-window poll issued **in the same shell invocation as the run**
+(a separate poll loses the race — one attempt was lost to signature-5 contention, exit code 100 with
+a 158/159 partial, and was re-run clean): the boss/mirror set **105/105** (25 `MirrorParadoxTests`
++ 8 `FirstUnboundPhaseTwoTests` + 5 `BorrowedLegaciesTests` + 23 `BossControllerTests` + 15
+`BossRosterActITests` + 14 `BossRosterActIIandIIITests` + 2 `EnemyManifestTests` + 8
+`EnemyRosterContentTests` + 5 `DustEconomyTests`), and the regression set **159/159**
+(`FighterCpu*`, `LegacyUnlockScheduleTests`, `CampaignCaptiveRosterTests`,
+`ScriptTypedEmptyArrayTests`, `ContentManifestTests`, Levels 02/03/04/13/14/15 content — 157 suite
+cases plus two `MirrorParadoxTests` methods whose names contain "FighterCpu" and so match that
+filter).
+300-frame headless smokes of Level 13 and Level 15 both exit 0 with no `SCRIPT ERROR`. Both print an
+`N resources still in use at exit` line; **that is shutdown noise, not a regression**, and it was
+checked rather than assumed — the count is nondeterministic across runs of the identical build
+(Level 15 reported 1 then 3), and the untouched Level 02 reports the same 3. It is the
+`AuthoredResources` process-lifetime pin releasing at quit. A transient `Objects were leaked` line
+seen once on the first pass did not reproduce across six later runs of Levels 13 / 15 / 02.
+Recorded so nobody repeats it: reverting only `scripts/` + `resources/Bosses/` to baseline leaves the
+test files referencing the new `BossData` fields, the build fails, and the **previous** DLL is what
+actually runs — numbers from that state are meaningless.
+
 
 
 ---

@@ -40,11 +40,18 @@ public class FighterCpuBehaviorTests {
         AssertThat(easy.OrbPursuitPercent).IsEqual(0);
         AssertThat(easy.HazardAvoidPercent).IsEqual(0);
         AssertThat(easy.BlockPercent).IsEqual(10);
-        // ...but it does recover off-stage, which is the one place the design
-        // grants Easy the double jump and Special 2.
+        // F19 (Package 11 A9b) rewrote the recovery row. Easy recovers with its
+        // remaining jumps plus AT MOST ONE movement-ability activation per
+        // offstage episode, and "Specials remain disabled on Easy" — including
+        // off-stage, which is the exact inverse of the shipped ladder (Special 2
+        // at 55%, the movement ability never). It uses neither grab nor Echo Step.
         AssertThat(easy.RecoveryJumpPercent > 0).IsTrue();
-        AssertThat(easy.RecoverySpecialTwoPercent > 0).IsTrue();
-        AssertThat(easy.RecoveryMovementPercent).IsEqual(0);
+        AssertThat(easy.RecoveryMovementPercent > 0).IsTrue();
+        AssertThat(easy.RecoveryMovementActivationsPerEpisode).IsEqual(1);
+        AssertThat(easy.RecoveryMobilitySpecialPercent).IsEqual(0);
+        AssertThat(easy.PlansMultiActionRecovery).IsFalse();
+        AssertThat(easy.GrabAdmissionPercent).IsEqual(0);
+        AssertThat(easy.EchoStepAdmissionPercent).IsEqual(0);
 
         // design :3161 Easy: "Rarely blocks projectiles" — below even the 10%
         // standard shield rate, and never a blink.
@@ -67,6 +74,18 @@ public class FighterCpuBehaviorTests {
         AssertThat(normal.ProjectileBlockMinRangeRaw > 0).IsTrue();
         AssertThat(normal.ProjectileBlinkPercent).IsEqual(0);
         AssertThat(normal.ShieldOrbPursuitPercent).IsEqual(0);
+        // F19 Medium: the movement ability is the DEFAULT recovery tool, one
+        // activation per episode, no multi-ability chains. CPU_COMBAT_POLICY.md's
+        // provisional 25% admission for both verbs, and the immediate-Ultimate
+        // policy still beats Echo Step when both are legal in one decision.
+        AssertThat(normal.RecoveryMovementPercent > 0).IsTrue();
+        AssertThat(normal.RecoveryMovementActivationsPerEpisode).IsEqual(1);
+        AssertThat(normal.PlansMultiActionRecovery).IsFalse();
+        AssertThat(normal.GrabAdmissionPercent).IsEqual(25);
+        AssertThat(normal.EchoStepAdmissionPercent).IsEqual(25);
+        AssertThat(normal.UltimateBeatsEchoStep).IsTrue();
+        AssertThat(normal.ScoresGrabTactically).IsFalse();
+        AssertThat(normal.ReservesMeterForDefy).IsFalse();
 
         CpuBandTuning hard = CpuBandTuning.Hard;
         AssertThat(hard.BlockPercent).IsEqual(80);
@@ -83,6 +102,17 @@ public class FighterCpuBehaviorTests {
         // design :3191 Hard: shield orbs when the opponent's meter is near full.
         AssertThat(hard.ShieldOrbPursuitPercent).IsEqual(95);
         AssertThat(hard.ShieldOrbTargetMeterFloor).IsEqual(85);
+        // F19 Hard: route comparison with no fixed script and no per-episode
+        // activation cap (the ability's own cooldown is the constraint), both
+        // verbs scored rather than rolled flat, and full meter behind an unused
+        // Defy carries reserve value against the 30-meter Echo Step spend.
+        AssertThat(hard.PlansMultiActionRecovery).IsTrue();
+        AssertThat(hard.RecoveryMovementActivationsPerEpisode).IsEqual(0);
+        AssertThat(hard.ScoresGrabTactically).IsTrue();
+        AssertThat(hard.GrabAdmissionPercent < 100).IsTrue();
+        AssertThat(hard.EchoStepAdmissionPercent < 100).IsTrue();
+        AssertThat(hard.ReservesMeterForDefy).IsTrue();
+        AssertThat(hard.UltimateBeatsEchoStep).IsFalse();
 
         AssertThat(CpuBandTuning.For(CpuDifficulty.Easy).BlockPercent).IsEqual(10);
         AssertThat(CpuBandTuning.For(CpuDifficulty.Normal).BlockPercent).IsEqual(40);
@@ -155,42 +185,56 @@ public class FighterCpuBehaviorTests {
     }
 
     [TestCase]
-    public void OnlyHardChainsAnUpwardMovementAbilityIntoItsRecovery() {
-        // design §10: Hard combines double jump + movement ability; Medium recovers
-        // with double jump and Special 2 but does not chain movement abilities;
-        // Easy never presses the movement-ability button at all. Jumps are spent
-        // first by every band, so this scenario starts with none left.
+    public void EveryBandRecoversWithItsMovementAbilityAndOnlyEasyAndMediumAreCappedPerEpisode() {
+        // F19 / CPU_RECOVERY.md, Package 11 A9b. This test replaces
+        // OnlyHardChainsAnUpwardMovementAbilityIntoItsRecovery, which pinned the
+        // inverted ladder: it asserted Easy and Medium NEVER press the movement
+        // ability, when the contract makes it Easy's one permitted recovery tool
+        // and Medium's default. Jumps are spent first by every band, so the
+        // scenario starts with none left.
         CpuDecisionObservation exhausted = OffStage(selfX: -8, selfY: -1);
         exhausted.RemainingJumps = 0;
 
-        var hard = new FighterCpuController(CpuDifficulty.Hard, 31337);
-        PlayerInputFrame previous = default;
-        int upwardMovementEdges = 0;
-        for (uint tick = 0; tick < Ticks; tick++) {
-            PlayerInputFrame frame = hard.Sample(tick, in exhausted, in previous);
-            previous = frame;
-            // The stick must aim up (world Y is up, the axis is Y-down) or the
-            // directional warp travels sideways off the stage.
-            if (frame.IsPressed(GameplayButtons.MovementAbility) && frame.MoveY < -30) upwardMovementEdges++;
+        foreach (CpuDifficulty band in Bands()) {
+            var cpu = new FighterCpuController(band, 31337);
+            PlayerInputFrame previous = default;
+            int upwardMovementEdges = 0;
+            for (uint tick = 0; tick < Ticks; tick++) {
+                PlayerInputFrame frame = cpu.Sample(tick, in exhausted, in previous);
+                previous = frame;
+                // The stick must aim up (world Y is up, the axis is Y-down) or a
+                // directional warp travels sideways off the stage.
+                if (frame.IsPressed(GameplayButtons.MovementAbility) && frame.MoveY < -30) {
+                    upwardMovementEdges++;
+                }
+            }
+            AssertThat(upwardMovementEdges > 0)
+                .OverrideFailureMessage($"{band} must attempt its movement ability off-stage.")
+                .IsTrue();
+            // Easy and Medium are capped at one activation for the whole episode;
+            // the fighter never lands in this static observation, so the episode
+            // never ends and the cap never resets. Hard has no planning cap.
+            int expectedCap = band == CpuDifficulty.Hard ? int.MaxValue : 1;
+            AssertThat(cpu.EpisodeMovementActivations <= expectedCap)
+                .OverrideFailureMessage(
+                    $"{band} spent {cpu.EpisodeMovementActivations} activations in one episode.")
+                .IsTrue();
         }
-        AssertThat(upwardMovementEdges > 0).IsTrue();
-
-        AssertThat(CountEdges(
-            new FighterCpuController(CpuDifficulty.Easy, 31337),
-            exhausted, GameplayButtons.MovementAbility, Ticks)).IsEqual(0);
-        AssertThat(CountEdges(
-            new FighterCpuController(CpuDifficulty.Normal, 31337),
-            exhausted, GameplayButtons.MovementAbility, Ticks)).IsEqual(0);
     }
 
     [TestCase]
-    public void EasyUsesSpecialTwoOffStageAndNeverInNeutral() {
-        // design §10 Easy: "Special 2 is only triggered when the AI is off-stage and
-        // below the main platform Y-coordinate."
-        var recovering = new FighterCpuController(CpuDifficulty.Easy, 606);
-        int offStageEdges = CountEdges(
-            recovering, OffStage(selfX: -8, selfY: -1), GameplayButtons.Special2, Ticks);
-        AssertThat(offStageEdges > 0).IsTrue();
+    public void EasyNeverPressesASpecialOnStageOrOffIt() {
+        // F19 replaces design §10's old "Special 2 is only triggered when the AI
+        // is off-stage" line outright: "Specials remain disabled on Easy". This
+        // test replaces EasyUsesSpecialTwoOffStageAndNeverInNeutral, which pinned
+        // exactly the behaviour the contract retires.
+        var recovering = new FighterCpuController(
+            CpuDifficulty.Easy, 606);
+        CpuDecisionObservation offStage = OffStage(selfX: -8, selfY: -1);
+        AssertThat(CountEdges(recovering, offStage, GameplayButtons.Special2, Ticks)).IsEqual(0);
+        AssertThat(CountEdges(
+            new FighterCpuController(CpuDifficulty.Easy, 606),
+            offStage, GameplayButtons.Special1, Ticks)).IsEqual(0);
 
         foreach (int targetX in new[] { 1, 4, 8 }) {
             var neutral = new FighterCpuController(CpuDifficulty.Easy, 606);

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using FTT.Core;
 using xpTURN.Klotho.Core;
+using xpTURN.Klotho.Deterministic.Math;
 using xpTURN.Klotho.ECS;
 
 namespace FTT.FighterSim {
@@ -162,6 +163,26 @@ namespace FTT.FighterSim {
                 }
             }
             verb = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Package 11 A9b: the exact historical position Echo Step would restore
+        /// for <paramref name="playerID"/>, read through the movement system's
+        /// own ring accessor rather than a second copy of the resolution rule.
+        /// The F19 CPU policy has to check that destination against current
+        /// geometry and pit risk before it may select the action.
+        /// </summary>
+        public bool TryGetEchoStepDestination(int playerID, out FPVector2 destination) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterEchoRingComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                destination = FighterMovementSystem.OldestRingSample(
+                    _simulation.Frame.GetReadOnly<FighterEchoRingComponent>(entity));
+                return true;
+            }
+            destination = default;
             return false;
         }
 

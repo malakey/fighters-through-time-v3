@@ -128,6 +128,68 @@ namespace FTT.FighterSim {
         /// </summary>
         public long CurrentGapWidthRaw;
 
+        // === Verb layer (Package 11 A9b; absent when HasVerbState == 0) ===
+        /// <summary>
+        /// Presence flag for the whole self verb block. Non-zero only when the
+        /// caller supplied an <see cref="ICpuWorldObserver"/> that could resolve
+        /// this fighter's verb component — i.e. the deterministic Fighter path.
+        /// Zero on every Story adapter, which is what keeps the F19 grab and
+        /// Echo Step branches out of a campaign level entirely. Every other
+        /// field in this block is meaningless while it is zero.
+        /// </summary>
+        public int HasVerbState;
+        /// <summary>1 facing right, 0 facing left. Grab reach is front-only.</summary>
+        public int SelfFacingRight;
+        /// <summary>
+        /// The fighter's own basic-string phase (<c>FighterBasicAttackRules</c>:
+        /// 0 none, 1 startup, 2 active, 3 recovery, 4 chain hold). Echo Step
+        /// requires phase 3 — the recovery frames of its own swing.
+        /// </summary>
+        public int SelfAttackPhase;
+        /// <summary>
+        /// Non-zero once the running swing resolved a hit or a block
+        /// (<c>FighterBasicAttackRules.FlagHitResolved</c>). The design's Echo
+        /// Step candidate is a <i>whiff</i>: phase 3 with this still zero.
+        /// </summary>
+        public int SelfAttackMadeContact;
+        /// <summary>0 none, 1 startup, 2 active, 3 whiff recovery, 4 holding, 5 throw.</summary>
+        public int SelfGrabPhase;
+        /// <summary>1 while this fighter is held by the opponent's grab.</summary>
+        public int SelfBeingHeld;
+        public int SelfShieldStunFrames;
+        /// <summary>Non-zero while a universal roll runs (startup, travel or recovery).</summary>
+        public int SelfRolling;
+        public int SelfEchoStepCooldownFrames;
+        public int SelfEchoStepWindupFrames;
+        /// <summary>
+        /// Non-zero while an eligible, unspent Defy History still exists. Hard's
+        /// Echo Step tradeoff values retaining full meter for it; a spent or
+        /// mode-disabled Defy has no reserve value.
+        /// </summary>
+        public int SelfDefyAvailable;
+        /// <summary>
+        /// Presence flag for the resolved historical Echo Step destination — the
+        /// exact position the shared action would restore. Zero means the ring
+        /// could not be read; the temporal contract forbids substituting a
+        /// nearby point, so the CPU then simply does not select the action.
+        /// </summary>
+        public int HasEchoStepDestination;
+        public long EchoStepDestinationXRaw;
+        public long EchoStepDestinationYRaw;
+
+        // === Target verb layer (absent when HasTargetVerbState == 0) ===
+        /// <summary>Presence flag; see <see cref="HasVerbState"/>.</summary>
+        public int HasTargetVerbState;
+        public int TargetIsGrounded;
+        /// <summary>Non-zero while the opponent holds a functioning block stance.</summary>
+        public int TargetBlockStance;
+        public int TargetShieldStunFrames;
+        public int TargetInvulnerabilityFrames;
+        public int TargetDazeFrames;
+        public int TargetRolling;
+        /// <summary>Non-zero while the opponent's post-throw regrab immunity runs.</summary>
+        public int TargetThrowImmune;
+
         // === Nearest live Chronal Orb (absent when HasOrb == 0) ===
         public int HasOrb;
         /// <summary>0 heal, 1 speed, 2 jump, 3 aegis — matches <c>FighterOrbSystem</c>.</summary>
@@ -196,6 +258,51 @@ namespace FTT.FighterSim {
         /// </summary>
         bool TryGetNearestHostileProjectile(
             int selfPlayerID, in FPVector2 selfPosition, out FighterProjectileComponent projectile);
+
+        /// <summary>
+        /// Package 11 A9b (F19 verb policy): the verb-layer state of one player —
+        /// grab phases, shieldstun, throw immunity, the Echo Step meter gates and
+        /// whether an eligible Defy History is still unspent. Returning
+        /// <c>false</c> leaves <see cref="CpuDecisionObservation.HasVerbState"/>
+        /// (or <c>HasTargetVerbState</c>) at zero, which disables grabs and Echo
+        /// Step outright — the default for every observer that has no verb layer,
+        /// including every Story adapter.
+        /// </summary>
+        bool TryGetVerbState(int playerID, out CpuVerbState state) {
+            state = default;
+            return false;
+        }
+
+        /// <summary>
+        /// The exact historical position the shared Echo Step action would
+        /// restore for <paramref name="playerID"/>. The design forbids choosing a
+        /// nearby substitute, so a <c>false</c> return means the CPU must not
+        /// select Echo Step at all rather than guess a destination.
+        /// </summary>
+        bool TryGetEchoStepDestination(int playerID, out FPVector2 destination) {
+            destination = default;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Mode-neutral projection of one fighter's verb-layer state, so the shared
+    /// decision table can reason about grabs and Echo Step without
+    /// <see cref="CpuDecisionObservation"/> taking a dependency on the
+    /// deterministic component types. Package 11 A9b.
+    /// </summary>
+    public struct CpuVerbState {
+        /// <summary>0 none, 1 startup, 2 active, 3 whiff recovery, 4 holding, 5 throw.</summary>
+        public int GrabPhase;
+        public int BeingHeld;
+        public int ShieldStunFrames;
+        public int ThrowImmunityFrames;
+        public int EchoStepCooldownFrames;
+        public int EchoStepWindupFrames;
+        /// <summary>Non-zero once this fighter's once-per-match Defy has been spent.</summary>
+        public int DefyHistoryUsed;
+        /// <summary>Non-zero while the fighter holds a functioning block stance.</summary>
+        public int BlockStance;
     }
 
     /// <summary>
@@ -270,6 +377,38 @@ namespace FTT.FighterSim {
                 found = true;
             }
             return found;
+        }
+
+        /// <summary>
+        /// Package 11 A9b: the verb layer straight out of the authoritative
+        /// frame. Block stance comes from the shared
+        /// <c>FighterBasicAttackRules.IsBlockStance</c> predicate rather than a
+        /// second copy of the rule, so "the opponent is shielding" means exactly
+        /// what it means everywhere else in the simulation.
+        /// </summary>
+        public bool TryGetVerbState(int playerID, out CpuVerbState state) {
+            state = default;
+            if (_simulation == null) return false;
+            if (!_simulation.TryGetFighter(playerID, out FighterStateComponent fighter)) return false;
+            if (!_simulation.TryGetFighterRuntime(playerID, out FighterRuntimeComponent runtime)) return false;
+            if (!_simulation.TryGetFighterVerb(playerID, out FighterVerbComponent verb)) return false;
+            state = new CpuVerbState {
+                GrabPhase = verb.GrabPhase,
+                BeingHeld = verb.BeingHeld,
+                ShieldStunFrames = verb.ShieldStunFrames,
+                ThrowImmunityFrames = verb.ThrowImmunityFrames,
+                EchoStepCooldownFrames = verb.EchoStepCooldownFrames,
+                EchoStepWindupFrames = verb.EchoStepWindupFrames,
+                DefyHistoryUsed = verb.DefyHistoryUsed,
+                BlockStance = FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb) ? 1 : 0
+            };
+            return true;
+        }
+
+        public bool TryGetEchoStepDestination(int playerID, out FPVector2 destination) {
+            destination = default;
+            return _simulation != null
+                && _simulation.TryGetEchoStepDestination(playerID, out destination);
         }
     }
 }
