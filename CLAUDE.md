@@ -8,16 +8,16 @@
 
 | Tool | Location / version | Notes |
 |---|---|---|
-| Godot editor (Mono) | `C:\Users\DavidMcClelland\Documents\FTT\Godot_v4.7.1-stable_mono_win64.exe` | GUI editor. Verified `4.7.1.stable.mono.official`. |
-| Godot console (Mono) | `C:\Users\DavidMcClelland\Documents\FTT\Godot_v4.7.1-stable_mono_win64_console.exe` | Use this one for headless/CLI work and for `GODOT_BIN`. It writes to stdout; the non-console build does not. |
+| Godot editor (Mono) | `D:\Projects\Godot_v4.7.1-stable_mono_win64.exe` | GUI editor. Verified `4.7.1.stable.mono.official`. |
+| Godot console (Mono) | `D:\Projects\Godot_v4.7.1-stable_mono_win64_console.exe` | Use this one for headless/CLI work and for `GODOT_BIN`. It writes to stdout; the non-console build does not. |
 | .NET SDK | `10.0.302` (`global.json` pins it, `rollForward: latestFeature`) | 8.0.423 is also installed; `global.json` selects 10. The project targets `net10.0`. |
-| Repository root | `C:\Users\DavidMcClelland\Documents\FTT\Fighters Through Time - V3` | Path contains spaces — always quote it. |
+| Repository root | `D:\Projects\Fighters Through Time - V3` | Path contains spaces — always quote it. |
 
-**Location moved 2026-08-15.** The repository and both Godot executables now live under `C:\Users\DavidMcClelland\Documents\FTT\` (previously `D:\Projects\`, which no longer exists on this machine). Every `D:\Projects\...` path in the command examples below and in the older `docs/` prose should be read as `C:\Users\DavidMcClelland\Documents\FTT\...`. If `dotnet test` reports `The Godot executable was not found at path: D:\Projects\...` and `No test is available`, that is a stale `GODOT_BIN`, not a broken suite.
+**Paths corrected 2026-09-13 (Package 11 Phase C).** A 2026-08-15 note here claimed the repository and both Godot executables had moved to `C:\Users\DavidMcClelland\Documents\FTT\` and that `D:\Projects\` "no longer exists on this machine". **That is wrong on the current machine** — a Package 11 agent flagged it, and everything lives under `D:\Projects\`, which is exactly what `.claude/settings.json` sets `GODOT_BIN` to. Read any `C:\Users\DavidMcClelland\Documents\FTT\...` path in older `docs/` prose as `D:\Projects\...`. If `dotnet test` reports `The Godot executable was not found at path: …` together with `No test is available`, that is a stale `GODOT_BIN`, not a broken suite.
 
 `GODOT_BIN` is set to the console executable by `.claude/settings.json`, so `dotnet test` picks it up without extra setup in a Claude Code session. Outside a Claude session it must be exported manually.
 
-Both Godot executables live one directory above the repository, in `C:\Users\DavidMcClelland\Documents\FTT\`. They are not in the repo and not on `PATH`.
+Both Godot executables live one directory above the repository, in `D:\Projects\`. They are not in the repo and not on `PATH`.
 
 `GodotSharp\` must stay next to the executables — it is the .NET API assembly directory that ships with the Godot Mono build, and Godot resolves it relative to the binary, not the project.
 
@@ -63,6 +63,20 @@ Cause: something set `SceneTree.Paused = true` and never cleared it. GdUnit4's t
 | Cold cache | partial, 1 spurious failure | timeout abort | Import timeout artifact; see below |
 | 5. Cross-worktree pipe contention | partial with **0 failures**, or a plausible `Passed! Total: ~73` in ~12 s | `100` (not negative) | Another checkout is running GdUnit at the same time; see below |
 | 6. Silently dropped `[TestSuite]` | `Total:` moves by a *plausible* small delta (e.g. +1) instead of the real one | 0 (green) | A second `[TestSuite]` class shares a source file with another; see below |
+| 7. Pure-C# suite touched the engine | a plausible `Passed!` line, then **`The active test run was aborted`** | `0xC0000005` | A `[TestSuite]` without `[RequireGodotRuntime]` called a Godot API; see below |
+
+### Failure signature 7: a crashed test host after a plausible `Passed!` (a pure-C# suite touched the engine)
+
+Discovered 2026-09-13 by Package 11 A6b. A `[TestSuite]` **without** `[RequireGodotRuntime]` runs in a plain .NET host with no Godot runtime, where any call into the engine — `Godot.FileAccess`, `ResourceLoader`, `ProjectSettings`, reading the content manifest — is an **access violation**, `0xC0000005` in `godotsharp_string_new_with_utf16_chars`. It is **not catchable**: `try`/`catch` cannot see a native AV.
+
+```text
+Passed!  - Failed: 0, Passed: N, ...
+The active test run was aborted. Reason: Test host process crashed : Fatal error.
+```
+
+The summary line is printed **before** the abort, so the run looks green-ish at a glance and reads like signature 5. It is not: read the `Aborted` / `crashed` line and the managed stack, which names the exact test and the exact static initializer that reached the engine.
+
+Two instances were found and fixed in the same pass, both from a field initializer and then from `Normalize()` on `GlobalSaveData` — which is why **save payload classes must stay plain data with no engine dependency** (AGENTS.md's coding conventions). The same caution applies to `CharacterRoster`, `CampaignCaptiveRoster` and `ContentManifest.LoadDefault()`.
 
 ### Orphaned Godot children fake signatures 1/2 in a single checkout
 
@@ -164,7 +178,9 @@ Open the editor for manual verification (only when the user asks — it takes ov
 "D:\Projects\Godot_v4.7.1-stable_mono_win64.exe" --path "D:\Projects\Fighters Through Time - V3" --editor
 ```
 
-Useful scene targets: `res://scenes/menus/MainMenu.tscn` (main scene), `res://scenes/arenas/TestArena.tscn` (Fighter sandbox), `res://scenes/campaign/HubWorld.tscn` and `res://scenes/campaign/Level_NN_*.tscn` (all sixteen campaign levels are authored), `res://scenes/fighter/FighterStage_*.tscn` (all ten production Fighter stages are authored), `res://scenes/diagnostics/PerformanceBaselineRunner.tscn` (performance baseline runner).
+Useful scene targets: `res://scenes/menus/MainMenu.tscn` (main scene), `res://scenes/arenas/TestArena.tscn` (Fighter sandbox), `res://scenes/campaign/HubWorld.tscn` and `res://scenes/campaign/Level_NN_*.tscn` (all sixteen campaign levels are authored), `res://scenes/campaign/Level_04A_<hero>.tscn` (the nine Legacy Level variants), `res://scenes/fighter/FighterStage_*.tscn` (all ten production Fighter stages are authored — Paris/Vesuvius/Nassau are the three Open ones), `res://scenes/ui/HolodeckDrill.tscn` (the Calibration Drill sandbox), `res://scenes/ui/GameOver.tscn` (the Smothered surface), `res://scenes/diagnostics/PerformanceBaselineRunner.tscn` (performance baseline runner).
+
+A campaign scene's `--quit-after` smoke run normally prints `N resources still in use at exit`. That is the `AuthoredResources` process-lifetime cache releasing at quit, it is **nondeterministic across runs of the identical build**, and an untouched control level prints it too — check a control scene before treating it as a leak you introduced.
 
 ### After editing `localization/en.csv`, run `--import`, not `--quit`
 
@@ -190,13 +206,17 @@ enemy/boss display names.
 
 ## Documentation authority map
 
-`docs/` now holds only current Godot-era material; the legacy Unity archive was removed on 2026-08-06 (see below). Numbers still come from resources, not prose, so check the tier before quoting any document.
+`docs/` now holds only current Godot-era material; the legacy Unity archive was removed on 2026-08-06 (see below).
+
+**Read the authority rule in `AGENTS.md` first.** Since 2026-09-13 (P04) the GDD and the adopted contracts under `docs/design-contracts/` define *intended behaviour*, and code plus `.tres` data describe the *current build*. Where they differ, the ledger — `docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md` — records it. "Never a second canonical value" still holds: tuning lives in one place.
 
 **Authoritative — implement against these:**
 
 | Path | Role |
 |---|---|
-| `design-godot.md` (repository root) | The full product and technical specification. Since 2026-08-26 (V7.3) this file is a **synced mirror** — the canonical master lives at `D:/Projects/fighters-through-time-docs-3/design-godot-v7.md`; edit the master and re-copy it here. |
+| `design-godot.md` (repository root) | The full product and technical specification (V7.6 + the F01–F24 resolutions). This file is a **synced mirror** — the canonical master lives at `D:/Projects/fighters-through-time-docs-3/design-godot-v7.md`; edit the master and re-copy it here. |
+| `docs/design-contracts/*.md` | The **adopted decision contracts** — `DEFENSIVE_EFFECTS` (D01–D04), `TEMPORAL_STATE_CONTRACT` (F03/T01), `STORY_PERSISTENCE` (F10), `CHECKPOINT_RECOVERY` (F11), `LEGACY_CHECKPOINTS` (F12), `FIGHTER_MATCH_RULES` (F21/F22), `HUD_CONTRACT` (F24), `COMFORT_SETTINGS` (C01a/b/c), `CPU_RECOVERY` + `CPU_COMBAT_POLICY` (F19), `DUST_ECONOMY` (F05), `MIRROR_PARADOX` (F20), `NARRATIVE_RESOLUTION` (N01–N05), `CAMPAIGN_VALIDATION` (V01/V02), `COMBAT_VALIDATION`, `ROLLBACK_STATE_CONTRACT` (S01), `MULTIPLAYER_DELIVERY`, `PRODUCTION_SCOPE` (P02). These define intent and supersede the historical rule they identify. |
+| `docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md` | **The live deviation ledger.** Every open `VERIFY-*` / `DEFER-*` entry with its owner and acceptance criteria. Read it before assuming a shipped value is the target. |
 | `AGENTS.md` | Durable architecture/context summary and repository map. |
 | `IMPLEMENTATION_PLAN.md` (root) | Ordered delivery plan and package sequencing. |
 | `IMPLEMENTATION_STATUS.md` (root) | Long-form implemented-vs-designed gap analysis. |
@@ -205,11 +225,19 @@ enemy/boss display names.
 | `docs/PACKAGE4_ROSTER_PLAN.md` | The enemy/boss roster plan: archetype system, per-era roster IDs, boss kits, and the per-workstream deviation log. |
 | `docs/PACKAGE5_CAMPAIGN_PLAN.md` | The campaign plan for levels 2–15: per-level dossiers with the locked encounter economy, the authored boss stat table (§4.1), the shared-file conflict policy, crash hygiene (§2.8), and a long per-level deviation log (§9). Complete; read §9 before touching a campaign level. |
 | `docs/PACKAGE6_FIGHTER_PLAN.md` | The ten-stage local Fighter Mode plan: standing decisions (§2), the per-stage geometry dossiers and the ten era-hazard specs (§4/§4.1), the Phase A/B/C workstream split, and a long per-workstream deviation log (§9). Complete; read §9 before touching Fighter stages, hazards, match flow, the CPU, or the rollback harness. |
-| `docs/DUST_ECONOMY.md` | The Chronal Dust reward/cost model. Locked by `tests/ContentValidation/DustEconomyTests.cs`. |
+| `docs/PACKAGE8_PRESENTATION_PLAN.md` | The presentation package: theme/palette pairing, focus authoring, audio framework, VFX taxonomy, and its §9 deviation log. |
+| `docs/PACKAGE11_V7_6_ALIGNMENT_PLAN.md` | **The V7.5/V7.6 alignment package.** §2 standing decisions (authority, boss-HP scope, legacy-identifier retention, the save bump, the Klotho ID table, enum contracts, EventBus decoupling, dialogue schema, `en.csv` policy, test discipline, crash hygiene, Story/Fighter isolation), §3/§4 the twenty workstreams, §6 the closeout, §8 what stayed out of scope, **§9 the per-workstream deviation log**, §10 the closeout report. Read §9 before touching anything this package built. |
+| `docs/handoffs/P11_*.md` | The twenty-one Package 11 workstream handoffs — exact API names, what shipped, what did not, and why. The most specific record of any Package 11 system. |
+| `docs/recon-2026-09-13/*.md` | The nine reconnaissance dossiers the package was authored from (~600 KB). Evidence about the pre-package build, not a target. |
+| `docs/DUST_ECONOMY.md` | A **synced mirror** of `docs/design-contracts/DUST_ECONOMY.md` (F05) plus an implementation map saying where each rule lives in code. Edit the contract, not the mirror. Locked by `tests/ContentValidation/DustEconomyTests.cs` and `RewardManifestTests`. |
 | `docs/GAMEPLAY_FEEL_2026-08-10_PLAN.md` | The 2026-08-10 gameplay-feel batch: locked movement/combat retune decisions (run/jump/damage numbers, block-cancel, HP-scaled knockback, directional attacks, fast-fall, sim ledge grab) and its §9 deviation log. Read §2/§9 before touching movement or basic-combat feel. |
 | `docs/architecture/000*.md` | Accepted ADRs. Supersede rather than silently rewrite one. |
-| `docs/BUILDING.md`, `docs/PERFORMANCE_BASELINE.md` | Build/validation procedure and the Package 0 performance baseline. |
-| `resources/**/*.tres` | Canonical runtime tuning. Numbers in code or docs never override a resource. |
+| `docs/BUILDING.md`, `docs/PERFORMANCE_BASELINE.md` | Build/validation procedure and the Package 0 performance baseline. **The baseline's resim/snapshot figures predate Package 11's component growth** and need re-measuring as Package 7 entry work. |
+| `resources/**/*.tres` | Canonical runtime **tuning storage**: one value, in one place, loaded through `AuthoredResources`. Evidence about the build rather than design authority — see the authority rule above. |
+
+**Analysis and review — context, not authority:**
+
+- `docs/DESIGN_ANALYSIS_2026-08-16.md`, `docs/DESIGN_ANALYSIS_2026-09-08.md`, `docs/DESIGN_REVIEW_V7_6_2026-09-11.md`, `docs/IMPLEMENTATION_ANALYSIS_2026-08-16.md`, `docs/IMPLEMENTATION_AUDIT_2026-08-08.md` — dated snapshots of what the build looked like at a moment. Useful leads; superseded wherever a later contract, plan or ledger entry says otherwise.
 
 **Superseded but Godot-era — context only:**
 
@@ -217,14 +245,17 @@ enemy/boss display names.
 
 **Removed on 2026-08-06.** The Unity-era design archive (`design.md` and its rendered `html/` build, `character_base_stats.md`, `ability_numeric_data.md`, `enemy_and_boss_numeric_data.md`, `technical_implementation_guide.md`, `sprite_generation_pipeline_plan.md`, `design_gaps_analysis.md`, `design_gaps_resolved.md`, `chat-history.md`) and the stale duplicate `docs/design-godot.md` are no longer in this repository. They described a Unity `ScriptableObject` project with a ten-character roster and were a live source of wrong numbers. Copies remain outside the repo in `D:\Projects\fighters-through-time-docs-2\`. Do not reintroduce them into `docs/`, and do not cite them as design authority if you encounter them there.
 
-If a document and a `.tres` resource disagree, the resource wins. If two documents disagree, follow `AGENTS.md`'s rule: surface the conflict rather than silently normalizing it.
+If a document and a `.tres` resource disagree, **the document's intent wins and the resource is evidence** — close it by changing the build, or record it in `docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md` with an owner and acceptance criteria. This replaces the pre-Package-11 rule ("the resource wins"), which quietly promoted every shipped value into the design. If two documents disagree, a more specific adopted resolution supersedes the historical rule it identifies; otherwise surface the conflict rather than silently normalizing it.
+
+**One correction to record:** `docs/PACKAGE5_CAMPAIGN_PLAN.md` **is present in this repository**. The docs-workspace source table in `DESIGN_BUILD_DEVIATIONS.md` and the master both flag it as missing; that flag is wrong from the repo's side, and no recovery work is needed.
 
 ## Working agreements
 
 - **Don't touch `.godot/`.** It is generated cache and build output. Legacy files under it are already tracked in git; do not add, remove, or clean them without explicit authorization.
 - **Keep `.uid` sidecars with their scripts.** Godot generates them; they are project metadata, not noise.
-- **Resources own the numbers.** Put static tuning in `.tres`, runtime state in controllers/snapshots. Never create a second canonical value in a factory, UI script, or document.
-- **Story must not leak into Fighter.** Resonance grid perks, difficulty scaling, and story progression modifiers stay out of shared stats, ability resources, and the deterministic simulation.
+- **One canonical value, and the design defines intent.** Put static tuning in `.tres` (or a single named rulebook constant) and runtime state in controllers/snapshots; never create a second canonical value in a factory, UI script, or document. The resource is where the number *lives*, not what makes it *right* — see the authority rule.
+- **Story must not leak into Fighter.** Resonance grid perks, difficulty scaling, the Legacy Unlock Schedule, `Suppression`, Time Freeze and story progression modifiers stay out of shared stats, ability resources, and the deterministic simulation.
+- **Save payload classes stay engine-free.** No `res://` read, resource load or manifest read from a `GlobalSaveData` / `StorySaveData` field initializer or `Normalize()` — a pure-C# suite that constructs one has no Godot runtime, and that is failure signature 7.
 - **Determinism is a hard boundary.** `scripts/FighterSim/` runs on Klotho fixed-point math (`FP64`/`FPVector2`). Never introduce float math, `PhysicsServer2D` authority, `Date`/`Random` without a seeded deterministic source, or Godot state feeding back into simulation there.
 - **Localize everything visible.** New user-facing copy uses a translation key plus an entry in `localization/en.csv`.
 - **Finish the validation loop before reporting done.** At minimum `dotnet build`; add `dotnet test` for anything touching gameplay, simulation, saves, pools, collision, or localization; add the headless import check for scene/resource edits. Report the actual result, including failures.
@@ -236,12 +267,20 @@ If a document and a `.tres` resource disagree, the resource wins. If two documen
 | Task | Start here |
 |---|---|
 | Character ability | `docs/PACKAGE3_KIT_AUDIT.md` → `resources/Abilities/` → `scripts/Characters/Abilities/` → `scripts/FighterSim/` for the Fighter-side equivalent |
-| Fighter simulation / netcode | `docs/architecture/0002-*.md`, `docs/architecture/0003-*.md` → `scripts/FighterSim/` → `scripts/Networking/` |
-| Story level or hub content | `design-godot.md` Sections 2–3, 6–10 → `scripts/Environment/` → `scenes/campaign/` |
-| Saves | `docs/architecture/0004-*.md` → `scripts/Core/SaveManager*` |
+| Fighter simulation / netcode | `docs/architecture/0002-*.md`, `docs/architecture/0003-*.md`, `docs/design-contracts/ROLLBACK_STATE_CONTRACT.md` → `scripts/FighterSim/FighterStageGeometry.cs` for stage layout → `scripts/FighterSim/` → `scripts/Networking/`. The Klotho component inventory is in `AGENTS.md`; **never allocate an ID without checking it** |
+| Fighter CPU | `docs/design-contracts/CPU_RECOVERY.md` + `CPU_COMBAT_POLICY.md` → `scripts/FighterSim/FighterCpuController.cs` (`CpuBandTuning`) + `CpuRecoveryProfile.cs`. Band tuning is **code-owned and must never become a resource** |
+| Story level or hub content | `design-godot.md` Sections 2–3, 6–10 → `docs/design-contracts/CAMPAIGN_VALIDATION.md` → `scripts/Environment/StoryLevelControllerBase.cs` → `scenes/campaign/` |
+| Level 4A (a Legacy Level) | `docs/design-contracts/LEGACY_CHECKPOINTS.md` + plan §2.4 → `scripts/Environment/LegacyLevelControllerBase.cs` (sealed `BuildLevel`) → `Level04AEinsteinController.cs` as the exemplar |
+| Time Freeze / the temporal layer | `docs/design-contracts/TEMPORAL_STATE_CONTRACT.md` → `scripts/Environment/TimeFreezeController.cs` → `IStoryTimeFreezable` implementers |
+| Timeline Integrity / checkpoints / recovery | `docs/design-contracts/CHECKPOINT_RECOVERY.md` → `scripts/Core/TimelineIntegrityRules.cs` → the `StoryManager` Integrity clock → `CollapseTremorController` |
+| Defence, shields, Defy | `docs/design-contracts/DEFENSIVE_EFFECTS.md` → `scripts/Combat/StoryDefense.cs` + `PlayerController.ResolveProtectionLayers` → `FighterDefenseRules` (component 312) |
+| Saves | `docs/architecture/0004-*.md` + `docs/design-contracts/STORY_PERSISTENCE.md` → `scripts/Core/SaveManager*`, `SaveEnvelope.cs` (schema v6), `StoryAttemptState.cs` |
+| Dust / rewards | `docs/design-contracts/DUST_ECONOMY.md` → `resources/Content/reward_manifests/` → `LevelRewardDirectory` / `RewardAllocator` |
 | UI / dialogue | `docs/PACKAGE8_PRESENTATION_PLAN.md` §9 → `resources/UI/ftt_theme.tres` + `scripts/UI/UIPalette.cs` → `scenes/ui/`, `scripts/UI/`, `resources/Dialogue/`, `localization/en.csv`. Adopt the theme on the screen root; author focus with `FocusChainBuilder`; store raw keys in `.tscn` `text` and let control auto-translation resolve them |
-| Audio | `docs/PACKAGE8_PRESENTATION_PLAN.md` §9 A2/B5 → `resources/Audio/default_bus_layout.tres` → `scripts/Core/AudioManager.cs` (`StemDirector`, `AudioSnapshotMixer`) → `resources/Audio/*_audio.tres`. The stem mix is **additive** |
+| Audio | `docs/design-contracts/COMFORT_SETTINGS.md` (C01b) + `docs/PACKAGE8_PRESENTATION_PLAN.md` §9 A2/B5 → `resources/Audio/default_bus_layout.tres` → `scripts/Core/AudioManager.cs` (`StemDirector`, `AudioSnapshotMixer`) → `resources/Audio/*_audio.tres`. The stem mix is **additive**; the snapshot mixer is a **priority selector**, not a stack |
+| HUD | `docs/design-contracts/HUD_CONTRACT.md` (F24) → `scenes/ui/StoryHUD.tscn` + `scripts/UI/StoryHUD.cs` → `scripts/UI/RadialProgress.cs`. Publishers never edit the HUD — they append a typed payload to `scripts/Core/EventBus.cs` and the HUD subscribes |
 | Visual / VFX / shaders | `docs/PACKAGE8_PRESENTATION_PLAN.md` §9 A3/B6/B7 → `assets/shaders/outline_glow.gdshader` → `scripts/Combat/GlowPresentationController.cs`, `VfxEmitter`, `ParticleBudget` → `scenes/vfx/`. `gl_compatibility` forbids `instance uniform`s and `TEXTURE` as a `sampler2D` argument |
-| Input remapping / settings | `docs/PACKAGE8_PRESENTATION_PLAN.md` §9 A4 → `scripts/Core/InputBindings.cs` → `scripts/UI/SettingsMenu.cs` + `scenes/ui/Settings.tscn` → `scripts/Core/SaveManager*` (global payload schema v4) |
-| Enemy or boss content | `docs/PACKAGE4_ROSTER_PLAN.md` → `resources/Enemies/`, `resources/Bosses/` → `scripts/Enemies/` → `resources/Content/content_manifest.csv` + `localization/en.csv` |
+| Input remapping / settings | `docs/design-contracts/COMFORT_SETTINGS.md` (C01c) + `docs/PACKAGE8_PRESENTATION_PLAN.md` §9 A4 → `scripts/Core/InputBindings.cs` (`UnboundActions`, `ShortcutEnabled`, `InputShortcuts`) → `scripts/UI/SettingsMenu.cs` + `scenes/ui/Settings.tscn` → `scripts/Core/SaveManager*` (schema v6). **There is no chord editor** — recipes are fixed, only their component actions are remappable |
+| Enemy or boss content | `docs/PACKAGE4_ROSTER_PLAN.md` §4.2 (+ its V7.6 addendum) → `resources/Enemies/`, `resources/Bosses/` → `scripts/Enemies/` → `resources/Content/content_manifest.csv` + `localization/en.csv`. Check `VERIFY-BOSS-HP` in the ledger before touching any boss `MaxHP` |
+| Narrative / dialogue copy | `design-godot.md` Section 16 → `resources/Dialogue/` + `localization/en.csv`. Hero variants are `<baseID>@<heroID>`; the V7.5 vocabulary and the Act III knowledge boundary are gated by `NarrativeKnowledgeBoundaryTests` |
 | Collision changes | `project.godot` layer names + `CollisionLayers` constants + scene masks + tests, all together |
