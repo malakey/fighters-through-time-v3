@@ -6036,16 +6036,36 @@ Test delta **+20**, exactly as dossiered.
     change will move that pin), and CPU grabs / Echo Step tiering (A9b's F19 work; `EasyBoss`
     deliberately enables neither, and neither verb exists in `FighterCpuController` yet).
 
-**Validation.** `dotnet build` clean (3 pre-existing warnings: `KLSG_ECS004`, the vendored GdUnit4
-`CS8632`, and A12's `CS0114` on `LegacyLevelControllerBase.ParSeconds`). Cold `--headless --import`
-then `--headless --quit` both clean. Filtered GdUnit runs behind a `Get-Process testhost,Godot*`
-clear-window poll: the boss/mirror set **105/105** (25 `MirrorParadoxTests` + 8
-`FirstUnboundPhaseTwoTests` + 5 `BorrowedLegaciesTests` + 23 `BossControllerTests` + 15
+14. **Merged `main` @ `1323c08` before validation** (Wave 1 seam repair, A3b's Act III /
+    attempt-state work, all nine Level 4A variants). One conflict, in this file's §9, resolved by
+    **union** with A7b's block last; nothing else conflicted and no A7b behaviour changed.
+    **The nine new `resources/Bosses/legacy/*_legacy_boss.tres` stay outside every A7b sweep by
+    construction:** `BossRosterActITests`, `BossRosterActIIandIIITests` and `EnemyManifestTests` all
+    load from explicit boss-ID arrays via `res://resources/Bosses/{id}.tres` and none enumerates the
+    directory, so the Legacy bosses are neither swept for the V7.6 HP rows nor counted in the
+    fifteen-boss contracts. They carry neither new `BossData` flag, so both V7.6 behaviours stay
+    confined to `apex_eraser`.
+
+**Validation (post-merge).** `dotnet build` clean — 0 errors, 2 pre-existing warnings
+(`KLSG_ECS004` on `FighterTuningComponent`, the vendored GdUnit4 `CS8632`). `--headless --import`
+then `--headless --quit` both clean. Filtered GdUnit runs, each with its
+`Get-Process testhost,Godot*` clear-window poll issued **in the same shell invocation as the run**
+(a separate poll loses the race — one attempt was lost to signature-5 contention, exit code 100 with
+a 158/159 partial, and was re-run clean): the boss/mirror set **105/105** (25 `MirrorParadoxTests`
++ 8 `FirstUnboundPhaseTwoTests` + 5 `BorrowedLegaciesTests` + 23 `BossControllerTests` + 15
 `BossRosterActITests` + 14 `BossRosterActIIandIIITests` + 2 `EnemyManifestTests` + 8
 `EnemyRosterContentTests` + 5 `DustEconomyTests`), and the regression set **159/159**
 (`FighterCpu*`, `LegacyUnlockScheduleTests`, `CampaignCaptiveRosterTests`,
 `ScriptTypedEmptyArrayTests`, `ContentManifestTests`, Levels 02/03/04/13/14/15 content — 157 suite
 cases plus two `MirrorParadoxTests` methods whose names contain "FighterCpu" and so match that
-filter). 300-frame headless smokes of Level 13 and Level 15 both exit 0; the
-"3 resources still in use at exit" line on both is **pre-existing and improved** — the same Level 15
-smoke on the un-patched tree reports 4.
+filter).
+
+300-frame headless smokes of Level 13 and Level 15 both exit 0 with no `SCRIPT ERROR`. Both print an
+`N resources still in use at exit` line; **that is shutdown noise, not a regression**, and it was
+checked rather than assumed — the count is nondeterministic across runs of the identical build
+(Level 15 reported 1 then 3), and the untouched Level 02 reports the same 3. It is the
+`AuthoredResources` process-lifetime pin releasing at quit. A transient `Objects were leaked` line
+seen once on the first pass did not reproduce across six later runs of Levels 13 / 15 / 02.
+Recorded so nobody repeats it: reverting only `scripts/` + `resources/Bosses/` to baseline leaves the
+test files referencing the new `BossData` fields, the build fails, and the **previous** DLL is what
+actually runs — numbers from that state are meaningless.
