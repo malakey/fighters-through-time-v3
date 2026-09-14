@@ -145,6 +145,18 @@ namespace FTT.Enemies {
             }
             if (Phase == EnemyAbilityPhase.Idle) return;
 
+            // V7.6 F14: a Siphon Snare's active phase IS the channel. It ends the
+            // moment the tether breaks — range, cover, a roll, an interrupt, an
+            // emptied meter — rather than burning the authored 180 frames with
+            // nothing attached.
+            if (Phase == EnemyAbilityPhase.Active
+                && ActiveAbility?.Archetype == EnemyAbilityArchetype.SiphonTether
+                && !IsChannelling) {
+                _tether = null;
+                EnterRecovery();
+                return;
+            }
+
             FramesRemainingInPhase--;
             if (FramesRemainingInPhase > 0) return;
             switch (Phase) {
@@ -160,6 +172,7 @@ namespace FTT.Enemies {
             RestoreTint();
             _hitbox?.Deactivate();
             DashVelocity = Vector2.Zero;
+            ReleaseSiphonTether();
             int recovery = Math.Max(1, ActiveAbility?.RecoveryFrames ?? 1);
             Phase = EnemyAbilityPhase.Recovery;
             FramesRemainingInPhase = recovery;
@@ -184,6 +197,9 @@ namespace FTT.Enemies {
             RestoreTint();
             _hitbox?.Deactivate();
             DashVelocity = Vector2.Zero;
+            // A hard stop takes the tether with it: freeze teardown, despawn and
+            // death must never leave a channel draining a player nobody owns.
+            ReleaseSiphonTether();
         }
 
         private void EnterActive() {
@@ -191,6 +207,12 @@ namespace FTT.Enemies {
             Phase = EnemyAbilityPhase.Active;
             FramesRemainingInPhase = ActiveAbility?.ResolvedActiveFrames ?? 1;
             ExecuteArchetype();
+            // A Siphon cast that missed, was blocked or was refused creates no
+            // lingering pulse: it goes straight to its recovery instead of holding
+            // the caster still for a channel that never attached.
+            if (ActiveAbility?.Archetype == EnemyAbilityArchetype.SiphonTether && !IsChannelling) {
+                FramesRemainingInPhase = 1;
+            }
             RaisePresentation(EnemyPresentationPhase.Active);
             AbilityActivated?.Invoke(ActiveAbility);
         }
@@ -252,7 +274,145 @@ namespace FTT.Enemies {
                 case EnemyAbilityArchetype.PersistentFieldAtTarget:
                     SpawnPersistentField(ability);
                     break;
+                case EnemyAbilityArchetype.SiphonTether:
+                    BeginSiphonTether(ability);
+                    break;
             }
+        }
+
+        // === V7.6 F14: the Siphon Snare's single attachment check =============
+
+        private SiphonTetherChannel _tether;
+
+        /// <summary>
+        /// True while a <see cref="EnemyAbilityArchetype.SiphonTether"/> is
+        /// maintaining. <see cref="EnemyController"/> reads this to hold the
+        /// caster stationary and mute — the contract's "the Eraser is stationary
+        /// and cannot attack or use the Null Lance while maintaining".
+        /// </summary>
+        public bool IsChannelling =>
+            _tether != null && GodotObject.IsInstanceValid(_tether) && _tether.IsLive;
+
+        /// <summary>The live tether, or null. Test seam.</summary>
+        public SiphonTetherChannel ActiveTether =>
+            _tether != null && GodotObject.IsInstanceValid(_tether) ? _tether : null;
+
+        /// <summary>
+        /// Outcome of the most recent Siphon cast's attachment check, so a miss, a
+        /// blocked cast and a refusal stay distinguishable without inspecting the
+        /// (absent) channel node.
+        /// </summary>
+        public SiphonAttachResult LastSiphonResult { get; private set; } = SiphonAttachResult.None;
+
+        /// <summary>
+        /// Deterministic tiebreak identity handed to a contested tether. Defaults
+        /// to the owner node's name; settable so an authored encounter (or a test)
+        /// can pin which of two simultaneous Erasers keeps the tether.
+        /// </summary>
+        public string SourceStableID { get; set; } = "";
+
+        /// <summary>
+        /// The ONE attachment check, run at active-start. Every refusal the
+        /// contract names happens here and nowhere else: after this frame the
+        /// tether either exists or the cast is over. The cooldown belongs to the
+        /// caller and runs either way — there is no early refund.
+        /// </summary>
+        private void BeginSiphonTether(EnemyAbilityData ability) {
+            _tether = null;
+            LastSiphonResult = SiphonAttachResult.None;
+            Node parent = _owner.GetParent();
+            if (parent == null) return;
+
+            float radius = Mathf.Max(8f, ability.PulseRadius);
+            FTT.Characters.PlayerController target = NearestEligibleTarget(radius);
+            if (target == null) { LastSiphonResult = SiphonAttachResult.NoTarget; return; }
+
+            // A legal grounded, front-facing block at attachment prevents ALL
+            // drain for one charge, with the ordinary Basic block response. It is
+            // not a hit: no HP chip, no hitstun, no knockback, no lingering pulse.
+            FTT.Combat.BlockResult blocked = target.TryAbsorbNonDamagingCast(
+                _owner.GlobalPosition, ability.AbilityID, "siphon_snare");
+            if (blocked != FTT.Combat.BlockResult.NotBlocked) {
+                LastSiphonResult = SiphonAttachResult.Blocked;
+                return;
+            }
+
+            var channel = new SiphonTetherChannel {
+                Name = "SiphonTetherChannel",
+                StableActorID = string.IsNullOrEmpty(SourceStableID) ? _owner.Name : SourceStableID
+            };
+            parent.AddChild(channel);
+            channel.GlobalPosition = _owner.GlobalPosition;
+            if (!channel.Attach(ability, _owner, target)) {
+                LastSiphonResult = SiphonAttachResult.AlreadyTethered;
+                channel.QueueFree();
+                return;
+            }
+            _tether = channel;
+            LastSiphonResult = SiphonAttachResult.Attached;
+        }
+
+        /// <summary>
+        /// The nearest living player inside <paramref name="radius"/>
+        /// centre-to-centre with unobstructed line of sight, excluding every
+        /// player the contract refuses: Suppressed, at zero meter, already
+        /// tethered, or invulnerable. Sweeps the <c>"Players"</c> group by
+        /// distance (the extractor / dilation-field pattern), so it stays
+        /// deterministic under headless direct calls where no physics flush
+        /// resolves overlaps.
+        /// </summary>
+        private FTT.Characters.PlayerController NearestEligibleTarget(float radius) {
+            SceneTree tree = _owner.IsInsideTree() ? _owner.GetTree() : null;
+            if (tree == null) return null;
+            Godot.Collections.Array<Node> players = tree.GetNodesInGroup("Players");
+            using var playersLifetime = players.AsDisposable();
+
+            FTT.Characters.PlayerController best = null;
+            float bestDistance = float.MaxValue;
+            foreach (Node node in players) {
+                if (node is not FTT.Characters.PlayerController player) continue;
+                if (!IsSiphonEligible(player)) continue;
+                float distance = _owner.GlobalPosition.DistanceTo(player.GlobalPosition);
+                if (distance > radius || distance >= bestDistance) continue;
+                if (!SiphonTetherChannel.HasLineOfSight(_owner, _owner.GlobalPosition, player.GlobalPosition)) {
+                    continue;
+                }
+                best = player;
+                bestDistance = distance;
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// The contract's refusal set, shared by the attachment check and by the
+        /// caller's "no new commitment against a zero-meter / Suppressed /
+        /// invulnerable / already-tethered target".
+        /// </summary>
+        public static bool IsSiphonEligible(FTT.Characters.PlayerController player) {
+            if (player == null || !GodotObject.IsInstanceValid(player)) return false;
+            if (player.CurrentState is FTT.Characters.CharacterState.Dead
+                or FTT.Characters.CharacterState.Respawning) return false;
+            if (player.CurrentUltimateMeter <= 0.0001f) return false;
+            if (player.HasStatusEffect(StatusType.Suppression)) return false;
+            if (SiphonTetherChannel.IsTargetInvulnerable(player)) return false;
+            return SiphonTetherChannel.ActiveFor(player) == null;
+        }
+
+        /// <summary>
+        /// Breaks a live tether because the caster took a hit its V7.4 stagger
+        /// armor did NOT reject. An armor-rejected hit never reaches this.
+        /// </summary>
+        public void InterruptSiphonTether() {
+            if (_tether != null && GodotObject.IsInstanceValid(_tether)) {
+                _tether.NotifyCasterInterrupted();
+            }
+            _tether = null;
+        }
+
+        /// <summary>Ends any live tether outright (death, despawn, room or level exit).</summary>
+        public void ReleaseSiphonTether() {
+            if (_tether != null && GodotObject.IsInstanceValid(_tether)) _tether.Release();
+            _tether = null;
         }
 
         /// <summary>
@@ -425,7 +585,16 @@ namespace FTT.Enemies {
                 };
                 _owner.AddChild(_glyph);
             }
-            _glyph.Present(ResolveGlyphShape(ActiveGuardCrush, ActiveUnblockable), tint);
+            // V7.6 F14: the Siphon Snare keeps its Basic-class circle (a shield
+            // still answers it for one charge) and adds a second, additive tether
+            // accent plus the drawn 3-unit attachment boundary. Both channels are
+            // pure shape, so the promise reads without colour or flashing.
+            bool siphon = ActiveAbility?.Archetype == EnemyAbilityArchetype.SiphonTether;
+            _glyph.Present(
+                ResolveGlyphShape(ActiveGuardCrush, ActiveUnblockable),
+                tint,
+                siphon ? TelegraphGlyphAccent.Tether : TelegraphGlyphAccent.None,
+                siphon ? Mathf.Max(8f, ActiveAbility.PulseRadius) : 0f);
         }
 
         private void RaisePresentation(EnemyPresentationPhase phase) {

@@ -125,10 +125,11 @@ public class EnemyRosterContentTests {
                 .IsNotEqual(key);
         }
 
-        // 27 enemies + 27 enemy abilities + 15 bosses + 49 boss abilities.
+        // 28 enemies + 30 enemy abilities + 15 bosses + 49 boss abilities. V7.6
+        // (A7a) added the Eraser and its three kits, so the floor rises by four.
         AssertThat(checkedKeys).OverrideFailureMessage(
             $"Only {checkedKeys} roster resources were reached; the directory walk is broken.")
-            .IsGreaterEqual(118);
+            .IsGreaterEqual(122);
     }
 
     [TestCase]
@@ -201,8 +202,8 @@ public class EnemyRosterContentTests {
                 .IsEqual(BossDustReward);
         }
 
-        // 27 originals plus the V7.1 Chrono-Warden elite.
-        AssertThat(standards + elites).IsEqual(28);
+        // 27 originals, plus the V7.1 Chrono-Warden elite, plus the V7.6 Eraser.
+        AssertThat(standards + elites).IsEqual(29);
         AssertThat(bosses).IsEqual(15);
     }
 

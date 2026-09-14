@@ -207,10 +207,18 @@ public class Level13ContentTests {
         AssertThat(Level13Controller.StandardEnemyCount)
             .OverrideFailureMessage("Level 13 is locked at 8 standard enemies by DUST_ECONOMY.md.")
             .IsEqual(8);
+        // V7.6 (Package 11 A7a): Act III opens with the Eraser PAIR - the design's
+        // "Level 13: a pair, scripted ambush, with the naming line". They sit on
+        // top of the pre-F05 locked row; F05 (A10) replaces the flat per-tier
+        // award with a per-level required-encounter pool, which is the model under
+        // which a salted hunter costs nothing to add.
         AssertThat(Level13Controller.EliteEnemyCount)
-            .OverrideFailureMessage("Level 13 is locked at 1 elite by DUST_ECONOMY.md.")
-            .IsEqual(1);
-        AssertThat(Level13Controller.SpawnTable.Length).IsEqual(9);
+            .OverrideFailureMessage("Level 13 authors 1 era elite plus the Eraser pair.")
+            .IsEqual(3);
+        AssertThat(Level13Controller.EraserCount)
+            .OverrideFailureMessage("Act III opens with an Eraser PAIR, not a single hunter.")
+            .IsEqual(2);
+        AssertThat(Level13Controller.SpawnTable.Length).IsEqual(11);
         AssertThat(Level13Controller.ExtractorPlacements.Length)
             .OverrideFailureMessage("Level 13 is locked at 2 Chronal Extractors.")
             .IsEqual(2);
@@ -244,7 +252,8 @@ public class Level13ContentTests {
         foreach ((string enemyID, int wave, Vector2 _) in Level13Controller.SpawnTable) {
             AssertThat(enemyID is Level13Controller.PhantomEnemyID
                             or Level13Controller.CultistEnemyID
-                            or Level13Controller.EliteEnemyID)
+                            or Level13Controller.EliteEnemyID
+                            or Level13Controller.EraserEnemyID)
                 .OverrideFailureMessage($"'{enemyID}' is not on the Chronal Void roster.").IsTrue();
             AssertThat(wave >= 1 && wave <= 3).IsTrue();
         }
@@ -275,12 +284,13 @@ public class Level13ContentTests {
     [TestCase]
     public void EveryWaveFitsInsideTheLevelPoolWarmCounts() {
         // Warm counts are concurrency caps (plan section 2.5): standard_enemy 10,
-        // elite_enemy 3, enemy_projectile 12 for level_13_chronal_void_pools - the
-        // smallest budget in the campaign.
+        // elite_enemy 4 (raised from 3 by A7a for the Eraser pair - wave 3 now
+        // fields three elites at once and a RecycleOldest pool with zero headroom
+        // would silently recycle a live one), enemy_projectile 12.
         var standardsPerWave = new Dictionary<int, int>();
         var elitesPerWave = new Dictionary<int, int>();
         foreach ((string enemyID, int wave, Vector2 _) in Level13Controller.SpawnTable) {
-            bool isElite = enemyID == Level13Controller.EliteEnemyID;
+            bool isElite = enemyID is Level13Controller.EliteEnemyID or Level13Controller.EraserEnemyID;
             Dictionary<int, int> table = isElite ? elitesPerWave : standardsPerWave;
             table.TryGetValue(wave, out int running);
             table[wave] = running + 1;
@@ -291,7 +301,7 @@ public class Level13ContentTests {
                 .IsLessEqual(10);
         }
         foreach (KeyValuePair<int, int> wave in elitesPerWave) {
-            AssertThat(wave.Value).IsLessEqual(3);
+            AssertThat(wave.Value).IsLessEqual(4);
         }
     }
 

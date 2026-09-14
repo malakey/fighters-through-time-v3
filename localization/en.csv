@@ -1483,3 +1483,9 @@ dlg_l04a_shakespeare_boss_2,You hold my words. You have never once earned a sing
 dlg_l04a_shakespeare_exit_1,The stage is swept. The season can run as it was written.
 dlg_l04a_shakespeare_exit_2,"Wound closed, Warden. Take the applause — that one was yours."
 dlg_l04a_shakespeare_exit_3,They will send a better player next time. Let them try these boards.
+# Package 11 A7a
+enemy_unbound_eraser_name,The Eraser
+enemy_ability_null_lance_name,Null Lance
+enemy_ability_siphon_snare_name,Siphon Snare
+enemy_ability_lance_jab_name,Lance Jab
+telegraph_siphon_tether_tooltip,"Siphon tether: drains Influence inside the ring. Block it, break line of sight, or leave the circle."

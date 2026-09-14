@@ -33,24 +33,30 @@ namespace FTT.Environment {
     ///     flag must never suppress required enemies and strand the gate.</item>
     /// </list>
     ///
-    /// <para><b>A7a handoff.</b> The Eraser elite itself (<c>resources/Enemies/eraser.tres</c>,
-    /// Null Lance, Siphon Snare, Suppression) ships with A7a in Wave 2. Until then
-    /// <see cref="EnemyID"/> defaults to the placeholder elite <c>chrono_guard_elite</c>
-    /// and <see cref="SpawnEraserDebut"/> is a real encounter with a placeholder body.
-    /// See the TODO on <see cref="EraserEnemyID"/>.</para>
+    /// <para><b>A7a (Wave 2) closed the handoff.</b> The Eraser elite now exists
+    /// (<c>resources/Enemies/unbound_eraser.tres</c>, Null Lance, Siphon Snare,
+    /// <c>StatusType.Suppression</c>), so <see cref="EnemyID"/> defaults to
+    /// <see cref="EraserEnemyID"/> and every Level 4A variant gets the real body
+    /// with no per-variant change. <see cref="PlaceholderEnemyID"/> is retained
+    /// only as the documented fallback an authored scene may still select.</para>
     /// </summary>
     public partial class EraserDebutTrigger : Node2D {
 
         /// <summary>
-        /// TODO(A7a, Wave 2): the authored Eraser elite resource ID. A7a ships
-        /// <c>resources/Enemies/eraser.tres</c> with Null Lance + Siphon Snare and the
-        /// new <c>StatusType.Suppression</c>; B3 then re-points all nine Level 4A
-        /// variants from <see cref="PlaceholderEnemyID"/> to this constant in one
-        /// change. Nothing else about this trigger moves.
+        /// The authored Eraser elite resource ID (Package 11 A7a).
+        ///
+        /// <para>Spelled <c>unbound_eraser</c>, not the bare <c>eraser</c> this
+        /// constant reserved: two BOSSES already carry that word - <c>tidal_eraser</c>
+        /// (L5) and <c>apex_eraser</c> (L15) - and a bare ID would make every grep
+        /// and the VFX library's owner parse ambiguous against them.</para>
         /// </summary>
-        public const string EraserEnemyID = "eraser";
+        public const string EraserEnemyID = "unbound_eraser";
 
-        /// <summary>The interim body: an authored elite that exists today (recon G §1.3).</summary>
+        /// <summary>
+        /// The pre-A7a interim body, retained as a documented fallback. No Level 4A
+        /// variant selects it any more - <see cref="EnemyID"/> defaults to the real
+        /// Eraser.
+        /// </summary>
         public const string PlaceholderEnemyID = "chrono_guard_elite";
 
         /// <summary>Sarah's non-blocking debut bark: "That one isn't guarding anything…".</summary>
@@ -58,8 +64,8 @@ namespace FTT.Environment {
 
         [Export] public string TriggerID = "";
 
-        /// <summary>Which elite actually spawns. Defaults to the interim placeholder.</summary>
-        [Export] public string EnemyID = PlaceholderEnemyID;
+        /// <summary>Which elite actually spawns. Defaults to the authored Eraser.</summary>
+        [Export] public string EnemyID = EraserEnemyID;
 
         [Export] public Vector2 TriggerSize = new(80f, 420f);
 

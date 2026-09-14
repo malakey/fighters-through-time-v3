@@ -152,10 +152,16 @@ public class Level07ContentTests {
         AssertThat(Level07Controller.StandardEnemyCount)
             .OverrideFailureMessage("Level 7 is locked at 10 standard enemies by DUST_ECONOMY.md.")
             .IsEqual(10);
+        // V7.6 (Package 11 A7a): the Eraser is salted through Levels 7-15 on top
+        // of the pre-F05 locked row. It is an Unbound hunter, not an era enemy, and
+        // it draws its share of the required-encounter budget rather than a flat
+        // per-tier award (F05, A10) - which is why the elite count moves without
+        // the era roster changing.
         AssertThat(Level07Controller.EliteEnemyCount)
-            .OverrideFailureMessage("Level 7 is locked at 1 elite by DUST_ECONOMY.md.")
-            .IsEqual(1);
-        AssertThat(Level07Controller.SpawnTable.Length).IsEqual(11);
+            .OverrideFailureMessage("Level 7 authors 1 era elite plus 1 salted Eraser.")
+            .IsEqual(2);
+        AssertThat(Level07Controller.EraserCount).IsEqual(1);
+        AssertThat(Level07Controller.SpawnTable.Length).IsEqual(12);
         AssertThat(Level07Controller.ExtractorCount)
             .OverrideFailureMessage("Level 7 is locked at 3 Chronal Extractors.")
             .IsEqual(3);
@@ -172,7 +178,8 @@ public class Level07ContentTests {
         foreach ((string enemyID, int wave, Vector2 _) in Level07Controller.SpawnTable) {
             AssertThat(enemyID is Level07Controller.StandardEnemyID
                     or Level07Controller.CultistEnemyID
-                    or Level07Controller.EliteEnemyID)
+                    or Level07Controller.EliteEnemyID
+                    or Level07Controller.EraserEnemyID)
                 .OverrideFailureMessage($"'{enemyID}' is not on the Nassau roster.").IsTrue();
             AssertThat(wave >= 1 && wave <= 3).IsTrue();
         }
@@ -204,7 +211,7 @@ public class Level07ContentTests {
         foreach ((string enemyID, int wave, Vector2 _) in Level07Controller.SpawnTable) {
             perWave.TryGetValue(wave, out int running);
             perWave[wave] = running + 1;
-            if (enemyID == Level07Controller.EliteEnemyID) {
+            if (enemyID is Level07Controller.EliteEnemyID or Level07Controller.EraserEnemyID) {
                 eliteWave.TryGetValue(wave, out int elites);
                 eliteWave[wave] = elites + 1;
             }

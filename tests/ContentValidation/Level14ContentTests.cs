@@ -201,10 +201,16 @@ public class Level14ContentTests {
         AssertThat(Level14Controller.StandardEnemyCount)
             .OverrideFailureMessage("Level 14 is locked at 14 standard enemies by DUST_ECONOMY.md.")
             .IsEqual(14);
+        // V7.6 (Package 11 A7a): the Bastion fields two era elites plus the two
+        // salted V7.x hunters - an Eraser and a Chrono-Warden. Act III is the first
+        // act allowed to put those two in the same room; F05 (A10) replaces the
+        // flat per-tier award this row encoded.
         AssertThat(Level14Controller.EliteEnemyCount)
-            .OverrideFailureMessage("Level 14 is locked at 2 elites by DUST_ECONOMY.md.")
-            .IsEqual(2);
-        AssertThat(Level14Controller.SpawnTable.Length).IsEqual(16);
+            .OverrideFailureMessage("Level 14 authors 2 era elites plus an Eraser and a Warden.")
+            .IsEqual(4);
+        AssertThat(Level14Controller.EraserCount).IsEqual(1);
+        AssertThat(Level14Controller.WardenCount).IsEqual(1);
+        AssertThat(Level14Controller.SpawnTable.Length).IsEqual(18);
         AssertThat(Level14Controller.ExtractorPlacements.Length)
             .OverrideFailureMessage("Level 14 is locked at 3 Chronal Extractors.")
             .IsEqual(3);
@@ -227,7 +233,9 @@ public class Level14ContentTests {
         foreach ((string enemyID, int wave, Vector2 _) in Level14Controller.SpawnTable) {
             AssertThat(enemyID is Level14Controller.SlasherEnemyID
                             or Level14Controller.DroneEnemyID
-                            or Level14Controller.EliteEnemyID)
+                            or Level14Controller.EliteEnemyID
+                            or Level14Controller.EraserEnemyID
+                            or Level14Controller.WardenEnemyID)
                 .OverrideFailureMessage($"'{enemyID}' is not a Future Cultist; Level 14 is cultist-only.")
                 .IsTrue();
             AssertThat(wave >= 1 && wave <= 4).IsTrue();

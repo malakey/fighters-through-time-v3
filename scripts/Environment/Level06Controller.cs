@@ -137,6 +137,24 @@ namespace FTT.Environment {
 
         // === Authored encounter tables (the locked economy row lives here) ===
 
+        /// <summary>
+        /// V7.1 design law, first actually placed in V7.6 (Package 11 A7a). The
+        /// Chrono-Warden's authored debut is "first appearance Level 6, then
+        /// salted through Levels 7-15 alongside the Tech-Enforcer", and until now
+        /// it had never been spawned in any level at all (recon G8): the resource,
+        /// its three abilities, its manifest row and its tests all existed with
+        /// zero call sites.
+        ///
+        /// <para>This pushes Pompeii's authored elite count from 0 to 1, which the
+        /// pre-F05 locked economy row did not budget. That row's flat per-tier
+        /// award is retired by F05 in this same wave (A10 owns the reward
+        /// manifest); the deviation is recorded in the plan's section 9.</para>
+        ///
+        /// <para>No Eraser is authored in Pompeii: the two elites may not share a
+        /// room until Act III, and Level 6 is the Warden's level.</para>
+        /// </summary>
+        public const string WardenEnemyID = "chrono_warden";
+
         /// <summary>Forum: two legionnaires holding the colonnade, one Unbound trooper between them.</summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2 PatrolA, Vector2 PatrolB)[] Room1Spawns = {
             ("shock_shield_legionnaire", new Vector2(1000, EnemyGroundY), new Vector2(860, EnemyGroundY), new Vector2(1160, EnemyGroundY)),
@@ -160,7 +178,10 @@ namespace FTT.Environment {
             ("chrono_slasher", new Vector2(6200, EnemyGroundY), new Vector2(6060, EnemyGroundY), new Vector2(6360, EnemyGroundY)),
             ("shock_shield_legionnaire", new Vector2(6900, EnemyGroundY), new Vector2(6760, EnemyGroundY), new Vector2(7060, EnemyGroundY)),
             ("chrono_slasher", new Vector2(7700, EnemyGroundY), new Vector2(7560, EnemyGroundY), new Vector2(7860, EnemyGroundY)),
-            ("shock_shield_legionnaire", new Vector2(8400, EnemyGroundY), new Vector2(8260, EnemyGroundY), new Vector2(8560, EnemyGroundY))
+            ("shock_shield_legionnaire", new Vector2(8400, EnemyGroundY), new Vector2(8260, EnemyGroundY), new Vector2(8560, EnemyGroundY)),
+            // The Warden holds the last stretch of the Ash Road, where a Dilation
+            // Field on a lava-timed corridor is the whole point of the enemy.
+            (WardenEnemyID, new Vector2(8050, EnemyGroundY), new Vector2(7900, EnemyGroundY), new Vector2(8200, EnemyGroundY))
         };
 
         /// <summary>Every authored standard spawn in room order. Must total exactly 10.</summary>
@@ -179,10 +200,23 @@ namespace FTT.Environment {
             ("level_06.extractor_ashroad", new Vector2(7400, 420))
         };
 
-        public static int AuthoredStandardCount =>
-            Room1Spawns.Length + Room2Spawns.Length + Room3Spawns.Length;
+        /// <summary>Authored spawns of standard tier. Elites are counted separately.</summary>
+        public static int AuthoredStandardCount {
+            get {
+                int total = 0;
+                foreach (var spawn in AllStandardSpawns) if (spawn.EnemyID != WardenEnemyID) total++;
+                return total;
+            }
+        }
 
-        public static int AuthoredEliteCount => 0;
+        /// <summary>The Chrono-Warden's authored debut: exactly one, on the Ash Road.</summary>
+        public static int AuthoredEliteCount {
+            get {
+                int total = 0;
+                foreach (var spawn in AllStandardSpawns) if (spawn.EnemyID == WardenEnemyID) total++;
+                return total;
+            }
+        }
 
         public static int AuthoredExtractorCount => ExtractorPlacements.Length;
 

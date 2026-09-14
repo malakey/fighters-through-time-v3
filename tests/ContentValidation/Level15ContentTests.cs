@@ -268,10 +268,14 @@ public class Level15ContentTests {
         AssertThat(Level15Controller.StandardEnemyCount)
             .OverrideFailureMessage("Level 15 is locked at 12 standard enemies by DUST_ECONOMY.md.")
             .IsEqual(12);
+        // V7.6 (Package 11 A7a): the Eraser's last salted appearance stands with
+        // the rotunda guard, immediately before the First Unbound. F05 (A10)
+        // replaces the flat per-tier award the old locked row encoded.
+        AssertThat(Level15Controller.EraserCount).IsEqual(1);
         AssertThat(Level15Controller.EliteEnemyCount)
-            .OverrideFailureMessage("Level 15 is locked at 2 elites by DUST_ECONOMY.md.")
-            .IsEqual(2);
-        AssertThat(Level15Controller.SpawnTable.Length).IsEqual(14);
+            .OverrideFailureMessage("Level 15 authors 2 era elites plus 1 salted Eraser.")
+            .IsEqual(3);
+        AssertThat(Level15Controller.SpawnTable.Length).IsEqual(15);
         AssertThat(Level15Controller.ExtractorPlacements.Length)
             .OverrideFailureMessage("Level 15 is locked at 3 Chronal Extractors.")
             .IsEqual(3);
@@ -292,7 +296,8 @@ public class Level15ContentTests {
         foreach ((string enemyID, int wave, Vector2 _) in Level15Controller.SpawnTable) {
             AssertThat(enemyID is Level15Controller.CultistEnemyID
                             or Level15Controller.TechEliteEnemyID
-                            or Level15Controller.GuardEliteEnemyID)
+                            or Level15Controller.GuardEliteEnemyID
+                            or Level15Controller.EraserEnemyID)
                 .OverrideFailureMessage($"'{enemyID}' is not on the Act III cultist roster.").IsTrue();
             AssertThat(wave >= 1 && wave <= 4).IsTrue();
         }
@@ -314,6 +319,7 @@ public class Level15ContentTests {
         // full hand rather than doubling one archetype.
         AssertThat(CountInSpawnTable(Level15Controller.TechEliteEnemyID)).IsEqual(1);
         AssertThat(CountInSpawnTable(Level15Controller.GuardEliteEnemyID)).IsEqual(1);
+        AssertThat(CountInSpawnTable(Level15Controller.EraserEnemyID)).IsEqual(1);
     }
 
     [TestCase]

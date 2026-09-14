@@ -295,6 +295,36 @@ namespace FTT.Enemies {
 
         public EnemyAbilityPhase AbilityPhase => Executor.Phase;
         public EnemyAbilityData ActiveAbility => Executor.ActiveAbility;
+
+        /// <summary>
+        /// V7.6 F14 (Package 11 A7a): true while this enemy is maintaining a
+        /// Siphon tether — stationary, and unable to select or fire anything else.
+        /// </summary>
+        public bool IsChannelling => Executor.IsChannelling;
+
+        /// <summary>The live Siphon tether this enemy owns, or null.</summary>
+        public SiphonTetherChannel ActiveSiphonTether => Executor.ActiveTether;
+
+        /// <summary>The outcome of this enemy's most recent Siphon attachment check.</summary>
+        public SiphonAttachResult LastSiphonResult => Executor.LastSiphonResult;
+
+        /// <summary>
+        /// Advances only the ability executor, without the movement, gravity and
+        /// MoveAndSlide the full physics step carries. Test seam: it lets a
+        /// telegraph be walked frame by frame without a floor under the enemy.
+        /// </summary>
+        internal void TickAbilityExecutor(float delta) => Executor.Tick(delta);
+
+        /// <summary>
+        /// Runs one Attacking-state step in isolation. Test seam for the V7.6
+        /// channelling gate: it exercises the real <see cref="ProcessAttacking"/>
+        /// without the gravity and MoveAndSlide a full physics step would need a
+        /// floor for.
+        /// </summary>
+        internal void PumpAttackState(float delta) {
+            CurrentState = EnemyState.Attacking;
+            ProcessAttacking(delta);
+        }
         public bool LastAttackWasElite => _lastAttackWasElite;
         public bool IsFacingRight => _facingRight;
 
@@ -673,6 +703,14 @@ namespace FTT.Enemies {
         private void ProcessAttacking(float dt) {
             Velocity = new Vector2(0, IsFlying ? 0f : Velocity.Y);
 
+            // V7.6 F14 (Package 11 A7a) channelling gate: while a Siphon Snare is
+            // maintaining, the caster is stationary and mute. It selects no new
+            // attack, fires no reactive Teleport and applies no dash velocity —
+            // the whole contract is "the Eraser is stationary and cannot attack or
+            // use the Null Lance while maintaining". The velocity zero above
+            // already holds it in place; this return is what stops everything else.
+            if (Executor.IsChannelling) return;
+
             // V7.3: the target closing to point blank during the pre-commit
             // reaction delay fires the reactive Teleport instead of letting the
             // committed attack whiff through a body already inside its arc.
@@ -716,10 +754,24 @@ namespace FTT.Enemies {
             Vector2 targetPosition = _target?.GlobalPosition ?? GlobalPosition + new Vector2(_facingRight ? 100f : -100f, 0f);
             // V7.2 classification: elite signature abilities are Guard-Crush
             // (2 charges, orange telegraph); mobs never carry unblockables.
+            // V7.6 (A7a): an ability may opt OUT of that implicit elite flag with
+            // ForcesBasicBlockClass — the Eraser's Null Lance is Basic-class
+            // because "blocking is never a trap", and the override also flips the
+            // telegraph tint and glyph back to white-yellow/circle.
             Executor.Begin(ability, targetPosition, _facingRight,
-                guardCrush: _lastAttackWasElite || (ability?.IsGuardCrushing ?? false),
+                guardCrush: ResolveGuardCrush(ability),
                 unblockable: false);
             PlayAnimation(_lastAttackWasElite ? "elite_attack" : "attack");
+        }
+
+        /// <summary>
+        /// The single Guard-Crush rule for mob attacks: the elite implicit, the
+        /// authored per-ability flag, and V7.6's explicit Basic-class override that
+        /// beats both. Public so the telegraph contract is directly pinnable.
+        /// </summary>
+        public bool ResolveGuardCrush(EnemyAbilityData ability) {
+            if (ability?.ForcesBasicBlockClass == true) return false;
+            return _lastAttackWasElite || (ability?.IsGuardCrushing ?? false);
         }
 
         /// <summary>
@@ -779,8 +831,11 @@ namespace FTT.Enemies {
             CurrentState = EnemyState.Attacking;
             _attackCommitted = true;
             _reactionFramesRemaining = 0;
+            // V7.6 (A7a): the reactive path honours the same Basic-class override
+            // as BeginAttack — a hardcoded `true` here would have quietly made an
+            // opted-out elite ability Guard-Crush on this one route.
             Executor.Begin(teleport, _target.GlobalPosition, _facingRight,
-                guardCrush: true, unblockable: false);
+                guardCrush: ResolveGuardCrush(teleport), unblockable: false);
             PlayAnimation("elite_attack");
             return true;
         }
@@ -1124,6 +1179,13 @@ namespace FTT.Enemies {
                 }
                 _specialStunWindowTimer = FTT.Combat.EnemyStaggerRules.SpecialStunDiminishWindowSeconds;
             }
+            // V7.6 F14 (A7a): a stun that gets this far is a SUCCESSFUL stagger
+            // interrupt — the two armor windows returned above and a zero stun
+            // returned above it — so it severs a maintained Siphon tether. An
+            // armor-rejected hit deliberately never reaches here, which is the
+            // contract's one explicit exclusion. A budget trip counts too: the
+            // Eraser breaks out swinging, and either way the channel is over.
+            Executor.InterruptSiphonTether();
             // V7.4 stagger budget (elites; bosses never flinch — see
             // BossController, whose hit intake ignores hitstun entirely): each
             // applied stun adds its post-resistance duration, and exceeding

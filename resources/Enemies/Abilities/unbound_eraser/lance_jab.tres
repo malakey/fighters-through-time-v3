@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "enemy.unbound_eraser.lance_jab"
+DisplayNameKey = "enemy_ability_lance_jab_name"
+Archetype = 0
+RangeClass = 0
+TelegraphFrames = 18
+ActiveFrames = 8
+RecoveryFrames = 20
+CooldownSeconds = 2.4
+SelectionWeight = 1.0
+Damage = 12.0
+KnockbackForce = Vector2(2.5, -1.0)
+HitstunDuration = 0.2
+HitboxSize = Vector2(54, 40)
+HitboxOffset = Vector2(40, -34)
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.85, 0.93, 1, 1)
+PresentationEventID = "enemy.unbound_eraser.lance_jab"

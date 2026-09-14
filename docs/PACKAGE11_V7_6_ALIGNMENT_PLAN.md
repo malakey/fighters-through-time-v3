@@ -5786,3 +5786,100 @@ per-hero, so its sequences are plain IDs.
 `CLAUDE.md` states both Godot executables live under `C:\Users\DavidMcClelland\Documents\FTT\`.
 On this machine they are at `D:\Projects\Godot_v4.7.1-stable_mono_win64*.exe`, which is also what
 `.claude/settings.json` sets `GODOT_BIN` to. The 2026-08-15 relocation note in `CLAUDE.md` is stale.
+---
+
+### A7a — The Eraser, the Null Lance, the Siphon Snare channel, and the two elites' placements (2026-09-13)
+
+**The Eraser ships as `unbound_eraser`, not the bare `eraser` the design prose and A12's reserved
+constant both use.** Two *bosses* already carry that word — `tidal_eraser` (Level 5) and
+`apex_eraser` (Level 15, renamed The First Unbound by A7b) — and §2.3 forbids renaming either. A bare
+`eraser` would make `grep -rn eraser` ambiguous, and `EnemyAbilityVisualLibrary.TryParseOwner`
+resolves an owner ID out of a `PresentationEventID` against two hardcoded sets, where a substring
+collision is exactly the kind of silent mis-resolution nothing tests for.
+`EraserDebutTrigger.EraserEnemyID` was re-pointed and its `EnemyID` **default** flipped to it, so all
+nine Level 4A variants get the real body with no per-variant change — B3's re-point task is already
+discharged. Pinned by `EraserDebutTriggerTests.TheDebutSpawnsTheRealEraserNowThatA7aHasLanded`.
+
+**`ForcesBasicBlockClass` is an explicit opt-out, not a removal of the elite Guard-Crush implicit.**
+`EnemyController.BeginAttack` flagged every elite signature ability Guard-Crush, and
+`TryReactivePhaseSkip` hardcoded `guardCrush: true` on its own route — so the same ability was
+Guard-Crush on one path and could not be anything else on the other. Both now call the new public
+`EnemyController.ResolveGuardCrush(ability)`, whose one rule is: the explicit Basic-class override
+beats the elite implicit and the authored `IsGuardCrushing` alike. Only the Null Lance authors it.
+The override flows into both telegraph channels automatically, because the tint and the glyph already
+resolve from the same class flags — the lance telegraphs white-yellow/circle, which is exactly the
+design's "blocking is never a trap".
+
+**The Siphon Snare is a fourth kind of thing, so it got its own archetype rather than a flag on
+`AreaPulse`.** `EnemyAbilityArchetype.SiphonTether = 9` is appended per §2.8.
+`AreaPulse` activates a square hitbox sized `PulseRadius * 2`; the Snare has no hitbox at all, deals
+no damage, and lives for up to 180 frames after its active phase begins. Its active phase **is** the
+channel: `siphon_snare.tres` authors `ActiveFrames = 180`, and the executor cuts straight to recovery
+the moment the tether breaks (or to a 1-frame active when the cast missed, was blocked, or was
+refused — "a miss or block creates no lingering pulse"). The channel node models the F14 contract
+verbatim: break conditions evaluated **before** each drain tick, `min(currentMeter, 10 x dt)` per tick
+preserving fractions, a 30-point per-cast cap, and a freeze latch that is a pure pause with no
+catch-up tick. `SiphonSnareTests` transcribes the design's validation matrix.
+
+**The one-tether rule is resolved on the channel, not on the player.** A static live-channel registry
+answers "is this player tethered", which keeps a pooled `PlayerController` from carrying tether state
+between levels. A *later* cast against a tethered player simply fails; only a genuinely same-frame
+pair is decided by stable actor ID (ordinal-least wins, the loser is severed with
+`SiphonBreakReason.Contested` before it drains a single point). `AttachFrameOverride` is the test seam
+that lets a tie be arranged without depending on where the physics clock happens to sit.
+
+**The non-damaging block absorb routes through `BlockSystem.ResolveHit` with a zero-damage payload
+rather than reimplementing the block rules.** `BlockSystem.cs` is **A1b's** file in this wave, so
+A7a's entry point lives entirely in its own declared region of `PlayerController.cs`
+(`TryAbsorbNonDamagingCast`). Building a `HitPayload` with `Damage = 0`, `AttackClass.Basic`,
+`BlockChargeCost = 1` and `ExemptFromHitstop = true` gets the front-facing test, the one-charge cost,
+shieldstun, the normal shatter on the last charge and Henry's Bastion for free, and cannot chip HP
+because the damage is literally zero. The grounded requirement needs no extra check: only
+`CharacterState.Blocking` reaches the method, and the stance cannot rise airborne, at zero charges, or
+under a shatter lockout.
+
+**A successful stagger interrupt is defined as "the hit got past `ApplyStun`'s armor guard".** The
+`Executor.InterruptSiphonTether()` call sits after `ApplyStun`'s `IsStaggerArmored` early-return and
+after its `stun <= 0f` return, and before the elite budget branch. That makes the contract's one
+explicit exclusion — "a hit rejected by its armor does not count" — structural rather than a second
+condition that could drift. An elite **budget trip** deliberately counts as an interrupt: the Eraser
+breaks out swinging, so the channel is over either way.
+
+**Placement is a salt, not a saturation, and it moves three pre-F05 locked economy rows.** The design
+says the Eraser is "salted through Levels 7-15" and the Chrono-Warden "first appearance Level 6, then
+salted through 7-15"; neither says every level. Levels 8, 10 and 11 are deliberately untouched — 8 and
+10 are `E = 0` rows whose whole identity is "no elite", and 11's single themed elite is left alone.
+The rows that move are recorded per level in `docs/handoffs/P11_A7a.md`. This is sanctioned by F05
+landing in the same wave: **A10 replaces the flat per-tier award those rows encode with a per-level
+required-encounter pool**, under which a salted hunter costs nothing to add. Every affected level's
+content test carries the reasoning inline rather than just a changed number.
+
+**G8 is closed: the Chrono-Warden now exists in the campaign.** It had a resource, three ability kits,
+a manifest row, localization and two behaviour test suites — and **zero spawn sites anywhere**. Its
+V7.1 debut is authored at Level 6 (Ash Road), then salted at Levels 9 and 14. Level 6's elite row goes
+0 → 1, which is the single largest economy deviation in this workstream and the one most worth a
+second look at F05 time.
+
+**`EncounterCompositionTests` is the first encounter-composition validator in the repository.** The
+"never in a room with a Chrono-Warden until Act III" rule had no enforcement surface at all. It reads
+each level's authored wave/room group as the unit — that is what a level actually spawns and what a
+player experiences as one fight — and carries a non-vacuity guard, because a validator that passes
+because nothing is placed is worse than no validator.
+
+**Not delivered, deliberately.** (1) `resources/SpriteFrames/Enemies/unbound_eraser_ability_vfx_frames.tres`
+— the plan marks it optional; nothing gates it, `EnemyAbilityVisualLibrary.TryResolve` is best-effort,
+and the Eraser falls back to the shared placeholder VFX taxonomy. Package 10 asset work. (2) The Sarah
+ambush bark lines for 4A and Level 13 — **A6 owns every `dlg_*` row** (§2.11); the Level 13 pair is
+placed and commented, and the line drops into the authored dialogue set without touching the spawn
+table. (3) `ChronalDustDrop = 10` on the Eraser is **interim**: the design says it "draws its authored
+share of the required encounter budget (F05); no flat 20-dust award", but 10 is the only value
+`EnemyRosterContentTests.TierDustRewardsConformToTheEconomyAcrossTheWholeRoster` accepts today. **A10
+must re-point it at the reward manifest**, and that is a real handoff, not a formality.
+
+**Test delta +27, against the dossier's declared +22.** The difference is entirely
+`SiphonSnareTests`, which came out at 21 rather than 16: the F14 matrix's "front / rear / zero-charge /
+final-charge blocks" is four cases not one, and "roll i-frames, cover and range boundaries" is four
+(the boundary is tested on both sides, because a `>` that should be a `>=` is exactly the bug a single
+out-of-range case would miss). The channelling gate earned its own case as well, since it is an
+acceptance criterion. No test was deleted; every count change in the level suites is a rewrite in
+place with the reasoning inline.

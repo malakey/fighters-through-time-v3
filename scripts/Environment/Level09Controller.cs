@@ -87,6 +87,16 @@ namespace FTT.Environment {
         public const string EliteEnemyID = "neural_mech_walker";
 
         /// <summary>
+        /// V7.1 design law, first actually placed in V7.6 (Package 11 A7a): the
+        /// Chrono-Warden is "salted through Levels 7-15 alongside the
+        /// Tech-Enforcer" and had never been spawned in any level (recon G8). The
+        /// Death Strip is the right room for it - a Dilation Field dropped on the
+        /// searchlight lane turns a timing puzzle into a real problem. No Eraser
+        /// is authored here: the two may not share a level before Act III.
+        /// </summary>
+        public const string WardenEnemyID = "chrono_warden";
+
+        /// <summary>
         /// Authored Normal-difficulty spawn table. Wave 1 is live on entry; waves 2
         /// and 3 arm on their room's proximity trigger.
         /// <see cref="StoryDifficultyTuning.ScaleEncounterCount"/> takes a prefix of
@@ -104,6 +114,7 @@ namespace FTT.Environment {
             (CultistEnemyID, 2, new Vector2(4100f, 1150f)),
             (SentryEnemyID, 2, new Vector2(5000f, 1150f)),
             (SentryEnemyID, 2, new Vector2(5900f, 460f)),
+            (WardenEnemyID, 2, new Vector2(4600f, 1150f)),
             // Wave 3 - Radar Yard. The elite walker anchors the yard.
             (SentryEnemyID, 3, new Vector2(6800f, 1150f)),
             (CultistEnemyID, 3, new Vector2(7100f, 1150f)),
@@ -133,7 +144,10 @@ namespace FTT.Environment {
         };
 
         public static int StandardEnemyCount => CountOf(SentryEnemyID) + CountOf(CultistEnemyID);
-        public static int EliteEnemyCount => CountOf(EliteEnemyID);
+        public static int EliteEnemyCount => CountOf(EliteEnemyID) + CountOf(WardenEnemyID);
+
+        /// <summary>How many Chrono-Wardens this level authors. Test seam for the salt rules.</summary>
+        public static int WardenCount => CountOf(WardenEnemyID);
 
         private static int CountOf(string enemyID) {
             int total = 0;

@@ -1,0 +1,30 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "enemy.unbound_eraser.siphon_snare"
+DisplayNameKey = "enemy_ability_siphon_snare_name"
+Archetype = 9
+RangeClass = 2
+TelegraphFrames = 45
+ActiveFrames = 180
+RecoveryFrames = 30
+CooldownSeconds = 10.0
+SelectionWeight = 1.0
+Damage = 0.0
+KnockbackForce = Vector2(0, 0)
+HitstunDuration = 0.0
+HitboxSize = Vector2(0, 0)
+HitboxOffset = Vector2(0, -32)
+PulseRadius = 180.0
+FieldDurationSeconds = 3.0
+MeterDrainPerSecond = 10.0
+MeterDrainCap = 30.0
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.85, 0.93, 1, 1)
+PresentationEventID = "enemy.unbound_eraser.siphon_snare"

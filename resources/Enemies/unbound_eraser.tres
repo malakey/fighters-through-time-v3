@@ -1,0 +1,58 @@
+; V7.6 (Package 11 A7a). The Eraser: a Story-only Future Cultist elite of the
+; Unbound. The resource ID is "unbound_eraser", not the bare "eraser" the design
+; prose uses, because two BOSSES already carry that word - tidal_eraser (L5) and
+; apex_eraser (L15, "The First Unbound"). A bare "eraser" would make every grep
+; and the VFX library's owner parse ambiguous against them.
+;
+; Behavior = 0 (Ground) rather than a new "Chase" enum value: the design's Chase
+; is the OPPOSITE of StandGuard, which is already the default plus aggro. What
+; makes it a hunter is the room-scale aggro pair below - "it ignores siphon-
+; defence positioning", so there is no corner of a room it will not cross.
+;
+; ChronalDustDrop = 10 is INTERIM. The design says the Eraser "draws its authored
+; share of the required encounter budget (F05); no flat 20-dust award", but F05's
+; reward manifest is A10's and lands in the same wave; 10 is the only value the
+; existing elite gate (EnemyRosterContentTests) accepts today. A10 re-points it.
+[gd_resource type="Resource" script_class="EnemyData" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/unbound_eraser/lance_jab.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/unbound_eraser/null_lance.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/unbound_eraser/siphon_snare.tres" id="5"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Enemies/tech_enforcer_frames.tres" id="6"]
+
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+EnemyID = "unbound_eraser"
+SpriteFramesResource = ExtResource("6")
+DisplayName = "The Eraser"
+DisplayNameKey = "enemy_unbound_eraser_name"
+Tier = 1
+MaxHP = 190
+Weight = 1.0
+MoveSpeed = 4.2
+JumpForce = 8.0
+AggroRadius = 3000.0
+DeAggroRadius = 4000.0
+AttackRange = 3.0
+AttackDamage = 12.0
+AttackKnockback = 2.0
+AttackCooldown = 2.4
+StunResistance = 0.5
+ReactionDelayMinFrames = 10
+ReactionDelayMaxFrames = 18
+EliteAbilityCooldown = 9.0
+Behavior = 0
+PhasesThroughWalls = false
+FrontalDamageReduction = 0.0
+PrimaryAttack = ExtResource("3")
+AttackTelegraphFrames = 18
+AttackActiveFrames = 8
+AttackRecoveryFrames = 20
+EliteAbilities = Array[ExtResource("2")]([ExtResource("4"), ExtResource("5")])
+ChronalDustDrop = 10
+ItemDropChance = 1.0
+PlaceholderTint = Color(0.78, 0.88, 0.96, 1)

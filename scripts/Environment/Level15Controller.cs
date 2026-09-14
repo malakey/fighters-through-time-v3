@@ -198,6 +198,13 @@ namespace FTT.Environment {
         public const string CultistEnemyID = "chrono_slasher";
         public const string TechEliteEnemyID = "tech_enforcer";
         public const string GuardEliteEnemyID = "chrono_guard_elite";
+        /// <summary>
+        /// V7.6 (Package 11 A7a): the Eraser's last salted appearance, on the
+        /// rotunda guard. It is the correct enemy to meet immediately before the
+        /// First Unbound: the hunter that has chased the hero since 4A, standing
+        /// between them and the Prime Anchor with the meter they need for it.
+        /// </summary>
+        public const string EraserEnemyID = "unbound_eraser";
         public const string BossResourcePath = "res://resources/Bosses/apex_eraser.tres";
 
         private const float StandY = FloorY - 50f;
@@ -225,7 +232,8 @@ namespace FTT.Environment {
             (CultistEnemyID, 4, new Vector2(9620f, StandY)),
             (CultistEnemyID, 4, new Vector2(9880f, StandY)),
             (CultistEnemyID, 4, new Vector2(10150f, StandY)),
-            (GuardEliteEnemyID, 4, new Vector2(9760f, StandY))
+            (GuardEliteEnemyID, 4, new Vector2(9760f, StandY)),
+            (EraserEnemyID, 4, new Vector2(10420f, StandY))
         };
 
         /// <summary>Three extractors, each behind a real detour. 15 dust each, resource-owned.</summary>
@@ -237,7 +245,11 @@ namespace FTT.Environment {
         };
 
         public static int StandardEnemyCount => CountOf(CultistEnemyID);
-        public static int EliteEnemyCount => CountOf(TechEliteEnemyID) + CountOf(GuardEliteEnemyID);
+        public static int EliteEnemyCount =>
+            CountOf(TechEliteEnemyID) + CountOf(GuardEliteEnemyID) + CountOf(EraserEnemyID);
+
+        /// <summary>How many Erasers this level authors. Test seam for the salt rules.</summary>
+        public static int EraserCount => CountOf(EraserEnemyID);
 
         private static int CountOf(string enemyID) {
             int total = 0;
