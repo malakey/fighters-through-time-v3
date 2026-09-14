@@ -37,7 +37,10 @@ namespace FTT.Enemies {
         [Export] public float[] PhaseSpeedMultipliers = Array.Empty<float>();
 
         [ExportGroup("Loot")]
-        [Export] public int ChronalDustDrop = 50;
+        /// <summary>Package 11 A10 (F05): every one of the sixteen bosses pays
+        /// <b>25</b>, as a single physical Large pickup at the arena centre.
+        /// Repeated phases of one boss share this one reward.</summary>
+        [Export] public int ChronalDustDrop = 25;
 
         [ExportGroup("Abilities")]
         [Export] public BossAttackPattern AttackPattern = BossAttackPattern.DistanceBased;

@@ -11,12 +11,16 @@ namespace FTT.Environment {
         [Export] public Vector2 HazardKnockback = new(420f, -260f);
         [Export(PropertyHint.Range, "0,100,1")] public float UltimateDrain = 20f;
         /// <summary>
-        /// The design targets 25 per break, but the shipped per-level ledger
-        /// (docs/DUST_ECONOMY.md) is balanced around 15 and the full dust
-        /// economy rebalance is explicitly deferred (V7.2 ruling) — the value
-        /// stays 15 until that pass retunes the ledger.
+        /// Package 11 A10 (F05): <b>advisory only</b>. A machine's real award is
+        /// its share of the level's authored optional pool, allocated by
+        /// <see cref="LevelRewardDirectory"/> against this Extractor's stable
+        /// <c>ObjectID</c> — the flat 15 is retired along with the rest of the
+        /// per-source rate card. This value survives as the fallback for a
+        /// context with no compiled ledger (sandbox scenes, the unit harness),
+        /// and sits in the Small icon band because an ordinary machine no longer
+        /// forces a milestone plate.
         /// </summary>
-        [Export(PropertyHint.Range, "1,100,1")] public int DustReward = 15;
+        [Export(PropertyHint.Range, "1,100,1")] public int DustReward = 3;
         /// <summary>V7 idle cycle: the visible charge-up before the burst.</summary>
         [Export] public float TelegraphSeconds = 2.5f;
         /// <summary>V7 idle cycle: the safe window in which attacks are free.</summary>
@@ -142,8 +146,23 @@ namespace FTT.Environment {
             // V7.3 Single Icon Rule: the reward is a physical pickup — the
             // wallet is paid (and the results line attributed) at collection,
             // never here. The pickup never expires and reads as a Large icon.
-            StoryDropSystem.SpawnDustAward(
-                DustReward, GlobalPosition, GetParent(), DustAwardSource.Extractor);
+            // Package 11 A10 (F05): the amount is this machine's authored share
+            // of the level's optional pool, claimed once per attempt against its
+            // stable ObjectID. A ledgered level that does not author this
+            // machine pays nothing — an unauthored source never falls back to a
+            // flat rate. With no ledger at all (sandbox / harness) the advisory
+            // resource value still applies.
+            int reward = DustReward;
+            string rewardSourceID = "";
+            if (LevelRewardDirectory.EnsureCompiled() != null) {
+                if (!LevelRewardDirectory.TryIssueSourceAward(ObjectID, out rewardSourceID, out reward)) {
+                    reward = 0;
+                }
+            }
+            if (reward > 0) {
+                StoryDropSystem.SpawnDustAward(
+                    reward, GlobalPosition, GetParent(), DustAwardSource.Extractor, rewardSourceID);
+            }
             // V7.6 F01: destroying an Extractor buys FUTURE time, never a
             // refill — the living count drops, which lowers the drain factor
             // for the rest of the level while the gauge itself does not move

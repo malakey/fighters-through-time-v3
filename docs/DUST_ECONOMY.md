@@ -1,182 +1,202 @@
-# Chronal Dust economy model (Package 3 balance pass)
+<!-- SYNCED MIRROR — do not edit here. -->
 
-Authored 2026-08-07. This document is the campaign progression model behind the authored
-dust numbers in `resources/Enemies/*.tres`, `resources/Bosses/*.tres`,
-`resources/Resonance/*_grid.tres`, and `scripts/Environment/ChronalExtractor.cs`.
-`tests/ContentValidation/DustEconomyTests.cs` asserts the invariants below — update the
-tests and this document together when retuning.
+> **This file is a mirror.** The canonical Chronal Dust ledger is
+> [`docs/design-contracts/DUST_ECONOMY.md`](design-contracts/DUST_ECONOMY.md) (F05 Option A,
+> adopted 2026-09-12). Edit the contract and re-copy it here; never maintain two ledgers.
+> The body below is that contract verbatim. The only original content in this file is the
+> **implementation map** at the end, which says where each rule lives in code.
+>
+> The pre-V7.6 Package 3 balance pass that used to live here — 1-2 dust per standard, 10 per
+> elite, 50 per boss, 15 per Extractor, ~1,787 per campaign, the S/E/B/X model and its C1/C2
+> conflict notes — is **retired**. None of those numbers govern anything any more.
 
-Authority: `design-godot.md` Section 2 ("Currency: Chronal Dust", "Node Costs",
-"Preliminary Economy Estimate"). The design marks the drop rates as "baseline
-placeholders ... balanced and fine-tuned in a later phase of development" and defers
-final economy tuning to the balance phase; this pass is that phase. Explicit design
-numbers were kept wherever they form a coherent curve; the two deviations are flagged
-below.
+---
 
-## 1. Authored reward and cost values
+# Chronal Dust Economy — F05 Option A
 
-| Source | Design value | Authored value | Status |
-|---|---|---|---|
-| Standard mob kill | 1–2 | 1 (`hologram_drone`), 2 (`chrono_slasher`, `cyber_guard`) | Kept |
-| Elite mob kill | 20 | **10** (`steam_automaton`, `tech_enforcer`) | **Tuned — see conflict C1** |
-| Level boss | 50 | 50 (`BossData.ChronalDustDrop`, now resource-authored) | Kept |
-| Chronal Extractor | 25 | **15** (`ChronalExtractor.DustReward`) | **Tuned — see conflict C2** |
-| Tier 1 minor node | 50 | 50 (all nine grids) | Kept |
-| Tier 2 minor node | 75 | 75 (all nine grids) | Kept |
-| Tier 3 major perk node | 200 | 200 (all nine grids) | Kept |
-| Full 9-node grid | 975 | 975 = 3×50 + 3×75 + 3×200 | Kept |
-| Timeline Collapse penalty | 20% of carried dust | 20% (`StoryManager.CalculateTimelineCollapseDust`) | Kept, out of scope |
+Design revision: 2026-09-12. User-selected direction: retain the **975-dust Resonance Grid** and meaningful upgrade choices. This ledger specifies the replacement reward budgets; it is not a measurement of shipped levels. Scene reward manifests, resource values, and gameplay validation still need implementation.
 
-Dust rewards are **not** difficulty-scaled per kill. Difficulty affects income only
-through `StoryDifficultyTuning.ScaleEncounterCount` (mob spawn counts ×0.7 Easy /
-×1.0 Normal / ×1.25 Hard). Boss and extractor income is identical on all difficulties.
+This file is the economy design ledger referenced by [the main design](../design-godot-v7.md). Its budgets replace the former universal 1–2 dust per standard enemy, 20 per elite, 50 per boss, and 25 per Extractor. The historical shipped Extractor value of 15 and the Mirror Paradox wallet-direct exception are not exceptions to this new design.
 
-## 2. Campaign progression model (levels 0–15, Normal authored counts)
+## Targets and accounting basis
 
-Count assumptions. These began as placeholders derived from Florence; **Package 5
-authored levels 2–15 to exactly these S/E/B/X counts rather than the reverse**, and
-each level's content test asserts its own row, so the table below is now a description
-of shipped content for levels 2–15 (and still a model target for Florence's
-extractors — see §6):
+- Grid prices remain 50 / 75 / 200 for three Tier 1 minors, three Tier 2 minors, and three Majors: **975 total**. Do not change grid prerequisites merely to force these income targets. F08 Option B explicitly simplifies Shakespeare's Majors to require all three Act II nodes; its later first-Major timing is accepted without increasing rewards.
+- The required route pays **720 base dust**, or **720–787 after Integrity bonuses**.
+- Fully collecting optional content adds **280 base dust**. A thorough run pays **1,000 base**, or **1,000–1,094 after Integrity bonuses**.
+- These figures assume completion of each source once, collection of all drops on the chosen route, and no dust-loss penalties. Missed pickups, skipped encounters, and the established collapse/exit penalties can reduce income; the target is not a guaranteed wallet floor or automatic compensation.
+- Level 0 and training award no persistent dust. A run includes Levels 1–15 plus exactly one character's Level 4A, not all nine Legacy variants.
+- Level 1 has no Integrity clock and grants no Integrity bonus. Levels 2–15 and 4A use their existing tier rules. All difficulties and all 4A character variants use the same base envelopes.
+- “Required route” means all authored mandatory combat and its boss, excluding optional detours. “Thorough” adds all Extractors, the designated secret, and any other optional rewards; no optional reward is added outside the envelope.
 
-- **S** standard mobs: ramp 8→14 across the campaign; Florence's authored 13
-  (7 `chrono_slasher` + 6 `cyber_guard`) is the fixed point. Model uses 1.5 dust per
-  standard kill (midpoint of the 1–2 design range); Florence uses its exact 26.
-- **E** elites: rare early, concentrated late; Florence's authored 3 `steam_automaton`
-  is the fixed point.
-- **B** boss: every level has one campaign boss except the tutorial (0) and the
-  Chronal Void transition (13) — placeholder assumption for 13.
-- **X** extractors: design's "3 to 4 hidden per side-scrolling level"; 4 on the act
-  finales, 2 in the Void, 0 in the tutorial. **Authored for levels 2–15 as of
-  Package 5** (see the §6 addendum); Florence's 3 remain a model target only.
+## Per-level budgets
 
-Full = 1.5·S + 10·E + 50·B + 15·X (Florence: 26 + 30 + 50 + 45).
-Expected = 90% standard clears + all elites/bosses + **50% extractor discovery**
-(they are hidden), rounded.
+Boss rewards are **25 dust each** (16 bosses = 400). The required encounter column includes every other mandatory reward, including elite/Eraser ambushes. The optional column is a total for the level, never a reward per object. Cumulative columns exclude bonuses.
 
-| Lvl | Era | S | E | B | X | Full | Expected | Cum. expected |
-|---|---|---|---|---|---|---|---|---|
-| 0 | Tutorial | 4 | 0 | 0 | 0 | 6 | 5 | 5 |
-| 1 | Florence | 13 | 3 | 1 | 3 | 151 | 126 | 131 |
-| 2 | Orléans | 8 | 0 | 1 | 3 | 107 | 83 | 214 |
-| 3 | Chicago | 8 | 0 | 1 | 3 | 107 | 83 | 297 |
-| 4 | Paris | 10 | 0 | 1 | 3 | 110 | 86 | 383 |
-| 5 | Titanic (Act I finale) | 12 | 1 | 1 | 4 | 138 | 106 | 489 |
-| 6 | Pompeii | 10 | 0 | 1 | 3 | 110 | 86 | 575 |
-| 7 | Nassau | 10 | 1 | 1 | 3 | 120 | 96 | 671 |
-| 8 | Alexandria 30 BC | 10 | 0 | 1 | 3 | 110 | 86 | 757 |
-| 9 | Berlin | 12 | 1 | 1 | 3 | 123 | 99 | 856 |
-| 10 | London | 10 | 0 | 1 | 3 | 110 | 86 | 942 |
-| 11 | Gettysburg | 12 | 1 | 1 | 3 | 123 | 99 | 1041 |
-| 12 | Lunar (Act II finale) | 14 | 2 | 1 | 4 | 151 | 119 | 1160 |
-| 13 | Chronal Void | 8 | 1 | 0 | 2 | 52 | 36 | 1196 |
-| 14 | Neo-Earth | 14 | 2 | 1 | 3 | 136 | 111 | 1307 |
-| 15 | Library of Alexandria | 12 | 2 | 1 | 3 | 133 | 109 | 1416 |
-| **Total** | | **177** | **14** | **14** | **46** | **1787** | **1416** | |
+| Level | Required encounters | Boss | Required total | Optional total | Required cumulative | Thorough cumulative |
+|---|---:|---:|---:|---:|---:|---:|
+| 1 | 25 | 25 | 50 | 10 | 50 | 60 |
+| 2 | 15 | 25 | 40 | 10 | 90 | 110 |
+| 3 | 15 | 25 | 40 | 10 | 130 | 160 |
+| 4 | 15 | 25 | 40 | 20 | 170 | 220 |
+| 4A | 15 | 25 | 40 | 10 | 210 | 270 |
+| 5 | 15 | 25 | 40 | 20 | 250 | 330 |
+| 6 | 15 | 25 | 40 | 20 | 290 | 390 |
+| 7 | 15 | 25 | 40 | 20 | 330 | 450 |
+| 8 | 15 | 25 | 40 | 20 | 370 | 510 |
+| 9 | 15 | 25 | 40 | 20 | 410 | 570 |
+| 10 | 15 | 25 | 40 | 20 | 450 | 630 |
+| 11 | 15 | 25 | 40 | 20 | 490 | 690 |
+| 12 | 25 | 25 | 50 | 20 | 540 | 760 |
+| 13 | 35 | 25 | 60 | 20 | 600 | 840 |
+| 14 | 35 | 25 | 60 | 20 | 660 | 920 |
+| 15 | 35 | 25 | 60 | 20 | 720 | 1000 |
+| **Total** | **320** | **400** | **720** | **280** | **720** | **1,000** |
 
-Component check (full collection, Normal): standards 257 + elites 140 + bosses 700 +
-extractors 690 = **1,787**.
+Level 1's optional allocation belongs to its Extractors; it does not add a secret before the existing Level 2 introduction. All nine Level 4A variants use 15 required encounter dust, 25 boss dust, and 10 optional dust regardless of layout or enemy count. Act III conduits, valves, and pylons use the Extractor allocation; their narrative names do not create extra currency.
 
-### Per-difficulty totals
+## Turning budgets into drops
 
-Mob income (standards + elites) scales with spawn count; bosses (700) and extractors
-(full 690 / expected 345) do not.
+These are authored budgets, not an invisible runtime cap that stops paying after arbitrary kills.
 
-| Difficulty | Full collection | Expected playthrough |
-|---|---|---|
-| Easy (×0.7 mobs) | 700 + 690 + 278 = **1,668** | 700 + 345 + 260 = **1,305** |
-| Normal | 700 + 690 + 397 = **1,787** | 700 + 345 + 371 = **1,416** |
-| Hard (×1.25 mobs) | 700 + 690 + 496 = **1,886** | 700 + 345 + 464 = **1,509** |
+1. Give each finite reward source a stable ID in a level-and-difficulty reward manifest. Include every mandatory enemy/wave, elite, boss, Extractor, secret, scripted award, and optional encounter. A source must have exactly one budget category. Repeated phases of one boss share one boss reward.
+2. Reserve the boss's 25. Allocate the required encounter pool across its finite enemy source IDs **before play**. Default relative weights are standard enemy = 1 and elite/Eraser = 5; scripted mandatory encounter rewards must replace an equivalent allocation, not add to it.
+3. For an integer pool `P`, calculate `quota[i] = P × weight[i] / sum(weights)`. Assign each source `floor(quota[i])`, then give the remaining units to the largest fractional remainders, breaking ties by stable source ID. This guarantees the sum equals the pool. These weights are allocation ratios, not flat drop amounts.
+4. Zero allocations are legal and spawn no currency pickup. **The former “every enemy guarantees dust” rule is retired.** Positive allocations always spawn one physical pickup at that source's defeat. Health/buff drop chances remain a separate system. Do not randomize the dust quantity or reallocate it after a player skips a source.
+5. Each difficulty compiles its authored source list against the same level pool. More enemies on Hard change the distribution, not the total. Reinforcements/summons that can repeat indefinitely have zero dust; finite scripted waves draw from the existing allocation. Changing a layout requires regenerating and validating its manifest before shipping.
+6. Optional allocations: Level 1 assigns all 10 to its Extractors. Other levels assign half their optional pool to all Extractors combined, and half to the designated secret/discovery reward. Split the Extractor half evenly by the same integer/remainder rule. With a 20-dust optional pool, two Extractors pay 5 each or three pay 4/3/3, and discovery pays 10. With a 10-dust optional pool, two pay 3/2 or three pay 2/2/1, and discovery pays 5.
+7. If an Extractor is also the designated secret, it owns the sum of its machine share and the discovery share, paid once as one pickup; the discovery flag must not trigger a second payout. A secret containing a Story item still carries its budgeted dust share. Optional guards draw no additional dust by default; if their kills carry some of the discovery reward, explicitly transfer that amount from the same pool and record each source. There is never an extra universal elite award.
+8. Puzzles, the Nexus Resonance Source, tutorial enemies, training, and repeatable spawns award no extra dust. Any bespoke bonus must be funded by an existing envelope. The Mirror Paradox boss follows the same 25-dust physical-pickup rule; remove its wallet-direct path.
+9. Keep the existing quantity-based sprite thresholds: Small 1–5, Medium 6–24, Large 25+. Every boss still produces a Large pickup at the arena center. An ordinary Extractor produces a Small or Medium icon according to its actual award, not a forced Large icon. E01 keeps the actual-collection +N dust feedback separate from destruction's brief future-drain notice; it neither credits an uncollected pickup nor changes this allocation. See [Extractor feedback](CAMPAIGN_VALIDATION.md#e01--readable-extractor-detours).
 
-All land inside (Hard perfect play: slightly above) the design's preliminary
-1,200–1,800 estimate. Real playthroughs also lose dust to the 20% Timeline Collapse
-penalty and the 50% quit-to-menu penalty, pulling actual totals a further ~5–10% down.
+For example, allocating 15 encounter dust to ten standard enemies and two elites gives quotas of 0.75 for each standard and 3.75 for each elite. Integer allocation pays the exact 15 across that authored list; it does not promise 1–2 per standard plus 20 per elite. If an author wants a particular elite to carry more of the pool, author a fixed share and distribute only the remainder; validate the unchanged total.
 
-## 3. Pacing milestones (Normal, expected collection)
+## Integrity bonus and banking
 
-- **First major perk (Act I finale target):** a branch beeline costs 50+75+200 = 325 —
-  crossed during level 4, so a focused player buys their first major at the hub after
-  Paris/Titanic. The typical spread path (all three 50s, then the 75s, then a major:
-  575 total) lands the first major after level 6–7. Both bracket the Act I finale.
-- **Mid-campaign choice pressure (levels 6–9):** cumulative 575–856 buys the six minor
-  nodes (375) plus one, at most two, majors — never all three.
-- **Full grid (975):** crossed during level 11 on Normal (level 12 Easy, level 10
-  Hard); with collapse/quit friction the ninth node realistically lands at levels
-  12–13 of 15. Perfect-play Normal reaches it after level 10.
-- **End-of-campaign surplus:** expected 441 (full 812) — matches the design's "one
-  full tree per playthrough with surplus".
+The existing tiers remain **Restored ≥50%: +10%**, **Stabilized ≥20%: +5%**, **Fractured <20%: +0%**. Calculate exactly once on successful level completion:
 
-The boss backbone (50 × 14 = 700 of the ~1,400 expected income) puts a hard floor of
-~72 dust per boss level, which is why the full-grid crossing cannot land later than
-level 11–12 without either raising major costs above the designed 200 or ramping boss
-rewards — both rejected as conflicts with explicit design numbers.
+`bonus = floor(retainedBaseDust × tierRate)`
 
-## 4. Design conflicts flagged (AGENTS.md rule: surface, do not silently normalize)
+Here `retainedBaseDust` is the current level's collected, undeposited base dust remaining after any applied loss penalties; it excludes deposited dust, respec refunds, and any prior tier bonus. Add the bonus to that level's wallet and then auto-deposit once using the level-completion transaction. Do not compound bonuses, pay them at checkpoints, or pay for failed attempts. The results screen itemizes required enemies, boss, Extractors, secret/other optional allocations, losses, and the tier bonus.
 
-- **C1 — Elite reward 20 → 10.** With `design-godot.md`'s per-source rates (elite 20,
-  extractor 25, 3–4 extractors/level, boss 50), a full campaign yields ~2,800+ dust —
-  far above the design's own 1,200–1,800 estimate, funding the whole grid by Act I's
-  end and destroying choice pressure. The design's balance note explicitly defers
-  these rates to this phase; elite 10 (5× a standard kill) restores the budget. Note
-  the design was already internally inconsistent here: it lists elites as Large-sprite
-  drops ("25+") while valuing them 20.
-- **C2 — Extractor reward 25 → 15.** Same budget pressure, plus 25 contradicts the
-  design's own sprite-tier table, which lists Chronal Extractors as Medium-sprite
-  drops ("6 to 24 Dust"). 15 sits inside the Medium band as designed.
-- **C3 — Hard perfect play (~1,886) slightly exceeds the 1,200–1,800 estimate.**
-  Accepted: the estimate is explicitly preliminary, and expected-collection Hard
-  (~1,509) is comfortably inside.
-- **Gap — Florence extractors.** The design wants 3–4 hidden extractors per level;
-  `Level01Controller` authors none yet. The model budgets 3 for Florence; authoring
-  them is level-content work outside this balance pass. **Still open after Package 5**
-  — see the §6 addendum for why Florence specifically was not covered.
+All-Restored maxima are **787 required** and **1,094 thorough**, not 792/1,100: Level 1 receives no tier bonus. Mixed tiers and per-level integer rounding stay between the listed base and maximum values. These are completed-run totals, not spendable balances before the final boss.
 
-## 5. Visual sprite tiers (resources/Drops/dust_visual_tiers.tres)
+F02 still applies: only level completion banks current-level earnings. Act III Beacons spend previously deposited dust only. Level 13 dust becomes usable in Level 14; Level 14 dust becomes usable in Level 15. Level 15 rewards arrive after the final encounter and cannot fund that fight.
 
-Small < 6 ≤ Medium < 25 ≤ Large. Under the authored values: standards (1–2) Small,
-elites (10) and extractors (15) Medium, bosses (50) Large. `DustEconomyTests`
-asserts each reward lands in its band.
+## Retries and persistence
 
-## 6. Package 5 addendum — authored content vs. the model (2026-08-08)
+- Track source state as unissued, spawned/uncollected, or collected, together with pending pickup state and the retained level wallet. Collection commits the source claim and wallet increment together.
+- Death rewind, checkpoint resume, Anchor Snap, quit/resume, and crash recovery preserve collected source claims. A restored enemy whose reward was collected may fight again but awards zero additional dust. Restore an uncollected source/pickup consistently without creating two copies.
+- Collapse and voluntary exit apply the existing 20% undeposited-dust rule; they never unclaim collected sources. Lost dust cannot be recovered by killing the same source again. Crashes keep their existing no-fee rule.
+- A full Restart Level clears the entire active level wallet, pending bonus/completion state, pickup state, and that level's source claims together, then resets the authored level. Previously deposited dust remains safe. This permits a fresh attempt without stacking income from discarded attempts.
+- N01's accepted post-boss sealing interaction commits actually collected/retained rewards, the tier bonus, banking and the completion marker exactly once. Boss defeat still spawns its existing physical pickup and does not auto-credit or deposit it. Remaining local Extractors shutting down at sealing grant no destruction loot, secret claim or higher Integrity tier. Preserve pending pickup/ready-anchor state before sealing and resume committed completion afterward under [narrative resolution](NARRATIVE_RESOLUTION.md). Completed levels cannot be replayed. Reloading a completion overlay cannot deposit twice.
+- These reward-specific requirements are supplemented by the selected [F10 checkpoint/persistent-attempt contract](STORY_PERSISTENCE.md), including state ownership, crash transactions, terminal Smothered, and completion routing. Runtime validation remains pending.
 
-Package 5 authored campaign levels 2–15. **No number in this document changed and
-`tests/ContentValidation/DustEconomyTests.cs` was not touched**; the model stayed
-locked and the content was authored to conform to it. Two things are worth recording
-so a later balance pass reads the gap correctly.
+## Upgrade pacing
 
-### 6.1 Extractors are now real, for levels 2–15
+Affordability means total deposited earnings sufficient for a legal purchase path, with no losses and saving toward it (or using the existing free respec). Spending on a different path changes the timing. Ability unlock requirements still apply. “After Level X” means at the next hub visit or eligible Act III Beacon.
 
-Section 2's X column was a budget with nothing behind it. Every level 2–15 now builds
-its budgeted extractors through `StoryLevelControllerBase.BuildExtractors` from an
-authored `ExtractorPlacements` table, and each level's own
-`tests/ContentValidation/LevelNNContentTests.cs` asserts the authored count against
-this document's row. The dust value itself stays resource-owned
-(`ChronalExtractor.DustReward` = 15); the levels place extractors, they do not price
-them.
+| Threshold | Required, no bonus | Required, all Restored | Thorough, no bonus | Thorough, all Restored |
+|---|---|---|---|---|
+| 50 dust | After 1 | After 1 | After 1 | After 1 |
+| 325 dust | After 7 | After 7 | After 5 | After 5 |
+| 350 dust | After 8 | After 7 | After 6 | After 5 |
+| 375 dust | After 9 | After 8 | After 6 | After 6 |
+| 400 dust | After 9 | After 8 | After 7 | After 6 |
+| 475 dust (Shakespeare: first Major) | After 11 | After 10 | After 8 | After 7 |
+| 600 dust | After 13 | After 13 | After 10 | After 9 |
+| 650 dust | After 14 | After 13 | After 11 | After 10 |
+| 675 dust (Shakespeare: two Majors) | After 15 | After 14 | After 11 | After 10 |
+| 775 dust | Not reached | After 15 | After 13 | After 12 |
+| 875 dust (Shakespeare: three Majors) | Not reached | Not reached | After 14 | After 13 |
+| 975 dust | Not reached | Not reached | After 15 | After 14 |
 
-**Florence (level 1) is the exception and the §4 gap bullet stands.** Package 5
-deliberately did not retrofit `Level01Controller` (or the Tutorial) onto
-`StoryLevelControllerBase` — working pre-Package-5 code was left alone — so Florence
-still authors none of its 3 budgeted extractors. Its row in the §2 table therefore
-still over-states real income by up to 45 full / 23 expected dust. Closing it is
-level-content work on Florence, not a balance change.
+- **First minor:** affordable after Level 1 even without optional collection or a performance bonus.
+- **First Major:** minimum paths now range from 325 to **475** depending on character. Required-route affordability spans Levels **7–11**; thorough affordability spans Levels **5–8**. Under **F08 Option B**, Shakespeare needs one Act I node (50), all three Act II nodes (225), and a Major (200): **475** total, after Level **10–11 required** or **7–8 thorough**. Act II retains Any-of Act I prerequisites. This deliberately places his first Major later than the former 400-dust path.
+- **Second Major:** use the 600/650/675/775 thresholds as budget checkpoints, not universal prices for two Majors. Validate the actual prerequisite sets for every character. Shared prerequisites can make a pair cheaper; Shakespeare needs **675** for two Majors and **875** for three (one Act I + all Act II + the chosen Majors). Buying all six minors plus two Majors costs 775. Shakespeare cannot afford all three Majors on the required route; thorough collection reaches 875 after Level 13–14. Required-route funding of his second Major may arrive only after the final encounter, when those rewards cannot improve that fight. The required route does not promise two complete branches or every desired pair under all tiers.
+- **Full grid:** a thorough, all-Restored run reaches 1,006 deposited dust after Level 14, so it can complete the grid at Level 15's entry Beacon. A thorough run without bonuses reaches 1,000 only after Level 15; it cannot use those final rewards against the final boss. The required route never funds the full grid.
+- Pure budget thresholds do not prove encounter balance or the value of grid nodes. Playtest pacing on every character; fix duplicate/undefined perks through F06 without silently moving these budgets.
 
-### 6.2 Boss summons pay dust the model does not count
+## Validation and implementation handoff
 
-Several bosses run `SummonMinions` abilities (`revolutionary_tribunal`,
-`tragedy_king`, `archive_prime`, and others in `resources/Bosses/`). Those minions are
-ordinary roster enemies, so killing them awards ordinary standard/elite dust on top of
-the boss's flat 50 — income the S/E/B/X model has no column for, because summons are
-unbounded in principle (a player who stalls a phase can farm them) and their count is
-a runtime consequence of fight length rather than authored content.
+Verified design arithmetic: 16 boss awards total 400; required encounter budgets total 320; optional allocations total 280; base totals are 720/1,000; all-Restored maxima are 787/1,094; the full grid remains 975. Integer source allocation must preserve each pool for every difficulty.
 
-**This is a known, accepted, small variance above the model, and it is deliberately
-not compensated for.** Package 5 §2.4 forbade levels from reducing their authored
-enemy counts to offset it, precisely so that the authored budget stays comparable
-across levels and the drift stays visible here rather than being smeared into fourteen
-different encounter tables. In practice it is small: summon waves are 2 enemies at 1–2
-dust each, gated behind ability cooldowns and phase minimums.
+Still required before gameplay sign-off:
 
-If a future pass wants to model it, the honest way is a separate "combat drift" term
-rather than an edit to the per-level X or S columns — and it needs a decision about
-farming caps first, which is a design question, not an arithmetic one.
+- Author actual stable source IDs and per-source values for all 16 visited levels, all nine 4A variants, and each difficulty; this checkout supplies design budgets, not validated scene inventories.
+- Verify source sums, overlapping secret/Extractor ownership, finite ambushes, zero-reward repeatable spawns, and all bespoke awards against the ledger.
+- Exercise reward persistence with collected and uncollected drops across death rewind, collapse, Anchor Snap, quit, crash, restart, and completion reload.
+- Check representative legal first/second-Major routes in all nine grids and playtest affordability against encounter difficulty. Review poor-performance/loss-heavy runs separately; never inflate the “required-route” claim to include compensation that does not exist.
+- Update the runtime resources and reward plumbing together. The historical shipped values remain a known implementation mismatch until that work is completed.
+
+---
+
+# Implementation map (Package 11 A10, 2026-09-13)
+
+Where each rule above lives. This section is the only part of this file that is not the contract.
+
+## Data
+
+| Thing | Where |
+|---|---|
+| Per-level budget rows + the stable source inventory | `resources/Content/reward_manifests/level_NN_rewards.tres` (17 files: levels 0-15 plus `level_04a_rewards.tres`) |
+| Manifest schema | `scripts/Environment/LevelRewardManifest.cs` (`[GlobalClass] LevelRewardManifest : Resource`) |
+| Boss award (25, all sixteen) | `resources/Bosses/*.tres` + `resources/Bosses/legacy/*.tres` `ChronalDustDrop`, and the `BossData.ChronalDustDrop` default |
+| Enemy `ChronalDustDrop`, `ChronalExtractor.DustReward` | **Advisory fallbacks only.** They apply in a context with no compiled ledger (the Test Arena, the unit harness). A ledgered level never reads them. |
+| Icon bands (Small 1-5 / Medium 6-24 / Large 25+) | `resources/Drops/dust_visual_tiers.tres` |
+| Tier rates 10 / 5 / 0 % | `TimelineIntegrityRules.DustBonusPercent` (A3 owns the 50/20 tier lines) |
+
+A wave row reads `waveID[@authoredCount]:enemy_a,enemy_b,...` in authored spawn order and expands to
+source IDs `waveID#0`, `waveID#1`… `@N` is the argument the level controller passes to
+`StoryDifficultyTuning.ScaleEncounterCount` when it differs from the table length; `@0` means the
+level spawns the whole table unconditionally (Level 4A). A scripted row reads `sourceID:amount`.
+Wave and source lists are plain `PackedStringArray`s, deliberately — an authored **empty
+Script-typed array** corrupts the Godot 4.7.1 .NET heap, and a manifest with no Extractors or no
+secret is an ordinary case.
+
+## Code
+
+| Rule | Where |
+|---|---|
+| floor + largest-remainder allocation, ties by stable source ID; fixed shares; even split | `scripts/Environment/RewardAllocator.cs` (pure C#) |
+| Manifest -> per-difficulty ledger; enemy queues; optional half/half split; Extractor-is-the-secret merge | `LevelRewardDirectory.Compile` |
+| Three source states (unissued / spawned-uncollected / collected) and issuing | `LevelRewardDirectory.TryIssueEnemyAward`, `TryIssueBossAward`, `TryIssueSourceAward` |
+| Claim commits with the wallet increment | `ChronalDustPickup.Collect` -> `LevelRewardDirectory.CommitClaim` |
+| Kill drops read the ledger, not `EnemyData` | `StoryDropSystem.SpawnKillDust` |
+| Milestone awards (boss, Extractor, secret) | `StoryDropSystem.SpawnDustAward(amount, position, parent, source, sourceID)` |
+| Extractor share | `ChronalExtractor.OnDestroyed` |
+| Boss share, including the Mirror Paradox | `BossEncounterController.OnBossDefeated`, `MirrorParadoxEncounterController.OnBossDefeated` |
+| Tier bonus, once, inside the completion transaction | `StoryManager.ApplyIntegrityTierBonus` (called from `OnLevelComplete`) |
+| Claims persist per attempt | `StorySaveData.ClaimedRewardSourceIDs`, written/restored/cleared in `StoryManager.WriteAttemptStateToSave` / `RestoreAttemptStateFromSave` / `ClearLevelAttemptState` |
+| Loss tally (the 20% Collapse fee) | `StoryManager.ApplyTimelineCollapseDustPenalty` -> `LevelRewardDirectory.RecordDustLoss` |
+| Six itemized results values | `StoryLevelControllerBase.PresentCompletion` and `Level01Controller.ShowCompletionResults` -> `LevelResultsPanel.ShowResults(…, optional, losses, tierBonus, …)` |
+
+`DustAwardSource` gained `Secret = 3` (append-only) for the sixth results category.
+
+## Tests
+
+| Suite | Proves |
+|---|---|
+| `tests/Unit/DustAllocatorTests.cs` | The allocator's arithmetic: the contract's worked example, ID tie-breaking, distribution-not-total, zero allocations, fixed shares, the Extractor even-split examples |
+| `tests/Unit/TierBonusTests.cs` | `floor(retained x rate)` at 10/5/0, no compounding, no bonus on an untimed level |
+| `tests/ContentValidation/RewardManifestTests.cs` | Every level's authored sources sum exactly to its budget row on all three difficulties; source IDs are stable, unique and single-category; every authored enemy ID resolves |
+| `tests/ContentValidation/DustEconomyTests.cs` | The ledger itself: the 17 budget rows, 320/400/280, 720/1,000, 16 x 25, the icon bands, 787/1,094 with Level 1 excluded, Level 0 paying nothing, and the upgrade-pacing thresholds |
+| `tests/Unit/StoryDropsAndRewindTests.cs` | The boss's Large plate, an Extractor's real-quantity icon, and claim-commits-at-collection |
+| `tests/Unit/MirrorParadoxTests.cs` | The Mirror pays the same 25-dust physical pickup, with no wallet-direct path |
+
+## Known gaps (not closed by A10)
+
+1. **No level authors a `SecretCache`.** The discovery half of every level's optional pool is
+   budgeted and allocated (`level_NN.secret`) but has no content to issue it, so a thorough run
+   cannot actually reach 1,000 today. `SecretCache` exists and A3 retained `IsSpecialSecret` as
+   authoring metadata; placing the caches is level-content work.
+2. **Boss summons can consume a skipped mandatory source of the same enemy ID.** Issuing is keyed by
+   enemy ID against a finite queue, so the level total is never exceeded — but a summoned
+   `chrono_slasher` in Level 15 can draw a mandatory `chrono_slasher`'s unissued allocation if the
+   player skipped one. `EnemyController` needs an explicit `RewardEligible = false` at the
+   `EnemyAbilityExecutor` summon site (A7a's file) to close it exactly.
+3. **The losses line only ever shows the Collapse fee.** A voluntary pause-menu exit never reaches a
+   results screen, so its retention fee has no line to appear on.
+4. **Banking is unchanged.** F05 says the tier bonus "auto-deposits once using the level-completion
+   transaction"; the bonus is added to the level wallet at completion and banks with it at the hub,
+   which is where deposit has always happened. Moving the deposit itself to level completion was
+   explicitly out of A10's scope.

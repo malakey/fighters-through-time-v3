@@ -52,7 +52,7 @@ public class BossRosterActIIandIIITests {
     [TestCase]
     public void BossDustDropsStayLockedToTheCampaignBossValue() {
         foreach ((string bossID, int _) in Roster) {
-            AssertThat(Load(bossID).ChronalDustDrop).IsEqual(50);
+            AssertThat(Load(bossID).ChronalDustDrop).IsEqual(25);
         }
     }
 

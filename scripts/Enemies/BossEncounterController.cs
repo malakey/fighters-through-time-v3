@@ -197,14 +197,26 @@ namespace FTT.Enemies {
             if (!string.IsNullOrEmpty(Data?.BossID) && payload.BossID != Data.BossID) return;
             IsDefeated = true;
             HUD?.HideBossBar();
-            // Boss dust is resource-authored (docs/DUST_ECONOMY.md Section 1).
             // V7.3 Single Icon Rule: the award is a physical pickup at the
             // boss's fall position — the wallet is paid (and the boss results
             // line attributed) at collection. Never expires; Large tier.
+            // Package 11 A10 (F05): the amount is the level's single 25-dust
+            // boss reward, claimed once per attempt against the manifest's boss
+            // source ID, so repeated phases of one boss share it. An unledgered
+            // context falls back to the authored BossData value.
             if (AwardDustOnDefeat) {
-                StoryDropSystem.SpawnDustAward(
-                    payload.ChronalDustDrop, payload.Position,
-                    GetParent() ?? this, DustAwardSource.Boss);
+                int reward = payload.ChronalDustDrop;
+                string rewardSourceID = "";
+                if (FTT.Environment.LevelRewardDirectory.EnsureCompiled() != null
+                    && !FTT.Environment.LevelRewardDirectory.TryIssueBossAward(
+                        out rewardSourceID, out reward)) {
+                    reward = 0;
+                }
+                if (reward > 0) {
+                    StoryDropSystem.SpawnDustAward(
+                        reward, payload.Position,
+                        GetParent() ?? this, DustAwardSource.Boss, rewardSourceID);
+                }
             }
             BossDefeated?.Invoke(payload);
         }

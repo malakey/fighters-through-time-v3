@@ -31,7 +31,7 @@ public class MirrorParadoxTests {
         AssertString(data.BossID).IsEqual("mirror_paradox");
         AssertString(data.DisplayNameKey).IsEqual("boss_mirror_paradox_name");
         AssertThat(data.MaxHP).IsEqual(1000);
-        AssertThat(data.ChronalDustDrop).IsEqual(50);
+        AssertThat(data.ChronalDustDrop).IsEqual(25);
 
         // No BossData attack-pattern system and no phase transitions: the mirror
         // runs the CPU utility engine instead (design-godot.md Section 6, Level 13).
@@ -365,7 +365,7 @@ public class MirrorParadoxTests {
             AssertThat(mirror.IsDefeated).IsTrue();
             AssertThat(defeats).IsEqual(1);
             AssertString(captured.BossID).IsEqual("mirror_paradox");
-            AssertThat(captured.ChronalDustDrop).IsEqual(50);
+            AssertThat(captured.ChronalDustDrop).IsEqual(25);
 
             // Idempotent: further damage cannot re-award the drop.
             mirror.Clone.ApplyDamage(100);
@@ -398,33 +398,66 @@ public class MirrorParadoxTests {
     }
 
     [TestCase]
-    public void TheEncounterWrapperRevealsTheBarAndAwardsDustOnDefeat() {
+    public void TheEncounterWrapperRevealsTheBarAndPaysTheSameTwentyFiveDustPhysicalPickup() {
+        // Package 11 A10 (F05): the Mirror's wallet-direct award is removed. It
+        // now follows the Single Icon Rule like every other boss — a physical
+        // 25-dust pickup whose wallet payment AND boss attribution both land at
+        // COLLECTION, never at defeat.
         var encounter = new MirrorParadoxEncounterController {
             CharacterIDOverride = MirroredCharacter,
             RevealDistance = 0f,
             DecisionSeed = 77
         };
         int dustAwarded = 0;
+        var attributions = new System.Collections.Generic.List<DustAwardCollectedPayload>();
         BossDefeatedPayload captured = default;
         void OnDust(int amount) => dustAwarded += amount;
+        void OnAttributed(DustAwardCollectedPayload payload) => attributions.Add(payload);
         void OnEncounterDefeat(BossDefeatedPayload payload) => captured = payload;
         EventBus.Instance.OnChronalDustCollected += OnDust;
+        EventBus.Instance.OnDustAwardCollected += OnAttributed;
         ((SceneTree)Engine.GetMainLoop()).Root.AddChild(encounter);
         encounter.MirrorDefeated += OnEncounterDefeat;
         try {
             AssertObject(encounter.Data).IsNotNull();
             AssertObject(encounter.Mirror).IsNotNull();
             AssertThat(encounter.Mirror.ScaledMaxHP).IsEqual(1000);
+            AssertThat(encounter.Data.ChronalDustDrop).IsEqual(25);
 
             encounter.Reveal();
             AssertThat(encounter.IsRevealed).IsTrue();
 
             encounter.Mirror.Clone.ApplyDamage(1000);
             AssertThat(encounter.IsDefeated).IsTrue();
-            AssertThat(dustAwarded).IsEqual(50);
             AssertString(captured.BossID).IsEqual("mirror_paradox");
+
+            FTT.Environment.ChronalDustPickup award = null;
+            foreach (Node node in ((SceneTree)Engine.GetMainLoop()).Root.GetChildren()) {
+                if (node is FTT.Environment.ChronalDustPickup candidate
+                    && candidate.Source == DustAwardSource.Boss) {
+                    award = candidate;
+                    break;
+                }
+            }
+            if (award != null) {
+                // The pooled path: nothing is paid until the player picks it up.
+                AssertThat(dustAwarded)
+                    .OverrideFailureMessage("The Mirror must not pay the wallet at defeat.")
+                    .IsEqual(0);
+                AssertThat(award.DustAmount).IsEqual(25);
+                AssertThat(award.NeverExpires).IsTrue();
+                AssertThat(award.ForceLargeTier).IsTrue();
+                award.Collect();
+            }
+            // Either way the wallet ends up paid exactly 25, once, attributed to
+            // the boss line — no wallet-direct exception survives.
+            AssertThat(dustAwarded).IsEqual(25);
+            AssertThat(attributions.Count).IsEqual(1);
+            AssertThat(attributions[0].Amount).IsEqual(25);
+            AssertThat(attributions[0].Source).IsEqual(DustAwardSource.Boss);
         } finally {
             EventBus.Instance.OnChronalDustCollected -= OnDust;
+            EventBus.Instance.OnDustAwardCollected -= OnAttributed;
             DetachAndFree(encounter);
         }
     }

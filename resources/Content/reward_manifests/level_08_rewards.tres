@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="LevelRewardManifest" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/LevelRewardManifest.cs" id="1_manifest"]
+
+[resource]
+script = ExtResource("1_manifest")
+LevelID = "level_08_egypt"
+CampaignLevelIndex = 8
+RequiredEncounterPool = 15
+BossAward = 25
+OptionalPool = 20
+BossSourceID = "level_08.boss"
+RequiredWaves = PackedStringArray("level_08.dune:plasma_spear_ward,chrono_slasher,plasma_spear_ward", "level_08.siege_line:chrono_slasher,plasma_spear_ward,chrono_slasher", "level_08.tomb:chrono_slasher,plasma_spear_ward", "level_08.vault:plasma_spear_ward,chrono_slasher")
+ScriptedRequiredSources = PackedStringArray()
+ExtractorSourceIDs = PackedStringArray("level_08.extractor_dune_ridge", "level_08.extractor_tomb_alcove", "level_08.extractor_vault_ledge")
+SecretSourceID = "level_08.secret"
+OptionalPoolAllToExtractors = false

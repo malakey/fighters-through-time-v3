@@ -712,7 +712,7 @@ public class Level15ContentTests {
     private static void DefeatTheApexEraser() =>
         EventBus.Instance.RaiseBossDefeated(new BossDefeatedPayload {
             BossID = "apex_eraser",
-            ChronalDustDrop = 50
+            ChronalDustDrop = 25
         });
 
     /// <summary>

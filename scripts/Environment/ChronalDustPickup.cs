@@ -11,6 +11,14 @@ namespace FTT.Environment {
         /// Collection attributes the amount to the matching results line.</summary>
         public DustAwardSource Source = DustAwardSource.Mob;
 
+        /// <summary>
+        /// Package 11 A10 (F05): the stable reward-source ID this pickup was
+        /// issued against, or empty for an unledgered award. Collection commits
+        /// the source claim and the wallet increment together, which is what
+        /// makes a reward once-per-attempt across rewinds and resumes.
+        /// </summary>
+        public string SourceID = "";
+
         /// <summary>Boss/extractor awards never expire — a milestone payout
         /// must not be lost to the 10 s kill-drop timer.</summary>
         public bool NeverExpires;
@@ -59,6 +67,7 @@ namespace FTT.Environment {
             Rotation = 0f;
             _glowTimer = 0f;
             Source = DustAwardSource.Mob;
+            SourceID = "";
             NeverExpires = false;
             ForceLargeTier = false;
             if (_glow != null) _glow.Scale = Vector2.One;
@@ -108,6 +117,11 @@ namespace FTT.Environment {
         /// pickup without simulating the magnet.
         /// </summary>
         public void Collect() {
+            // Package 11 A10 (F05): the claim commits HERE, with the wallet
+            // increment, never at the kill. A pickup left on the ground keeps
+            // its source spawned-but-uncollected, so a reload that discards the
+            // pickup can legitimately re-issue it without ever duplicating one.
+            LevelRewardDirectory.CommitClaim(SourceID);
             FTT.Core.EventBus.Instance?.RaiseChronalDustCollected(DustAmount);
             FTT.Core.EventBus.Instance?.RaiseDustAwardCollected(new FTT.Core.DustAwardCollectedPayload {
                 Amount = DustAmount,

@@ -88,13 +88,19 @@ namespace FTT.Core {
 
     /// <summary>
     /// V7.3 Single Icon Rule: which system produced a physical dust award.
-    /// Mob is the ordinary kill-drop path; Extractor and Boss awards never
-    /// expire and force the Large visual tier.
+    /// Mob is the ordinary kill-drop path; Extractor, Secret and Boss awards
+    /// never expire. Package 11 A10 (F05): only the <b>boss</b> forces the Large
+    /// icon now — an ordinary Extractor shows the icon its actual quantity
+    /// earns.
     /// </summary>
     public enum DustAwardSource {
         Mob = 0,
         Extractor = 1,
-        Boss = 2
+        Boss = 2,
+        /// <summary>Package 11 A10 (F05): the designated secret / discovery
+        /// reward and any other optional allocation that is not a machine.
+        /// <b>Append-only</b> — never renumber the three above.</summary>
+        Secret = 3
     }
 
     /// <summary>Attribution companion to the wallet's OnChronalDustCollected,

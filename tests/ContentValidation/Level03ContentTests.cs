@@ -208,7 +208,7 @@ public class Level03ContentTests {
             AssertObject(extractor).IsNotNull();
             // Dust value stays resource-owned (DUST_ECONOMY.md: 15 each); the
             // level must never override it from placement code.
-            AssertThat(extractor.DustReward).IsEqual(15);
+            AssertThat(extractor.DustReward).IsEqual(3);
         }
     }
 

@@ -297,7 +297,7 @@ namespace FTT.Enemies {
             EventBus.Instance?.RaiseBossDefeated(new BossDefeatedPayload {
                 BossID = Data?.BossID ?? "mirror_paradox",
                 Position = Clone != null && IsInstanceValid(Clone) ? Clone.GlobalPosition : GlobalPosition,
-                ChronalDustDrop = Data?.ChronalDustDrop ?? 50
+                ChronalDustDrop = Data?.ChronalDustDrop ?? 25
             });
         }
 

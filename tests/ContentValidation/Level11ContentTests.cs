@@ -397,7 +397,7 @@ public class Level11ContentTests {
         AssertThat(level.Extractors.Count).IsEqual(Level11Controller.AuthoredExtractorCount);
         foreach (ChronalExtractor extractor in level.Extractors) {
             // 15 dust each is resource-owned (docs/DUST_ECONOMY.md).
-            AssertThat(extractor.DustReward).IsEqual(15);
+            AssertThat(extractor.DustReward).IsEqual(3);
         }
 
         // Two of the three sit on the raised lane beyond an array's pane, so sabotage pays.

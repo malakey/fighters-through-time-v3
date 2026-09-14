@@ -136,7 +136,10 @@ public class StoryDropsAndRewindTests {
             AssertThat(pickup.DustAmount).IsEqual(15);
             AssertThat(pickup.Source).IsEqual(DustAwardSource.Extractor);
             AssertThat(pickup.NeverExpires).IsTrue();
-            AssertThat(pickup.ForceLargeTier).IsTrue();
+            // Package 11 A10 (F05): only the boss forces the Large plate now.
+            AssertThat(pickup.ForceLargeTier)
+                .OverrideFailureMessage("An Extractor must use its actual quantity icon.")
+                .IsFalse();
             AssertThat(awards)
                 .OverrideFailureMessage("The wallet must stay unpaid until collection.")
                 .IsEqual(0);
@@ -177,16 +180,123 @@ public class StoryDropsAndRewindTests {
         EventBus.Instance.OnDustAwardCollected += OnAttributed;
         try {
             ChronalDustPickup pickup = StoryDropSystem.SpawnDustAward(
-                50, Vector2.Zero, null, DustAwardSource.Boss);
+                25, Vector2.Zero, null, DustAwardSource.Boss);
             AssertObject(pickup).IsNull();
             AssertThat(awards).IsEqual(1);
             AssertThat(attributions.Count).IsEqual(1);
-            AssertThat(attributions[0].Amount).IsEqual(50);
+            AssertThat(attributions[0].Amount).IsEqual(25);
             AssertThat(attributions[0].Source).IsEqual(DustAwardSource.Boss);
         } finally {
             EventBus.Instance.OnChronalDustCollected -= OnDust;
             EventBus.Instance.OnDustAwardCollected -= OnAttributed;
         }
+    }
+
+    // === Package 11 A10 — the F05 authored-budget reward ledger =============
+
+    [TestCase]
+    public void ABossAwardStillForcesTheLargeMilestonePlateAtTheArenaCentre() {
+        // F05 §9: "Every boss still produces a Large pickup at the arena centre."
+        // The 25-dust award is exactly the Large threshold, so the plate is both
+        // forced AND quantity-correct — the two rules agree for a boss and only
+        // for a boss.
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var parent = new Node2D { Name = "BossAwardParent" };
+        tree.Root.AddChild(parent);
+        var pools = new PoolManager { Name = "BossAwardPools" };
+        tree.Root.AddChild(pools);
+        try {
+            var arenaCentre = new Vector2(1840f, 620f);
+            ChronalDustPickup pickup = StoryDropSystem.SpawnDustAward(
+                25, arenaCentre, parent, DustAwardSource.Boss, "level_02.boss");
+
+            AssertObject(pickup).IsNotNull();
+            AssertThat(pickup.DustAmount).IsEqual(25);
+            AssertThat(pickup.Source).IsEqual(DustAwardSource.Boss);
+            AssertThat(pickup.ForceLargeTier).IsTrue();
+            AssertThat(pickup.NeverExpires).IsTrue();
+            AssertThat(pickup.GlobalPosition.IsEqualApprox(arenaCentre)).IsTrue();
+            AssertString(pickup.SourceID).IsEqual("level_02.boss");
+        } finally {
+            pools.ClearAllPools();
+            pools.Free();
+            parent.Free();
+        }
+    }
+
+    [TestCase]
+    public void CollectingAPickupCommitsItsSourceClaimSoTheSourceCanNeverPayTwice() {
+        // "Collection commits the source claim and the wallet increment
+        // together... A restored enemy whose reward was collected may fight
+        // again but awards zero additional dust."
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        var parent = new Node2D { Name = "ClaimParent" };
+        tree.Root.AddChild(parent);
+        var pools = new PoolManager { Name = "ClaimPools" };
+        tree.Root.AddChild(pools);
+        LevelRewardDirectory.ResetAttempt();
+        try {
+            const string sourceID = "level_02.extractor_courtyard";
+            AssertThat(LevelRewardDirectory.IsClaimed(sourceID)).IsFalse();
+
+            ChronalDustPickup pickup = StoryDropSystem.SpawnDustAward(
+                2, new Vector2(200f, 80f), parent, DustAwardSource.Extractor, sourceID);
+            AssertObject(pickup).IsNotNull();
+            // Spawned but uncollected: the claim is NOT committed yet, which is
+            // what lets a reload restore an untouched pickup without duplicating it.
+            AssertThat(LevelRewardDirectory.IsClaimed(sourceID)).IsFalse();
+
+            pickup.Collect();
+            AssertThat(LevelRewardDirectory.IsClaimed(sourceID))
+                .OverrideFailureMessage("Collection must commit the source claim.")
+                .IsTrue();
+
+            // The claim rides the attempt into the save and back.
+            var claimed = LevelRewardDirectory.ClaimedSourceIDs();
+            AssertThat(claimed.Contains(sourceID)).IsTrue();
+            LevelRewardDirectory.RestoreClaims(claimed);
+            AssertThat(LevelRewardDirectory.IsClaimed(sourceID)).IsTrue();
+
+            // A full Restart Level discards it along with the whole attempt.
+            LevelRewardDirectory.ResetAttempt();
+            AssertThat(LevelRewardDirectory.IsClaimed(sourceID)).IsFalse();
+        } finally {
+            LevelRewardDirectory.ResetAttempt();
+            pools.ClearAllPools();
+            pools.Free();
+            parent.Free();
+        }
+    }
+
+    [TestCase]
+    public void TheDirectoryIssuesEachFiniteSourceOnceAndPaysRepeatableSpawnsNothing() {
+        // The authored Orleans inventory: eight standard sources sharing a
+        // 15-dust pool, one 25-dust boss, three machines and a discovery reward
+        // sharing a 10-dust optional pool. Nothing outside that list draws.
+        LevelRewardManifest manifest = FTT.Core.AuthoredResources.Load<LevelRewardManifest>(
+            LevelRewardManifest.PathFor(2));
+        AssertObject(manifest).IsNotNull();
+
+        LevelRewardLedger ledger = LevelRewardDirectory.Compile(manifest, Difficulty.Normal);
+        AssertObject(ledger).IsNotNull();
+
+        int requiredPaid = 0;
+        foreach (var queue in ledger.EnemyQueues) {
+            foreach (string sourceID in queue.Value) requiredPaid += ledger.Award(sourceID);
+        }
+        AssertThat(requiredPaid)
+            .OverrideFailureMessage("Orleans' authored enemy sources must pay exactly its 15-dust pool.")
+            .IsEqual(15);
+        AssertThat(ledger.Award(ledger.BossSourceID)).IsEqual(25);
+
+        int optionalPaid = ledger.Award("level_02.secret");
+        foreach (string extractorID in manifest.ExtractorSourceIDs) optionalPaid += ledger.Award(extractorID);
+        AssertThat(optionalPaid).IsEqual(10);
+
+        // A boss summon or any other repeatable spawn is simply not an authored
+        // finite source: it resolves to nothing, and takes nothing from the pool.
+        AssertThat(ledger.EnemyQueues.ContainsKey("hologram_drone")).IsFalse();
+        AssertThat(ledger.Award("level_02.room1#99")).IsEqual(0);
     }
 
     [TestCase]
