@@ -293,6 +293,51 @@ public class MirrorParadoxTests {
     }
 
     [TestCase]
+    public void TheStoryAdapterLeavesTheVerbLayerAbsentSoFighterVerbsStayOutOfTheCampaign() {
+        // Package 11 A9b: the F19 grab and Echo Step branches are gated behind
+        // HasVerbState / HasTargetVerbState, filled only by an observer that can
+        // resolve a deterministic FighterVerbComponent. Story has none, so the
+        // sentinels stay zero and a campaign level can never see the CPU throw a
+        // Fighter grab or spend 30 meter on a temporal cancel. The floor-topology
+        // block (A9) stays absent for the same reason.
+        MirrorParadoxController mirror = CreateMirror();
+        try {
+            mirror.Clone.GlobalPosition = new Vector2(600f, 300f);
+            CpuDecisionObservation observation = mirror.Decisions.Observe();
+
+            AssertThat(observation.HasVerbState).IsEqual(0);
+            AssertThat(observation.HasTargetVerbState).IsEqual(0);
+            AssertThat(observation.HasEchoStepDestination).IsEqual(0);
+            AssertThat(observation.SelfDefyAvailable).IsEqual(0);
+            AssertThat(observation.HasFloorSegments).IsEqual(0);
+            AssertThat(observation.LaunchTrajectoryCrossesGap).IsEqual(0);
+
+            // And the parity that matters: the same observation stream through a
+            // reference controller still produces byte-identical frames.
+            var reference = new FighterCpuController(FTT.Core.CpuDifficulty.Hard, 20260913);
+            var adapterCpu = new FighterCpuController(FTT.Core.CpuDifficulty.Hard, 20260913);
+            PlayerInputFrame referencePrevious = default;
+            PlayerInputFrame adapterPrevious = default;
+            for (uint tick = 0; tick < 120; tick++) {
+                CpuDecisionObservation frameObservation = mirror.Decisions.Observe();
+                PlayerInputFrame referenceFrame =
+                    reference.Sample(tick, in frameObservation, in referencePrevious);
+                PlayerInputFrame adapterFrame =
+                    adapterCpu.Sample(tick, in frameObservation, in adapterPrevious);
+                AssertThat(adapterFrame.Equals(referenceFrame)).IsTrue();
+                AssertThat(adapterFrame.IsHeld(GameplayButtons.Roll)
+                    && adapterFrame.IsHeld(GameplayButtons.Block))
+                    .OverrideFailureMessage("A Story observation must never form the Echo Step chord.")
+                    .IsFalse();
+                referencePrevious = referenceFrame;
+                adapterPrevious = adapterFrame;
+            }
+        } finally {
+            FreeMirror(mirror);
+        }
+    }
+
+    [TestCase]
     public void TheStoryAdapterProjectsTheNearestHostileProjectileAndTheOpponentMeter() {
         // M-8 parity: the adapter must fill the same projectile and opponent-meter
         // fields the Fighter world observer fills, projected from Story state —

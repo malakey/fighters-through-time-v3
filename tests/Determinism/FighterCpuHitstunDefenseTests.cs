@@ -101,12 +101,11 @@ public class FighterCpuHitstunDefenseTests {
     }
 
     [TestCase]
-    public void ASuccessfulDiRollHoldsTowardStageCentreDuringTheLaunchWindow() {
+    public void ASuccessfulDiRollHoldsTowardSafetyDuringTheLaunchWindow() {
         // The held direction is what FighterVerbRules.ResolvePendingLaunch
-        // reads when the launch hitstop ends. Pit-aware "hold up" DI is not
-        // implemented (no cheap trajectory-vs-pit test in the observation;
-        // the authored stages run solid floors) — toward-centre is the
-        // design's accepted fallback.
+        // reads when the launch hitstop ends. On a Sealed stage — an unbroken
+        // floor wall to wall — toward stage centre is still the answer, and
+        // this half of the case is unchanged from V7.4.
         var cpu = NewCpu(DefenseTuning(hitstunDefense: 100, di: 100), seed: 9);
         PlayerInputFrame previous = default;
 
@@ -128,6 +127,55 @@ public class FighterCpuHitstunDefenseTests {
         PlayerInputFrame mirroredFrame = mirrored.Sample(0, in rightOfCentre, in previousMirrored);
         AssertThat(mirroredFrame.MoveX < 0)
             .OverrideFailureMessage("Launched right of centre, DI must hold left (toward centre).")
+            .IsTrue();
+
+        // Package 11 A9b: the V7.4 deferral expired with A9's Open stages. When
+        // the launch trajectory ends over a pit, the useful hold is toward the
+        // nearest pit-facing floor edge — which on Paris is AWAY from centre,
+        // because stage centre is the hole.
+        CpuDecisionObservation overTheParisPit = HitstunObservation(12);
+        overTheParisPit.HasStageBounds = 1;
+        overTheParisPit.LeftWallRaw = FP64.FromInt(-9).RawValue;
+        overTheParisPit.RightWallRaw = FP64.FromInt(9).RawValue;
+        overTheParisPit.SelfPositionXRaw = FP64.FromDouble(-1.5).RawValue;
+        overTheParisPit.HasFloorSegments = 1;
+        overTheParisPit.HasFloorSupportUnderSelf = 0;
+        overTheParisPit.LaunchTrajectoryCrossesGap = 1;
+        overTheParisPit.HasFloorEdgeLeft = 1;
+        overTheParisPit.NearestFloorEdgeLeftXRaw = FP64.FromDouble(-2.5).RawValue;
+        overTheParisPit.HasFloorEdgeRight = 1;
+        overTheParisPit.NearestFloorEdgeRightXRaw = FP64.FromDouble(2.5).RawValue;
+
+        var pitAware = NewCpu(DefenseTuning(hitstunDefense: 100, di: 100), seed: 9);
+        PlayerInputFrame previousPit = default;
+        PlayerInputFrame pitFrame = pitAware.Sample(0, in overTheParisPit, in previousPit);
+        AssertThat(pitFrame.MoveX < 0)
+            .OverrideFailureMessage(
+                "Left of a central pit, DI must hold toward the nearer floor edge, not toward centre.")
+            .IsTrue();
+
+        // Mirrored, and still not toward centre.
+        CpuDecisionObservation rightOfThePit = overTheParisPit;
+        rightOfThePit.SelfPositionXRaw = FP64.FromDouble(1.5).RawValue;
+        var mirroredPit = NewCpu(DefenseTuning(hitstunDefense: 100, di: 100), seed: 9);
+        PlayerInputFrame previousMirroredPit = default;
+        PlayerInputFrame mirroredPitFrame = mirroredPit.Sample(0, in rightOfThePit, in previousMirroredPit);
+        AssertThat(mirroredPitFrame.MoveX > 0)
+            .OverrideFailureMessage(
+                "Right of a central pit, DI must hold toward the nearer floor edge.")
+            .IsTrue();
+
+        // And a supported trajectory on the same Open stage keeps the old hold:
+        // the pit-aware read only engages while the launch actually ends in a gap.
+        CpuDecisionObservation supported = overTheParisPit;
+        supported.SelfPositionXRaw = FP64.FromInt(-5).RawValue;
+        supported.HasFloorSupportUnderSelf = 1;
+        supported.LaunchTrajectoryCrossesGap = 0;
+        var unchangedHold = NewCpu(DefenseTuning(hitstunDefense: 100, di: 100), seed: 9);
+        PlayerInputFrame previousSupported = default;
+        PlayerInputFrame supportedFrame = unchangedHold.Sample(0, in supported, in previousSupported);
+        AssertThat(supportedFrame.MoveX > 0)
+            .OverrideFailureMessage("A supported launch must keep the toward-centre hold.")
             .IsTrue();
     }
 
