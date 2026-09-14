@@ -1,4 +1,4 @@
-using Godot;
+﻿using Godot;
 using System;
 using System.Collections.Generic;
 using FTT.Characters;
@@ -228,7 +228,12 @@ namespace FTT.Environment {
             (GuardEliteEnemyID, 4, new Vector2(9760f, StandY))
         };
 
-        /// <summary>Three extractors, each behind a real detour. 15 dust each, resource-owned.</summary>
+        /// <summary>
+        /// V7.6 Resonance Hold (Package 11 A3b): Level 15's drain stand-ins are
+        /// the firing channel's <b>anchor pylons</b>, holding the Prime Anchor's
+        /// beam open. Mechanically an Extractor in every respect; the array name
+        /// is retained for the content tests and the dust ledger.
+        /// </summary>
         public static readonly (string ID, Vector2 Position)[] ExtractorPlacements = {
             ("level_15_extractor_0", new Vector2(1740f, Tier3Y - 60f)),
             ("level_15_extractor_1", new Vector2(5620f, Tier5Y - 60f)),
@@ -292,7 +297,7 @@ namespace FTT.Environment {
             BuildRoom2Stacks();
             BuildRoom3CollapsingHall();
             BuildRoom4Rotunda();
-            BuildExtractors(ExtractorPlacements);
+            BuildResonanceHoldNodes(ResonanceHoldVariant.AnchorPylon, ExtractorPlacements);
 
             BuildWall(0f, 0f, LevelHeight);
             BuildWall(ArenaEndX, 0f, LevelHeight);
@@ -537,9 +542,55 @@ namespace FTT.Environment {
         /// </summary>
         protected override LevelResultsPanel PresentCompletion() {
             Completion = CampaignCompletionSequence.Begin(
-                this, Services?.Dialogue, EndingDialogueID, ReturnToMainMenuOnCompletion);
+                this, Services?.Dialogue, SelectedEndingDialogueID, ReturnToMainMenuOnCompletion);
             return null;
         }
+
+        // === Package 11 A3b region: N05 ending selection ====================
+
+        /// <summary>The scarred variant, authored by A6 as a full second sequence.</summary>
+        public string ScarredEndingDialogueID => $"{DialoguePrefix}.ending_scarred";
+
+        /// <summary>
+        /// N05 (V7.6): which of the two authored endings this campaign earned.
+        ///
+        /// <para>An <b>equal-weight average of exactly fifteen timed levels</b> —
+        /// the fourteen shared Levels 2–15 plus the saved hero's <b>one</b> Level
+        /// 4A. Untimed Levels 0 and 1 and the other eight 4A variants are
+        /// excluded; length, authored par, difficulty multiplier, optional dust
+        /// and era size weight nothing. Each contribution is that level's
+        /// PreBoss-<i>locked</i> final Integrity at full stored precision.</para>
+        ///
+        /// <para>The comparison is the <b>unrounded sum against 750 percentage
+        /// points</b> (50% across fifteen levels), never a rounded average or a
+        /// per-level rounding: display rounding cannot change which ending plays,
+        /// so a run that would render as "50%" but sums below 750 gets the
+        /// scarred ending. Exactly 750 selects the clean restoration. Identical
+        /// on every difficulty.</para>
+        ///
+        /// <para>Resolved here, inside the sealing transaction and before any
+        /// presentation starts, so a crash during the ending resumes the same
+        /// committed choice.</para>
+        /// </summary>
+        public string SelectedEndingDialogueID {
+            get {
+                StorySaveData save = ResolveActiveSave();
+                if (save == null) return EndingDialogueID;
+                return StoryManager.IsCleanRestorationEnding(save, save.SelectedCharacterID)
+                    ? EndingDialogueID
+                    : ScarredEndingDialogueID;
+            }
+        }
+
+        private static StorySaveData ResolveActiveSave() {
+            if (SaveManager.Instance == null || GameManager.Instance == null) return null;
+            int slot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+            return slot >= 0 && slot < SaveManager.Instance.SaveSlots.Length
+                ? SaveManager.Instance.SaveSlots[slot]
+                : null;
+        }
+
+        // === end Package 11 A3b region ===
 
         // === Encounters ===
 
