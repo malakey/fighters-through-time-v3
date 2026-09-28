@@ -23,6 +23,9 @@ namespace FTT.Core {
         public const string MaxFpsSetting = "application/run/max_fps";
         public const string PhysicsTicksSetting = "physics/common/physics_ticks_per_second";
         public const string PhysicsInterpolationSetting = "physics/common/physics_interpolation";
+
+        /// <summary>The render cap to apply: 60 on any real display, 0 (uncapped) headless.</summary>
+        public static int EffectiveMaxFps(bool headless) => headless ? 0 : MaxFramesPerSecond;
     }
 
     public partial class ViewportEnforcer : Node {
@@ -64,8 +67,12 @@ namespace FTT.Core {
             // simulation rate whether V-Sync is on or off. The cap is authored in
             // project.godot (application/run/max_fps) and re-asserted here so a
             // V-Sync toggle can never leave an uncapped renderer behind.
-            Engine.MaxFps = DisplayTimingRules.MaxFramesPerSecond;
-            if (DisplayServer.GetName() == "headless") return;
+            // A headless run presents nothing, so it has no render rate to cap;
+            // leaving it uncapped keeps headless test and smoke runs as fast as
+            // they were before the cap existed.
+            bool headless = DisplayServer.GetName() == "headless";
+            Engine.MaxFps = DisplayTimingRules.EffectiveMaxFps(headless);
+            if (headless) return;
 
             DisplayServer.WindowSetVsyncMode(data.VSyncEnabled
                 ? DisplayServer.VSyncMode.Enabled

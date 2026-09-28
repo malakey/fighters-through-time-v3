@@ -27,17 +27,22 @@ public class DisplayTimingSettingsTests {
 
     [TestCase]
     public void ApplyingDisplaySettingsKeepsTheCapWhetherVSyncIsOnOrOff() {
+        // A real display is always capped at 60; a headless run presents nothing
+        // and is left uncapped so test and smoke runs are not throttled.
+        AssertThat(DisplayTimingRules.EffectiveMaxFps(headless: false)).IsEqual(60);
+        AssertThat(DisplayTimingRules.EffectiveMaxFps(headless: true)).IsEqual(0);
         GlobalSaveData data = SaveManager.Instance?.GlobalData;
         if (data == null) return;
         bool original = data.VSyncEnabled;
         int originalCap = Engine.MaxFps;
+        int expected = DisplayTimingRules.EffectiveMaxFps(DisplayServer.GetName() == "headless");
         try {
             data.VSyncEnabled = false;
             ViewportEnforcer.ApplyDisplaySettings(data);
-            AssertThat(Engine.MaxFps).IsEqual(60);
+            AssertThat(Engine.MaxFps).IsEqual(expected);
             data.VSyncEnabled = true;
             ViewportEnforcer.ApplyDisplaySettings(data);
-            AssertThat(Engine.MaxFps).IsEqual(60);
+            AssertThat(Engine.MaxFps).IsEqual(expected);
         } finally {
             data.VSyncEnabled = original;
             Engine.MaxFps = originalCap;
