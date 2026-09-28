@@ -653,7 +653,13 @@ public class MirrorParadoxTests {
 
             for (int i = 0; i < 600 && manager.IsRewinding; i++) manager._PhysicsProcess(1.0 / 60.0);
             AssertThat(manager.IsRewinding).IsFalse();
-            // The resume hands the encounter back exactly as the freeze found it.
+            // 2026-09-14: the world stays frozen for one more second after the
+            // landing, then the resume hands the encounter back exactly as the
+            // freeze found it.
+            AssertThat(mirror.IsStoryRewindFrozen).IsTrue();
+            for (int i = 0; i < ChronalRewindManager.PostRewindWorldFreezeFrames; i++) {
+                manager._PhysicsProcess(1.0 / 60.0);
+            }
             AssertThat(mirror.IsStoryRewindFrozen).IsFalse();
             AssertThat(mirror.Clone.IsPhysicsProcessing()).IsTrue();
         } finally {

@@ -360,9 +360,18 @@ public class StoryCombatRulesTests {
 
             player.SetRewindSuspended(true);
             player.CompleteStoryRewind(Vector2.Zero, 50);
-            AssertThat(player.CurrentState).IsEqual(CharacterState.Respawning);
-            SendInput(player, GameplayButtons.None, 2.1);
+            // 2026-09-14: the landing hands control straight back — no
+            // Respawning input lock — and the two-second protection is the
+            // whole landing grace.
             AssertThat(player.CurrentState).IsEqual(CharacterState.Idle);
+            AssertThat(player.IsPostRewindInvulnerable).IsTrue();
+            for (int frame = 0; frame < PlayerController.StoryRewindInvulnerabilityFrames - 1; frame++) {
+                SendInput(player, GameplayButtons.None);
+            }
+            AssertThat(player.IsPostRewindInvulnerable).IsTrue();
+            AssertThat(player.CurrentState).IsNotEqual(CharacterState.Respawning);
+            SendInput(player, GameplayButtons.None);
+            AssertThat(player.IsPostRewindInvulnerable).IsFalse();
 
             AssertThat(pauseMenu.ProcessMode).IsEqual(Node.ProcessModeEnum.Always);
             pauseMenu.TogglePause();

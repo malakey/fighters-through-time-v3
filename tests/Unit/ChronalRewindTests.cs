@@ -10,30 +10,33 @@ namespace FTT.Tests.Unit;
 [RequireGodotRuntime]
 public class ChronalRewindTests {
     [TestCase]
-    public void RingKeepsEightSecondsOfHistory() {
+    public void RingKeepsFiveSecondsOfHistory() {
         // 2026-08-11: raised from 300 frames (5 s) by user direction.
         // 2026-08-15: cut from 900 frames (15 s) to 480 (8 s) by user direction.
+        // 2026-09-14: cut from 480 (8 s) to 300 (5 s) by user direction.
         var buffer = new ChronalRewindBuffer();
         for (int frame = 0; frame < 1000; frame++) {
-            buffer.Record(new RewindFrame(new Vector2(frame, 10), frame == 700, true, "run"));
+            buffer.Record(new RewindFrame(new Vector2(frame, 10), frame == 800, true, "run"));
         }
 
-        AssertThat(ChronalRewindBuffer.DefaultCapacity).IsEqual(480);
-        AssertThat(buffer.Count).IsEqual(480);
+        AssertThat(ChronalRewindBuffer.DefaultCapacity).IsEqual(300);
+        AssertThat(buffer.Count).IsEqual(300);
         AssertThat(buffer.TryFindSafeLanding(Vector2.Zero, out RewindFrame landing)).IsTrue();
-        AssertThat(landing.Position).IsEqual(new Vector2(700, 10));
+        AssertThat(landing.Position).IsEqual(new Vector2(800, 10));
     }
 
     [TestCase]
     public void TheMechanicTakesHalfTheRewoundDurationAndOpensWithAHold() {
-        // 2026-08-15 rework: an 8 s history is a 4 s mechanic — a 0.75 s hold
-        // before any frame plays back, then 3.25 s of continuous playback.
+        // 2026-08-15 rework: the mechanic is half the rewound duration — a
+        // 0.75 s hold before any frame plays back, then continuous playback.
+        // With the 2026-09-14 five-second buffer a full history is a 2.5 s
+        // mechanic: 45 hold + 105 playback = 150 ticks.
         AssertThat(ChronalRewindManager.PreRewindHoldFrames).IsEqual(45);
         AssertThat(ChronalRewindManager.MechanicDurationFraction).IsEqual(0.5f);
-        AssertThat(ChronalRewindManager.ComputePlaybackTicks(480)).IsEqual(195);
-        AssertThat(ChronalRewindManager.ComputeTotalMechanicTicks(480)).IsEqual(240);
-        // Proportional for a partial history: 6 s rewound → 3 s mechanic.
-        AssertThat(ChronalRewindManager.ComputeTotalMechanicTicks(360)).IsEqual(180);
+        AssertThat(ChronalRewindManager.ComputePlaybackTicks(300)).IsEqual(105);
+        AssertThat(ChronalRewindManager.ComputeTotalMechanicTicks(300)).IsEqual(150);
+        // Proportional for a partial history: 4 s rewound → 2 s mechanic.
+        AssertThat(ChronalRewindManager.ComputeTotalMechanicTicks(240)).IsEqual(120);
         // A very young buffer never compresses playback below half a second.
         AssertThat(ChronalRewindManager.ComputePlaybackTicks(60)).IsEqual(30);
         AssertThat(ChronalRewindManager.ComputePlaybackTicks(0)).IsEqual(30);
@@ -41,10 +44,10 @@ public class ChronalRewindTests {
 
     [TestCase]
     public void PlaybackWalksTheFullResolutionPathContinuouslyAndLandsOnTheLastFrame() {
-        // 480 frames over 195 ticks: about 2.5 frames per tick, monotonic, no
+        // 300 frames over 105 ticks: under three frames per tick, monotonic, no
         // 12-frame teleports, first tick starts at the newest frame's side and
         // the final tick is exactly the landing frame.
-        const int count = 480, ticks = 195;
+        const int count = 300, ticks = 105;
         int previous = -1;
         for (int tick = 1; tick <= ticks; tick++) {
             int index = ChronalRewindManager.PathIndexForTick(tick, ticks, count);
@@ -67,15 +70,15 @@ public class ChronalRewindTests {
         // occurred". The landing must be the grounded frame nearest the target
         // depth instead.
         var buffer = new ChronalRewindBuffer();
-        for (int frame = 0; frame < 480; frame++) {
+        for (int frame = 0; frame < 300; frame++) {
             buffer.Record(new RewindFrame(new Vector2(frame, 10), true, true, "run"));
         }
 
         // Stride 1 is what the manager uses now (the pacing decides speed):
         // the path is the entire history, newest first, landing on the oldest.
         var path = buffer.BuildPlaybackPath(Vector2.Zero, 1, ChronalRewindBuffer.DefaultCapacity);
-        AssertThat(path.Count).IsEqual(480);
-        AssertThat(path[0].Position).IsEqual(new Vector2(479, 10));
+        AssertThat(path.Count).IsEqual(300);
+        AssertThat(path[0].Position).IsEqual(new Vector2(299, 10));
         AssertThat(path[path.Count - 1].Position).IsEqual(new Vector2(0, 10));
     }
 

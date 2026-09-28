@@ -1,5 +1,6 @@
 using FTT.Characters;
 using FTT.Core;
+using FTT.Enemies;
 using FTT.Environment;
 using GdUnit4;
 using Godot;
@@ -41,6 +42,10 @@ public class DeathTriggeredRewindTests {
             host.AddChild(player);
             var manager = new ChronalRewindManager { Name = "RewindManager" };
             host.AddChild(manager);
+            // A live enemy proves the world-freeze contract around the landing.
+            var enemy = new EnemyController { Name = "FrozenWitness" };
+            host.AddChild(enemy);
+            enemy.AddToGroup("Enemies");
 
             // Record movement history for the playback to scrub.
             for (int frame = 0; frame < 60; frame++) {
@@ -93,6 +98,28 @@ public class DeathTriggeredRewindTests {
                 .IsFalse();
             AssertThat(player.CurrentHP > 0).IsTrue();
             AssertThat(manager.RemainingRewinds).IsEqual(poolBefore - 1);
+
+            // 2026-09-14 (user direction): the landing is protected but
+            // CONTROLLABLE — no Respawning input lock — while the world stays
+            // frozen for exactly one more second, then thaws.
+            AssertThat(player.CurrentState)
+                .OverrideFailureMessage("The landing must hand control straight back.")
+                .IsEqual(CharacterState.Idle);
+            AssertThat(player.IsPostRewindInvulnerable).IsTrue();
+            AssertThat(enemy.IsStoryRewindFrozen)
+                .OverrideFailureMessage("Enemies must stay frozen after the landing.")
+                .IsTrue();
+            AssertThat(manager.IsWorldFreezeLingering).IsTrue();
+            AssertThat(ChronalRewindManager.PostRewindWorldFreezeFrames).IsEqual(60);
+            for (int i = 0; i < ChronalRewindManager.PostRewindWorldFreezeFrames - 1; i++) {
+                manager._PhysicsProcess(1.0 / 60.0);
+                AssertThat(enemy.IsStoryRewindFrozen).IsTrue();
+            }
+            manager._PhysicsProcess(1.0 / 60.0);
+            AssertThat(enemy.IsStoryRewindFrozen)
+                .OverrideFailureMessage("The world must thaw one second after the landing.")
+                .IsFalse();
+            AssertThat(manager.IsWorldFreezeLingering).IsFalse();
         } finally {
             host.Free();
             StoryManager.Instance?.SetRewinds(3);

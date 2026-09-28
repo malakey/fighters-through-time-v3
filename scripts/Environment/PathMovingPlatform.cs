@@ -36,11 +36,12 @@ namespace FTT.Environment {
         private int _checkpointDirection = 1;
 
         // === V7.2 rewind scrub (the world-interaction exemplar) ===============
-        // The platform records its own eight-second position history and scrubs
-        // back along it during any Chronal Rewind, preview included.
+        // The platform records its own position history, as deep as the
+        // player's rewind buffer, and scrubs back along it during a Chronal
+        // Rewind.
         /// <summary>Scene group the rewind manager sweeps for scrubbables.</summary>
         public const string ScrubGroup = "path_moving_platform";
-        private const int HistoryCapacity = 480;
+        private const int HistoryCapacity = ChronalRewindBuffer.DefaultCapacity;
         private readonly Vector2[] _history = new Vector2[HistoryCapacity];
         private int _historyNext;
         private int _historyCount;

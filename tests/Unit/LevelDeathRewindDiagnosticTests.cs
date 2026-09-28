@@ -60,8 +60,9 @@ public class LevelDeathRewindDiagnosticTests {
         }
         GD.Print($"DIAG after kill: state={player.CurrentState} rewinding={manager.IsRewinding}");
 
-        // 2026-08-15 pacing: a full 8 s history is a 4 s (240-frame) mechanic
-        // (0.75 s hold + playback), so allow up to 6 s before calling it stalled.
+        // 2026-08-15 pacing: a full history is a mechanic half its length
+        // (0.75 s hold + playback; 2.5 s for the 5 s buffer), so allow up to
+        // 6 s before calling it stalled.
         for (int i = 0; i < 12 && player.CurrentState == CharacterState.Dead; i++) {
             await runner.SimulateFrames(30);
             GD.Print($"DIAG t+{(i + 1) * 30}f state={player.CurrentState} rewinding={manager.IsRewinding} pos={player.GlobalPosition}"

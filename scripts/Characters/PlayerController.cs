@@ -2476,6 +2476,12 @@ namespace FTT.Characters {
 			_activeLedge = null;
 		}
 
+		/// <summary>
+		/// The two-second input lock. Story's death rewind stopped entering this
+		/// state on 2026-09-14 (the landing is invulnerable but controllable);
+		/// the state and its timer are retained because the ordinal is a
+		/// serialization reservation and the Fighter driver names the pose.
+		/// </summary>
 		private void ProcessRespawning(float dt) {
 			_respawnTimer -= dt;
 			if (_respawnTimer <= 0) {
@@ -3115,7 +3121,18 @@ namespace FTT.Characters {
 			if (_animatedSprite != null) _animatedSprite.SpeedScale = 1f;
 			SetRewindSuspended(false);
 			_postRewindInvulnerabilityFrames = StoryRewindInvulnerabilityFrames;
+			// 2026-09-14 (user direction): the landing hands control straight
+			// back. The old Respawning state locked the player in place for two
+			// seconds after the rewind, which read as "frozen and unable to
+			// move". The two-second protection is the whole landing grace now;
+			// the rewind manager keeps the WORLD frozen for a further second on
+			// its side. Every landing frame is grounded by construction (the
+			// buffer only lands on grounded samples; the checkpoint fallback is
+			// a floor), so Idle is the right resting state. Dead -> Respawning
+			// is the state machine's one revive edge; the lock is simply left
+			// on the same tick instead of being waited out.
 			TransitionTo(CharacterState.Respawning);
+			TransitionTo(CharacterState.Idle);
 			FTT.Core.EventBus.Instance?.RaisePlayerHPChanged(new FTT.Core.PlayerHPPayload {
 				PlayerIndex = PlayerIndex,
 				CurrentHP = CurrentHP,

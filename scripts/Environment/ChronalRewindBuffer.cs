@@ -19,14 +19,16 @@ namespace FTT.Environment {
     }
 
     /// <summary>
-    /// Fixed eight-second history plus a retained last-known grounded frame.
+    /// Fixed five-second history plus a retained last-known grounded frame.
     /// The retained frame prevents long falls from erasing every valid rewind
     /// anchor. (2026-08-11: raised from five seconds by user direction — the
     /// short window produced barely any visible travel. 2026-08-15: cut from
-    /// fifteen to eight seconds by user direction — fifteen was too long.)
+    /// fifteen to eight seconds by user direction — fifteen was too long.
+    /// 2026-09-14: cut from eight to five seconds by user direction; the
+    /// playback pacing now makes a five-second history read as real travel.)
     /// </summary>
     public sealed class ChronalRewindBuffer {
-        public const int DefaultCapacity = 480;
+        public const int DefaultCapacity = 300;
         private readonly RewindFrame[] _frames;
         private int _nextIndex;
         private int _count;

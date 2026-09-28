@@ -18,6 +18,7 @@ namespace FTT.Environment {
         private int _playbackTicks;
         private int _holdTicksRemaining;
         private bool _isRewinding;
+        private int _worldResumeTicksRemaining;
         private readonly List<IStoryRewindSimulation> _frozenSimulations = new();
 
         /// <summary>Scene-tree group the HUD resolves the live manager through.</summary>
@@ -41,6 +42,10 @@ namespace FTT.Environment {
                 EventBus.Instance.OnPlayerDied -= OnPlayerDied;
                 EventBus.Instance.OnCheckpointActivated -= OnCheckpointActivated;
             }
+            // Whoever freezes the world hands it back, including on teardown: a
+            // scene change mid-linger must not leave survivors frozen.
+            _worldResumeTicksRemaining = 0;
+            ResumeWorldAfterRewind();
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -57,6 +62,7 @@ namespace FTT.Environment {
                 AdvancePlayback();
                 return;
             }
+            AdvancePostRewindWorldFreeze();
             if (_player.CurrentState == CharacterState.Dead || _player.CurrentState == CharacterState.Respawning) return;
             // The buffer keeps recording through a Time Freeze: the player really
             // travelled there, and CHECKPOINT_RECOVERY.md counts freeze travel as
@@ -178,8 +184,8 @@ namespace FTT.Environment {
         // fifteen seconds of history flew past in ~1.25 s, the character
         // teleported 12 frames at a time (the "glitchy" read), and it began on
         // the very tick of the lethal hit. Now:
-        //   * the whole mechanic lasts HALF the duration it rewinds (an 8 s
-        //     history takes 4 s; a 3 s history takes 1.5 s),
+        //   * the whole mechanic lasts HALF the duration it rewinds (a 5 s
+        //     history takes 2.5 s; a 3 s history takes 1.5 s),
         //   * it opens with a hold — world frozen, player suspended in the death
         //     pose, presentation live — before any frame plays back,
         //   * playback then walks the FULL-resolution history (stride 1) at the
@@ -196,10 +202,22 @@ namespace FTT.Environment {
         public const int MinimumPlaybackFrames = 30;
 
         /// <summary>
+        /// The world stays frozen for this long AFTER the rewind lands: 1 s at
+        /// 60 Hz (2026-09-14, user direction). The player is back in control
+        /// and protected the moment the landing frame is reached; enemies,
+        /// constructs and Extractors thaw a second later, so the hero always
+        /// gets the first move out of a death.
+        /// </summary>
+        public const int PostRewindWorldFreezeFrames = 60;
+
+        /// <summary>True while the landed rewind is still holding the world frozen. Test surface.</summary>
+        public bool IsWorldFreezeLingering => !_isRewinding && _worldResumeTicksRemaining > 0;
+
+        /// <summary>
         /// Physics ticks of playback for a history of <paramref name="rewoundFrames"/>
         /// frames: half the rewound duration less the opening hold, floored at
-        /// <see cref="MinimumPlaybackFrames"/>. A full 480-frame (8 s) buffer
-        /// gives 45 + 195 = 240 ticks, exactly 4 s.
+        /// <see cref="MinimumPlaybackFrames"/>. A full 300-frame (5 s) buffer
+        /// gives 45 + 105 = 150 ticks, exactly 2.5 s.
         /// </summary>
         public static int ComputePlaybackTicks(int rewoundFrames) {
             int mechanic = Mathf.RoundToInt(Math.Max(0, rewoundFrames) * MechanicDurationFraction);
@@ -229,13 +247,16 @@ namespace FTT.Environment {
             StoryManager.Instance?.SetRewinds(RemainingRewinds);
             Vector2 checkpoint = GetCheckpointPosition();
             // Target the full buffer depth: the rewind lands as far back as the
-            // recorded history allows (up to 8 s), on a grounded frame. Stride 1
+            // recorded history allows (up to 5 s), on a grounded frame. Stride 1
             // — the pacing below decides how fast the path is walked.
             _playbackPath = _buffer.BuildPlaybackPath(
                 checkpoint, 1, ChronalRewindBuffer.DefaultCapacity);
             _playbackTick = 0;
             _playbackTicks = ComputePlaybackTicks(_playbackPath.Count);
             _holdTicksRemaining = PreRewindHoldFrames;
+            // A death inside the previous rewind's linger folds into this one:
+            // the world is simply frozen again from here.
+            _worldResumeTicksRemaining = 0;
             _isRewinding = true;
             // Package 11 A3 (F01): the death-rewind presentation freezes the
             // world, so the Integrity clock stops for its duration. The rewind
@@ -292,8 +313,16 @@ namespace FTT.Environment {
             // Package 11 A3 (F01): play resumes, and so does the clock — at the
             // value it froze at. Nothing is given back.
             StoryManager.Instance?.SetIntegrityClockPause(IntegrityClockPause.DeathRewind, false);
-            ResumeWorldAfterRewind();
+            // The world stays frozen for one more second while the player is
+            // already moving; AdvancePostRewindWorldFreeze releases it.
+            _worldResumeTicksRemaining = PostRewindWorldFreezeFrames;
             RaisePresentation(RewindPresentationPhase.Landed, landingPosition, active: false);
+        }
+
+        private void AdvancePostRewindWorldFreeze() {
+            if (_worldResumeTicksRemaining <= 0) return;
+            _worldResumeTicksRemaining--;
+            if (_worldResumeTicksRemaining == 0) ResumeWorldAfterRewind();
         }
 
         /// <summary>
@@ -374,6 +403,7 @@ namespace FTT.Environment {
         internal void BeginCollapseBeat() {
             _collapseBeatActive = true;
             _collapseBeatRemaining = CollapseBeatSeconds;
+            _worldResumeTicksRemaining = 0;
             // Package 11 A3 (F01): the collapse beat freezes the world, so the
             // Integrity clock stops with it.
             StoryManager.Instance?.SetIntegrityClockPause(IntegrityClockPause.DeathRewind, true);
