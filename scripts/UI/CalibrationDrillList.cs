@@ -95,6 +95,9 @@ namespace FTT.UI {
             if (GameManager.Instance == null) return null;
             SessionData session = GameManager.Instance.CurrentSession;
             session.CalibrationDrillIndex = CalibrationDrillCatalog.ClampIndex(index);
+            // Package 12 W5 (M26): the drill borrows the Fighter match shell; its
+            // exits are the calibration route's, never a Fighter lobby's.
+            session.FighterMatchOrigin = FighterMatchOrigin.Drill;
             GameManager.Instance.CurrentSession = session;
             return CalibrationRoute.DrillScenePath;
         }

@@ -120,11 +120,34 @@ namespace FTT.UI {
             return "res://scenes/arenas/TestArena.tscn";
         }
 
-        /// <summary>Holodeck practice sessions exit to the Time-Ship hub; everything else to the menu.</summary>
-        public static string ExitScenePath() =>
-            GameManager.Instance?.CurrentSession.ReturnToHubAfterFighterMatch == true
-                ? "res://scenes/campaign/HubWorld.tscn"
-                : "res://scenes/menus/MainMenu.tscn";
+        /// <summary>
+        /// Where the results screen's exit button leads, by match origin (M26):
+        /// the hub for the Holodeck, the Fighter menu for Versus CPU, the main menu
+        /// for Local Versus. Read-only — it does not touch the session.
+        /// </summary>
+        public static string ExitScenePath() {
+            SessionData session = GameManager.Instance?.CurrentSession ?? default;
+            return FighterFlowRoutes.ResultsDestination(FighterResultsAction.Exit, ref session);
+        }
+
+        /// <summary>
+        /// Resolves a results button (everything but Rematch) through
+        /// <see cref="FighterFlowRoutes"/>, commits the session it prepared and
+        /// returns the destination. Split from the handler so a test can assert a
+        /// route without a real scene change.
+        /// </summary>
+        public static string ApplyResultsAction(FighterResultsAction action) {
+            GameManager manager = GameManager.Instance;
+            if (manager == null) return null;
+            SessionData session = manager.CurrentSession;
+            string destination = FighterFlowRoutes.ResultsDestination(action, ref session);
+            manager.CurrentSession = session;
+            return destination;
+        }
+
+        /// <summary>The results button names, in display order. Test seam.</summary>
+        public System.Collections.Generic.IReadOnlyList<string> ActionButtonNames => _actionButtonNames;
+        private readonly System.Collections.Generic.List<string> _actionButtonNames = new();
 
         private void BuildUI() {
             var shade = new ColorRect {
@@ -182,32 +205,31 @@ namespace FTT.UI {
             _suddenDeathNote = MakeTotalsLine("SuddenDeathNote");
             layout.AddChild(_suddenDeathNote);
 
-            var rematch = MakeButton(Tr("fighter_rematch"));
-            rematch.Pressed += OnRematchPressed;
-            layout.AddChild(rematch);
-            _rematchButton = rematch;
-
-            // V7 "New Stage": same characters, back to stage select only. Any
-            // player can trigger it (like Change Fighters); only Rematch votes.
-            var newStage = MakeButton(Tr("fighter_new_stage"));
-            newStage.Pressed += () => {
-                GameManager manager = GameManager.Instance;
-                if (manager == null) return;
-                SessionData session = manager.CurrentSession;
-                session.ResumeAtStageSelect = true;
-                manager.CurrentSession = session;
-                manager.LoadScene("res://scenes/menus/CharacterSelect.tscn");
-            };
-            layout.AddChild(newStage);
-
-            var fighters = MakeButton(Tr("fighter_change_fighters"));
-            fighters.Pressed += () => GameManager.Instance?.LoadScene("res://scenes/menus/CharacterSelect.tscn");
-            layout.AddChild(fighters);
-
-            bool holodeck = GameManager.Instance?.CurrentSession.ReturnToHubAfterFighterMatch == true;
-            var menu = MakeButton(Tr(holodeck ? "fighter_return_to_ship" : "fighter_main_menu"));
-            menu.Pressed += () => GameManager.Instance?.LoadScene(ExitScenePath());
-            layout.AddChild(menu);
+            // M26 (Package 12 W5): the buttons follow the match origin. Local
+            // Versus keeps Rematch / New Stage / Change Fighters / Main Menu;
+            // Versus CPU routes New Stage to the CPU configuration panel, Change
+            // Fighters to the P1-only select and its exit to the Fighter menu; a
+            // Holodeck bout offers Rematch / Reconfigure / Return to Ship. Any
+            // player can trigger the non-Rematch choices; only Rematch votes.
+            FighterMatchOrigin origin = GameManager.Instance?.CurrentSession.FighterMatchOrigin
+                ?? FighterMatchOrigin.LocalVersus;
+            _actionButtonNames.Clear();
+            foreach (FighterResultsAction action in FighterFlowRoutes.ResultsActions(origin)) {
+                var button = MakeButton(Tr(FighterFlowRoutes.ResultsLabelKey(action, origin)));
+                button.Name = action + "Button";
+                _actionButtonNames.Add(button.Name);
+                if (action == FighterResultsAction.Rematch) {
+                    button.Pressed += OnRematchPressed;
+                    _rematchButton = button;
+                } else {
+                    FighterResultsAction captured = action;
+                    button.Pressed += () => {
+                        string destination = ApplyResultsAction(captured);
+                        if (destination != null) GameManager.Instance?.LoadScene(destination);
+                    };
+                }
+                layout.AddChild(button);
+            }
         }
 
         private void OnRematchPressed() {

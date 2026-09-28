@@ -98,7 +98,9 @@ public class FighterHudSceneTests {
     }
 
     [TestCase]
-    public void CooldownSlotsReadReadyOrRemainingTimeAndTheUltimateIsMeterGated() {
+    public void FourRadialCooldownsTrackAuthoritativeStateAndEchoStepDimsBelowItsCost() {
+        // M25 (Package 12 W5, HUD_CONTRACT): S1 / S2 / Movement / Echo Step radials
+        // replace the Ultimate plate, and Echo Step also dims below 30 meter.
         FighterHUD hud = Mount();
         try {
             TranslationServer.SetLocale("en");
@@ -108,19 +110,48 @@ public class FighterHudSceneTests {
             cooling.SpecialOneCooldownFrames = 120;
             cooling.SpecialTwoCooldownFrames = 0;
             cooling.MovementCooldownFrames = 30;
-            hud.ApplyPlayerState(0, State(influence: 40f), cooling, TickRate);
+            hud.ApplyPlayerState(0, State(influence: 40f), cooling, TickRate, echoStepCooldownFrames: 60);
 
             AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.SpecialOne)).IsFalse();
             AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.SpecialTwo)).IsTrue();
             AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.Movement)).IsFalse();
-            // Meter-gated, not cooldown-gated.
-            AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.Ultimate)).IsFalse();
+            AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.EchoStep)).IsFalse();
+            // A cooldown that just started shows an empty arc; a ready one a full arc.
+            AssertThat(hud.CooldownFraction(0, FighterCooldownSlot.SpecialOne)).IsEqual(0f);
+            AssertThat(hud.CooldownFraction(0, FighterCooldownSlot.SpecialTwo)).IsEqual(1f);
 
-            hud.ApplyPlayerState(0, State(influence: FighterHudModel.MaxInfluence), Runtime(), TickRate);
-            AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.Ultimate)).IsTrue();
+            // Half-way through the cooldown the radial is half full: the arc reads
+            // the authoritative remaining count against the count it started from.
+            cooling.SpecialOneCooldownFrames = 60;
+            hud.ApplyPlayerState(0, State(influence: 40f), cooling, TickRate, echoStepCooldownFrames: 0);
+            AssertFloat(hud.CooldownFraction(0, FighterCooldownSlot.SpecialOne)).IsEqualApprox(0.5f, 0.001f);
+            AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.EchoStep))
+                .OverrideFailureMessage("Echo Step off cooldown with 40 meter is usable.")
+                .IsTrue();
+
+            // Echo Step dims below its 30-meter cost even with the cooldown done.
+            hud.ApplyPlayerState(0, State(influence: 20f), Runtime(), TickRate, echoStepCooldownFrames: 0);
+            AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.EchoStep)).IsFalse();
             AssertThat(hud.CooldownIsReady(0, FighterCooldownSlot.SpecialOne)).IsTrue();
+            // Distinct glyphs: readiness never rides on colour alone.
             AssertThat(hud.CooldownText(0, FighterCooldownSlot.SpecialOne))
                 .IsEqual(TranslationServer.Translate("fighter_hud_cooldown_special1").ToString());
+            AssertThat(hud.CooldownText(0, FighterCooldownSlot.EchoStep))
+                .IsEqual(TranslationServer.Translate("fighter_hud_cooldown_echo_step").ToString());
+        } finally {
+            hud.Free();
+        }
+    }
+
+    [TestCase]
+    public void EachNameTagCarriesItsSlotShape() {
+        // G12: ownership never depends on colour alone — P1 ▲ / P2 ●.
+        FighterHUD hud = Mount();
+        try {
+            hud.ConfigurePlayer(0, null, 3, 3);
+            hud.ConfigurePlayer(1, null, 3, 3);
+            AssertThat(hud.SlotBadgeText(0)).IsEqual(FTT.Combat.PlayerSlotPalettes.PlayerOneGlyph);
+            AssertThat(hud.SlotBadgeText(1)).IsEqual(FTT.Combat.PlayerSlotPalettes.PlayerTwoGlyph);
         } finally {
             hud.Free();
         }

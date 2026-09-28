@@ -184,7 +184,34 @@ namespace FTT.Core {
         public int StockCount = DefaultStockCount;
         public float TimeLimit = DefaultTimeLimitSeconds;
         public int ItemSpawnRate = 3;
+        /// <summary>
+        /// <b>Legacy, read-only.</b> The retired <c>HazardTriggerFrequency</c>
+        /// ordinal (0 Off, 1 Low, 2 Medium, 3 High). Package 12 W5 stopped writing
+        /// it; it survives only so <see cref="Normalize"/> can derive
+        /// <see cref="StageHazardsEnabled"/> for a payload that predates the toggle,
+        /// and so Phase C's single v6→v7 step can compose the same derivation.
+        /// </summary>
         public int HazardRate = 3;
+        /// <summary>
+        /// Package 12 W5: the hazard On/Off toggle. <b>Nullable on purpose</b> — a
+        /// payload written before the toggle existed deserializes it as null, which
+        /// is how <see cref="Normalize"/> tells "never chosen" from an explicit
+        /// Off without a schema bump. Every write sets it.
+        /// </summary>
+        public bool? StageHazardsEnabled;
+        /// <summary>
+        /// Package 12 W5 (M24, D5(b)): the Items sub-toggle "Meter pickups".
+        /// Additive; an older payload loads it as the false default.
+        /// </summary>
+        public bool MeterPickupsEnabled;
+
+        /// <summary>
+        /// Package 12 W5 — <b>the declared v7 derivation</b> for the retired hazard
+        /// selector: <c>Off → false</c>, every other stored value (Low, Medium,
+        /// High, or an unknown ordinal) <c>→ true</c>. Pure and engine-free so
+        /// Phase C's v6→v7 step can compose it verbatim.
+        /// </summary>
+        public static bool DeriveStageHazardsEnabled(int legacyHazardRate) => legacyHazardRate != 0;
 
         /// <summary>
         /// True once <see cref="Normalize"/> has repaired a legacy Hybrid timer, so
@@ -244,6 +271,10 @@ namespace FTT.Core {
             if (StockCount < MinStockCount || StockCount > MaxStockCount) {
                 StockCount = DefaultStockCount;
             }
+            // Package 12 W5: tolerate a pre-toggle payload until Phase C's v7 step
+            // lands. Only a missing toggle is derived — an explicit value, Off
+            // included, is never overwritten, so this stays idempotent.
+            StageHazardsEnabled ??= DeriveStageHazardsEnabled(HazardRate);
         }
     }
 
@@ -334,6 +365,16 @@ namespace FTT.Core {
         /// </summary>
         public bool ReducedTemporalEffects;
 
+        /// <summary>
+        /// Package 12 W5 (G12). The local player-slot palette: 0 Default
+        /// (cyan/red), 1 Blue/Orange, 2 High-Contrast. Presentation only — it
+        /// recolors the ownership outline and HUD slot colours on this machine and
+        /// never enters the simulation, a snapshot or a hash. Additive field: an
+        /// older payload keeps the Default initializer. Read it through
+        /// <c>FTT.Combat.PlayerSlotPalettes</c>.
+        /// </summary>
+        public int PlayerSlotPalette;
+
         // Display (Package 8 A4). Applied at boot by ViewportEnforcer, which is the
         // last autoload and already owns window/viewport concerns.
         public int ResolutionWidth = 1920;
@@ -390,6 +431,7 @@ namespace FTT.Core {
             HudOpacity = Math.Clamp(HudOpacity, 0.2f, 1f);
             ScreenShakeScale = Math.Clamp(ScreenShakeScale, 0f, 1f);
             UiScale = Math.Clamp(UiScale, MinUiScale, MaxUiScale);
+            if (PlayerSlotPalette < 0 || PlayerSlotPalette > 2) PlayerSlotPalette = 0;
             NormalizeDisplay();
         }
 

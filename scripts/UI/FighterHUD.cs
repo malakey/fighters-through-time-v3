@@ -31,18 +31,26 @@ namespace FTT.UI {
         /// <summary>Authored scene path; the driver instantiates this.</summary>
         public const string ScenePath = "res://scenes/ui/FighterHUD.tscn";
 
-        /// <summary>Cooldown slots rendered per player, in display order.</summary>
+        /// <summary>
+        /// Cooldown slots rendered per player (M25, HUD_CONTRACT): four 20 × 20
+        /// radial icons beside the block charges. P2's row is authored mirrored.
+        /// </summary>
         private static readonly FighterCooldownSlot[] Slots = {
             FighterCooldownSlot.SpecialOne,
             FighterCooldownSlot.SpecialTwo,
             FighterCooldownSlot.Movement,
-            FighterCooldownSlot.Ultimate
+            FighterCooldownSlot.EchoStep
+        };
+
+        /// <summary>Authored node name of each slot's icon, in <see cref="Slots"/> order.</summary>
+        public static readonly string[] CooldownIconNames = {
+            "S1_Cooldown", "S2_Cooldown", "Movement_Cooldown", "EchoStep_Cooldown"
         };
 
         private const int PipSize = 16;
         private const int PipSpacing = 4;
-        private const int CooldownSlotWidth = 56;
-        private const int CooldownSlotHeight = 34;
+        /// <summary>Seconds the M25 "ready" flash takes to settle.</summary>
+        private const float ReadyFlashSeconds = 0.3f;
 
         private sealed class PlayerPanel {
             public Control Root;
@@ -59,7 +67,11 @@ namespace FTT.UI {
             public ColorRect[] Stocks = System.Array.Empty<ColorRect>();
             public ColorRect[] Shields = System.Array.Empty<ColorRect>();
             public Label[] CooldownLabels = System.Array.Empty<Label>();
-            public Panel[] CooldownPlates = System.Array.Empty<Panel>();
+            public RadialProgress[] CooldownRadials = System.Array.Empty<RadialProgress>();
+            /// <summary>M25: the remaining count each cooldown started from (the radial's denominator).</summary>
+            public readonly int[] CooldownStartFrames = { 0, 0, 0, 0 };
+            /// <summary>G12: the P1 ▲ / P2 ● shape beside the name tag.</summary>
+            public Label SlotBadge;
 
             // F24: two fixed 24 x 24 status slots, damage left / control right —
             // in that order for BOTH players. Mirroring P2's panel layout is a
@@ -148,7 +160,8 @@ namespace FTT.UI {
                 StocksLost = panelRoot.GetNodeOrNull<Label>("Body/Column/PipRow/StocksLost"),
                 StocksLabel = panelRoot.GetNodeOrNull<Label>("Body/Column/PipRow/StocksLabel"),
                 ShieldPips = panelRoot.GetNodeOrNull<HBoxContainer>("Body/Column/PipRow/Shields"),
-                Cooldowns = panelRoot.GetNodeOrNull<HBoxContainer>("Body/Column/Cooldowns"),
+                Cooldowns = panelRoot.GetNodeOrNull<HBoxContainer>("Body/Column/PipRow/Cooldowns"),
+                SlotBadge = panelRoot.GetNodeOrNull<Label>("Body/Column/TopRow/SlotBadge"),
                 DamageStatus = panelRoot.GetNodeOrNull<Label>(
                     "Body/Column/TopRow/StatusEffects_Panel/DamageStatus_Indicator"),
                 DamageRadial = panelRoot.GetNodeOrNull<RadialProgress>(
@@ -210,6 +223,7 @@ namespace FTT.UI {
                     ? string.Format(Tr("fighter_hud_player"), playerIndex + 1)
                     : Tr(key);
             }
+            ApplySlotIdentity(panel, playerIndex);
 
             panel.Stocks = RebuildPips(panel.StockPips, Mathf.Max(1, maxStocks), UIPalette.GoldBright);
             panel.Shields = RebuildPips(panel.ShieldPips, Mathf.Max(1, maxShieldCharges), UIPalette.Cyan);
@@ -225,7 +239,8 @@ namespace FTT.UI {
             in FighterStateComponent state,
             in FighterRuntimeComponent runtime,
             int tickRate,
-            float echoPool = 0f) {
+            float echoPool = 0f,
+            int echoStepCooldownFrames = 0) {
 
             PlayerPanel panel = PanelFor(playerIndex);
             if (panel == null) return;
@@ -269,7 +284,7 @@ namespace FTT.UI {
                 tickRate, ref panel.PresentedControlStatus);
 
             ApplyDefySeal(panel, in state, playerIndex);
-            UpdateCooldowns(panel, in state, in runtime, tickRate);
+            UpdateCooldowns(panel, in state, in runtime, echoStepCooldownFrames);
         }
 
         /// <summary>
@@ -422,10 +437,10 @@ namespace FTT.UI {
             for (int playerID = 0; playerID < 2; playerID++) {
                 if (!_driver.TryGetFighter(playerID, out FighterStateComponent state)
                     || !_driver.TryGetRuntime(playerID, out FighterRuntimeComponent runtime)) continue;
-                float echoPool = _driver.TryGetVerb(playerID, out FighterVerbComponent verb)
-                    ? verb.EchoPool.ToFloat()
-                    : 0f;
-                ApplyPlayerState(playerID, in state, in runtime, tickRate, echoPool);
+                bool hasVerb = _driver.TryGetVerb(playerID, out FighterVerbComponent verb);
+                float echoPool = hasVerb ? verb.EchoPool.ToFloat() : 0f;
+                int echoStepCooldown = hasVerb ? verb.EchoStepCooldownFrames : 0;
+                ApplyPlayerState(playerID, in state, in runtime, tickRate, echoPool, echoStepCooldown);
             }
 
             ApplyMatchState(
@@ -492,9 +507,20 @@ namespace FTT.UI {
         public bool CooldownIsReady(int playerIndex, FighterCooldownSlot slot) {
             PlayerPanel panel = PanelFor(playerIndex);
             int index = System.Array.IndexOf(Slots, slot);
-            if (panel == null || index < 0 || index >= panel.CooldownPlates.Length) return false;
-            return panel.CooldownPlates[index].Modulate.A >= 1f;
+            if (panel == null || index < 0 || index >= panel.CooldownLabels.Length) return false;
+            return panel.PresentedReady[index] == 1;
         }
+
+        /// <summary>A cooldown slot's radial fill (1 = ready). Test seam.</summary>
+        public float CooldownFraction(int playerIndex, FighterCooldownSlot slot) {
+            PlayerPanel panel = PanelFor(playerIndex);
+            int index = System.Array.IndexOf(Slots, slot);
+            if (panel == null || index < 0 || index >= panel.CooldownRadials.Length) return 0f;
+            return panel.CooldownRadials[index]?.Fraction ?? 0f;
+        }
+
+        /// <summary>The slot-shape glyph beside a player's name tag (G12). Test seam.</summary>
+        public string SlotBadgeText(int playerIndex) => PanelFor(playerIndex)?.SlotBadge?.Text ?? "";
 
         /// <summary>
         /// Localized name in one status slot, empty when the slot is free. Test
@@ -616,75 +642,106 @@ namespace FTT.UI {
             }
         }
 
+        /// <summary>
+        /// M25: binds the four authored 20 × 20 cooldown icons (a glyph Label each,
+        /// with a <see cref="RadialProgress"/> child). The icons are authored, not
+        /// built, because their count is fixed by the contract; only the pips stay
+        /// code-built, because theirs is data-driven.
+        /// </summary>
         private void BuildCooldownSlots(PlayerPanel panel) {
             if (panel?.Cooldowns == null) return;
-            ClearChildren(panel.Cooldowns);
-            panel.Cooldowns.AddThemeConstantOverride("separation", 6);
-            var plates = new Panel[Slots.Length];
             var labels = new Label[Slots.Length];
+            var radials = new RadialProgress[Slots.Length];
             for (int index = 0; index < Slots.Length; index++) {
-                var plate = new Panel {
-                    Name = $"Slot{index}",
-                    CustomMinimumSize = new Vector2(CooldownSlotWidth, CooldownSlotHeight),
-                    MouseFilter = Control.MouseFilterEnum.Ignore
-                };
-                var label = new Label {
-                    Name = "Value",
-                    Text = Tr(FighterHudModel.CooldownGlyphKey(Slots[index])),
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    MouseFilter = Control.MouseFilterEnum.Ignore
-                };
-                label.SetAnchorsPreset(Control.LayoutPreset.FullRect);
-                label.AddThemeFontSizeOverride("font_size", UIPalette.SmallFontSize);
-                plate.AddChild(label);
-                panel.Cooldowns.AddChild(plate);
-                plates[index] = plate;
-                labels[index] = label;
+                Label icon = panel.Cooldowns.GetNodeOrNull<Label>(CooldownIconNames[index]);
+                if (icon == null) return;
+                icon.Text = Tr(FighterHudModel.CooldownGlyphKey(Slots[index]));
+                labels[index] = icon;
+                radials[index] = icon.GetNodeOrNull<RadialProgress>("Radial");
             }
-            panel.CooldownPlates = plates;
             panel.CooldownLabels = labels;
+            panel.CooldownRadials = radials;
         }
 
-        private static void UpdateCooldowns(
+        /// <summary>
+        /// M25 (HUD_CONTRACT): four radial cooldowns from authoritative state —
+        /// Special 1 / Special 2 / Movement from the runtime component, Echo Step
+        /// from the verb component — with a brief flash on becoming ready. Echo
+        /// Step also dims below its 30-meter cost. The glyph never changes, so
+        /// readiness is carried by the radial and the dimming, never by colour
+        /// alone.
+        /// </summary>
+        private void UpdateCooldowns(
             PlayerPanel panel,
             in FighterStateComponent state,
             in FighterRuntimeComponent runtime,
-            int tickRate) {
+            int echoStepCooldownFrames) {
 
             if (panel.CooldownLabels.Length != Slots.Length) return;
+            bool echoAffordable = FighterHudModel.EchoStepAffordable(state.Influence.ToFloat());
             for (int index = 0; index < Slots.Length; index++) {
                 FighterCooldownSlot slot = Slots[index];
-                bool ready;
-                int frames = 0;
-                if (slot == FighterCooldownSlot.Ultimate) {
-                    // The ultimate is meter-gated, not cooldown-gated: a full
-                    // Influence meter is what makes the slot available.
-                    ready = FighterHudModel.UltimateIsReady(state.Influence.ToFloat());
-                } else {
-                    frames = slot switch {
-                        FighterCooldownSlot.SpecialOne => runtime.SpecialOneCooldownFrames,
-                        FighterCooldownSlot.SpecialTwo => runtime.SpecialTwoCooldownFrames,
-                        _ => runtime.MovementCooldownFrames
-                    };
-                    ready = frames <= 0;
-                }
+                int frames = slot switch {
+                    FighterCooldownSlot.SpecialOne => runtime.SpecialOneCooldownFrames,
+                    FighterCooldownSlot.SpecialTwo => runtime.SpecialTwoCooldownFrames,
+                    FighterCooldownSlot.Movement => runtime.MovementCooldownFrames,
+                    _ => echoStepCooldownFrames
+                };
+                if (frames < 0) frames = 0;
+                // The radial's denominator is the count the cooldown started from:
+                // latched whenever the authoritative remaining rises (a new cast, or
+                // a rollback correction), released when it reaches zero.
+                if (frames <= 0) panel.CooldownStartFrames[index] = 0;
+                else if (frames > panel.CooldownStartFrames[index]) panel.CooldownStartFrames[index] = frames;
 
+                bool ready = frames <= 0 && (slot != FighterCooldownSlot.EchoStep || echoAffordable);
                 int readyState = ready ? 1 : 0;
                 bool readinessChanged = panel.PresentedReady[index] != readyState;
+                bool wasCooling = panel.PresentedReady[index] == 0;
                 if (!readinessChanged && panel.PresentedCooldownFrames[index] == frames) continue;
                 panel.PresentedReady[index] = readyState;
                 panel.PresentedCooldownFrames[index] = frames;
 
-                Label label = panel.CooldownLabels[index];
-                label.Text = ready
-                    ? TranslationServer.Translate(FighterHudModel.CooldownGlyphKey(slot))
-                    : string.Format(
-                        TranslationServer.Translate("common_seconds_short"),
-                        FighterHudModel.CooldownSeconds(frames, tickRate));
+                RadialProgress radial = panel.CooldownRadials[index];
+                if (radial != null) {
+                    radial.Fraction = FighterHudModel.CooldownRadialFraction(
+                        frames, panel.CooldownStartFrames[index]);
+                }
                 if (!readinessChanged) continue;
-                label.AddThemeColorOverride("font_color", ready ? UIPalette.Cyan : UIPalette.SlateDim);
-                panel.CooldownPlates[index].Modulate = new Color(1f, 1f, 1f, ready ? 1f : 0.45f);
+                Label icon = panel.CooldownLabels[index];
+                icon.AddThemeColorOverride("font_color", ready ? UIPalette.Cyan : UIPalette.SlateDim);
+                icon.Modulate = new Color(1f, 1f, 1f, ready ? 1f : 0.45f);
+                if (radial != null) radial.FillColor = ready ? UIPalette.Cyan : UIPalette.SlateDim;
+                if (ready && wasCooling) FlashReady(icon);
+            }
+        }
+
+        /// <summary>M25's brief ready flash: an overbright pulse that settles to normal.</summary>
+        private void FlashReady(Label icon) {
+            if (!icon.IsInsideTree()) return;
+            icon.Modulate = new Color(1.8f, 1.8f, 1.8f, 1f);
+            Tween tween = icon.CreateTween();
+            tween.TweenProperty(icon, "modulate", new Color(1f, 1f, 1f, 1f), ReadyFlashSeconds);
+        }
+
+        /// <summary>
+        /// G12: the slot shape (P1 ▲ / P2 ●) beside the name tag, and the name tag
+        /// itself, in the local player-slot palette with a contrasting edge.
+        /// Presentation only — the palette never reaches the simulation.
+        /// </summary>
+        private static void ApplySlotIdentity(PlayerPanel panel, int playerIndex) {
+            Color slotColour = FTT.Combat.PlayerSlotPalettes.ActiveSlotColor(playerIndex);
+            Color edge = FTT.Combat.PlayerSlotPalettes.ActiveSlotEdgeColor(playerIndex);
+            if (panel.SlotBadge != null) {
+                panel.SlotBadge.Text = FTT.Combat.PlayerSlotPalettes.ShapeGlyph(playerIndex);
+                panel.SlotBadge.AddThemeColorOverride("font_color", slotColour);
+                panel.SlotBadge.AddThemeColorOverride("font_outline_color", edge);
+                panel.SlotBadge.AddThemeConstantOverride("outline_size", 4);
+            }
+            if (panel.Name != null) {
+                panel.Name.AddThemeColorOverride("font_color", slotColour);
+                panel.Name.AddThemeColorOverride("font_outline_color", edge);
+                panel.Name.AddThemeConstantOverride("outline_size", 3);
             }
         }
 

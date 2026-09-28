@@ -253,7 +253,7 @@ public class FighterStageParisTests {
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: true,
-            hazardFrequency: (int)HazardTriggerFrequency.High,
+            hazardCadenceFrames: 1800,
             stageHazardTypeID: FighterHazardTypeID.ParisDampeningBeam);
 
         // The first hazard spawns on the 1800-frame boundary, and the hazard system

@@ -601,7 +601,7 @@ public class FighterHazardBehaviorTests {
                 itemsEnabled: false,
                 itemFrequency: 0,
                 hazardsEnabled: true,
-                hazardFrequency: (int)HazardTriggerFrequency.High,
+                hazardCadenceFrames: 1800,
                 stageHazardTypeID: hazardTypeID);
             return new FighterSimulation(seed: seed, rules: rules, stageGeometry: geometry);
         }

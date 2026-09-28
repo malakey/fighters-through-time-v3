@@ -362,7 +362,7 @@ public class FighterStageGeometryTests {
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: true,
-            hazardFrequency: (int)HazardTriggerFrequency.High,
+            hazardCadenceFrames: 1800,
             stageHazardTypeID: 1);
 
         int seed = 900;
@@ -390,7 +390,7 @@ public class FighterStageGeometryTests {
                 itemsEnabled: true,
                 itemFrequency: (int)ChronalOrbFrequency.High,
                 hazardsEnabled: true,
-                hazardFrequency: (int)HazardTriggerFrequency.High,
+                hazardCadenceFrames: 1800,
                 stageHazardTypeID: 1);
             var simulation = new FighterSimulation(seed: seed++, rules: rules, stageGeometry: geometry);
 
@@ -486,7 +486,7 @@ public class FighterStageGeometryTests {
             itemsEnabled: false,
             itemFrequency: 0,
             hazardsEnabled: true,
-            hazardFrequency: (int)HazardTriggerFrequency.High,
+            hazardCadenceFrames: 1800,
             stageHazardTypeID: 1);
         var simulation = new FighterSimulation(seed: 21, rules: rules, stageGeometry: FighterStageGeometry.Florence);
 
@@ -507,7 +507,7 @@ public class FighterStageGeometryTests {
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: false,
-            hazardFrequency: 0,
+            hazardCadenceFrames: 0,
             stageHazardTypeID: 1);
         var simulation = new FighterSimulation(seed: 22, rules: rules, stageGeometry: FighterStageGeometry.Florence);
 

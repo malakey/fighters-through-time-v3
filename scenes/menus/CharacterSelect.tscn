@@ -146,6 +146,12 @@ layout_mode = 2
 expand_icon = true
 vertical_icon_alignment = 0
 
+[node name="RandomTile" type="Button" parent="SelectPhase/Root/PlayersRow/Grid"]
+custom_minimum_size = Vector2(190, 124)
+layout_mode = 2
+expand_icon = true
+vertical_icon_alignment = 0
+
 [node name="P2Panel" type="VBoxContainer" parent="SelectPhase/Root/PlayersRow"]
 custom_minimum_size = Vector2(300, 0)
 layout_mode = 2
@@ -170,24 +176,6 @@ custom_minimum_size = Vector2(300, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.75, 0.85, 1)
 autowrap_mode = 3
-
-[node name="ModeRow" type="HBoxContainer" parent="SelectPhase/Root"]
-layout_mode = 2
-theme_override_constants/separation = 18
-alignment = 1
-
-[node name="LocalHumanToggle" type="CheckButton" parent="SelectPhase/Root/ModeRow"]
-layout_mode = 2
-text = "fighter_local_human"
-
-[node name="CpuDifficultyLabel" type="Label" parent="SelectPhase/Root/ModeRow"]
-layout_mode = 2
-text = "fighter_cpu_difficulty"
-vertical_alignment = 1
-
-[node name="CpuDifficulty" type="OptionButton" parent="SelectPhase/Root/ModeRow"]
-custom_minimum_size = Vector2(150, 36)
-layout_mode = 2
 
 [node name="FeedbackLabel" type="Label" parent="SelectPhase/Root"]
 visible = false
@@ -328,14 +316,13 @@ vertical_alignment = 1
 custom_minimum_size = Vector2(120, 36)
 layout_mode = 2
 
-[node name="HazardsLabel" type="Label" parent="StagePhase/Root/RulesRow"]
+[node name="MeterPickups" type="CheckButton" parent="StagePhase/Root/RulesRow"]
+layout_mode = 2
+text = "fighter_meter_pickups"
+
+[node name="StageHazards" type="CheckButton" parent="StagePhase/Root/RulesRow"]
 layout_mode = 2
 text = "fighter_hazards"
-vertical_alignment = 1
-
-[node name="HazardFrequency" type="OptionButton" parent="StagePhase/Root/RulesRow"]
-custom_minimum_size = Vector2(120, 36)
-layout_mode = 2
 
 [node name="StageButtonRow" type="HBoxContainer" parent="StagePhase/Root"]
 layout_mode = 2

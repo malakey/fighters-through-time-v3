@@ -3,12 +3,17 @@ using FTT.Core;
 
 namespace FTT.UI {
 
-    /// <summary>The four ability slots the Fighter HUD shows a cooldown for.</summary>
+    /// <summary>
+    /// The four ability slots the Fighter HUD shows a cooldown for. M25
+    /// (Package 12 W5, HUD_CONTRACT): Special 1, Special 2, Movement and
+    /// <b>Echo Step</b> — the Ultimate plate is gone (the meter bar already shows
+    /// the Ultimate's readiness), and Echo Step took its ordinal.
+    /// </summary>
     public enum FighterCooldownSlot {
         SpecialOne = 0,
         SpecialTwo = 1,
         Movement = 2,
-        Ultimate = 3
+        EchoStep = 3
     }
 
     /// <summary>
@@ -158,8 +163,29 @@ namespace FTT.UI {
             FighterCooldownSlot.SpecialOne => "fighter_hud_cooldown_special1",
             FighterCooldownSlot.SpecialTwo => "fighter_hud_cooldown_special2",
             FighterCooldownSlot.Movement => "fighter_hud_cooldown_movement",
-            _ => "fighter_hud_cooldown_ultimate"
+            _ => "fighter_hud_cooldown_echo_step"
         };
+
+        /// <summary>
+        /// M25: Echo Step is usable only off cooldown <b>and</b> with its meter
+        /// cost banked, so the icon dims below 30 meter even when the cooldown
+        /// is done. Reads the cost from the shared rulebook.
+        /// </summary>
+        public static bool EchoStepAffordable(float influence) =>
+            influence >= FTT.Combat.BasicComboRules.EchoStepMeterCost;
+
+        /// <summary>
+        /// A cooldown radial's fill: 1 when ready, otherwise the elapsed share of
+        /// the cooldown that started at <paramref name="startFrames"/>. The start
+        /// is whatever the authoritative remaining count was when it last rose, so
+        /// a Resonance Momentum refund or a rollback correction moves the arc
+        /// without the HUD holding a second copy of any cooldown length.
+        /// </summary>
+        public static float CooldownRadialFraction(int remainingFrames, int startFrames) {
+            if (remainingFrames <= 0) return 1f;
+            if (startFrames <= 0) return 0f;
+            return Mathf.Clamp(1f - remainingFrames / (float)startFrames, 0f, 1f);
+        }
 
         /// <summary>
         /// Status label key. Mirrors the family <c>TestArenaHUD</c> already used, so

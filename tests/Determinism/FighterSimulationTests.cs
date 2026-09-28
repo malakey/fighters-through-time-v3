@@ -230,7 +230,7 @@ public class FighterSimulationTests {
 
     [TestCase]
     public void HazardAndOrbSpawnsAreDeterministicAndSnapshotSafe() {
-        FighterMatchRules rules = new(true, 3, true, 3);
+        FighterMatchRules rules = new(true, 3, true, 1800);
         var first = new FighterSimulation(seed: 104, rules: rules);
         var second = new FighterSimulation(seed: 104, rules: rules);
         for (int tick = 0; tick < 1805; tick++) {
@@ -258,7 +258,7 @@ public class FighterSimulationTests {
             itemsEnabled: false,
             itemFrequency: 0,
             hazardsEnabled: true,
-            hazardFrequency: (int)HazardTriggerFrequency.High,
+            hazardCadenceFrames: 1800,
             stageHazardTypeID: 7);
         var simulation = new FighterSimulation(rules: rules);
 

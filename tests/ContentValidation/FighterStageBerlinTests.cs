@@ -191,7 +191,7 @@ public class FighterStageBerlinTests {
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: true,
-            hazardFrequency: (int)HazardTriggerFrequency.High,
+            hazardCadenceFrames: 1800,
             stageHazardTypeID: BerlinHazardTypeID);
 
         var first = new FighterSimulation(

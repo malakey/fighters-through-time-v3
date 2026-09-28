@@ -9,6 +9,36 @@ namespace FTT.Environment {
         private const string CalibrationBaySpawnName = "CalibrationBaySpawn";
         private static readonly Vector2 CalibrationBaySpawnPosition = new(1750, 850);
 
+        // --- Package 12 W5 (M26): Holodeck return anchor ----------------------
+        /// <summary>Name of the spawn marker in front of the Holodeck console.</summary>
+        public const string HolodeckConsoleSpawnName = "HolodeckConsoleSpawn";
+        /// <summary>
+        /// Inside the console's 90 px interaction area (the console stands at
+        /// x = 2700), so a returning player can reopen it without walking.
+        /// </summary>
+        public static readonly Vector2 HolodeckConsoleSpawnPosition = new(2680, 850);
+        private bool _arriveAtHolodeckConsole;
+        private bool _reopenHolodeckConsole;
+
+        /// <summary>
+        /// Holodeck exits (pause Exit, Return to Ship, Reconfigure) land in front of
+        /// the console, and Reconfigure reopens its panel. Both flags are one-shot
+        /// and consumed here, before anything else reads the session.
+        /// </summary>
+        private void ConsumeHolodeckArrival() {
+            if (GameManager.Instance == null) return;
+            SessionData session = GameManager.Instance.CurrentSession;
+            _arriveAtHolodeckConsole = session.ArriveAtHolodeckConsole;
+            _reopenHolodeckConsole = session.ReopenHolodeckConsole;
+            session.ArriveAtHolodeckConsole = false;
+            session.ReopenHolodeckConsole = false;
+            GameManager.Instance.CurrentSession = session;
+        }
+
+        /// <summary>Where the player spawns on arrival. Test seam.</summary>
+        public Vector2 ArrivalSpawnPosition =>
+            _arriveAtHolodeckConsole ? HolodeckConsoleSpawnPosition : CalibrationBaySpawnPosition;
+
         private PlayerController _player;
         private Area2D _portalArea;
         private Area2D _repositoryArea;
@@ -28,6 +58,7 @@ namespace FTT.Environment {
         private StorySceneServices _services;
 
         public override void _Ready() {
+            ConsumeHolodeckArrival();
             RestoreLockedStoryCharacter();
             BuildHubEnvironment();
             SpawnPlayer();
@@ -39,6 +70,8 @@ namespace FTT.Environment {
                 includeRewind: false,
                 audioSetPath: AudioSetPaths.Hub);
             AutoDepositCarriedDust();
+            // Package 12 W5 (M26): Holodeck Reconfigure reopens the console panel.
+            if (_reopenHolodeckConsole) OpenHolodeckConsole();
         }
 
         /// <summary>
@@ -332,6 +365,11 @@ namespace FTT.Environment {
             holoLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.4f, 1f));
             _holodeckArea.AddChild(holoLabel);
 
+            AddChild(new Marker2D {
+                Name = HolodeckConsoleSpawnName,
+                Position = HolodeckConsoleSpawnPosition
+            });
+
             _holodeckArea.BodyEntered += body => {
                 if (body is PlayerController) _playerInHolodeck = true;
             };
@@ -431,7 +469,7 @@ namespace FTT.Environment {
 
             _player = CharacterFactory.CreateCharacter(characterID, 0);
             _player.Name = "Player";
-            _player.Position = CalibrationBaySpawnPosition;
+            _player.Position = ArrivalSpawnPosition;
             AddChild(_player);
 
             var camera = new Camera2D();

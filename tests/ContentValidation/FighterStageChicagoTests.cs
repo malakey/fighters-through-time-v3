@@ -232,7 +232,7 @@ public class FighterStageChicagoTests {
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: true,
-            hazardFrequency: (int)HazardTriggerFrequency.High,
+            hazardCadenceFrames: 1800,
             stageHazardTypeID: 3);
 
         // Nine stocks, not the production three: the scripted inputs below trade

@@ -309,7 +309,9 @@ namespace FTT.Combat {
         /// </summary>
         public void SetSlotIndicator(int playerIndex) {
             _ownerSlot = playerIndex;
-            _ownerOutlineColor = GlowPalette.SlotColor(playerIndex);
+            // Package 12 W5 (G12): the local player-slot palette recolors the
+            // edge on this machine only; Default is exactly GlowPalette.SlotColor.
+            _ownerOutlineColor = PlayerSlotPalettes.ActiveSlotColor(playerIndex);
             _ownerOutlineEnabled = playerIndex >= 0;
             PushOwnershipToMaterial();
         }

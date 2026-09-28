@@ -1001,8 +1001,7 @@ public class FighterMatchFlowTests {
             TimeLimit = 120f,
             ItemsEnabled = true,
             ItemSpawnRate = ChronalOrbFrequency.Low,
-            StageHazardsEnabled = true,
-            HazardRate = HazardTriggerFrequency.Medium
+            StageHazardsEnabled = true
         };
 
         FighterMatchRules rules = FighterSimulationDriver.RulesFor(settings, 7);
@@ -1010,16 +1009,22 @@ public class FighterMatchFlowTests {
         AssertThat(rules.ItemsEnabled).IsTrue();
         AssertThat(rules.ItemFrequency).IsEqual((int)ChronalOrbFrequency.Low);
         AssertThat(rules.HazardsEnabled).IsTrue();
-        AssertThat(rules.HazardFrequency).IsEqual((int)HazardTriggerFrequency.Medium);
+        // Package 12 W5: hazards On run the stage's own authored cadence.
+        AssertThat(rules.HazardCadenceFrames).IsEqual(FighterHazardCadence.AuthoredFrames(7));
+        AssertThat(rules.MeterPickupsEnabled).IsFalse();
         AssertThat(rules.StageHazardTypeID).IsEqual(7);
         AssertThat(rules.PreMatchCountdownFrames).IsEqual(FighterMatchFlowRules.CountdownFrames);
         AssertThat(FighterSimulationDriver.MatchSeconds(settings)).IsEqual(120);
 
-        // Off collapses to disabled on both axes rather than spawning at rate 0.
+        // Off collapses to disabled on both axes rather than spawning at rate 0,
+        // and Meter pickups can only ride on Items being on.
+        settings.MeterPickupsEnabled = true;
+        AssertThat(FighterSimulationDriver.RulesFor(settings, 7).MeterPickupsEnabled).IsTrue();
         settings.ItemSpawnRate = ChronalOrbFrequency.Off;
-        settings.HazardRate = HazardTriggerFrequency.Off;
+        settings.StageHazardsEnabled = false;
         FighterMatchRules off = FighterSimulationDriver.RulesFor(settings, 3);
         AssertThat(off.ItemsEnabled).IsFalse();
+        AssertThat(off.MeterPickupsEnabled).IsFalse();
         AssertThat(off.HazardsEnabled).IsFalse();
 
         // And the whole ruleset reaches the simulation intact.
@@ -1032,7 +1037,7 @@ public class FighterMatchFlowTests {
         FighterMatchComponent match = simulation.GetMatchState();
         AssertThat(match.MatchMode).IsEqual((int)MatchMode.TimeLimit);
         AssertThat(match.ItemFrequency).IsEqual((int)ChronalOrbFrequency.Low);
-        AssertThat(match.HazardFrequency).IsEqual((int)HazardTriggerFrequency.Medium);
+        AssertThat(match.HazardCadenceFrames).IsEqual(FighterHazardCadence.AuthoredFrames(7));
         AssertThat(match.StageHazardTypeID).IsEqual(7);
         AssertThat(match.RemainingFrames).IsEqual(120 * FighterSimulation.TickRate);
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent fighter)).IsTrue();
@@ -1136,7 +1141,7 @@ public class FighterMatchFlowTests {
     public void SuddenDeathWithHazardsOnStartsAFullWarningAtTwiceCadence() {
         var simulation = new FighterSimulation(
             matchSeconds: 2, seed: 8803,
-            rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, true, 3, 1));
+            rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, true, 1800, 1));
         for (int tick = 0; tick < 130; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
 
         FighterMatchComponent match = simulation.GetMatchState();
@@ -1146,7 +1151,7 @@ public class FighterMatchFlowTests {
         AssertThat(simulation.HazardCount)
             .OverrideFailureMessage("Entering Sudden Death must clear live regulation hazards.")
             .IsEqual(0);
-        int normal = FighterSpawnIntervals.HazardFrames(match.HazardFrequency);
+        int normal = match.HazardCadenceFrames;
         AssertThat(match.NextHazardSpawnFrames)
             .OverrideFailureMessage("The first Sudden Death hazard must be scheduled at twice cadence.")
             .IsEqual(normal / 2);

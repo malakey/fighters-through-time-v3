@@ -294,7 +294,7 @@ public class FighterStageNassauTests {
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: true,
-            hazardFrequency: (int)HazardTriggerFrequency.High,
+            hazardCadenceFrames: 1800,
             stageHazardTypeID: FighterHazardTypeID.NassauMortar);
 
         var first = new FighterSimulation(

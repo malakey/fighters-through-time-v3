@@ -47,7 +47,7 @@ public class StocksLostTests {
         // A hazard death on the same rules: same chokepoint, same increment.
         var hazardous = new FighterSimulation(
             stocks: 5, matchSeconds: 600, seed: 90210,
-            rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, true, 3, 1));
+            rules: new FighterMatchRules((int)MatchMode.TimeLimit, false, 0, true, 1800, 1));
         DriveOffTheBottom(hazardous, 0);
         AssertThat(hazardous.GetMatchState().PlayerOneStocksLost).IsEqual(1);
     }
