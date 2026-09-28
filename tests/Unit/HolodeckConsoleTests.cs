@@ -32,7 +32,7 @@ public class HolodeckConsoleTests {
             AssertThat(panel.CpuDifficultySelect.ItemCount).IsEqual(3);
             // Package 11 A6b: the CPU list is built from the manifest roster.
             AssertThat(panel.CpuCharacterSelect.ItemCount)
-                .IsEqual(FTT.Core.CharacterRoster.Count);
+                .IsEqual(FTT.Core.CharacterRoster.Count + 1); // + the G15a Random entry
             AssertThat(panel.StageSelect.ItemCount).IsGreater(0);
             AssertThat(panel.StageSelect.Disabled).IsFalse();
         } finally {

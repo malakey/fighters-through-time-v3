@@ -51,17 +51,21 @@ public class FighterProxyStyleTests {
     [TestCase]
     public void OrbColourIsTheSameCanonicalValueStoryModeUses() {
         var seen = new HashSet<string>();
+        // Package 12 W5 (M24): the five simulation orb types map onto the shared
+        // table explicitly — the old straight ordinal cast painted Chronal Haste in
+        // the meter gold — and every type reads as its own hue, Resonance Surge in
+        // the meter gold.
         for (int effect = 0; effect < 5; effect++) {
-            Color story = ChronalOrbItem.EffectColor((OrbEffect)effect);
+            Color story = ChronalOrbItem.EffectColor(FighterProxyStyle.PaletteEffectFor(effect));
             Color fighter = FighterProxyStyle.OrbColor(effect, 0);
             AssertFloat(fighter.R).IsEqualApprox(story.R, 0.0001);
             AssertFloat(fighter.G).IsEqualApprox(story.G, 0.0001);
             AssertFloat(fighter.B).IsEqualApprox(story.B, 0.0001);
             seen.Add($"{story.R},{story.G},{story.B}");
         }
-        // Healing, meter and speed each read differently; the two buff effects share
-        // the catch-all purple, which is the pre-existing driver behaviour.
-        AssertThat(seen.Count).IsEqual(4);
+        AssertThat(seen.Count).IsEqual(5);
+        AssertThat(FighterProxyStyle.PaletteEffectFor(FighterOrbSystem.ResonanceSurgeEffectType))
+            .IsEqual(OrbEffect.MeterBoost);
     }
 
     [TestCase]

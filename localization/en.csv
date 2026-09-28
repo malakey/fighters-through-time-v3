@@ -1550,3 +1550,23 @@ enemy_ability_null_lance_name,Null Lance
 enemy_ability_siphon_snare_name,Siphon Snare
 enemy_ability_lance_jab_name,Lance Jab
 telegraph_siphon_tether_tooltip,"Siphon tether: drains Influence inside the ring. Block it, break line of sight, or leave the circle."
+# Package 12 W5
+fighter_hud_cooldown_echo_step,ECHO
+cpu_difficulty_easy,Easy
+cpu_difficulty_medium,Medium
+cpu_difficulty_hard,Hard
+fighter_reconfigure,Reconfigure
+fighter_return_to_fighter_menu,Fighter Mode Menu
+fighter_play_options_title,Fighter Mode
+fighter_play_local_versus,Local Versus
+fighter_play_versus_cpu,Versus CPU
+fighter_versus_cpu_title,Versus CPU
+fighter_cpu_configured_next,"Choose the CPU opponent, stage and rules on the next screen."
+fighter_random_character,Random
+fighter_random_character_hint,A fighter drawn at random from the match seed.
+fighter_random_stage,Random Stage
+fighter_meter_pickups,Meter Pickups
+settings_player_slot_palette,Player Slot Colors
+settings_slot_palette_default,Default (Cyan / Red)
+settings_slot_palette_blue_orange,Blue / Orange
+settings_slot_palette_high_contrast,High Contrast

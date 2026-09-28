@@ -2244,7 +2244,7 @@ namespace FTT.FighterSim {
             return picker;
         }
 
-        private static void ApplyEffect(
+        internal static void ApplyEffect(
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
             ref FighterDefenseComponent defense,

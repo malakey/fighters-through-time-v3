@@ -90,6 +90,7 @@ public class MenuSceneContentTests {
         foreach (string scene in new[] {
                      "res://scenes/menus/MainMenu.tscn",
                      "res://scenes/menus/CharacterSelect.tscn",
+                     "res://scenes/menus/FighterPlayOptions.tscn",
                      "res://scenes/ui/ResonanceGrid.tscn" }) {
             string source = ReadText(scene);
             if (!source.Contains("res://resources/UI/ftt_theme.tres")) {
