@@ -812,7 +812,9 @@ namespace FTT.Environment {
             var barricade = new AnimatableBody2D {
                 Name = name,
                 Position = new Vector2(x, 0f),
-                SyncToPhysics = true,
+                // Driven from _PhysicsProcess directly (the TrapdoorPlatform
+                // idiom); the body still carries its motion into what it meets.
+                SyncToPhysics = false,
                 CollisionLayer = CollisionLayers.Environment,
                 CollisionMask = 0
             };

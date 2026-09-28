@@ -334,6 +334,52 @@ public class Level03ContentTests {
         AssertThat(level.Player.GlobalPosition.X > Level03Controller.BossStartX).IsTrue();
     }
 
+    /// <summary>
+    /// Package 12 W9 (GAP-07): "P2: deploys two siphon coils at the arena corners
+    /// that shield him until destroyed." The coils arrive exactly at Phase 2, one
+    /// per corner of the Court of Honor, and the Inventor refuses damage until
+    /// both are gone.
+    /// </summary>
+    [TestCase]
+    public void ThePhaseTwoInventorDeploysTwoCornerCoilsThatShieldHimUntilBothAreDestroyed() {
+        using var fixture = new Level03Fixture(null);
+        Level03Controller level = fixture.Level;
+        BossEncounterController encounter = level.InventorEncounter;
+        AssertObject(encounter).IsNotNull();
+        BossController inventor = encounter.Boss;
+        AssertThat(level.InventorCoils.Count).IsEqual(0);
+
+        inventor.TakeDamage(inventor.ScaledMaxHP / 2 + 1);
+        AssertThat(inventor.CurrentPhase).IsEqual(1);
+        AssertThat(level.InventorCoils.Count).IsEqual(2);
+        AssertThat(inventor.LiveGuardianCount).IsEqual(2);
+
+        // One coil per corner, both inside the Court of Honor.
+        float west = Mathf.Min(level.InventorCoils[0].Position.X, level.InventorCoils[1].Position.X);
+        float east = Mathf.Max(level.InventorCoils[0].Position.X, level.InventorCoils[1].Position.X);
+        AssertThat(west > Level03Controller.BossStartX && west < inventor.GlobalPosition.X).IsTrue();
+        AssertThat(east > inventor.GlobalPosition.X && east < Level03Controller.LevelWidth).IsTrue();
+        foreach (ArenaGuardian coil in level.InventorCoils) {
+            AssertThat(coil.MaxHP).IsEqual(encounter.Data.ArenaGuardianHP);
+        }
+
+        // Let the transition window close; the coils are now the only shield.
+        for (int frame = 0; frame < 300 && inventor.CurrentState == BossState.PhaseTransitioning; frame++) {
+            inventor._PhysicsProcess(1f / 60f);
+        }
+        int hp = inventor.CurrentHP;
+        inventor.TakeDamage(30);
+        AssertThat(inventor.CurrentHP).IsEqual(hp);
+
+        level.InventorCoils[0].ApplyDamage(encounter.Data.ArenaGuardianHP);
+        inventor.TakeDamage(30);
+        AssertThat(inventor.CurrentHP).IsEqual(hp);
+
+        level.InventorCoils[1].ApplyDamage(encounter.Data.ArenaGuardianHP);
+        inventor.TakeDamage(30);
+        AssertThat(inventor.CurrentHP < hp).IsTrue();
+    }
+
     // === Helpers ===
 
     private static void AssertLocalized(string key) {
