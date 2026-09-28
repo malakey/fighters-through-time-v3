@@ -391,6 +391,30 @@ public class Level15ContentTests {
         AssertFloat(anchor.Position.X).IsLess(Level15Controller.ArenaEndX);
     }
 
+    /// <summary>
+    /// Package 12 W1 (GAP-06): the T01b destination chain's third tier is an
+    /// authored anchor, and "arena authoring must guarantee a valid fallback".
+    /// The anchor stands inside the rotunda walls, on the floor line, and is
+    /// bound to the First Unbound.
+    /// </summary>
+    [TestCase]
+    public void TheFirstUnboundHasAnAuthoredHistoricalRecoveryAnchorInTheRotunda() {
+        using var fixture = new AlexandriaFixture(null);
+        Node2D anchor = fixture.Level.HistoricalRecoveryAnchor;
+        AssertObject(anchor)
+            .OverrideFailureMessage("Level 15 authors no HistoricalRecoveryAnchor.").IsNotNull();
+        AssertFloat(anchor.Position.X).IsGreater(Level15Controller.ArenaStartX);
+        AssertFloat(anchor.Position.X).IsLess(Level15Controller.ArenaEndX);
+        AssertFloat(anchor.Position.Y).IsLess(Level15Controller.FloorY);
+
+        BossEncounterController encounter = fixture.Level.BossEncounters[0];
+        AssertObject(encounter.Boss).IsNotNull();
+        AssertThat(encounter.Boss.HasHistoricalRecovery).IsTrue();
+        AssertThat(encounter.Boss.HistoricalRecoveryAnchor == anchor)
+            .OverrideFailureMessage("The anchor is authored but not bound to the boss.")
+            .IsTrue();
+    }
+
     // === Structure ===
 
     [TestCase]

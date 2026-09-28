@@ -18,8 +18,8 @@ namespace FTT.Environment {
         private int _playbackTicks;
         private int _holdTicksRemaining;
         private bool _isRewinding;
-        private int _worldResumeTicksRemaining;
-        private readonly List<IStoryRewindSimulation> _frozenSimulations = new();
+        private readonly WorldSuspension _suspension = new();
+        private TimeFreezeController _timeFreeze;
 
         /// <summary>Scene-tree group the HUD resolves the live manager through.</summary>
         public const string ManagerGroup = "chronal_rewind_manager";
@@ -34,6 +34,7 @@ namespace FTT.Environment {
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnPlayerDied += OnPlayerDied;
                 EventBus.Instance.OnCheckpointActivated += OnCheckpointActivated;
+                EventBus.Instance.OnBossHistoricalRecovery += OnBossHistoricalRecovery;
             }
         }
 
@@ -41,11 +42,20 @@ namespace FTT.Environment {
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnPlayerDied -= OnPlayerDied;
                 EventBus.Instance.OnCheckpointActivated -= OnCheckpointActivated;
+                EventBus.Instance.OnBossHistoricalRecovery -= OnBossHistoricalRecovery;
             }
             // Whoever freezes the world hands it back, including on teardown: a
-            // scene change mid-linger must not leave survivors frozen.
-            _worldResumeTicksRemaining = 0;
-            ResumeWorldAfterRewind();
+            // scene change mid-hold must not leave survivors frozen, a hero
+            // flagged as held, or a hero suspended by a boss beat.
+            _holdActive = false;
+            _holdFramesRemaining = 0;
+            if (_player != null && IsInstanceValid(_player)) {
+                _player.CancelRecoveryHold();
+                _player.SetWorldSuspended(false);
+            }
+            _bossSuspensionActive = false;
+            _suspendingBoss = null;
+            _suspension.Release();
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -62,7 +72,14 @@ namespace FTT.Environment {
                 AdvancePlayback();
                 return;
             }
-            AdvancePostRewindWorldFreeze();
+            TryBeginPendingPlacementHold();
+            if (_bossSuspensionActive) {
+                // GAP-06: the boss's T01b beat holds every clock the contract
+                // names — the recovery history is one of them.
+                AdvanceBossSuspension();
+                return;
+            }
+            AdvancePostLandingHold();
             if (_player.CurrentState == CharacterState.Dead || _player.CurrentState == CharacterState.Respawning) return;
             // The buffer keeps recording through a Time Freeze: the player really
             // travelled there, and CHECKPOINT_RECOVERY.md counts freeze travel as
@@ -155,7 +172,7 @@ namespace FTT.Environment {
                 CollapseTimeline();
                 return;
             }
-            BeginRewind();
+            BeginRewind(StoryRecoveryHoldCause.DeathRewind);
         }
 
         /// <summary>
@@ -174,7 +191,7 @@ namespace FTT.Environment {
             if (_player.CurrentState == CharacterState.Dead
                 || _player.CurrentState == CharacterState.Respawning) return false;
             if (RemainingRewinds <= 0) return false;
-            BeginRewind();
+            BeginRewind(StoryRecoveryHoldCause.ScriptedRewind);
             return true;
         }
 
@@ -202,16 +219,57 @@ namespace FTT.Environment {
         public const int MinimumPlaybackFrames = 30;
 
         /// <summary>
-        /// The world stays frozen for this long AFTER the rewind lands: 1 s at
-        /// 60 Hz (2026-09-14, user direction). The player is back in control
-        /// and protected the moment the landing frame is reached; enemies,
-        /// constructs and Extractors thaw a second later, so the hero always
-        /// gets the first move out of a death.
+        /// R03 Post-Landing Hold: after every Story recovery the world stays
+        /// frozen for 60 frames (1 s at 60 Hz) while the hero already has full
+        /// control, so the hero always gets the first move out of a death.
         /// </summary>
-        public const int PostRewindWorldFreezeFrames = 60;
+        public const int PostLandingHoldFrames = 60;
 
-        /// <summary>True while the landed rewind is still holding the world frozen. Test surface.</summary>
-        public bool IsWorldFreezeLingering => !_isRewinding && _worldResumeTicksRemaining > 0;
+        /// <summary>
+        /// The 2026-09-14 name for <see cref="PostLandingHoldFrames"/>. The same
+        /// constant, not a second value.
+        /// </summary>
+        public const int PostRewindWorldFreezeFrames = PostLandingHoldFrames;
+
+        /// <summary>
+        /// How many frames before the thaw the reused Time Freeze thaw warning
+        /// fires ("just before the world resumes"). The design names no number;
+        /// half the hold is provisional and recorded in the P12 W1 handoff.
+        /// </summary>
+        public const int PostLandingThawWarningFrames = 30;
+
+        /// <summary>True while the Post-Landing Hold is holding the world. Test surface.</summary>
+        public bool IsPostLandingHoldActive => _holdActive;
+
+        /// <summary>The 2026-09-14 name for <see cref="IsPostLandingHoldActive"/>. Test surface.</summary>
+        public bool IsWorldFreezeLingering => IsPostLandingHoldActive;
+
+        /// <summary>Frames of hold left; 0 when no hold is running.</summary>
+        public int PostLandingHoldFramesRemaining => _holdActive ? _holdFramesRemaining : 0;
+
+        /// <summary>Which recovery the running hold follows.</summary>
+        public StoryRecoveryHoldCause PostLandingHoldCause => _holdCause;
+
+        /// <summary>Thaw warnings played by this manager. Test surface.</summary>
+        public int ThawWarningsIssued { get; private set; }
+
+        /// <summary>True while a boss's T01b Historical Recovery beat suspends the world (GAP-06).</summary>
+        public bool IsBossSuspensionActive => _bossSuspensionActive;
+
+        /// <summary>True while either the Post-Landing Hold or a boss suspension holds the world.</summary>
+        public bool IsHoldingWorld => _holdActive || _bossSuspensionActive;
+
+        /// <summary>
+        /// <b>The single shared world-hold query</b> (Package 12 W1). True while
+        /// the scene's manager is running the R03 Post-Landing Hold or a GAP-06
+        /// boss suspension. The hit gates in <c>Hitbox.OnAreaEntered</c> and
+        /// <c>Hurtbox.TakeHit</c> consult it, so a frozen actor is invulnerable
+        /// and gives no credit. Side-effect-free: one group lookup.
+        /// </summary>
+        public static bool IsWorldHeld(SceneTree tree) =>
+            tree?.GetFirstNodeInGroup(ManagerGroup) is ChronalRewindManager manager
+            && IsInstanceValid(manager)
+            && manager.IsHoldingWorld;
 
         /// <summary>
         /// Physics ticks of playback for a history of <paramref name="rewoundFrames"/>
@@ -242,7 +300,10 @@ namespace FTT.Environment {
         /// <summary>True while the opening hold is running (rewinding, but no frame has played back yet). Test surface.</summary>
         public bool IsInPreRewindHold => _isRewinding && _holdTicksRemaining > 0;
 
-        private void BeginRewind() {
+        private StoryRecoveryHoldCause _rewindCause = StoryRecoveryHoldCause.DeathRewind;
+
+        private void BeginRewind(StoryRecoveryHoldCause cause) {
+            _rewindCause = cause;
             RemainingRewinds--;
             StoryManager.Instance?.SetRewinds(RemainingRewinds);
             Vector2 checkpoint = GetCheckpointPosition();
@@ -254,9 +315,15 @@ namespace FTT.Environment {
             _playbackTick = 0;
             _playbackTicks = ComputePlaybackTicks(_playbackPath.Count);
             _holdTicksRemaining = PreRewindHoldFrames;
-            // A death inside the previous rewind's linger folds into this one:
-            // the world is simply frozen again from here.
-            _worldResumeTicksRemaining = 0;
+            // A death inside the previous recovery's Post-Landing Hold folds into
+            // this one: the world simply stays frozen from here, and the hold's
+            // thaw (and its protection) belongs to the new landing.
+            if (_holdActive) {
+                _holdActive = false;
+                _holdFramesRemaining = 0;
+                _player.CancelRecoveryHold();
+            }
+            if (_bossSuspensionActive) EndBossSuspension(releaseWorld: false);
             _isRewinding = true;
             // Package 11 A3 (F01): the death-rewind presentation freezes the
             // world, so the Integrity clock stops for its duration. The rewind
@@ -290,10 +357,12 @@ namespace FTT.Environment {
             // The exemplar platform scrubs back along its own recorded path in
             // step with the player's playback progress.
             ApplyPlatformScrub(pathIndex + 1);
-            if (_playbackTick >= _playbackTicks) CompleteRewind(_playbackPath[^1].Position);
+            if (_playbackTick >= _playbackTicks) {
+                CompleteRewind(_playbackPath[^1].Position, _playbackPath[^1].IsGrounded);
+            }
         }
 
-        private void CompleteRewind(Vector2 landingPosition) {
+        private void CompleteRewind(Vector2 landingPosition, bool grounded = true) {
             int maximumHP = _player.MaximumHP;
             // On the death path CurrentHP is 0, so the difficulty restore applies
             // unchanged; a scripted demonstration must not damage a healthy player.
@@ -301,7 +370,7 @@ namespace FTT.Environment {
             // — every rewind that reaches here is a death or a scripted demo.
             int restoredHP = Math.Max(_player.CurrentHP,
                 Math.Max(1, Mathf.CeilToInt(maximumHP * GetHPRestorePercent(_difficulty))));
-            _player.CompleteStoryRewind(landingPosition, restoredHP);
+            _player.CompleteStoryRewind(landingPosition, restoredHP, grounded);
             _isRewinding = false;
             _playbackPath = null;
             _playbackTick = 0;
@@ -313,16 +382,10 @@ namespace FTT.Environment {
             // Package 11 A3 (F01): play resumes, and so does the clock — at the
             // value it froze at. Nothing is given back.
             StoryManager.Instance?.SetIntegrityClockPause(IntegrityClockPause.DeathRewind, false);
-            // The world stays frozen for one more second while the player is
-            // already moving; AdvancePostRewindWorldFreeze releases it.
-            _worldResumeTicksRemaining = PostRewindWorldFreezeFrames;
-            RaisePresentation(RewindPresentationPhase.Landed, landingPosition, active: false);
-        }
-
-        private void AdvancePostRewindWorldFreeze() {
-            if (_worldResumeTicksRemaining <= 0) return;
-            _worldResumeTicksRemaining--;
-            if (_worldResumeTicksRemaining == 0) ResumeWorldAfterRewind();
+            // R03: the world stays frozen for the Post-Landing Hold while the
+            // hero already has control; the recovery music duck is held with it.
+            EventBus.Instance?.RaiseRewindPresentation(CreateLandedHoldPayload(landingPosition));
+            BeginPostLandingHold(_rewindCause);
         }
 
         /// <summary>
@@ -389,13 +452,26 @@ namespace FTT.Environment {
             // failure from dying, and she says so. Non-blocking, so it rides
             // over the fracture beat rather than gating it. A6 owns the
             // English value; A6b may promote it to a full presentation beat.
-            ResolvePlayer();
-            EnvironmentNotice.Post(EraLostCollapseLineKey, _player, seconds: CollapseBeatSeconds);
+            // Package 12 W1 (M17): the era-lost line now rides the beat's own
+            // transmission slot (CollapseTransmissionKeyFor), and Act III — which
+            // has no extraction — carries no line at all.
             BeginCollapseBeat();
         }
 
         /// <summary>Sarah's line when Timeline Integrity, not death, ends the attempt.</summary>
         public const string EraLostCollapseLineKey = "dialogue_collapse_sarah_era_lost";
+
+        /// <summary>Sarah's ordinary extraction transmission over the collapse beat.</summary>
+        public const string CollapseTransmissionLineKey = "collapse_transmission_line";
+
+        /// <summary>
+        /// M17: which Sarah transmission the collapse beat shows. Act III has no
+        /// extraction — the Wardens cannot reach past the Void and "no rift
+        /// comes" — so it shows none; otherwise a timer collapse plays the
+        /// era-lost variant and a death collapse the ordinary line.
+        /// </summary>
+        public static string CollapseTransmissionKeyFor(bool actIII, TimelineCollapseCause cause) =>
+            actIII ? "" : cause == TimelineCollapseCause.Timer ? EraLostCollapseLineKey : CollapseTransmissionLineKey;
 
         private TimelineCollapseCause _collapseCause = TimelineCollapseCause.Death;
 
@@ -403,14 +479,21 @@ namespace FTT.Environment {
         internal void BeginCollapseBeat() {
             _collapseBeatActive = true;
             _collapseBeatRemaining = CollapseBeatSeconds;
-            _worldResumeTicksRemaining = 0;
+            if (_holdActive) {
+                _holdActive = false;
+                _holdFramesRemaining = 0;
+                ResolvePlayer();
+                if (_player != null && IsInstanceValid(_player)) _player.CancelRecoveryHold();
+            }
             // Package 11 A3 (F01): the collapse beat freezes the world, so the
             // Integrity clock stops with it.
             StoryManager.Instance?.SetIntegrityClockPause(IntegrityClockPause.DeathRewind, true);
             IsCollapseBeatSkippable = StoryManager.Instance?.HasSeenCollapseBeat ?? false;
             FreezeWorldForRewind();
+            bool actIII = StoryManager.Instance != null && StoryManager.IsActIIILevel(StoryManager.Instance.CurrentLevel);
             EventBus.Instance?.RaiseRewindPresentation(CreateCollapsePayload(
-                GetCheckpointPosition(), IsCollapseBeatSkippable));
+                GetCheckpointPosition(), IsCollapseBeatSkippable,
+                CollapseTransmissionKeyFor(actIII, _collapseCause)));
         }
 
         /// <summary>
@@ -438,10 +521,12 @@ namespace FTT.Environment {
         }
 
         /// <summary>Collapse presentation payload: fracture treatment plus the skip prompt.</summary>
-        public static RewindPresentationPayload CreateCollapsePayload(Vector2 target, bool skippable) {
+        public static RewindPresentationPayload CreateCollapsePayload(
+            Vector2 target, bool skippable, string transmissionLineKey = CollapseTransmissionLineKey) {
             RewindPresentationPayload payload = CreatePresentationPayload(
                 RewindPresentationPhase.TimelineCollapse, target, active: true);
             payload.CollapseSkipPromptEnabled = skippable;
+            payload.TransmissionLineKey = transmissionLineKey ?? "";
             return payload;
         }
 
@@ -462,27 +547,34 @@ namespace FTT.Environment {
         };
 
         private void FreezeWorldForRewind() {
-            _frozenSimulations.Clear();
-            foreach (string groupName in FrozenSimulationGroups) {
-                Godot.Collections.Array<Node> members = GetTree().GetNodesInGroup(groupName);
-                using var membersLifetime = members.AsDisposable();
-                foreach (Node node in members) {
-                    if (node is IStoryRewindSimulation simulation && !_frozenSimulations.Contains(simulation)) {
-                        simulation.SetStoryRewindFrozen(true);
-                        _frozenSimulations.Add(simulation);
-                    }
-                }
+            // A live Time Freeze ends here, handing its parked projectiles over
+            // rather than restoring them: both freezes latch the same per-actor
+            // flag, so a freeze that thawed a tick later would release the world
+            // mid-rewind. Ending it also arms its cooldown, as any early end does.
+            ResolveTimeFreeze();
+            if (_timeFreeze != null && IsInstanceValid(_timeFreeze)) {
+                _suspension.AdoptParked(_timeFreeze.EndFreezeForRecovery());
             }
+            // The death rewind clears on-screen enemy projectiles on initiation
+            // (T01a), so those are released rather than parked.
             ClearEnemyProjectiles();
+            _suspension.Suspend(GetTree(), WorldSuspensionMode.DeathRewind, exclude: null);
         }
 
-        private void ResumeWorldAfterRewind() {
-            foreach (IStoryRewindSimulation simulation in _frozenSimulations) {
-                if (simulation is GodotObject godotObject && IsInstanceValid(godotObject)) {
-                    simulation.SetStoryRewindFrozen(false);
-                }
-            }
-            _frozenSimulations.Clear();
+        /// <summary>
+        /// Freezes whatever has entered the tree since the sweep ran — a room
+        /// revealed during the Post-Landing Hold (or a boss suspension) freezes
+        /// before its actors take a tick. Idempotent.
+        /// </summary>
+        internal void RefreshWorldHold() {
+            if (!_suspension.IsActive || !IsInsideTree()) return;
+            _suspension.Refresh(GetTree());
+        }
+
+        private void ResolveTimeFreeze() {
+            if (_timeFreeze != null && IsInstanceValid(_timeFreeze)) return;
+            if (!IsInsideTree()) return;
+            _timeFreeze = GetTree().GetFirstNodeInGroup(TimeFreezeController.ControllerGroup) as TimeFreezeController;
         }
 
         private void ClearEnemyProjectiles() {
@@ -492,6 +584,318 @@ namespace FTT.Environment {
                 if (!IsInstanceValid(projectile)) continue;
                 if (PoolManager.Instance != null) PoolManager.Instance.Release(projectile);
                 else projectile.QueueFree();
+            }
+        }
+
+        // === Package 12 W1 — the R03 Post-Landing Hold ======================
+        //
+        // Every Story recovery — the death rewind, the in-session checkpoint
+        // placement that resumes a Collapse, the Anchor Snap and the Level 0
+        // scripted rewind — ends with a 60-frame hold: the hero is live, the
+        // world is not. The frozen set is the union of the Time Freeze sweep and
+        // the rewind sweep (plan D3(a)), so Extractors, the Mirror and the hero's
+        // own constructs freeze too. Frozen actors are invulnerable and give no
+        // credit (IsWorldHeld). Every clock runs: Integrity, the Time Freeze
+        // cooldown and the hero's own timers. Protection starts at the thaw.
+        // Transient: nothing here is ever persisted, and a reload never grants
+        // a hold.
+
+        private bool _holdActive;
+        private int _holdFramesRemaining;
+        private StoryRecoveryHoldCause _holdCause;
+
+        private void BeginPostLandingHold(StoryRecoveryHoldCause cause) {
+            _holdActive = true;
+            _holdCause = cause;
+            _holdFramesRemaining = PostLandingHoldFrames;
+            _player?.BeginRecoveryHold(cause, PostLandingHoldFrames);
+        }
+
+        /// <summary>
+        /// Starts the hold after a placement that did not come through this
+        /// manager's own playback — the Collapse resume and the Anchor Snap,
+        /// both of which reconstruct the level in the same session. The world
+        /// freezes through the Time Freeze suspend path (nothing is cancelled,
+        /// nothing is cleared). Returns false when there is no living hero or a
+        /// presentation already owns the world.
+        /// </summary>
+        public bool BeginPlacementHold(StoryRecoveryHoldCause cause) {
+            ResolvePlayer();
+            if (_isRewinding || _collapseBeatActive || _holdActive) return false;
+            if (_player == null || !IsInstanceValid(_player) || _player.CurrentHP <= 0) return false;
+            if (_bossSuspensionActive) EndBossSuspension(releaseWorld: true);
+            _suspension.Suspend(GetTree(), WorldSuspensionMode.TimeFreezePath, exclude: null);
+            // Protection starts at the thaw, never before it.
+            BeginPostLandingHold(cause);
+            return true;
+        }
+
+        private void TryBeginPendingPlacementHold() {
+            if (_holdActive || StoryManager.Instance == null
+                || !StoryManager.Instance.HasPendingRecoveryPlacementHold) return;
+            string scenePath = GetTree()?.CurrentScene?.SceneFilePath ?? "";
+            if (StoryManager.Instance.TryConsumeRecoveryPlacementHold(scenePath, out StoryRecoveryHoldCause cause)) {
+                BeginPlacementHold(cause);
+            }
+        }
+
+        private void AdvancePostLandingHold() {
+            if (!_holdActive) return;
+            if (_player.CurrentState == CharacterState.Dead) {
+                // A death inside the hold (a lethal fall) is handled by
+                // OnPlayerDied; either way this hold is over.
+                _holdActive = false;
+                _player.CancelRecoveryHold();
+                return;
+            }
+            // Newly revealed actors freeze before they can act.
+            RefreshWorldHold();
+            _holdFramesRemaining--;
+            if (_holdFramesRemaining == PostLandingThawWarningFrames) PlayThawWarning();
+            if (_holdFramesRemaining > 0) return;
+            ThawPostLandingHold();
+        }
+
+        /// <summary>
+        /// Reuses the Time Freeze thaw warning: its HUD string over the hero and
+        /// a Critical Cues one-shot. Reduced Temporal Effects never suppresses
+        /// it — it is a readability cue, not decoration.
+        /// </summary>
+        private void PlayThawWarning() {
+            ThawWarningsIssued++;
+            AudioManager.Instance?.PlayCriticalCue(ThawCueStream);
+            EnvironmentNotice.Post(TimeFreezeController.ThawWarningLabelKey, _player,
+                seconds: PostLandingThawWarningFrames / 60f);
+        }
+
+        /// <summary>
+        /// The thaw cue stream. Null while the placeholder audio kit is silent
+        /// (2026-08-10 directive); Package 10 assigns the real cue here.
+        /// </summary>
+        public static AudioStream ThawCueStream { get; set; }
+
+        private void ThawPostLandingHold() {
+            _holdActive = false;
+            _holdFramesRemaining = 0;
+            _suspension.Release();
+            // The recovery music duck ends at the thaw.
+            RaisePresentation(RewindPresentationPhase.Thawed, _player.GlobalPosition, active: false);
+            // Protection is a new entitlement starting now; OnRecoveryWorldThawed.
+            _player.EndRecoveryHold();
+            // A still-valid pending boss transition plays after the thaw: a boss
+            // whose T01b beat was running when the hero died has been frozen
+            // mid-beat, and its world-wide suspension resumes now.
+            ResumePendingBossTransition();
+        }
+
+        /// <summary>The Landed payload that keeps the recovery music duck held through the hold.</summary>
+        public static RewindPresentationPayload CreateLandedHoldPayload(Vector2 target) {
+            RewindPresentationPayload payload = CreatePresentationPayload(
+                RewindPresentationPhase.Landed, target, active: false);
+            payload.MusicDuckDecibels = -12f;
+            return payload;
+        }
+
+        // === Package 12 W1 — GAP-06: the boss's Historical Recovery suspension ==
+
+        private bool _bossSuspensionActive;
+        private FTT.Enemies.BossController _suspendingBoss;
+        private int _bossSuspensionFramesRemaining;
+
+        private void OnBossHistoricalRecovery(BossHistoricalRecoveryPayload payload) {
+            // During a rewind, a hold or the collapse beat the boss is frozen with
+            // the world; ResumePendingBossTransition picks it up at the thaw.
+            if (_isRewinding || _holdActive || _collapseBeatActive) return;
+            FTT.Enemies.BossController boss = FindRecoveringBoss(payload.BossID);
+            if (boss == null) return;
+            BeginBossSuspension(boss, Mathf.RoundToInt(payload.SuspendSeconds * 60f));
+        }
+
+        private FTT.Enemies.BossController FindRecoveringBoss(string bossID) {
+            if (!IsInsideTree()) return null;
+            Godot.Collections.Array<Node> bosses = GetTree().GetNodesInGroup("Enemies");
+            using var bossesLifetime = bosses.AsDisposable();
+            foreach (Node node in bosses) {
+                if (node is FTT.Enemies.BossController boss && IsInstanceValid(boss)
+                    && boss.IsHistoricalRecoverySuspended
+                    && (string.IsNullOrEmpty(bossID) || boss.Data?.BossID == bossID)) {
+                    return boss;
+                }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Suspends the whole world — the hero included — for the boss's own
+        /// beat, with no timer catch-up. The recovering boss is the one actor
+        /// left running, because its own beat is the clock.
+        /// </summary>
+        internal void BeginBossSuspension(FTT.Enemies.BossController boss, int frames) {
+            ResolvePlayer();
+            _bossSuspensionActive = true;
+            _suspendingBoss = boss;
+            // Slack over the boss's own count: the suspension ends on the boss's
+            // completion, and on its own clock only if the boss is lost.
+            _bossSuspensionFramesRemaining = Math.Max(1, frames) + 2;
+            _suspension.Suspend(GetTree(), WorldSuspensionMode.TimeFreezePath, exclude: boss);
+            if (_player != null && IsInstanceValid(_player)) _player.SetWorldSuspended(true);
+        }
+
+        private void AdvanceBossSuspension() {
+            RefreshWorldHold();
+            _bossSuspensionFramesRemaining--;
+            bool bossStillRecovering = _suspendingBoss != null && IsInstanceValid(_suspendingBoss)
+                && _suspendingBoss.IsHistoricalRecoverySuspended;
+            if (bossStillRecovering && _bossSuspensionFramesRemaining > 0) return;
+            EndBossSuspension(releaseWorld: true);
+        }
+
+        private void EndBossSuspension(bool releaseWorld) {
+            _bossSuspensionActive = false;
+            _suspendingBoss = null;
+            _bossSuspensionFramesRemaining = 0;
+            if (_player != null && IsInstanceValid(_player)) _player.SetWorldSuspended(false);
+            if (releaseWorld) _suspension.Release();
+        }
+
+        private void ResumePendingBossTransition() {
+            FTT.Enemies.BossController boss = FindRecoveringBoss("");
+            if (boss == null) return;
+            BeginBossSuspension(boss, boss.HistoricalRecoverySuspendFramesRemaining);
+        }
+
+        // === The world suspension (shared by the rewind, the hold and GAP-06) ==
+
+        internal enum WorldSuspensionMode {
+            /// <summary>
+            /// The death / scripted rewind: the rewind groups take the rewind
+            /// freeze (which cancels in-flight enemy attacks at initiation, as it
+            /// always has); everything else takes the Time Freeze path.
+            /// </summary>
+            DeathRewind,
+            /// <summary>Everything takes the Time Freeze path: nothing cancelled, nothing cleared.</summary>
+            TimeFreezePath
+        }
+
+        /// <summary>
+        /// The union frozen set of plan D3(a): the rewind groups plus the Time
+        /// Freeze groups. Extractors, the Mirror and the hero's constructs are in
+        /// it. Internal for the membership pin.
+        /// </summary>
+        internal static IEnumerable<string> PostLandingHoldGroups {
+            get {
+                var seen = new HashSet<string>();
+                foreach (string group in FrozenSimulationGroups) if (seen.Add(group)) yield return group;
+                foreach (string group in TimeFreezeController.FrozenTimeGroups) if (seen.Add(group)) yield return group;
+            }
+        }
+
+        /// <summary>
+        /// One suspension at a time. Freezing prefers
+        /// <see cref="IStoryTimeFreezable"/> (latch a flag, mutate nothing) over
+        /// <see cref="IStoryRewindSimulation"/>, except for the rewind groups on
+        /// the death-rewind path; members that implement only the rewind hook
+        /// (the Chronal Extractor) take it, which for them is a pure latch too.
+        /// Pooled projectiles and zones are parked with the Time Freeze
+        /// <c>ProcessMode.Disabled</c> fallback and restored to their recorded mode.
+        /// </summary>
+        private sealed class WorldSuspension {
+            private readonly List<IStoryRewindSimulation> _rewindFrozen = new();
+            private readonly List<IStoryTimeFreezable> _timeFrozen = new();
+            private readonly Dictionary<Node, ProcessModeEnum> _parked = new();
+            private readonly HashSet<GodotObject> _members = new();
+            private WorldSuspensionMode _mode;
+            private Node _exclude;
+
+            public bool IsActive { get; private set; }
+
+            public void Suspend(SceneTree tree, WorldSuspensionMode mode, Node exclude) {
+                if (!IsActive) {
+                    _mode = mode;
+                    _exclude = exclude;
+                } else if (mode == WorldSuspensionMode.DeathRewind) {
+                    _mode = mode;
+                    _exclude = null;
+                }
+                IsActive = true;
+                Sweep(tree);
+            }
+
+            public void Refresh(SceneTree tree) {
+                if (IsActive) Sweep(tree);
+            }
+
+            public void AdoptParked(Dictionary<Node, ProcessModeEnum> parked) {
+                if (parked == null) return;
+                foreach (KeyValuePair<Node, ProcessModeEnum> entry in parked) {
+                    if (entry.Key != null && !_parked.ContainsKey(entry.Key)) _parked[entry.Key] = entry.Value;
+                }
+            }
+
+            private void Sweep(SceneTree tree) {
+                if (tree == null) return;
+                var rewindGroups = new HashSet<string>(FrozenSimulationGroups);
+                foreach (string groupName in PostLandingHoldGroups) {
+                    Godot.Collections.Array<Node> members = tree.GetNodesInGroup(groupName);
+                    using var membersLifetime = members.AsDisposable();
+                    foreach (Node node in members) {
+                        if (node == null || !IsInstanceValid(node) || node == _exclude) continue;
+                        if (_members.Contains(node)) continue;
+                        bool preferRewind = _mode == WorldSuspensionMode.DeathRewind
+                            && rewindGroups.Contains(groupName);
+                        if (preferRewind && node is IStoryRewindSimulation rewindFirst) {
+                            rewindFirst.SetStoryRewindFrozen(true);
+                            _rewindFrozen.Add(rewindFirst);
+                            _members.Add(node);
+                        } else if (node is IStoryTimeFreezable freezable) {
+                            freezable.SetTimeFrozen(true);
+                            _timeFrozen.Add(freezable);
+                            _members.Add(node);
+                        } else if (node is IStoryRewindSimulation latchOnly) {
+                            latchOnly.SetStoryRewindFrozen(true);
+                            _rewindFrozen.Add(latchOnly);
+                            _members.Add(node);
+                        }
+                    }
+                }
+                foreach (string groupName in TimeFreezeController.ProcessFallbackGroups) {
+                    // The death rewind releases enemy projectiles to the pool on
+                    // initiation; parking one mid-release would restore a pooled
+                    // node to life at the thaw.
+                    if (_mode == WorldSuspensionMode.DeathRewind && groupName == "enemy_projectile") continue;
+                    Godot.Collections.Array<Node> members = tree.GetNodesInGroup(groupName);
+                    using var membersLifetime = members.AsDisposable();
+                    foreach (Node node in members) {
+                        if (node == null || !IsInstanceValid(node)) continue;
+                        if (node is IStoryTimeFreezable || node is IStoryRewindSimulation) continue;
+                        if (_parked.ContainsKey(node)) continue;
+                        // Already disabled means pooled-inactive: leave it to its pool.
+                        if (node.ProcessMode == ProcessModeEnum.Disabled) continue;
+                        _parked[node] = node.ProcessMode;
+                        node.SetProcessModeSafe(ProcessModeEnum.Disabled);
+                    }
+                }
+            }
+
+            public void Release() {
+                foreach (IStoryRewindSimulation simulation in _rewindFrozen) {
+                    if (simulation is GodotObject godotObject && !IsInstanceValid(godotObject)) continue;
+                    simulation.SetStoryRewindFrozen(false);
+                }
+                foreach (IStoryTimeFreezable freezable in _timeFrozen) {
+                    if (freezable is GodotObject godotObject && !IsInstanceValid(godotObject)) continue;
+                    freezable.SetTimeFrozen(false);
+                }
+                foreach (KeyValuePair<Node, ProcessModeEnum> entry in _parked) {
+                    if (entry.Key == null || !IsInstanceValid(entry.Key)) continue;
+                    entry.Key.SetProcessModeSafe(entry.Value);
+                }
+                _rewindFrozen.Clear();
+                _timeFrozen.Clear();
+                _parked.Clear();
+                _members.Clear();
+                _exclude = null;
+                IsActive = false;
             }
         }
 

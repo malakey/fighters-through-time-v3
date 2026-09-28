@@ -18,6 +18,14 @@ namespace FTT.Combat {
 
         public float TakeHit(HitPayload payload) {
             payload.TargetIndex = OwnerPlayerIndex;
+            // Package 12 W1 (R03 / GAP-06): while the Story world is held — the
+            // Post-Landing Hold or a boss's T01b suspension — frozen actors are
+            // invulnerable and give no credit. Many kit abilities deliver through
+            // shape queries straight into TakeHit rather than a Hitbox, so this is
+            // the chokepoint that covers them all: nothing reaches OnHit, so there
+            // is no damage, stagger, status, mark, meter, Rally reclaim, checkpoint
+            // strike or extractor credit. Side-effect-free (a group lookup).
+            if (IsInsideTree() && FTT.Environment.ChronalRewindManager.IsWorldHeld(GetTree())) return 0f;
             return OnHit?.Invoke(payload) ?? 0f;
         }
     }

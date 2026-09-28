@@ -2498,7 +2498,11 @@ namespace FTT.Characters {
 		// === State Transitions ===
 
 		public void TransitionTo(CharacterState newState) {
-			if (CurrentState == CharacterState.Dead && newState != CharacterState.Respawning) return;
+			// Dead has exactly two exits: Fighter Mode's Respawning, and the
+			// Package 12 W1 (R02) Story revive edge Dead -> Idle/Airborne, which is
+			// only open while CompleteStoryRewind is placing the hero.
+			if (CurrentState == CharacterState.Dead && newState != CharacterState.Respawning
+				&& !(_storyReviveEdgeOpen && newState is CharacterState.Idle or CharacterState.Airborne)) return;
 
 			var oldState = CurrentState;
 			if (oldState == CharacterState.Rolling && newState != CharacterState.Rolling) CleanupRoll();
@@ -2512,6 +2516,9 @@ namespace FTT.Characters {
 				_attackStartedCrouched = false;
 			}
 			CurrentState = newState;
+			// Package 12 W1 (R02): every enter/exit is observable, which is how the
+			// "Story recovery never touches Respawning" pin watches both edges.
+			StateTransitioned?.Invoke(oldState, newState);
 
 			switch (newState) {
 				case CharacterState.Rolling:
@@ -3081,7 +3088,19 @@ namespace FTT.Characters {
 			_pushbox?.ResolveStoryOverlaps(_rollDirection);
 		}
 
-		public void CompleteStoryRewind(Vector2 landingPosition, int restoredHP) {
+		/// <summary>
+		/// Places the hero at a Story recovery landing and hands control straight
+		/// back. <paramref name="grounded"/> is the landing sample's own floor
+		/// contact (the rewind buffer records it per frame); null falls back to
+		/// <see cref="CharacterBody2D.IsOnFloor"/>.
+		///
+		/// <para><b>R02 (Package 12 W1):</b> the revive is the explicit Story edge
+		/// <c>Dead -> Idle/Airborne</c>; <see cref="CharacterState.Respawning"/> is
+		/// Fighter-only and is never entered or exited here. <b>R03:</b> the 2 s
+		/// recovery protection is NOT armed here any more — it starts at the thaw
+		/// that ends the Post-Landing Hold (<see cref="EndRecoveryHold"/>).</para>
+		/// </summary>
+		public void CompleteStoryRewind(Vector2 landingPosition, int restoredHP, bool? grounded = null) {
 			GlobalPosition = landingPosition;
 			Velocity = Vector2.Zero;
 			CurrentHP = Math.Clamp(restoredHP, 1, MaximumHP);
@@ -3120,19 +3139,16 @@ namespace FTT.Characters {
 			_shieldOfOrleansExecutions.Clear();
 			if (_animatedSprite != null) _animatedSprite.SpeedScale = 1f;
 			SetRewindSuspended(false);
-			_postRewindInvulnerabilityFrames = StoryRewindInvulnerabilityFrames;
+			// R03: any protection left over from an earlier recovery is not
+			// carried through this one; the new entitlement is granted at the thaw.
+			_postRewindInvulnerabilityFrames = 0;
 			// 2026-09-14 (user direction): the landing hands control straight
-			// back. The old Respawning state locked the player in place for two
-			// seconds after the rewind, which read as "frozen and unable to
-			// move". The two-second protection is the whole landing grace now;
-			// the rewind manager keeps the WORLD frozen for a further second on
-			// its side. Every landing frame is grounded by construction (the
-			// buffer only lands on grounded samples; the checkpoint fallback is
-			// a floor), so Idle is the right resting state. Dead -> Respawning
-			// is the state machine's one revive edge; the lock is simply left
-			// on the same tick instead of being waited out.
-			TransitionTo(CharacterState.Respawning);
-			TransitionTo(CharacterState.Idle);
+			// back — there is no post-landing input lock. Package 12 W1 (R02):
+			// the revive is the Story edge Dead -> Idle/Airborne chosen by floor
+			// contact, so no Respawning enter or exit ever fires on a Story
+			// recovery. A scripted (living) demonstration takes the same
+			// ordinary transition.
+			ReviveFromStoryRecovery(grounded ?? IsOnFloor());
 			FTT.Core.EventBus.Instance?.RaisePlayerHPChanged(new FTT.Core.PlayerHPPayload {
 				PlayerIndex = PlayerIndex,
 				CurrentHP = CurrentHP,
@@ -3140,6 +3156,111 @@ namespace FTT.Characters {
 				DamageAmount = 0
 			});
 		}
+
+		// === Package 12 W1 — Story revive edge (R02) and the Post-Landing Hold (R03)
+
+		private bool _storyReviveEdgeOpen;
+
+		/// <summary>
+		/// Raised on every accepted <see cref="TransitionTo"/> with (old, new).
+		/// Presentation and test observers only; nothing gameplay-authoritative
+		/// may hang off it.
+		/// </summary>
+		public event Action<CharacterState, CharacterState> StateTransitioned;
+
+		/// <summary>
+		/// R02: the explicit Story revive edge. A dead hero leaves Dead straight to
+		/// Idle (grounded) or Airborne; a living hero (the Level 0 scripted
+		/// demonstration) takes the same ordinary transition.
+		/// </summary>
+		private void ReviveFromStoryRecovery(bool grounded) {
+			_storyReviveEdgeOpen = true;
+			try {
+				TransitionTo(grounded ? CharacterState.Idle : CharacterState.Airborne);
+			} finally {
+				_storyReviveEdgeOpen = false;
+			}
+		}
+
+		/// <summary>
+		/// True for the whole R03 Post-Landing Hold and for a boss's T01b
+		/// world suspension: the hero is live but the world is not. Interaction
+		/// (pickups, the Restoration Font, puzzle controls, checkpoint prompts)
+		/// waits for the thaw; <see cref="FTT.Environment.InteractionArea"/> reads
+		/// this. Transient — never persisted.
+		/// </summary>
+		public bool IsRecoveryWorldHeld { get; private set; }
+
+		private FTT.Core.StoryRecoveryHoldCause _recoveryHoldCause;
+		private int _recoveryHoldFrames;
+
+		/// <summary>
+		/// R03: control has returned and the Post-Landing Hold begins. Raises
+		/// <c>OnRecoveryLanded</c>. Recovery protection is deliberately not armed
+		/// yet — frozen actors cannot hurt the hero, and the 2 s window must face
+		/// live enemies.
+		/// </summary>
+		public void BeginRecoveryHold(FTT.Core.StoryRecoveryHoldCause cause, int holdFrames) {
+			IsRecoveryWorldHeld = true;
+			_recoveryHoldCause = cause;
+			_recoveryHoldFrames = holdFrames;
+			FTT.Core.EventBus.Instance?.RaiseRecoveryLanded(CreateRecoveryHoldPayload());
+		}
+
+		/// <summary>
+		/// R03: the world thawed. Arms the 2.0 s recovery protection as a new
+		/// entitlement starting now, and raises <c>OnRecoveryWorldThawed</c>.
+		/// Idempotent: a second call without a new hold does nothing.
+		/// </summary>
+		public void EndRecoveryHold() {
+			if (!IsRecoveryWorldHeld) return;
+			IsRecoveryWorldHeld = false;
+			ArmRecoveryProtection();
+			FTT.Core.EventBus.Instance?.RaiseRecoveryWorldThawed(CreateRecoveryHoldPayload());
+		}
+
+		/// <summary>
+		/// Drops a hold without thawing into protection — the hero died inside
+		/// it (a fall), so the next recovery owns the landing.
+		/// </summary>
+		public void CancelRecoveryHold() => IsRecoveryWorldHeld = false;
+
+		/// <summary>Grants the 2.0 s (120-frame) recovery protection from this tick.</summary>
+		public void ArmRecoveryProtection() =>
+			_postRewindInvulnerabilityFrames = StoryRewindInvulnerabilityFrames;
+
+		private FTT.Core.RecoveryHoldPayload CreateRecoveryHoldPayload() => new() {
+			PlayerIndex = PlayerIndex,
+			Cause = _recoveryHoldCause,
+			HoldFrames = _recoveryHoldFrames,
+			Position = GlobalPosition
+		};
+
+		private bool _worldSuspended;
+		private ProcessModeEnum _worldSuspendedProcessMode;
+
+		/// <summary>
+		/// GAP-06 (T01b): the boss's Historical Recovery beat suspends the hero
+		/// too — position, velocity, HP, resources and action progress are
+		/// preserved exactly, and every hero clock holds. Unlike
+		/// <see cref="SetRewindSuspended"/> nothing is zeroed; the node's whole
+		/// subtree simply stops processing and resumes where it stopped.
+		/// </summary>
+		public void SetWorldSuspended(bool suspended) {
+			if (_worldSuspended == suspended) return;
+			_worldSuspended = suspended;
+			if (suspended) {
+				_worldSuspendedProcessMode = ProcessMode;
+				IsRecoveryWorldHeld = true;
+				this.SetProcessModeSafe(ProcessModeEnum.Disabled);
+			} else {
+				IsRecoveryWorldHeld = false;
+				this.SetProcessModeSafe(_worldSuspendedProcessMode);
+			}
+		}
+
+		/// <summary>True while a boss's T01b beat holds the hero. Test seam.</summary>
+		public bool IsWorldSuspended => _worldSuspended;
 
 		public void RestoreStoryCheckpoint(Vector2 position, int hp, float ultimateMeter) {
 			GlobalPosition = position;

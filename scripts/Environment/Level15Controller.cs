@@ -390,8 +390,40 @@ namespace FTT.Environment {
             // The rotunda floor spans 2,000 px against the Eraser's 10.0-unit ranged
             // band (600 px at BossController's 60 px per unit); the content test
             // asserts the fit against the resource, not against a hardcoded width.
-            BuildBossEncounter(BossResourcePath, new Vector2(10500f, FloorY - 50f),
+            BossEncounterController encounter = BuildBossEncounter(
+                BossResourcePath, new Vector2(10500f, FloorY - 50f),
                 "ApexEraserEncounter", revealDistance: 750f);
+            BuildHistoricalRecoveryAnchor(encounter);
+        }
+
+        /// <summary>
+        /// Package 12 W1 (GAP-06): the T01b destination chain's third tier. The
+        /// arena must guarantee a valid fallback, so the anchor sits on the open
+        /// rotunda floor at centre stage — clear of both side platforms, on
+        /// support, at the boss's own standing height.
+        /// </summary>
+        public static readonly Vector2 HistoricalRecoveryAnchorPosition = new(10400f, FloorY - 50f);
+
+        /// <summary>The authored anchor node. Test seam.</summary>
+        public Node2D HistoricalRecoveryAnchor { get; private set; }
+
+        private void BuildHistoricalRecoveryAnchor(BossEncounterController encounter) {
+            HistoricalRecoveryAnchor = new Node2D {
+                Name = "HistoricalRecoveryAnchor",
+                Position = HistoricalRecoveryAnchorPosition
+            };
+            AddChild(HistoricalRecoveryAnchor);
+            if (encounter == null) return;
+            Node2D anchor = HistoricalRecoveryAnchor;
+            void Assign() {
+                if (encounter.Boss != null && IsInstanceValid(encounter.Boss)) {
+                    encounter.Boss.HistoricalRecoveryAnchor = anchor;
+                }
+            }
+            Assign();
+            // The encounter spawns its boss in its own _Ready; if that has not
+            // run yet, bind as soon as it does.
+            if (encounter.Boss == null) encounter.Ready += Assign;
         }
 
         /// <summary>

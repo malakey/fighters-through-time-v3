@@ -595,6 +595,18 @@ namespace FTT.Environment {
             if (_audienceThrow == null || !AudienceWatchEnabled) return;
             if (Player == null || !IsInstanceValid(Player)) return;
 
+            // Package 12 W1 (GAP-11): the galleries are part of the world. While
+            // a Time Freeze, the Post-Landing Hold or a boss suspension holds it,
+            // nothing counts — no idle build-up, no telegraph countdown, no
+            // throw — and nothing catches up at the thaw. The position baseline
+            // follows the hero so the thaw tick does not read the freeze's travel
+            // as one enormous step.
+            if (Player.TimeFrozen || Player.IsRecoveryWorldHeld) {
+                _lastPlayerPosition = Player.GlobalPosition;
+                _lastPlayerPositionValid = true;
+                return;
+            }
+
             // The landed prop is only live for a beat; the component's own cycle is
             // switched off, so the level owns putting it away again.
             if (_audienceActiveTimer > 0f) {

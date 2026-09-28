@@ -359,11 +359,19 @@ public class StoryCombatRulesTests {
             AssertThat(player.CurrentState).IsEqual(CharacterState.Dead);
 
             player.SetRewindSuspended(true);
-            player.CompleteStoryRewind(Vector2.Zero, 50);
+            player.CompleteStoryRewind(Vector2.Zero, 50, grounded: true);
             // 2026-09-14: the landing hands control straight back — no
-            // Respawning input lock — and the two-second protection is the
-            // whole landing grace.
+            // Respawning input lock. Package 12 W1 (R03): the landing opens the
+            // Post-Landing Hold, and the two-second protection is armed at the
+            // THAW, so the whole window faces live enemies.
             AssertThat(player.CurrentState).IsEqual(CharacterState.Idle);
+            AssertThat(player.IsPostRewindInvulnerable).IsFalse();
+            player.BeginRecoveryHold(StoryRecoveryHoldCause.DeathRewind, 60);
+            for (int frame = 0; frame < 60; frame++) SendInput(player, GameplayButtons.None);
+            AssertThat(player.IsPostRewindInvulnerable)
+                .OverrideFailureMessage("No protection may tick away during the hold.")
+                .IsFalse();
+            player.EndRecoveryHold();
             AssertThat(player.IsPostRewindInvulnerable).IsTrue();
             for (int frame = 0; frame < PlayerController.StoryRewindInvulnerabilityFrames - 1; frame++) {
                 SendInput(player, GameplayButtons.None);

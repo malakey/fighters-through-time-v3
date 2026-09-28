@@ -247,7 +247,14 @@ namespace FTT.Core {
         Started,
         Playback,
         Landed,
-        TimelineCollapse
+        TimelineCollapse,
+        /// <summary>
+        /// Package 12 W1 (R03): the Post-Landing Hold ended and the world
+        /// resumed. The recovery music duck, held through the hold by a
+        /// <see cref="Landed"/> payload carrying a non-zero duck, releases here.
+        /// Appended; no ordinal moved.
+        /// </summary>
+        Thawed
     }
 
     public struct RewindPresentationPayload {
@@ -262,6 +269,41 @@ namespace FTT.Core {
         /// <summary>V7.3 Timeline Collapse beat: true when the 4 s collapse
         /// presentation may be skipped (not the first viewing).</summary>
         public bool CollapseSkipPromptEnabled;
+        /// <summary>
+        /// Package 12 W1 (M17): the Sarah transmission the collapse beat shows,
+        /// or "" for none. Act III has no extraction, so its beat carries no
+        /// line; a timer-caused collapse carries the era-lost variant.
+        /// </summary>
+        public string TransmissionLineKey;
+    }
+
+    // === Package 12 W1 — R03 Post-Landing Hold =============================
+
+    /// <summary>Which Story recovery ended in the Post-Landing Hold (R03).</summary>
+    public enum StoryRecoveryHoldCause {
+        /// <summary>A live death rewind landed.</summary>
+        DeathRewind,
+        /// <summary>The Level 0 scripted rewind demonstration landed.</summary>
+        ScriptedRewind,
+        /// <summary>The in-session checkpoint placement that resumes an Acts I-II Collapse.</summary>
+        CollapseResume,
+        /// <summary>An Act III Anchor Snap placed the hero back at the anchor.</summary>
+        AnchorSnap
+    }
+
+    /// <summary>
+    /// Brackets the R03 Post-Landing Hold. <c>OnRecoveryLanded</c> fires when
+    /// control returns (the hold begins); <c>OnRecoveryWorldThawed</c> fires at
+    /// resumption, when recovery protection starts and a pending boss
+    /// transition may play. Story-only; never persisted.
+    /// </summary>
+    public struct RecoveryHoldPayload {
+        public int PlayerIndex;
+        public StoryRecoveryHoldCause Cause;
+        /// <summary>Authored hold length in frames (60).</summary>
+        public int HoldFrames;
+        /// <summary>Where the hero stands when the event fires.</summary>
+        public Vector2 Position;
     }
 
     // === Package 11 A2 — Time Freeze (F03) ================================
@@ -502,6 +544,14 @@ namespace FTT.Core {
 
         public event Action<RewindPresentationPayload> OnRewindPresentation;
         public void RaiseRewindPresentation(RewindPresentationPayload payload) => OnRewindPresentation?.Invoke(payload);
+
+        // Package 12 W1 (R03) — the Post-Landing Hold brackets. Published by
+        // PlayerController, per the GDD event table.
+        public event Action<RecoveryHoldPayload> OnRecoveryLanded;
+        public void RaiseRecoveryLanded(RecoveryHoldPayload payload) => OnRecoveryLanded?.Invoke(payload);
+
+        public event Action<RecoveryHoldPayload> OnRecoveryWorldThawed;
+        public void RaiseRecoveryWorldThawed(RecoveryHoldPayload payload) => OnRecoveryWorldThawed?.Invoke(payload);
 
         // Package 11 A2 — Time Freeze readiness (Ready / Active / Cooldown).
         public event Action<TimeFreezePayload> OnTimeFreezeStateChanged;

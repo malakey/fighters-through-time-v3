@@ -236,6 +236,7 @@ namespace FTT.Core {
             HasSeenCollapseBeat = false;
             _bossIntrosSeen.Clear();
             ClearLevelAttemptState();
+            ClearRecoveryPlacementHold();
         }
 
         /// <summary>
@@ -282,6 +283,9 @@ namespace FTT.Core {
             }
             ChronalDustCollected = Mathf.Max(0, save.LevelChronalDust);
             ChronalRewindsRemaining = Mathf.Max(0, save.CurrentLives);
+            // Package 12 W1 (R03, plan D3(a)): loading a save never grants a
+            // Post-Landing Hold — only the in-session placement does.
+            ClearRecoveryPlacementHold();
             TutorialComplete = save.CompletedLevels.Contains("level_00_tutorial");
             HasSeenCollapseBeat = save.HasSeenCollapseBeat;
             SessionData session = GameManager.Instance.CurrentSession;
@@ -421,6 +425,10 @@ namespace FTT.Core {
                 return;
             }
             ClearLevelAttemptState();
+            // Package 12 W1 (R03): a fresh entry never carries a pending
+            // Post-Landing Hold (the in-session Collapse/Snap placements are
+            // resumes and never reach this branch).
+            ClearRecoveryPlacementHold();
             Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
             ChronalRewindsRemaining = FTT.Environment.ChronalRewindManager.GetMaximumRewinds(difficulty);
             // Package 11 A3b (F10): fresh entry is one of exactly two events that
@@ -1232,6 +1240,10 @@ namespace FTT.Core {
             CollapsedCheckpointID = checkpointID ?? "";
             PendingCollapseCause = cause;
             HasPendingTimelineRestart = true;
+            // Package 12 W1 (R03): this session's resume-from-anchor earns the
+            // Post-Landing Hold. The flag lives in memory only, so a quit and a
+            // reload before the portal resume never grants one (plan D3(a)).
+            _collapseRecoveryHoldEligible = true;
             ApplyTimelineCollapseDustPenalty();
 
             Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
@@ -1281,6 +1293,9 @@ namespace FTT.Core {
                 SaveManager.Instance.SaveStorySlot(GameManager.Instance.CurrentSession.ActiveSaveSlot);
             }
             HasPendingTimelineRestart = false;
+            bool holdEligible = resumeFromTimelineAnchor && _collapseRecoveryHoldEligible;
+            _collapseRecoveryHoldEligible = false;
+            if (holdEligible) ArmRecoveryPlacementHold(StoryRecoveryHoldCause.CollapseResume);
             LoadCurrentLevel();
             return true;
         }
@@ -1800,8 +1815,55 @@ namespace FTT.Core {
             _attempt.RecoveryEvent.Applied = true;
             _attempt.Bump();
             _forceResumeNextRun = true;
+            // Package 12 W1 (R03): the in-place reconstruction ends with the
+            // Post-Landing Hold. Transient: never written to the save.
+            ArmRecoveryPlacementHold(StoryRecoveryHoldCause.AnchorSnap);
             LoadCurrentLevel();
         }
+
+        // === Package 12 W1 region: the transient R03 placement hold =========
+        // The Collapse resume and the Anchor Snap both reconstruct the level
+        // through a scene load, so the hold cannot start in the code that
+        // decided on the recovery. It is armed here, in memory only, stamped
+        // with the scene it belongs to, and consumed by that scene's
+        // ChronalRewindManager on its first tick. Nothing here is persisted.
+
+        private StoryRecoveryHoldCause? _pendingPlacementHold;
+        private string _pendingPlacementHoldScene = "";
+        private bool _collapseRecoveryHoldEligible;
+
+        /// <summary>True while a placement hold is armed for the next level scene. Test seam.</summary>
+        public bool HasPendingRecoveryPlacementHold => _pendingPlacementHold.HasValue;
+
+        /// <summary>The armed cause, or null. Test seam.</summary>
+        public StoryRecoveryHoldCause? PendingRecoveryPlacementHold => _pendingPlacementHold;
+
+        private void ArmRecoveryPlacementHold(StoryRecoveryHoldCause cause) {
+            _pendingPlacementHold = cause;
+            _pendingPlacementHoldScene = GetCurrentLevelPath() ?? "";
+        }
+
+        /// <summary>
+        /// Consumes the armed hold when <paramref name="scenePath"/> is the scene
+        /// it was armed for. A mismatched scene leaves it armed (the level may not
+        /// have finished loading); a fresh entry, a restart or a save load clears it.
+        /// </summary>
+        public bool TryConsumeRecoveryPlacementHold(string scenePath, out StoryRecoveryHoldCause cause) {
+            cause = default;
+            if (!_pendingPlacementHold.HasValue) return false;
+            if (string.IsNullOrEmpty(scenePath) || scenePath != _pendingPlacementHoldScene) return false;
+            cause = _pendingPlacementHold.Value;
+            ClearRecoveryPlacementHold();
+            return true;
+        }
+
+        /// <summary>Drops any armed hold and the in-session Collapse eligibility.</summary>
+        public void ClearRecoveryPlacementHold() {
+            _pendingPlacementHold = null;
+            _pendingPlacementHoldScene = "";
+            _collapseRecoveryHoldEligible = false;
+        }
+        // === end Package 12 W1 region ===
 
         /// <summary>
         /// V7.6 Smothered — a collapse with no anchor charge left, and the only

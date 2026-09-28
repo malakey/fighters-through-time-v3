@@ -99,13 +99,16 @@ public class DeathTriggeredRewindTests {
             AssertThat(player.CurrentHP > 0).IsTrue();
             AssertThat(manager.RemainingRewinds).IsEqual(poolBefore - 1);
 
-            // 2026-09-14 (user direction): the landing is protected but
-            // CONTROLLABLE — no Respawning input lock — while the world stays
-            // frozen for exactly one more second, then thaws.
+            // 2026-09-14 (user direction): the landing is CONTROLLABLE — no
+            // Respawning input lock — while the world stays frozen for the
+            // 60-frame R03 Post-Landing Hold, then thaws. Package 12 W1: the 2 s
+            // protection starts at the THAW, not at the landing.
             AssertThat(player.CurrentState)
                 .OverrideFailureMessage("The landing must hand control straight back.")
                 .IsEqual(CharacterState.Idle);
-            AssertThat(player.IsPostRewindInvulnerable).IsTrue();
+            AssertThat(player.IsPostRewindInvulnerable)
+                .OverrideFailureMessage("R03: protection must not start at the landing.")
+                .IsFalse();
             AssertThat(enemy.IsStoryRewindFrozen)
                 .OverrideFailureMessage("Enemies must stay frozen after the landing.")
                 .IsTrue();
@@ -120,6 +123,9 @@ public class DeathTriggeredRewindTests {
                 .OverrideFailureMessage("The world must thaw one second after the landing.")
                 .IsFalse();
             AssertThat(manager.IsWorldFreezeLingering).IsFalse();
+            AssertThat(player.IsPostRewindInvulnerable)
+                .OverrideFailureMessage("R03: the 2 s protection is armed at the thaw.")
+                .IsTrue();
         } finally {
             host.Free();
             StoryManager.Instance?.SetRewinds(3);

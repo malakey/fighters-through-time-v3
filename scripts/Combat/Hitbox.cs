@@ -141,6 +141,11 @@ namespace FTT.Combat {
             if (!IsActive || area is not Hurtbox hurtbox) return;
             if (hurtbox.OwnerPlayerIndex == OwnerPlayerIndex) return;
             if (IsDiscardedByTimeFreeze(hurtbox)) return;
+            // Package 12 W1 (R03 / GAP-06): the Post-Landing Hold and a boss's
+            // T01b suspension discard every contact — no HitConfirmed, no meter,
+            // no Rally. Hurtbox.TakeHit carries the same gate for the kit's
+            // shape-query deliveries that never pass through a Hitbox.
+            if (IsDiscardedByWorldHold()) return;
 
             // Everything a landed hit cascades into (kills, drop spawns,
             // lethal-hit rewinds, pool releases) runs inside the engine's
@@ -207,6 +212,13 @@ namespace FTT.Combat {
                 && IsInstanceValid(controller)
                 && controller.IsFrozen;
         }
+
+        /// <summary>
+        /// The shared <see cref="FTT.Environment.ChronalRewindManager.IsWorldHeld"/>
+        /// query. Side-effect-free, so it is safe inside the signal flush.
+        /// </summary>
+        private bool IsDiscardedByWorldHold() =>
+            IsInsideTree() && FTT.Environment.ChronalRewindManager.IsWorldHeld(GetTree());
 
         private PlayerController FindOwningPlayer() {
             Node current = GetParent();
