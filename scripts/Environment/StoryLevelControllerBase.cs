@@ -127,13 +127,6 @@ namespace FTT.Environment {
             _ => 0f
         };
 
-        /// <summary>
-        /// Acts I-II vs Act III. F12's "Hard middle checkpoint is inert" rule
-        /// applies to the shared Acts I-II levels only; Act III's middles stay
-        /// active on Hard (A3b enforces the Act III half).
-        /// </summary>
-        protected bool IsActIII => (int)Level >= (int)CampaignLevel.ChronalVoid;
-
         /// <summary>The scene's Collapse Tremor, on timed levels. Null on untimed ones.</summary>
         public CollapseTremorController Tremor { get; private set; }
 
@@ -992,9 +985,9 @@ namespace FTT.Environment {
         }
 
         /// <summary>
-        /// The three Act III gauntlet levels. Deliberately not
-        /// <see cref="IsActIII"/>, which is an ordinal comparison and therefore
-        /// also true for Level 4A (enum value 16, played between Levels 4 and 5).
+        /// The three Act III gauntlet levels. Package 12 W8 deleted the old
+        /// ordinal <c>IsActIII</c> member, which was also true for Level 4A
+        /// (enum value 16, played between Levels 4 and 5) and had no consumers.
         /// </summary>
         protected bool IsActIIIGauntletLevel => StoryManager.IsActIIILevel(Level);
 
