@@ -235,7 +235,7 @@ namespace FTT.Characters.Abilities {
                 bool primed = TargetHasConductiveMark(hurtbox, Owner.PlayerIndex);
                 if (attraction) PullTargetTowardOwner(hurtbox);
 
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "tesla_lorentz_pulse",
                     HitboxID = "pulse",
@@ -251,16 +251,22 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                float dealt = hurtbox.TakeHit(hit);
+                Credit(in hit, dealt);
 
-                if (primed) ChainLightningToCoils(hurtbox);
+                // F07 (Package 12 W4, parity with the sim's GAP-10a consumer): only
+                // a pulse that LANDED chains, only while one of his coils stands,
+                // and the chain CONSUMES the mark — once per pulse per target.
+                if (primed && dealt > 0f && HasLiveCoil() && ConsumeConductiveMark(hurtbox)) {
+                    ChainLightningToCoils(hurtbox);
+                }
             }
         }
 
         private void ChainLightningToCoils(Hurtbox target) {
             foreach (Node2D node in Owner.ActivePersistentObjects) {
                 if (node is not TeslaCoilNode coil || !IsInstanceValid(coil) || coil.IsCoilDestroyed) continue;
-                float dealt = target.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "tesla_lorentz_pulse",
                     HitboxID = "chain_lightning",
@@ -275,9 +281,29 @@ namespace FTT.Characters.Abilities {
                     StatusIntensity = 1f,
                     ScreenShakeIntensity = 0.1f,
                     ScreenShakeDuration = 0.05f
-                });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                }, HitDelivery.Construct);
+                float dealt = target.TakeHit(hit);
+                Credit(in hit, dealt);
             }
+        }
+
+        private bool HasLiveCoil() {
+            foreach (Node2D node in Owner.ActivePersistentObjects) {
+                if (node is TeslaCoilNode coil && IsInstanceValid(coil) && !coil.IsCoilDestroyed) return true;
+            }
+            return false;
+        }
+
+        /// <summary>Removes the target's Conductive mark; true when one was there to consume.</summary>
+        private static bool ConsumeConductiveMark(Hurtbox hurtbox) {
+            Node current = hurtbox.GetParent();
+            while (current != null) {
+                if (current is PlayerController player) { player.ClearConductiveMark(); return true; }
+                if (current is FTT.Enemies.EnemyController enemy) { enemy.ClearConductiveMark(); return true; }
+                if (current is FTT.Enemies.BossController boss) { boss.ClearConductiveMark(); return true; }
+                current = current.GetParent();
+            }
+            return false;
         }
 
         private void PullTargetTowardOwner(Hurtbox hurtbox) {
@@ -497,7 +523,7 @@ namespace FTT.Characters.Abilities {
             foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(PullRadiusPixels)) {
                 DragTowardOwner(hurtbox);
                 if (Owner.GlobalPosition.DistanceTo(hurtbox.GlobalPosition) > ColumnRadiusPixels) continue;
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "tesla_wardenclyffe_cataclysm",
                     HitboxID = "cataclysm_column",
@@ -513,10 +539,11 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
                 });
+                float dealt = hurtbox.TakeHit(hit);
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt, ultimateOrigin: true);
+                Credit(in hit, dealt);
             }
         }
 

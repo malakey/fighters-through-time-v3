@@ -330,7 +330,7 @@ namespace FTT.Characters.Abilities {
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
-                hurtbox.TakeHit(new HitPayload {
+                hurtbox.TakeHit(Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "pocahontas_breeze_glide",
                     HitboxID = "tornado_lift",
@@ -345,7 +345,7 @@ namespace FTT.Characters.Abilities {
                     StatusIntensity = 1f,
                     ScreenShakeIntensity = 0.1f,
                     ScreenShakeDuration = 0.05f
-                });
+                }));
             }
         }
 
@@ -469,7 +469,7 @@ namespace FTT.Characters.Abilities {
                 // The surge throws outward from the storm center, mirroring the
                 // Fighter zone's hit-origin knockback resolution.
                 bool outwardIsRight = hurtbox.GlobalPosition.X >= Owner.GlobalPosition.X;
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "pocahontas_tidewater_tempest",
                     HitboxID = $"storm_tick_{_hitsDone}",
@@ -485,10 +485,11 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
                 });
+                float dealt = hurtbox.TakeHit(hit);
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt, ultimateOrigin: true);
+                Credit(in hit, dealt);
             }
         }
     }

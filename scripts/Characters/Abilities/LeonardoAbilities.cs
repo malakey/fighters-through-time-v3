@@ -125,7 +125,7 @@ namespace FTT.Characters.Abilities {
                 // Radial knockback: the final tick shoves the target away from the
                 // spiral center; earlier ticks are impulse-free damage pulses.
                 bool pushRight = hurtbox.GlobalPosition.X >= _spiralCenter.X;
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "leonardo_golden_ratio",
                     HitboxID = finalTick ? "spiral_burst" : "spiral_tick",
@@ -141,7 +141,8 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                float dealt = hurtbox.TakeHit(hit);
+                Credit(in hit, dealt);
             }
         }
 
@@ -283,10 +284,32 @@ namespace FTT.Characters.Abilities {
         private float _glideDuration = 3f;
         private float _wingSpeed = 380f;
 
+        /// <summary>True once this flight's one commanded turret bolt has been fired. Test seam.</summary>
+        public bool MidGlideBoltSpent { get; private set; }
+
+        /// <summary>
+        /// Package 12 W4 (V7 kit rule): during the glide, a basic-attack press
+        /// commands his deployed Clockwork Turret to fire one bolt — once per
+        /// flight, and only when a turret actually fires (a refused command
+        /// spends nothing). Public so tests can drive it without input.
+        /// </summary>
+        public bool TryFireMidGlideBolt() {
+            if (!_isGliding || MidGlideBoltSpent || Owner == null) return false;
+            foreach (Node2D node in Owner.ActivePersistentObjects) {
+                if (node is LeonardoTurretNode turret && IsInstanceValid(turret)
+                    && !turret.IsTurretDestroyed && turret.TryCommandBolt()) {
+                    MidGlideBoltSpent = true;
+                    return true;
+                }
+            }
+            return false;
+        }
+
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
             _isGliding = false;
             _isDiving = false;
+            MidGlideBoltSpent = false;
             _glideDuration = MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : 3f;
             // Story-only GlideSpeed minors quicken the ornithopter's wing speed
             // (boost and glide alike); neutral 1f outside Story Mode.
@@ -342,6 +365,10 @@ namespace FTT.Characters.Abilities {
                     && !Owner.IsOnFloor()) {
                     BeginDaedalusDive();
                     return;
+                }
+
+                if (Owner.CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)) {
+                    TryFireMidGlideBolt();
                 }
 
                 float hInput = Owner.CurrentInputFrame.Horizontal;
@@ -491,7 +518,7 @@ namespace FTT.Characters.Abilities {
 
             foreach (Hurtbox hurtbox in QueryHurtboxesInCircle()) {
                 bool pushRight = hurtbox.GlobalPosition.X >= _matrixCenter.X;
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "leonardo_vitruvian_matrix",
                     HitboxID = finalHit ? "matrix_explosion" : "matrix_bombardment",
@@ -515,10 +542,11 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
                 });
+                float dealt = hurtbox.TakeHit(hit);
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt, ultimateOrigin: true);
+                Credit(in hit, dealt);
             }
         }
 

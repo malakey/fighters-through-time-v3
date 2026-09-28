@@ -162,7 +162,8 @@ namespace FTT.Characters.Abilities {
         }
 
         private HitPayload BuildHitPayload(
-            string hitboxID, float damage, FTT.Core.StatusType status, float statusDuration) => new() {
+            string hitboxID, float damage, FTT.Core.StatusType status, float statusDuration) =>
+            BaseSpecial.WithAbilityContract(new HitPayload {
             AttackerIndex = OwnerIndex,
             AttackID = _data?.AbilityID ?? "pocahontas_vine_snare",
             HitboxID = hitboxID,
@@ -179,7 +180,7 @@ namespace FTT.Characters.Abilities {
             ScreenShakeDuration = 0.05f,
             // V7.3: construct ticks carry no hitstop.
             ExemptFromHitstop = true
-        };
+        }, _data, _ownerPlayer, HitDelivery.Construct);
 
         private static bool TargetIsRooted(Hurtbox hurtbox) {
             Node current = hurtbox.GetParent();
@@ -220,10 +221,10 @@ namespace FTT.Characters.Abilities {
         }
 
         private void CreditOwnerInfluence(float dealt) {
-            if (dealt > 0f && _ownerPlayer != null && IsInstanceValid(_ownerPlayer)) {
-                // Construct damage never reclaims Rally echo (V7.1: direct hits only).
-                _ownerPlayer.AddInfluenceFromDamageDealt(dealt, collectsEcho: false);
-            }
+            if (_ownerPlayer == null || !IsInstanceValid(_ownerPlayer)) return;
+            // Construct delivery never reclaims Rally (D03g); a snare is never an
+            // Ultimate, so the stamped contract reduces to the construct rule.
+            BaseSpecial.CreditDealt(_ownerPlayer, new HitPayload { Delivery = HitDelivery.Construct, Origin = _data?.Origin ?? HitOrigin.Special }, dealt);
         }
 
         /// <summary>

@@ -133,7 +133,7 @@ namespace FTT.Characters.Abilities {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
 
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "mozart_requiem_chord",
                     HitboxID = hitboxID,
@@ -149,7 +149,8 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                float dealt = hurtbox.TakeHit(hit);
+                Credit(in hit, dealt);
             }
         }
 
@@ -538,7 +539,7 @@ namespace FTT.Characters.Abilities {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
 
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "mozart_symphony_of_sorrow",
                     HitboxID = finalStrike ? "meteor_final" : "meteor",
@@ -556,10 +557,11 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.4f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.2f
                 });
+                float dealt = hurtbox.TakeHit(hit);
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt, ultimateOrigin: true);
+                Credit(in hit, dealt);
             }
         }
     }

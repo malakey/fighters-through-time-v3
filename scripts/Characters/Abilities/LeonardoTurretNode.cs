@@ -147,6 +147,23 @@ namespace FTT.Characters.Abilities {
             }
         }
 
+        /// <summary>
+        /// Package 12 W4 (V7 kit rule, Leonardo): "Ornithopter glide can fire one
+        /// turret bolt mid-flight if a turret is deployed." Fires this turret's
+        /// next bolt NOW, out of its own budget and on its own targeting — the
+        /// bolt count, self-destruct on the last bolt and cadence reset are the
+        /// ordinary ones. Returns false (spending nothing) when the turret is
+        /// gone, frozen or has no target in range.
+        /// </summary>
+        public bool TryCommandBolt() {
+            if (IsTurretDestroyed || _rewindFrozen || BoltsRemaining <= 0) return false;
+            if (!TryFireBolt()) return false;
+            _fireTimer = _fireInterval;
+            BoltsRemaining--;
+            if (BoltsRemaining <= 0) DestroyTurret();
+            return true;
+        }
+
         private float OnTurretHit(HitPayload payload) {
             if (IsTurretDestroyed || payload.AttackerIndex == OwnerIndex) return 0f;
             int applied = Mathf.Clamp(Mathf.RoundToInt(payload.Damage), 0, _currentHP);
@@ -181,7 +198,7 @@ namespace FTT.Characters.Abilities {
             if (nearest == null) return false;
 
             bool targetIsRight = nearest.GlobalPosition.X >= GlobalPosition.X;
-            float dealt = nearest.TakeHit(new HitPayload {
+            HitPayload bolt = BaseSpecial.WithAbilityContract(new HitPayload {
                 AttackerIndex = OwnerIndex,
                 AttackID = _data?.AbilityID ?? "leonardo_clockwork_turret",
                 HitboxID = "turret_bolt",
@@ -198,10 +215,11 @@ namespace FTT.Characters.Abilities {
                 ScreenShakeDuration = 0.05f,
                 // V7.3: construct ticks carry no hitstop.
                 ExemptFromHitstop = true
-            });
-            if (dealt > 0f && _ownerPlayer != null && IsInstanceValid(_ownerPlayer)) {
-                // Construct damage never reclaims Rally echo (V7.1: direct hits only).
-                _ownerPlayer.AddInfluenceFromDamageDealt(dealt, collectsEcho: false);
+            }, _data, _ownerPlayer, HitDelivery.Construct);
+            float dealt = nearest.TakeHit(bolt);
+            if (_ownerPlayer != null && IsInstanceValid(_ownerPlayer)) {
+                // Construct delivery never reclaims Rally (D03g), read off the payload.
+                BaseSpecial.CreditDealt(_ownerPlayer, in bolt, dealt);
             }
             return true;
         }
