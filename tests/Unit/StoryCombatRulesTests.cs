@@ -556,6 +556,8 @@ public class StoryCombatRulesTests {
                 AttackClass = AttackClass.Basic,
                 Damage = 10f,
                 Knockback = new Vector2(4f, -2f),
+                // M05 (Package 12 W3b): an authored launcher, so it tumbles.
+                Launches = true,
                 HitstunDuration = 1.5f,
                 HitOrigin = new Vector2(-20f, 0f),
                 AttackerFacingRight = true

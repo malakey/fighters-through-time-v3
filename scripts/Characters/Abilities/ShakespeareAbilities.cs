@@ -85,7 +85,7 @@ namespace FTT.Characters.Abilities {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
 
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "shakespeare_yoricks_lament",
                     HitboxID = "sonic_wave",
@@ -106,7 +106,8 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                float dealt = hurtbox.TakeHit(hit);
+                Credit(in hit, dealt);
 
                 if (macbethsCurse) ApplyMacbethVenom(hurtbox);
             }
@@ -337,7 +338,7 @@ namespace FTT.Characters.Abilities {
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
                 if (!_glideVictims.Add(hurtbox)) continue;
 
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "shakespeare_prosperos_flight",
                     HitboxID = "glide_strike",
@@ -353,7 +354,8 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = 0.1f,
                     ScreenShakeDuration = 0.05f
                 });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                float dealt = hurtbox.TakeHit(hit);
+                Credit(in hit, dealt);
             }
         }
     }
@@ -444,7 +446,7 @@ namespace FTT.Characters.Abilities {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
 
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "shakespeare_all_the_worlds_a_stage",
                     HitboxID = $"phantom_strike_{_strikesDone}",
@@ -462,10 +464,11 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
                 });
+                float dealt = hurtbox.TakeHit(hit);
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt, ultimateOrigin: true);
+                Credit(in hit, dealt);
             }
         }
     }

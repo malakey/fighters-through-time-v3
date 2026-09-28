@@ -65,13 +65,16 @@ public class FighterVerbLayerTests {
         // The same launching hit in two worlds; only the victim's held
         // direction during hitstop differs. DI must change the angle, not the
         // speed.
+        // M05 (Package 12 W3b): only an authored launcher launches, so the
+        // scenario uses a Special authored Launches = true (the string opener
+        // is grounded knockback now).
         var neutral = NewSimulation(
-            BuildAttacker(damage: 10f, knockback: 4f), BuildVictim(maxHP: 400), seed: 902);
+            BuildAttacker(damage: 10f, knockback: 4f, launcherSpecial: true), BuildVictim(maxHP: 400), seed: 902);
         var influenced = NewSimulation(
-            BuildAttacker(damage: 10f, knockback: 4f), BuildVictim(maxHP: 400), seed: 902);
+            BuildAttacker(damage: 10f, knockback: 4f, launcherSpecial: true), BuildVictim(maxHP: 400), seed: 902);
 
-        int connectTick = LandOpener(neutral, out _);
-        LandOpener(influenced, out _);
+        int connectTick = LandLauncher(neutral);
+        LandLauncher(influenced);
 
         // Run both freezes off; the influenced victim holds Up throughout.
         for (int tick = connectTick + 1; tick <= connectTick + 8; tick++) {
@@ -104,21 +107,25 @@ public class FighterVerbLayerTests {
         // A launched victim who holds Block on ground contact techs: hitstun
         // ends, a 12-frame invulnerable recovery runs, and the next hit inside
         // that window is refused. A control victim without Block rides it out.
+        // M05: an authored launcher (see the DI case above).
         var teched = NewSimulation(
-            BuildAttacker(damage: 10f, knockback: 4f), BuildVictim(maxHP: 400), seed: 903);
+            BuildAttacker(damage: 10f, knockback: 4f, launcherSpecial: true), BuildVictim(maxHP: 400), seed: 903);
         var control = NewSimulation(
-            BuildAttacker(damage: 10f, knockback: 4f), BuildVictim(maxHP: 400), seed: 903);
+            BuildAttacker(damage: 10f, knockback: 4f, launcherSpecial: true), BuildVictim(maxHP: 400), seed: 903);
 
-        int connectTick = LandOpener(teched, out _);
-        LandOpener(control, out _);
+        int connectTick = LandLauncher(teched);
+        LandLauncher(control);
 
         bool techFired = false;
         for (int tick = connectTick + 1; tick <= connectTick + 90; tick++) {
             teched.Advance(Frame(tick, 0, GameplayButtons.None), FrameHeld(tick, GameplayButtons.Block));
             control.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             AssertThat(teched.TryGetFighter(1, out FighterStateComponent victim)).IsTrue();
+            AssertThat(teched.TryGetFighterVerb(1, out FighterVerbComponent techVerb)).IsTrue();
+            // M05: the tech is the in-place lockout (a missed tech's knockdown
+            // is also grounded, hitstun-free and invulnerable).
             if (victim.IsGrounded != 0 && victim.HitstunFrames == 0
-                && victim.InvulnerabilityFrames > 0) {
+                && techVerb.TechLockoutFrames > 0) {
                 techFired = true;
                 AssertThat(victim.InvulnerabilityFrames <= BasicComboRules.LandingTechRecoveryFrames)
                     .OverrideFailureMessage("The tech grants exactly the authored recovery window.")
@@ -347,6 +354,21 @@ public class FighterVerbLayerTests {
     /// Presses BasicAttack on tick 0 and advances until player 1 loses HP.
     /// Returns the tick the opener connected on and the damage it dealt.
     /// </summary>
+    /// <summary>
+    /// M05 (Package 12 W3b): lands the attacker's authored launching Special 1
+    /// (see <c>BuildAttacker(launcherSpecial: true)</c>) and returns the
+    /// connect tick.
+    /// </summary>
+    private static int LandLauncher(FighterSimulation simulation) {
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
+        simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
+        AssertThat(after.CurrentHP < before.CurrentHP && after.IsGrounded == 0)
+            .OverrideFailureMessage("The launching Special never connected and launched.")
+            .IsTrue();
+        return 0;
+    }
+
     private static int LandOpener(FighterSimulation simulation, out int damageDealt) {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
         simulation.Advance(Frame(0, 0, GameplayButtons.BasicAttack), Frame(0, 0, GameplayButtons.None));
@@ -373,7 +395,8 @@ public class FighterVerbLayerTests {
         spawnDistance: 1,
         rules: FighterMatchRules.Disabled);
 
-    private static CharacterData BuildAttacker(float damage, float knockback, int maxHP = 400) => new() {
+    private static CharacterData BuildAttacker(
+        float damage, float knockback, int maxHP = 400, bool launcherSpecial = false) => new() {
         CharacterID = "tesla",
         MaxHP = maxHP,
         Weight = 1f,
@@ -383,7 +406,14 @@ public class FighterVerbLayerTests {
         MaxJumpForce = 13f,
         BasicAttackDamage = damage,
         BasicAttackKnockback = knockback,
-        SpecialAttackOne = new AbilityData(),
+        SpecialAttackOne = launcherSpecial
+            ? new AbilityData {
+                BaseDamage = damage,
+                KnockbackForce = new Godot.Vector2(knockback, -knockback),
+                HitstunFrames = 30,
+                Launches = true
+            }
+            : new AbilityData(),
         SpecialAttackTwo = new AbilityData(),
         MovementAbility = new MovementAbilityData(),
         UltimateAttack = new AbilityData { BaseDamage = 20f }

@@ -133,7 +133,7 @@ namespace FTT.Characters.Abilities {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
 
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "mozart_requiem_chord",
                     HitboxID = hitboxID,
@@ -149,7 +149,8 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                float dealt = hurtbox.TakeHit(hit);
+                Credit(in hit, dealt);
             }
         }
 
@@ -306,6 +307,86 @@ namespace FTT.Characters.Abilities {
         public override void _PhysicsProcess(double delta) {
             base._PhysicsProcess(delta);
             UpdateVirtuosoDash();
+            UpdateCharges();
+        }
+
+        // === Package 12 W4: Sonata Drift charges and the staff refund ==========
+        //
+        // Story-only. The owner's MovementAbilityCooldownTimer stays the ONE
+        // recharge clock: it times the charge currently recharging. A charge that
+        // is already restored but not yet spent is "banked" here. So the charges
+        // available are (timer idle ? 1 : 0) + banked, and Extra Note (design
+        // §5, Low-item decision 2026-09-26) raises the cap to two:
+        //   - a cast from a full stock arms the timer through the ordinary path;
+        //   - a cast while the timer runs spends a banked charge and never
+        //     restarts the running recharge (TryExecute(armCooldown: false));
+        //   - when a recharge completes and the stock is still short, the next
+        //     charge's recharge starts at once — one at a time, on the 5 s
+        //     cooldown;
+        //   - landing on one of his own staff platforms halves the recharging
+        //     charge's REMAINING time, once per platform (baseline kit rule).
+        // Fighter Mode never reads any of this: the sim platform is a harmless
+        // marker with no walkable surface, and grid perks never reach the sim.
+
+        /// <summary>Remaining-time share a staff landing refunds (half).</summary>
+        public const float StaffLandingRefundShare = 0.5f;
+
+        private int _bankedCharges;
+        private bool _chargesInitialized;
+        private bool _wasRecharging;
+        private bool _wasOnOwnStaff;
+
+        /// <summary>Two with Extra Note, one otherwise.</summary>
+        public int MaxCharges => Owner != null && Owner.HasStoryPerk(ExtraNotePerkKey)
+            ? 1 + ExtraNoteAdditionalPlatforms
+            : 1;
+
+        /// <summary>Charges ready to cast right now.</summary>
+        public int AvailableCharges =>
+            (Owner != null && Owner.MovementAbilityCooldownTimer > 0f ? 0 : 1) + _bankedCharges;
+
+        /// <summary>A banked charge lets a cast through while the recharge timer runs.</summary>
+        public override bool TryConsumeCooldownBypass() {
+            if (_bankedCharges <= 0) return false;
+            _bankedCharges--;
+            return true;
+        }
+
+        private void UpdateCharges() {
+            if (Owner == null) return;
+            int maxBanked = MaxCharges - 1;
+            if (_bankedCharges > maxBanked) _bankedCharges = maxBanked;
+            bool recharging = Owner.MovementAbilityCooldownTimer > 0f;
+
+            if (!_chargesInitialized) {
+                // A hero who starts idle starts with a full stock.
+                _chargesInitialized = true;
+                if (!recharging) _bankedCharges = maxBanked;
+            } else if (_wasRecharging && !recharging && _bankedCharges < maxBanked) {
+                // One recharge finished and the stock is still short: bank the
+                // restored charge and start recharging the next one.
+                _bankedCharges++;
+                RearmCooldown();
+                recharging = true;
+            }
+            _wasRecharging = recharging;
+
+            SonataPlatformNode landed = FindStaffUnderOwner();
+            bool onStaff = landed != null;
+            if (onStaff && !_wasOnOwnStaff && landed.TryConsumeLandingRefund()) {
+                if (Owner.MovementAbilityCooldownTimer > 0f) {
+                    Owner.MovementAbilityCooldownTimer *= 1f - StaffLandingRefundShare;
+                }
+            }
+            _wasOnOwnStaff = onStaff;
+        }
+
+        private SonataPlatformNode FindStaffUnderOwner() {
+            foreach (Node2D node in Owner.ActivePersistentObjects) {
+                if (node is SonataPlatformNode platform && IsInstanceValid(platform)
+                    && platform.IsStandingOn(Owner)) return platform;
+            }
+            return null;
         }
 
         /// <summary>
@@ -458,7 +539,7 @@ namespace FTT.Characters.Abilities {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
 
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "mozart_symphony_of_sorrow",
                     HitboxID = finalStrike ? "meteor_final" : "meteor",
@@ -476,10 +557,11 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.4f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.2f
                 });
+                float dealt = hurtbox.TakeHit(hit);
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt, ultimateOrigin: true);
+                Credit(in hit, dealt);
             }
         }
     }

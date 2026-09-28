@@ -45,6 +45,9 @@ namespace FTT.Combat {
         /// </summary>
         public bool UltimateOrigin { get; private set; }
 
+        /// <summary>Package 12 W4 (GAP-14): laid by a Nexus puzzle cast — pulses reach nobody.</summary>
+        public bool PuzzleOnly { get; private set; }
+
         /// <summary>M08: every zone pulse is <see cref="HitDelivery.Tick"/>.</summary>
         public const HitDelivery TickDelivery = HitDelivery.Tick;
 
@@ -70,6 +73,9 @@ namespace FTT.Combat {
             AbilityID = data?.AbilityID ?? "";
             // M08 (Package 12 W3): the AUTHORED origin, not the slot.
             UltimateOrigin = data != null && HitClassification.IsUltimateOrigin(data.Origin);
+            // Package 12 W4 (GAP-14): a zone laid by a Nexus-authorized Ultimate
+            // stays puzzle-only for its whole life, even after the cast ends.
+            PuzzleOnly = UltimateOrigin && ownerPlayer != null && ownerPlayer.IsNexusCastInFlight;
 
             EnsureNodes();
             bool usesAuthoredVisual = ApplyAuthoredVisual(data, radius);
@@ -152,6 +158,7 @@ namespace FTT.Combat {
         /// so tests can pulse a constructed target without a physics frame.
         /// </summary>
         public void ApplyTickTo(Node2D body) {
+            if (PuzzleOnly) return;
             int tickDamage = _damage > 0f
                 ? ComputeTickDamage(_damage, _ownerPlayer?.StorySpecialDamageMultiplier ?? 1f)
                 : 0;
@@ -261,6 +268,7 @@ namespace FTT.Combat {
             _tickTimer = 0f;
             AbilityID = "";
             UltimateOrigin = false;
+            PuzzleOnly = false;
             Modulate = Colors.White;
         }
 
@@ -280,6 +288,7 @@ namespace FTT.Combat {
             _ownerPlayer = null;
             AbilityID = "";
             UltimateOrigin = false;
+            PuzzleOnly = false;
             if (_authoredVisual != null) {
                 _authoredVisual.Stop();
                 _authoredVisual.Visible = false;

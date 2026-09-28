@@ -186,10 +186,13 @@ namespace FTT.Characters.Abilities {
         public void Explode() {
             if (IsCoilDestroyed) return;
             foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(GlobalPosition, ExplosionRadiusPixels)) {
-                float dealt = hurtbox.TakeHit(BuildHitPayload(
+                // Package 12 W4 (D03h): the detonation is the Cataclysm's own
+                // damage, so it is Ultimate-origin and earns Tesla no meter.
+                HitPayload burst = BuildHitPayload(
                     ArcDamage * 2f, AttackClass.Special, GlobalPosition,
-                    FTT.Core.StatusType.None, 0f, Vector2.Zero));
-                CreditOwnerInfluence(dealt);
+                    FTT.Core.StatusType.None, 0f, Vector2.Zero, originOverride: HitOrigin.Ultimate);
+                float dealt = hurtbox.TakeHit(burst);
+                CreditOwnerInfluence(in burst, dealt);
             }
             DestroyCoil();
         }
@@ -209,10 +212,11 @@ namespace FTT.Characters.Abilities {
                 ArcAtExtractor(arcRange);
                 return;
             }
-            float dealt = nearest.TakeHit(BuildHitPayload(
+            HitPayload arc = BuildHitPayload(
                 ArcDamage, AttackClass.Basic, GlobalPosition,
-                FTT.Core.StatusType.None, 0f, _data?.KnockbackForce ?? Vector2.Zero));
-            CreditOwnerInfluence(dealt);
+                FTT.Core.StatusType.None, 0f, _data?.KnockbackForce ?? Vector2.Zero);
+            float dealt = nearest.TakeHit(arc);
+            CreditOwnerInfluence(in arc, dealt);
         }
 
         /// <summary>
@@ -254,13 +258,14 @@ namespace FTT.Characters.Abilities {
                 // it also lays a Conductive mark at the BASELINE 90 frames — the
                 // tesla_conductive_hold Resonance node extends only the finisher's
                 // mark, never a linked fence's.
-                float dealt = hurtbox.TakeHit(BuildHitPayload(
+                HitPayload fence = BuildHitPayload(
                     FenceDamage, AttackClass.Basic, center,
                     FTT.Core.StatusType.StaticCharge, FenceStaticChargeDuration,
                     _data?.KnockbackForce ?? Vector2.Zero,
                     FTT.Combat.ComboMarkType.Conductive,
-                    FTT.Combat.BasicComboRules.ConductiveMarkFenceFrames));
-                CreditOwnerInfluence(dealt);
+                    FTT.Combat.BasicComboRules.ConductiveMarkFenceFrames);
+                float dealt = hurtbox.TakeHit(fence);
+                CreditOwnerInfluence(in fence, dealt);
             }
         }
 
@@ -268,7 +273,8 @@ namespace FTT.Characters.Abilities {
             float damage, AttackClass attackClass, Vector2 origin,
             FTT.Core.StatusType status, float statusDuration, Vector2 knockback,
             FTT.Combat.ComboMarkType comboMark = FTT.Combat.ComboMarkType.None,
-            int comboMarkFrames = 0) => new() {
+            int comboMarkFrames = 0,
+            HitOrigin? originOverride = null) => StampConstruct(new HitPayload {
             AttackerIndex = OwnerIndex,
             AttackID = _data?.AbilityID ?? "tesla_tesla_coil",
             HitboxID = attackClass == AttackClass.Basic ? "coil_arc" : "coil_burst",
@@ -287,7 +293,20 @@ namespace FTT.Characters.Abilities {
             ExemptFromHitstop = true,
             ComboMark = comboMark,
             ComboMarkFrames = comboMarkFrames
-        };
+        }, originOverride);
+
+        /// <summary>
+        /// Package 12 W4: the coil's authored hit contract, stamped once —
+        /// Construct delivery (D03g: no Rally), the ability's origin unless the
+        /// Cataclysm detonation overrides it to Ultimate (D03h: no meter).
+        /// </summary>
+        private HitPayload StampConstruct(HitPayload payload, HitOrigin? originOverride) {
+            payload = BaseSpecial.WithAbilityContract(payload, _data, _ownerPlayer, HitDelivery.Construct);
+            if (originOverride.HasValue) payload.Origin = originOverride.Value;
+            // An arc or fence tick never launches; it keeps its authored hitstun only.
+            payload.Launches = false;
+            return payload;
+        }
 
         private System.Collections.Generic.List<Hurtbox> QueryEnemyHurtboxes(Vector2 center, float radius) =>
             QueryEnemyHurtboxes(center, new CircleShape2D { Radius = radius });
@@ -315,11 +334,10 @@ namespace FTT.Characters.Abilities {
             return results;
         }
 
-        private void CreditOwnerInfluence(float dealt) {
-            if (dealt > 0f && _ownerPlayer != null && IsInstanceValid(_ownerPlayer)) {
-                // Construct damage never reclaims Rally echo (V7.1: direct hits only).
-                _ownerPlayer.AddInfluenceFromDamageDealt(dealt, collectsEcho: false);
-            }
+        private void CreditOwnerInfluence(in HitPayload payload, float dealt) {
+            if (_ownerPlayer == null || !IsInstanceValid(_ownerPlayer)) return;
+            // Construct delivery never reclaims Rally (D03g), read off the payload.
+            BaseSpecial.CreditDealt(_ownerPlayer, in payload, dealt);
         }
 
         /// <summary>

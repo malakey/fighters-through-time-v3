@@ -336,7 +336,8 @@ namespace FTT.FighterSim {
             bool collectsEcho = true,
             bool appliesHitstop = true,
             bool blockCancelableHitstun = true,
-            bool bypassesFiniteShields = false) {
+            bool bypassesFiniteShields = false,
+            bool launches = true) {
             if (target.InvulnerabilityFrames > 0 || target.Stocks <= 0) return false;
             // V7.6 D04 (Package 11 A1b): the Defy protected-recovery gate sits
             // ABOVE every other layer. A rejected contact spends no Aegis, no
@@ -574,12 +575,28 @@ namespace FTT.FighterSim {
                     // upward; everything else keeps the symmetric 1:1 pulse.
                     FP64 verticalScale = verticalKnockbackScale > FP64.Zero ? verticalKnockbackScale : FP64.One;
                     target.Velocity.x = hitOriginX <= target.Position.x ? force : -force;
-                    target.Velocity.y = force * verticalScale;
-                    target.IsGrounded = 0;
-                    // DI (V7): a launching hit's direction is finalized when the
-                    // victim's hitstop ends, bent by their held direction.
-                    if (hitstunFrames > 0 && target.CurrentHP > 0) {
-                        FighterVerbRules.StashPendingLaunch(ref targetVerb, in target.Velocity);
+                    if (launches) {
+                        target.Velocity.y = force * verticalScale;
+                        target.IsGrounded = 0;
+                        // DI (V7): a launching hit's direction is finalized when the
+                        // victim's hitstop ends, bent by their held direction.
+                        // M05 (Package 12 W3b): only an authored launcher reaches
+                        // here, so only it grants DI, tumble and the landing tech.
+                        if (hitstunFrames > 0 && target.CurrentHP > 0) {
+                            FighterVerbRules.StashPendingLaunch(ref targetVerb, in target.Velocity);
+                        }
+                    } else if (target.IsGrounded != 0) {
+                        // M05: a non-launching hit on a grounded victim is
+                        // grounded knockback — a horizontal slide that keeps
+                        // the victim on the floor, with no tumble and no DI. Its
+                        // hitstun is ordinary grounded hitstun, which is what
+                        // re-opens the hit-2 block escape (M06).
+                        target.Velocity.y = FP64.Zero;
+                    } else {
+                        // M05: a non-launcher on an airborne victim keeps its
+                        // authored vector, but it is not a launch — no tumble,
+                        // no DI, no tech, and so no knockdown on landing.
+                        target.Velocity.y = force * verticalScale;
                     }
                 }
                 // A zero-knockback hit with hitstun (a construct arc/bite) stuns
@@ -853,6 +870,11 @@ namespace FTT.FighterSim {
             ref readonly FighterMatchComponent match = ref frame.GetReadOnlySingleton<FighterMatchComponent>();
             if (match.MatchState != 1) return;
 
+            // Package 12 W4: Spirit Strike's eagle dives on every carry frame of
+            // a cast in flight, before the per-fighter gates below (which skip a
+            // combat-locked fighter — and the carry is exactly that).
+            ResolveSpiritEagles(ref frame);
+
             var filter = frame.Filter<
                 FighterStateComponent,
                 FighterRuntimeComponent,
@@ -885,6 +907,18 @@ namespace FTT.FighterSim {
                 if (blockStance) continue;
                 int specialOneCooldownBefore = runtime.SpecialOneCooldownFrames;
                 int specialTwoCooldownBefore = runtime.SpecialTwoCooldownFrames;
+
+                // Package 12 W4 (GAP-10b): Pocahontas's Spirit Strike is a caster
+                // translation, not a range-gated melee intent. It fires whether or
+                // not the opponent is near: 12 startup frames, then the eagle
+                // carries her 3 units up-forward at 45 degrees over 15 frames
+                // while its hitbox dives ahead of her (ResolveSpiritEagles).
+                if (fighter.CharacterID == (int)FighterCharacterID.Pocahontas
+                    && (runtime.PressedButtons & SpecialOneButton) != 0
+                    && runtime.SpecialOneCooldownFrames <= 0) {
+                    runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
+                    FighterKitMotion.StartSpiritStrike(ref runtime, fighter.FacingRight != 0 ? 1 : -1);
+                }
 
                 if ((runtime.PressedButtons & SpecialOneButton) != 0 && runtime.SpecialOneCooldownFrames <= 0) {
                     if (modes.SpecialOneExecutionType == ProjectileExecutionType) {
@@ -960,6 +994,54 @@ namespace FTT.FighterSim {
         }
 
         private static int PositiveCooldown(int frames) => frames > 0 ? frames : 1;
+
+        /// <summary>
+        /// Package 12 W4: the Spirit Strike eagle. On each carry frame the
+        /// movement system has just advanced, the eagle's box sits ahead of
+        /// Pocahontas and drops toward the ground (KitMotionRules); the first
+        /// frame it overlaps the opponent it strikes once — the authored Special
+        /// 1 damage, knockback and status as a Special-class direct hit — and
+        /// the cast is marked struck so it never hits twice.
+        /// </summary>
+        private static void ResolveSpiritEagles(ref Frame frame) {
+            var filter = frame.Filter<FighterStateComponent, FighterRuntimeComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(entity);
+                if (runtime.UniversalMovementState != FighterKitMotion.SpiritCarry
+                    || FighterKitMotion.SpiritEagleStruck(runtime.UniversalMovementDirection)) continue;
+                ref FighterStateComponent attacker = ref frame.Get<FighterStateComponent>(entity);
+                ref FighterVerbComponent attackerVerb = ref frame.Get<FighterVerbComponent>(entity);
+                if (attackerVerb.HitstopFrames > 0 || attacker.Stocks <= 0) continue;
+                int targetPlayerID = attacker.PlayerID == 0 ? 1 : 0;
+                if (!FighterEntityQueries.TryFindFighter(ref frame, targetPlayerID, out EntityRef targetEntity)) continue;
+                ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
+                int facing = FighterKitMotion.SpiritFacing(runtime.UniversalMovementDirection);
+                FPVector2 eagle = FighterKitMotion.EagleCenter(
+                    in attacker.Position, facing, FighterKitMotion.SpiritCarryFrameIndex(in runtime));
+                if (!FighterEntityQueries.Overlaps(
+                        in eagle, in FighterKitMotion.EagleHalfExtents,
+                        in target.Position, in FighterHalfExtents)) continue;
+
+                FighterKitMotion.MarkSpiritEagleStruck(ref runtime);
+                ref readonly FighterTuningComponent attackerTuning = ref frame.GetReadOnly<FighterTuningComponent>(entity);
+                ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
+                ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
+                ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
+                ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
+                FighterDamageRules.ApplyFighterHit(
+                    ref attacker, ref runtime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
+                    FighterDamageRules.SpecialAttackClass,
+                    attackerTuning.SpecialOneDamage,
+                    attackerTuning.SpecialOneKnockback,
+                    FighterKitMotion.SpiritStrikeHitstunFrames,
+                    attackerTuning.SpecialOneStatusType,
+                    attackerTuning.SpecialOneStatusFrames,
+                    attackerTuning.SpecialOneStatusIntensity,
+                    attacker.Position.x);
+            }
+        }
+
+        private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
         // Fortissimo lob in sim units (60 px = 1 unit): 200 px/s launch, 350 px/s² pull.
         private static readonly FP64 LobLaunchSpeed = FP64.FromDouble(200.0 / 60.0);
@@ -1355,8 +1437,14 @@ namespace FTT.FighterSim {
                 fighter.IsGrounded = 0;
             } else if (modes.MovementType == 2) {
                 fighter.Velocity.x = speed * FP64.FromInt(facing);
+            } else if (modes.MovementType == 0) {
+                // Package 12 W4: Tesla's Lightning Blink is no longer an instant
+                // teleport. It runs 6 startup / 12 translation / 10 recovery
+                // frames as a kit phase (FighterKitMotion), and projectiles pass
+                // through him during the translation only.
+                FighterKitMotion.StartBlink(ref runtime, facing);
             } else {
-                // Blink/Teleport/Warp travel in the held input direction (world Y is
+                // Teleport/Warp travel in the held input direction (world Y is
                 // up, so a negative MoveY stick value means an upward warp).
                 int directionX = runtime.MoveX > 30 ? 1 : runtime.MoveX < -30 ? -1 : 0;
                 int directionY = runtime.MoveY < -30 ? 1 : runtime.MoveY > 30 ? -1 : 0;
@@ -1387,6 +1475,35 @@ namespace FTT.FighterSim {
 
     public sealed class FighterProjectileSystem : ISystem {
         private static readonly FP64 FixedDelta = FP64.One / FP64.FromInt(60);
+        private readonly FighterHitContractTable _contracts;
+
+        public FighterProjectileSystem(FighterHitContractTable contracts = null) {
+            _contracts = contracts ?? FighterHitContractTable.Default;
+        }
+
+        /// <summary>
+        /// M08/M05 (Package 12 W3b): a projectile's hitstun and launch flag come
+        /// from its owner's authored contract for the slot the projectile type
+        /// encodes (<c>CharacterID * 10 + slot</c>; an Ultimate-origin shot reads
+        /// the Ultimate). A slot with no projected contract keeps the value the
+        /// projectile was spawned with and launches, the legacy behaviour.
+        /// </summary>
+        internal static void ResolveProjectileContract(
+            FighterHitContractTable contracts, in FighterProjectileComponent projectile,
+            out int hitstunFrames, out bool launches) {
+            int slot = projectile.UltimateOrigin != 0
+                ? FighterHitContractTable.SlotUltimate
+                : projectile.ProjectileTypeID % 10;
+            hitstunFrames = projectile.HitstunFrames;
+            launches = true;
+            if (slot != FighterHitContractTable.SlotSpecialOne
+                && slot != FighterHitContractTable.SlotSpecialTwo
+                && slot != FighterHitContractTable.SlotUltimate) return;
+            FighterAbilityHitData contract = contracts.For(projectile.OwnerPlayerID, slot);
+            if (contract.HitstunFrames <= 0) return;
+            hitstunFrames = contract.HitstunFrames;
+            launches = contract.Launches;
+        }
         private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
         public void Update(ref Frame frame) {
@@ -1414,6 +1531,11 @@ namespace FTT.FighterSim {
                 if (!FighterEntityQueries.Overlaps(
                         in projectile.Position, in projectile.HalfExtents,
                         in target.Position, in FighterHalfExtents)) continue;
+                // Package 12 W4 (Tesla kit rule): during the Lightning Blink
+                // translation the shot passes straight through — no contact, and
+                // it is not consumed. Derived from the existing movement phase.
+                if (FighterKitMotion.PassesThroughProjectiles(
+                        in frame.GetReadOnly<FighterRuntimeComponent>(targetEntity))) continue;
 
                 ref FighterStateComponent owner = ref frame.Get<FighterStateComponent>(ownerEntity);
                 ref FighterRuntimeComponent ownerRuntime = ref frame.Get<FighterRuntimeComponent>(ownerEntity);
@@ -1422,15 +1544,17 @@ namespace FTT.FighterSim {
                 ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
                 ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
+                ResolveProjectileContract(_contracts, in projectile, out int projectileHitstun, out bool projectileLaunches);
                 FighterDamageRules.ApplyFighterHit(
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     projectile.AttackClass, projectile.Damage, projectile.Knockback.x,
-                    projectile.HitstunFrames, projectile.StatusType, projectile.StatusFrames,
+                    projectileHitstun, projectile.StatusType, projectile.StatusFrames,
                     projectile.StatusIntensity, projectile.Position.x,
                     // V7.6 D03h (Package 11 A1b): an Ultimate-spawned projectile
                     // awards its caster no damage-dealt meter. A player-fired
                     // ordinary projectile still reclaims Rally (D03g) either way.
-                    creditInfluence: projectile.UltimateOrigin == 0);
+                    creditInfluence: projectile.UltimateOrigin == 0,
+                    launches: projectileLaunches);
                 frame.DestroyEntity(projectileEntity);
             }
         }
@@ -1495,7 +1619,10 @@ namespace FTT.FighterSim {
                     persistent.ObjectTypeID == NestObjectTypeID ? NestBiteHitstunFrames : 10,
                     persistent.StatusType, persistent.StatusFrames, FP64.One, persistent.Position.x,
                     collectsEcho: false,
-                    appliesHitstop: false);
+                    appliesHitstop: false,
+                    // M05: construct hits are authored non-launching (all four
+                    // construct abilities carry Launches = false).
+                    launches: false);
                 persistent.ActionCooldownFrames = persistent.BaseActionCooldownFrames;
                 if (persistent.RemainingAttacks > 0) persistent.RemainingAttacks--;
             }
@@ -1568,7 +1695,8 @@ namespace FTT.FighterSim {
                     FighterDamageRules.BasicAttackClass, FenceDamage, FP64.Zero, FenceHitstunFrames,
                     (int)StatusType.StaticCharge, FenceStaticChargeFrames, FP64.FromDouble(0.5),
                     fenceCenter.x, collectsEcho: false,
-                    appliesHitstop: false);
+                    appliesHitstop: false,
+                    launches: false);
             }
         }
     }
@@ -2402,14 +2530,11 @@ namespace FTT.FighterSim {
                 ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
 
-                // Tesla's Lorentz Pulse chains lightning through active coils when
-                // the target is primed with StaticCharge; the check runs before the
-                // pulse applies its own status (newest status replaces previous).
+                // Package 12 W4 (GAP-10a): the Lorentz chain no longer keys off
+                // Static Charge (F07 made that a pure interrupt). It reads this
+                // Tesla's Conductive MARK after the pulse lands — see
+                // TryResolveLorentzChain below.
                 int pulseDamage = zone.Damage;
-                if (zone.ZoneTypeID == (int)FighterCharacterID.Tesla * 10 + 2
-                    && targetRuntime.StatusType == (int)StatusType.StaticCharge) {
-                    pulseDamage += CoilArcDamage * CountLiveCoils(ref frame, zone.OwnerPlayerID);
-                }
 
                 // Two zones carry real impulse on their pulses; every other zone
                 // stays an impulse-free tick by design. Lincoln's Emancipator
@@ -2486,17 +2611,70 @@ namespace FTT.FighterSim {
                 // collectsEcho: true and therefore did reclaim.
                 // V7.6 D03h: an Ultimate-spawned zone earns its caster zero
                 // damage-dealt meter; ZoneTypeID's slot digit is the origin.
-                FighterDamageRules.ApplyFighterHit(
+                bool pulseLanded = FighterDamageRules.ApplyFighterHit(
                     ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     pulseAttackClass, pulseDamage, pulseKnockback, pulseHitstunFrames,
                     zone.StatusType, zone.StatusFrames, zone.StatusIntensity, zone.Position.x,
                     creditInfluence: !ultimateZone,
                     collectsEcho: false,
                     appliesHitstop: false);
+
+                if (pulseLanded && zone.ZoneTypeID == (int)FighterCharacterID.Tesla * 10 + 2) {
+                    TryResolveLorentzChain(
+                        ref frame, in zone, targetEntity,
+                        ref attacker, ref attackerRuntime, ref attackerVerb,
+                        ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning);
+                }
             }
         }
 
-        private const int CoilArcDamage = 5;
+        /// <summary>
+        /// Package 12 W4 (GAP-10a, F07): the Lorentz chain consumer. A pulse tick
+        /// that LANDED (not blocked, absorbed or invulnerable) on a target
+        /// carrying THIS Tesla's unexpired Conductive mark, while he has at least
+        /// one live coil, consumes the mark through
+        /// <see cref="FighterConductiveRules.TryConsumeChain"/> — keyed on the
+        /// pulse's own entity ID, so the pulse chains that target at most once
+        /// however many ticks it lands and a rollback replay cannot duplicate it
+        /// — and resolves one chain: each live coil arcs
+        /// <see cref="CoilArcDamage"/> into the target. Another Tesla's mark,
+        /// Static Charge alone, or no coil never chains, and with no coil the
+        /// mark is left to expire. Chain hits create no mark and never chain
+        /// recursively; like every coil arc they reclaim no Rally (D03g) and
+        /// carry no hitstop.
+        /// </summary>
+        private static void TryResolveLorentzChain(
+            ref Frame frame,
+            in FighterZoneComponent zone,
+            EntityRef targetEntity,
+            ref FighterStateComponent attacker,
+            ref FighterRuntimeComponent attackerRuntime,
+            ref FighterVerbComponent attackerVerb,
+            ref FighterStateComponent target,
+            ref FighterRuntimeComponent targetRuntime,
+            ref FighterVerbComponent targetVerb,
+            ref FighterDefenseComponent targetDefense,
+            in FighterTuningComponent targetTuning) {
+            int coils = CountLiveCoils(ref frame, zone.OwnerPlayerID);
+            if (coils <= 0) return;
+            ref FighterConductiveComponent mark = ref frame.Get<FighterConductiveComponent>(targetEntity);
+            // Execution IDs must be non-zero; entity IDs start at zero.
+            if (!FighterConductiveRules.TryConsumeChain(ref mark, zone.OwnerPlayerID, zone.EntityID + 1)) return;
+            // Consumed: the mark is spent, the per-execution guard stays set.
+            mark.FramesRemaining = 0;
+            mark.SourcePlayerID = -1;
+            FighterDamageRules.ApplyFighterHit(
+                ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
+                FighterDamageRules.SpecialAttackClass, CoilArcDamage * coils, FP64.Zero, LorentzChainHitstunFrames,
+                (int)StatusType.None, 0, FP64.One, zone.Position.x,
+                collectsEcho: false,
+                appliesHitstop: false);
+        }
+
+        /// <summary>Per-coil chain arc damage (the coil's own arc, mirrored by Story's <c>TeslaCoilNode.ArcDamage</c>).</summary>
+        internal const int CoilArcDamage = 5;
+        /// <summary>Story's chain arcs carry a 0.1 s hitstun.</summary>
+        private const int LorentzChainHitstunFrames = 6;
         private const int CoilObjectTypeID = 1;
         private const int EmancipatorHitstunFrames = 18;
         private const int TempestHitstunFrames = 10;

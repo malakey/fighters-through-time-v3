@@ -384,7 +384,13 @@ namespace FTT.FighterSim {
             // grabbing fighter has no functioning shield (V7.3) — the committed
             // escape stance must never convert itself into a grab attempt.
             held = GameplayButtons.Block;
-            if (_hitstunDiActive && hitstun > 0 && observation.HasStageBounds != 0) {
+            // M05 (Package 12 W3b): DI only matters on a LAUNCH. A non-launching
+            // hit leaves a grounded victim on the floor (grounded knockback), so
+            // an airborne body in hitstun is the input-side read of "launched" —
+            // the grounded hitstun of hits 1-2 gets the Block hold (the hit-2
+            // escape) and no stick. Input-side only; the sim is untouched.
+            if (_hitstunDiActive && hitstun > 0 && observation.IsGrounded == 0
+                && observation.HasStageBounds != 0) {
                 moveX = ResolveDiHold(in observation);
             }
             return held;
@@ -890,10 +896,9 @@ namespace FTT.FighterSim {
                 return held | GameplayButtons.Jump;
             }
             // The validated optional mobility Special. CPU_RECOVERY.md forbids
-            // casting a Special merely because it occupies a slot, and
-            // CpuRecoveryProfile approves none for any of the nine characters
-            // today, so this branch is unreachable in the shipped build — it
-            // exists so approving one is a profile edit, not a planner rewrite.
+            // casting a Special merely because it occupies a slot, so only a
+            // CpuRecoveryProfile approval reaches this branch — since Package 12
+            // W4 that is Pocahontas's Spirit Strike alone (GAP-10b).
             if (_profile.MobilitySpecial != CpuMobilitySpecialSlot.None
                 && _tuning.RecoveryMobilitySpecialPercent > 0
                 && MobilitySpecialActivationsAllowed()
@@ -1572,9 +1577,8 @@ namespace FTT.FighterSim {
         /// retired <c>RecoverySpecialTwoPercent</c>, whose whole premise — that
         /// slot 2 is a universal recovery move — the design rejects: "Special 2 is
         /// not a universal recovery move", and Specials are forbidden outright on
-        /// Easy. No character approves one today, so the rate is currently inert on
-        /// every band; it is not zero because approving a Special later must be a
-        /// profile edit, not a tuning archaeology exercise.
+        /// Easy. Only Pocahontas approves one (Spirit Strike, Package 12 W4), so
+        /// this rate is live for her alone on Medium and Hard.
         /// </summary>
         public int RecoveryMobilitySpecialPercent { get; init; }
         /// <summary>

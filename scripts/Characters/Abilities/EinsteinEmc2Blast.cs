@@ -87,7 +87,7 @@ namespace FTT.Characters.Abilities {
                     burstDamage *= EventHorizonDamageMultiplier;
                 }
 
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "einstein_mass_energy_conversion",
                     HitboxID = "burst",
@@ -109,7 +109,8 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.3f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                float dealt = hurtbox.TakeHit(hit);
+                Credit(in hit, dealt);
                 // dealt > 0 is exactly "the hit resolved into real damage":
                 // a block, an invulnerable target and a DoT-only contact all
                 // return zero, which is the design's gating list.

@@ -24,12 +24,11 @@ namespace FTT.Tests.Determinism;
 /// game ships. That is why the suite requires the Godot runtime.
 /// </para>
 /// <para>
-/// <b>No profile approves an optional mobility Special.</b> Eight characters have
-/// no candidate at all, and Pocahontas's Spirit Strike — the one candidate the
-/// contract names — is rejected because the shipped simulation translates the
-/// caster only inside the movement-ability path, so its "forced diagonal-up dash"
-/// is unimplemented. The contract's own answer applies: "Reject missing or
-/// unvalidated optional Special mappings; fall back to verified jumps/movement."
+/// <b>Exactly one profile approves an optional mobility Special.</b> Eight
+/// characters have no candidate at all. Pocahontas's Spirit Strike — the one
+/// candidate the contract names — was rejected until Package 12 W4 gave the sim
+/// its forced diagonal-up dash (<c>FighterKitMotion</c>); it is now approved as
+/// Special 1, and <c>CpuRecoveryMatrixTests</c> drills it.
 /// </para>
 /// </remarks>
 [TestSuite]
@@ -123,25 +122,31 @@ public class CpuRecoveryProfileTests {
     }
 
     [TestCase]
-    public void PocahontasPlansBreezeGlideWithItsJumpResetAndRejectsSpiritStrike() {
+    public void PocahontasPlansBreezeGlideWithItsJumpResetAndApprovesSpiritStrike() {
         CpuRecoveryProfile profile = AssertProfile(
             "pocahontas",
             movementAbilityID: "pocahontas_breeze_glide",
             expectedMovementKind: CpuRecoveryProfile.MovementKindGlide,
             excludedAbilityID: "pocahontas_vine_snare",
-            excludedSlot: 2);
+            excludedSlot: 2,
+            expectedMobilitySpecial: CpuMobilitySpecialSlot.SpecialOne);
         // "the baseline double-jump reset; the reset can supply another legal
         // jump within the same plan."
         AssertThat(profile.MovementResetsJump).IsTrue();
-        // The one named candidate, rejected after validation: Spirit Strike is
-        // authored as a Melee execution and the simulation translates the caster
-        // only inside ApplyMovement, so the design's forced diagonal-up dash does
-        // not exist to plan against.
+        // GAP-10b (Package 12 W4): the one named candidate, approved after the
+        // validation the contract asks for — the sim now carries her 3 units
+        // up-forward at 45 degrees (PocahontasSpiritStrikeSimTests), and the
+        // approval names Special 1, never Vine Snare in Special 2.
         AbilityData spiritStrike = AuthoredResources.Load<AbilityData>(
             "res://resources/Abilities/pocahontas/special_1.tres");
         AssertThat(spiritStrike.AbilityID).IsEqual("pocahontas_spirit_strike");
-        AssertThat(spiritStrike.ExecutionType).IsEqual(AbilityExecutionType.Melee);
-        AssertThat(profile.MobilitySpecial).IsEqual(CpuMobilitySpecialSlot.None);
+        AssertThat(profile.MobilitySpecial).IsEqual(CpuMobilitySpecialSlot.SpecialOne);
+        foreach (FighterCharacterID other in System.Enum.GetValues<FighterCharacterID>()) {
+            if (other == FighterCharacterID.Pocahontas) continue;
+            AssertThat(CpuRecoveryProfile.MobilitySpecialFor(other))
+                .OverrideFailureMessage($"{other} must not approve a mobility Special.")
+                .IsEqual(CpuMobilitySpecialSlot.None);
+        }
     }
 
     /// <summary>
@@ -154,7 +159,8 @@ public class CpuRecoveryProfileTests {
         string movementAbilityID,
         int expectedMovementKind,
         string excludedAbilityID,
-        int excludedSlot) {
+        int excludedSlot,
+        CpuMobilitySpecialSlot expectedMobilitySpecial = CpuMobilitySpecialSlot.None) {
         CharacterData data = AuthoredResources.Load<CharacterData>(
             $"res://resources/Characters/{characterID}_data.tres");
         AssertThat(data).IsNotNull();
@@ -178,10 +184,11 @@ public class CpuRecoveryProfileTests {
         AssertThat(profile.MaxJumpCount).IsEqual(loadout.MaxJumpCount);
         AssertThat(profile.MovementCooldownFrames)
             .IsEqual(loadout.AbilityModes.MovementCooldownFrames);
-        // No character approves an optional mobility Special today.
+        // Only an explicitly validated slot is ever a capability (Pocahontas's
+        // Spirit Strike since Package 12 W4); a slot number never is.
         AssertThat(profile.MobilitySpecial)
             .OverrideFailureMessage($"{characterID} must not treat a Special slot as a capability.")
-            .IsEqual(CpuMobilitySpecialSlot.None);
+            .IsEqual(expectedMobilitySpecial);
 
         foreach (CpuDifficulty band in new[] {
                      CpuDifficulty.Easy, CpuDifficulty.Normal, CpuDifficulty.Hard }) {
@@ -190,19 +197,30 @@ public class CpuRecoveryProfileTests {
             PlayerInputFrame previous = default;
             int movementEdges = 0;
             int specialEdges = 0;
+            int unapprovedSpecialEdges = 0;
             for (uint tick = 0; tick < Ticks; tick++) {
                 PlayerInputFrame frame = cpu.Sample(tick, in observation, in previous);
                 previous = frame;
                 if (frame.IsPressed(GameplayButtons.MovementAbility)) movementEdges++;
-                if (frame.IsPressed(GameplayButtons.Special1)
-                    || frame.IsPressed(GameplayButtons.Special2)) specialEdges++;
+                bool one = frame.IsPressed(GameplayButtons.Special1);
+                bool two = frame.IsPressed(GameplayButtons.Special2);
+                if (one || two) specialEdges++;
+                if ((one && expectedMobilitySpecial != CpuMobilitySpecialSlot.SpecialOne)
+                    || (two && expectedMobilitySpecial != CpuMobilitySpecialSlot.SpecialTwo)) {
+                    unapprovedSpecialEdges++;
+                }
             }
             AssertThat(movementEdges > 0)
                 .OverrideFailureMessage($"{characterID} on {band} never attempted its movement ability.")
                 .IsTrue();
-            AssertThat(specialEdges)
-                .OverrideFailureMessage($"{characterID} on {band} cast a Special to recover.")
+            AssertThat(unapprovedSpecialEdges)
+                .OverrideFailureMessage($"{characterID} on {band} cast an unapproved Special to recover.")
                 .IsEqual(0);
+            if (band == CpuDifficulty.Easy || expectedMobilitySpecial == CpuMobilitySpecialSlot.None) {
+                AssertThat(specialEdges)
+                    .OverrideFailureMessage($"{characterID} on {band} cast a Special to recover.")
+                    .IsEqual(0);
+            }
         }
         return profile;
     }

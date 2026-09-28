@@ -96,10 +96,18 @@ public class FighterHazardBehaviorTests {
 
         harness.StepWhileWarning(FP64.Zero);
         int hpBefore = harness.Fighter(0).CurrentHP;
-        for (int frame = 0; frame < 120; frame++) harness.StepToward(FP64.Zero);
+        // M05 (Package 12 W3b): the grid's shock still launches, so a victim who
+        // misses the tech lies in the invulnerable knockdown and its Static
+        // Charge can run out before frame 120 — the status is asserted as
+        // APPLIED during the window rather than still live at its end.
+        bool charged = false;
+        for (int frame = 0; frame < 120; frame++) {
+            harness.StepToward(FP64.Zero);
+            if (harness.Runtime(0).StatusType == (int)StatusType.StaticCharge) charged = true;
+        }
 
         AssertThat(harness.Fighter(0).CurrentHP < hpBefore).IsTrue();
-        AssertThat(harness.Runtime(0).StatusType).IsEqual((int)StatusType.StaticCharge);
+        AssertThat(charged).OverrideFailureMessage("The induction grid must apply Static Charge.").IsTrue();
     }
 
     [TestCase]

@@ -271,6 +271,27 @@ public class Level04ATeslaContentTests {
             .OverrideFailureMessage("The movement gate's landing box must sit past the gap.").IsTrue();
     }
 
+    [TestCase]
+    public void TheRetimedBlinkStillArrivesInsideTheTraversalGateWindow() {
+        // Package 12 W4 retimed Lightning Blink to 6 startup / 12 translation /
+        // 10 recovery frames over 3.0 units. The Traversal gate counts an arrival
+        // while the hero is UsingMovementAbility and for TraversalGraceFrames
+        // after; the translation must finish inside the cast so the landing is
+        // counted even before the grace window, and the whole action must fit
+        // the design's 1 s cap.
+        var blink = AuthoredResources.Load<FTT.Combat.MovementAbilityData>(
+            "res://resources/Abilities/tesla/movement.tres");
+        int translationEnds = blink.StartupFrames + blink.ActiveFrames;
+        int castEnds = translationEnds + blink.RecoveryFrames;
+        AssertThat(translationEnds < castEnds).IsTrue();
+        AssertThat(castEnds + LegacyKitGate.TraversalGraceFrames > translationEnds).IsTrue();
+        AssertThat(castEnds <= 60).IsTrue();
+        AssertFloat(blink.DistanceMoved).IsEqual(180f);
+        using var fixture = new LegacyFixture();
+        AssertThat(fixture.Level.MovementGate.Mode).IsEqual(LegacyGateMode.Traversal);
+        AssertString(fixture.Level.MovementGate.RequiredAbilityID).IsEqual(blink.AbilityID);
+    }
+
     // === Locked encounter economy ===
 
     [TestCase]

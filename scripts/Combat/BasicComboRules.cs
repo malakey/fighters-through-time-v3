@@ -91,6 +91,16 @@ namespace FTT.Combat {
         /// </summary>
         public readonly int FinisherMarkFrames;
 
+        /// <summary>
+        /// M07 (Package 12 W3b): hit 2 is authored as a launcher. Only Lincoln's
+        /// "heavy upward vertical swing that launches" sets it; every other
+        /// profile keeps the shared <see cref="BasicComboRules.StringHitLaunches"/>
+        /// row (hits 1–2 non-launching). A launching hit 2 gives its victim DI,
+        /// tumble and the landing tech instead of the grounded hit-2 block escape,
+        /// and it is exempt from the hit 2 → finisher guarantee.
+        /// </summary>
+        public readonly bool Hit2Launches;
+
         public BasicStringProfile(
             int groundOpenerStartup, int groundFinisherStartup,
             int aerialOpenerStartup, int aerialFinisherStartup,
@@ -102,7 +112,8 @@ namespace FTT.Combat {
             int hit2VerticalLaunchTenths = 10,
             int finisherKnockbackTenths = 45,
             int finisherMarkType = 0,
-            int finisherMarkFrames = 0) {
+            int finisherMarkFrames = 0,
+            bool hit2Launches = false) {
             GroundStartupFrames = new[] {
                 groundOpenerStartup, BasicComboRules.GroundStartupFrames[1], groundFinisherStartup };
             AerialStartupFrames = new[] {
@@ -117,6 +128,7 @@ namespace FTT.Combat {
             FinisherKnockbackTenths = finisherKnockbackTenths;
             FinisherMarkType = finisherMarkType;
             FinisherMarkFrames = finisherMarkFrames;
+            Hit2Launches = hit2Launches;
         }
     }
 
@@ -210,9 +222,11 @@ namespace FTT.Combat {
                 { "einstein",    new BasicStringProfile(7, 16, 6, 13,  8, 10, 15, 110, 100) },
                 { "shakespeare", new BasicStringProfile(7, 16, 6, 13,  8, 10, 15, 105, 100) },
                 // Lincoln's "heavy upward vertical swing that launches" hit 2
-                // (kit brief): double the bridge's vertical lift.
+                // (kit brief): double the bridge's vertical lift, and (M07,
+                // Package 12 W3b) the one authored launching hit 2.
                 { "lincoln",     new BasicStringProfile(8, 17, 7, 14,  7,  9, 17,  85, 115,
-                    hit2VerticalLaunchTenths: 20) }
+                    hit2VerticalLaunchTenths: 20,
+                    hit2Launches: true) }
             };
 
         /// <summary>
@@ -255,11 +269,28 @@ namespace FTT.Combat {
         /// <summary>
         /// M05/M08 (Package 12 W3): the authored launch flag per string hit — the
         /// finisher launches; hits 1 and 2 do not. Lincoln's launching hit 2
-        /// (M07) is a per-profile override W3b adds with the semantics. DATA ONLY
-        /// in W3: nothing reads it for behaviour yet, and until W3b every hit
-        /// with a knockback vector still launches.
+        /// (M07) is the per-profile override <see cref="BasicStringProfile.Hit2Launches"/>;
+        /// read a character's row through <see cref="StringHitLaunchesFor(BasicStringProfile,int)"/>.
+        /// Since W3b this is behaviour, in both modes: only a launching hit grants
+        /// DI, tumble and the landing tech; a non-launching hit is grounded
+        /// knockback on a grounded victim.
         /// </summary>
         public static readonly bool[] StringHitLaunches = { false, false, true };
+
+        /// <summary>
+        /// M05/M07: whether string hit <paramref name="step"/> (0-based) of the
+        /// given profile launches. Hit 2 reads the profile override; hits 1 and 3
+        /// read the shared row. The one lookup both modes use.
+        /// </summary>
+        public static bool StringHitLaunchesFor(BasicStringProfile profile, int step) {
+            int clamped = step < 0 ? 0 : step > ComboHits - 1 ? ComboHits - 1 : step;
+            if (clamped == 1 && profile != null && profile.Hit2Launches) return true;
+            return StringHitLaunches[clamped];
+        }
+
+        /// <summary>M05/M07: <see cref="StringHitLaunchesFor(BasicStringProfile,int)"/> by character ID.</summary>
+        public static bool StringHitLaunchesFor(string characterID, int step) =>
+            StringHitLaunchesFor(StringProfileFor(characterID), step);
 
         /// <summary>M05: the Up-Attack and the Down-Air are launchers.</summary>
         public const bool DirectionalAttackLaunches = true;
@@ -608,6 +639,51 @@ namespace FTT.Combat {
         /// the full hitstun out.
         /// </summary>
         public const int LandingTechRecoveryFrames = 12;
+
+        // === M05 knockdown and get-up (Package 12 W3b; values provisional
+        // pending F09 validation) ===
+
+        /// <summary>
+        /// A tumbling victim who misses the tech lands in a knockdown — a
+        /// sub-phase of <c>Stunned</c> — and is fully invulnerable for this many
+        /// frames after the landing frame. No hit, grab, meter or Rally can be
+        /// earned from a downed fighter.
+        /// </summary>
+        public const int KnockdownFrames = 30;
+
+        /// <summary>Neutral get-up: stand in place, no invulnerability, no actions.</summary>
+        public const int NeutralGetUpFrames = 10;
+
+        /// <summary>
+        /// Roll get-up: 14 frames of travel in the held direction at the evasive
+        /// roll's speed, no invulnerability, no actions (animation <c>roll_recovery</c>).
+        /// </summary>
+        public const int RollGetUpFrames = 14;
+
+        /// <summary>Get-up kinds (component 320 / Story mirror). 0 = none.</summary>
+        public const int GetUpNone = 0;
+        public const int GetUpNeutral = 1;
+        public const int GetUpRoll = 2;
+
+        /// <summary>
+        /// Story's horizontal-input threshold for choosing the roll get-up; the
+        /// sim uses the quantized equivalent |MoveX| &gt; 30 (of 127).
+        /// </summary>
+        public const float GetUpRollInputThreshold = 0.25f;
+
+        /// <summary>
+        /// The one get-up choice, read on the frame the knockdown ends: a held
+        /// horizontal direction rolls that way; no input (or a centred stick)
+        /// stands up in place.
+        /// </summary>
+        public static int SelectGetUp(int horizontalDirection) =>
+            horizontalDirection != 0 ? GetUpRoll : GetUpNeutral;
+
+        /// <summary>Frames the chosen get-up lasts.</summary>
+        public static int GetUpFramesFor(int getUpKind) =>
+            getUpKind == GetUpRoll ? RollGetUpFrames
+            : getUpKind == GetUpNeutral ? NeutralGetUpFrames
+            : 0;
 
         /// <summary>
         /// Ledge V7.3: ledge grabs allowed per airtime — the fourth grab in one
