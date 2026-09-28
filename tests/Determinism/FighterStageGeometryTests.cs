@@ -394,10 +394,11 @@ public class FighterStageGeometryTests {
                 stageHazardTypeID: 1);
             var simulation = new FighterSimulation(seed: seed++, rules: rules, stageGeometry: geometry);
 
-            // The first orb lands on the High-frequency 660-frame boundary, while
+            // The first orb lands inside the High-frequency 600-720 frame window
+            // (M23, Package 12 W5: a seeded time, no longer a fixed 660), while
             // both fighters are still idle at their spawns and cannot have walked
             // into it.
-            for (int tick = 0; tick < 665; tick++) simulation.Advance(default, default);
+            for (int tick = 0; tick < 725; tick++) simulation.Advance(default, default);
             AssertThat(simulation.TryGetFirstOrb(out FighterOrbComponent orb)).IsTrue();
             bool orbOnAnchor = false;
             foreach (FPVector2 anchor in geometry.OrbAnchors) {

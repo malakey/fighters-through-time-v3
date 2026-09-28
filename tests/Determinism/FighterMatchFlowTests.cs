@@ -888,14 +888,14 @@ public class FighterMatchFlowTests {
             rules: new FighterMatchRules((int)MatchMode.TimeLimit, true, 3, false, 0),
             stageGeometry: FighterStageGeometry.Florence);
 
-        // High frequency spawns the first orb at 660 ticks; the buzzer is 780.
-        for (int tick = 0; tick < 700; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+        // High frequency spawns the first orb inside 600-720 ticks (M23); the buzzer is 780.
+        for (int tick = 0; tick < 730; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
         AssertThat(simulation.OrbCount)
             .OverrideFailureMessage("Harness: an orb must be live before the buzzer.")
             .IsEqual(1);
         AssertThat(simulation.GetMatchState().SuddenDeathActive).IsEqual(0);
 
-        for (int tick = 700; tick < 790; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
+        for (int tick = 730; tick < 790; tick++) simulation.Advance(Neutral(tick), Neutral(tick));
         FighterMatchComponent match = simulation.GetMatchState();
         AssertThat(match.SuddenDeathActive).IsEqual(1);
         AssertThat(simulation.OrbCount)

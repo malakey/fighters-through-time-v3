@@ -505,8 +505,8 @@ public class CharacterSelectSceneTests {
         try {
             screen.SeedOverride = seed;
             // Both players move to the Random tile (the last grid cell).
-            while (screen.GetCursor(0) != screen.RandomTileIndex) screen.TryMoveCursor(0, 1, 0);
-            while (screen.GetCursor(1) != screen.RandomTileIndex) screen.TryMoveCursor(1, 1, 0);
+            MoveCursorTo(screen, 0, screen.RandomTileIndex);
+            MoveCursorTo(screen, 1, screen.RandomTileIndex);
             AssertThat(screen.TryConfirm(0)).IsTrue();
             AssertThat(screen.TryConfirm(1)).IsTrue();
             screen.AdvanceCountdown(3.5f);
@@ -621,6 +621,22 @@ public class CharacterSelectSceneTests {
         AssertThat(screen.TryConfirm(1)).IsTrue();
         AssertThat(screen.Phase).IsEqual(SelectScreenPhase.Countdown);
         screen.AdvanceCountdown(3.5f);
+    }
+
+    /// <summary>
+    /// Steps a token onto a grid index: column first (a horizontal step wraps
+    /// within its row), then row. Bounded, so a layout change fails instead of
+    /// hanging the runner.
+    /// </summary>
+    private static void MoveCursorTo(CharacterSelectScreen screen, int player, int target) {
+        const int columns = 3;
+        for (int step = 0; step < 12 && screen.GetCursor(player) % columns != target % columns; step++) {
+            screen.TryMoveCursor(player, 1, 0);
+        }
+        for (int step = 0; step < 12 && screen.GetCursor(player) != target; step++) {
+            screen.TryMoveCursor(player, 0, 1);
+        }
+        AssertThat(screen.GetCursor(player)).IsEqual(target);
     }
 
     private static void AssertChainAuthored(IReadOnlyList<Control> chain) {
