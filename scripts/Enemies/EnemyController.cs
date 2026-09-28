@@ -567,6 +567,21 @@ namespace FTT.Enemies {
                 : CollisionLayers.EnemyBodyMask;
         }
 
+        /// <summary>
+        /// Package 12 W4 (GAP-10c): where this enemy aims — the target's live
+        /// Cleopatra sand decoy while one stands (design: "enemies briefly target
+        /// it, 1 s"), otherwise the target itself.
+        /// </summary>
+        public Vector2 TargetAimPosition =>
+            _target == null
+                ? GlobalPosition
+                : FTT.Characters.Abilities.SandDecoyNode.TryGetLure(_target, out Vector2 lure)
+                    ? lure
+                    : _target.GlobalPosition;
+
+        /// <summary>Package 12 W4 test seam: pins the chase target without an aggro scan.</summary>
+        internal void SetChaseTargetForTest(FTT.Characters.PlayerController target) => _target = target;
+
         private float MoveSpeedPixels => (Data?.MoveSpeed ?? 3f) * PixelsPerUnit * StatusMoveMultiplier;
 
         private void ProcessPatrol(float dt) {
@@ -615,7 +630,10 @@ namespace FTT.Enemies {
                 return;
             }
 
-            float dist = GlobalPosition.DistanceTo(_target.GlobalPosition);
+            // Package 12 W4 (GAP-10c): a live sand decoy of the target's is what
+            // the enemy approaches and strikes for its one-second life.
+            Vector2 aim = TargetAimPosition;
+            float dist = GlobalPosition.DistanceTo(aim);
             if (dist > (Data?.DeAggroRadius ?? 600f)) {
                 StartReturning();
                 return;
@@ -632,7 +650,7 @@ namespace FTT.Enemies {
                 return;
             }
 
-            Vector2 toTarget = _target.GlobalPosition - GlobalPosition;
+            Vector2 toTarget = aim - GlobalPosition;
             float sign = Mathf.Sign(toTarget.X);
             if (sign != 0) SetFacing(sign > 0);
 
@@ -725,7 +743,7 @@ namespace FTT.Enemies {
                 // hitbox and dash direction on the facing captured at Begin — a
                 // sprite that kept tracking would telegraph a hit that then lands
                 // behind the enemy (audit M-19; BossController has the same rule).
-                if (_target != null) SetFacing(_target.GlobalPosition.X >= GlobalPosition.X);
+                if (_target != null) SetFacing(TargetAimPosition.X >= GlobalPosition.X);
                 return;
             }
 
@@ -759,7 +777,9 @@ namespace FTT.Enemies {
         /// </summary>
         public void BeginAttack(EnemyAbilityData ability = null) {
             ability ??= SelectNextAttack();
-            Vector2 targetPosition = _target?.GlobalPosition ?? GlobalPosition + new Vector2(_facingRight ? 100f : -100f, 0f);
+            Vector2 targetPosition = _target != null
+                ? TargetAimPosition
+                : GlobalPosition + new Vector2(_facingRight ? 100f : -100f, 0f);
             // V7.2 classification: elite signature abilities are Guard-Crush
             // (2 charges, orange telegraph); mobs never carry unblockables.
             // V7.6 (A7a): an ability may opt OUT of that implicit elite flag with

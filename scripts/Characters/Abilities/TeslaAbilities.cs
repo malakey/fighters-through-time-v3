@@ -235,7 +235,7 @@ namespace FTT.Characters.Abilities {
                 bool primed = TargetHasConductiveMark(hurtbox, Owner.PlayerIndex);
                 if (attraction) PullTargetTowardOwner(hurtbox);
 
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "tesla_lorentz_pulse",
                     HitboxID = "pulse",
@@ -251,16 +251,22 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                float dealt = hurtbox.TakeHit(hit);
+                Credit(in hit, dealt);
 
-                if (primed) ChainLightningToCoils(hurtbox);
+                // F07 (Package 12 W4, parity with the sim's GAP-10a consumer): only
+                // a pulse that LANDED chains, only while one of his coils stands,
+                // and the chain CONSUMES the mark — once per pulse per target.
+                if (primed && dealt > 0f && HasLiveCoil() && ConsumeConductiveMark(hurtbox)) {
+                    ChainLightningToCoils(hurtbox);
+                }
             }
         }
 
         private void ChainLightningToCoils(Hurtbox target) {
             foreach (Node2D node in Owner.ActivePersistentObjects) {
                 if (node is not TeslaCoilNode coil || !IsInstanceValid(coil) || coil.IsCoilDestroyed) continue;
-                float dealt = target.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "tesla_lorentz_pulse",
                     HitboxID = "chain_lightning",
@@ -275,9 +281,29 @@ namespace FTT.Characters.Abilities {
                     StatusIntensity = 1f,
                     ScreenShakeIntensity = 0.1f,
                     ScreenShakeDuration = 0.05f
-                });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                }, HitDelivery.Construct);
+                float dealt = target.TakeHit(hit);
+                Credit(in hit, dealt);
             }
+        }
+
+        private bool HasLiveCoil() {
+            foreach (Node2D node in Owner.ActivePersistentObjects) {
+                if (node is TeslaCoilNode coil && IsInstanceValid(coil) && !coil.IsCoilDestroyed) return true;
+            }
+            return false;
+        }
+
+        /// <summary>Removes the target's Conductive mark; true when one was there to consume.</summary>
+        private static bool ConsumeConductiveMark(Hurtbox hurtbox) {
+            Node current = hurtbox.GetParent();
+            while (current != null) {
+                if (current is PlayerController player) { player.ClearConductiveMark(); return true; }
+                if (current is FTT.Enemies.EnemyController enemy) { enemy.ClearConductiveMark(); return true; }
+                if (current is FTT.Enemies.BossController boss) { boss.ClearConductiveMark(); return true; }
+                current = current.GetParent();
+            }
+            return false;
         }
 
         private void PullTargetTowardOwner(Hurtbox hurtbox) {
@@ -322,28 +348,58 @@ namespace FTT.Characters.Abilities {
     }
 
     /// <summary>
-    /// Movement — Lightning Blink: Tesla becomes pure current and blinks a short
-    /// distance in the held input direction, usable in the air for recovery.
-    /// Distance, duration (capped at the design's 1 s limit), and cooldown come
-    /// from the authored MovementAbilityData resource.
+    /// Movement — Lightning Blink (design §5, timing 2026-09-26; Package 12 W4).
+    /// Tesla becomes pure current and blinks in the held input direction,
+    /// usable in the air for recovery: <b>6 frames</b> of spark gather, a
+    /// <b>12-frame (0.2 s) translation</b> covering <b>3.0 units</b> (3.5 with
+    /// the Story-only Long Blink node), then <b>10 frames</b> of recovery — 28
+    /// frames in all, inside the design's 1 s hard cap. Projectiles pass
+    /// through him <b>only during the translation</b> (the V7 kit rule), which
+    /// the Fighter sim derives from the same phase.
+    ///
+    /// <para>The phase frames and the base distance are the authored
+    /// <c>tesla/movement.tres</c> (StartupFrames/ActiveFrames/RecoveryFrames,
+    /// DistanceMoved = 180 px = 3.0 units), pinned equal to
+    /// <see cref="KitMotionRules"/> for the sim's half. Before this he blinked
+    /// 160 px over 12/0.2 s/18 frames and nothing passed through.</para>
     /// </summary>
     public partial class TeslaLightningBlink : BaseSpecial {
 
-        private const float MaxBlinkDuration = 1.0f;
+        /// <summary>Story-only Resonance TRAVERSAL flag (V7.6, Tier 2): +0.5 units.</summary>
+        public const string LongBlinkPerkKey = "long_blink";
 
         private Vector2 _blinkDirection;
         private Vector2 _startPosition;
-        private float _blinkDuration = 0.2f;
-        private float _blinkDistance = 160f;
+        private float _blinkDistance;
+        private float _translationSeconds;
 
         private MovementAbilityData MovementData => Data as MovementAbilityData;
 
+        /// <summary>The distance the current cast covers, in Story pixels. Test seam.</summary>
+        public float BlinkDistancePixels => _blinkDistance;
+
+        /// <summary>
+        /// Base distance plus the Long Blink bonus when the hero owns the node.
+        /// Fighter Mode never reads this — the sim takes the normalized
+        /// <c>DistanceMoved</c> through its loadout.
+        /// </summary>
+        public float ResolveBlinkDistancePixels() {
+            float baseDistance = MovementData?.DistanceMoved > 0f
+                ? MovementData.DistanceMoved
+                : KitMotionRules.LightningBlinkDistanceUnits * KitMotionRules.StoryPixelsPerUnit;
+            if (Owner != null && Owner.HasStoryPerk(LongBlinkPerkKey)) {
+                baseDistance += KitMotionRules.LongBlinkBonusUnits * KitMotionRules.StoryPixelsPerUnit;
+            }
+            return baseDistance;
+        }
+
+        /// <summary>Projectiles pass through Tesla during the translation only.</summary>
+        public override bool PassesThroughProjectilesNow => CurrentPhase == AbilityPhase.Active;
+
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
-            _blinkDuration = Mathf.Min(
-                MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : 0.2f,
-                MaxBlinkDuration);
-            _blinkDistance = MovementData?.DistanceMoved > 0f ? MovementData.DistanceMoved : 160f;
+            _blinkDistance = ResolveBlinkDistancePixels();
+            _translationSeconds = Mathf.Max(1, Data?.ActiveFrames ?? KitMotionRules.LightningBlinkTravelFrames) / 60f;
 
             float hInput = Owner.CurrentInputFrame.Horizontal;
             // Negative vertical aims upward (Godot 2D Y is down); since §2.7 it
@@ -355,14 +411,18 @@ namespace FTT.Characters.Abilities {
             }
             _blinkDirection = _blinkDirection.Normalized();
             _startPosition = Owner.GlobalPosition;
+            // Spark gather: he holds in place while the current gathers.
+            Owner.Velocity = Vector2.Zero;
         }
 
         protected override void OnActive() {
-            PhaseTimer = _blinkDuration;
+            UseAuthoredPhaseFrames();
         }
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
+            // The translation ends where it ends: no carried momentum.
+            Owner.Velocity = Vector2.Zero;
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 AbilityName = Data?.AbilityName ?? "Lightning Blink",
@@ -372,9 +432,10 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
-            if (CurrentPhase == AbilityPhase.Active) {
-                float speed = _blinkDistance / _blinkDuration;
-                Owner.Velocity = _blinkDirection * speed;
+            if (CurrentPhase == AbilityPhase.Startup) {
+                Owner.Velocity = Vector2.Zero;
+            } else if (CurrentPhase == AbilityPhase.Active && _translationSeconds > 0f) {
+                Owner.Velocity = _blinkDirection * (_blinkDistance / _translationSeconds);
             }
             base._PhysicsProcess(delta);
         }
@@ -462,7 +523,7 @@ namespace FTT.Characters.Abilities {
             foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(PullRadiusPixels)) {
                 DragTowardOwner(hurtbox);
                 if (Owner.GlobalPosition.DistanceTo(hurtbox.GlobalPosition) > ColumnRadiusPixels) continue;
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "tesla_wardenclyffe_cataclysm",
                     HitboxID = "cataclysm_column",
@@ -478,10 +539,11 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
                 });
+                float dealt = hurtbox.TakeHit(hit);
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt, ultimateOrigin: true);
+                Credit(in hit, dealt);
             }
         }
 

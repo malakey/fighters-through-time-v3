@@ -142,7 +142,7 @@ namespace FTT.Characters.Abilities {
             foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(GlobalPosition, BiteRangePixels)) {
                 float venomIntensity = (_data?.StatusIntensity ?? 1f) * intensityMultiplier;
                 if (_aspsBite && TargetIsAirborne(hurtbox)) venomIntensity *= 2f;
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload bite = BaseSpecial.WithAbilityContract(new HitPayload {
                     AttackerIndex = OwnerIndex,
                     AttackID = _data?.AbilityID ?? "cleopatra_serpent_nest",
                     HitboxID = "nest_bite",
@@ -161,8 +161,9 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeDuration = 0.05f,
                     // V7.3: construct ticks carry no hitstop.
                     ExemptFromHitstop = true
-                });
-                CreditOwnerInfluence(dealt);
+                }, _data, _ownerPlayer, HitDelivery.Construct);
+                float dealt = hurtbox.TakeHit(bite);
+                CreditOwnerInfluence(in bite, dealt);
             }
         }
 
@@ -198,11 +199,10 @@ namespace FTT.Characters.Abilities {
             return results;
         }
 
-        private void CreditOwnerInfluence(float dealt) {
-            if (dealt > 0f && _ownerPlayer != null && IsInstanceValid(_ownerPlayer)) {
-                // Construct damage never reclaims Rally echo (V7.1: direct hits only).
-                _ownerPlayer.AddInfluenceFromDamageDealt(dealt, collectsEcho: false);
-            }
+        private void CreditOwnerInfluence(in HitPayload payload, float dealt) {
+            if (_ownerPlayer == null || !IsInstanceValid(_ownerPlayer)) return;
+            // Construct delivery never reclaims Rally (D03g), read off the payload.
+            BaseSpecial.CreditDealt(_ownerPlayer, in payload, dealt);
         }
 
         /// <summary>

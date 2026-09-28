@@ -55,6 +55,48 @@ namespace FTT.FighterSim {
     }
 
     /// <summary>
+    /// M08/M05 (Package 12 W3b): the two fighters' projected hit contracts,
+    /// handed to the systems at construction exactly like the stage geometry.
+    /// Static match configuration — built once from the two loadouts, never
+    /// mutated, never written into a component — so it is not snapshot or hash
+    /// state and needs no component ID. It is how the tick reads the authored
+    /// <see cref="FighterAbilityHitData.HitstunFrames"/> and
+    /// <see cref="FighterAbilityHitData.Launches"/> (closing the generic half of
+    /// <c>DEFER-SIM-ABILITY-HITSTUN</c>).
+    /// </summary>
+    public sealed class FighterHitContractTable {
+        /// <summary>Ability slot keys, matching the zone/projectile type-ID slot digit.</summary>
+        public const int SlotSpecialOne = 1;
+        public const int SlotSpecialTwo = 2;
+        public const int SlotUltimate = 3;
+
+        private readonly FighterAbilityLoadout _playerOne;
+        private readonly FighterAbilityLoadout _playerTwo;
+
+        public static readonly FighterHitContractTable Default =
+            new(FighterAbilityLoadout.Default, FighterAbilityLoadout.Default);
+
+        public FighterHitContractTable(FighterAbilityLoadout playerOne, FighterAbilityLoadout playerTwo) {
+            _playerOne = playerOne;
+            _playerTwo = playerTwo;
+        }
+
+        public FighterHitContractTable(FighterLoadout playerOne, FighterLoadout playerTwo)
+            : this(playerOne.AbilityModes, playerTwo.AbilityModes) { }
+
+        /// <summary>The authored hit contract of <paramref name="playerID"/>'s ability in <paramref name="slot"/>.</summary>
+        public FighterAbilityHitData For(int playerID, int slot) {
+            FighterAbilityLoadout loadout = playerID == 1 ? _playerTwo : _playerOne;
+            return slot switch {
+                SlotSpecialOne => loadout.SpecialOneHit,
+                SlotSpecialTwo => loadout.SpecialTwoHit,
+                SlotUltimate => loadout.UltimateHit,
+                _ => loadout.MovementHit
+            };
+        }
+    }
+
+    /// <summary>
     /// Immutable per-character ability execution configuration baked from normalized
     /// resources. Effect lifetimes reuse the shared persistent-lifetime fields for
     /// zones as well as constructs.
@@ -1009,6 +1051,32 @@ namespace FTT.FighterSim {
         /// chain, or 0 when none has. Deterministic, never a wall-clock value.
         /// </summary>
         public int ChainConsumedExecutionID;
+    }
+
+    /// <summary>
+    /// M05 knockdown and get-up (Package 12 W3b; Klotho ID 320, allocated by
+    /// the Package 12 plan §3.3 — the only ID this plan hands out). A tumbling
+    /// victim who misses the landing tech enters a 30-frame invulnerable
+    /// knockdown, a sub-phase of <c>Stunned</c>, then a neutral (10 f) or roll
+    /// (14 f) get-up chosen from the held direction on the frame the knockdown
+    /// ends. Neither get-up is invulnerable, and both lock every action.
+    ///
+    /// <para>Four ints, 16 bytes. Snapshot and hash state like every other
+    /// component. Zero-initialised means "not down": every field's inactive
+    /// value is 0, so a Klotho default instance is already correct. Fields are
+    /// written only through <see cref="FighterKnockdownRules"/>.</para>
+    /// </summary>
+    [KlothoComponent(320, MaxCount = 2)]
+    [StructLayout(LayoutKind.Sequential, Pack = 4)]
+    public partial struct FighterKnockdownComponent : IComponent {
+        /// <summary>Knockdown frames left; &gt; 0 means the fighter is down (and invulnerable).</summary>
+        public int KnockdownFrames;
+        /// <summary><c>BasicComboRules.GetUpNone / GetUpNeutral / GetUpRoll</c>.</summary>
+        public int GetUpKind;
+        /// <summary>Get-up frames left; the get-up ends and control returns at 0.</summary>
+        public int GetUpFrames;
+        /// <summary>Roll get-up direction: -1 left, +1 right, 0 for a neutral get-up.</summary>
+        public int GetUpDirection;
     }
 
     [KlothoComponent(301)]

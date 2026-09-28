@@ -35,49 +35,62 @@ public class FighterCombatContractW3Tests {
     }
 
     [TestCase]
-    public void ALaunchedVictimThatLandsWithoutTheTechCannotBlockOutOfTheTumble() {
-        // Hit-2 contact (the V7.3 gate is open) with a launch: the victim is a
-        // tumble. It lands WITHOUT Block held (a missed tech), then holds Block
-        // on the ground with hitstun still running. Pre-M06 the escape cleared
-        // hitstun on the next tick; now the tumble rides out.
+    public void ALaunchedVictimThatLandsWithoutTheTechCannotBlockOutOfTheKnockdown() {
+        // Rewritten in place by Package 12 W3b (M05). A tumble that lands
+        // WITHOUT Block held is a missed tech, and since M05 that landing is a
+        // knockdown rather than a grounded tumble — so the M06 question becomes
+        // "can Block held on the floor escape the knockdown into the stance?".
+        // Lincoln's hit 2 is the launcher (M07); the victim then holds Block on
+        // every grounded tick of the knockdown.
         var simulation = new FighterSimulation(
-            FighterCharacterID.Joan, FighterCharacterID.Joan,
+            FighterCharacterID.Lincoln, FighterCharacterID.Joan,
             spawnDistance: 1, rules: FighterMatchRules.Disabled);
-        // Let the fighters settle on the floor.
+        // Walk in: the 2-unit spawn gap is beyond Lincoln's 85 % hit 1/2 reach.
         int tick = 0;
-        for (; tick < 5; tick++) simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
+        for (; tick < 60; tick++) {
+            simulation.TryGetFighter(0, out FighterStateComponent a);
+            simulation.TryGetFighter(1, out FighterStateComponent v);
+            bool close = v.Position.x - a.Position.x <= FP64.FromDouble(1.2);
+            simulation.Advance(Frame(tick, GameplayButtons.None, close ? (sbyte)0 : (sbyte)127), Frame(tick, GameplayButtons.None));
+            if (close) break;
+        }
+        for (int settle = 0; settle < 20; settle++, tick++) {
+            simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
+        }
 
-        // Drive a real two-hit string from player one.
-        bool sawGroundedTumbleAfterHitTwo = false;
-        bool escapedFromTumble = false;
-        int previousHitstun = 0;
+        bool launched = false;
+        bool sawKnockdown = false;
+        bool stanceDuringKnockdown = false;
         for (int step = 0; step < 240; step++, tick++) {
-            GameplayButtons attacker = (step % 2 == 0) ? GameplayButtons.BasicAttack : GameplayButtons.None;
             simulation.TryGetFighter(1, out FighterStateComponent victim);
             simulation.TryGetFighterVerb(1, out FighterVerbComponent verb);
-            bool groundedTumble = victim.IsGrounded != 0 && verb.Tumble != 0
-                && victim.HitstunFrames > 2 && verb.HitstunBlockCancelBlocked == 0 && verb.HitstopFrames == 0;
-            GameplayButtons defender = groundedTumble ? GameplayButtons.Block : GameplayButtons.None;
-            if (groundedTumble) {
-                sawGroundedTumbleAfterHitTwo = true;
-                previousHitstun = victim.HitstunFrames;
-            }
+            simulation.TryGetFighterKnockdown(1, out FighterKnockdownComponent knockdown);
+            if (verb.Tumble != 0 && victim.IsGrounded == 0) launched = true;
+            // Stop attacking once the launch landed, so no later hit muddies it.
+            GameplayButtons attacker = !launched && step % 2 == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None;
+            bool down = FighterKnockdownRules.IsActive(in knockdown);
+            GameplayButtons defender = down ? GameplayButtons.Block : GameplayButtons.None;
             simulation.Advance(Frame(tick, attacker), Frame(tick, defender));
-            if (groundedTumble) {
-                simulation.TryGetFighter(1, out FighterStateComponent after);
-                simulation.TryGetFighterVerb(1, out FighterVerbComponent afterVerb);
-                // A new hit refreshes hitstun upward; an escape zeroes it.
-                if (after.HitstunFrames == 0 && afterVerb.HitstopFrames == 0 && previousHitstun > 2) {
-                    escapedFromTumble = true;
+            simulation.TryGetFighter(1, out FighterStateComponent after);
+            simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent afterRuntime);
+            simulation.TryGetFighterVerb(1, out FighterVerbComponent afterVerb);
+            simulation.TryGetFighterKnockdown(1, out FighterKnockdownComponent afterKnockdown);
+            if (FighterKnockdownRules.IsActive(in afterKnockdown)) {
+                sawKnockdown = true;
+                if (FighterBasicAttackRules.IsBlockStance(in after, in afterRuntime, in afterVerb)) {
+                    stanceDuringKnockdown = true;
                 }
             }
-            if (sawGroundedTumbleAfterHitTwo && step > 120) break;
+            if (sawKnockdown && !FighterKnockdownRules.IsActive(in afterKnockdown)) break;
         }
-        AssertThat(sawGroundedTumbleAfterHitTwo)
-            .OverrideFailureMessage("The scenario must reach a grounded, post-hit-2 tumble with hitstun left.")
+        AssertThat(launched)
+            .OverrideFailureMessage("M07: Lincoln's hit 2 must launch the victim into a tumble.")
             .IsTrue();
-        AssertThat(escapedFromTumble)
-            .OverrideFailureMessage("M06: holding Block on the ground must not end a tumble's hitstun.")
+        AssertThat(sawKnockdown)
+            .OverrideFailureMessage("M05: a tumble landing without the tech must be a knockdown.")
+            .IsTrue();
+        AssertThat(stanceDuringKnockdown)
+            .OverrideFailureMessage("M06/M05: Block held on the floor must not raise the stance out of the knockdown.")
             .IsFalse();
     }
 

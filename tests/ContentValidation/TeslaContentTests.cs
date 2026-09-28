@@ -48,7 +48,9 @@ public class TeslaContentTests {
         AssertObject(data).IsNotNull();
         AssertThat(data.MovementType).IsEqual(MovementType.Blink);
         AssertThat(data.MovementDuration <= 1f).IsTrue();
-        AssertThat(data.DistanceMoved).IsEqual(160f);
+        // Package 12 W4 (design §5, 2026-09-26): 3.0 units at 60 px/unit.
+        AssertThat(data.DistanceMoved).IsEqual(180f);
+        AssertThat(data.StartupFrames + data.ActiveFrames + data.RecoveryFrames <= 60).IsTrue();
         AssertThat(data.CooldownDuration).IsEqual(5f);
     }
 

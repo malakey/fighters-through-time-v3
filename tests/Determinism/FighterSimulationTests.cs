@@ -412,15 +412,16 @@ public class FighterSimulationTests {
             .IsEqual(floor.RawValue);
 
         // Hitstun owns the victim. Player two holds Down for the whole run while
-        // player one lands one basic: every basic launches (Velocity.y = force,
-        // IsGrounded = 0), so the victim spends its hitstun airborne with Down
-        // held — exactly the case the rule must ignore.
+        // player one runs the basic string: M05 (Package 12 W3b) — only the
+        // finisher launches (Velocity.y = force, IsGrounded = 0), so the victim
+        // spends that hitstun airborne with Down held — exactly the case the
+        // rule must ignore.
         var stunned = new FighterSimulation(spawnDistance: 1, rules: FighterMatchRules.Disabled);
         bool sawAirborneHitstun = false;
         bool clampedDuringHitstun = false;
         for (int tick = 0; tick < 140; tick++) {
             stunned.Advance(
-                Frame(tick, 0, tick == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None),
+                Frame(tick, 0, tick % 2 == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None),
                 Frame(tick, 0, GameplayButtons.Down));
             AssertThat(stunned.TryGetFighter(1, out FighterStateComponent victim)).IsTrue();
             if (victim.HitstunFrames <= 0) continue;

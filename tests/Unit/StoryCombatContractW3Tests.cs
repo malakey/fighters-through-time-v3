@@ -150,6 +150,9 @@ public class StoryCombatContractW3Tests {
         AttackClass = AttackClass.Basic,
         Damage = 5f,
         Knockback = knockback,
+        // M05 (Package 12 W3b): only an authored launcher tumbles; the fixture's
+        // knockback hits stand for launchers.
+        Launches = knockback != Vector2.Zero,
         HitstunDuration = 0.6f,
         HitOrigin = new Vector2(-20f, 0f),
         AttackerFacingRight = true
