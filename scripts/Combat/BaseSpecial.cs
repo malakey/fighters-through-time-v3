@@ -299,12 +299,15 @@ namespace FTT.Combat {
             hb.Name = name;
             hb.AttackID = Data?.AbilityID ?? "";
             hb.HitboxID = name;
-            hb.AttackClass = Data?.Slot == FTT.Core.AbilitySlot.Ultimate
-                ? AttackClass.Ultimate
-                : AttackClass.Special;
+            // M08 (Package 12 W3): the authored hit contract replaces the old
+            // slot-derived attack class; a data-less hitbox keeps the
+            // historical Special / 0.2 s defaults.
+            hb.AttackClass = AttackClass.Special;
+            hb.HitstunDuration = 0.2f;
+            hb.Origin = HitOrigin.Special;
+            hb.ApplyAbilityHitContract(Data);
             hb.Damage = Data?.BaseDamage ?? 10f;
             hb.KnockbackForce = Data?.KnockbackForce ?? new Vector2(3, -2);
-            hb.HitstunDuration = Data?.HitstunDuration ?? 0.2f;
             hb.AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.None;
             hb.StatusDuration = Data?.StatusDuration ?? 0f;
             hb.StatusIntensity = Data?.StatusIntensity ?? 1f;

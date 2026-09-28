@@ -253,6 +253,64 @@ namespace FTT.Combat {
         public static readonly float[] KnockbackMultipliers = { 1f, 1.2f, 4.5f };
 
         /// <summary>
+        /// M05/M08 (Package 12 W3): the authored launch flag per string hit — the
+        /// finisher launches; hits 1 and 2 do not. Lincoln's launching hit 2
+        /// (M07) is a per-profile override W3b adds with the semantics. DATA ONLY
+        /// in W3: nothing reads it for behaviour yet, and until W3b every hit
+        /// with a knockback vector still launches.
+        /// </summary>
+        public static readonly bool[] StringHitLaunches = { false, false, true };
+
+        /// <summary>M05: the Up-Attack and the Down-Air are launchers.</summary>
+        public const bool DirectionalAttackLaunches = true;
+
+        /// <summary>M05: all three throws launch.</summary>
+        public const bool ThrowLaunches = true;
+
+        /// <summary>
+        /// The shared hitstun Block-escape gate (gameplay-feel §2.4, V7.3 hit-2
+        /// gate, M06). A victim escapes hitstun into the stance only when it is
+        /// grounded, holds Block, is NOT tumbling (a launched victim techs on
+        /// ground contact instead — M06), is not behind string hit 1's gate, and
+        /// could actually raise the stance (charges and no shatter lockout).
+        /// Daze and grab states are separate states and never reach this gate.
+        /// Story's <c>ProcessStunned</c> and the sim's movement system both call
+        /// it, so the rule exists once.
+        /// </summary>
+        public static bool CanBlockEscapeHitstun(
+            bool grounded, bool blockHeld, bool tumbling, bool stringHitOneGate, bool stanceCanRise) =>
+            grounded && blockHeld && !tumbling && !stringHitOneGate && stanceCanRise;
+
+        // === Guard-break push (Low-item decision, 2026-09-26) ===
+
+        /// <summary>
+        /// Horizontal magnitude of the shatter push, in world units per second.
+        /// X always points AWAY from the attacker. Unscaled: no weight and no
+        /// low-HP scaling, and it is ASSIGNED to the victim's velocity, never
+        /// added. Not a launch (no DI, tumble or tech). Story multiplies by 60
+        /// for pixels; the sim applies it in fixed point.
+        /// </summary>
+        public const float GuardBreakPushX = 2.0f;
+
+        /// <summary>
+        /// Vertical component in Godot's Y-DOWN space: -1.0 is a small upward
+        /// hop. The Y-up simulation negates it.
+        /// </summary>
+        public const float GuardBreakPushYDown = -1.0f;
+
+        /// <summary>
+        /// The sign of the guard-break push: +1 pushes toward +X. Away from the
+        /// attacker's side; an exactly coincident attacker falls back to
+        /// "backward from the defender's facing" (which, because a block needs
+        /// the hit in front, is always the same answer anyway).
+        /// </summary>
+        public static int GuardBreakPushSign(float defenderX, float attackerX, bool defenderFacingRight) {
+            if (attackerX < defenderX) return 1;
+            if (attackerX > defenderX) return -1;
+            return defenderFacingRight ? -1 : 1;
+        }
+
+        /// <summary>
         /// Low-health knockback scaling (gameplay-feel plan §2.5), shared by
         /// every damage source in both modes: the impulse is multiplied by
         /// <c>1 + missingHPFraction</c> of the victim measured *after* the

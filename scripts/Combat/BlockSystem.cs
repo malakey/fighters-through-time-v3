@@ -109,7 +109,7 @@ namespace FTT.Combat {
                 return BlockResult.Blocked;
             }
 
-            BreakGuard();
+            BreakGuard(hit.HitOrigin.X);
             return BlockResult.GuardBroken;
         }
 
@@ -228,7 +228,14 @@ namespace FTT.Combat {
         public const string QuantumEntanglementPerkKey = "quantum_entanglement";
         private const float QuantumEntanglementDistance = 150f;
 
-        private void BreakGuard() {
+        /// <summary>
+        /// The shatter. <paramref name="attackerX"/> is the attacking side's X
+        /// (the contact origin — a successful block needs it in front of the
+        /// defender); null when there is no attacker (scripted
+        /// <see cref="DepleteCharges"/>), which falls back to "backward from
+        /// facing".
+        /// </summary>
+        private void BreakGuard(float? attackerX = null) {
             _isBlocking = false;
             // V7.3: the shatter arms the five-second lockout — no stance and no
             // regen until it expires (charge #1 lands at shatter + 480f).
@@ -243,14 +250,19 @@ namespace FTT.Combat {
                 _owner.GlobalPosition += new Vector2(direction * QuantumEntanglementDistance, 0f);
                 _owner.Velocity = new Vector2(0f, _owner.Velocity.Y);
             } else {
-                Vector2 velocity = _owner.Velocity;
-                velocity += _owner.IsFacingRight ? new Vector2(-120f, -60f) : new Vector2(120f, -60f);
-                _owner.Velocity = velocity;
+                // Low-item decision 2026-09-26 (Package 12 W3): the fixed
+                // (2.0, -1.0) Y-down push, X AWAY FROM THE ATTACKER, unscaled
+                // (no weight, no low-HP scaling) and ASSIGNED — the shatter
+                // replaces the defender's velocity instead of adding to it. It
+                // is not a launch: no DI, tumble or tech. The sim mirrors it in
+                // FighterDamageRules.ApplyFighterHit's shatter branch.
+                _owner.Velocity = GuardBreakPushVelocity(
+                    _owner.GlobalPosition.X, attackerX ?? _owner.GlobalPosition.X, _owner.IsFacingRight);
             }
             FTT.Core.EventBus.Instance?.RaiseBlockBroken(_owner.PlayerIndex);
         }
 
-        // === Package 12 W2: F10 resource persistence (GAP-01) ===============
+        // === Package 12 W2: F10 resource persistence (GAP-01) ========
         // Additive accessors only. Ordinary loading must restore the player's
         // actual block resources — charges, regen progress and the remaining
         // shatter lockout — and must never refill them (STORY_PERSISTENCE,
@@ -276,6 +288,17 @@ namespace FTT.Combat {
             _isBlocking = false;
             RaiseChargesChanged();
         }
+=======
+        /// <summary>
+        /// The Story pixel-space guard-break push: the shared
+        /// <see cref="BasicComboRules.GuardBreakPushX"/> /
+        /// <see cref="BasicComboRules.GuardBreakPushYDown"/> units × 60, signed
+        /// away from the attacker by <see cref="BasicComboRules.GuardBreakPushSign"/>.
+        /// </summary>
+        public static Vector2 GuardBreakPushVelocity(float defenderX, float attackerX, bool defenderFacingRight) =>
+            new(BasicComboRules.GuardBreakPushSign(defenderX, attackerX, defenderFacingRight)
+                    * BasicComboRules.GuardBreakPushX * 60f,
+                BasicComboRules.GuardBreakPushYDown * 60f);
 
         public override void _PhysicsProcess(double delta) {
             // Shieldstun and the lockout share the owner's hitstop suspension:

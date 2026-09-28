@@ -7,7 +7,7 @@ namespace FTT.Combat {
     /// Query-only damage receiver. Lives in its own file so authored scenes can
     /// attach it directly (Godot C# resolves a script class by file name).
     /// </summary>
-    public partial class Hurtbox : Area2D {
+    public partial class Hurtbox : Area2D, IDamageable {
         [Export] public int OwnerPlayerIndex = -1;
 
         /// <summary>
@@ -28,5 +28,17 @@ namespace FTT.Combat {
             if (IsInsideTree() && FTT.Environment.ChronalRewindManager.IsWorldHeld(GetTree())) return 0f;
             return OnHit?.Invoke(payload) ?? 0f;
         }
+
+        /// <summary>
+        /// M08 (Package 12 W3) <see cref="IDamageable"/>. A hurtbox is the Story
+        /// receiver every <see cref="Hitbox"/> contact lands on — including the
+        /// <c>EnvironmentHurtboxAdapter</c> strike surfaces (checkpoint fractures,
+        /// extractors, kit gates), which inherit this — so it forwards to the
+        /// adjacent owner exactly as <see cref="TakeHit"/> does.
+        /// </summary>
+        public float TakeDamage(in HitPayload hit) => TakeHit(hit);
+
+        /// <summary>A hurtbox with no live receiver cannot take a hit.</summary>
+        public bool IsAlive => OnHit != null;
     }
 }

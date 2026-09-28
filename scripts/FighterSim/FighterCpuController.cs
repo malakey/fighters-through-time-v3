@@ -642,7 +642,8 @@ namespace FTT.FighterSim {
 
             for (int tick = 0; tick < TrajectoryProbeTicks; tick++) {
                 FP64 previousY = y;
-                velocityY += gravityStep;
+                // M01: the probe integrates exactly like the sim, terminal clamp included.
+                velocityY = FighterMovementSystem.ClampToTerminal(velocityY + gravityStep);
                 x += velocityX * delta;
                 y += velocityY * delta;
                 if (x < geometry.LeftWall) x = geometry.LeftWall;

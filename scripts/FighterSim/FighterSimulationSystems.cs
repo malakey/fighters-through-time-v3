@@ -269,6 +269,15 @@ namespace FTT.FighterSim {
         private static readonly FP64 Gravity = FP64.FromInt(-30);
         /// <summary>Signed floor for fast-fall: -<c>UniversalMovementRules.FastFallSpeed</c>.</summary>
         private static readonly FP64 FastFallSpeed = -FP64.FromDouble(UniversalMovementRules.FastFallSpeed);
+        /// <summary>
+        /// M01 (D1(a)): signed terminal fall velocity, -<c>UniversalMovementRules.TerminalFallSpeed</c>.
+        /// A stateless clamp applied after every gravity integration.
+        /// </summary>
+        private static readonly FP64 TerminalFallVelocity = -FP64.FromDouble(UniversalMovementRules.TerminalFallSpeed);
+
+        /// <summary>Clamps a Y-up vertical velocity at the terminal fall speed (M01).</summary>
+        internal static FP64 ClampToTerminal(FP64 velocityY) =>
+            velocityY < TerminalFallVelocity ? TerminalFallVelocity : velocityY;
         private static readonly FP64 RollSpeedMultiplier = FP64.FromDouble(UniversalMovementRules.RollSpeedMultiplier);
 
         /// <summary>
@@ -399,19 +408,23 @@ namespace FTT.FighterSim {
                 // only after hit two connects may Block escape — and a stance
                 // the fighter could not raise (no charges, shatter lockout)
                 // cannot be escaped into either.
+                // M06 (Package 12 W3): tumble is excluded — a launched victim
+                // techs on ground contact (TryLandingTech) and never escapes
+                // into the stance. The gate is the shared pure rule Story reads.
                 if (fighter.HitstunFrames > 0
                     && fighter.DazeFrames <= 0
-                    && fighter.IsGrounded != 0
                     && fighter.Stocks > 0
-                    && verb.HitstunBlockCancelBlocked == 0
-                    && fighter.BlockCharges > 0
-                    && verb.BlockLockoutFrames <= 0
-                    && (runtime.HeldButtons & BlockButton) != 0) {
+                    && FTT.Combat.BasicComboRules.CanBlockEscapeHitstun(
+                        grounded: fighter.IsGrounded != 0,
+                        blockHeld: (runtime.HeldButtons & BlockButton) != 0,
+                        tumbling: verb.Tumble != 0,
+                        stringHitOneGate: verb.HitstunBlockCancelBlocked != 0,
+                        stanceCanRise: fighter.BlockCharges > 0 && verb.BlockLockoutFrames <= 0)) {
                     fighter.HitstunFrames = 0;
                 }
                 if (fighter.HitstunFrames > 0 || fighter.DazeFrames > 0) {
                     FighterUniversalMovementRules.Cancel(ref runtime);
-                    fighter.Velocity.y += Gravity * FixedDelta;
+                    fighter.Velocity.y = ClampToTerminal(fighter.Velocity.y + Gravity * FixedDelta);
                 } else {
                     bool rooted = runtime.StatusType == (int)FTT.Core.StatusType.Root;
                     FP64 statusMoveMultiplier = runtime.StatusType == (int)FTT.Core.StatusType.TimeDilation
@@ -486,7 +499,9 @@ namespace FTT.FighterSim {
                             // active-start, so there is no mid-active migration.
                             lockHorizontal: blockStance,
                             lockFacing: blockStance,
-                            allowJump: !attacking && !blockStance,
+                            // M04 (Package 12 W3): Blocking → Airborne on Jump;
+                            // only shieldstun keeps a blocker grounded.
+                            allowJump: !attacking && !shieldStunned,
                             allowDropThrough: !shieldStunned);
                     }
                     if (fighter.IsGrounded == 0) {
@@ -506,9 +521,11 @@ namespace FTT.FighterSim {
                             ? Gravity * FixedDelta / FP64.FromInt(5)
                             : Gravity * FixedDelta;
                         fighter.Velocity.y += gravityStep;
-                        if (fastFalling && fighter.Velocity.y > FastFallSpeed) {
-                            fighter.Velocity.y = FastFallSpeed;
-                        }
+                        // M01 (D1(a)): fast-fall SNAPS to the terminal speed
+                        // (it no longer only floors the descent), and every
+                        // airborne fall is clamped at terminal.
+                        if (fastFalling) fighter.Velocity.y = FastFallSpeed;
+                        fighter.Velocity.y = ClampToTerminal(fighter.Velocity.y);
                     }
                 }
 
@@ -1761,6 +1778,12 @@ namespace FTT.FighterSim {
             // F07 marks are written onto the VICTIM's component 318.
             ref FighterConductiveComponent conductiveOne = ref frame.Get<FighterConductiveComponent>(first);
             ref FighterConductiveComponent conductiveTwo = ref frame.Get<FighterConductiveComponent>(second);
+            // M09 (Package 12 W3): a stock loss clears the victim's mark. The
+            // stock-loss chokepoint has no Frame, so the respawn platform (and
+            // an out-of-stocks fighter) is the observable state read here — the
+            // mark can never survive onto the next life.
+            ClearMarkIfRespawning(in fighterOne, ref conductiveOne);
+            ClearMarkIfRespawning(in fighterTwo, ref conductiveTwo);
             FighterConductiveRules.Tick(ref conductiveOne, verbOne.HitstopFrames > 0);
             FighterConductiveRules.Tick(ref conductiveTwo, verbTwo.HitstopFrames > 0);
             // V7.6 D04 (Package 11 A1b): the protected second does not start
@@ -1778,6 +1801,19 @@ namespace FTT.FighterSim {
             if (twoActing) {
                 ApplyBasicSwing(ref fighterTwo, ref runtimeTwo, ref verbTwo, in tuningTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, ref conductiveOne);
                 ApplyConstructSwing(ref frame, ref fighterTwo, ref runtimeTwo, in tuningTwo);
+            }
+        }
+
+        /// <summary>
+        /// M09: the Conductive mark does not survive a stock loss. A fighter on
+        /// the Chronal Respawn Platform (or out of stocks) is by definition past
+        /// a stock loss, so its mark is dropped.
+        /// </summary>
+        internal static void ClearMarkIfRespawning(
+            in FighterStateComponent fighter, ref FighterConductiveComponent mark) {
+            if (mark.FramesRemaining <= 0 && mark.SourcePlayerID < 0) return;
+            if (fighter.RespawnFramesRemaining > 0 || fighter.Stocks <= 0) {
+                FighterConductiveRules.Clear(ref mark);
             }
         }
 
@@ -2941,6 +2977,13 @@ namespace FTT.FighterSim {
             runtime.StatusTickFrames = 0;
             runtime.StatusIntensity = FP64.One;
             runtime.DamageStatusIntensity = FP64.One;
+            // M09 (Package 12 W3): the respawning fighter keeps no temporary
+            // owner buff from the last life — the zone speed bonus and the Warp
+            // float window. Cooldowns and the Defy flag are deliberately kept.
+            // The victim's Conductive mark (component 318) is cleared by the
+            // combat system, which holds the Frame this chokepoint does not.
+            runtime.ZoneSpeedBonusFrames = 0;
+            runtime.FloatFrames = 0;
             FighterUniversalMovementRules.Cancel(ref runtime);
             // Stock loss ends any swing and resets the chain and shield regen.
             FighterBasicAttackRules.CancelString(ref runtime);

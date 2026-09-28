@@ -277,7 +277,7 @@ public class LincolnUltimateTests {
             IsMultiHit = true,
             HitCount = 5,
             DamageTickIntervalFrames = 30,
-            HitstunDuration = 0.5f,
+            HitstunFrames = 30,
             KnockbackForce = new Vector2(12f, -8f),
             AppliedStatus = StatusType.Root,
             StatusDuration = 0.6f,

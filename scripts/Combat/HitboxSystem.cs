@@ -11,6 +11,105 @@ namespace FTT.Combat {
     }
 
     /// <summary>
+    /// M08 (Package 12 W3): how a hit meets the ordinary charge-based block — the
+    /// GDD's <c>BlockClass</c> enum. <see cref="AttackClass"/> survives as the
+    /// runtime classification the block and hyper-armor code already switch on;
+    /// <see cref="HitClassification.AttackClassFor"/> is the one mapping between
+    /// the two, so neither becomes a second canonical value.
+    /// </summary>
+    public enum BlockClass {
+        /// <summary>Spends one charge.</summary>
+        Basic = 0,
+        /// <summary>Full shatter: spends every remaining charge.</summary>
+        Special = 1,
+        /// <summary>Spends two charges (the V7.2 enemy classification).</summary>
+        GuardCrush = 2,
+        /// <summary>Bypasses the ordinary block (Ultimates, boss red telegraphs).</summary>
+        Unblockable = 3
+    }
+
+    /// <summary>
+    /// M08: the delivery channel of a hit. Drives the D03g Rally reclaim (only a
+    /// <see cref="DirectHit"/> collects an echo), the V7.3 hitstop exemptions and
+    /// the absorption rules.
+    /// </summary>
+    public enum HitDelivery {
+        DirectHit = 0,
+        /// <summary>A periodic zone / DoT pulse.</summary>
+        Tick = 1,
+        /// <summary>A hit authored by a persistent construct (coil, turret, nest, snare).</summary>
+        Construct = 2,
+        /// <summary>An environmental hazard contact.</summary>
+        Hazard = 3
+    }
+
+    /// <summary>
+    /// M08: what authored the hit. Drives the D03h meter rule (an
+    /// <see cref="Ultimate"/>-origin hit earns its caster zero damage-dealt meter)
+    /// and origin inheritance by projectiles and constructs.
+    /// </summary>
+    public enum HitOrigin {
+        Basic = 0,
+        Special = 1,
+        Ultimate = 2,
+        Throw = 3,
+        Environment = 4
+    }
+
+    /// <summary>
+    /// M08 pure mappings over the three hit enums. Engine-free; both modes read
+    /// them so the "which flag means what" answer exists exactly once.
+    /// </summary>
+    public static class HitClassification {
+        /// <summary>D03g: only a direct hit reclaims a Rally echo.</summary>
+        public static bool CollectsEcho(HitDelivery delivery) => delivery == HitDelivery.DirectHit;
+
+        /// <summary>D03h: Ultimate-origin damage earns its caster zero damage-dealt meter.</summary>
+        public static bool IsUltimateOrigin(HitOrigin origin) => origin == HitOrigin.Ultimate;
+
+        /// <summary>
+        /// The runtime <see cref="AttackClass"/> an authored ability hit carries.
+        /// Origin wins for the Ultimate (hyper-armor and the D03b bypass read
+        /// <c>AttackClass.Ultimate</c>); otherwise the block class selects Basic
+        /// or Special. GuardCrush has no AttackClass of its own — it rides as
+        /// Special plus an explicit two-charge <c>BlockChargeCost</c>.
+        /// </summary>
+        public static AttackClass AttackClassFor(BlockClass blockClass, HitOrigin origin) {
+            if (origin == HitOrigin.Ultimate) return AttackClass.Ultimate;
+            return blockClass == BlockClass.Basic ? AttackClass.Basic : AttackClass.Special;
+        }
+
+        /// <summary>The explicit per-hit charge cost a block class implies (0 = the AttackClass default).</summary>
+        public static int BlockChargeCostFor(BlockClass blockClass) =>
+            blockClass == BlockClass.GuardCrush ? 2 : 0;
+
+        /// <summary>
+        /// Allocates a fresh per-contact identity for Story hits. Monotonic for
+        /// the process; 0 is reserved for "unassigned". Story-only — the Fighter
+        /// simulation never reads it, so it carries no determinism obligation.
+        /// </summary>
+        public static ulong NextContactId() => ++_nextContactId;
+        private static ulong _nextContactId;
+    }
+
+    /// <summary>
+    /// M08 (Package 12 W3): the single damage-receiver contract for Story hit
+    /// targets. <see cref="IStatusEffectTarget"/> coexists with it (the GDD
+    /// sketches it as a sub-interface; it is kept separate so a status-only
+    /// target never has to take damage).
+    ///
+    /// <para>Deviation from the GDD sketch (<c>void TakeDamage</c>): the call
+    /// returns the actual HP damage dealt, because Influence gain, Rally reclaim
+    /// and the projectile detonate-on-contact rule all read that number — the
+    /// same contract <see cref="Hurtbox.TakeHit"/> already honours.</para>
+    /// </summary>
+    public interface IDamageable {
+        /// <summary>Resolves one hit through the receiver's full defensive pipeline; returns the HP damage dealt.</summary>
+        float TakeDamage(in HitPayload hit);
+        bool IsAlive { get; }
+    }
+
+    /// <summary>
     /// Complete, mode-independent description of a confirmed hit. Fighter rollback
     /// uses the same fields in its deterministic state boundary; Godot vectors here
     /// are the Story/presentation adapter and are converted at that boundary.
@@ -66,5 +165,32 @@ namespace FTT.Combat {
         /// with normal defenses and must NOT set this.</para>
         /// </summary>
         public bool BypassesFiniteShields;
+
+        // --- M08 (Package 12 W3) ---
+        /// <summary>
+        /// Godot instance ID of the actor that owns the hit (credit, ownership
+        /// tint, self-hit rules); 0 when unknown. The Fighter simulation carries
+        /// its own PlayerID and never reads this.
+        /// </summary>
+        public ulong SourceActorId;
+        /// <summary>
+        /// Per-contact identity for multi-hit, barrier and Rally dedup. 0 means
+        /// "not assigned"; <see cref="Hitbox"/> allocates one per confirmed contact
+        /// through <see cref="HitClassification.NextContactId"/>.
+        /// </summary>
+        public ulong ContactId;
+        /// <summary>
+        /// M05 launch flag. Data only in W3 — W3b implements grounded knockback
+        /// vs launch; until then every hit with a knockback vector still launches.
+        /// </summary>
+        public bool Launches;
+        /// <summary>Delivery channel; see <see cref="FTT.Combat.HitDelivery"/>.</summary>
+        public FTT.Combat.HitDelivery Delivery;
+        /// <summary>
+        /// What authored the hit; see <see cref="FTT.Combat.HitOrigin"/>. The
+        /// field is <c>Origin</c> because the older Vector2 <c>HitOrigin</c>
+        /// field above is the contact POSITION and keeps its name.
+        /// </summary>
+        public FTT.Combat.HitOrigin Origin;
     }
 }

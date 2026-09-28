@@ -415,9 +415,11 @@ public class StoryCombatRulesTests {
                 .OverrideFailureMessage("Hit one's hitstun must not be block-cancelable (V7.3 hit-2 gate).")
                 .IsEqual(CharacterState.Stunned);
 
-            // Grounded, hit 2: the launch is dropped so the victim is standing
-            // again, then Block is held while plenty of hitstun is still left.
-            StunOnTheFloor(grounded, hitboxID: "combo_2");
+            // Grounded, hit 2 in plain (non-tumble) hitstun — M06 (Package 12
+            // W3) reserves the escape for grounded NON-tumble hitstun, so this
+            // hit carries no launch. Block is held while plenty of hitstun is
+            // still left.
+            StunOnTheFloor(grounded, hitboxID: "combo_2", launch: false);
             AssertThat(grounded.CurrentState).IsEqual(CharacterState.Stunned);
             HoldInput(grounded, GameplayButtons.Block, frames: 2);
             AssertThat(grounded.CurrentState)
@@ -425,7 +427,7 @@ public class StoryCombatRulesTests {
                 .IsEqual(CharacterState.Blocking);
 
             // Control: the same victim without Block rides the stun out.
-            StunOnTheFloor(control, hitboxID: "combo_2");
+            StunOnTheFloor(control, hitboxID: "combo_2", launch: false);
             HoldInput(control, GameplayButtons.None, frames: 2);
             AssertThat(control.CurrentState)
                 .OverrideFailureMessage("Without Block the victim must still be stunned at the same frame.")
@@ -647,8 +649,14 @@ public class StoryCombatRulesTests {
     /// floor for the escape check, with most of the hitstun still to run. The
     /// hitboxID drives the V7.3 hit-2 cancel gate ("combo_1" is unescapable).
     /// </summary>
-    private static void StunOnTheFloor(PlayerController player, string hitboxID = "primary") {
-        player.GetNode<Hurtbox>("Hurtbox").TakeHit(Hit(AttackClass.Basic, hitboxID));
+    private static void StunOnTheFloor(
+        PlayerController player, string hitboxID = "primary", bool launch = true) {
+        HitPayload hit = Hit(AttackClass.Basic, hitboxID);
+        // M06 (Package 12 W3): a hit with a knockback vector is a tumble
+        // (launched hitstun) until W3b's authored Launches flag lands; a
+        // zero-knockback hit is plain grounded hitstun.
+        if (!launch) hit.Knockback = Vector2.Zero;
+        player.GetNode<Hurtbox>("Hurtbox").TakeHit(hit);
         // V7.1: run the hit's short hitstop freeze off first — its expiry
         // resolves the stashed DI launch, which the manual zero below then
         // drops so the victim is standing on the floor again.

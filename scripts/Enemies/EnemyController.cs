@@ -13,7 +13,7 @@ namespace FTT.Enemies {
     /// difficulty-scaled reaction delays, elite ability cycling, and pooling.
     /// Nothing here participates in the deterministic Fighter simulation.
     /// </summary>
-    public partial class EnemyController : CharacterBody2D, IPoolable, IStoryRewindable, IStoryRewindSimulation, IStoryTimeFreezable {
+    public partial class EnemyController : CharacterBody2D, IPoolable, IStoryRewindable, IStoryRewindSimulation, IStoryTimeFreezable, FTT.Combat.IDamageable {
         /// <summary>Seconds the death animation plays before the pool reclaims the body.</summary>
         public const float DeathAnimationSeconds = 0.5f;
         private const float GravityPixelsPerSecond = 980f;
@@ -1030,6 +1030,16 @@ namespace FTT.Enemies {
         }
 
         public int TakeDamage(int damage) => TakeDamage(damage, null);
+
+        /// <summary>
+        /// M08 (Package 12 W3) <see cref="FTT.Combat.IDamageable"/>: the full hit
+        /// pipeline the hurtbox feeds (stun, knockback, stagger discipline,
+        /// status, marks), reachable without a hurtbox in hand.
+        /// </summary>
+        public float TakeDamage(in FTT.Combat.HitPayload hit) => OnHurtboxHit(hit);
+
+        /// <inheritdoc/>
+        public bool IsAlive => CurrentState != EnemyState.Dead;
 
         /// <summary>
         /// V7.6 Level 0 Time Freeze drill: the blocker the player must escape

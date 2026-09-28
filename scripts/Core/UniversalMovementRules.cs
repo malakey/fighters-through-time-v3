@@ -29,14 +29,27 @@ namespace FTT.Core {
         public const int RunDecelerationFrames = 12;
 
         /// <summary>
-        /// Fast-fall floor in world units per second (2026-08-10 feel batch §2.9).
-        /// Holding Down while airborne, outside hitstun/daze, pins vertical
-        /// velocity to at least this much downward and cancels the Warp float
-        /// window. Stateless — derived from held input every tick, never
-        /// snapshotted. Story multiplies by 60 for its pixel-space equivalent,
-        /// which deliberately bypasses the 600 px/s terminal clamp.
+        /// M01 (D1(a), Package 12 W3): the Fighter terminal fall speed in world
+        /// units per second. The simulation clamps every downward velocity to it
+        /// — a stateless clamp, no snapshot field. Story's ORDINARY terminal is
+        /// still its own 600 px/s (10 u/s) constant: the full H-7 gravity
+        /// unification stays deferred, so only the fast-fall path reaches 20 in
+        /// Story.
         /// </summary>
-        public const float FastFallSpeed = 16f;
+        public const float TerminalFallSpeed = 20f;
+
+        /// <summary>
+        /// Fast-fall speed in world units per second (2026-08-10 feel batch §2.9;
+        /// M01 2026-09-26 raised it 16 → 20, because a normal fall already
+        /// outpaced 16). Holding Down while airborne, outside hitstun/daze,
+        /// SNAPS vertical velocity to exactly this much downward — equal to the
+        /// terminal clamp, so it never exceeds terminal — and cancels the Warp
+        /// float window. Stateless — derived from held input every tick, never
+        /// snapshotted. Story multiplies by 60 for its pixel-space equivalent
+        /// (1200 px/s), which deliberately sits above its ordinary 600 px/s
+        /// terminal until H-7 lands.
+        /// </summary>
+        public const float FastFallSpeed = TerminalFallSpeed;
 
         public const int RollStartupFrames = 4;
         public const int RollTravelFrames = 12;

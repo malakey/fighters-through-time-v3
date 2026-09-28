@@ -17,11 +17,55 @@ namespace FTT.FighterSim {
     }
 
     /// <summary>
+    /// M08 (Package 12 W3): one ability's authored hit contract, projected from
+    /// <c>AbilityData</c> into the match loadout. LOADOUT data, not snapshot
+    /// state: it is never written into a Klotho component, so it moves no hash
+    /// and costs no component ID. The enum fields hold the
+    /// <c>FTT.Combat.BlockClass</c> / <c>HitDelivery</c> / <c>HitOrigin</c>
+    /// ordinals as ints, the same convention the other loadout enums use.
+    ///
+    /// <para>Nothing in the tick reads these yet. The sim still applies its own
+    /// 18/30-frame special/ultimate hitstun (the deferred M-13 remainder), and
+    /// W3b consumes <see cref="Launches"/> with component 320.</para>
+    /// </summary>
+    public readonly struct FighterAbilityHitData {
+        public int HitstunFrames { get; init; }
+        public int BlockClass { get; init; }
+        public bool Launches { get; init; }
+        public int Delivery { get; init; }
+        public int Origin { get; init; }
+
+        /// <summary>Today's generic Special contract: 12 f, Special, launches, direct, Special origin.</summary>
+        public static FighterAbilityHitData DefaultSpecial => new() {
+            HitstunFrames = 12,
+            BlockClass = (int)FTT.Combat.BlockClass.Special,
+            Launches = true,
+            Delivery = (int)FTT.Combat.HitDelivery.DirectHit,
+            Origin = (int)FTT.Combat.HitOrigin.Special
+        };
+
+        /// <summary>Today's generic Ultimate contract: 12 f, Unblockable, launches, direct, Ultimate origin.</summary>
+        public static FighterAbilityHitData DefaultUltimate => new() {
+            HitstunFrames = 12,
+            BlockClass = (int)FTT.Combat.BlockClass.Unblockable,
+            Launches = true,
+            Delivery = (int)FTT.Combat.HitDelivery.DirectHit,
+            Origin = (int)FTT.Combat.HitOrigin.Ultimate
+        };
+    }
+
+    /// <summary>
     /// Immutable per-character ability execution configuration baked from normalized
     /// resources. Effect lifetimes reuse the shared persistent-lifetime fields for
     /// zones as well as constructs.
     /// </summary>
     public readonly struct FighterAbilityLoadout {
+        // --- M08 (Package 12 W3) hit contracts, per slot ---
+        public FighterAbilityHitData SpecialOneHit { get; init; }
+        public FighterAbilityHitData SpecialTwoHit { get; init; }
+        public FighterAbilityHitData UltimateHit { get; init; }
+        public FighterAbilityHitData MovementHit { get; init; }
+
         public int SpecialOneExecutionType { get; init; }
         public int SpecialTwoExecutionType { get; init; }
         public int SpecialOneProjectileLifetimeFrames { get; init; }
@@ -58,7 +102,11 @@ namespace FTT.FighterSim {
             SpecialOneProjectileSpeed = FP64.Zero,
             SpecialTwoProjectileSpeed = FP64.Zero,
             MovementDistance = FP64.FromInt(2),
-            MovementSpeed = FP64.FromInt(10)
+            MovementSpeed = FP64.FromInt(10),
+            SpecialOneHit = FighterAbilityHitData.DefaultSpecial,
+            SpecialTwoHit = FighterAbilityHitData.DefaultSpecial,
+            UltimateHit = FighterAbilityHitData.DefaultUltimate,
+            MovementHit = FighterAbilityHitData.DefaultSpecial
         };
     }
 
