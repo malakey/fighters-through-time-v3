@@ -28,10 +28,13 @@ namespace FTT.Tests.Unit;
 /// </para>
 ///
 /// <para>
-/// The fix runs a movement-sensitive case's synchronous body <b>inside a real
-/// physics frame</b> (from the <c>physics_frame</c> signal, with no continuation
-/// hop), so every out-of-band <c>MoveAndSlide</c> uses the fixed 1/60 physics
-/// step. Nothing else in the case changes.
+/// Two layers fix it. The harness: <c>.runsettings</c> launches the GdUnit Godot
+/// child with <c>--fixed-fps 60</c>, which pins every idle frame's delta to
+/// exactly 1/60 for every suite (verified: 41/41 cases at 0.01667). The suite: a
+/// movement-sensitive case can also run its synchronous body <b>inside a real
+/// physics frame</b> through <see cref="RunInPhysicsFrameAsync"/> (from the
+/// <c>physics_frame</c> signal, with no continuation hop), so its
+/// <c>MoveAndSlide</c> uses the fixed physics step even without the harness flag.
 /// </para>
 /// </summary>
 internal static class OutOfBandPhysicsStep {

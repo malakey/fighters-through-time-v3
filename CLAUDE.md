@@ -112,6 +112,18 @@ reach zero — polling for a clear window proved far more reliable than blind re
 full-suite number without comparing it to the exact expected total**; "Passed!" plus a non-trivial
 count is worthless on its own.
 
+### Order-dependent movement flakes: out-of-band `MoveAndSlide` (fixed by `--fixed-fps 60`)
+
+Root-caused 2026-09-27 by Package 12 W9. A suite that steps a body by calling
+`_PhysicsProcess(Step)` directly gets a fixed 1/60 for every state timer, but
+`CharacterBody2D.MoveAndSlide()` reads the **idle frame's** delta whenever the engine is
+not inside a physics frame — the wall-clock length of the runner's previous frame, measured
+at 0.0003–0.0174 s across one run. Walk-to loops then moved 58× too slowly depending on test
+order ("expected Patrol got Returning", a player that never lands). `.runsettings` now passes
+`--headless --fixed-fps 60`, which pins that delta to exactly 1/60. **Do not remove the flag.**
+A case that must also be robust without it can run its body inside a physics frame through
+`tests/Unit/OutOfBandPhysicsStep.RunInPhysicsFrameAsync` (GdUnit requires `async Task`).
+
 ### Failure signature 6: a second `[TestSuite]` in one file is discovered but never executed
 
 GdUnit4 silently refuses to *run* a plain C# `[TestSuite]` that shares a source file with a
