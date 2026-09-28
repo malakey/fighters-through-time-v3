@@ -231,6 +231,23 @@ namespace FTT.FighterSim {
             return false;
         }
 
+        /// <summary>
+        /// M05 (Package 12 W3b): reads a fighter's knockdown / get-up state
+        /// (component 320). Snapshot and hash state like everything else.
+        /// </summary>
+        public bool TryGetFighterKnockdown(int playerID, out FighterKnockdownComponent knockdown) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterKnockdownComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID == playerID) {
+                    knockdown = _simulation.Frame.GetReadOnly<FighterKnockdownComponent>(entity);
+                    return true;
+                }
+            }
+            knockdown = default;
+            return false;
+        }
+
         public FighterMatchComponent GetMatchState() =>
             _simulation.Frame.GetReadOnlySingleton<FighterMatchComponent>();
 

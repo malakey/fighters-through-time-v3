@@ -334,6 +334,10 @@ namespace FTT.FighterSim {
                 or (int)UniversalMovementPhase.RollTravel
                 or (int)UniversalMovementPhase.RollRecovery) return "Rolling";
             if (FighterLedgeRules.IsHanging(in runtime)) return "Ledge Hang";
+            if (Simulation.TryGetFighterKnockdown(playerID, out FighterKnockdownComponent knockdown)
+                && FighterKnockdownRules.IsActive(in knockdown)) {
+                return FighterKnockdownRules.IsDown(in knockdown) ? "Knocked Down" : "Getting Up";
+            }
             if (state.InvulnerabilityFrames > 0) return "Respawning";
             if (state.DazeFrames > 0) return "Dazed";
             if (state.HitstunFrames > 0) return "Stunned";
@@ -826,6 +830,15 @@ namespace FTT.FighterSim {
             if (state.RespawnFramesRemaining > 0) return "respawn";
             if (state.HitstunFrames > 0) return "hitstun";
             if (state.DazeFrames > 0) return "dazed";
+            // M05 (Package 12 W3b), H03 reuse rules: the knockdown plays
+            // hitstun, the roll get-up plays roll_recovery, and the neutral
+            // get-up stands in place on idle.
+            if (Simulation != null
+                && Simulation.TryGetFighterKnockdown(playerID, out FighterKnockdownComponent knockdown)
+                && FighterKnockdownRules.IsActive(in knockdown)) {
+                if (FighterKnockdownRules.IsDown(in knockdown)) return "hitstun";
+                return knockdown.GetUpKind == FTT.Combat.BasicComboRules.GetUpRoll ? "roll_recovery" : "idle";
+            }
             // §2.11 — the placeholder set already carries a real ledge_hang pose
             // for all nine characters (Story's LedgeHanging state uses it), so the
             // Fighter hang reuses it rather than borrowing crouch or hitstun.

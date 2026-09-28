@@ -621,6 +621,14 @@ namespace FTT.Characters {
 		// Per-stun latch: the launch actually left the ground, so the next
 		// grounded frame is a genuine landing (the tech's trigger).
 		private bool _stunLeftTheGround;
+		// M05 knockdown and get-up (Package 12 W3b), the Story mirror of the
+		// sim's FighterKnockdownComponent (Klotho 320). Both run as sub-phases
+		// of CharacterState.Stunned and count physics frames. Meaningful only
+		// while CurrentState is Stunned; ApplyStun clears them.
+		private int _knockdownFrames;
+		private int _getUpKind;
+		private int _getUpFrames;
+		private int _getUpDirection;
 
 		// === V7.1 Rally / Desperation Resonance / Defy History (Story side) ===
 		// The Fighter sim carries the identical state on FighterVerbComponent;
@@ -1079,6 +1087,8 @@ namespace FTT.Characters {
 				// An impulse-free hit (construct arcs/bites carry zero
 				// knockback) must not replace the velocity — a zero vector
 				// would freeze the victim mid-motion.
+				// M05 (Package 12 W3b): only an authored launcher launches.
+				bool launches = ResolveHitLaunches(in hit);
 				if (hit.Knockback != Vector2.Zero) {
 					// Low-health knockback scaling (gameplay-feel plan §2.5): the
 					// impulse scales with the victim's missing HP *after* this
@@ -1092,13 +1102,22 @@ namespace FTT.Characters {
 					// Knockback replaces velocity, as the Fighter sim resolves it —
 					// a hit imparts the same impulse regardless of prior motion.
 					Velocity = knockback * 60f;
-					// V7.1 DI: a launching hit (impulse + hitstun) stashes its
-					// impulse; the held direction at hitstop end bends the angle
-					// up to ±15° (the pre-written velocity is inert while frozen).
-					if (hit.HitstunDuration > 0f && CurrentState != CharacterState.Dead) {
-						_pendingLaunch = Velocity;
-						_hasPendingLaunch = true;
+					if (launches) {
+						// V7.1 DI: a launching hit (impulse + hitstun) stashes its
+						// impulse; the held direction at hitstop end bends the angle
+						// up to ±15° (the pre-written velocity is inert while frozen).
+						if (hit.HitstunDuration > 0f && CurrentState != CharacterState.Dead) {
+							_pendingLaunch = Velocity;
+							_hasPendingLaunch = true;
+						}
+					} else if (IsOnFloor()) {
+						// M05: a non-launcher on a grounded victim is grounded
+						// knockback — a horizontal slide on the floor, no tumble,
+						// no DI (mirrors FighterDamageRules.ApplyFighterHit).
+						Velocity = new Vector2(Velocity.X, 0f);
 					}
+					// An airborne victim of a non-launcher keeps the authored
+					// vector but gets no tumble, DI or tech.
 				}
 
 				if (hit.HitstunDuration > 0f && CurrentState != CharacterState.Dead) {
@@ -1107,7 +1126,8 @@ namespace FTT.Characters {
 					ApplyStun(hit.HitstunDuration, thrown);
 					// A launched stun is a tumble: the victim may tech the landing.
 					// A throw is never techable — its trajectory IS the decision.
-					_stunTumble = !thrown && hit.Knockback != Vector2.Zero;
+					// M05 (Package 12 W3b): only an authored launcher tumbles.
+					_stunTumble = !thrown && launches && hit.Knockback != Vector2.Zero;
 					// V7.3 hit-2 cancel gate: string hit 1 is never
 					// block-cancelable; from hit two on the escape opens.
 					_hitstunBlockCancelBlocked = hit.HitboxID == "combo_1";
@@ -2410,6 +2430,12 @@ namespace FTT.Characters {
 		}
 
 		private void ProcessStunned(float dt) {
+			// M05 (Package 12 W3b): the knockdown and get-up are sub-phases of
+			// Stunned, owned entirely by ProcessKnockdown.
+			if (IsInKnockdownOrGetUp) {
+				ProcessKnockdown(dt);
+				return;
+			}
 			ApplyGravity(dt);
 			// Track the launch leaving the ground with a per-stun latch.
 			// (IsOnFloor() here reflects the PREVIOUS frame's MoveAndSlide, and
@@ -2443,6 +2469,13 @@ namespace FTT.Characters {
 				// sim's TechLockoutFrames branch).
 				_techLockoutSeconds =
 					FTT.Combat.BasicComboRules.LandingTechRecoveryFrames / 60f;
+				return;
+			}
+			// M05 (Package 12 W3b): the same ground contact WITHOUT Block is a
+			// missed tech — the victim is knocked down (the sim's
+			// FighterKnockdownRules.TryBeginKnockdown).
+			if (_stunTumble && _stunLeftTheGround && IsOnFloor()) {
+				BeginKnockdown();
 				return;
 			}
 			// Gameplay-feel plan §2.4 — Block cancels hitstun. A grounded victim
@@ -2655,6 +2688,8 @@ namespace FTT.Characters {
 			_stunTumble = false;
 			_stunLeftTheGround = false;
 			_hitstunBlockCancelBlocked = false;
+			// M05: a hit during the (vulnerable) get-up ends it.
+			ClearKnockdown();
 			TransitionTo(thrown ? CharacterState.Thrown : CharacterState.Stunned);
 		}
 
@@ -2677,6 +2712,102 @@ namespace FTT.Characters {
 		/// <summary>V7.3: true through the 12-frame landing-tech lock — in
 		/// place, invulnerable, no actions — before the release to Idle.</summary>
 		public bool IsInTechLockout => _techLockoutSeconds > 0f;
+
+		// === Package 12 W3b region: M05 launch flag, knockdown and get-up ===
+
+		/// <summary>
+		/// M05: whether a hit launches this victim. A player-sourced hit (a
+		/// basic, a directional strike, a throw, an ability hitbox — anything
+		/// with a real owner index) launches only when its payload says so. A
+		/// non-player source — enemies, bosses and hazards, which author no
+		/// launch flag yet — keeps the legacy "any knockback launches" rule;
+		/// recorded under VERIFY-ABILITY-LAUNCHES for a later enemy pass.
+		/// </summary>
+		internal static bool ResolveHitLaunches(in FTT.Combat.HitPayload hit) =>
+			hit.AttackerIndex >= 0 ? hit.Launches : hit.Knockback != Vector2.Zero;
+
+		/// <summary>M05: down on the floor — invulnerable and action-locked.</summary>
+		public bool IsKnockedDown => CurrentState == CharacterState.Stunned && _knockdownFrames > 0;
+
+		/// <summary>M05: in the knockdown or its (vulnerable) get-up.</summary>
+		public bool IsInKnockdownOrGetUp =>
+			CurrentState == CharacterState.Stunned && (_knockdownFrames > 0 || _getUpFrames > 0);
+
+		/// <summary>M05: the chosen get-up (<c>BasicComboRules.GetUp*</c>), <c>GetUpNone</c> while down.</summary>
+		public int GetUpKind => _getUpKind;
+
+		/// <summary>M05: knockdown frames left.</summary>
+		public int KnockdownFramesRemaining => _knockdownFrames;
+
+		/// <summary>M05: get-up frames left.</summary>
+		public int GetUpFramesRemaining => _getUpFrames;
+
+		private void ClearKnockdown() {
+			_knockdownFrames = 0;
+			_getUpKind = FTT.Combat.BasicComboRules.GetUpNone;
+			_getUpFrames = 0;
+			_getUpDirection = 0;
+		}
+
+		/// <summary>
+		/// M05: a tumbling victim touched down without Block — the missed tech.
+		/// The tumble's hitstun ends, the body stops, and the 30-frame
+		/// invulnerable knockdown starts in the Stunned state.
+		/// </summary>
+		private void BeginKnockdown() {
+			_stunTimer = 0f;
+			_stunTumble = false;
+			_stunLeftTheGround = false;
+			_hitstunBlockCancelBlocked = false;
+			_hasPendingLaunch = false;
+			Velocity = Vector2.Zero;
+			_knockdownFrames = FTT.Combat.BasicComboRules.KnockdownFrames;
+			_getUpKind = FTT.Combat.BasicComboRules.GetUpNone;
+			_getUpFrames = 0;
+			_getUpDirection = 0;
+			PlayAnimation("hitstun");
+		}
+
+		/// <summary>
+		/// M05: one physics frame of the knockdown or the get-up. The get-up is
+		/// chosen from the held horizontal direction on the frame the knockdown
+		/// ends; neither get-up is invulnerable, and both lock every action.
+		/// </summary>
+		private void ProcessKnockdown(float dt) {
+			ApplyGravity(dt);
+			if (_knockdownFrames > 0) {
+				Velocity = new Vector2(0f, Velocity.Y);
+				PlayAnimation("hitstun");
+				_knockdownFrames--;
+				if (_knockdownFrames == 0) {
+					float horizontal = CurrentInputFrame.Horizontal;
+					_getUpDirection = horizontal > FTT.Combat.BasicComboRules.GetUpRollInputThreshold ? 1
+						: horizontal < -FTT.Combat.BasicComboRules.GetUpRollInputThreshold ? -1
+						: 0;
+					_getUpKind = FTT.Combat.BasicComboRules.SelectGetUp(_getUpDirection);
+					_getUpFrames = FTT.Combat.BasicComboRules.GetUpFramesFor(_getUpKind);
+				}
+				return;
+			}
+			if (_getUpFrames <= 0) return;
+			_getUpFrames--;
+			if (_getUpKind == FTT.Combat.BasicComboRules.GetUpRoll) {
+				float rollSpeed = EffectiveMoveSpeed
+					* 60f
+					* FTT.Core.UniversalMovementRules.RollSpeedMultiplier;
+				Velocity = new Vector2(_getUpDirection * rollSpeed, Velocity.Y);
+				PlayAnimation("roll_recovery");
+			} else {
+				Velocity = new Vector2(0f, Velocity.Y);
+				PlayAnimation("idle");
+			}
+			if (_getUpFrames == 0) {
+				ClearKnockdown();
+				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
+			}
+		}
+
+		// === end Package 12 W3b region ===
 
 		// === Package 11 A5 region: Level 0 scripted-hit exemptions ==========
 		// The V7.6 Hitstun Agency Calibration teaches DI and the landing tech
@@ -2813,6 +2944,10 @@ namespace FTT.Characters {
 			// V7.1 landing tech: the 12-frame recovery is fully invulnerable,
 			// like the sim's InvulnerabilityFrames grant.
 			if (_techInvulnerabilitySeconds > 0f) return 0;
+			// M05 (Package 12 W3b): a downed fighter is fully invulnerable, so
+			// no hit lands and no meter or Rally is earned from it. The get-up
+			// that follows is not protected.
+			if (IsKnockedDown) return 0;
 			damage = Math.Max(0, (int)MathF.Round(damage * StatusDamageTakenMultiplier));
 			// V7.6 D01/D02b (Package 11 A1b): the finite HP barrier is NO LONGER
 			// drained here. It used to absorb inside ApplyDamage — after block —
@@ -3173,6 +3308,7 @@ namespace FTT.Characters {
 			_stunLeftTheGround = false;
 			_techInvulnerabilitySeconds = 0f;
 			_techLockoutSeconds = 0f;
+			ClearKnockdown();
 			_echoPool = 0f;
 			_echoDrainPerFrame = 0f;
 			// V7.6 T01a/D02c/D02e/D04 (Package 11 A1b): a Death Rewind clears the
