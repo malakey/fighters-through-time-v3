@@ -1693,3 +1693,5 @@ crash_prompt_body,The last session did not shut down cleanly. A copy of its log 
 crash_prompt_never,Don't Ask Again
 crash_prompt_dismiss,Not Now
 crash_prompt_open_logs,Open Logs Folder
+# 4A gate stand-ins: the fifth LegacyGateMode (CastWatch).
+legacy_gate_cast_prompt,Resonance lock — cast your own power here
