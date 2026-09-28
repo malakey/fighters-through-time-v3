@@ -93,6 +93,7 @@ namespace FTT.Core {
             BuildVoicePool();
             LoadPlaceholderCues();
             ApplySavedVolumes();
+            ApplySavedMutes();
 
             if (EventBus.Instance != null) {
                 EventBus.Instance.OnEnemyPresentation += OnEnemyPresentation;
@@ -239,7 +240,87 @@ namespace FTT.Core {
 
         public void SetSFXVolume(float linear) => SetBusVolume(AudioBuses.SFX, linear);
 
+        /// <summary>
+        /// M27 "UI &amp; Dialogue" volume. Drives the <see cref="AudioBuses.UI"/> bus,
+        /// and the <see cref="AudioBuses.Dialogue"/> bus sends into UI, so one gain
+        /// reaches both without attenuating dialogue twice.
+        /// </summary>
         public void SetUIVolume(float linear) => SetBusVolume(AudioBuses.UI, linear);
+
+        // === Package 12 W6 — M27 per-category mutes and G11 Mute When Unfocused ===
+        //
+        // Mutes are written ONLY to the four user category buses (Master, Music,
+        // SFX, UI). AudioBuses.CriticalCues and AudioBuses.Dialogue are never
+        // muted, re-routed or otherwise touched here: C01b's clear path stays
+        // exactly as authored and inherits the user's category choice through its
+        // send (CriticalCues -> SFX, Dialogue -> UI), which is what the contract
+        // asks for — "clear routing still respects Master and the cue's existing
+        // user category volume/mute" — while PlayCriticalCue's routing itself is
+        // never muted or bypassed.
+
+        private bool _windowFocused = true;
+        private bool _masterMuted;
+        private bool _muteWhenUnfocused = true;
+
+        /// <summary>True while the window has focus (G11). Test/diagnostic surface.</summary>
+        public bool IsWindowFocused => _windowFocused;
+
+        /// <summary>The four user-facing mute categories, in Settings order.</summary>
+        public static readonly string[] MuteCategoryBuses = {
+            AudioBuses.Master, AudioBuses.Music, AudioBuses.SFX, AudioBuses.UI
+        };
+
+        /// <summary>Mutes or unmutes one user category bus. Any other bus name is refused.</summary>
+        public void SetCategoryMuted(string busName, bool muted) {
+            if (busName == AudioBuses.Master) {
+                _masterMuted = muted;
+                ApplyMasterMute();
+                return;
+            }
+            if (busName != AudioBuses.Music && busName != AudioBuses.SFX && busName != AudioBuses.UI) return;
+            int index = AudioServer.GetBusIndex(busName);
+            if (index >= 0) AudioServer.SetBusMute(index, muted);
+        }
+
+        /// <summary>G11: whether losing window focus silences everything. Default On.</summary>
+        public void SetMuteWhenUnfocused(bool enabled) {
+            _muteWhenUnfocused = enabled;
+            ApplyMasterMute();
+        }
+
+        /// <summary>Pushes the saved M27 mutes and the G11 preference onto the buses.</summary>
+        public void ApplySavedMutes() {
+            GlobalSaveData data = SaveManager.Instance?.GlobalData;
+            _muteWhenUnfocused = data?.MuteWhenUnfocused ?? true;
+            SetCategoryMuted(AudioBuses.Master, data?.MasterMuted ?? false);
+            SetCategoryMuted(AudioBuses.Music, data?.MusicMuted ?? false);
+            SetCategoryMuted(AudioBuses.SFX, data?.SFXMuted ?? false);
+            SetCategoryMuted(AudioBuses.UI, data?.UIMuted ?? false);
+        }
+
+        /// <summary>
+        /// G11 focus hook. Public so a test can drive it without a real window;
+        /// production reaches it through <see cref="_Notification"/>.
+        /// </summary>
+        public void HandleWindowFocusChanged(bool focused) {
+            _windowFocused = focused;
+            ApplyMasterMute();
+        }
+
+        /// <summary>The Master mute the buses should carry right now.</summary>
+        public static bool ResolveMasterMute(bool userMasterMuted, bool muteWhenUnfocused, bool windowFocused) =>
+            userMasterMuted || (muteWhenUnfocused && !windowFocused);
+
+        private void ApplyMasterMute() {
+            int index = AudioServer.GetBusIndex(AudioBuses.Master);
+            if (index < 0) return;
+            AudioServer.SetBusMute(index, ResolveMasterMute(_masterMuted, _muteWhenUnfocused, _windowFocused));
+        }
+
+        public override void _Notification(int what) {
+            if (what == NotificationApplicationFocusOut) HandleWindowFocusChanged(false);
+            else if (what == NotificationApplicationFocusIn) HandleWindowFocusChanged(true);
+        }
 
         /// <summary>The base (pre-snapshot) dB currently set for a bus.</summary>
         public float GetBusBaseVolumeDb(string busName) => _mixer?.GetBaseDb(busName) ?? 0f;

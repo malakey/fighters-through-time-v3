@@ -11,7 +11,11 @@ namespace FTT.UI {
         CharacterSelect,
         DifficultySelect,
         /// <summary>Developer level select (temporary, debug builds only).</summary>
-        LevelSelect
+        LevelSelect,
+        /// <summary>Package 12 W6 (G15e): Credits replay and Third-Party Licenses.</summary>
+        Extras,
+        /// <summary>Package 12 W6 (G15e): the Third-Party Licenses list.</summary>
+        Licenses
     }
 
     /// <summary>
@@ -81,6 +85,10 @@ namespace FTT.UI {
         private Control _characterScreen;
         private Control _difficultyScreen;
         private Control _levelSelectScreen;
+        private Control _extrasScreen;
+        private Control _licensesScreen;
+        private CreditsController _creditsReplay;
+        private BootSequenceOverlay _bootOverlay;
         private TextureRect _temporalMainArt;
         private TextureRect _temporalSubmenuArt;
 
@@ -125,6 +133,8 @@ namespace FTT.UI {
             _characterScreen = GetNode<Control>("CharacterScreen");
             _difficultyScreen = GetNode<Control>("DifficultyScreen");
             _levelSelectScreen = GetNode<Control>("LevelSelectScreen");
+            _extrasScreen = GetNode<Control>("ExtrasScreen");
+            _licensesScreen = GetNode<Control>("LicensesScreen");
             _temporalMainArt = GetNodeOrNull<TextureRect>("Background/TemporalMainArt");
             _temporalSubmenuArt = GetNodeOrNull<TextureRect>("Background/TemporalSubmenuArt");
 
@@ -133,9 +143,101 @@ namespace FTT.UI {
             BindCharacterScreen();
             BindDifficultyScreen();
             BindLevelSelectScreen();
+            BindExtrasScreens();
+            BindVersionLabel();
 
             AddSaveLoadNotice(GetNode<Control>("RootScreen/Center/Panel/Layout/NoticeSlot"));
             ShowScreen(MainMenuScreen.Root, resetStack: true);
+            if (ShouldRunBootSequence()) StartBootSequence();
+        }
+
+        // ---- Package 12 W6: boot sequence (G06 / G09) ------------------------
+
+        /// <summary>
+        /// Test seam: null runs the boot sequence only for the process's first
+        /// main menu that is the <em>current scene</em> (the real boot). GdUnit
+        /// hosts menus under a plain node, so existing suites never see it.
+        /// </summary>
+        internal static bool? BootSequenceOverrideForTesting;
+
+        private static bool _bootSequenceStarted;
+
+        /// <summary>The boot overlay while it is up. Test surface.</summary>
+        internal BootSequenceOverlay BootOverlay => _bootOverlay;
+
+        private bool ShouldRunBootSequence() {
+            if (BootSequenceOverrideForTesting.HasValue) return BootSequenceOverrideForTesting.Value;
+            return !_bootSequenceStarted && GetTree()?.CurrentScene == this;
+        }
+
+        /// <summary>
+        /// Photosensitivity notice → first-launch setup (first run only) → the
+        /// crash-report prompt (Ask only), over the menu. Design Section 7 "Game
+        /// Boot Sequence" steps 4–5; the menu is interactable once it finishes.
+        /// </summary>
+        private void StartBootSequence() {
+            _bootSequenceStarted = true;
+            _bootOverlay = new BootSequenceOverlay { Name = "BootSequenceOverlay" };
+            _bootOverlay.Finished += () => {
+                _bootOverlay = null;
+                FocusChainBuilder.Apply(ScreenRoot(CurrentScreen));
+            };
+            AddChild(_bootOverlay);
+        }
+
+        // ---- Package 12 W6: Extras (G15e) and the build version (G15d) -------
+
+        private void BindVersionLabel() {
+            var label = GetNodeOrNull<Label>("VersionLabel");
+            if (label == null) return;
+            // Already-resolved: the version is an argument, not a key.
+            label.AutoTranslateMode = AutoTranslateModeEnum.Disabled;
+            label.Text = string.Format(Tr("menu_version"), FTT.Core.BuildInfo.Version);
+        }
+
+        private void BindExtrasScreens() {
+            const string extras = "ExtrasScreen/Center/Panel/Layout/";
+            GetNode<Button>(extras + "CreditsButton").Pressed += () => ReplayCredits();
+            GetNode<Button>(extras + "LicensesButton").Pressed += () => PushScreen(MainMenuScreen.Licenses);
+            GetNode<Button>(extras + "BackButton").Pressed += GoBack;
+
+            const string licenses = "LicensesScreen/Center/Panel/Layout/";
+            var rows = GetNode<VBoxContainer>(licenses + "Scroll/Rows");
+            int index = 0;
+            foreach (ThirdPartyLicenses.Notice notice in ThirdPartyLicenses.Notices) {
+                // A focusable, flat row so a controller can scroll the list.
+                var row = new Button {
+                    Name = $"License{index++}",
+                    Flat = true,
+                    Alignment = HorizontalAlignment.Left,
+                    AutoTranslateMode = AutoTranslateModeEnum.Disabled,
+                    Text = string.Format(Tr("licenses_row"), notice.Product, Tr(notice.LicenseKey))
+                };
+                rows.AddChild(row);
+            }
+            GetNode<Button>(licenses + "BackButton").Pressed += GoBack;
+        }
+
+        /// <summary>
+        /// G15e Credits replay. Plays the same roll the campaign ending uses, but
+        /// deliberately <b>not</b> through <see cref="CampaignCompletionSequence"/>:
+        /// that chain writes <c>SaveManager.MarkCampaignCompleted</c> when the
+        /// credits begin, and a replay from Extras must never complete a campaign.
+        /// Returns the roll (test surface).
+        /// </summary>
+        internal CreditsController ReplayCredits() {
+            if (_creditsReplay != null && IsInstanceValid(_creditsReplay)) return _creditsReplay;
+            _creditsReplay = CreditsController.CreateDefault();
+            _creditsReplay.Name = "CreditsReplay";
+            _creditsReplay.CreditsFinished += OnCreditsReplayFinished;
+            AddChild(_creditsReplay);
+            return _creditsReplay;
+        }
+
+        private void OnCreditsReplayFinished() {
+            if (_creditsReplay != null && IsInstanceValid(_creditsReplay)) _creditsReplay.QueueFree();
+            _creditsReplay = null;
+            FocusChainBuilder.Apply(ScreenRoot(CurrentScreen));
         }
 
         // ---- Binding ---------------------------------------------------------
@@ -163,6 +265,7 @@ namespace FTT.UI {
             // NetworkSelectScreen and scripts/Networking/ stay for the later package.
             GetNode<Button>(layout + "CalibrationDrillsButton").Pressed += OnCalibrationDrillsPressed;
             GetNode<Button>(layout + "SettingsButton").Pressed += OpenSettings;
+            GetNode<Button>(layout + "ExtrasButton").Pressed += () => PushScreen(MainMenuScreen.Extras);
             GetNode<Button>(layout + "QuitButton").Pressed += ConfirmQuit;
         }
 
@@ -284,6 +387,8 @@ namespace FTT.UI {
             _characterScreen.Visible = screen == MainMenuScreen.CharacterSelect;
             _difficultyScreen.Visible = screen == MainMenuScreen.DifficultySelect;
             _levelSelectScreen.Visible = screen == MainMenuScreen.LevelSelect;
+            _extrasScreen.Visible = screen == MainMenuScreen.Extras;
+            _licensesScreen.Visible = screen == MainMenuScreen.Licenses;
             if (screen == MainMenuScreen.Root) _developerLevelFlow = false;
             if (_temporalMainArt != null) _temporalMainArt.Visible = screen == MainMenuScreen.Root;
             if (_temporalSubmenuArt != null) _temporalSubmenuArt.Visible = screen != MainMenuScreen.Root;
@@ -297,6 +402,8 @@ namespace FTT.UI {
             MainMenuScreen.CharacterSelect => _characterScreen,
             MainMenuScreen.DifficultySelect => _difficultyScreen,
             MainMenuScreen.LevelSelect => _levelSelectScreen,
+            MainMenuScreen.Extras => _extrasScreen,
+            MainMenuScreen.Licenses => _licensesScreen,
             _ => _rootScreen
         };
 
@@ -327,6 +434,9 @@ namespace FTT.UI {
         public override void _UnhandledInput(InputEvent @event) {
             if (@event == null || !@event.IsActionPressed("ui_cancel")) return;
             if (_settingsMenu != null && IsInstanceValid(_settingsMenu) && _settingsMenu.Visible) return;
+            // Package 12 W6: the boot overlay and a credits replay own input while up.
+            if (_bootOverlay != null && IsInstanceValid(_bootOverlay)) return;
+            if (_creditsReplay != null && IsInstanceValid(_creditsReplay)) return;
             if (_stack.Count <= 1 && _confirmModal is not { IsOpen: true }) return;
             GetViewport()?.SetInputAsHandled();
             GoBack();
@@ -501,14 +611,23 @@ namespace FTT.UI {
             if (DateTimeOffset.TryParse(save.LastSavedTimestamp, out DateTimeOffset savedAt)) {
                 timestamp = savedAt.ToLocalTime().ToString("g");
             }
-            return string.Format(
+            string summary = string.Format(
                 Tr("save_slot_summary"),
                 slotIndex + 1,
                 CharacterName(save.SelectedCharacterID),
                 progress,
                 Tr(difficultyKey),
                 timestamp);
+            // G14: the slot card records the lowest tier this playthrough used.
+            return summary + "\n" + LowestDifficultyLine(save);
         }
+
+        /// <summary>The G14 slot-card line. Reads the effective lowest, so a pre-field payload shows its own tier.</summary>
+        internal string LowestDifficultyLine(FTT.Core.StorySaveData save) =>
+            string.Format(
+                Tr("save_slot_lowest_difficulty"),
+                Tr(FTT.Core.CampaignDifficultyService.DifficultyNameKey(
+                    FTT.Core.CampaignDifficultyRules.EffectiveLowest(save))));
 
         /// <summary>
         /// Audit Low (UI): the slot row used to render the raw scene basename

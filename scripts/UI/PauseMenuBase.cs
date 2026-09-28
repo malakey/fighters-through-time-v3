@@ -32,6 +32,7 @@ namespace FTT.UI {
         /// call <c>base._ExitTree()</c>.
         /// </summary>
         public override void _ExitTree() {
+            FTT.Core.PlatformOverlay.OverlayActivated -= OnPlatformOverlayActivated;
             if (!_isPaused) return;
             _isPaused = false;
             SceneTree tree = GetTree();
@@ -82,5 +83,49 @@ namespace FTT.UI {
             if (CanTogglePause()) TogglePause();
             GetViewport()?.SetInputAsHandled();
         }
+
+        // === Package 12 W6 (G11): auto-pause on window focus loss ===========
+        // Design Section 11: "Window focus loss and the Steam overlay also open
+        // the normal pause menu in every pausable mode (no modal); nothing
+        // resumes until the player chooses Resume." Every pausable surface in
+        // the game — Story levels and the hub (PauseMenu), local Fighter, the
+        // Holodeck and the Calibration Drills (LocalFighterPause) — derives from
+        // this class, so the rule lives here once. Regaining focus deliberately
+        // does NOT resume. The Steam overlay reaches the same entry point through
+        // FTT.Core.PlatformOverlay, which is a no-op until Steam ships (D7(a)).
+
+        // Subscribed in _EnterTree (which no subclass overrides) and released in
+        // _ExitTree (which every subclass must chain to base), so the hook cannot
+        // be skipped by a subclass _Ready that forgets to call base.
+        public override void _EnterTree() {
+            FTT.Core.PlatformOverlay.OverlayActivated += OnPlatformOverlayActivated;
+        }
+
+        private void OnPlatformOverlayActivated(bool active) {
+            if (active) HandleFocusLost();
+        }
+
+        public override void _Notification(int what) {
+            if (what == NotificationApplicationFocusOut) HandleFocusLost();
+        }
+
+        /// <summary>
+        /// Opens the ordinary pause menu because the window lost focus. A no-op when
+        /// already paused or when the surface is holding the player elsewhere
+        /// (<see cref="CanAutoPause"/>). Public so the rule is exercisable without
+        /// a real window. Returns true when it paused.
+        /// </summary>
+        public bool HandleFocusLost() {
+            if (!IsInsideTree() || _isPaused || !CanAutoPause()) return false;
+            SetPaused(true);
+            return true;
+        }
+
+        /// <summary>
+        /// Whether a focus loss may open the pause right now. Defaults to the pause
+        /// button's own gate; a subclass can narrow it further (a results screen, a
+        /// non-pausable online match) but never widen it.
+        /// </summary>
+        protected virtual bool CanAutoPause() => CanTogglePause();
     }
 }

@@ -63,6 +63,14 @@ namespace FTT.Core {
             /// </summary>
             internal const string LegacyRewind = "gameplay_rewind";
             public const string Pause = "ui_pause";
+
+            /// <summary>
+            /// Package 12 W6 (G10): opens the session Dialogue Log while a sequence
+            /// is on screen (Tab / right-stick click by default). A UI action, not a
+            /// gameplay verb: it carries no <see cref="GameplayButtons"/> bit and is
+            /// not a Controls-tab row.
+            /// </summary>
+            public const string DialogueLog = "ui_dialogue_log";
         }
 
         /// <summary>
@@ -121,6 +129,18 @@ namespace FTT.Core {
         private readonly Dictionary<int, PlayerInputFrame> _frames = new();
         private readonly List<int> _connectedJoypads = new();
 
+        // Package 12 W6 (G13): local input processing that runs BEFORE
+        // quantization and never reaches the simulation's rules — the Toggle
+        // Block latch per player slot, and the per-device stick profiles.
+        private readonly Dictionary<int, BlockToggleLatch> _blockLatches = new();
+        private readonly Dictionary<int, string> _joypadGuids = new();
+
+        /// <summary>
+        /// Test seam: the Block Mode to use instead of the saved global setting.
+        /// Always reset to null in a test's finally block.
+        /// </summary>
+        internal BlockMode? BlockModeOverrideForTesting;
+
         [Export(PropertyHint.Range, "1,2,1")]
         public int MaxPlayers { get; set; } = 2;
 
@@ -163,7 +183,10 @@ namespace FTT.Core {
                 frame = source.Sample(tick, previous);
             } else {
                 int deviceId = GetDeviceForPlayer(playerIndex);
-                frame = SampleGodotDevice(tick, deviceId, previous.Held);
+                BlockToggleLatch latch = _blockLatches.GetValueOrDefault(playerIndex);
+                frame = SampleGodotDevice(
+                    tick, deviceId, previous.Held, ref latch, CurrentBlockMode(), StickProfileFor(deviceId));
+                _blockLatches[playerIndex] = latch;
             }
 
             frame.Tick = tick;
@@ -238,6 +261,7 @@ namespace FTT.Core {
         }
 
         private void RefreshConnectedDevices() {
+            _joypadGuids.Clear();
             _connectedJoypads.Clear();
             foreach (int joypad in Input.GetConnectedJoypads()) _connectedJoypads.Add(joypad);
             _connectedJoypads.Sort();
@@ -308,34 +332,102 @@ namespace FTT.Core {
             _deviceToPlayer[deviceId] = playerIndex;
             _playerToDevice[playerIndex] = deviceId;
             _frames.Remove(playerIndex);
+            // A new device starts from an unlatched stance: a Toggle Block latch
+            // must never survive a controller hand-over.
+            _blockLatches.Remove(playerIndex);
             DeviceAssigned?.Invoke(playerIndex, deviceId);
         }
 
-        private static PlayerInputFrame SampleGodotDevice(uint tick, int deviceId, GameplayButtons previousHeld) {
+        // === Package 12 W6 (G13) — Block Mode and stick profiles ============
+
+        /// <summary>The Block Mode in force: the test override, else the saved global setting, else Hold.</summary>
+        public BlockMode CurrentBlockMode() =>
+            BlockModeOverrideForTesting
+            ?? SaveManager.Instance?.GlobalData?.BlockInputMode
+            ?? BlockMode.Hold;
+
+        /// <summary>True while a Toggle Block latch holds a player's stance. Test/HUD surface.</summary>
+        public bool IsBlockLatched(int playerIndex) =>
+            _blockLatches.TryGetValue(playerIndex, out BlockToggleLatch latch) && latch.Latched;
+
+        /// <summary>Drops every Toggle Block latch (a menu, a mode switch, a test).</summary>
+        public void ClearBlockLatches() => _blockLatches.Clear();
+
+        /// <summary>
+        /// The engine's GUID for a connected joypad, or "" for the keyboard. Cached
+        /// per device so the 60 Hz poll path does not allocate a string per
+        /// sample; the cache resets on every connection change.
+        /// </summary>
+        public string JoypadGuid(int deviceId) {
+            if (deviceId < 0) return "";
+            if (_joypadGuids.TryGetValue(deviceId, out string cached)) return cached;
+            string guid = Input.GetJoyGuid(deviceId) ?? "";
+            _joypadGuids[deviceId] = guid;
+            return guid;
+        }
+
+        /// <summary>The stick profile a device samples with (its own GUID entry, else the shared default).</summary>
+        public StickProfile StickProfileFor(int deviceId) {
+            if (deviceId < 0) return StickProfiles.DesignDefault;
+            return StickProfiles.Resolve(SaveManager.Instance?.GlobalData?.StickProfiles, JoypadGuid(deviceId));
+        }
+
+        /// <summary>
+        /// Processed left stick for one joypad: the radial inner deadzone with
+        /// rescale. Zero for the keyboard. Applied before quantization.
+        /// </summary>
+        private static (float X, float Y) ReadProcessedLeftStick(int deviceId, StickProfile profile) {
+            if (deviceId < 0) return (0f, 0f);
+            float rawX = Input.GetJoyAxis(deviceId, JoyAxis.LeftX);
+            float rawY = Input.GetJoyAxis(deviceId, JoyAxis.LeftY);
+            return StickProfiles.ApplyRadialDeadzone(rawX, rawY, (profile ?? StickProfiles.DesignDefault).Deadzone);
+        }
+
+        private static PlayerInputFrame SampleGodotDevice(
+            uint tick,
+            int deviceId,
+            GameplayButtons previousHeld,
+            ref BlockToggleLatch latch,
+            BlockMode blockMode,
+            StickProfile stickProfile) {
             if (deviceId == UnassignedDevice) return PlayerInputFrame.Create(tick, 0, 0, GameplayButtons.None, previousHeld);
-            float horizontal = ReadActionStrength(Actions.MoveRight, deviceId)
-                - ReadActionStrength(Actions.MoveLeft, deviceId);
-            bool jump = ReadActionPressed(Actions.Jump, deviceId);
-            bool down = ReadActionPressed(Actions.Down, deviceId);
+            StickProfile profile = stickProfile ?? StickProfiles.DesignDefault;
+            (float stickX, float stickY) = ReadProcessedLeftStick(deviceId, profile);
+            float horizontal = ReadActionStrength(Actions.MoveRight, deviceId, stickX, stickY)
+                - ReadActionStrength(Actions.MoveLeft, deviceId, stickX, stickY);
+            bool jump = ReadActionPressed(Actions.Jump, deviceId, stickX, stickY);
+            // G13: the stick's Down reads against the device's down threshold
+            // instead of the action's fixed 0.5 deadzone; digital Down inputs
+            // (keys, d-pad) are unchanged.
+            bool down = ReadDigitalOrThresholdDown(deviceId, stickX, stickY, profile);
             // Gameplay feel §2.7: the vertical axis is Down minus Up. Jump was
             // removed from it — holding Jump no longer reads as "up", so the
             // directional Warp and the new up-attack are driven by a real Up
             // input (W, stick up, dpad-up) instead of the jump button.
-            bool up = ReadActionPressed(Actions.Up, deviceId);
+            bool up = ReadActionPressed(Actions.Up, deviceId, stickX, stickY);
             float vertical = (down ? 1.0f : 0.0f) - (up ? 1.0f : 0.0f);
+
+            bool jumpPressed = jump && !previousHeld.HasFlag(GameplayButtons.Jump);
+            bool rollRaw = ReadActionPressed(Actions.Roll, deviceId, stickX, stickY);
+            bool rollPressed = rollRaw && !previousHeld.HasFlag(GameplayButtons.Roll);
+            bool blockRaw = ReadActionPressed(Actions.Block, deviceId, stickX, stickY);
+            // G13 (D8(a)): the Toggle latch resolves here, before the chord
+            // recognizer, so a latched stance reads as "Block held" everywhere —
+            // the grab chord, the tech/escape reads and the sim alike.
+            bool blockHeldThisFrame = latch.Step(blockMode, blockRaw, jumpPressed, rollPressed);
 
             GameplayButtons held = GameplayButtons.None;
             AddIfHeld(ref held, GameplayButtons.Jump, jump);
             AddIfHeld(ref held, GameplayButtons.Down, down);
-            AddIfHeld(ref held, GameplayButtons.BasicAttack, ReadActionPressed(Actions.BasicAttack, deviceId));
-            AddIfHeld(ref held, GameplayButtons.Special1, ReadActionPressed(Actions.Special1, deviceId));
-            AddIfHeld(ref held, GameplayButtons.Special2, ReadActionPressed(Actions.Special2, deviceId));
-            AddIfHeld(ref held, GameplayButtons.MovementAbility, ReadActionPressed(Actions.MovementAbility, deviceId));
-            AddIfHeld(ref held, GameplayButtons.Block, ReadActionPressed(Actions.Block, deviceId));
-            AddIfHeld(ref held, GameplayButtons.Roll, ReadActionPressed(Actions.Roll, deviceId));
-            AddIfHeld(ref held, GameplayButtons.Ultimate, ReadUltimatePressed(deviceId));
-            AddIfHeld(ref held, GameplayButtons.Interact, ReadActionPressed(Actions.Interact, deviceId));
-            AddIfHeld(ref held, GameplayButtons.Pause, ReadActionPressed(Actions.Pause, deviceId));
+            AddIfHeld(ref held, GameplayButtons.BasicAttack, ReadActionPressed(Actions.BasicAttack, deviceId, stickX, stickY));
+            AddIfHeld(ref held, GameplayButtons.Special1, ReadActionPressed(Actions.Special1, deviceId, stickX, stickY));
+            AddIfHeld(ref held, GameplayButtons.Special2, ReadActionPressed(Actions.Special2, deviceId, stickX, stickY));
+            AddIfHeld(ref held, GameplayButtons.MovementAbility, ReadActionPressed(Actions.MovementAbility, deviceId, stickX, stickY));
+            AddIfHeld(ref held, GameplayButtons.Block, blockHeldThisFrame);
+            AddIfHeld(ref held, GameplayButtons.Roll, rollRaw);
+            AddIfHeld(ref held, GameplayButtons.Ultimate, ReadUltimatePressed(deviceId, stickX, stickY));
+            AddIfHeld(ref held, GameplayButtons.Interact, ReadActionPressed(Actions.Interact, deviceId, stickX, stickY));
+            AddIfHeld(ref held, GameplayButtons.Pause, ReadActionPressed(Actions.Pause, deviceId, stickX, stickY));
 
             // C01c combined verbs (Package 11 A1c). Both routes request the SAME
             // verb once: a direct bind, or the preset chord while that chord is
@@ -348,8 +440,8 @@ namespace FTT.Core {
             bool grabShortcut = ShortcutEnabled(InputShortcuts.GrabAction, deviceKind);
             bool echoShortcut = ShortcutEnabled(InputShortcuts.EchoStepAction, deviceKind);
             bool blockHeld = held.HasFlag(GameplayButtons.Block);
-            bool directGrab = ReadDirectAction(Actions.Grab, deviceId);
-            bool directEcho = ReadDirectAction(Actions.EchoStep, deviceId);
+            bool directGrab = ReadDirectAction(Actions.Grab, deviceId, stickX, stickY);
+            bool directEcho = ReadDirectAction(Actions.EchoStep, deviceId, stickX, stickY);
             AddIfHeld(
                 ref held,
                 GameplayButtons.Grab,
@@ -364,8 +456,54 @@ namespace FTT.Core {
             // frame differently (see GameplayButtons.DirectOrigin).
             AddIfHeld(ref held, GameplayButtons.DirectOrigin, !grabShortcut && !echoShortcut);
 
+            // G13: a grab chord formed out of a latched stance spends the latch
+            // (design: the grab chord is a legal exit). Takes effect next frame.
+            if (held.HasFlag(GameplayButtons.Grab) && !previousHeld.HasFlag(GameplayButtons.Grab)) {
+                latch.ReleaseAfterGrab();
+            }
+
             return PlayerInputFrame.Create(tick, horizontal, vertical, held, previousHeld);
         }
+
+        /// <summary>
+        /// Down, with the G13 threshold. A left-stick-Y Down event reads the
+        /// processed stick against the device's down threshold instead of the
+        /// action's fixed deadzone; every other Down event (key, d-pad, other axes)
+        /// reads exactly as before.
+        /// </summary>
+        private static bool ReadDigitalOrThresholdDown(int deviceId, float stickX, float stickY, StickProfile profile) {
+            Godot.Collections.Array<InputEvent> events = InputMap.ActionGetEvents(Actions.Down);
+            using var lifetime = events.AsDisposable();
+            float deadzone = InputMap.ActionGetDeadzone(Actions.Down);
+            foreach (InputEvent inputEvent in events) {
+                if (deviceId == KeyboardDevice) {
+                    if (inputEvent is InputEventKey keyEvent) {
+                        Key key = keyEvent.PhysicalKeycode != Key.None ? keyEvent.PhysicalKeycode : keyEvent.Keycode;
+                        if (key != Key.None && Input.IsPhysicalKeyPressed(key)) return true;
+                    } else if (inputEvent is InputEventMouseButton mouseEvent
+                        && Input.IsMouseButtonPressed(mouseEvent.ButtonIndex)) {
+                        return true;
+                    }
+                } else if (inputEvent is InputEventJoypadButton buttonEvent) {
+                    if (Input.IsJoyButtonPressed(deviceId, buttonEvent.ButtonIndex)) return true;
+                } else if (inputEvent is InputEventJoypadMotion motionEvent) {
+                    if (motionEvent.Axis == JoyAxis.LeftY && motionEvent.AxisValue > 0f) {
+                        if (StickProfiles.IsDownHeld(stickY, profile.DownThreshold)) return true;
+                        continue;
+                    }
+                    float axis = ProcessedAxis(deviceId, motionEvent.Axis, stickX, stickY);
+                    if (axis * MathF.Sign(motionEvent.AxisValue) >= deadzone) return true;
+                }
+            }
+            return false;
+        }
+
+        /// <summary>The left stick reads its processed (deadzoned) value; every other axis reads raw.</summary>
+        private static float ProcessedAxis(int deviceId, JoyAxis axis, float stickX, float stickY) => axis switch {
+            JoyAxis.LeftX => stickX,
+            JoyAxis.LeftY => stickY,
+            _ => Input.GetJoyAxis(deviceId, axis)
+        };
 
         /// <summary>
         /// A C01c direct action that the InputMap may not carry yet (the two rows
@@ -374,8 +512,8 @@ namespace FTT.Core {
         /// which is exactly a refused direct action: it does nothing and spends
         /// nothing.
         /// </summary>
-        private static bool ReadDirectAction(string action, int deviceId) =>
-            InputMap.HasAction(action) && ReadActionPressed(action, deviceId);
+        private static bool ReadDirectAction(string action, int deviceId, float stickX, float stickY) =>
+            InputMap.HasAction(action) && ReadActionPressed(action, deviceId, stickX, stickY);
 
         /// <summary>
         /// Whether a preset chord is switched on for a device kind. Reads the saved
@@ -392,8 +530,8 @@ namespace FTT.Core {
         /// </summary>
         private static readonly List<JoyButton> UltimateChordScratch = new();
 
-        private static bool ReadUltimatePressed(int deviceId) {
-            if (deviceId == KeyboardDevice) return ReadActionPressed(Actions.Ultimate, deviceId);
+        private static bool ReadUltimatePressed(int deviceId, float stickX, float stickY) {
+            if (deviceId == KeyboardDevice) return ReadActionPressed(Actions.Ultimate, deviceId, stickX, stickY);
 
             UltimateChordScratch.Clear();
             Godot.Collections.Array<InputEvent> ultimateEvents = InputMap.ActionGetEvents(Actions.Ultimate);
@@ -403,18 +541,20 @@ namespace FTT.Core {
                 }
             }
 
-            if (UltimateChordScratch.Count <= 1) return ReadActionPressed(Actions.Ultimate, deviceId);
+            if (UltimateChordScratch.Count <= 1) return ReadActionPressed(Actions.Ultimate, deviceId, stickX, stickY);
             foreach (JoyButton button in UltimateChordScratch) {
                 if (!Input.IsJoyButtonPressed(deviceId, button)) return false;
             }
             return true;
         }
 
-        private static bool ReadActionPressed(string action, int deviceId) {
-            return ReadActionStrength(action, deviceId) >= InputMap.ActionGetDeadzone(action);
+        private static bool ReadActionPressed(string action, int deviceId, float stickX, float stickY) {
+            return ReadActionStrength(action, deviceId, stickX, stickY) >= InputMap.ActionGetDeadzone(action);
         }
 
-        private static float ReadActionStrength(string action, int deviceId) {
+        /// <param name="stickX">The processed left-stick X (the G13 deadzone applied).</param>
+        /// <param name="stickY">The processed left-stick Y.</param>
+        private static float ReadActionStrength(string action, int deviceId, float stickX, float stickY) {
             float strength = 0.0f;
             // M-26: the hottest poll path in the project (~12 actions x 2 players
             // x 60 Hz). Dispose the engine collection wrapper deterministically
@@ -433,7 +573,9 @@ namespace FTT.Core {
                 } else if (inputEvent is InputEventJoypadButton buttonEvent) {
                     if (Input.IsJoyButtonPressed(deviceId, buttonEvent.ButtonIndex)) strength = 1.0f;
                 } else if (inputEvent is InputEventJoypadMotion motionEvent) {
-                    float axis = Input.GetJoyAxis(deviceId, motionEvent.Axis);
+                    // G13: the left stick reads its processed (per-device
+                    // deadzoned) value, so every action on it sees one stick.
+                    float axis = ProcessedAxis(deviceId, motionEvent.Axis, stickX, stickY);
                     float directional = axis * MathF.Sign(motionEvent.AxisValue);
                     strength = MathF.Max(strength, MathF.Max(0.0f, directional));
                 }

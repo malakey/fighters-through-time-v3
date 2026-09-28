@@ -64,6 +64,16 @@ theme_override_colors/font_color = Color(0.914, 0.933, 0.973, 1)
 text = "menu_paused"
 horizontal_alignment = 1
 
+[node name="ControllerNotice" type="Label" parent="Root/Center/Panel/Layout"]
+visible = false
+custom_minimum_size = Vector2(320, 0)
+layout_mode = 2
+theme_type_variation = &"SmallLabel"
+theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
+text = "pause_controller_disconnected"
+horizontal_alignment = 1
+autowrap_mode = 3
+
 [node name="ResumeButton" type="Button" parent="Root/Center/Panel/Layout"]
 custom_minimum_size = Vector2(320, 44)
 layout_mode = 2
@@ -82,6 +92,12 @@ layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 text = "movelist_title"
 
+[node name="LogButton" type="Button" parent="Root/Center/Panel/Layout"]
+custom_minimum_size = Vector2(320, 44)
+layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+text = "dialogue_log_title"
+
 [node name="SaveButton" type="Button" parent="Root/Center/Panel/Layout"]
 custom_minimum_size = Vector2(320, 44)
 layout_mode = 2
@@ -93,6 +109,13 @@ custom_minimum_size = Vector2(320, 44)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 text = "menu_restart"
+
+[node name="LowerDifficultyButton" type="Button" parent="Root/Center/Panel/Layout"]
+visible = false
+custom_minimum_size = Vector2(320, 44)
+layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+text = "pause_lower_difficulty"
 
 [node name="QuitButton" type="Button" parent="Root/Center/Panel/Layout"]
 custom_minimum_size = Vector2(320, 44)
