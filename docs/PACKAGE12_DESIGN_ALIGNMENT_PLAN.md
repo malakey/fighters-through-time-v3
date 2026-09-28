@@ -420,3 +420,44 @@ The rewind WIP was committed as `21b0747` (58/58 filtered). The design mirror, e
 - **Hashes moved:** Tesla blink, Pocahontas Special 1, Tesla Lorentz pulse. Rollback-readiness, per-stage and determinism suites pass; three new convergence cases.
 - **Ledger:** closed `VERIFY-CPU-MOBILITY-SPECIALS`, `VERIFY-VORTEX-RECLAIM`; opened `VERIFY-SPIRIT-EAGLE-GEOMETRY`, `DEFER-FIGHTER-SAND-DECOY`, `DEFER-FIGHTER-KIT-RULES`, `VERIFY-NEXUS-DISPLACEMENT`.
 - **Tests:** +31 (twelve new suites, +2 matrix drills, +1 Level 4A Tesla timing case); five cases rewritten in place. Expected full total 2414 over the 2383 Wave 1 baseline.
+
+### W8 — Campaign mechanics (branch `p12/W8`; handoff `docs/handoffs/P12_W8.md`)
+
+- **Shipped:** M16, GAP-03, GAP-05 (D12(a) adopted: AwaitingSeal persisted in `attemptState.sealReadiness`), GAP-08, M02, M10 (implemented, no acceptance needed), the three 4A gate stand-ins retired, the shape-query specials, and the `IsActIII` deletion. D11 (lethal pits) and D15 (the L15 stand-in placement) were held and left untouched.
+- **M16:** `ResonanceHoldNode` has no HP and no discharge. It is a 180-frame held-Interact channel with a 130 px range and a `RadialProgress` UI. It resets on damage, range, release, stun, Time Freeze, the hold or `IsWorldHeld`. Completion runs the Extractor destruction path once: drain drop, F05 pickup, destroyed registry.
+- **GAP-03:** `SecretCache` issues its `{level}.secret` award once as a physical pickup and respawns it once on a resume if it was never collected. The base places the cache after `BuildLevel`, and the position is abstract per 4A variant. Caches are authored in Levels 2–15 and all nine 4A variants.
+- **GAP-05 / N01:**
+  - Boss defeat commits readiness, the defeat beats play, the anchor arms, and a single Interact commits completion before the exit vignette.
+  - On seal, remaining Extractors take `ShutDownBySeal` (inert, no credit).
+  - A pre-seal load never respawns the boss, re-arms the anchor, and respawns the pending boss pickup once.
+  - Coverage:
+    - Levels 2–14 and 4A use the generic anchor.
+    - Level 1 is hand-wired through the shared `SealReadiness`.
+    - Level 13 routes the Mirror through `CommitNonStandardBossDefeat`.
+    - Level 15 keeps its Prime Anchor and now persists readiness.
+- **GAP-08:** `PuzzleResetStation` sits in Pompeii's winch room, the only losable puzzle; the full enumeration is in the handoff.
+  - It resets unsolved puzzles only and is inert once solved.
+  - It checks geometry with `Shape2D.Collide`: any obstruction refuses the whole reset.
+  - `WeightedObject` gained owner and prop IDs, and `PressurePlate` gained an allowlist plus `AcceptsPlayerOccupancy`.
+- **M02:** body masks are now `Environment | OneWayPlatform`; eight body scenes were fixed; `MovableWeightTemplate` moved to `Environment`.
+- **M10:** a per-hazard, area-based `VolleyCover` on `StoryCyclicHazard`; Level 2 has a mantlet in each of its six lanes.
+- **4A gates:** `LegacyGateMode.CastWatch = 4` (appended), `StrikeSurfaceOnEnemyHurtbox` and `ZoneAcceptsOwnedConstruct`. `LegacyCastGateWatcher`, `VineSnareGateResolver` and `LegacyResonantEffigy` are deleted, and each variant's behaviour is preserved.
+- **Shape-query:** `StoryShapeQuery.DeliveryMask` is used at 19 sites, and a source sweep guards against new bare-mask queries.
+- **Deviations:**
+  1. The seal prompt is static text, not a live C01c binding glyph.
+  2. The vignette is the existing exit dialogue plus a notice (placeholder); Level 14's local-objective line is not written.
+  3. Level 15 still arms at defeat.
+  4. Every solved Strike gate drops `EnemyHurtbox`.
+  5. `Hurtbox.TakeHit` gained the Time Freeze discard; it coexists with W4's `PuzzleOnly` rejection.
+  6. A boulder on `Environment` now stops enemy projectiles.
+  7. A sealed Extractor refuses all damage.
+  8. The M16 range and the reset-not-pause rule are provisional.
+  9. A Pompeii reset does not restore a broken wedge.
+- **Pre-existing bug fixed:** a machine restored by a death rewind and broken again no longer lowers the living Extractor count twice.
+- **Save:** no new field and **no v7 derivation**; W8 is the first writer of the existing `sealReadiness`.
+- **Hashes:** none moved. `scripts/FighterSim/` is untouched.
+- **Ledger:** closed `VERIFY-SECRET-CACHE` and `DEFER-SEALING-ANCHOR`. `LEGACY_LEVELS.md`'s stand-in rows and note 7 are updated.
+- **Tests:** **+63**, from twelve new suites; 7 cases in the 4A content suites were rewritten in place.
+  - `ThoroughRunCollectionWalkTests` physically collects 1,000 base dust for every hero.
+  - After merging `main` (W3b, W4), the full suite ran **2487/2487** = 2424 + 63, in a clear window.
+- `en.en.translation` is not committed; the orchestrator must run `--import`.
