@@ -75,6 +75,50 @@ public class HubArrivalTests {
         }
     }
 
+    /// <summary>
+    /// Package 12 Phase C (the W5/W7 seam on <c>SpawnPlayer</c>): a Holodeck
+    /// exit's one-shot session flag lands the player at the console marker, is
+    /// consumed on arrival, and the next ordinary arrival is back on the Bridge.
+    /// </summary>
+    [TestCase]
+    public void AHolodeckExitArrivesAtTheConsoleOnceAndTheNextArrivalIsTheBridge() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        bool originalPaused = tree.Paused;
+        SessionData original = GameManager.Instance.CurrentSession;
+        Node hub = null;
+        try {
+            SessionData session = GameManager.Instance.CurrentSession;
+            session.ActiveSaveSlot = -1;
+            session.ArriveAtHolodeckConsole = true;
+            session.ReopenHolodeckConsole = false;
+            GameManager.Instance.CurrentSession = session;
+
+            hub = ResourceLoader.Load<PackedScene>(HubScenePath).Instantiate();
+            tree.Root.AddChild(hub);
+            var console = hub.GetNodeOrNull<Marker2D>(HubWorldController.HolodeckConsoleSpawnName);
+            AssertObject(console).OverrideFailureMessage("The Holodeck console arrival marker is missing.").IsNotNull();
+            AssertThat(console.Position).IsEqual(HubWorldController.HolodeckConsoleSpawnPosition);
+            AssertThat(hub.GetNodeOrNull<Node2D>("Player").Position)
+                .IsEqual(HubWorldController.HolodeckConsoleSpawnPosition);
+            AssertThat(GameManager.Instance.CurrentSession.ArriveAtHolodeckConsole)
+                .OverrideFailureMessage("The arrival flag is one-shot and consumed by the hub.").IsFalse();
+
+            hub.GetParent()?.RemoveChild(hub);
+            hub.Free();
+            hub = ResourceLoader.Load<PackedScene>(HubScenePath).Instantiate();
+            tree.Root.AddChild(hub);
+            AssertThat(hub.GetNodeOrNull<Node2D>("Player").Position)
+                .IsEqual(HubWorldController.BridgeSpawnPosition);
+        } finally {
+            if (hub != null && GodotObject.IsInstanceValid(hub)) {
+                hub.GetParent()?.RemoveChild(hub);
+                hub.Free();
+            }
+            GameManager.Instance.CurrentSession = original;
+            tree.Paused = originalPaused;
+        }
+    }
+
     [TestCase]
     public void EverySequenceTheSelectorCanNameIsAuthoredInTheHubSet() {
         var set = AuthoredResources.Load<DialogueSetData>(HubDialoguePath);

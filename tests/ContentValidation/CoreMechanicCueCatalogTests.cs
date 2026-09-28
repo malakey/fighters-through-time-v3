@@ -189,4 +189,44 @@ public class CoreMechanicCueCatalogTests {
             audio.ReleaseAllVoices();
         }
     }
+
+    /// <summary>
+    /// Package 12 Phase C seam: W10 authored the N01 seal charge/lock rows before
+    /// W8 built the sealing anchor. The anchor now publishes its two edges on
+    /// <see cref="EventBus.OnSealingAnchorChanged"/>; arming plays the hum (there
+    /// is no hold to charge through) and the accepted seal plays the lock, each
+    /// exactly once however often the anchor is poked.
+    /// </summary>
+    [TestCase]
+    public void TheSealingAnchorPlaysTheChargeHumWhenArmedAndTheLockWhenSealed() {
+        AudioManager audio = AudioManager.Instance;
+        CoreMechanicCuePresenter cues = audio.CoreCues;
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        TemporalCoreAnchor anchor = TemporalCoreAnchor.CreateSealingAnchor("phase_c.sealing_anchor", Vector2.Zero);
+        try {
+            cues.ResetTransient();
+            tree.Root.AddChild(anchor);
+            int before = cues.CuesPlayed;
+
+            // Dormant: a premature seal is refused and plays nothing.
+            AssertThat(anchor.InsertCore()).IsFalse();
+            AssertThat(cues.CuesPlayed).IsEqual(before);
+
+            AssertThat(anchor.Arm()).IsTrue();
+            AssertThat(cues.LastCueID).IsEqual(CoreMechanicCueIDs.SealCharge);
+            AssertThat(anchor.Arm()).IsFalse();
+            AssertThat(cues.CuesPlayed - before).IsEqual(1);
+
+            AssertThat(anchor.InsertCore()).IsTrue();
+            AssertThat(cues.LastCueID).IsEqual(CoreMechanicCueIDs.SealLock);
+            AssertThat(anchor.InsertCore()).IsFalse();
+            AssertThat(cues.CuesPlayed - before).IsEqual(2);
+        } finally {
+            if (IsInstanceValid(anchor)) anchor.Free();
+            cues.ResetTransient();
+            audio.ReleaseAllVoices();
+        }
+    }
+
+    private static bool IsInstanceValid(GodotObject node) => GodotObject.IsInstanceValid(node);
 }

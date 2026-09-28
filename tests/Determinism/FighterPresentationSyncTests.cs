@@ -228,6 +228,28 @@ public class FighterPresentationSyncTests {
     }
 
     /// <summary>
+    /// Package 12 Phase C seam: the Fighter knockdown thud reads W3b's component
+    /// 320 instead of W10's tumble-landing heuristic. Walking a real knockdown's
+    /// frame count (30 down to 0, then a second knockdown) fires the edge exactly
+    /// once per knockdown and never during the countdown or the get-up.
+    /// </summary>
+    [TestCase]
+    public void TheKnockdownThudFiresOnceWhenComponent320StartsAKnockdown() {
+        int fired = 0;
+        int previous = 0;
+        var trace = new System.Collections.Generic.List<int> { 0, 0 };
+        for (int frames = BasicComboRules.KnockdownFrames; frames >= 0; frames--) trace.Add(frames);
+        trace.AddRange(new[] { 0, 0, BasicComboRules.KnockdownFrames, BasicComboRules.KnockdownFrames - 1 });
+        foreach (int current in trace) {
+            if (FighterSimulationDriver.KnockdownThudStarts(previous, current)) fired++;
+            previous = current;
+        }
+        AssertThat(fired).IsEqual(2);
+        AssertThat(FighterSimulationDriver.KnockdownThudStarts(0, 0)).IsFalse();
+        AssertThat(FighterSimulationDriver.KnockdownThudStarts(12, 11)).IsFalse();
+    }
+
+    /// <summary>
     /// H03 (Package 12 W10): the driver maps the grabber's phases onto the
     /// contract's grab/throw names, and every name it can emit exists in the
     /// 30-name player presentation contract.

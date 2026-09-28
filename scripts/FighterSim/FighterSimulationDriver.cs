@@ -835,7 +835,7 @@ namespace FTT.FighterSim {
         private readonly int[] _cueGrabPhase = { 0, 0 };
         private readonly int[] _cueEchoWindup = { 0, 0 };
         private readonly int[] _cueTechLockout = { 0, 0 };
-        private readonly int[] _cueTumble = { 0, 0 };
+        private readonly int[] _cueKnockdownFrames = { 0, 0 };
         private readonly int[] _cueHP = { -1, -1 };
         private readonly float[] _cueEchoPool = { 0f, 0f };
         private readonly bool[] _cueMeterFull = { false, false };
@@ -883,15 +883,18 @@ namespace FTT.FighterSim {
             _cueEchoWindup[playerID] = windup;
 
             // Landing tech vs a missed tech: a tech lockout starting is the slap;
-            // a tumble ending on the ground with no tech is the knockdown thud.
+            // a knockdown starting on W3b's component 320 is the thud (Package 12
+            // Phase C retired W10's tumble-landing heuristic for the real flag).
+            int knockdownFrames = Simulation.TryGetFighterKnockdown(playerID, out FighterKnockdownComponent knockdown)
+                ? knockdown.KnockdownFrames
+                : 0;
             if (verb.TechLockoutFrames > 0 && _cueTechLockout[playerID] == 0) {
                 cues?.Play(FTT.Core.CoreMechanicCueIDs.LandingTech);
-            } else if (verb.Tumble == 0 && _cueTumble[playerID] != 0
-                && verb.TechLockoutFrames == 0 && state.IsGrounded != 0) {
+            } else if (KnockdownThudStarts(_cueKnockdownFrames[playerID], knockdownFrames)) {
                 cues?.Play(FTT.Core.CoreMechanicCueIDs.KnockdownThud);
             }
             _cueTechLockout[playerID] = verb.TechLockoutFrames;
-            _cueTumble[playerID] = verb.Tumble;
+            _cueKnockdownFrames[playerID] = knockdownFrames;
 
             // Rally reclaim: the echo pool falling while HP rises on the same pass.
             float pool = verb.EchoPool.ToFloat();
@@ -1010,6 +1013,14 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// H04 knockdown thud edge over <c>FighterKnockdownComponent.KnockdownFrames</c>
+        /// (component 320): true on the tick a knockdown starts. The count only ever
+        /// runs down, so a rise is a fresh knockdown. Pure; read-only.
+        /// </summary>
+        public static bool KnockdownThudStarts(int previousKnockdownFrames, int currentKnockdownFrames) =>
+            currentKnockdownFrames > 0 && currentKnockdownFrames > previousKnockdownFrames;
+
+        /// <summary>
         /// H03: the grabber's pose from <c>FighterVerbComponent.GrabPhase</c>
         /// (1 startup, 2 active, 3 whiff recovery, 4 holding → <c>grab</c>;
         /// 5 throw → <c>throw</c>), or null when not grabbing. Pure; read-only.
@@ -1087,6 +1098,7 @@ namespace FTT.FighterSim {
             }
             _pauseMenu = InstantiateUI<FTT.UI.LocalFighterPause>(PauseScenePath, "LocalFighterPause");
             _results = InstantiateUI<FTT.UI.MatchResults>(ResultsScenePath, "MatchResults");
+            if (_pauseMenu != null) _pauseMenu.ResultsScreen = _results;
             // Package 8 B2: the production HUD is attached here rather than authored
             // into each stage, so all ten stages and the Test Arena share one surface.
             _hud = InstantiateUI<FTT.UI.FighterHUD>(FTT.UI.FighterHUD.ScenePath, "FighterHUD");

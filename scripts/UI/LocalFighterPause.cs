@@ -55,6 +55,21 @@ namespace FTT.UI {
             base._ExitTree();
         }
 
+        /// <summary>
+        /// The match's results screen, wired by <c>FighterSimulationDriver</c>.
+        /// While it is showing, a window focus loss must not open the pause on
+        /// top of it (Package 12 Phase C, the W5/W6 seam): the match is over and
+        /// the results panel already owns focus.
+        /// </summary>
+        public MatchResults ResultsScreen { get; set; }
+
+        /// <summary>True while the wired results screen is on screen.</summary>
+        public bool ResultsShowing =>
+            ResultsScreen != null && IsInstanceValid(ResultsScreen) && ResultsScreen.IsShowing;
+
+        /// <summary>G11 focus-loss auto-pause, narrowed: never over the results screen.</summary>
+        protected override bool CanAutoPause() => base.CanAutoPause() && !ResultsShowing;
+
         /// <summary>A forced disconnect pause cannot be dismissed with the pause button.</summary>
         protected override bool CanTogglePause() =>
             _disconnectedPlayer < 0 && _exitConfirm?.IsOpen != true

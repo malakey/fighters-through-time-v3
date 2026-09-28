@@ -475,6 +475,23 @@ namespace FTT.Core {
         public AbilitySlotLockState State;
     }
 
+    /// <summary>
+    /// Package 12 Phase C: the N01 sealing anchor's two presentation edges.
+    /// <see cref="Armed"/> — the boss is down and the anchor can take the seal;
+    /// <see cref="Sealed"/> — the seal was accepted (the level's completion
+    /// commit follows on the anchor's own signal).
+    /// </summary>
+    public enum SealingAnchorState {
+        Armed = 0,
+        Sealed = 1
+    }
+
+    /// <summary>Raised by <c>TemporalCoreAnchor</c> on each edge, once.</summary>
+    public struct SealingAnchorPayload {
+        public string AnchorID;
+        public SealingAnchorState State;
+    }
+
     /// <summary>Act III Warden Beacon anchor charges. Zero outside Act III.</summary>
     public struct AnchorChargesPayload {
         public int Charges;
@@ -714,6 +731,13 @@ namespace FTT.Core {
         public event Action<AnchorChargesPayload> OnAnchorChargesChanged;
         public void RaiseAnchorChargesChanged(AnchorChargesPayload payload) =>
             OnAnchorChargesChanged?.Invoke(payload);
+        // === Package 12 Phase C: the N01 sealing anchor's presentation edges ===
+        // Published by TemporalCoreAnchor (every boss level, Level 1's hand-wired
+        // anchor and Level 15's Prime Anchor alike); consumed by the H04 cue
+        // presenter. Gameplay still runs on the anchor's own Godot signals.
+        public event Action<SealingAnchorPayload> OnSealingAnchorChanged;
+        public void RaiseSealingAnchorChanged(SealingAnchorPayload payload) =>
+            OnSealingAnchorChanged?.Invoke(payload);
 
         public event Action<RallyEchoPayload> OnRallyEchoChanged;
         public void RaiseRallyEchoChanged(RallyEchoPayload payload) =>

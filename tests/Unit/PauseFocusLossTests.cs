@@ -57,6 +57,41 @@ public class PauseFocusLossTests {
         }
     }
 
+    /// <summary>
+    /// Package 12 Phase C (the W5/W6 seam): a focus loss over the Fighter results
+    /// screen leaves the tree unpaused and the results panel in charge; before
+    /// the results appear the same pause still opens.
+    /// </summary>
+    [TestCase]
+    public void AFocusLossOverTheFighterResultsScreenDoesNotOpenThePause() {
+        var scene = Host("FocusLossResultsHost");
+        var pause = new LocalFighterPause { Name = "LocalFighterPause" };
+        scene.AddChild(pause);
+        var results = GD.Load<PackedScene>("res://scenes/ui/MatchResults.tscn").Instantiate<MatchResults>();
+        scene.AddChild(results);
+        pause.ResultsScreen = results;
+        SceneTree tree = scene.GetTree();
+        try {
+            AssertThat(pause.ResultsShowing).IsFalse();
+            results.ShowResult(new FTT.FighterSim.FighterMatchResult(
+                winnerPlayerID: 0, isTrueTie: false, completedTick: 600, finalHash: 3L));
+            AssertThat(pause.ResultsShowing).IsTrue();
+
+            pause.Notification((int)Node.NotificationApplicationFocusOut);
+            AssertThat(pause.IsPaused).IsFalse();
+            AssertThat(tree.Paused).IsFalse();
+            AssertThat(pause.HandleFocusLost()).IsFalse();
+
+            // The ordinary pause button is not what this seam narrows.
+            pause.ResultsScreen = null;
+            AssertThat(pause.HandleFocusLost()).IsTrue();
+            AssertThat(tree.Paused).IsTrue();
+        } finally {
+            tree.Paused = false;
+            Free(scene);
+        }
+    }
+
     [TestCase]
     public void ThePlatformOverlaySeamIsANoOpThatStillReachesThePause() {
         AssertThat(PlatformOverlay.Current.IsAvailable).IsFalse();

@@ -158,6 +158,7 @@ namespace FTT.Core {
             bus.OnRallyEchoChanged += OnRallyEchoChanged;
             bus.OnCollapseTremorChanged += OnCollapseTremorChanged;
             bus.OnPlayerDied += OnPlayerDied;
+            bus.OnSealingAnchorChanged += OnSealingAnchorChanged;
         }
 
         private void Unbind() {
@@ -170,6 +171,7 @@ namespace FTT.Core {
             bus.OnRallyEchoChanged -= OnRallyEchoChanged;
             bus.OnCollapseTremorChanged -= OnCollapseTremorChanged;
             bus.OnPlayerDied -= OnPlayerDied;
+            bus.OnSealingAnchorChanged -= OnSealingAnchorChanged;
         }
 
         /// <summary>Test seam: drives the Time Freeze handler without a controller.</summary>
@@ -243,6 +245,19 @@ namespace FTT.Core {
         // raise this event (the driver plays its own stinger from sim state).
         private void OnPlayerDied(int playerIndex) {
             if (playerIndex == 0) Play(CoreMechanicCueIDs.KoStinger);
+        }
+
+        /// <summary>
+        /// N01 (Package 12 Phase C). The design's "charging hum while the sealing
+        /// anchor is held" predates the single-press anchor W8 shipped — there is
+        /// no hold — so the hum plays when the anchor arms and invites the seal,
+        /// and the resonant lock plays when the seal is accepted. Public for
+        /// headless tests.
+        /// </summary>
+        public void OnSealingAnchorChanged(SealingAnchorPayload payload) {
+            Play(payload.State == SealingAnchorState.Sealed
+                ? CoreMechanicCueIDs.SealLock
+                : CoreMechanicCueIDs.SealCharge);
         }
 
         /// <summary>Advances the thaw-warning and Integrity-tick clocks. Public for headless tests.</summary>

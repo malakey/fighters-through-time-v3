@@ -145,6 +145,9 @@ namespace FTT.Environment {
             IsArmed = true;
             ApplyPresentation();
             EmitSignal(SignalName.AnchorArmed, AnchorID);
+            EventBus.Instance?.RaiseSealingAnchorChanged(new SealingAnchorPayload {
+                AnchorID = AnchorID, State = SealingAnchorState.Armed
+            });
             return true;
         }
 
@@ -156,6 +159,11 @@ namespace FTT.Environment {
             if (!IsArmed || IsInserted) return false;
             IsInserted = true;
             ApplyPresentation();
+            // The cue edge is published before the completion chain the signal
+            // starts, so the lock leads into the restoration vignette.
+            EventBus.Instance?.RaiseSealingAnchorChanged(new SealingAnchorPayload {
+                AnchorID = AnchorID, State = SealingAnchorState.Sealed
+            });
             EmitSignal(SignalName.CoreInserted, AnchorID);
             return true;
         }
