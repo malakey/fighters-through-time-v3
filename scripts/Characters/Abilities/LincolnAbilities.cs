@@ -117,7 +117,7 @@ namespace FTT.Characters.Abilities {
                 // below takes 1, 2 or 3 charges to 0 through the normal
                 // BlockSystem.ResolveHit response. The sim already passed 0 for
                 // Lincoln's S1, so the two modes disagreed until now.
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "lincoln_emancipator",
                     HitboxID = "ground_wave",
@@ -133,7 +133,8 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                float dealt = hurtbox.TakeHit(hit);
+                Credit(in hit, dealt);
             }
         }
 
@@ -422,7 +423,7 @@ namespace FTT.Characters.Abilities {
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
                 if (!_struckHurtboxes.Add(hurtbox.GetInstanceId())) continue;
 
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "lincoln_rail_charge",
                     HitboxID = "ram",
@@ -438,8 +439,9 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
+                float dealt = hurtbox.TakeHit(hit);
                 if (dealt > 0f) {
-                    Owner.AddInfluenceFromDamageDealt(dealt);
+                    Credit(in hit, dealt);
                     if (Owner.HasStoryPerk(HomesteadBulwarkPerkKey)) {
                         Owner.ApplyStoryHyperArmor(HomesteadBulwarkArmorSeconds);
                     }
@@ -554,7 +556,7 @@ namespace FTT.Characters.Abilities {
         private void ExecuteSmash(bool finalSmash) {
             if (Owner == null) return;
             foreach (Hurtbox hurtbox in QueryPennedHurtboxes()) {
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "lincoln_union_indestructible",
                     HitboxID = finalSmash ? "fence_shatter_smash" : $"rail_smash_{_smashesDone}",
@@ -570,10 +572,11 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
                 });
+                float dealt = hurtbox.TakeHit(hit);
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt, ultimateOrigin: true);
+                Credit(in hit, dealt);
             }
         }
 

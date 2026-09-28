@@ -501,11 +501,19 @@ namespace FTT.FighterSim {
                         rooted,
                         // An Echo Step wind-up owns the Roll press that armed it.
                         allowRoll: !attacking && verb.EchoStepWindupFrames == 0 && !shieldStunned);
-                    bool movementHandled = ProcessUniversalMovement(
-                        ref fighter,
-                        ref runtime,
-                        in tuning,
-                        statusMoveMultiplier * speedBuffMultiplier);
+                    // Package 12 W4: Tesla's blink and Pocahontas's Spirit Strike run
+                    // as sim-local phases of the same universal-movement slot.
+                    bool movementHandled = FighterKitMotion.IsKitPhase(runtime.UniversalMovementState)
+                        ? FighterKitMotion.Process(
+                            ref fighter,
+                            ref runtime,
+                            in frame.GetReadOnly<FighterAbilityModeComponent>(entity),
+                            tuning.MoveSpeed / FP64.FromInt(UniversalMovementRules.RunDecelerationFrames))
+                        : ProcessUniversalMovement(
+                            ref fighter,
+                            ref runtime,
+                            in tuning,
+                            statusMoveMultiplier * speedBuffMultiplier);
                     if (!movementHandled) {
                         ApplyNormalMovement(
                             ref fighter,
@@ -540,7 +548,9 @@ namespace FTT.FighterSim {
                             allowJump: !attacking && !shieldStunned,
                             allowDropThrough: !shieldStunned);
                     }
-                    if (fighter.IsGrounded == 0) {
+                    // Package 12 W4: the blink hover/translation and the Spirit Strike
+                    // carry fly straight — no gravity, no fast-fall snap.
+                    if (fighter.IsGrounded == 0 && !FighterKitMotion.SuspendsGravity(in runtime)) {
                         // Fast-fall (§2.9, 2026-08-10): a stateless rule derived
                         // from held input every tick — no snapshot field. Holding
                         // Down in the air cancels the warp float window and pins
@@ -1275,7 +1285,9 @@ namespace FTT.FighterSim {
             UniversalMovementPhase phase = (UniversalMovementPhase)runtime.UniversalMovementState;
             return phase is UniversalMovementPhase.RollStartup
                 or UniversalMovementPhase.RollTravel
-                or UniversalMovementPhase.RollRecovery;
+                or UniversalMovementPhase.RollRecovery
+                // Package 12 W4: a blink or Spirit Strike in flight is an action.
+                || FighterKitMotion.IsKitPhase(runtime.UniversalMovementState);
         }
 
         public static void Cancel(ref FighterRuntimeComponent runtime) {

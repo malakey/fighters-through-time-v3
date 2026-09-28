@@ -103,6 +103,10 @@ namespace FTT.Combat {
             _hitbox.Delivery = HitDelivery.DirectHit;
             _hitbox.Origin = HitOrigin.Special;
             _hitbox.ApplyAbilityHitContract(data);
+            // Package 12 W4 (GAP-14): latched at spawn, reset every spawn (pooled).
+            _hitbox.PuzzleOnly = _hitbox.Origin == HitOrigin.Ultimate
+                && sourcePlayer != null && IsInstanceValid(sourcePlayer)
+                && sourcePlayer.IsNexusCastInFlight;
             _hitbox.Damage = damage;
             _hitbox.KnockbackForce = knockback;
             _hitbox.AppliedStatus = data?.AppliedStatus ?? FTT.Core.StatusType.None;

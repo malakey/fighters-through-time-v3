@@ -11,7 +11,8 @@ namespace FTT.Tests.Determinism;
 /// <summary>
 /// Deterministic Fighter-side coverage for the canonical Tesla kit: coil
 /// deployment, the 8-unit alternating-current fence link with StaticCharge,
-/// the radial Lorentz Pulse Root zone with StaticCharge-primed coil chains,
+/// the radial Lorentz Pulse Root zone (whose coil chain now reads the Conductive
+/// mark, not Static Charge — see TeslaLorentzChainTests),
 /// the data-driven Lightning Blink, and rollback safety across coil linking.
 /// </summary>
 [TestSuite]
@@ -94,7 +95,7 @@ public class TeslaKitTests {
     }
 
     [TestCase]
-    public void LorentzPulseChainsCoilLightningIntoStaticChargedTargets() {
+    public void LorentzPulseNoLongerChainsOnStaticChargeAlone() {
         var simulation = new FighterSimulation(
             FighterLoadoutFactory.FromCharacterData(BuildChainCharacter()),
             FighterLoadout.Default(FighterCharacterID.Joan),
@@ -113,11 +114,12 @@ public class TeslaKitTests {
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent primedRuntime)).IsTrue();
         AssertThat(primedRuntime.StatusType).IsEqual((int)StatusType.StaticCharge);
 
-        // The pulse against a StaticCharge-primed target adds one chain strike
-        // per live coil: 12 base + 5 chain = 17.
+        // V7.6 F07 (Package 12 W4, GAP-10a): Static Charge is a pure interrupt
+        // and is NOT the chain condition any more — only this Tesla's
+        // Conductive mark is (TeslaLorentzChainTests). The pulse alone: 12.
         simulation.Advance(Frame(126, 0, GameplayButtons.Special2), Frame(126, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent chained)).IsTrue();
-        AssertThat(chained.CurrentHP).IsEqual(78);
+        AssertThat(chained.CurrentHP).IsEqual(83);
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent chainedRuntime)).IsTrue();
         AssertThat(chainedRuntime.StatusType).IsEqual((int)StatusType.Root);
     }
@@ -135,12 +137,17 @@ public class TeslaKitTests {
         simulation.Advance(
             Frame(0, -127, GameplayButtons.MovementAbility),
             Frame(0, 0, GameplayButtons.None));
+        // Package 12 W4: the blink is no longer an instant teleport — 6 startup
+        // frames, then the 12-frame translation.
+        for (int tick = 1; tick <= 18; tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent after)).IsTrue();
 
-        // 160 px at 60 px/unit is 2.666... world units of leftward travel.
+        // 180 px at 60 px/unit is 3.0 world units of leftward travel.
         var travelled = before.Position.x - after.Position.x;
-        AssertThat(travelled > xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(2.5)).IsTrue();
-        AssertThat(travelled < xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(2.8)).IsTrue();
+        AssertThat(travelled > xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(2.95)).IsTrue();
+        AssertThat(travelled < xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(3.05)).IsTrue();
     }
 
     [TestCase]
@@ -270,8 +277,8 @@ public class TeslaKitTests {
         MovementAbility = new MovementAbilityData {
             MovementType = MovementType.Blink,
             MovementDuration = 0.2f,
-            DistanceMoved = 160f,
-            MovementSpeed = 800f,
+            DistanceMoved = 180f,
+            MovementSpeed = 900f,
             CooldownDuration = 5f
         },
         UltimateAttack = new AbilityData { BaseDamage = 20f }
