@@ -288,7 +288,6 @@ namespace FTT.Combat {
             _isBlocking = false;
             RaiseChargesChanged();
         }
-=======
         /// <summary>
         /// The Story pixel-space guard-break push: the shared
         /// <see cref="BasicComboRules.GuardBreakPushX"/> /
