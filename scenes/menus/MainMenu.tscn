@@ -298,6 +298,20 @@ text = "menu_settings"
 alignment = 0
 
 
+[node name="ExtrasButton" type="Button" parent="RootScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(380, 56)
+layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+theme_override_font_sizes/font_size = 22
+theme_override_styles/focus = SubResource("GlassBtnFocusRing")
+theme_override_styles/disabled = SubResource("GlassBtnDisabled")
+theme_override_styles/hover = SubResource("GlassBtnHover")
+theme_override_styles/pressed = SubResource("GlassBtnPressed")
+theme_override_styles/normal = SubResource("GlassBtnNormal")
+text = "menu_extras"
+alignment = 0
+
+
 [node name="BottomSeparator" type="HSeparator" parent="RootScreen/Center/Panel/Layout"]
 layout_mode = 2
 
@@ -741,3 +755,130 @@ custom_minimum_size = Vector2(240, 44)
 layout_mode = 2
 theme_type_variation = &"TemporalGlassButton"
 text = "common_back"
+
+[node name="ExtrasScreen" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Center" type="CenterContainer" parent="ExtrasScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="ExtrasScreen/Center"]
+layout_mode = 2
+theme_type_variation = &"DialogueGlassPanel"
+
+[node name="Layout" type="VBoxContainer" parent="ExtrasScreen/Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="ExtrasScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_type_variation = &"EmphasisLabel"
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+text = "menu_extras"
+horizontal_alignment = 1
+
+[node name="CreditsButton" type="Button" parent="ExtrasScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(400, 44)
+layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+text = "extras_credits"
+
+[node name="LicensesButton" type="Button" parent="ExtrasScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(400, 44)
+layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+text = "extras_licenses"
+
+[node name="BackButton" type="Button" parent="ExtrasScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(400, 44)
+layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+text = "common_back"
+
+[node name="LicensesScreen" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Center" type="CenterContainer" parent="LicensesScreen"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="LicensesScreen/Center"]
+layout_mode = 2
+theme_type_variation = &"DialogueGlassPanel"
+
+[node name="Layout" type="VBoxContainer" parent="LicensesScreen/Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="LicensesScreen/Center/Panel/Layout"]
+layout_mode = 2
+theme_type_variation = &"EmphasisLabel"
+theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
+text = "extras_licenses"
+horizontal_alignment = 1
+
+[node name="Intro" type="Label" parent="LicensesScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(640, 0)
+layout_mode = 2
+theme_type_variation = &"SmallLabel"
+text = "licenses_intro"
+autowrap_mode = 3
+
+[node name="Scroll" type="ScrollContainer" parent="LicensesScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(640, 360)
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="Rows" type="VBoxContainer" parent="LicensesScreen/Center/Panel/Layout/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="BackButton" type="Button" parent="LicensesScreen/Center/Panel/Layout"]
+custom_minimum_size = Vector2(400, 44)
+layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+text = "common_back"
+
+[node name="VersionLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -520.0
+offset_top = -48.0
+offset_right = -24.0
+offset_bottom = -16.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+theme_type_variation = &"SmallLabel"
+theme_override_colors/font_color = Color(0.55, 0.61, 0.73, 1)
+horizontal_alignment = 2

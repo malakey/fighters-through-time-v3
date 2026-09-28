@@ -121,8 +121,24 @@ namespace FTT.Core {
         /// </summary>
         public int AnchorCharges;
 
+        // === Package 12 W6 (G14, additive — no schema bump) ================
+        /// <summary>
+        /// G14: the lowest campaign difficulty this playthrough has used. It can
+        /// only move down (difficulty is lowered from the hub, never raised).
+        ///
+        /// <para>The initializer is deliberately the <b>highest</b> tier: a payload
+        /// written before the field existed then reads back correctly through
+        /// <see cref="CampaignDifficultyRules.EffectiveLowest"/> (the minimum of
+        /// this and <see cref="Difficulty"/>), with no engine work in a field
+        /// initializer or <see cref="Normalize"/>. Phase C's v7 step persists that
+        /// minimum through <see cref="CampaignDifficultyRules.SeedLowestDifficultyUsed"/>
+        /// (the declared "seed from Difficulty" derivation).</para>
+        /// </summary>
+        public Difficulty LowestDifficultyUsed = Difficulty.Hard;
+
         public void Normalize() {
             SaveVersion = SaveSchemaMigrator.CurrentVersion;
+            if (!Enum.IsDefined(typeof(Difficulty), LowestDifficultyUsed)) LowestDifficultyUsed = Difficulty.Hard;
             AttemptState ??= new StoryAttemptState();
             AttemptState.Normalize();
             AnchorCharges = Math.Max(0, AnchorCharges);
@@ -403,6 +419,54 @@ namespace FTT.Core {
         /// </summary>
         public HashSet<string> SeenDialogueIDs = new(StringComparer.Ordinal);
 
+        // === Package 12 W6 — front end, settings, accessibility (all additive) ===
+        // Every field below has a field initializer that is the correct legacy
+        // default, so a v6 payload loads without a migration step; the v7 bump
+        // (Phase C) composes nothing for them beyond normalization.
+
+        /// <summary>
+        /// G06: the boot photosensitivity notice has been shown at least once. The
+        /// notice plays on every launch; it becomes skippable only after the first
+        /// viewing. A legacy payload loads <c>false</c> — that player has never
+        /// seen it, so their next boot shows it once unskippable.
+        /// </summary>
+        public bool PhotosensitivityNoticeSeen;
+
+        /// <summary>
+        /// G06: the first-launch setup cards are done (or were skipped). The design
+        /// shows them only "when no GlobalSaveData existed", so the initializer is
+        /// <c>true</c> — an existing payload that predates the field never sees the
+        /// cards — and <see cref="SaveManager"/> sets it <c>false</c> on exactly the
+        /// fresh-install path.
+        /// </summary>
+        public bool FirstRunSetupCompleted = true;
+
+        /// <summary>G09 "Send crash reports": Ask (default) / Always / Never. No upload exists (D9(a)).</summary>
+        public CrashReportMode CrashReports = CrashReportMode.Ask;
+
+        /// <summary>G10 Text Speed; Normal (30 cps) is the design default.</summary>
+        public TextSpeed DialogueTextSpeed = TextSpeed.Normal;
+
+        /// <summary>G11 Mute When Unfocused, default On.</summary>
+        public bool MuteWhenUnfocused = true;
+
+        /// <summary>M27 per-category mutes. They keep the slider values.</summary>
+        public bool MasterMuted;
+        public bool MusicMuted;
+        public bool SFXMuted;
+        /// <summary>Mutes the "UI &amp; Dialogue" category (the UI bus, which the Dialogue bus sends into).</summary>
+        public bool UIMuted;
+
+        /// <summary>G13 Block Mode, Hold by default. Local input processing only.</summary>
+        public BlockMode BlockInputMode = BlockMode.Hold;
+
+        /// <summary>
+        /// G13 per-device stick deadzone / down threshold, keyed by joypad GUID with
+        /// <see cref="StickProfiles.DefaultKey"/> as the shared profile. Local input
+        /// processing applied before quantization; never in a snapshot or hash.
+        /// </summary>
+        public Dictionary<string, StickProfile> StickProfiles = new(StringComparer.Ordinal);
+
         public void Normalize() {
             SaveVersion = SaveSchemaMigrator.CurrentVersion;
             // Package 11 A6b: the roster backfill deliberately does NOT live
@@ -433,6 +497,22 @@ namespace FTT.Core {
             UiScale = Math.Clamp(UiScale, MinUiScale, MaxUiScale);
             if (PlayerSlotPalette < 0 || PlayerSlotPalette > 2) PlayerSlotPalette = 0;
             NormalizeDisplay();
+            NormalizeFrontEnd();
+        }
+
+        /// <summary>Package 12 W6: clamps the additive front-end fields. Engine-free.</summary>
+        private void NormalizeFrontEnd() {
+            if (!Enum.IsDefined(typeof(CrashReportMode), CrashReports)) CrashReports = CrashReportMode.Ask;
+            DialogueTextSpeed = TextSpeedRules.Sanitize(DialogueTextSpeed);
+            if (!Enum.IsDefined(typeof(BlockMode), BlockInputMode)) BlockInputMode = BlockMode.Hold;
+            StickProfiles ??= new Dictionary<string, StickProfile>(StringComparer.Ordinal);
+            var cleaned = new Dictionary<string, StickProfile>(StringComparer.Ordinal);
+            foreach (KeyValuePair<string, StickProfile> pair in StickProfiles) {
+                if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value == null) continue;
+                pair.Value.Normalize();
+                cleaned[pair.Key] = pair.Value;
+            }
+            StickProfiles = cleaned;
         }
 
         /// <summary>
@@ -702,6 +782,8 @@ namespace FTT.Core {
             var data = new StorySaveData {
                 SelectedCharacterID = characterID?.Trim().ToLowerInvariant() ?? "",
                 Difficulty = difficulty,
+                // G14: a new playthrough's lowest tier is the one it starts on.
+                LowestDifficultyUsed = difficulty,
                 CurrentLives = difficulty == Difficulty.Easy ? 5 : difficulty == Difficulty.Hard ? 1 : 3,
                 LastSavedTimestamp = DateTimeOffset.UtcNow.UtcDateTime.ToString("O")
             };
@@ -968,6 +1050,10 @@ namespace FTT.Core {
             string path = GetGlobalPath();
             if (!File.Exists(path) && !File.Exists(path + ".bak")) {
                 GlobalData = new GlobalSaveData();
+                // Package 12 W6 (G06): the first-launch setup is for "first run
+                // only, when no GlobalSaveData existed" — which is this branch
+                // and nothing else.
+                GlobalData.FirstRunSetupCompleted = false;
                 EnsureRosterUnlocked(GlobalData);
                 return false;
             }

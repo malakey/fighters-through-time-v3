@@ -156,10 +156,23 @@ public class UIThemeTests {
         // assets/fonts/ is empty. The theme must set the type scale and still
         // render against Godot's built-in default face, so that dropping a
         // production font in later is a one-line addition rather than a rescue.
-        AssertObject(theme.DefaultFont)
+        //
+        // Package 12 W6 (G05) rewrote this in place: the theme now carries a
+        // default-font SLOT — a FontVariation with no base font, which renders
+        // Godot's built-in face (the placeholder) and requires no font file —
+        // plus its empty fallbacks list, reserved for the CJK fallback face.
+        // Assigning base_font and appending a fallback is the one-line drop-in.
+        var slot = theme.DefaultFont as FontVariation;
+        AssertObject(slot)
+            .OverrideFailureMessage("The shared theme must carry the G05 default-font slot (a FontVariation).")
+            .IsNotNull();
+        AssertObject(slot.BaseFont)
             .OverrideFailureMessage(
                 "The shared theme must not require a font resource while assets/fonts/ is empty.")
             .IsNull();
+        AssertThat(slot.Fallbacks.Count)
+            .OverrideFailureMessage("The reserved fallback-font slot ships empty until a CJK face is bundled.")
+            .IsEqual(0);
         AssertThat(theme.DefaultFontSize).IsEqual(UIPalette.BodyFontSize);
     }
 

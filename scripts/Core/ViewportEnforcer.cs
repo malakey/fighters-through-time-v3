@@ -12,6 +12,22 @@ namespace FTT.Core {
     /// <see cref="_Ready"/> runs; putting the apply here keeps every window-level
     /// concern in one place rather than splitting it across GameManager.</para>
     /// </summary>
+    /// <summary>
+    /// G04 display timing (design Section 12): a fixed 60 Hz simulation, rendering
+    /// capped at 60 FPS with V-Sync on or off, and no physics interpolation — every
+    /// presented frame is an exact simulation state.
+    /// </summary>
+    public static class DisplayTimingRules {
+        public const int MaxFramesPerSecond = 60;
+        public const int PhysicsTicksPerSecond = 60;
+        public const string MaxFpsSetting = "application/run/max_fps";
+        public const string PhysicsTicksSetting = "physics/common/physics_ticks_per_second";
+        public const string PhysicsInterpolationSetting = "physics/common/physics_interpolation";
+
+        /// <summary>The render cap to apply: 60 on any real display, 0 (uncapped) headless.</summary>
+        public static int EffectiveMaxFps(bool headless) => headless ? 0 : MaxFramesPerSecond;
+    }
+
     public partial class ViewportEnforcer : Node {
         public static readonly Vector2I ReferenceSize = new(1920, 1080);
 
@@ -26,7 +42,18 @@ namespace FTT.Core {
             // screen adopts it. This is the last autoload, so the saved value
             // is already loaded.
             FTT.UI.UIPalette.ApplySavedUiScale();
+            // Package 12 W6. G15d: the build version goes into every log. G09:
+            // this is the last autoload, so the saved crash-report choice is
+            // loaded — arm the session marker and act on a previous crash.
+            BuildInfo.LogBootBanner();
+            CrashReportService.OnBoot(SaveManager.Instance?.GlobalData?.CrashReports ?? CrashReportMode.Ask);
         }
+
+        /// <summary>
+        /// Clean shutdown: disarms the G09 session marker so the next boot does not
+        /// read this exit as a crash.
+        /// </summary>
+        public override void _ExitTree() => CrashReportService.OnCleanExit();
 
         /// <summary>
         /// Applies persisted resolution / window mode / VSync. A headless run has no
@@ -36,7 +63,16 @@ namespace FTT.Core {
         public static void ApplyDisplaySettings(GlobalSaveData data) {
             if (data == null) return;
             data.Normalize();
-            if (DisplayServer.GetName() == "headless") return;
+            // G04 (design Section 12 "Display timing"): rendering is capped at the
+            // simulation rate whether V-Sync is on or off. The cap is authored in
+            // project.godot (application/run/max_fps) and re-asserted here so a
+            // V-Sync toggle can never leave an uncapped renderer behind.
+            // A headless run presents nothing, so it has no render rate to cap;
+            // leaving it uncapped keeps headless test and smoke runs as fast as
+            // they were before the cap existed.
+            bool headless = DisplayServer.GetName() == "headless";
+            Engine.MaxFps = DisplayTimingRules.EffectiveMaxFps(headless);
+            if (headless) return;
 
             DisplayServer.WindowSetVsyncMode(data.VSyncEnabled
                 ? DisplayServer.VSyncMode.Enabled

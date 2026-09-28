@@ -77,6 +77,11 @@ max_value = 1.0
 step = 0.05
 value = 1.0
 
+[node name="MasterMuteToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Audio"]
+layout_mode = 2
+size_flags_horizontal = 0
+text = "settings_mute"
+
 [node name="MusicLabel" type="Label" parent="Margin/Panel/Body/Tabs/Audio"]
 layout_mode = 2
 
@@ -86,6 +91,11 @@ layout_mode = 2
 max_value = 1.0
 step = 0.05
 value = 0.8
+
+[node name="MusicMuteToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Audio"]
+layout_mode = 2
+size_flags_horizontal = 0
+text = "settings_mute"
 
 [node name="SfxLabel" type="Label" parent="Margin/Panel/Body/Tabs/Audio"]
 layout_mode = 2
@@ -97,6 +107,11 @@ max_value = 1.0
 step = 0.05
 value = 1.0
 
+[node name="SfxMuteToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Audio"]
+layout_mode = 2
+size_flags_horizontal = 0
+text = "settings_mute"
+
 [node name="UiLabel" type="Label" parent="Margin/Panel/Body/Tabs/Audio"]
 layout_mode = 2
 
@@ -106,6 +121,17 @@ layout_mode = 2
 max_value = 1.0
 step = 0.05
 value = 1.0
+
+[node name="UiMuteToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Audio"]
+layout_mode = 2
+size_flags_horizontal = 0
+text = "settings_mute"
+
+[node name="MuteWhenUnfocusedToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Audio"]
+layout_mode = 2
+size_flags_horizontal = 0
+button_pressed = true
+text = "settings_mute_when_unfocused"
 
 [node name="Display" type="VBoxContainer" parent="Margin/Panel/Body/Tabs"]
 visible = false
@@ -137,21 +163,6 @@ button_pressed = true
 visible = false
 layout_mode = 2
 theme_override_constants/separation = 6
-
-[node name="HapticToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Gameplay"]
-layout_mode = 2
-size_flags_horizontal = 0
-button_pressed = true
-
-[node name="HapticLabel" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
-layout_mode = 2
-
-[node name="HapticSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Gameplay"]
-custom_minimum_size = Vector2(360, 20)
-layout_mode = 2
-max_value = 1.0
-step = 0.05
-value = 0.7
 
 [node name="DamageNumbersToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Gameplay"]
 layout_mode = 2
@@ -213,6 +224,55 @@ vertical_alignment = 1
 custom_minimum_size = Vector2(240, 36)
 layout_mode = 2
 
+[node name="TextSpeedRow" type="HBoxContainer" parent="Margin/Panel/Body/Tabs/Gameplay"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="TextSpeedLabel" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay/TextSpeedRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+text = "settings_text_speed"
+
+[node name="TextSpeedDropdown" type="OptionButton" parent="Margin/Panel/Body/Tabs/Gameplay/TextSpeedRow"]
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+
+[node name="AboutSeparator" type="HSeparator" parent="Margin/Panel/Body/Tabs/Gameplay"]
+layout_mode = 2
+
+[node name="AboutHeading" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
+layout_mode = 2
+theme_type_variation = &"HeadingLabel"
+text = "settings_about_heading"
+
+[node name="VersionLabel" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
+layout_mode = 2
+theme_type_variation = &"SmallLabel"
+
+[node name="PrivacyText" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay"]
+layout_mode = 2
+theme_type_variation = &"SmallLabel"
+text = "settings_privacy_notice"
+autowrap_mode = 3
+
+[node name="CrashReportsRow" type="HBoxContainer" parent="Margin/Panel/Body/Tabs/Gameplay"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="CrashReportsLabel" type="Label" parent="Margin/Panel/Body/Tabs/Gameplay/CrashReportsRow"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+text = "settings_crash_reports"
+
+[node name="CrashReportsDropdown" type="OptionButton" parent="Margin/Panel/Body/Tabs/Gameplay/CrashReportsRow"]
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+
+[node name="OpenLogsButton" type="Button" parent="Margin/Panel/Body/Tabs/Gameplay/CrashReportsRow"]
+custom_minimum_size = Vector2(220, 0)
+layout_mode = 2
+text = "settings_open_logs_folder"
+
 [node name="Controls" type="VBoxContainer" parent="Margin/Panel/Body/Tabs"]
 visible = false
 layout_mode = 2
@@ -221,6 +281,72 @@ theme_override_constants/separation = 8
 [node name="Hint" type="Label" parent="Margin/Panel/Body/Tabs/Controls"]
 layout_mode = 2
 autowrap_mode = 3
+
+[node name="Options" type="GridContainer" parent="Margin/Panel/Body/Tabs/Controls"]
+layout_mode = 2
+theme_override_constants/h_separation = 16
+theme_override_constants/v_separation = 6
+columns = 2
+
+[node name="BlockModeLabel" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+text = "settings_block_mode"
+
+[node name="BlockModeDropdown" type="OptionButton" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+
+[node name="StickDeviceLabel" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+layout_mode = 2
+text = "settings_stick_device"
+
+[node name="StickDeviceDropdown" type="OptionButton" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+custom_minimum_size = Vector2(240, 0)
+layout_mode = 2
+size_flags_horizontal = 0
+
+[node name="DeadzoneLabel" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+layout_mode = 2
+text = "settings_stick_deadzone"
+
+[node name="DeadzoneSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+custom_minimum_size = Vector2(360, 20)
+layout_mode = 2
+max_value = 0.4
+step = 0.01
+value = 0.15
+
+[node name="DownThresholdLabel" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+layout_mode = 2
+text = "settings_down_threshold"
+
+[node name="DownThresholdSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+custom_minimum_size = Vector2(360, 20)
+layout_mode = 2
+min_value = 0.2
+max_value = 0.9
+step = 0.05
+value = 0.5
+
+[node name="HapticToggle" type="CheckButton" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+layout_mode = 2
+size_flags_horizontal = 0
+button_pressed = true
+
+[node name="HapticSpacer" type="Control" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+layout_mode = 2
+
+[node name="HapticLabel" type="Label" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+layout_mode = 2
+
+[node name="HapticSlider" type="HSlider" parent="Margin/Panel/Body/Tabs/Controls/Options"]
+custom_minimum_size = Vector2(360, 20)
+layout_mode = 2
+max_value = 1.0
+step = 0.05
+value = 0.7
 
 [node name="Scroll" type="ScrollContainer" parent="Margin/Panel/Body/Tabs/Controls"]
 layout_mode = 2

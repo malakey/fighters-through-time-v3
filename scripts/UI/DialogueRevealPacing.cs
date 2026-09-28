@@ -34,17 +34,47 @@ namespace FTT.UI {
     /// </summary>
     public sealed class DialogueRevealModel {
 
-        /// <summary>Design-locked reveal rate (design-godot.md, AGENTS.md).</summary>
-        public const float CharactersPerSecond = 30f;
+        /// <summary>
+        /// The design-default reveal rate — Text Speed <b>Normal</b> (design-godot.md
+        /// Section 12). Package 12 W6 (G10) made the rate a player setting, so this
+        /// is no longer the only rate: it is the one every other number here is
+        /// authored against. The rates themselves live in
+        /// <see cref="FTT.Core.TextSpeedRules"/>.
+        /// </summary>
+        public const float CharactersPerSecond = FTT.Core.TextSpeedRules.NormalCharactersPerSecond;
 
-        /// <summary>Hold after a sentence-ending mark: <c>. ! ?</c></summary>
+        /// <summary>Hold after a sentence-ending mark at Normal speed: <c>. ! ?</c></summary>
         public const float SentencePauseSeconds = 0.26f;
 
-        /// <summary>Hold after a clause mark: <c>, ; :</c></summary>
+        /// <summary>Hold after a clause mark at Normal speed: <c>, ; :</c></summary>
         public const float ClausePauseSeconds = 0.12f;
 
-        /// <summary>A chirp every Nth revealed non-whitespace character.</summary>
+        /// <summary>A chirp every Nth revealed non-whitespace character at Normal speed.</summary>
         public const int ChirpEveryNCharacters = 3;
+
+        /// <summary>The Text Speed this model reveals at. Set before <see cref="Begin"/>.</summary>
+        public FTT.Core.TextSpeed Speed { get; private set; } = FTT.Core.TextSpeed.Normal;
+
+        /// <summary>The active rate in characters per second (∞ for Instant).</summary>
+        public float Rate => FTT.Core.TextSpeedRules.CharactersPerSecond(Speed);
+
+        /// <summary>
+        /// Punctuation holds scale with the rate (G10: "punctuation holds scale
+        /// sensibly"): Slow holds 1.5×, Fast 0.5×, so a beat stays the same length
+        /// in <em>characters</em> at every speed. Instant has no holds at all.
+        /// </summary>
+        public float PauseScale => float.IsInfinity(Rate) ? 0f : CharactersPerSecond / Rate;
+
+        /// <summary>
+        /// Chirp cadence scales with the rate so the voice stays at a steady ~10
+        /// chirps a second (Slow every 2nd character, Fast every 6th) instead of
+        /// machine-gunning at Fast.
+        /// </summary>
+        public int ChirpInterval =>
+            float.IsInfinity(Rate) ? int.MaxValue : Math.Max(1, (int)MathF.Round(ChirpEveryNCharacters * Rate / CharactersPerSecond));
+
+        /// <summary>Selects the reveal rate for the next <see cref="Begin"/>.</summary>
+        public void SetSpeed(FTT.Core.TextSpeed speed) => Speed = FTT.Core.TextSpeedRules.Sanitize(speed);
 
         /// <summary>
         /// Largest slice of time one <see cref="Advance"/> may consume. Anything
@@ -53,7 +83,7 @@ namespace FTT.UI {
         /// </summary>
         public const float MaxAdvanceSeconds = 0.25f;
 
-        private const float SecondsPerCharacter = 1f / CharactersPerSecond;
+        private float SecondsPerCharacter => 1f / Rate;
 
         private string _text = "";
         private float _budgetSeconds;
@@ -83,6 +113,8 @@ namespace FTT.UI {
             _sinceLastChirp = 0;
             VisibleCharacters = 0;
             TotalChirps = 0;
+            // G10 Instant: the whole line lands at once, silently.
+            if (Speed == FTT.Core.TextSpeed.Instant) VisibleCharacters = _text.Length;
         }
 
         /// <summary>
@@ -110,7 +142,7 @@ namespace FTT.UI {
 
                 if (!char.IsWhiteSpace(revealed)) {
                     _sinceLastChirp++;
-                    if (_sinceLastChirp >= ChirpEveryNCharacters) {
+                    if (_sinceLastChirp >= ChirpInterval) {
                         _sinceLastChirp = 0;
                         chirps++;
                     }
@@ -122,7 +154,7 @@ namespace FTT.UI {
                 // stacked sentence pauses there would read as a stall, not a beat.
                 _pauseRemaining = IsComplete || PauseAfter(_text[VisibleCharacters]) > 0f
                     ? 0f
-                    : PauseAfter(revealed);
+                    : PauseAfter(revealed) * PauseScale;
             }
 
             TotalChirps += chirps;

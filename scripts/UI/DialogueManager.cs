@@ -344,10 +344,50 @@ namespace FTT.UI {
             // a never-seen sequence opens one confirmation instead.
             _skipHoldSeconds = 0f;
             _skipEligible = true;
+            // Package 12 W6 (G10): the player's Text Speed, read at sequence start
+            // so a change in Settings reaches the next scene.
+            Reveal.SetSpeed(FTT.Core.SaveManager.Instance?.GlobalData?.DialogueTextSpeed
+                ?? FTT.Core.TextSpeed.Normal);
+            _loggedThroughIndex = -1;
             RefreshSkipHint();
             BeginBoxAnimation(opening: true);
             ShowCurrentLine();
         }
+
+        // === Package 12 W6 (G10): the session Dialogue Log =================
+
+        /// <summary>Highest line index of the active sequence already appended to the log.</summary>
+        private int _loggedThroughIndex = -1;
+
+        private DialogueLogScreen _logScreen;
+
+        /// <summary>True while the Dialogue Log overlay is open over the box.</summary>
+        public bool IsLogOpen => _logScreen != null && IsInstanceValid(_logScreen) && _logScreen.IsOpen;
+
+        /// <summary>Opens the session Dialogue Log over the box (the Log button / action).</summary>
+        public void OpenLog() {
+            if (_logScreen == null || !IsInstanceValid(_logScreen)) {
+                _logScreen = new DialogueLogScreen { Name = "DialogueLogScreen" };
+                AddChild(_logScreen);
+            }
+            _logScreen.Open();
+        }
+
+        /// <summary>Appends one line of a sequence, resolved exactly as the box shows it.</summary>
+        private void LogLine(DialogueSequenceData sequence, int index, bool fromSkip) {
+            if (sequence == null || index < 0 || index >= sequence.LineCount) return;
+            string text = SubstituteCaptiveNames(Tr(sequence.GetLineKey(index)));
+            DialogueLog.Append(new DialogueLog.Entry(
+                sequence.DialogueID ?? "",
+                ResolveSpeakerName(sequence.GetSpeakerKey(index)),
+                StripBbcode(text),
+                (sequence.GetPortrait(index) ?? _defaultPortrait)?.ResourcePath ?? "",
+                fromSkip));
+        }
+
+        /// <summary>Drops BBCode tags so the log shows the words, not the markup.</summary>
+        private static string StripBbcode(string text) =>
+            string.IsNullOrEmpty(text) ? "" : System.Text.RegularExpressions.Regex.Replace(text, @"\[[^\]]*\]", "");
 
         private void ShowCurrentLine() {
             if (_currentSequence == null || _currentIndex >= _currentSequence.LineCount) {
@@ -364,6 +404,11 @@ namespace FTT.UI {
             if (_portrait != null) _portrait.Texture = _currentSequence.GetPortrait(_currentIndex) ?? _defaultPortrait;
 
             _textLabel.Text = SubstituteCaptiveNames(Tr(_currentSequence.GetLineKey(_currentIndex)));
+            // G10: a shown line enters the session log the moment it appears.
+            if (_currentIndex > _loggedThroughIndex) {
+                LogLine(_currentSequence, _currentIndex, fromSkip: false);
+                _loggedThroughIndex = _currentIndex;
+            }
             // The pacing model reads punctuation, so it needs the text the player
             // will actually see - BBCode markup stripped.
             Reveal.Begin(_textLabel.GetParsedText());
@@ -504,8 +549,8 @@ namespace FTT.UI {
             AdvanceBoxAnimation((float)delta);
             if (!_isActive) return;
             // The reveal, the auto-advance timer and the hold all suspend while
-            // the skip confirmation is up.
-            if (IsSkipConfirmOpen) return;
+            // the skip confirmation — or the Dialogue Log (G10) — is up.
+            if (IsSkipConfirmOpen || IsLogOpen) return;
             if (CanHoldToSkip) {
                 bool held = Input.IsActionPressed(FTT.Core.InputManager.Actions.Interact)
                     || Input.IsActionPressed("ui_accept");
@@ -542,6 +587,16 @@ namespace FTT.UI {
 
         private void EndSequence() {
             string completedID = _currentSequence?.DialogueID ?? "";
+            // G10: the completion path and the confirmed-skip path both end here.
+            // A completed sequence has already logged every line as it was shown;
+            // a skipped one appends the lines the player never saw, so a skipped
+            // scene can still be read in the log.
+            if (_currentSequence != null) {
+                for (int index = _loggedThroughIndex + 1; index < _currentSequence.LineCount; index++) {
+                    LogLine(_currentSequence, index, fromSkip: true);
+                }
+                _loggedThroughIndex = _currentSequence.LineCount - 1;
+            }
             _isActive = false;
             _currentSequence = null;
             _skipEligible = false;
@@ -706,6 +761,16 @@ namespace FTT.UI {
                 Alignment = BoxContainer.AlignmentMode.End
             };
             row.AddThemeConstantOverride("separation", 8);
+            // G10: the Log button during dialogue (the ui_dialogue_log action is
+            // its keyboard/controller route). FocusMode None: the box never takes
+            // focus, so the button must not start stealing confirm presses.
+            var logButton = new Button {
+                Name = "LogButton",
+                Text = "dialogue_log_button",
+                FocusMode = Control.FocusModeEnum.None
+            };
+            logButton.Pressed += OpenLog;
+            row.AddChild(logButton);
             _skipHintLabel = new Label {
                 Name = "SkipHintLabel",
                 ThemeTypeVariation = UIPalette.SmallLabelVariation
@@ -794,6 +859,13 @@ namespace FTT.UI {
             // The confirmation owns input while it is up: advancing or
             // completing a line underneath it would fight the focus trap.
             if (IsSkipConfirmOpen) return;
+            // G10: the log owns input while it is open (it closes itself).
+            if (IsLogOpen) return;
+            if (@event.IsActionPressed(FTT.Core.InputManager.Actions.DialogueLog)) {
+                OpenLog();
+                GetViewport().SetInputAsHandled();
+                return;
+            }
             bool confirm = @event.IsActionPressed(FTT.Core.InputManager.Actions.Interact)
                 || @event.IsActionPressed(FTT.Core.InputManager.Actions.BasicAttack)
                 || @event.IsActionPressed("ui_accept");

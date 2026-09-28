@@ -40,6 +40,36 @@ namespace FTT.UI {
         private HSlider _musicSlider;
         private HSlider _sfxSlider;
         private HSlider _uiSlider;
+        // Package 12 W6: M27 per-category mutes and G11 Mute When Unfocused.
+        private CheckButton _masterMute;
+        private CheckButton _musicMute;
+        private CheckButton _sfxMute;
+        private CheckButton _uiMute;
+        private CheckButton _muteWhenUnfocused;
+
+        // Package 12 W6: G10 Text Speed and G09 About & Privacy (Gameplay tab).
+        private OptionButton _textSpeedDropdown;
+        private OptionButton _crashReportsDropdown;
+        private Label _versionLabel;
+
+        // Package 12 W6: G13 Block Mode, stick profiles; M27 Vibration moved here (Controls tab).
+        private OptionButton _blockModeDropdown;
+        private OptionButton _stickDeviceDropdown;
+        private HSlider _deadzoneSlider;
+        private HSlider _downThresholdSlider;
+        private readonly List<string> _stickDeviceKeys = new();
+        private Dictionary<string, StickProfile> _workingStickProfiles = new(StringComparer.Ordinal);
+        private bool _suppressStickWrites;
+
+        private static readonly TextSpeed[] TextSpeedOrder = {
+            TextSpeed.Slow, TextSpeed.Normal, TextSpeed.Fast, TextSpeed.Instant
+        };
+
+        private static readonly CrashReportMode[] CrashReportOrder = {
+            CrashReportMode.Ask, CrashReportMode.Always, CrashReportMode.Never
+        };
+
+        private static readonly BlockMode[] BlockModeOrder = { BlockMode.Hold, BlockMode.Toggle };
 
         // Display
         private OptionButton _resolutionDropdown;
@@ -142,13 +172,27 @@ namespace FTT.UI {
             _musicSlider = Slider("Audio/MusicSlider");
             _sfxSlider = Slider("Audio/SfxSlider");
             _uiSlider = Slider("Audio/UiSlider");
+            _masterMute = _tabs.GetNode<CheckButton>("Audio/MasterMuteToggle");
+            _musicMute = _tabs.GetNode<CheckButton>("Audio/MusicMuteToggle");
+            _sfxMute = _tabs.GetNode<CheckButton>("Audio/SfxMuteToggle");
+            _uiMute = _tabs.GetNode<CheckButton>("Audio/UiMuteToggle");
+            _muteWhenUnfocused = _tabs.GetNode<CheckButton>("Audio/MuteWhenUnfocusedToggle");
 
             _resolutionDropdown = _tabs.GetNode<OptionButton>("Display/ResolutionDropdown");
             _windowModeDropdown = _tabs.GetNode<OptionButton>("Display/WindowModeDropdown");
             _vsyncToggle = _tabs.GetNode<CheckButton>("Display/VSyncToggle");
 
-            _hapticToggle = _tabs.GetNode<CheckButton>("Gameplay/HapticToggle");
-            _hapticSlider = Slider("Gameplay/HapticSlider");
+            // M27: Vibration moved from Gameplay to Controls (design Section 12).
+            _hapticToggle = _tabs.GetNode<CheckButton>("Controls/Options/HapticToggle");
+            _hapticSlider = Slider("Controls/Options/HapticSlider");
+            _blockModeDropdown = _tabs.GetNode<OptionButton>("Controls/Options/BlockModeDropdown");
+            _stickDeviceDropdown = _tabs.GetNode<OptionButton>("Controls/Options/StickDeviceDropdown");
+            _deadzoneSlider = Slider("Controls/Options/DeadzoneSlider");
+            _downThresholdSlider = Slider("Controls/Options/DownThresholdSlider");
+
+            _textSpeedDropdown = _tabs.GetNode<OptionButton>("Gameplay/TextSpeedRow/TextSpeedDropdown");
+            _crashReportsDropdown = _tabs.GetNode<OptionButton>("Gameplay/CrashReportsRow/CrashReportsDropdown");
+            _versionLabel = _tabs.GetNode<Label>("Gameplay/VersionLabel");
             _damageNumbersToggle = _tabs.GetNode<CheckButton>("Gameplay/DamageNumbersToggle");
             _hudOpacitySlider = Slider("Gameplay/HudOpacitySlider");
             _screenShakeSlider = Slider("Gameplay/ScreenShakeSlider");
@@ -183,7 +227,9 @@ namespace FTT.UI {
             _vsyncToggle.Text = Tr("settings_vsync");
 
             _hapticToggle.Text = Tr("settings_haptics");
-            _tabs.GetNode<Label>("Gameplay/HapticLabel").Text = Tr("settings_haptic_intensity");
+            _tabs.GetNode<Label>("Controls/Options/HapticLabel").Text = Tr("settings_haptic_intensity");
+            // G15d: the build version, from the one canonical setting.
+            _versionLabel.Text = string.Format(Tr("settings_build_version"), BuildInfo.Version);
             _damageNumbersToggle.Text = Tr("settings_damage_numbers");
             _tabs.GetNode<Label>("Gameplay/HudOpacityLabel").Text = Tr("settings_hud_opacity");
             _tabs.GetNode<Label>("Gameplay/ScreenShakeLabel").Text = Tr("settings_screen_shake");
@@ -205,13 +251,104 @@ namespace FTT.UI {
             }
             _windowModeDropdown.Clear();
             foreach (string key in WindowModeKeys) _windowModeDropdown.AddItem(Tr(key));
+            _textSpeedDropdown.Clear();
+            foreach (TextSpeed speed in TextSpeedOrder) _textSpeedDropdown.AddItem(Tr(TextSpeedRules.LabelKey(speed)));
+            _crashReportsDropdown.Clear();
+            foreach (CrashReportMode mode in CrashReportOrder) _crashReportsDropdown.AddItem(Tr(CrashReportPolicy.LabelKey(mode)));
+            _blockModeDropdown.Clear();
+            _blockModeDropdown.AddItem(Tr("settings_block_mode_hold"));
+            _blockModeDropdown.AddItem(Tr("settings_block_mode_toggle"));
+            PopulateStickDevices();
         }
+
+        /// <summary>
+        /// G13 "per-device": the shared default profile plus one entry per
+        /// connected controller, keyed by the joypad GUID the input layer resolves.
+        /// </summary>
+        private void PopulateStickDevices() {
+            _stickDeviceDropdown.Clear();
+            _stickDeviceKeys.Clear();
+            _stickDeviceDropdown.AddItem(Tr("settings_stick_device_all"));
+            _stickDeviceKeys.Add(StickProfiles.DefaultKey);
+            Godot.Collections.Array<int> pads = Input.GetConnectedJoypads();
+            using (pads.AsDisposable()) {
+                foreach (int device in pads) {
+                    string guid = InputManager.Instance?.JoypadGuid(device) ?? Input.GetJoyGuid(device);
+                    if (string.IsNullOrWhiteSpace(guid) || _stickDeviceKeys.Contains(guid)) continue;
+                    _stickDeviceDropdown.AddItem(Input.GetJoyName(device));
+                    _stickDeviceKeys.Add(guid);
+                }
+            }
+            _stickDeviceDropdown.Selected = 0;
+        }
+
+        /// <summary>The profile key the stick sliders currently edit.</summary>
+        private string SelectedStickKey =>
+            _stickDeviceKeys.Count == 0
+                ? StickProfiles.DefaultKey
+                : _stickDeviceKeys[Math.Clamp(_stickDeviceDropdown.Selected, 0, _stickDeviceKeys.Count - 1)];
+
+        private void ShowStickProfile() {
+            StickProfile profile = StickProfiles.Resolve(_workingStickProfiles, SelectedStickKey);
+            _suppressStickWrites = true;
+            _deadzoneSlider.Value = profile.Deadzone;
+            _downThresholdSlider.Value = profile.DownThreshold;
+            _suppressStickWrites = false;
+        }
+
+        /// <summary>Writes the sliders into the selected device's own profile entry.</summary>
+        private void OnStickSliderChanged() {
+            if (_suppressStickWrites) return;
+            string key = SelectedStickKey;
+            if (!_workingStickProfiles.TryGetValue(key, out StickProfile profile) || profile == null) {
+                profile = StickProfiles.Resolve(_workingStickProfiles, key).Clone();
+                _workingStickProfiles[key] = profile;
+            }
+            profile.Deadzone = (float)_deadzoneSlider.Value;
+            profile.DownThreshold = (float)_downThresholdSlider.Value;
+            profile.Normalize();
+            // Live: the input layer reads the saved dictionary, so the working copy
+            // is pushed straight in — the next sampled frame uses the new stick.
+            GlobalSaveData data = SaveManager.Instance?.GlobalData;
+            if (data != null) data.StickProfiles = CloneProfiles(_workingStickProfiles);
+        }
+
+        private static Dictionary<string, StickProfile> CloneProfiles(Dictionary<string, StickProfile> source) {
+            var copy = new Dictionary<string, StickProfile>(StringComparer.Ordinal);
+            if (source == null) return copy;
+            foreach (KeyValuePair<string, StickProfile> pair in source) {
+                if (pair.Value != null) copy[pair.Key] = pair.Value.Clone();
+            }
+            return copy;
+        }
+
+        /// <summary>The stick profiles the Controls tab is editing. Test seam.</summary>
+        internal IReadOnlyDictionary<string, StickProfile> WorkingStickProfiles => _workingStickProfiles;
 
         private void WireSignals() {
             _masterSlider.ValueChanged += value => AudioManager.Instance?.SetMasterVolume((float)value);
             _musicSlider.ValueChanged += value => AudioManager.Instance?.SetMusicVolume((float)value);
             _sfxSlider.ValueChanged += value => AudioManager.Instance?.SetSFXVolume((float)value);
             _uiSlider.ValueChanged += value => AudioManager.Instance?.SetUIVolume((float)value);
+            // M27 mutes apply live, keep the slider value, and touch only the
+            // four user category buses (never the C01b critical-cue path).
+            _masterMute.Toggled += on => AudioManager.Instance?.SetCategoryMuted(AudioBuses.Master, on);
+            _musicMute.Toggled += on => AudioManager.Instance?.SetCategoryMuted(AudioBuses.Music, on);
+            _sfxMute.Toggled += on => AudioManager.Instance?.SetCategoryMuted(AudioBuses.SFX, on);
+            _uiMute.Toggled += on => AudioManager.Instance?.SetCategoryMuted(AudioBuses.UI, on);
+            _muteWhenUnfocused.Toggled += on => AudioManager.Instance?.SetMuteWhenUnfocused(on);
+
+            _stickDeviceDropdown.ItemSelected += _ => ShowStickProfile();
+            _deadzoneSlider.ValueChanged += _ => OnStickSliderChanged();
+            _downThresholdSlider.ValueChanged += _ => OnStickSliderChanged();
+            _blockModeDropdown.ItemSelected += index => {
+                // A mode switch never leaves a stale latch behind.
+                InputManager.Instance?.ClearBlockLatches();
+                GlobalSaveData data = SaveManager.Instance?.GlobalData;
+                if (data != null) data.BlockInputMode = BlockModeOrder[Math.Clamp((int)index, 0, BlockModeOrder.Length - 1)];
+            };
+            _tabs.GetNode<Button>("Gameplay/CrashReportsRow/OpenLogsButton").Pressed +=
+                () => CrashReportService.OpenLogsFolder();
 
             _resolutionDropdown.ItemSelected += OnDisplayChanged;
             _windowModeDropdown.ItemSelected += OnDisplayChanged;
@@ -623,6 +760,19 @@ namespace FTT.UI {
                 GlobalSaveData.ResolutionIndex(data.ResolutionWidth, data.ResolutionHeight);
             _windowModeDropdown.Selected = (int)data.WindowMode;
             _vsyncToggle.ButtonPressed = data.VSyncEnabled;
+
+            // Package 12 W6
+            _masterMute.ButtonPressed = data.MasterMuted;
+            _musicMute.ButtonPressed = data.MusicMuted;
+            _sfxMute.ButtonPressed = data.SFXMuted;
+            _uiMute.ButtonPressed = data.UIMuted;
+            _muteWhenUnfocused.ButtonPressed = data.MuteWhenUnfocused;
+            _textSpeedDropdown.Selected = Math.Max(0, Array.IndexOf(TextSpeedOrder, data.DialogueTextSpeed));
+            _crashReportsDropdown.Selected = Math.Max(0, Array.IndexOf(CrashReportOrder, data.CrashReports));
+            _blockModeDropdown.Selected = Math.Max(0, Array.IndexOf(BlockModeOrder, data.BlockInputMode));
+            _workingStickProfiles = CloneProfiles(data.StickProfiles);
+            PopulateStickDevices();
+            ShowStickProfile();
         }
 
         private void SaveSettings() {
@@ -641,6 +791,16 @@ namespace FTT.UI {
             data.UiScale = (float)_uiScaleSlider.Value;
             data.ReducedTemporalEffects = _reducedEffectsToggle.ButtonPressed;
             data.ApplyComfortSettings();
+            // Package 12 W6
+            data.MasterMuted = _masterMute.ButtonPressed;
+            data.MusicMuted = _musicMute.ButtonPressed;
+            data.SFXMuted = _sfxMute.ButtonPressed;
+            data.UIMuted = _uiMute.ButtonPressed;
+            data.MuteWhenUnfocused = _muteWhenUnfocused.ButtonPressed;
+            data.DialogueTextSpeed = TextSpeedOrder[Math.Clamp(_textSpeedDropdown.Selected, 0, TextSpeedOrder.Length - 1)];
+            data.CrashReports = CrashReportOrder[Math.Clamp(_crashReportsDropdown.Selected, 0, CrashReportOrder.Length - 1)];
+            data.BlockInputMode = BlockModeOrder[Math.Clamp(_blockModeDropdown.Selected, 0, BlockModeOrder.Length - 1)];
+            data.StickProfiles = CloneProfiles(_workingStickProfiles);
             ReadDisplayInto(data);
             // PersistInputBindings writes the global payload itself.
             manager.PersistInputBindings(_workingBindings);

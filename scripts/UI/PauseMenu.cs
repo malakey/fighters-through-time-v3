@@ -31,6 +31,25 @@ namespace FTT.UI {
         private MoveListScreen _moveList;
         private List<Control> _focusChain = new();
 
+        // Package 12 W6
+        private DialogueLogScreen _logScreen;
+        private Button _lowerDifficultyButton;
+        private ConfirmModal _lowerDifficultyConfirm;
+        private Label _controllerNotice;
+        private bool _awaitingController;
+
+        /// <summary>Test seam: forces the hub check instead of reading the current scene.</summary>
+        internal bool? AtHubOverrideForTesting;
+
+        /// <summary>True while the controller-loss notice is up (G11). Test surface.</summary>
+        public bool IsAwaitingController => _awaitingController;
+
+        /// <summary>The Dialogue Log overlay, once opened. Test surface.</summary>
+        internal DialogueLogScreen LogScreen => _logScreen;
+
+        /// <summary>The G14 confirmation, once created. Test surface.</summary>
+        internal ConfirmModal LowerDifficultyConfirmation => _lowerDifficultyConfirm;
+
         /// <summary>
         /// Instantiates the authored scene, falling back to a code-built menu when
         /// it is unavailable. Mirrors <see cref="StoryHUD.CreateDefault"/>.
@@ -54,6 +73,125 @@ namespace FTT.UI {
             ResolveOrBuildUI();
             BuildConfirmations();
             if (_root != null) _root.Visible = false;
+            // G11: controller loss pauses Story and the hub the same way it pauses
+            // a local Fighter match. Keyboard players never raise this event.
+            if (FTT.Core.InputManager.Instance != null) {
+                FTT.Core.InputManager.Instance.PlayerDeviceDisconnected += OnPlayerDeviceDisconnected;
+            }
+        }
+
+        public override void _ExitTree() {
+            if (FTT.Core.InputManager.Instance != null) {
+                FTT.Core.InputManager.Instance.PlayerDeviceDisconnected -= OnPlayerDeviceDisconnected;
+            }
+            // Releases a held pause (failure signature 4). Must run.
+            base._ExitTree();
+        }
+
+        // === Package 12 W6 (G11): controller loss in Story and the hub ======
+
+        private void OnPlayerDeviceDisconnected(int playerIndex) {
+            // Story is single-player: only the campaign player's device matters.
+            if (playerIndex == 0) ForceControllerLostPause();
+        }
+
+        /// <summary>
+        /// Opens the ordinary pause menu with the reconnect notice. Public so the
+        /// path is exercisable without a real controller. Any face button on a
+        /// connected controller rebinds player 1 and resumes (design Section 11);
+        /// Resume works as always for a player who switched to the keyboard.
+        /// </summary>
+        public void ForceControllerLostPause() {
+            _awaitingController = true;
+            if (_controllerNotice != null) _controllerNotice.Visible = true;
+            if (IsPaused) {
+                OnPauseStateChanged(true);
+                return;
+            }
+            SetPaused(true);
+        }
+
+        /// <summary>
+        /// A face button from a connected joypad while the notice is up: that
+        /// controller becomes player 1's and the game resumes. Returns true when it
+        /// resolved. Public so tests can drive it with a synthetic device.
+        /// </summary>
+        public bool ResolveControllerLost(int deviceId) {
+            if (!_awaitingController) return false;
+            var input = FTT.Core.InputManager.Instance;
+            if (input != null && deviceId >= 0) {
+                try {
+                    input.AssignJoypadToPlayer(deviceId, 0);
+                } catch (System.ArgumentException) {
+                    return false;
+                }
+            }
+            _awaitingController = false;
+            if (_controllerNotice != null) _controllerNotice.Visible = false;
+            SetPaused(false);
+            return true;
+        }
+
+        public override void _Input(InputEvent @event) {
+            if (!_awaitingController || !IsPaused) return;
+            if (@event is not InputEventJoypadButton button || !button.Pressed) return;
+            bool faceButton = button.ButtonIndex is JoyButton.A or JoyButton.B or JoyButton.X or JoyButton.Y;
+            if (!faceButton) return;
+            if (ResolveControllerLost(button.Device)) GetViewport()?.SetInputAsHandled();
+        }
+
+        // === Package 12 W6 (G14): lower difficulty from the hub =============
+
+        private bool IsAtHub() =>
+            AtHubOverrideForTesting ?? GetTree()?.CurrentScene is FTT.Environment.HubWorldController;
+
+        /// <summary>True when the Lower Difficulty entry should be offered right now.</summary>
+        public bool CanOfferLowerDifficulty() =>
+            FTT.Core.CampaignDifficultyService.EvaluateActive(IsAtHub())
+            == FTT.Core.CampaignDifficultyRules.Verdict.Allowed;
+
+        private void RefreshLowerDifficultyEntry() {
+            if (_lowerDifficultyButton == null) return;
+            _lowerDifficultyButton.Visible = CanOfferLowerDifficulty();
+        }
+
+        private void ShowLowerDifficultyConfirmation() {
+            if (!CanOfferLowerDifficulty()) return;
+            var session = FTT.Core.GameManager.Instance?.CurrentSession;
+            FTT.Core.Difficulty current = session?.Difficulty ?? FTT.Core.Difficulty.Normal;
+            FTT.Core.Difficulty next = FTT.Core.CampaignDifficultyRules.OneStepLower(current);
+            if (_lowerDifficultyConfirm == null || !IsInstanceValid(_lowerDifficultyConfirm)) {
+                _lowerDifficultyConfirm = ConfirmModal.Create(
+                    "pause_lower_difficulty_confirm", "common_confirm", "common_cancel", "pause_lower_difficulty");
+                _lowerDifficultyConfirm.Name = "LowerDifficultyConfirmModal";
+                _lowerDifficultyConfirm.Confirmed += ConfirmLowerDifficulty;
+                _lowerDifficultyConfirm.Cancelled += RestoreMenuFocus;
+                _root?.AddChild(_lowerDifficultyConfirm);
+            }
+            // Already-resolved copy (the ConfirmModal idiom for formatted prompts).
+            _lowerDifficultyConfirm.SetPromptKey(string.Format(
+                Tr("pause_lower_difficulty_confirm"),
+                Tr(FTT.Core.CampaignDifficultyService.DifficultyNameKey(current)),
+                Tr(FTT.Core.CampaignDifficultyService.DifficultyNameKey(next))));
+            _lowerDifficultyConfirm.Open();
+        }
+
+        private void ConfirmLowerDifficulty() {
+            FTT.Core.CampaignDifficultyService.TryLowerActiveCampaign(IsAtHub());
+            RefreshLowerDifficultyEntry();
+            _focusChain = FocusChainBuilder.Build(_menuPanel);
+            FocusChainBuilder.GrabInitialFocus(_focusChain);
+        }
+
+        // === Package 12 W6 (G10): the Dialogue Log from the pause menu =======
+
+        private void OpenDialogueLog() {
+            if (_logScreen == null || !IsInstanceValid(_logScreen)) {
+                _logScreen = new DialogueLogScreen { Name = "DialogueLogScreen" };
+                AddChild(_logScreen);
+                _logScreen.Closed += RestoreMenuFocus;
+            }
+            _logScreen.Open();
         }
 
         private void ResolveOrBuildUI() {
@@ -67,6 +205,10 @@ namespace FTT.UI {
                 if (_saveButton != null) _saveButton.Pressed += SaveProgress;
                 WireButton("Root/Center/Panel/Layout/RestartButton", ShowRestartConfirmation);
                 WireButton("Root/Center/Panel/Layout/QuitButton", ShowQuitConfirmation);
+                WireButton("Root/Center/Panel/Layout/LogButton", OpenDialogueLog);
+                _lowerDifficultyButton = GetNodeOrNull<Button>("Root/Center/Panel/Layout/LowerDifficultyButton");
+                if (_lowerDifficultyButton != null) _lowerDifficultyButton.Pressed += ShowLowerDifficultyConfirmation;
+                _controllerNotice = GetNodeOrNull<Label>("Root/Center/Panel/Layout/ControllerNotice");
                 return;
             }
             BuildFallbackUI();
@@ -110,12 +252,27 @@ namespace FTT.UI {
             title.AddThemeColorOverride("font_color", UIPalette.TextAccent);
             layout.AddChild(title);
 
+            _controllerNotice = new Label {
+                Name = "ControllerNotice",
+                Text = "pause_controller_disconnected",
+                Visible = false,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                AutowrapMode = TextServer.AutowrapMode.WordSmart,
+                ThemeTypeVariation = UIPalette.SmallLabelVariation
+            };
+            _controllerNotice.AddThemeColorOverride("font_color", UIPalette.Warning);
+            layout.AddChild(_controllerNotice);
+
             layout.AddChild(MakeButton("ResumeButton", "menu_resume", () => SetPaused(false)));
             layout.AddChild(MakeButton("SettingsButton", "menu_settings", OpenSettings));
             layout.AddChild(MakeButton("MoveListButton", "movelist_title", OpenMoveList));
+            layout.AddChild(MakeButton("LogButton", "dialogue_log_title", OpenDialogueLog));
             _saveButton = MakeButton("SaveButton", "menu_save", SaveProgress);
             layout.AddChild(_saveButton);
             layout.AddChild(MakeButton("RestartButton", "menu_restart", ShowRestartConfirmation));
+            _lowerDifficultyButton = MakeButton("LowerDifficultyButton", "pause_lower_difficulty", ShowLowerDifficultyConfirmation);
+            _lowerDifficultyButton.Visible = false;
+            layout.AddChild(_lowerDifficultyButton);
             layout.AddChild(MakeButton("QuitButton", "pause_quit_to_menu", ShowQuitConfirmation));
         }
 
@@ -314,7 +471,9 @@ namespace FTT.UI {
         /// </summary>
         protected override bool CanTogglePause() =>
             _quitConfirm?.IsOpen != true && _restartConfirm?.IsOpen != true
-            && _moveList?.Visible != true;
+            && _moveList?.Visible != true
+            && _lowerDifficultyConfirm?.IsOpen != true
+            && (_logScreen == null || !IsInstanceValid(_logScreen) || !_logScreen.IsOpen);
 
         protected override void OnPauseStateChanged(bool paused) {
             if (_root != null) _root.Visible = paused;
@@ -322,13 +481,19 @@ namespace FTT.UI {
             if (!paused) {
                 _quitConfirm?.Close();
                 _restartConfirm?.Close();
+                _lowerDifficultyConfirm?.Close();
                 if (_moveList != null && IsInstanceValid(_moveList)) _moveList.Close();
+                if (_logScreen != null && IsInstanceValid(_logScreen)) _logScreen.Close();
+                // Resuming by any route settles the controller notice.
+                _awaitingController = false;
+                if (_controllerNotice != null) _controllerNotice.Visible = false;
                 return;
             }
 
             // A fresh open offers a fresh save; the "saved" feedback belongs to
             // the pause session that performed the save.
             if (_saveButton != null) _saveButton.Text = "menu_save";
+            RefreshLowerDifficultyEntry();
 
             // Rebuilt on every open: the chain has to reflect what is actually
             // visible now, and the modal's buttons must not join the menu's chain.
