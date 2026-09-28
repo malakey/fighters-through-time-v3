@@ -312,4 +312,20 @@ The rewind WIP was committed as `21b0747` (58/58 filtered). The design mirror, e
 
 ## 9. Deviations (append-only)
 
-*(Empty. Each workstream appends its entry here at merge.)*
+*(Each workstream appends its entry here at merge.)*
+
+### W1 — Story recovery and world suspension (branch `p12/W1`)
+
+- **D3(a) applied:** the hold's frozen set is the union of the Time Freeze and rewind sweeps (`ChronalRewindManager.PostLandingHoldGroups`), and the Collapse/Snap placement hold is armed in memory only, so a save load never grants one. Reversal: drop the rewind groups from `PostLandingHoldGroups` and/or persist the arm.
+- **Suspend path:** the death and scripted rewinds keep the attack-cancelling `SetStoryRewindFrozen` for the four rewind groups at initiation. The reasons are the T01a initiation cancel, the Mirror clone's `SetRewindSuspended` invulnerability, and the existing pins. Its release is a pure latch, so there is no catch-up. Everything else, and the Snap/Collapse holds, use the Time Freeze path.
+- **Gate placement:** the no-credit gate also lives in `Hurtbox.TakeHit`, not only `Hitbox.OnAreaEntered`, because shape-query kit deliveries bypass `Hitbox`.
+- **Provisional value:** `PostLandingThawWarningFrames` = 30. The design gives no number.
+- **Shared-file edits:** additive hooks in `StoryManager` (W2's file). They are recorded in `docs/handoffs/P12_W1.md`.
+- **M17:** the Act III collapse beat shows no transmission; the key names are unchanged.
+- **Residuals** (not W1-owned):
+  - The sealing anchor does not exist (`DEFER-SEALING-ANCHOR`).
+  - `PressurePlate` is not freezable.
+  - The thaw cue stream is null under the silent audio kit.
+- **Hash impact:** none. `scripts/FighterSim/` is untouched.
+- **Test delta:** +17.
+- **Ledger:** `VERIFY-05` is closed.

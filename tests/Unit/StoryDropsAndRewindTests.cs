@@ -70,6 +70,12 @@ public class StoryDropsAndRewindTests {
         player.CompleteStoryRewind(new Vector2(10f, 20f), 50);
 
         AssertThat(player.CurrentHP).IsEqual(50);
+        // Package 12 W1 (R03): the landing opens the Post-Landing Hold and the
+        // explicit 2 s protection is armed at its thaw, not at the landing.
+        AssertThat(player.IsPostRewindInvulnerable).IsFalse();
+        player.BeginRecoveryHold(StoryRecoveryHoldCause.DeathRewind, 60);
+        AssertThat(player.IsPostRewindInvulnerable).IsFalse();
+        player.EndRecoveryHold();
         AssertThat(player.IsPostRewindInvulnerable).IsTrue();
         AssertThat(player.ApplyPersistentDamage(25)).IsEqual(0);
         AssertThat(PlayerController.StoryRewindInvulnerabilityFrames).IsEqual(120);

@@ -251,11 +251,13 @@ public class TimeFreezeTests {
         // Suppression is the explicit carve-out: it locks ability slots, and
         // Time Freeze is the escape from exactly the situation it creates. The
         // pin is that the rule cannot consult it — it takes no status at all.
-        AssertThat(typeof(TimeFreezeController)
+        // Package 12 W1 (R03) added exactly one input, worldHeld — the
+        // Post-Landing Hold — and still no status.
+        AssertThat(string.Join(",", typeof(TimeFreezeController)
                 .GetMethod(nameof(TimeFreezeController.CanActivate))
-                .GetParameters().Length)
-            .OverrideFailureMessage("CanActivate must read only state/frozen/cooldown/alive.")
-            .IsEqual(4);
+                .GetParameters().Select(parameter => parameter.Name)))
+            .OverrideFailureMessage("CanActivate must read only state/frozen/cooldown/alive/worldHeld.")
+            .IsEqual("state,isFrozen,cooldownRemaining,alive,worldHeld");
     }
 
     [TestCase]

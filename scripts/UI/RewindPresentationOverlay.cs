@@ -65,6 +65,13 @@ namespace FTT.UI {
 
         private Control _collapseTreatment;
         private Label _collapseSkipPrompt;
+        private Label _transmissionLine;
+
+        /// <summary>
+        /// The Sarah transmission over the collapse beat. Package 12 W1 (M17):
+        /// hidden in Act III, which has no extraction. Test seam.
+        /// </summary>
+        public Label TransmissionLine => _transmissionLine;
 
         /// <summary>The fracture treatment root. Test seam.</summary>
         public Control CollapseTreatment => _collapseTreatment;
@@ -104,16 +111,16 @@ namespace FTT.UI {
                 _collapseTreatment.AddChild(crack);
             }
 
-            var transmission = new Label {
+            _transmissionLine = new Label {
                 Name = "TransmissionLine",
                 Text = Tr("collapse_transmission_line"),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 MouseFilter = Control.MouseFilterEnum.Ignore
             };
-            transmission.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
-            transmission.Position = new Vector2(-400, -180);
-            transmission.CustomMinimumSize = new Vector2(800, 30);
-            _collapseTreatment.AddChild(transmission);
+            _transmissionLine.SetAnchorsPreset(Control.LayoutPreset.CenterBottom);
+            _transmissionLine.Position = new Vector2(-400, -180);
+            _transmissionLine.CustomMinimumSize = new Vector2(800, 30);
+            _collapseTreatment.AddChild(_transmissionLine);
 
             _collapseSkipPrompt = new Label {
                 Name = "CollapseSkipPrompt",
@@ -155,7 +162,19 @@ namespace FTT.UI {
             // been seen (the first viewing is unskippable).
             if (_collapseTreatment != null) _collapseTreatment.Visible = collapse;
             if (_collapseSkipPrompt != null) _collapseSkipPrompt.Visible = collapse && payload.CollapseSkipPromptEnabled;
-            SetMusicDuck(active ? payload.MusicDuckDecibels : 0f);
+            // Package 12 W1 (M17): the payload names the transmission — the
+            // ordinary extraction line, the timer's era-lost variant, or none at
+            // all in Act III, where no rift comes and nobody pulls the hero out.
+            if (collapse && _transmissionLine != null) {
+                string key = payload.TransmissionLineKey ?? "";
+                _transmissionLine.Visible = key.Length > 0;
+                if (key.Length > 0) _transmissionLine.Text = Tr(key);
+            }
+            // Package 12 W1 (R03): the recovery duck is held through the
+            // Post-Landing Hold (a Landed payload carrying a duck) and released
+            // at the thaw (the Thawed phase carries none).
+            bool holdsDuck = active || payload.Phase == FTT.Core.RewindPresentationPhase.Landed;
+            SetMusicDuck(holdsDuck ? payload.MusicDuckDecibels : 0f);
 
             bool playSweep = _cues.Apply(payload);
             // C01a: "Remove trailing copies of actors and props." The trail is

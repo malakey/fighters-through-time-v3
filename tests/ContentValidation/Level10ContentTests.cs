@@ -535,6 +535,50 @@ public class Level10ContentTests {
         AssertThat(player.CurrentHP).IsEqual(hpBefore);
     }
 
+    /// <summary>
+    /// Package 12 W1 (GAP-11): the galleries are part of the world. A Time
+    /// Freeze (and the R03 Post-Landing Hold, which holds the world the same
+    /// way) stops them: no idle build-up, no telegraph countdown, no throw, and
+    /// nothing catches up at the thaw.
+    /// </summary>
+    [TestCase]
+    public void TheAudienceNeverArmsOrThrowsWhileTheWorldIsFrozen() {
+        using var fixture = new GlobeFixture();
+        Level10Controller level = fixture.Level;
+        PlayerController player = level.Player;
+        player.RestoreStoryCheckpoint(new Vector2(1400f, Level10Controller.EnemyGroundY), player.MaximumHP, 0f);
+        player.Velocity = Vector2.Zero;
+        level.ResetAudienceWatch();
+        try {
+            // Standing still through a whole freeze's worth of time arms nothing.
+            player.TimeFrozen = true;
+            int wellPastThreshold = Mathf.CeilToInt(Level10Controller.AudienceIdleArmSeconds / Step) * 2;
+            for (int tick = 0; tick < wellPastThreshold; tick++) level.TickAudience(Step);
+            AssertThat(level.AudienceArmed)
+                .OverrideFailureMessage("The galleries armed during a Time Freeze.").IsFalse();
+            AssertFloat(level.AudienceIdleSeconds).IsEqual(0f);
+
+            // An armed telegraph started before the freeze holds; it neither
+            // lands during the freeze nor catches up at the thaw.
+            player.TimeFrozen = false;
+            AssertThat(TickUntilArmed(level)).IsGreater(0);
+            int hpBefore = player.CurrentHP;
+            player.TimeFrozen = true;
+            int pastTelegraph = Mathf.CeilToInt(Level10Controller.AudienceWarningSeconds / Step) * 3;
+            for (int tick = 0; tick < pastTelegraph; tick++) level.TickAudience(Step);
+            AssertThat(level.AudienceThrowsLanded)
+                .OverrideFailureMessage("The throw landed while the world was frozen.").IsEqual(0);
+            AssertThat(level.AudienceArmed).IsTrue();
+            player.TimeFrozen = false;
+            level.TickAudience(Step);
+            AssertThat(level.AudienceThrowsLanded)
+                .OverrideFailureMessage("The thaw replayed the frozen telegraph as catch-up.").IsEqual(0);
+            AssertThat(player.CurrentHP).IsEqual(hpBefore);
+        } finally {
+            player.TimeFrozen = false;
+        }
+    }
+
     [TestCase]
     public void StandingThroughTheWholeTelegraphIsWhatActuallyGetsHit() {
         using var fixture = new GlobeFixture();

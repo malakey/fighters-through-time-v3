@@ -36,7 +36,10 @@ namespace FTT.Environment {
             // objective credit while the world is stopped. Gated here rather than
             // in _UnhandledInput so a scripted or test-driven interaction obeys
             // the same rule as a keypress.
-            if (player != null && player.TimeFrozen) return false;
+            // Package 12 W1 (R03): the Post-Landing Hold and a boss's T01b
+            // suspension hold the world the same way — interaction waits for
+            // the thaw.
+            if (player != null && (player.TimeFrozen || player.IsRecoveryWorldHeld)) return false;
             IInteractable target = GetInteractable();
             if (player == null || target == null || !target.CanInteract(player)) return false;
             target.Interact(player);

@@ -192,7 +192,8 @@ namespace FTT.Environment {
             // A harness with no player in the tree reads as a living idle player,
             // the same headless tolerance SearchlightZone's occlusion ray takes.
             bool alive = _player == null || !IsInstanceValid(_player) || _player.CurrentHP > 0;
-            if (!CanActivate(state, _isFrozen, DrillFreeFreeze ? 0f : _cooldownRemaining, alive)) return false;
+            if (!CanActivate(state, _isFrozen, DrillFreeFreeze ? 0f : _cooldownRemaining, alive,
+                    worldHeld: IsInsideTree() && ChronalRewindManager.IsWorldHeld(GetTree()))) return false;
 
             _isFrozen = true;
             _freezeFramesRemaining = FreezeFrames;
@@ -232,6 +233,24 @@ namespace FTT.Environment {
         /// autosave (checkpoint, collapse) must <b>not</b> call this — it keeps the
         /// conservative value while the freeze continues.
         /// </summary>
+        /// <summary>
+        /// Package 12 W1: a Story recovery (death rewind) ends a live freeze
+        /// early and takes over the world. Both freezes latch the same per-actor
+        /// flag, so the freeze cannot be left to thaw a tick later — that would
+        /// release actors the recovery has just frozen. The freezables are
+        /// resumed here (the recovery refreezes them at once, synchronously) but
+        /// the parked projectiles/zones are <b>handed over</b> with their
+        /// recorded modes instead of being restored. Arms the cooldown like any
+        /// early end. Returns null when no freeze was live.
+        /// </summary>
+        internal Dictionary<Node, ProcessModeEnum> EndFreezeForRecovery() {
+            if (!_isFrozen) return null;
+            var parked = new Dictionary<Node, ProcessModeEnum>(_processParked);
+            _processParked.Clear();
+            EndFreeze(early: true);
+            return parked;
+        }
+
         public void EndFreezeForExplicitSave() {
             if (!_isFrozen) return;
             // The drill exemption never survives an explicit save: the stored
@@ -249,9 +268,15 @@ namespace FTT.Environment {
         /// <para><b>Suppression is deliberately not a parameter.</b> The design
         /// carves Time Freeze out of the Suppression ability lock explicitly — it
         /// is the escape from exactly the situation Suppression creates.</para>
+        ///
+        /// <para><b>Package 12 W1 (R03):</b> <paramref name="worldHeld"/> — the
+        /// Post-Landing Hold after a recovery, or a boss's T01b suspension —
+        /// refuses activation until the thaw. The cooldown itself keeps running
+        /// through the hold, which is live play.</para>
         /// </summary>
-        public static bool CanActivate(CharacterState state, bool isFrozen, float cooldownRemaining, bool alive) {
-            if (isFrozen || !alive || cooldownRemaining > 0f) return false;
+        public static bool CanActivate(
+            CharacterState state, bool isFrozen, float cooldownRemaining, bool alive, bool worldHeld = false) {
+            if (isFrozen || !alive || cooldownRemaining > 0f || worldHeld) return false;
             return state is not (CharacterState.Stunned or CharacterState.Dazed
                 or CharacterState.Dead or CharacterState.Respawning
                 or CharacterState.Attacking or CharacterState.UsingSpecial
@@ -287,8 +312,12 @@ namespace FTT.Environment {
                 _rewindManager = GetTree()?.GetFirstNodeInGroup(ChronalRewindManager.ManagerGroup)
                     as ChronalRewindManager;
             }
+            // The R03 Post-Landing Hold is deliberately NOT here: it is live play
+            // and the cooldown runs through it. A boss's T01b beat is: the
+            // contract pauses every gameplay clock for it (GAP-06).
             if (_rewindManager != null && IsInstanceValid(_rewindManager)
-                && (_rewindManager.IsRewinding || _rewindManager.IsCollapseBeatActive)) return true;
+                && (_rewindManager.IsRewinding || _rewindManager.IsCollapseBeatActive
+                    || _rewindManager.IsBossSuspensionActive)) return true;
             return Dialogue != null && IsInstanceValid(Dialogue) && Dialogue.IsSequenceActive;
         }
 
@@ -338,6 +367,12 @@ namespace FTT.Environment {
             if (tree?.GetFirstNodeInGroup(ControllerGroup) is TimeFreezeController controller
                 && GodotObject.IsInstanceValid(controller)) {
                 controller.RefreshFreeze();
+            }
+            // Package 12 W1 (R03): the Post-Landing Hold and a boss's T01b beat
+            // freeze a newly revealed room the same way.
+            if (tree?.GetFirstNodeInGroup(ChronalRewindManager.ManagerGroup) is ChronalRewindManager manager
+                && GodotObject.IsInstanceValid(manager)) {
+                manager.RefreshWorldHold();
             }
         }
 

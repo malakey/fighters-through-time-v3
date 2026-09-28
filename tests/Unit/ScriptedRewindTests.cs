@@ -64,6 +64,13 @@ public class ScriptedRewindTests {
             // A demonstration must never damage a healthy player (the death
             // path still applies the difficulty restore from zero HP).
             AssertThat(player.CurrentHP).IsEqual(hpBefore);
+            // Package 12 W1 (R03): the scripted demonstration ends in the same
+            // Post-Landing Hold, and its protection starts at the thaw.
+            AssertThat(manager.IsPostLandingHoldActive).IsTrue();
+            AssertThat(manager.PostLandingHoldCause).IsEqual(StoryRecoveryHoldCause.ScriptedRewind);
+            AssertThat(player.IsPostRewindInvulnerable).IsFalse();
+            for (int i = 0; i < ChronalRewindManager.PostLandingHoldFrames; i++) manager._PhysicsProcess(1.0 / 60.0);
+            AssertThat(manager.IsPostLandingHoldActive).IsFalse();
             AssertThat(player.IsPostRewindInvulnerable).IsTrue();
 
             // The tutorial refunds the demonstration's charge afterwards.
