@@ -408,5 +408,5 @@ The rewind WIP was committed as `21b0747` (58/58 filtered). The design mirror, e
 - **M06 follow-up** pinned in both modes: the hit-2 Block escape fires from grounded non-launch hitstun again.
 - **CPU:** DI stick held only while airborne in hitstun (input-side); Block hold and linger unchanged; matrix tests meaningful and green.
 - **Hashes moved:** grounded knockback (every string hit 1–2), knockdown (every tech-less launch landing, plus component 320 in every snapshot), intent/projectile hitstun (18/30 → authored), CPU grounded-hitstun inputs. Rollback-readiness, per-stage and determinism suites pass.
-- **Tests:** +10 (two new suites, one per mode); eight cases rewritten in place (listed in the handoff). Expected full total 2393.
+- **Tests:** +10 (two new suites, one per mode); eight cases rewritten in place (listed in the handoff). Full suite verified **2393/2393** on `4266f80`.
 - **Edits outside ownership:** one line in `PlayerController.StartComboHit`; `FighterSimulation` (table + accessor); `FighterSimulationDriver` (presentation); `launches: false` on the construct/fence hit calls near W4's dispatch code.
