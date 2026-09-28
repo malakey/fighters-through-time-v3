@@ -26,6 +26,16 @@ namespace FTT.Combat {
             // is no damage, stagger, status, mark, meter, Rally reclaim, checkpoint
             // strike or extractor credit. Side-effect-free (a group lookup).
             if (IsInsideTree() && FTT.Environment.ChronalRewindManager.IsWorldHeld(GetTree())) return 0f;
+            // Package 12 W8: the V7.6 Time Freeze escape-only discard for the same
+            // shape-query deliveries (Hitbox.OnAreaEntered covers Hitbox contacts).
+            // Now that those deliveries reach PersistentObject strike surfaces, this
+            // keeps a frozen world's checkpoints, extractors and enemies inert to a
+            // player-sourced hit. Pure rule first, so the group lookup only runs
+            // for player-on-non-player hits.
+            if (Hitbox.PlayerHitIsDiscardedWhileFrozen(payload.AttackerIndex, OwnerPlayerIndex, worldFrozen: true)
+                && IsWorldTimeFrozen()) {
+                return 0f;
+            }
             return OnHit?.Invoke(payload) ?? 0f;
         }
 
@@ -37,6 +47,13 @@ namespace FTT.Combat {
         /// adjacent owner exactly as <see cref="TakeHit"/> does.
         /// </summary>
         public float TakeDamage(in HitPayload hit) => TakeHit(hit);
+
+        private bool IsWorldTimeFrozen() =>
+            IsInsideTree()
+            && GetTree()?.GetFirstNodeInGroup(FTT.Environment.TimeFreezeController.ControllerGroup)
+                is FTT.Environment.TimeFreezeController controller
+            && IsInstanceValid(controller)
+            && controller.IsFrozen;
 
         /// <summary>A hurtbox with no live receiver cannot take a hit.</summary>
         public bool IsAlive => OnHit != null;

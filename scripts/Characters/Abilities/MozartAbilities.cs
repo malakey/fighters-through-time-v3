@@ -126,7 +126,7 @@ namespace FTT.Characters.Abilities {
                 Transform = new Transform2D(0f, _burstPosition),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
-                CollisionMask = targetHurtboxLayer
+                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
 
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
@@ -451,7 +451,7 @@ namespace FTT.Characters.Abilities {
                 Transform = new Transform2D(0f, strikePosition),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
-                CollisionMask = targetHurtboxLayer
+                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
 
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {

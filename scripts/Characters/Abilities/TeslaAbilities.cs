@@ -216,7 +216,7 @@ namespace FTT.Characters.Abilities {
                 Transform = new Transform2D(0f, Owner.GlobalPosition),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
-                CollisionMask = targetHurtboxLayer
+                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
 
             bool attraction = Owner.HasStoryPerk(LorentzAttractionPerkKey);
@@ -517,7 +517,7 @@ namespace FTT.Characters.Abilities {
                 Transform = new Transform2D(0f, Owner.GlobalPosition),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
-                CollisionMask = targetHurtboxLayer
+                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
                 if (result["collider"].AsGodotObject() is Hurtbox hurtbox

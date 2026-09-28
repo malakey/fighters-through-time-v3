@@ -166,7 +166,7 @@ namespace FTT.Characters.Abilities {
                 Transform = new Transform2D(0f, _singularityCenter),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
-                CollisionMask = targetHurtboxLayer
+                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
                 if (result["collider"].AsGodotObject() is Hurtbox hurtbox

@@ -108,7 +108,7 @@ namespace FTT.Characters.Abilities {
                 Transform = new Transform2D(0f, Owner.GlobalPosition + offset),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
-                CollisionMask = targetHurtboxLayer
+                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
 
             bool finalThrust = _thrustsDone >= (Data?.HitCount ?? 1);
@@ -322,7 +322,7 @@ namespace FTT.Characters.Abilities {
                 Transform = new Transform2D(0f, Owner.GlobalPosition + offset),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
-                CollisionMask = targetHurtboxLayer
+                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
 
             bool finalHit = _hitsDone >= (Data?.HitCount ?? 1);
