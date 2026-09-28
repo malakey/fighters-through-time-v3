@@ -88,7 +88,7 @@ namespace FTT.Core {
     /// </summary>
     [GlobalClass]
     public partial class CoreMechanicCueCatalog : Resource {
-        public const string ResourcePath = "res://resources/Audio/core_mechanic_cues.tres";
+        public const string DefaultPath = "res://resources/Audio/core_mechanic_cues.tres";
 
         [Export] public int SchemaVersion = 1;
 
@@ -113,8 +113,8 @@ namespace FTT.Core {
             Find(CoreMechanicCueIDs.VictoryFanfareFor(heroID)) ?? Find(CoreMechanicCueIDs.VictoryFanfare);
 
         public static CoreMechanicCueCatalog LoadDefault() =>
-            ResourceLoader.Exists(ResourcePath)
-                ? AuthoredResources.Load<CoreMechanicCueCatalog>(ResourcePath)
+            ResourceLoader.Exists(DefaultPath)
+                ? AuthoredResources.Load<CoreMechanicCueCatalog>(DefaultPath)
                 : null;
     }
 }
