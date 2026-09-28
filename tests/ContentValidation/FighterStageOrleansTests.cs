@@ -225,7 +225,7 @@ public class FighterStageOrleansTests {
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: true,
-            hazardFrequency: (int)HazardTriggerFrequency.High,
+            hazardCadenceFrames: 1800,
             stageHazardTypeID: OrleansHazardTypeID);
 
         var first = new FighterSimulation(

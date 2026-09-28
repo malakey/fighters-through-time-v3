@@ -364,3 +364,16 @@ The rewind WIP was committed as `21b0747` (58/58 filtered). The design mirror, e
 - **Hashes.** No deterministic hash changes; nothing in `scripts/FighterSim/` was touched.
 - **Tests.** +20. The full suite ran 2257/2257 with a locally imported `en.en.translation`, which is **not committed** — the orchestrator must regenerate it.
 - **Handoff.** `docs/handoffs/P12_W7.md`.
+
+### W5 — Fighter mode flow (branch `p12/W5`, handoff `docs/handoffs/P12_W5.md`)
+
+- **Adopted D4(a):** the CPU toggle and CPU difficulty are removed from the Local Versus select. Versus CPU is its own Fighter-menu entry (`scenes/menus/FighterPlayOptions.tscn`): a P1-only select, then `HolodeckConsolePanel` in `FrontEnd` mode, then the match. Reversal: re-add `ModeRow` and `TokenDrivenBy`'s CPU branch.
+- **Adopted D5(b):** Resonance Surge (orb type 4, +15 meter) is behind the Items sub-toggle "Meter pickups", **off by default**. Default orb schedules draw from the same four types as before. It adds one int (`MeterPickupsEnabled`) to `FighterMatchComponent` (301, ~108/128 B); no new component ID.
+- **Hazard toggle.** `HazardTriggerFrequency` is deleted. `FighterHazardCadence.AuthoredFrames` holds the per-stage cadence, which is 2700 frames for all ten stages, seeded from the retired Medium value. `FighterMatchComponent.HazardFrequency` became `HazardCadenceFrames` in the same slot. Deviation: the cadence lives in a code table in `FighterEntitySystems.cs`, keyed by hazard type, not in `FighterStageGeometry` (hazard type and stage are 1:1). A non-zero cadence below 60 frames throws. This is a guard against stale frequency ordinals.
+- **Declared v7 derivation:** `SavedMatchSettings.DeriveStageHazardsEnabled(legacyHazardRate)` maps Off→false and anything else→true. Until Phase C, `Normalize()` applies it only when the new nullable `StageHazardsEnabled` is null. No version bump. The payload stays engine-free.
+- **M23 timing windows** (not specified numerically by the design) are Low 3000–4200, Medium 1200–1800 and High 600–720 frames. They are centred on the old fixed intervals and floored at 600. A spawn attempt with every anchor occupied spawns nothing. Anchor safety against hazard footprints is not checked at runtime; it relies on authoring.
+- **Moved hashes:** every items-on match, because the first orb gap is now drawn at world init and each spawn draws its gap. Items-off and default-hazard matches are unchanged. The High-cadence suites now pass an explicit 1800-frame override, so their timings are unchanged. No golden hash is pinned anywhere.
+- **Pre-existing bug fixed in passing:** `FighterProxyStyle.OrbColor` cast the sim orb ordinal onto Story's `OrbEffect`, so Chronal Haste rendered gold. The mapping is now explicit (`PaletteEffectFor`).
+- **Orphaned keys recorded** on `UnusedTranslationKeyTests.RecordedOrphans` for Phase C to delete: `fighter_local_human`, `fighter_cpu_selection`, `fighter_pick_cpu_prompt`, `fighter_hud_cooldown_ultimate`. The ceiling moved from 12 to 16.
+- **Settings:** exactly one new Gameplay row (`PlayerSlotPaletteRow`, self-wiring). `SettingsMenu.cs` is untouched.
+- **Not done:** Random stage "Open-only / Sealed-only" option; any per-stage cadence tuning; visual review of every new surface.

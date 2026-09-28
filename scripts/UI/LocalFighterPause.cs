@@ -245,10 +245,24 @@ namespace FTT.UI {
                 GameManager.Instance.LoadScene(destination);
                 return;
             }
-            bool holodeck = GameManager.Instance?.CurrentSession.ReturnToHubAfterFighterMatch == true;
-            GameManager.Instance?.LoadScene(holodeck
-                ? "res://scenes/campaign/HubWorld.tscn"
-                : "res://scenes/menus/CharacterSelect.tscn");
+            string exit = ApplyPauseExitToSession();
+            if (exit != null) GameManager.Instance.LoadScene(exit);
+        }
+
+        /// <summary>
+        /// M26 (Package 12 W5): pause Exit by match origin — the character select
+        /// lobby for Local Versus, the Fighter menu for Versus CPU, and the hub in
+        /// front of the Holodeck console for a Holodeck bout. Commits the session
+        /// the destination reads and returns the scene; split out so a test can
+        /// assert the route without a scene change.
+        /// </summary>
+        public static string ApplyPauseExitToSession() {
+            GameManager manager = GameManager.Instance;
+            if (manager == null) return null;
+            SessionData session = manager.CurrentSession;
+            string destination = FighterFlowRoutes.PauseExit(ref session);
+            manager.CurrentSession = session;
+            return destination;
         }
 
         /// <summary>"Move List — {name}", degrading to the plain label when the

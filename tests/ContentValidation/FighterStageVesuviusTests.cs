@@ -241,7 +241,7 @@ public class FighterStageVesuviusTests {
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: true,
-            hazardFrequency: (int)HazardTriggerFrequency.High,
+            hazardCadenceFrames: 1800,
             stageHazardTypeID: 5);
 
         // The first hazard spawns on the 1800-frame boundary and its cycle runs to

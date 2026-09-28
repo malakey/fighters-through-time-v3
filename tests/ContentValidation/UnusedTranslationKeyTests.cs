@@ -104,7 +104,16 @@ public class UnusedTranslationKeyTests {
         // as an NPC; in the N03 hero-is-Cleopatra branch she is the player and
         // renders through speaker_player. The key is retained per the plan's
         // legacy-identifier rule rather than deleted.
-        "speaker_cleopatra"
+        "speaker_cleopatra",
+        // Package 12 W5 (H05 per D4(a), M25): the Local Versus select lost its
+        // CPU toggle and CPU-pick flow, and the Fighter HUD's Ultimate cooldown
+        // plate became the Echo Step radial. The four keys are recorded rather
+        // than deleted because en.csv is append-only for workstreams; Phase C
+        // retires them.
+        "fighter_local_human",
+        "fighter_cpu_selection",
+        "fighter_pick_cpu_prompt",
+        "fighter_hud_cooldown_ultimate"
         // The three captive_name_* rows A6 recorded here left the roster at the
         // Package 11 Phase C closeout: A5's CampaignCaptiveRoster shipped, so
         // they are a runtime-built family and moved to DynamicKeyPrefixes.
@@ -116,11 +125,12 @@ public class UnusedTranslationKeyTests {
     /// Package 11 A6’s V7.5 narrative pass, which orphaned <c>speaker_cleopatra</c>
     /// and added the three runtime-resolved <c>captive_name_*</c> rows; 15 → 12 at
     /// the Package 11 Phase C closeout, which moved those three onto
-    /// <see cref="DynamicKeyPrefixes"/> now that their resolver has shipped).
+    /// <see cref="DynamicKeyPrefixes"/> now that their resolver has shipped; 12 → 16
+    /// with Package 12 W5's Versus CPU split and M25 cooldown rework).
     /// Informational
     /// alongside the roster rule above: if both ever disagree, the roster is the
     /// authority.</summary>
-    private const int RecordedOrphanCeiling = 12;
+    private const int RecordedOrphanCeiling = 16;
 
     [TestCase]
     public void NoTranslationKeyGoesUnusedBeyondTheRecordedOrphans() {

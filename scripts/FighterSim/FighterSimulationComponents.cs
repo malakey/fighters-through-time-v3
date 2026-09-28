@@ -67,8 +67,21 @@ namespace FTT.FighterSim {
         public readonly bool ItemsEnabled;
         public readonly int ItemFrequency;
         public readonly bool HazardsEnabled;
-        public readonly int HazardFrequency;
+        /// <summary>
+        /// Package 12 W5: the frames between hazard activations when hazards are
+        /// On. Resolved at construction — a caller passing 0 gets the stage's
+        /// authored cadence (<see cref="FighterHazardCadence.AuthoredFrames"/>),
+        /// which is what every production match does. The retired
+        /// <c>HazardTriggerFrequency</c> ordinal it replaces is gone from the
+        /// rules and the match component.
+        /// </summary>
+        public readonly int HazardCadenceFrames;
         public readonly int StageHazardTypeID;
+        /// <summary>
+        /// Package 12 W5 (M24, D5(b)): Resonance Surge joins the orb draw only
+        /// when this is set. Off by default, so default schedules are unchanged.
+        /// </summary>
+        public readonly bool MeterPickupsEnabled;
         /// <summary>
         /// Pre-match 3-2-1 countdown length. Deterministic state: it is written
         /// into <see cref="FighterMatchComponent.CountdownFramesRemaining"/> and
@@ -78,36 +91,54 @@ namespace FTT.FighterSim {
         /// </summary>
         public readonly int PreMatchCountdownFrames;
 
-        public FighterMatchRules(bool itemsEnabled, int itemFrequency, bool hazardsEnabled, int hazardFrequency)
-            : this((int)FTT.Core.MatchMode.Stock, itemsEnabled, itemFrequency, hazardsEnabled, hazardFrequency, 1, 0) { }
+        public FighterMatchRules(bool itemsEnabled, int itemFrequency, bool hazardsEnabled, int hazardCadenceFrames)
+            : this((int)FTT.Core.MatchMode.Stock, itemsEnabled, itemFrequency, hazardsEnabled, hazardCadenceFrames, 1, 0) { }
 
-        public FighterMatchRules(int matchMode, bool itemsEnabled, int itemFrequency, bool hazardsEnabled, int hazardFrequency)
-            : this(matchMode, itemsEnabled, itemFrequency, hazardsEnabled, hazardFrequency, 1, 0) { }
+        public FighterMatchRules(int matchMode, bool itemsEnabled, int itemFrequency, bool hazardsEnabled, int hazardCadenceFrames)
+            : this(matchMode, itemsEnabled, itemFrequency, hazardsEnabled, hazardCadenceFrames, 1, 0) { }
 
         public FighterMatchRules(
             int matchMode,
             bool itemsEnabled,
             int itemFrequency,
             bool hazardsEnabled,
-            int hazardFrequency,
+            int hazardCadenceFrames,
             int stageHazardTypeID)
-            : this(matchMode, itemsEnabled, itemFrequency, hazardsEnabled, hazardFrequency, stageHazardTypeID, 0) { }
+            : this(matchMode, itemsEnabled, itemFrequency, hazardsEnabled, hazardCadenceFrames, stageHazardTypeID, 0) { }
 
+        /// <param name="hazardCadenceFrames">
+        /// 0 = the stage's authored cadence (every production match). A positive
+        /// override is a test seam and must be at least
+        /// <see cref="FighterHazardCadence.MinimumOverrideFrames"/>: a value below
+        /// that can only be a stale <c>HazardTriggerFrequency</c> ordinal from
+        /// before Package 12, so it throws rather than silently running hazards
+        /// every couple of frames.
+        /// </param>
         public FighterMatchRules(
             int matchMode,
             bool itemsEnabled,
             int itemFrequency,
             bool hazardsEnabled,
-            int hazardFrequency,
+            int hazardCadenceFrames,
             int stageHazardTypeID,
-            int preMatchCountdownFrames) {
+            int preMatchCountdownFrames,
+            bool meterPickupsEnabled = false) {
+            if (hazardCadenceFrames < 0
+                || (hazardCadenceFrames > 0 && hazardCadenceFrames < FighterHazardCadence.MinimumOverrideFrames)) {
+                throw new System.ArgumentOutOfRangeException(
+                    nameof(hazardCadenceFrames), hazardCadenceFrames,
+                    "Hazard cadence is in frames (0 = the stage's authored cadence); the retired frequency ordinal is not accepted.");
+            }
             MatchMode = matchMode;
             ItemsEnabled = itemsEnabled;
             ItemFrequency = itemFrequency;
             HazardsEnabled = hazardsEnabled;
-            HazardFrequency = hazardFrequency;
             StageHazardTypeID = System.Math.Clamp(stageHazardTypeID, 1, 10);
+            HazardCadenceFrames = hazardCadenceFrames > 0
+                ? hazardCadenceFrames
+                : FighterHazardCadence.AuthoredFrames(StageHazardTypeID);
             PreMatchCountdownFrames = preMatchCountdownFrames > 0 ? preMatchCountdownFrames : 0;
+            MeterPickupsEnabled = meterPickupsEnabled;
         }
 
         public FighterMatchRules WithCountdown(int preMatchCountdownFrames) => new(
@@ -115,9 +146,10 @@ namespace FTT.FighterSim {
             ItemsEnabled,
             ItemFrequency,
             HazardsEnabled,
-            HazardFrequency,
+            HazardCadenceFrames,
             StageHazardTypeID,
-            preMatchCountdownFrames);
+            preMatchCountdownFrames,
+            MeterPickupsEnabled);
 
         /// <summary>
         /// Items and hazards off. F21 (Package 11 A1c): the mode is explicit Stock
@@ -948,8 +980,19 @@ namespace FTT.FighterSim {
         public int ItemsEnabled;
         public int ItemFrequency;
         public int HazardsEnabled;
-        public int HazardFrequency;
+        /// <summary>
+        /// Package 12 W5: the resolved hazard cadence in frames (the stage's
+        /// authored value in every production match). Replaces the retired
+        /// <c>HazardFrequency</c> ordinal in the same slot, so the component did
+        /// not grow for it.
+        /// </summary>
+        public int HazardCadenceFrames;
         public int StageHazardTypeID;
+        /// <summary>
+        /// Package 12 W5 (M24): 1 when Resonance Surge is in the orb draw. Snapshot
+        /// state because it selects the width of a seeded draw.
+        /// </summary>
+        public int MeterPickupsEnabled;
         public int NextOrbSpawnFrames;
         public int NextHazardSpawnFrames;
         /// <summary>

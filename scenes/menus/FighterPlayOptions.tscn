@@ -1,0 +1,93 @@
+[gd_scene load_steps=4 format=3]
+
+; Package 12 W5 (H05/G01, adopted D4(a)) - the Fighter Mode Play Options menu.
+; The main menu's Fighter button opens this: Local Versus (two-human select) or
+; Versus CPU (P1-only select -> CPU configuration panel -> match). Steam Remote
+; Play Together stays a notice (DEFER-STEAM-RPT). Raw translation keys in text.
+
+[ext_resource type="Script" path="res://scripts/UI/FighterPlayOptionsScreen.cs" id="1_script"]
+[ext_resource type="Theme" path="res://resources/UI/ftt_theme.tres" id="2_theme"]
+[ext_resource type="Texture2D" path="res://assets/backgrounds/menu/temporal_glass_fighter_select_background.png" id="3_art"]
+
+[node name="FighterPlayOptions" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.012, 0.016, 0.06, 1)
+
+[node name="TemporalGlassArt" type="TextureRect" parent="Background"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("3_art")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="Center"]
+custom_minimum_size = Vector2(560, 0)
+layout_mode = 2
+theme_type_variation = &"DialogueGlassPanel"
+
+[node name="Layout" type="VBoxContainer" parent="Center/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Title" type="Label" parent="Center/Panel/Layout"]
+layout_mode = 2
+theme_type_variation = &"TitleLabel"
+text = "fighter_play_options_title"
+horizontal_alignment = 1
+
+[node name="LocalVersusButton" type="Button" parent="Center/Panel/Layout"]
+custom_minimum_size = Vector2(360, 52)
+layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+text = "fighter_play_local_versus"
+
+[node name="VersusCpuButton" type="Button" parent="Center/Panel/Layout"]
+custom_minimum_size = Vector2(360, 52)
+layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+text = "fighter_play_versus_cpu"
+
+[node name="RemotePlayNotice" type="Label" parent="Center/Panel/Layout"]
+custom_minimum_size = Vector2(360, 0)
+layout_mode = 2
+focus_mode = 2
+theme_type_variation = &"SmallLabel"
+text = "fighter_remote_play_notice"
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="BackButton" type="Button" parent="Center/Panel/Layout"]
+custom_minimum_size = Vector2(360, 48)
+layout_mode = 2
+theme_type_variation = &"TemporalGlassButton"
+text = "common_back"

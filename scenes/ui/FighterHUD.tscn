@@ -4,9 +4,12 @@
 ;
 ; Attached by FighterSimulationDriver for every stage rather than authored into
 ; each stage scene, so the ten production stages and the Test Arena share one
-; surface. The stock / shield pips and the four cooldown slots are built by the
-; script because their counts are data-driven (match stock rules, per-character
-; MaxBlockCharges); everything with a fixed shape is authored here.
+; surface. The stock / shield pips are built by the script because their counts
+; are data-driven (match stock rules, per-character MaxBlockCharges); everything
+; with a fixed shape is authored here - including, since Package 12 W5 (M25),
+; the four 20x20 radial cooldowns (S1 / S2 / Movement / Echo Step) beside the
+; block charges (P2 mirrored), and (G12) the P1 triangle / P2 circle slot badge
+; beside each name tag.
 ;
 ; M-29 (audit 2026-08-08): both player clusters anchor to the BOTTOM of the
 ; screen per design :2617 ("Bottom of screen, evenly spaced (P1 left, P2
@@ -65,6 +68,15 @@ theme_override_constants/separation = 6
 [node name="TopRow" type="HBoxContainer" parent="SafeArea/P1_Status/Body/Column"]
 layout_mode = 2
 mouse_filter = 2
+
+[node name="SlotBadge" type="Label" parent="SafeArea/P1_Status/Body/Column/TopRow"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 20
+text = "▲"
+horizontal_alignment = 1
+vertical_alignment = 1
 
 [node name="Name" type="Label" parent="SafeArea/P1_Status/Body/Column/TopRow"]
 layout_mode = 2
@@ -177,9 +189,82 @@ theme_override_font_sizes/font_size = 12
 layout_mode = 2
 mouse_filter = 2
 
-[node name="Cooldowns" type="HBoxContainer" parent="SafeArea/P1_Status/Body/Column"]
+[node name="Cooldowns" type="HBoxContainer" parent="SafeArea/P1_Status/Body/Column/PipRow"]
 layout_mode = 2
 mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="S1_Cooldown" type="Label" parent="SafeArea/P1_Status/Body/Column/PipRow/Cooldowns"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Radial" type="Control" parent="SafeArea/P1_Status/Body/Column/PipRow/Cooldowns/S1_Cooldown"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
+
+[node name="S2_Cooldown" type="Label" parent="SafeArea/P1_Status/Body/Column/PipRow/Cooldowns"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Radial" type="Control" parent="SafeArea/P1_Status/Body/Column/PipRow/Cooldowns/S2_Cooldown"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
+
+[node name="Movement_Cooldown" type="Label" parent="SafeArea/P1_Status/Body/Column/PipRow/Cooldowns"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Radial" type="Control" parent="SafeArea/P1_Status/Body/Column/PipRow/Cooldowns/Movement_Cooldown"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
+
+[node name="EchoStep_Cooldown" type="Label" parent="SafeArea/P1_Status/Body/Column/PipRow/Cooldowns"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Radial" type="Control" parent="SafeArea/P1_Status/Body/Column/PipRow/Cooldowns/EchoStep_Cooldown"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
 
 [node name="P2_Status" type="PanelContainer" parent="SafeArea"]
 layout_mode = 1
@@ -261,6 +346,15 @@ horizontal_alignment = 2
 theme_override_colors/font_color = Color(0, 0.9, 0.9, 1)
 theme_override_font_sizes/font_size = 22
 
+[node name="SlotBadge" type="Label" parent="SafeArea/P2_Status/Body/Column/TopRow"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 20
+text = "●"
+horizontal_alignment = 1
+vertical_alignment = 1
+
 [node name="HPBar" type="ProgressBar" parent="SafeArea/P2_Status/Body/Column"]
 custom_minimum_size = Vector2(0, 22)
 layout_mode = 2
@@ -291,6 +385,83 @@ vertical_alignment = 1
 layout_mode = 2
 mouse_filter = 2
 theme_override_constants/separation = 18
+
+[node name="Cooldowns" type="HBoxContainer" parent="SafeArea/P2_Status/Body/Column/PipRow"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="EchoStep_Cooldown" type="Label" parent="SafeArea/P2_Status/Body/Column/PipRow/Cooldowns"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Radial" type="Control" parent="SafeArea/P2_Status/Body/Column/PipRow/Cooldowns/EchoStep_Cooldown"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
+
+[node name="Movement_Cooldown" type="Label" parent="SafeArea/P2_Status/Body/Column/PipRow/Cooldowns"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Radial" type="Control" parent="SafeArea/P2_Status/Body/Column/PipRow/Cooldowns/Movement_Cooldown"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
+
+[node name="S2_Cooldown" type="Label" parent="SafeArea/P2_Status/Body/Column/PipRow/Cooldowns"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Radial" type="Control" parent="SafeArea/P2_Status/Body/Column/PipRow/Cooldowns/S2_Cooldown"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
+
+[node name="S1_Cooldown" type="Label" parent="SafeArea/P2_Status/Body/Column/PipRow/Cooldowns"]
+custom_minimum_size = Vector2(20, 20)
+layout_mode = 2
+mouse_filter = 2
+theme_override_font_sizes/font_size = 8
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Radial" type="Control" parent="SafeArea/P2_Status/Body/Column/PipRow/Cooldowns/S1_Cooldown"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("3_radial")
 
 [node name="Shields" type="HBoxContainer" parent="SafeArea/P2_Status/Body/Column/PipRow"]
 layout_mode = 2
@@ -325,11 +496,6 @@ mouse_filter = 2
 text = "fighter_hud_stocks"
 theme_override_colors/font_color = Color(0.45, 0.5, 0.6, 1)
 theme_override_font_sizes/font_size = 12
-
-[node name="Cooldowns" type="HBoxContainer" parent="SafeArea/P2_Status/Body/Column"]
-layout_mode = 2
-alignment = 2
-mouse_filter = 2
 
 [node name="Portrait" type="TextureRect" parent="SafeArea/P2_Status/Body"]
 custom_minimum_size = Vector2(96, 96)

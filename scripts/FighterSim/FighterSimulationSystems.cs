@@ -34,6 +34,12 @@ namespace FTT.FighterSim {
 
         public void OnInit(ref Frame frame) {
             var random = new DeterministicRandom(_seed);
+            // M23 (Package 12 W5): the first orb's timing is a seeded draw inside
+            // the frequency window, like every later one. Drawn only when orbs are
+            // live, so an items-off match's RNG stream is untouched.
+            int firstOrbFrames = _rules.ItemsEnabled && _rules.ItemFrequency > 0
+                ? FighterOrbSpawnRules.DrawSpawnGap(ref random, _rules.ItemFrequency)
+                : 0;
             (ulong state0, ulong state1) = random.GetFullState();
 
             EntityRef matchEntity = frame.CreateEntity();
@@ -51,10 +57,11 @@ namespace FTT.FighterSim {
                 ItemsEnabled = _rules.ItemsEnabled ? 1 : 0,
                 ItemFrequency = _rules.ItemFrequency,
                 HazardsEnabled = _rules.HazardsEnabled ? 1 : 0,
-                HazardFrequency = _rules.HazardFrequency,
+                HazardCadenceFrames = _rules.HazardCadenceFrames,
                 StageHazardTypeID = _rules.StageHazardTypeID,
-                NextOrbSpawnFrames = FighterSpawnIntervals.OrbFrames(_rules.ItemFrequency),
-                NextHazardSpawnFrames = FighterSpawnIntervals.HazardFrames(_rules.HazardFrequency),
+                MeterPickupsEnabled = _rules.MeterPickupsEnabled ? 1 : 0,
+                NextOrbSpawnFrames = firstOrbFrames,
+                NextHazardSpawnFrames = _rules.HazardCadenceFrames,
                 RandomState0 = state0,
                 RandomState1 = state1
             });
@@ -2603,11 +2610,11 @@ namespace FTT.FighterSim {
             // "Respect the match's hazard toggle. If Off, no hazard warnings or
             // damage." The retired version forced HazardsEnabled = 1 here, which
             // overrode the house rules outright.
-            if (match.HazardsEnabled == 1 && match.HazardFrequency > 0) {
+            if (match.HazardsEnabled == 1 && match.HazardCadenceFrames > 0) {
                 // Twice-normal cadence by halving idle and recovery while warning
                 // and active durations are retained, and never multiplied again by
                 // regulation Overtime (every OvertimeActive flag is cleared below).
-                int interval = FighterSpawnIntervals.HazardFrames(match.HazardFrequency) / 2;
+                int interval = match.HazardCadenceFrames / 2;
                 match.NextHazardSpawnFrames = interval > 0 ? interval : 1;
             } else {
                 match.NextHazardSpawnFrames = 0;

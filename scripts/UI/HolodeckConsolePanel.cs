@@ -8,28 +8,50 @@ using Godot;
 namespace FTT.UI {
 
     /// <summary>
-    /// The Holodeck Arena Console's compact in-hub configuration panel (design
-    /// Section 10.3 "In-Hub Configuration Surface": "the Holodeck console opens
-    /// a compact configuration panel *in the hub* — CPU difficulty, CPU
-    /// character, stage, and rules — then launches straight into the match").
-    /// The Holodeck is the interim training mode; the previous behaviour —
-    /// routing through the full three-screen Fighter select — is exactly what
-    /// the design line forbids.
+    /// The Holodeck Arena Console's compact configuration panel (design Section
+    /// 10.3 "In-Hub Configuration Surface": "the Holodeck console opens a compact
+    /// configuration panel *in the hub* — CPU difficulty, CPU character, stage,
+    /// and rules — then launches straight into the match"). The Holodeck is the
+    /// interim training mode; routing it through the full three-screen Fighter
+    /// select is exactly what the design line forbids.
     ///
-    /// The player's own character is not configurable here: a campaign save
-    /// locks its character, and the hub restores it before this panel can open.
-    /// Launch writes the session (opponent type Cpu, return-to-hub flag) and
-    /// routes straight to the stage scene, skipping CharacterSelect entirely.
+    /// <para><b>Two hosts (Package 12 W5, H05 per adopted D4(a)).</b> In the hub
+    /// it is the Holodeck console (<see cref="FrontEnd"/> false): the player's
+    /// own character is the campaign's locked one, the match origin is
+    /// <see cref="FighterMatchOrigin.Holodeck"/>, and a Calibration Drills entry
+    /// sits beside Launch. The same panel is the front-end <b>Versus CPU</b>
+    /// configuration screen (<see cref="FrontEnd"/> true), opened by the P1-only
+    /// character select: no drills entry, origin
+    /// <see cref="FighterMatchOrigin.VersusCpu"/>, and no Story save involved.</para>
+    ///
+    /// <para>Rules: the retired hazard frequency selector is a single On/Off
+    /// toggle, and Items carries the M24 "Meter pickups" sub-toggle. Random CPU
+    /// character and Random stage entries (G15a) resolve from the per-match seed.</para>
     /// </summary>
     public partial class HolodeckConsolePanel : Control {
+
+        /// <summary>OptionButton id of the Random entry in the CPU character and stage lists.</summary>
+        public const int RandomItemID = 1000;
 
         /// <summary>Raised when the panel closes without launching.</summary>
         public event Action Closed;
 
         /// <summary>
+        /// True when the panel is the front-end Versus CPU configuration screen
+        /// rather than the hub console. Set before the panel enters the tree.
+        /// </summary>
+        public bool FrontEnd { get; set; }
+
+        /// <summary>
+        /// Test seam: a fixed per-match seed instead of a freshly rolled one, so a
+        /// Random entry's resolution is reproducible.
+        /// </summary>
+        internal int? SeedOverride { get; set; }
+
+        /// <summary>
         /// The CPU opponent list, in manifest order. Package 11 A6b: read from
         /// <see cref="FTT.Core.CharacterRoster"/> rather than a literal
-        /// nine-element array — the Holodeck builds its OptionButton from the
+        /// nine-element array — the console builds its OptionButton from the
         /// roster at runtime, so a new manifest row is offered as a sparring
         /// partner with no code change.
         /// </summary>
@@ -45,12 +67,15 @@ namespace FTT.UI {
         private SpinBox _stockCount;
         private SpinBox _timeLimit;
         private OptionButton _itemFrequency;
-        private OptionButton _hazardFrequency;
+        private CheckButton _meterPickups;
+        private CheckButton _stageHazards;
 
         // Test seams.
         internal OptionButton CpuDifficultySelect => _cpuDifficulty;
         internal OptionButton CpuCharacterSelect => _cpuCharacter;
         internal OptionButton StageSelect => _stageSelect;
+        internal CheckButton StageHazardsToggle => _stageHazards;
+        internal CheckButton MeterPickupsToggle => _meterPickups;
         internal IReadOnlyList<string> StageIDs => _stageIDs;
 
         public override void _Ready() {
@@ -76,7 +101,7 @@ namespace FTT.UI {
 
             var title = new Label {
                 Name = "Title",
-                Text = Tr("holodeck_console_title"),
+                Text = Tr(FrontEnd ? "fighter_versus_cpu_title" : "holodeck_console_title"),
                 HorizontalAlignment = HorizontalAlignment.Center
             };
             title.ThemeTypeVariation = UIPalette.HeadingLabelVariation;
@@ -89,10 +114,7 @@ namespace FTT.UI {
             SessionData session = GameManager.Instance?.CurrentSession ?? default;
 
             _cpuDifficulty = AddOptionRow(layout, "CpuDifficulty", "fighter_cpu_difficulty");
-            _cpuDifficulty.AddItem(Tr("difficulty_easy"), (int)CpuDifficulty.Easy);
-            _cpuDifficulty.AddItem(Tr("difficulty_normal"), (int)CpuDifficulty.Normal);
-            _cpuDifficulty.AddItem(Tr("difficulty_hard"), (int)CpuDifficulty.Hard);
-            _cpuDifficulty.Select((int)session.CpuDifficulty);
+            CpuDifficultyLabels.Fill(_cpuDifficulty, session.CpuDifficulty);
 
             _cpuCharacter = AddOptionRow(layout, "CpuCharacter", "holodeck_cpu_character");
             PopulateRoster(session.OpponentCharacterID);
@@ -130,8 +152,22 @@ namespace FTT.UI {
 
             _itemFrequency = AddOptionRow(layout, "ItemFrequency", "fighter_items");
             FillFrequencySelect(_itemFrequency, (int)settings.ItemSpawnRate);
-            _hazardFrequency = AddOptionRow(layout, "HazardFrequency", "fighter_hazards");
-            FillFrequencySelect(_hazardFrequency, (int)settings.HazardRate);
+
+            var togglesRow = new HBoxContainer { Name = "TogglesRow" };
+            togglesRow.AddThemeConstantOverride("separation", UIPalette.PanelSeparation);
+            layout.AddChild(togglesRow);
+            _meterPickups = new CheckButton {
+                Name = "MeterPickups",
+                Text = Tr("fighter_meter_pickups"),
+                ButtonPressed = settings.MeterPickupsEnabled
+            };
+            togglesRow.AddChild(_meterPickups);
+            _stageHazards = new CheckButton {
+                Name = "StageHazards",
+                Text = Tr("fighter_hazards"),
+                ButtonPressed = settings.StageHazardsEnabled
+            };
+            togglesRow.AddChild(_stageHazards);
 
             var launch = new Button {
                 Name = "LaunchButton",
@@ -141,17 +177,21 @@ namespace FTT.UI {
             launch.Pressed += OnLaunchPressed;
             layout.AddChild(launch);
 
-            // Package 11 A11 (F18): the console keeps the CPU practice bout and
+            // Package 11 A11 (F18): the hub console keeps the CPU practice bout and
             // gains a second entry alongside it. Same drill list and content as the
             // standalone Main Menu route, run with the campaign character's
-            // *normalized* Fighter kit; Exit Calibration returns to this hub.
-            var drills = new Button {
-                Name = "CalibrationDrillsButton",
-                Text = Tr("holodeck_calibration_drills"),
-                CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight)
-            };
-            drills.Pressed += OnCalibrationDrillsPressed;
-            layout.AddChild(drills);
+            // *normalized* Fighter kit; Exit Calibration returns to this hub. The
+            // front-end Versus CPU screen has no drills entry — the main menu owns
+            // the standalone route.
+            if (!FrontEnd) {
+                var drills = new Button {
+                    Name = "CalibrationDrillsButton",
+                    Text = Tr("holodeck_calibration_drills"),
+                    CustomMinimumSize = new Vector2(UIPalette.ButtonMinWidth, UIPalette.ButtonMinHeight)
+                };
+                drills.Pressed += OnCalibrationDrillsPressed;
+                layout.AddChild(drills);
+            }
 
             var back = new Button {
                 Name = "BackButton",
@@ -210,6 +250,8 @@ namespace FTT.UI {
                     : Tr(data.DisplayNameKey);
                 _cpuCharacter.AddItem(name, index);
             }
+            // G15a: a Random opponent, resolved from the per-match seed at launch.
+            _cpuCharacter.AddItem(Tr("fighter_random_character"), RandomItemID);
             int preferred = Array.IndexOf(RosterIDs, preferredID);
             _cpuCharacter.Select(preferred >= 0 ? preferred : 0);
         }
@@ -232,6 +274,10 @@ namespace FTT.UI {
                     _stageSelect.ItemCount - 1, Tr(FighterStageLayoutBadge.TooltipKey(stage)));
             }
             _stageSelect.Disabled = _stageIDs.Count == 0;
+            if (_stageIDs.Count == 0) return;
+            // G15a: a Random stage, resolved from the per-match seed at launch and
+            // revealed on the loading screen.
+            _stageSelect.AddItem(Tr("fighter_random_stage"), RandomItemID);
             int preferred = _stageIDs.IndexOf(preferredID);
             if (preferred >= 0) _stageSelect.Select(preferred);
         }
@@ -266,22 +312,37 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// Writes the console's choices into the session and returns the stage
-        /// the practice bout routes to, or null when it cannot resolve. Split
-        /// from <see cref="OnLaunchPressed"/> so tests can assert the session
-        /// round-trip without a real scene change.
+        /// Writes the panel's choices into the session and returns the stage the
+        /// bout routes to, or null when it cannot resolve. Split from
+        /// <see cref="OnLaunchPressed"/> so tests can assert the session round-trip
+        /// without a real scene change.
         /// </summary>
         public FighterStageData ApplyToSession() {
             if (GameManager.Instance == null) return null;
-            int stageIndex = (int)_stageSelect.GetSelectedId();
-            if (stageIndex < 0 || stageIndex >= _stageIDs.Count) return null;
+            int stageItem = (int)_stageSelect.GetSelectedId();
+            if (_stageIDs.Count == 0) return null;
+            if (stageItem != RandomItemID && (stageItem < 0 || stageItem >= _stageIDs.Count)) return null;
 
             SessionData session = GameManager.Instance.CurrentSession;
+            // G15a: the per-match seed. The Versus CPU select may already have
+            // rolled it to resolve P1's Random tile; otherwise roll it here.
+            if (!session.HasPendingMatchSeed) {
+                session.PendingMatchSeed = SeedOverride ?? unchecked((int)GD.Randi());
+                session.HasPendingMatchSeed = true;
+            }
+            int seed = session.PendingMatchSeed;
+
             session.FighterOpponentType = FighterOpponentType.Cpu;
-            session.ReturnToHubAfterFighterMatch = true;
+            session.FighterMatchOrigin = FrontEnd ? FighterMatchOrigin.VersusCpu : FighterMatchOrigin.Holodeck;
             session.CpuDifficulty = (CpuDifficulty)_cpuDifficulty.GetSelectedId();
-            int opponentIndex = Mathf.Clamp((int)_cpuCharacter.GetSelectedId(), 0, RosterIDs.Length - 1);
+            int opponentItem = (int)_cpuCharacter.GetSelectedId();
+            int opponentIndex = opponentItem == RandomItemID
+                ? FighterRandomPick.Index(seed, FighterRandomPick.PlayerTwoCharacterSalt, RosterIDs.Length)
+                : Mathf.Clamp(opponentItem, 0, RosterIDs.Length - 1);
             session.OpponentCharacterID = RosterIDs[opponentIndex];
+            int stageIndex = stageItem == RandomItemID
+                ? FighterRandomPick.Index(seed, FighterRandomPick.StageSalt, _stageIDs.Count)
+                : stageItem;
             session.SelectedStageID = _stageIDs[stageIndex];
 
             MatchSettings settings = session.MatchSettings;
@@ -289,11 +350,10 @@ namespace FTT.UI {
             settings.StockCount = (int)_stockCount.Value;
             settings.TimeLimit = ResolveTimeLimitForMode(settings.Mode, (float)_timeLimit.Value);
             var itemRate = (ChronalOrbFrequency)_itemFrequency.GetSelectedId();
-            var hazardRate = (HazardTriggerFrequency)_hazardFrequency.GetSelectedId();
             settings.ItemSpawnRate = itemRate;
             settings.ItemsEnabled = itemRate != ChronalOrbFrequency.Off;
-            settings.HazardRate = hazardRate;
-            settings.StageHazardsEnabled = hazardRate != HazardTriggerFrequency.Off;
+            settings.MeterPickupsEnabled = _meterPickups.ButtonPressed;
+            settings.StageHazardsEnabled = _stageHazards.ButtonPressed;
             session.MatchSettings = settings;
 
             GameManager.Instance.CurrentSession = session;

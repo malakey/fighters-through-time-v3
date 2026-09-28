@@ -13,11 +13,12 @@ public class MatchSettingsTests {
         AssertThat(settings.Mode).IsEqual(MatchMode.Stock);
         AssertThat(settings.StockCount).IsEqual(3);
         AssertThat(settings.TimeLimit).IsEqual(480.0f);
-        // V7.3 ruling #18: items and hazards default to Medium, still enabled.
+        // V7.3 ruling #18: items default to Medium; Package 12 W5: hazards are On
+        // (the stage's authored cadence) and Meter pickups are Off (D5(b)).
         AssertThat(settings.ItemsEnabled).IsTrue();
         AssertThat(settings.ItemSpawnRate).IsEqual(ChronalOrbFrequency.Medium);
         AssertThat(settings.StageHazardsEnabled).IsTrue();
-        AssertThat(settings.HazardRate).IsEqual(HazardTriggerFrequency.Medium);
+        AssertThat(settings.MeterPickupsEnabled).IsFalse();
     }
 
     // === F21 legacy-Hybrid normalization (Package 11 A1c) ===
@@ -40,7 +41,7 @@ public class MatchSettingsTests {
             StockCount = 5,
             TimeLimit = 120f,
             ItemSpawnRate = (int)ChronalOrbFrequency.Low,
-            HazardRate = (int)HazardTriggerFrequency.High
+            HazardRate = 3 // the retired High ordinal
         };
 
         saved.Normalize();
@@ -52,7 +53,8 @@ public class MatchSettingsTests {
         AssertThat(saved.StockCount).IsEqual(5);
         // Every other house rule is preserved untouched.
         AssertThat(saved.ItemSpawnRate).IsEqual((int)ChronalOrbFrequency.Low);
-        AssertThat(saved.HazardRate).IsEqual((int)HazardTriggerFrequency.High);
+        AssertThat(saved.HazardRate).IsEqual(3);
+        AssertThat(saved.StageHazardsEnabled == true).IsTrue();
         AssertThat(saved.TimerRepaired).IsFalse();
 
         // Idempotent: a second pass changes nothing.

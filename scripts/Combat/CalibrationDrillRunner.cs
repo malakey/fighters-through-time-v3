@@ -212,7 +212,7 @@ namespace FTT.Combat {
             ItemsEnabled = false,
             ItemSpawnRate = ChronalOrbFrequency.Off,
             StageHazardsEnabled = false,
-            HazardRate = HazardTriggerFrequency.Off
+            MeterPickupsEnabled = false
         };
 
         // ---- per-frame --------------------------------------------------------

@@ -29,7 +29,7 @@ public class FighterHudContentTests {
         "fighter_hud_cooldown_special1",
         "fighter_hud_cooldown_special2",
         "fighter_hud_cooldown_movement",
-        "fighter_hud_cooldown_ultimate",
+        "fighter_hud_cooldown_echo_step",
         // Shared with the debug layer and the pre-existing flow surfaces.
         "common_seconds_short",
         "status_none",
@@ -95,7 +95,14 @@ public class FighterHudContentTests {
             required.Add($"SafeArea/{player}/Body/Column/PipRow/Stocks");
             required.Add($"SafeArea/{player}/Body/Column/PipRow/StocksLost");
             required.Add($"SafeArea/{player}/Body/Column/PipRow/Shields");
-            required.Add($"SafeArea/{player}/Body/Column/Cooldowns");
+            // M25 (Package 12 W5): four authored radial cooldowns beside the
+            // block charges, and (G12) the slot-shape badge beside the name tag.
+            required.Add($"SafeArea/{player}/Body/Column/TopRow/SlotBadge");
+            required.Add($"SafeArea/{player}/Body/Column/PipRow/Cooldowns");
+            foreach (string icon in FighterHUD.CooldownIconNames) {
+                required.Add($"SafeArea/{player}/Body/Column/PipRow/Cooldowns/{icon}");
+                required.Add($"SafeArea/{player}/Body/Column/PipRow/Cooldowns/{icon}/Radial");
+            }
             required.Add(
                 $"SafeArea/{player}/Body/Column/TopRow/StatusEffects_Panel/DamageStatus_Indicator");
             required.Add(

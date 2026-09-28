@@ -63,7 +63,7 @@ public class RollbackReadinessTests {
 
     /// <summary>Items and hazards at High frequency, Stock rules, per-stage hazard identity.</summary>
     private static FighterMatchRules HighFrequencyRules(FighterStageGeometry geometry) =>
-        new(2, true, 3, true, 3, HazardTypeFor(geometry));
+        new(2, true, 3, true, 1800, HazardTypeFor(geometry));
 
     /// <summary>
     /// Distinct hazard identity per stage without depending on the catalog: the

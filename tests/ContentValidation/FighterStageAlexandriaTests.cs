@@ -208,7 +208,7 @@ public class FighterStageAlexandriaTests {
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: true,
-            hazardFrequency: (int)HazardTriggerFrequency.High,
+            hazardCadenceFrames: 1800,
             stageHazardTypeID: AlexandriaHazardTypeID);
 
         const int seed = 3007;

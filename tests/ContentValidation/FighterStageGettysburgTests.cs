@@ -218,7 +218,7 @@ public class FighterStageGettysburgTests {
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: true,
-            hazardFrequency: (int)HazardTriggerFrequency.High,
+            hazardCadenceFrames: 1800,
             stageHazardTypeID: FighterHazardTypeID.GettysburgArtillery);
 
         var first = new FighterSimulation(

@@ -226,7 +226,7 @@ public class FighterStageGlobeTests {
             itemsEnabled: true,
             itemFrequency: (int)ChronalOrbFrequency.High,
             hazardsEnabled: true,
-            hazardFrequency: (int)HazardTriggerFrequency.High,
+            hazardCadenceFrames: 1800,
             stageHazardTypeID: HazardTypeID);
 
         const int seed = 60109;

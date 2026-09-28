@@ -148,17 +148,11 @@ namespace FTT.UI {
             levelSelect.Visible = ShowDeveloperLevelSelect;
             levelSelect.Pressed += OnLevelSelectPressed;
             var fighterButton = GetNode<Button>(layout + "FighterButton");
-            fighterButton.Pressed += () => {
-                // Entering the local flow clears any lingering LAN opponent type.
-                var gameManager = FTT.Core.GameManager.Instance;
-                if (gameManager != null
-                    && gameManager.CurrentSession.FighterOpponentType == FTT.Core.FighterOpponentType.Lan) {
-                    FTT.Core.SessionData session = gameManager.CurrentSession;
-                    session.FighterOpponentType = FTT.Core.FighterOpponentType.Cpu;
-                    gameManager.CurrentSession = session;
-                }
-                FTT.Core.GameManager.Instance?.LoadScene("res://scenes/menus/CharacterSelect.tscn");
-            };
+            // Package 12 W5 (H05/G01): the Fighter button opens the Fighter Play
+            // Options menu (Local Versus / Versus CPU); the flow from there on
+            // is FighterPlayOptionsScreen's and FighterFlowRoutes'.
+            fighterButton.Pressed += () =>
+                FTT.Core.GameManager.Instance?.LoadScene(FighterFlowRoutes.FighterMenuScenePath);
             // V7.3: LAN de-scoped to Package 7 — no LanButton on the root screen.
             // NetworkSelectScreen and scripts/Networking/ stay for the later package.
             GetNode<Button>(layout + "CalibrationDrillsButton").Pressed += OnCalibrationDrillsPressed;

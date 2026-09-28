@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using FTT.Characters;
+using FTT.Combat;
 using FTT.Core;
 using FTT.Environment;
 using Godot;
@@ -13,7 +14,7 @@ namespace FTT.UI {
         Selection,
         /// <summary>All tokens locked; the designed 3.0 s cancelable countdown runs.</summary>
         Countdown,
-        /// <summary>Stage catalog + match rules; Fight routes the match.</summary>
+        /// <summary>Stage catalog + match rules (Local Versus) or the CPU configuration panel (Versus CPU).</summary>
         StageSelect
     }
 
@@ -21,30 +22,39 @@ namespace FTT.UI {
     /// Package 8 B4 authored screen, reworked for audit M-28: the designed
     /// select-screen mechanics from design-godot.md:2586-2599.
     ///
-    /// <para><b>Two selection tokens, per-device.</b> Token 0 is Player 1's pick;
-    /// token 1 is the opponent (Player 2 in local-human mode, the CPU pick in CPU
-    /// mode). Each human player's token is driven only by that player's assigned
-    /// device, polled through <see cref="InputManager.GetFrame(int)"/> — never
-    /// through global focus navigation, which any device can steer. Movement uses
-    /// the gameplay move axis plus Jump/Down; BasicAttack (or Interact) confirms;
-    /// Block (or Roll) cancels. The roster tiles stay clickable buttons for the
-    /// mouse (clicks act as Player 1: first click hovers, second confirms) but are
-    /// deliberately excluded from the focus chain so a pad in Player 2's hands
-    /// cannot move Player 1's token.</para>
+    /// <para><b>Two flows (Package 12 W5, H05 per adopted D4(a)).</b> The screen
+    /// reads <see cref="SessionData.FighterMatchOrigin"/>:
+    /// <list type="bullet">
+    /// <item><b>Local Versus</b> — two human tokens, READY, the 3.0 s countdown,
+    /// then the stage-and-rules phase. The old CPU toggle is gone: Versus CPU is
+    /// its own entry on the Fighter menu.</item>
+    /// <item><b>Versus CPU</b> — a <b>P1-only</b> select. Locking Player 1's token
+    /// opens <see cref="HolodeckConsolePanel"/> as the front-end CPU configuration
+    /// screen (CPU difficulty, CPU character, stage, rules), which launches the
+    /// match; backing out of it unlocks Player 1.</item>
+    /// </list></para>
     ///
-    /// <para><b>Reserved/Occupied.</b> A hovered tile is painted with the
-    /// hovering token's colour (Reserved); a confirmed tile is locked with a
-    /// thick border and glow (Occupied). V7.3 ruling #17: mirror matches are
-    /// allowed — both tokens may lock the same tile (the border blends the two
-    /// colours), and the old duplicate-pick refusal is gone.</para>
+    /// <para><b>Two selection tokens, per-device.</b> Each human player's token is
+    /// driven only by that player's assigned device, polled through
+    /// <see cref="InputManager.GetFrame(int)"/> — never through global focus
+    /// navigation, which any device can steer. Movement uses the gameplay move
+    /// axis plus Jump/Down; BasicAttack (or Interact) confirms; Block (or Roll)
+    /// cancels. The roster tiles stay clickable buttons for the mouse (clicks act
+    /// as Player 1: first click hovers, second confirms) but are deliberately
+    /// excluded from the focus chain so a pad in Player 2's hands cannot move
+    /// Player 1's token.</para>
     ///
-    /// <para><b>Ready → countdown → stage.</b> Confirm toggles READY (banner per
-    /// player); once every required token is locked, a 3.0-second countdown runs
-    /// that any ready player's cancel aborts back to selection. At zero the screen
-    /// swaps to a distinct full-screen stage-select state reusing the existing
-    /// catalog population, ProductionReady gating, and preview-plate rendering,
-    /// with the match rules alongside. All session writes are unchanged from the
-    /// pre-rework behaviour (<see cref="ApplySelectionToSession"/>).</para>
+    /// <para><b>Reserved/Occupied.</b> A hovered tile is painted with the hovering
+    /// token's slot colour (Reserved); a confirmed tile is locked with a thick
+    /// border and glow (Occupied). V7.3 ruling #17: mirror matches are allowed.
+    /// G12: each tile also carries the tokens' slot <b>shapes</b> (P1 ▲ / P2 ●),
+    /// so a cursor never reads by colour alone, and the colours come from the
+    /// local player-slot palette.</para>
+    ///
+    /// <para><b>Random (G15a).</b> The grid ends in a Random tile with a silhouette
+    /// placeholder, and the stage list ends in a Random stage. Both resolve from
+    /// the per-match seed (<see cref="SessionData.PendingMatchSeed"/>), which this
+    /// screen rolls once and the match then runs on.</para>
     /// </summary>
     public partial class CharacterSelectScreen : Control {
 
@@ -53,6 +63,9 @@ namespace FTT.UI {
         private const int GridColumns = 3;
         private const float CountdownSeconds = 3.0f;
         private const float AxisThreshold = 0.5f;
+
+        /// <summary>OptionButton id of the Random stage entry.</summary>
+        public const int RandomStageItemID = 1000;
 
         private sealed class SelectionToken {
             public int Cursor;
@@ -68,14 +81,16 @@ namespace FTT.UI {
         /// </summary>
         private readonly string[] _characterIDs = FTT.Core.CharacterRoster.ToArray();
 
-        /// <summary>Token 0 = Player 1; token 1 = Player 2 or the CPU pick.</summary>
+        /// <summary>Token 0 = Player 1; token 1 = Player 2 (Local Versus only).</summary>
         private readonly SelectionToken[] _tokens = { new(), new() { Cursor = 1 } };
         private readonly float[] _previousHorizontal = new float[2];
 
         private SelectScreenPhase _phase = SelectScreenPhase.Selection;
         private float _countdownRemaining;
+        private FighterMatchOrigin _origin = FighterMatchOrigin.LocalVersus;
 
         private Button[] _characterButtons;
+        private Label[] _tileBadges;
         private Control _selectPhase;
         private Control _stagePhase;
         private Label _p1Name;
@@ -85,12 +100,11 @@ namespace FTT.UI {
         private Label _p2Ready;
         private Label _p2Stats;
         private Label _countdownLabel;
-        private CheckButton _localHumanToggle;
-        private OptionButton _cpuDifficulty;
         private SpinBox _stockCount;
         private SpinBox _timeLimit;
         private OptionButton _itemFrequency;
-        private OptionButton _hazardFrequency;
+        private CheckButton _meterPickups;
+        private CheckButton _stageHazards;
         private OptionButton _matchMode;
         private OptionButton _stageSelect;
         private TextureRect _stagePreview;
@@ -98,6 +112,7 @@ namespace FTT.UI {
         private readonly List<string> _stageIDs = new();
         private MoveListScreen _moveList;
         private SystemsCardScreen _systemsCard;
+        private HolodeckConsolePanel _cpuConfigPanel;
 
         /// <summary>The current flow state.</summary>
         public SelectScreenPhase Phase => _phase;
@@ -111,24 +126,33 @@ namespace FTT.UI {
         /// <summary>The tile index currently chosen for the opponent (lock wins over hover).</summary>
         public int OpponentIndex => EffectiveIndex(_tokens[1]);
 
-        /// <summary>Whether the given token (0 = P1, 1 = P2/CPU) has confirmed its pick.</summary>
+        /// <summary>Whether the given token (0 = P1, 1 = P2) has confirmed its pick.</summary>
         public bool IsSlotReady(int token) => _tokens[token].Ready;
 
         /// <summary>The given token's hover cursor.</summary>
         public int GetCursor(int token) => _tokens[token].Cursor;
 
-        /// <summary>True while Player 1, already locked, is choosing the CPU's character.</summary>
-        public bool IsPickingCpu =>
-            _phase == SelectScreenPhase.Selection && !IsLocalHumanMode
-            && _tokens[0].Ready && !_tokens[1].Ready;
+        /// <summary>True in the Versus CPU flow: a P1-only select feeding the CPU configuration panel.</summary>
+        public bool IsVersusCpuFlow => _origin == FighterMatchOrigin.VersusCpu;
 
-        private bool IsLocalHumanMode => _localHumanToggle != null && _localHumanToggle.ButtonPressed;
+        /// <summary>The grid index of the Random tile (one past the roster).</summary>
+        public int RandomTileIndex => _characterIDs.Length;
+
+        /// <summary>The Versus CPU configuration panel while it is open, else null. Test seam.</summary>
+        public HolodeckConsolePanel CpuConfigPanel =>
+            _cpuConfigPanel != null && IsInstanceValid(_cpuConfigPanel) ? _cpuConfigPanel : null;
+
+        /// <summary>Test seam: a fixed per-match seed instead of a freshly rolled one.</summary>
+        internal int? SeedOverride { get; set; }
+
+        private int TileCount => _characterIDs.Length + 1;
 
         public override void _Ready() {
             UIPalette.ApplyTheme(this);
             // V7 "Match Settings Persist": the last-used rules pre-load from the
             // global save before the rule controls bind their initial values.
             GameManager.Instance?.EnsureMatchSettingsLoaded();
+            _origin = GameManager.Instance?.CurrentSession.FighterMatchOrigin ?? FighterMatchOrigin.LocalVersus;
 
             _selectPhase = GetNode<Control>("SelectPhase");
             _stagePhase = GetNode<Control>("StagePhase");
@@ -139,18 +163,18 @@ namespace FTT.UI {
             _p2Ready = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Ready");
             _p2Stats = GetNode<Label>(SelectRoot + "PlayersRow/P2Panel/P2Stats");
             _countdownLabel = GetNode<Label>(SelectRoot + "CountdownLabel");
-            _localHumanToggle = GetNode<CheckButton>(SelectRoot + "ModeRow/LocalHumanToggle");
-            _cpuDifficulty = GetNode<OptionButton>(SelectRoot + "ModeRow/CpuDifficulty");
             _stageSelect = GetNode<OptionButton>(StageRoot + "StageRow/StageSelect");
             _stagePreview = GetNode<TextureRect>(StageRoot + "StageRow/StagePreview");
             _matchMode = GetNode<OptionButton>(StageRoot + "RulesRow/MatchMode");
             _stockCount = GetNode<SpinBox>(StageRoot + "RulesRow/StockCount");
             _timeLimit = GetNode<SpinBox>(StageRoot + "RulesRow/TimeLimit");
             _itemFrequency = GetNode<OptionButton>(StageRoot + "RulesRow/ItemFrequency");
-            _hazardFrequency = GetNode<OptionButton>(StageRoot + "RulesRow/HazardFrequency");
+            _meterPickups = GetNode<CheckButton>(StageRoot + "RulesRow/MeterPickups");
+            _stageHazards = GetNode<CheckButton>(StageRoot + "RulesRow/StageHazards");
 
             BindCharacterGrid();
-            BindModeAndRules();
+            BindRules();
+            ApplySlotColours();
 
             GetNode<Button>(SelectRoot + "ButtonRow/BackButton").Pressed += OnBack;
             GetNode<Button>(StageRoot + "StageButtonRow/StageBackButton").Pressed += ReturnToSelection;
@@ -164,29 +188,22 @@ namespace FTT.UI {
             GetNode<Button>(SelectRoot + "ButtonRow/MoveListButton").Pressed += OpenMoveList;
             GetNode<Button>(SelectRoot + "ButtonRow/SystemsCardButton").Pressed += OpenSystemsCard;
 
-            // Returning here from a match ("Change Fighters") keeps the session's
-            // opponent mode instead of silently resetting local-human to CPU.
-            if (GameManager.Instance != null) {
-                _localHumanToggle.ButtonPressed =
-                    GameManager.Instance.CurrentSession.FighterOpponentType == FighterOpponentType.LocalHuman;
-            }
-            _cpuDifficulty.Disabled = IsLocalHumanMode;
-
             RefreshPanels();
             RepaintTiles();
             BuildFocusChain();
 
             // Post-match "New Stage" (V7): same characters, straight back to the
-            // stage phase. The flag is consumed on read so Back still works.
+            // stage phase — which for Versus CPU is the CPU configuration panel.
+            // The flag is consumed on read so Back still works.
             if (GameManager.Instance != null && GameManager.Instance.CurrentSession.ResumeAtStageSelect) {
                 SessionData session = GameManager.Instance.CurrentSession;
                 session.ResumeAtStageSelect = false;
                 GameManager.Instance.CurrentSession = session;
-                int p1 = System.Array.IndexOf(_characterIDs, session.SelectedCharacterID);
-                int p2 = System.Array.IndexOf(_characterIDs, session.OpponentCharacterID);
-                if (p1 >= 0 && p2 >= 0) {
+                int p1 = Array.IndexOf(_characterIDs, session.SelectedCharacterID);
+                int p2 = Array.IndexOf(_characterIDs, session.OpponentCharacterID);
+                if (p1 >= 0 && (IsVersusCpuFlow || p2 >= 0)) {
                     _tokens[0].LockedIndex = p1;
-                    _tokens[1].LockedIndex = p2;
+                    if (!IsVersusCpuFlow) _tokens[1].LockedIndex = p2;
                     RefreshPanels();
                     RepaintTiles();
                     EnterStagePhase();
@@ -247,31 +264,26 @@ namespace FTT.UI {
         // === Flow: token mechanics ===========================================
 
         /// <summary>
-        /// Which token the given player currently drives: in local-human mode each
-        /// player drives their own; in CPU mode Player 1 drives their own token
-        /// until it locks, then drives the CPU pick. -1 when the player drives none
-        /// (Player 2 in CPU mode).
+        /// Which token the given player drives: in Local Versus each player drives
+        /// their own; in Versus CPU only Player 1 drives a token. -1 when the
+        /// player drives none.
         /// </summary>
         private int TokenDrivenBy(int playerIndex) {
-            if (IsLocalHumanMode) return playerIndex is 0 or 1 ? playerIndex : -1;
-            if (playerIndex != 0) return -1;
-            return _tokens[0].Ready ? 1 : 0;
+            if (IsVersusCpuFlow) return playerIndex == 0 ? 0 : -1;
+            return playerIndex is 0 or 1 ? playerIndex : -1;
         }
 
         /// <summary>Which token this player's cancel unlocks, or -1.</summary>
         private int TokenToUnlockFor(int playerIndex) {
-            if (IsLocalHumanMode) {
-                if (playerIndex is not (0 or 1)) return -1;
-                return _tokens[playerIndex].Ready ? playerIndex : -1;
-            }
-            if (playerIndex != 0) return -1;
-            if (_tokens[1].Ready) return 1;
-            return _tokens[0].Ready ? 0 : -1;
+            int token = TokenDrivenBy(playerIndex);
+            if (token < 0) return -1;
+            return _tokens[token].Ready ? token : -1;
         }
 
         /// <summary>
         /// Moves the token the player drives by one grid step with wraparound.
-        /// Locked tokens do not move — cancel first.
+        /// Locked tokens do not move — cancel first. The Random tile is the last
+        /// grid cell.
         /// </summary>
         public bool TryMoveCursor(int playerIndex, int dx, int dy) {
             if (_phase != SelectScreenPhase.Selection) return false;
@@ -280,20 +292,19 @@ namespace FTT.UI {
             SelectionToken token = _tokens[tokenIndex];
             if (token.Ready) return false;
 
-            int rows = (_characterIDs.Length + GridColumns - 1) / GridColumns;
+            int rows = (TileCount + GridColumns - 1) / GridColumns;
             int column = ((token.Cursor % GridColumns) + dx + GridColumns) % GridColumns;
             int row = ((token.Cursor / GridColumns) + dy + rows) % rows;
-            token.Cursor = Math.Min(row * GridColumns + column, _characterIDs.Length - 1);
+            token.Cursor = Math.Min(row * GridColumns + column, TileCount - 1);
             RefreshPanels();
             RepaintTiles();
             return true;
         }
 
         /// <summary>
-        /// Confirms the driven token on its hovered tile. V7.3 ruling #17:
-        /// mirror matches are allowed — a tile another token has locked is
-        /// freely confirmable. Locking the last required token starts the
-        /// countdown.
+        /// Confirms the driven token on its hovered tile. V7.3 ruling #17: mirror
+        /// matches are allowed. Local Versus: locking the last token starts the
+        /// countdown. Versus CPU: locking Player 1 opens the CPU configuration panel.
         /// </summary>
         public bool TryConfirm(int playerIndex) {
             if (_phase != SelectScreenPhase.Selection) return false;
@@ -308,16 +319,19 @@ namespace FTT.UI {
             AudioManager.Instance?.PlayUISound();
             RefreshPanels();
             RepaintTiles();
-            TryStartCountdown();
+            if (IsVersusCpuFlow) {
+                EnterStagePhase();
+            } else {
+                TryStartCountdown();
+            }
             return true;
         }
 
         /// <summary>
         /// Cancels for the given player: during the countdown any ready player's
         /// cancel aborts the timer and unlocks their token, returning to selection;
-        /// during selection it unlocks that player's most recent lock (in CPU mode,
-        /// first the CPU pick, then Player 1's own). Returns false when there was
-        /// nothing to unwind (the caller may then leave the screen).
+        /// during selection it unlocks that player's lock. Returns false when
+        /// there was nothing to unwind (the caller may then leave the screen).
         /// </summary>
         public bool TryCancel(int playerIndex) {
             if (_phase == SelectScreenPhase.Countdown) {
@@ -375,6 +389,11 @@ namespace FTT.UI {
         private void EnterStagePhase() {
             _phase = SelectScreenPhase.StageSelect;
             _countdownLabel.Visible = false;
+            CommitCharactersToSession();
+            if (IsVersusCpuFlow) {
+                OpenCpuConfigPanel();
+                return;
+            }
             _selectPhase.Visible = false;
             _stagePhase.Visible = true;
             UpdateStagePreview();
@@ -382,14 +401,30 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// Backs out of stage select. Everyone returns to selection unreadied
-        /// (cursors keep their picks) so a re-confirm restarts the countdown
-        /// rather than instantly re-entering the stage phase.
+        /// Versus CPU's "stage phase": the Holodeck console panel as a front-end
+        /// screen. Its Back unlocks Player 1; its Launch starts the match.
+        /// </summary>
+        private void OpenCpuConfigPanel() {
+            _cpuConfigPanel = new HolodeckConsolePanel {
+                Name = "CpuConfigPanel",
+                FrontEnd = true,
+                SeedOverride = SeedOverride
+            };
+            _cpuConfigPanel.Closed += ReturnToSelection;
+            AddChild(_cpuConfigPanel);
+        }
+
+        /// <summary>
+        /// Backs out of stage select (or the CPU configuration panel). Everyone
+        /// returns to selection unreadied (cursors keep their picks) so a re-confirm
+        /// restarts the countdown rather than instantly re-entering the stage phase.
         /// </summary>
         public void ReturnToSelection() {
             if (_phase != SelectScreenPhase.StageSelect) return;
             foreach (SelectionToken token in _tokens) token.LockedIndex = -1;
             _phase = SelectScreenPhase.Selection;
+            if (_cpuConfigPanel != null && IsInstanceValid(_cpuConfigPanel)) _cpuConfigPanel.QueueFree();
+            _cpuConfigPanel = null;
             _stagePhase.Visible = false;
             _selectPhase.Visible = true;
             RefreshPanels();
@@ -412,13 +447,12 @@ namespace FTT.UI {
                 _stockCount.GetLineEdit(),
                 _timeLimit.GetLineEdit(),
                 _itemFrequency,
-                _hazardFrequency,
+                _meterPickups,
+                _stageHazards,
                 GetNode<Button>(StageRoot + "StageButtonRow/StageBackButton"),
                 GetNode<Button>(StageRoot + "StageButtonRow/FightButton")
             }
             : new List<Control> {
-                _localHumanToggle,
-                _cpuDifficulty,
                 // M01 (Package 11): the Steam Remote Play Together notice is the
                 // launch netplay message. It is a Label rather than a button, but
                 // it is focusable and in the chain so a controller-only player can
@@ -438,27 +472,87 @@ namespace FTT.UI {
 
         private void BindCharacterGrid() {
             var grid = GetNode<GridContainer>(SelectRoot + "PlayersRow/Grid");
-            _characterButtons = new Button[_characterIDs.Length];
-            for (int index = 0; index < _characterIDs.Length; index++) {
+            _characterButtons = new Button[TileCount];
+            _tileBadges = new Label[TileCount];
+            for (int index = 0; index < TileCount; index++) {
                 int captured = index;
+                bool random = index == RandomTileIndex;
                 // Package 11 A6b: the roster is manifest-driven while the grid's
                 // tiles are authored, so bind what the scene actually carries and
                 // let a larger roster degrade to the authored tile count rather
                 // than throwing out of _Ready. Adding tiles is scene work.
-                var button = grid.GetNodeOrNull<Button>($"CharacterButton{index}");
+                var button = grid.GetNodeOrNull<Button>(random ? "RandomTile" : $"CharacterButton{index}");
                 if (button == null) continue;
                 // Button icons share a horizontal row with their text, so long
                 // names such as "Wolfgang Amadeus Mozart" can squeeze the icon
                 // down to a sliver. Keep the full name and give every portrait a
                 // dedicated layer above it instead.
                 button.Text = string.Empty;
-                AddPortraitLayer(button, GetCharacterPortrait(index), GetCharacterName(index));
+                if (random) {
+                    AddRandomSilhouette(button);
+                    AddPortraitLayer(button, null, Tr("fighter_random_character"));
+                } else {
+                    AddPortraitLayer(button, GetCharacterPortrait(index), GetCharacterName(index));
+                }
+                _tileBadges[index] = AddTokenBadge(button);
                 // Cursor-driven, not focus-driven: see FocusChain.
                 button.FocusMode = FocusModeEnum.None;
                 button.AddToGroup(FocusChainBuilder.SkipGroup);
                 button.Pressed += () => OnTilePressed(captured);
                 _characterButtons[index] = button;
             }
+        }
+
+        /// <summary>
+        /// G15a's placeholder silhouette: a dark figure-shaped block with a "?"
+        /// over it, until Package 10 supplies Random tile art.
+        /// </summary>
+        private static void AddRandomSilhouette(Button button) {
+            var silhouette = new ColorRect {
+                Name = "Silhouette",
+                Color = new Color(0.05f, 0.06f, 0.12f, 0.9f),
+                MouseFilter = MouseFilterEnum.Ignore,
+                AnchorLeft = 0.5f,
+                AnchorRight = 0.5f,
+                OffsetLeft = -24f,
+                OffsetTop = 8f,
+                OffsetRight = 24f,
+                OffsetBottom = 74f
+            };
+            button.AddChild(silhouette);
+            var mark = new Label {
+                Name = "RandomMark",
+                Text = "?",
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                MouseFilter = MouseFilterEnum.Ignore
+            };
+            mark.SetAnchorsPreset(LayoutPreset.FullRect);
+            mark.ThemeTypeVariation = UIPalette.TitleLabelVariation;
+            silhouette.AddChild(mark);
+        }
+
+        /// <summary>
+        /// G12: the corner badge that carries the hovering/locking tokens' slot
+        /// shapes (▲ / ●), so a cursor never reads by colour alone.
+        /// </summary>
+        private static Label AddTokenBadge(Button button) {
+            var badge = new Label {
+                Name = "TokenBadge",
+                Text = "",
+                HorizontalAlignment = HorizontalAlignment.Right,
+                MouseFilter = MouseFilterEnum.Ignore,
+                AnchorLeft = 1f,
+                AnchorRight = 1f,
+                OffsetLeft = -52f,
+                OffsetTop = 2f,
+                OffsetRight = -6f,
+                OffsetBottom = 26f
+            };
+            badge.ThemeTypeVariation = UIPalette.HeadingLabelVariation;
+            badge.AddThemeConstantOverride("outline_size", 4);
+            button.AddChild(badge);
+            return badge;
         }
 
         private static void AddPortraitLayer(Button button, Texture2D portrait, string characterName) {
@@ -521,47 +615,75 @@ namespace FTT.UI {
             for (int index = 0; index < _characterButtons.Length; index++) StyleTile(index);
         }
 
+        /// <summary>The badge glyphs on a tile: ▲ for P1, ● for P2, both when shared. Test seam.</summary>
+        public string TileBadgeText(int index) =>
+            _tileBadges != null && index >= 0 && index < _tileBadges.Length && _tileBadges[index] != null
+                ? _tileBadges[index].Text
+                : "";
+
         /// <summary>
         /// Paints one tile from the token states. Occupied (locked) tiles carry a
-        /// thick border and glow in the owning token's colour; Reserved (hovered)
-        /// tiles a thinner border; overlapping hovers blend the two colours, and
-        /// (V7.3, mirror matches) a tile BOTH tokens have locked blends the two
-        /// lock colours the same way. The theme's focus stylebox is never
-        /// overridden.
+        /// thick border and glow in the owning token's slot colour; Reserved
+        /// (hovered) tiles a thinner border; overlapping hovers blend the two
+        /// colours, and (V7.3, mirror matches) a tile BOTH tokens have locked
+        /// blends the two lock colours the same way. The theme's focus stylebox is
+        /// never overridden.
         /// </summary>
         private void StyleTile(int index) {
-            Color color = CharacterFactory.GetCharacterColor(_characterIDs[index]);
-            Color opponentAccent = IsLocalHumanMode ? UIPalette.TemporalViolet : UIPalette.Warning;
+            Button button = _characterButtons[index];
+            // A manifest roster larger than the authored tile grid leaves the
+            // tail unbound (see BindCharacterGrid); styling must skip it.
+            if (button == null) return;
+
+            Color color = index == RandomTileIndex
+                ? UIPalette.Slate
+                : CharacterFactory.GetCharacterColor(_characterIDs[index]);
+            Color playerOne = PlayerSlotPalettes.ActiveSlotColor(0);
+            Color playerTwo = PlayerSlotPalettes.ActiveSlotColor(1);
 
             Color borderColor = new(0.2f, 0.2f, 0.25f);
             int borderWidth = 2;
             bool occupied = false;
+            bool p1Here = _tokens[0].LockedIndex == index || (!_tokens[0].Ready && _tokens[0].Cursor == index);
+            bool p2Here = OpponentCursorActive
+                && (_tokens[1].LockedIndex == index || (!_tokens[1].Ready && _tokens[1].Cursor == index));
 
             if (_tokens[0].LockedIndex == index && _tokens[1].LockedIndex == index) {
-                borderColor = UIPalette.Cyan.Lerp(opponentAccent, 0.5f);
+                borderColor = playerOne.Lerp(playerTwo, 0.5f);
                 borderWidth = 5;
                 occupied = true;
             } else if (_tokens[0].LockedIndex == index) {
-                borderColor = UIPalette.Cyan;
+                borderColor = playerOne;
                 borderWidth = 5;
                 occupied = true;
-            } else if (_tokens[1].LockedIndex == index) {
-                borderColor = opponentAccent;
+            } else if (_tokens[1].LockedIndex == index && OpponentCursorActive) {
+                borderColor = playerTwo;
                 borderWidth = 5;
                 occupied = true;
             } else {
                 bool p1Hover = !_tokens[0].Ready && _tokens[0].Cursor == index;
                 bool opponentHover = OpponentCursorActive && !_tokens[1].Ready && _tokens[1].Cursor == index;
                 if (p1Hover && opponentHover) {
-                    borderColor = UIPalette.Cyan.Lerp(opponentAccent, 0.5f);
+                    borderColor = playerOne.Lerp(playerTwo, 0.5f);
                     borderWidth = 4;
                 } else if (p1Hover) {
-                    borderColor = UIPalette.Cyan;
+                    borderColor = playerOne;
                     borderWidth = 4;
                 } else if (opponentHover) {
-                    borderColor = opponentAccent;
+                    borderColor = playerTwo;
                     borderWidth = 4;
                 }
+            }
+
+            Label badge = _tileBadges[index];
+            if (badge != null) {
+                string text = (p1Here ? PlayerSlotPalettes.PlayerOneGlyph : "")
+                    + (p2Here ? PlayerSlotPalettes.PlayerTwoGlyph : "");
+                badge.Text = text;
+                Color badgeColor = p1Here && !p2Here ? playerOne : p2Here && !p1Here ? playerTwo : borderColor;
+                badge.AddThemeColorOverride("font_color", badgeColor);
+                badge.AddThemeColorOverride("font_outline_color",
+                    PlayerSlotPalettes.ActiveSlotEdgeColor(p2Here && !p1Here ? 1 : 0));
             }
 
             Color cardColor = color.Lerp(UIPalette.Navy, 0.62f);
@@ -578,10 +700,6 @@ namespace FTT.UI {
             style.SetCornerRadiusAll(6);
             style.SetContentMarginAll(8);
 
-            Button button = _characterButtons[index];
-            // A manifest roster larger than the authored tile grid leaves the
-            // tail unbound (see BindCharacterGrid); styling must skip it.
-            if (button == null) return;
             button.AddThemeStyleboxOverride("normal", style);
             button.AddThemeStyleboxOverride("hover", style);
             button.AddThemeStyleboxOverride("pressed", style);
@@ -598,37 +716,49 @@ namespace FTT.UI {
             button.AddThemeColorOverride("font_focus_color", textColor);
         }
 
-        private bool OpponentCursorActive => IsLocalHumanMode || IsPickingCpu || _tokens[1].Ready;
+        /// <summary>Player 2's token only exists in Local Versus.</summary>
+        private bool OpponentCursorActive => !IsVersusCpuFlow;
+
+        /// <summary>G12: the two player panels' name tags wear the local slot palette.</summary>
+        private void ApplySlotColours() {
+            _p1Name?.AddThemeColorOverride("font_color", PlayerSlotPalettes.ActiveSlotColor(0));
+            _p1Name?.AddThemeColorOverride("font_outline_color", PlayerSlotPalettes.ActiveSlotEdgeColor(0));
+            _p1Name?.AddThemeConstantOverride("outline_size", 3);
+            _p2Name?.AddThemeColorOverride("font_color", PlayerSlotPalettes.ActiveSlotColor(1));
+            _p2Name?.AddThemeColorOverride("font_outline_color", PlayerSlotPalettes.ActiveSlotEdgeColor(1));
+            _p2Name?.AddThemeConstantOverride("outline_size", 3);
+        }
 
         private void RefreshPanels() {
             if (_p1Name == null) return;
 
             int p1Index = EffectiveIndex(_tokens[0]);
-            _p1Name.Text = string.Format(Tr("fighter_player_selection"), 1, GetCharacterName(p1Index));
+            _p1Name.Text = $"{PlayerSlotPalettes.PlayerOneGlyph} "
+                + string.Format(Tr("fighter_player_selection"), 1, TileName(p1Index));
             _p1Ready.Visible = _tokens[0].Ready;
-            _p1Stats.Text = StatsText(_characterIDs[p1Index]);
+            _p1Stats.Text = TileStats(p1Index);
 
+            if (IsVersusCpuFlow) {
+                // The CPU is configured on the next screen, not picked here.
+                _p2Name.Text = $"{PlayerSlotPalettes.PlayerTwoGlyph} {Tr("fighter_versus_cpu_title")}";
+                _p2Ready.Visible = false;
+                _p2Stats.Text = Tr("fighter_cpu_configured_next");
+                return;
+            }
             int p2Index = EffectiveIndex(_tokens[1]);
-            string opponentName = GetCharacterName(p2Index);
-            _p2Name.Text = IsLocalHumanMode
-                ? string.Format(Tr("fighter_player_selection"), 2, opponentName)
-                : string.Format(Tr("fighter_cpu_selection"), opponentName);
+            _p2Name.Text = $"{PlayerSlotPalettes.PlayerTwoGlyph} "
+                + string.Format(Tr("fighter_player_selection"), 2, TileName(p2Index));
             _p2Ready.Visible = _tokens[1].Ready;
-            _p2Stats.Text = IsPickingCpu
-                ? $"{Tr("fighter_pick_cpu_prompt")}\n{StatsText(_characterIDs[p2Index])}"
-                : StatsText(_characterIDs[p2Index]);
+            _p2Stats.Text = TileStats(p2Index);
         }
 
-        private void BindModeAndRules() {
-            _localHumanToggle.Toggled += enabled => {
-                _cpuDifficulty.Disabled = enabled;
-                ResetSelection();
-            };
-            _cpuDifficulty.AddItem(Tr("difficulty_easy"), (int)CpuDifficulty.Easy);
-            _cpuDifficulty.AddItem(Tr("difficulty_normal"), (int)CpuDifficulty.Normal);
-            _cpuDifficulty.AddItem(Tr("difficulty_hard"), (int)CpuDifficulty.Hard);
-            _cpuDifficulty.Select(1);
+        private string TileName(int index) =>
+            index == RandomTileIndex ? Tr("fighter_random_character") : GetCharacterName(index);
 
+        private string TileStats(int index) =>
+            index == RandomTileIndex ? Tr("fighter_random_character_hint") : StatsText(_characterIDs[index]);
+
+        private void BindRules() {
             _stageSelect.ItemSelected += _ => UpdateStagePreview();
             PopulateStages();
             UpdateStagePreview();
@@ -648,24 +778,12 @@ namespace FTT.UI {
             if (_stockCount != null) _stockCount.Value = settings.StockCount;
             if (_timeLimit != null) _timeLimit.Value = settings.TimeLimit;
 
-            // Off/Low/Medium/High, matching the deterministic spawn-interval bands
-            // the simulation actually consumes rather than a binary on/off.
+            // Items keep their Off/Low/Medium/High frequency bands (the orb spawn
+            // windows the simulation draws inside); hazards are a single On/Off
+            // toggle (2026-09-26), and Items gains the M24 Meter pickups toggle.
             FillFrequencySelect(_itemFrequency, (int)settings.ItemSpawnRate);
-            FillFrequencySelect(_hazardFrequency, (int)settings.HazardRate);
-        }
-
-        /// <summary>Opponent-mode change invalidates every lock; back to a clean selection.</summary>
-        private void ResetSelection() {
-            foreach (SelectionToken token in _tokens) token.LockedIndex = -1;
-            if (_phase != SelectScreenPhase.Selection) {
-                _phase = SelectScreenPhase.Selection;
-                _countdownLabel.Visible = false;
-                _stagePhase.Visible = false;
-                _selectPhase.Visible = true;
-                BuildFocusChain();
-            }
-            RefreshPanels();
-            RepaintTiles();
+            _meterPickups.ButtonPressed = settings.MeterPickupsEnabled;
+            _stageHazards.ButtonPressed = settings.StageHazardsEnabled;
         }
 
         private static void FillFrequencySelect(OptionButton select, int selectedID) {
@@ -674,7 +792,7 @@ namespace FTT.UI {
             select.AddItem(TranslationServer.Translate("fighter_frequency_low"), 1);
             select.AddItem(TranslationServer.Translate("fighter_frequency_medium"), 2);
             select.AddItem(TranslationServer.Translate("fighter_frequency_high"), 3);
-            select.Select(selectedID);
+            select.Select(Mathf.Clamp(selectedID, 0, 3));
         }
 
         private void PopulateStages() {
@@ -705,12 +823,15 @@ namespace FTT.UI {
                 _stageSelect.SetItemTooltip(itemIndex, tooltip);
             }
             _stageSelect.Disabled = _stageIDs.Count == 0;
+            // G15a: the Random stage, resolved from the per-match seed at Fight
+            // and revealed on the loading screen.
+            if (_stageIDs.Count > 0) _stageSelect.AddItem(Tr("fighter_random_stage"), RandomStageItemID);
         }
 
         /// <summary>
         /// Shows the selected stage's placeholder preview plate. Production art
         /// replaces the SVG behind <see cref="FighterStageData.PreviewTexturePath"/>
-        /// with no change here.
+        /// with no change here. The Random stage shows no plate until it resolves.
         /// </summary>
         private void UpdateStagePreview() {
             if (_stagePreview == null) return;
@@ -734,7 +855,8 @@ namespace FTT.UI {
         }
 
         /// <summary>Opens the Move List for Player 1's current tile (lock wins
-        /// over hover), returning focus to the footer button on close.</summary>
+        /// over hover), returning focus to the footer button on close. The Random
+        /// tile has no single kit, so it opens the first roster entry's.</summary>
         private void OpenMoveList() {
             if (_moveList == null || !IsInstanceValid(_moveList)) {
                 _moveList = new MoveListScreen { Name = "MoveListScreen" };
@@ -742,7 +864,8 @@ namespace FTT.UI {
                 _moveList.Closed += () =>
                     GetNodeOrNull<Button>(SelectRoot + "ButtonRow/MoveListButton")?.GrabFocus();
             }
-            _moveList.Open(_characterIDs[EffectiveIndex(_tokens[0])]);
+            int index = EffectiveIndex(_tokens[0]);
+            _moveList.Open(_characterIDs[index == RandomTileIndex ? 0 : index]);
         }
 
         private void OpenSystemsCard() {
@@ -802,8 +925,44 @@ namespace FTT.UI {
         }
 
         /// <summary>
+        /// G15a: this match's seed — rolled once, kept on the session so the Random
+        /// picks and the match itself share it (the driver consumes it).
+        /// </summary>
+        private int EnsureMatchSeed(ref SessionData session) {
+            if (!session.HasPendingMatchSeed) {
+                session.PendingMatchSeed = SeedOverride ?? unchecked((int)GD.Randi());
+                session.HasPendingMatchSeed = true;
+            }
+            return session.PendingMatchSeed;
+        }
+
+        /// <summary>A tile index resolved to a roster ID, drawing the Random tile from the seed.</summary>
+        private string ResolveCharacter(int tileIndex, int seed, int salt) {
+            if (tileIndex != RandomTileIndex) return _characterIDs[Math.Clamp(tileIndex, 0, _characterIDs.Length - 1)];
+            return _characterIDs[FighterRandomPick.Index(seed, salt, _characterIDs.Length)];
+        }
+
+        /// <summary>
+        /// Writes the locked characters (Random resolved from the per-match seed)
+        /// into the session. Idempotent for a given seed.
+        /// </summary>
+        private void CommitCharactersToSession() {
+            if (GameManager.Instance == null) return;
+            SessionData session = GameManager.Instance.CurrentSession;
+            int seed = EnsureMatchSeed(ref session);
+            session.SelectedCharacterID = ResolveCharacter(
+                EffectiveIndex(_tokens[0]), seed, FighterRandomPick.PlayerOneCharacterSalt);
+            if (!IsVersusCpuFlow) {
+                session.OpponentCharacterID = ResolveCharacter(
+                    EffectiveIndex(_tokens[1]), seed, FighterRandomPick.PlayerTwoCharacterSalt);
+            }
+            GameManager.Instance.CurrentSession = session;
+        }
+
+        /// <summary>
         /// Writes every control's value into the session and returns the stage the
-        /// match should route to, or null when the selection cannot resolve.
+        /// match should route to, or null when the selection cannot resolve. Local
+        /// Versus only — Versus CPU launches from its configuration panel.
         ///
         /// <para>Split out of <c>OnFight</c> so the session round-trip is testable
         /// without triggering a real scene change: a test that pressed Fight would
@@ -812,31 +971,33 @@ namespace FTT.UI {
         /// </summary>
         public FighterStageData ApplySelectionToSession() {
             if (GameManager.Instance == null) return null;
+            int selectedStageItem = (int)_stageSelect.GetSelectedId();
+            if (_stageIDs.Count == 0) return null;
+            if (selectedStageItem != RandomStageItemID
+                && (selectedStageItem < 0 || selectedStageItem >= _stageIDs.Count)) return null;
 
+            CommitCharactersToSession();
             var session = GameManager.Instance.CurrentSession;
-            session.SelectedCharacterID = _characterIDs[EffectiveIndex(_tokens[0])];
-            session.OpponentCharacterID = _characterIDs[EffectiveIndex(_tokens[1])];
-            int selectedStageIndex = (int)_stageSelect.GetSelectedId();
-            if (selectedStageIndex < 0 || selectedStageIndex >= _stageIDs.Count) return null;
-            session.SelectedStageID = _stageIDs[selectedStageIndex];
+            int seed = EnsureMatchSeed(ref session);
+            int stageIndex = selectedStageItem == RandomStageItemID
+                ? FighterRandomPick.Index(seed, FighterRandomPick.StageSalt, _stageIDs.Count)
+                : selectedStageItem;
+            session.SelectedStageID = _stageIDs[stageIndex];
             // A LAN session set by the Network Select screen survives the
-            // character select — the toggle only distinguishes the local modes.
+            // character select; otherwise this is the two-human local flow.
             if (session.FighterOpponentType != FighterOpponentType.Lan) {
-                session.FighterOpponentType = _localHumanToggle.ButtonPressed
-                    ? FighterOpponentType.LocalHuman
-                    : FighterOpponentType.Cpu;
+                session.FighterOpponentType = FighterOpponentType.LocalHuman;
             }
-            session.CpuDifficulty = (CpuDifficulty)_cpuDifficulty.GetSelectedId();
+            session.FighterMatchOrigin = FighterMatchOrigin.LocalVersus;
             MatchSettings settings = session.MatchSettings;
             settings.Mode = (MatchMode)_matchMode.GetSelectedId();
             settings.StockCount = (int)_stockCount.Value;
             settings.TimeLimit = ResolveTimeLimitForMode(settings.Mode, (float)_timeLimit.Value);
             var itemRate = (ChronalOrbFrequency)_itemFrequency.GetSelectedId();
-            var hazardRate = (HazardTriggerFrequency)_hazardFrequency.GetSelectedId();
             settings.ItemSpawnRate = itemRate;
             settings.ItemsEnabled = itemRate != ChronalOrbFrequency.Off;
-            settings.HazardRate = hazardRate;
-            settings.StageHazardsEnabled = hazardRate != HazardTriggerFrequency.Off;
+            settings.MeterPickupsEnabled = _meterPickups.ButtonPressed;
+            settings.StageHazardsEnabled = _stageHazards.ButtonPressed;
             session.MatchSettings = settings;
             GameManager.Instance.CurrentSession = session;
             // V7 "Match Settings Persist": set-and-forget for house rules.
@@ -845,16 +1006,13 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// Where Back routes: the hub for a Holodeck practice session, the main
-        /// menu otherwise. Exposed so the Holodeck regression test can assert the
-        /// route without a real scene change.
+        /// Where Back routes: the hub for a Holodeck session, the Fighter menu for
+        /// both front-end flows. Exposed so a test can assert the route without a
+        /// real scene change.
         /// </summary>
-        public string ResolveBackScenePath() {
-            bool holodeck = GameManager.Instance?.CurrentSession.ReturnToHubAfterFighterMatch == true;
-            return holodeck
-                ? "res://scenes/campaign/HubWorld.tscn"
-                : "res://scenes/menus/MainMenu.tscn";
-        }
+        public string ResolveBackScenePath() =>
+            FighterFlowRoutes.SelectBack(GameManager.Instance?.CurrentSession.FighterMatchOrigin
+                ?? FighterMatchOrigin.LocalVersus);
 
         private void OnBack() {
             GameManager.Instance?.LoadScene(ResolveBackScenePath());

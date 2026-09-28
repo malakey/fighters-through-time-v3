@@ -125,7 +125,7 @@ namespace FTT.FighterSim {
             int resolvedSeed = matchSeed
                 ?? (session.FighterOpponentType == FighterOpponentType.Lan
                     ? unchecked((int)(LanSessionID * 2654435761u))
-                    : GenerateMatchSeed());
+                    : ConsumePendingMatchSeed() ?? GenerateMatchSeed());
             Simulation = new FighterSimulation(
                 FighterLoadoutFactory.FromCharacterData(_playerOne.Data),
                 FighterLoadoutFactory.FromCharacterData(_playerTwo.Data),
@@ -174,19 +174,43 @@ namespace FTT.FighterSim {
         private static int GenerateMatchSeed() => unchecked((int)GD.Randi());
 
         /// <summary>
+        /// Package 12 W5 (G15a): the select screen may have rolled this match's
+        /// seed early, to resolve a Random character or stage tile from it. The
+        /// seed is consumed exactly once, so a Rematch — which re-runs
+        /// <see cref="Initialize"/> without passing back through the select —
+        /// rolls a fresh one, as the per-match seed rule requires.
+        /// </summary>
+        private static int? ConsumePendingMatchSeed() {
+            GameManager manager = GameManager.Instance;
+            if (manager == null || !manager.CurrentSession.HasPendingMatchSeed) return null;
+            SessionData session = manager.CurrentSession;
+            int seed = session.PendingMatchSeed;
+            session.HasPendingMatchSeed = false;
+            session.PendingMatchSeed = 0;
+            manager.CurrentSession = session;
+            return seed;
+        }
+
+        /// <summary>
         /// The single mapping from lobby <see cref="MatchSettings"/> to deterministic
         /// <see cref="FighterMatchRules"/>. Every rule the select screen exposes has
         /// to survive this hop, and the production countdown is applied here so a
-        /// real match never starts live on frame zero.
+        /// real match never starts live on frame zero. Package 12 W5: hazards are
+        /// a single On/Off toggle and the cadence is the stage's own (0 here means
+        /// "authored"); Meter pickups only ever ride on Items being on.
         /// </summary>
-        public static FighterMatchRules RulesFor(in MatchSettings settings, int stageHazardTypeID) => new(
-            (int)settings.Mode,
-            settings.ItemsEnabled && settings.ItemSpawnRate != ChronalOrbFrequency.Off,
-            (int)settings.ItemSpawnRate,
-            settings.StageHazardsEnabled && settings.HazardRate != HazardTriggerFrequency.Off,
-            (int)settings.HazardRate,
-            stageHazardTypeID,
-            FighterMatchFlowRules.CountdownFrames);
+        public static FighterMatchRules RulesFor(in MatchSettings settings, int stageHazardTypeID) {
+            bool items = settings.ItemsEnabled && settings.ItemSpawnRate != ChronalOrbFrequency.Off;
+            return new FighterMatchRules(
+                (int)settings.Mode,
+                items,
+                (int)settings.ItemSpawnRate,
+                settings.StageHazardsEnabled,
+                hazardCadenceFrames: 0,
+                stageHazardTypeID,
+                FighterMatchFlowRules.CountdownFrames,
+                meterPickupsEnabled: items && settings.MeterPickupsEnabled);
+        }
 
         public override void _ExitTree() {
             // Hand back the level-triggered LowHealth duck on teardown; a snapshot
@@ -611,6 +635,35 @@ namespace FTT.FighterSim {
             _slotIndicatorsPushed = true;
             _playerOne?.Glow?.SetSlotIndicator(0);
             _playerTwo?.Glow?.SetSlotIndicator(1);
+            AttachSlotBadge(_playerOne, 0);
+            AttachSlotBadge(_playerTwo, 1);
+        }
+
+        /// <summary>Name of the world-space slot badge child on each presentation fighter.</summary>
+        public const string SlotBadgeNodeName = "SlotBadge";
+
+        /// <summary>
+        /// Package 12 W5 (G12): the ownership outline's slot badge — the P1 ▲ / P2 ●
+        /// shape floating above the fighter, in the local slot palette with a
+        /// contrasting edge, so ownership never depends on colour alone. Pure
+        /// presentation: a Label under the presentation body, which the simulation
+        /// never reads.
+        /// </summary>
+        private static void AttachSlotBadge(PlayerController fighter, int playerIndex) {
+            if (fighter == null || fighter.GetNodeOrNull(SlotBadgeNodeName) != null) return;
+            var badge = new Label {
+                Name = SlotBadgeNodeName,
+                Text = FTT.Combat.PlayerSlotPalettes.ShapeGlyph(playerIndex),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Position = new Vector2(-12f, -150f),
+                Size = new Vector2(24f, 24f),
+                MouseFilter = Control.MouseFilterEnum.Ignore
+            };
+            badge.AddThemeFontSizeOverride("font_size", 20);
+            badge.AddThemeColorOverride("font_color", FTT.Combat.PlayerSlotPalettes.ActiveSlotColor(playerIndex));
+            badge.AddThemeColorOverride("font_outline_color", FTT.Combat.PlayerSlotPalettes.ActiveSlotEdgeColor(playerIndex));
+            badge.AddThemeConstantOverride("outline_size", 4);
+            fighter.AddChild(badge);
         }
 
         /// <summary>

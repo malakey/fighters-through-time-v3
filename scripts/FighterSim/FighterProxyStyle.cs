@@ -46,10 +46,27 @@ namespace FTT.FighterSim {
         /// added on top of the shared value rather than replacing it.
         /// </summary>
         public static Color OrbColor(int effectType, int frame) {
-            Color baseColor = FTT.Combat.ChronalOrbItem.EffectColor((FTT.Combat.OrbEffect)effectType);
+            Color baseColor = FTT.Combat.ChronalOrbItem.EffectColor(PaletteEffectFor(effectType));
             float pulse = 0.78f + 0.22f * Pulse(frame, PulsePeriodFrames);
             return new Color(baseColor.R, baseColor.G, baseColor.B, pulse);
         }
+
+        /// <summary>
+        /// Package 12 W5 (M24): maps a simulation orb type onto the shared colour
+        /// table explicitly. The old code cast the sim ordinal straight onto
+        /// <see cref="FTT.Combat.OrbEffect"/>, whose order is different, so Chronal
+        /// Haste rendered in the meter gold and Resonance Surge would have rendered
+        /// violet. 0 Temporal Restoration (green), 1 Chronal Haste (blue),
+        /// 2 Tectonic Uplift (violet), 3 Temporal Aegis (cyan), 4 Resonance Surge
+        /// (the meter gold).
+        /// </summary>
+        public static FTT.Combat.OrbEffect PaletteEffectFor(int effectType) => effectType switch {
+            0 => FTT.Combat.OrbEffect.HPRestore,
+            1 => FTT.Combat.OrbEffect.SpeedBuff,
+            3 => FTT.Combat.OrbEffect.TemporalAegis,
+            FighterOrbSystem.ResonanceSurgeEffectType => FTT.Combat.OrbEffect.MeterBoost,
+            _ => FTT.Combat.OrbEffect.DamageBoost
+        };
 
         /// <summary>
         /// Orb silhouette scale. Breathes a few percent so a pickup sitting still on

@@ -5,19 +5,88 @@ using xpTURN.Klotho.ECS;
 
 namespace FTT.FighterSim {
 
-    public static class FighterSpawnIntervals {
-        public static int OrbFrames(int frequency) => frequency switch {
-            1 => 3600,
-            2 => 1500,
-            3 => 660,
-            _ => 0
+    /// <summary>
+    /// Package 12 W5 (M23): Chronal Orb spawn timing. Each gap is a seeded draw
+    /// from <c>FighterMatchComponent.RandomState0/1</c> inside the selected
+    /// frequency's window — the design's "2-3 orbs per minute" is a window, not a
+    /// metronome — floored at <see cref="MinimumGapFrames"/> (the design's strict
+    /// 10-second minimum cooldown between consecutive spawns). Each window is
+    /// centred on the fixed interval it replaces (Low 3600, Medium 1500, High 660),
+    /// so the average rate of every band is unchanged.
+    /// </summary>
+    public static class FighterOrbSpawnRules {
+        /// <summary>The strict minimum gap between consecutive spawns: 10 s.</summary>
+        public const int MinimumGapFrames = 600;
+        /// <summary>An orb dissolves this long after spawning if nobody collects it: 15 s.</summary>
+        public const int LifetimeFrames = 900;
+        /// <summary>M24: Resonance Surge's meter grant, in Ultimate Meter points.</summary>
+        public const int ResonanceSurgeMeter = 15;
+
+        /// <summary>
+        /// The inclusive spawn-gap window for a <c>ChronalOrbFrequency</c> ordinal
+        /// (1 Low, 2 Medium, 3 High); (0, 0) for Off or an unknown value.
+        /// </summary>
+        public static (int Min, int Max) Window(int frequency) => frequency switch {
+            1 => (3000, 4200),  // ~1 per minute
+            2 => (1200, 1800),  // 2-3 per minute
+            3 => (600, 720),    // 5-6 per minute
+            _ => (0, 0)
         };
 
-        public static int HazardFrames(int frequency) => frequency switch {
-            1 => 3600,
-            2 => 2700,
-            3 => 1800,
-            _ => 0
+        /// <summary>
+        /// One seeded gap draw. The caller owns the RNG state and writes it back,
+        /// so every draw threads the match's single deterministic stream.
+        /// </summary>
+        public static int DrawSpawnGap(ref DeterministicRandom random, int frequency) {
+            (int min, int max) = Window(frequency);
+            if (max <= 0) return 0;
+            if (min < MinimumGapFrames) min = MinimumGapFrames;
+            if (max < min) max = min;
+            return random.NextIntInclusive(min, max);
+        }
+
+        /// <summary>
+        /// Number of orb types in the draw: the four Fighter orbs, plus Resonance
+        /// Surge (type 4) only when the Meter pickups sub-toggle is on.
+        /// </summary>
+        public static int EffectTypeCount(bool meterPickupsEnabled) => meterPickupsEnabled ? 5 : 4;
+    }
+
+    /// <summary>
+    /// Package 12 W5 (2026-09-26 design): each stage's hazard runs on its own fixed,
+    /// authored cadence; the match-settings frequency selector is retired and
+    /// hazards are a single On/Off toggle. Overtime and Sudden Death halve the
+    /// idle gap and the recovery phase (the warning phase is untouched).
+    ///
+    /// <para>The ten per-stage values are the one canonical cadence table. They
+    /// were seeded from the retired Medium interval (2700 frames = 45 s), which
+    /// was the default every stage actually ran, so a default match behaves
+    /// exactly as it did before the toggle. They are authored per stage so a
+    /// later tuning pass can change one stage without touching the others.</para>
+    /// </summary>
+    public static class FighterHazardCadence {
+        /// <summary>
+        /// The smallest cadence override a test may pass. Anything smaller can only
+        /// be a stale frequency ordinal (1-3), so the rules constructor refuses it.
+        /// </summary>
+        public const int MinimumOverrideFrames = 60;
+
+        /// <summary>The fallback cadence (the legacy flat arena and any unknown type).</summary>
+        public const int DefaultFrames = 2700;
+
+        /// <summary>Frames between activations for a <see cref="FighterHazardTypeID"/>.</summary>
+        public static int AuthoredFrames(int hazardType) => hazardType switch {
+            FighterHazardTypeID.FlorenceSteamPipe => 2700,
+            FighterHazardTypeID.OrleansTrebuchetDebris => 2700,
+            FighterHazardTypeID.ChicagoTeslaInduction => 2700,
+            FighterHazardTypeID.ParisDampeningBeam => 2700,
+            FighterHazardTypeID.VesuviusRockfall => 2700,
+            FighterHazardTypeID.NassauMortar => 2700,
+            FighterHazardTypeID.AlexandriaSinkhole => 2700,
+            FighterHazardTypeID.BerlinSearchlight => 2700,
+            FighterHazardTypeID.GlobeAudienceHeckle => 2700,
+            FighterHazardTypeID.GettysburgArtillery => 2700,
+            _ => DefaultFrames
         };
     }
 
@@ -1551,7 +1620,7 @@ namespace FTT.FighterSim {
 
         public void Update(ref Frame frame) {
             ref FighterMatchComponent match = ref frame.GetSingleton<FighterMatchComponent>();
-            if (match.MatchState != 1 || match.HazardsEnabled == 0 || match.HazardFrequency <= 0) return;
+            if (match.MatchState != 1 || match.HazardsEnabled == 0 || match.HazardCadenceFrames <= 0) return;
 
             // V7.1 Overtime / Sudden Death: hazard cadence doubles — the idle
             // gap between hazards and the recovery phase are halved; the 1.5 s
@@ -1564,7 +1633,7 @@ namespace FTT.FighterSim {
             if (match.NextHazardSpawnFrames > 0) match.NextHazardSpawnFrames--;
             if (match.NextHazardSpawnFrames <= 0) {
                 SpawnHazard(ref frame, ref match);
-                int interval = FighterSpawnIntervals.HazardFrames(match.HazardFrequency);
+                int interval = match.HazardCadenceFrames;
                 match.NextHazardSpawnFrames = accelerated ? interval / 2 > 0 ? interval / 2 : 1 : interval;
             }
 
@@ -2006,9 +2075,25 @@ namespace FTT.FighterSim {
         };
     }
 
+    /// <summary>
+    /// Deterministic Chronal Orbs (design §10 "Chronal Orb Pickups", M23/M24).
+    /// Orbs materialize at a seeded pick among the stage's authored orb anchors,
+    /// skipping any anchor that already holds an orb, at a seeded time inside the
+    /// selected frequency window (<see cref="FighterOrbSpawnRules"/>), live for
+    /// 15 s, and are collected by walking or jumping through them. Every draw —
+    /// timing, type, anchor and the contested tie-break — threads
+    /// <c>FighterMatchComponent.RandomState0/1</c>.
+    ///
+    /// <para>Effect types: 0 Temporal Restoration, 1 Chronal Haste, 2 Tectonic
+    /// Uplift, 3 Temporal Aegis, and — only when the Meter pickups sub-toggle is
+    /// on — 4 Resonance Surge (+15 meter).</para>
+    /// </summary>
     public sealed class FighterOrbSystem : ISystem {
-        private const int OrbLifetimeFrames = 900;
+        private const int OrbLifetimeFrames = FighterOrbSpawnRules.LifetimeFrames;
         private const int BuffDurationFrames = 480;
+        /// <summary>M24 effect type 4.</summary>
+        public const int ResonanceSurgeEffectType = 4;
+        private static readonly FP64 MaxInfluence = FP64.FromInt(100);
         private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
         private readonly FighterStageGeometry _geometry;
@@ -2028,7 +2113,6 @@ namespace FTT.FighterSim {
             if (match.NextOrbSpawnFrames > 0) match.NextOrbSpawnFrames--;
             if (match.NextOrbSpawnFrames <= 0) {
                 SpawnOrb(ref frame, ref match);
-                match.NextOrbSpawnFrames = FighterSpawnIntervals.OrbFrames(match.ItemFrequency);
             }
 
             var filter = frame.Filter<FighterOrbComponent>();
@@ -2056,18 +2140,38 @@ namespace FTT.FighterSim {
             }
         }
 
+        /// <summary>
+        /// One spawn attempt plus the next gap. Draw order is fixed — next gap,
+        /// effect type, then the anchor among the free ones. An attempt with every
+        /// authored anchor occupied spawns nothing (the "skip an anchor already
+        /// holding an orb" rule taken to its end) and skips only the anchor draw;
+        /// occupancy is itself deterministic state, so both rollback peers take
+        /// the same branch.
+        /// </summary>
         private void SpawnOrb(ref Frame frame, ref FighterMatchComponent match) {
             var random = new DeterministicRandom(1);
             random.SetFullState(match.RandomState0, match.RandomState1);
-            int effect = random.NextInt(0, 4);
-            // Authored stages pick a deterministic anchor; the legacy arena keeps
-            // the historical random spawn range.
-            FPVector2 position = _geometry.OrbAnchors.Length > 0
-                ? _geometry.OrbAnchors[random.NextInt(0, _geometry.OrbAnchors.Length)]
-                : new FPVector2(
+            match.NextOrbSpawnFrames = FighterOrbSpawnRules.DrawSpawnGap(ref random, match.ItemFrequency);
+            int effect = random.NextInt(0, FighterOrbSpawnRules.EffectTypeCount(match.MeterPickupsEnabled == 1));
+
+            bool spawn = true;
+            FPVector2 position;
+            if (_geometry.OrbAnchors.Length > 0) {
+                int freeCount = CountFreeAnchors(ref frame);
+                if (freeCount <= 0) {
+                    spawn = false;
+                    position = FPVector2.Zero;
+                } else {
+                    position = FreeAnchorAt(ref frame, random.NextInt(0, freeCount));
+                }
+            } else {
+                // The legacy flat arena keeps its historical random spawn range.
+                position = new FPVector2(
                     random.NextFixed(FP64.FromInt(-7), FP64.FromInt(7)),
                     FP64.FromDouble(0.5));
+            }
             (match.RandomState0, match.RandomState1) = random.GetFullState();
+            if (!spawn) return;
 
             EntityRef entity = frame.CreateEntity();
             frame.Add(entity, new FighterOrbComponent {
@@ -2077,6 +2181,33 @@ namespace FTT.FighterSim {
                 Position = position,
                 HalfExtents = new FPVector2(FP64.FromDouble(0.45), FP64.FromDouble(0.45))
             });
+        }
+
+        /// <summary>True when a live orb already sits on this authored anchor.</summary>
+        private static bool AnchorOccupied(ref Frame frame, in FPVector2 anchor) {
+            var filter = frame.Filter<FighterOrbComponent>();
+            while (filter.Next(out EntityRef orbEntity)) {
+                FPVector2 position = frame.GetReadOnly<FighterOrbComponent>(orbEntity).Position;
+                if (position.x.RawValue == anchor.x.RawValue && position.y.RawValue == anchor.y.RawValue) return true;
+            }
+            return false;
+        }
+
+        private int CountFreeAnchors(ref Frame frame) {
+            int free = 0;
+            for (int index = 0; index < _geometry.OrbAnchors.Length; index++) {
+                if (!AnchorOccupied(ref frame, in _geometry.OrbAnchors[index])) free++;
+            }
+            return free;
+        }
+
+        /// <summary>The <paramref name="freeIndex"/>-th unoccupied anchor, in authored order.</summary>
+        private FPVector2 FreeAnchorAt(ref Frame frame, int freeIndex) {
+            for (int index = 0; index < _geometry.OrbAnchors.Length; index++) {
+                if (AnchorOccupied(ref frame, in _geometry.OrbAnchors[index])) continue;
+                if (freeIndex-- == 0) return _geometry.OrbAnchors[index];
+            }
+            return _geometry.OrbAnchors[0];
         }
 
         private static int FindPicker(ref Frame frame, ref FighterMatchComponent match, in FighterOrbComponent orb) {
@@ -2113,7 +2244,7 @@ namespace FTT.FighterSim {
             return picker;
         }
 
-        private static void ApplyEffect(
+        internal static void ApplyEffect(
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
             ref FighterDefenseComponent defense,
@@ -2126,6 +2257,10 @@ namespace FTT.FighterSim {
                 runtime.SpeedBuffFrames = BuffDurationFrames;
             } else if (effectType == 2) {
                 runtime.JumpBuffFrames = BuffDurationFrames;
+            } else if (effectType == ResonanceSurgeEffectType) {
+                // M24 Resonance Surge: +15 Ultimate Meter, clamped at the full bar.
+                FP64 surged = fighter.Influence + FP64.FromInt(FighterOrbSpawnRules.ResonanceSurgeMeter);
+                fighter.Influence = surged < MaxInfluence ? surged : MaxInfluence;
             } else {
                 // V7.6 D02e (Package 11 A1b): Temporal Aegis is an ACTIVE FLAG
                 // with at most one per recipient and no time expiry, not a

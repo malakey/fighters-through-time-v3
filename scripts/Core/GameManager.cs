@@ -41,11 +41,21 @@ namespace FTT.Core {
         High
     }
 
-    public enum HazardTriggerFrequency {
-        Off,
-        Low,
-        Medium,
-        High
+    /// <summary>
+    /// Package 12 W5 (M26): where a Fighter match was launched from, so every
+    /// exit (pause Exit, the results buttons) returns to the surface that
+    /// launched it. Session-only — <b>never persisted</b>: a relaunch always
+    /// starts from the main menu.
+    /// </summary>
+    public enum FighterMatchOrigin {
+        /// <summary>The two-human local select (and Remote Play, which reuses it).</summary>
+        LocalVersus = 0,
+        /// <summary>H05: the Fighter menu's Versus CPU entry (P1-only select + CPU config panel).</summary>
+        VersusCpu = 1,
+        /// <summary>The hub's Holodeck Arena Console.</summary>
+        Holodeck = 2,
+        /// <summary>F18: a Calibration Drill borrowing the Fighter match shell.</summary>
+        Drill = 3
     }
 
     public enum FighterOpponentType {
@@ -68,12 +78,24 @@ namespace FTT.Core {
         public float TimeLimit;
         public bool ItemsEnabled;
         public ChronalOrbFrequency ItemSpawnRate;
+        /// <summary>
+        /// Package 12 W5 (2026-09-26 design): the single hazard On/Off toggle. On
+        /// runs each stage's fixed authored cadence (Overtime and Sudden Death
+        /// double it); the retired <c>HazardTriggerFrequency</c> selector is gone.
+        /// </summary>
         public bool StageHazardsEnabled;
-        public HazardTriggerFrequency HazardRate;
+        /// <summary>
+        /// Package 12 W5 (M24, adopted D5(b)): the Items sub-toggle "Meter
+        /// pickups". When On, Resonance Surge (+15 meter) joins the Chronal Orb
+        /// draw. <b>Off by default</b>, so a default match's seeded orb schedule
+        /// draws from exactly the four types it always did.
+        /// </summary>
+        public bool MeterPickupsEnabled;
 
         public static MatchSettings GetDefault() {
-            // V7.3 ruling #18: items and hazards default to Medium (still on;
-            // High remains a house-rule choice).
+            // V7.3 ruling #18: items default to Medium; hazards default On
+            // (2026-09-26: each stage's authored cadence, seeded from the
+            // retired Medium interval).
             return new MatchSettings {
                 // F21: Stock is 0 explicitly now, and Hybrid is not offered.
                 Mode = MatchMode.Stock,
@@ -82,7 +104,7 @@ namespace FTT.Core {
                 ItemsEnabled = true,
                 ItemSpawnRate = ChronalOrbFrequency.Medium,
                 StageHazardsEnabled = true,
-                HazardRate = HazardTriggerFrequency.Medium
+                MeterPickupsEnabled = false
             };
         }
     }
@@ -96,8 +118,48 @@ namespace FTT.Core {
         public MatchSettings MatchSettings;
         public FighterOpponentType FighterOpponentType;
         public CpuDifficulty CpuDifficulty;
-        /// <summary>Set by the hub Holodeck so Fighter flows return to the Time-Ship instead of the main menu.</summary>
-        public bool ReturnToHubAfterFighterMatch;
+        /// <summary>
+        /// Package 12 W5 (M26): the surface that launched the current Fighter
+        /// match. Never persisted. <c>FTT.UI.FighterFlowRoutes</c> owns every
+        /// destination that reads it.
+        /// </summary>
+        public FighterMatchOrigin FighterMatchOrigin;
+        /// <summary>
+        /// Set by the hub Holodeck so Fighter flows return to the Time-Ship instead
+        /// of the main menu. Package 12 W5: a view over
+        /// <see cref="FighterMatchOrigin"/> rather than a second flag — true exactly
+        /// when the origin is <see cref="FighterMatchOrigin.Holodeck"/>. Setting it
+        /// true selects the Holodeck origin; setting it false leaves a non-Holodeck
+        /// origin alone and demotes a Holodeck one to Local Versus.
+        /// </summary>
+        public bool ReturnToHubAfterFighterMatch {
+            readonly get => FighterMatchOrigin == FighterMatchOrigin.Holodeck;
+            set {
+                if (value) FighterMatchOrigin = FighterMatchOrigin.Holodeck;
+                else if (FighterMatchOrigin == FighterMatchOrigin.Holodeck) {
+                    FighterMatchOrigin = FighterMatchOrigin.LocalVersus;
+                }
+            }
+        }
+        /// <summary>
+        /// Package 12 W5 (M26): the Holodeck's post-match <b>Reconfigure</b> —
+        /// the hub reopens the console panel on arrival. Consumed on read.
+        /// </summary>
+        public bool ReopenHolodeckConsole;
+        /// <summary>
+        /// Package 12 W5 (M26): the hub spawns the player in front of the Holodeck
+        /// console instead of at the Calibration Bay anchor. Consumed on read.
+        /// </summary>
+        public bool ArriveAtHolodeckConsole;
+        /// <summary>
+        /// Package 12 W5 (G15a): a per-match seed rolled at the select screen so a
+        /// Random character / stage tile resolves from the same seed the match
+        /// then runs on. <see cref="HasPendingMatchSeed"/> gates it; the driver
+        /// consumes it once, so a Rematch rolls a fresh seed.
+        /// </summary>
+        public int PendingMatchSeed;
+        /// <inheritdoc cref="PendingMatchSeed"/>
+        public bool HasPendingMatchSeed;
         /// <summary>Post-match "New Stage" (V7): re-enter CharacterSelect with both
         /// characters kept and jump straight to the stage phase. Consumed on read.</summary>
         public bool ResumeAtStageSelect;
@@ -166,15 +228,16 @@ namespace FTT.Core {
             // normalization is idempotent and never touches a running match.
             saved.Normalize();
             var itemRate = (ChronalOrbFrequency)saved.ItemSpawnRate;
-            var hazardRate = (HazardTriggerFrequency)saved.HazardRate;
             CurrentSession.MatchSettings = new MatchSettings {
                 Mode = (MatchMode)saved.Mode,
                 StockCount = Mathf.Clamp(saved.StockCount, SavedMatchSettings.MinStockCount, SavedMatchSettings.MaxStockCount),
                 TimeLimit = Mathf.Max(0f, saved.TimeLimit),
                 ItemSpawnRate = itemRate,
                 ItemsEnabled = itemRate != ChronalOrbFrequency.Off,
-                HazardRate = hazardRate,
-                StageHazardsEnabled = hazardRate != HazardTriggerFrequency.Off
+                // Normalize has already resolved a legacy payload's retired hazard
+                // rate into the toggle (SavedMatchSettings.DeriveStageHazardsEnabled).
+                StageHazardsEnabled = saved.StageHazardsEnabled ?? true,
+                MeterPickupsEnabled = saved.MeterPickupsEnabled
             };
         }
 
@@ -189,7 +252,8 @@ namespace FTT.Core {
                 StockCount = settings.StockCount,
                 TimeLimit = settings.TimeLimit,
                 ItemSpawnRate = (int)settings.ItemSpawnRate,
-                HazardRate = (int)settings.HazardRate
+                StageHazardsEnabled = settings.StageHazardsEnabled,
+                MeterPickupsEnabled = settings.MeterPickupsEnabled
             };
             save.SaveGlobalData();
         }
