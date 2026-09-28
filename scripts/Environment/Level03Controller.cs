@@ -276,8 +276,65 @@ namespace FTT.Environment {
             BuildRoomTransition("chicago_room_boss", new Vector2(BossStartX + 80, GroundY - 400),
                 new Rect2(BossStartX, GroundRoomCameraTop, width, 1080));
 
-            BuildBossEncounter(BossResourcePath, new Vector2(9800, GroundY - 50),
+            _inventorEncounter = BuildBossEncounter(BossResourcePath, new Vector2(9800, GroundY - 50),
                 "ChronalInventorEncounter", revealDistance: 800f);
+            if (_inventorEncounter != null) _inventorEncounter.PhaseEntered += OnInventorPhaseEntered;
+        }
+
+        // === Package 12 W9 (GAP-07) — the Chronal Inventor's Phase 2 coils ===
+        //
+        // Design §6: "P2: deploys two siphon coils at the arena corners that shield
+        // him until destroyed — the level's mirror-coil routing lesson, weaponized."
+        // The phase and the coils' HP are authored on chronal_inventor.tres
+        // (ArenaGuardianMinPhase / ArenaGuardianHP); the corners are arena geometry,
+        // so they live here. While either coil stands the Inventor refuses all
+        // damage and wears the shared armor glow.
+
+        /// <summary>The two arena corners the coils deploy to (floor level, inside the walls).</summary>
+        public static readonly Vector2[] InventorCoilPositions = {
+            new(BossStartX + 260f, GroundY),
+            new(LevelWidth - 180f, GroundY)
+        };
+
+        private BossEncounterController _inventorEncounter;
+        private readonly List<FTT.Enemies.ArenaGuardian> _inventorCoils = new();
+
+        /// <summary>The boss encounter (test seam).</summary>
+        public BossEncounterController InventorEncounter => _inventorEncounter;
+
+        /// <summary>The Phase 2 coils, once deployed (test seam).</summary>
+        public IReadOnlyList<FTT.Enemies.ArenaGuardian> InventorCoils => _inventorCoils;
+
+        private void OnInventorPhaseEntered(int phase) {
+            FTT.Enemies.BossData data = _inventorEncounter?.Data;
+            if (data == null || data.ArenaGuardianMinPhase < 0 || phase != data.ArenaGuardianMinPhase) return;
+            // The threshold is crossed inside a hit's physics flush, where new
+            // hurtbox areas may not enter the space; hop off it. Direct calls
+            // stay synchronous.
+            if (PhysicsCallbackGuard.IsInPhysicsCallback) {
+                Callable.From(DeployInventorCoils).CallDeferred();
+            } else {
+                DeployInventorCoils();
+            }
+        }
+
+        /// <summary>Builds both coils and registers them with every body. Idempotent.</summary>
+        public void DeployInventorCoils() {
+            if (_inventorCoils.Count > 0 || _inventorEncounter == null) return;
+            int hp = Math.Max(1, _inventorEncounter.Data?.ArenaGuardianHP ?? 60);
+            for (int index = 0; index < InventorCoilPositions.Length; index++) {
+                var coil = new FTT.Enemies.ArenaGuardian {
+                    Name = $"InventorSiphonCoil{index}",
+                    GuardianID = $"{ChicagoLevelID}.inventor_coil_{index}",
+                    MaxHP = hp,
+                    Position = InventorCoilPositions[index]
+                };
+                AddChild(coil);
+                _inventorCoils.Add(coil);
+                foreach (FTT.Enemies.BossController body in _inventorEncounter.Members) {
+                    body?.RegisterGuardian(coil);
+                }
+            }
         }
 
         /// <summary>
