@@ -226,6 +226,23 @@ namespace FTT.FighterSim {
         // damage × this multiplier — no more one-poke full-pool cashouts.
         private static readonly FP64 RallyReclaimMultiplier =
             FP64.FromDouble(FTT.Combat.BasicComboRules.RallyReclaimDamageMultiplier);
+        /// <summary>Fixed-point mirror of <c>BasicComboRules.GuardBreakPushX</c> (units/s).</summary>
+        internal static readonly FP64 GuardBreakPushX =
+            FP64.FromDouble(FTT.Combat.BasicComboRules.GuardBreakPushX);
+        /// <summary>The Y-down <c>GuardBreakPushYDown</c> negated into the sim's Y-up space.</summary>
+        internal static readonly FP64 GuardBreakPushYUp =
+            FP64.FromDouble(-FTT.Combat.BasicComboRules.GuardBreakPushYDown);
+
+        /// <summary>
+        /// Fixed-point twin of <c>BasicComboRules.GuardBreakPushSign</c>: +1 pushes
+        /// toward +X, away from the attacker; a coincident attacker falls back to
+        /// backward-from-facing.
+        /// </summary>
+        internal static int GuardBreakPushSign(FP64 defenderX, FP64 attackerX, bool defenderFacingRight) {
+            if (attackerX < defenderX) return 1;
+            if (attackerX > defenderX) return -1;
+            return defenderFacingRight ? -1 : 1;
+        }
 
         public static bool ApplyFighterHit(
             ref FighterStateComponent attacker,
@@ -323,8 +340,16 @@ namespace FTT.FighterSim {
                     target.DazeFrames = 60;
                     targetVerb.BlockLockoutFrames = FTT.Combat.BasicComboRules.BlockShatterLockoutFrames;
                     targetVerb.ShieldStunFrames = 0;
-                    target.Velocity.x = target.FacingRight != 0 ? FP64.FromInt(-2) : FP64.FromInt(2);
-                    target.Velocity.y = FP64.One;
+                    // Guard-break push (Low-item decision 2026-09-26, Package
+                    // 12 W3): the fixed (2.0, -1.0) Y-down vector — (±2, +1)
+                    // in this Y-up space — X away from the ATTACKER's side,
+                    // unscaled and assigned. Because a block needs the contact
+                    // in front, this equals the old facing-derived push on
+                    // every reachable input; it now reads the attacker side.
+                    target.Velocity.x = GuardBreakPushSign(target.Position.x, hitOriginX, target.FacingRight != 0) > 0
+                        ? GuardBreakPushX
+                        : -GuardBreakPushX;
+                    target.Velocity.y = GuardBreakPushYUp;
                     if (appliesHitstop) {
                         FighterVerbRules.ApplyHitstop(
                             ref attackerVerb, ref targetVerb, FTT.Combat.BasicComboRules.ShatterFreezeFrames);

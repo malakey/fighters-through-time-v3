@@ -91,12 +91,20 @@ namespace FTT.Combat {
 
             _hitbox.AttackID = data?.AbilityID ?? "placeholder_projectile";
             _hitbox.HitboxID = "projectile";
-            _hitbox.AttackClass = data?.Slot == FTT.Core.AbilitySlot.Ultimate
-                ? AttackClass.Ultimate
-                : AttackClass.Special;
+            // M08 (Package 12 W3): the ability's AUTHORED hit contract (class,
+            // hitstun, launch flag, delivery, origin) replaces the old
+            // slot-derived attack class. A data-less shot keeps the historical
+            // Special / 0.2 s / direct defaults, reset every spawn (pooled).
+            _hitbox.AttackClass = AttackClass.Special;
+            _hitbox.BlockChargeCost = 0;
+            _hitbox.Unblockable = false;
+            _hitbox.HitstunDuration = 0.2f;
+            _hitbox.Launches = knockback != Vector2.Zero;
+            _hitbox.Delivery = HitDelivery.DirectHit;
+            _hitbox.Origin = HitOrigin.Special;
+            _hitbox.ApplyAbilityHitContract(data);
             _hitbox.Damage = damage;
             _hitbox.KnockbackForce = knockback;
-            _hitbox.HitstunDuration = data?.HitstunDuration ?? 0.2f;
             _hitbox.AppliedStatus = data?.AppliedStatus ?? FTT.Core.StatusType.None;
             _hitbox.StatusDuration = data?.StatusDuration ?? 0f;
             _hitbox.StatusIntensity = data?.StatusIntensity ?? 1f;

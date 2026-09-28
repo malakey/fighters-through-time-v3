@@ -395,10 +395,8 @@ namespace FTT.Characters {
 				Name = name,
 				AttackID = data.AbilityID,
 				HitboxID = name,
-				AttackClass = data.Slot == AbilitySlot.Ultimate ? AttackClass.Ultimate : AttackClass.Special,
 				Damage = data.BaseDamage * damageMultiplier,
 				KnockbackForce = data.KnockbackForce,
-				HitstunDuration = data.HitstunDuration,
 				AppliedStatus = data.AppliedStatus,
 				StatusDuration = data.StatusDuration,
 				StatusIntensity = data.StatusIntensity,
@@ -409,6 +407,9 @@ namespace FTT.Characters {
 				CollisionMask = CollisionLayers.HitboxMaskForFighterSlot(ownerIndex),
 				Monitorable = true
 			};
+			// M08 (Package 12 W3): class, hitstun, launch flag, delivery and
+			// origin come from the ability's authored hit contract.
+			hitbox.ApplyAbilityHitContract(data);
 			var shape = new CollisionShape2D();
 			shape.Shape = new RectangleShape2D { Size = data.HitboxSize };
 			hitbox.AddChild(shape);

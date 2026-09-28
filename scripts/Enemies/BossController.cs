@@ -19,7 +19,7 @@ namespace FTT.Enemies {
     /// selection, distance filtering, phase gating, telegraph interruption, and
     /// knockback immunity. Story-only; nothing here reaches scripts/FighterSim.
     /// </summary>
-    public partial class BossController : CharacterBody2D, IPoolable, IStoryRewindable, IStoryRewindSimulation, IStoryTimeFreezable {
+    public partial class BossController : CharacterBody2D, IPoolable, IStoryRewindable, IStoryRewindSimulation, IStoryTimeFreezable, FTT.Combat.IDamageable {
         public const float DeathAnimationSeconds = 1.0f;
         private const float GravityPixelsPerSecond = 980f;
         private const float PixelsPerUnit = 60f;
@@ -730,6 +730,15 @@ namespace FTT.Enemies {
         // === Damage, phases, death ===
 
         public void TakeDamage(int damage) => ApplyBossDamage(damage);
+
+        /// <summary>
+        /// M08 (Package 12 W3) <see cref="FTT.Combat.IDamageable"/>: the full hit
+        /// pipeline the hurtbox feeds, reachable without a hurtbox in hand.
+        /// </summary>
+        public float TakeDamage(in FTT.Combat.HitPayload hit) => OnHurtboxHit(hit);
+
+        /// <inheritdoc/>
+        public bool IsAlive => CurrentState != BossState.Dead;
 
         /// <summary>
         /// V7.1 hitstop: freezes the boss's gameplay clock for the given frames

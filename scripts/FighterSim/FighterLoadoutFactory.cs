@@ -71,7 +71,12 @@ namespace FTT.FighterSim {
                     SpecialOneProjectileSpeed = WorldSpeed(specialOne?.ProjectileSpeed ?? 0f),
                     SpecialTwoProjectileSpeed = WorldSpeed(specialTwo?.ProjectileSpeed ?? 0f),
                     MovementDistance = WorldDistance(movement?.DistanceMoved ?? 0f),
-                    MovementSpeed = WorldSpeed(movement?.MovementSpeed ?? 0f)
+                    MovementSpeed = WorldSpeed(movement?.MovementSpeed ?? 0f),
+                    // M08 (Package 12 W3): the authored hit contract, loadout only.
+                    SpecialOneHit = HitData(specialOne, FighterAbilityHitData.DefaultSpecial),
+                    SpecialTwoHit = HitData(specialTwo, FighterAbilityHitData.DefaultSpecial),
+                    UltimateHit = HitData(ultimate, FighterAbilityHitData.DefaultUltimate),
+                    MovementHit = HitData(movement, FighterAbilityHitData.DefaultSpecial)
                 },
                 airControl: FP64.FromFloat(Math.Max(0.1f, data.AirControlMultiplier)));
         }
@@ -114,6 +119,22 @@ namespace FTT.FighterSim {
             if (ability == null) return FP64.Zero;
             float magnitude = MathF.Max(MathF.Abs(ability.KnockbackForce.X), MathF.Abs(ability.KnockbackForce.Y));
             return FP64.FromFloat(magnitude);
+        }
+
+        /// <summary>
+        /// M08: projects an ability's authored hit contract. A missing ability
+        /// keeps the slot's historical default. Normalized base data only —
+        /// nothing here can read a Story modifier.
+        /// </summary>
+        public static FighterAbilityHitData HitData(AbilityData ability, FighterAbilityHitData fallback) {
+            if (ability == null) return fallback;
+            return new FighterAbilityHitData {
+                HitstunFrames = Math.Max(0, ability.HitstunFrames),
+                BlockClass = (int)ability.BlockClass,
+                Launches = ability.Launches,
+                Delivery = (int)ability.Delivery,
+                Origin = (int)ability.Origin
+            };
         }
 
         private static FP64 StatusIntensity(AbilityData ability) =>

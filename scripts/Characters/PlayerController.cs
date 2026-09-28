@@ -45,7 +45,7 @@ namespace FTT.Characters {
 		Thrown
 	}
 
-	public partial class PlayerController : CharacterBody2D, FTT.Combat.IStatusEffectTarget {
+	public partial class PlayerController : CharacterBody2D, FTT.Combat.IStatusEffectTarget, FTT.Combat.IDamageable {
 		public const int StoryRewindInvulnerabilityFrames = 120;
 
 		/// <summary>
@@ -577,7 +577,7 @@ namespace FTT.Characters {
 		private const float GroundDecelRampFrames = FTT.Core.UniversalMovementRules.RunDecelerationFrames;
 		private const float AirAccelRampFrames = 4.0f;
 		private const float AirDecelRampFrames = 8.0f;
-		/// <summary>Story pixel-space fast-fall floor: <c>FastFallSpeed</c> units/s × 60.</summary>
+		/// <summary>Story pixel-space fast-fall speed: <c>FastFallSpeed</c> units/s × 60 (M01: 1200 px/s).</summary>
 		private const float FastFallSpeedPixels = FTT.Core.UniversalMovementRules.FastFallSpeed * 60f;
 
 		// Timers
@@ -954,6 +954,20 @@ namespace FTT.Characters {
 		}
 
 		private float OnHurtboxHit(FTT.Combat.HitPayload hit) => ResolveIncomingHit(hit);
+
+		/// <summary>
+		/// M08 (Package 12 W3) <see cref="FTT.Combat.IDamageable"/>: the same
+		/// chokepoint the hurtbox feeds, reachable without a hurtbox in hand.
+		/// The target index is stamped exactly as <c>Hurtbox.TakeHit</c> does.
+		/// </summary>
+		public float TakeDamage(in FTT.Combat.HitPayload hit) {
+			FTT.Combat.HitPayload routed = hit;
+			routed.TargetIndex = PlayerIndex;
+			return ResolveIncomingHit(routed);
+		}
+
+		/// <inheritdoc/>
+		public bool IsAlive => CurrentState != CharacterState.Dead;
 
 		/// <summary>
 		/// The ONE Story damage-resolution chokepoint (Package 11 A1b, V7.6
@@ -1724,13 +1738,16 @@ namespace FTT.Characters {
 			vel.X = Mathf.MoveToward(vel.X, targetSpeed, step);
 
 			// Fast-fall (§2.9, 2026-08-10): stateless — held Down while airborne
-			// pins the descent to at least FastFallSpeedPixels and cancels the
+			// snaps the descent to FastFallSpeedPixels and cancels the
 			// Warp float window. Applied after ApplyGravity so it deliberately
 			// overrides that method's 600 px/s terminal clamp for this case.
 			// ProcessStunned/ProcessDazed own hitstun and never route here.
+			// M01 (D1(a), Package 12 W3): fast-fall SNAPS to 20 u/s (1200 px/s),
+			// the terminal it is defined as — assigned, never exceeded. The
+			// ordinary Story terminal (600 px/s) is unchanged; H-7 stays deferred.
 			if (CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down)) {
 				StoryFloatTimer = 0f;
-				vel.Y = Mathf.Max(vel.Y, FastFallSpeedPixels);
+				vel.Y = FastFallSpeedPixels;
 			}
 			Velocity = vel;
 
@@ -2081,6 +2098,17 @@ namespace FTT.Characters {
 			// V7.1 Echo Step: a special's recovery frames also qualify.
 			if (ability?.CurrentPhase == FTT.Combat.AbilityPhase.Recovery) {
 				TryStartEchoStep();
+				// Package 12 W3: Block may cancel a Special's RECOVERY frames,
+				// exactly as it cancels a basic's (design 752/3080: recovery
+				// frames define block-cancel eligibility, M08). Grounded only —
+				// the stance is grounded — and never while an Echo Step wind-up
+				// owns the chord. The cast is interrupted (what it already put
+				// into the world survives); the cooldown it armed stands.
+				if (IsOnFloor() && _echoStepWindupFrames <= 0 && CheckBlockInput()) {
+					ability.Interrupt();
+					_specialStartedAerial = false;
+					return;
+				}
 			}
 			if (ability == null || !ability.IsExecuting) {
 				_specialStartedAerial = false;
@@ -2402,9 +2430,17 @@ namespace FTT.Characters {
 			// V7.3: string hit 1 arms the cancel gate — only from hit two on may
 			// Block escape — and a stance the victim cannot raise (no charges,
 			// shatter lockout) cannot be escaped into either.
-			if (IsOnFloor() && CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)
-				&& !_hitstunBlockCancelBlocked
-				&& (_blockSystem == null || _blockSystem.CanRaiseStance)) {
+			// M06 (Package 12 W3): tumble is excluded. A launched victim holding
+			// Block on ground contact TECHS (above) and never escapes into the
+			// stance — including the hit frame itself, where IsOnFloor() still
+			// reports the pre-launch ground. The escape is for grounded,
+			// non-tumble hitstun only (BasicComboRules.CanBlockEscapeHitstun).
+			if (FTT.Combat.BasicComboRules.CanBlockEscapeHitstun(
+					grounded: IsOnFloor(),
+					blockHeld: CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block),
+					tumbling: _stunTumble,
+					stringHitOneGate: _hitstunBlockCancelBlocked,
+					stanceCanRise: _blockSystem == null || _blockSystem.CanRaiseStance)) {
 				_stunTimer = 0f;
 				_stunTumble = false;
 				TransitionTo(CharacterState.Blocking);
@@ -3332,6 +3368,10 @@ namespace FTT.Characters {
 				// entirely on LincolnSplittingStrike (the ground bounce and the
 				// +50% against Extractors and enemy constructs).
 				_meleeHitbox.AttackClass = FTT.Combat.AttackClass.Basic;
+				// M08 (Package 12 W3): the string's authored hit contract.
+				_meleeHitbox.Launches = FTT.Combat.BasicComboRules.StringHitLaunches[comboIdx];
+				_meleeHitbox.Delivery = FTT.Combat.HitDelivery.DirectHit;
+				_meleeHitbox.Origin = FTT.Combat.HitOrigin.Basic;
 
 				float baseKB = Data?.BasicAttackKnockback ?? 3f;
 				// Hitstun and the horizontal knockback multiplier both come from
@@ -3427,6 +3467,9 @@ namespace FTT.Characters {
 					? FTT.Combat.BasicComboRules.UpAttackHitboxID
 					: FTT.Combat.BasicComboRules.DownAirHitboxID;
 				_meleeHitbox.AttackClass = FTT.Combat.AttackClass.Basic;
+				_meleeHitbox.Launches = FTT.Combat.BasicComboRules.DirectionalAttackLaunches;
+				_meleeHitbox.Delivery = FTT.Combat.HitDelivery.DirectHit;
+				_meleeHitbox.Origin = FTT.Combat.HitOrigin.Basic;
 				_meleeHitbox.HitstunDuration =
 					FTT.Combat.BasicComboRules.DirectionalAttackHitstunFrames / 60f;
 				// Directional strikes carry no rider status; clear the shared

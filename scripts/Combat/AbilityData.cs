@@ -30,7 +30,35 @@ namespace FTT.Combat {
 		[Export] public bool IsMultiHit;
 		[Export(PropertyHint.Range, "1,64,1")] public int HitCount = 1;
 		[Export(PropertyHint.Range, "0,600,1")] public int DamageTickIntervalFrames;
-		[Export] public float HitstunDuration = 0.2f;
+
+		[ExportGroup("Hit (M08)")]
+		/// <summary>
+		/// M08 (Package 12 W3): hitstun an effective hit applies, in 60 Hz frames,
+		/// before stagger/armor rules. The canonical value — the older seconds
+		/// field <see cref="HitstunDuration"/> is now a read-only projection of it.
+		/// </summary>
+		[Export(PropertyHint.Range, "0,600,1")] public int HitstunFrames = 12;
+		/// <summary>How the hit meets the ordinary block (Basic / Special full shatter / GuardCrush / Unblockable).</summary>
+		[Export] public BlockClass BlockClass = BlockClass.Special;
+		/// <summary>
+		/// M05 launch flag: grants DI, tumble and landing tech. Data only in W3 —
+		/// W3b implements the semantics; today every knockback hit still launches.
+		/// </summary>
+		[Export] public bool Launches;
+		/// <summary>Delivery channel (DirectHit / Tick / Construct / Hazard): Rally reclaim, hitstop exemption, absorption.</summary>
+		[Export] public HitDelivery Delivery = HitDelivery.DirectHit;
+		/// <summary>Hit origin (Basic / Special / Ultimate / Throw / Environment): D03h meter rule, origin inheritance.</summary>
+		[Export] public HitOrigin Origin = HitOrigin.Special;
+
+		/// <summary>
+		/// Deprecated reader kept for the kit scripts that build payloads in
+		/// seconds. Derived from <see cref="HitstunFrames"/>; it is no longer
+		/// exported, so it can never become a second canonical value.
+		/// </summary>
+		public float HitstunDuration => HitstunFrames / 60.0f;
+
+		/// <summary>The runtime <see cref="AttackClass"/> this ability's hits carry (see <see cref="HitClassification.AttackClassFor"/>).</summary>
+		public AttackClass ResolvedAttackClass => HitClassification.AttackClassFor(BlockClass, Origin);
 
 		[ExportGroup("Physics")]
 		[Export] public Vector2 KnockbackForce = new(3f, -2f);

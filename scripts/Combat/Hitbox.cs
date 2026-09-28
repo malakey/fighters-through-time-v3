@@ -37,6 +37,19 @@ namespace FTT.Combat {
         /// <summary>Mark duration in frames; 0 applies nothing. Never scaled by a status minor.</summary>
         [Export] public int ComboMarkFrames;
 
+        [ExportGroup("Hit contract (M08)")]
+        /// <summary>M05 launch flag carried into the payload (data only until W3b).</summary>
+        [Export] public bool Launches;
+        /// <summary>Delivery channel carried into the payload.</summary>
+        [Export] public HitDelivery Delivery = HitDelivery.DirectHit;
+        /// <summary>
+        /// Origin carried into the payload. Its <see cref="HitOrigin.Ultimate"/>
+        /// value is what denies the caster damage-dealt meter (D03h). Every site
+        /// that configures a hitbox from an <see cref="AbilityData"/> copies it
+        /// through <see cref="ApplyAbilityHitContract"/>.
+        /// </summary>
+        [Export] public HitOrigin Origin = HitOrigin.Basic;
+
         [ExportGroup("Runtime")]
         [Export] public bool IsActive;
 
@@ -115,8 +128,33 @@ namespace FTT.Combat {
                 BlockChargeCost = Mathf.Max(0, BlockChargeCost),
                 Unblockable = Unblockable,
                 ComboMark = ComboMark,
-                ComboMarkFrames = Mathf.Max(0, ComboMarkFrames)
+                ComboMarkFrames = Mathf.Max(0, ComboMarkFrames),
+                SourceActorId = SourcePlayer != null && IsInstanceValid(SourcePlayer)
+                    ? SourcePlayer.GetInstanceId()
+                    : 0UL,
+                Launches = Launches,
+                Delivery = Delivery,
+                Origin = Origin
             };
+        }
+
+        /// <summary>
+        /// M08 (Package 12 W3): copies an ability's authored hit contract onto
+        /// this hitbox — the attack class, block cost, hitstun, launch flag,
+        /// delivery and origin. The one place a hitbox reads them from
+        /// <see cref="AbilityData"/>, so BaseSpecial, the pooled placeholder
+        /// projectile and the factory's generic special cannot drift apart.
+        /// </summary>
+        public void ApplyAbilityHitContract(AbilityData data) {
+            if (data == null) return;
+            AttackClass = data.ResolvedAttackClass;
+            BlockChargeCost = HitClassification.BlockChargeCostFor(data.BlockClass);
+            Unblockable = data.BlockClass == BlockClass.Unblockable
+                && data.Origin != HitOrigin.Ultimate;
+            HitstunDuration = data.HitstunDuration;
+            Launches = data.Launches;
+            Delivery = data.Delivery;
+            Origin = data.Origin;
         }
 
         /// <summary>
@@ -148,16 +186,20 @@ namespace FTT.Combat {
             // writes the engine would otherwise reject mid-flush.
             using var scope = PhysicsCallbackGuard.Enter();
             HitPayload payload = CreatePayload(hurtbox.OwnerPlayerIndex);
-            float damageApplied = hurtbox.TakeHit(payload);
-            // V7.6 D03h (Package 11 A1b): the shared strike path is the one
-            // place every Ultimate-class hitbox lands, so the origin is read
-            // from the payload's own attack class rather than from a second
-            // flag. An Ultimate earns its caster zero damage-dealt meter; the
-            // direct-hit Rally reclaim on the same contact is retained (D03g).
+            // M08: one identity per confirmed contact.
+            payload.ContactId = HitClassification.NextContactId();
+            float damageApplied = hurtbox.TakeDamage(in payload);
+            // V7.6 D03h (Package 11 A1b), M08 (Package 12 W3): the shared
+            // strike path is the one place every Ultimate hitbox lands, and the
+            // meter rule now reads the payload's AUTHORED origin rather than
+            // inferring it from the attack class. An Ultimate earns its caster
+            // zero damage-dealt meter; the Rally reclaim follows the authored
+            // delivery (a direct hit reclaims, D03g).
             if (damageApplied > 0f) {
                 SourcePlayer?.AddInfluenceFromDamageDealt(
                     damageApplied,
-                    ultimateOrigin: payload.AttackClass == AttackClass.Ultimate);
+                    collectsEcho: HitClassification.CollectsEcho(payload.Delivery),
+                    ultimateOrigin: HitClassification.IsUltimateOrigin(payload.Origin));
             }
             // Package 11 A4: the shared Story "a hit of mine landed" hook the
             // V7.6 traversal flags read (Joan's Wings Refresh). Runs for every

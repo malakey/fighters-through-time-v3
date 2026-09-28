@@ -45,6 +45,9 @@ namespace FTT.Combat {
         /// </summary>
         public bool UltimateOrigin { get; private set; }
 
+        /// <summary>M08: every zone pulse is <see cref="HitDelivery.Tick"/>.</summary>
+        public const HitDelivery TickDelivery = HitDelivery.Tick;
+
         public override void _Ready() => AddToGroup("story_zone");
 
         public void Setup(float damage, float lifetime, float tickInterval, int ownerIndex,
@@ -65,7 +68,8 @@ namespace FTT.Combat {
             _ownerPlayer = ownerPlayer;
             _ownerSpeedMultiplier = ownerSpeedMultiplier;
             AbilityID = data?.AbilityID ?? "";
-            UltimateOrigin = data?.Slot == FTT.Core.AbilitySlot.Ultimate;
+            // M08 (Package 12 W3): the AUTHORED origin, not the slot.
+            UltimateOrigin = data != null && HitClassification.IsUltimateOrigin(data.Origin);
 
             EnsureNodes();
             bool usesAuthoredVisual = ApplyAuthoredVisual(data, radius);
@@ -174,7 +178,9 @@ namespace FTT.Combat {
                     StatusDuration = _statusDuration,
                     StatusIntensity = _statusIntensity,
                     ScreenShakeIntensity = 0.1f,
-                    ScreenShakeDuration = 0.08f
+                    ScreenShakeDuration = 0.08f,
+                    Delivery = TickDelivery,
+                    Origin = UltimateOrigin ? HitOrigin.Ultimate : HitOrigin.Special
                 });
                 CreditOwner(playerDealt);
             } else if (body is FTT.Enemies.EnemyController enemy) {
@@ -229,8 +235,13 @@ namespace FTT.Combat {
         private void CreditOwner(float damageApplied) {
             if (damageApplied <= 0f) return;
             if (_ownerPlayer == null || !IsInstanceValid(_ownerPlayer)) return;
+            // M08: a zone pulse is Tick delivery by construction, whatever the
+            // source ability's primary delivery is, so the reclaim rule reads
+            // the constant delivery rather than the ability.
             _ownerPlayer.AddInfluenceFromDamageDealt(
-                damageApplied, collectsEcho: false, ultimateOrigin: UltimateOrigin);
+                damageApplied,
+                collectsEcho: HitClassification.CollectsEcho(TickDelivery),
+                ultimateOrigin: UltimateOrigin);
         }
 
         private void RefreshOwnerBuff() {
