@@ -358,7 +358,8 @@ public class Level08ContentTests {
         AssertObject(set).IsNotNull();
         AssertString(set.DialogueSetID).IsEqual("dialogue_level_08");
         AssertThat(set.Sequences.Length).OverrideFailureMessage(
-            "Level 8 ships four beats plus the two N03 Cleopatra hero variants.").IsEqual(6);
+            "Level 8 ships four beats, the two N03 Cleopatra hero variants and the two " +
+            "Package 12 W7 M14 absence-list variants (@leonardo, @joan).").IsEqual(8);
 
         var keys = new HashSet<string>(StringComparer.Ordinal);
         foreach (string line in File.ReadAllLines("localization/en.csv")) {

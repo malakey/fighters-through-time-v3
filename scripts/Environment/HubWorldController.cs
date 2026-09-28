@@ -9,6 +9,23 @@ namespace FTT.Environment {
         private const string CalibrationBaySpawnName = "CalibrationBaySpawn";
         private static readonly Vector2 CalibrationBaySpawnPosition = new(1750, 850);
 
+        // === Package 12 W7: arrivals, crew and the act-boundary selector ===
+
+        /// <summary>
+        /// M11: every hub arrival — a level completion and a Collapse alike —
+        /// lands on the Bridge, directly in front of the Chronal Repository.
+        /// The Calibration Bay anchor stays for Level 0 and the Training Wing.
+        /// </summary>
+        public const string BridgeSpawnName = "BridgeSpawn";
+        public static readonly Vector2 BridgeSpawnPosition = new(2060, 850);
+
+        /// <summary>Medic Okafor's post on the Observation Deck (fore).</summary>
+        public const string OkaforNodeName = "MedicOkafor";
+        private static readonly Vector2 OkaforPosition = new(560, 860);
+
+        private Area2D _okaforArea;
+        private bool _playerInOkafor;
+
         private PlayerController _player;
         private Area2D _portalArea;
         private Area2D _repositoryArea;
@@ -39,6 +56,7 @@ namespace FTT.Environment {
                 includeRewind: false,
                 audioSetPath: AudioSetPaths.Hub);
             AnnounceCompletionDeposit();
+            BindCrewDialogue();
         }
 
         /// <summary>
@@ -146,16 +164,20 @@ namespace FTT.Environment {
             BuildWall(3820, 0, 1080);
 
             BuildCalibrationBayAnchor();
+            BuildBridgeAnchor();
             BuildPortal();
             BuildRepository();
             BuildHolodeck();
             BuildSarahNPC();
+            BuildOkaforNPC();
             BuildDecorations();
         }
 
         /// <summary>
-        /// The documented hub return anchor: players spawn here in front of the
-        /// Chronal Repository after missions and Timeline Collapse.
+        /// The Calibration Bay anchor (Training Wing). Since Package 12 W7 (M11)
+        /// it is no longer the arrival point — every level completion and every
+        /// Collapse lands on the Bridge (<see cref="BridgeSpawnName"/>); the bay
+        /// is Level 0's room.
         /// </summary>
         private void BuildCalibrationBayAnchor() {
             var anchor = new Marker2D {
@@ -481,7 +503,7 @@ namespace FTT.Environment {
 
             _player = CharacterFactory.CreateCharacter(characterID, 0);
             _player.Name = "Player";
-            _player.Position = CalibrationBaySpawnPosition;
+            _player.Position = BridgeSpawnPosition;
             AddChild(_player);
 
             var camera = new Camera2D();
@@ -639,7 +661,12 @@ namespace FTT.Environment {
                     return;
                 }
                 if (_playerInSarah) {
-                    _services?.Dialogue?.StartSequence("hub.sarah_briefing");
+                    _services?.Dialogue?.StartSequence(HubDialogueSelector.SarahSequenceFor(CurrentPeriod()));
+                    return;
+                }
+                if (_playerInOkafor) {
+                    string okafor = HubDialogueSelector.OkaforSequenceFor(CurrentPeriod());
+                    if (!string.IsNullOrEmpty(okafor)) _services?.Dialogue?.StartSequence(okafor);
                     return;
                 }
                 if (_playerInRepository) {
@@ -698,5 +725,123 @@ namespace FTT.Environment {
             _timelineRestartPanel?.QueueFree();
             _timelineRestartPanel = null;
         }
+
+        // === Package 12 W7 region: Bridge arrival, crew and GAP-15 selector ===
+
+        /// <summary>The Bridge arrival anchor (M11), labelled so the room reads as the spawn room.</summary>
+        private void BuildBridgeAnchor() {
+            AddChild(new Marker2D { Name = BridgeSpawnName, Position = BridgeSpawnPosition });
+
+            var bridgeLabel = new Label {
+                Name = "BridgeLabel",
+                Text = Tr("hub_bridge"),
+                Position = new Vector2(BridgeSpawnPosition.X - 90, BridgeSpawnPosition.Y - 250),
+                CustomMinimumSize = new Vector2(180, 20),
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            bridgeLabel.AddThemeFontSizeOverride("font_size", 11);
+            bridgeLabel.AddThemeColorOverride("font_color", new Color(0.4f, 0.6f, 0.8f, 0.8f));
+            AddChild(bridgeLabel);
+        }
+
+        /// <summary>Medic Okafor on the Observation Deck: per-act readings of the locked hero.</summary>
+        private void BuildOkaforNPC() {
+            _okaforArea = new Area2D {
+                Name = OkaforNodeName,
+                Position = OkaforPosition,
+                CollisionLayer = CollisionLayers.Trigger,
+                CollisionMask = CollisionLayers.Player
+            };
+            _okaforArea.AddChild(new CollisionShape2D {
+                Shape = new RectangleShape2D { Size = new Vector2(90, 100) },
+                Position = new Vector2(0, -50)
+            });
+            _okaforArea.AddChild(new ColorRect {
+                Size = new Vector2(34, 62),
+                Position = new Vector2(-17, -62),
+                Color = new Color(0.55f, 0.55f, 0.7f)
+            });
+            _okaforArea.AddChild(new ColorRect {
+                Size = new Vector2(22, 18),
+                Position = new Vector2(-11, -80),
+                Color = new Color(0.45f, 0.32f, 0.22f)
+            });
+            var npcLabel = new Label {
+                Text = Tr("hub_npc_okafor"),
+                Position = new Vector2(-80, -104),
+                CustomMinimumSize = new Vector2(160, 20),
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            npcLabel.AddThemeFontSizeOverride("font_size", 10);
+            npcLabel.AddThemeColorOverride("font_color", new Color(0.7f, 0.75f, 0.95f));
+            _okaforArea.AddChild(npcLabel);
+
+            _okaforArea.BodyEntered += body => {
+                if (body is PlayerController) _playerInOkafor = true;
+            };
+            _okaforArea.BodyExited += body => {
+                if (body is PlayerController) _playerInOkafor = false;
+            };
+            AddChild(_okaforArea);
+        }
+
+        /// <summary>The current hub visit period for the active campaign.</summary>
+        public static HubDialogueSelector.HubPeriod CurrentPeriod() =>
+            HubDialogueSelector.PeriodFor(
+                StoryManager.Instance?.CurrentLevel ?? CampaignLevel.Tutorial,
+                IsCampaignCompleted());
+
+        private bool _crewDialogueBound;
+
+        /// <summary>
+        /// GAP-15: the period's Sarah set plays once, on the first arrival of the
+        /// period. Only a real campaign slot has a ledger to record it in, so a
+        /// slotless launch (the developer level select, a test fixture) never
+        /// auto-plays — and so never takes the tree's pause.
+        /// </summary>
+        private void BindCrewDialogue() {
+            if (EventBus.Instance != null && !_crewDialogueBound) {
+                EventBus.Instance.OnDialogueComplete += OnCrewDialogueComplete;
+                _crewDialogueBound = true;
+            }
+            if (ActiveCampaignSave() == null) return;
+            Callable.From(PlayArrivalDialogue).CallDeferred();
+        }
+
+        private void PlayArrivalDialogue() {
+            if (!IsInstanceValid(this) || !IsInsideTree()) return;
+            StorySaveData save = ActiveCampaignSave();
+            if (save == null) return;
+            string arrival = HubDialogueSelector.ArrivalSequenceFor(
+                CurrentPeriod(), id => save.ViewedDialogueIDs?.Contains(id) == true);
+            if (!string.IsNullOrEmpty(arrival)) _services?.Dialogue?.StartSequence(arrival);
+        }
+
+        /// <summary>
+        /// A crew set just resolved into the slot's ledger; write the slot so the
+        /// once-only record survives a quit before the next checkpoint save.
+        /// </summary>
+        private void OnCrewDialogueComplete(string dialogueID) {
+            if (string.IsNullOrEmpty(dialogueID)
+                || !dialogueID.StartsWith("hub.", System.StringComparison.Ordinal)) return;
+            int slot = GameManager.Instance?.CurrentSession.ActiveSaveSlot ?? -1;
+            if (slot >= 0) SaveManager.Instance?.SaveStorySlot(slot);
+        }
+
+        private static StorySaveData ActiveCampaignSave() {
+            if (GameManager.Instance == null || SaveManager.Instance == null) return null;
+            int slot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+            if (slot < 0 || slot >= SaveManager.Instance.SaveSlots.Length) return null;
+            return SaveManager.Instance.SaveSlots[slot];
+        }
+
+        public override void _ExitTree() {
+            if (_crewDialogueBound && EventBus.Instance != null) {
+                EventBus.Instance.OnDialogueComplete -= OnCrewDialogueComplete;
+            }
+            _crewDialogueBound = false;
+        }
+
+        // === end Package 12 W7 region ===
     }
 }

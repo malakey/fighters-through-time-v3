@@ -395,7 +395,56 @@ namespace FTT.Environment {
         protected override void OnLevelReady() {
             SetPreBossStrikeEnabled(CanActivatePreBoss);
             RefreshLegacyObjective();
+            Services?.Dialogue?.RegisterSetFromPath(SharedDialogueSetPath);
         }
+
+        // === Package 12 W7: the flavour Nexus moment ===
+
+        /// <summary>
+        /// The one Nexus moment every variant opens on, shared across the nine
+        /// sets: Sarah's line and the Ultimate ring igniting (design §2, Level 4A
+        /// "Results and economy", Low-item decision 2026-09-26). It is flavour,
+        /// <b>not</b> a second unlock beat — the Ultimate's "Resonance Restored"
+        /// beat already played on Level 4's results screen — so it grants,
+        /// saves and restores nothing.
+        /// </summary>
+        public const string NexusMomentDialogueID = "level_04a.nexus_moment";
+
+        /// <summary>The shared 4A set carrying <see cref="NexusMomentDialogueID"/>.</summary>
+        public const string SharedDialogueSetPath = "res://resources/Dialogue/level_04a_shared_dialogue.tres";
+
+        /// <summary>True once the Nexus moment has started this load.</summary>
+        public bool NexusMomentPlayed { get; private set; }
+
+        /// <summary>
+        /// Chains the Nexus moment straight after the entrance scene. A mid-level
+        /// resume skips the entrance, and so skips the moment with it.
+        /// </summary>
+        protected override void OnDialogueSequenceComplete(string dialogueID) {
+            if (dialogueID == EntranceDialogueID
+                || DialogueSequenceIDIsVariantOf(dialogueID, EntranceDialogueID)) {
+                PlayNexusMoment();
+            }
+        }
+
+        /// <summary>
+        /// Starts the Nexus moment and lights the Ultimate ring. The ring is
+        /// already <see cref="AbilitySlotLockState.Clear"/> on any save that
+        /// finished Level 4, so re-publishing Clear is a presentation cue only.
+        /// </summary>
+        public void PlayNexusMoment() {
+            if (NexusMomentPlayed) return;
+            NexusMomentPlayed = true;
+            EventBus.Instance?.RaiseAbilitySlotLockChanged(new AbilitySlotLockPayload {
+                Slot = AbilitySlot.Ultimate,
+                State = AbilitySlotLockState.Clear
+            });
+            StartDialogue(NexusMomentDialogueID);
+        }
+
+        private static bool DialogueSequenceIDIsVariantOf(string dialogueID, string baseID) =>
+            !string.IsNullOrEmpty(dialogueID)
+            && dialogueID.StartsWith(baseID + "@", StringComparison.Ordinal);
 
         /// <summary>
         /// F10 reconstruction. Before PreBoss the approach is rebuilt and every gate

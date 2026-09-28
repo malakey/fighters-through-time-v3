@@ -16,9 +16,9 @@ namespace FTT.Tests.ContentValidation;
 /// Package 5 Wave B: Level 12 - the Lunar Landing, the Act II finale.
 ///
 /// What is pinned here is the contract the level cannot silently drift out of:
-/// the manifest scene path and level id, the three checkpoint ids, the four-beat
-/// dialogue set (the extra `preboss` beat carries the design's authored Sarah
-/// scene and the campaign's thesis), the DUST_ECONOMY-locked 14/2/1/4 encounter
+/// the manifest scene path and level id, the three checkpoint ids, the five-beat
+/// dialogue set (the `preboss` set-up and, since Package 12 W7's M13 split, the
+/// `postboss` trace reveal after the Overseer falls), the DUST_ECONOMY-locked 14/2/1/4 encounter
 /// budget, the three-phase Gravity Overseer fitting its pad - and the era
 /// mechanic itself: gravity fields that tile the level without overlapping, low
 /// gravity that is really applied and really released, a resume that wakes the
@@ -85,6 +85,8 @@ public class Level12ContentTests {
             AssertString(level.PreBossDialogueID).IsEqual("level_12.preboss");
             AssertString(level.BossIntroDialogueID).IsEqual("level_12.boss_intro");
             AssertString(level.ExitDialogueID).IsEqual("level_12.exit");
+            // Package 12 W7 (M13): the trace reveal is a post-boss beat.
+            AssertString(level.PostBossDialogueID).IsEqual("level_12.postboss");
         } finally {
             level.Free();
         }
@@ -105,16 +107,18 @@ public class Level12ContentTests {
     // === Dialogue ===
 
     [TestCase]
-    public void TheDialogueSetCarriesAllFourBeatsIncludingThePreBossSequence() {
+    public void TheDialogueSetCarriesAllFiveBeatsIncludingThePreAndPostBossSequences() {
         var set = AuthoredResources.Load<DialogueSetData>(DialoguePath);
         AssertObject(set).IsNotNull();
         AssertString(set.DialogueSetID).IsEqual("dialogue_level_12");
 
         var ids = new List<string>();
         foreach (DialogueSequenceData sequence in set.Sequences) ids.Add(sequence.DialogueID);
-        // preboss is the Act-finale extra beat (plan section 2.3: levels 5, 12, 15).
+        // preboss is the Act-finale extra beat (plan section 2.3: levels 5, 12, 15);
+        // postboss is Package 12 W7's M13 split - the trace completes after the boss.
         AssertThat(ids).ContainsExactlyInAnyOrder(
-            "level_12.entrance", "level_12.preboss", "level_12.boss_intro", "level_12.exit");
+            "level_12.entrance", "level_12.preboss", "level_12.boss_intro",
+            "level_12.postboss", "level_12.exit");
     }
 
     [TestCase]
@@ -155,24 +159,60 @@ public class Level12ContentTests {
     }
 
     [TestCase]
-    public void ThePreBossBeatIsTheAuthoredSarahSceneAndStillCarriesTheCampaignsThesis() {
-        // design-godot.md section 16 (Level 12 pre-boss) is the authored V7.5
-        // script: five lines - Player / Sarah / a narrated stage beat where the
-        // nexus siphon dies and the trace completes / Sarah (Shocked) / Player
-        // (Determined). This is the Act II "where" reveal, so its content is
-        // pinned, not just its shape.
+    public void ThePreBossBeatIsSetUpOnlyAndNeverCompletesTheTrace() {
+        // design-godot.md section 16 (Level 12 Pre-Boss, M13 2026-09-26): two
+        // lines - Player / Sarah. Sarah's trace is "nearly done" and the guardian
+        // stands between her and the answer; the reveal itself waits for the boss.
         DialogueSequenceData preboss = SequenceNamed("level_12.preboss");
         AssertObject(preboss).IsNotNull();
-        AssertThat(preboss.LineKeys.Length).IsEqual(5);
-        AssertThat(preboss.SpeakerNameKeys).ContainsExactly(
-            "speaker_player", "speaker_sarah", "speaker_narration", "speaker_sarah", "speaker_player");
-        AssertString(preboss.EmotionKeys[3]).IsEqual("emotion_shocked");
-        AssertString(preboss.EmotionKeys[4]).IsEqual("emotion_determined");
+        AssertThat(preboss.LineKeys.Length).IsEqual(2);
+        AssertThat(preboss.SpeakerNameKeys).ContainsExactly("speaker_player", "speaker_sarah");
 
         string sarahsTrace = LocalizationValue("dlg_l12_preboss_2").ToLowerInvariant();
         AssertString(sarahsTrace).Contains("siphon nexus");
         AssertString(sarahsTrace).Contains("trace");
         AssertString(sarahsTrace).Contains("flowing somewhere");
+        AssertString(sarahsTrace).Contains("guardian");
+
+        foreach (string key in preboss.LineKeys) {
+            string english = LocalizationValue(key);
+            AssertThat(english.Contains("{CaptiveName1}") || english.Contains("{CaptiveName2}")
+                || english.Contains("resonance signatures", StringComparison.OrdinalIgnoreCase))
+                .OverrideFailureMessage($"{key}: the pre-boss scene must not carry the trace reveal (M13).")
+                .IsFalse();
+        }
+
+        // It has to reach the player before the fight, so it cannot be wired to the
+        // boss: the level arms it from a room trigger and the base class keeps its
+        // own defeat -> postboss -> exit chain intact.
+        using var fixture = new LunarFixture(null);
+        AssertThat(fixture.Level.PreBossBeatPlayed).IsFalse();
+        AssertObject(fixture.Level.GetNodeOrNull<Area2D>("PreBossTrigger"))
+            .OverrideFailureMessage("The pre-boss beat must be armed by a level trigger.").IsNotNull();
+    }
+
+    [TestCase]
+    public void ThePostBossBeatCompletesTheTraceAndNamesTwoCaptivesThroughTheTokens() {
+        // M13: Narration / Sarah (Shocked) / Player (Determined), after the
+        // Overseer falls. The preboss_3..5 keys keep their names (legacy
+        // identifiers are never renamed) and now carry this scene.
+        DialogueSequenceData postboss = SequenceNamed("level_12.postboss");
+        AssertObject(postboss).IsNotNull();
+        AssertThat(postboss.LineKeys).ContainsExactly(
+            "dlg_l12_preboss_3", "dlg_l12_preboss_4", "dlg_l12_preboss_5");
+        AssertThat(postboss.SpeakerNameKeys).ContainsExactly(
+            "speaker_narration", "speaker_sarah", "speaker_player");
+        AssertString(postboss.EmotionKeys[1]).IsEqual("emotion_shocked");
+        AssertString(postboss.EmotionKeys[2]).IsEqual("emotion_determined");
+        AssertString(LocalizationValue("dlg_l12_preboss_3").ToLowerInvariant()).Contains("overseer falls");
+
+        // The tokens still render for every hero: two distinct captives, never
+        // the hero, never an empty name.
+        foreach (string hero in RosterIDs) {
+            (string first, string second) = CampaignCaptiveRoster.NamedExamplesFor(hero);
+            AssertThat(first != hero && second != hero && first != second && first != "" && second != "")
+                .OverrideFailureMessage($"{hero}: the trace reveal must name two other legends.").IsTrue();
+        }
 
         // N04: the reveal names two captives through the substitution tokens and
         // states location, captivity and draining - never the Forge, the deficit
@@ -184,14 +224,19 @@ public class Level12ContentTests {
         AssertString(revealLower).Contains("fortress in the space between timelines");
         AssertString(revealLower).Contains("resonance signatures");
         AssertString(revealLower).Contains("draining");
+    }
 
-        // It has to reach the player before the fight, so it cannot be wired to the
-        // boss: the level arms it from a room trigger and the base class keeps its
-        // own defeat -> exit chain intact.
-        using var fixture = new LunarFixture(null);
-        AssertThat(fixture.Level.PreBossBeatPlayed).IsFalse();
-        AssertObject(fixture.Level.GetNodeOrNull<Area2D>("PreBossTrigger"))
-            .OverrideFailureMessage("The pre-boss beat must be armed by a level trigger.").IsNotNull();
+    [TestCase]
+    public void TheExitNoLongerRestatesTheTraceAndTheSealFreesTheCrew() {
+        // M13 de-duplication: exit_4 used to re-announce the coordinate signature
+        // the post-boss scene now owns. M12: the crew is freed by the sealed
+        // moment shutting the siphons, not by the relay's destruction.
+        string exit4 = LocalizationValue("dlg_l12_exit_4").ToLowerInvariant();
+        AssertThat(exit4.Contains("coordinate") || exit4.Contains("signature") || exit4.Contains("keeping them"))
+            .OverrideFailureMessage("dlg_l12_exit_4 still restates the post-boss trace reveal.").IsFalse();
+        string exit2 = LocalizationValue("dlg_l12_exit_2").ToLowerInvariant();
+        AssertString(exit2).Contains("sealed");
+        AssertString(exit2).Contains("siphon");
     }
 
     [TestCase]

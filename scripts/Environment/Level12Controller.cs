@@ -62,11 +62,31 @@ namespace FTT.Environment {
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         /// <summary>
-        /// Act II finale: the design's authored Sarah scene (design-godot.md
-        /// 3376-3383), triggered as the player reaches the outpost entrance. It is
-        /// the campaign's thesis statement and it has to land before the boss.
+        /// Act II finale set-up: the design's authored Sarah scene (design-godot.md
+        /// §16, Level 12 Pre-Boss), triggered as the player reaches the outpost
+        /// entrance — the trace is "nearly done" and the guardian stands between
+        /// Sarah and the answer. Since Package 12 W7 (M13) the trace completes in
+        /// <see cref="PostBossDialogueID"/>, not here.
         /// </summary>
         public string PreBossDialogueID => $"{DialoguePrefix}.preboss";
+
+        /// <summary>
+        /// Package 12 W7 (M13): the trace completes AFTER the Overseer falls. The
+        /// pre-boss scene is set-up only; the where-reveal — the fortress between
+        /// timelines, the live signatures, <c>{CaptiveName1}</c> /
+        /// <c>{CaptiveName2}</c>, the draining — is this post-boss beat, chained
+        /// defeat -> postboss -> exit -> results by the base class's post-boss
+        /// tail (see Level 8 for the pattern).
+        /// </summary>
+        public string PostBossDialogueID => $"{DialoguePrefix}.postboss";
+
+        private string[] _postBossBeats;
+
+        protected override IReadOnlyList<string> PostBossDialogueIDs =>
+            _postBossBeats ??= new[] { PostBossDialogueID };
+
+        /// <summary>True while the M13 post-boss trace scene is the active post-boss beat.</summary>
+        public bool PostBossBeatActive => ActivePostBossDialogueID == PostBossDialogueID;
 
         protected override string InitialObjectiveKey => "lunar_objective_reach_outpost";
         protected override string BossObjectiveKey => "lunar_objective_defeat_boss";

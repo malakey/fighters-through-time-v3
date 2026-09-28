@@ -430,12 +430,21 @@ namespace FTT.UI {
 
         /// <summary>
         /// Substitutes the captive-name tokens against the manifest roster minus
-        /// the active hero (<see cref="FTT.Core.CampaignCaptiveRoster"/>). Static
+        /// the active hero (<see cref="FTT.Core.CampaignCaptiveRoster"/>), and —
+        /// since Package 12 W7 — the hero-name tokens of
+        /// <see cref="FTT.Core.DialogueTokens"/> (<c>{HeroName}</c>,
+        /// <c>{HeroAddressName}</c>, <c>{HeroPossessiveName}</c>,
+        /// <c>{HomeEraName}</c>) against the saved campaign hero. The name is
+        /// kept for its callers; it is the dialogue box's whole token pass. Static
         /// and public so the resolution is provable without a box on screen.
         /// A line with no token is returned untouched.
         /// </summary>
         public static string SubstituteCaptiveNames(string text) {
             if (string.IsNullOrEmpty(text)) return text;
+            // Package 12 W7 (M35): the hero-name tokens ride the same render-time
+            // pass, so every line shown through this box resolves all of them.
+            text = FTT.Core.DialogueTokens.SubstituteHeroTokens(
+                text, ActiveHeroID(), key => TranslationServer.Translate(key).ToString());
             bool hasFirst = text.Contains(CaptiveNameToken1);
             bool hasSecond = text.Contains(CaptiveNameToken2);
             if (!hasFirst && !hasSecond) return text;

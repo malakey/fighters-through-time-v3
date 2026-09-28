@@ -134,7 +134,7 @@ boss_borgia_inquisitor_name,The Borgia Inquisitor
 boss_siegemaster_duke_name,The Siegemaster Duke
 boss_chronal_inventor_name,The Chronal Inventor
 boss_revolutionary_tribunal_name,The Revolutionary Tribunal
-boss_tidal_eraser_name,The Tidal Eraser
+boss_tidal_eraser_name,The Tidal Overseer
 boss_vulcan_decimator_name,The Vulcan Decimator
 boss_dread_admiral_name,The Dread Admiral
 boss_jackal_priest_name,The Jackal Priest
@@ -401,10 +401,10 @@ emotion_shocked,Shocked
 emotion_confused,Confused
 emotion_injured,Injured
 dlg_l00_intro_1,"Welcome back to reality, traveler. Or rather, what's left of it. I am Sarah, commander of the Meridian's Wardens. Breathe — we caught you mid-transfer. Your body is still deciding when it is."
-dlg_l00_intro_2,"...Where am I? Princeton? Orléans? The sky... it tore apart, and something pulled."
-dlg_l00_intro_3,"An extraction beam. The ones who fired it call themselves the Unbound — a sect from my century that went to war over the right to touch the past, and lost. Losing made them desperate. Now they attack history itself: cracking open its pivotal moments and draining them, remaking time in their favor. You were a target. You are the one we reached in time."
+dlg_l00_intro_2,"...Where am I? {HomeEraName}? The sky... it tore apart, and something pulled."
+dlg_l00_intro_3,"An extraction beam. The ones who fired it call themselves the Unbound — a sect from my century that went to war over the right to touch the past, and is losing. Losing makes them desperate. Now they attack history itself: cracking open its pivotal moments and draining them, remaking time in their favor. You were a target. You are the one we reached in time."
 dlg_l00_intro_4,"Then we must stop them. But what of the soldiers I saw? They looked like my people, but... wrong. Their eyes glowed, their weapons hummed with light."
-dlg_l00_intro_5,"The Unbound's doing. Where their siphons deploy, they neural-link the local inhabitants and force them to defend the machines as 'Altered Mobs' — steam automatons overcharged with chronal energy, knights with energy shields. Alongside them you will face the Unbound's own infantry from the future. Destroy the siphons, and the link breaks."
+dlg_l00_intro_5,"The Unbound's doing. Where their siphons deploy, they neural-link the local inhabitants and force them to defend the machines as 'Altered Mobs' — steam automatons overcharged with chronal energy, knights with energy shields. Alongside them you will face the Unbound's own infantry from the future. Seal the moment and the siphons die — the link breaks."
 dlg_l00_intro_6,"Time protects itself. When they tore your moment open, history armed the only anchor it had left — you. Everything your era is poured itself into its legend rather than let them take it. We call it Temporal Resonance."
 dlg_l00_mobility_1,"Your combat resonance is calibrated. Now let's test your spatial awareness — you'll need every advantage to navigate the fractured timelines."
 dlg_l00_complete_1,"Calibration complete. The time portals are unlocked — return to the bridge and choose your first destination."
@@ -416,7 +416,7 @@ dlg_l01_exit_1,"The siphon is shattered. The energy is dispersing."
 dlg_l01_exit_2,"Outstanding. With the siphon gone, the neural-link is broken. The altered guards will wake with nothing but a headache, thinking it was a strange dream."
 dlg_l01_exit_3,"And the master of this workshop? Half-built wonders, ink still warm on the drafting table... and no Da Vinci. Where is he?"
 dlg_l01_exit_4,...I don't know. The record says he never left this room in 1503. Yet the era stands — as if history is holding its breath for him. Come home. I need to look at the other eras.
-dlg_hub_sarah_1,"The bridge is yours, traveler. This ship is cut off from my own century, so what you see is what we have — the Chronal Repository will bank your dust, and the Holodeck can spar you against simulated foes."
+dlg_hub_sarah_1,"The bridge is yours, {HeroAddressName}. This ship is cut off from my own century, so what you see is what we have — the Chronal Repository will bank your dust, and the Holodeck can spar you against simulated foes."
 dlg_hub_sarah_2,"When you are ready, the Temporal Portal is charged for your next destination. History is waiting."
 hud_rewinds,Rewinds: {0}
 hud_checkpoint_reached,CHECKPOINT REACHED
@@ -500,12 +500,12 @@ orleans_gate_shielded,KINETIC BARRIER — DESTROY THE GENERATOR
 speaker_siegemaster,The Siegemaster Duke
 dlg_l02_entrance_1,"Orléans is starving behind those walls. And that shimmer across the causeway — no siege line in 1429 glows like that."
 dlg_l02_entrance_2,"That is Unbound hardware. Kinetic shield generators pinning the French vanguard in place, and mortar emplacements ranged on every approach. Break the generators and the cavalry charge history remembers can finally happen."
-dlg_l02_boss_1,"So the little ghost walks through my barriers. The Unbound bought me this siege, traveler, and I intend to keep it until the walls come down."
+dlg_l02_boss_1,"So the little ghost walks through my barriers. The Unbound bought me this siege, {HeroName}, and I intend to keep it until the walls come down."
 dlg_l02_boss_2,"You sold a city for borrowed lightning. Put down the lance and I might leave you your century."
 dlg_l02_exit_1,"The last generator is slag. The barriers are gone."
 dlg_l02_exit_2,"Confirmed. The vanguard is moving. The relief of Orléans is back on its own timeline, and the English commanders will remember nothing but bad weather and worse luck."
 dlg_l02_exit_3,"The banner is still standing in the mud where they planted it, Commander. Nobody picked it up. Where is the Maid of Orléans?"
-dlg_l02_exit_4,"Not on the field. Not in the camp. Not anywhere in 1429 that I can read. That is two eras now, both waiting on someone who never arrived."
+dlg_l02_exit_4,Not on the field. Not in the camp. Not anywhere in 1429 that I can read. Another era waiting on someone who never arrived.
 dlg_l02_exit_5,Then log it and take me back to the ship. I want to know what they are waiting for.
 chicago_level_title,"LEVEL 3: THE WORLD'S FAIR — CHICAGO 1893"
 chicago_room_midway,THE MIDWAY
@@ -520,7 +520,7 @@ chicago_objective_defeat_boss,Defeat the Chronal Inventor!
 chicago_objective_complete,LEVEL COMPLETE! Returning to Time-Ship...
 speaker_inventor,The Chronal Inventor
 dlg_l03_entrance_1,"Electric light for a mile in every direction — and every wire of it humming wrong."
-dlg_l03_entrance_2,"That is Unbound work, Traveler. They have seeded siphon coils across the fairgrounds. Let the overload land and the Exposition burns with Tesla's name on it. Reroute the current before the crowds pay for it."
+dlg_l03_entrance_2,"That is Unbound work, {HeroAddressName}. They have seeded siphon coils across the fairgrounds. Let the overload land and the Exposition burns with Tesla's name on it. Reroute the current before the crowds pay for it."
 dlg_l03_boss_1,"Do you feel it? Alternating. Accelerating. A century of progress, and I can spend all of it in one beautiful second."
 dlg_l03_boss_2,"Then spend it on me. Leave the fair out of it."
 dlg_l03_exit_1,"Siphon coils are shattered. The current is running where it should."
@@ -553,17 +553,17 @@ dlg_l04_exit_5,"Ask it out loud next time, Commander. Bring me home."
 titanic_level_title,The Sinking Titanic — 1912
 titanic_objective_reach_stern,Climb sternward before the flooding overtakes you
 titanic_objective_boat_deck,Reach the boat deck — the water is still rising
-titanic_objective_defeat_boss,Destroy the Tidal Eraser
+titanic_objective_defeat_boss,Destroy the Tidal Overseer
 titanic_objective_complete,"The harvest is broken. Return to the Time-Ship."
 titanic_room_grand_staircase,D-Deck — Grand Staircase
 titanic_room_boiler_casing,E-Deck — Boiler Casing
 titanic_room_boat_deck,Boat Deck
 titanic_room_stern_rail,Stern Rail
-speaker_tidal_eraser,The Tidal Eraser
+speaker_tidal_eraser,The Tidal Overseer
 dlg_l05_entrance_1,"The deck is already tilting. This ship has hours. Maybe less."
-dlg_l05_entrance_2,"The Unbound are not siphoning a battle this time, Traveler. They are draining grief — fifteen hundred lives' worth, harvested at the exact moment history remembers it happening. Get sternward before the bow goes under."
+dlg_l05_entrance_2,"The Unbound are not siphoning a battle this time, {HeroAddressName}. They are draining grief — fifteen hundred lives' worth, harvested at the exact moment history remembers it happening. Get sternward before the bow goes under."
 dlg_l05_entrance_3,"Then we take their siphon before the sea takes the ship."
-dlg_l05_preboss_1,"Traveler, the flooding is running ahead of the historical record. Something down there is pulling water in faster than the hull can take it."
+dlg_l05_preboss_1,"{HeroAddressName}, the flooding is running ahead of the historical record. Something down there is pulling water in faster than the hull can take it."
 dlg_l05_preboss_2,"It is not the sea doing this. It is them."
 dlg_l05_preboss_3,"Their harvester is anchored at the stern rail. Engage it and that deck will not stay dry. Keep to the gantries and finish it fast."
 dlg_l05_boss_intro_1,"Sixteen hundred endings, all in one hour. Do you understand how rare a yield like this is? Stand still. You are spoiling it."
@@ -571,7 +571,7 @@ dlg_l05_boss_intro_2,"This is not a harvest. It is a grave. And you are standing
 dlg_l05_exit_1,"The siphon is down. The water is still rising."
 dlg_l05_exit_2,"It has to. The sinking is real history and history stands. What we stopped was the theft — those people will be remembered instead of drained. The lifeboats are launching on schedule now."
 dlg_l05_exit_3,"There is something left in the wreck of the harvester. Encrypted. It keeps repeating one string."
-dlg_l05_exit_4,"Route it to me. Traveler, that is an uplink handshake. The Unbound were never storing this haul aboard — it was relaying it upward, to an orbital communications relay that will not exist for another fifty-seven years."
+dlg_l05_exit_4,"Route it to me. {HeroAddressName}, that is an uplink handshake. The Unbound were never storing this haul aboard — it was relaying it upward, to an orbital communications relay that will not exist for another fifty-seven years."
 dlg_l05_exit_5,"Then that is where the rest of the timeline is going. Get me back to the ship, Sarah. We follow it up."
 berlin_level_title,"Berlin, 1961 — The Divided City"
 berlin_room_checkpoint_charlie,RUINED BLOCKS — CHECKPOINT CHARLIE
@@ -587,7 +587,7 @@ berlin_objective_complete,LEVEL COMPLETE! Returning to Time-Ship...
 berlin_gate_locked,RADAR GATE SEALED — CUT THE SURVEILLANCE FEEDS
 speaker_iron_chancellor,The Iron Chancellor
 dlg_l09_entrance_1,"They are still pouring the Wall and there are already searchlights on it. Those towers are not 1961."
-dlg_l09_entrance_2,"They are cloaked radar masts, Traveler, and the beams under them are targeting paint. Stand in one longer than a second and a half and something above the cloud deck fires straight down the column. Keep to the dark, and cut the feed relays where you find them — a mast with no feed is a mast with no beam."
+dlg_l09_entrance_2,"They are cloaked radar masts, {HeroAddressName}, and the beams under them are targeting paint. Stand in one longer than a second and a half and something above the cloud deck fires straight down the column. Keep to the dark, and cut the feed relays where you find them — a mast with no feed is a mast with no beam."
 dlg_l09_boss_1,"Far enough. Behind me is a switchboard that speaks to every silo on this continent, and tonight it tells them a lie they have been waiting fifteen years to believe. You will not reach it."
 dlg_l09_boss_2,"You cut a wall through the middle of a living city and called it order. I am going to come through you the same way they will come through it."
 dlg_l09_exit_1,"The switchboard is dead. The masts are dark all the way to the horizon."
@@ -616,7 +616,7 @@ egypt_glyph_jackal,JACKAL
 speaker_cleopatra,Cleopatra
 speaker_jackal_priest,The Jackal Priest
 dlg_l08_entrance_1,"Roman siege towers on the shore — and every legionnaire down there is carrying a blade that burns."
-dlg_l08_entrance_2,"Plasma swords and powered centurion plate, Traveler. The Unbound are buying Octavian a total victory and siphoning the fall of Alexandria while it burns. The palace guard is on the same neural link. Get under the sand line: the tomb network runs beneath the siege and comes up inside the royal vault."
+dlg_l08_entrance_2,"Plasma swords and powered centurion plate, {HeroAddressName}. The Unbound are buying Octavian a total victory and siphoning the fall of Alexandria while it burns. The palace guard is on the same neural link. Get under the sand line: the tomb network runs beneath the siege and comes up inside the royal vault."
 dlg_l08_entrance_3,"Then I go through the dead to reach the living."
 dlg_l08_boss_intro_1,"The queen's vault opens only for those who know the old order, little ghost. I wrote the order. I wrote her ending. Kneel and be catalogued."
 dlg_l08_boss_intro_2,"You put a leash on her own guard and called it worship. Step away from the door."
@@ -627,7 +627,7 @@ dlg_l08_postboss_4,That is my hope. We caught you mid-theft — perhaps the othe
 dlg_l08_exit_1,"The siphon is shattered. The sand is just sand again."
 dlg_l08_exit_2,"Confirmed. The neural link is down across the whole delta. Octavian's legion and the palace guard both come back to themselves, and the siege ends the way history wrote it — not one hour worse."
 dlg_l08_exit_3,The vault is sealed and the delta is quiet. It is the emptiest victory I have carried out of an era yet.
-dlg_l08_exit_4,"Act II runs harder than Act I, Traveler, and every anchor ahead is bigger than one palace. Whatever you reclaimed in there is yours now — you are going to need all of it."
+dlg_l08_exit_4,"Act II runs harder than Act I, {HeroAddressName}, and every anchor ahead is bigger than one palace. Whatever you reclaimed in there is yours now — you are going to need all of it."
 dlg_l08_exit_5,"Then stop warning me and take me home, Commander. There is another one waiting."
 pompeii_level_title,The Fall of Pompeii — 79 AD
 pompeii_room_forum,The Forum — First Ashfall
@@ -646,7 +646,7 @@ pompeii_objective_complete,"The harvest is broken. Return to the Time-Ship."
 pompeii_rockfall_blocked,ROAD BURIED — HAUL THE ROCKFALL CLEAR
 speaker_vulcan_decimator,The Vulcan Decimator
 dlg_l06_entrance_1,"The mountain is already open. That ash column is miles high — and it is coming down far faster than it should be."
-dlg_l06_entrance_2,"Faster is the whole point, Traveler. The Unbound have driven thermal anchors into the caldera to tap the eruption at its peak. They are forcing Vesuvius ahead of its own schedule so the yield lands before anyone in Pompeii can reach the harbour."
+dlg_l06_entrance_2,"Faster is the whole point, {HeroAddressName}. The Unbound have driven thermal anchors into the caldera to tap the eruption at its peak. They are forcing Vesuvius ahead of its own schedule so the yield lands before anyone in Pompeii can reach the harbour."
 dlg_l06_entrance_3,"Then I get them to the harbour first. The anchor second."
 dlg_l06_boss_1,"Eighteen hours of terror, compressed into two. Do you understand what that concentration is worth? Every one of them running, and not one of them fast enough."
 dlg_l06_boss_2,"They were never running from the mountain. They were running from you."
@@ -666,12 +666,12 @@ nassau_room_channel,Boarding Channel
 nassau_room_flagship,Flagship — Burning Deck
 speaker_dread_admiral,The Dread Admiral
 dlg_l07_entrance_1,"They voted. A whole town of thieves stood up and voted itself free — and the sky is full of mortars."
-dlg_l07_entrance_2,"Those are not Navy guns, Traveler, not entirely. The Unbound have seeded the water with sub-aquatic torpedoes and laid a chronal targeting grid over the bay. Every shell the British fire is being aimed for them. Nassau is not being defeated. It is being erased on schedule."
+dlg_l07_entrance_2,"Those are not Navy guns, {HeroAddressName}, not entirely. The Unbound have seeded the water with sub-aquatic torpedoes and laid a chronal targeting grid over the bay. Every shell the British fire is being aimed for them. Nassau is not being defeated. It is being erased on schedule."
 dlg_l07_entrance_3,"Then we go where the grid is anchored. Out to the ships."
 dlg_l07_boss_intro_1,"Look at it burn. A republic of nobodies, and history was going to keep the name anyway. I am simply correcting the ledger."
 dlg_l07_boss_intro_2,"They are not nobodies. They are the first people here who chose. Get off their harbour."
 dlg_l07_exit_1,"The grid is down. The guns are just guns again."
-dlg_l07_exit_2,"Confirmed — the bay is clear of chronal returns. Nassau still falls to the pardon in two years, Traveler, but it falls the way it actually fell, and everyone below decks gets to run for the boats."
+dlg_l07_exit_2,"Confirmed — the bay is clear of chronal returns. Nassau still falls to the pardon in two years, {HeroAddressName}, but it falls the way it actually fell, and everyone below decks gets to run for the boats."
 dlg_l07_exit_3,They voted themselves free and then held the harbour with what they had. Nobody down there needed a legend to tell them how.
 dlg_l07_exit_4,"No. And every era that did have one is still missing them. Come home and let the ship read you — there is another siphon burning three hundred years further back, and I do not like where."
 globe_level_title,"London, 1599 — The Globe Theatre"
@@ -687,7 +687,7 @@ globe_objective_defeat_boss,Defeat the Tragedy King!
 globe_objective_complete,LEVEL COMPLETE! Returning to Time-Ship...
 speaker_tragedy_king,The Tragedy King
 dlg_l10_entrance_1,"Full house. Two thousand people packed in to watch a prince go mad, and not one of them has blinked since I walked in."
-dlg_l10_entrance_2,"That is the manipulators, Traveler. The Unbound have seeded the galleries, and they have rigged collapse charges under the stage. The moment those boards go, two thousand held minds are released at once and they all try to leave through the same door. Keep off a plank that starts shaking — and keep moving. A held crowd throws whatever is in reach at anything that stands still."
+dlg_l10_entrance_2,"That is the manipulators, {HeroAddressName}. The Unbound have seeded the galleries, and they have rigged collapse charges under the stage. The moment those boards go, two thousand held minds are released at once and they all try to leave through the same door. Keep off a plank that starts shaking — and keep moving. A held crowd throws whatever is in reach at anything that stands still."
 dlg_l10_entrance_3,"Then I will give them a performance worth watching."
 dlg_l10_boss_1,"You are early, and you are not in the script. Sit down. The fifth act is the only part of any of this that anyone remembers, and I have rewritten it so that nobody walks out."
 dlg_l10_boss_2,"Every one of them came here to watch a tragedy and then go home again. I am going to make sure they do."
@@ -710,13 +710,13 @@ gettysburg_lane_shielded,"EM SCREEN — UNION LANE SEALED"
 gettysburg_gate_sealed,"CONFEDERATE BREASTWORK — BREAK THE SHIELDING ARRAYS"
 speaker_siege_cannon,The Siege Cannon
 dlg_l11_entrance_1,"That is not cannon fire. Those shells are tracking — they turn to follow me."
-dlg_l11_entrance_2,"Confirmed. The Unbound handed the Confederate batteries laser guidance and an electromagnetic screen, and Union brigades are pinned in the open. Two shielding arrays hold that screen up. Break both and the line moves. Keep something solid between you and the sky, Traveler — those guns telegraph before they fire."
+dlg_l11_entrance_2,"Confirmed. The Unbound handed the Confederate batteries laser guidance and an electromagnetic screen, and Union brigades are pinned in the open. Two shielding arrays hold that screen up. Break both and the line moves. Keep something solid between you and the sky, {HeroAddressName} — those guns telegraph before they fire."
 dlg_l11_boss_1,"RAILHEAD SECURE. TARGET RESOLVED. THE FIELD BELONGS TO THE GUN."
 dlg_l11_boss_2,"Then come off the rails and say that where I can reach you."
 dlg_l11_exit_1,"The gun is dead. The sky is quiet. First time all day I can hear the wheat."
 dlg_l11_exit_2,Siphon shattered — the whole Gettysburg draw just went dark on my board. The Union advance is over the wall and the battle is running on its own clock again. Whatever the Unbound wrote here is unwritten.
 dlg_l11_exit_3,"The dedication platform is built and empty, Sarah. The address unread. The officers have had no word from Washington in days."
-dlg_l11_exit_4,"Six now. Six of history's heaviest, and not one of them standing where the record says they stood. We find the pattern or we lose the next one."
+dlg_l11_exit_4,"Another one. History's heaviest, one era after another, and not one of them standing where the record says they stood. We find the pattern or we lose the next one."
 dlg_l11_exit_5,"Log it. Then pull me out. There are four more of these."
 lunar_level_title,The Lunar Landing — 1969
 lunar_room_tranquility_base,Tranquility Base — Sea of Tranquility
@@ -731,19 +731,19 @@ lunar_objective_defeat_boss,Destroy the Gravity Overseer
 lunar_objective_complete,"The broadcast is clean. Return to the Time-Ship."
 speaker_gravity_overseer,The Gravity Overseer
 dlg_l12_entrance_1,"Tranquility Base is right there. The lander, the flag, the first footprints ever pressed into this dust — and half a kilometre east of it, something the crew will never see and never report."
-dlg_l12_entrance_2,"That is the relay, Traveler. The uplink handshake we pulled out of the Titanic wreck was pointing here all along — fifty-seven years early, and this is the address. The Unbound are riding the broadcast: six hundred million people watching one moment together, and every one of them feeding the siphon. Watch your footing. One sixth of the gravity you are used to, and the outpost vents run straight to vacuum."
+dlg_l12_entrance_2,"That is the relay, {HeroAddressName}. The uplink handshake we pulled out of the Titanic wreck was pointing here all along — fifty-seven years early, and this is the address. The Unbound are riding the broadcast: six hundred million people watching one moment together, and every one of them feeding the siphon. Watch your footing. One sixth of the gravity you are used to, and the outpost vents run straight to vacuum."
 dlg_l12_entrance_3,"Then we take the relay before the broadcast ends."
 dlg_l12_preboss_1,"To think humanity would walk among the stars... and yet, the Unbound have built a fortress of metal here."
-dlg_l12_preboss_2,"Their last siphon nexus. Break it, and their roads through the rifts begin to close. And my trace is nearly done — every drained era, every stolen scrap of resonance... it has all been flowing somewhere. This siphon will show me where."
-dlg_l12_preboss_3,"The nexus siphon buckles and goes dark. On the Time-Ship, Sarah's trace completes."
+dlg_l12_preboss_2,"Their last siphon nexus. Break it, and their roads through the rifts begin to close. And my trace is nearly done — every drained era, every stolen scrap of resonance... it has all been flowing somewhere. Get me past its guardian and this siphon will show me where."
+dlg_l12_preboss_3,"The Overseer falls. With the nexus undefended, Sarah's trace completes."
 dlg_l12_preboss_4,...Coordinates. A fortress in the space between timelines. And inside it — resonance signatures. Alive. It's them. {CaptiveName1}. {CaptiveName2}. The others we lost. They were never adrift. The Unbound have had them since the first strike — and their resonance is draining.
 dlg_l12_preboss_5,"Then the eras were never the whole of it. Whatever they are building with the stolen years, it ends now. Set the portal, Commander."
 dlg_l12_boss_intro_1,"Six hundred million witnesses, one signal, one instant. Do you know what a species remembers hardest? The first time it left. I will take that from them, and they will never learn the shape of the hole where it was."
 dlg_l12_boss_intro_2,"They came up here on arithmetic and nerve, and they came up here together. You do not get to hold that."
 dlg_l12_exit_1,"The relay is scrap. The broadcast is going out clean."
-dlg_l12_exit_2,Confirmed. Every set on Earth is watching the real thing. The outpost crew the Unbound pressed into service are already coming back to themselves — nobody down there will remember having been anything but themselves.
+dlg_l12_exit_2,"Confirmed. Every set on Earth is watching the real thing. The moment is sealed and every siphon on the outpost died with it — the crew the Unbound pressed into service are coming back to themselves, and nobody down there will remember having been anything else."
 dlg_l12_exit_3,"I have never felt it this strong, Sarah. Everything I pulled off their machines up here is still in my hands."
-dlg_l12_exit_4,"Hold on to it. The overload wrote a coordinate signature back down the beam before it died, and it is not anywhere in history — it is outside it. That is where they have been keeping them."
+dlg_l12_exit_4,"Hold on to it. Where we are going next, you will need every scrap of it."
 dlg_l12_exit_5,"Then Act Two ends here. Take me through their front door, Commander."
 chronal_void_level_title,The Chronal Void
 void_room_threshold,The Threshold Shelf
@@ -771,7 +771,7 @@ void_shard_lunar_gantry,TRANQUILITY — LANDING GANTRY (ADRIFT)
 void_shard_globe_stage,THE GLOBE — STAGE BOARDS (ADRIFT)
 speaker_mirror_paradox,The Mirror Paradox
 dlg_l13_entrance_1,"There is no ground here. There is no here here — only pieces. That is the flag from Tranquility Base, and that is a Bastille door, and they are falling past each other without either of them falling down."
-dlg_l13_entrance_2,"You are between dimensions, Traveler. The trace we pulled off the Overseer runs straight through it — the Unbound cut a corridor from their own century back through every fracture they ever made, and this is the spoil heap. Head east. The far side opens on the fortress."
+dlg_l13_entrance_2,"You are between dimensions, {HeroAddressName}. The trace we pulled off the Overseer runs straight through it — the Unbound cut a corridor from their own century back through every fracture they ever made, and this is the spoil heap. Head east. The far side opens on the fortress."
 dlg_l13_entrance_3,"Then I walk east on Orléans stone and Titanic decking. Tell me the moment the gravity is about to turn over."
 dlg_l13_boss_intro_1,You are the one that got away. They modelled you a thousand times to find out how — and I am the model that kept getting up.
 dlg_l13_boss_intro_2,Then you know exactly how I fight. So do I. Come on.
@@ -796,7 +796,7 @@ neo_earth_pocket_beta,ANTI-GRAV CONTAINMENT — BETA
 neo_earth_pocket_gamma,ANTI-GRAV CONTAINMENT — GAMMA
 speaker_archive_prime,The Forge Sentinel
 dlg_l14_entrance_1,"There is no sky here. No ground either — just the fortress, hanging in the space between one century and the next."
-dlg_l14_entrance_2,"That is the Bastion, Traveler. Not a stolen era: the place they built outside all of them, and the room every siphon in history reported back to. It was made to keep people out, so the perimeter will be honest about it — security lattices on a fixed cycle, and anti-gravity containment fields they use to shift cargo. Read a lattice before you walk it. And mind the pockets: they will lift you a great deal further than you expect."
+dlg_l14_entrance_2,"That is the Bastion, {HeroAddressName}. Not a stolen era: the place they built outside all of them, and the room every siphon in history reported back to. It was made to keep people out, so the perimeter will be honest about it — security lattices on a fixed cycle, and anti-gravity containment fields they use to shift cargo. Read a lattice before you walk it. And mind the pockets: they will lift you a great deal further than you expect."
 dlg_l14_entrance_3,"Then let us walk into the one place they never rehearsed losing."
 dlg_l14_boss_intro_1,"You are a rounding error that learned to knock. I have catalogued every version of this conversation, and in the ones that matter you were filed a long time ago."
 dlg_l14_boss_intro_2,"You have catalogued an awful lot of people who never got to answer you. I am the answer."
@@ -823,21 +823,21 @@ alexandria_interaction_insert_core,Press Interact to seal the timeline
 speaker_apex_eraser,The First Unbound
 speaker_narration,Narration
 dlg_l15_entrance_1,"This is no era I can read. There is a city being founded down there, under a sky that has not decided what century it is."
-dlg_l15_entrance_2,"The founding day of the Meridian, Traveler — everything my order ever was starts this morning. The Forge fired at it, and the channel you rode in on is the shot. The First Unbound is already at the seat with the Prime Anchor half in."
+dlg_l15_entrance_2,"The founding day of the Meridian, {HeroAddressName} — everything my order ever was starts this morning. The Forge fired at it, and the channel you rode in on is the shot. The First Unbound is already at the seat with the Prime Anchor half in."
 dlg_l15_entrance_3,Then we finish it where they started it.
 dlg_l15_preboss_1,"The seat is through that door. Everything you have taken back since Florence is riding in you right now, and it is the one weight their anchor was never built to out-hold."
 dlg_l15_preboss_2,And the First Unbound?
-dlg_l15_preboss_3,"Standing over the stone with three phases of Unbound doctrine and a war it refuses to have lost. This is the last door, Traveler. There is nothing after this one."
+dlg_l15_preboss_3,"Standing over the stone with three phases of Unbound doctrine and a war it refuses to have lost. This is the last door, {HeroAddressName}. There is nothing after this one."
 dlg_l15_boss_intro_1,"You are a footnote that learned to walk. I have unwritten empires, languages, entire centuries of a species that never noticed the subtraction. This morning I unwrite the order that beat me — and then I come back for the line in the ledger with your name on it."
 dlg_l15_boss_intro_2,You have been paying for me with other people's centuries since the first day. I am here to close the account.
-dlg_l15_postboss_1,"It is down — and the Anchor is exposed, half in and still holding. That is it, Traveler. Walk to the stone and seal it. Everything you have carried since the workshop goes into that one press."
+dlg_l15_postboss_1,"It is down — and the Anchor is exposed, half in and still holding. That is it, {HeroAddressName}. Walk to the stone and seal it. Everything you have carried since the workshop goes into that one press."
 dlg_l15_postboss_2,Every era. All the way back.
 dlg_l15_ending_1,It's shattering! The Forge is drinking its own backlash — the cradles are opening! The resonance — all of it — it's going home!
-dlg_l15_ending_2,"Threads of light arc out of the collapsing Prime Anchor and across every era. In Renaissance Florence, in Roman Pompeii, on the fields of Gettysburg, cybernetic gear, laser visors and glowing energy cells dissolve from guards, soldiers and citizens. In the Bastion the cradles open one after another, and the legends — and the hundreds behind them — dissolve into golden light and reappear each in their own moment."
+dlg_l15_ending_2,"Threads of light arc out of the collapsing Prime Anchor and across every era. In Renaissance Florence, in Roman Pompeii, on the fields of Gettysburg, the fracture scars heal and the people lost to the extraction step back into their streets. {CaptiveName1} wakes in their own moment, then {CaptiveName2} — and every other legend, and the hundreds behind them, dissolves into golden light and reappears each in their own moment."
 dlg_l15_ending_3,The resonance... it was never mine. It was history's — held in trust. Take it back.
-dlg_l15_ending_4,"The timelines are sealed. The war is over — and the future you saved is the one you're standing in. Thank you, traveler. You will wake where they tried to take you from. You will remember the Time-Ship, the battle, and the friends you fought beside... but the rifts are closed forever. You are going home."
+dlg_l15_ending_4,"The timelines are sealed. The war is over — and the future you saved is the one you're standing in. Thank you, {HeroAddressName}. You will wake where they tried to take you from. You will remember the Time-Ship, the battle, and the friends you fought beside... but the rifts are closed forever. You are going home."
 dlg_l15_ending_5,History... is ours to write now.
-dlg_l15_ending_6,"The traveler disappears — last of all the legends. The Founding's sky clears, and the Meridian's first day proceeds, untouched."
+dlg_l15_ending_6,"{HeroName} disappears — last of all the legends. The Founding's sky clears, and the Meridian's first day proceeds, untouched."
 common_confirm,Confirm
 common_cancel,Cancel
 fighter_countdown_digit,{0}
@@ -1274,17 +1274,17 @@ dlg_l14_hall_3,"The Warden is half right. It is called the Anchor Forge, little 
 dlg_l14_hall_4,My legacy is not yours to spend. I will break your Forge — and every thread in this hall goes home.
 dlg_l14_hall_5,Then watch it fire.
 # N05 scarred-ending variant of the final narration beat (selection logic is A3b's).
-dlg_l15_ending_6_scarred,"The traveler disappears — last of all the legends. The Founding's sky clears, but the plaza keeps the Prime Anchor's scar: a long cold seam across the stone that the Meridian will never quite finish explaining."
+dlg_l15_ending_6_scarred,"{HeroName} disappears — last of all the legends. The Founding's sky clears, but the plaza keeps the Prime Anchor's scar: a long cold seam across the stone that the Meridian will never quite finish explaining."
 # Per-act hub refresh: Sarah and Medic Okafor on the Observation Deck.
-dlg_hub_sarah_act1_1,"Four eras closed and four legends unaccounted for, traveler. I am not calling that a coincidence on the log any more."
-dlg_hub_sarah_act1_2,Whatever you took back off their machines out there stays with you. Carry it to the next one — Act Two runs harder.
+dlg_hub_sarah_act1_1,"The eras I send you into keep coming back with a hole in them, {HeroAddressName} — the one person each moment was built around, gone. I have stopped calling that a coincidence on the log."
+dlg_hub_sarah_act1_2,Whatever you took back off their machines out there stays with you. Carry it into the next one.
 dlg_hub_sarah_act2_1,"Every era you seal cuts one more of their roads, and you come back off each one heavier than you went in. That is the only arithmetic in this war that runs our way."
 dlg_hub_sarah_act2_2,The Observation Deck is still sweeping the shards for the others. Nothing yet. The portal is charged when you are.
-dlg_hub_sarah_act3_1,"No more eras, traveler. From here it is their ground, their corridor and their fortress, and there is no way back to this deck between them."
+dlg_hub_sarah_act3_1,"No more eras, {HeroAddressName}. From here it is their ground, their corridor and their fortress, and there is no way back to this deck between them."
 dlg_hub_sarah_act3_2,Everything history handed you is still in your hands. Take all of it through that portal.
-dlg_hub_okafor_act1_1,"Medic Okafor. Sit, please — I read every traveler before and after. Your resonance baseline is up eleven points since Florence."
+dlg_hub_okafor_act1_1,"Medic Okafor. Sit, please — I read everyone who comes through that portal, before and after. Your resonance baseline is up eleven points since Florence."
 dlg_hub_okafor_act1_2,"That is not what the Commander expected, and I would rather she were wrong in this direction. Go carefully."
-dlg_hub_okafor_act2_1,"Up again. Whatever you are pulling out of their siphons is not passing through you, traveler — it is staying."
+dlg_hub_okafor_act2_1,"Up again. Whatever you are pulling out of their siphons is not passing through you, {HeroAddressName} — it is staying."
 dlg_hub_okafor_act2_2,"I have also finished the era sweep the Commander asked for. Vienna, 1787. No Mozart. I have stopped being surprised and started keeping a list."
 dlg_hub_okafor_act3_1,The readings are off my scale now. I have nothing to compare you to except the day we pulled you off that beam.
 dlg_hub_okafor_act3_2,Come back and let me take one more. That is all I am asking of you.
@@ -1553,3 +1553,63 @@ telegraph_siphon_tether_tooltip,"Siphon tether: drains Influence inside the ring
 # Package 12 W2
 hub_repository_last_banked,Last mission banked: {0} Chronal Dust
 hub_repository_attempt_held,"Held by your open mission: {0} Chronal Dust (banks when that level is completed)"
+
+# Package 12 W7
+# M35 hero name table: display, spoken address, possessive and home era. Resolved at render time.
+hero_name_einstein,Einstein
+hero_address_einstein,Professor
+hero_possessive_einstein,Einstein's
+hero_home_era_einstein,Princeton
+hero_name_joan,Joan
+hero_address_joan,Joan
+hero_possessive_joan,Joan's
+hero_home_era_joan,Orléans
+hero_name_leonardo,Da Vinci
+hero_address_leonardo,Maestro
+hero_possessive_leonardo,Da Vinci's
+hero_home_era_leonardo,Florence
+hero_name_lincoln,Lincoln
+hero_address_lincoln,Mr. President
+hero_possessive_lincoln,Lincoln's
+hero_home_era_lincoln,Gettysburg
+hero_name_cleopatra,Cleopatra
+hero_address_cleopatra,Your Majesty
+hero_possessive_cleopatra,Cleopatra's
+hero_home_era_cleopatra,Alexandria
+hero_name_tesla,Tesla
+hero_address_tesla,Mr. Tesla
+hero_possessive_tesla,Tesla's
+hero_home_era_tesla,Chicago
+hero_name_shakespeare,Shakespeare
+hero_address_shakespeare,Master Shakespeare
+hero_possessive_shakespeare,Shakespeare's
+hero_home_era_shakespeare,London
+hero_name_mozart,Mozart
+hero_address_mozart,Herr Mozart
+hero_possessive_mozart,Mozart's
+hero_home_era_mozart,Vienna
+hero_name_pocahontas,Pocahontas
+hero_address_pocahontas,Pocahontas
+hero_possessive_pocahontas,Pocahontas's
+hero_home_era_pocahontas,Tsenacommacah
+hero_name_fallback,The traveler
+hero_address_fallback,traveler
+hero_possessive_fallback,the traveler's
+hero_home_era_fallback,Home
+# M14 absence-list variants (new variant keys use __heroid per D6(a)).
+dlg_l03_exit_4__leonardo,"Orléans, and now Chicago. Every era but yours missing the one person the moment was built around. I am starting to think that is the pattern, not the coincidence."
+dlg_l03_exit_4__joan,"Florence, and now Chicago. Every era but yours missing the one person the moment was built around. I am starting to think that is the pattern, not the coincidence."
+dlg_l08_postboss_2__leonardo,"Nowhere. Her guards defended an empty throne with future fire. And the era holds its breath — like Orléans. Every giant but you, missing from their own moment."
+dlg_l08_postboss_2__joan,"Nowhere. Her guards defended an empty throne with future fire. And the era holds its breath — like Florence. Every giant but you, missing from their own moment."
+dlg_hub_okafor_act2_2__mozart,"I have also finished the era sweep the Commander asked for. Princeton, 1945. No Einstein. I have stopped being surprised and started keeping a list."
+# GAP-15 post-campaign epilogue on the Bridge.
+dlg_hub_sarah_epilogue_1,"The board is quiet, {HeroAddressName}. No rifts, no siphons burning — the first quiet watch since I took this command."
+dlg_hub_sarah_epilogue_2,"Every era you walked through is still standing, and the log says who held the line. Stay on the bridge as long as you like."
+dlg_hub_okafor_epilogue_1,"Your readings are settling — ordinary, human, wonderful. I have never been so glad to watch a number fall."
+dlg_hub_okafor_epilogue_2,Thank you for letting me keep the list. Every name on it went home.
+# M11: the Bridge arrival anchor and the Observation Deck crew post.
+hub_bridge,THE BRIDGE
+hub_npc_okafor,MEDIC OKAFOR
+# Level 4A opens on a flavour Nexus moment (the Ultimate beat itself plays on Level 4 results).
+dlg_l04a_nexus_moment_1,"Feel that, {HeroAddressName}? This is your own moment answering you. The fire you carried out of Paris is waking all the way up."
+dlg_l04a_nexus_moment_2,"It is. Every piece of it, at once."

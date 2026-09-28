@@ -60,7 +60,13 @@ public class UnusedTranslationKeyTests {
         // all three as orphans "until the resolver merges"; A5's resolver has
         // merged, and it builds the key from the manifest roster ID, so the
         // family belongs here rather than on the orphan roster.
-        ("captive_name_", "scripts/Core/CampaignCaptiveRoster.cs", "$\"captive_name_{characterID}\"")
+        ("captive_name_", "scripts/Core/CampaignCaptiveRoster.cs", "$\"captive_name_{characterID}\""),
+        // Package 12 W7 (M35): the hero name table, built from the saved hero ID
+        // (or the fallback row) by the render-time token pass.
+        ("hero_name_", "scripts/Core/DialogueTokens.cs", "$\"hero_name_{heroID}\""),
+        ("hero_address_", "scripts/Core/DialogueTokens.cs", "$\"hero_address_{heroID}\""),
+        ("hero_possessive_", "scripts/Core/DialogueTokens.cs", "$\"hero_possessive_{heroID}\""),
+        ("hero_home_era_", "scripts/Core/DialogueTokens.cs", "$\"hero_home_era_{heroID}\"")
     };
 
     /// <summary>

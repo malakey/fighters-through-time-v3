@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="DialogueSetData" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
@@ -15,9 +15,18 @@ AutoAdvance = false
 [sub_resource type="Resource" id="PreBoss"]
 script = ExtResource("2")
 DialogueID = "level_12.preboss"
-SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_narration", "speaker_sarah", "speaker_player")
-LineKeys = PackedStringArray("dlg_l12_preboss_1", "dlg_l12_preboss_2", "dlg_l12_preboss_3", "dlg_l12_preboss_4", "dlg_l12_preboss_5")
-EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_neutral", "emotion_shocked", "emotion_determined")
+SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l12_preboss_1", "dlg_l12_preboss_2")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="PostBoss"]
+script = ExtResource("2")
+DialogueID = "level_12.postboss"
+SpeakerNameKeys = PackedStringArray("speaker_narration", "speaker_sarah", "speaker_player")
+LineKeys = PackedStringArray("dlg_l12_preboss_3", "dlg_l12_preboss_4", "dlg_l12_preboss_5")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_shocked", "emotion_determined")
 PausesGameplay = true
 AutoAdvance = false
 
@@ -42,4 +51,4 @@ AutoAdvance = false
 [resource]
 script = ExtResource("1")
 DialogueSetID = "dialogue_level_12"
-Sequences = [SubResource("Entrance"), SubResource("PreBoss"), SubResource("BossIntro"), SubResource("Exit")]
+Sequences = [SubResource("Entrance"), SubResource("PreBoss"), SubResource("BossIntro"), SubResource("PostBoss"), SubResource("Exit")]

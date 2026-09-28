@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="DialogueSetData" load_steps=9 format=3]
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
@@ -59,7 +59,27 @@ EmotionKeys = PackedStringArray("emotion_determined", "emotion_neutral", "emotio
 PausesGameplay = true
 AutoAdvance = false
 
+[sub_resource type="Resource" id="PostBossLeonardo"]
+script = ExtResource("2")
+DialogueID = "level_08.postboss@leonardo"
+HeroConditionCharacterID = "leonardo"
+SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l08_postboss_1", "dlg_l08_postboss_2__leonardo", "dlg_l08_postboss_3", "dlg_l08_postboss_4")
+EmotionKeys = PackedStringArray("emotion_injured", "emotion_neutral", "emotion_confused", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="PostBossJoan"]
+script = ExtResource("2")
+DialogueID = "level_08.postboss@joan"
+HeroConditionCharacterID = "joan"
+SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l08_postboss_1", "dlg_l08_postboss_2__joan", "dlg_l08_postboss_3", "dlg_l08_postboss_4")
+EmotionKeys = PackedStringArray("emotion_injured", "emotion_neutral", "emotion_confused", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
 [resource]
 script = ExtResource("1")
 DialogueSetID = "dialogue_level_08"
-Sequences = [SubResource("Entrance"), SubResource("BossIntro"), SubResource("PostBoss"), SubResource("Exit"), SubResource("EntranceCleopatra"), SubResource("PostBossCleopatra")]
+Sequences = [SubResource("Entrance"), SubResource("BossIntro"), SubResource("PostBoss"), SubResource("Exit"), SubResource("EntranceCleopatra"), SubResource("PostBossCleopatra"), SubResource("PostBossLeonardo"), SubResource("PostBossJoan")]
