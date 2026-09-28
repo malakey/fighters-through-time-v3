@@ -20,7 +20,7 @@ match_ko,K.O.!
 settings_master_volume,Master Volume
 settings_music_volume,Music Volume
 settings_sfx_volume,SFX Volume
-settings_ui_volume,UI Volume
+settings_ui_volume,UI & Dialogue Volume
 settings_vsync,VSync
 settings_resolution,Resolution
 settings_haptics,Controller Haptics
@@ -1550,3 +1550,61 @@ enemy_ability_null_lance_name,Null Lance
 enemy_ability_siphon_snare_name,Siphon Snare
 enemy_ability_lance_jab_name,Lance Jab
 telegraph_siphon_tether_tooltip,"Siphon tether: drains Influence inside the ring. Block it, break line of sight, or leave the circle."
+# Package 12 W6
+settings_mute,Mute
+settings_mute_when_unfocused,Mute When Unfocused
+settings_text_speed,Text Speed
+settings_text_speed_slow,Slow
+settings_text_speed_normal,Normal
+settings_text_speed_fast,Fast
+settings_text_speed_instant,Instant
+settings_about_heading,About & Privacy
+settings_privacy_notice,"This game collects no telemetry and sends nothing over the network. It keeps plain-text logs of the last 5 sessions on this computer. If the game closes unexpectedly, a copy of that session's log is kept locally in a crash-reports folder; nothing is uploaded, and your save files are never included. Set Crash Reports to Never to stop keeping those copies."
+settings_crash_reports,Crash Reports
+settings_crash_reports_ask,Ask
+settings_crash_reports_always,Always keep locally
+settings_crash_reports_never,Never
+settings_open_logs_folder,Open Logs Folder
+settings_build_version,Version {0}
+settings_block_mode,Block Mode
+settings_block_mode_hold,Hold
+settings_block_mode_toggle,Toggle
+settings_stick_device,Stick Settings For
+settings_stick_device_all,All Controllers
+settings_stick_deadzone,Left Stick Deadzone
+settings_down_threshold,Down Input Threshold
+dialogue_log_title,Dialogue Log
+dialogue_log_empty,No dialogue yet this session.
+dialogue_log_button,Log
+pause_controller_disconnected,"Controller disconnected. Reconnect it and press any face button, or choose Resume to continue."
+pause_lower_difficulty,Lower Difficulty
+pause_lower_difficulty_confirm,Lower the difficulty from {0} to {1}? It applies from the next level you enter and cannot be raised again.
+save_slot_lowest_difficulty,Lowest difficulty used: {0}
+menu_extras,Extras
+menu_version,Version {0}
+extras_credits,Credits
+extras_licenses,Third-Party Licenses
+licenses_intro,Fighters Through Time is built with the following third-party software. Each is used under the license shown.
+licenses_row,{0} — {1}
+license_name_mit,MIT License
+license_name_apache2,Apache License 2.0
+boot_photosensitivity_title,Photosensitivity Warning
+boot_photosensitivity_body,"A very small percentage of people may experience seizures when exposed to certain lights, patterns or flashing images in video games. If you or anyone in your family has epilepsy, consult a doctor before playing. Stop playing at once if you feel dizzy or unwell. Reduced Temporal Effects and Screen Shake in Settings soften flashes, distortion and camera motion."
+boot_continue,Continue
+first_run_title,Welcome
+first_run_intro,Three quick choices. Each can be changed later in Settings.
+first_run_card_comfort,Reduced Temporal Effects
+first_run_comfort_preview,Off: time effects flash and shift like the preview. On: they become steady cues and smooth fades. Gameplay is identical either way.
+first_run_card_ui_scale,UI Scale
+first_run_card_controller,Controller
+first_run_controller_detected,Detected: {0}
+first_run_controller_keyboard,Keyboard and mouse
+first_run_controller_test,Test Controller
+first_run_controller_press,Press any button...
+first_run_controller_heard,Received: {0}
+first_run_skip,Skip
+crash_prompt_title,The Game Closed Unexpectedly
+crash_prompt_body,The last session did not shut down cleanly. A copy of its log was kept on this computer. Nothing was sent anywhere. You can open the logs folder to attach it to a bug report yourself.
+crash_prompt_never,Don't Ask Again
+crash_prompt_dismiss,Not Now
+crash_prompt_open_logs,Open Logs Folder
