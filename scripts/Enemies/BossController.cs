@@ -213,6 +213,9 @@ namespace FTT.Enemies {
         private EnemyAbilityExecutor CreateExecutor() {
             var executor = new EnemyAbilityExecutor(this) { Rng = ResolveRng() };
             executor.Bind(_sprite, _attackHitbox, _abilityOrigin);
+            // Package 12 W9 (GAP-07): the two executor beats the phase mechanics key off.
+            executor.MinionsSummoned += OnMinionsSummoned;
+            executor.Teleported += OnTeleported;
             return executor;
         }
 
@@ -279,7 +282,9 @@ namespace FTT.Enemies {
             Data = data;
             ResolveNodes();
             Difficulty difficulty = StoryDifficultyTuning.CurrentStoryDifficulty;
-            _scaledMaxHP = Data != null ? StoryDifficultyTuning.ScaleEnemyHP(Data.MaxHP, difficulty) : 0;
+            // M19: a squad member stands on its even share of the authored pool.
+            int authoredHP = Data == null ? 0 : IsSquadMember ? Data.MemberMaxHP : Data.MaxHP;
+            _scaledMaxHP = Data != null ? StoryDifficultyTuning.ScaleEnemyHP(authoredHP, difficulty) : 0;
             CurrentHP = ScaledMaxHP;
             CurrentPhase = 0;
             Executor.SourceID = Data?.BossID ?? "";
@@ -359,6 +364,11 @@ namespace FTT.Enemies {
 
             if (_target == null || !IsInstanceValid(_target)) _target = FindNearestPlayer();
             Executor.Tick(dt);
+            // Package 12 W9: the guarded scene's clock and cast list, the
+            // invulnerability presentation, and M18's decorative after-images.
+            TickGuardedScene(dt);
+            RefreshGuardPresentation();
+            TickAfterImages();
 
             switch (CurrentState) {
                 case BossState.Idle:
@@ -418,6 +428,13 @@ namespace FTT.Enemies {
             }
             float dist = GlobalPosition.DistanceTo(_target.GlobalPosition);
             SetFacing(_target.GlobalPosition.X >= GlobalPosition.X);
+            // GAP-07 Tragedy King: mid-soliloquy he performs, he does not fight —
+            // the actors carry the scene until they bow.
+            if (IsSoliloquy) {
+                Velocity = new Vector2(0f, Velocity.Y);
+                PlayAnimation("idle");
+                return;
+            }
             if (dist <= EngagementRangePixels) {
                 EnterAttacking();
                 return;
@@ -479,6 +496,12 @@ namespace FTT.Enemies {
             // design Section 6: the rest cooldown is bypassed after a transition.
             _restTimer = 0f;
             CurrentState = BossState.Chase;
+            // GAP-07: a phase whose entry opens a guarded scene casts it the moment
+            // the transition window closes (the Tragedy King summons his actors).
+            if (_phaseEntrySummonPending) {
+                _phaseEntrySummonPending = false;
+                BeginPhaseEntrySummon();
+            }
         }
 
         private void ProcessDead(float dt) {
@@ -540,6 +563,7 @@ namespace FTT.Enemies {
         private int _borrowedStartIndex = -1;
         private string _borrowedForHeroID;
         private bool _borrowedKitBuilt;
+        private EnemyAbilityData[] _borrowedCache = System.Array.Empty<EnemyAbilityData>();
 
         /// <summary>The kit actually in play: authored, or authored + borrowed.</summary>
         private EnemyAbilityData[] ActiveAbilityArray =>
@@ -570,47 +594,143 @@ namespace FTT.Enemies {
         /// respawning does not re-project the whole roster every cycle.
         /// </summary>
         private void BuildAbilityKit() {
-            if (Data?.BorrowsRosterLegacies != true) {
-                _activeAbilities = null;
-                _activeMinPhase = null;
-                _borrowedStartIndex = -1;
+            // V7.5 Borrowed Legacies: the projection is cached per hero, so a pooled
+            // boss respawning does not re-project the whole roster every cycle.
+            EnemyAbilityData[] borrowed = System.Array.Empty<EnemyAbilityData>();
+            if (Data?.BorrowsRosterLegacies == true) {
+                string heroID = GameManager.Instance?.CurrentSession.SelectedCharacterID ?? "";
+                if (!_borrowedKitBuilt || _borrowedForHeroID != heroID) {
+                    _borrowedForHeroID = heroID;
+                    _borrowedKitBuilt = true;
+                    _borrowedCache = BorrowedLegacies.ProjectFor(heroID);
+                }
+                borrowed = _borrowedCache;
+            } else {
                 _borrowedForHeroID = null;
                 _borrowedKitBuilt = false;
-                return;
+                _borrowedCache = System.Array.Empty<EnemyAbilityData>();
             }
 
-            string heroID = GameManager.Instance?.CurrentSession.SelectedCharacterID ?? "";
-            if (_borrowedKitBuilt && _borrowedForHeroID == heroID) return;
-            _borrowedForHeroID = heroID;
-            _borrowedKitBuilt = true;
-
-            EnemyAbilityData[] authored = Data.BossAbilities ?? System.Array.Empty<EnemyAbilityData>();
-            EnemyAbilityData[] borrowed = BorrowedLegacies.ProjectFor(heroID);
-            if (borrowed.Length == 0) {
+            // M19: a squad member fights with its own abilities plus the shared
+            // ones, and later with any fallen member's it has absorbed.
+            bool squadFiltered = IsSquadMember;
+            if (!squadFiltered && borrowed.Length == 0) {
                 _activeAbilities = null;
                 _activeMinPhase = null;
                 _borrowedStartIndex = -1;
+                _abilityCooldownTimers = null;
                 return;
             }
 
-            // The final phase is derived from the authored thresholds, never a
-            // second authored number: [0.66, 0.33] => PhaseCount 3 => phase index 2.
-            int finalPhase = Math.Max(0, Data.PhaseCount - 1);
-            var abilities = new EnemyAbilityData[authored.Length + borrowed.Length];
-            var minPhase = new int[abilities.Length];
+            // Cooldowns follow the ability, not its composite index, so an absorb
+            // mid-fight never refunds or re-arms anything.
+            Dictionary<EnemyAbilityData, float> carriedCooldowns = CaptureCooldownsByAbility();
+
+            EnemyAbilityData[] authored = Data?.BossAbilities ?? System.Array.Empty<EnemyAbilityData>();
+            var abilities = new List<EnemyAbilityData>(authored.Length + borrowed.Length);
+            var minPhase = new List<int>(authored.Length + borrowed.Length);
             for (int index = 0; index < authored.Length; index++) {
-                abilities[index] = authored[index];
-                minPhase[index] = Data.GetAbilityMinPhase(index);
+                if (squadFiltered && !MemberOwnsAbility(index)) continue;
+                abilities.Add(authored[index]);
+                minPhase.Add(Data.GetAbilityMinPhase(index));
             }
-            for (int index = 0; index < borrowed.Length; index++) {
-                abilities[authored.Length + index] = borrowed[index];
-                minPhase[authored.Length + index] = finalPhase;
+            if (borrowed.Length > 0) {
+                // The final phase is derived from the authored thresholds, never a
+                // second authored number: [0.66, 0.33] => PhaseCount 3 => phase index 2.
+                int finalPhase = Math.Max(0, Data.PhaseCount - 1);
+                _borrowedStartIndex = abilities.Count;
+                foreach (EnemyAbilityData projected in borrowed) {
+                    abilities.Add(projected);
+                    minPhase.Add(finalPhase);
+                }
+            } else {
+                _borrowedStartIndex = -1;
             }
-            _borrowedStartIndex = authored.Length;
-            _activeAbilities = abilities;
-            _activeMinPhase = minPhase;
+            _activeAbilities = abilities.ToArray();
+            _activeMinPhase = minPhase.ToArray();
             _abilityCooldownTimers = null;
+            RestoreCooldownsByAbility(carriedCooldowns);
         }
+
+        /// <summary>M19: does this squad member field the authored ability at <paramref name="authoredIndex"/>?</summary>
+        private bool MemberOwnsAbility(int authoredIndex) {
+            int owner = Data?.GetAbilityMember(authoredIndex) ?? -1;
+            return owner < 0 || owner == SquadMemberIndex || _absorbedMembers.Contains(owner);
+        }
+
+        private Dictionary<EnemyAbilityData, float> CaptureCooldownsByAbility() {
+            var carried = new Dictionary<EnemyAbilityData, float>();
+            if (_abilityCooldownTimers == null) return carried;
+            EnemyAbilityData[] current = ActiveAbilityArray;
+            for (int index = 0; index < _abilityCooldownTimers.Length && index < current.Length; index++) {
+                if (current[index] != null && _abilityCooldownTimers[index] > 0f) {
+                    carried[current[index]] = _abilityCooldownTimers[index];
+                }
+            }
+            return carried;
+        }
+
+        private void RestoreCooldownsByAbility(Dictionary<EnemyAbilityData, float> carried) {
+            if (carried == null || carried.Count == 0) return;
+            EnemyAbilityData[] current = ActiveAbilityArray;
+            _abilityCooldownTimers = new float[current.Length];
+            for (int index = 0; index < current.Length; index++) {
+                if (current[index] != null && carried.TryGetValue(current[index], out float remaining)) {
+                    _abilityCooldownTimers[index] = remaining;
+                }
+            }
+        }
+
+        // === Package 12 W9 (M19) — boss squads ===============================
+        //
+        // A BossData with SquadMemberCount > 1 is fought as several bodies that
+        // share one boss: the BossEncounterController spawns one BossController
+        // per member, each on MemberMaxHP (MaxHP split evenly), each fielding its
+        // own AbilityMember-owned abilities plus the shared ones. A member does not
+        // raise the global defeat payload on its own (the encounter raises one for
+        // the whole squad, so the 25-dust award is paid once); when a member falls
+        // the encounter hands its abilities to the survivors (AbsorbSquadMember)
+        // and advances them into the next phase (EnterPhase) — the
+        // BossPhaseTrigger.MemberDefeat rule.
+
+        /// <summary>Member index inside a squad encounter; -1 for an ordinary boss.</summary>
+        public int SquadMemberIndex { get; set; } = -1;
+
+        /// <summary>True for one body of a <see cref="BossData.IsSquad"/> boss.</summary>
+        public bool IsSquadMember => SquadMemberIndex >= 0 && Data?.IsSquad == true;
+
+        private readonly HashSet<int> _absorbedMembers = new();
+
+        /// <summary>Fallen members whose abilities this body now fields.</summary>
+        public IReadOnlyCollection<int> AbsorbedSquadMembers => _absorbedMembers;
+
+        /// <summary>
+        /// M19: "the survivor absorbs the fallen's ability set". Rebuilds the live
+        /// kit to include every ability the fallen member owned; cooldowns already
+        /// running stay running.
+        /// </summary>
+        public void AbsorbSquadMember(int memberIndex) {
+            if (memberIndex < 0 || memberIndex == SquadMemberIndex) return;
+            if (!_absorbedMembers.Add(memberIndex)) return;
+            BuildAbilityKit();
+        }
+
+        /// <summary>
+        /// When false, <see cref="Die"/> raises only <see cref="Died"/>, not the
+        /// EventBus defeat payload — a squad member, whose encounter raises one
+        /// payload for the whole squad.
+        /// </summary>
+        public bool RaisesDefeatPayload { get; set; } = true;
+
+        /// <summary>Raised once from <see cref="Die"/>, for every body.</summary>
+        public event Action<BossController> Died;
+
+        /// <summary>
+        /// Raised the frame this body enters a new phase, whatever triggered it
+        /// (an HP threshold, a squad member's defeat, or <see cref="EnterPhase"/>).
+        /// Level arenas hang their phase mechanics off this (Package 12 W9).
+        /// </summary>
+        public event Action<BossController, int> PhaseEntered;
 
         // === Attack selection ===
 
@@ -757,6 +877,9 @@ namespace FTT.Enemies {
             if (CurrentState == BossState.Dead
                 || CurrentState == BossState.PhaseTransitioning
                 || CurrentState == BossState.HistoricalRecovery) return 0;
+            // Package 12 W9 (GAP-07): shielded by live arena guardians (the
+            // Inventor's coils) or mid-soliloquy (the Tragedy King's actors).
+            if (IsGuarded || IsSoliloquy) return 0;
 
             float incoming = Math.Max(0, damage) * StatusDamageTakenMultiplier;
             int applied = Math.Max(0, (int)MathF.Round(incoming));
@@ -787,6 +910,10 @@ namespace FTT.Enemies {
         /// window and raising exactly one event per phase actually entered.
         /// </summary>
         private void CheckPhaseTransition() {
+            // M19: a MemberDefeat squad never advances on HP — its thresholds only
+            // size PhaseCount and notch the shared bar. The encounter calls
+            // EnterPhase when a member falls.
+            if (Data?.PhaseTrigger == BossPhaseTrigger.MemberDefeat) return;
             float[] thresholds = Data?.PhaseThresholds;
             if (thresholds == null || thresholds.Length == 0) return;
             float hpPercent = ScaledMaxHP > 0 ? (float)CurrentHP / ScaledMaxHP : 0f;
@@ -796,7 +923,7 @@ namespace FTT.Enemies {
             while (CurrentPhase < thresholds.Length && hpPercent <= thresholds[CurrentPhase]) {
                 CurrentPhase++;
                 crossed++;
-                EventBus.Instance?.RaiseBossPhaseChanged(CurrentPhase);
+                AnnouncePhaseEntered(CurrentPhase);
             }
             if (crossed == 0) return;
 
@@ -804,10 +931,7 @@ namespace FTT.Enemies {
             // and its attached hitboxes removed. Deliberately NOT touching
             // _abilityCooldownTimers: T01b requires "do not reset spent resources or
             // remaining cooldowns", and the phase path never reset them either.
-            Executor.Cancel();
-            _attackHitbox?.Deactivate();
-            _attackCommitted = false;
-            _reactionFramesRemaining = 0;
+            CancelForTransition();
 
             // T01b: the boss's own capped historical recovery replaces the ordinary
             // invincibility window on the FIRST threshold crossing only. Phase
@@ -819,9 +943,47 @@ namespace FTT.Enemies {
                 return;
             }
 
+            BeginTransitionWindow();
+        }
+
+        /// <summary>
+        /// M19 <see cref="BossPhaseTrigger.MemberDefeat"/> (and any scripted phase
+        /// change): enters <paramref name="phase"/> directly, with the ordinary
+        /// transition window and cleanup. Never regresses; one call enters one
+        /// phase. Returns false when refused (dead, not a later phase, or out of
+        /// range).
+        /// </summary>
+        public bool EnterPhase(int phase) {
+            if (Data == null || CurrentState == BossState.Dead) return false;
+            if (phase <= CurrentPhase || phase >= Data.PhaseCount) return false;
+            CurrentPhase = phase;
+            AnnouncePhaseEntered(CurrentPhase);
+            CancelForTransition();
+            BeginTransitionWindow();
+            return true;
+        }
+
+        private void CancelForTransition() {
+            Executor.Cancel();
+            _attackHitbox?.Deactivate();
+            _attackCommitted = false;
+            _reactionFramesRemaining = 0;
+        }
+
+        private void BeginTransitionWindow() {
             _transitionTimer = Mathf.Max(0f, Data.PhaseTransitionInvincibilityDuration);
             CurrentState = BossState.PhaseTransitioning;
             PlayAnimation("phase_transition");
+        }
+
+        /// <summary>One phase entered: the global event, the local event, and the
+        /// boss-owned phase mechanics that arm on entry.</summary>
+        private void AnnouncePhaseEntered(int phase) {
+            EventBus.Instance?.RaiseBossPhaseChanged(phase);
+            if (Data != null && Data.GuardedSummonMinPhase >= 0 && phase == Data.GuardedSummonMinPhase) {
+                _phaseEntrySummonPending = true;
+            }
+            PhaseEntered?.Invoke(this, phase);
         }
 
         // === Package 11 A7b — T01b Option A: capped historical recovery ===
@@ -1093,13 +1255,204 @@ namespace FTT.Enemies {
             _deathTimer = DeathAnimationSeconds;
             PlayAnimation("death");
             _glow?.ClearAllStates();
+            EndGuardedScene(bowSurvivors: true);
+            _guardians.Clear();
             RaiseHPChanged();
+            Died?.Invoke(this);
+            if (!RaisesDefeatPayload) return;
             EventBus.Instance?.RaiseBossDefeated(new BossDefeatedPayload {
                 BossID = Data?.BossID ?? "",
                 Position = GlobalPosition,
                 ChronalDustDrop = Data?.ChronalDustDrop ?? 25
             });
         }
+
+        // === Package 12 W9 (GAP-07) — boss phase mechanics ====================
+
+        /// <summary>
+        /// Every authored phase rule this body can enforce, in one place:
+        /// arena guardians (the Inventor's coils), guarded summon scenes (the
+        /// Tragedy King's soliloquy), teleport decoys (the Jackal Priest), and the
+        /// M18 after-image trail. Each is data-driven from <see cref="BossData"/> /
+        /// <see cref="EnemyAbilityData"/> and inert for every boss that does not
+        /// author it.
+        /// </summary>
+        private readonly List<FTT.Combat.IDamageable> _guardians = new();
+        private readonly List<EnemyController> _sceneActors = new();
+        private float _sceneSecondsRemaining;
+        private bool _phaseEntrySummonPending;
+        private bool _guardPresentationShown;
+        private int _afterImageFrame;
+
+        /// <summary>
+        /// Registers an arena object that shields this boss while it stands
+        /// (<see cref="ArenaGuardian"/>). The boss refuses all damage while any
+        /// registered guardian is alive.
+        /// </summary>
+        public void RegisterGuardian(FTT.Combat.IDamageable guardian) {
+            if (guardian == null || _guardians.Contains(guardian)) return;
+            _guardians.Add(guardian);
+            RefreshGuardPresentation();
+        }
+
+        /// <summary>Live registered guardians (dead or freed ones are pruned).</summary>
+        public int LiveGuardianCount {
+            get {
+                PruneGuardians();
+                return _guardians.Count;
+            }
+        }
+
+        /// <summary>True while any registered arena guardian still stands.</summary>
+        public bool IsGuarded => LiveGuardianCount > 0;
+
+        private void PruneGuardians() {
+            for (int index = _guardians.Count - 1; index >= 0; index--) {
+                FTT.Combat.IDamageable guardian = _guardians[index];
+                bool freed = guardian is GodotObject godotObject && !IsInstanceValid(godotObject);
+                if (freed || !guardian.IsAlive) _guardians.RemoveAt(index);
+            }
+        }
+
+        /// <summary>True while a guarded summon scene runs (the King's soliloquy).</summary>
+        public bool IsSoliloquy => _sceneActors.Count > 0 && _sceneSecondsRemaining > 0f;
+
+        /// <summary>Actors still performing in the current guarded scene.</summary>
+        public int SceneActorCount => _sceneActors.Count;
+
+        /// <summary>Seconds left before the surviving actors bow.</summary>
+        public float SceneSecondsRemaining => _sceneSecondsRemaining;
+
+        /// <summary>Any GAP-07 invulnerability in force, for presentation and tests.</summary>
+        public bool IsMechanicInvulnerable => IsGuarded || IsSoliloquy;
+
+        private void OnMinionsSummoned(EnemyAbilityData ability, IReadOnlyList<EnemyController> minions) {
+            if (Data == null || Data.GuardedSummonMinPhase < 0 || CurrentPhase < Data.GuardedSummonMinPhase) return;
+            if (minions == null || minions.Count == 0) return;
+            // A new scene replaces an old one; its actors bow first.
+            EndGuardedScene(bowSurvivors: true);
+            foreach (EnemyController actor in minions) {
+                if (actor != null && IsInstanceValid(actor)) _sceneActors.Add(actor);
+            }
+            _sceneSecondsRemaining = Mathf.Max(0.1f, Data.GuardedSummonSceneSeconds);
+            RefreshGuardPresentation();
+        }
+
+        /// <summary>
+        /// The scene ends when every actor has fallen, or when its time is up and
+        /// the survivors "take their bow" — they leave the stage (released to the
+        /// pool) rather than lingering as ordinary adds.
+        /// </summary>
+        private void TickGuardedScene(float dt) {
+            if (_sceneActors.Count == 0) return;
+            for (int index = _sceneActors.Count - 1; index >= 0; index--) {
+                EnemyController actor = _sceneActors[index];
+                if (actor == null || !IsInstanceValid(actor) || !actor.IsInsideTree()
+                    || actor.CurrentState == EnemyState.Dead) {
+                    _sceneActors.RemoveAt(index);
+                }
+            }
+            if (_sceneActors.Count == 0) {
+                _sceneSecondsRemaining = 0f;
+                return;
+            }
+            _sceneSecondsRemaining -= dt;
+            if (_sceneSecondsRemaining <= 0f) EndGuardedScene(bowSurvivors: true);
+        }
+
+        private void EndGuardedScene(bool bowSurvivors) {
+            if (bowSurvivors) {
+                foreach (EnemyController actor in _sceneActors) {
+                    if (actor == null || !IsInstanceValid(actor) || actor.CurrentState == EnemyState.Dead) continue;
+                    // Release falls back to QueueFree for an unpooled body.
+                    if (PoolManager.Instance != null) PoolManager.Instance.Release(actor);
+                    else actor.QueueFree();
+                }
+            }
+            _sceneActors.Clear();
+            _sceneSecondsRemaining = 0f;
+        }
+
+        /// <summary>
+        /// Casts the first authored SummonMinions ability immediately — the phase
+        /// entry that opens a guarded scene. Arms its cooldown like any cast.
+        /// </summary>
+        private void BeginPhaseEntrySummon() {
+            EnemyAbilityData[] abilities = ActiveAbilityArray;
+            for (int index = 0; index < abilities.Length; index++) {
+                EnemyAbilityData ability = abilities[index];
+                if (ability?.Archetype != EnemyAbilityArchetype.SummonMinions) continue;
+                if (CurrentPhase < GetActiveAbilityMinPhase(index)) continue;
+                SelectedAbilityIndex = index;
+                SelectedAbility = ability;
+                ArmAbilityCooldown(index);
+                Vector2 targetPosition = _target?.GlobalPosition ?? GlobalPosition;
+                Executor.Begin(ability, targetPosition, _facingRight,
+                    guardCrush: ability.IsGuardCrushing, unblockable: ability.IsUnblockable);
+                CurrentState = BossState.Attacking;
+                _attackCommitted = true;
+                _reactionFramesRemaining = 0;
+                PlayAnimation("ranged_attack");
+                return;
+            }
+        }
+
+        /// <summary>Test seam: advances the guarded scene's clock and cast list.</summary>
+        internal void AdvanceGuardedSceneForTest(float delta) => TickGuardedScene(delta);
+
+        /// <summary>Test seam: fires the phase-entry summon without waiting out the window.</summary>
+        internal void BeginPhaseEntrySummonForTest() {
+            _phaseEntrySummonPending = false;
+            BeginPhaseEntrySummon();
+        }
+
+        private void OnTeleported(EnemyAbilityData ability, Vector2 vacated) {
+            if (Data == null || Data.TeleportDecoyMinPhase < 0 || CurrentPhase < Data.TeleportDecoyMinPhase) return;
+            Node parent = GetParent();
+            if (parent == null) return;
+            Texture2D silhouette = null;
+            if (_sprite?.SpriteFrames != null && _sprite.SpriteFrames.HasAnimation(_sprite.Animation)) {
+                silhouette = _sprite.SpriteFrames.GetFrameTexture(_sprite.Animation, _sprite.Frame);
+            }
+            var decoy = new BossDecoy { Name = "SandDecoy" };
+            decoy.Configure(Data, silhouette, _sprite?.FlipH ?? false);
+            parent.AddChild(decoy);
+            decoy.GlobalPosition = vacated;
+            LastDecoy = decoy;
+        }
+
+        /// <summary>The most recently left decoy (test seam).</summary>
+        public BossDecoy LastDecoy { get; private set; }
+
+        /// <summary>
+        /// The shared gold hyper-armor glow — the codebase's armor language — while
+        /// a GAP-07 shield holds, so "hitting him does nothing" is readable.
+        /// </summary>
+        private void RefreshGuardPresentation() {
+            bool shown = IsMechanicInvulnerable;
+            if (shown == _guardPresentationShown) return;
+            _guardPresentationShown = shown;
+            _glow?.SetHyperArmor(shown);
+        }
+
+        /// <summary>M18: a fading placeholder ghost every fourth active frame.</summary>
+        private void TickAfterImages() {
+            if (Executor.Phase != EnemyAbilityPhase.Active || Executor.ActiveAbility?.LeavesAfterImages != true) {
+                _afterImageFrame = 0;
+                return;
+            }
+            if (_afterImageFrame++ % 4 != 0) return;
+            if (!FTT.Core.ComfortSettings.GhostTrailsAllowed || _sprite == null) return;
+            Node parent = GetParent();
+            if (parent == null) return;
+            AfterImageGhost ghost = AfterImageGhost.From(_sprite);
+            parent.AddChild(ghost);
+            ghost.GlobalPosition = _sprite.GlobalPosition;
+            AfterImagesSpawned++;
+        }
+
+        /// <summary>After-images this body has shed (test seam).</summary>
+        public int AfterImagesSpawned { get; private set; }
 
         private void RaiseHPChanged() {
             EventBus.Instance?.RaiseBossHPChanged(new BossHPPayload {
@@ -1294,6 +1647,15 @@ namespace FTT.Enemies {
 
         public void OnSpawn() {
             ResolveNodes();
+            // Package 12 W9: encounter-local phase-mechanic state never survives a
+            // pool cycle (the membership index itself is the encounter's to assign).
+            _absorbedMembers.Clear();
+            _guardians.Clear();
+            EndGuardedScene(bowSurvivors: false);
+            _phaseEntrySummonPending = false;
+            _guardPresentationShown = false;
+            _afterImageFrame = 0;
+            LastDecoy = null;
             ApplyData(Data);
             CurrentState = BossState.Idle;
             _restTimer = 0f;

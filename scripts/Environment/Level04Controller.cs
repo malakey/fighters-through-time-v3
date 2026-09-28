@@ -305,7 +305,11 @@ namespace FTT.Environment {
             BuildRoomBackground("BG_Room4_Courtyard", Room4StartX, 1600, LevelHeight,
                 new Color(0.16f, 0.06f, 0.07f, 0.5f));
 
-            BuildFloor(Room4StartX, PitFloorY, 1600);
+            // M19: the courtyard floor is authored in three pieces so its centre can
+            // collapse into the Tribunal's Phase 2 pit (see BuildTribunalPit).
+            BuildFloor(Room4StartX, PitFloorY, TribunalPitLeftX - Room4StartX);
+            BuildFloor(TribunalPitRightX, PitFloorY, Room4StartX + 1600f - TribunalPitRightX);
+            BuildTribunalPit();
 
             BuildPlatform(9000, 780, 480);   // drawbridge walkway west
             BuildPlatform(9760, 780, 480);   // drawbridge walkway east
@@ -320,8 +324,89 @@ namespace FTT.Environment {
             BuildRoomTransition("paris_room_courtyard", new Vector2(Room4StartX + 60, 600),
                 new Rect2(Room4StartX, 0, 1600, LevelHeight));
 
-            BuildBossEncounter(BossResourcePath, new Vector2(9400, 950),
+            _tribunalEncounter = BuildBossEncounter(BossResourcePath, new Vector2(9400, 950),
                 encounterName: "RevolutionaryTribunalEncounter", revealDistance: 800f);
+            if (_tribunalEncounter != null) _tribunalEncounter.PhaseEntered += OnTribunalPhaseEntered;
+        }
+
+        // === Package 12 W9 (M19) — the Tribunal's Phase 2 pit ===
+        //
+        // Design §6: "P2 triggers on the first member's defeat: the survivor absorbs
+        // the fallen's ability set and the floor's central section collapses into
+        // the level's signature pit." The squad, the absorb and the phase trigger
+        // live on revolutionary_tribunal.tres / BossEncounterController; the floor
+        // lives here. The pit is deliberately NON-LETHAL (lethal Story pits are held
+        // under VERIFY-STORY-PITS / plan D11): a shallow trapezoid with walkable
+        // ramps, so the player, the surviving member and the summoned rioters can
+        // all walk in and out — it reshapes the fight, it does not end it.
+
+        /// <summary>The collapsible centre section, west and east edges.</summary>
+        public const float TribunalPitLeftX = 9200f;
+        public const float TribunalPitRightX = 9660f;
+        /// <summary>How far the pit floor sits below the courtyard.</summary>
+        public const float TribunalPitDepth = 120f;
+        /// <summary>Horizontal run of each ramp (≈40.6° — under the 45° walkable limit).</summary>
+        public const float TribunalPitRampRun = 140f;
+
+        private BossEncounterController _tribunalEncounter;
+        private StaticBody2D _tribunalPitLid;
+
+        /// <summary>The encounter (test seam).</summary>
+        public BossEncounterController TribunalEncounter => _tribunalEncounter;
+
+        /// <summary>True once Phase 2 has collapsed the courtyard centre.</summary>
+        public bool TribunalPitOpen { get; private set; }
+
+        /// <summary>The floor section that collapses (test seam).</summary>
+        public StaticBody2D TribunalPitLid => _tribunalPitLid;
+
+        /// <summary>
+        /// The pit is built up front underneath a flat lid; Phase 2 only removes the
+        /// lid, so no collision body is ever created mid-fight.
+        /// </summary>
+        private void BuildTribunalPit() {
+            float top = PitFloorY;
+            float bottom = PitFloorY + TribunalPitDepth;
+            var outline = new[] {
+                new Vector2(TribunalPitLeftX, top),
+                new Vector2(TribunalPitLeftX + TribunalPitRampRun, bottom),
+                new Vector2(TribunalPitRightX - TribunalPitRampRun, bottom),
+                new Vector2(TribunalPitRightX, top),
+                new Vector2(TribunalPitRightX, bottom + 80f),
+                new Vector2(TribunalPitLeftX, bottom + 80f)
+            };
+            var pit = new StaticBody2D {
+                Name = "TribunalPitFloor",
+                CollisionLayer = CollisionLayers.Environment,
+                CollisionMask = 0
+            };
+            pit.AddChild(new CollisionPolygon2D { Polygon = outline });
+            pit.AddChild(new Polygon2D {
+                Name = "Visual",
+                Polygon = outline,
+                Color = new Color(0.12f, 0.08f, 0.08f)
+            });
+            AddChild(pit);
+
+            _tribunalPitLid = BuildFloor(TribunalPitLeftX, PitFloorY, TribunalPitRightX - TribunalPitLeftX);
+            _tribunalPitLid.Name = "TribunalPitLid";
+        }
+
+        private void OnTribunalPhaseEntered(int phase) {
+            if (phase >= 1) OpenTribunalPit();
+        }
+
+        /// <summary>Collapses the courtyard centre. Idempotent; public as a test seam.</summary>
+        public void OpenTribunalPit() {
+            if (TribunalPitOpen) return;
+            TribunalPitOpen = true;
+            if (_tribunalPitLid == null || !IsInstanceValid(_tribunalPitLid)) return;
+            Godot.Collections.Array<Node> children = _tribunalPitLid.GetChildren();
+            using var lifetime = children.AsDisposable();
+            foreach (Node child in children) {
+                if (child is CollisionShape2D shape) shape.SetShapeDisabledSafe(true);
+            }
+            _tribunalPitLid.Visible = false;
         }
 
         // === Encounters ===

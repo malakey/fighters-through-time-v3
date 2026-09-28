@@ -1,7 +1,9 @@
-[gd_resource type="Resource" script_class="EnemyData" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="EnemyData" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]
 [ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Enemies/rift_phantom_frames.tres" id="2"]
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="3"]
+[ext_resource type="Resource" path="res://resources/Enemies/Abilities/rift_phantom/rift_step.tres" id="4"]
 
 
 [resource]
@@ -32,6 +34,8 @@ FrontalDamageReduction = 0.0
 AttackTelegraphFrames = 16
 AttackActiveFrames = 10
 AttackRecoveryFrames = 18
+SecondaryAbilities = Array[ExtResource("3")]([ExtResource("4")])
+SecondaryAbilityCooldown = 6.0
 ChronalDustDrop = 2
 ItemDropChance = 1.0
 PlaceholderTint = Color(0.6, 1, 0.65, 1)

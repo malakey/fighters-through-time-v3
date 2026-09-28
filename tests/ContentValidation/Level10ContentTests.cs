@@ -654,6 +654,35 @@ public class Level10ContentTests {
         }
     }
 
+    /// <summary>
+    /// Package 12 W9 (GAP-07): the Tragedy King's actors "perform scripted attack
+    /// scenes while the stage trapdoors cycle". The arena boards hold through the
+    /// King's first act and begin their slow cycle the moment Phase 2 starts.
+    /// </summary>
+    [TestCase]
+    public void TheArenaTrapdoorsHoldUntilTheKingsSecondActThenCycle() {
+        using var fixture = new GlobeFixture();
+        Level10Controller level = fixture.Level;
+        FTT.Enemies.BossEncounterController encounter = level.KingEncounter;
+        AssertObject(encounter).IsNotNull();
+        AssertThat(level.ArenaTrapdoorsCycling).IsFalse();
+        foreach (TrapdoorPlatform door in level.ArenaTrapdoors) {
+            AssertThat(door.Enabled).IsFalse();
+            AssertThat(door.IsSolid).IsTrue();
+        }
+        // The stage boards in room two are untouched by the boss rule.
+        foreach (TrapdoorPlatform door in level.StageTrapdoors) AssertThat(door.Enabled).IsTrue();
+
+        FTT.Enemies.BossController king = encounter.Boss;
+        king.TakeDamage(king.ScaledMaxHP / 2 + 1);
+        AssertThat(king.CurrentPhase).IsEqual(1);
+        AssertThat(level.ArenaTrapdoorsCycling).IsTrue();
+        foreach (TrapdoorPlatform door in level.ArenaTrapdoors) {
+            AssertThat(door.Enabled).IsTrue();
+            AssertThat(door.AutoCycle).IsTrue();
+        }
+    }
+
     // === Helpers ===
 
     /// <summary>Steps the idle watch one frame at a time until the galleries arm.</summary>

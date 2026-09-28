@@ -230,6 +230,40 @@ public class Level04ContentTests {
             .OverrideFailureMessage("The boss anchor sits outside the courtyard camera bounds.").IsTrue();
     }
 
+    /// <summary>
+    /// Package 12 W9 (M19): "P2 triggers on the first member's defeat: the
+    /// survivor absorbs the fallen's ability set and the floor's central section
+    /// collapses into the level's signature pit." The pit is deliberately
+    /// non-lethal (lethal Story pits are held, plan D11): no kill boundary, and a
+    /// real floor under it.
+    /// </summary>
+    [TestCase]
+    public void TheFirstTribunalMemberFallingCollapsesTheCourtyardCentreIntoANonLethalPit() {
+        using var fixture = new ParisFixture();
+        Level04Controller level = fixture.Level;
+        BossEncounterController encounter = level.TribunalEncounter;
+        AssertObject(encounter).IsNotNull();
+        AssertThat(encounter.Members.Count).IsEqual(2);
+        AssertThat(level.TribunalPitOpen).IsFalse();
+        AssertThat(level.TribunalPitLid.Visible).IsTrue();
+
+        encounter.Members[0].TakeDamage(99999);
+        AssertThat(encounter.IsDefeated).IsFalse();
+        AssertThat(level.TribunalPitOpen).IsTrue();
+        AssertThat(level.TribunalPitLid.Visible).IsFalse();
+        foreach (Node child in level.TribunalPitLid.GetChildren()) {
+            if (child is CollisionShape2D shape) AssertThat(shape.Disabled).IsTrue();
+        }
+        var pitFloor = level.GetNodeOrNull<StaticBody2D>("TribunalPitFloor");
+        AssertObject(pitFloor).OverrideFailureMessage("The pit must have a floor under it.").IsNotNull();
+        AssertThat(level.GetTree().GetNodesInGroup("story_kill_boundary").Count)
+            .OverrideFailureMessage("The Tribunal pit is non-lethal; no kill boundary may be authored.")
+            .IsEqual(0);
+        // The ramps stay under the 45-degree walkable limit so bodies can climb out.
+        float slope = Mathf.RadToDeg(Mathf.Atan2(Level04Controller.TribunalPitDepth, Level04Controller.TribunalPitRampRun));
+        AssertThat(slope < 45f).IsTrue();
+    }
+
     // === Era mechanic 1: searchlights drain the Ultimate meter ===
 
     [TestCase]

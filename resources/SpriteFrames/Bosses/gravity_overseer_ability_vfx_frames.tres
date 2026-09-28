@@ -72,5 +72,10 @@ animations = [
 "loop": false,
 "name": &"boss.gravity_overseer.gravity_well",
 "speed": 10.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("frame_3_0")}, {"duration": 1.0, "texture": SubResource("frame_3_1")}, {"duration": 1.0, "texture": SubResource("frame_3_2")}],
+"loop": false,
+"name": &"boss.gravity_overseer.inverted_gravity_field",
+"speed": 10.0
 }
 ]

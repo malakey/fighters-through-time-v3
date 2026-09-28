@@ -535,8 +535,44 @@ namespace FTT.Environment {
             BuildRoomTransition("globe_room_tiring_house", new Vector2(Room4StartX + 30, 800), Room4CameraBounds,
                 triggerSize: new Vector2(80, LevelHeight));
 
-            BuildBossEncounter(BossResourcePath, new Vector2(9900, EnemyGroundY),
+            _kingEncounter = BuildBossEncounter(BossResourcePath, new Vector2(9900, EnemyGroundY),
                 encounterName: "TragedyKingEncounter", revealDistance: 900f);
+            if (_kingEncounter != null) _kingEncounter.PhaseEntered += OnKingPhaseEntered;
+            // GAP-07: the arena boards hold still until the King's second act.
+            SetArenaTrapdoorsCycling(false);
+        }
+
+        // === Package 12 W9 (GAP-07) — the Tragedy King's Phase 2 stage ===
+        //
+        // Design §6: "P2: summons two spectral actors who perform scripted attack
+        // 'scenes' while the stage trapdoors cycle; the King is invulnerable
+        // mid-soliloquy until both actors take their bow." The soliloquy — the
+        // phase-entry summon, the invulnerability and the bow — is authored on
+        // tragedy_king.tres (GuardedSummonMinPhase / GuardedSummonSceneSeconds) and
+        // enforced by BossController. The stage half lives here: the two arena
+        // trapdoors stay shut through Phase 1 and start their slow, heavily
+        // telegraphed cycle the moment Phase 2 begins.
+
+        private BossEncounterController _kingEncounter;
+
+        /// <summary>The boss encounter (test seam).</summary>
+        public BossEncounterController KingEncounter => _kingEncounter;
+
+        /// <summary>True once Phase 2 has set the arena trapdoors cycling.</summary>
+        public bool ArenaTrapdoorsCycling { get; private set; }
+
+        private void OnKingPhaseEntered(int phase) {
+            if (phase >= 1) SetArenaTrapdoorsCycling(true);
+        }
+
+        /// <summary>Starts or holds the arena boards (closed and re-seeded either way).</summary>
+        public void SetArenaTrapdoorsCycling(bool cycling) {
+            ArenaTrapdoorsCycling = cycling;
+            foreach (TrapdoorPlatform door in _arenaTrapdoors) {
+                if (!IsInstanceValid(door)) continue;
+                door.Close();
+                door.Enabled = cycling;
+            }
         }
 
         // === Encounters ===

@@ -1712,3 +1712,13 @@ seal_timeline_objective,Seal the timeline at the anchor
 seal_timeline_sealed,Timeline sealed
 seal_anchor_dormant,SEALING ANCHOR — HELD
 seal_anchor_ready,SEALING ANCHOR — READY
+
+# Package 12 W9
+boss_ability_after_image_dash_name,After-Image Dash
+boss_ability_mortar_barrage_name,Boiler Mortar Barrage
+boss_ability_lava_vent_field_name,Lava Vent Eruption
+boss_ability_loose_cannon_roll_name,Loose Cannonballs
+boss_ability_artillery_barrage_name,Searchlight Artillery
+boss_ability_rail_warp_name,Rail Relocation
+boss_ability_inverted_gravity_field_name,Inverted-Gravity Zone
+enemy_ability_rift_step_name,Rift Step

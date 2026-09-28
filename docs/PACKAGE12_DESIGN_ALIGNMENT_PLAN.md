@@ -2,7 +2,7 @@
 
 **Status:** Phase 0 committed 2026-09-27. Wave 1 (W1/W2/W3/W5/W6/W7) merged 2026-09-27: full suite **2383/2383** on `main` at `571df8e`, which is 2237 + 146, matching the six declared deltas. Wave 2 (W3b/W4/W8/W9/W10) is in progress.
 
-**Known intermittent failure:** `EnemyControllerTests` fails order-dependently, one different case per affected full run (seen three times across Wave 1). It passes 41/41 in isolation. Assigned to W9.
+**Known intermittent failure:** `EnemyControllerTests` fails order-dependently, one different case per affected full run (seen three times across Wave 1). It passes 41/41 in isolation. Assigned to W9. *(Root-caused and fixed by W9: out-of-band `MoveAndSlide` read a test-order-dependent idle delta; `.runsettings` now passes `--fixed-fps 60`. See the W9 entry in §9.)*
 
 ## 0. Sources and baseline
 
@@ -468,3 +468,16 @@ The rewind WIP was committed as `21b0747` (58/58 filtered). The design mirror, e
   - `ThoroughRunCollectionWalkTests` physically collects 1,000 base dust for every hero.
   - After merging `main` (W3b, W4), the full suite ran **2487/2487** = 2424 + 63, in a clear window.
 - `en.en.translation` is not committed; the orchestrator must run `--import`.
+
+### W9 — Enemies and bosses (branch `p12/W9`; handoff `docs/handoffs/P12_W9.md`)
+
+- **Flake root cause** (the "Known intermittent failure" above, plus the `BossControllerTests` rest-window and `StoryFsmM04TransitionTests` setup failures): out-of-band `_PhysicsProcess` stepping makes `MoveAndSlide` read the idle frame delta, measured 0.0003–0.0174 s across one run and decided by test order. No leaked node, static or pause was involved. Fixed at the harness (`.runsettings` → `--headless --fixed-fps 60`; every frame is exactly 1/60, and the suite runs faster) and in `EnemyControllerTests` (nine cases run inside a real physics frame via `OutOfBandPhysicsStep`).
+- **M18:** Borgia P2 has no speed multiplier and gains `after_image_dash` (`LeavesAfterImages`, suppressed by Reduced Temporal Effects); L1's scaffolding burns (the standard 0.8 + 1.2 s Crumbling beat, no respawn) and barricades close the arena to 600 px.
+- **M19:** `BossPhaseTrigger { HpThreshold, MemberDefeat }` (default HpThreshold), `SquadMemberCount` / `AbilityMember` / `MemberMaxHP` (850 split 2 × 425 — the total is unchanged, D10 untouched). Squad path in `BossEncounterController` / `BossController`: one summed HUD bar, one defeat payload and award, ability hand-off, `EnterPhase`. Tribunal: knockback-immune false, rest 1.0; L4's centre collapses into a non-lethal ramped pit (D11 respected).
+- **M20:** opt-in standard-tier `EnemyData.SecondaryAbilities`; a standard's Teleport is an engage blink (gap-closer). `rift_phantom` carries `rift_step`. The drone-carrier has no design row → `DEFER-DRONE-CARRIER`.
+- **GAP-07:** Jackal P2 sand decoys (`BossDecoy`), the Tragedy King's guarded soliloquy plus L10's arena trapdoors cycling from P2, and the Chronal Inventor's two corner coils (`ArenaGuardian`) on L3. `BossPhaseRuleMatrixTests` covers all 15 bosses.
+- **Rule 1 deviation:** six main-campaign bosses whose P2 was speed-only (Duke, Vulcan, Admiral, Chancellor, Siege Cannon, Gravity Overseer P2) gain one phase-gated ability expressing their authored mechanic; the arena halves are in levels W9 does not own → `VERIFY-BOSS-PHASE-ARENAS`. The 4A Tesla and Shakespeare bosses are speed-only and HELD (D13) → `VERIFY-4A-BOSS-RULE1`. The `Sequential` pattern and the Tribunal's thresholds → `VERIFY-BOSS-TABLE-DRIFT`.
+- **Held and untouched:** D10 boss HP rows, D13 4A boss HP / rosters / Joan, D15 Eraser dust.
+- **Shared-file edits:** `.runsettings` (harness flag); `EnemyController`'s guard-crush implicit is tier-gated (behaviour-preserving); `EnemyAbilityExecutor` gained two events; eight `*_ability_vfx_frames.tres` gained one placeholder row each.
+- **Hashes:** none moved; `scripts/FighterSim/` untouched.
+- **Tests:** +19 (three new suites, four level cases); three pins rewritten in place. Full suite **2518/2518** twice on `main` (W8 + W10 merged) + W9 = 2499 + 19. `en.en.translation` not committed.

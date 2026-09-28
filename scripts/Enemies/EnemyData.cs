@@ -52,6 +52,18 @@ namespace FTT.Enemies {
         [Export(PropertyHint.Range, "0,240,1")] public int AttackRecoveryFrames = 16;
         /// <summary>Elite secondary abilities, cycled sequentially per design Section 6.</summary>
         [Export] public EnemyAbilityData[] EliteAbilities;
+        /// <summary>
+        /// M20 (Package 12 W9): the <b>standard-tier</b> secondary-ability path,
+        /// opt-in per resource, so a mob line can carry a signature archetype
+        /// without being promoted to Elite (no stagger budget, no Guard-Crush
+        /// implicit, no elite dust). A Teleport entry is the engage blink (see
+        /// <c>EnemyController.TryEngageBlink</c>); any other entry joins the same
+        /// sequential alternation elites use. Ignored on elites, which keep
+        /// <see cref="EliteAbilities"/>. Additive export — no schema bump.
+        /// </summary>
+        [Export] public EnemyAbilityData[] SecondaryAbilities;
+        /// <summary>Cooldown between standard-tier secondary uses, in seconds.</summary>
+        [Export] public float SecondaryAbilityCooldown = 6.0f;
 
         [ExportGroup("Loot")]
         [Export] public int ChronalDustDrop = 10;
@@ -67,6 +79,17 @@ namespace FTT.Enemies {
         [Export] public Color PlaceholderTint = Colors.White;
 
         public bool HasEliteAbilities => Tier == EnemyTier.Elite && EliteAbilities is { Length: > 0 };
+
+        /// <summary>M20: a standard-tier resource that opted into secondary abilities.</summary>
+        public bool HasSecondaryAbilities => Tier == EnemyTier.Standard && SecondaryAbilities is { Length: > 0 };
+
+        /// <summary>The tier's secondary list: elite abilities for an elite, M20's for a standard, else null.</summary>
+        public EnemyAbilityData[] ActiveSecondaryAbilities =>
+            HasEliteAbilities ? EliteAbilities : HasSecondaryAbilities ? SecondaryAbilities : null;
+
+        /// <summary>The tier's secondary cooldown.</summary>
+        public float ActiveSecondaryCooldown =>
+            HasEliteAbilities ? EliteAbilityCooldown : SecondaryAbilityCooldown;
     }
 
 }

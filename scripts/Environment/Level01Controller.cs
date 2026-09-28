@@ -157,7 +157,9 @@ namespace FTT.Environment {
                 EventBus.Instance.OnChronalDustCollected -= OnDustAwarded;
                 EventBus.Instance.OnDustAwardCollected -= OnDustAwardAttributed;
                 EventBus.Instance.OnDialogueComplete -= OnDialogueComplete;
+                if (_recoveryBound) EventBus.Instance.OnRecoveryLanded -= OnRecoveryLanded;
             }
+            _recoveryBound = false;
             // Pooled wave enemies are parented here; hand them back or the pool keeps
             // freed references once this scene unloads.
             PoolManager.Instance?.ReleaseActiveUnder(this);
@@ -469,8 +471,9 @@ namespace FTT.Environment {
             AddChild(bg4);
 
             BuildFloor(offsetX, 900, 960);
-            BuildPlatform(offsetX + 300, 650, 200);
-            BuildPlatform(offsetX + 660, 650, 200);
+            // M18: the two wooden scaffolding platforms burn away in Phase 2.
+            _scaffolding.Add(BuildScaffolding("florence_scaffold_west", offsetX + 300, 650, 200));
+            _scaffolding.Add(BuildScaffolding("florence_scaffold_east", offsetX + 660, 650, 200));
 
             BuildWall(offsetX, 0, LevelHeight);
             BuildWall(offsetX + 940, 0, LevelHeight);
@@ -778,7 +781,169 @@ namespace FTT.Environment {
             };
             _bossEncounter.BossRevealed += OnBossRevealed;
             _bossEncounter.BossDefeated += OnBossDefeated;
+            _bossEncounter.PhaseEntered += OnBossPhaseEntered;
             AddChild(_bossEncounter);
+        }
+
+        // === Package 12 W9 (M18) — the Borgia Inquisitor's Phase 2 arena ===
+        //
+        // Design §6 / the Level 1 layout: "Phase 2 (50% HP): the scaffolding burns
+        // away, shrinking the arena, and he gains an after-image dash as his third
+        // ability; no speed multiplier." The dash lives on the boss resource; the
+        // arena half lives here. On the encounter's Phase 1 (the second phase) both
+        // scaffolding platforms run the standard Crumbling Platform beat (0.8 s
+        // shake, 1.2 s collapse) and never come back, and two burning barricades
+        // slide in from the outer walls across the transition window, pushing
+        // anything in their way inward. The shrunk floor stays wider than the
+        // Inquisitor's 7-unit ranged band.
+
+        /// <summary>Where the barricades come to rest: inner faces 600 px apart.</summary>
+        public const float ArenaShrinkLeftWallX = Room4OffsetX + 160f;
+        public const float ArenaShrinkRightWallX = Room4OffsetX + 780f;
+        /// <summary>The barricades' slide, inside the boss's 2 s transition window.</summary>
+        public const float ArenaShrinkSeconds = 1.6f;
+        private const float BarricadeThickness = 20f;
+        /// <summary>A burned platform stays gone for the rest of the fight.</summary>
+        private const float BurnedScaffoldRespawnSeconds = 1.0e9f;
+
+        private readonly System.Collections.Generic.List<CrumblingPlatform> _scaffolding = new();
+        private AnimatableBody2D _barricadeWest;
+        private AnimatableBody2D _barricadeEast;
+        private float _shrinkElapsed = -1f;
+        private bool _recoveryBound;
+
+        /// <summary>The two Phase 2 scaffolding platforms (test seam).</summary>
+        public System.Collections.Generic.IReadOnlyList<CrumblingPlatform> Scaffolding => _scaffolding;
+
+        /// <summary>True once Phase 2 has burned the scaffolding and closed the arena.</summary>
+        public bool ArenaShrunk { get; private set; }
+
+        /// <summary>The encounter (test seam).</summary>
+        public BossEncounterController BossEncounter => _bossEncounter;
+
+        /// <summary>Inner faces of the arena right now: the shrunk span once closed, else the original walls.</summary>
+        public float ArenaInnerLeftX => ArenaShrunk ? ArenaShrinkLeftWallX + BarricadeThickness : Room4OffsetX + 20f;
+        public float ArenaInnerRightX => ArenaShrunk ? ArenaShrinkRightWallX : Room4OffsetX + 940f;
+
+        public AnimatableBody2D BarricadeWest => _barricadeWest;
+        public AnimatableBody2D BarricadeEast => _barricadeEast;
+
+        private CrumblingPlatform BuildScaffolding(string id, float x, float y, float width) {
+            var platform = new CrumblingPlatform {
+                Name = $"Scaffold_{id}",
+                PlatformID = id,
+                RespawnDuration = BurnedScaffoldRespawnSeconds,
+                // The burn is a phase rule, not a timeline state: a death rewind
+                // mid-fight must not stand the scaffolding back up under a boss
+                // that stays in Phase 2.
+                RewindPolicy = StoryRewindPolicy.PreserveCurrentState,
+                Position = new Vector2(x, y),
+                CollisionLayer = CollisionLayers.Environment,
+                CollisionMask = 0
+            };
+            platform.AddChild(new CollisionShape2D {
+                Name = "CollisionShape2D",
+                Shape = new RectangleShape2D { Size = new Vector2(width, 16) }
+            });
+            platform.AddChild(new ColorRect {
+                Name = "Visual",
+                Size = new Vector2(width, 16),
+                Position = new Vector2(-width / 2f, -8),
+                Color = new Color(0.35f, 0.22f, 0.1f),
+                MouseFilter = Control.MouseFilterEnum.Ignore
+            });
+            AddChild(platform);
+            return platform;
+        }
+
+        private void OnBossPhaseEntered(int phase) {
+            if (phase < 1) return;
+            // The phase change usually lands inside the killing hit's physics
+            // flush, where new collision bodies may not enter the space; hop off
+            // the flush. Direct (test) calls stay synchronous.
+            if (PhysicsCallbackGuard.IsInPhysicsCallback) {
+                Callable.From(BeginArenaShrink).CallDeferred();
+            } else {
+                BeginArenaShrink();
+            }
+        }
+
+        /// <summary>Phase 2's arena change. Idempotent; public as a test seam.</summary>
+        public void BeginArenaShrink() {
+            if (ArenaShrunk) return;
+            ArenaShrunk = true;
+            foreach (CrumblingPlatform platform in _scaffolding) {
+                if (platform != null && IsInstanceValid(platform)) platform.TriggerCollapse();
+            }
+            _barricadeWest = BuildBarricade("BurningBarricadeWest", Room4OffsetX);
+            _barricadeEast = BuildBarricade("BurningBarricadeEast", Room4OffsetX + 940f);
+            _shrinkElapsed = 0f;
+            if (!_recoveryBound && EventBus.Instance != null) {
+                _recoveryBound = true;
+                EventBus.Instance.OnRecoveryLanded += OnRecoveryLanded;
+            }
+        }
+
+        private AnimatableBody2D BuildBarricade(string name, float x) {
+            var barricade = new AnimatableBody2D {
+                Name = name,
+                Position = new Vector2(x, 0f),
+                // Driven from _PhysicsProcess directly (the TrapdoorPlatform
+                // idiom); the body still carries its motion into what it meets.
+                SyncToPhysics = false,
+                CollisionLayer = CollisionLayers.Environment,
+                CollisionMask = 0
+            };
+            barricade.AddChild(new CollisionShape2D {
+                Shape = new RectangleShape2D { Size = new Vector2(BarricadeThickness, LevelHeight) },
+                Position = new Vector2(BarricadeThickness / 2f, LevelHeight / 2f)
+            });
+            barricade.AddChild(new ColorRect {
+                Size = new Vector2(BarricadeThickness, LevelHeight),
+                Color = new Color(0.95f, 0.42f, 0.12f, 0.85f),
+                MouseFilter = Control.MouseFilterEnum.Ignore
+            });
+            AddChild(barricade);
+            return barricade;
+        }
+
+        public override void _PhysicsProcess(double delta) {
+            if (_shrinkElapsed < 0f) return;
+            AdvanceArenaShrink((float)delta);
+        }
+
+        /// <summary>Slides both barricades toward their rest positions. Test seam.</summary>
+        public void AdvanceArenaShrink(float delta) {
+            if (_shrinkElapsed < 0f) return;
+            _shrinkElapsed = Mathf.Min(ArenaShrinkSeconds, _shrinkElapsed + Mathf.Max(0f, delta));
+            float t = ArenaShrinkSeconds <= 0f ? 1f : _shrinkElapsed / ArenaShrinkSeconds;
+            if (_barricadeWest != null && IsInstanceValid(_barricadeWest)) {
+                _barricadeWest.Position = new Vector2(Mathf.Lerp(Room4OffsetX, ArenaShrinkLeftWallX, t), 0f);
+            }
+            if (_barricadeEast != null && IsInstanceValid(_barricadeEast)) {
+                _barricadeEast.Position = new Vector2(Mathf.Lerp(Room4OffsetX + 940f, ArenaShrinkRightWallX, t), 0f);
+            }
+            if (_shrinkElapsed >= ArenaShrinkSeconds) {
+                _shrinkElapsed = -1f;
+                KeepInsideShrunkArena(_player);
+            }
+        }
+
+        /// <summary>
+        /// A death rewind can land on history from before the barricades closed —
+        /// possibly between an old wall and its barricade. The landing is moved
+        /// inside the shrunk arena (never outside the level's play space).
+        /// </summary>
+        private void OnRecoveryLanded(RecoveryHoldPayload payload) => KeepInsideShrunkArena(_player);
+
+        private void KeepInsideShrunkArena(PlayerController player) {
+            if (!ArenaShrunk || player == null || !IsInstanceValid(player)) return;
+            float x = player.GlobalPosition.X;
+            if (x < Room4OffsetX || x > Room4OffsetX + 960f) return; // not in the arena at all
+            float left = ArenaInnerLeftX + 24f;
+            float right = ArenaInnerRightX - 24f;
+            if (x >= left && x <= right) return;
+            player.GlobalPosition = new Vector2(Mathf.Clamp(x, left, right), player.GlobalPosition.Y);
         }
 
         // === Boss and completion flow ===

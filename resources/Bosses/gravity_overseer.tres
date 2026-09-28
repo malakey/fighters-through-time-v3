@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BossData" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="BossData" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
@@ -7,6 +7,7 @@
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/gravity_overseer/orbital_lunge.tres" id="5"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/gravity_overseer/gravity_well.tres" id="6"]
 [ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Bosses/gravity_overseer_frames.tres" id="7"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/gravity_overseer/inverted_gravity_field.tres" id="w9"]
 
 
 [resource]
@@ -32,8 +33,8 @@ PhaseTransitionInvincibilityDuration = 2.0
 PhaseSpeedMultipliers = Array[float]([1.0, 1.2, 1.45])
 ChronalDustDrop = 25
 AttackPattern = 1
-BossAbilities = Array[ExtResource("2")]([ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6")])
-AbilityMinPhase = Array[int]([0, 0, 0, 2])
+BossAbilities = Array[ExtResource("2")]([ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("6"), ExtResource("w9")])
+AbilityMinPhase = Array[int]([0, 0, 0, 2, 1])
 InterruptibleDuringTelegraph = false
 InterruptDamageThreshold = 25.0
 PlaceholderTint = Color(0.42, 0.44, 0.85, 1)

@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "enemy.rift_phantom.rift_step"
+DisplayNameKey = "enemy_ability_rift_step_name"
+Archetype = 7
+RangeClass = 2
+TelegraphFrames = 20
+ActiveFrames = 4
+RecoveryFrames = 16
+CooldownSeconds = 6.0
+SelectionWeight = 1.0
+Damage = 0.0
+KnockbackForce = Vector2(0.0, 0.0)
+HitstunDuration = 0.0
+HitboxSize = Vector2(0, 0)
+HitboxOffset = Vector2(0, 0)
+TeleportRangeMin = 60.0
+TeleportRangeMax = 110.0
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.6, 1, 0.75, 1)
+PresentationEventID = "enemy.rift_phantom.rift_step"

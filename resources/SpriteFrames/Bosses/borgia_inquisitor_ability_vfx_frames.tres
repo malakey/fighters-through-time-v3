@@ -38,5 +38,10 @@ animations = [
 "loop": false,
 "name": &"boss.borgia_inquisitor.cross_slash_dash",
 "speed": 10.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("frame_1_0")}, {"duration": 1.0, "texture": SubResource("frame_1_1")}, {"duration": 1.0, "texture": SubResource("frame_1_2")}],
+"loop": false,
+"name": &"boss.borgia_inquisitor.after_image_dash",
+"speed": 10.0
 }
 ]

@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.dread_admiral.loose_cannon_roll"
+DisplayNameKey = "boss_ability_loose_cannon_roll_name"
+Archetype = 2
+RangeClass = 2
+TelegraphFrames = 32
+ActiveFrames = 8
+RecoveryFrames = 26
+CooldownSeconds = 5.5
+SelectionWeight = 2.5
+Damage = 18.0
+KnockbackForce = Vector2(5.0, -2.0)
+HitstunDuration = 0.3
+HitboxSize = Vector2(40, 40)
+HitboxOffset = Vector2(40, -20)
+ProjectileSpeed = 300.0
+ProjectileCount = 2
+ProjectileSpreadDegrees = 0.0
+ProjectileLifetime = 4.0
+ProjectileGravity = 0.0
+PiercesTargets = false
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.85, 0.7, 0.4, 1)
+PresentationEventID = "boss.dread_admiral.loose_cannon_roll"
