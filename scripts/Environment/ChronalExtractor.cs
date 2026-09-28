@@ -96,6 +96,9 @@ namespace FTT.Environment {
         /// <summary>True once an accepted seal powered this machine down.</summary>
         public bool IsSealedShutdown { get; private set; }
 
+        /// <summary>A sealed machine is inert: nothing can break it afterwards.</summary>
+        protected override bool AcceptsEnvironmentDamage => !IsSealedShutdown;
+
         /// <summary>
         /// N01: a machine still standing when the player seals the timeline goes
         /// terminally inactive. That is <b>not</b> a destruction: no pickup, no

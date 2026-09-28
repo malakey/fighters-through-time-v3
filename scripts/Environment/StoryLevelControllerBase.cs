@@ -1512,17 +1512,7 @@ namespace FTT.Environment {
         /// </summary>
         private void DetectPreSealLoad() {
             IsRestoringAwaitingSeal = false;
-            StoryManager story = StoryManager.Instance;
-            if (story == null || !story.HasLiveAttempt || SaveManager.Instance == null
-                || GameManager.Instance == null) return;
-            StorySealReadiness readiness = story.CurrentAttempt.SealReadiness;
-            if (readiness == null || !readiness.BossDefeated) return;
-            if (!string.Equals(story.CurrentAttempt.LevelID, LevelID, StringComparison.Ordinal)) return;
-            int slot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
-            if (slot < 0 || slot >= SaveManager.Instance.SaveSlots.Length) return;
-            StorySaveData save = SaveManager.Instance.SaveSlots[slot];
-            if (save == null || string.IsNullOrWhiteSpace(save.LastCheckpointID)) return;
-            if (save.CurrentLevelID != StoryManager.GetLevelScenePath(Level)) return;
+            if (!SealReadiness.IsPreSealLoad(LevelID, Level)) return;
             IsRestoringAwaitingSeal = true;
             ResumedAwaitingSeal = true;
             // Set before BuildLevel/OnLevelReady so a level reading
@@ -1539,18 +1529,7 @@ namespace FTT.Environment {
         /// deposit, no unlock. Critical-event write, like every F10 commit.
         /// </summary>
         private void CommitSealReadiness() {
-            StoryManager story = StoryManager.Instance;
-            if (story == null || !story.HasLiveAttempt || !HasSealStage) return;
-            StorySealReadiness readiness = story.CurrentAttempt.SealReadiness ??= new StorySealReadiness();
-            if (readiness.BossDefeated) return;
-            readiness.BossDefeated = true;
-            readiness.SealingAnchorID = SealingAnchorID;
-            LevelRewardLedger ledger = LevelRewardDirectory.EnsureCompiled();
-            readiness.PendingBossPickup = ledger != null
-                && !string.IsNullOrEmpty(ledger.BossSourceID)
-                && !LevelRewardDirectory.IsClaimed(ledger.BossSourceID);
-            story.CurrentAttempt.Bump();
-            story.CommitCriticalEvent();
+            if (HasSealStage) SealReadiness.CommitDefeat(SealingAnchorID);
         }
 
         /// <summary>
@@ -1567,13 +1546,7 @@ namespace FTT.Environment {
             EnterAwaitingSeal();
         }
 
-        private void NoteBossPickupCollected() {
-            StoryManager story = StoryManager.Instance;
-            StorySealReadiness readiness = story?.HasLiveAttempt == true ? story.CurrentAttempt.SealReadiness : null;
-            if (readiness == null || !readiness.BossDefeated || !readiness.PendingBossPickup) return;
-            readiness.PendingBossPickup = false;
-            story.CurrentAttempt.Bump();
-        }
+        private static void NoteBossPickupCollected() => SealReadiness.NoteBossPickupCollected();
 
         /// <summary>
         /// Arms the sealing anchor once the defeat beats have finished, and waits
@@ -1633,21 +1606,8 @@ namespace FTT.Environment {
         /// same source and spawns its single Large pickup at the arena centre;
         /// a claimed source spawns nothing.
         /// </summary>
-        private void RestorePendingBossPickup() {
-            StoryManager story = StoryManager.Instance;
-            StorySealReadiness readiness = story?.HasLiveAttempt == true ? story.CurrentAttempt.SealReadiness : null;
-            if (readiness == null || !readiness.PendingBossPickup) return;
-            LevelRewardLedger ledger = LevelRewardDirectory.EnsureCompiled();
-            if (ledger == null || string.IsNullOrEmpty(ledger.BossSourceID)) return;
-            if (LevelRewardDirectory.IsClaimed(ledger.BossSourceID)) {
-                readiness.PendingBossPickup = false;
-                story.CurrentAttempt.Bump();
-                return;
-            }
-            if (!LevelRewardDirectory.TryIssueBossAward(out string sourceID, out int amount) || amount <= 0) return;
-            RestoredBossPickup = StoryDropSystem.SpawnDustAward(
-                amount, BossRewardRestorePosition, this, DustAwardSource.Boss, sourceID);
-        }
+        private void RestorePendingBossPickup() =>
+            RestoredBossPickup = SealReadiness.RestorePendingBossPickup(BossRewardRestorePosition, this);
 
         /// <summary>The boss pickup a pre-seal load respawned, or null. Test seam.</summary>
         public ChronalDustPickup RestoredBossPickup { get; private set; }
@@ -1841,11 +1801,7 @@ namespace FTT.Environment {
             LevelComplete = true;
             // N01: AwaitingSeal ends inside the completion commit, so the
             // completion write can never carry a stale "ready to seal" record.
-            StoryManager story = StoryManager.Instance;
-            if (story?.HasLiveAttempt == true && story.CurrentAttempt.SealReadiness?.BossDefeated == true) {
-                story.CurrentAttempt.SealReadiness = new StorySealReadiness();
-                story.CurrentAttempt.Bump();
-            }
+            SealReadiness.ClearOnCompletion();
             Levels?.CompleteLevel();
         }
 

@@ -210,6 +210,19 @@ namespace FTT.Environment {
             ApplyChannelPresentation();
         }
 
+        /// <summary>
+        /// Test seam: resolves a completed channel without pumping 180 input
+        /// frames (the campaign collection walk). Same path, same once-only
+        /// guarantees as a real channel.
+        /// </summary>
+        internal void CompleteChannelForTest() {
+            if (IsDestroyed || IsSealedShutdown) return;
+            _channeler = null;
+            _channelFrames = 0;
+            CompleteWithoutDamage();
+            ApplyChannelPresentation();
+        }
+
         private void ResetChannel() {
             _channeler = null;
             _channelFrames = 0;
