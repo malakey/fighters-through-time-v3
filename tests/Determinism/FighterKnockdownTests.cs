@@ -245,7 +245,8 @@ public class FighterKnockdownTests {
         bool slid = false;
         bool raisedStance = false;
         bool holdBlock = false;
-        for (int tick = 0; tick < 240; tick++) {
+        int start = Approach(simulation);
+        for (int tick = start; tick < start + 240; tick++) {
             AssertThat(simulation.TryGetFighter(1, out FighterStateComponent victim)).IsTrue();
             if (lastHP == int.MinValue) lastHP = victim.CurrentHP;
             if (victim.CurrentHP < lastHP) {
@@ -263,7 +264,7 @@ public class FighterKnockdownTests {
             if (hits >= 2 && FighterBasicAttackRules.IsBlockStance(in after, in afterRuntime, in afterVerb)) {
                 raisedStance = true;
             }
-            if (raisedStance && tick > 150) break;
+            if (raisedStance && tick > start + 150) break;
         }
         AssertThat(leftTheGround)
             .OverrideFailureMessage("M05: non-launching hits 1-2 must keep a grounded victim on the floor.")
@@ -351,18 +352,45 @@ public class FighterKnockdownTests {
     private static int LandHitTwo(FighterSimulation simulation) {
         int hits = 0;
         int lastHP = int.MinValue;
-        for (int tick = 0; tick < 200; tick++) {
+        int start = Approach(simulation);
+        for (int tick = start; tick < start + 200; tick++) {
             GameplayButtons attacker = tick % 2 == 0 ? GameplayButtons.BasicAttack : GameplayButtons.None;
             simulation.Advance(Frame(tick, attacker), Frame(tick, GameplayButtons.None));
             AssertThat(simulation.TryGetFighter(1, out FighterStateComponent victim)).IsTrue();
+            AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent attackerRuntime)).IsTrue();
             if (lastHP == int.MinValue) lastHP = victim.MaxHP;
-            if (victim.CurrentHP < lastHP) hits++;
+            if (victim.CurrentHP < lastHP) {
+                hits++;
+                // The string's second swing (ComboIndex 1) is the one that must connect.
+                if (attackerRuntime.ComboIndex == 1) return tick;
+            }
             lastHP = victim.CurrentHP;
-            if (hits == 2) return tick;
         }
         AssertThat(false).OverrideFailureMessage($"Hit 2 never connected (hits {hits}).").IsTrue();
         return -1;
     }
+
+    /// <summary>
+    /// Walks player one in until the victim is inside the string's reach
+    /// (the spawn gap of 2 units is beyond Lincoln's 85 % hit 1/2 boxes), then
+    /// lets the run decelerate. Returns the next tick label.
+    /// </summary>
+    private static int Approach(FighterSimulation simulation) {
+        int tick = 0;
+        for (; tick < 60; tick++) {
+            simulation.TryGetFighter(0, out FighterStateComponent attacker);
+            simulation.TryGetFighter(1, out FighterStateComponent victim);
+            bool close = victim.Position.x - attacker.Position.x <= FP64.FromDouble(1.2);
+            simulation.Advance(Frame(tick, GameplayButtons.None, close ? (sbyte)0 : (sbyte)127), Frame(tick, GameplayButtons.None));
+            if (close) break;
+        }
+        for (int settle = 0; settle < 20; settle++) {
+            tick++;
+            simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
+        }
+        return tick + 1;
+    }
+
 
     /// <summary>
     /// Probes the hit pipeline against COPIES of the live components (the

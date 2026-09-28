@@ -45,8 +45,18 @@ public class FighterCombatContractW3Tests {
         var simulation = new FighterSimulation(
             FighterCharacterID.Lincoln, FighterCharacterID.Joan,
             spawnDistance: 1, rules: FighterMatchRules.Disabled);
+        // Walk in: the 2-unit spawn gap is beyond Lincoln's 85 % hit 1/2 reach.
         int tick = 0;
-        for (; tick < 5; tick++) simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
+        for (; tick < 60; tick++) {
+            simulation.TryGetFighter(0, out FighterStateComponent a);
+            simulation.TryGetFighter(1, out FighterStateComponent v);
+            bool close = v.Position.x - a.Position.x <= FP64.FromDouble(1.2);
+            simulation.Advance(Frame(tick, GameplayButtons.None, close ? (sbyte)0 : (sbyte)127), Frame(tick, GameplayButtons.None));
+            if (close) break;
+        }
+        for (int settle = 0; settle < 20; settle++, tick++) {
+            simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
+        }
 
         bool launched = false;
         bool sawKnockdown = false;
