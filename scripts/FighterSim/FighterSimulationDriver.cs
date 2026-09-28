@@ -829,8 +829,17 @@ namespace FTT.FighterSim {
         private string ResolvePresentationAnimation(int playerID, in FighterStateComponent state,
             in FighterRuntimeComponent runtime) {
             if (state.RespawnFramesRemaining > 0) return "respawn";
+            TryGetVerb(playerID, out FighterVerbComponent verb);
+            // H03 reuse rules (design-godot.md Section 9; Package 12 W10): a held
+            // or thrown fighter, a launch tumble and a knockdown all play hitstun;
+            // a landing tech plays roll_recovery; the grabber plays grab through
+            // reach and hold and the single shared throw for every direction.
+            if (verb.BeingHeld != 0) return "hitstun";
             if (state.HitstunFrames > 0) return "hitstun";
             if (state.DazeFrames > 0) return "dazed";
+            if (verb.TechLockoutFrames > 0) return "roll_recovery";
+            string grabAnimation = GrabPresentationAnimation(verb.GrabPhase);
+            if (grabAnimation != null) return grabAnimation;
             // §2.11 — the placeholder set already carries a real ledge_hang pose
             // for all nine characters (Story's LedgeHanging state uses it), so the
             // Fighter hang reuses it rather than borrowing crouch or hitstun.
@@ -844,7 +853,7 @@ namespace FTT.FighterSim {
                     return "up_attack";
                 }
                 if ((runtime.AttackFlags & FighterBasicAttackRules.FlagDownAir) != 0) {
-                    return "down_attack";
+                    return "down_air";
                 }
                 int step = runtime.ComboIndex < 0 ? 0 : runtime.ComboIndex > 2 ? 2 : runtime.ComboIndex;
                 return BasicAttackAnimationNames[step];
@@ -852,7 +861,6 @@ namespace FTT.FighterSim {
             if (runtime.UniversalMovementState is (int)UniversalMovementPhase.RollStartup
                 or (int)UniversalMovementPhase.RollTravel
                 or (int)UniversalMovementPhase.RollRecovery) return "roll";
-            TryGetVerb(playerID, out FighterVerbComponent verb);
             if (FighterBasicAttackRules.IsBlockStance(in state, in runtime, in verb)) return "block";
             if (state.IsGrounded == 0) {
                 return state.Velocity.y > xpTURN.Klotho.Deterministic.Math.FP64.Zero ? "jump" : "fall";
@@ -862,6 +870,17 @@ namespace FTT.FighterSim {
                 ? "run"
                 : "idle";
         }
+
+        /// <summary>
+        /// H03: the grabber's pose from <c>FighterVerbComponent.GrabPhase</c>
+        /// (1 startup, 2 active, 3 whiff recovery, 4 holding → <c>grab</c>;
+        /// 5 throw → <c>throw</c>), or null when not grabbing. Pure; read-only.
+        /// </summary>
+        public static string GrabPresentationAnimation(int grabPhase) => grabPhase switch {
+            1 or 2 or 3 or 4 => "grab",
+            5 => "throw",
+            _ => null
+        };
 
         /// <summary>
         /// Fighter abilities resolve immediately in deterministic state, so their

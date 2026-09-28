@@ -226,4 +226,27 @@ public class FighterPresentationSyncTests {
         }
         AssertThat(GlowPalette.Status(StatusType.None).IsVisible).IsFalse();
     }
+
+    /// <summary>
+    /// H03 (Package 12 W10): the driver maps the grabber's phases onto the
+    /// contract's grab/throw names, and every name it can emit exists in the
+    /// 30-name player presentation contract.
+    /// </summary>
+    [TestCase]
+    public void GrabPhasesMapOntoTheContractGrabAndThrowNames() {
+        AssertThat(FighterSimulationDriver.GrabPresentationAnimation(0)).IsNull();
+        for (int phase = 1; phase <= 4; phase++) {
+            AssertThat(FighterSimulationDriver.GrabPresentationAnimation(phase)).IsEqual("grab");
+        }
+        AssertThat(FighterSimulationDriver.GrabPresentationAnimation(5)).IsEqual("throw");
+
+        var contract = AuthoredResources.Load<ContentSceneContract>(
+            "res://resources/Contracts/player_presentation_contract.tres");
+        var names = new System.Collections.Generic.HashSet<string>(contract.RequiredAnimationNames);
+        foreach (string emitted in new[] { "grab", "throw", "hitstun", "roll_recovery", "up_attack", "down_air" }) {
+            AssertThat(names.Contains(emitted))
+                .OverrideFailureMessage($"The driver emits '{emitted}', which the contract does not list")
+                .IsTrue();
+        }
+    }
 }

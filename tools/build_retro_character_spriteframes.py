@@ -76,6 +76,20 @@ CHARACTER_ANIMATIONS = [
 ]
 
 
+# H03 (design-godot.md Section 9, 2026-09-26) — the 30-name contract adds
+# up_attack, down_air, grab and throw to the 26 above. Package 12 W10 renamed
+# the retro set's `down_attack` to the contract's `down_air` and added
+# PLACEHOLDER grab/throw rows: new art is Package 10, so both reuse existing
+# combat-atlas regions (grab = the basic_attack_1 reach, throw = the
+# basic_attack_3 heave). Replace the (sheet, row) pairs when real frames land.
+DIRECTIONAL_AND_GRAB_ANIMATIONS = [
+    ("up_attack", "directional_attacks", 0, 8.0, False),
+    ("down_air", "directional_attacks", 1, 8.0, False),
+    ("grab", "combat", 0, 8.0, False),
+    ("throw", "combat", 2, 8.0, False),
+]
+
+
 def animation_block(name: str, frame_ids: list[str], speed: float, loop: bool) -> str:
     frames = ", ".join(
         f'{{"duration": 1.0, "texture": SubResource("{frame_id}")}}'
@@ -100,11 +114,11 @@ def write_character_resource(character_id: str) -> None:
         f"res://assets/sprites/characters/{character_id}/retro/"
         f"{character_id}_directional_attacks_atlas.png"
     )
-    animations = CHARACTER_ANIMATIONS + [
-        ("up_attack", "directional_attacks", 0, 8.0, False),
-        ("down_attack", "directional_attacks", 1, 8.0, False),
-    ]
-    lines = ['[gd_resource type="SpriteFrames" load_steps=91 format=3]', ""]
+    animations = CHARACTER_ANIMATIONS + DIRECTIONAL_AND_GRAB_ANIMATIONS
+    # One ext_resource per sheet, three AtlasTexture sub-resources per animation,
+    # plus the resource itself.
+    load_steps = len(sheets) + 3 * len(animations) + 1
+    lines = [f'[gd_resource type="SpriteFrames" load_steps={load_steps} format=3]', ""]
     sheet_ids = {sheet: str(index + 1) for index, sheet in enumerate(sheets)}
     for sheet, path in sheets.items():
         lines.append(
@@ -165,6 +179,19 @@ def write_vfx_resource(character_id: str, animations: tuple[str, ...]) -> None:
     )
 
 
-for roster_id, ability_animations in ROSTER_ABILITIES.items():
-    write_character_resource(roster_id)
-    write_vfx_resource(roster_id, ability_animations)
+def build(character_ids=None) -> None:
+    """Rebuild the named characters (default: the whole roster table).
+
+    Writes only the SpriteFrames .tres text; it never touches a PNG, so it
+    cannot regenerate art.
+    """
+    for roster_id, ability_animations in ROSTER_ABILITIES.items():
+        if character_ids and roster_id not in character_ids:
+            continue
+        write_character_resource(roster_id)
+        write_vfx_resource(roster_id, ability_animations)
+
+
+if __name__ == "__main__":
+    import sys
+    build(sys.argv[1:] or None)

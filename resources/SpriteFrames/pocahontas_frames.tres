@@ -1,4 +1,4 @@
-[gd_resource type="SpriteFrames" load_steps=91 format=3]
+[gd_resource type="SpriteFrames" load_steps=97 format=3]
 
 [ext_resource type="Texture2D" path="res://assets/sprites/characters/pocahontas/retro/pocahontas_locomotion_atlas.png" id="1_locomotion"]
 [ext_resource type="Texture2D" path="res://assets/sprites/characters/pocahontas/retro/pocahontas_traversal_atlas.png" id="2_traversal"]
@@ -331,17 +331,41 @@ region = Rect2(96, 0, 96, 128)
 atlas = ExtResource("6_directional_attacks")
 region = Rect2(192, 0, 96, 128)
 
-[sub_resource type="AtlasTexture" id="down_attack_0"]
+[sub_resource type="AtlasTexture" id="down_air_0"]
 atlas = ExtResource("6_directional_attacks")
 region = Rect2(0, 128, 96, 128)
 
-[sub_resource type="AtlasTexture" id="down_attack_1"]
+[sub_resource type="AtlasTexture" id="down_air_1"]
 atlas = ExtResource("6_directional_attacks")
 region = Rect2(96, 128, 96, 128)
 
-[sub_resource type="AtlasTexture" id="down_attack_2"]
+[sub_resource type="AtlasTexture" id="down_air_2"]
 atlas = ExtResource("6_directional_attacks")
 region = Rect2(192, 128, 96, 128)
+
+[sub_resource type="AtlasTexture" id="grab_0"]
+atlas = ExtResource("3_combat")
+region = Rect2(0, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="grab_1"]
+atlas = ExtResource("3_combat")
+region = Rect2(96, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="grab_2"]
+atlas = ExtResource("3_combat")
+region = Rect2(192, 0, 96, 128)
+
+[sub_resource type="AtlasTexture" id="throw_0"]
+atlas = ExtResource("3_combat")
+region = Rect2(0, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="throw_1"]
+atlas = ExtResource("3_combat")
+region = Rect2(96, 256, 96, 128)
+
+[sub_resource type="AtlasTexture" id="throw_2"]
+atlas = ExtResource("3_combat")
+region = Rect2(192, 256, 96, 128)
 
 [resource]
 animations = [
@@ -481,9 +505,19 @@ animations = [
 "name": &"up_attack",
 "speed": 8.0
 }, {
-"frames": [{"duration": 1.0, "texture": SubResource("down_attack_0")}, {"duration": 1.0, "texture": SubResource("down_attack_1")}, {"duration": 1.0, "texture": SubResource("down_attack_2")}],
+"frames": [{"duration": 1.0, "texture": SubResource("down_air_0")}, {"duration": 1.0, "texture": SubResource("down_air_1")}, {"duration": 1.0, "texture": SubResource("down_air_2")}],
 "loop": false,
-"name": &"down_attack",
+"name": &"down_air",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("grab_0")}, {"duration": 1.0, "texture": SubResource("grab_1")}, {"duration": 1.0, "texture": SubResource("grab_2")}],
+"loop": false,
+"name": &"grab",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("throw_0")}, {"duration": 1.0, "texture": SubResource("throw_1")}, {"duration": 1.0, "texture": SubResource("throw_2")}],
+"loop": false,
+"name": &"throw",
 "speed": 8.0
 }
 ]

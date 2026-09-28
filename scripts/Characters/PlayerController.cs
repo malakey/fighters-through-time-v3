@@ -3633,7 +3633,7 @@ namespace FTT.Characters {
 			}
 
 			TransitionTo(CharacterState.Attacking);
-			PlayAnimation(upAttack ? "up_attack" : "down_attack");
+			PlayAnimation(upAttack ? "up_attack" : "down_air");
 			// Directional gameplay timing is fixed by BasicComboRules rather than
 			// animation callbacks, so only presentation uses the authored sheet.
 			_attackAnimationDriven = false;
