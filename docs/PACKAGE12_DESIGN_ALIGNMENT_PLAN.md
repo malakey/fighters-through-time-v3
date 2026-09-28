@@ -480,4 +480,4 @@ The rewind WIP was committed as `21b0747` (58/58 filtered). The design mirror, e
 - **Held and untouched:** D10 boss HP rows, D13 4A boss HP / rosters / Joan, D15 Eraser dust.
 - **Shared-file edits:** `.runsettings` (harness flag); `EnemyController`'s guard-crush implicit is tier-gated (behaviour-preserving); `EnemyAbilityExecutor` gained two events; eight `*_ability_vfx_frames.tres` gained one placeholder row each.
 - **Hashes:** none moved; `scripts/FighterSim/` untouched.
-- **Tests:** +19 (three new suites, four level cases); three pins rewritten in place. Full suite **2443/2443** on `main` + W9 (2424 + 19). `en.en.translation` not committed.
+- **Tests:** +19 (three new suites, four level cases); three pins rewritten in place. Full suite **2518/2518** twice on `main` (W8 + W10 merged) + W9 = 2499 + 19. `en.en.translation` not committed.
