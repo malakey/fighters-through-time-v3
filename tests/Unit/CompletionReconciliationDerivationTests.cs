@@ -7,8 +7,8 @@ namespace FTT.Tests.Unit;
 /// <summary>
 /// Package 12 W2 — the declared v6→v7 H02 reconciliation,
 /// <see cref="StoryAttemptState.ReconcileUndepositedCompletion"/>. Phase C
-/// composes it into the single v7 migration step; this workstream ships it
-/// unwired. A v6 payload saved after a level completed but before the hub loaded
+/// composed it into the single v7 migration step (pinned end-to-end by
+/// <c>SaveSchemaV7MigrationTests</c>); these cases pin the function alone. A v6 payload saved after a level completed but before the hub loaded
 /// relied on the hub's (now deleted) arrival deposit; it must bank exactly once,
 /// while an open attempt's held dust must not bank at all.
 /// </summary>

@@ -55,8 +55,10 @@ public class SaveEnvelopeTests {
         AssertThat(migrated.SaveVersion).IsEqual(SaveSchemaMigrator.CurrentVersion);
         AssertThat(migrated.SelectedCharacterID).IsEqual("joan");
         AssertThat(migrated.CurrentLevelID).IsEqual("res://scenes/campaign/Level_01_Florence.tscn");
-        AssertThat(migrated.LevelChronalDust).IsEqual(45);
-        AssertThat(migrated.DepositedChronalDust["joan"]).IsEqual(120);
+        // Between levels with an undeposited wallet is the pre-H02 post-completion
+        // shape, so Package 12's v7 step banks it once into Joan's own balance.
+        AssertThat(migrated.LevelChronalDust).IsEqual(0);
+        AssertThat(migrated.DepositedChronalDust["joan"]).IsEqual(165);
         AssertThat(migrated.GridProgress["joan"][0]).IsEqual("joan_zeal");
     }
 
@@ -140,16 +142,20 @@ public class SaveEnvelopeTests {
     /// V7.3 schema v5 is purely additive: a v4 story payload (written before
     /// the per-attempt fields existed) must load with the documented defaults
     /// — empty registries, Integrity 100, both flags false. Package 11's v6 step
-    /// keeps that true: it derives, it never invents.
+    /// keeps that true: it derives, it never invents. Package 12's v7 step adds
+    /// one derivation this fixture exercises: a between-levels payload with an
+    /// undeposited wallet is the pre-H02 post-completion shape, so the wallet is
+    /// banked once (W2 <c>ReconcileUndepositedCompletion</c>).
     /// </summary>
     [TestCase]
     public void VersionFourStoryPayloadLoadsWithVersionSixDefaults() {
         StorySaveData migrated = SaveSchemaMigrator.DeserializeStory(
             "{\"SaveVersion\":4,\"SelectedCharacterID\":\"joan\",\"LevelChronalDust\":42}");
 
-        AssertThat(SaveSchemaMigrator.CurrentVersion).IsEqual(6);
-        AssertThat(migrated.SaveVersion).IsEqual(6);
-        AssertThat(migrated.LevelChronalDust).IsEqual(42);
+        AssertThat(SaveSchemaMigrator.CurrentVersion).IsEqual(7);
+        AssertThat(migrated.SaveVersion).IsEqual(7);
+        AssertThat(migrated.LevelChronalDust).IsEqual(0);
+        AssertThat(migrated.DepositedChronalDust["joan"]).IsEqual(42);
         AssertObject(migrated.ActivatedCheckpointIDs).IsNotNull();
         AssertThat(migrated.ActivatedCheckpointIDs.Count).IsEqual(0);
         AssertObject(migrated.FontUsesConsumed).IsNotNull();
@@ -209,10 +215,10 @@ public class SaveEnvelopeTests {
         AssertThat(restored.ViewedDialogueIDs[0]).IsEqual("level_02.entrance");
         AssertThat(restored.HasSeenCollapseBeat).IsTrue();
 
-        // The version fence still holds: v7 is the future and stays rejected.
+        // The version fence still holds: v8 is the future and stays rejected.
         bool rejected = false;
         try {
-            SaveSchemaMigrator.DeserializeStory("{\"SaveVersion\":7}");
+            SaveSchemaMigrator.DeserializeStory("{\"SaveVersion\":8}");
         } catch (SaveVersionException) {
             rejected = true;
         }
@@ -239,7 +245,7 @@ public class SaveEnvelopeTests {
             + "\"CompletedLevels\":[\"level_00_tutorial\",\"level_01_florence\",\"level_02_orleans\"],"
             + "\"LevelIntegrityPercent\":72.5}");
 
-        AssertThat(clean.SaveVersion).IsEqual(6);
+        AssertThat(clean.SaveVersion).IsEqual(SaveSchemaMigrator.CurrentVersion);
         AssertThat(clean.AttemptState.HasAttempt).IsTrue();
         AssertThat(clean.AttemptState.Status).IsEqual(StoryAttemptStatus.Active);
         AssertThat(clean.AttemptState.DefyHistoryUsed).IsFalse();
@@ -277,7 +283,7 @@ public class SaveEnvelopeTests {
             "{\"SaveVersion\":5,\"LastMatchSettings\":{\"Saved\":true,\"Mode\":2,\"TimeLimit\":0.0},"
             + "\"InputBindings\":{\"Actions\":{\"gameplay_rewind\":[{\"Kind\":0,\"Code\":82}]}}}");
 
-        AssertThat(global.SaveVersion).IsEqual(6);
+        AssertThat(global.SaveVersion).IsEqual(SaveSchemaMigrator.CurrentVersion);
         AssertThat(global.LastMatchSettings.Mode).IsEqual((int)MatchMode.Stock);
         AssertThat(global.LastMatchSettings.TimeLimit).IsEqual(SavedMatchSettings.DefaultTimeLimitSeconds);
         AssertThat(global.InputBindings.For(InputManager.Actions.LegacyRewind).Count).IsEqual(0);
@@ -289,13 +295,13 @@ public class SaveEnvelopeTests {
     }
 
     /// <summary>
-    /// Package 11 Phase C — a v6 payload round trips on both sides with no
-    /// migration step re-running, and the deferred global half (the seen-dialogue
-    /// union, which needs the story slots the global payload loads before) is
-    /// idempotent and additive.
+    /// Package 11 Phase C — a payload at the current schema (v7 since Package 12
+    /// Phase C) round trips on both sides with no migration step re-running, and
+    /// the deferred global half (the seen-dialogue union, which needs the story
+    /// slots the global payload loads before) is idempotent and additive.
     /// </summary>
     [TestCase]
-    public void VersionSixPayloadsRoundTripOnBothSides() {
+    public void CurrentVersionPayloadsRoundTripOnBothSides() {
         var story = new StorySaveData {
             SelectedCharacterID = "tesla",
             LastCheckpointID = "level_14_neo_earth_checkpoint_2",
@@ -313,15 +319,15 @@ public class SaveEnvelopeTests {
         story.AttemptState = StoryAttemptState.CreateFresh("level_14_neo_earth", 2);
         story.AttemptState.DefyHistoryUsed = true;
         story.Normalize();
-        AssertThat(story.SaveVersion).IsEqual(6);
+        AssertThat(story.SaveVersion).IsEqual(SaveSchemaMigrator.CurrentVersion);
 
         byte[] envelope = SaveEnvelopeCodec.Encode(
             "story", story.SaveVersion, JsonConvert.SerializeObject(story), TestKey, 21L, TestIV);
         AssertThat(SaveEnvelopeCodec.TryDecode(envelope, TestKey, out DecodedSaveEnvelope decoded, out _)).IsTrue();
-        AssertThat(decoded.SchemaVersion).IsEqual(6);
+        AssertThat(decoded.SchemaVersion).IsEqual(SaveSchemaMigrator.CurrentVersion);
 
         StorySaveData restored = SaveSchemaMigrator.DeserializeStory(decoded.Json, out int loadedVersion);
-        AssertThat(loadedVersion).IsEqual(6);
+        AssertThat(loadedVersion).IsEqual(SaveSchemaMigrator.CurrentVersion);
         AssertThat(restored.CheckpointIntegrityPercent).IsEqual(63.25f);
         AssertThat(restored.StoryDefyHistoryUsed).IsTrue();
         AssertThat(restored.TimeFreezeCooldownSeconds).IsEqual(45f);

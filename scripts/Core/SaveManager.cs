@@ -287,8 +287,9 @@ namespace FTT.Core {
             if (StockCount < MinStockCount || StockCount > MaxStockCount) {
                 StockCount = DefaultStockCount;
             }
-            // Package 12 W5: tolerate a pre-toggle payload until Phase C's v7 step
-            // lands. Only a missing toggle is derived — an explicit value, Off
+            // Package 12 W5: the v7 step (SaveSchemaMigrator.MigrateGlobalToV7)
+            // performs this derivation; it is kept here as a belt-and-braces guard
+            // for a hand-edited payload. Only a missing toggle is derived — an explicit value, Off
             // included, is never overwritten, so this stays idempotent.
             StageHazardsEnabled ??= DeriveStageHazardsEnabled(HazardRate);
         }
@@ -1060,7 +1061,9 @@ namespace FTT.Core {
             if (TryLoadPayload(path, "global", out string json, out bool backupUsed)) {
                 try {
                     GlobalData = SaveSchemaMigrator.DeserializeGlobal(json, out int loadedVersion);
-                    _globalSeenDialogueSeedPending = loadedVersion < SaveSchemaMigrator.CurrentVersion;
+                    // The seen-dialogue union is the v5 → v6 derivation; a v6
+                    // payload already carries it, so the v7 bump does not re-run it.
+                    _globalSeenDialogueSeedPending = loadedVersion < 6;
                     EnsureRosterUnlocked(GlobalData);
                     if (backupUsed) SetNotice("save_notice_global_recovered");
                     return true;

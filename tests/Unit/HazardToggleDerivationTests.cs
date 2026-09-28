@@ -8,9 +8,9 @@ namespace FTT.Tests.Unit;
 /// <summary>
 /// Package 12 W5 — the declared v7 derivation for the retired hazard selector
 /// (plan §3.2): <c>Off → false</c>, anything else → <c>true</c>. The save version
-/// is <b>not</b> bumped here; Phase C composes
+/// was bumped once, by Package 12 Phase C, which composes
 /// <see cref="SavedMatchSettings.DeriveStageHazardsEnabled"/> into its single
-/// v6→v7 step, and until then <see cref="SavedMatchSettings.Normalize"/> tolerates
+/// v6→v7 step; <see cref="SavedMatchSettings.Normalize"/> still tolerates
 /// a pre-toggle payload. Pure C#: the payload class stays engine-free.
 /// </summary>
 [TestSuite]

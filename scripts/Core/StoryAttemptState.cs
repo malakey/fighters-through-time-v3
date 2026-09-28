@@ -371,7 +371,8 @@ namespace FTT.Core {
         // === Package 12 W2: the declared v6→v7 H02 reconciliation ===========
 
         /// <summary>
-        /// <b>Declared for Phase C; deliberately NOT wired into the migrator.</b>
+        /// <b>Declared by W2; wired by Package 12 Phase C</b> into the single
+        /// v6 → v7 step (<c>SaveSchemaMigrator.ReconcileStoryCompletionForV7</c>).
         /// H02 (2026-09-26) moved every deposit into the level-completion
         /// transaction and deleted the hub's arrival deposit. A v6 payload saved
         /// after a level completed but before the hub loaded still carries that

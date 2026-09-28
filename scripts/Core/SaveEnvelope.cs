@@ -289,8 +289,16 @@ namespace FTT.Core {
         /// suite; never call it from a pure-C# GdUnit suite (a Godot file read
         /// there is an uncatchable access violation — CLAUDE.md failure
         /// signature A6b).</para>
+        ///
+        /// <para>v7 (Package 12, Phase C) is again the package's single bump, and
+        /// again composes only the derivations the workstreams declared —
+        /// <see cref="MigrateStoryToV7"/> (W2's H02 completion reconciliation and
+        /// W6's <c>LowestDifficultyUsed</c> seed) and <see cref="MigrateGlobalToV7"/>
+        /// (W5's hazard toggle). Every other Package 12 field is additive with a
+        /// field initializer equal to its legacy meaning. The counter is still
+        /// shared (<c>DEFER-SAVE-VERSION-SPLIT</c>).</para>
         /// </summary>
-        public const int CurrentVersion = 6;
+        public const int CurrentVersion = 7;
 
         public static StorySaveData DeserializeStory(string json) => DeserializeStory(json, out _);
 
@@ -308,7 +316,12 @@ namespace FTT.Core {
             if (version < 6) MigrateStoryCheckpointIntegrity(root);
             root[nameof(StorySaveData.SaveVersion)] = CurrentVersion;
             StorySaveData data = root.ToObject<StorySaveData>() ?? new StorySaveData();
+            // The H02 reconciliation has to see the payload before the v6 step's
+            // MigrateFromLegacyRoot mints an attempt ID — the unminted record is
+            // exactly the shape it recognises (W2 handoff).
+            if (version < 7) ReconcileStoryCompletionForV7(data);
             if (version < 6) MigrateStoryToV6(data);
+            if (version < 7) MigrateStoryToV7(data);
             data.Normalize();
             return data;
         }
@@ -328,6 +341,7 @@ namespace FTT.Core {
             root[nameof(GlobalSaveData.SaveVersion)] = CurrentVersion;
             GlobalSaveData data = root.ToObject<GlobalSaveData>() ?? new GlobalSaveData();
             if (version < 6) MigrateGlobalToV6(data);
+            if (version < 7) MigrateGlobalToV7(data);
             data.Normalize();
             return data;
         }
@@ -479,6 +493,50 @@ namespace FTT.Core {
             data.InputBindings.MigrateLegacyRewindAction();
             data.LastMatchSettings ??= new SavedMatchSettings();
             data.LastMatchSettings.Normalize();
+        }
+
+        /// <summary>
+        /// Story v6 → v7, first half (Package 12 W2, H02). A payload saved after a
+        /// level completed but before the hub loaded still holds that level's
+        /// earnings in <c>LevelChronalDust</c>: v6 relied on the hub's arrival
+        /// deposit, which H02 deleted. <see cref="StoryAttemptState.ReconcileUndepositedCompletion"/>
+        /// banks it exactly once. It runs <b>before</b> the v6 step so that a pre-v6
+        /// payload is seen while its attempt record is still unminted. An open
+        /// attempt's held dust (a Collapse or an exit parked in the hub) is never
+        /// banked. Idempotent: the wallet is zeroed in the same step.
+        /// </summary>
+        private static void ReconcileStoryCompletionForV7(StorySaveData data) {
+            if (data == null) return;
+            StoryAttemptState.ReconcileUndepositedCompletion(data);
+        }
+
+        /// <summary>
+        /// Story v6 → v7, second half (Package 12 W6, G14).
+        /// <c>LowestDifficultyUsed</c> is seeded from <c>Difficulty</c>
+        /// (<see cref="CampaignDifficultyRules.SeedLowestDifficultyUsed"/>), so a
+        /// payload written before the field existed persists its own tier rather
+        /// than the Hard initializer. Idempotent; never raises the value.
+        /// </summary>
+        private static void MigrateStoryToV7(StorySaveData data) {
+            if (data == null) return;
+            CampaignDifficultyRules.SeedLowestDifficultyUsed(data);
+        }
+
+        /// <summary>
+        /// Global v6 → v7 (Package 12 W5). The retired hazard-frequency selector
+        /// becomes the On/Off toggle: <c>HazardRate</c> Off → false, anything else →
+        /// true (<see cref="SavedMatchSettings.DeriveStageHazardsEnabled"/>). An
+        /// explicit toggle already on the payload is never overwritten. Every W6
+        /// global field (comfort, input, dialogue, crash-report, mute, stick
+        /// profiles) and W5's <c>PlayerSlotPalette</c> / <c>MeterPickupsEnabled</c>
+        /// load on field initializers equal to their legacy meaning and need only
+        /// <see cref="GlobalSaveData.Normalize"/>.
+        /// </summary>
+        private static void MigrateGlobalToV7(GlobalSaveData data) {
+            if (data == null) return;
+            data.LastMatchSettings ??= new SavedMatchSettings();
+            data.LastMatchSettings.StageHazardsEnabled ??=
+                SavedMatchSettings.DeriveStageHazardsEnabled(data.LastMatchSettings.HazardRate);
         }
 
         /// <summary>
