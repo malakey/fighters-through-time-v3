@@ -1420,27 +1420,17 @@ namespace FTT.Core {
 
         /// <summary>
         /// True when the results overlay for the level just completed should play
-        /// the Resonance Restored beat. The Ultimate is deliberately excluded:
-        /// Level 4A is the first full-kit level and V7.5 plays the Ultimate's
-        /// beat on <b>4A entry</b>, not on Level 4's exit
-        /// (<see cref="TryConsumeDeferredResonanceRestored"/>).
+        /// the Resonance Restored beat — for <b>every</b> milestone slot.
+        ///
+        /// <para>Package 12 W7 (design §2, Level 4A "Results and economy",
+        /// Low-item decision 2026-09-26): the Ultimate's beat plays on Level 4's
+        /// results screen like every other unlock. The Package 11 A5 exclusion,
+        /// which deferred it to 4A entry through a consume-once hand-off that no
+        /// scene ever consumed, is removed. Level 4A instead opens on a flavour
+        /// Nexus moment (<c>LegacyLevelControllerBase.NexusMomentDialogueID</c>)
+        /// that grants nothing and is not a second unlock beat.</para>
         /// </summary>
-        public bool ShouldPlayResonanceRestoredOnResults =>
-            LastLegacyUnlockSlot.HasValue && LastLegacyUnlockSlot.Value != AbilitySlot.Ultimate;
-
-        private AbilitySlot? _deferredResonanceSlot;
-
-        /// <summary>
-        /// Hands the deferred Resonance Restored beat (the Ultimate) to Level 4A's
-        /// entry, exactly once. Returns false everywhere else.
-        /// </summary>
-        public bool TryConsumeDeferredResonanceRestored(out AbilitySlot slot) {
-            slot = AbilitySlot.Ultimate;
-            if (!_deferredResonanceSlot.HasValue) return false;
-            slot = _deferredResonanceSlot.Value;
-            _deferredResonanceSlot = null;
-            return true;
-        }
+        public bool ShouldPlayResonanceRestoredOnResults => LastLegacyUnlockSlot.HasValue;
 
         /// <summary>
         /// Grants the milestone slot for a completed level onto the active save's
@@ -1493,7 +1483,6 @@ namespace FTT.Core {
             if (alreadyHeld) return;
 
             LastLegacyUnlockSlot = milestone;
-            if (milestone == AbilitySlot.Ultimate) _deferredResonanceSlot = milestone;
             EventBus.Instance?.RaiseAbilitySlotLockChanged(new AbilitySlotLockPayload {
                 Slot = milestone,
                 State = AbilitySlotLockState.Clear

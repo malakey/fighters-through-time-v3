@@ -243,10 +243,10 @@ namespace FTT.UI {
         // === Package 11 A5: the V7.5 "Resonance Restored" beat ==============
 
         /// <summary>
-        /// Names the ability this level's completion restored. Level 4's grant
-        /// is deliberately silent here — the Ultimate's beat plays on Level 4A's
-        /// entry instead (StoryManager.TryConsumeDeferredResonanceRestored), so
-        /// the first full-kit level opens on it.
+        /// Names the ability this level's completion restored — Levels 1–4 alike.
+        /// Package 12 W7: Level 4's Ultimate grant plays here like every other
+        /// unlock (design §2, Level 4A "Results and economy"); Level 4A opens on a
+        /// flavour Nexus moment instead of a second, deferred unlock beat.
         /// </summary>
         private void ShowResonanceRestoredBeat() {
             if (_resonanceRestoredLabel == null) return;

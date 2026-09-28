@@ -98,7 +98,9 @@ public class CampaignLocalizationTests {
 
         AssertThat(sets).OverrideFailureMessage(
             $"Only {sets} dialogue sets were reached; the directory walk is broken.")
-            .IsEqual(AuthoredLevelCount + 1); // every authored level (incl. each 4A variant) + the hub.
+            // Every authored level (incl. each 4A variant) + the hub + the one shared
+            // 4A set carrying the flavour Nexus moment (Package 12 W7).
+            .IsEqual(AuthoredLevelCount + 2);
         AssertThat(sequences).OverrideFailureMessage(
             $"Only {sequences} dialogue sequences were reached.").IsGreaterEqual(48);
         AssertThat(lines).IsGreater(300);
@@ -271,6 +273,57 @@ public class CampaignLocalizationTests {
             $"Only {variants} hero-variant sequences were reached; the V7.5 Mystery Thread " +
             "authors the six N03 recognition branches plus the per-character Level 0 opening.")
             .IsGreaterEqual(12);
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    /// <summary>
+    /// Package 12 W7 (M35): the hero name table. Every roster hero — read from the
+    /// manifest, never a literal cast list — has its display, spoken-address,
+    /// possessive and home-era rows, each resolving through the compiled
+    /// translation, and every campaign dialogue line renders for every hero with
+    /// no hero token left on screen.
+    /// </summary>
+    [TestCase]
+    public void TheHeroNameTableResolvesForEveryRosterHeroAndEveryTokenRenders() {
+        TranslationServer.SetLocale("en");
+        HashSet<string> csvKeys = EnglishTranslationKeys();
+        var issues = new List<string>();
+        var heroes = new List<string>(CharacterRoster.IDs) { DialogueTokens.FallbackHeroID };
+        foreach (string hero in heroes) {
+            foreach (string key in DialogueTokens.TableKeysFor(hero)) {
+                if (!csvKeys.Contains(key)) { issues.Add($"{key} is missing from en.csv"); continue; }
+                if (TranslationServer.Translate(key).ToString() == key) {
+                    issues.Add($"{key} does not resolve through the compiled en.en.translation");
+                }
+            }
+        }
+        foreach (string key in new[] { "hub_bridge", "hub_npc_okafor" }) {
+            if (TranslationServer.Translate(key).ToString() == key) issues.Add($"{key} does not resolve");
+        }
+
+        int tokenLines = 0;
+        foreach (string path in DialogueSetPaths()) {
+            var set = AuthoredResources.Load<DialogueSetData>(path);
+            if (set?.Sequences == null) continue;
+            foreach (DialogueSequenceData sequence in set.Sequences) {
+                if (sequence?.LineKeys == null) continue;
+                foreach (string lineKey in sequence.LineKeys) {
+                    string english = TranslationServer.Translate(lineKey).ToString();
+                    if (!DialogueTokens.HasHeroToken(english)) continue;
+                    tokenLines++;
+                    foreach (string hero in CharacterRoster.IDs) {
+                        string rendered = DialogueTokens.SubstituteHeroTokens(
+                            english, hero, key => TranslationServer.Translate(key).ToString());
+                        if (DialogueTokens.HasHeroToken(rendered) || rendered.Contains("hero_")) {
+                            issues.Add($"{lineKey} leaves a hero token or raw key for {hero}");
+                        }
+                    }
+                }
+            }
+        }
+        AssertThat(tokenLines).OverrideFailureMessage(
+            $"Only {tokenLines} dialogue lines carry a hero token; the M35 rewrite is missing.")
+            .IsGreaterEqual(20);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 

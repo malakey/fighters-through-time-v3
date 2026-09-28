@@ -215,7 +215,9 @@ public class LegacyUnlockScheduleTests {
     }
 
     [TestCase]
-    public void TheUltimateBeatIsDeferredToFourAEntryRatherThanLevelFoursResults() {
+    public void TheUltimateBeatPlaysOnLevelFoursResultsLikeEveryOtherUnlock() {
+        // Package 12 W7 (design §2 Level 4A "Results and economy", Low-item
+        // decision 2026-09-26): the Package 11 deferral to 4A entry is retired.
         WithFreshCampaignSlot(save => {
             StoryManager story = StoryManager.Instance;
 
@@ -228,16 +230,44 @@ public class LegacyUnlockScheduleTests {
             AssertThat(story.LastLegacyUnlockSlot).IsEqual(AbilitySlot.Ultimate);
             AssertThat(story.ShouldPlayResonanceRestoredOnResults)
                 .OverrideFailureMessage(
-                    "V7.5: the Ultimate's beat belongs to Level 4A's ENTRY, not Level 4's exit.")
-                .IsFalse();
-
-            AssertThat(story.TryConsumeDeferredResonanceRestored(out AbilitySlot deferred)).IsTrue();
-            AssertThat(deferred).IsEqual(AbilitySlot.Ultimate);
-            AssertThat(story.TryConsumeDeferredResonanceRestored(out _))
-                .OverrideFailureMessage("The deferred beat plays exactly once.")
-                .IsFalse();
+                    "The Ultimate's Resonance Restored beat plays on Level 4's results screen.")
+                .IsTrue();
             AssertThat(save.UnlockedLegacyAbilities["einstein"].Contains("ultimate")).IsTrue();
+
+            // A re-completion of Level 4 never replays it.
+            story.GrantLegacyUnlockMilestoneForTests("level_04_paris");
+            AssertThat(story.ShouldPlayResonanceRestoredOnResults).IsFalse();
         });
+    }
+
+    [TestCase]
+    public void LevelFourAOpensOnAFlavourNexusMomentThatIsNotASecondUnlockBeat() {
+        // Package 12 W7: 4A opens with Sarah's line and the Ultimate ring igniting,
+        // chained after the entrance scene. It grants nothing and plays once.
+        var shared = AuthoredResources.Load<FTT.UI.DialogueSetData>(
+            FTT.Environment.LegacyLevelControllerBase.SharedDialogueSetPath);
+        AssertObject(shared).IsNotNull();
+        FTT.UI.DialogueSequenceData moment =
+            shared.Find(FTT.Environment.LegacyLevelControllerBase.NexusMomentDialogueID);
+        AssertObject(moment).IsNotNull();
+        AssertString(moment.SpeakerNameKeys[0]).IsEqual("speaker_sarah");
+
+        var ring = new List<AbilitySlotLockPayload>();
+        void Capture(AbilitySlotLockPayload payload) => ring.Add(payload);
+        EventBus.Instance.OnAbilitySlotLockChanged += Capture;
+        var level = new FTT.Environment.Level04AEinsteinController();
+        try {
+            AssertThat(level.NexusMomentPlayed).IsFalse();
+            level.PlayNexusMoment();
+            level.PlayNexusMoment();
+            AssertThat(level.NexusMomentPlayed).IsTrue();
+            AssertThat(ring.Count).OverrideFailureMessage("The ring ignites once.").IsEqual(1);
+            AssertThat(ring[0].Slot).IsEqual(AbilitySlot.Ultimate);
+            AssertThat(ring[0].State).IsEqual(AbilitySlotLockState.Clear);
+        } finally {
+            EventBus.Instance.OnAbilitySlotLockChanged -= Capture;
+            level.Free();
+        }
     }
 
     // === Helpers =======================================================
