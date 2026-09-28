@@ -127,6 +127,11 @@ public class MozartSonataDriftChargeTests {
 
     private static void Teardown(Node host, PlayerController player) {
         InputManager.Instance?.ClearInputSource(player.PlayerIndex);
+        // Hand any deployed staff back to its pool rather than freeing a pooled
+        // node with the host (the pool would keep a dead reference).
+        foreach (Node2D node in new System.Collections.Generic.List<Node2D>(player.ActivePersistentObjects)) {
+            if (node is SonataPlatformNode platform && GodotObject.IsInstanceValid(platform)) platform.ReturnToPool();
+        }
         if (!GodotObject.IsInstanceValid(host)) return;
         host.GetParent()?.RemoveChild(host);
         host.Free();
