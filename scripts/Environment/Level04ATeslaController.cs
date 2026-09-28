@@ -29,11 +29,11 @@ namespace FTT.Environment {
     /// <para><b>Gate shapes.</b> The Lorentz Pulse raises an ordinary hitbox
     /// carrying its ability ID, so its gate is native <c>Strike</c> mode (the base's
     /// Special-2 default is <c>Zone</c>, which this kit does not use). The Tesla Coil
-    /// is a deployed construct — neither of A12's combat shapes, because the coil's
-    /// arcs sweep only <c>EnemyHurtbox</c>-layer hurtboxes and never reach a gate
-    /// surface. That gate keeps its <c>Strike</c> presentation and is resolved by a
-    /// <see cref="LegacyCastGateWatcher"/>, B2's stand-in for the fifth gate mode
-    /// A12's dossier anticipated (plan §9, B2).</para>
+    /// is a deployed construct, so its gate is <see cref="LegacyGateMode.CastWatch"/>
+    /// (Package 12 W8, retiring B2's <c>LegacyCastGateWatcher</c> stand-in): casting
+    /// the coil within the gate's cast radius latches it, and the gate keeps the
+    /// strike surface it always had — on the <c>EnemyHurtbox</c> layer — so the
+    /// deployed coil's own arcs can still wake the mast.</para>
     ///
     /// <para><b>Locked economy</b> (DUST_ECONOMY.md row 4A): 15 required-encounter +
     /// 25 boss + 10 optional. Six approach standards, no authored elites, one boss,
@@ -70,6 +70,9 @@ namespace FTT.Environment {
         public override string SpecialOneGateAbilityID => "tesla_tesla_coil";
         public override string SpecialTwoGateAbilityID => "tesla_lorentz_pulse";
         public override string UltimateAbilityID => "tesla_wardenclyffe_cataclysm";
+
+        /// <summary>The Tesla Coil is a deployed construct: the cast is what the mast answers.</summary>
+        protected override LegacyGateMode SpecialOneGateMode => LegacyGateMode.CastWatch;
 
         /// <summary>The Lorentz Pulse is a struck hitbox, not a placed zone.</summary>
         protected override LegacyGateMode SpecialTwoGateMode => LegacyGateMode.Strike;
@@ -112,6 +115,12 @@ namespace FTT.Environment {
         protected override Vector2 PreBossCheckpointPosition => new(5240f, ActorGroundY);
         protected override Vector2 BossSpawnPosition => new(6360f, ActorGroundY);
 
+        // Package 12 W8 (GAP-03): the secret cache sits on the high ledge above the court approach
+        // (top 592): an optional detour off the floor route, reached from the
+        // low step with a double jump and BEFORE the movement gate, so no kit gate
+        // stands between the hero and the 4A optional allocation.
+        protected override Vector2? SecretCachePosition => new(920f, 497f);
+
         public override Vector2 PlayerSpawnPosition => new(200f, ActorGroundY);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
@@ -150,15 +159,6 @@ namespace FTT.Environment {
 
         private static readonly Color DynamoFloorColor = new(0.15f, 0.16f, 0.22f);
         private static readonly Color DynamoPlatformColor = new(0.22f, 0.25f, 0.33f);
-
-        // === Runtime handles ===
-
-        /// <summary>
-        /// Resolves the Tesla Coil gate. Public so the content suite can pin that
-        /// the construct special has a recogniser at all — without one the gate is
-        /// unopenable and the route is stranded.
-        /// </summary>
-        public LegacyCastGateWatcher CoilWatcher { get; private set; }
 
         // === Construction ===
 
@@ -229,19 +229,16 @@ namespace FTT.Environment {
         }
 
         /// <summary>
-        /// Attaches the Tesla Coil recogniser. Runs after the sealed
-        /// <c>BuildLevel</c> has created the gates, so the handle is live.
+        /// Gives the CastWatch coil gate its strike surface, which a CastWatch gate
+        /// does not build by default: the deployed coil's arcs query the
+        /// <c>EnemyHurtbox</c> layer and still carry the ability ID. Runs after the
+        /// sealed <c>BuildLevel</c> has created the gates.
         /// </summary>
         protected override void OnLevelReady() {
             base.OnLevelReady();
-            if (CoilWatcher != null) return;
-            CoilWatcher = new LegacyCastGateWatcher {
-                Name = "CoilGateWatcher",
-                Gate = SpecialOneGate,
-                RequiredAbilityID = SpecialOneGateAbilityID,
-                Position = SpecialOneGatePosition
-            };
-            AddChild(CoilWatcher);
+            if (SpecialOneGate != null && IsInstanceValid(SpecialOneGate)) {
+                SpecialOneGate.ConfigureStrikeSurface(onEnemyHurtbox: true);
+            }
         }
 
         /// <summary>The boss arena's width, measured for the ranged-band content test.</summary>

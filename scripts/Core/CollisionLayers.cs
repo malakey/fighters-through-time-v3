@@ -14,8 +14,15 @@ namespace FTT.Core {
         public const uint PersistentObject = 1u << 9;
         public const uint Projectile = 1u << 10;
 
-        public const uint PlayerBodyMask = Environment | OneWayPlatform | PersistentObject;
-        public const uint EnemyBodyMask = Environment | OneWayPlatform | PersistentObject;
+        /// <summary>
+        /// Combatant body masks. <see cref="PersistentObject"/> is deliberately absent
+        /// (Package 12 W8, M02): constructs, strike surfaces and other persistent objects
+        /// are non-solid — they are struck, never stood on or walked into. Anything that
+        /// must physically block a combatant (the Level 6 movable weights) authors itself
+        /// on <see cref="Environment"/> instead.
+        /// </summary>
+        public const uint PlayerBodyMask = Environment | OneWayPlatform;
+        public const uint EnemyBodyMask = Environment | OneWayPlatform;
         public const uint PlayerHitboxMask = EnemyHurtbox | PersistentObject;
         public const uint EnemyHitboxMask = PlayerHurtbox | PersistentObject;
         public const uint ProjectileMask = PlayerHurtbox | EnemyHurtbox | Environment | PersistentObject;

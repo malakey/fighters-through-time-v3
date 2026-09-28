@@ -55,6 +55,9 @@ namespace FTT.Environment {
         public const string DialogueResourcePath = "res://resources/Dialogue/level_06_dialogue.tres";
         public const string RockfallPuzzleID = "level_06.clear_rockfall";
         public const string BalanceConditionID = "weights_balanced";
+        /// <summary>Package 12 W8 (V01b): the winch puzzle's Reset Puzzle station.</summary>
+        public const string RockfallResetStationID = "level_06.clear_rockfall.reset";
+        public static readonly Vector2 RockfallResetStationPosition = new(3700f, 900f);
 
         // === Surface textures (Package 10 pass 1) ===
 
@@ -93,6 +96,12 @@ namespace FTT.Environment {
         public override string LevelTitleKey => "pompeii_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(240, 850);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on
+        // the forum colonnade ledge (Platform 1120/620, top 612), reached from the
+        // drop-through at 1000 — a detour over the forum floor, well before the ash-road
+        // escape run.
+        protected override Vector2? SecretCachePosition => new(1120f, 517f);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "pompeii_objective_evacuate";
@@ -402,6 +411,11 @@ namespace FTT.Environment {
 
             // Flanking roof over the east legionnaire post.
             BuildOneWayPlatform(5150, 690, 200);
+
+            // Package 12 W8 (GAP-08 / V01b): the winch's Reset Puzzle station, on the
+            // open vault floor west of the west pan - reachable from every unsolved
+            // arrangement and clear of both boulders' restoration volumes.
+            AddChild(PuzzleResetStation.Create(RockfallResetStationID, "../RockfallPuzzle", RockfallResetStationPosition));
 
             BuildCheckpoint(5600, EnemyGroundY, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "pompeii_room_vault", new Color(0.80f, 0.55f, 0.42f));

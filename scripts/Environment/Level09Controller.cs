@@ -173,6 +173,11 @@ namespace FTT.Environment {
         public override string LevelTitleKey => "berlin_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_09_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(240f, 1150f);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on
+        // the rubble crest past the ruins extractor (Platform 2650/860, top 852) — a
+        // dead-end perch before the Checkpoint Charlie transition, off the floor route.
+        protected override Vector2? SecretCachePosition => new(2650f, 757f);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "berlin_objective_infiltrate";

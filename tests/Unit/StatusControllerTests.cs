@@ -161,6 +161,58 @@ public class StatusControllerTests {
         enemy.Free();
     }
 
+    /// <summary>
+    /// Package 12 W10: a slot clear publishes exactly one slot-scoped Cleared
+    /// event naming the slot and the type that left, and never re-announces the
+    /// surviving slot through a second Applied event (the retired hack).
+    /// </summary>
+    [TestCase]
+    public void AClearPublishesOnePerSlotEventAndNeverReannouncesTheSurvivor() {
+        (PlayerController player, StatusController status) = CreateSubject();
+        EventBus bus = EventBus.Instance;
+        AssertObject(bus).IsNotNull();
+        var applied = new System.Collections.Generic.List<StatusEffectPayload>();
+        var cleared = new System.Collections.Generic.List<StatusEffectPayload>();
+        void OnApplied(StatusEffectPayload payload) { if (payload.TargetIndex == 1) applied.Add(payload); }
+        void OnCleared(StatusEffectPayload payload) { if (payload.TargetIndex == 1) cleared.Add(payload); }
+        bus.OnStatusEffectApplied += OnApplied;
+        bus.OnStatusEffectCleared += OnCleared;
+        try {
+            player.PlayerIndex = 1;
+            status.ApplyStatus(StatusType.Venom, 5f);
+            status.ApplyStatus(StatusType.Root, 1f);
+            AssertThat(applied.Count).IsEqual(2);
+            AssertThat(applied[0].SlotScoped).IsTrue();
+            AssertThat(applied[0].Slot).IsEqual(StatusSlot.Damage);
+            AssertThat(applied[1].Slot).IsEqual(StatusSlot.Control);
+
+            // Root expires; Venom survives.
+            status._PhysicsProcess(1.5);
+            AssertThat(status.DamageStatusType).IsEqual(StatusType.Venom);
+            AssertThat(applied.Count)
+                .OverrideFailureMessage("The survivor must not be re-announced through Applied.")
+                .IsEqual(2);
+            AssertThat(cleared.Count).IsEqual(1);
+            AssertThat(cleared[0].SlotScoped).IsTrue();
+            AssertThat(cleared[0].Slot).IsEqual(StatusSlot.Control);
+            AssertThat(cleared[0].Type).IsEqual(StatusType.Root);
+            AssertThat(cleared[0].ClearsAllSlots).IsFalse();
+
+            // The last slot clears the same way: its own slot, its own type.
+            status.ClearStatus();
+            AssertThat(cleared.Count).IsEqual(2);
+            AssertThat(cleared[1].Slot).IsEqual(StatusSlot.Damage);
+            AssertThat(cleared[1].Type).IsEqual(StatusType.Venom);
+
+            // A legacy un-scoped None clear still means "every slot".
+            AssertThat(new StatusEffectPayload { Type = StatusType.None }.ClearsAllSlots).IsTrue();
+        } finally {
+            bus.OnStatusEffectApplied -= OnApplied;
+            bus.OnStatusEffectCleared -= OnCleared;
+            player.Free();
+        }
+    }
+
     private static (PlayerController player, StatusController status) CreateSubject() {
         var player = new PlayerController { CurrentHP = 100, PlayerIndex = 0 };
         var status = new StatusController { Name = "StatusController" };

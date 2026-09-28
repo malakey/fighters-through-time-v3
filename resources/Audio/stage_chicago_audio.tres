@@ -1,9 +1,10 @@
-[gd_resource type="Resource" script_class="StageAudioSet" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="StageAudioSet" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/StageAudioSet.cs" id="1_set"]
 [ext_resource type="AudioStream" path="res://resources/Audio/placeholder_stem_ambient.tres" id="2_ambient"]
 [ext_resource type="AudioStream" path="res://resources/Audio/placeholder_stem_combat.tres" id="3_combat"]
 [ext_resource type="AudioStream" path="res://resources/Audio/placeholder_stem_boss.tres" id="4_climax"]
+[ext_resource type="AudioStream" path="res://resources/Audio/placeholder_sfx_hazard.tres" id="5_hazard_cue"]
 
 [resource]
 script = ExtResource("1_set")
@@ -16,3 +17,5 @@ ClimaxStem = ExtResource("4_climax")
 CrossfadeSeconds = 2.0
 StemsAreSynchronized = true
 LoopSeconds = 1.0
+HazardWarningCue = ExtResource("5_hazard_cue")
+HazardImpactCue = ExtResource("5_hazard_cue")

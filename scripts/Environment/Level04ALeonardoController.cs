@@ -68,13 +68,11 @@ namespace FTT.Environment {
         /// The Clockwork Turret is a deployed construct whose bolts are the strike, so
         /// the armature is a struck mechanism. Those bolts resolve through a
         /// hand-rolled enemy-hurtbox shape query rather than a <c>Hitbox</c>, so the
-        /// gate additionally carries a <see cref="LegacyResonantEffigy"/> the bolts can
-        /// actually reach; see that class for the rationale and the upstream fix.
+        /// gate's strike surface sits on the <c>EnemyHurtbox</c> layer at the sweep
+        /// size (Package 12 W8, retiring B1's <c>LegacyResonantEffigy</c> stand-in);
+        /// see <see cref="OnLevelReady"/>.
         /// </summary>
         protected override LegacyGateMode SpecialTwoGateMode => LegacyGateMode.Strike;
-
-        /// <summary>True for a gate whose ability only delivers through enemy-hurtbox queries.</summary>
-        public bool SpecialTwoNeedsEffigy => true;
 
         // === Layout ===
 
@@ -110,6 +108,12 @@ namespace FTT.Environment {
         protected override Vector2 RestorationFontPosition => new(4980f, ActorGroundY);
         protected override Vector2 PreBossCheckpointPosition => new(5200f, ActorGroundY);
         protected override Vector2 BossSpawnPosition => new(6320f, ActorGroundY);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on the high drop-through ledge above the Arno approach
+        // (top 610): an optional detour off the floor route, reached from the
+        // low step with a double jump and BEFORE the movement gate, so no kit gate
+        // stands between the hero and the 4A optional allocation.
+        protected override Vector2? SecretCachePosition => new(960f, 515f);
 
         public override Vector2 PlayerSpawnPosition => new(200f, ActorGroundY);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
@@ -216,28 +220,17 @@ namespace FTT.Environment {
 
         // === Variant hooks ===
 
-        /// <summary>The effigy hung on the Special 2 gate. Test seam.</summary>
-        public LegacyResonantEffigy ArmatureEffigy { get; private set; }
-
+        /// <summary>
+        /// Turret bolts deliver through an enemy-hurtbox shape query and never reach a
+        /// PersistentObject-only surface, so the sighting armature's strike surface
+        /// sits on the <c>EnemyHurtbox</c> layer at the sweep size the retired effigy
+        /// used. The gate still accepts only <c>leonardo_clockwork_turret</c>.
+        /// </summary>
         protected override void OnLevelReady() {
             base.OnLevelReady();
-            AttachArmatureEffigy();
-        }
-
-        /// <summary>
-        /// Turret bolts deliver through an enemy-hurtbox shape query and can never
-        /// touch the gate's PersistentObject strike surface, so the sighting armature
-        /// carries a resonant effigy the bolts reach. The gate still accepts only
-        /// <c>leonardo_clockwork_turret</c>.
-        /// </summary>
-        private void AttachArmatureEffigy() {
-            if (ArmatureEffigy != null && IsInstanceValid(ArmatureEffigy)) return;
-            if (SpecialTwoGate == null || !IsInstanceValid(SpecialTwoGate)) return;
-            ArmatureEffigy = new LegacyResonantEffigy {
-                Name = "ArmatureEffigy",
-                Gate = SpecialTwoGate
-            };
-            SpecialTwoGate.AddChild(ArmatureEffigy);
+            if (SpecialTwoGate != null && IsInstanceValid(SpecialTwoGate)) {
+                SpecialTwoGate.ConfigureStrikeSurface(LegacyKitGate.SweepStrikeSurfaceSize, onEnemyHurtbox: true);
+            }
         }
     }
 }

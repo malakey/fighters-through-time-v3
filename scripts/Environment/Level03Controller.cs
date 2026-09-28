@@ -44,6 +44,11 @@ namespace FTT.Environment {
         public override string LevelTitleKey => "chicago_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_03_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(240, GroundY - 50);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on
+        // the upper Midway balcony (Platform 1000/1100, top 1092) above the first
+        // arc lamp, climbed from the low stand at 500 — a detour the floor route passes under.
+        protected override Vector2? SecretCachePosition => new(1000f, 997f);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "chicago_objective_fairgrounds";

@@ -31,10 +31,10 @@ namespace FTT.Environment {
     /// <para><b>Gate shapes.</b> Yorick's Lament is a projectile carrying its ability
     /// ID, so its gate is native <c>Strike</c> mode. The Tempest is neither of A12's
     /// combat shapes: it lifts the caster and pushes adjacent <i>bodies</i>, spawning
-    /// no zone and raising no hitbox at all. That gate keeps its <c>Zone</c>
-    /// declaration for the base's bookkeeping and is resolved by a
-    /// <see cref="LegacyCastGateWatcher"/>, B2's stand-in for the fifth gate mode
-    /// A12's dossier anticipated (plan §9, B2).</para>
+    /// no zone and raising no hitbox at all, so its gate is
+    /// <see cref="LegacyGateMode.CastWatch"/> (Package 12 W8, retiring B2's
+    /// <c>LegacyCastGateWatcher</c> stand-in): casting The Tempest within the gate's
+    /// cast radius drives the storm machine.</para>
     ///
     /// <para><b>Locked economy</b> (DUST_ECONOMY.md row 4A): 15 required-encounter +
     /// 25 boss + 10 optional. Six approach standards, no authored elites, one boss,
@@ -72,8 +72,10 @@ namespace FTT.Environment {
         public override string SpecialTwoGateAbilityID => "shakespeare_the_tempest";
         public override string UltimateAbilityID => "shakespeare_all_the_worlds_a_stage";
 
-        // Special 1 is a real projectile strike (the base's default) and Special 2
-        // keeps the base's Zone declaration while the cast watcher resolves it.
+        // Special 1 is a real projectile strike (the base's default).
+
+        /// <summary>The Tempest raises nothing observable: the cast is what the storm machine answers.</summary>
+        protected override LegacyGateMode SpecialTwoGateMode => LegacyGateMode.CastWatch;
 
         // === Layout ===
 
@@ -113,6 +115,12 @@ namespace FTT.Environment {
         protected override Vector2 PreBossCheckpointPosition => new(5200f, ActorGroundY);
         protected override Vector2 BossSpawnPosition => new(6360f, ActorGroundY);
 
+        // Package 12 W8 (GAP-03): the secret cache sits on the high ledge above the Bankside approach
+        // (top 602): an optional detour off the floor route, reached from the
+        // low step with a double jump and BEFORE the movement gate, so no kit gate
+        // stands between the hero and the 4A optional allocation.
+        protected override Vector2? SecretCachePosition => new(880f, 507f);
+
         public override Vector2 PlayerSpawnPosition => new(200f, ActorGroundY);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
@@ -150,15 +158,6 @@ namespace FTT.Environment {
 
         private static readonly Color UnderstageFloorColor = new(0.19f, 0.14f, 0.10f);
         private static readonly Color UnderstagePlatformColor = new(0.27f, 0.20f, 0.13f);
-
-        // === Runtime handles ===
-
-        /// <summary>
-        /// Resolves The Tempest gate. Public so the content suite can pin that the
-        /// field special has a recogniser at all — without one the gate is unopenable
-        /// and the route is stranded.
-        /// </summary>
-        public LegacyCastGateWatcher TempestWatcher { get; private set; }
 
         // === Construction ===
 
@@ -227,22 +226,6 @@ namespace FTT.Environment {
             BuildRoomDecoration(Room3StartX, "legacy_shakespeare_room_understage", new Color(0.85f, 0.38f, 0.52f));
             BuildRoomTransition("legacy_shakespeare_room_understage",
                 new Vector2(Room3StartX + 30, 540), Room3CameraBounds);
-        }
-
-        /// <summary>
-        /// Attaches The Tempest recogniser. Runs after the sealed <c>BuildLevel</c>
-        /// has created the gates, so the handle is live.
-        /// </summary>
-        protected override void OnLevelReady() {
-            base.OnLevelReady();
-            if (TempestWatcher != null) return;
-            TempestWatcher = new LegacyCastGateWatcher {
-                Name = "TempestGateWatcher",
-                Gate = SpecialTwoGate,
-                RequiredAbilityID = SpecialTwoGateAbilityID,
-                Position = SpecialTwoGatePosition
-            };
-            AddChild(TempestWatcher);
         }
 
         /// <summary>The boss arena's width, measured for the ranged-band content test.</summary>

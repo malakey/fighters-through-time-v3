@@ -127,13 +127,6 @@ namespace FTT.Environment {
             _ => 0f
         };
 
-        /// <summary>
-        /// Acts I-II vs Act III. F12's "Hard middle checkpoint is inert" rule
-        /// applies to the shared Acts I-II levels only; Act III's middles stay
-        /// active on Hard (A3b enforces the Act III half).
-        /// </summary>
-        protected bool IsActIII => (int)Level >= (int)CampaignLevel.ChronalVoid;
-
         /// <summary>The scene's Collapse Tremor, on timed levels. Null on untimed ones.</summary>
         public CollapseTremorController Tremor { get; private set; }
 
@@ -250,7 +243,16 @@ namespace FTT.Environment {
 
         public override void _Ready() {
             CreateLevelManager();
+            // Package 12 W8 (N01): a pre-seal load must be known before the
+            // level builds, so the boss encounter is authored defeated rather
+            // than spawned and fought again.
+            DetectPreSealLoad();
             BuildLevel();
+            // Package 12 W8: base-owned content hooks every level (and every
+            // sealed 4A BuildLevel) gets — the F05 secret cache and the N01
+            // sealing anchor, both at per-level authored positions.
+            BuildAuthoredSecretCache();
+            BuildGenericSealingAnchor();
             SpawnPlayer();
             SpawnInitialEnemies();
             ApplyResumedAttemptState();
@@ -264,6 +266,7 @@ namespace FTT.Environment {
             BindEvents();
             ApplyResumeCameraBounds();
             OnLevelReady();
+            if (IsRestoringAwaitingSeal) RestoreAwaitingSeal();
             // Deferred through a Callable rather than MethodName: the base is
             // abstract and its subclasses may be constructed in code, so the
             // dispatch must not depend on a bound script method name.
@@ -401,7 +404,10 @@ namespace FTT.Environment {
         /// </summary>
         private void OnDustAwardAttributed(DustAwardCollectedPayload payload) {
             switch (payload.Source) {
-                case DustAwardSource.Boss: AttributeBossDust(payload.Amount); break;
+                case DustAwardSource.Boss:
+                    AttributeBossDust(payload.Amount);
+                    NoteBossPickupCollected();
+                    break;
                 case DustAwardSource.Extractor: AttributeExtractorDust(payload.Amount); break;
                 // Package 11 A10 (F05): the sixth results category.
                 case DustAwardSource.Secret: AttributeOptionalDust(payload.Amount); break;
@@ -720,6 +726,9 @@ namespace FTT.Environment {
             foreach (Node node in caches) {
                 if (node is SecretCache cache && story.IsSecretFound(cache.SecretID)) {
                     cache.MarkAlreadyFound();
+                    // Package 12 W8 (GAP-03): found but never collected — the
+                    // reload discarded the pickup, so its source re-issues once.
+                    cache.RestorePendingAward();
                 }
             }
         }
@@ -992,9 +1001,9 @@ namespace FTT.Environment {
         }
 
         /// <summary>
-        /// The three Act III gauntlet levels. Deliberately not
-        /// <see cref="IsActIII"/>, which is an ordinal comparison and therefore
-        /// also true for Level 4A (enum value 16, played between Levels 4 and 5).
+        /// The three Act III gauntlet levels. Package 12 W8 deleted the old
+        /// ordinal <c>IsActIII</c> member, which was also true for Level 4A
+        /// (enum value 16, played between Levels 4 and 5) and had no consumers.
         /// </summary>
         protected bool IsActIIIGauntletLevel => StoryManager.IsActIIILevel(Level);
 
@@ -1361,6 +1370,250 @@ namespace FTT.Environment {
 
         private readonly List<WardenBeacon> _wardenBeacons = new();
 
+        // === Package 12 W8 region: the F05 secret cache (GAP-03) =============
+
+        /// <summary>
+        /// The level's designated F05 secret source ID — the <c>{level}.secret</c>
+        /// row its reward manifest reserves. Levels 2–15 are <c>level_NN.secret</c>;
+        /// a Level 4A variant is <c>level_04a_&lt;hero&gt;.secret</c>, which is
+        /// exactly <c>{DialoguePrefix}.secret</c> in both cases.
+        /// </summary>
+        public virtual string SecretSourceID => $"{DialoguePrefix}.secret";
+
+        /// <summary>
+        /// Where this level hides its secret cache, or null for a level that
+        /// reserves no secret (the Tutorial, Florence). Authored per level —
+        /// off the critical path and reachable with the Legacy-locked kit (base
+        /// jumps and roll only) — and placed by the base after
+        /// <see cref="BuildLevel"/>, so a sealed Level 4A <c>BuildLevel</c> gets
+        /// it too. The position is the trigger's centre; stand on the surface
+        /// under it to discover it.
+        /// </summary>
+        protected virtual Vector2? SecretCachePosition => null;
+
+        /// <summary>Read-only view of <see cref="SecretCachePosition"/> for content validation.</summary>
+        public Vector2? AuthoredSecretCachePosition => SecretCachePosition;
+
+        /// <summary>The cache this level placed, or null. Test seam.</summary>
+        public SecretCache SecretCache { get; private set; }
+
+        private void BuildAuthoredSecretCache() {
+            if (SecretCachePosition is not Vector2 position) return;
+            SecretCache = SecretCache.Create(SecretSourceID, position);
+            AddChild(SecretCache);
+        }
+
+        // === end Package 12 W8 region (secret cache) =========================
+
+        // === Package 12 W8 region: the N01 sealing anchor (GAP-05, D12(a)) ====
+        //
+        // N01: boss defeat does not complete the level. It commits AwaitingSeal
+        // (attemptState.sealReadiness: the boss-defeated fact, the stable anchor
+        // ID and the pending physical boss pickup), plays the existing defeat
+        // beats, then hands control back beside the boss pickup and a marked
+        // sealing anchor. A single Interact — "Seal Timeline — Complete Level" —
+        // commits the existing once-only completion transaction, and only then
+        // does the restoration vignette (the level's exit beat) play and the
+        // results follow. A load before that Interact reconstructs the defeated
+        // boss (never respawned), the ready anchor and at most one pending boss
+        // pickup. D12(a): AwaitingSeal is PERSISTED, not derived.
+
+        /// <summary>The seal prompt every generic anchor shows.</summary>
+        public const string SealPromptKey = "seal_timeline_prompt";
+
+        /// <summary>The objective posted while the anchor waits for the player.</summary>
+        public const string SealObjectiveKey = "seal_timeline_objective";
+
+        /// <summary>The world notice posted when the seal is accepted.</summary>
+        public const string SealedNoticeKey = "seal_timeline_sealed";
+
+        /// <summary>The generic anchor's signage, before and after the boss falls.</summary>
+        public const string SealAnchorDormantKey = "seal_anchor_dormant";
+        public const string SealAnchorReadyKey = "seal_anchor_ready";
+
+        /// <summary>
+        /// The stable sealing-anchor ID, distinct from every checkpoint and Nexus
+        /// source ID. Level 15 overrides it with its Prime Anchor's ID.
+        /// </summary>
+        public virtual string SealingAnchorID => $"{DialoguePrefix}.sealing_anchor";
+
+        /// <summary>
+        /// False for a level whose sealing interaction is authored elsewhere
+        /// (Level 15's scene-placed Prime Anchor). Such a level still commits
+        /// and restores AwaitingSeal through this base.
+        /// </summary>
+        protected virtual bool UsesGenericSealingAnchor => true;
+
+        /// <summary>
+        /// Where the generic anchor stands. Null derives it from the first boss
+        /// encounter: on the boss's own standing height, beside the arena centre
+        /// where the boss pickup falls — clear ground reachable with any kit and
+        /// no resources. A level whose boss is not a <see cref="BossEncounterController"/>
+        /// (Level 13's Mirror) authors it explicitly.
+        /// </summary>
+        protected virtual Vector2? SealingAnchorPosition => null;
+
+        /// <summary>Horizontal offset of a derived anchor from the boss spawn point.</summary>
+        public const float DerivedSealingAnchorOffsetX = -260f;
+
+        /// <summary>The generic anchor this level placed, or null. Test seam.</summary>
+        public TemporalCoreAnchor SealingAnchor { get; private set; }
+
+        /// <summary>True while this load is reconstructing a pre-seal AwaitingSeal state.</summary>
+        protected bool IsRestoringAwaitingSeal { get; private set; }
+
+        /// <summary>True when this load resumed an attempt already awaiting its seal. Test seam.</summary>
+        public bool ResumedAwaitingSeal { get; private set; }
+
+        /// <summary>True once the player's seal Interact has been accepted.</summary>
+        public bool SealAccepted { get; private set; }
+
+        /// <summary>True between the anchor arming and the seal being accepted.</summary>
+        public bool IsAwaitingSeal =>
+            _bossDefeated && !SealAccepted && !LevelComplete
+            && SealingAnchor != null && IsInstanceValid(SealingAnchor) && SealingAnchor.IsArmed;
+
+        /// <summary>A level with a sealing stage: a generic anchor, or its own (Level 15).</summary>
+        private bool HasSealStage => !UsesGenericSealingAnchor || SealingAnchor != null;
+
+        private Vector2? ResolveSealingAnchorPosition() {
+            if (SealingAnchorPosition is Vector2 authored) return authored;
+            foreach (BossEncounterController encounter in _bossEncounters) {
+                if (!IsInstanceValid(encounter)) continue;
+                return encounter.Position + encounter.SpawnOffset + new Vector2(DerivedSealingAnchorOffsetX, 0f);
+            }
+            return null;
+        }
+
+        /// <summary>Where a restored pending boss pickup respawns: the arena centre.</summary>
+        protected virtual Vector2 BossRewardRestorePosition {
+            get {
+                foreach (BossEncounterController encounter in _bossEncounters) {
+                    if (IsInstanceValid(encounter)) return encounter.Position + encounter.SpawnOffset;
+                }
+                return SealingAnchor != null ? SealingAnchor.Position + new Vector2(-DerivedSealingAnchorOffsetX, 0f)
+                    : PlayerSpawnPosition;
+            }
+        }
+
+        private void BuildGenericSealingAnchor() {
+            if (!UsesGenericSealingAnchor || ResolveSealingAnchorPosition() is not Vector2 position) return;
+            SealingAnchor = TemporalCoreAnchor.CreateSealingAnchor(SealingAnchorID, position);
+            SealingAnchor.CoreInserted += _ => AcceptSeal();
+            AddChild(SealingAnchor);
+            if (IsRestoringAwaitingSeal) SealingAnchor.Arm();
+        }
+
+        /// <summary>
+        /// Reads whether this load resumes an attempt already awaiting its seal:
+        /// the active save is parked in this level at a checkpoint, and the
+        /// attempt record committed the boss-defeated fact. Runs before
+        /// <see cref="BuildLevel"/>, so the encounter is built defeated.
+        /// </summary>
+        private void DetectPreSealLoad() {
+            IsRestoringAwaitingSeal = false;
+            if (!SealReadiness.IsPreSealLoad(LevelID, Level)) return;
+            IsRestoringAwaitingSeal = true;
+            ResumedAwaitingSeal = true;
+            // Set before BuildLevel/OnLevelReady so a level reading
+            // IsBossDefeated (Level 15's Prime Anchor, the 4A objective) sees the
+            // committed defeat.
+            _bossDefeated = true;
+            _bossIntroShown = true;
+            _postBossBeatIndex = int.MaxValue;
+        }
+
+        /// <summary>
+        /// Boss defeat commits AwaitingSeal once: the defeat fact, the anchor ID
+        /// and whether the boss pickup is still uncollected. No completion, no
+        /// deposit, no unlock. Critical-event write, like every F10 commit.
+        /// </summary>
+        private void CommitSealReadiness() {
+            if (HasSealStage) SealReadiness.CommitDefeat(SealingAnchorID);
+        }
+
+        /// <summary>
+        /// For a level whose boss is not a <see cref="BossEncounterController"/>
+        /// (Level 13's Mirror): records the defeat and commits AwaitingSeal
+        /// exactly as <see cref="OnBossDefeated"/> does, then hands off to the
+        /// seal stage.
+        /// </summary>
+        protected void CommitNonStandardBossDefeat() {
+            if (_bossDefeated) return;
+            _bossDefeated = true;
+            _postBossBeatIndex = int.MaxValue;
+            CommitSealReadiness();
+            EnterAwaitingSeal();
+        }
+
+        private static void NoteBossPickupCollected() => SealReadiness.NoteBossPickupCollected();
+
+        /// <summary>
+        /// Arms the sealing anchor once the defeat beats have finished, and waits
+        /// for the player. A level with no sealing stage keeps the pre-N01 chain
+        /// (straight into the exit beat); Level 15's own anchor is armed by the
+        /// level and its exit override only posts the objective.
+        /// </summary>
+        protected void EnterAwaitingSeal() {
+            if (SealAccepted || LevelComplete) return;
+            if (SealingAnchor == null || !IsInstanceValid(SealingAnchor)) {
+                StartExitSequence();
+                return;
+            }
+            SealingAnchor.Arm();
+            SetObjective(SealObjectiveKey);
+        }
+
+        /// <summary>
+        /// The accepted seal: shut the remaining local siphons down (a terminal
+        /// state, never a destruction, pickup or credit), clear AwaitingSeal,
+        /// commit the once-only completion transaction, and only then start the
+        /// restoration vignette — the exit beat — whose end presents the results.
+        /// Idempotent: a duplicate press, callback or load cannot settle it again.
+        /// </summary>
+        public bool AcceptSeal() {
+            if (SealAccepted || LevelComplete || !_bossDefeated) return false;
+            SealAccepted = true;
+            foreach (ChronalExtractor extractor in _extractors) {
+                if (IsInstanceValid(extractor)) extractor.ShutDownBySeal();
+            }
+            CommitLevelCompletion();
+            if (SealingAnchor != null && IsInstanceValid(SealingAnchor)) {
+                EnvironmentNotice.Post(SealedNoticeKey, SealingAnchor);
+            }
+            StartExitSequence();
+            return true;
+        }
+
+        /// <summary>
+        /// The pre-seal load, after services attach: the defeat objective, the
+        /// ready anchor and at most one pending boss pickup. The locked score and
+        /// the durable F10 resources were already restored by the ordinary path.
+        /// </summary>
+        private void RestoreAwaitingSeal() {
+            IsRestoringAwaitingSeal = false;
+            SetObjective(CompletionObjectiveKey);
+            RestorePendingBossPickup();
+            if (SealingAnchor != null && IsInstanceValid(SealingAnchor)) {
+                SealingAnchor.Arm();
+                SetObjective(SealObjectiveKey);
+            }
+        }
+
+        /// <summary>
+        /// F05 + N01: an uncollected boss reward survives a pre-seal load exactly
+        /// once. Claims persist and issues do not, so the reload re-issues the
+        /// same source and spawns its single Large pickup at the arena centre;
+        /// a claimed source spawns nothing.
+        /// </summary>
+        private void RestorePendingBossPickup() =>
+            RestoredBossPickup = SealReadiness.RestorePendingBossPickup(BossRewardRestorePosition, this);
+
+        /// <summary>The boss pickup a pre-seal load respawned, or null. Test seam.</summary>
+        public ChronalDustPickup RestoredBossPickup { get; private set; }
+
+        // === end Package 12 W8 region (sealing anchor) =======================
+
         // === Boss encounter ===
 
         /// <summary>
@@ -1386,7 +1639,10 @@ namespace FTT.Environment {
                 Position = position,
                 Data = data,
                 SpawnOffset = spawnOffset,
-                RevealDistance = revealDistance
+                RevealDistance = revealDistance,
+                // Package 12 W8 (N01): a pre-seal load reconstructs the boss as
+                // already defeated — it is never spawned and fought again.
+                SpawnOnReady = !IsRestoringAwaitingSeal
             };
             encounter.BossRevealed += () => OnBossRevealed(encounter);
             encounter.BossDefeated += payload => OnBossDefeated(encounter, payload);
@@ -1442,6 +1698,9 @@ namespace FTT.Environment {
             // the wallet payment and the boss-line attribution both land at
             // collection (OnDustAwardCollected) — attributing here as well
             // would label dust the wallet has not been paid.
+            // Package 12 W8 (N01): the defeat commits AwaitingSeal — never
+            // completion, a deposit or an unlock.
+            CommitSealReadiness();
             StartPostBossSequence();
         }
 
@@ -1465,7 +1724,7 @@ namespace FTT.Environment {
         protected void AdvancePostBossChain() {
             if ((PostBossDialogueIDs ?? NoPostBossBeats).Count <= _postBossBeatIndex + 1) {
                 _postBossBeatIndex = int.MaxValue;
-                StartExitSequence();
+                EnterAwaitingSeal();
                 return;
             }
             RunAfterBeatDelay(PlayNextPostBossBeat);
@@ -1477,9 +1736,9 @@ namespace FTT.Environment {
                 if (StartDialogue(beats[_postBossBeatIndex])) return;
             }
             // Nothing left, or nothing would start: never leave the player in a
-            // finished arena with no results overlay.
+            // finished arena with no results overlay (or, since N01, no anchor).
             _postBossBeatIndex = int.MaxValue;
-            StartExitSequence();
+            EnterAwaitingSeal();
         }
 
         private bool IsActivePostBossBeat(string dialogueID) {
@@ -1520,12 +1779,30 @@ namespace FTT.Environment {
         /// results overlay whose Return button goes back to the Time-Ship hub.
         /// </summary>
         public LevelResultsPanel ShowCompletionResults() {
-            if (LevelComplete) return null;
-            LevelComplete = true;
-            Levels?.CompleteLevel();
+            if (_completionPresented) return null;
+            _completionPresented = true;
+            CommitLevelCompletion();
             // Package 8 B5: settle back onto the ambient bed under the results overlay.
             Audio?.ReleaseToAmbient();
             return PresentCompletion();
+        }
+
+        private bool _completionPresented;
+
+        /// <summary>
+        /// Package 12 W8 (N01): the once-only completion commit, split from its
+        /// presentation. An accepted seal commits here <b>before</b> the
+        /// restoration vignette starts; the results overlay that follows
+        /// presents the committed result and never commits a second time.
+        /// Raises <c>OnLevelComplete</c> (advance, deposit, autosave) exactly once.
+        /// </summary>
+        protected void CommitLevelCompletion() {
+            if (LevelComplete) return;
+            LevelComplete = true;
+            // N01: AwaitingSeal ends inside the completion commit, so the
+            // completion write can never carry a stale "ready to seal" record.
+            SealReadiness.ClearOnCompletion();
+            Levels?.CompleteLevel();
         }
 
         /// <summary>

@@ -37,7 +37,9 @@ namespace FTT.Combat {
             ["roll_startup"] = 0.65f, ["roll"] = 0.55f, ["roll_recovery"] = 0.85f,
             ["ledge_hang"] = 1f, ["ledge_pull_up"] = 0.85f, ["ledge_drop"] = 0.9f,
             ["basic_attack_1"] = 0.95f, ["basic_attack_2"] = 0.95f, ["basic_attack_3"] = 1f,
-            ["up_attack"] = 1f, ["down_attack"] = 0.9f,
+            ["up_attack"] = 1f, ["down_air"] = 0.9f,
+            // H03 placeholder rows reuse the basic_attack_1 / basic_attack_3 regions.
+            ["grab"] = 0.95f, ["throw"] = 1f,
             ["block"] = 1f, ["hitstun"] = 0.9f, ["dazed"] = 1f, ["death"] = 0.5f,
             ["respawn"] = 1f, ["victory"] = 1f, ["defeat"] = 1f,
             ["special_1"] = 0.95f, ["special_2"] = 0.95f,
@@ -135,6 +137,14 @@ namespace FTT.Combat {
             _appliedFramesId = framesId;
             _appliedAnimation = animation;
         }
+
+        /// <summary>
+        /// The authored character pose target for <paramref name="animation"/>, or
+        /// -1 when the table has no row for it. Test seam (Package 12 W10: every
+        /// name in the 30-name H03 contract must have a row).
+        /// </summary>
+        public static float CharacterPoseFraction(string animation) =>
+            CharacterPoseFractions.TryGetValue(animation, out float fraction) ? fraction : -1f;
 
         private Dictionary<string, float> PoseFractions => Kind switch {
             FigureKind.Enemy => EnemyPoseFractions,

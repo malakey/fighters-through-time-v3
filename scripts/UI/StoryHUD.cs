@@ -42,8 +42,11 @@ namespace FTT.UI {
         /// <summary>Design's 20x20 px shield icons; a ColorRect stands in for art.</summary>
         private const int BlockPipSize = 20;
 
-        /// <summary>Act III anchor pips, beside the Beacon icon.</summary>
-        private const int AnchorPipSize = 12;
+        /// <summary>
+        /// M15 (Package 12 W10): the localized accessible label for the Act III
+        /// Beacon anchors, "Anchor charges: N".
+        /// </summary>
+        public const string AnchorChargesAccessibleKey = "hud_anchor_charges_accessible";
 
         /// <summary>HUD_CONTRACT: only the pooled <c>+N</c> notification fades, after one second.</summary>
         public const float DustFloatSeconds = 1.0f;
@@ -89,8 +92,13 @@ namespace FTT.UI {
         private TimeFreezeState _timeFreezeState = TimeFreezeState.Ready;
         private float _timeFreezeSeconds;
         private Control _beaconAnchors;
+        private BeaconAnchorIcon _beaconIcon;
         private HBoxContainer _anchorPipRow;
-        private ColorRect[] _anchorPips = System.Array.Empty<ColorRect>();
+        private AnchorPip[] _anchorPips = System.Array.Empty<AnchorPip>();
+        // The last authoritative charge count drawn, or -1 before the first bind.
+        // A drop at unchanged capacity is an Anchor Snap and cracks the pip; any
+        // other change (bind, load, restart refill) redraws without animation.
+        private int _drawnAnchorCharges = -1;
 
         // Top-right panel.
         private Label _dustText;
@@ -161,12 +169,21 @@ namespace FTT.UI {
         public int LitAnchorPips {
             get {
                 int lit = 0;
-                foreach (ColorRect pip in _anchorPips) {
-                    if (pip.Modulate.A >= 1f) lit++;
+                foreach (AnchorPip pip in _anchorPips) {
+                    if (pip.State == AnchorPip.PipState.Filled) lit++;
                 }
                 return lit;
             }
         }
+
+        /// <summary>The Act III anchor pips, left to right. Test seam.</summary>
+        public System.Collections.Generic.IReadOnlyList<AnchorPip> AnchorPips => _anchorPips;
+
+        /// <summary>True while the Beacon icon shows the hollow zero-charge last stand. Test seam.</summary>
+        public bool BeaconLastStand => _beaconIcon != null && _beaconIcon.LastStand;
+
+        /// <summary>The localized accessible label currently on the Beacon readout. Test seam.</summary>
+        public string AnchorChargesAccessibleText => _beaconAnchors?.AccessibilityName ?? string.Empty;
 
         /// <summary>Collapse Tremor presentation level currently drawn (0/1/2). Test seam.</summary>
         public int TremorLevel => _tremorLevel;
@@ -275,10 +292,10 @@ namespace FTT.UI {
         /// Pulls both status slots from the live <c>StatusController</c> when one is
         /// reachable. This is what makes the radials obey the authoritative clock:
         /// under Time Freeze the controller stops ticking, so the HUD stops too,
-        /// with no separate freeze handling. It also covers the case the event layer
-        /// cannot — <c>StatusController</c> re-announces a surviving slot instead of
-        /// raising a clear when only one of the two expires, so an event-only HUD
-        /// would leave the expired indicator lit.
+        /// with no separate freeze handling. Since Package 12 W10 the event layer is
+        /// also correct on its own (<c>StatusController</c> raises a slot-scoped
+        /// clear rather than re-announcing the survivor); this sync remains the
+        /// radial's clock and the backstop for a missed event.
         /// </summary>
         private void SyncStatusAuthority() {
             if (_statusAuthority == null || !IsInstanceValid(_statusAuthority)) {
@@ -466,13 +483,34 @@ namespace FTT.UI {
             _beaconAnchors.Visible = max > 0;
             if (max == 0) {
                 RebuildAnchorPips(0);
+                _drawnAnchorCharges = -1;
+                _beaconIcon?.SetLastStand(false);
+                _beaconAnchors.AccessibilityName = string.Empty;
+                _beaconAnchors.TooltipText = string.Empty;
                 return;
             }
-            if (max != _anchorPips.Length) RebuildAnchorPips(max);
-            int lit = Mathf.Clamp(payload.Charges, 0, _anchorPips.Length);
+            bool capacityChanged = max != _anchorPips.Length;
+            if (capacityChanged) RebuildAnchorPips(max);
+            int charges = Mathf.Clamp(payload.Charges, 0, _anchorPips.Length);
+            // M15: an Anchor Snap (the count falling at unchanged capacity) cracks
+            // and fades the spent pip(s); everything else redraws in place.
+            bool snap = !capacityChanged && _drawnAnchorCharges > charges;
             for (int index = 0; index < _anchorPips.Length; index++) {
-                _anchorPips[index].Modulate = new Color(1f, 1f, 1f, index < lit ? 1f : 0.18f);
+                AnchorPip pip = _anchorPips[index];
+                if (index < charges) {
+                    pip.SetFilled(true);
+                } else if (snap && index < _drawnAnchorCharges) {
+                    pip.Crack();
+                } else if (pip.State != AnchorPip.PipState.Cracking) {
+                    pip.SetFilled(false);
+                }
             }
+            _drawnAnchorCharges = charges;
+            // At zero the next collapse is Smothered: a hollow icon, steady tint.
+            _beaconIcon?.SetLastStand(charges == 0);
+            string label = string.Format(Tr(AnchorChargesAccessibleKey), charges);
+            _beaconAnchors.AccessibilityName = label;
+            _beaconAnchors.TooltipText = label;
         }
 
         private void OnDefySealChanged(DefySealPayload payload) {
@@ -650,6 +688,11 @@ namespace FTT.UI {
 
         private void OnStatusEffectCleared(FTT.Core.StatusEffectPayload payload) {
             if (payload.TargetIndex != 0) return;
+            // Package 12 W10: StatusController publishes per-slot clears.
+            if (payload.SlotScoped) {
+                _indicators.ClearStatusSlot(payload.Slot == FTT.Combat.StatusSlot.Damage);
+                return;
+            }
             _indicators.ClearStatus(payload.Type);
         }
 
@@ -806,7 +849,27 @@ namespace FTT.UI {
         }
 
         private void RebuildAnchorPips(int capacity) {
-            _anchorPips = RebuildPipRow(_anchorPipRow, capacity, AnchorPipSize, UIPalette.GoldBright);
+            _anchorPips = RebuildAnchorPipRow(_anchorPipRow, capacity);
+        }
+
+        /// <summary>M15: the 8 × 8 gold diamond pips, one per anchor charge.</summary>
+        private static AnchorPip[] RebuildAnchorPipRow(HBoxContainer row, int count) {
+            if (row == null) return System.Array.Empty<AnchorPip>();
+            Godot.Collections.Array<Node> children = row.GetChildren();
+            using (children.AsDisposable()) {
+                foreach (Node child in children) {
+                    row.RemoveChild(child);
+                    child.Free();
+                }
+            }
+            if (count <= 0) return System.Array.Empty<AnchorPip>();
+            var pips = new AnchorPip[count];
+            for (int index = 0; index < count; index++) {
+                var pip = new AnchorPip { Name = $"Pip{index}" };
+                row.AddChild(pip);
+                pips[index] = pip;
+            }
+            return pips;
         }
 
         private static ColorRect[] RebuildPipRow(HBoxContainer row, int count, int size, Color color) {
@@ -899,6 +962,7 @@ namespace FTT.UI {
                 GetNodeOrNull<Label>($"{VitalsPath}/TemporalRow/TimeFreezeIndicator/FreezeRemainingText");
             _beaconAnchors = GetNodeOrNull<Control>($"{VitalsPath}/TemporalRow/BeaconAnchors");
             _anchorPipRow = GetNodeOrNull<HBoxContainer>($"{VitalsPath}/TemporalRow/BeaconAnchors/AnchorPips");
+            _beaconIcon = GetNodeOrNull<BeaconAnchorIcon>($"{VitalsPath}/TemporalRow/BeaconAnchors/BeaconIcon");
 
             _dustText = GetNodeOrNull<Label>($"{TopRightPanelPath}/CurrencyContainer/ChronalDustText");
             _dustFloat = GetNodeOrNull<Label>($"{TopRightPanelPath}/CurrencyContainer/DustPickup_Float");

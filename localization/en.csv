@@ -1693,6 +1693,26 @@ crash_prompt_body,The last session did not shut down cleanly. A copy of its log 
 crash_prompt_never,Don't Ask Again
 crash_prompt_dismiss,Not Now
 crash_prompt_open_logs,Open Logs Folder
+# Package 12 W10
+hud_anchor_charges_accessible,Anchor charges: {0}
+
+# Package 12 W8
+# GAP-08 Reset Puzzle station (V01b).
+interaction_reset_puzzle,Reset Puzzle
+puzzle_reset_obstructed,Something is in the way. Clear the space and try again.
+puzzle_reset_done,Puzzle reset.
+# 4A gate stand-ins: the fifth LegacyGateMode (CastWatch).
+legacy_gate_cast_prompt,Resonance lock — cast your own power here
+# M16 Resonance Hold held-Interact channel and N01 sealing anchor (W8 parent).
+hold_channel_prompt_conduit,Hold Interact to seal the severed conduit
+hold_channel_prompt_valve,Hold Interact to shut the intake valve
+hold_channel_prompt_pylon,Hold Interact to release the anchor pylon
+seal_timeline_prompt,Interact: Seal Timeline — Complete Level
+seal_timeline_objective,Seal the timeline at the anchor
+seal_timeline_sealed,Timeline sealed
+seal_anchor_dormant,SEALING ANCHOR — HELD
+seal_anchor_ready,SEALING ANCHOR — READY
+
 # Package 12 W9
 boss_ability_after_image_dash_name,After-Image Dash
 boss_ability_mortar_barrage_name,Boiler Mortar Barrage

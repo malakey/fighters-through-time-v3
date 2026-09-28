@@ -64,18 +64,12 @@ namespace FTT.Environment {
         public override string SpecialTwoGateAbilityID => "pocahontas_vine_snare";
         public override string UltimateAbilityID => "pocahontas_tidewater_tempest";
 
-        // === Runtime handle for the Special 2 gate's construct resolver ===
-
-        /// <summary>
-        /// The weir gate's resolver. Vine Snare deploys a pooled
-        /// <see cref="VineSnareNode"/> construct rather than a <c>story_zone</c>, so
-        /// the shared <see cref="LegacyGateMode.Zone"/> poll cannot see it. The
-        /// declared fifth gate mode this needs is recorded in the plan's §9; until it
-        /// exists the resolver below drives the same public
-        /// <see cref="LegacyKitGate.TryResolve"/> entry point with the same authored
-        /// ability ID, so the gate still accepts that ability and nothing else.
-        /// </summary>
-        public VineSnareGateResolver SnareResolver { get; private set; }
+        // Special 2 (the weir gate) keeps the base's Zone declaration. Vine Snare
+        // deploys a pooled VineSnareNode construct rather than a story_zone, so the
+        // gate turns on LegacyKitGate.ZoneAcceptsOwnedConstruct in OnLevelReady
+        // (Package 12 W8, retiring B3's VineSnareGateResolver stand-in): a live snare
+        // the hero deployed with Vine Snare, within the gate's ResolveRadius, holds
+        // the weir open. It still accepts that ability and nothing else.
 
         // === Layout ===
         // Short by design (LEGACY_CHECKPOINTS.md "scoped as a short level"): three
@@ -120,6 +114,12 @@ namespace FTT.Environment {
         protected override Vector2 RestorationFontPosition => new(5040f, ActorGroundY);
         protected override Vector2 PreBossCheckpointPosition => new(5240f, ActorGroundY);
         protected override Vector2 BossSpawnPosition => new(6380f, ActorGroundY);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on the high ledge above the riverbank
+        // (top 612): an optional detour off the floor route, reached from the
+        // low step with a double jump and BEFORE the movement gate, so no kit gate
+        // stands between the hero and the 4A optional allocation.
+        protected override Vector2? SecretCachePosition => new(920f, 517f);
 
         public override Vector2 PlayerSpawnPosition => new(200f, ActorGroundY);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
@@ -236,63 +236,16 @@ namespace FTT.Environment {
         // === Special 2: the construct gate ===
 
         /// <summary>
-        /// Attaches the weir gate's construct resolver once the base has built the
-        /// kit gates. <see cref="LegacyLevelControllerBase.BuildLevel"/> is sealed
-        /// and runs before this hook, so the resolver is parented here rather than in
+        /// Turns on the weir gate's owned-construct acceptance once the base has
+        /// built the kit gates. <see cref="LegacyLevelControllerBase.BuildLevel"/> is
+        /// sealed and runs before this hook, so the option is set here rather than in
         /// <see cref="BuildNexusGeometry"/>, where <see cref="SpecialTwoGate"/> does
-        /// not exist yet.
+        /// not exist yet. The gate reads the option every poll.
         /// </summary>
         protected override void OnLevelReady() {
             base.OnLevelReady();
-            if (SnareResolver != null && IsInstanceValid(SnareResolver)) return;
             if (SpecialTwoGate == null || !IsInstanceValid(SpecialTwoGate)) return;
-
-            SnareResolver = new VineSnareGateResolver {
-                Name = "VineSnareGateResolver",
-                Gate = SpecialTwoGate,
-                RequiredAbilityID = SpecialTwoGateAbilityID,
-                ResolveRadius = SpecialTwoGate.ResolveRadius,
-                Position = SpecialTwoGatePosition
-            };
-            AddChild(SnareResolver);
-        }
-    }
-
-    /// <summary>
-    /// Resolves a <see cref="LegacyKitGate"/> from a live Vine Snare construct.
-    ///
-    /// <para>The shared gate's <see cref="LegacyGateMode.Zone"/> poll walks the
-    /// <c>story_zone</c> group, which a pooled <see cref="VineSnareNode"/> never joins
-    /// — it is a persistent construct, the fifth gate shape the nine kits actually
-    /// need (recorded in the plan's §9 rather than resolved by loosening Zone). This
-    /// node is the Pocahontas-local stand-in: it reads the player's own
-    /// <c>ActivePersistentObjects</c> list, so it needs no engine collection and
-    /// nothing to dispose, and it funnels through the gate's single public
-    /// <see cref="LegacyKitGate.TryResolve"/> entry point with the gate's authored
-    /// ability ID. A construct belonging to another ability, a decoy, or an enemy can
-    /// never satisfy it (V01c).</para>
-    /// </summary>
-    public partial class VineSnareGateResolver : Node2D {
-
-        /// <summary>The gate this resolver opens. Never null in the authored level.</summary>
-        public LegacyKitGate Gate;
-
-        /// <summary>The authored ability ID handed to <see cref="LegacyKitGate.TryResolve"/>.</summary>
-        public string RequiredAbilityID = "";
-
-        /// <summary>How close a live snare's centre must come to the gate.</summary>
-        public float ResolveRadius = 150f;
-
-        public override void _PhysicsProcess(double delta) {
-            if (Gate == null || !IsInstanceValid(Gate) || Gate.IsResolved) return;
-            if (GetTree()?.GetFirstNodeInGroup("StoryPlayer") is not PlayerController player) return;
-
-            foreach (Node2D node in player.ActivePersistentObjects) {
-                if (node is not VineSnareNode snare || !IsInstanceValid(snare) || snare.IsSnareDestroyed) continue;
-                if (snare.GlobalPosition.DistanceTo(Gate.GlobalPosition) > ResolveRadius) continue;
-                Gate.TryResolve(RequiredAbilityID);
-                return;
-            }
+            SpecialTwoGate.ZoneAcceptsOwnedConstruct = true;
         }
     }
 }

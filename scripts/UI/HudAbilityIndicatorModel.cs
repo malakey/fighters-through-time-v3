@@ -142,10 +142,10 @@ namespace FTT.UI {
         }
 
         /// <summary>
-        /// Falling edge. <c>None</c> means "no status remains at all" — which is
-        /// exactly what <c>StatusController</c> raises, because it re-announces a
-        /// surviving slot instead of clearing when only one expires — so it clears
-        /// both. A specific type clears only that type's slot.
+        /// Falling edge for a legacy (un-scoped) clear. <c>None</c> means "no status
+        /// remains at all", so it clears both. A specific type clears only that
+        /// type's slot. <c>StatusController</c> now publishes slot-scoped clears
+        /// (Package 12 W10), which go through <see cref="ClearStatusSlot"/>.
         /// </summary>
         public void ClearStatus(StatusType type) {
             if (type == StatusType.None) {
@@ -157,6 +157,12 @@ namespace FTT.UI {
             if (!damage && ControlStatus != type) return;
             ClearSlot(damage);
         }
+
+        /// <summary>
+        /// Package 12 W10: a slot-scoped falling edge. Empties exactly one slot and
+        /// leaves the other alone — no survivor re-announce is needed.
+        /// </summary>
+        public void ClearStatusSlot(bool damageSlot) => ClearSlot(damageSlot);
 
         /// <summary>Clears both slots.</summary>
         public void ClearStatus() {

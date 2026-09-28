@@ -52,6 +52,12 @@ namespace FTT.Environment {
             _levelManager.LevelDisplayName = "florence_level_title";
             AddChild(_levelManager);
 
+            // Package 12 W8 (N01): a pre-seal load builds the Inquisitor defeated.
+            _restoringAwaitingSeal = SealReadiness.IsPreSealLoad(_levelManager.LevelID, CampaignLevel.Florence);
+            if (_restoringAwaitingSeal) {
+                _bossDefeated = true;
+                _bossIntroShown = true;
+            }
             BuildLevel();
             SpawnPlayer();
             SpawnRoom1Enemies();
@@ -77,7 +83,74 @@ namespace FTT.Environment {
 
             bool resumedMidLevel = _levelManager.LastCheckpointID.Length > 0;
             if (!resumedMidLevel) CallDeferred(MethodName.StartEntranceDialogue);
+
+            if (_restoringAwaitingSeal) {
+                _restoringAwaitingSeal = false;
+                RestoredBossPickup = SealReadiness.RestorePendingBossPickup(BossSpawnPosition, this);
+                EnterAwaitingSeal();
+            }
         }
+
+        // === Package 12 W8 region: the N01 sealing anchor (GAP-05) ============
+        //
+        // Florence predates StoryLevelControllerBase, so it wires the same seal
+        // stage by hand through the shared SealReadiness rules: the Inquisitor's
+        // defeat commits AwaitingSeal (no completion, deposit or unlock), the
+        // anchor arms beside the boss pickup, a single Interact commits the
+        // completion transaction, and only then does level_01.exit (the
+        // restoration vignette) play before the results.
+
+        public const string SealingAnchorID = "level_01.sealing_anchor";
+        private const float BossSpawnX = Room4OffsetX + 700f;
+        private const float BossSpawnY = 850f;
+        private static readonly Vector2 BossSpawnPosition = new(BossSpawnX, BossSpawnY);
+
+        private bool _restoringAwaitingSeal;
+
+        /// <summary>The level's sealing anchor. Test seam.</summary>
+        public TemporalCoreAnchor SealingAnchor { get; private set; }
+
+        /// <summary>True once the seal has been accepted. Test seam.</summary>
+        public bool SealAccepted { get; private set; }
+
+        /// <summary>The boss pickup a pre-seal load respawned, or null. Test seam.</summary>
+        public ChronalDustPickup RestoredBossPickup { get; private set; }
+
+        private void BuildSealingAnchor() {
+            SealingAnchor = TemporalCoreAnchor.CreateSealingAnchor(
+                SealingAnchorID, BossSpawnPosition + new Vector2(StoryLevelControllerBase.DerivedSealingAnchorOffsetX, 0f));
+            SealingAnchor.CoreInserted += _ => AcceptSeal();
+            AddChild(SealingAnchor);
+        }
+
+        private void EnterAwaitingSeal() {
+            if (SealAccepted || _levelComplete || SealingAnchor == null || !IsInstanceValid(SealingAnchor)) return;
+            SealingAnchor.Arm();
+            _services?.HUD?.SetObjective(StoryLevelControllerBase.SealObjectiveKey);
+        }
+
+        /// <summary>The accepted seal: commit, then the vignette, then the results.</summary>
+        public bool AcceptSeal() {
+            if (SealAccepted || _levelComplete || !_bossDefeated) return false;
+            SealAccepted = true;
+            foreach (ChronalExtractor extractor in _extractors) {
+                if (IsInstanceValid(extractor)) extractor.ShutDownBySeal();
+            }
+            CommitLevelCompletion();
+            EnvironmentNotice.Post(StoryLevelControllerBase.SealedNoticeKey, SealingAnchor);
+            if (_services?.Dialogue?.StartSequence("level_01.exit") != true) ShowCompletionResults();
+            return true;
+        }
+
+        private void CommitLevelCompletion() {
+            if (_levelComplete) return;
+            _levelComplete = true;
+            SealReadiness.ClearOnCompletion();
+            // Raises OnLevelComplete: advances the campaign and autosaves completion.
+            _levelManager?.CompleteLevel();
+        }
+
+        // === end Package 12 W8 region ==========================================
 
         public override void _ExitTree() {
             if (EventBus.Instance != null) {
@@ -408,7 +481,8 @@ namespace FTT.Environment {
             BuildCheckpoint(offsetX + 100, 850, "florence_checkpoint_2");
             BuildRoomDecoration(offsetX, "florence_room_boss", new Color(0.9f, 0.2f, 0.2f));
 
-            SpawnBoss(offsetX + 700, 850);
+            SpawnBoss(BossSpawnX, BossSpawnY);
+            BuildSealingAnchor();
         }
 
         private void BuildWaveTrigger(string name, Vector2 position, System.Action onEntered) {
@@ -701,7 +775,9 @@ namespace FTT.Environment {
                 Name = "BorgiaInquisitorEncounter",
                 Position = new Vector2(x, y),
                 Data = AuthoredResources.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres"),
-                RevealDistance = 800f
+                RevealDistance = 800f,
+                // Package 12 W8 (N01): a pre-seal load never respawns the boss.
+                SpawnOnReady = !_restoringAwaitingSeal
             };
             _bossEncounter.BossRevealed += OnBossRevealed;
             _bossEncounter.BossDefeated += OnBossDefeated;
@@ -889,7 +965,10 @@ namespace FTT.Environment {
         /// <summary>Package 11 A10 (F05): labels a collected award's category.</summary>
         private void OnDustAwardAttributed(DustAwardCollectedPayload payload) {
             switch (payload.Source) {
-                case DustAwardSource.Boss: _bossDustEarned += Mathf.Max(0, payload.Amount); break;
+                case DustAwardSource.Boss:
+                    _bossDustEarned += Mathf.Max(0, payload.Amount);
+                    SealReadiness.NoteBossPickupCollected();
+                    break;
                 case DustAwardSource.Extractor: _extractorDustEarned += Mathf.Max(0, payload.Amount); break;
                 case DustAwardSource.Secret: _optionalDustEarned += Mathf.Max(0, payload.Amount); break;
             }
@@ -902,16 +981,23 @@ namespace FTT.Environment {
             // Package 11 A10 (F05): the boss award is a physical pickup whose
             // wallet payment AND results label both land at collection, so the
             // defeat beat no longer labels dust the wallet has not been paid.
-
+            // Package 12 W8 (N01): the defeat commits AwaitingSeal; after the
+            // defeat beat the anchor arms and waits for the player's seal. The
+            // exit sequence is the post-seal restoration vignette.
+            SealReadiness.CommitDefeat(SealingAnchorID);
+            if (!IsInsideTree()) { EnterAwaitingSeal(); return; }
             var timer = GetTree().CreateTimer(1.5);
-            timer.Timeout += () => _services?.Dialogue?.StartSequence("level_01.exit");
+            timer.Timeout += () => {
+                if (IsInstanceValid(this) && IsInsideTree()) EnterAwaitingSeal();
+            };
         }
 
+        private bool _completionPresented;
+
         private void ShowCompletionResults() {
-            if (_levelComplete) return;
-            _levelComplete = true;
-            // Raises OnLevelComplete: advances the campaign and autosaves completion.
-            _levelManager?.CompleteLevel();
+            if (_completionPresented) return;
+            _completionPresented = true;
+            CommitLevelCompletion();
             _services?.Audio?.ReleaseToAmbient();
 
             var results = LevelResultsPanel.CreateDefault();

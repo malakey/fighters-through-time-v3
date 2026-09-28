@@ -103,7 +103,7 @@ namespace FTT.Characters.Abilities {
                 Transform = new Transform2D(0f, _waveFront),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
-                CollisionMask = targetHurtboxLayer
+                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
 
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
@@ -415,7 +415,7 @@ namespace FTT.Characters.Abilities {
                 Transform = new Transform2D(0f, contactCenter),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
-                CollisionMask = targetHurtboxLayer
+                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
 
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
@@ -593,7 +593,7 @@ namespace FTT.Characters.Abilities {
                 Transform = new Transform2D(0f, _penCenter),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
-                CollisionMask = targetHurtboxLayer
+                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, MaxQueryResults)) {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;

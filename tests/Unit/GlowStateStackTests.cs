@@ -32,21 +32,30 @@ public class GlowStateStackTests {
     /// sitting at the bottom of a priority stack meant the first status or armor
     /// source replaced it. What remains is the SECONDARY effect ladder.
     /// </summary>
+    /// <summary>
+    /// Package 12 W10 / HUD_CONTRACT: spawn protection &gt; armor &gt; control
+    /// status &gt; damage status. Rewritten in place — the pre-W10 ladder had one
+    /// status layer and put armor above spawn protection.
+    /// </summary>
     [TestCase]
-    public void HyperArmorOutranksStatusInTheEffectStack() {
+    public void TheEffectStackOrdersSpawnOverArmorOverControlOverDamage() {
         var stack = new GlowStateStack();
-        stack.Push(GlowPalette.Status(StatusType.Root));
+        stack.Push(GlowPalette.Status(StatusType.Venom));
         AssertThat(stack.TryResolve(out GlowState resolved)).IsTrue();
-        AssertThat(resolved.Layer).IsEqual(GlowLayer.Status);
+        AssertThat(resolved.Layer).IsEqual(GlowLayer.DamageStatus);
 
-        stack.Push(GlowPalette.SpawnInvulnerability());
+        stack.Push(GlowPalette.Status(StatusType.Root));
         AssertThat(stack.TryResolve(out resolved)).IsTrue();
-        AssertThat(resolved.Layer).IsEqual(GlowLayer.SpawnInvulnerability);
+        AssertThat(resolved.Layer).IsEqual(GlowLayer.ControlStatus);
 
         stack.Push(GlowPalette.HyperArmor());
         AssertThat(stack.TryResolve(out resolved)).IsTrue();
         AssertThat(resolved.Layer).IsEqual(GlowLayer.HyperArmor);
-        AssertThat(stack.ActiveLayerCount).IsEqual(3);
+
+        stack.Push(GlowPalette.SpawnInvulnerability());
+        AssertThat(stack.TryResolve(out resolved)).IsTrue();
+        AssertThat(resolved.Layer).IsEqual(GlowLayer.SpawnInvulnerability);
+        AssertThat(stack.ActiveLayerCount).IsEqual(4);
 
         // Nothing pushes the retired slot layer any more.
         AssertThat(stack.IsActive(GlowLayer.SlotIndicator)).IsFalse();
@@ -59,16 +68,41 @@ public class GlowStateStackTests {
         stack.Push(GlowPalette.SpawnInvulnerability());
         stack.Push(GlowPalette.HyperArmor());
 
-        stack.Clear(GlowLayer.HyperArmor);
-        AssertThat(stack.TryResolve(out GlowState resolved)).IsTrue();
-        AssertThat(resolved.Layer).IsEqual(GlowLayer.SpawnInvulnerability);
-
         stack.Clear(GlowLayer.SpawnInvulnerability);
+        AssertThat(stack.TryResolve(out GlowState resolved)).IsTrue();
+        AssertThat(resolved.Layer).IsEqual(GlowLayer.HyperArmor);
+
+        stack.Clear(GlowLayer.HyperArmor);
         AssertThat(stack.TryResolve(out resolved)).IsTrue();
-        AssertThat(resolved.Layer).IsEqual(GlowLayer.Status);
+        AssertThat(resolved.Layer).IsEqual(GlowLayer.DamageStatus);
 
         stack.Clear(GlowLayer.Status);
         AssertThat(stack.TryResolve(out GlowState _)).IsFalse();
+    }
+
+    /// <summary>
+    /// Package 12 W10: the two status categories occupy their own layers. With
+    /// both occupied the control glow shows; when control clears, the damage glow
+    /// underneath is recomputed from current state rather than re-announced.
+    /// </summary>
+    [TestCase]
+    public void BothStatusLayersCoexistAndControlOutranksDamage() {
+        var stack = new GlowStateStack();
+        stack.Push(GlowPalette.Status(StatusType.RadiantBurn));
+        stack.Push(GlowPalette.Status(StatusType.StaticCharge));
+        AssertThat(stack.ActiveLayerCount).IsEqual(2);
+        AssertThat(stack.IsActive(GlowLayer.Status)).IsTrue();
+        AssertThat(stack.TryResolve(out GlowState resolved)).IsTrue();
+        AssertThat(resolved.OutlineColor).IsEqual(GlowPalette.StaticChargeColor);
+
+        stack.Clear(GlowLayer.ControlStatus);
+        AssertThat(stack.TryResolve(out resolved)).IsTrue();
+        AssertThat(resolved.Layer).IsEqual(GlowLayer.DamageStatus);
+        AssertThat(resolved.OutlineColor).IsEqual(GlowPalette.RadiantBurnColor);
+
+        // Suppression is a control-slot type and lands on the control layer.
+        AssertThat(GlowPalette.Status(StatusType.Suppression).Layer).IsEqual(GlowLayer.ControlStatus);
+        AssertThat(GlowPalette.Status(StatusType.Venom).Layer).IsEqual(GlowLayer.DamageStatus);
     }
 
     [TestCase]

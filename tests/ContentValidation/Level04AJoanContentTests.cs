@@ -232,13 +232,15 @@ public class Level04AJoanContentTests {
         AssertThat(level.SpecialOneGate.Mode).IsEqual(LegacyGateMode.Strike);
         AssertThat(level.SpecialTwoGate.Mode).IsEqual(LegacyGateMode.Strike);
 
-        // Divine Piercing delivers through an enemy-hurtbox shape query, so the reliquary pin carries a resonant effigy the flurry can reach. It forwards to the SAME gate and accepts nothing the gate
-        // itself would not (V01c is unchanged).
-        AssertObject(level.ReliquaryEffigy)
-            .OverrideFailureMessage("The Special 2 gate needs its resonant effigy or it is unopenable.")
+        // Divine Piercing delivers through an enemy-hurtbox shape query, so the reliquary
+        // pin's own strike surface sits on the EnemyHurtbox layer at the retired
+        // effigy's sweep size (Package 12 W8). It is the SAME gate and accepts nothing
+        // it would not otherwise (V01c is unchanged).
+        AssertObject(level.SpecialTwoGate.StrikeSurface)
+            .OverrideFailureMessage("The Special 2 gate needs its strike surface or it is unopenable.")
             .IsNotNull();
-        AssertThat(level.ReliquaryEffigy.Gate).IsEqual(level.SpecialTwoGate);
-        AssertThat(level.ReliquaryEffigy.IsInert).IsFalse();
+        AssertThat((level.SpecialTwoGate.StrikeSurface.CollisionLayer & CollisionLayers.EnemyHurtbox) != 0).IsTrue();
+        AssertThat(level.SpecialTwoGate.StrikeSurfaceSize).IsEqual(LegacyKitGate.SweepStrikeSurfaceSize);
 
         // A gate accepts its one authored ability and nothing else.
         AssertThat(level.SpecialOneGate.TryResolve("joan_divine_piercing"))

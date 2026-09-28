@@ -31,11 +31,11 @@ namespace FTT.Environment {
     ///
     /// <para><b>Gate shapes.</b> The Sandstorm Vortex is an ordinary placed zone, so
     /// its gate is native <c>Zone</c> mode. The Serpent Nest is a deployed
-    /// construct, which is neither of A12's combat shapes: its bite reaches only
-    /// <c>EnemyHurtbox</c>-layer hurtboxes, never a gate surface. That gate keeps its
-    /// <c>Strike</c> presentation and is resolved by a
-    /// <see cref="LegacyCastGateWatcher"/> — B2's stand-in for the fifth gate mode
-    /// A12's dossier anticipated (plan §9, B2).</para>
+    /// construct, so its gate is <see cref="LegacyGateMode.CastWatch"/> (Package 12
+    /// W8, retiring B2's <c>LegacyCastGateWatcher</c> stand-in): casting the nest
+    /// within the gate's cast radius latches it, and the gate keeps the strike
+    /// surface it always had — on the <c>EnemyHurtbox</c> layer — so the brood's
+    /// own bites can still open the cobra seal.</para>
     ///
     /// <para><b>Locked economy</b> (DUST_ECONOMY.md row 4A): 15 required-encounter +
     /// 25 boss + 10 optional, identical for every variant regardless of layout or
@@ -74,8 +74,10 @@ namespace FTT.Environment {
         public override string SpecialTwoGateAbilityID => "cleopatra_sandstorm_vortex";
         public override string UltimateAbilityID => "cleopatra_wrath_of_the_nile";
 
-        // Special 1 keeps the Strike presentation and is cast-recognised; Special 2
-        // is a real placed zone, so the base's Zone default is already correct.
+        /// <summary>The Serpent Nest is a deployed construct: the cast is what the seal answers.</summary>
+        protected override LegacyGateMode SpecialOneGateMode => LegacyGateMode.CastWatch;
+
+        // Special 2 is a real placed zone, so the base's Zone default is already correct.
 
         // === Layout ===
         // Short by design (LEGACY_CHECKPOINTS.md "scoped as a short level"): three
@@ -117,6 +119,12 @@ namespace FTT.Environment {
         protected override Vector2 PreBossCheckpointPosition => new(5220f, ActorGroundY);
         protected override Vector2 BossSpawnPosition => new(6360f, ActorGroundY);
 
+        // Package 12 W8 (GAP-03): the secret cache sits on the high ledge above the harbour approach
+        // (top 602): an optional detour off the floor route, reached from the
+        // low step with a double jump and BEFORE the movement gate, so no kit gate
+        // stands between the hero and the 4A optional allocation.
+        protected override Vector2? SecretCachePosition => new(900f, 507f);
+
         public override Vector2 PlayerSpawnPosition => new(200f, ActorGroundY);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
@@ -154,15 +162,6 @@ namespace FTT.Environment {
 
         private static readonly Color MausoleumFloorColor = new(0.20f, 0.18f, 0.15f);
         private static readonly Color MausoleumPlatformColor = new(0.28f, 0.25f, 0.20f);
-
-        // === Runtime handles ===
-
-        /// <summary>
-        /// Resolves the Serpent Nest gate. Public so the content suite can pin that
-        /// the construct special has a recogniser at all — without one the gate is
-        /// unopenable and the route is stranded.
-        /// </summary>
-        public LegacyCastGateWatcher SerpentNestWatcher { get; private set; }
 
         // === Construction ===
 
@@ -232,19 +231,16 @@ namespace FTT.Environment {
         }
 
         /// <summary>
-        /// Attaches the Serpent Nest recogniser. Runs after the sealed
-        /// <c>BuildLevel</c> has created the gates, so the handle is live.
+        /// Gives the CastWatch nest gate its strike surface, which a CastWatch gate
+        /// does not build by default: the brood's bites query the <c>EnemyHurtbox</c>
+        /// layer and still carry the ability ID. Runs after the sealed
+        /// <c>BuildLevel</c> has created the gates.
         /// </summary>
         protected override void OnLevelReady() {
             base.OnLevelReady();
-            if (SerpentNestWatcher != null) return;
-            SerpentNestWatcher = new LegacyCastGateWatcher {
-                Name = "SerpentNestGateWatcher",
-                Gate = SpecialOneGate,
-                RequiredAbilityID = SpecialOneGateAbilityID,
-                Position = SpecialOneGatePosition
-            };
-            AddChild(SerpentNestWatcher);
+            if (SpecialOneGate != null && IsInstanceValid(SpecialOneGate)) {
+                SpecialOneGate.ConfigureStrikeSurface(onEnemyHurtbox: true);
+            }
         }
 
         /// <summary>The boss arena's width, measured for the ranged-band content test.</summary>

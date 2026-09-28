@@ -66,6 +66,11 @@ namespace FTT.Environment {
         public override string LevelTitleKey => "egypt_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(200, 650);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on
+        // the high dune spire in the siege line (Platform 3950/430, top 422), climbed
+        // from the ledge at 3500 — a dead-end lookout above the dampening dunes.
+        protected override Vector2? SecretCachePosition => new(3950f, 327f);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         /// <summary>The authored Cleopatra scene; see design-godot.md 3368-3374.</summary>

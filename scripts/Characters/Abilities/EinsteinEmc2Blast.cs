@@ -73,7 +73,7 @@ namespace FTT.Characters.Abilities {
                 Transform = new Transform2D(0f, impactPosition),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
-                CollisionMask = targetHurtboxLayer
+                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
 
             bool criticalMass = Owner.HasStoryPerk(CriticalMassPerkKey);

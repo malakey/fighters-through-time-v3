@@ -190,8 +190,20 @@ public class StoryHudPresentationTests {
             AssertThat(hud.Indicators.ControlStatus).IsEqual(StatusType.None);
             AssertThat(hud.Indicators.DamageStatus).IsEqual(StatusType.Venom);
 
-            // StatusController raises a None clear only when NOTHING survives, so
-            // None means "both slots empty".
+            // Package 12 W10: StatusController's slot-scoped clear empties only
+            // the slot it names, whatever type it carries.
+            bus.RaiseStatusEffectApplied(new StatusEffectPayload {
+                TargetIndex = 0, Type = StatusType.Root, Duration = 4f, Intensity = 1f,
+                Slot = FTT.Combat.StatusSlot.Control, SlotScoped = true
+            });
+            bus.RaiseStatusEffectCleared(new StatusEffectPayload {
+                TargetIndex = 0, Type = StatusType.Root,
+                Slot = FTT.Combat.StatusSlot.Control, SlotScoped = true
+            });
+            AssertThat(hud.Indicators.ControlStatus).IsEqual(StatusType.None);
+            AssertThat(hud.Indicators.DamageStatus).IsEqual(StatusType.Venom);
+
+            // A legacy un-scoped None clear means "both slots empty".
             bus.RaiseStatusEffectCleared(new StatusEffectPayload {
                 TargetIndex = 0, Type = StatusType.None, Duration = 0f, Intensity = 0f
             });

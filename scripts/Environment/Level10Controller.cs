@@ -69,6 +69,11 @@ namespace FTT.Environment {
         public override string LevelTitleKey => "globe_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(240, EnemyGroundY);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on
+        // the upper gallery box above the yard gate (one-way 2280/740, top 730),
+        // climbed from the rail at 1980 — a dead end the yard floor passes under.
+        protected override Vector2? SecretCachePosition => new(2280f, 635f);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "globe_objective_reach_stage";

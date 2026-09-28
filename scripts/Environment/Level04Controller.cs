@@ -103,6 +103,11 @@ namespace FTT.Environment {
         public override string LevelTitleKey => "paris_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_04_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(240, 850);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on
+        // the barricade crest (Platform 3000/560, top 552) one hop past the barricade
+        // extractor — a dead-end perch over the gatehouse exit, off the floor route.
+        protected override Vector2? SecretCachePosition => new(3000f, 457f);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "paris_objective_breach";

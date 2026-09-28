@@ -47,6 +47,12 @@ namespace FTT.Environment {
         public override string LevelTitleKey => "orleans_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(200, 850);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on
+        // the high rampart ledge above the vanguard approach (Platform 900/570, top 562):
+        // a dead-end perch two double-jump hops up from the low step at 500 — the floor
+        // route walks straight under it.
+        protected override Vector2? SecretCachePosition => new(900f, 467f);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "orleans_objective_advance";

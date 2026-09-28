@@ -151,9 +151,9 @@ public class HudAbilityIndicatorModelTests {
 
     /// <summary>
     /// The authoritative sync is what the Story HUD actually renders from: it
-    /// overwrites both slots wholesale, so an expiry the event layer swallowed
-    /// (StatusController re-announces a survivor instead of clearing) still
-    /// disappears from the HUD.
+    /// overwrites both slots wholesale, so an expiry the event layer missed still
+    /// disappears from the HUD. (Package 12 W10 made the events slot-scoped, so
+    /// the pre-W10 survivor re-announce no longer swallows one.)
     /// </summary>
     [TestCase]
     public void SyncingFromTheAuthorityOverwritesBothSlots() {
