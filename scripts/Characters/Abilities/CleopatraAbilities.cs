@@ -306,9 +306,12 @@ namespace FTT.Characters.Abilities {
     /// Movement — Desert Mirage: Cleopatra dissolves into sand and rushes a short
     /// distance in the held input direction, usable in the air for recovery.
     /// Distance, duration (capped at the design's 3 s limit), and cooldown come
-    /// from the authored MovementAbilityData resource. Story-only Resonance
+    /// from the authored MovementAbilityData resource. Every accepted cast
+    /// leaves a one-second sand decoy at its origin that Story enemies target
+    /// (<see cref="SandDecoyNode"/>, Package 12 W4). Story-only Resonance
     /// perks: Quicksand Grip (vortex-caught targets are rooted 1 s on cast) and
-    /// Royal Aegis (a shield worth 10% of max HP granted on cast).
+    /// Royal Aegis (a shield worth 10% of max HP granted on cast, to Cleopatra
+    /// and — as a separate recipient — to the decoy).
     /// </summary>
     public partial class CleopatraDesertMirage : BaseSpecial {
 
@@ -407,28 +410,41 @@ namespace FTT.Characters.Abilities {
                 var vortex = Owner.GetNodeOrNull<CleopatraSandstormVortex>("Special2");
                 vortex?.RootVortexTargets(QuicksandRootDuration);
             }
+            // Package 12 W4 (GAP-10c): every accepted Mirage leaves the sand
+            // decoy at its origin for one second (baseline kit rule).
+            SandDecoyNode decoy = EnsureDecoy();
+            decoy.Arm(Owner, _startPosition);
+            int castId = ++_mirageCastId;
             if (Owner.HasStoryPerk(RoyalAegisPerkKey)) {
                 // V7.6 D02a/D02c (Package 11 A1b): a valid Desert Mirage grant
                 // REFRESHES the 10%-max-HP shield to its cap and restarts the
                 // eight-second lifetime; it never adds capacity or duration.
                 // The grant identity is the accepted cast, so a duplicate
                 // animation or collision callback for the same cast is refused.
-                //
-                // DEVIATION, recorded in plan §9: D02a also says "treat the
-                // decoy as a separate recipient under its existing
-                // inherited-shield rule". Cleopatra's sand decoy is a V7
-                // baseline object that HAS NEVER BEEN IMPLEMENTED (A4's handoff
-                // §3.6 records the same gap), so there is no decoy node to
-                // route the grant to and no second recipient to give its own
-                // lifetime. Building a hurtbox-bearing decoy is a kit feature,
-                // not a defensive-contract fix. Until it exists the shield
-                // stays on Cleopatra, exactly as it shipped.
+                float capacity = FTT.Combat.StoryDefenseRules.GrantedShieldCapacityShare * Owner.MaximumHP;
                 Owner.GrantStoryShield(
                     FTT.Combat.StoryShieldEffect.RoyalAegis,
-                    FTT.Combat.StoryDefenseRules.GrantedShieldCapacityShare * Owner.MaximumHP,
+                    capacity,
                     FTT.Combat.StoryDefenseRules.GrantedShieldLifetimeFrames,
-                    ++_mirageCastId);
+                    castId);
+                // D02a: "the decoy inherits it as a SEPARATE recipient" — its own
+                // capacity, depletion, lifetime and grant identity, never pooled
+                // with Cleopatra's (Package 12 W4 closes the P11 A1b deviation).
+                decoy.GrantShield(
+                    capacity, FTT.Combat.StoryDefenseRules.GrantedShieldLifetimeFrames, castId);
             }
+        }
+
+        private SandDecoyNode _decoy;
+
+        /// <summary>The one reusable decoy under this ability. Test seam.</summary>
+        public SandDecoyNode Decoy => _decoy;
+
+        private SandDecoyNode EnsureDecoy() {
+            if (_decoy != null && IsInstanceValid(_decoy)) return _decoy;
+            _decoy = new SandDecoyNode { Name = "SandDecoy" };
+            AddChild(_decoy);
+            return _decoy;
         }
     }
 
