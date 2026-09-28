@@ -35,4 +35,6 @@ BossAbilities = Array[ExtResource("2")]([ExtResource("3"), ExtResource("4"), Ext
 AbilityMinPhase = Array[int]([0, 0, 0])
 InterruptibleDuringTelegraph = true
 InterruptDamageThreshold = 20.0
+ArenaGuardianMinPhase = 1
+ArenaGuardianHP = 60
 PlaceholderTint = Color(0.95, 0.8, 0.3, 1)

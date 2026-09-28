@@ -9,6 +9,18 @@ namespace FTT.Enemies {
         DistanceBased
     }
 
+    /// <summary>
+    /// M19 (Package 12 W9, design 2026-09-26): what advances a boss's phase.
+    /// <c>HpThreshold</c> (the default, so every pre-existing resource is
+    /// unchanged) reads <see cref="BossData.PhaseThresholds"/>; <c>MemberDefeat</c>
+    /// is a boss squad that advances when a member falls instead.
+    /// APPEND-ONLY: resources serialize the ordinal.
+    /// </summary>
+    public enum BossPhaseTrigger {
+        HpThreshold,
+        MemberDefeat
+    }
+
     [GlobalClass]
     public partial class BossData : Resource {
         [ExportGroup("Identity")]
@@ -35,6 +47,28 @@ namespace FTT.Enemies {
         [Export] public float PhaseTransitionInvincibilityDuration = 2.0f;
         /// <summary>Per-phase move-speed multiplier; index 0 is phase 0 (opening phase).</summary>
         [Export] public float[] PhaseSpeedMultipliers = Array.Empty<float>();
+        /// <summary>
+        /// M19: <see cref="BossPhaseTrigger.HpThreshold"/> by default. A
+        /// <see cref="BossPhaseTrigger.MemberDefeat"/> squad ignores
+        /// <see cref="PhaseThresholds"/> for progression (they still size
+        /// <see cref="PhaseCount"/> and notch the shared HUD bar) and enters its next
+        /// phase when a member falls. Additive export — no schema bump.
+        /// </summary>
+        [Export] public BossPhaseTrigger PhaseTrigger = BossPhaseTrigger.HpThreshold;
+
+        [ExportGroup("Squad (Package 12 W9, M19)")]
+        /// <summary>
+        /// Bodies the encounter spawns for this one boss. 1 is an ordinary boss.
+        /// A squad splits <see cref="MaxHP"/> evenly — the design's "850 (two
+        /// members × 425)" — so the total is still authored exactly once.
+        /// </summary>
+        [Export(PropertyHint.Range, "1,4,1")] public int SquadMemberCount = 1;
+        /// <summary>
+        /// Parallel to <see cref="BossAbilities"/>: the squad member that owns each
+        /// ability. A negative or missing entry is shared by every member. When a
+        /// member falls, the survivors absorb its owned abilities (M19).
+        /// </summary>
+        [Export] public int[] AbilityMember = Array.Empty<int>();
 
         [ExportGroup("Loot")]
         /// <summary>Package 11 A10 (F05): every one of the sixteen bosses pays
@@ -104,11 +138,61 @@ namespace FTT.Enemies {
         /// </summary>
         public const int HistoricalRecoverySuspendFrames = 90;
 
+        [ExportGroup("Phase mechanics (Package 12 W9, GAP-07)")]
+        /// <summary>
+        /// Jackal Priest P2 ("each teleport leaves a sand decoy"): from this phase
+        /// index on, every Teleport-archetype cast leaves a <see cref="BossDecoy"/>
+        /// at the spot the boss vacated. -1 never.
+        /// </summary>
+        [Export] public int TeleportDecoyMinPhase = -1;
+        /// <summary>Seconds a decoy stands before it crumbles harmlessly.</summary>
+        [Export] public float DecoyLifetimeSeconds = 6f;
+        /// <summary>Radius, in pixels, of the burst a struck decoy releases.</summary>
+        [Export] public float DecoyBurstRadius = 150f;
+        /// <summary>Damage of that burst (Basic-class, blockable for one charge).</summary>
+        [Export] public float DecoyBurstDamage = 14f;
+        /// <summary>
+        /// Tragedy King P2 ("invulnerable mid-soliloquy until both actors take their
+        /// bow"): from this phase index on, every SummonMinions cast is a guarded
+        /// scene — the boss refuses all damage until every body that cast summoned
+        /// has fallen or the scene runs out and the survivors bow off-stage. The
+        /// phase entry itself opens a scene. -1 never.
+        /// </summary>
+        [Export] public int GuardedSummonMinPhase = -1;
+        /// <summary>Seconds a guarded scene runs before the surviving actors bow.</summary>
+        [Export] public float GuardedSummonSceneSeconds = 10f;
+        /// <summary>
+        /// Chronal Inventor P2 ("deploys two siphon coils at the arena corners that
+        /// shield him until destroyed"): the phase index at which the level's arena
+        /// guardians arm. The controller does not place them — corners are arena
+        /// geometry — the level builds them on <see cref="BossController.PhaseEntered"/>
+        /// and registers them through <see cref="BossController.RegisterGuardian"/>.
+        /// -1 never.
+        /// </summary>
+        [Export] public int ArenaGuardianMinPhase = -1;
+        /// <summary>HP of each arena guardian (the Inventor's coils).</summary>
+        [Export] public int ArenaGuardianHP = 60;
+
         [ExportGroup("Animation")]
         [Export] public SpriteFrames SpriteFramesResource;
         [Export] public Color PlaceholderTint = Colors.White;
 
         public int PhaseCount => (PhaseThresholds?.Length ?? 0) + 1;
+
+        /// <summary>True for a multi-body squad (M19).</summary>
+        public bool IsSquad => SquadMemberCount > 1;
+
+        /// <summary>
+        /// One member's authored pool: <see cref="MaxHP"/> split evenly across the
+        /// squad (850 / 2 = 425 for the Tribunal). The whole boss for a single body.
+        /// </summary>
+        public int MemberMaxHP => IsSquad ? Math.Max(1, MaxHP / SquadMemberCount) : MaxHP;
+
+        /// <summary>Owning squad member for an ability index; -1 (shared) when unauthored.</summary>
+        public int GetAbilityMember(int abilityIndex) {
+            if (AbilityMember == null || abilityIndex < 0 || abilityIndex >= AbilityMember.Length) return -1;
+            return AbilityMember[abilityIndex] < 0 ? -1 : AbilityMember[abilityIndex];
+        }
 
         /// <summary>Earliest phase an ability index unlocks in; 0 when unauthored.</summary>
         public int GetAbilityMinPhase(int abilityIndex) {

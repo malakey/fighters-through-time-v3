@@ -153,6 +153,14 @@ namespace FTT.Enemies {
         [Export] public Color TelegraphTint = new(1f, 0.55f, 0.2f);
         /// <summary>String hook consumed by Package 8 VFX/SFX binding; no asset required now.</summary>
         [Export] public string PresentationEventID = "";
+        /// <summary>
+        /// M18 (Package 12 W9): the caster sheds fading placeholder after-images
+        /// while this ability's active phase runs — the Borgia Inquisitor's P2
+        /// after-image dash. Decorative, so Reduced Temporal Effects suppresses it
+        /// (<c>ComfortSettings.GhostTrailsAllowed</c>); the dash's telegraph and
+        /// hitbox are the information and are never touched. Additive export.
+        /// </summary>
+        [Export] public bool LeavesAfterImages;
 
         /// <summary>Active-phase length in frames, accounting for the dash override.</summary>
         public int ResolvedActiveFrames => Archetype == EnemyAbilityArchetype.ChargeDash

@@ -71,6 +71,19 @@ namespace FTT.Enemies {
         /// <summary>Raised the frame an ability's active phase begins.</summary>
         public event Action<EnemyAbilityData> AbilityActivated;
 
+        /// <summary>
+        /// Package 12 W9 (GAP-07): the bodies one SummonMinions cast actually put
+        /// on the field, so an owner can treat them as a guarded scene (the
+        /// Tragedy King's actors). Raised once per cast, possibly with an empty list.
+        /// </summary>
+        public event Action<EnemyAbilityData, System.Collections.Generic.IReadOnlyList<EnemyController>> MinionsSummoned;
+
+        /// <summary>
+        /// Package 12 W9 (GAP-07): a Teleport cast moved the owner; the argument is
+        /// the position it vacated (the Jackal Priest leaves a decoy there).
+        /// </summary>
+        public event Action<EnemyAbilityData, Vector2> Teleported;
+
         public void Bind(AnimatedSprite2D sprite, FTT.Combat.Hitbox hitbox, Node2D abilityOrigin) {
             _sprite = sprite;
             _hitbox = hitbox;
@@ -494,15 +507,20 @@ namespace FTT.Enemies {
             Node parent = _owner.GetParent();
             if (parent == null) return;
             int count = Math.Max(1, ability.SummonCount);
+            var spawned = new System.Collections.Generic.List<EnemyController>(count);
             for (int index = 0; index < count; index++) {
                 float offsetX = (index % 2 == 0 ? -1f : 1f) * (96f + 48f * (index / 2));
                 // Package 12 W2 (GAP-04): summons carry their provenance to death,
                 // so they can never draw another encounter's finite reward.
-                EnemyFactory.SpawnSummoned(ability.SummonEnemyID, parent, _owner.GlobalPosition + new Vector2(offsetX, 0f));
+                EnemyController minion = EnemyFactory.SpawnSummoned(
+                    ability.SummonEnemyID, parent, _owner.GlobalPosition + new Vector2(offsetX, 0f));
+                if (minion != null) spawned.Add(minion);
             }
+            MinionsSummoned?.Invoke(ability, spawned);
         }
 
         private void Teleport(EnemyAbilityData ability) {
+            Vector2 vacated = _owner.GlobalPosition;
             float span = Mathf.Max(0f, ability.TeleportRangeMax - ability.TeleportRangeMin);
             float distance = ability.TeleportRangeMin + (float)Rng.NextDouble() * span;
             // Reappear on the far side of the target so the reposition reads clearly.
@@ -510,6 +528,7 @@ namespace FTT.Enemies {
             _owner.GlobalPosition = new Vector2(
                 _targetPosition.X + side * Mathf.Max(1f, distance),
                 _owner.GlobalPosition.Y);
+            Teleported?.Invoke(ability, vacated);
         }
 
         private static bool EnsureProjectilePool() {
