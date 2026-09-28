@@ -3202,6 +3202,9 @@ namespace FTT.Characters {
 		/// </summary>
 		public void BeginRecoveryHold(FTT.Core.StoryRecoveryHoldCause cause, int holdFrames) {
 			IsRecoveryWorldHeld = true;
+			// Old protection never carries into a new recovery; the new
+			// entitlement starts at this hold's thaw.
+			_postRewindInvulnerabilityFrames = 0;
 			_recoveryHoldCause = cause;
 			_recoveryHoldFrames = holdFrames;
 			FTT.Core.EventBus.Instance?.RaiseRecoveryLanded(CreateRecoveryHoldPayload());
