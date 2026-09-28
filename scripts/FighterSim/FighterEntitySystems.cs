@@ -336,7 +336,8 @@ namespace FTT.FighterSim {
             bool collectsEcho = true,
             bool appliesHitstop = true,
             bool blockCancelableHitstun = true,
-            bool bypassesFiniteShields = false) {
+            bool bypassesFiniteShields = false,
+            bool launches = true) {
             if (target.InvulnerabilityFrames > 0 || target.Stocks <= 0) return false;
             // V7.6 D04 (Package 11 A1b): the Defy protected-recovery gate sits
             // ABOVE every other layer. A rejected contact spends no Aegis, no
@@ -574,12 +575,28 @@ namespace FTT.FighterSim {
                     // upward; everything else keeps the symmetric 1:1 pulse.
                     FP64 verticalScale = verticalKnockbackScale > FP64.Zero ? verticalKnockbackScale : FP64.One;
                     target.Velocity.x = hitOriginX <= target.Position.x ? force : -force;
-                    target.Velocity.y = force * verticalScale;
-                    target.IsGrounded = 0;
-                    // DI (V7): a launching hit's direction is finalized when the
-                    // victim's hitstop ends, bent by their held direction.
-                    if (hitstunFrames > 0 && target.CurrentHP > 0) {
-                        FighterVerbRules.StashPendingLaunch(ref targetVerb, in target.Velocity);
+                    if (launches) {
+                        target.Velocity.y = force * verticalScale;
+                        target.IsGrounded = 0;
+                        // DI (V7): a launching hit's direction is finalized when the
+                        // victim's hitstop ends, bent by their held direction.
+                        // M05 (Package 12 W3b): only an authored launcher reaches
+                        // here, so only it grants DI, tumble and the landing tech.
+                        if (hitstunFrames > 0 && target.CurrentHP > 0) {
+                            FighterVerbRules.StashPendingLaunch(ref targetVerb, in target.Velocity);
+                        }
+                    } else if (target.IsGrounded != 0) {
+                        // M05: a non-launching hit on a grounded victim is
+                        // grounded knockback — a horizontal slide that keeps
+                        // the victim on the floor, with no tumble and no DI. Its
+                        // hitstun is ordinary grounded hitstun, which is what
+                        // re-opens the hit-2 block escape (M06).
+                        target.Velocity.y = FP64.Zero;
+                    } else {
+                        // M05: a non-launcher on an airborne victim keeps its
+                        // authored vector, but it is not a launch — no tumble,
+                        // no DI, no tech, and so no knockdown on landing.
+                        target.Velocity.y = force * verticalScale;
                     }
                 }
                 // A zero-knockback hit with hitstun (a construct arc/bite) stuns
@@ -1387,6 +1404,35 @@ namespace FTT.FighterSim {
 
     public sealed class FighterProjectileSystem : ISystem {
         private static readonly FP64 FixedDelta = FP64.One / FP64.FromInt(60);
+        private readonly FighterHitContractTable _contracts;
+
+        public FighterProjectileSystem(FighterHitContractTable contracts = null) {
+            _contracts = contracts ?? FighterHitContractTable.Default;
+        }
+
+        /// <summary>
+        /// M08/M05 (Package 12 W3b): a projectile's hitstun and launch flag come
+        /// from its owner's authored contract for the slot the projectile type
+        /// encodes (<c>CharacterID * 10 + slot</c>; an Ultimate-origin shot reads
+        /// the Ultimate). A slot with no projected contract keeps the value the
+        /// projectile was spawned with and launches, the legacy behaviour.
+        /// </summary>
+        internal static void ResolveProjectileContract(
+            FighterHitContractTable contracts, in FighterProjectileComponent projectile,
+            out int hitstunFrames, out bool launches) {
+            int slot = projectile.UltimateOrigin != 0
+                ? FighterHitContractTable.SlotUltimate
+                : projectile.ProjectileTypeID % 10;
+            hitstunFrames = projectile.HitstunFrames;
+            launches = true;
+            if (slot != FighterHitContractTable.SlotSpecialOne
+                && slot != FighterHitContractTable.SlotSpecialTwo
+                && slot != FighterHitContractTable.SlotUltimate) return;
+            FighterAbilityHitData contract = contracts.For(projectile.OwnerPlayerID, slot);
+            if (contract.HitstunFrames <= 0) return;
+            hitstunFrames = contract.HitstunFrames;
+            launches = contract.Launches;
+        }
         private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
         public void Update(ref Frame frame) {
@@ -1422,15 +1468,17 @@ namespace FTT.FighterSim {
                 ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
                 ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
+                ResolveProjectileContract(_contracts, in projectile, out int projectileHitstun, out bool projectileLaunches);
                 FighterDamageRules.ApplyFighterHit(
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     projectile.AttackClass, projectile.Damage, projectile.Knockback.x,
-                    projectile.HitstunFrames, projectile.StatusType, projectile.StatusFrames,
+                    projectileHitstun, projectile.StatusType, projectile.StatusFrames,
                     projectile.StatusIntensity, projectile.Position.x,
                     // V7.6 D03h (Package 11 A1b): an Ultimate-spawned projectile
                     // awards its caster no damage-dealt meter. A player-fired
                     // ordinary projectile still reclaims Rally (D03g) either way.
-                    creditInfluence: projectile.UltimateOrigin == 0);
+                    creditInfluence: projectile.UltimateOrigin == 0,
+                    launches: projectileLaunches);
                 frame.DestroyEntity(projectileEntity);
             }
         }
@@ -1495,7 +1543,10 @@ namespace FTT.FighterSim {
                     persistent.ObjectTypeID == NestObjectTypeID ? NestBiteHitstunFrames : 10,
                     persistent.StatusType, persistent.StatusFrames, FP64.One, persistent.Position.x,
                     collectsEcho: false,
-                    appliesHitstop: false);
+                    appliesHitstop: false,
+                    // M05: construct hits are authored non-launching (all four
+                    // construct abilities carry Launches = false).
+                    launches: false);
                 persistent.ActionCooldownFrames = persistent.BaseActionCooldownFrames;
                 if (persistent.RemainingAttacks > 0) persistent.RemainingAttacks--;
             }
@@ -1568,7 +1619,8 @@ namespace FTT.FighterSim {
                     FighterDamageRules.BasicAttackClass, FenceDamage, FP64.Zero, FenceHitstunFrames,
                     (int)StatusType.StaticCharge, FenceStaticChargeFrames, FP64.FromDouble(0.5),
                     fenceCenter.x, collectsEcho: false,
-                    appliesHitstop: false);
+                    appliesHitstop: false,
+                    launches: false);
             }
         }
     }

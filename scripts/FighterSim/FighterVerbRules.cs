@@ -114,4 +114,130 @@ namespace FTT.FighterSim {
             return true;
         }
     }
+
+    /// <summary>
+    /// M05 knockdown and get-up (Package 12 W3b). All state lives on
+    /// <see cref="FighterKnockdownComponent"/> (Klotho ID 320); every number
+    /// comes from <see cref="FTT.Combat.BasicComboRules"/>, which Story's
+    /// <c>PlayerController</c> mirror reads too.
+    ///
+    /// <para>Timeline, counted in simulation ticks from the tumble's landing
+    /// tick L: L starts the knockdown; L+1..L+30 are the 30 knockdown frames,
+    /// invulnerable (so are L's own combat resolution) and action-locked; the
+    /// get-up is chosen from the held direction on L+30 and runs L+31..L+40
+    /// (neutral) or L+31..L+44 (roll) with no invulnerability and no actions;
+    /// normal control returns on the next tick.</para>
+    ///
+    /// <para>Invulnerability rides the ordinary <c>InvulnerabilityFrames</c>
+    /// field — the one gate every hit path, grab and pull already reads — so no
+    /// damage pipeline needs a knockdown special case. The action lock is the
+    /// countdown system's rule: the downed fighter's action buttons for the
+    /// tick are discarded before any later system reads them.</para>
+    /// </summary>
+    public static class FighterKnockdownRules {
+        private static readonly FP64 RollSpeedMultiplier =
+            FP64.FromDouble(FTT.Core.UniversalMovementRules.RollSpeedMultiplier);
+
+        /// <summary>|MoveX| above this (of 127) picks the roll get-up; the Story twin is 0.25.</summary>
+        public const int GetUpRollInputThreshold = 30;
+
+        /// <summary>True while the fighter is down or getting up.</summary>
+        public static bool IsActive(in FighterKnockdownComponent knockdown) =>
+            knockdown.KnockdownFrames > 0 || knockdown.GetUpFrames > 0;
+
+        /// <summary>True during the invulnerable down phase only.</summary>
+        public static bool IsDown(in FighterKnockdownComponent knockdown) => knockdown.KnockdownFrames > 0;
+
+        public static void Clear(ref FighterKnockdownComponent knockdown) {
+            knockdown.KnockdownFrames = 0;
+            knockdown.GetUpKind = FTT.Combat.BasicComboRules.GetUpNone;
+            knockdown.GetUpFrames = 0;
+            knockdown.GetUpDirection = 0;
+        }
+
+        /// <summary>
+        /// A missed tech: a tumbling victim touched down without Block held.
+        /// Ends the tumble's hitstun, stops the body and starts the knockdown.
+        /// Returns true when the knockdown began. Call only after
+        /// <see cref="FighterVerbRules.TryLandingTech"/> declined the landing.
+        /// </summary>
+        public static bool TryBeginKnockdown(
+            ref FighterStateComponent fighter,
+            ref FighterVerbComponent verb,
+            ref FighterKnockdownComponent knockdown) {
+            if (fighter.HitstunFrames <= 0 || verb.Tumble != 1) return false;
+            if (fighter.DazeFrames > 0 || fighter.Stocks <= 0) return false;
+            if (fighter.RespawnFramesRemaining > 0) return false;
+
+            fighter.HitstunFrames = 0;
+            verb.Tumble = 0;
+            verb.PendingLaunchActive = 0;
+            verb.HitstunBlockCancelBlocked = 0;
+            fighter.Velocity = FPVector2.Zero;
+            knockdown.KnockdownFrames = FTT.Combat.BasicComboRules.KnockdownFrames;
+            knockdown.GetUpKind = FTT.Combat.BasicComboRules.GetUpNone;
+            knockdown.GetUpFrames = 0;
+            knockdown.GetUpDirection = 0;
+            // +1: the landing tick's own combat resolution is covered too, and
+            // the grant has decayed to zero by the first get-up tick.
+            int invulnerable = FTT.Combat.BasicComboRules.KnockdownFrames + 1;
+            if (fighter.InvulnerabilityFrames < invulnerable) fighter.InvulnerabilityFrames = invulnerable;
+            return true;
+        }
+
+        /// <summary>
+        /// A hit that stuns during the (vulnerable) get-up, a stock loss or a
+        /// respawn ends the whole sub-phase. Velocity is left alone: the hit
+        /// already wrote its knockback.
+        /// </summary>
+        public static void ClearIfInterrupted(in FighterStateComponent fighter, ref FighterKnockdownComponent knockdown) {
+            if (!IsActive(in knockdown)) return;
+            if (fighter.HitstunFrames > 0
+                || fighter.DazeFrames > 0
+                || fighter.Stocks <= 0
+                || fighter.RespawnFramesRemaining > 0) {
+                Clear(ref knockdown);
+            }
+        }
+
+        /// <summary>
+        /// One tick of the knockdown or the get-up. Writes only velocity; the
+        /// movement system integrates position. The get-up is chosen from
+        /// <paramref name="moveX"/> on the tick the knockdown reaches zero.
+        /// </summary>
+        public static void Advance(
+            ref FighterStateComponent fighter,
+            int moveX,
+            in FighterTuningComponent tuning,
+            ref FighterKnockdownComponent knockdown) {
+            if (fighter.InvulnerabilityFrames > 0) fighter.InvulnerabilityFrames--;
+            if (knockdown.KnockdownFrames > 0) {
+                fighter.Velocity = FPVector2.Zero;
+                knockdown.KnockdownFrames--;
+                if (knockdown.KnockdownFrames == 0) {
+                    int direction = moveX > GetUpRollInputThreshold ? 1
+                        : moveX < -GetUpRollInputThreshold ? -1
+                        : 0;
+                    knockdown.GetUpKind = FTT.Combat.BasicComboRules.SelectGetUp(direction);
+                    knockdown.GetUpFrames = FTT.Combat.BasicComboRules.GetUpFramesFor(knockdown.GetUpKind);
+                    knockdown.GetUpDirection = direction;
+                }
+                return;
+            }
+            if (knockdown.GetUpFrames <= 0) return;
+            knockdown.GetUpFrames--;
+            if (knockdown.GetUpKind == FTT.Combat.BasicComboRules.GetUpRoll && knockdown.GetUpFrames >= 0) {
+                fighter.Velocity = new FPVector2(
+                    FP64.FromInt(knockdown.GetUpDirection) * tuning.MoveSpeed * RollSpeedMultiplier,
+                    FP64.Zero);
+            } else {
+                fighter.Velocity = FPVector2.Zero;
+            }
+            if (knockdown.GetUpFrames == 0) {
+                // The last get-up tick still travels; the stop lands with control.
+                knockdown.GetUpKind = FTT.Combat.BasicComboRules.GetUpNone;
+                knockdown.GetUpDirection = 0;
+            }
+        }
+    }
 }

@@ -182,6 +182,9 @@ namespace FTT.FighterSim {
                 SourcePlayerID = -1,
                 ChainConsumedExecutionID = 0
             });
+            // M05 (Package 12 W3b): knockdown and get-up, component 320. All
+            // zero is "not down".
+            frame.Add(entity, new FighterKnockdownComponent());
             // V7.6 D01-D04 (Package 11 A1b): the defensive layer - Defy
             // protected recovery, the Temporal Aegis flag and the D02b HP
             // barrier. Snapshot and hash state like every other component.
@@ -343,6 +346,39 @@ namespace FTT.FighterSim {
                 // TickCounters routes through the defensive layer, so the
                 // component travels with it.
                 ref FighterDefenseComponent defense = ref frame.Get<FighterDefenseComponent>(entity);
+
+                // M05 knockdown and get-up (Package 12 W3b, component 320): a
+                // sub-phase of Stunned. The downed fighter is invulnerable (the
+                // shared InvulnerabilityFrames grant) and takes no action; the
+                // get-up that follows is vulnerable and just as locked. A hit
+                // during the get-up (or a stock loss) ends the sub-phase.
+                ref FighterKnockdownComponent knockdown = ref frame.Get<FighterKnockdownComponent>(entity);
+                FighterKnockdownRules.ClearIfInterrupted(in fighter, ref knockdown);
+                if (FighterKnockdownRules.IsActive(in knockdown)) {
+                    TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
+                    // A lethal Venom tick inside TickCounters is a stock loss;
+                    // the respawn owns the fighter from the next tick.
+                    FighterKnockdownRules.ClearIfInterrupted(in fighter, ref knockdown);
+                    if (!FighterKnockdownRules.IsActive(in knockdown)) continue;
+                    // The action lock: this tick's action buttons are discarded
+                    // before the ability, combat and grab systems read them
+                    // (the countdown system's rule). The stick survives — it
+                    // chooses the get-up.
+                    runtime.PressedButtons = 0;
+                    runtime.HeldButtons = 0;
+                    runtime.ReleasedButtons = 0;
+                    FighterUniversalMovementRules.Cancel(ref runtime);
+                    FighterKnockdownRules.Advance(ref fighter, runtime.MoveX, in tuning, ref knockdown);
+                    fighter.Position += fighter.Velocity * FixedDelta;
+                    fighter.Position.x = FP64.Clamp(fighter.Position.x, _geometry.LeftWall, _geometry.RightWall);
+                    // A roll get-up can carry the fighter off a platform end or
+                    // an Open-stage floor edge: the get-up ends and they fall.
+                    if (!HasGroundSupport(in fighter)) {
+                        fighter.IsGrounded = 0;
+                        FighterKnockdownRules.Clear(ref knockdown);
+                    }
+                    continue;
+                }
 
                 // Landing-tech recovery: invulnerable, in place, no actions.
                 if (verb.TechLockoutFrames > 0) {
@@ -583,8 +619,11 @@ namespace FTT.FighterSim {
                 // Landing tech (V7 pillar #4): a launched victim who holds Block
                 // on the frame they touch down techs — hitstun ends and a short
                 // invulnerable in-place recovery replaces the knockdown ride-out.
-                if (wasAirborne && fighter.IsGrounded != 0) {
-                    FighterVerbRules.TryLandingTech(ref fighter, in runtime, ref verb);
+                // M05 (Package 12 W3b): a tumble that lands WITHOUT the tech is a
+                // missed tech — the knockdown begins on the landing tick.
+                if (wasAirborne && fighter.IsGrounded != 0
+                    && !FighterVerbRules.TryLandingTech(ref fighter, in runtime, ref verb)) {
+                    FighterKnockdownRules.TryBeginKnockdown(ref fighter, ref verb, ref knockdown);
                 }
 
                 // V7.3 regrab cap: grounding resets the per-airtime ledge budget.
@@ -1645,6 +1684,43 @@ namespace FTT.FighterSim {
     }
 
     public sealed class FighterCombatSystem : ISystem {
+        /// <summary>
+        /// M08/M05 (Package 12 W3b): the two fighters' authored hit contracts —
+        /// static match configuration, like a system's stage geometry, never
+        /// snapshot state. The melee Special/Ultimate intents read their hitstun
+        /// and launch flag here instead of the retired fixed 18/30 frames.
+        /// </summary>
+        private readonly FighterHitContractTable _contracts;
+
+        public FighterCombatSystem(FighterHitContractTable contracts = null) {
+            _contracts = contracts ?? FighterHitContractTable.Default;
+        }
+
+        /// <summary>
+        /// The generic melee intent's legacy contract, kept only for a slot whose
+        /// loadout carries no authored contract (a hand-built test loadout that
+        /// left <see cref="FighterAbilityLoadout"/> at its zero default).
+        /// </summary>
+        internal const int LegacySpecialHitstunFrames = 18;
+        internal const int LegacyUltimateHitstunFrames = 30;
+
+        /// <summary>
+        /// Resolves the hitstun and launch flag a melee intent applies: the
+        /// authored contract when one is projected, the legacy 18/30 frames and
+        /// "launches" otherwise.
+        /// </summary>
+        internal static void ResolveIntentContract(
+            in FighterAbilityHitData contract, int legacyHitstunFrames,
+            out int hitstunFrames, out bool launches) {
+            if (contract.HitstunFrames > 0) {
+                hitstunFrames = contract.HitstunFrames;
+                launches = contract.Launches;
+            } else {
+                hitstunFrames = legacyHitstunFrames;
+                launches = true;
+            }
+        }
+
         private const int BasicButton = 1 << 2;
         private const int SpecialOneButton = 1 << 3;
         private const int SpecialTwoButton = 1 << 4;
@@ -1771,8 +1847,8 @@ namespace FTT.FighterSim {
             if (oneActing) TryCharacterUltimate(ref frame, first, second, ref fighterOne, ref runtimeOne, in tuningOne);
             if (twoActing) TryCharacterUltimate(ref frame, second, first, ref fighterTwo, ref runtimeTwo, in tuningTwo);
 
-            AttackIntent firstIntent = !oneActing ? default : BuildIntent(in fighterOne, in runtimeOne, in verbOne, in tuningOne, in fighterTwo);
-            AttackIntent secondIntent = !twoActing ? default : BuildIntent(in fighterTwo, in runtimeTwo, in verbTwo, in tuningTwo, in fighterOne);
+            AttackIntent firstIntent = !oneActing ? default : BuildIntent(in fighterOne, in runtimeOne, in verbOne, in tuningOne, in fighterTwo, _contracts);
+            AttackIntent secondIntent = !twoActing ? default : BuildIntent(in fighterTwo, in runtimeTwo, in verbTwo, in tuningTwo, in fighterOne, _contracts);
             ApplyIntent(ref fighterOne, ref runtimeOne, ref verbOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, in firstIntent);
             ApplyIntent(ref fighterTwo, ref runtimeTwo, ref verbTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, in secondIntent);
             // F07 marks are written onto the VICTIM's component 318.
@@ -2095,7 +2171,9 @@ namespace FTT.FighterSim {
                 FP64.One,
                 grabber.Position.x,
                 verticalKnockbackScale: verticalScale,
-                bypassesFiniteShields: true);
+                bypassesFiniteShields: true,
+                // M05: all three throws launch.
+                launches: FTT.Combat.BasicComboRules.ThrowLaunches);
             // Trajectories are fixed — no DI on throws (the throw IS the
             // decision), so the stashed launch never resolves through DI.
             victimVerb.PendingLaunchActive = 0;
@@ -2233,7 +2311,10 @@ namespace FTT.FighterSim {
                 hit2VerticalScale,
                 // V7.3 hit-2 cancel gate: only string hit 1 arms the block-cancel
                 // block — hits two and three leave hitstun escapable.
-                blockCancelableHitstun: step >= 1);
+                blockCancelableHitstun: step >= 1,
+                // M05/M07 (Package 12 W3b): the finisher launches, hits 1-2 are
+                // grounded knockback — except Lincoln's launching hit 2.
+                launches: FTT.Combat.BasicComboRules.StringHitLaunchesFor(profile, step));
             // V7.1 Resonance Momentum: a CONNECTING finisher (never hits 1-2,
             // a directional strike, or a blocked hit) refunds 60 frames on both
             // special cooldowns, capped at two refunds per cooldown cycle per
@@ -2331,7 +2412,9 @@ namespace FTT.FighterSim {
                 attacker.Position.x,
                 true,
                 0,
-                DirectionalVerticalKnockbackScale);
+                DirectionalVerticalKnockbackScale,
+                // M05: the Up-Attack and the Down-Air are authored launchers.
+                launches: FTT.Combat.BasicComboRules.DirectionalAttackLaunches);
         }
 
         private static int ScaleDamage(int value, FP64 scale) {
@@ -2368,7 +2451,8 @@ namespace FTT.FighterSim {
             in FighterRuntimeComponent attackerRuntime,
             in FighterVerbComponent attackerVerb,
             in FighterTuningComponent tuning,
-            in FighterStateComponent target) {
+            in FighterStateComponent target,
+            FighterHitContractTable contracts) {
             if (attacker.HitstunFrames > 0
                 || attacker.DazeFrames > 0
                 || attacker.Stocks <= 0
@@ -2388,37 +2472,52 @@ namespace FTT.FighterSim {
                 : target.Position.x <= attacker.Position.x;
             if (!targetInFront) return default;
 
+            // M08/M05 (Package 12 W3b): hitstun and launch come from the
+            // attacker's authored contract (DEFER-SIM-ABILITY-HITSTUN, generic
+            // half), not the old fixed 18/30 frames.
             if ((attackerRuntime.PressedButtons & UltimateButton) != 0 && attacker.Influence >= MaxInfluence) {
+                ResolveIntentContract(
+                    contracts.For(attacker.PlayerID, FighterHitContractTable.SlotUltimate),
+                    LegacyUltimateHitstunFrames, out int hitstun, out bool launches);
                 return new AttackIntent(
                     3,
                     tuning.UltimateDamage,
                     tuning.UltimateKnockback,
-                    30,
+                    hitstun,
                     tuning.UltimateStatusType,
                     tuning.UltimateStatusFrames,
-                    tuning.UltimateStatusIntensity);
+                    tuning.UltimateStatusIntensity,
+                    launches: launches);
             }
             if ((attackerRuntime.PressedButtons & SpecialOneButton) != 0 && attackerRuntime.SpecialOneCooldownFrames <= 0) {
+                ResolveIntentContract(
+                    contracts.For(attacker.PlayerID, FighterHitContractTable.SlotSpecialOne),
+                    LegacySpecialHitstunFrames, out int hitstun, out bool launches);
                 return new AttackIntent(
                     2,
                     tuning.SpecialOneDamage,
                     tuning.SpecialOneKnockback,
-                    18,
+                    hitstun,
                     tuning.SpecialOneStatusType,
                     tuning.SpecialOneStatusFrames,
                     tuning.SpecialOneStatusIntensity,
-                    tuning.SpecialOneCooldownFrames);
+                    tuning.SpecialOneCooldownFrames,
+                    launches: launches);
             }
             if ((attackerRuntime.PressedButtons & SpecialTwoButton) != 0 && attackerRuntime.SpecialTwoCooldownFrames <= 0) {
+                ResolveIntentContract(
+                    contracts.For(attacker.PlayerID, FighterHitContractTable.SlotSpecialTwo),
+                    LegacySpecialHitstunFrames, out int hitstun, out bool launches);
                 return new AttackIntent(
                     4,
                     tuning.SpecialTwoDamage,
                     tuning.SpecialTwoKnockback,
-                    18,
+                    hitstun,
                     tuning.SpecialTwoStatusType,
                     tuning.SpecialTwoStatusFrames,
                     tuning.SpecialTwoStatusIntensity,
-                    tuning.SpecialTwoCooldownFrames);
+                    tuning.SpecialTwoCooldownFrames,
+                    launches: launches);
             }
             // Basic attacks no longer resolve here: the phase machine in
             // FighterMovementSystem starts and times the swing, and
@@ -2482,7 +2581,8 @@ namespace FTT.FighterSim {
                 // Direct-hit Rally reclaim from an Ultimate impact is retained
                 // (D03g), which is why collectsEcho is untouched.
                 creditInfluence: attackClass != FighterDamageRules.UltimateAttackClass,
-                blockChargeCost: intent.BlockChargeCost);
+                blockChargeCost: intent.BlockChargeCost,
+                launches: intent.Launches);
         }
 
         private readonly struct AttackIntent {
@@ -2495,6 +2595,8 @@ namespace FTT.FighterSim {
             public readonly FP64 StatusIntensity;
             public readonly int CooldownFrames;
             public readonly int BlockChargeCost;
+            /// <summary>M05: the authored launch flag of the ability this intent executes.</summary>
+            public readonly bool Launches;
 
             public AttackIntent(
                 int kind,
@@ -2505,7 +2607,8 @@ namespace FTT.FighterSim {
                 int statusFrames = 0,
                 FP64 statusIntensity = default,
                 int cooldownFrames = 600,
-                int blockChargeCost = 0) {
+                int blockChargeCost = 0,
+                bool launches = true) {
                 Kind = kind;
                 Damage = damage;
                 Knockback = knockback;
@@ -2515,6 +2618,7 @@ namespace FTT.FighterSim {
                 StatusIntensity = statusIntensity;
                 CooldownFrames = cooldownFrames;
                 BlockChargeCost = blockChargeCost;
+                Launches = launches;
             }
         }
     }
@@ -2774,6 +2878,12 @@ namespace FTT.FighterSim {
                     conductive.FramesRemaining = 0;
                     conductive.SourcePlayerID = -1;
                     conductive.ChainConsumedExecutionID = 0;
+                }
+                // M05 (Package 12 W3b): nobody starts Sudden Death on the floor.
+                if (frame.Has<FighterKnockdownComponent>(entity)) {
+                    ref FighterKnockdownComponent knockdown =
+                        ref frame.Get<FighterKnockdownComponent>(entity);
+                    FighterKnockdownRules.Clear(ref knockdown);
                 }
                 // "Initialize a new Echo Step history generation at the spawn...
                 // Require 30 subsequent simulation ticks before use; never teleport
