@@ -55,5 +55,10 @@ animations = [
 "loop": false,
 "name": &"boss.vulcan_decimator.pyroclast_smash",
 "speed": 10.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("frame_1_0")}, {"duration": 1.0, "texture": SubResource("frame_1_1")}, {"duration": 1.0, "texture": SubResource("frame_1_2")}],
+"loop": false,
+"name": &"boss.vulcan_decimator.lava_vent_field",
+"speed": 10.0
 }
 ]

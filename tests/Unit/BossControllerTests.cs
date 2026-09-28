@@ -281,13 +281,23 @@ public class BossControllerTests {
     }
 
     [TestCase]
-    public void FlorenceBossIsAuthoredWithMeleeAndRangedCoverageAndAPhaseTwoSpeedUp() {
+    public void FlorenceBossIsAuthoredWithMeleeAndRangedCoverageAndAPhaseTwoAfterImageDash() {
+        // Package 12 W9 (M18) rewrote this pin in place: Phase 2 no longer speeds
+        // the Inquisitor up (design: "no speed multiplier"); it adds a third
+        // ability, the after-image dash, gated to Phase 2.
         BossData boss = FTT.Core.AuthoredResources.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres");
         AssertObject(boss).IsNotNull();
-        AssertThat(boss.BossAbilities.Length).IsEqual(2);
+        AssertThat(boss.BossAbilities.Length).IsEqual(3);
         AssertThat(boss.PhaseThresholds.Length).IsEqual(1);
-        AssertThat(boss.GetPhaseSpeedMultiplier(1) > 1f).IsTrue();
+        AssertThat(boss.GetPhaseSpeedMultiplier(0)).IsEqualApprox(1f, 0.0001f);
+        AssertThat(boss.GetPhaseSpeedMultiplier(1)).IsEqualApprox(1f, 0.0001f);
         AssertThat(boss.AttackPattern).IsEqual(BossAttackPattern.DistanceBased);
+        int dashIndex = System.Array.FindIndex(boss.BossAbilities,
+            ability => ability?.AbilityID == "boss.borgia_inquisitor.after_image_dash");
+        AssertThat(dashIndex >= 0).IsTrue();
+        AssertThat(boss.GetAbilityMinPhase(dashIndex)).IsEqual(1);
+        AssertThat(boss.BossAbilities[dashIndex].Archetype).IsEqual(EnemyAbilityArchetype.ChargeDash);
+        AssertThat(boss.BossAbilities[dashIndex].LeavesAfterImages).IsTrue();
 
         bool hasMelee = false;
         bool hasRanged = false;

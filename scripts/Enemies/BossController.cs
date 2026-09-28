@@ -1397,6 +1397,9 @@ namespace FTT.Enemies {
             }
         }
 
+        /// <summary>Test seam: advances the guarded scene's clock and cast list.</summary>
+        internal void AdvanceGuardedSceneForTest(float delta) => TickGuardedScene(delta);
+
         /// <summary>Test seam: fires the phase-entry summon without waiting out the window.</summary>
         internal void BeginPhaseEntrySummonForTest() {
             _phaseEntrySummonPending = false;

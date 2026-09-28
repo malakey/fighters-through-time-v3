@@ -72,5 +72,10 @@ animations = [
 "loop": false,
 "name": &"boss.siege_cannon.recoil_shockwave",
 "speed": 10.0
+}, {
+"frames": [{"duration": 1.0, "texture": SubResource("frame_3_0")}, {"duration": 1.0, "texture": SubResource("frame_3_1")}, {"duration": 1.0, "texture": SubResource("frame_3_2")}],
+"loop": false,
+"name": &"boss.siege_cannon.rail_warp",
+"speed": 10.0
 }
 ]

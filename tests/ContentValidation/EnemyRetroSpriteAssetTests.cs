@@ -88,7 +88,10 @@ public class EnemyRetroSpriteAssetTests {
         // V7.6 Eraser's three. Every authored event must RESOLVE, which is why the
         // Eraser carries its own unbound_eraser_ability_vfx_frames.tres - reusing
         // the tech_enforcer atlas exactly as the Warden reuses chrono_guard_elite's.
-        AssertThat(inspected).IsEqual(82);
+        // Package 12 W9 adds eight: the Borgia after-image dash (M18), the Rift
+        // Phantom's rift step (M20) and six Rule 1 Phase 2 abilities. Their
+        // placeholder rows reuse an existing row of the same owner's atlas.
+        AssertThat(inspected).IsEqual(90);
         foreach (string fallback in new[] {
             "chrono_rioter.basic", "chrono_slasher.basic",
             "rift_phantom.basic", "shock_shield_legionnaire.basic"

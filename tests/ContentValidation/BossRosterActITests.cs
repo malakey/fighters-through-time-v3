@@ -176,7 +176,8 @@ public class BossRosterActITests {
                 AssertThat(ability.TotalFrames > 0).IsTrue();
             }
         }
-        AssertThat(abilityIDs.Count).IsEqual(19);
+        // 19 + Package 12 W9's three Rule 1 Phase 2 abilities (Duke, Vulcan, Admiral).
+        AssertThat(abilityIDs.Count).IsEqual(22);
     }
 
     [TestCase]
