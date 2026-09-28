@@ -9,6 +9,13 @@ namespace FTT.Environment {
         [Signal] public delegate void PuzzleCompletedEventHandler(string puzzleID);
         [Signal] public delegate void PuzzleResetEventHandler(string puzzleID);
         [Signal] public delegate void ConditionChangedEventHandler(string conditionID, bool isSatisfied);
+        /// <summary>
+        /// Package 12 W8 (V01b): an unsolved puzzle's props were returned to their
+        /// authored arrangement by a Reset Puzzle station. Deliberately a separate
+        /// signal from <see cref="PuzzleResetEventHandler"/>: nothing was un-solved,
+        /// so no listener may treat it as closing a gate.
+        /// </summary>
+        [Signal] public delegate void ArrangementResetEventHandler(string puzzleID, int generation);
 
         [Export] public string PuzzleID = "";
         [Export] public string[] PrerequisitePuzzleIDs = Array.Empty<string>();
@@ -96,6 +103,41 @@ namespace FTT.Environment {
             if (PersistCompletionToSave) SaveManager.Instance?.SetPuzzleCompleted(PuzzleID, false);
             EmitSignal(SignalName.PuzzleReset, PuzzleID);
             Publish(reason);
+        }
+
+        /// <summary>
+        /// True when this puzzle is solved live <b>or</b> its completion is already
+        /// committed to the active save. A Reset Puzzle station reads this, so a
+        /// persisted solved fact wins even before the deferred restore re-announces it.
+        /// </summary>
+        public bool IsSolvedOrPersisted =>
+            IsCompleted
+            || (PersistCompletionToSave && !string.IsNullOrWhiteSpace(PuzzleID)
+                && SaveManager.Instance?.IsPuzzleCompleted(PuzzleID) == true);
+
+        /// <summary>V01b reset generations committed against this puzzle.</summary>
+        public int ArrangementGeneration { get; private set; }
+
+        /// <summary>
+        /// Package 12 W8 (V01b): the <b>unsolved-only</b> reset path used by
+        /// <see cref="PuzzleResetStation"/>. Refuses outright once the puzzle is
+        /// solved (live or persisted), never touches <see cref="IsCompleted"/> or the
+        /// save, and does not clear conditions — the restored mechanisms (plates,
+        /// balances) recompute their own conditions from the restored arrangement.
+        /// <see cref="ResetPuzzle"/>, which clears completion, is kept unchanged for
+        /// the rewind policy that relies on it.
+        /// </summary>
+        public bool TryBeginArrangementReset(out int generation) {
+            generation = ArrangementGeneration;
+            if (IsSolvedOrPersisted) return false;
+            generation = ++ArrangementGeneration;
+            return true;
+        }
+
+        /// <summary>Announces a committed arrangement reset. Called by the station after its transaction.</summary>
+        public void AnnounceArrangementReset(int generation) {
+            EmitSignal(SignalName.ArrangementReset, PuzzleID, generation);
+            Publish("reset_arrangement");
         }
 
         public void CaptureCheckpointState(string checkpointID) {
