@@ -232,7 +232,7 @@ public class DirectionalAttackTests {
     [TestCase]
     public void LandingCancelsTheDownAirWithNoLag() {
         // Thrown from the apex, and §2.9's fast-fall drags the attacker down at
-        // 16 units/s while the 32-frame swing runs — so the fall finishes first
+        // 20 units/s (M01) while the 32-frame swing runs — so the fall finishes first
         // and the landing is genuinely what ends the swing.
         var simulation = NewOverlappingSimulation(seed: 508);
         int diveTick = JumpToApex(simulation, 0);
@@ -269,7 +269,17 @@ public class DirectionalAttackTests {
         // The ground snap happens after the phase machine has already run for
         // that tick, so the cancel lands on the very next tick — which is what
         // "no landing lag" means here, and is the aerial string's behaviour too.
-        Advance(simulation, landingTick + 1, p1Held: GameplayButtons.Down);
+        // M01 (Package 12 W3): at the 20 u/s fast-fall the dive can connect on
+        // the landing tick itself, and a connected hit's hitstop suspends the
+        // attacker's phase machine. "No lag" is measured on the first tick the
+        // attacker is actually running again.
+        int nextTick = landingTick + 1;
+        for (int guard = 0; guard < BasicComboRules.HitstopMaxFrames + 2; guard++) {
+            AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent frozen)).IsTrue();
+            if (frozen.HitstopFrames <= 0) break;
+            Advance(simulation, nextTick++, p1Held: GameplayButtons.Down);
+        }
+        Advance(simulation, nextTick, p1Held: GameplayButtons.Down);
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent onLanding)).IsTrue();
         AssertThat(onLanding.AttackPhase)
             .OverrideFailureMessage("Landing must cancel the down-air with no lag.")
