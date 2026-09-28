@@ -227,6 +227,25 @@ namespace FTT.FighterSim {
             return false;
         }
 
+        /// <summary>
+        /// Package 12 W4 test seam: seeds a Conductive mark directly, so the
+        /// Lorentz-chain suites can isolate the chain consumer from the basic
+        /// finisher that normally applies the mark. Writes deterministic state
+        /// (it moves the hash), so a rollback test must seed both simulations
+        /// identically or seed before capturing the snapshot it restores.
+        /// </summary>
+        internal bool SeedFighterConductiveForTest(int playerID, int sourcePlayerID, int frames) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterConductiveComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                ref FighterConductiveComponent mark = ref _simulation.Frame.Get<FighterConductiveComponent>(entity);
+                FighterConductiveRules.ApplyMark(ref mark, sourcePlayerID, frames);
+                return true;
+            }
+            return false;
+        }
+
         public FighterMatchComponent GetMatchState() =>
             _simulation.Frame.GetReadOnlySingleton<FighterMatchComponent>();
 
