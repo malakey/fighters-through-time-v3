@@ -1,6 +1,8 @@
 # Package 12 — 2026-09-26 design alignment: implementation plan
 
-**Status:** Phase 0 committed 2026-09-27; Waves 1–2 in progress.
+**Status:** Phase 0 committed 2026-09-27. Wave 1 (W1/W2/W3/W5/W6/W7) merged 2026-09-27: full suite **2383/2383** on `main` at `571df8e`, which is 2237 + 146, matching the six declared deltas. Wave 2 (W3b/W4/W8/W9/W10) is in progress.
+
+**Known intermittent failure:** `EnemyControllerTests` fails order-dependently, one different case per affected full run (seen three times across Wave 1). It passes 41/41 in isolation. Assigned to W9.
 
 ## 0. Sources and baseline
 
