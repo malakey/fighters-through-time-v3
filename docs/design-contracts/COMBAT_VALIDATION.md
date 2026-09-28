@@ -31,6 +31,8 @@ Create one result row per character, attack variant, tested contact frame/height
 
 No row is currently a measured result. An unimplemented move or stage is blocked coverage, not a passing test. An illustrative frame calculation cannot substitute for this table.
 
+**Package 12 W3b (2026-09-27): baseline captures only.** The two M05/M07 scenarios below now have deterministic flat-ground captures in `tests/Determinism/FighterKnockdownTests.cs` (and the Story mirror in `tests/Unit/StoryKnockdownTests.cs`): Lincoln's hit 2 launching a full-HP Joan, DI away versus no DI (angle bends, magnitude unchanged) and a held-Block tech; and a missed tech's 30-frame invulnerable knockdown followed by the automatic 10-frame neutral and the 14-frame roll get-up in each direction, both without invulnerability. They prove the mechanics exist and replay bit-identically; they are **not** the required variations (weights, low HP, walls, ledges, ceilings, meaty timing, Story mobs), so both rows stay pending.
+
 ## Escape and commitment scenarios
 
 Run mechanical escape checks with deterministic defender inputs that explore legal timing/directions, independently of CPU difficulty probabilities. A failed CPU defense roll is not evidence of an unavoidable loop; a successful escape in one setup does not establish coverage of the roster. Then separately verify CPU attempts obey the same eligibility and its existing reaction/probability policy.

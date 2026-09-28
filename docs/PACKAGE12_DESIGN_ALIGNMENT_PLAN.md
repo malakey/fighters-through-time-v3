@@ -397,3 +397,16 @@ The rewind WIP was committed as `21b0747` (58/58 filtered). The design mirror, e
 - **Hashes moved:** M01 (fast-fall and long falls), M06 (grounded tumble + Block), M04 (Block+Jump from stance), M09 (stock loss with those buffs/marks). No golden-hash test exists; rollback-readiness, per-stage and determinism suites pass.
 - **Tests:** +22 (four new suites); three cases rewritten in place. Expected full total 2259.
 - **No component ID allocated.** Needs recorded for W3b: a tick-side path to the projected hit data.
+
+### W3b — Launches and knockdown (branch `p12/W3b`; handoff `docs/handoffs/P12_W3b.md`)
+
+- **Component 320 used as allocated:** `FighterKnockdownComponent` (MaxCount 2; `KnockdownFrames`, `GetUpKind`, `GetUpFrames`, `GetUpDirection`; 16 B, all-zero inactive). 305/310 untouched; AGENTS.md inventory and `ROLLBACK_STATE_CONTRACT.md` updated.
+- **M05 shipped, both modes:** only an authored launcher launches (DI, tumble, tech); a non-launcher on a grounded victim is grounded knockback, on an airborne one a non-launch vector. A missed tech is a 30-frame invulnerable, action-locked knockdown (sub-phase of `Stunned`), then a 10 f neutral or 14 f roll get-up chosen from the held direction, neither invulnerable. Story mirrors it on `PlayerController`; animations per H03 (`hitstun` / `roll_recovery`).
+- **M07:** `BasicStringProfile.Hit2Launches` on Lincoln; `BasicComboRules.StringHitLaunchesFor` is the one lookup, read by the sim swing and the Story melee hitbox.
+- **Deviations:** (1) `VERIFY-ABILITY-LAUNCHES` stays open — W3's proposal table applied unchanged, no `.tres` edited; non-player sources (enemies, bosses, hazards) author no flag and keep "knockback launches" on the Story player; Story kit-script payloads (W4) do not stamp `Launches`. (2) New `VERIFY-M05-KNOCKDOWN-SCOPE`: the one bounce is not a separate phase; Story mobs have no knockdown (W9 area). (3) Knockdown invulnerability rides `InvulnerabilityFrames` (no pipeline special case); the action lock discards the tick's buttons.
+- **DEFER-SIM-ABILITY-HITSTUN, generic half closed** without a component: `FighterHitContractTable` is static configuration passed to `FighterCombatSystem`/`FighterProjectileSystem` like the stage geometry. Melee Special/Ultimate intents and Special projectiles now apply the authored hitstun (12 on every shipped Special, was 18). Bespoke per-kit pulse constants stay open (W4).
+- **M06 follow-up** pinned in both modes: the hit-2 Block escape fires from grounded non-launch hitstun again.
+- **CPU:** DI stick held only while airborne in hitstun (input-side); Block hold and linger unchanged; matrix tests meaningful and green.
+- **Hashes moved:** grounded knockback (every string hit 1–2), knockdown (every tech-less launch landing, plus component 320 in every snapshot), intent/projectile hitstun (18/30 → authored), CPU grounded-hitstun inputs. Rollback-readiness, per-stage and determinism suites pass.
+- **Tests:** +10 (two new suites, one per mode); eight cases rewritten in place (listed in the handoff). Expected full total 2393.
+- **Edits outside ownership:** one line in `PlayerController.StartComboHit`; `FighterSimulation` (table + accessor); `FighterSimulationDriver` (presentation); `launches: false` on the construct/fence hit calls near W4's dispatch code.
