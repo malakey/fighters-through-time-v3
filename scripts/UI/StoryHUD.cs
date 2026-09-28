@@ -275,10 +275,10 @@ namespace FTT.UI {
         /// Pulls both status slots from the live <c>StatusController</c> when one is
         /// reachable. This is what makes the radials obey the authoritative clock:
         /// under Time Freeze the controller stops ticking, so the HUD stops too,
-        /// with no separate freeze handling. It also covers the case the event layer
-        /// cannot — <c>StatusController</c> re-announces a surviving slot instead of
-        /// raising a clear when only one of the two expires, so an event-only HUD
-        /// would leave the expired indicator lit.
+        /// with no separate freeze handling. Since Package 12 W10 the event layer is
+        /// also correct on its own (<c>StatusController</c> raises a slot-scoped
+        /// clear rather than re-announcing the survivor); this sync remains the
+        /// radial's clock and the backstop for a missed event.
         /// </summary>
         private void SyncStatusAuthority() {
             if (_statusAuthority == null || !IsInstanceValid(_statusAuthority)) {
@@ -650,6 +650,11 @@ namespace FTT.UI {
 
         private void OnStatusEffectCleared(FTT.Core.StatusEffectPayload payload) {
             if (payload.TargetIndex != 0) return;
+            // Package 12 W10: StatusController publishes per-slot clears.
+            if (payload.SlotScoped) {
+                _indicators.ClearStatusSlot(payload.Slot == FTT.Combat.StatusSlot.Damage);
+                return;
+            }
             _indicators.ClearStatus(payload.Type);
         }
 

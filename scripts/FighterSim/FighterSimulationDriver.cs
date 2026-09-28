@@ -586,6 +586,7 @@ namespace FTT.FighterSim {
         // Purely cosmetic diffing caches. Nothing here is read by the simulation,
         // and nothing here writes into scripts/FighterSim/ state.
         private readonly int[] _presentedStatus = { -1, -1 };
+        private readonly int[] _presentedDamageStatus = { -1, -1 };
         private readonly bool[] _presentedHyperArmor = { false, false };
         private readonly bool[] _presentedInvulnerable = { false, false };
         private readonly int[] _presentedHP = { -1, -1 };
@@ -675,9 +676,13 @@ namespace FTT.FighterSim {
             in FighterStateComponent state, in FighterRuntimeComponent runtime) {
             FTT.Combat.GlowPresentationController glow = player.Glow;
             if (glow != null) {
-                if (_presentedStatus[playerID] != runtime.PresentedStatusType) {
-                    _presentedStatus[playerID] = runtime.PresentedStatusType;
-                    glow.SetStatus((StatusType)runtime.PresentedStatusType);
+                // Package 12 W10: both status slots paint their own glow layer
+                // (control over damage), read from the two authoritative slots.
+                if (_presentedStatus[playerID] != runtime.StatusType
+                    || _presentedDamageStatus[playerID] != runtime.DamageStatusType) {
+                    _presentedStatus[playerID] = runtime.StatusType;
+                    _presentedDamageStatus[playerID] = runtime.DamageStatusType;
+                    glow.SetStatusSlots((StatusType)runtime.StatusType, (StatusType)runtime.DamageStatusType);
                 }
                 bool hyperArmor = state.HyperArmorFrames > 0;
                 if (_presentedHyperArmor[playerID] != hyperArmor) {
