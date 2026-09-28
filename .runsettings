@@ -18,7 +18,18 @@
       (0xE0434352) plus a large partial Total. Errors and warnings are still
       logged without it. Re-add it locally, never on main, for a load trace.
     -->
-    <Parameters>--headless</Parameters>
+    <!--
+      Package 12 W9: fixed-fps pins every idle frame's delta to exactly 1/60.
+      Many suites step bodies by calling _PhysicsProcess directly; outside a
+      physics frame CharacterBody2D.MoveAndSlide reads the IDLE frame delta,
+      which without this flag is the wall-clock length of whatever frame the
+      runner was in (measured 0.0003 s to 0.0174 s across one run, decided by
+      test order). That was the root cause of the order-dependent
+      EnemyControllerTests / BossControllerTests / StoryFsmM04TransitionTests
+      flakes: a walk-to loop moved 58x too slowly or too fast. See
+      tests/Unit/OutOfBandPhysicsStep.cs.
+    -->
+    <Parameters>--headless --fixed-fps 60</Parameters>
     <DisplayName>FullyQualifiedName</DisplayName>
     <CaptureStdOut>true</CaptureStdOut>
     <CompileProcessTimeout>120000</CompileProcessTimeout>
