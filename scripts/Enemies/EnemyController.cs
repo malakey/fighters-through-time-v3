@@ -579,6 +579,9 @@ namespace FTT.Enemies {
                     ? lure
                     : _target.GlobalPosition;
 
+        /// <summary>Package 12 W4 test seam: pins the chase target without an aggro scan.</summary>
+        internal void SetChaseTargetForTest(FTT.Characters.PlayerController target) => _target = target;
+
         private float MoveSpeedPixels => (Data?.MoveSpeed ?? 3f) * PixelsPerUnit * StatusMoveMultiplier;
 
         private void ProcessPatrol(float dt) {

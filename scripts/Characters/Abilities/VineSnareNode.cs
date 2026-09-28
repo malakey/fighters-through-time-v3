@@ -140,7 +140,7 @@ namespace FTT.Characters.Abilities {
             foreach (Hurtbox hurtbox in QueryEnemyHurtboxes()) {
                 bool rooted = TargetIsRooted(hurtbox);
                 if (!rooted) {
-                    float dealt = hurtbox.TakeHit(BuildHitPayload(
+                    HitPayload bite = BuildHitPayload(
                         "bite",
                         (_data?.BaseDamage ?? 8f) * damageMultiplier,
                         _data?.AppliedStatus ?? FTT.Core.StatusType.Root,
@@ -148,15 +148,17 @@ namespace FTT.Characters.Abilities {
                         // AbilityDuration(pocahontas_vine_snare) lane -
                         // 1.5 s to 2.0 s of Root when bought.
                         (_data?.StatusDuration > 0f ? _data.StatusDuration : 1.5f)
-                            * (_ownerPlayer?.StoryScoped("AbilityDuration", "pocahontas_vine_snare") ?? 1f)));
-                    CreditOwnerInfluence(dealt);
+                            * (_ownerPlayer?.StoryScoped("AbilityDuration", "pocahontas_vine_snare") ?? 1f));
+                    float dealt = hurtbox.TakeHit(bite);
+                    CreditOwnerInfluence(in bite, dealt);
                 } else if (_thornSnare) {
-                    float dealt = hurtbox.TakeHit(BuildHitPayload(
+                    HitPayload thorn = BuildHitPayload(
                         "thorn_tick",
                         ThornTickDamage * damageMultiplier,
                         FTT.Core.StatusType.None,
-                        0f));
-                    CreditOwnerInfluence(dealt);
+                        0f);
+                    float dealt = hurtbox.TakeHit(thorn);
+                    CreditOwnerInfluence(in thorn, dealt);
                 }
             }
         }
@@ -220,11 +222,10 @@ namespace FTT.Characters.Abilities {
             return results;
         }
 
-        private void CreditOwnerInfluence(float dealt) {
+        private void CreditOwnerInfluence(in HitPayload payload, float dealt) {
             if (_ownerPlayer == null || !IsInstanceValid(_ownerPlayer)) return;
-            // Construct delivery never reclaims Rally (D03g); a snare is never an
-            // Ultimate, so the stamped contract reduces to the construct rule.
-            BaseSpecial.CreditDealt(_ownerPlayer, new HitPayload { Delivery = HitDelivery.Construct, Origin = _data?.Origin ?? HitOrigin.Special }, dealt);
+            // Construct delivery never reclaims Rally (D03g), read off the payload.
+            BaseSpecial.CreditDealt(_ownerPlayer, in payload, dealt);
         }
 
         /// <summary>
