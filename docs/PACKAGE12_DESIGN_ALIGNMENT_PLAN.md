@@ -313,3 +313,20 @@ The rewind WIP was committed as `21b0747` (58/58 filtered). The design mirror, e
 ## 9. Deviations (append-only)
 
 *(Empty. Each workstream appends its entry here at merge.)*
+
+### W7 — Narrative, dialogue, hub (2026-09-27, branch `p12/W7`)
+- **D6(a) adopted.** Existing `_heroid` keys are kept, and new variant keys use `__heroid`. Recorded as `DEFER-VARIANT-KEY-SEPARATOR`.
+- **D13 partial.** The nine `LEGACY_LEVELS.md` rows are backfilled as *Proposed*. Joan's setting, the generic rosters and the 4A boss HP are flagged, not changed.
+- **M13.** The post-boss reveal reuses the keys `dlg_l12_preboss_3..5`; legacy key names are retained. They now sit in the new `level_12.postboss` sequence.
+- **GAP-15.**
+  - `hub.sarah_act3` is retargeted as the final departure before the Act III lockout, not retired.
+  - Two new sequences: `hub.sarah_epilogue` and `hub.okafor_epilogue`.
+  - Once-only tracking reads the per-slot `ViewedDialogueIDs` ledger. There is no new save field, so W7 has **no v7 derivation**.
+  - The portal act-boundary gate is **not delivered**.
+- **Ultimate beat.**
+  - `StoryManager.TryConsumeDeferredResonanceRestored` is deleted; it had no production caller.
+  - The 4A Nexus moment lives in a new shared set, `level_04a_shared_dialogue.tres`, so `CampaignLocalizationTests`' set count is now `AuthoredLevelCount + 2`.
+- **M35 partial.** Only the expansion-budget half of the pseudo-locale gate ships. The screen sweep is recorded as `VERIFY-PSEUDO-LOCALE-SCREENS`.
+- **Hashes.** No deterministic hash changes; nothing in `scripts/FighterSim/` was touched.
+- **Tests.** +20. The full suite ran 2257/2257 with a locally imported `en.en.translation`, which is **not committed** — the orchestrator must regenerate it.
+- **Handoff.** `docs/handoffs/P12_W7.md`.
