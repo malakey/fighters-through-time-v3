@@ -312,4 +312,12 @@ The rewind WIP was committed as `21b0747` (58/58 filtered). The design mirror, e
 
 ## 9. Deviations (append-only)
 
-*(Empty. Each workstream appends its entry here at merge.)*
+*(Each workstream appends its entry here at merge.)*
+
+### W6 — Front end, settings, accessibility (`p12/W6`; handoff `docs/handoffs/P12_W6.md`)
+- **Adopted:** D7(a) (Steam as a no-op `IPlatformOverlay`, invoked nowhere), D8(a) (Toggle Block is an `InputManager` latch; no sim state), D9(a) (local crash report + "open logs folder", no upload; About & Privacy inside the Gameplay tab). Reversible: each is isolated (`PlatformOverlay`, `BlockToggleLatch`, `CrashReportService`).
+- **Test delta +45**, nine new suites; `UIThemeTests.ThemeWorksWithoutAFontResource` and four `MainMenuSceneTests` pins rewritten in place. **No hash changes** — nothing enters the sim.
+- **Save:** additive only, no version bump. Declared v7 derivation: `CampaignDifficultyRules.SeedLowestDifficultyUsed` per story payload. The W6 global fields need normalization only. `LowestDifficultyUsed` initializes to Hard and is always read as `min(field, Difficulty)`.
+- **Deviations:** (1) Settings tab order stays Audio/Display/Gameplay/Controls (the GDD lists Controls before Gameplay); the existing suite pins node order and W5 is adding a Gameplay row, so it was not reordered. (2) In Toggle mode the Echo Step chord (Block+Roll) cannot fire out of a latch because Roll is a legal exit; Echo Step keeps its direct binding. (3) The G14 entry lives in the Story pause menu (hub only), not as a hub-world node, so `HubWorldController` is untouched. (4) `lowestDifficultyUsed` is shown on the slot card only, not on results or the completion banner. (5) G05: no font asset; the default-font slot is a `FontVariation` with no base font (the engine face) and its empty `fallbacks` is the reserved CJK slot. (6) The first-run comfort preview is a placeholder swatch.
+- **For W5:** `LocalFighterPause` inherits focus-loss auto-pause through `PauseMenuBase.CanAutoPause()` (default = `CanTogglePause()`); override it if the results screen must not pause.
+- **Shared-file edits:** `SaveManager.cs` (payload fields, the fresh-install `FirstRunSetupCompleted=false`, `CreateStorySlot` seeds `LowestDifficultyUsed`), `AudioManager.cs` (mute region), `MainMenu.cs`/`.tscn` (Extras, version, boot overlay — the Fighter button untouched), `project.godot` (application/debug/physics settings, `ui_dialogue_log`).
