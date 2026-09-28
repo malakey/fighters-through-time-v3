@@ -1,6 +1,6 @@
 # Package 12 — 2026-09-26 design alignment: implementation plan
 
-**Status:** Phase 0 committed 2026-09-27. Wave 1 (W1/W2/W3/W5/W6/W7) merged 2026-09-27: full suite **2383/2383** on `main` at `571df8e`, which is 2237 + 146, matching the six declared deltas. Wave 2 (W3b/W4/W8/W9/W10) is in progress.
+**Status:** **Closed 2026-09-27.** Phase 0 committed; Wave 1 (W1/W2/W3/W5/W6/W7) merged at `571df8e` (2383); Wave 2 (W3b/W4/W8/W9/W10) merged at `2477875` (2518); Phase C closed on `main` with save schema v7, four seams, the orphan-key retirement, the doc and ledger reconciliation, and **three consecutive full-suite runs at 2527/2527**. §10 is the closeout report. The held rulings D10, D11, D13, D14 and D15 are still owed.
 
 **Known intermittent failure:** `EnemyControllerTests` fails order-dependently, one different case per affected full run (seen three times across Wave 1). It passes 41/41 in isolation. Assigned to W9. *(Root-caused and fixed by W9: out-of-band `MoveAndSlide` read a test-order-dependent idle delta; `.runsettings` now passes `--fixed-fps 60`. See the W9 entry in §9.)*
 
@@ -348,7 +348,6 @@ The rewind WIP was committed as `21b0747` (58/58 filtered). The design mirror, e
   - The results itemisation does not include held dust carried across a Collapse resume.
   - `en.en.translation` is not committed. One W2 case checks the compiled keys, so it needs the orchestrator's `--import`.
 
-*(Empty. Each workstream appends its entry here at merge.)*
 
 ### W7 — Narrative, dialogue, hub (2026-09-27, branch `p12/W7`)
 - **D6(a) adopted.** Existing `_heroid` keys are kept, and new variant keys use `__heroid`. Recorded as `DEFER-VARIANT-KEY-SEPARATOR`.
@@ -481,3 +480,94 @@ The rewind WIP was committed as `21b0747` (58/58 filtered). The design mirror, e
 - **Shared-file edits:** `.runsettings` (harness flag); `EnemyController`'s guard-crush implicit is tier-gated (behaviour-preserving); `EnemyAbilityExecutor` gained two events; eight `*_ability_vfx_frames.tres` gained one placeholder row each.
 - **Hashes:** none moved; `scripts/FighterSim/` untouched.
 - **Tests:** +19 (three new suites, four level cases); three pins rewritten in place. Full suite **2518/2518** twice on `main` (W8 + W10 merged) + W9 = 2499 + 19. `en.en.translation` not committed.
+
+### Phase C — closeout (main checkout, 2026-09-27)
+
+- **Save schema v7.** `SaveSchemaMigrator.CurrentVersion` 6 → 7, still shared by both payloads (`DEFER-SAVE-VERSION-SPLIT`). The step composes exactly the three declared derivations, and nothing else:
+  - `ReconcileStoryCompletionForV7` → W2's `StoryAttemptState.ReconcileUndepositedCompletion`. It runs on the deserialized object **before** the v6 step, so a pre-v6 payload is seen while its attempt record is still unminted.
+  - `MigrateStoryToV7` → W6's `CampaignDifficultyRules.SeedLowestDifficultyUsed`.
+  - `MigrateGlobalToV7` → W5's `SavedMatchSettings.DeriveStageHazardsEnabled` on `LastMatchSettings` (an explicit toggle is never overwritten). `SavedMatchSettings.Normalize` keeps the same derivation as a belt-and-braces guard.
+- **Behaviour change the migration introduces:** any pre-v7 payload that sits between levels (unminted attempt, no checkpoint) with a positive wallet banks it once. Two legacy fixtures in `SaveEnvelopeTests` (a v1 payload and a v4 payload, both between levels with dust) now expect the wallet banked; they were rewritten in place.
+- **The seen-dialogue union stays a v5 → v6 derivation.** `SaveManager` used to re-run it for any `loadedVersion < CurrentVersion`, which the bump would have widened to every v6 global payload; it now runs only below v6. It is idempotent, so this is hygiene, not a fix.
+- **Seam: the N01 seal cues.** There was no EventBus event for the anchor, so Phase C added `EventBus.OnSealingAnchorChanged` (`SealingAnchorPayload { AnchorID, State }`, `SealingAnchorState { Armed, Sealed }`), raised by `TemporalCoreAnchor.Arm` and `InsertCore` exactly once each. `CoreMechanicCuePresenter` plays `seal_charge` at the arm and `seal_lock` at the seal. **Deviation:** the design's "charging hum while the sealing anchor is held" predates W8's single-press anchor; there is no hold, so the hum plays at the arm (`VERIFY-N01-PRESENTATION`). The lock is published before the `CoreInserted` signal, so it leads into the completion chain.
+- **Seam: the Fighter knockdown thud.** The driver reads `KnockdownFrames` through `FighterSimulation.TryGetFighterKnockdown`; the thud plays on the tick a knockdown starts (`FighterSimulationDriver.KnockdownThudStarts`). W10's tumble-landing heuristic is deleted.
+- **Seam: focus loss over the Fighter results.** `LocalFighterPause.ResultsScreen` is wired by the driver, and `CanAutoPause` refuses while it is showing.
+- **Seam: hub arrivals.** A new `HubArrivalTests` case proves the Holodeck flag lands the hero at `HolodeckConsoleSpawn`, is consumed, and the next arrival is the Bridge.
+- **Localization.** W5's four orphans were deleted (`UnusedTranslationKeyTests` ceiling 16 → 12), and `en.en.translation` was regenerated with `--import` and committed — the first commit of it since Wave 1 began, so it carries every workstream's keys.
+- **Ledger.** Four held items had no row, although §2.1 says each stays open there: `VERIFY-4A-CONTENT` (D13), `VERIFY-STORY-HAZARD-BLOCK` (D14), `VERIFY-ERASER-DUST` and `VERIFY-L15-STANDIN-PLACEMENT` (D15). Phase C added them, plus rows for the adoptions §9 recorded but the ledger did not (`DEFER-STEAM-HOOKS` D7(a), `DEFER-CRASH-UPLOAD` D9(a), `DEFER-H7-STORY-TERMINAL` D1(a), `DEFER-TOGGLE-BLOCK-ECHO-CHORD` D8(a)), the GAP-15 portal gate (`DEFER-HUB-PORTAL-GATE`), the provisional numbers (`VERIFY-P12-PROVISIONAL-VALUES`) and the seal presentation (`VERIFY-N01-PRESENTATION`). The five held rows that already existed were annotated as held.
+- **Hashes:** none moved. The driver edit is presentation-only.
+- **Tests:** +9 (`SaveSchemaV7MigrationTests` +5, one case each in `CoreMechanicCueCatalogTests`, `FighterPresentationSyncTests`, `PauseFocusLossTests`, `HubArrivalTests`); seven `SaveEnvelopeTests` pins rewritten in place.
+- **Not fixed:** a pre-existing, nondeterministic .NET interop fault on hub boot. `System.InvalidOperationException: Handle is not initialized` from `ScriptManagerBridge.SwapGCHandleForType` (`GCHandle.FromIntPtr(0)`) is logged inside `DialogueManager.CreateDefault` — first in `ResourceLoader.Load` of `scenes/ui/DialogueBox.tscn`, then in `PackedScene.Instantiate` — during `HubWorldController._Ready` → `StorySceneBootstrapper.Attach`. It is logged, not thrown: every smoke run still exits 0, and a failed instantiate falls back to the code-built `DialogueManager`. **It depends on the save state, not on Phase C**: with `user://saves` reset to empty before each run it never fired (0/40 on `2477875`, 0/40 on Phase C `8ed6a68`); with the populated 49 KB v7 `global.sav` plus story slots restored before each run it fired 12/40 on `8ed6a68` and **3/40 on `2477875`** (whose only change was the version fence raised to 7 so it could load the same payload). The rate difference is weak evidence that current allocations widen the window (the regenerated translation is the obvious candidate); the fault itself predates Phase C. It is the "script-bearing resource cycling through the cache" class CLAUDE.md describes. Recorded rather than fixed: the likely fix (keep `DialogueBox.tscn` pinned for the process, or build the box once per scene without a fresh `ResourceLoader.Load`) needs its own diagnosis pass with the Godot log, not a speculative change in a closeout.
+
+## 10. Closeout report (2026-09-27)
+
+### Totals
+
+| Stage | Delta | Running total | How verified |
+|---|---|---|---|
+| Package 11 baseline | — | 2237 | Three runs, 2026-09-13 |
+| W1 Story recovery | +17 | | handoff |
+| W2 dust banking | +18 | | handoff (2255 alone) |
+| W3 combat contract | +22 | | handoff (2259 alone) |
+| W5 Fighter flow | +24 | | handoff (2261 alone) |
+| W6 front end | +45 | | handoff |
+| W7 narrative | +20 | | handoff (2257 alone) |
+| **Wave 1 merged** | **+146** | **2383** | `571df8e`, full run |
+| W3b launches and knockdown | +10 | 2393 | `4266f80` |
+| W4 kit alignment | +31 | 2414 over 2383 | handoff |
+| W10 presentation hooks | +12 | 2395 over 2383 | handoff |
+| W8 campaign mechanics | +63 | 2487 over 2424 | merged with W3b + W4 |
+| W9 enemies and bosses | +19 | 2518 over 2499 | merged with W8 + W10, twice |
+| **Wave 2 merged** | **+135** | **2518** | `2477875`, Phase C baseline run |
+| Phase C | +9 | **2527** | three runs, below |
+
+**Merge-seam reconciliation.** Unlike Package 11 (whose Wave 1 merged seven below the sum of its isolated deltas), every Package 12 branch landed its declared delta exactly: 17 + 18 + 22 + 24 + 45 + 20 = 146 and 10 + 31 + 12 + 63 + 19 = 135. The shared-file policy (§3.9) and the append-only `en.csv` blocks kept every merge additive. The only conflicts were the `en.csv` block and this §9 log (W9), both resolved by keeping every side. W8 and W4 met in `Hurtbox.TakeHit` (the Time Freeze discard and the `PuzzleOnly` rejection coexist); W4 and W3b met in `FighterSimulationSystems.cs` (kit phases and knockdown both kept).
+
+**Phase C validation (2026-09-27, main checkout):**
+- Baseline before any change: `Passed! - Failed: 0, Passed: 2518, Skipped: 0, Total: 2518, Duration: 1 m 7 s`.
+- `dotnet build FightersThroughTime.csproj --nologo`: succeeded, 0 errors. A full rebuild reports three pre-existing warnings (`CS8632` vendored GdUnit, Klotho `KLSG_ECS004` on `FighterTuningComponent`, `CS0649` on W6's `InputManager.BlockModeOverrideForTesting`).
+- Headless `--quit` load check: exit 0, no script errors.
+- `--quit-after 300` smoke runs, all exit 0 with no script errors: `MainMenu`, `HubWorld`, `Level_04_Paris`, `Level_13_ChronalVoid`, `FighterStage_Paris`. `HubWorld` and `FighterStage_Paris` printed "3 resources still in use at exit"; an untouched control (`Level_05_Titanic`) prints "4", and a re-run of `FighterStage_Florence` printed none, so this is the documented nondeterministic `AuthoredResources` release. A later `HubWorld` re-run logged `Handle is not initialized`; the investigation is in the Phase C §9 entry (pre-existing, save-state dependent, reproduced on `2477875`).
+- Three consecutive full-suite runs, with `Get-Process testhost,Godot*` empty before each:
+  - Run 1: `Passed! - Failed: 0, Passed: 2527, Skipped: 0, Total: 2527, Duration: 1 m 11 s`
+  - Run 2: `Passed! - Failed: 0, Passed: 2527, Skipped: 0, Total: 2527, Duration: 1 m 9 s`
+  - Run 3: `Passed! - Failed: 0, Passed: 2527, Skipped: 0, Total: 2527, Duration: 1 m 8 s`
+- The known intermittent `EnemyControllerTests` failure did not recur in any of the four full runs, consistent with W9's `--fixed-fps 60` root cause.
+
+### What shipped, in one line per workstream
+
+- **W1** — R02 Story revive edge (`Respawning` Fighter-only), the R03 Post-Landing Hold on all four recoveries with the shared `IsWorldHeld` no-credit gate, M17, GAP-06's world-wide T01b suspension, GAP-11. Closed `VERIFY-05`.
+- **W2** — H02 completion-only banking, GAP-01 resource-timer persistence, GAP-02, GAP-04 summon provenance, GAP-13 explicit encounter baselines.
+- **W3** — the M08 hit contract (`AbilityData`/`HitPayload` fields, `IDamageable`, `HitClassification`), M06, block-cancel on Special recovery, the guard-break push, M01 per D1(a), M04 per D2(a), M09 pins.
+- **W3b** — M05 authored launches and the 30-frame knockdown with neutral/roll get-ups (component 320), M07 Lincoln's hit 2, the generic half of `DEFER-SIM-ABILITY-HITSTUN`.
+- **W4** — Tesla's blink, Mozart's Extra Note charges, Second Glide, Pocahontas's glide attack and Spirit Strike (both modes), the Story sand decoy with Royal Aegis, GAP-10a/10b, GAP-14, kit payload stamping. Closed `VERIFY-CPU-MOBILITY-SPECIALS` and `VERIFY-VORTEX-RECLAIM`.
+- **W5** — the hazard On/Off toggle, M23 seeded orb timing, M24 Resonance Surge behind a sub-toggle, M25 cooldown radials, the Fighter menu with Versus CPU and match origins (D4(a)), G15a/b, G12.
+- **W6** — G04, G05, G06, G09 (D9(a)), G10, G11 (D7(a)), G13 (D8(a)), M27, G14, G15d, G15e.
+- **W7** — M11, M12, M13, M14, M35 (D6(a)), the Tidal Overseer rename, the GAP-15 act-boundary sets, the Ultimate beat on the Level 4 results, the M22 backfill as Proposed.
+- **W8** — M16 hold channels, GAP-03 secret caches (a thorough run now reaches 1,000 for every hero), GAP-05 the N01 sealing anchor (D12(a)), GAP-08 the Reset Puzzle station, M02, M10, the 4A gate stand-ins retired, shape-query prop delivery, `IsActIII` deleted. Closed `VERIFY-SECRET-CACHE` and `DEFER-SEALING-ANCHOR`.
+- **W9** — M18 Borgia, M19 the Tribunal squad, M20 the Rift Phantom's blink, GAP-07 (Jackal decoys, the Tragedy King's soliloquy, the Inventor's coils), the Rule 1 matrix over all fifteen bosses, and the root cause of the order-dependent test failures.
+- **W10** — H03 the 30-name animation contract, H04 the core-mechanic cue catalog, M15 the Beacon anchors, the glow order, slot-scoped status events.
+- **Phase C** — the v7 bump, four seams, the orphan-key retirement and compiled translation, the AGENTS/CLAUDE reconciliation and the ledger consolidation.
+
+### Not delivered — the honest list
+
+**Nobody has played any of it, and none of it is balanced.** No campaign level, Level 4A variant, boss phase, Fighter match, Versus CPU flow, settings screen or boot sequence was played, looked at or listened to by a person. Every acceptance claim above a unit test is reasoned from shipped code. F09, V02, V01 par measurement and S01 were out of scope, so no value this package added may be called balanced.
+
+**Held for a user ruling, untouched** (each has a ledger row):
+- **D10** — `VERIFY-BOSS-HP`, the ten unreconciled boss HP rows.
+- **D11** — `VERIFY-STORY-PITS`, lethal Story pits (none authored).
+- **D13** — `VERIFY-4A-CONTENT` (the flat 700 HP 4A bosses, the Princeton/Vienna/Tidewater rosters, Joan's setting) and `VERIFY-4A-BOSS-RULE1`.
+- **D14** — `VERIFY-STORY-HAZARD-BLOCK`, the Story hazard block layer (GAP-09).
+- **D15** — `VERIFY-ERASER-DUST`, `VERIFY-PARIS-DEEP-PIT-RECOVERY`, `DEFER-CPU-SNAPSHOT`, `VERIFY-L15-STANDIN-PLACEMENT`.
+
+**New questions for the user:** `VERIFY-ABILITY-LAUNCHES` (which Specials and Ultimates launch — the shipped table is W3's "knockback ≠ 0" proposal), `VERIFY-BOSS-PHASE-ARENAS`, `VERIFY-BOSS-TABLE-DRIFT`, `DEFER-DRONE-CARRIER`, `VERIFY-SPIRIT-EAGLE-GEOMETRY`, `DEFER-FIGHTER-SAND-DECOY`, `VERIFY-NEXUS-DISPLACEMENT`, `VERIFY-M05-KNOCKDOWN-SCOPE`, `VERIFY-P12-PROVISIONAL-VALUES`, `DEFER-HUB-PORTAL-GATE`, `VERIFY-N01-PRESENTATION`, and whether the seal should be a hold.
+
+**Open, by area** (from every handoff's open items):
+- **Campaign:** the Levels 1–4 locked-kit reachability audit; the hub portal gate; the one-corridor hub and the missing Chief Engineer Wren; N01's placeholder prompt and vignette, the missing Level 14 local-objective line and Level 15's arm-at-defeat; held dust carried across a Collapse is not itemised on results; the session-scoped "last banked" line; `PressurePlate` is not freezable; a Pompeii reset does not restore a broken wedge; `VERIFY-PAR-SECONDS`.
+- **Combat:** `VERIFY-ABILITY-LAUNCHES`; `VERIFY-M05-KNOCKDOWN-SCOPE` (no bounce, no Story-mob knockdown); the bespoke per-kit sim hitstun (`DEFER-SIM-ABILITY-HITSTUN`); `DEFER-FIGHTER-KIT-RULES`; bosses ignore the sand decoy; no Extra Note charge widget and no directable glissando; H-7 (`DEFER-H7-STORY-TERMINAL`); the Toggle Block chord gap; grounded knockback has no friction during hitstun (Joan's finisher can whiff after two hits at the default gap — an F09 question).
+- **Fighter flow:** the untuned 2700-frame cadence; orb-anchor hazard safety rests on authoring; no Random "Open-only / Sealed-only" option; Remote Play is a notice; Fighter cue edges could re-fire under a future rollback correction.
+- **Front end:** Steam hooks are no-ops; crash reports are local-only; the first-run preview is a swatch; `lowestDifficultyUsed` shows on the slot card only; no Controls row for the Log action; the tab order differs from the GDD; no font asset; `VERIFY-PSEUDO-LOCALE-SCREENS`.
+- **Presentation and audio:** Story grab/throw/Echo Step/tech/knockdown cues have no publisher and nothing raises `OnRallyEchoChanged`; Story does not play the `grab`/`throw` animations; no per-hero fanfares; the Time Freeze drone is a one-shot; no KO music drop or Defy duck; the Collapse Tremor's decorative half and audio; the Anchor Snap beat is a notice; every stream is silent.
+- **Narrative:** per-captive montage shots; `speaker_player` still reads "Traveler"; `dlg_l03_entrance_2` and `dlg_l15_postboss_1` voice gaps; two "Tidal Eraser" code comments.
+- **Architecture:** `DEFER-SAVE-VERSION-SPLIT`, `DEFER-ROSTER-ENUM`, `DEFER-M04-SUBPHASE-FLAGS`, `DEFER-VARIANT-KEY-SEPARATOR`; the `GlowLayer.Status` alias; the three build warnings.
+- **Out of scope by decision (§8):** Steamworks, Package 7 online, GAP-12 and GAP-20 validation, platform runs, balance, the Package 10 art/audio halves, G08, H-7, M-18.

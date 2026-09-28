@@ -509,6 +509,39 @@ Twenty workstreams across two parallel waves plus a serial closeout, in isolated
 
 **Nothing in this package was played, validated by hand, or balanced.** F09 frame-advantage validation and V02 controlled-stall validation stayed out of scope by decision, and no human has judged the new presentation. Package 9 inherits both.
 
+## Package 12 - 2026-09-26 design alignment
+
+**Closed 2026-09-27.** The single brief is `docs/PACKAGE12_DESIGN_ALIGNMENT_PLAN.md`; the per-workstream record is `docs/handoffs/P12_*.md`, the deviation log is that plan's §9 and the closeout report is its §10.
+
+Like Package 11, this package is out of the numbered sequence on purpose. The 2026-09-24 design review (R01–R04, H01–H05, M01–M37, the §4 Low items and G01–G15) was resolved in the design master on 2026-09-26, and the 2026-09-16 implementation-gap review (GAP-01…GAP-18) was still open. Leaving either in place would have meant Package 9 profiling and Package 10 art-passing a build that contradicts its own design — for example banking dust at the hub (H02), launching on every knockback hit (M05) and entering `Respawning` on a Story rewind (R02).
+
+### Shape
+
+Eleven workstreams across two parallel waves plus a serial closeout, in isolated git worktrees:
+
+- **Wave 1 (six):** W1 Story recovery and the Post-Landing Hold · W2 completion-only dust banking, attempt resources and reward sources · W3 the M08 combat data contract · W5 Fighter mode flow (hazard toggle, orbs, Versus CPU, match origins) · W6 front end, settings and accessibility · W7 narrative, dialogue and hub.
+- **Wave 2 (five):** W3b authored launches and the knockdown (component 320) · W4 kit alignment · W8 campaign mechanics (sealing anchor, secret caches, Resonance Hold channels, puzzle reset) · W9 enemies and bosses (Rule 1, the Tribunal squad) · W10 presentation hooks (the 30-name animation contract, the core-mechanic cue catalog, the glow order).
+- **Phase C (serial):** the single save-schema v7 migration, four cross-workstream seams, the orphan-key retirement and the compiled translation, the `AGENTS.md`/`CLAUDE.md` reconciliation, the ledgers, and three consecutive full-suite runs.
+
+### Standing decisions worth carrying forward
+
+- **Adopt the recommendation, hold the rulings.** With no per-item user ruling, workstreams applied every **(rec)** option (D1–D9, D12, part of D13) and recorded each in §9 so it can be reversed. The value rulings — D10 boss HP, D11 lethal pits, D13 4A content, D14 the Story hazard block layer, D15 the small values — were **held and left untouched**.
+- **One save bump per package, composed in Phase C.** Workstreams add fields additively with legacy-equal initializers and *declare* derivations; the closeout composes them into one step (v7: W2's completion reconciliation, W6's lowest-difficulty seed, W5's hazard toggle).
+- **The plan allocates component IDs, workstreams do not.** Package 12 allocated exactly one (320, `FighterKnockdownComponent`). W4 fitted Tesla's blink and Spirit Strike into the existing universal-movement slot of 305 rather than ask for another.
+- **Declared test deltas are exact.** Every workstream stated its delta, and the merged total equals the sum: 2237 + 146 + 135 + 9 = 2527.
+- **A flake is a bug with a root cause.** W9 traced the order-dependent movement failures to out-of-band `MoveAndSlide` reading the idle-frame delta, and fixed the harness (`--fixed-fps 60`) rather than retrying.
+
+### Exit criteria (met)
+
+- The build is clean (0 errors; three pre-existing warnings), the headless project load is clean, five scene smoke runs exit 0 with no script errors, and the full suite passes three consecutive times at the exact expected total. One pre-existing, save-state-dependent interop fault on hub boot was found, reproduced on the pre-Phase-C build, and recorded (plan §9, Phase C) rather than fixed.
+- Save schema bumps exactly once, to v7, composing exactly the three declared derivations, with a v6 fixture per derivation, an idempotence check and a v7 round trip.
+- Every held item is untouched and still open in the ledger, and every adopted decision is recorded in §9.
+- Every closure and every new open item is in the ledger, and the honest not-delivered list is in the plan's §10 and `AGENTS.md`.
+
+### Explicitly NOT met
+
+**Nothing in this package was played, looked at, listened to or balanced.** F09, V02, V01 par measurement and S01 stayed out of scope, and the user rulings D10, D11, D13, D14 and D15 are still owed. Package 9 inherits the validation; the held rulings block their own follow-ups, not Package 9.
+
 ## Recommended next implementation batch
 
 Start with this bounded batch before producing levels 2-15:

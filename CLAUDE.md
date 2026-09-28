@@ -120,9 +120,20 @@ Root-caused 2026-09-27 by Package 12 W9. A suite that steps a body by calling
 not inside a physics frame — the wall-clock length of the runner's previous frame, measured
 at 0.0003–0.0174 s across one run. Walk-to loops then moved 58× too slowly depending on test
 order ("expected Patrol got Returning", a player that never lands). `.runsettings` now passes
-`--headless --fixed-fps 60`, which pins that delta to exactly 1/60. **Do not remove the flag.**
+`--headless --fixed-fps 60`, which pins that delta to exactly 1/60 (and cut the full suite from ~100 s to ~70 s). **Do not remove the flag.** It does not conflict with W6's 60 FPS render cap: `DisplayTimingRules.EffectiveMaxFps` leaves a headless process uncapped.
 A case that must also be robust without it can run its body inside a physics frame through
 `tests/Unit/OutOfBandPhysicsStep.RunInPhysicsFrameAsync` (GdUnit requires `async Task`).
+
+### Known smoke-run noise: `Handle is not initialized` on hub boot (pre-existing, open)
+
+Found at the Package 12 Phase C closeout (2026-09-27). A `HubWorld.tscn --quit-after 300` smoke run sometimes logs
+`System.InvalidOperationException: Handle is not initialized` from `ScriptManagerBridge.SwapGCHandleForType`, inside
+`DialogueManager.CreateDefault` (`ResourceLoader.Load` / `PackedScene.Instantiate` of `scenes/ui/DialogueBox.tscn`). The
+run still exits 0 and falls back to the code-built dialogue box. **It depends on what is in `user://saves`**: never with an
+empty saves directory, roughly 1 run in 3 to 1 in 13 with a populated one, and it reproduces on the pre-Phase-C commit
+`2477875` — it is not a Phase C regression. When you see it, reset or restore `user://saves` before blaming your change,
+and compare against a control run with the same saves. Diagnosis and the A/B numbers are in
+`docs/PACKAGE12_DESIGN_ALIGNMENT_PLAN.md` §9 (Phase C). The GdUnit suite never hits it.
 
 ### Failure signature 6: a second `[TestSuite]` in one file is discovered but never executed
 
@@ -152,13 +163,13 @@ and note it only ever reproduced in the repository checkout, never in a git work
 
 ## Verified commands
 
-Build (verified: succeeds with 1 pre-existing vendored warning — `CS8632` in `addons/gdunit4/src/dotnet/GdUnit4CSharpApi.cs`, not caused by your change. The old `CS9057` analyzer-version warning disappeared with the move to SDK 10):
+Build (verified 2026-09-27 at the Package 12 closeout: a **full** rebuild succeeds with 0 errors and three pre-existing warnings, none caused by your change — `CS8632` in the vendored `addons/gdunit4/src/dotnet/GdUnit4CSharpApi.cs`, Klotho's `KLSG_ECS004` on `FighterTuningComponent` exceeding 128 bytes (a static tuning struct, present since August), and `CS0649` on the never-assigned `InputManager.BlockModeOverrideForTesting` test seam (Package 12 W6). An incremental build often reports 0. The old `CS9057` analyzer-version warning disappeared with the move to SDK 10):
 
 ```bash
 dotnet build FightersThroughTime.csproj --nologo
 ```
 
-Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution). Verified 2026-08-11 on `net10.0` (gameplay-feel batch closeout: five merged worktree branches per `docs/GAMEPLAY_FEEL_2026-08-10_PLAN.md`, three consecutive green runs): committed baseline **1457**; the verifying runs reported **Total 1460** because three uncommitted parallel-session test additions (retro roster sprite pass) were present in the tree — always reconcile the delta before accepting a total. Read the `Total:` count in the summary, not just the exit code — see the failure signatures above:
+Full headless test suite (GdUnit4 spawns Godot itself; `.runsettings` forces serial headless execution and passes `--headless --fixed-fps 60` — see the movement-flake note above). **Verified baseline: 2527**, three consecutive green runs on 2026-09-27 at the Package 12 closeout (~70 s each, orphan processes drained before each). The arithmetic is in `AGENTS.md`'s validation section and `docs/PACKAGE12_DESIGN_ALIGNMENT_PLAN.md` §10 — always reconcile any delta against it before accepting a total. Read the `Total:` count in the summary, not just the exit code — see the failure signatures above:
 
 ```bash
 dotnet test FightersThroughTime.csproj --settings .runsettings
@@ -227,7 +238,7 @@ enemy/boss display names.
 | Path | Role |
 |---|---|
 | `design-godot.md` (repository root) | The full product and technical specification (V7.6 + the F01–F24 resolutions). This file is a **synced mirror** — the canonical master lives at `D:/Projects/fighters-through-time-docs-3/design-godot-v7.md`; edit the master and re-copy it here. |
-| `docs/design-contracts/*.md` | The **adopted decision contracts** — `DEFENSIVE_EFFECTS` (D01–D04), `TEMPORAL_STATE_CONTRACT` (F03/T01), `STORY_PERSISTENCE` (F10), `CHECKPOINT_RECOVERY` (F11), `LEGACY_CHECKPOINTS` (F12), `FIGHTER_MATCH_RULES` (F21/F22), `HUD_CONTRACT` (F24), `COMFORT_SETTINGS` (C01a/b/c), `CPU_RECOVERY` + `CPU_COMBAT_POLICY` (F19), `DUST_ECONOMY` (F05), `MIRROR_PARADOX` (F20), `NARRATIVE_RESOLUTION` (N01–N05), `CAMPAIGN_VALIDATION` (V01/V02), `COMBAT_VALIDATION`, `ROLLBACK_STATE_CONTRACT` (S01), `MULTIPLAYER_DELIVERY`, `PRODUCTION_SCOPE` (P02). These define intent and supersede the historical rule they identify. |
+| `docs/design-contracts/*.md` | The **adopted decision contracts** — `DEFENSIVE_EFFECTS` (D01–D04), `TEMPORAL_STATE_CONTRACT` (F03/T01), `STORY_PERSISTENCE` (F10), `CHECKPOINT_RECOVERY` (F11), `LEGACY_CHECKPOINTS` (F12), `FIGHTER_MATCH_RULES` (F21/F22), `HUD_CONTRACT` (F24), `COMFORT_SETTINGS` (C01a/b/c), `CPU_RECOVERY` + `CPU_COMBAT_POLICY` (F19), `DUST_ECONOMY` (F05), `LEGACY_LEVELS` (the per-hero Level 4A rows, backfilled and **Proposed, awaiting approval** under D13), `MIRROR_PARADOX` (F20), `NARRATIVE_RESOLUTION` (N01–N05), `CAMPAIGN_VALIDATION` (V01/V02), `COMBAT_VALIDATION`, `ROLLBACK_STATE_CONTRACT` (S01), `MULTIPLAYER_DELIVERY`, `PRODUCTION_SCOPE` (P02). These define intent and supersede the historical rule they identify. |
 | `docs/design-contracts/DESIGN_BUILD_DEVIATIONS.md` | **The live deviation ledger.** Every open `VERIFY-*` / `DEFER-*` entry with its owner and acceptance criteria. Read it before assuming a shipped value is the target. |
 | `AGENTS.md` | Durable architecture/context summary and repository map. |
 | `IMPLEMENTATION_PLAN.md` (root) | Ordered delivery plan and package sequencing. |
@@ -239,6 +250,8 @@ enemy/boss display names.
 | `docs/PACKAGE6_FIGHTER_PLAN.md` | The ten-stage local Fighter Mode plan: standing decisions (§2), the per-stage geometry dossiers and the ten era-hazard specs (§4/§4.1), the Phase A/B/C workstream split, and a long per-workstream deviation log (§9). Complete; read §9 before touching Fighter stages, hazards, match flow, the CPU, or the rollback harness. |
 | `docs/PACKAGE8_PRESENTATION_PLAN.md` | The presentation package: theme/palette pairing, focus authoring, audio framework, VFX taxonomy, and its §9 deviation log. |
 | `docs/PACKAGE11_V7_6_ALIGNMENT_PLAN.md` | **The V7.5/V7.6 alignment package.** §2 standing decisions (authority, boss-HP scope, legacy-identifier retention, the save bump, the Klotho ID table, enum contracts, EventBus decoupling, dialogue schema, `en.csv` policy, test discipline, crash hygiene, Story/Fighter isolation), §3/§4 the twenty workstreams, §6 the closeout, §8 what stayed out of scope, **§9 the per-workstream deviation log**, §10 the closeout report. Read §9 before touching anything this package built. |
+| `docs/PACKAGE12_DESIGN_ALIGNMENT_PLAN.md` | **The 2026-09-26 design-alignment package.** §2 the decisions (D1–D15) and §2.1 which were adopted and which are **held** for a user ruling, §3 standing decisions (the single v7 save bump, component 320, Story/Fighter isolation, legacy identifiers), §5/§6 the eleven workstreams, §9 the per-workstream deviation log, §10 the closeout report and the honest not-delivered list. Read §2.1 and §9 before touching anything this package built — and never touch a held item. |
+| `docs/handoffs/P12_*.md` | The eleven Package 12 workstream handoffs (W1–W10 plus W3b): exact API names, declared v7 derivations, hash moves, test deltas, and what did not ship. |
 | `docs/handoffs/P11_*.md` | The twenty-one Package 11 workstream handoffs — exact API names, what shipped, what did not, and why. The most specific record of any Package 11 system. |
 | `docs/recon-2026-09-13/*.md` | The nine reconnaissance dossiers the package was authored from (~600 KB). Evidence about the pre-package build, not a target. |
 | `docs/DUST_ECONOMY.md` | A **synced mirror** of `docs/design-contracts/DUST_ECONOMY.md` (F05) plus an implementation map saying where each rule lives in code. Edit the contract, not the mirror. Locked by `tests/ContentValidation/DustEconomyTests.cs` and `RewardManifestTests`. |
@@ -280,13 +293,14 @@ If a document and a `.tres` resource disagree, **the document's intent wins and 
 |---|---|
 | Character ability | `docs/PACKAGE3_KIT_AUDIT.md` → `resources/Abilities/` → `scripts/Characters/Abilities/` → `scripts/FighterSim/` for the Fighter-side equivalent |
 | Fighter simulation / netcode | `docs/architecture/0002-*.md`, `docs/architecture/0003-*.md`, `docs/design-contracts/ROLLBACK_STATE_CONTRACT.md` → `scripts/FighterSim/FighterStageGeometry.cs` for stage layout → `scripts/FighterSim/` → `scripts/Networking/`. The Klotho component inventory is in `AGENTS.md`; **never allocate an ID without checking it** |
+| Fighter menu / Versus CPU / match exits | `docs/handoffs/P12_W5.md` → `scripts/UI/FighterFlowRoutes.cs` (every exit, by `SessionData.FighterMatchOrigin`) → `scenes/menus/FighterPlayOptions.tscn` → `CharacterSelectScreen` + `HolodeckConsolePanel` (`FrontEnd`). Hazards are an On/Off toggle with a per-stage cadence in `FighterHazardCadence` |
 | Fighter CPU | `docs/design-contracts/CPU_RECOVERY.md` + `CPU_COMBAT_POLICY.md` → `scripts/FighterSim/FighterCpuController.cs` (`CpuBandTuning`) + `CpuRecoveryProfile.cs`. Band tuning is **code-owned and must never become a resource** |
 | Story level or hub content | `design-godot.md` Sections 2–3, 6–10 → `docs/design-contracts/CAMPAIGN_VALIDATION.md` → `scripts/Environment/StoryLevelControllerBase.cs` → `scenes/campaign/` |
 | Level 4A (a Legacy Level) | `docs/design-contracts/LEGACY_CHECKPOINTS.md` + plan §2.4 → `scripts/Environment/LegacyLevelControllerBase.cs` (sealed `BuildLevel`) → `Level04AEinsteinController.cs` as the exemplar |
 | Time Freeze / the temporal layer | `docs/design-contracts/TEMPORAL_STATE_CONTRACT.md` → `scripts/Environment/TimeFreezeController.cs` → `IStoryTimeFreezable` implementers |
 | Timeline Integrity / checkpoints / recovery | `docs/design-contracts/CHECKPOINT_RECOVERY.md` → `scripts/Core/TimelineIntegrityRules.cs` → the `StoryManager` Integrity clock → `CollapseTremorController` |
 | Defence, shields, Defy | `docs/design-contracts/DEFENSIVE_EFFECTS.md` → `scripts/Combat/StoryDefense.cs` + `PlayerController.ResolveProtectionLayers` → `FighterDefenseRules` (component 312) |
-| Saves | `docs/architecture/0004-*.md` + `docs/design-contracts/STORY_PERSISTENCE.md` → `scripts/Core/SaveManager*`, `SaveEnvelope.cs` (schema v7), `StoryAttemptState.cs` |
+| Saves | `docs/architecture/0004-*.md` + `docs/design-contracts/STORY_PERSISTENCE.md` → `scripts/Core/SaveManager*`, `SaveEnvelope.cs` (schema v7; `SaveSchemaV7MigrationTests` pins the one v6→v7 step), `StoryAttemptState.cs`. A new derivation is declared by the owning workstream and composed by the next package's single bump — never a bump of your own |
 | Dust / rewards | `docs/design-contracts/DUST_ECONOMY.md` → `resources/Content/reward_manifests/` → `LevelRewardDirectory` / `RewardAllocator` |
 | UI / dialogue | `docs/PACKAGE8_PRESENTATION_PLAN.md` §9 → `resources/UI/ftt_theme.tres` + `scripts/UI/UIPalette.cs` → `scenes/ui/`, `scripts/UI/`, `resources/Dialogue/`, `localization/en.csv`. Adopt the theme on the screen root; author focus with `FocusChainBuilder`; store raw keys in `.tscn` `text` and let control auto-translation resolve them |
 | Audio | `docs/design-contracts/COMFORT_SETTINGS.md` (C01b) + `docs/PACKAGE8_PRESENTATION_PLAN.md` §9 A2/B5 → `resources/Audio/default_bus_layout.tres` → `scripts/Core/AudioManager.cs` (`StemDirector`, `AudioSnapshotMixer`) → `resources/Audio/*_audio.tres`. The stem mix is **additive**; the snapshot mixer is a **priority selector**, not a stack |
