@@ -77,6 +77,11 @@ namespace FTT.Environment {
         public override string LevelTitleKey => "chronal_void_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_13_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(220f, ShelfY - 60f);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on
+        // the Gettysburg motif at the top of the Drift stair (one-way 4160, top
+        // 1470) — the shard ride starts beside it; the shelf route stays on the floor.
+        protected override Vector2? SecretCachePosition => new(4160f, 1375f);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "void_objective_cross_rift";
@@ -610,7 +615,10 @@ namespace FTT.Environment {
             // rift. Registering explicitly makes gravity a function of where the
             // player actually is, on entry and on every rewind (the L12 pattern).
             SyncGravityFieldToPlayer();
-            BuildMirrorEncounter();
+            // Package 12 W8 (N01): a pre-seal load rebuilds the Mirror as
+            // already defeated — it is never stood up and fought again.
+            if (IsRestoringAwaitingSeal) _mirrorDefeated = true;
+            else BuildMirrorEncounter();
             if (_mirrorEncounter != null && IsInstanceValid(_mirrorEncounter)) _mirrorEncounter.HUD = HUD;
             if (EventBus.Instance != null && !_rewindBound) {
                 _rewindBound = true;
@@ -680,8 +688,26 @@ namespace FTT.Environment {
             // boss results line are both raised at COLLECTION. Attributing here
             // as well would label dust the wallet has not been paid — the same
             // rule StoryLevelControllerBase already applies to every other boss.
-            StartExitSequence();
+            // Package 12 W8 (N01): the defeat commits AwaitingSeal and arms the
+            // sealing anchor; the exit beat now follows the player's seal.
+            CommitNonStandardBossDefeat();
         }
+
+        // === Package 12 W8 (N01): the Mirror arena's sealing anchor ==========
+
+        /// <summary>
+        /// The Mirror is not a <see cref="BossEncounterController"/>, so the
+        /// anchor cannot be derived: it stands on the arena shelf, just west of the
+        /// Mirror's mark, beside where the Mirror's pickup falls — the derived rule's offset
+        /// (<see cref="StoryLevelControllerBase.DerivedSealingAnchorOffsetX"/>)
+        /// applied to the Mirror's spawn mark, so it is 260 px from the boss like
+        /// every other level's anchor (the earlier arena-centre spot was 860 px away).
+        /// </summary>
+        protected override Vector2? SealingAnchorPosition =>
+            new Vector2(MirrorSpawnX + DerivedSealingAnchorOffsetX, ShelfY - 50f);
+
+        /// <summary>An uncollected Mirror reward respawns at the Mirror's own spawn point.</summary>
+        protected override Vector2 BossRewardRestorePosition => new(MirrorSpawnX, ShelfY - 50f);
 
         // === Checkpoint resume ===
 

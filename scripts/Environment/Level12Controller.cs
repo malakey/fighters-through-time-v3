@@ -59,6 +59,11 @@ namespace FTT.Environment {
         public override string LevelTitleKey => "lunar_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_12_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(220f, SurfaceY - 60f);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on
+        // the upper spire-ladder cover rung (one-way 6700, top 1490) over the
+        // spire-base vent — a dead-end gantry the floor route and the lift bypass.
+        protected override Vector2? SecretCachePosition => new(6700f, 1395f);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         /// <summary>

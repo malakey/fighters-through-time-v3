@@ -227,17 +227,16 @@ public class Level04APocahontasContentTests {
         AssertThat(level.NexusSource.Gate).IsEqual(level.UltimateGate);
         // The movement gate is traversal and Spirit Strike is a struck mechanism.
         // Vine Snare deploys a persistent construct rather than a story_zone, so
-        // the shared Zone poll cannot see it: the variant-local resolver drives the
-        // gate's own TryResolve with the same authored ability ID. The fifth gate
-        // mode this really wants is recorded in the plan's section 9.
+        // the Zone gate turns on its owned-construct option (Package 12 W8, retiring
+        // the variant-local resolver): a live snare deployed with the gate's own
+        // authored ability, within ResolveRadius, holds the weir open.
         AssertThat(level.MovementGate.Mode).IsEqual(LegacyGateMode.Traversal);
         AssertThat(level.SpecialOneGate.Mode).IsEqual(LegacyGateMode.Strike);
         AssertThat(level.SpecialTwoGate.Mode).IsEqual(LegacyGateMode.Zone);
-        AssertObject(level.SnareResolver)
-            .OverrideFailureMessage("The Vine Snare gate has no construct resolver; it could never open.")
-            .IsNotNull();
-        AssertThat(level.SnareResolver.Gate).IsEqual(level.SpecialTwoGate);
-        AssertString(level.SnareResolver.RequiredAbilityID).IsEqual(level.SpecialTwoGateAbilityID);
+        AssertThat(level.SpecialTwoGate.ZoneAcceptsOwnedConstruct)
+            .OverrideFailureMessage("The Vine Snare gate does not accept its construct; it could never open.")
+            .IsTrue();
+        AssertString(level.SpecialTwoGate.RequiredAbilityID).IsEqual(level.SpecialTwoGateAbilityID);
     }
 
     [TestCase]

@@ -94,6 +94,7 @@ RequiredWeight = 3.0
 PlayerWeight = 1.0
 PuzzleManagerPath = NodePath("..")
 ConditionID = "west_pan_loaded"
+AcceptedPuzzleOwnerIDs = PackedStringArray("level_06.clear_rockfall")
 
 [node name="RightPan" parent="RockfallPuzzle" instance=ExtResource("5_plate")]
 position = Vector2(4260, 880)
@@ -102,14 +103,19 @@ RequiredWeight = 3.0
 PlayerWeight = 1.0
 PuzzleManagerPath = NodePath("..")
 ConditionID = "east_pan_loaded"
+AcceptedPuzzleOwnerIDs = PackedStringArray("level_06.clear_rockfall")
 
 [node name="BasaltBoulder" parent="RockfallPuzzle" instance=ExtResource("6_boulder")]
 position = Vector2(3900, 872)
 WeightUnits = 3.0
+PropID = "level_06.basalt_boulder"
+PuzzleOwnerID = "level_06.clear_rockfall"
 
 [node name="PumiceBoulder" parent="RockfallPuzzle" instance=ExtResource("6_boulder")]
 position = Vector2(4260, 320)
 WeightUnits = 2.0
+PropID = "level_06.pumice_boulder"
+PuzzleOwnerID = "level_06.clear_rockfall"
 
 [node name="WedgeLock" parent="RockfallPuzzle" instance=ExtResource("7_wedge")]
 position = Vector2(4260, 396)

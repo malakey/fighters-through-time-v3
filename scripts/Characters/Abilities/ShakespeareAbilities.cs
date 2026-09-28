@@ -77,7 +77,7 @@ namespace FTT.Characters.Abilities {
                 Transform = new Transform2D(0f, impactPosition),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
-                CollisionMask = targetHurtboxLayer
+                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
 
             bool macbethsCurse = Owner.HasStoryPerk(MacbethsCursePerkKey);
@@ -330,7 +330,7 @@ namespace FTT.Characters.Abilities {
                 Transform = new Transform2D(0f, Owner.GlobalPosition),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
-                CollisionMask = targetHurtboxLayer
+                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
 
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
@@ -438,7 +438,7 @@ namespace FTT.Characters.Abilities {
                 Transform = new Transform2D(0f, stageCenter),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
-                CollisionMask = targetHurtboxLayer
+                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
 
             bool finale = _strikesDone >= (Data?.HitCount ?? 1);

@@ -459,7 +459,7 @@ namespace FTT.Characters.Abilities {
                 Transform = new Transform2D(0f, Owner.GlobalPosition + offset),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
-                CollisionMask = targetHurtboxLayer
+                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
 
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, MaxQueryResults)) {

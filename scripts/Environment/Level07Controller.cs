@@ -64,6 +64,11 @@ namespace FTT.Environment {
         public override string LevelTitleKey => "nassau_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_07_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(240f, 850f);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on
+        // the crane jib above the quay (Platform 900/640, top 632), climbed from the
+        // low crate at 500 — off the harbour floor route, above the mortar's strike line.
+        protected override Vector2? SecretCachePosition => new(900f, 537f);
         public override Rect2 LevelBounds => new(0f, 0f, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "nassau_objective_reach_moorings";

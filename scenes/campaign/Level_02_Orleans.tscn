@@ -1,10 +1,11 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/Level02Controller.cs" id="1_controller"]
 [ext_resource type="Script" path="res://scripts/Environment/StoryDropSystem.cs" id="2_drops"]
 [ext_resource type="PackedScene" path="res://scenes/templates/ShieldGeneratorTowerTemplate.tscn" id="3_tower"]
 [ext_resource type="PackedScene" path="res://scenes/templates/CyclicHazardTemplate.tscn" id="4_mortar"]
 [ext_resource type="PackedScene" path="res://scenes/templates/StageLightingRig.tscn" id="5_lighting"]
+[ext_resource type="Script" path="res://scripts/Environment/VolleyCover.cs" id="6_cover"]
 
 [node name="Level_02_Orleans" type="Node2D"]
 script = ExtResource("1_controller")
@@ -82,3 +83,27 @@ WarningDuration = 1.0
 ActiveDuration = 0.7
 CooldownDuration = 2.4
 Damage = 18
+
+[node name="Mantlet" type="Node2D" parent="MortarLaneA"]
+position = Vector2(-24, 0)
+script = ExtResource("6_cover")
+
+[node name="Mantlet" type="Node2D" parent="MortarLaneB"]
+position = Vector2(-24, 0)
+script = ExtResource("6_cover")
+
+[node name="Mantlet" type="Node2D" parent="MortarLaneC"]
+position = Vector2(-24, 0)
+script = ExtResource("6_cover")
+
+[node name="Mantlet" type="Node2D" parent="MortarLaneD"]
+position = Vector2(-24, 0)
+script = ExtResource("6_cover")
+
+[node name="Mantlet" type="Node2D" parent="MortarBattlementA"]
+position = Vector2(-24, 0)
+script = ExtResource("6_cover")
+
+[node name="Mantlet" type="Node2D" parent="MortarBattlementB"]
+position = Vector2(-24, 0)
+script = ExtResource("6_cover")

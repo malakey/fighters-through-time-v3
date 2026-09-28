@@ -63,6 +63,12 @@ namespace FTT.Environment {
         public override string LevelTitleKey => "gettysburg_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(200, EnemyGroundY);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on
+        // the west end of the Wheatfield crest (crest deck, top 560), short of the
+        // Alpha shield array — reached up the drop-through steps at 4650-4920; the
+        // floor route never climbs it.
+        protected override Vector2? SecretCachePosition => new(5150f, 465f);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "gettysburg_objective_advance";
