@@ -43,7 +43,7 @@ namespace FTT.Environment {
         }
 
         public int TakeEnvironmentDamage(float requestedDamage) {
-            if (IsDestroyed) return 0;
+            if (IsDestroyed || !AcceptsEnvironmentDamage) return 0;
             int applied;
             if (HitsToBreak > 0) {
                 HitCount++;
@@ -66,6 +66,26 @@ namespace FTT.Environment {
             if (RewindPolicy == StoryRewindPolicy.PreserveCurrentState) return;
             int restoredHP = RewindPolicy == StoryRewindPolicy.ResetToInitialState ? _initialHP : _checkpointHP;
             RestoreState(restoredHP);
+        }
+
+        /// <summary>
+        /// Package 12 W8 (M16): false for an object that is not broken by
+        /// damage at all (the Act III Resonance Hold stand-ins, which complete
+        /// through a held-Interact channel). Every damage path — hurtbox hits,
+        /// kit arcs that call <see cref="TakeEnvironmentDamage"/> directly —
+        /// then applies nothing.
+        /// </summary>
+        protected virtual bool AcceptsEnvironmentDamage => true;
+
+        /// <summary>
+        /// Package 12 W8 (M16): completes the object through its ordinary
+        /// destruction path (presentation, <see cref="OnDestroyed"/>, the
+        /// Destroyed signal) without a damage event. Idempotent.
+        /// </summary>
+        protected void CompleteWithoutDamage() {
+            if (IsDestroyed) return;
+            CurrentHP = 0;
+            DestroyObject();
         }
 
         protected virtual void OnDamaged(int appliedDamage) { }

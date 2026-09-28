@@ -56,12 +56,14 @@ namespace FTT.Environment {
     ///       cannot play twice.</item>
     /// </list>
     ///
-    /// <para><b>A quit between the boss and the Core is not a dead end.</b> Nothing
-    /// persists "the Eraser is dead": the anchor's armed state is derived from this
-    /// run's encounter, and the last autosave is checkpoint 2, west of the rotunda.
-    /// A resumed run therefore finds the Eraser alive, fights it again, and reaches
-    /// the same ending. The ending is never gated on a flag the save did not
-    /// keep.</para>
+    /// <para><b>A quit between the boss and the Core is not a dead end.</b>
+    /// Package 12 W8 (N01, D12(a)) retired the Package 11 "the defeat is never
+    /// persisted" rule: the base commits AwaitingSeal into the attempt record at
+    /// the defeat, with <see cref="SealingAnchorID"/> = <see cref="PrimeAnchorID"/>,
+    /// and a load before the Core goes in rebuilds the Eraser as defeated (never
+    /// respawned), re-arms the Prime Anchor and respawns an uncollected boss
+    /// pickup once. The Prime Anchor stays this level's own scene-authored anchor
+    /// (<see cref="UsesGenericSealingAnchor"/> is false).</para>
     /// </summary>
     public partial class Level15Controller : StoryLevelControllerBase {
 
@@ -178,6 +180,12 @@ namespace FTT.Environment {
 
         private TemporalCoreAnchor _anchor;
         public TemporalCoreAnchor PrimeAnchor => _anchor;
+
+        /// <summary>Package 12 W8 (N01): the Prime Anchor is this level's sealing anchor.</summary>
+        public override string SealingAnchorID => PrimeAnchorID;
+
+        /// <summary>Package 12 W8: the scene-authored Prime Anchor, not a generic one.</summary>
+        protected override bool UsesGenericSealingAnchor => false;
 
         /// <summary>The completion chain, once the Core is in. Null before that.</summary>
         public CampaignCompletionSequence Completion { get; private set; }

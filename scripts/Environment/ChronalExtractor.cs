@@ -65,6 +65,15 @@ namespace FTT.Environment {
         /// beat) still pauses the discharge cycle.</summary>
         public void SetStoryRewindFrozen(bool frozen) => _rewindFrozen = frozen;
 
+        /// <summary>True while a rewind / Post-Landing Hold freezes this machine (Package 12 W8).</summary>
+        protected bool IsRewindFrozen => _rewindFrozen;
+
+        /// <summary>
+        /// The E01 "drain slowed" notice posted on a real first destruction.
+        /// Package 12 W8: the Act III stand-ins post their variant line.
+        /// </summary>
+        protected virtual string DrainSlowedNoticeKeyBase => "integrity_drain_slowed";
+
         public override void _Ready() {
             MaxHP = 100;
             HitsToBreak = 0;
@@ -82,8 +91,33 @@ namespace FTT.Environment {
         /// in which attacks are free. Skilled play destroys one while eating
         /// zero or one discharge; attacking no longer triggers anything.
         /// </summary>
+        // === Package 12 W8 (N01): shutdown by sealing ======================
+
+        /// <summary>True once an accepted seal powered this machine down.</summary>
+        public bool IsSealedShutdown { get; private set; }
+
+        /// <summary>
+        /// N01: a machine still standing when the player seals the timeline goes
+        /// terminally inactive. That is <b>not</b> a destruction: no pickup, no
+        /// registry entry, no drain-factor change, no notice and no credit — the
+        /// locked final Integrity and the fixed starting denominator cannot move.
+        /// It stops discharging and stops answering hits. Idempotent.
+        /// </summary>
+        public void ShutDownBySeal() {
+            if (IsDestroyed || IsSealedShutdown) return;
+            IsSealedShutdown = true;
+            _telegraphing = false;
+            if (Hurtbox != null) {
+                Hurtbox.SetMonitorableSafe(false);
+                Hurtbox.SetMonitoringSafe(false);
+            }
+            if (GetNodeOrNull<CanvasItem>("CoreGlow") is CanvasItem core) {
+                core.Modulate = new Color(0.35f, 0.35f, 0.4f, 0.5f);
+            }
+        }
+
         public override void _PhysicsProcess(double delta) {
-            if (IsDestroyed || _rewindFrozen) return;
+            if (IsDestroyed || _rewindFrozen || IsSealedShutdown) return;
             _cycleTimer -= (float)delta;
             if (_cycleTimer > 0f) return;
             if (_telegraphing) {
@@ -168,14 +202,18 @@ namespace FTT.Environment {
             // for the rest of the level while the gauge itself does not move
             // by a single point. The per-attempt registry entry is what lets a
             // mid-level resume rebuild the machine broken.
-            StoryManager.Instance?.NotifyExtractorDestroyed();
+            // Package 12 W8: a machine a death rewind restored to its
+            // checkpoint HP can be broken a second time; the registry already
+            // holds that fact, so the living count must not drop twice.
+            bool alreadyRecorded = StoryManager.Instance?.IsExtractorDestroyed(ObjectID) == true;
+            if (!alreadyRecorded) StoryManager.Instance?.NotifyExtractorDestroyed();
             StoryManager.Instance?.RecordExtractorDestroyed(ObjectID);
             // E01 drain feedback: a brief non-blocking notice on a REAL first
             // destruction while the clock runs. No "time gained", no refill,
             // no numeric readout — the notice says the drain slowed, nothing
             // more. Untimed levels and a locked PreBoss clock say nothing.
             if (StoryManager.Instance?.IsIntegrityClockRunning == true) {
-                EnvironmentNotice.Post("integrity_drain_slowed", this);
+                EnvironmentNotice.Post(DrainSlowedNoticeKeyBase, this);
             }
             // Package 8 B5. The discharge already sounds through the hazard event the
             // director subscribes to; the break itself is a separate, lower beat.
@@ -222,6 +260,10 @@ namespace FTT.Environment {
 
         protected override void ApplyStatePresentation() {
             base.ApplyStatePresentation();
+            if (IsSealedShutdown && Hurtbox != null) {
+                Hurtbox.SetMonitorableSafe(false);
+                Hurtbox.SetMonitoringSafe(false);
+            }
             VisualState = IsDestroyed
                 ? ChronalExtractorVisualState.Destroyed
                 : CurrentHP <= MaxHP / 2 ? ChronalExtractorVisualState.Damaged : ChronalExtractorVisualState.Idle;
