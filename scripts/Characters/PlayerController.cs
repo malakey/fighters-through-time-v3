@@ -1607,6 +1607,11 @@ namespace FTT.Characters {
 			if (CheckRollInput()) return;
 			if (CheckJumpInput()) return;
 			if (CheckAttackInput()) return;
+			// M04 (Package 12 W3): Running → UsingSpecial / UsingUltimate with
+			// the same input and eligibility as from Idle (the sim never gated
+			// specials on locomotion).
+			if (CheckSpecialInput()) return;
+			if (CheckUltimateInput()) return;
 			if (CheckBlockInput()) return;
 			if (CheckMovementAbilityInput()) return;
 
@@ -1714,7 +1719,18 @@ namespace FTT.Characters {
 				return;
 			}
 
+			// M04 (Package 12 W3): Crouching → Rolling / Airborne / Blocking /
+			// UsingSpecial / UsingUltimate / UsingMovementAbility with the same
+			// input and eligibility as from Idle (Idle's check order). Drop-
+			// through stays the double-tap Down, so Jump from a crouch is free.
+			// TransitionTo restores the crouched hurtbox on the way out.
+			if (CheckRollInput()) return;
+			if (CheckJumpInput()) return;
 			if (CheckAttackInput()) return;
+			if (CheckSpecialInput()) return;
+			if (CheckUltimateInput()) return;
+			if (CheckBlockInput()) return;
+			if (CheckMovementAbilityInput()) return;
 			CheckDropThrough();
 			PlayAnimation("crouch");
 		}
@@ -2350,6 +2366,13 @@ namespace FTT.Characters {
 				return;
 			}
 			if (!shieldStunned && CheckRollInput()) {
+				_blockSystem?.EndBlock();
+				return;
+			}
+			// M04 (Package 12 W3): Blocking → Airborne on Jump, outside
+			// shieldstun (the sim mirrors it: allowJump no longer excludes the
+			// stance, only shieldstun).
+			if (!shieldStunned && CheckJumpInput()) {
 				_blockSystem?.EndBlock();
 				return;
 			}

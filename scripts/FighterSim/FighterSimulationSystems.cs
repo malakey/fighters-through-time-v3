@@ -492,7 +492,9 @@ namespace FTT.FighterSim {
                             // active-start, so there is no mid-active migration.
                             lockHorizontal: blockStance,
                             lockFacing: blockStance,
-                            allowJump: !attacking && !blockStance,
+                            // M04 (Package 12 W3): Blocking → Airborne on Jump;
+                            // only shieldstun keeps a blocker grounded.
+                            allowJump: !attacking && !shieldStunned,
                             allowDropThrough: !shieldStunned);
                     }
                     if (fighter.IsGrounded == 0) {
@@ -1800,7 +1802,7 @@ namespace FTT.FighterSim {
         /// the Chronal Respawn Platform (or out of stocks) is by definition past
         /// a stock loss, so its mark is dropped.
         /// </summary>
-        private static void ClearMarkIfRespawning(
+        internal static void ClearMarkIfRespawning(
             in FighterStateComponent fighter, ref FighterConductiveComponent mark) {
             if (mark.FramesRemaining <= 0 && mark.SourcePlayerID < 0) return;
             if (fighter.RespawnFramesRemaining > 0 || fighter.Stocks <= 0) {
