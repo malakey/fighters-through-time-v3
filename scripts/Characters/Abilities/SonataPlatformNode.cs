@@ -38,7 +38,21 @@ namespace FTT.Characters.Abilities {
             _lifetime = (data?.Lifetime > 0f ? data.Lifetime : 3f)
                 * (owner?.StoryPersistentDurationMultiplier ?? 1f);
             _rewindFrozen = false;
+            _landingRefundSpent = false;
             SetBodyCollisionEnabled(true);
+        }
+
+        private bool _landingRefundSpent;
+
+        /// <summary>
+        /// Package 12 W4: Sonata Drift's staff-landing refund is granted once
+        /// per platform, so hopping on the same staff cannot keep halving the
+        /// recharge. Returns true exactly once per spawned platform.
+        /// </summary>
+        public bool TryConsumeLandingRefund() {
+            if (_landingRefundSpent) return false;
+            _landingRefundSpent = true;
+            return true;
         }
 
         /// <summary>
@@ -65,6 +79,7 @@ namespace FTT.Characters.Abilities {
             _ownerPlayer = null;
             _lifetime = 0f;
             _rewindFrozen = false;
+            _landingRefundSpent = false;
         }
 
         public void SetStoryRewindFrozen(bool frozen) => _rewindFrozen = frozen;

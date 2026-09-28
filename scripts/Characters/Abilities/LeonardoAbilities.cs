@@ -165,7 +165,7 @@ namespace FTT.Characters.Abilities {
     /// <summary>
     /// Special 2 — Clockwork Turret: deploys a persistent automated turret
     /// construct (20 HP, 15 s, max 1 active) that fires ballista bolts at the
-    /// nearest enemy and self-destructs after its third bolt. Numbers come from
+    /// nearest enemy and self-destructs after its fourth bolt (M03). Numbers come from
     /// the authored AbilityData resource and the design Section 4 turret
     /// specification. Story-only Resonance perk Clockwork Overdrive upgrades the
     /// turret to a rapid burst of 5 bolts before self-destructing.

@@ -192,5 +192,16 @@ namespace FTT.Combat {
         /// field above is the contact POSITION and keeps its name.
         /// </summary>
         public FTT.Combat.HitOrigin Origin;
+
+        // --- Package 12 W4 (GAP-14) ---
+        /// <summary>
+        /// F04 fence: a hit produced by a Nexus-authorized (puzzle) Ultimate
+        /// cast. <see cref="Hurtbox.TakeHit"/> rejects it outright on every
+        /// receiver — no damage, stagger, status, knockback, meter, Rally or
+        /// drop — because the puzzle target resolves through
+        /// <c>NexusResonanceSource.ResolvePuzzleTarget</c>, never through damage.
+        /// A free puzzle Ultimate can therefore never become free combat.
+        /// </summary>
+        public bool PuzzleOnly;
     }
 }

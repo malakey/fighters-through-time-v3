@@ -2551,6 +2551,16 @@ namespace FTT.Characters {
 		private void ProcessUsingMovementAbility(float dt) {
 			if (_movementAbility == null || !_movementAbility.IsExecuting) {
 				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
+				return;
+			}
+			// Package 12 W4 (V7 kit rule, Pocahontas): the basic string is usable
+			// mid-glide without ending the glide. The glide keeps steering through
+			// the swing and reclaims the state when the swing ends in the air.
+			if (_movementAbility is Abilities.PocahontasBreezeGlide { AllowsBasicAttackMidGlide: true }
+				&& !TimeFrozen
+				&& CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)
+				&& !CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)) {
+				CheckAttackInput();
 			}
 		}
 
@@ -3842,6 +3852,7 @@ namespace FTT.Characters {
 				bool nexusAuthorized = IsNexusUltimateAuthorized;
 				if ((meterReady || nexusAuthorized) && _ultimate != null) {
 					if (nexusAuthorized) return TryCastNexusUltimate();
+					_nexusCastLatched = false;
 					if (_ultimate.TryExecute()) {
 						BeginUltimateCast();
 						return true;
@@ -3863,10 +3874,14 @@ namespace FTT.Characters {
 			FTT.Environment.NexusResonanceSource source = NexusUltimateSource;
 			float meterBefore = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
 			_ultimateMeter?.SetValue(FTT.Combat.UltimateMeter.MaxValue);
+			// Package 12 W4 (GAP-14): latched BEFORE the execute so a hit landed
+			// in the Ultimate's own startup is fenced too.
+			_nexusCastLatched = true;
 			bool executed = _ultimate.TryExecute();
 			_ultimateMeter?.SetValue(meterBefore);
 			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? meterBefore;
 			if (!executed) {
+				_nexusCastLatched = false;
 				source?.NotifyCastInterrupted();
 				return false;
 			}
@@ -3874,6 +3889,32 @@ namespace FTT.Characters {
 			source?.ResolvePuzzleTarget();
 			return true;
 		}
+
+		// === Package 12 W4 (GAP-14): the Nexus puzzle-cast fence ================
+
+		private bool _nexusCastLatched;
+
+		/// <summary>
+		/// True while the Ultimate now executing was cast through the F04 Nexus
+		/// authorization. Every hit it (or anything it spawns during the cast)
+		/// produces is stamped <see cref="FTT.Combat.HitPayload.PuzzleOnly"/> and
+		/// rejected by every hurtbox, so the free puzzle Ultimate can never deal
+		/// combat damage or earn meter, Rally or drops. Clears on its own when
+		/// the cast ends; an ordinary cast clears the latch explicitly.
+		/// </summary>
+		public bool IsNexusCastInFlight =>
+			_nexusCastLatched && _ultimate != null && _ultimate.IsExecuting;
+
+		/// <summary>
+		/// Package 12 W4 (Tesla kit rule): true only inside the movement
+		/// ability's own pass-through window — the Lightning Blink translation.
+		/// <c>Hitbox.OnAreaEntered</c> then makes no contact with a projectile at
+		/// all, so the shot flies on instead of being absorbed.
+		/// </summary>
+		public bool PassesThroughProjectiles =>
+			CurrentState == CharacterState.UsingMovementAbility
+			&& _movementAbility != null
+			&& _movementAbility.PassesThroughProjectilesNow;
 
 		/// <summary>Shared tail of both ultimate cast paths.</summary>
 		private void BeginUltimateCast() {
@@ -3918,11 +3959,14 @@ namespace FTT.Characters {
 			// The allowance is consumed atomically before TryExecute, and a
 			// refused execute leaves it spent by design - the input was
 			// accepted. The latch clears on grounding and on a stock loss.
-			bool secondGlide = MovementAbilityCooldownTimer > 0
-				&& _movementAbility is Abilities.PocahontasBreezeGlide glide
-				&& glide.TryConsumeSecondGlide();
-			if (MovementAbilityCooldownTimer > 0 && !secondGlide) return false;
-			if (_movementAbility != null && _movementAbility.TryExecute()) {
+			// Package 12 W4: the bypass is generalised (Second Glide, Mozart's
+			// banked Extra Note charge) and a bypassing cast neither checks NOR
+			// restarts the running cooldown.
+			bool bypass = MovementAbilityCooldownTimer > 0
+				&& _movementAbility != null
+				&& _movementAbility.TryConsumeCooldownBypass();
+			if (MovementAbilityCooldownTimer > 0 && !bypass) return false;
+			if (_movementAbility != null && _movementAbility.TryExecute(armCooldown: !bypass)) {
 				PlayAnimation("movement_ability");
 				TransitionTo(CharacterState.UsingMovementAbility);
 				return true;

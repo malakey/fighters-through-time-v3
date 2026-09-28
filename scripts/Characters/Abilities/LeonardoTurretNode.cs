@@ -18,7 +18,7 @@ namespace FTT.Characters.Abilities {
 
         private const float TargetRangePixels = 1800f;   // 30 world units at 60 px/unit.
         private const int MaxTurretHP = 20;
-        private const int BaseBoltLimit = 3;
+        private const int BaseBoltLimit = 4;
         private const int OverdriveBoltLimit = 5;
         private const float OverdriveIntervalMultiplier = 0.5f;
 
@@ -95,7 +95,7 @@ namespace FTT.Characters.Abilities {
             if (_fireInterval <= 0f) _fireInterval = 2f;
             BoltsRemaining = data?.HitCount > 0 ? data.HitCount : BaseBoltLimit;
             // Clockwork Overdrive (Story-only Resonance major perk): the turret
-            // fires 5 bolts in a rapid burst instead of 3 before self-destructing.
+            // fires 5 bolts in a rapid burst instead of 4 before self-destructing (M03).
             if (clockworkOverdrive) {
                 BoltsRemaining = OverdriveBoltLimit;
                 _fireInterval *= OverdriveIntervalMultiplier;

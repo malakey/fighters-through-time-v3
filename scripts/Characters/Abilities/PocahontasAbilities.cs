@@ -5,45 +5,77 @@ using FTT.Characters;
 namespace FTT.Characters.Abilities {
 
     /// <summary>
-    /// Special 1 — Spirit Strike: a spectral eagle swoops down in a diagonal arc,
-    /// dealing the authored 14 damage and staggering the target. Damage,
-    /// knockback, hitstun, and phase frames come from the authored AbilityData
-    /// resource via the factory-built EagleHitbox; only the swoop travel speed is
-    /// presentation tuning.
+    /// Special 1 — Spirit Strike (design §5, Package 12 W4). A spectral eagle
+    /// carries Pocahontas <b>up-forward at 45°</b> — a forced dash of
+    /// <see cref="KitMotionRules.SpiritStrikeCarryUnits"/> units over the
+    /// authored active window (15 frames) — while the eagle's hitbox
+    /// <b>swoops down-forward</b> ahead of her. The two vectors are separate:
+    /// she rises while the eagle dives. Damage, knockback, hitstun and phase
+    /// frames come from the authored AbilityData via the factory-built
+    /// EagleHitbox; the carry and dive geometry are the shared
+    /// <see cref="KitMotionRules"/> the Fighter sim reads too.
+    ///
+    /// <para>The retired interim shape moved her along (h, −0.6) at 420 px/s
+    /// for 21 frames and dragged the hitbox on her own body.</para>
     /// </summary>
     public partial class PocahontasSpiritStrike : BaseSpecial {
-        private const float SwoopSpeed = 420f;
 
-        private Vector2 _swoopDirection;
+        private float _facing = 1f;
+        private int _carryFrame;
+
+        /// <summary>Carry frames elapsed in the current cast. Test seam.</summary>
+        public int CarryFrame => _carryFrame;
+
+        /// <summary>Carry speed along the diagonal, px/s.</summary>
+        public static float CarrySpeedPixelsPerSecond =>
+            KitMotionRules.SpiritStrikeCarryUnits * KitMotionRules.StoryPixelsPerUnit
+            * 60f / KitMotionRules.SpiritStrikeCarryFrames;
+
+        /// <summary>Her velocity during the carry (Godot Y is down, so up is negative).</summary>
+        public static Vector2 CarryVelocity(float facing) {
+            float axis = CarrySpeedPixelsPerSecond / Mathf.Sqrt(2f);
+            return new Vector2(facing * axis, -axis);
+        }
+
+        /// <summary>The eagle's offset from Pocahontas on a carry frame, in Story pixels.</summary>
+        public static Vector2 EagleOffsetPixels(int carryFrame, float facing) {
+            (double forward, double up) = KitMotionRules.SpiritEagleOffsetUnits(carryFrame);
+            return new Vector2(
+                facing * (float)forward * KitMotionRules.StoryPixelsPerUnit,
+                -(float)up * KitMotionRules.StoryPixelsPerUnit);
+        }
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
-            float hDir = Owner.IsFacingRight ? 1f : -1f;
-            _swoopDirection = new Vector2(hDir, -0.6f).Normalized();
+            _facing = Owner.IsFacingRight ? 1f : -1f;
+            _carryFrame = 0;
         }
 
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
+            _carryFrame = 0;
         }
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
+            // The carry is a forced dash: it ends with its momentum spent.
+            Owner.Velocity = new Vector2(0f, Mathf.Max(0f, Owner.Velocity.Y));
         }
 
         public override void _PhysicsProcess(double delta) {
+            var hitbox = GetNodeOrNull<Hitbox>("EagleHitbox");
             if (CurrentPhase == AbilityPhase.Active) {
-                Owner.Velocity = _swoopDirection * SwoopSpeed;
-
-                // The factory-built hitbox already carries the authored damage
-                // (scaled by the Story special multiplier), knockback, and
-                // hitstun; the swoop only drags it along the dive path.
-                var hitbox = GetNodeOrNull<Hitbox>("EagleHitbox");
+                Owner.Velocity = CarryVelocity(_facing);
+                // The factory-built hitbox carries the authored damage (scaled
+                // by the Story special multiplier), knockback and hitstun; the
+                // eagle dives along its own path ahead of her.
                 if (hitbox != null) {
-                    hitbox.GlobalPosition = Owner.GlobalPosition;
+                    hitbox.GlobalPosition = Owner.GlobalPosition + EagleOffsetPixels(_carryFrame, _facing);
                     hitbox.Activate();
                 }
+                _carryFrame++;
             } else {
-                GetNodeOrNull<Hitbox>("EagleHitbox")?.Deactivate();
+                hitbox?.Deactivate();
             }
             base._PhysicsProcess(delta);
         }
@@ -147,6 +179,14 @@ namespace FTT.Characters.Abilities {
         /// allowance is already spent, or the owner is grounded (a grounded
         /// cast is the ordinary entry and spends nothing).
         /// </summary>
+        /// <summary>
+        /// Package 12 W4: the Second Glide re-entry is the movement cooldown
+        /// bypass. <c>PlayerController</c> starts the re-entry with
+        /// <c>TryExecute(armCooldown: false)</c>, so it neither checks nor
+        /// restarts the running cooldown.
+        /// </summary>
+        public override bool TryConsumeCooldownBypass() => TryConsumeSecondGlide();
+
         public bool TryConsumeSecondGlide() {
             if (Owner == null || Owner.IsOnFloor()) return false;
             if (!Owner.HasStoryPerk(SecondGlidePerkKey) || SecondGlideConsumed) return false;
@@ -213,10 +253,41 @@ namespace FTT.Characters.Abilities {
             _isGliding = false;
         }
 
+        /// <summary>True during the held glide (after the dash). Test seam and the attack gate.</summary>
+        public bool IsGliding => _isGliding;
+
+        /// <summary>
+        /// Package 12 W4 (V7 kit rule): "the basic string is usable mid-glide
+        /// without ending the glide". While gliding, <c>PlayerController</c>
+        /// lets a basic attack start from <c>UsingMovementAbility</c>; the glide
+        /// keeps steering through the swing and takes the owner back when the
+        /// swing ends in the air. Any other state (stun, special, ledge, death)
+        /// ends the glide.
+        /// </summary>
+        public bool AllowsBasicAttackMidGlide => _isGliding;
+
+        private void KeepOwnerInGlide() {
+            switch (Owner.CurrentState) {
+                case CharacterState.UsingMovementAbility:
+                case CharacterState.Attacking:
+                    return;
+                case CharacterState.Airborne:
+                    // The mid-glide swing finished in the air: resume the glide.
+                    Owner.TransitionTo(CharacterState.UsingMovementAbility);
+                    return;
+                default:
+                    _isGliding = false;
+                    if (CurrentPhase != AbilityPhase.Inactive) AdvanceToCleanup();
+                    return;
+            }
+        }
+
         public override void _PhysicsProcess(double delta) {
             float dt = (float)delta;
 
             if (_isGliding) {
+                KeepOwnerInGlide();
+                if (!_isGliding) return;
                 _glideTimer -= dt;
                 float hInput = Owner.CurrentInputFrame.Horizontal;
 

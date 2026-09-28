@@ -216,7 +216,11 @@ namespace FTT.Characters.Abilities {
 
         private void TickVortexDamage(bool finalTick) {
             foreach (Hurtbox hurtbox in QueryTargetHurtboxes()) {
-                float dealt = hurtbox.TakeHit(new HitPayload {
+                // VERIFY-VORTEX-RECLAIM (Package 12 W4, D03g): every Vortex tick,
+                // the final launching tick included, is Tick delivery by
+                // construction and reclaims NO Rally. The credit reads the
+                // stamped payload, never a literal flag.
+                HitPayload tick = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "cleopatra_sandstorm_vortex",
                     HitboxID = "vortex_tick",
@@ -231,8 +235,11 @@ namespace FTT.Characters.Abilities {
                     StatusIntensity = Data?.StatusIntensity ?? 0.8f,
                     ScreenShakeIntensity = 0.05f,
                     ScreenShakeDuration = 0.05f
-                });
-                if (dealt > 0f) Owner.AddInfluenceFromDamageDealt(dealt);
+                }, HitDelivery.Tick);
+                // Only the final tick carries the authored launch; the churn ticks never do.
+                tick.Launches = finalTick && (Data?.Launches ?? false);
+                float dealt = hurtbox.TakeHit(tick);
+                Credit(in tick, dealt);
             }
         }
 

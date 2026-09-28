@@ -48,16 +48,38 @@ namespace FTT.Combat {
             };
         }
 
-        public bool TryExecute() {
+        public bool TryExecute() => TryExecute(armCooldown: true);
+
+        /// <summary>
+        /// Package 12 W4. <paramref name="armCooldown"/> false starts the cast
+        /// WITHOUT touching the slot's cooldown timer: a Second Glide re-entry
+        /// or a banked Sonata Drift charge "ignores and does not restart" the
+        /// running recharge. Every ordinary cast arms it.
+        /// </summary>
+        public bool TryExecute(bool armCooldown) {
             if (IsExecuting) return false;
             if (!Validate()) return false;
 
             CurrentPhase = AbilityPhase.Startup;
-            StartCooldown();
+            if (armCooldown) StartCooldown();
             OnStartup();
             EmitCastVfx();
             return true;
         }
+
+        /// <summary>
+        /// Package 12 W4: a movement ability may authorize a cast while its
+        /// cooldown is still running (Pocahontas's Second Glide, Mozart's
+        /// banked Extra Note charge). Returns true and consumes that allowance
+        /// atomically; such a cast never re-arms the cooldown. Default: none.
+        /// </summary>
+        public virtual bool TryConsumeCooldownBypass() => false;
+
+        /// <summary>
+        /// Package 12 W4: true while this cast lets projectiles pass through its
+        /// owner (Tesla's Lightning Blink translation only). Default: never.
+        /// </summary>
+        public virtual bool PassesThroughProjectilesNow => false;
 
         /// <summary>
         /// Design 776: the cooldown starts on the first frame of the cast action,
@@ -75,6 +97,13 @@ namespace FTT.Combat {
         /// everywhere else.
         /// </summary>
         public virtual float CooldownScaleForThisCast => 1f;
+
+        /// <summary>
+        /// Package 12 W4: re-arms this slot's full cooldown outside a cast —
+        /// the recharge of a banked charge (Mozart's Extra Note) starts the next
+        /// charge's timer through the one canonical cooldown computation.
+        /// </summary>
+        protected void RearmCooldown() => StartCooldown();
 
         private void StartCooldown() {
             if (Owner == null || Data == null) return;
@@ -241,6 +270,57 @@ namespace FTT.Combat {
                 }
             }
         }
+
+        // ---- Package 12 W4: the kit-payload hit contract ----------------------
+
+        /// <summary>
+        /// Stamps a kit-built payload with the authored M08 hit contract of
+        /// <paramref name="data"/> — Origin, Delivery, Launches — plus a fresh
+        /// per-contact identity, the owning actor and the GAP-14 Nexus fence.
+        /// The ONE place a kit script copies these values; it never authors a
+        /// second copy of them. <paramref name="deliveryOverride"/> is for the
+        /// few kit hits whose delivery is structurally different from the
+        /// ability's own (a Vortex tick, a coil chain arc).
+        /// </summary>
+        public static HitPayload WithAbilityContract(
+            HitPayload payload, AbilityData data, PlayerController owner,
+            HitDelivery? deliveryOverride = null) {
+            if (data != null) {
+                payload.Origin = data.Origin;
+                payload.Delivery = data.Delivery;
+                payload.Launches = data.Launches;
+            }
+            if (deliveryOverride.HasValue) payload.Delivery = deliveryOverride.Value;
+            if (payload.ContactId == 0) payload.ContactId = HitClassification.NextContactId();
+            if (owner != null && GodotObject.IsInstanceValid(owner)) {
+                payload.SourceActorId = owner.GetInstanceId();
+                // GAP-14: every hit of a Nexus-authorized Ultimate is puzzle-only.
+                if (owner.IsNexusCastInFlight && payload.Origin == HitOrigin.Ultimate) {
+                    payload.PuzzleOnly = true;
+                }
+            }
+            return payload;
+        }
+
+        /// <summary>Instance form of <see cref="WithAbilityContract"/> for this cast's data and owner.</summary>
+        protected HitPayload Stamp(HitPayload payload, HitDelivery? deliveryOverride = null) =>
+            WithAbilityContract(payload, Data, Owner, deliveryOverride);
+
+        /// <summary>
+        /// Credits the owner for damage a stamped payload actually dealt, reading
+        /// the meter and Rally rules off the payload (D03g/D03h) rather than
+        /// literal flags.
+        /// </summary>
+        public static void CreditDealt(PlayerController owner, in HitPayload payload, float dealt) {
+            if (owner == null || dealt <= 0f) return;
+            owner.AddInfluenceFromDamageDealt(
+                dealt,
+                collectsEcho: HitClassification.CollectsEcho(payload.Delivery),
+                ultimateOrigin: HitClassification.IsUltimateOrigin(payload.Origin));
+        }
+
+        /// <summary>Instance form of <see cref="CreditDealt(PlayerController, in HitPayload, float)"/>.</summary>
+        protected void Credit(in HitPayload payload, float dealt) => CreditDealt(Owner, in payload, dealt);
 
         protected PlaceholderProjectile SpawnPlaceholderProjectile(Vector2 position, float speed,
             bool movingRight, Color color, Vector2 size = default, float lifetime = 3f,
