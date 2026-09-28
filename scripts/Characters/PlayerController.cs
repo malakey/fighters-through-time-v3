@@ -3652,7 +3652,9 @@ namespace FTT.Characters {
 				// +50% against Extractors and enemy constructs).
 				_meleeHitbox.AttackClass = FTT.Combat.AttackClass.Basic;
 				// M08 (Package 12 W3): the string's authored hit contract.
-				_meleeHitbox.Launches = FTT.Combat.BasicComboRules.StringHitLaunches[comboIdx];
+				// M07 (Package 12 W3b): read through the profile, so Lincoln's
+				// hit 2 launches in Story exactly as it does in the sim.
+				_meleeHitbox.Launches = FTT.Combat.BasicComboRules.StringHitLaunchesFor(_stringProfile, comboIdx);
 				_meleeHitbox.Delivery = FTT.Combat.HitDelivery.DirectHit;
 				_meleeHitbox.Origin = FTT.Combat.HitOrigin.Basic;
 
