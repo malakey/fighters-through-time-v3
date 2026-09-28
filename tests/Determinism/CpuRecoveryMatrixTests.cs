@@ -1,4 +1,5 @@
 using FTT.Characters;
+using FTT.Combat;
 using FTT.Core;
 using FTT.FighterSim;
 using GdUnit4;
@@ -98,6 +99,68 @@ public class CpuRecoveryMatrixTests {
     public void HardRecoversTheWholeRosterFromTheNassauStern() =>
         SweepRoster("nassau_flagship", CpuDifficulty.Hard, dropX: 7.0);
 
+    // === GAP-10b (Package 12 W4): Pocahontas's approved Spirit Strike ===
+
+    /// <summary>
+    /// Both Paris edges and a deep drop, on Hard (the band that plans past its
+    /// movement ability): every drill must land, may use only the approved
+    /// Special 1, and never steers away from the return.
+    /// </summary>
+    [TestCase]
+    public void HardPocahontasRecoversFromBothParisEdgesAndFromDepth() {
+        FighterStageGeometry paris = FighterStageGeometry.ForStage("paris_bastille");
+        CpuRecoveryProfile pocahontas = ProfileFor("pocahontas");
+        AssertThat(pocahontas.MobilitySpecial).IsEqual(CpuMobilitySpecialSlot.SpecialOne);
+        foreach ((double dropX, double startY) in new[] { (-2.0, -0.25), (2.0, -0.25), (-1.5, -2.0), (1.5, -2.0) }) {
+            // The opponent stands on the near floor, so neutral-combat Spirit
+            // Strikes (a Special the CPU may throw at an opponent) point the
+            // same way as the return rather than at the pit centre.
+            DrillResult result = RunDrill(
+                paris, CpuDifficulty.Hard, pocahontas, dropX, seed: 20260927,
+                startY: startY, targetX: dropX < 0 ? -5.0 : 5.0);
+            string drill = $"x={dropX}, y={startY}";
+            AssertThat(result.SpecialEdges)
+                .OverrideFailureMessage($"Pocahontas cast an unapproved Special ({drill}).").IsEqual(0);
+            AssertThat(result.SteeredAwayFromReturn)
+                .OverrideFailureMessage($"Pocahontas steered away from the return ({drill}).").IsFalse();
+            AssertThat(result.Landed)
+                .OverrideFailureMessage(
+                    $"Pocahontas failed the Paris drill {drill} (ended at x={result.FinalX}, y={result.FinalY}).")
+                .IsTrue();
+        }
+    }
+
+    /// <summary>
+    /// With her jumps spent and Breeze Glide on cooldown, Spirit Strike is the
+    /// only tool left: Hard casts it, and the carry — the same 45-degree dash the
+    /// sim runs — brings her back from a shallow Paris knock on both sides.
+    /// </summary>
+    [TestCase]
+    public void WithGlideAndJumpsSpentHardPocahontasRecoversWithSpiritStrike() {
+        FighterStageGeometry paris = FighterStageGeometry.ForStage("paris_bastille");
+        CpuRecoveryProfile pocahontas = ProfileFor("pocahontas");
+        foreach (double dropX in new[] { -2.0, 2.0 }) {
+            DrillResult result = RunDrill(
+                paris, CpuDifficulty.Hard, pocahontas, dropX, seed: 20260928,
+                startY: 0.0, startMovementCooldown: pocahontas.MovementCooldownFrames, startJumps: 0,
+                targetX: dropX < 0 ? -5.0 : 5.0);
+            AssertThat(result.SpiritStrikesCast > 0)
+                .OverrideFailureMessage($"Hard never cast Spirit Strike from x={dropX} with nothing else left.")
+                .IsTrue();
+            AssertThat(result.Landed)
+                .OverrideFailureMessage(
+                    $"Spirit Strike did not bring her back from x={dropX} (ended at x={result.FinalX}, y={result.FinalY}).")
+                .IsTrue();
+        }
+        // Easy never casts a Special, even with nothing else in hand.
+        DrillResult easy = RunDrill(
+            paris, CpuDifficulty.Easy, pocahontas, -2.0, seed: 20260928,
+            startY: 0.0, startMovementCooldown: pocahontas.MovementCooldownFrames, startJumps: 0,
+            targetX: -5.0);
+        AssertThat(easy.ApprovedSpecialEdges).IsEqual(0);
+        AssertThat(easy.SpiritStrikesCast).IsEqual(0);
+    }
+
     /// <summary>
     /// Runs the nine kits through one Open stage at one band, then proves the
     /// same band never enters recovery during ordinary supported traversal on a
@@ -115,8 +178,14 @@ public class CpuRecoveryMatrixTests {
 
             AssertThat(result.SpecialEdges)
                 .OverrideFailureMessage(
-                    $"{characterID} on {band} at {stageID} cast a Special to recover.")
+                    $"{characterID} on {band} at {stageID} cast an unapproved Special to recover.")
                 .IsEqual(0);
+            // "no Specials anywhere" on Easy, approved or not.
+            if (band == CpuDifficulty.Easy) {
+                AssertThat(result.ApprovedSpecialEdges)
+                    .OverrideFailureMessage($"{characterID} on Easy at {stageID} cast a Special.")
+                    .IsEqual(0);
+            }
             AssertThat(result.SteeredAwayFromReturn)
                 .OverrideFailureMessage(
                     $"{characterID} on {band} at {stageID} steered away from the return target.")
@@ -199,17 +268,28 @@ public class CpuRecoveryMatrixTests {
         CpuDifficulty band,
         CpuRecoveryProfile profile,
         double dropX,
-        int seed) {
+        int seed,
+        double startY = -0.25,
+        int startMovementCooldown = 0,
+        int startJumps = -1,
+        double? targetX = null) {
         var cpu = new FighterCpuController(band, seed, null, null, null, profile);
         FP64 step = FighterMovementSystem.FixedDeltaSeconds;
         FP64 gravity = FighterMovementSystem.GravityPerSecondSquared;
 
         FP64 x = FP64.FromDouble(dropX);
-        FP64 y = FP64.FromDouble(-0.25);
+        FP64 y = FP64.FromDouble(startY);
         FP64 velocityX = FP64.Zero;
         FP64 velocityY = FP64.FromInt(-3);
-        int remainingJumps = profile.MaxJumpCount;
-        int movementCooldown = 0;
+        int remainingJumps = startJumps >= 0 ? startJumps : profile.MaxJumpCount;
+        int movementCooldown = startMovementCooldown;
+        int specialCooldown = 0;
+        // Package 12 W4: the blink and Spirit Strike are multi-frame kit phases
+        // in the sim (FighterKitMotion), mirrored here frame for frame.
+        int kitPhase = KitNone;
+        int kitFrames = 0;
+        int kitDirectionX = 0;
+        int kitDirectionY = 0;
         int floatFrames = 0;
         int facing = x >= FP64.Zero ? -1 : 1;
         int unsupportedFrames = 0;
@@ -220,10 +300,12 @@ public class CpuRecoveryMatrixTests {
 
         for (uint tick = 0; tick < DrillTicks; tick++) {
             CpuDecisionObservation observation = StageObservation(geometry, x, y);
+            if (targetX.HasValue) observation.TargetPositionXRaw = FP64.FromDouble(targetX.Value).RawValue;
             observation.SelfVelocityXRaw = velocityX.RawValue;
             observation.SelfVelocityYRaw = velocityY.RawValue;
             observation.RemainingJumps = remainingJumps;
             observation.MovementCooldownFrames = movementCooldown;
+            observation.SpecialOneCooldownFrames = specialCooldown;
             observation.LaunchTrajectoryCrossesGap =
                 velocityY <= FP64.Zero && !geometry.HasFloorSupport(x) ? 1 : 0;
 
@@ -242,10 +324,13 @@ public class CpuRecoveryMatrixTests {
             // cast. Once the fighter has drifted back over solid floor the
             // episode is effectively over and ordinary neutral combat — which
             // does use Specials on Medium and Hard — is the correct behaviour.
-            if (decidedWhileUnsupported
-                && (frame.IsPressed(GameplayButtons.Special1)
-                    || frame.IsPressed(GameplayButtons.Special2))) {
-                result.SpecialEdges++;
+            if (decidedWhileUnsupported) {
+                bool one = frame.IsPressed(GameplayButtons.Special1);
+                bool two = frame.IsPressed(GameplayButtons.Special2);
+                bool approvedOne = profile.MobilitySpecial == CpuMobilitySpecialSlot.SpecialOne;
+                bool approvedTwo = profile.MobilitySpecial == CpuMobilitySpecialSlot.SpecialTwo;
+                if ((one && !approvedOne) || (two && !approvedTwo)) result.SpecialEdges++;
+                if ((one && approvedOne) || (two && approvedTwo)) result.ApprovedSpecialEdges++;
             }
             // The policy metric is the controller's own per-episode counter, not
             // every movement-ability press: a neutral gap-closer over solid floor
@@ -262,30 +347,52 @@ public class CpuRecoveryMatrixTests {
                 facing = frame.MoveX > 0 ? 1 : -1;
             }
 
-            if (frame.IsPressed(GameplayButtons.Jump) && remainingJumps > 0) {
+            // A kit phase is an action: no jump, ability or drift inputs land
+            // while it runs, exactly as the sim's combat lock and its
+            // universal-movement slot behave.
+            bool inKitPhase = kitPhase != KitNone;
+            if (!inKitPhase && frame.IsPressed(GameplayButtons.Jump) && remainingJumps > 0) {
                 velocityY = profile.JumpSpeed;
                 remainingJumps--;
                 floatFrames = 0;
             }
-            if (frame.IsPressed(GameplayButtons.MovementAbility) && movementCooldown <= 0) {
+            if (!inKitPhase && frame.IsPressed(GameplayButtons.MovementAbility) && movementCooldown <= 0) {
                 movementCooldown = profile.MovementCooldownFrames;
-                ApplyMovementAbility(
-                    profile, frame, facing, ref x, ref y, ref velocityX, ref velocityY, ref floatFrames);
+                if (profile.MovementKind == CpuRecoveryProfile.MovementKindBlink) {
+                    StartBlink(frame, facing, ref kitPhase, ref kitFrames, ref kitDirectionX, ref kitDirectionY);
+                } else {
+                    ApplyMovementAbility(
+                        profile, frame, facing, ref x, ref y, ref velocityX, ref velocityY, ref floatFrames);
+                }
                 if (profile.MovementResetsJump) remainingJumps = profile.MaxJumpCount;
             }
+            if (!inKitPhase && profile.MobilitySpecial == CpuMobilitySpecialSlot.SpecialOne
+                && frame.IsPressed(GameplayButtons.Special1) && specialCooldown <= 0) {
+                specialCooldown = SpiritStrikeCooldownFrames;
+                kitPhase = KitSpiritStartup;
+                kitFrames = KitMotionRules.SpiritStrikeStartupFrames;
+                kitDirectionX = facing;
+                result.SpiritStrikesCast++;
+            }
             if (movementCooldown > 0) movementCooldown--;
+            if (specialCooldown > 0) specialCooldown--;
 
-            // Air drift toward the held direction at the loadout's own speed and
-            // air control, then integration with the simulation's own constants.
-            FP64 targetSpeed = FP64.FromInt(frame.MoveX) / FP64.FromInt(127)
-                * profile.MoveSpeed * profile.AirControl;
-            FP64 accelerationStep = profile.MoveSpeed / FP64.FromInt(4);
-            velocityX = velocityX < targetSpeed
-                ? FP64.Min(velocityX + accelerationStep, targetSpeed)
-                : FP64.Max(velocityX - accelerationStep, targetSpeed);
+            bool gravityApplies = AdvanceKitPhase(
+                profile, ref kitPhase, ref kitFrames, kitDirectionX, kitDirectionY,
+                ref velocityX, ref velocityY, out bool kitOwnsVelocity);
+            if (!kitOwnsVelocity) {
+                // Air drift toward the held direction at the loadout's own speed and
+                // air control, then integration with the simulation's own constants.
+                FP64 targetSpeed = FP64.FromInt(frame.MoveX) / FP64.FromInt(127)
+                    * profile.MoveSpeed * profile.AirControl;
+                FP64 accelerationStep = profile.MoveSpeed / FP64.FromInt(4);
+                velocityX = velocityX < targetSpeed
+                    ? FP64.Min(velocityX + accelerationStep, targetSpeed)
+                    : FP64.Max(velocityX - accelerationStep, targetSpeed);
+            }
             FP64 appliedGravity = floatFrames > 0 ? gravity / FP64.FromInt(3) : gravity;
             if (floatFrames > 0) floatFrames--;
-            velocityY += appliedGravity * step;
+            if (gravityApplies) velocityY += appliedGravity * step;
             FP64 previousY = y;
             x = FP64.Clamp(x + velocityX * step, geometry.LeftWall, geometry.RightWall);
             y += velocityY * step;
@@ -309,6 +416,98 @@ public class CpuRecoveryMatrixTests {
         }
         return result;
     }
+
+    private const int KitNone = 0;
+    private const int KitBlinkStartup = 1;
+    private const int KitBlinkTravel = 2;
+    private const int KitBlinkRecovery = 3;
+    private const int KitSpiritStartup = 4;
+    private const int KitSpiritCarry = 5;
+    /// <summary>Spirit Strike's authored 9 s cooldown; no drill outlasts it.</summary>
+    private const int SpiritStrikeCooldownFrames = 540;
+
+    private static void StartBlink(
+        PlayerInputFrame frame, int facing,
+        ref int kitPhase, ref int kitFrames, ref int directionX, ref int directionY) {
+        directionX = frame.MoveX > 30 ? 1 : frame.MoveX < -30 ? -1 : 0;
+        directionY = frame.MoveY < -30 ? 1 : frame.MoveY > 30 ? -1 : 0;
+        if (directionX == 0 && directionY == 0) directionX = facing;
+        kitPhase = KitBlinkStartup;
+        kitFrames = KitMotionRules.LightningBlinkStartupFrames;
+    }
+
+    /// <summary>
+    /// Mirrors <c>FighterKitMotion.Process</c>: the blink hovers through its
+    /// startup, translates its authored distance over the translation frames,
+    /// then recovers under gravity; Spirit Strike winds up under gravity and
+    /// carries 3 units at 45 degrees. Returns whether gravity applies this tick.
+    /// </summary>
+    private static bool AdvanceKitPhase(
+        CpuRecoveryProfile profile,
+        ref int kitPhase, ref int kitFrames, int directionX, int directionY,
+        ref FP64 velocityX, ref FP64 velocityY, out bool kitOwnsVelocity) {
+        kitOwnsVelocity = kitPhase != KitNone;
+        switch (kitPhase) {
+            case KitBlinkStartup:
+                if (kitFrames <= 0) {
+                    kitPhase = KitBlinkTravel;
+                    kitFrames = BlinkTravelFrames(profile);
+                    goto case KitBlinkTravel;
+                }
+                velocityX = FP64.Zero;
+                velocityY = FP64.Zero;
+                kitFrames--;
+                return false;
+            case KitBlinkTravel:
+                if (kitFrames <= 0) {
+                    kitPhase = KitBlinkRecovery;
+                    kitFrames = KitMotionRules.LightningBlinkRecoveryFrames;
+                    velocityX = FP64.Zero;
+                    velocityY = FP64.Zero;
+                    goto case KitBlinkRecovery;
+                }
+                FP64 speed = profile.MovementDistance * FP64.FromInt(60) / FP64.FromInt(BlinkTravelFrames(profile));
+                if (directionX != 0 && directionY != 0) speed *= FP64.FromDouble(0.70710678118654752);
+                velocityX = speed * FP64.FromInt(directionX);
+                velocityY = speed * FP64.FromInt(directionY);
+                kitFrames--;
+                return false;
+            case KitBlinkRecovery:
+                if (kitFrames <= 0) {
+                    kitPhase = KitNone;
+                    kitOwnsVelocity = false;
+                    return true;
+                }
+                kitFrames--;
+                return true;
+            case KitSpiritStartup:
+                if (kitFrames <= 0) {
+                    kitPhase = KitSpiritCarry;
+                    kitFrames = KitMotionRules.SpiritStrikeCarryFrames;
+                    goto case KitSpiritCarry;
+                }
+                kitFrames--;
+                return true;
+            case KitSpiritCarry:
+                if (kitFrames <= 0) {
+                    velocityX = FP64.Zero;
+                    velocityY = FP64.Zero;
+                    kitPhase = KitNone;
+                    kitOwnsVelocity = false;
+                    return true;
+                }
+                FP64 axis = FighterKitMotion.SpiritAxisStep * FP64.FromInt(60);
+                velocityX = axis * FP64.FromInt(directionX);
+                velocityY = axis;
+                kitFrames--;
+                return false;
+            default:
+                return true;
+        }
+    }
+
+    private static int BlinkTravelFrames(CpuRecoveryProfile profile) =>
+        profile.MovementDurationFrames > 0 ? profile.MovementDurationFrames : KitMotionRules.LightningBlinkTravelFrames;
 
     /// <summary>
     /// Mirrors <c>FighterAbilitySystem.ApplyMovement</c> per authored
@@ -427,7 +626,12 @@ public class CpuRecoveryMatrixTests {
     }
 
     private struct DrillResult {
+        /// <summary>Specials pressed while unsupported that the profile does NOT approve.</summary>
         public int SpecialEdges;
+        /// <summary>Presses of the profile's approved mobility Special while unsupported.</summary>
+        public int ApprovedSpecialEdges;
+        /// <summary>Spirit Strikes the harness actually executed.</summary>
+        public int SpiritStrikesCast;
         public int MovementActivations;
         public bool SteeredAwayFromReturn;
         public bool Landed;

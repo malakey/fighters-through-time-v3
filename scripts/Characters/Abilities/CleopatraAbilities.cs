@@ -215,7 +215,14 @@ namespace FTT.Characters.Abilities {
         }
 
         private void TickVortexDamage(bool finalTick) {
-            foreach (Hurtbox hurtbox in QueryTargetHurtboxes()) {
+            foreach (Hurtbox hurtbox in QueryTargetHurtboxes()) ApplyVortexTickTo(hurtbox, finalTick);
+        }
+
+        /// <summary>
+        /// One Vortex tick against one caught hurtbox; returns the HP it dealt.
+        /// Internal so the D03g pin can deliver a tick without a physics query.
+        /// </summary>
+        internal float ApplyVortexTickTo(Hurtbox hurtbox, bool finalTick) {
                 // VERIFY-VORTEX-RECLAIM (Package 12 W4, D03g): every Vortex tick,
                 // the final launching tick included, is Tick delivery by
                 // construction and reclaims NO Rally. The credit reads the
@@ -240,7 +247,7 @@ namespace FTT.Characters.Abilities {
                 tick.Launches = finalTick && (Data?.Launches ?? false);
                 float dealt = hurtbox.TakeHit(tick);
                 Credit(in tick, dealt);
-            }
+                return dealt;
         }
 
         /// <summary>
