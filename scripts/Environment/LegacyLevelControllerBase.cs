@@ -188,6 +188,14 @@ namespace FTT.Environment {
         protected abstract Vector2 PreBossCheckpointPosition { get; }
         protected abstract Vector2 BossSpawnPosition { get; }
 
+        /// <summary>
+        /// Package 12 W8 (GAP-03): every variant must place its F05 secret cache
+        /// (the whole 4A optional allocation). It must sit on the approach BEFORE
+        /// the movement gate and be reachable with basics, double jump and roll —
+        /// finding it may never require a <see cref="LegacyKitGate"/>.
+        /// </summary>
+        protected abstract override Vector2? SecretCachePosition { get; }
+
         /// <summary>Distance at which the boss reveals. Variants widen it for a bigger arena.</summary>
         protected virtual float BossRevealDistance => 900f;
 

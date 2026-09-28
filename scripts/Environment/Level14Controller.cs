@@ -88,6 +88,11 @@ namespace FTT.Environment {
         public override string LevelTitleKey => "neo_earth_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_14_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(200f, DeckY - 60f);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on
+        // the third perimeter-gantry rung (one-way 860/1460, top 1450), off the
+        // breach-gallery floor route and short of the hold-node landing above it.
+        protected override Vector2? SecretCachePosition => new(860f, 1355f);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "neo_earth_objective_breach";

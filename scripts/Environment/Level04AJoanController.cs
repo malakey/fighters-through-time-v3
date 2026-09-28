@@ -115,6 +115,12 @@ namespace FTT.Environment {
         protected override Vector2 PreBossCheckpointPosition => new(5240f, ActorGroundY);
         protected override Vector2 BossSpawnPosition => new(6360f, ActorGroundY);
 
+        // Package 12 W8 (GAP-03): the secret cache sits on the high ledge above the riverbank approach
+        // (top 612): an optional detour off the floor route, reached from the
+        // low step with a double jump and BEFORE the movement gate, so no kit gate
+        // stands between the hero and the 4A optional allocation.
+        protected override Vector2? SecretCachePosition => new(900f, 517f);
+
         public override Vector2 PlayerSpawnPosition => new(200f, ActorGroundY);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 

@@ -96,6 +96,12 @@ namespace FTT.Environment {
         public override string LevelTitleKey => "pompeii_level_title";
         public override string DialogueSetPath => DialogueResourcePath;
         public override Vector2 PlayerSpawnPosition => new(240, 850);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on
+        // the forum colonnade ledge (Platform 1120/620, top 612), reached from the
+        // drop-through at 1000 — a detour over the forum floor, well before the ash-road
+        // escape run.
+        protected override Vector2? SecretCachePosition => new(1120f, 517f);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         protected override string InitialObjectiveKey => "pompeii_objective_evacuate";

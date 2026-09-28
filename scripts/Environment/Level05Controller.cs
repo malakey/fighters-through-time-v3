@@ -55,6 +55,12 @@ namespace FTT.Environment {
         public override string LevelTitleKey => "titanic_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_05_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(240, 1270);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on
+        // the top boiler-casing catwalk (one-way 3050/880, top 870), the last rung
+        // of the stair-deck climb — a dead end the deck route walks beneath, and high
+        // above the rising hull flood.
+        protected override Vector2? SecretCachePosition => new(3050f, 775f);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         /// <summary>Act I finale: the extra beat between the last wave and the boss.</summary>

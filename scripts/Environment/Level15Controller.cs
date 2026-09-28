@@ -85,6 +85,11 @@ namespace FTT.Environment {
         public override string LevelTitleKey => "alexandria_level_title";
         public override string DialogueSetPath => "res://resources/Dialogue/level_15_dialogue.tres";
         public override Vector2 PlayerSpawnPosition => new(220f, FloorY - 60f);
+
+        // Package 12 W8 (GAP-03): the secret cache sits on
+        // the Stacks mezzanine rung (one-way 4790, top 1150) — mid-climb to the
+        // scriptorium, off the floor route and far west of the firestorm escape corridor.
+        protected override Vector2? SecretCachePosition => new(4790f, 1055f);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
         /// <summary>Sarah at the rotunda door, before the Eraser reveals.</summary>
