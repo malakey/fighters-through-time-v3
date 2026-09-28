@@ -52,13 +52,42 @@ namespace FTT.Environment {
         }
 
         public bool ApplyToPlayer(PlayerController player) {
-            if (player == null || Phase != HazardPhase.Active || !_hitThisCycle.Add(player.GetInstanceId())) return false;
+            if (player == null || Phase != HazardPhase.Active) return false;
+            // Package 12 W8 (M10): a player sheltered by one of this hazard's own
+            // VolleyCover children takes nothing, and the cycle's hit is not spent —
+            // stepping out of cover mid-volley is still a hit.
+            if (IsSheltered(player.GlobalPosition)) return false;
+            if (!_hitThisCycle.Add(player.GetInstanceId())) return false;
             // V7.3: environmental chokepoint — Defy flag consumption, Rally
             // echo, victim meter (never raw ApplyDamage).
             player.ApplyEnvironmentalDamage(Damage);
             float direction = player.GlobalPosition.X >= GlobalPosition.X ? 1f : -1f;
             player.Velocity += new Vector2(Knockback.X * direction, Knockback.Y);
             return true;
+        }
+
+        // === Volley cover (Package 12 W8, M10) =================================
+
+        private readonly List<VolleyCover> _covers = new();
+
+        /// <summary>The <see cref="VolleyCover"/> children currently sheltering from this hazard.</summary>
+        public IReadOnlyList<VolleyCover> Covers => _covers;
+
+        internal void RegisterCover(VolleyCover cover) {
+            if (cover != null && !_covers.Contains(cover)) _covers.Add(cover);
+        }
+
+        internal void UnregisterCover(VolleyCover cover) => _covers.Remove(cover);
+
+        /// <summary>
+        /// True when <paramref name="globalPoint"/> lies inside any of this hazard's
+        /// own cover rectangles. Deterministic, area-based, no physics query.
+        /// </summary>
+        public bool IsSheltered(Vector2 globalPoint) {
+            foreach (VolleyCover cover in _covers) {
+                if (IsInstanceValid(cover) && cover.Shelters(globalPoint)) return true;
+            }
+            return false;
         }
 
         public void ForcePhase(HazardPhase phase, float duration) {
