@@ -496,7 +496,9 @@ namespace FTT.Enemies {
             int count = Math.Max(1, ability.SummonCount);
             for (int index = 0; index < count; index++) {
                 float offsetX = (index % 2 == 0 ? -1f : 1f) * (96f + 48f * (index / 2));
-                EnemyFactory.Spawn(ability.SummonEnemyID, parent, _owner.GlobalPosition + new Vector2(offsetX, 0f));
+                // Package 12 W2 (GAP-04): summons carry their provenance to death,
+                // so they can never draw another encounter's finite reward.
+                EnemyFactory.SpawnSummoned(ability.SummonEnemyID, parent, _owner.GlobalPosition + new Vector2(offsetX, 0f));
             }
         }
 

@@ -77,10 +77,11 @@ namespace FTT.Environment {
         public void Interact(PlayerController player) {
             if (!CanInteract(player) || OpenPanel != null) return;
             OpenCount++;
-            // NOTE the absence: the hub's Repository calls
-            // DepositDustToActiveSave() immediately before opening this same
-            // panel. The Beacon must NOT — that call is the deposit action F02
-            // forbids at a checkpoint.
+            // NOTE the absence: nothing here calls DepositDustToActiveSave().
+            // That call is the deposit action F02 forbids at a checkpoint, and
+            // since Package 12 W2 (H02) the hub Repository no longer makes it
+            // either — the level-completion transaction is the only banking
+            // event in the game.
             OpenRepository(player);
         }
 

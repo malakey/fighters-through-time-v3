@@ -334,13 +334,26 @@ namespace FTT.Environment {
             }
         }
 
-        protected override void MarkWavesClearedThrough(string checkpointID) {
-            if (checkpointID == $"{LevelID}_checkpoint_1") {
-                _room2WaveSpawned = true;
-            } else if (checkpointID == $"{LevelID}_checkpoint_2") {
-                _room2WaveSpawned = true;
-                _room3WaveSpawned = true;
-            }
+        // Package 12 W2 (GAP-13): explicit encounter baseline. Paris has no
+        // non-encounter anchor state, so MarkWavesClearedThrough is no longer
+        // overridden.
+
+        private const string ParisLevelID = "level_04_paris";
+        public const string Room2WaveEncounter = ParisLevelID + "_room2_wave";
+        public const string Room3WaveEncounter = ParisLevelID + "_room3_wave";
+
+        private static readonly IReadOnlyDictionary<string, string[]> Baselines =
+            new Dictionary<string, string[]> {
+                [ParisLevelID + "_checkpoint_0"] = System.Array.Empty<string>(),
+                [ParisLevelID + "_checkpoint_1"] = new[] { Room2WaveEncounter },
+                [ParisLevelID + "_checkpoint_2"] = new[] { Room2WaveEncounter, Room3WaveEncounter }
+            };
+
+        protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
+
+        protected override void MarkEncounterCleared(string encounterID) {
+            if (encounterID == Room2WaveEncounter) _room2WaveSpawned = true;
+            else if (encounterID == Room3WaveEncounter) _room3WaveSpawned = true;
         }
 
         // === Era mechanics ===

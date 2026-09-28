@@ -368,6 +368,60 @@ namespace FTT.Core {
             return true;
         }
 
+        // === Package 12 W2: the declared v6→v7 H02 reconciliation ===========
+
+        /// <summary>
+        /// <b>Declared for Phase C; deliberately NOT wired into the migrator.</b>
+        /// H02 (2026-09-26) moved every deposit into the level-completion
+        /// transaction and deleted the hub's arrival deposit. A v6 payload saved
+        /// after a level completed but before the hub loaded still carries that
+        /// level's earnings undeposited in <see cref="StorySaveData.LevelChronalDust"/>
+        /// — v6 relied on the hub to bank it, and the hub no longer will. This
+        /// deposits it <b>exactly once</b>.
+        ///
+        /// <para>A payload qualifies when its wallet is positive and either</para>
+        /// <list type="bullet">
+        /// <item>its attempt record is <see cref="StoryAttemptStatus.Completed"/>
+        /// (a completion committed but not banked), or</item>
+        /// <item>it is the v6 post-completion shape: <c>SaveLevelCompletion</c>
+        /// had already replaced the attempt with an unminted default record and
+        /// cleared <c>LastCheckpointID</c>. No other v6 writer produces an
+        /// unminted attempt, an empty checkpoint and a positive wallet together
+        /// — a Collapse leaves a minted <c>AwaitingHubResume</c> record, and
+        /// Restart Level / Game Over zero the wallet.</item>
+        /// </list>
+        ///
+        /// <para>An open attempt's held dust (a Collapse or exit parked in the
+        /// hub) never qualifies: under H02 it banks only when that level is
+        /// completed. Idempotent — the wallet is zeroed in the same step, so a
+        /// second application deposits nothing. Must run in the v6→v7 envelope
+        /// step, <b>before</b> <see cref="MigrateFromLegacyRoot"/> mints an ID for
+        /// the unminted record. Pure and engine-free (failure signature 7).</para>
+        /// </summary>
+        /// <returns>The amount deposited (0 when the payload does not qualify).</returns>
+        public static int ReconcileUndepositedCompletion(StorySaveData save) {
+            if (save == null || save.LevelChronalDust <= 0) return 0;
+            string characterID = save.SelectedCharacterID ?? "";
+            if (characterID.Length == 0) return 0;
+            StoryAttemptState attempt = save.AttemptState;
+            bool completed = attempt != null && attempt.Status == StoryAttemptStatus.Completed;
+            bool v6PostCompletion = (attempt == null || !attempt.HasAttempt)
+                && string.IsNullOrWhiteSpace(save.LastCheckpointID);
+            if (!completed && !v6PostCompletion) return 0;
+
+            int amount = save.LevelChronalDust;
+            save.DepositedChronalDust ??= new Dictionary<string, int>();
+            int balance = save.DepositedChronalDust.TryGetValue(characterID, out int existing) ? existing : 0;
+            save.DepositedChronalDust[characterID] = checked(balance + amount);
+            save.LevelChronalDust = 0;
+            if (completed) {
+                attempt.CompletionTransaction ??= new StoryCompletionTransaction();
+                attempt.CompletionTransaction.DepositAmount += amount;
+                attempt.CompletionTransaction.Applied = true;
+            }
+            return amount;
+        }
+
         public void Normalize() {
             AttemptID ??= "";
             LevelID ??= "";

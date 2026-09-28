@@ -371,16 +371,28 @@ namespace FTT.Environment {
 
         // === Encounters ===
 
-        protected override void MarkWavesClearedThrough(string checkpointID) {
-            switch (checkpointID) {
-                case CheckpointMid:
-                    _midwayWaveSpawned = true;
-                    break;
-                case CheckpointPreBoss:
-                    _midwayWaveSpawned = true;
-                    _electricityWaveSpawned = true;
-                    _routingWaveSpawned = true;
-                    break;
+        // Package 12 W2 (GAP-13): the explicit encounter baseline replaces the
+        // old checkpoint switch. Chicago has no non-encounter anchor state, so
+        // MarkWavesClearedThrough is no longer overridden.
+
+        public const string MidwayWaveEncounter = ChicagoLevelID + "_midway_wave";
+        public const string ElectricityWaveEncounter = ChicagoLevelID + "_electricity_wave";
+        public const string RoutingWaveEncounter = ChicagoLevelID + "_routing_wave";
+
+        private static readonly IReadOnlyDictionary<string, string[]> Baselines =
+            new Dictionary<string, string[]> {
+                [CheckpointEntry] = Array.Empty<string>(),
+                [CheckpointMid] = new[] { MidwayWaveEncounter },
+                [CheckpointPreBoss] = new[] { MidwayWaveEncounter, ElectricityWaveEncounter, RoutingWaveEncounter }
+            };
+
+        protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
+
+        protected override void MarkEncounterCleared(string encounterID) {
+            switch (encounterID) {
+                case MidwayWaveEncounter: _midwayWaveSpawned = true; break;
+                case ElectricityWaveEncounter: _electricityWaveSpawned = true; break;
+                case RoutingWaveEncounter: _routingWaveSpawned = true; break;
             }
         }
 

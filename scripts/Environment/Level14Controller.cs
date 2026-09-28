@@ -870,18 +870,17 @@ namespace FTT.Environment {
 
         // === Checkpoint resume ===
 
-        protected override void MarkWavesClearedThrough(string checkpointID) {
-            switch (checkpointID) {
-                case Checkpoint1:
-                    _wavesSpawned.Add(1);
-                    _wavesSpawned.Add(2);
-                    break;
-                case Checkpoint2:
-                    _wavesSpawned.Add(1);
-                    _wavesSpawned.Add(2);
-                    _wavesSpawned.Add(3);
-                    break;
-            }
+        // Package 12 W2 (GAP-13): explicit encounter baseline — waves 1+2 at the
+        // middle anchor, 1+2+3 at the PreBoss anchor, authored rather than
+        // derived. No other anchor state, so MarkWavesClearedThrough is no
+        // longer overridden.
+        private static readonly IReadOnlyDictionary<string, string[]> Baselines =
+            NumberedWaveBaselines(NeoEarthLevelID, new[] { 1, 2 }, new[] { 1, 2, 3 });
+
+        protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
+
+        protected override void MarkEncounterCleared(string encounterID) {
+            if (TryParseWaveEncounter(NeoEarthLevelID, encounterID, out int wave)) _wavesSpawned.Add(wave);
         }
 
         // === Encounters ===

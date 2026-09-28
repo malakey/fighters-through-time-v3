@@ -409,12 +409,30 @@ namespace FTT.Environment {
             }
         }
 
+        // Package 12 W2 (GAP-13): explicit encounter baseline. Berlin's numbering
+        // is NOT the old derivation: wave 1 is the initial spawn and is never
+        // restored as cleared, so the middle anchor clears wave 2 only and the
+        // PreBoss anchor clears waves 2 and 3.
+        private const string BerlinLevelID = "level_09_berlin";
+
+        private static readonly IReadOnlyDictionary<string, string[]> Baselines =
+            new Dictionary<string, string[]> {
+                [BerlinLevelID + "_checkpoint_0"] = Array.Empty<string>(),
+                [BerlinLevelID + "_checkpoint_1"] = new[] { WaveEncounterID(BerlinLevelID, 2) },
+                [BerlinLevelID + "_checkpoint_2"] = new[] {
+                    WaveEncounterID(BerlinLevelID, 2), WaveEncounterID(BerlinLevelID, 3)
+                }
+            };
+
+        protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
+
+        protected override void MarkEncounterCleared(string encounterID) {
+            if (TryParseWaveEncounter(BerlinLevelID, encounterID, out int wave)) _wavesSpawned.Add(wave);
+        }
+
+        /// <summary>The anchor's non-encounter world state; the waves come from the baseline.</summary>
         protected override void MarkWavesClearedThrough(string checkpointID) {
-            if (checkpointID == CheckpointID(1)) {
-                _wavesSpawned.Add(2);
-            } else if (checkpointID == CheckpointID(2)) {
-                _wavesSpawned.Add(2);
-                _wavesSpawned.Add(3);
+            if (checkpointID == CheckpointID(2)) {
                 // Checkpoint 2 stands east of the radar gate. A resume that lost the
                 // puzzle flag would strand the player behind a sealed gate with the
                 // gauntlet still live behind it, so the gate opens and the beams go

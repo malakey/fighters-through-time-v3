@@ -404,9 +404,27 @@ namespace FTT.Environment {
         /// its reward still claimed — and the Nexus source restores <b>disabled</b>
         /// rather than armed.
         /// </summary>
+        // === Package 12 W2 (GAP-13): explicit encounter baseline ============
+        // Level 4A's only restorable encounter is the Eraser debut; the approach
+        // table is not marked cleared at either anchor (unchanged behaviour).
+        // The kit gates and the Nexus source are anchor world state, so they
+        // stay keyed on the anchor in MarkWavesClearedThrough.
+
+        protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap =>
+            new Dictionary<string, string[]>(StringComparer.Ordinal) {
+                [EntryCheckpointID] = Array.Empty<string>(),
+                [PreBossCheckpointID] = new[] { EraserDebutTriggerID }
+            };
+
+        private bool _eraserDebutCleared;
+
+        protected override void MarkEncounterCleared(string encounterID) {
+            if (encounterID == EraserDebutTriggerID) _eraserDebutCleared = true;
+        }
+
         protected override void MarkWavesClearedThrough(string checkpointID) {
             bool approachComplete = checkpointID == PreBossCheckpointID;
-            EraserDebut?.RestoreFromCheckpoint(approachComplete, rewardAlreadyClaimed: approachComplete);
+            EraserDebut?.RestoreFromCheckpoint(_eraserDebutCleared, rewardAlreadyClaimed: _eraserDebutCleared);
             if (approachComplete) {
                 foreach (LegacyKitGate gate in _kitGates) {
                     if (IsInstanceValid(gate)) gate.ForceResolve();

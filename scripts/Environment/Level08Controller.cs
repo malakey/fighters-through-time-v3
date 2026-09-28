@@ -498,19 +498,31 @@ namespace FTT.Environment {
 
         // === Resume ===
 
-        protected override void MarkWavesClearedThrough(string checkpointID) {
-            switch (checkpointID) {
-                case Checkpoint1:
-                    _siegeLineWaveSpawned = true;
-                    _descended = true;
-                    break;
-                case Checkpoint2:
-                    _siegeLineWaveSpawned = true;
-                    _tombWaveSpawned = true;
-                    _vaultWaveSpawned = true;
-                    _descended = true;
-                    break;
+        // Package 12 W2 (GAP-13): explicit encounter baseline.
+        public const string SiegeLineWaveEncounter = ID + "_siege_line_wave";
+        public const string TombWaveEncounter = ID + "_tomb_wave";
+        public const string VaultWaveEncounter = ID + "_vault_wave";
+
+        private static readonly IReadOnlyDictionary<string, string[]> Baselines =
+            new Dictionary<string, string[]> {
+                [Checkpoint0] = System.Array.Empty<string>(),
+                [Checkpoint1] = new[] { SiegeLineWaveEncounter },
+                [Checkpoint2] = new[] { SiegeLineWaveEncounter, TombWaveEncounter, VaultWaveEncounter }
+            };
+
+        protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
+
+        protected override void MarkEncounterCleared(string encounterID) {
+            switch (encounterID) {
+                case SiegeLineWaveEncounter: _siegeLineWaveSpawned = true; break;
+                case TombWaveEncounter: _tombWaveSpawned = true; break;
+                case VaultWaveEncounter: _vaultWaveSpawned = true; break;
             }
+        }
+
+        /// <summary>The anchor's non-encounter world state; the waves come from the baseline.</summary>
+        protected override void MarkWavesClearedThrough(string checkpointID) {
+            if (checkpointID == Checkpoint1 || checkpointID == Checkpoint2) _descended = true;
         }
 
         // === Boss beat: defeat -> authored Cleopatra scene -> exit -> results ===

@@ -3895,6 +3895,78 @@ namespace FTT.Characters {
 			if (MovementAbilityCooldownTimer > 0) MovementAbilityCooldownTimer -= cooldownDt;
 		}
 
+		// === Package 12 W2 region: F10 resource publish / restore (GAP-01) ====
+		// Additive accessors. StoryManager publishes the live hero's continuous
+		// combat resources into the attempt record at every checkpoint, durable
+		// snapshot and critical event; StoryLevelControllerBase restores them
+		// onto the freshly built hero on an ordinary load. Loading restores —
+		// it never replenishes a spent resource (STORY_PERSISTENCE F10).
+
+		/// <summary>
+		/// Rally damage-taken meter earned but not yet credited: the echo portion
+		/// of a hit accrues meter only as it drains (no double-earning), so the
+		/// live pool is exactly the outstanding meter record.
+		/// </summary>
+		public float RallyUncreditedMeter =>
+			MathF.Max(0f, _echoPool) * FTT.Combat.UltimateMeter.PointsPerDamageTaken;
+
+		/// <summary>Writes this hero's continuous resources into <paramref name="timers"/>.</summary>
+		public void CaptureStoryResourceTimers(FTT.Core.StoryPlayerResourceTimers timers) {
+			if (timers == null) return;
+			if (_blockSystem != null) {
+				timers.BlockCharges = _blockSystem.CurrentCharges;
+				timers.BlockRegenSeconds = _blockSystem.RegenProgressSeconds;
+				timers.BlockLockoutSeconds = _blockSystem.LockoutRemainingSeconds;
+			} else {
+				timers.BlockCharges = CurrentBlockCharges;
+				timers.BlockRegenSeconds = 0f;
+				timers.BlockLockoutSeconds = 0f;
+			}
+			timers.AbilityCooldowns ??= new Dictionary<string, float>();
+			timers.AbilityCooldowns[FTT.Core.LegacyUnlockSchedule.SpecialOneKey] = MathF.Max(0f, SpecialOneCooldownTimer);
+			timers.AbilityCooldowns[FTT.Core.LegacyUnlockSchedule.SpecialTwoKey] = MathF.Max(0f, SpecialTwoCooldownTimer);
+			timers.AbilityCooldowns[FTT.Core.LegacyUnlockSchedule.MovementKey] = MathF.Max(0f, MovementAbilityCooldownTimer);
+			timers.EchoStepCooldownFrames = Math.Max(0, _echoStepCooldownFrames);
+			timers.RallyUncreditedMeter = RallyUncreditedMeter;
+			timers.WardenclyffeRechargeSeconds = MathF.Max(0f, WardenclyffeDamageDelaySeconds);
+		}
+
+		/// <summary>
+		/// Restores persisted resources onto this (freshly constructed) hero.
+		/// A record that was never captured (<c>BlockCharges &lt; 0</c>, the
+		/// default of a fresh attempt) leaves the fresh-entry kit untouched.
+		/// The Rally pool itself is NOT restored — T01a discards it on
+		/// reconstruction, and its uncredited meter is settled once by the
+		/// caller into the meter value it passes to
+		/// <see cref="RestoreStoryCheckpoint"/>. The Time Freeze cooldown lives
+		/// on <c>StoryManager</c> and is restored there.
+		/// </summary>
+		public void RestoreStoryResourceTimers(FTT.Core.StoryPlayerResourceTimers timers) {
+			if (timers == null || timers.BlockCharges < 0) return;
+			if (_blockSystem != null) {
+				_blockSystem.RestorePersistedState(
+					timers.BlockCharges, timers.BlockRegenSeconds, timers.BlockLockoutSeconds);
+				CurrentBlockCharges = _blockSystem.CurrentCharges;
+			} else {
+				CurrentBlockCharges = Math.Clamp(timers.BlockCharges, 0, MaximumBlockCharges);
+			}
+			if (timers.AbilityCooldowns != null) {
+				if (timers.AbilityCooldowns.TryGetValue(FTT.Core.LegacyUnlockSchedule.SpecialOneKey, out float special1)) {
+					SpecialOneCooldownTimer = MathF.Max(0f, special1);
+				}
+				if (timers.AbilityCooldowns.TryGetValue(FTT.Core.LegacyUnlockSchedule.SpecialTwoKey, out float special2)) {
+					SpecialTwoCooldownTimer = MathF.Max(0f, special2);
+				}
+				if (timers.AbilityCooldowns.TryGetValue(FTT.Core.LegacyUnlockSchedule.MovementKey, out float movement)) {
+					MovementAbilityCooldownTimer = MathF.Max(0f, movement);
+				}
+			}
+			_echoStepCooldownFrames = Math.Max(0, timers.EchoStepCooldownFrames);
+			WardenclyffeDamageDelaySeconds = MathF.Max(0f, timers.WardenclyffeRechargeSeconds);
+		}
+
+		// === end Package 12 W2 region =======================================
+
 		// === Ledge Detection ===
 
 		private void OnLedgeAreaEntered(Area2D area) {

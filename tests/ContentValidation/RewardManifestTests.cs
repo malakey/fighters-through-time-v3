@@ -245,15 +245,100 @@ public class RewardManifestTests {
                     + $"the controller spawns [{string.Join(",", authored)}]");
             }
 
-            // The debut is 4A's only elite. It still spawns the placeholder
-            // enemy; when the B wave flips EraserDebutTrigger to the real
-            // "eraser" resource, these nine manifests follow it here.
+            // The debut is 4A's only elite. Package 12 W2 (GAP-02): the manifest
+            // must name the enemy the trigger ACTUALLY spawns, read from a live
+            // trigger rather than a constant — comparing against the retired
+            // placeholder is exactly how nine manifests shipped bound to
+            // chrono_guard_elite while the debut spawned unbound_eraser, so the
+            // reward lookup (keyed by the real enemy ID) could never pay it.
+            string liveDebutEnemy = LiveEraserDebutEnemyID();
             if (debut == null) { issues.Add($"{hero}: no '{debutHead}' wave"); }
-            else if (debut.Length != 1 || debut[0] != EraserDebutTrigger.PlaceholderEnemyID) {
-                issues.Add($"{hero}: debut wave is [{string.Join(",", debut)}], expected "
-                    + $"[{EraserDebutTrigger.PlaceholderEnemyID}]");
+            else if (debut.Length != 1 || debut[0] != liveDebutEnemy) {
+                issues.Add($"{hero}: debut wave is [{string.Join(",", debut)}], but the trigger spawns "
+                    + $"[{liveDebutEnemy}]");
             }
         }
+        if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
+    }
+
+    /// <summary>
+    /// The enemy a Level 4A Eraser debut really spawns: the default of a freshly
+    /// constructed trigger, which is exactly what <c>LegacyLevelControllerBase</c>
+    /// builds (it sets no <c>EnemyID</c> override).
+    /// </summary>
+    internal static string LiveEraserDebutEnemyID() {
+        var trigger = new EraserDebutTrigger();
+        try {
+            return trigger.EnemyID;
+        } finally {
+            trigger.Free();
+        }
+    }
+
+    /// <summary>
+    /// Package 12 W2 (GAP-02). The acceptance the gap names: kill and collect
+    /// every required source in every Level 4A variant on every difficulty and
+    /// the required pool pays exactly 15 — through the real issue/claim path the
+    /// kill-drop system uses, keyed by the enemy IDs the level actually spawns
+    /// (the controller's approach table plus the live debut enemy). No pool is
+    /// enlarged to make it add up.
+    /// </summary>
+    [TestCase]
+    public void EveryLevel4AVariantsRequiredPoolPaysExactlyFifteenWhenEverySpawnedSourceIsCollected() {
+        StoryManager story = StoryManager.Instance;
+        CampaignLevel originalLevel = story.CurrentLevel;
+        Difficulty originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
+        string originalCharacter = GameManager.Instance.CurrentSession.SelectedCharacterID;
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        string debutEnemy = LiveEraserDebutEnemyID();
+        var issues = new List<string>();
+        try {
+            foreach (string hero in RosterHeroes()) {
+                System.Type controller = typeof(LegacyLevelControllerBase).Assembly.GetType(
+                    $"FTT.Environment.Level04A{char.ToUpperInvariant(hero[0])}{hero.Substring(1)}Controller");
+                var spawned = new List<string>();
+                if (controller?.GetField("ApproachSpawns",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+                        ?.GetValue(null) is System.Array spawns) {
+                    foreach (object entry in spawns) {
+                        spawned.Add((string)((System.Runtime.CompilerServices.ITuple)entry)[0]);
+                    }
+                } else {
+                    issues.Add($"{hero}: no static ApproachSpawns table");
+                    continue;
+                }
+                spawned.Add(debutEnemy);
+
+                foreach (Difficulty difficulty in Difficulties) {
+                    // Slotless, so nothing here can write a save.
+                    story.PrepareDirectLevel(CampaignLevel.LegacyNexus, hero, difficulty);
+                    LevelRewardDirectory.ResetAttempt();
+                    LevelRewardLedger ledger = LevelRewardDirectory.EnsureCompiled();
+                    if (ledger == null) { issues.Add($"{hero} {difficulty}: no ledger"); continue; }
+
+                    int paid = 0;
+                    foreach (string enemyID in spawned) {
+                        if (!LevelRewardDirectory.TryIssueEnemyAward(enemyID, out string sourceID, out int amount)) {
+                            issues.Add($"{hero} {difficulty}: killing '{enemyID}' issued no source");
+                            continue;
+                        }
+                        LevelRewardDirectory.CommitClaim(sourceID);
+                        paid += amount;
+                    }
+                    if (paid != LegacyLevelControllerBase.RequiredEncounterDust) {
+                        issues.Add($"{hero} {difficulty}: collecting every required source paid {paid}, "
+                            + $"expected {LegacyLevelControllerBase.RequiredEncounterDust}");
+                    }
+                }
+            }
+        } finally {
+            story.PrepareDirectLevel(originalLevel, originalCharacter ?? "einstein", originalDifficulty);
+            GameManager.Instance.CurrentSession.SelectedCharacterID = originalCharacter;
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            story.ClearLevelAttemptState();
+            LevelRewardDirectory.ResetAttempt();
+        }
+        AssertThat(LegacyLevelControllerBase.RequiredEncounterDust).IsEqual(15);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 }

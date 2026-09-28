@@ -233,6 +233,13 @@ public class EnemyAbilityExecutorTests {
         executor.Begin(ability, owner.GlobalPosition, facingRight: true);
 
         AssertThat(pools.GetActiveNodes(EnemyFactory.StandardPoolID).Count).IsEqual(2);
+        // Package 12 W2 (GAP-04): every minion carries summon provenance, so its
+        // death can never draw an authored encounter's finite reward.
+        foreach (Node minion in pools.GetActiveNodes(EnemyFactory.StandardPoolID)) {
+            AssertThat(minion is EnemyController { IsSummoned: true })
+                .OverrideFailureMessage("A SummonMinions spawn must be marked IsSummoned.")
+                .IsTrue();
+        }
         owner.Free();
         CleanupPools(pools, parent);
     }

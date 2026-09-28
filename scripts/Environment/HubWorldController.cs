@@ -38,7 +38,7 @@ namespace FTT.Environment {
                 includeHUD: false,
                 includeRewind: false,
                 audioSetPath: AudioSetPaths.Hub);
-            AutoDepositCarriedDust();
+            AnnounceCompletionDeposit();
         }
 
         /// <summary>
@@ -59,15 +59,65 @@ namespace FTT.Environment {
             GameManager.Instance.CurrentSession = session;
         }
 
-        /// <summary>Returning from a mission deposits carried dust into the Repository automatically.</summary>
-        private void AutoDepositCarriedDust() {
-            int deposited = StoryManager.Instance?.DepositDustToActiveSave() ?? 0;
+        // === Package 12 W2 region: H02 — the hub never deposits ============
+        //
+        // Dust banks ONLY in the level-completion transaction
+        // (StoryManager.CommitCompletionTransaction). The hub's old _Ready
+        // auto-deposit and the Repository-interact deposit are both deleted: a
+        // hub return after a Collapse or a voluntary exit deposits nothing, and
+        // the open attempt keeps its remaining (post-fee) dust in the save's
+        // LevelChronalDust until that level is completed. The Repository's job
+        // is spending and reviewing: it shows what the last completed level
+        // banked plus whatever the open attempt still holds.
+
+        /// <summary>
+        /// Arrival notice for a completion that has ALREADY banked. Reads the
+        /// completion transaction's result; deposits nothing.
+        /// </summary>
+        private void AnnounceCompletionDeposit() {
             UpdateDustDisplay();
-            if (deposited <= 0 || _depositToast == null) return;
-            _depositToast.Text = string.Format(Tr("hub_dust_deposited_toast"), deposited);
+            if (StoryManager.Instance?.TryConsumeCompletionDepositNotice(out int banked) != true) return;
+            if (_depositToast == null) return;
+            _depositToast.Text = string.Format(Tr("hub_dust_deposited_toast"), banked);
             _depositToast.Visible = true;
             _depositToastTimer = 4.0f;
         }
+
+        /// <summary>
+        /// The Repository deposit ledger, as (translation key, amount) lines.
+        /// Pure so it is testable without a hub scene: the last completed level's
+        /// banked amount when there is one this session, then the open attempt's
+        /// held, undeposited amount when it is non-zero. Neither line implies
+        /// the held amount is spendable (HUD contract / F02).
+        /// </summary>
+        public static System.Collections.Generic.List<(string Key, int Amount)> RepositoryLedgerLines(
+            int lastCompletedBanked, int attemptHeld) {
+            var lines = new System.Collections.Generic.List<(string, int)>();
+            if (lastCompletedBanked > 0) lines.Add((RepositoryLastBankedKey, lastCompletedBanked));
+            if (attemptHeld > 0) lines.Add((RepositoryAttemptHeldKey, attemptHeld));
+            return lines;
+        }
+
+        public const string RepositoryLastBankedKey = "hub_repository_last_banked";
+        public const string RepositoryAttemptHeldKey = "hub_repository_attempt_held";
+
+        private Label _repositoryLedgerLabel;
+
+        private void UpdateRepositoryLedger() {
+            if (_repositoryLedgerLabel == null) return;
+            StoryManager story = StoryManager.Instance;
+            var lines = RepositoryLedgerLines(
+                story?.LastCompletionDepositDust ?? 0, story?.AttemptHeldDust ?? 0);
+            var text = new System.Text.StringBuilder();
+            foreach ((string key, int amount) in lines) {
+                if (text.Length > 0) text.Append('\n');
+                text.Append(string.Format(Tr(key), amount));
+            }
+            _repositoryLedgerLabel.Text = text.ToString();
+            _repositoryLedgerLabel.Visible = lines.Count > 0;
+        }
+
+        // === end Package 12 W2 region ========================================
 
         public override void _Process(double delta) {
             if (_depositToastTimer > 0f) {
@@ -464,6 +514,17 @@ namespace FTT.Environment {
             _dustLabel.AddThemeFontSizeOverride("font_size", 13);
             _dustLabel.AddThemeColorOverride("font_color", new Color(0.0f, 0.8f, 0.9f));
             canvas.AddChild(_dustLabel);
+
+            // Package 12 W2 (H02): the Repository deposit ledger — the last
+            // completed level's bank plus any dust an open attempt still holds.
+            _repositoryLedgerLabel = new Label {
+                Name = "RepositoryLedger",
+                Position = new Vector2(20, 104),
+                Visible = false
+            };
+            _repositoryLedgerLabel.AddThemeFontSizeOverride("font_size", 12);
+            _repositoryLedgerLabel.AddThemeColorOverride("font_color", new Color(0.0f, 0.8f, 0.9f));
+            canvas.AddChild(_repositoryLedgerLabel);
             UpdateDustDisplay();
 
             var nextLevelLabel = new Label();
@@ -536,9 +597,25 @@ namespace FTT.Environment {
             return pendingTimelineRestart ? HubPortalAction.TimelineRestartChoice : HubPortalAction.OpenMission;
         }
 
+        /// <summary>
+        /// The hub's dust line shows the <b>deposited, spendable</b> balance
+        /// (Package 12 W2, H02). It used to show the carried wallet, which was
+        /// always zero here because the hub deposited it on arrival; with the hub
+        /// deposit gone the wallet is the open attempt's held dust, and showing
+        /// it as "Chronal Dust" would imply it is spendable. The held amount is
+        /// its own Repository ledger line instead.
+        /// </summary>
         private void UpdateDustDisplay() {
-            int dust = StoryManager.Instance?.ChronalDustCollected ?? 0;
-            _dustLabel.Text = string.Format(Tr("hub_carried_dust"), dust);
+            int dust = 0;
+            if (SaveManager.Instance != null && GameManager.Instance != null) {
+                int slot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+                if (slot >= 0 && slot < SaveManager.Instance.SaveSlots.Length) {
+                    StorySaveData save = SaveManager.Instance.SaveSlots[slot];
+                    dust = ResonanceProgression.SpendableBalance(save, save?.SelectedCharacterID);
+                }
+            }
+            if (_dustLabel != null) _dustLabel.Text = string.Format(Tr("hub_carried_dust"), dust);
+            UpdateRepositoryLedger();
         }
 
         private bool _playerInPortal;
@@ -566,12 +643,14 @@ namespace FTT.Environment {
                     return;
                 }
                 if (_playerInRepository) {
-                    StoryManager.Instance?.DepositDustToActiveSave();
+                    // H02: the terminal spends and reviews; it never deposits.
                     UpdateDustDisplay();
                     _resonancePanel = new ResonanceGridPanel { Name = "ResonanceGridPanel" };
                     _resonancePanel.Closed += () => {
                         _player.ProcessMode = ProcessModeEnum.Inherit;
                         _resonancePanel = null;
+                        // Purchases and respec move the deposited balance.
+                        UpdateDustDisplay();
                     };
                     _player.ProcessMode = ProcessModeEnum.Disabled;
                     GetNode<CanvasLayer>("HubHUD").AddChild(_resonancePanel);

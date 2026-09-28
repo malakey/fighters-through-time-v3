@@ -585,19 +585,36 @@ namespace FTT.Environment {
 
         // === Resume, lifecycle, and objectives ===
 
+        public const string Room2WaveEncounter = ID + "_room2_wave";
+        public const string Room3WaveEncounter = ID + "_room3_wave";
+
+        private static readonly IReadOnlyDictionary<string, string[]> Baselines =
+            new Dictionary<string, string[]> {
+                [Checkpoint0] = System.Array.Empty<string>(),
+                [Checkpoint1] = new[] { Room2WaveEncounter },
+                [Checkpoint2] = new[] { Room2WaveEncounter, Room3WaveEncounter }
+            };
+
+        protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
+
+        protected override void MarkEncounterCleared(string encounterID) {
+            if (encounterID == Room2WaveEncounter) _room2WaveSpawned = true;
+            else if (encounterID == Room3WaveEncounter) _room3WaveSpawned = true;
+        }
+
         protected override void MarkWavesClearedThrough(string checkpointID) {
+            // Package 12 W2 (GAP-13): the room waves come from the explicit
+            // encounter baseline (EncounterBaselineMap); this keeps the anchor's
+            // world state only.
             if (checkpointID == Checkpoint1) {
                 // Checkpoint 1 stands east of the rockfall, before the Ash Road.
                 _vaultReached = true;
-                _room2WaveSpawned = true;
                 ForceRockfallClear();
             } else if (checkpointID == Checkpoint2) {
                 // Checkpoint 2 is past the escape run. Resuming must not drop the
                 // player back in front of a live lava front they have already
                 // outrun - the front is parked at its start and the run is closed.
                 _vaultReached = true;
-                _room2WaveSpawned = true;
-                _room3WaveSpawned = true;
                 ForceRockfallClear();
                 EscapeTriggered = true;
                 if (_escape != null) {

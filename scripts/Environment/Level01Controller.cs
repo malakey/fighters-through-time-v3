@@ -613,7 +613,9 @@ namespace FTT.Environment {
             StorySaveData save = SaveManager.Instance.SaveSlots[slot];
             if (save == null || save.CurrentLevelID != StoryManager.GetLevelScenePath(CampaignLevel.Florence)) return;
             Vector2 position = _player.Position;
+            bool resumed = false;
             if (_levelManager.TryGetCheckpointPosition(save.LastCheckpointID, out Vector2 checkpoint)) {
+                resumed = true;
                 position = checkpoint;
                 _levelManager.SetCheckpointPosition(save.LastCheckpointID, checkpoint);
                 // Resuming past the print shop means the waves ahead of the
@@ -624,7 +626,12 @@ namespace FTT.Environment {
                     _room3WaveSpawned = true;
                 }
             }
-            _player.RestoreStoryCheckpoint(position, save.CurrentHP, save.CurrentUltimateMeter);
+            // Package 12 W2 (GAP-01): the shared F10 restore — actual block,
+            // cooldown and delay resources back on the rebuilt hero, and the
+            // uncredited Rally meter settled exactly once.
+            float settledMeter = StoryLevelControllerBase.RestoreDurableResources(_player, save, resumed);
+            _player.ClearAllStatusEffects();
+            _player.RestoreStoryCheckpoint(position, save.CurrentHP, settledMeter);
         }
 
         // === Encounters ===

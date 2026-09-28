@@ -748,6 +748,7 @@ namespace FTT.Core {
             }
             _attempt.CheckpointRecord.BaselineEncounterIDs =
                 new List<string>(GetEncounterBaseline(checkpointID));
+            _attempt.CheckpointRecord.BaselineVersion = GetEncounterBaselineVersion(checkpointID);
             _attempt.Bump();
             return first;
         }
@@ -773,14 +774,36 @@ namespace FTT.Core {
             new(System.StringComparer.Ordinal);
 
         /// <summary>Registers one anchor's authored baseline encounter IDs.</summary>
-        public void RegisterEncounterBaseline(string checkpointID, IReadOnlyList<string> encounterIDs) {
+        public void RegisterEncounterBaseline(string checkpointID, IReadOnlyList<string> encounterIDs) =>
+            RegisterEncounterBaseline(checkpointID, encounterIDs, 1);
+
+        /// <summary>
+        /// Package 12 W2 (GAP-13): registers one anchor's authored baseline with
+        /// the layout version it was authored against. The version is committed
+        /// into <see cref="StoryCheckpointRecord.BaselineVersion"/> on
+        /// activation, so a resume can tell a record written against the current
+        /// map from one written against an older layout (Package 11's derived
+        /// <c>{LevelID}_wave_N</c> IDs are version 1).
+        /// </summary>
+        public void RegisterEncounterBaseline(string checkpointID, IReadOnlyList<string> encounterIDs, int version) {
             if (string.IsNullOrWhiteSpace(checkpointID)) return;
             var ids = new List<string>();
             foreach (string id in encounterIDs ?? System.Array.Empty<string>()) {
                 if (!string.IsNullOrWhiteSpace(id) && !ids.Contains(id)) ids.Add(id);
             }
             _encounterBaselines[checkpointID] = ids;
+            _encounterBaselineVersions[checkpointID] = System.Math.Max(1, version);
         }
+
+        private readonly Dictionary<string, int> _encounterBaselineVersions =
+            new(System.StringComparer.Ordinal);
+
+        /// <summary>The layout version an anchor's baseline was registered with (1 when unknown).</summary>
+        public int GetEncounterBaselineVersion(string checkpointID) =>
+            !string.IsNullOrWhiteSpace(checkpointID)
+            && _encounterBaselineVersions.TryGetValue(checkpointID, out int version)
+                ? version
+                : 1;
 
         /// <summary>The authored baseline for an anchor, or an empty list.</summary>
         public IReadOnlyList<string> GetEncounterBaseline(string checkpointID) =>
@@ -892,6 +915,7 @@ namespace FTT.Core {
             _checkpointRoles.Clear();
             _recoveryRouteSeconds.Clear();
             _encounterBaselines.Clear();
+            _encounterBaselineVersions.Clear();
             // Package 11 A3b: the attempt record is per-attempt state like the
             // rest of this family. It is CLEARED here but NOT re-minted — an
             // attempt ID is minted only by MintFreshAttempt(), from fresh level
@@ -959,6 +983,10 @@ namespace FTT.Core {
             _attempt.FoundSecretIDs = new List<string>(_foundSecrets);
             _attempt.FontUsesByID = new Dictionary<string, int>(_fontUsesConsumed);
             _attempt.PreBossLocked = IsPreBossLocked;
+            // Package 12 W2 (GAP-01): the full resource record, not just the
+            // Time Freeze cooldown, rides every checkpoint, durable snapshot and
+            // critical event.
+            CapturePlayerResources(save);
             _attempt.PlayerResourceTimers.TimeFreezeCooldownSeconds = TimeFreezeCooldownRemaining;
             _attempt.PresentationFlags["collapse_beat_seen"] = HasSeenCollapseBeat;
             _attempt.AnchorChargesRemaining = AnchorChargesRemaining;
@@ -967,6 +995,36 @@ namespace FTT.Core {
             save.AttemptState = _attempt;
             save.AnchorCharges = AnchorChargesRemaining;
         }
+
+        // === Package 12 W2 region: F10 player resource publisher (GAP-01) ====
+
+        /// <summary>
+        /// Publishes the live hero's continuous combat resources into
+        /// <see cref="StoryAttemptState.PlayerResourceTimers"/>: block charges,
+        /// regen progress and shatter lockout, ability and Echo Step cooldowns,
+        /// the Rally damage-taken meter not yet credited, and the D02d
+        /// Wardenclyffe delay. The committed Ultimate meter is written in the
+        /// SAME step, because the uncredited Rally meter is only meaningful as a
+        /// pair with it — settling one against a stale copy of the other would
+        /// either lose or double-pay the damage record.
+        ///
+        /// <para>Only a live level run publishes. Outside one (the hub, a
+        /// Restart that has already cleared the attempt, the Game Over screen)
+        /// whatever player happens to be in the tree is not this attempt's hero,
+        /// and capturing it would hand the attempt a full, fresh set of resources
+        /// — exactly the load-time refill F10 forbids.</para>
+        /// </summary>
+        private void CapturePlayerResources(StorySaveData save) {
+            if (!IsLevelTimerRunning || !_attempt.HasAttempt) return;
+            if (GetTree()?.GetFirstNodeInGroup("StoryPlayer") is not FTT.Characters.PlayerController player
+                || !IsInstanceValid(player) || !player.IsInsideTree()) {
+                return;
+            }
+            player.CaptureStoryResourceTimers(_attempt.PlayerResourceTimers);
+            if (save != null) save.CurrentUltimateMeter = player.CurrentUltimateMeter;
+        }
+
+        // === end Package 12 W2 region (resource publisher) ==================
 
         /// <summary>
         /// Pulls a saved attempt record back into the live manager, migrating a
@@ -1269,7 +1327,15 @@ namespace FTT.Core {
             ChronalRewindsRemaining = FTT.Environment.ChronalRewindManager.GetMaximumRewinds(difficulty);
             // V7.3: resuming from the Timeline Anchor keeps the attempt's
             // per-attempt state; restarting from the beginning clears it.
-            if (!resumeFromTimelineAnchor) ClearLevelAttemptState();
+            if (!resumeFromTimelineAnchor) {
+                ClearLevelAttemptState();
+                // H02 / F02: a full Restart Level clears the open attempt's
+                // wallet. With no hub deposit any more, every undeposited point
+                // belongs to this attempt, so a restart must not carry it into
+                // the fresh one (that is what stops a repeated level banking
+                // repeat rewards).
+                SetDust(0);
+            }
             StorySaveData save = GetActiveSave();
             if (save != null) {
                 save.CurrentLevelID = GetCurrentLevelPath();
@@ -1891,10 +1957,15 @@ namespace FTT.Core {
 
         /// <summary>
         /// Commits the level's completion transaction once, before any results
-        /// overlay or dialogue. In Act III this is also the <b>only</b> banking
-        /// event: with no hub to reach, the level's earnings are "sealed through
-        /// the Warden Beacon" here, which is what makes Level 13's dust spendable
-        /// at Level 14's Beacon (F02).
+        /// overlay or dialogue. <b>This is the only banking event in the game</b>
+        /// (H02, 2026-09-26; Package 12 W2): every level — Acts I–II as well as
+        /// the Act III gauntlet — deposits its retained wallet and tier bonus
+        /// here, exactly once. The hub Repository no longer deposits anything; a
+        /// hub return after a Collapse or a voluntary exit leaves the open
+        /// attempt's remaining dust in <c>LevelChronalDust</c> until that level
+        /// is completed, and Restart Level clears it. In Act III the deposit is
+        /// "sealed through the Warden Beacon", which is what makes Level 13's
+        /// dust spendable at Level 14's Beacon (F02).
         /// </summary>
         private void CommitCompletionTransaction(string levelID) {
             _attempt.CompletionTransaction = new StoryCompletionTransaction {
@@ -1908,13 +1979,49 @@ namespace FTT.Core {
             };
             _attempt.Status = StoryAttemptStatus.CompletionPending;
             _attempt.Bump();
-            if (IsActIIILevel(CurrentLevel)) {
-                _attempt.CompletionTransaction.DepositAmount = DepositDustToActiveSave();
-            }
+            // H02: every level banks here, and only here.
+            int deposited = DepositDustToActiveSave();
+            _attempt.CompletionTransaction.DepositAmount = deposited;
+            _attempt.CompletionTransaction.TierBonusDust = LastLevelTierBonusDust;
+            LastCompletionDepositDust = deposited;
+            _completionDepositNoticePending = deposited > 0;
             _attempt.CompletionTransaction.Applied = true;
             _attempt.Status = StoryAttemptStatus.Completed;
             _attempt.Bump();
         }
+
+        // === Package 12 W2 region: H02 Repository ledger ===================
+
+        /// <summary>
+        /// Dust the most recent level-completion transaction banked, tier bonus
+        /// included. The hub Repository shows it as the "last completed level"
+        /// line of its deposit ledger. Session-scoped: a relaunch shows only the
+        /// open attempt's held amount, never a fabricated figure.
+        /// </summary>
+        public int LastCompletionDepositDust { get; private set; }
+
+        private bool _completionDepositNoticePending;
+
+        /// <summary>
+        /// Hands the hub its one arrival notice for the completion that just
+        /// banked, exactly once. The notice reports a deposit that already
+        /// happened; reading it deposits nothing.
+        /// </summary>
+        public bool TryConsumeCompletionDepositNotice(out int amount) {
+            amount = LastCompletionDepositDust;
+            if (!_completionDepositNoticePending || amount <= 0) return false;
+            _completionDepositNoticePending = false;
+            return true;
+        }
+
+        /// <summary>
+        /// Undeposited dust held by the open attempt — the amount a Collapse or a
+        /// voluntary exit left behind after its 20% fee. It banks only when that
+        /// level is completed, and Restart Level clears it (H02, F02, F10).
+        /// </summary>
+        public int AttemptHeldDust => ChronalDustCollected;
+
+        // === end Package 12 W2 region (H02 Repository ledger) ==============
 
         // === F05 reward-source claims (F10 persistence side) =================
         // "Issue once and commit the claim with the wallet/benefit; restore a

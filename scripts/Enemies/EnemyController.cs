@@ -1103,7 +1103,8 @@ namespace FTT.Enemies {
                 Position = GlobalPosition,
                 ChronalDustDrop = Data?.ChronalDustDrop ?? 10,
                 IsElite = Data?.Tier == EnemyTier.Elite,
-                ItemDropChanceMultiplier = Data?.ItemDropChance ?? 1f
+                ItemDropChanceMultiplier = Data?.ItemDropChance ?? 1f,
+                IsSummoned = IsSummoned
             });
             EventBus.Instance?.RaiseEnemyPresentation(new EnemyPresentationPayload {
                 SourceID = Data?.EnemyID ?? "",
@@ -1424,7 +1425,17 @@ namespace FTT.Enemies {
 
         // === Pooling ===
 
+        /// <summary>
+        /// Package 12 W2 (GAP-04): reward provenance. Set by
+        /// <see cref="EnemyFactory.Spawn"/> for a <c>SummonMinions</c> spawn and
+        /// carried to <see cref="EnemyKilledPayload.IsSummoned"/>; a summon pays no
+        /// F05 award. Reset on every pool cycle so a recycled body never inherits
+        /// its previous occupant's provenance.
+        /// </summary>
+        public bool IsSummoned { get; set; }
+
         public void OnSpawn() {
+            IsSummoned = false;
             ResolveNodes();
             ApplyDifficultyScaling();
             ApplyScaledHitboxDamage();
@@ -1472,6 +1483,7 @@ namespace FTT.Enemies {
         }
 
         public void OnDespawn() {
+            IsSummoned = false;
             UnbindEvents();
             _barVisibility.Reset();
             ApplyBarVisibility();

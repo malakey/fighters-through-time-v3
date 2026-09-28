@@ -430,7 +430,7 @@ holodeck_cpu_character,CPU Opponent
 holodeck_rules,Match Mode
 holodeck_launch,Begin Practice Bout
 hub_npc_sarah,COMMANDER SARAH
-hub_dust_deposited_toast,Deposited {0} Chronal Dust into the Repository
+hub_dust_deposited_toast,Mission complete: {0} Chronal Dust banked in the Repository
 fighter_return_to_ship,Return to Time-Ship
 tutorial_dummy_name,TRAINING DUMMY
 tutorial_fracture_label,EXTRACTION BEAM — COLD
@@ -1550,3 +1550,6 @@ enemy_ability_null_lance_name,Null Lance
 enemy_ability_siphon_snare_name,Siphon Snare
 enemy_ability_lance_jab_name,Lance Jab
 telegraph_siphon_tether_tooltip,"Siphon tether: drains Influence inside the ring. Block it, break line of sight, or leave the circle."
+# Package 12 W2
+hub_repository_last_banked,Last mission banked: {0} Chronal Dust
+hub_repository_attempt_held,"Held by your open mission: {0} Chronal Dust (banks when that level is completed)"

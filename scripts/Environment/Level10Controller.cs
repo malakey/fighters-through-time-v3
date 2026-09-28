@@ -704,15 +704,37 @@ namespace FTT.Environment {
 
         // === Resume, lifecycle, and objectives ===
 
+        // Package 12 W2 (GAP-13): explicit encounter baseline.
+        public const string Room2WaveEncounter = ID + "_room2_wave";
+        public const string Room3WaveEncounter = ID + "_room3_wave";
+
+        private static readonly IReadOnlyDictionary<string, string[]> Baselines =
+            new Dictionary<string, string[]> {
+                [Checkpoint0] = System.Array.Empty<string>(),
+                [Checkpoint1] = new[] { Room2WaveEncounter },
+                [Checkpoint2] = new[] { Room2WaveEncounter, Room3WaveEncounter }
+            };
+
+        protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
+
+        protected override void MarkEncounterCleared(string encounterID) {
+            if (encounterID == Room2WaveEncounter) _room2WaveSpawned = true;
+            else if (encounterID == Room3WaveEncounter) _room3WaveSpawned = true;
+        }
+
+        /// <summary>Test seam: whether the room-2 wave latch is set (spawn suppressed).</summary>
+        public bool Room2WaveLatched => _room2WaveSpawned;
+
+        /// <summary>Test seam: whether the room-3 wave latch is set (spawn suppressed).</summary>
+        public bool Room3WaveLatched => _room3WaveSpawned;
+
+        /// <summary>The anchor's non-encounter world state; the waves come from the baseline.</summary>
         protected override void MarkWavesClearedThrough(string checkpointID) {
             if (checkpointID == Checkpoint1) {
                 _stageReached = true;
-                _room2WaveSpawned = true;
             } else if (checkpointID == Checkpoint2) {
                 _stageReached = true;
                 _galleriesReached = true;
-                _room2WaveSpawned = true;
-                _room3WaveSpawned = true;
             } else {
                 return;
             }

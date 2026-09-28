@@ -530,15 +530,34 @@ namespace FTT.Environment {
 
         // === Resume and objectives ===
 
+        // Package 12 W2 (GAP-13): explicit encounter baseline.
+        public const string WheatfieldWaveEncounter = ID + "_wheatfield_wave";
+        public const string RidgeWaveEncounter = ID + "_ridge_wave";
+        public const string AngleWaveEncounter = ID + "_angle_wave";
+
+        private static readonly IReadOnlyDictionary<string, string[]> Baselines =
+            new Dictionary<string, string[]> {
+                [Checkpoint0] = System.Array.Empty<string>(),
+                [Checkpoint1] = new[] { WheatfieldWaveEncounter },
+                [Checkpoint2] = new[] { WheatfieldWaveEncounter, RidgeWaveEncounter, AngleWaveEncounter }
+            };
+
+        protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
+
+        protected override void MarkEncounterCleared(string encounterID) {
+            switch (encounterID) {
+                case WheatfieldWaveEncounter: _wheatfieldWaveSpawned = true; break;
+                case RidgeWaveEncounter: _ridgeWaveSpawned = true; break;
+                case AngleWaveEncounter: _angleWaveSpawned = true; break;
+            }
+        }
+
+        /// <summary>The anchor's non-encounter world state; the waves come from the baseline.</summary>
         protected override void MarkWavesClearedThrough(string checkpointID) {
             if (checkpointID == Checkpoint1) {
                 _advanceBegun = true;
-                _wheatfieldWaveSpawned = true;
             } else if (checkpointID == Checkpoint2) {
                 _advanceBegun = true;
-                _wheatfieldWaveSpawned = true;
-                _ridgeWaveSpawned = true;
-                _angleWaveSpawned = true;
                 // Checkpoint 2 stands east of the breastwork, so a resume that lost the
                 // array state would strand the player in the railcut behind a sealed
                 // gate with no way back to the objective that opens it.
