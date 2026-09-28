@@ -1,0 +1,257 @@
+[gd_resource type="Resource" script_class="CoreMechanicCueCatalog" load_steps=42 format=3]
+
+; H04 (design-godot.md Section 8 "7. Core Mechanic Cues"; Package 12 W10).
+; The single canonical core-mechanic cue catalog. Every stream is a SILENT
+; placeholder (2026-08-10 directive); Package 10 replaces them by reassignment.
+; Critical = true rows always route through AudioManager.PlayCriticalCue.
+; The ten stage-hazard warning/impact pairs live on each StageAudioSet.
+
+[ext_resource type="Script" path="res://scripts/Core/CoreMechanicCueCatalog.cs" id="1_catalog"]
+[ext_resource type="Script" path="res://scripts/Core/CoreMechanicCueEntry.cs" id="2_entry"]
+[ext_resource type="AudioStream" path="res://audio/sfx/chronal/rewind_sweep.ogg" id="3_sweep"]
+[ext_resource type="AudioStream" path="res://audio/sfx/chronal/clock_tick.ogg" id="4_tick"]
+[ext_resource type="AudioStream" path="res://resources/Audio/placeholder_sfx_hit.tres" id="5_hit"]
+[ext_resource type="AudioStream" path="res://resources/Audio/placeholder_sfx_footstep.tres" id="6_footstep"]
+[ext_resource type="AudioStream" path="res://resources/Audio/placeholder_sfx_pickup.tres" id="7_pickup"]
+[ext_resource type="AudioStream" path="res://resources/Audio/placeholder_sfx_ui.tres" id="8_ui"]
+[ext_resource type="AudioStream" path="res://audio/sfx/ui/countdown_blip.ogg" id="9_blip"]
+[ext_resource type="AudioStream" path="res://audio/sfx/combat/ko_stinger.ogg" id="10_ko"]
+[ext_resource type="AudioStream" path="res://audio/sfx/ui/victory_fanfare.ogg" id="11_fanfare"]
+[ext_resource type="AudioStream" path="res://resources/Audio/placeholder_sfx_hazard.tres" id="12_hazard"]
+
+[sub_resource type="Resource" id="time_freeze_activate"]
+script = ExtResource("2_entry")
+CueID = "time_freeze_activate"
+Bus = "SFX"
+Critical = true
+Stream = ExtResource("3_sweep")
+DesignNote = "Sharp glassy inhale ending in a clock-stop clunk."
+
+[sub_resource type="Resource" id="time_freeze_drone"]
+script = ExtResource("2_entry")
+CueID = "time_freeze_drone"
+Bus = "SFX"
+Critical = true
+Stream = ExtResource("3_sweep")
+DesignNote = "Subdued time-stop drone under stopped scene action; the hero's own movement stays audible."
+
+[sub_resource type="Resource" id="time_freeze_thaw_warning"]
+script = ExtResource("2_entry")
+CueID = "time_freeze_thaw_warning"
+Bus = "SFX"
+Critical = true
+Stream = ExtResource("4_tick")
+DesignNote = "Three accelerating ticks over the final 0.5 s."
+
+[sub_resource type="Resource" id="time_freeze_thaw_release"]
+script = ExtResource("2_entry")
+CueID = "time_freeze_thaw_release"
+Bus = "SFX"
+Critical = true
+Stream = ExtResource("3_sweep")
+DesignNote = "Reverse-cymbal swell as the world resumes."
+
+[sub_resource type="Resource" id="post_landing_thaw_warning"]
+script = ExtResource("2_entry")
+CueID = "post_landing_thaw_warning"
+Bus = "SFX"
+Critical = true
+Stream = ExtResource("4_tick")
+DesignNote = "R03: reuses the Time Freeze thaw warning at the end of the 60-frame Post-Landing Hold."
+
+[sub_resource type="Resource" id="defy_toll"]
+script = ExtResource("2_entry")
+CueID = "defy_toll"
+Bus = "SFX"
+Critical = true
+Stream = ExtResource("5_hit")
+DesignNote = "Cracked-bell toll on the refused lethal hit, with a brief duck of everything else."
+
+[sub_resource type="Resource" id="defy_seal_shatter"]
+script = ExtResource("2_entry")
+CueID = "defy_seal_shatter"
+Bus = "SFX"
+Critical = true
+Stream = ExtResource("5_hit")
+DesignNote = "Glass-seal shatter as the Defy seal breaks; distinct from the Ultimate charge sweep."
+
+[sub_resource type="Resource" id="echo_step_windup"]
+script = ExtResource("2_entry")
+CueID = "echo_step_windup"
+Bus = "Movement"
+Critical = false
+Stream = ExtResource("6_footstep")
+DesignNote = "Short rewound whoosh across the 8-frame wind-up."
+
+[sub_resource type="Resource" id="echo_step_arrival"]
+script = ExtResource("2_entry")
+CueID = "echo_step_arrival"
+Bus = "Movement"
+Critical = false
+Stream = ExtResource("6_footstep")
+DesignNote = "Soft snap-back pop at the destination."
+
+[sub_resource type="Resource" id="echo_step_reject"]
+script = ExtResource("2_entry")
+CueID = "echo_step_reject"
+Bus = "Movement"
+Critical = false
+Stream = ExtResource("6_footstep")
+DesignNote = "Dull muted thunk when a destination is rejected."
+
+[sub_resource type="Resource" id="rally_reclaim"]
+script = ExtResource("2_entry")
+CueID = "rally_reclaim"
+Bus = "Combat"
+Critical = false
+Stream = ExtResource("7_pickup")
+DesignNote = "Rising two-note chime per reclaiming direct hit, pitched up as more of the pool returns."
+
+[sub_resource type="Resource" id="grab_catch"]
+script = ExtResource("2_entry")
+CueID = "grab_catch"
+Bus = "Combat"
+Critical = false
+Stream = ExtResource("5_hit")
+DesignNote = "Fabric-and-armor grip catch on grab contact."
+
+[sub_resource type="Resource" id="grab_whiff"]
+script = ExtResource("2_entry")
+CueID = "grab_whiff"
+Bus = "Combat"
+Critical = false
+Stream = ExtResource("6_footstep")
+DesignNote = "Short whiff swish on a missed grab."
+
+[sub_resource type="Resource" id="throw_heave"]
+script = ExtResource("2_entry")
+CueID = "throw_heave"
+Bus = "Combat"
+Critical = false
+Stream = ExtResource("5_hit")
+DesignNote = "Directional heave on the throw."
+
+[sub_resource type="Resource" id="throw_impact"]
+script = ExtResource("2_entry")
+CueID = "throw_impact"
+Bus = "Combat"
+Critical = false
+Stream = ExtResource("5_hit")
+DesignNote = "The thrown fighter's impact."
+
+[sub_resource type="Resource" id="landing_tech"]
+script = ExtResource("2_entry")
+CueID = "landing_tech"
+Bus = "Movement"
+Critical = false
+Stream = ExtResource("6_footstep")
+DesignNote = "Crisp slap-and-skid on a successful tech."
+
+[sub_resource type="Resource" id="knockdown_thud"]
+script = ExtResource("2_entry")
+CueID = "knockdown_thud"
+Bus = "Combat"
+Critical = false
+Stream = ExtResource("5_hit")
+DesignNote = "Heavy knockdown thud on a missed tech."
+
+[sub_resource type="Resource" id="integrity_tick"]
+script = ExtResource("2_entry")
+CueID = "integrity_tick"
+Bus = "Environmental"
+Critical = true
+Stream = ExtResource("4_tick")
+DesignNote = "Dry escapement tick layered into the Collapse Tremor bed below 20%, quickening below 10%."
+
+[sub_resource type="Resource" id="match_timer_pip"]
+script = ExtResource("2_entry")
+CueID = "match_timer_pip"
+Bus = "UI"
+Critical = true
+Stream = ExtResource("9_blip")
+DesignNote = "00:10 warning: a bell pip each remaining second."
+
+[sub_resource type="Resource" id="match_timer_pip_final"]
+script = ExtResource("2_entry")
+CueID = "match_timer_pip_final"
+Bus = "UI"
+Critical = true
+Stream = ExtResource("9_blip")
+DesignNote = "The final pip, pitched higher."
+
+[sub_resource type="Resource" id="ultimate_ready"]
+script = ExtResource("2_entry")
+CueID = "ultimate_ready"
+Bus = "UI"
+Critical = false
+Stream = ExtResource("8_ui")
+DesignNote = "Bright resonant chord once when the meter first reaches full in each fill."
+
+[sub_resource type="Resource" id="ko_stinger"]
+script = ExtResource("2_entry")
+CueID = "ko_stinger"
+Bus = "Combat"
+Critical = true
+Stream = ExtResource("10_ko")
+DesignNote = "Heavy impact, reverse swell and a brief music drop on a stock loss or Story death."
+
+[sub_resource type="Resource" id="ko_stinger_decisive"]
+script = ExtResource("2_entry")
+CueID = "ko_stinger_decisive"
+Bus = "Combat"
+Critical = true
+Stream = ExtResource("10_ko")
+DesignNote = "Larger variant on the match-deciding KO."
+
+[sub_resource type="Resource" id="victory_fanfare"]
+script = ExtResource("2_entry")
+CueID = "victory_fanfare"
+Bus = "Music"
+Critical = false
+Stream = ExtResource("11_fanfare")
+DesignNote = "Shared placeholder for the per-hero ~3 s results fanfare (override row victory_fanfare_<heroID>)."
+
+[sub_resource type="Resource" id="draw_sting"]
+script = ExtResource("2_entry")
+CueID = "draw_sting"
+Bus = "Music"
+Critical = false
+Stream = ExtResource("11_fanfare")
+DesignNote = "Shared Draw sting."
+
+[sub_resource type="Resource" id="seal_charge"]
+script = ExtResource("2_entry")
+CueID = "seal_charge"
+Bus = "Environmental"
+Critical = false
+Stream = ExtResource("12_hazard")
+DesignNote = "N01: charging hum while the sealing anchor is held."
+
+[sub_resource type="Resource" id="seal_lock"]
+script = ExtResource("2_entry")
+CueID = "seal_lock"
+Bus = "Music"
+Critical = false
+Stream = ExtResource("11_fanfare")
+DesignNote = "N01: warm resonant lock swelling into the era theme."
+
+[sub_resource type="Resource" id="stage_hazard_warning"]
+script = ExtResource("2_entry")
+CueID = "stage_hazard_warning"
+Bus = "Environmental"
+Critical = true
+Stream = ExtResource("12_hazard")
+DesignNote = "Fallback when a stage's StageAudioSet leaves HazardWarningCue empty."
+
+[sub_resource type="Resource" id="stage_hazard_impact"]
+script = ExtResource("2_entry")
+CueID = "stage_hazard_impact"
+Bus = "Environmental"
+Critical = true
+Stream = ExtResource("12_hazard")
+DesignNote = "Fallback when a stage's StageAudioSet leaves HazardImpactCue empty."
+
+[resource]
+script = ExtResource("1_catalog")
+SchemaVersion = 1
+Entries = Array[ExtResource("2_entry")]([SubResource("time_freeze_activate"), SubResource("time_freeze_drone"), SubResource("time_freeze_thaw_warning"), SubResource("time_freeze_thaw_release"), SubResource("post_landing_thaw_warning"), SubResource("defy_toll"), SubResource("defy_seal_shatter"), SubResource("echo_step_windup"), SubResource("echo_step_arrival"), SubResource("echo_step_reject"), SubResource("rally_reclaim"), SubResource("grab_catch"), SubResource("grab_whiff"), SubResource("throw_heave"), SubResource("throw_impact"), SubResource("landing_tech"), SubResource("knockdown_thud"), SubResource("integrity_tick"), SubResource("match_timer_pip"), SubResource("match_timer_pip_final"), SubResource("ultimate_ready"), SubResource("ko_stinger"), SubResource("ko_stinger_decisive"), SubResource("victory_fanfare"), SubResource("draw_sting"), SubResource("seal_charge"), SubResource("seal_lock"), SubResource("stage_hazard_warning"), SubResource("stage_hazard_impact")])

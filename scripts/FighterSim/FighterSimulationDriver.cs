@@ -89,8 +89,6 @@ namespace FTT.FighterSim {
 
         private const string PauseScenePath = "res://scenes/ui/LocalFighterPause.tscn";
         private const string ResultsScenePath = "res://scenes/ui/MatchResults.tscn";
-        private const string KnockoutStingerPath = "res://audio/sfx/combat/ko_stinger.ogg";
-        private const string VictoryFanfarePath = "res://audio/sfx/ui/victory_fanfare.ogg";
 
         public void Initialize(
             PlayerController playerOne,
@@ -406,8 +404,11 @@ namespace FTT.FighterSim {
                     HazardColor(hazard.HazardTypeID, hazard.Phase == 0, _proxyStyleFrame),
                     FighterProxyStyle.HazardRotation(hazard.HazardTypeID, _proxyStyleFrame));
                 _seenProxyIDs.Add(hazard.EntityID);
+                SyncHazardCue(in hazard);
             }
+            PruneHazardCues();
             ReleaseMissing(_hazardProxies);
+            SyncMatchTimerCue();
 
             Simulation.CopyOrbsTo(_orbs);
             _seenProxyIDs.Clear();
@@ -820,6 +821,130 @@ namespace FTT.FighterSim {
             player.PlayPresentationAnimation(ResolvePresentationAnimation(playerID, in state, in runtime));
 
             SyncPresentationFeedback(player, playerID, in state, in runtime);
+            SyncCoreMechanicCues(playerID, in state);
+        }
+
+        // === Package 12 W10 / H04: Fighter core-mechanic cues ===================
+        // Presentation-only edge detection over deterministic component state. The
+        // caches below are cosmetic; nothing here writes FighterSim state, and the
+        // cues route through the catalog (AudioManager.CoreCues).
+        private readonly int[] _cueGrabPhase = { 0, 0 };
+        private readonly int[] _cueEchoWindup = { 0, 0 };
+        private readonly int[] _cueTechLockout = { 0, 0 };
+        private readonly int[] _cueTumble = { 0, 0 };
+        private readonly int[] _cueHP = { -1, -1 };
+        private readonly float[] _cueEchoPool = { 0f, 0f };
+        private readonly bool[] _cueMeterFull = { false, false };
+        private readonly Vector2[] _cuePosition = { Vector2.Zero, Vector2.Zero };
+        private readonly Dictionary<int, int> _cueHazardPhases = new();
+        private int _cueTimerSecond = -1;
+
+        /// <summary>World-unit distance an Echo Step must travel to count as an arrival, not a cancel.</summary>
+        private const float EchoStepArrivalDistance = 0.25f;
+
+        /// <summary>The 00:10 match-timer warning window, in whole seconds.</summary>
+        public const int MatchTimerWarningSeconds = 10;
+
+        private static FTT.Core.CoreMechanicCuePresenter Cues => AudioManager.Instance?.CoreCues;
+
+        private void SyncCoreMechanicCues(int playerID, in FighterStateComponent state) {
+            TryGetVerb(playerID, out FighterVerbComponent verb);
+            FTT.Core.CoreMechanicCuePresenter cues = Cues;
+            var position = new Vector2(state.Position.x.ToFloat(), state.Position.y.ToFloat());
+
+            // Grab and throw (F23): catch / whiff / heave / impact from GrabPhase
+            // (1 startup, 2 active, 3 whiff recovery, 4 holding, 5 throw).
+            int grab = verb.GrabPhase;
+            int previousGrab = _cueGrabPhase[playerID];
+            if (grab != previousGrab) {
+                if (grab == 4) cues?.Play(FTT.Core.CoreMechanicCueIDs.GrabCatch);
+                else if (grab == 3) cues?.Play(FTT.Core.CoreMechanicCueIDs.GrabWhiff);
+                else if (grab == 5) cues?.Play(FTT.Core.CoreMechanicCueIDs.ThrowHeave);
+                if (previousGrab == 5) cues?.Play(FTT.Core.CoreMechanicCueIDs.ThrowImpact);
+                _cueGrabPhase[playerID] = grab;
+            }
+
+            // Echo Step: the wind-up starting, then an arrival (a real teleport)
+            // or a completion-time cancel (no travel) when it ends.
+            int windup = verb.EchoStepWindupFrames;
+            int previousWindup = _cueEchoWindup[playerID];
+            if (windup > 0 && previousWindup == 0) {
+                cues?.Play(FTT.Core.CoreMechanicCueIDs.EchoStepWindup);
+            } else if (windup == 0 && previousWindup > 0) {
+                bool travelled = position.DistanceTo(_cuePosition[playerID]) >= EchoStepArrivalDistance;
+                cues?.Play(travelled
+                    ? FTT.Core.CoreMechanicCueIDs.EchoStepArrival
+                    : FTT.Core.CoreMechanicCueIDs.EchoStepReject);
+            }
+            _cueEchoWindup[playerID] = windup;
+
+            // Landing tech vs a missed tech: a tech lockout starting is the slap;
+            // a tumble ending on the ground with no tech is the knockdown thud.
+            if (verb.TechLockoutFrames > 0 && _cueTechLockout[playerID] == 0) {
+                cues?.Play(FTT.Core.CoreMechanicCueIDs.LandingTech);
+            } else if (verb.Tumble == 0 && _cueTumble[playerID] != 0
+                && verb.TechLockoutFrames == 0 && state.IsGrounded != 0) {
+                cues?.Play(FTT.Core.CoreMechanicCueIDs.KnockdownThud);
+            }
+            _cueTechLockout[playerID] = verb.TechLockoutFrames;
+            _cueTumble[playerID] = verb.Tumble;
+
+            // Rally reclaim: the echo pool falling while HP rises on the same pass.
+            float pool = verb.EchoPool.ToFloat();
+            if (_cueHP[playerID] >= 0 && state.CurrentHP > _cueHP[playerID] && pool < _cueEchoPool[playerID]) {
+                float maxHP = state.MaxHP > 0 ? state.MaxHP : 1f;
+                cues?.Play(FTT.Core.CoreMechanicCueIDs.RallyReclaim,
+                    FTT.Core.CoreMechanicCuePresenter.RallyReclaimPitch(pool / maxHP));
+            }
+            _cueEchoPool[playerID] = pool;
+            _cueHP[playerID] = state.CurrentHP;
+
+            // Ultimate ready: once per fill, when the meter first reaches full.
+            bool full = state.Influence >= xpTURN.Klotho.Deterministic.Math.FP64.FromInt(100);
+            if (full && !_cueMeterFull[playerID]) cues?.Play(FTT.Core.CoreMechanicCueIDs.UltimateReady);
+            _cueMeterFull[playerID] = full;
+
+            _cuePosition[playerID] = position;
+        }
+
+        /// <summary>A stage hazard entering its warning or active phase plays the stage's cue.</summary>
+        private void SyncHazardCue(in FighterHazardComponent hazard) {
+            bool known = _cueHazardPhases.TryGetValue(hazard.EntityID, out int previous);
+            _cueHazardPhases[hazard.EntityID] = hazard.Phase;
+            if (known && previous == hazard.Phase) return;
+            if (hazard.Phase == 0) Cues?.PlayStageHazard(warning: true);
+            else if (hazard.Phase == FighterHazardSystem.ActivePhase) Cues?.PlayStageHazard(warning: false);
+        }
+
+        private readonly List<int> _staleHazardCueIDs = new(4);
+
+        private void PruneHazardCues() {
+            _staleHazardCueIDs.Clear();
+            foreach (int entityID in _cueHazardPhases.Keys) {
+                bool live = false;
+                foreach (FighterHazardComponent hazard in _hazards) {
+                    if (hazard.EntityID == entityID) { live = true; break; }
+                }
+                if (!live) _staleHazardCueIDs.Add(entityID);
+            }
+            foreach (int entityID in _staleHazardCueIDs) _cueHazardPhases.Remove(entityID);
+        }
+
+        /// <summary>The 00:10 warning: one pip per remaining second, the last pitched higher.</summary>
+        private void SyncMatchTimerCue() {
+            if (Simulation == null) return;
+            FighterMatchComponent match = Simulation.GetMatchState();
+            if (match.TimerEnabled != 1 || match.MatchState == FighterMatchStates.Complete) {
+                _cueTimerSecond = -1;
+                return;
+            }
+            int second = (match.RemainingFrames + FighterSimulation.TickRate - 1) / FighterSimulation.TickRate;
+            if (second == _cueTimerSecond) return;
+            _cueTimerSecond = second;
+            if (second < 1 || second > MatchTimerWarningSeconds) return;
+            Cues?.Play(second == 1
+                ? FTT.Core.CoreMechanicCueIDs.MatchTimerPipFinal
+                : FTT.Core.CoreMechanicCueIDs.MatchTimerPip);
         }
 
         /// <summary>
@@ -1121,7 +1246,8 @@ namespace FTT.FighterSim {
                     DurationSeconds = StockLossFreezeFrames / (float)FighterSimulation.TickRate,
                     FocusPosition = PresentationPositionOf(playerID)
                 });
-                PlayCue(KnockoutStingerPath);
+                // H04: a stock loss (Critical Cues path, confirmed result).
+                Cues?.Play(FTT.Core.CoreMechanicCueIDs.KoStinger);
                 CameraShake.Instance?.Shake(FighterKnockoutShake, FighterKnockoutShakeDuration);
                 // KO / Death row of the design haptic table: 1.0/1.0/300 ms.
                 HapticFeedbackManager.Instance?.OnKnockout(playerID);
@@ -1201,7 +1327,8 @@ namespace FTT.FighterSim {
                         DurationSeconds = (float)HitFreezeSeconds,
                         FocusPosition = PresentationPositionOf(loser)
                     });
-                    PlayCue(KnockoutStingerPath);
+                    // H04: the larger, match-deciding variant.
+                    Cues?.Play(FTT.Core.CoreMechanicCueIDs.KoStingerDecisive);
                     CameraShake.Instance?.Shake(FighterKnockoutShake, FighterKnockoutShakeDuration);
                     if (loser >= 0) {
                         // KO / Death: 1.0/1.0/300 ms (audit M-31; was 500 ms).
@@ -1242,11 +1369,14 @@ namespace FTT.FighterSim {
                         IsTrueTie = _pendingResult.IsTrueTie,
                         DurationSeconds = (float)StampSeconds
                     });
+                    // H04: a draw gets the shared Draw sting on its stamp.
+                    if (_pendingResult.IsTrueTie) Cues?.PlayResultFanfare(null, isDraw: true);
                     break;
                 case KnockoutStep.WinnerPose:
                     if (!_pendingResult.IsTrueTie) {
                         _camera?.FocusOn(PresentationPositionOf(_pendingResult.WinnerPlayerID), KnockoutFocusZoom);
-                        PlayCue(VictoryFanfarePath);
+                        // H04: the winner's era fanfare (shared placeholder until Package 10).
+                        Cues?.PlayResultFanfare(WinnerCharacterID(_pendingResult.WinnerPlayerID), isDraw: false);
                     }
                     Raise(new FighterPresentationPayload {
                         Phase = FighterPresentationPhase.WinnerPose,
@@ -1283,13 +1413,9 @@ namespace FTT.FighterSim {
         private static void Raise(FighterPresentationPayload payload) =>
             EventBus.Instance?.RaiseFighterPresentation(payload);
 
-        /// <summary>
-        /// Placeholder audio hook. The stems are Package 8 content; until they
-        /// exist this resolves to null and AudioManager no-ops.
-        /// </summary>
-        private static void PlayCue(string streamPath) {
-            if (!ResourceLoader.Exists(streamPath)) return;
-            AudioManager.Instance?.PlaySFX(ResourceLoader.Load<AudioStream>(streamPath));
+        private string WinnerCharacterID(int winnerPlayerID) {
+            PlayerController winner = winnerPlayerID == 0 ? _playerOne : winnerPlayerID == 1 ? _playerTwo : null;
+            return winner != null && IsInstanceValid(winner) ? winner.Data?.CharacterID : null;
         }
 
         private void RaiseCompletionIfNeeded() {
