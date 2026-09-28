@@ -30,7 +30,7 @@ The preset takes precedence over per-ability presentation requests such as “ma
 
 Keep damage, hitboxes, physics, animation/action durations, hitstop, gameplay slow motion, camera framing needed to show play, attack warning duration and resource clocks unchanged. Defy's presentation and post-control 60-tick protection keep their existing timing; Time Freeze stays 5 seconds with its existing 45-second cooldown and Integrity drain. Showing a calmer screen never shortens or extends these mechanics.
 
-Preserve the fixed Echo Step target, rewind landing/result cue, freeze-active and thaw warning, boss phase cues, hazard footprints, platform fracture warnings, countdowns, status glyphs and both player-slot outlines. Do not hide danger geometry or use hue alone for attack/ownership identification. Read reduced effects from authoritative state without creating another simulation clock.
+Preserve the fixed Echo Step target, rewind landing/result cue, freeze-active and thaw warning (including the post-landing thaw, R03), boss phase cues, hazard footprints, platform fracture warnings, countdowns, status glyphs and both player-slot outlines. Do not hide danger geometry or use hue alone for attack/ownership identification. Read reduced effects from authoritative state without creating another simulation clock.
 
 Screen Shake remains independently controlled by its existing slider; zero still disables shake. This visual preset does not overwrite shake, UI scale, HUD opacity, haptics, audio volume or audio filtering settings. Existing important sounds remain available; C01b below resolves overlapping audio treatments. Respect user volume/mute settings without forcing warnings louder.
 

@@ -15,6 +15,14 @@ Bind each slot's icon and radial duration to the authoritative status type, dura
 
 Use distinct status glyphs plus localized names in the existing reference UI; color alone must not identify an effect. Update from actual state on apply, expiry, overwrite, recovery, loading and rollback. Radials follow authoritative simulation clocks, including pauses and Time Freeze; the HUD must not independently count down a frozen status.
 
+## Fighter ability cooldowns — M25 (2026-09-26)
+
+Each Fighter player shows four `20 × 20 px` cooldown icons (Special 1, Special 2, Movement Ability, Echo Step) in a row beside their block charges, P2 mirrored. Radial timers and a brief ready flash come from authoritative cooldown state, including Resonance Momentum refunds and rollback corrections; Echo Step also dims below 30 meter. Both players' icons are always visible. Icons use distinct glyphs, so readiness never depends on color alone.
+
+## Beacon anchors — M15 (2026-09-26)
+
+Beacon Anchors (M15, 2026-09-26; Act III only, hidden in Levels 0–12) — a `24 × 24 px` Beacon icon immediately right of the rewind hourglass, followed by up to three `8 × 8 px` gold diamond pips, one per remaining anchor charge (Easy 3 / Normal 2 / Hard 1). An Anchor Snap cracks and fades one pip. At zero charges the icon shows a hollow outline with a steady "last stand" tint, because the next collapse is Smothered. Pips use a diamond shape distinct from the round rewind glyph, so the count reads without color; the localized accessible label reads "Anchor charges: N". Bind to the authoritative Beacon charge count, updating on fresh entry, full Restart Level, Snap, load and completion. Validate on small displays alongside both status slots, cooldowns, Integrity and the Time Freeze icon (C01a).
+
 ## Chronal Dust
 
 During active Story-level HUD display, the top-right Chronal Dust counter remains visible, including at zero and during the boss fight after the Integrity clock hides. Bind it to the current level's undeposited levelChronalDust balance. Previously deposited spendable dust remains separately identified in the Repository/Beacon; never display a combined balance that suggests current earnings can be spent there.
@@ -22,6 +30,8 @@ During active Story-level HUD display, the top-right Chronal Dust counter remain
 Only the pooled +N pickup notification rises and fades after one second. The numeric balance does not fade after inactivity. Update it from committed wallet changes on pickup, fee, restart, recovery, load and completion; a mirrored event or rollback must not add dust again. Pickup notifications are cosmetic and cannot drive the balance. Full-screen menus/cinematics may use their existing HUD visibility rules; persistent means no pickup-triggered or inactivity fade while that HUD is displayed.
 
 ## Ownership and effects
+
+**G12 (2026-09-26):** ownership also carries a slot shape (P1 ▲ / P2 ●) on the name tag and outline badge. The Settings player-slot palette (Default cyan/red, Blue/Orange, High-Contrast) recolors only the local presentation of the outline and HUD slot colors.
 
 For visible Fighter combatants, the thin ownership outline is a separate persistent layer: P1 cyan #00f0ff, P2 red #ff3366 at the existing one-pixel reference thickness and static intensity. Future P3/P4 colors remain deferred. Match slot identity drives this layer; damage, statuses, armor, invulnerability, ability decoys and an effect expiring cannot recolor, pulse, disable or replace it. Keep the existing P1/P2 HUD labels.
 

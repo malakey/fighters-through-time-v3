@@ -98,6 +98,7 @@ These lines acknowledge presence and the unresolved mission; they do not instant
 Select the branch from the saved campaign hero ID and the level's authored central-legend ID before displaying its dialogue or absence-specific vignette:
 - Matching IDs: recognition branch; suppress current claims that this hero is missing, imprisoned elsewhere or cannot be found.
 - Different IDs: retain that level's existing missing-legend beat and the active hero's outsider observation.
+- **M14 (2026-09-26):** every scripted list of, or reference to, missing legends in any scene (for example Sarah's Level 8 "like Florence. Like Orléans.") is built from non-active heroes only. Level 1's exit scene has an explicit Leonardo recognition variant.
 - Shared levels without a central playable-roster legend: retain the existing mission/outsider dialogue; no new home-era pairing is invented.
 
 Every other legend's absence beat still applies. Do not suppress the whole Mystery Thread because the active hero has a personal Legacy Level. The branch must work whether that shared level occurs before or after 4A. Do not condition recognition on Legacy completion, and do not imply the hero has returned home permanently: N02's distinct wound and the existing unmoored/final-return rules remain.

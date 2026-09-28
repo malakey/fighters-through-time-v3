@@ -38,7 +38,7 @@ Boss rewards are **25 dust each** (16 bosses = 400). The required encounter colu
 | 15 | 35 | 25 | 60 | 20 | 720 | 1000 |
 | **Total** | **320** | **400** | **720** | **280** | **720** | **1,000** |
 
-Level 1's optional allocation belongs to its Extractors; it does not add a secret before the existing Level 2 introduction. All nine Level 4A variants use 15 required encounter dust, 25 boss dust, and 10 optional dust regardless of layout or enemy count. Act III conduits, valves, and pylons use the Extractor allocation; their narrative names do not create extra currency.
+Level 1's optional allocation belongs to its Extractors; it does not add a secret before the existing Level 2 introduction. All nine Level 4A variants use 15 required encounter dust, 25 boss dust, and 10 optional dust regardless of layout or enemy count. Act III conduits, valves, and pylons use the Extractor allocation; their narrative names do not create extra currency. Under M16 (2026-09-26) they are 3-second Interact channels rather than combat machines; completion pays the same allocation once as a physical pickup.
 
 ## Turning budgets into drops
 

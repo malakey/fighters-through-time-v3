@@ -50,7 +50,7 @@ After the baseline, estimate each remaining variant from its actual route/kit, b
 
 ## Authority and pending work
 
-See [main design](../design-godot-v7.md), [campaign validation](CAMPAIGN_VALIDATION.md), [Legacy checkpoints](LEGACY_CHECKPOINTS.md), [narrative decisions](NARRATIVE_RESOLUTION.md) and [Mirror Paradox](MIRROR_PARADOX.md). Asset paths, final music selections, dossiers, prototype execution, measured estimates and runtime/content acceptance remain pending. This documentation update is not production completion.
+See [main design](../design-godot-v7.md), [Legacy Level template (M22)](LEGACY_LEVELS.md), [campaign validation](CAMPAIGN_VALIDATION.md), [Legacy checkpoints](LEGACY_CHECKPOINTS.md), [narrative decisions](NARRATIVE_RESOLUTION.md) and [Mirror Paradox](MIRROR_PARADOX.md). Asset paths, final music selections, dossiers, prototype execution, measured estimates and runtime/content acceptance remain pending. This documentation update is not production completion.
 
 ## P02 — Current status and evidence
 
@@ -85,3 +85,7 @@ P03 also removes the fixed 450-line narrative total from the campaign mirror, ma
 User selected Option A on 2026-09-13. The GDD and adopted contracts define intended behavior; verified versioned code/resources describe a build and cannot silently override approved changes. Use the [design/build deviation ledger](DESIGN_BUILD_DEVIATIONS.md) for actual differences, evidence, ownership when known and acceptance criteria.
 
 No current-build deviations have been verified in this docs workspace. Historical reports are verification candidates; missing implementation evidence stays unverified. The ledger also identifies the unavailable Package 5 dossier source and the available F05 replacement economy, with P05 recorded as flagged-only by user decision on 2026-09-13: source recovery and replacement/index authoring are deferred.
+
+## Deferred pre-release tasks (2026-09-24 review)
+
+- **Content rating and sensitivity (G08, user chose Defer on 2026-09-26):** age rating (e.g. via IARC) and any cultural/historical sensitivity review are pre-release tasks with no target rating yet. Revisit before content lock; relevant material includes combat involving real historical figures, historical tragedies and brainwashed civilians.

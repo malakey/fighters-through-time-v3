@@ -4,7 +4,7 @@ Design decision: 2026-09-12. User selected **Option A: show available play optio
 
 ## Launch menu and player flow
 
-On supported Steam builds, Fighter Mode offers **Local Versus** and **Steam Remote Play Together**. Local Versus opens the existing local character-select/session flow. Remote Play Together shows short guidance, then enters that same local flow so the host can invite a friend through Steam. Example guidance: “Play local 1v1 with a friend through Steam. Your computer runs the match and streams it to your friend. Invite them through Steam's overlay.”
+On supported Steam builds, Fighter Mode offers **Local Versus** and **Steam Remote Play Together**. Local Versus opens the existing local character-select/session flow. Remote Play Together shows short guidance, then enters that same local flow so the host can invite a friend through Steam. Example guidance: “Play local 1v1 with a friend through Steam. Your computer runs the match and streams it to your friend. Invite them through Steam's overlay.” The menu's separate single-player **Versus CPU** entry (H05, 2026-09-26) is not a multiplayer route and is outside this contract's delivery checks.
 
 Use Steam's current supported invitation flow; this decision does not require a custom invitation browser or guessed API. Verify the overlay integration and instructions before release. Hide the Steam-specific menu entry when Steam integration is unavailable. If integration fails after opening it, show an honest unavailable message and retain Back/Local Versus; do not claim an invitation was sent.
 
