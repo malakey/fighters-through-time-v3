@@ -46,7 +46,7 @@ public class MainMenuSceneTests {
 
             foreach (string button in new[] {
                          "QuickPlayButton", "StoryButton", "LevelSelectButton", "FighterButton",
-                         "CalibrationDrillsButton", "SettingsButton", "QuitButton" }) {
+                         "CalibrationDrillsButton", "SettingsButton", "ExtrasButton", "QuitButton" }) {
                 AssertThat(menu.GetNodeOrNull<Button>(RootLayout + button) != null)
                     .OverrideFailureMessage($"Missing authored root button {button}")
                     .IsTrue();
@@ -138,11 +138,12 @@ public class MainMenuSceneTests {
         StorySaveData[] originals = ClearAllSlots();
         MainMenu menu = Open(out Node host);
         try {
-            // Root screen: six production buttons (Quick Play, Story, Fighter,
-            // Calibration Drills, Settings, Quit) plus the debug-build developer
-            // level select (the test host is a debug build), all chained and
-            // reachable. LAN was de-scoped to Package 7 (V7.3).
-            AssertChainCoversScreen(menu, "RootScreen", 7);
+            // Root screen: seven production buttons (Quick Play, Story, Fighter,
+            // Calibration Drills, Settings, Extras, Quit) plus the debug-build
+            // developer level select (the test host is a debug build), all chained
+            // and reachable. LAN was de-scoped to Package 7 (V7.3); Extras is
+            // Package 12 W6 (G15e).
+            AssertChainCoversScreen(menu, "RootScreen", 8);
 
             Press(menu, RootLayout + "StoryButton");
             AssertThat(menu.CurrentScreen).IsEqual(MainMenuScreen.SlotSelect);
@@ -452,7 +453,7 @@ public class MainMenuSceneTests {
             MainMenu menu = Open(out Node host);
             try {
                 AssertThat(menu.GetNode<Button>(RootLayout + "LevelSelectButton").Visible).IsFalse();
-                AssertChainCoversScreen(menu, "RootScreen", 6);
+                AssertChainCoversScreen(menu, "RootScreen", 7);
             } finally {
                 Teardown(host);
             }
@@ -544,7 +545,10 @@ public class MainMenuSceneTests {
     // ---- helpers ------------------------------------------------------------
 
     private static string[] ScreenNames() =>
-        new[] { "RootScreen", "SlotScreen", "CharacterScreen", "DifficultyScreen", "LevelSelectScreen" };
+        new[] {
+            "RootScreen", "SlotScreen", "CharacterScreen", "DifficultyScreen", "LevelSelectScreen",
+            "ExtrasScreen", "LicensesScreen"
+        };
 
     private static void Press(MainMenu menu, string path) =>
         menu.GetNode<Button>(path).EmitSignal(BaseButton.SignalName.Pressed);
