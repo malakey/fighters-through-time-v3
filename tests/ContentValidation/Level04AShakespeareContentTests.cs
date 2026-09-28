@@ -223,36 +223,33 @@ public class Level04AShakespeareContentTests {
         // The movement gate is traversal; neither special is.
         AssertThat(level.MovementGate.Mode).IsEqual(LegacyGateMode.Traversal);
         AssertThat(level.SpecialOneGate.Mode).IsEqual(LegacyGateMode.Strike);
-        AssertThat(level.SpecialTwoGate.Mode).IsEqual(LegacyGateMode.Zone);
+        AssertThat(level.SpecialTwoGate.Mode).IsEqual(LegacyGateMode.CastWatch);
     }
 
     [TestCase]
-    public void TheCastRecognisedGateHasAWatcherBoundToItsOwnAbility() {
+    public void TheCastRecognisedGateIsACastWatchGateBoundToItsOwnAbility() {
         // The Tempest lifts the caster and pushes bodies: it spawns no zone and raises no
-        // hitbox, so nothing in the combat pipeline can observe it. Without a recogniser that gate is unopenable and the whole
-        // route strands at PreBoss.
+        // hitbox, so nothing in the combat pipeline can observe it. Package 12 W8 folded
+        // B2's watcher into the gate as CastWatch, at the watcher's 220 px. Without a
+        // recogniser that gate is unopenable and the whole route strands at PreBoss.
         using var fixture = new LegacyFixture();
         Level04AShakespeareController level = fixture.Level;
+        LegacyKitGate gate = level.SpecialTwoGate;
 
-        AssertObject(level.TempestWatcher)
-            .OverrideFailureMessage("The cast-recognised gate has no LegacyCastGateWatcher.")
-            .IsNotNull();
-        AssertThat(level.TempestWatcher.Gate).IsEqual(level.SpecialTwoGate);
-        AssertString(level.TempestWatcher.RequiredAbilityID).IsEqual(level.SpecialTwoGateAbilityID);
-        AssertString(level.SpecialTwoGate.RequiredAbilityID).IsEqual(level.TempestWatcher.RequiredAbilityID);
+        AssertString(gate.RequiredAbilityID).IsEqual(level.SpecialTwoGateAbilityID);
+        AssertThat(gate.CastWatchRadius).IsEqual(220f);
 
-        // V01c: the watcher accepts its one ability and nothing else, and only
-        // within range of the mechanism.
-        AssertThat(level.TempestWatcher.TryRecognize("combo_1", level.TempestWatcher.GlobalPosition))
+        // V01c: the gate accepts its one ability and nothing else, and only within
+        // range of the mechanism.
+        AssertThat(gate.TryRecognizeCast("combo_1", gate.GlobalPosition, worldSuspended: false))
             .OverrideFailureMessage("A basic attack opened a kit gate.").IsFalse();
-        AssertThat(level.TempestWatcher.TryRecognize(level.TempestWatcher.RequiredAbilityID,
-            level.TempestWatcher.GlobalPosition + new Vector2(level.TempestWatcher.ResolveRadius + 200f, 0f)))
+        AssertThat(gate.TryRecognizeCast(gate.RequiredAbilityID,
+            gate.GlobalPosition + new Vector2(gate.CastWatchRadius + 200f, 0f), worldSuspended: false))
             .OverrideFailureMessage("The gate resolved from outside its own area.").IsFalse();
-        AssertThat(level.SpecialTwoGate.IsResolved).IsFalse();
+        AssertThat(gate.IsResolved).IsFalse();
 
-        AssertThat(level.TempestWatcher.TryRecognize(level.TempestWatcher.RequiredAbilityID,
-            level.TempestWatcher.GlobalPosition)).IsTrue();
-        AssertThat(level.SpecialTwoGate.IsResolved).IsTrue();
+        AssertThat(gate.TryRecognizeCast(gate.RequiredAbilityID, gate.GlobalPosition, worldSuspended: false)).IsTrue();
+        AssertThat(gate.IsResolved).IsTrue();
     }
 
     [TestCase]

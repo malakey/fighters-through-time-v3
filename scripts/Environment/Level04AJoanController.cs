@@ -72,14 +72,11 @@ namespace FTT.Environment {
         /// <summary>
         /// Divine Piercing is a stationary thrust flurry, not a zone — so the gate is
         /// a struck mechanism. Its thrusts resolve through hand-rolled enemy-hurtbox
-        /// shape queries rather than a <c>Hitbox</c>, so the gate additionally carries
-        /// a <see cref="LegacyResonantEffigy"/> the flurry can actually reach; see
-        /// that class for the full rationale and the one-line upstream fix.
+        /// shape queries rather than a <c>Hitbox</c>, so the gate's strike surface sits
+        /// on the <c>EnemyHurtbox</c> layer at the sweep size (Package 12 W8, retiring
+        /// B1's <c>LegacyResonantEffigy</c> stand-in); see <see cref="OnLevelReady"/>.
         /// </summary>
         protected override LegacyGateMode SpecialTwoGateMode => LegacyGateMode.Strike;
-
-        /// <summary>True for a gate whose ability only delivers through enemy-hurtbox queries.</summary>
-        public bool SpecialTwoNeedsEffigy => true;
 
         // === Layout ===
         // Short by design (LEGACY_CHECKPOINTS.md "scoped as a short level"): three
@@ -225,28 +222,17 @@ namespace FTT.Environment {
 
         // === Variant hooks ===
 
-        /// <summary>The effigy hung on the Special 2 gate. Test seam.</summary>
-        public LegacyResonantEffigy ReliquaryEffigy { get; private set; }
-
+        /// <summary>
+        /// Divine Piercing delivers through an enemy-hurtbox shape query and never
+        /// reaches a PersistentObject-only surface, so the reliquary pin's strike
+        /// surface sits on the <c>EnemyHurtbox</c> layer at the sweep size the retired
+        /// effigy used. The gate still accepts only <c>joan_divine_piercing</c>.
+        /// </summary>
         protected override void OnLevelReady() {
             base.OnLevelReady();
-            AttachReliquaryEffigy();
-        }
-
-        /// <summary>
-        /// Divine Piercing delivers through an enemy-hurtbox shape query and can never
-        /// touch the gate's PersistentObject strike surface, so the reliquary pin
-        /// carries a resonant effigy the flurry reaches. The gate still accepts only
-        /// <c>joan_divine_piercing</c>.
-        /// </summary>
-        private void AttachReliquaryEffigy() {
-            if (ReliquaryEffigy != null && IsInstanceValid(ReliquaryEffigy)) return;
-            if (SpecialTwoGate == null || !IsInstanceValid(SpecialTwoGate)) return;
-            ReliquaryEffigy = new LegacyResonantEffigy {
-                Name = "ReliquaryEffigy",
-                Gate = SpecialTwoGate
-            };
-            SpecialTwoGate.AddChild(ReliquaryEffigy);
+            if (SpecialTwoGate != null && IsInstanceValid(SpecialTwoGate)) {
+                SpecialTwoGate.ConfigureStrikeSurface(LegacyKitGate.SweepStrikeSurfaceSize, onEnemyHurtbox: true);
+            }
         }
     }
 }

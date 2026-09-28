@@ -222,37 +222,39 @@ public class Level04ATeslaContentTests {
         AssertThat(level.NexusSource.Gate).IsEqual(level.UltimateGate);
         // The movement gate is traversal; neither special is.
         AssertThat(level.MovementGate.Mode).IsEqual(LegacyGateMode.Traversal);
-        AssertThat(level.SpecialOneGate.Mode).IsEqual(LegacyGateMode.Strike);
+        AssertThat(level.SpecialOneGate.Mode).IsEqual(LegacyGateMode.CastWatch);
         AssertThat(level.SpecialTwoGate.Mode).IsEqual(LegacyGateMode.Strike);
     }
 
     [TestCase]
-    public void TheCastRecognisedGateHasAWatcherBoundToItsOwnAbility() {
-        // the Tesla Coil is a deployed construct: its arcs sweep only EnemyHurtbox-layer
-        // hurtboxes and never reach a gate surface. Without a recogniser that gate is unopenable and the whole
-        // route strands at PreBoss.
+    public void TheCastRecognisedGateIsACastWatchGateBoundToItsOwnAbility() {
+        // The Tesla Coil is a deployed construct. Package 12 W8 folded B2's watcher
+        // into the gate: the CastWatch gate latches on the cast within the retired
+        // watcher's 220 px, and keeps its EnemyHurtbox-layer strike surface so the
+        // coil's arcs (which carry the ability ID) still wake the mast. Without either
+        // recogniser the gate is unopenable and the whole route strands at PreBoss.
         using var fixture = new LegacyFixture();
         Level04ATeslaController level = fixture.Level;
+        LegacyKitGate gate = level.SpecialOneGate;
 
-        AssertObject(level.CoilWatcher)
-            .OverrideFailureMessage("The cast-recognised gate has no LegacyCastGateWatcher.")
+        AssertString(gate.RequiredAbilityID).IsEqual(level.SpecialOneGateAbilityID);
+        AssertThat(gate.CastWatchRadius).IsEqual(220f);
+        AssertObject(gate.StrikeSurface)
+            .OverrideFailureMessage("The construct gate lost the strike surface its coil arcs into.")
             .IsNotNull();
-        AssertThat(level.CoilWatcher.Gate).IsEqual(level.SpecialOneGate);
-        AssertString(level.CoilWatcher.RequiredAbilityID).IsEqual(level.SpecialOneGateAbilityID);
-        AssertString(level.SpecialOneGate.RequiredAbilityID).IsEqual(level.CoilWatcher.RequiredAbilityID);
+        AssertThat((gate.StrikeSurface.CollisionLayer & CollisionLayers.EnemyHurtbox) != 0).IsTrue();
 
-        // V01c: the watcher accepts its one ability and nothing else, and only
-        // within range of the mechanism.
-        AssertThat(level.CoilWatcher.TryRecognize("combo_1", level.CoilWatcher.GlobalPosition))
+        // V01c: the gate accepts its one ability and nothing else, and only within
+        // range of the mechanism.
+        AssertThat(gate.TryRecognizeCast("combo_1", gate.GlobalPosition, worldSuspended: false))
             .OverrideFailureMessage("A basic attack opened a kit gate.").IsFalse();
-        AssertThat(level.CoilWatcher.TryRecognize(level.CoilWatcher.RequiredAbilityID,
-            level.CoilWatcher.GlobalPosition + new Vector2(level.CoilWatcher.ResolveRadius + 200f, 0f)))
+        AssertThat(gate.TryRecognizeCast(gate.RequiredAbilityID,
+            gate.GlobalPosition + new Vector2(gate.CastWatchRadius + 200f, 0f), worldSuspended: false))
             .OverrideFailureMessage("The gate resolved from outside its own area.").IsFalse();
-        AssertThat(level.SpecialOneGate.IsResolved).IsFalse();
+        AssertThat(gate.IsResolved).IsFalse();
 
-        AssertThat(level.CoilWatcher.TryRecognize(level.CoilWatcher.RequiredAbilityID,
-            level.CoilWatcher.GlobalPosition)).IsTrue();
-        AssertThat(level.SpecialOneGate.IsResolved).IsTrue();
+        AssertThat(gate.TryRecognizeCast(gate.RequiredAbilityID, gate.GlobalPosition, worldSuspended: false)).IsTrue();
+        AssertThat(gate.IsResolved).IsTrue();
     }
 
     [TestCase]

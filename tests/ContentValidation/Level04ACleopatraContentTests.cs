@@ -222,37 +222,39 @@ public class Level04ACleopatraContentTests {
         AssertThat(level.NexusSource.Gate).IsEqual(level.UltimateGate);
         // The movement gate is traversal; neither special is.
         AssertThat(level.MovementGate.Mode).IsEqual(LegacyGateMode.Traversal);
-        AssertThat(level.SpecialOneGate.Mode).IsEqual(LegacyGateMode.Strike);
+        AssertThat(level.SpecialOneGate.Mode).IsEqual(LegacyGateMode.CastWatch);
         AssertThat(level.SpecialTwoGate.Mode).IsEqual(LegacyGateMode.Zone);
     }
 
     [TestCase]
-    public void TheCastRecognisedGateHasAWatcherBoundToItsOwnAbility() {
-        // Serpent Nest is a deployed construct: its bite sweeps only EnemyHurtbox-layer
-        // hurtboxes and never reaches a gate surface. Without a recogniser that gate is unopenable and the whole
-        // route strands at PreBoss.
+    public void TheCastRecognisedGateIsACastWatchGateBoundToItsOwnAbility() {
+        // Serpent Nest is a deployed construct. Package 12 W8 folded B2's watcher into
+        // the gate: the CastWatch gate latches on the cast within the retired watcher's
+        // 220 px, and keeps its EnemyHurtbox-layer strike surface so the brood's bites
+        // (which carry the ability ID) still open the seal. Without either recogniser
+        // the gate is unopenable and the whole route strands at PreBoss.
         using var fixture = new LegacyFixture();
         Level04ACleopatraController level = fixture.Level;
+        LegacyKitGate gate = level.SpecialOneGate;
 
-        AssertObject(level.SerpentNestWatcher)
-            .OverrideFailureMessage("The cast-recognised gate has no LegacyCastGateWatcher.")
+        AssertString(gate.RequiredAbilityID).IsEqual(level.SpecialOneGateAbilityID);
+        AssertThat(gate.CastWatchRadius).IsEqual(220f);
+        AssertObject(gate.StrikeSurface)
+            .OverrideFailureMessage("The construct gate lost the strike surface its brood bites.")
             .IsNotNull();
-        AssertThat(level.SerpentNestWatcher.Gate).IsEqual(level.SpecialOneGate);
-        AssertString(level.SerpentNestWatcher.RequiredAbilityID).IsEqual(level.SpecialOneGateAbilityID);
-        AssertString(level.SpecialOneGate.RequiredAbilityID).IsEqual(level.SerpentNestWatcher.RequiredAbilityID);
+        AssertThat((gate.StrikeSurface.CollisionLayer & CollisionLayers.EnemyHurtbox) != 0).IsTrue();
 
-        // V01c: the watcher accepts its one ability and nothing else, and only
-        // within range of the mechanism.
-        AssertThat(level.SerpentNestWatcher.TryRecognize("combo_1", level.SerpentNestWatcher.GlobalPosition))
+        // V01c: the gate accepts its one ability and nothing else, and only within
+        // range of the mechanism.
+        AssertThat(gate.TryRecognizeCast("combo_1", gate.GlobalPosition, worldSuspended: false))
             .OverrideFailureMessage("A basic attack opened a kit gate.").IsFalse();
-        AssertThat(level.SerpentNestWatcher.TryRecognize(level.SerpentNestWatcher.RequiredAbilityID,
-            level.SerpentNestWatcher.GlobalPosition + new Vector2(level.SerpentNestWatcher.ResolveRadius + 200f, 0f)))
+        AssertThat(gate.TryRecognizeCast(gate.RequiredAbilityID,
+            gate.GlobalPosition + new Vector2(gate.CastWatchRadius + 200f, 0f), worldSuspended: false))
             .OverrideFailureMessage("The gate resolved from outside its own area.").IsFalse();
-        AssertThat(level.SpecialOneGate.IsResolved).IsFalse();
+        AssertThat(gate.IsResolved).IsFalse();
 
-        AssertThat(level.SerpentNestWatcher.TryRecognize(level.SerpentNestWatcher.RequiredAbilityID,
-            level.SerpentNestWatcher.GlobalPosition)).IsTrue();
-        AssertThat(level.SpecialOneGate.IsResolved).IsTrue();
+        AssertThat(gate.TryRecognizeCast(gate.RequiredAbilityID, gate.GlobalPosition, worldSuspended: false)).IsTrue();
+        AssertThat(gate.IsResolved).IsTrue();
     }
 
     [TestCase]
