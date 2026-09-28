@@ -542,19 +542,20 @@ namespace FTT.Environment {
         /// resume can never strand the player mid-swing or on a skiff that has since
         /// sailed. All this has to do is keep cleared waves cleared.
         /// </summary>
+        /// <summary>The anchor's non-encounter world state; the waves come from the baseline.</summary>
         protected override void MarkWavesClearedThrough(string checkpointID) {
-            switch (checkpointID) {
-                case Checkpoint1:
-                    _wavesSpawned.Add(1);
-                    _wavesSpawned.Add(2);
-                    break;
-                case Checkpoint2:
-                    _wavesSpawned.Add(1);
-                    _wavesSpawned.Add(2);
-                    _wavesSpawned.Add(3);
-                    _flagshipSighted = true;
-                    break;
-            }
+            if (checkpointID == Checkpoint2) _flagshipSighted = true;
+        }
+
+        // Package 12 W2 (GAP-13): explicit encounter baseline — waves 1+2 at the
+        // middle anchor, 1+2+3 at the PreBoss anchor, authored rather than derived.
+        private static readonly IReadOnlyDictionary<string, string[]> Baselines =
+            NumberedWaveBaselines(NassauLevelID, new[] { 1, 2 }, new[] { 1, 2, 3 });
+
+        protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
+
+        protected override void MarkEncounterCleared(string encounterID) {
+            if (TryParseWaveEncounter(NassauLevelID, encounterID, out int wave)) _wavesSpawned.Add(wave);
         }
 
         // === Encounters ===

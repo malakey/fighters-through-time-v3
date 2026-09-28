@@ -208,11 +208,13 @@ namespace FTT.UI {
             int maxRewinds = FTT.Environment.ChronalRewindManager.GetMaximumRewinds(difficulty);
             story.SetRewinds(maxRewinds);
 
+            // Package 12 W2 (H02): the whole wallet belongs to the open attempt.
+            // With no hub deposit, dust a Collapse or exit left behind is still
+            // this level's undeposited dust even though this scene load never
+            // tallied it, so a full Restart Level clears ALL of it (F02/F10) —
+            // not just what DustEarnedThisLevel saw since the last load.
             int wallet = story.ChronalDustCollected;
-            int earned = GetTree()?.CurrentScene is FTT.Environment.StoryLevelControllerBase level
-                ? level.DustEarnedThisLevel
-                : wallet;
-            story.SetDust(CalculateRestartWallet(wallet, earned));
+            story.SetDust(CalculateRestartWallet(wallet, earnedThisLevel: wallet));
             // A true restart clears the whole per-attempt registry family:
             // Restoration Fonts refill, checkpoints de-stabilize (Mending
             // pays again), destroyed extractors and found secrets reset with
@@ -290,14 +292,12 @@ namespace FTT.UI {
             int slot = gameManager.CurrentSession.ActiveSaveSlot;
             if (slot < 0 || slot >= saveManager.SaveSlots.Length || saveManager.SaveSlots[slot] == null) return;
 
-            // The level controller's tally is the "earned this level" figure; the
-            // Tutorial and Florence predate StoryLevelControllerBase, so they fall
-            // back to the whole wallet (equivalent in practice — the hub deposits
-            // the wallet on every visit, so a level starts from zero).
+            // Package 12 W2 (H02): the whole wallet is the open attempt's
+            // undeposited dust — only the level-completion transaction banks,
+            // so anything a previous Collapse or exit left behind is still at
+            // stake and the 20% rule applies to all of it.
             int wallet = story.ChronalDustCollected;
-            int unbanked = GetTree()?.CurrentScene is FTT.Environment.StoryLevelControllerBase level
-                ? level.DustEarnedThisLevel
-                : wallet;
+            int unbanked = wallet;
 
             saveManager.SaveSlots[slot].LevelChronalDust = CalculateExitWalletAfterPenalty(wallet, unbanked);
             saveManager.SaveStorySlot(slot);

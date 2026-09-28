@@ -329,3 +329,20 @@ The rewind WIP was committed as `21b0747` (58/58 filtered). The design mirror, e
 - **Hash impact:** none. `scripts/FighterSim/` is untouched.
 - **Test delta:** +17.
 - **Ledger:** `VERIFY-05` is closed.
+
+### W2 — Dust banking, attempt resources, reward sources (2026-09-27)
+- **Shipped:** H02, GAP-01, GAP-02, GAP-04, GAP-13. D15 (the Eraser dust value) is held and untouched. Test delta **+18**, for a full-suite total of **2255/2255**. No deterministic hash moved. Handoff: `docs/handoffs/P12_W2.md`.
+- **H02:**
+  - `CommitCompletionTransaction` is the only deposit, for every level. The hub's arrival and Repository deposits are deleted.
+  - Held attempt dust persists across hub returns. Restart Level clears it on the pause, hub-restart and Game Over paths.
+  - The exit and Collapse 20% fee now applies to the whole wallet.
+  - The hub dust line shows the deposited balance, and a new Repository ledger label shows the last bank and any held dust.
+- **Declared v7 derivation:** `StoryAttemptState.ReconcileUndepositedCompletion`. It must run in the v6→v7 envelope step before `MigrateFromLegacyRoot`.
+- **Deviations:**
+  - GAP-13 needed small, additive edits to all 14 level controllers and the 4A base, outside W2's listed ownership. The wave latches moved to `MarkEncounterCleared`, and `MarkWavesClearedThrough` keeps only world state.
+  - GAP-04 edited `EnemyController`, `EnemyFactory` and `EnemyAbilityExecutor`.
+  - `PauseMenu` had two call sites changed for H02.
+  - `LastCompletionDepositDust` is session-scoped, so no save field was added.
+  - The results itemisation does not include held dust carried across a Collapse resume.
+  - `en.en.translation` is not committed. One W2 case checks the compiled keys, so it needs the orchestrator's `--import`.
+

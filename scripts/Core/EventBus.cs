@@ -64,6 +64,14 @@ namespace FTT.Core {
         /// random-item chance. 1.0 is the neutral default.
         /// </summary>
         public float ItemDropChanceMultiplier;
+        /// <summary>
+        /// Package 12 W2 (GAP-04): true when this enemy was produced by a
+        /// <c>SummonMinions</c> ability rather than authored in a level's
+        /// encounter table. A summon is never an F05 finite reward source, so it
+        /// draws no dust award and can never consume another encounter's
+        /// required-source entitlement of the same enemy type.
+        /// </summary>
+        public bool IsSummoned;
     }
 
     public struct BossSpawnedPayload {

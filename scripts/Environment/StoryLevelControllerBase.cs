@@ -517,6 +517,10 @@ namespace FTT.Environment {
                 Levels.SetCheckpointPosition(save.LastCheckpointID, checkpoint);
                 ResumedMidLevel = true;
                 ResumedCheckpointID = save.LastCheckpointID;
+                // Package 12 W2 (GAP-13): the authored encounter baseline is the
+                // reconstruction input; MarkWavesClearedThrough keeps only the
+                // anchor's non-encounter world state (gates, floods, escapes).
+                ApplyResumedEncounterBaseline(save.LastCheckpointID);
                 MarkWavesClearedThrough(save.LastCheckpointID);
             }
             // === Package 11 A3b region: F10 durable restore + T01a cleanup ===
@@ -542,20 +546,158 @@ namespace FTT.Environment {
             // transaction as the reconstruction. Committing the settlement
             // against the attempt revision is what stops a repeated load from
             // paying the same damage record twice.
-            StoryManager story = StoryManager.Instance;
-            float settledMeter = save.CurrentUltimateMeter;
-            if (story != null) {
-                StoryPlayerResourceTimers timers = story.CurrentAttempt.PlayerResourceTimers;
-                if (timers.RallyUncreditedMeter > 0f) {
-                    settledMeter = Mathf.Min(100f, settledMeter + timers.RallyUncreditedMeter);
-                    timers.RallyUncreditedMeter = 0f;
-                    story.CurrentAttempt.Bump();
-                }
-            }
+            float settledMeter = RestoreDurableResources(Player, save, ResumedMidLevel);
             Player.ClearAllStatusEffects();
             Player.RestoreStoryCheckpoint(position, save.CurrentHP, settledMeter);
             // === end Package 11 A3b region ===
         }
+
+        // === Package 12 W2 region: F10 durable resource restore (GAP-01) =====
+
+        /// <summary>
+        /// The one ordinary-load resource restore, shared by every campaign
+        /// controller (Florence, which predates this base, calls it too).
+        ///
+        /// <para>On a mid-level resume it puts the hero's <b>actual</b> block
+        /// charges, regen progress and shatter lockout, ability and Echo Step
+        /// cooldowns and the D02d Wardenclyffe delay back on the freshly built
+        /// player — nothing is refilled. The Rally pool is discarded (T01a) and
+        /// its still-uncredited damage-taken meter is settled <b>exactly once</b>
+        /// into the returned meter, capped at the ordinary meter cap. The
+        /// settlement is written into the attempt record AND the save's meter in
+        /// the same step, so whichever durable write lands next persists the
+        /// settled pair; a crash before that write reloads the unsettled pair
+        /// and settles it once again from disk — never twice against one
+        /// record.</para>
+        ///
+        /// <para>A fresh entry restores nothing: its attempt was just minted, and
+        /// a stale record from another attempt must never deplete a new hero.</para>
+        /// </summary>
+        /// <returns>The meter value the hero should be restored with.</returns>
+        public static float RestoreDurableResources(PlayerController player, StorySaveData save, bool resumedMidLevel) {
+            float settledMeter = save?.CurrentUltimateMeter ?? 0f;
+            StoryManager story = StoryManager.Instance;
+            if (story == null || save == null) return settledMeter;
+            StoryPlayerResourceTimers timers = story.CurrentAttempt.PlayerResourceTimers;
+            if (timers.RallyUncreditedMeter > 0f) {
+                settledMeter = Mathf.Min(FTT.Combat.UltimateMeter.MaxValue, settledMeter + timers.RallyUncreditedMeter);
+                timers.RallyUncreditedMeter = 0f;
+                save.CurrentUltimateMeter = settledMeter;
+                story.CurrentAttempt.Bump();
+            }
+            if (resumedMidLevel && player != null) player.RestoreStoryResourceTimers(timers);
+            return settledMeter;
+        }
+
+        // === end Package 12 W2 region (durable resource restore) =============
+
+        // === Package 12 W2 region: explicit encounter baselines (GAP-13) =====
+
+        /// <summary>
+        /// The current layout version of every explicit encounter-baseline map.
+        /// Package 11's derived <c>{LevelID}_wave_N</c> IDs were version 1; a
+        /// persisted checkpoint record carrying an older version is ignored in
+        /// favour of the level's current map.
+        /// </summary>
+        public const int ExplicitEncounterBaselineVersion = 2;
+
+        /// <summary>
+        /// The level's explicit checkpoint → cleared-encounter map (F10:
+        /// "rebuild ordinary encounters from an authored checkpoint baseline"
+        /// with membership bound to <b>stable encounter IDs</b>). Every campaign
+        /// controller overrides this; <c>null</c> keeps the Package 11 index
+        /// derivation for synthetic harness levels only. Keys are stable
+        /// checkpoint IDs, values the encounters that anchor restores as already
+        /// fought. An anchor absent from the map clears nothing.
+        /// </summary>
+        protected virtual IReadOnlyDictionary<string, string[]> EncounterBaselineMap => null;
+
+        /// <summary>Read-only view of <see cref="EncounterBaselineMap"/> for content validation.</summary>
+        public IReadOnlyDictionary<string, string[]> AuthoredEncounterBaselines => EncounterBaselineMap;
+
+        /// <summary>The layout version this level's baselines are registered with.</summary>
+        protected virtual int EncounterBaselineVersion =>
+            EncounterBaselineMap != null ? ExplicitEncounterBaselineVersion : 1;
+
+        /// <summary>The baseline the last resume actually applied. Test seam and diagnostics.</summary>
+        public IReadOnlyList<string> AppliedEncounterBaseline { get; private set; } = System.Array.Empty<string>();
+
+        /// <summary>
+        /// Marks one stable encounter as already fought. Campaign controllers map
+        /// each of their encounter IDs onto the wave latch that suppresses its
+        /// spawn; unknown IDs are ignored.
+        /// </summary>
+        protected virtual void MarkEncounterCleared(string encounterID) { }
+
+        /// <summary>
+        /// The resume-path reader. Prefers the baseline the attempt committed at
+        /// activation — the persisted <see cref="StoryCheckpointRecord"/>, when
+        /// it names this anchor and was written against the current layout
+        /// version — and otherwise reads the level's registered map. Either way
+        /// the IDs are authored data; nothing is inferred from where an enemy
+        /// happened to be standing.
+        /// </summary>
+        protected void ApplyResumedEncounterBaseline(string checkpointID) {
+            IReadOnlyList<string> baseline = ResolveResumeEncounterBaseline(checkpointID);
+            foreach (string encounterID in baseline) MarkEncounterCleared(encounterID);
+            AppliedEncounterBaseline = baseline;
+        }
+
+        /// <summary>The stable ID of a numbered wave: <c>{levelID}_wave_{n}</c>.</summary>
+        public static string WaveEncounterID(string levelID, int wave) => $"{levelID}_wave_{wave}";
+
+        /// <summary>Inverse of <see cref="WaveEncounterID"/> for this level; false for any other ID.</summary>
+        protected static bool TryParseWaveEncounter(string levelID, string encounterID, out int wave) {
+            wave = 0;
+            string prefix = $"{levelID}_wave_";
+            return encounterID != null
+                && encounterID.StartsWith(prefix, System.StringComparison.Ordinal)
+                && int.TryParse(encounterID.Substring(prefix.Length), out wave)
+                && wave > 0;
+        }
+
+        /// <summary>
+        /// The common numbered-wave map: the entry anchor clears nothing, the
+        /// middle anchor clears <paramref name="middleWaves"/>, the PreBoss anchor
+        /// clears <paramref name="preBossWaves"/>. Authored per level — the wave
+        /// numbers are explicit arguments, never derived from anchor order.
+        /// </summary>
+        protected static IReadOnlyDictionary<string, string[]> NumberedWaveBaselines(
+            string levelID, int[] middleWaves, int[] preBossWaves) {
+            string[] Ids(int[] waves) {
+                var ids = new string[waves.Length];
+                for (int index = 0; index < waves.Length; index++) ids[index] = WaveEncounterID(levelID, waves[index]);
+                return ids;
+            }
+            return new Dictionary<string, string[]> {
+                [$"{levelID}_checkpoint_0"] = System.Array.Empty<string>(),
+                [$"{levelID}_checkpoint_1"] = Ids(middleWaves),
+                [$"{levelID}_checkpoint_2"] = Ids(preBossWaves)
+            };
+        }
+
+        /// <summary>Pure half of <see cref="ApplyResumedEncounterBaseline"/>.</summary>
+        public IReadOnlyList<string> ResolveResumeEncounterBaseline(string checkpointID) {
+            if (string.IsNullOrWhiteSpace(checkpointID)) return System.Array.Empty<string>();
+            StoryManager story = StoryManager.Instance;
+            StoryCheckpointRecord record = story?.CurrentAttempt?.CheckpointRecord;
+            if (record != null
+                && string.Equals(record.AnchorID, checkpointID, System.StringComparison.Ordinal)
+                && record.BaselineVersion == EncounterBaselineVersion
+                && record.BaselineEncounterIDs != null) {
+                return new List<string>(record.BaselineEncounterIDs);
+            }
+            if (story != null && story.HasCheckpointRole(checkpointID)) {
+                return new List<string>(story.GetEncounterBaseline(checkpointID));
+            }
+            return EncounterBaselineMap != null
+                && EncounterBaselineMap.TryGetValue(checkpointID, out string[] authored)
+                && authored != null
+                    ? new List<string>(authored)
+                    : System.Array.Empty<string>();
+        }
+
+        // === end Package 12 W2 region (encounter baselines) ==================
 
         /// <summary>
         /// V7.3 mid-level resume: rebuilds the attempt's world-state on top of
@@ -831,7 +973,8 @@ namespace FTT.Environment {
                 return checkpoint;
             }
             StoryManager.Instance?.SetRecoveryRouteSeconds(id, ParSeconds * RemainingRouteFractionFor(role));
-            StoryManager.Instance?.RegisterEncounterBaseline(id, BaselineEncounterIDsFor(id, role));
+            StoryManager.Instance?.RegisterEncounterBaseline(
+                id, BaselineEncounterIDsFor(id, role), EncounterBaselineVersion);
             _liveCheckpointCount++;
             Levels?.RegisterCheckpoint(id, checkpoint.Position + checkpoint.RespawnOffset);
             AddCheckpointNodes(checkpoint);
@@ -887,8 +1030,20 @@ namespace FTT.Environment {
         /// <para>A level whose route does not match overrides this. The IDs are
         /// authored data; nothing infers membership from where an enemy happened
         /// to be standing when the player died.</para>
+        ///
+        /// <para><b>Package 12 W2 (GAP-13):</b> the derivation matched only six
+        /// of the fourteen campaign controllers, and on Hard it mis-indexed the
+        /// PreBoss anchor behind an inert middle. Every campaign controller now
+        /// authors <see cref="EncounterBaselineMap"/>, which wins; the derivation
+        /// survives only for synthetic harness levels that author no map.</para>
         /// </summary>
         protected virtual IReadOnlyList<string> BaselineEncounterIDsFor(string checkpointID, CheckpointRole role) {
+            IReadOnlyDictionary<string, string[]> map = EncounterBaselineMap;
+            if (map != null) {
+                return map.TryGetValue(checkpointID ?? "", out string[] authored) && authored != null
+                    ? new List<string>(authored)
+                    : new List<string>();
+            }
             var ids = new List<string>();
             int waves = _liveCheckpointCount == 0 ? 0 : _liveCheckpointCount + 1;
             for (int wave = 1; wave <= waves; wave++) ids.Add($"{LevelID}_wave_{wave}");

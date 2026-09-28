@@ -523,22 +523,25 @@ namespace FTT.Environment {
 
         // === Checkpoint resume ===
 
+        /// <summary>The anchor's non-encounter world state; the waves come from the baseline.</summary>
         protected override void MarkWavesClearedThrough(string checkpointID) {
-            switch (checkpointID) {
-                case Checkpoint1:
-                    _wavesSpawned.Add(1);
-                    _wavesSpawned.Add(2);
-                    break;
-                case Checkpoint2:
-                    _wavesSpawned.Add(1);
-                    _wavesSpawned.Add(2);
-                    _wavesSpawned.Add(3);
-                    // Checkpoint 2 is east of the finish line, so the run is already
-                    // survived. Re-arming it would trap a resumed player between a
-                    // fresh front and the rotunda door.
-                    FirestormTriggered = true;
-                    break;
+            if (checkpointID == Checkpoint2) {
+                // Checkpoint 2 is east of the finish line, so the run is already
+                // survived. Re-arming it would trap a resumed player between a
+                // fresh front and the rotunda door.
+                FirestormTriggered = true;
             }
+        }
+
+        // Package 12 W2 (GAP-13): explicit encounter baseline — waves 1+2 at the
+        // middle anchor, 1+2+3 at the PreBoss anchor, authored rather than derived.
+        private static readonly IReadOnlyDictionary<string, string[]> Baselines =
+            NumberedWaveBaselines(AlexandriaLevelID, new[] { 1, 2 }, new[] { 1, 2, 3 });
+
+        protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
+
+        protected override void MarkEncounterCleared(string encounterID) {
+            if (TryParseWaveEncounter(AlexandriaLevelID, encounterID, out int wave)) _wavesSpawned.Add(wave);
         }
 
         /// <summary>

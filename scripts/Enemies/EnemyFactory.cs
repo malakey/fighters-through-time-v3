@@ -51,6 +51,19 @@ namespace FTT.Enemies {
             return enemy;
         }
 
+        /// <summary>
+        /// Package 12 W2 (GAP-04): a <c>SummonMinions</c> spawn. Identical to
+        /// <see cref="Spawn"/> except that the body is marked
+        /// <see cref="EnemyController.IsSummoned"/>, so its death draws no F05
+        /// award and can never consume an authored encounter's finite source of
+        /// the same enemy type. Set after the pool's <c>OnSpawn</c> reset.
+        /// </summary>
+        public static EnemyController SpawnSummoned(string enemyID, Node parent, Vector2 position) {
+            EnemyController enemy = Spawn(enemyID, parent, position);
+            if (enemy != null) enemy.IsSummoned = true;
+            return enemy;
+        }
+
         /// <summary>Unpooled instance, used when no pool manager is available.</summary>
         public static EnemyController Create(
             string enemyID,

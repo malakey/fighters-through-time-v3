@@ -71,6 +71,12 @@ namespace FTT.Environment {
         /// so sandbox and harness behaviour is unchanged.</para>
         /// </summary>
         private void SpawnKillDust(EnemyKilledPayload payload) {
+            // Package 12 W2 (GAP-04): a summon is never a finite reward source.
+            // Looking it up by enemy ID would hand it the next unissued REQUIRED
+            // source of the same type — stealing that encounter's entitlement
+            // when the summon happens to die first — so it issues nothing, on
+            // the ledger path and the advisory fallback alike.
+            if (payload.IsSummoned) return;
             int amount = Mathf.Max(1, payload.ChronalDustDrop);
             string sourceID = "";
             if (LevelRewardDirectory.EnsureCompiled() != null) {

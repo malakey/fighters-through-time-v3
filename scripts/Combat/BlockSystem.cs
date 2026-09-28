@@ -250,6 +250,33 @@ namespace FTT.Combat {
             FTT.Core.EventBus.Instance?.RaiseBlockBroken(_owner.PlayerIndex);
         }
 
+        // === Package 12 W2: F10 resource persistence (GAP-01) ===============
+        // Additive accessors only. Ordinary loading must restore the player's
+        // actual block resources — charges, regen progress and the remaining
+        // shatter lockout — and must never refill them (STORY_PERSISTENCE,
+        // attemptState.playerResourceTimers).
+
+        /// <summary>Seconds of regeneration progress toward the next charge (multiplier already applied).</summary>
+        public float RegenProgressSeconds => Mathf.Max(0f, _regenTimer);
+
+        /// <summary>Seconds left on the V7.3 shatter lockout; zero when none is running.</summary>
+        public float LockoutRemainingSeconds => Mathf.Max(0f, _lockoutTimer);
+
+        /// <summary>
+        /// Restores persisted block resources onto a freshly constructed
+        /// system. Charges clamp to <see cref="MaxCharges"/>; the stance is
+        /// down and shieldstun is discarded (T01a: reconstruction resumes idle).
+        /// A charge restore never shortens a lockout (F17).
+        /// </summary>
+        public void RestorePersistedState(int charges, float regenProgressSeconds, float lockoutRemainingSeconds) {
+            CurrentCharges = Mathf.Clamp(charges, 0, Mathf.Max(0, MaxCharges));
+            _regenTimer = Mathf.Clamp(regenProgressSeconds, 0f, RegenInterval);
+            _lockoutTimer = Mathf.Max(0f, lockoutRemainingSeconds);
+            _shieldStunTimer = 0f;
+            _isBlocking = false;
+            RaiseChargesChanged();
+        }
+
         public override void _PhysicsProcess(double delta) {
             // Shieldstun and the lockout share the owner's hitstop suspension:
             // a frozen fighter's timers do not tick (mirrors the sim, where
