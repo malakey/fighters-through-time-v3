@@ -50,6 +50,10 @@ namespace FTT.FighterSim {
             // legacy flat-arena callers and tests.
             int resolvedSpawnDistance = stageGeometry != null ? geometry.SpawnDistance : spawnDistance;
             _simulation = new EcsSimulation(MaxEntities, RollbackHistoryTicks, deltaTimeMs: 16);
+            // M08/M05 (Package 12 W3b): the loadouts' projected hit contracts,
+            // static configuration shared by the systems that resolve ability
+            // hits. Not snapshot state; see FighterHitContractTable.
+            var hitContracts = new FighterHitContractTable(playerOne, playerTwo);
             _simulation.AddSystem(
                 new FighterWorldSystem(playerOne, playerTwo, stocks, matchSeconds * TickRate, seed, resolvedSpawnDistance, rules),
                 SystemPhase.PreUpdate);
@@ -58,8 +62,8 @@ namespace FTT.FighterSim {
             _simulation.AddSystem(new FighterMovementSystem(geometry), SystemPhase.Update);
             _simulation.AddSystem(new FighterAbilityEntitySystem(), SystemPhase.Update);
             _simulation.AddSystem(new FighterPushboxSystem(geometry), SystemPhase.PostUpdate);
-            _simulation.AddSystem(new FighterCombatSystem(), SystemPhase.PostUpdate);
-            _simulation.AddSystem(new FighterProjectileSystem(), SystemPhase.PostUpdate);
+            _simulation.AddSystem(new FighterCombatSystem(hitContracts), SystemPhase.PostUpdate);
+            _simulation.AddSystem(new FighterProjectileSystem(hitContracts), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterPersistentObjectSystem(), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterZoneSystem(), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterHazardSystem(geometry), SystemPhase.PostUpdate);
@@ -224,6 +228,23 @@ namespace FTT.FighterSim {
                 }
             }
             mark = default;
+            return false;
+        }
+
+        /// <summary>
+        /// M05 (Package 12 W3b): reads a fighter's knockdown / get-up state
+        /// (component 320). Snapshot and hash state like everything else.
+        /// </summary>
+        public bool TryGetFighterKnockdown(int playerID, out FighterKnockdownComponent knockdown) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterKnockdownComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID == playerID) {
+                    knockdown = _simulation.Frame.GetReadOnly<FighterKnockdownComponent>(entity);
+                    return true;
+                }
+            }
+            knockdown = default;
             return false;
         }
 

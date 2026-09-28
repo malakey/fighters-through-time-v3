@@ -134,6 +134,8 @@ public class StoryFsmM04TransitionTests {
             player.GetNode<Hurtbox>("Hurtbox").TakeHit(new HitPayload {
                 AttackerIndex = 1, AttackID = "test.hit", HitboxID = "combo_3",
                 AttackClass = AttackClass.Basic, Damage = 5f, Knockback = new Vector2(3f, -5f),
+                // M05 (Package 12 W3b): the finisher is an authored launcher.
+                Launches = true,
                 HitstunDuration = 0.8f, HitOrigin = player.GlobalPosition + new Vector2(-20f, 0f),
                 AttackerFacingRight = true
             });

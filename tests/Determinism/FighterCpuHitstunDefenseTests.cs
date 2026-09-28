@@ -1,3 +1,4 @@
+using FTT.Combat;
 using FTT.Core;
 using FTT.FighterSim;
 using GdUnit4;
@@ -110,6 +111,9 @@ public class FighterCpuHitstunDefenseTests {
         PlayerInputFrame previous = default;
 
         CpuDecisionObservation leftOfCentre = HitstunObservation(12);
+        // M05 (Package 12 W3b): DI is only held on a LAUNCH, read input-side as
+        // "airborne in hitstun" — a non-launching hit leaves its victim grounded.
+        leftOfCentre.IsGrounded = 0;
         leftOfCentre.HasStageBounds = 1;
         leftOfCentre.LeftWallRaw = FP64.FromInt(-9).RawValue;
         leftOfCentre.RightWallRaw = FP64.FromInt(9).RawValue;
@@ -134,6 +138,7 @@ public class FighterCpuHitstunDefenseTests {
         // nearest pit-facing floor edge — which on Paris is AWAY from centre,
         // because stage centre is the hole.
         CpuDecisionObservation overTheParisPit = HitstunObservation(12);
+        overTheParisPit.IsGrounded = 0;
         overTheParisPit.HasStageBounds = 1;
         overTheParisPit.LeftWallRaw = FP64.FromInt(-9).RawValue;
         overTheParisPit.RightWallRaw = FP64.FromInt(9).RawValue;
@@ -176,6 +181,18 @@ public class FighterCpuHitstunDefenseTests {
         PlayerInputFrame supportedFrame = unchangedHold.Sample(0, in supported, in previousSupported);
         AssertThat(supportedFrame.MoveX > 0)
             .OverrideFailureMessage("A supported launch must keep the toward-centre hold.")
+            .IsTrue();
+
+        // M05: grounded (non-launching) hitstun gets the Block hold — the hit-2
+        // escape — and no DI stick, because there is no launch to bend.
+        CpuDecisionObservation grounded = leftOfCentre;
+        grounded.IsGrounded = 1;
+        var groundedCpu = NewCpu(DefenseTuning(hitstunDefense: 100, di: 100), seed: 9);
+        PlayerInputFrame previousGrounded = default;
+        PlayerInputFrame groundedFrame = groundedCpu.Sample(0, in grounded, in previousGrounded);
+        AssertThat(groundedFrame.IsHeld(GameplayButtons.Block)).IsTrue();
+        AssertThat(groundedFrame.MoveX == 0)
+            .OverrideFailureMessage("Grounded non-launch hitstun must not hold a DI direction.")
             .IsTrue();
     }
 
@@ -269,11 +286,12 @@ public class FighterCpuHitstunDefenseTests {
     /// teched the landing (grounded, hitstun over, tech invulnerability up).
     /// </summary>
     private static bool RunLauncherAgainstCpu(CpuBandTuning tuning) {
-        // A launching opener (knockback 4, the verb-suite scenario): the
-        // victim tumbles airborne and touches back down inside the 30-frame
-        // hitstun — held Block on that contact is the tech.
+        // A launching melee Special 1 (knockback 4, authored Launches = true;
+        // M05 made the string opener non-launching): the victim tumbles
+        // airborne and touches back down inside the 30-frame hitstun — held
+        // Block on that contact is the tech; a missed tech is the knockdown.
         var simulation = new FighterSimulation(
-            Loadout(basicDamage: 10, basicKnockback: FP64.FromInt(4), maxHP: 100),
+            Loadout(basicDamage: 10, basicKnockback: FP64.FromInt(4), maxHP: 100, launcherSpecial: true),
             Loadout(basicDamage: 10, basicKnockback: FP64.Zero, maxHP: 400),
             seed: 90, spawnDistance: 1, rules: FighterMatchRules.Disabled);
         var cpu = NewCpu(tuning, seed: 8);
@@ -291,16 +309,18 @@ public class FighterCpuHitstunDefenseTests {
                 sawHitstun = true;
                 cpuLive = true;
             }
-            // The tech signature (see FighterVerbLayerTests): grounded with
-            // hitstun over inside the invulnerable in-place recovery.
-            if (sawHitstun && victim.IsGrounded != 0 && victim.HitstunFrames == 0
-                && victim.InvulnerabilityFrames > 0) {
+            // The tech signature: the in-place tech lockout itself. (M05: the
+            // missed-tech knockdown is ALSO grounded, hitstun-free and
+            // invulnerable, so the old "invulnerable on the ground" read would
+            // mistake a knockdown for a tech.)
+            AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent victimVerb)).IsTrue();
+            if (sawHitstun && victimVerb.TechLockoutFrames > 0) {
                 return true;
             }
 
             bool press = !pressed && attackerRuntime.AttackPhase == FighterBasicAttackRules.PhaseNone;
             if (press) pressed = true;
-            GameplayButtons attackerButtons = press ? GameplayButtons.BasicAttack : GameplayButtons.None;
+            GameplayButtons attackerButtons = press ? GameplayButtons.Special1 : GameplayButtons.None;
             var attackerFrame = new PlayerInputFrame { Held = attackerButtons, Pressed = attackerButtons };
 
             PlayerInputFrame victimFrame = default;
@@ -323,7 +343,8 @@ public class FighterCpuHitstunDefenseTests {
 
     /// <summary>Synthetic deterministic loadout (the Default kit's numbers with
     /// authorable basic damage/knockback and HP) — no resources involved.</summary>
-    private static FighterLoadout Loadout(int basicDamage, FP64 basicKnockback, int maxHP) => new(
+    private static FighterLoadout Loadout(
+        int basicDamage, FP64 basicKnockback, int maxHP, bool launcherSpecial = false) => new(
         (int)FighterCharacterID.Einstein,
         maxHP, 3, 2,
         basicDamage, 14, 12, 20,
@@ -339,7 +360,27 @@ public class FighterCpuHitstunDefenseTests {
         FP64.FromInt(4),
         FP64.FromInt(5),
         FP64.One, FP64.One, FP64.One,
-        FighterAbilityLoadout.Default);
+        launcherSpecial ? LauncherModes : FighterAbilityLoadout.Default);
+
+    /// <summary>
+    /// M05: the Default kit with Special 1 turned into a melee launcher (30 f,
+    /// Launches = true) — the one authored launcher this suite needs.
+    /// </summary>
+    private static FighterAbilityLoadout LauncherModes {
+        get {
+            FighterAbilityLoadout modes = FighterAbilityLoadout.Default;
+            return modes with {
+                SpecialOneExecutionType = 0,
+                SpecialOneHit = new FighterAbilityHitData {
+                    HitstunFrames = 30,
+                    BlockClass = (int)BlockClass.Special,
+                    Launches = true,
+                    Delivery = (int)HitDelivery.DirectHit,
+                    Origin = (int)HitOrigin.Special
+                }
+            };
+        }
+    }
 
     /// <summary>
     /// A tuning that isolates the hitstun-defense policy: every other rate is

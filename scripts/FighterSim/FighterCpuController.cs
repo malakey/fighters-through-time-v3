@@ -384,7 +384,13 @@ namespace FTT.FighterSim {
             // grabbing fighter has no functioning shield (V7.3) — the committed
             // escape stance must never convert itself into a grab attempt.
             held = GameplayButtons.Block;
-            if (_hitstunDiActive && hitstun > 0 && observation.HasStageBounds != 0) {
+            // M05 (Package 12 W3b): DI only matters on a LAUNCH. A non-launching
+            // hit leaves a grounded victim on the floor (grounded knockback), so
+            // an airborne body in hitstun is the input-side read of "launched" —
+            // the grounded hitstun of hits 1-2 gets the Block hold (the hit-2
+            // escape) and no stick. Input-side only; the sim is untouched.
+            if (_hitstunDiActive && hitstun > 0 && observation.IsGrounded == 0
+                && observation.HasStageBounds != 0) {
                 moveX = ResolveDiHold(in observation);
             }
             return held;
