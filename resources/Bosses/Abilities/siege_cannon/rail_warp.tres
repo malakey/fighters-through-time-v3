@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.siege_cannon.rail_warp"
+DisplayNameKey = "boss_ability_rail_warp_name"
+Archetype = 7
+RangeClass = 2
+TelegraphFrames = 30
+ActiveFrames = 4
+RecoveryFrames = 24
+CooldownSeconds = 6.0
+SelectionWeight = 2.0
+Damage = 0.0
+KnockbackForce = Vector2(0.0, 0.0)
+HitstunDuration = 0.0
+HitboxSize = Vector2(0, 0)
+HitboxOffset = Vector2(0, 0)
+TeleportRangeMin = 280.0
+TeleportRangeMax = 460.0
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(0.9, 0.8, 0.5, 1)
+PresentationEventID = "boss.siege_cannon.rail_warp"

@@ -624,6 +624,8 @@ namespace FTT.Enemies {
             // V7.3: a Teleport elite is reactive — the target closing to point
             // blank triggers it ahead of the ordinary attack commit.
             if (TryReactivePhaseSkip()) return;
+            // M20: a standard's Teleport is the opposite — a gap-closer from range.
+            if (TryEngageBlink()) return;
 
             if (dist <= AttackRangePixels && _attackCooldownTimer <= 0) {
                 EnterAttacking();
@@ -740,7 +742,13 @@ namespace FTT.Enemies {
 
             if (!Executor.IsBusy) {
                 _attackCommitted = false;
-                _attackCooldownTimer = Data?.AttackCooldown ?? 2f;
+                // M20: a finished engage blink hands straight back to Chase without
+                // arming the primary's cooldown — the ambush swing follows.
+                if (_secondaryBlinkInFlight) {
+                    _secondaryBlinkInFlight = false;
+                } else {
+                    _attackCooldownTimer = Data?.AttackCooldown ?? 2f;
+                }
                 CurrentState = EnemyState.Chase;
             }
         }
@@ -771,7 +779,10 @@ namespace FTT.Enemies {
         /// </summary>
         public bool ResolveGuardCrush(EnemyAbilityData ability) {
             if (ability?.ForcesBasicBlockClass == true) return false;
-            return _lastAttackWasElite || (ability?.IsGuardCrushing ?? false);
+            // M20: the implicit is an ELITE rule — a standard mob's opt-in
+            // secondary ability is never Guard-Crush by tier alone.
+            bool eliteImplicit = _lastAttackWasElite && Data?.Tier == EnemyTier.Elite;
+            return eliteImplicit || (ability?.IsGuardCrushing ?? false);
         }
 
         /// <summary>
@@ -783,20 +794,74 @@ namespace FTT.Enemies {
         /// burn Phase Skip on schedule with nobody to skip away from.
         /// </summary>
         public EnemyAbilityData SelectNextAttack() {
-            if (Data != null && Data.HasEliteAbilities && _eliteCooldownTimer <= 0f && !_lastAttackWasElite) {
-                int count = Data.EliteAbilities.Length;
+            // M20: the same alternation serves an elite's EliteAbilities and a
+            // standard's opt-in SecondaryAbilities (ActiveSecondaryAbilities).
+            EnemyAbilityData[] secondaries = Data?.ActiveSecondaryAbilities;
+            if (secondaries != null && _eliteCooldownTimer <= 0f && !_lastAttackWasElite) {
+                int count = secondaries.Length;
                 for (int step = 1; step <= count; step++) {
                     int index = (_eliteAbilityIndex + step) % count;
-                    EnemyAbilityData elite = Data.EliteAbilities[index];
+                    EnemyAbilityData elite = secondaries[index];
                     if (elite == null || elite.Archetype == EnemyAbilityArchetype.Teleport) continue;
                     _eliteAbilityIndex = index;
                     _lastAttackWasElite = true;
-                    _eliteCooldownTimer = Mathf.Max(0f, Data.EliteAbilityCooldown);
+                    _eliteCooldownTimer = Mathf.Max(0f, Data.ActiveSecondaryCooldown);
                     return elite;
                 }
             }
             _lastAttackWasElite = false;
             return Data?.PrimaryAttack ?? GetLegacyPrimaryAttack();
+        }
+
+        // === M20 (Package 12 W9): the standard-tier engage blink ================
+
+        /// <summary>
+        /// A standard with a Teleport secondary blinks only when the target is at
+        /// least this multiple of its striking distance away — a gap-closer, never a
+        /// point-blank dodge (that is the elite's reactive Phase Skip).
+        /// </summary>
+        public const float EngageBlinkMinRangeFactor = 1.5f;
+
+        private bool _secondaryBlinkInFlight;
+
+        /// <summary>True while a standard's engage blink is executing. Test seam.</summary>
+        public bool IsEngageBlinking => _secondaryBlinkInFlight && Executor.IsBusy;
+
+        private EnemyAbilityData FindStandardTeleport() {
+            if (Data?.HasSecondaryAbilities != true) return null;
+            foreach (EnemyAbilityData ability in Data.SecondaryAbilities) {
+                if (ability != null && ability.Archetype == EnemyAbilityArchetype.Teleport) return ability;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// The Rift Phantom's Teleport line (design §6: "the roster's Teleport line",
+        /// M20): a standard whose target sits beyond
+        /// <see cref="EngageBlinkMinRangeFactor"/> × its attack range, but inside
+        /// its aggro radius, blinks through rift-space to reappear just past the
+        /// target (the executor's far-side rule), telegraphed like any cast. It
+        /// does not arm the primary attack's cooldown, so the ambush can follow.
+        /// Public so tests can pin the trigger geometry.
+        /// </summary>
+        public bool TryEngageBlink() {
+            if (_target == null || !IsInstanceValid(_target)) return false;
+            if (Executor.IsBusy || _eliteCooldownTimer > 0f) return false;
+            EnemyAbilityData teleport = FindStandardTeleport();
+            if (teleport == null) return false;
+            float distance = GlobalPosition.DistanceTo(_target.GlobalPosition);
+            if (distance <= AttackRangePixels * EngageBlinkMinRangeFactor) return false;
+            if (distance > (Data?.AggroRadius ?? 400f)) return false;
+
+            _eliteCooldownTimer = Mathf.Max(0f, Data.ActiveSecondaryCooldown);
+            _secondaryBlinkInFlight = true;
+            CurrentState = EnemyState.Attacking;
+            _attackCommitted = true;
+            _reactionFramesRemaining = 0;
+            Executor.Begin(teleport, _target.GlobalPosition, _facingRight,
+                guardCrush: ResolveGuardCrush(teleport), unblockable: false);
+            PlayAnimation("attack");
+            return true;
         }
 
         // === V7.3 reactive Phase Skip (Chrono-Warden rework) ================
@@ -1210,6 +1275,7 @@ namespace FTT.Enemies {
             }
             Executor.Cancel();
             _attackCommitted = false;
+            _secondaryBlinkInFlight = false;
             _reactionFramesRemaining = 0;
             _stunTimer = stun;
             CurrentState = EnemyState.Stunned;
@@ -1466,6 +1532,7 @@ namespace FTT.Enemies {
             _standOffEngaged = false;
             _eliteAbilityIndex = -1;
             _lastAttackWasElite = false;
+            _secondaryBlinkInFlight = false;
             _target = null;
             _rewindFrozen = false;
             _checkpointCaptured = false;
@@ -1569,6 +1636,7 @@ namespace FTT.Enemies {
             _standOffEngaged = false;
             _reactionFramesRemaining = 0;
             _lastAttackWasElite = false;
+            _secondaryBlinkInFlight = false;
             Velocity = Vector2.Zero;
             ClearStatusEffect();
             ClearConductiveMark();

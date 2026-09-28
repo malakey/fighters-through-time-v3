@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.gravity_overseer.inverted_gravity_field"
+DisplayNameKey = "boss_ability_inverted_gravity_field_name"
+Archetype = 8
+RangeClass = 2
+TelegraphFrames = 45
+ActiveFrames = 6
+RecoveryFrames = 28
+CooldownSeconds = 7.0
+SelectionWeight = 2.0
+Damage = 0.0
+KnockbackForce = Vector2(0.0, 0.0)
+HitstunDuration = 0.0
+HitboxSize = Vector2(0, 0)
+HitboxOffset = Vector2(0, 0)
+PulseRadius = 130.0
+FieldDurationSeconds = 4.0
+AppliedStatus = 1
+StatusDuration = 1.5
+StatusIntensity = 1.0
+TelegraphTint = Color(0.7, 0.6, 1, 1)
+PresentationEventID = "boss.gravity_overseer.inverted_gravity_field"

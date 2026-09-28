@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BossData" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="BossData" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/BossData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="2"]
@@ -6,6 +6,7 @@
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/iron_chancellor/mortar_volley.tres" id="4"]
 [ext_resource type="Resource" path="res://resources/Bosses/Abilities/iron_chancellor/bulwark_shockwave.tres" id="5"]
 [ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/Bosses/iron_chancellor_frames.tres" id="6"]
+[ext_resource type="Resource" path="res://resources/Bosses/Abilities/iron_chancellor/artillery_barrage.tres" id="w9"]
 
 
 [resource]
@@ -31,8 +32,8 @@ PhaseTransitionInvincibilityDuration = 2.0
 PhaseSpeedMultipliers = Array[float]([1.0, 1.2])
 ChronalDustDrop = 25
 AttackPattern = 1
-BossAbilities = Array[ExtResource("2")]([ExtResource("3"), ExtResource("4"), ExtResource("5")])
-AbilityMinPhase = Array[int]([0, 0, 0])
+BossAbilities = Array[ExtResource("2")]([ExtResource("3"), ExtResource("4"), ExtResource("5"), ExtResource("w9")])
+AbilityMinPhase = Array[int]([0, 0, 0, 1])
 InterruptibleDuringTelegraph = false
 InterruptDamageThreshold = 25.0
 PlaceholderTint = Color(0.62, 0.66, 0.72, 1)

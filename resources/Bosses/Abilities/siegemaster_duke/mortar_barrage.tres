@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "boss.siegemaster_duke.mortar_barrage"
+DisplayNameKey = "boss_ability_mortar_barrage_name"
+Archetype = 1
+RangeClass = 1
+TelegraphFrames = 36
+ActiveFrames = 8
+RecoveryFrames = 30
+CooldownSeconds = 6.0
+SelectionWeight = 2.5
+Damage = 16.0
+KnockbackForce = Vector2(3.0, -3.0)
+HitstunDuration = 0.25
+HitboxSize = Vector2(36, 36)
+HitboxOffset = Vector2(38, -60)
+ProjectileSpeed = 380.0
+ProjectileCount = 4
+ProjectileSpreadDegrees = 36.0
+ProjectileLifetime = 3.0
+ProjectileGravity = 460.0
+PiercesTargets = false
+AppliedStatus = 0
+StatusIntensity = 1.0
+TelegraphTint = Color(1, 0.6, 0.2, 1)
+PresentationEventID = "boss.siegemaster_duke.mortar_barrage"
