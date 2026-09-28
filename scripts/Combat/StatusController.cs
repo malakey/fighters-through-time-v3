@@ -188,7 +188,9 @@ namespace FTT.Combat {
                 TargetIndex = _owner.PlayerIndex,
                 Type = type,
                 Duration = duration,
-                Intensity = slot.Intensity
+                Intensity = slot.Intensity,
+                Slot = StatusRouting.SlotOf(type),
+                SlotScoped = true
             });
         }
 
@@ -231,6 +233,8 @@ namespace FTT.Combat {
 
         private void ClearSlot(Slot slot, bool raiseEvents) {
             bool hadStatus = slot.Type != FTT.Core.StatusType.None;
+            FTT.Core.StatusType clearedType = slot.Type;
+            StatusSlot slotID = ReferenceEquals(slot, _damage) ? StatusSlot.Damage : StatusSlot.Control;
             slot.Strategy?.OnRemove(_owner);
             slot.Strategy = null;
             slot.Type = FTT.Core.StatusType.None;
@@ -238,26 +242,17 @@ namespace FTT.Combat {
             slot.Intensity = 0.0f;
             if (!hadStatus || _owner == null || !raiseEvents) return;
 
-            // Presentation layers (glow arbiter, HUD status pips) track a single
-            // status. When one slot falls with the other still live, re-announce
-            // the survivor so those surfaces fall back to it instead of clearing.
-            Slot survivor = _control.Type != FTT.Core.StatusType.None ? _control
-                : _damage.Type != FTT.Core.StatusType.None ? _damage
-                : null;
-            if (survivor != null) {
-                FTT.Core.EventBus.Instance?.RaiseStatusEffectApplied(new FTT.Core.StatusEffectPayload {
-                    TargetIndex = _owner.PlayerIndex,
-                    Type = survivor.Type,
-                    Duration = survivor.Remaining,
-                    Intensity = survivor.Intensity
-                });
-                return;
-            }
+            // Package 12 W10: a per-slot clear. The payload names the slot that
+            // emptied and the type that left it; the other slot is untouched, so
+            // every consumer (HUD slots, glow layers) clears exactly that slot and
+            // the old re-announce-the-survivor Applied event is gone.
             FTT.Core.EventBus.Instance?.RaiseStatusEffectCleared(new FTT.Core.StatusEffectPayload {
                 TargetIndex = _owner.PlayerIndex,
-                Type = FTT.Core.StatusType.None,
+                Type = clearedType,
                 Duration = 0f,
-                Intensity = 0f
+                Intensity = 0f,
+                Slot = slotID,
+                SlotScoped = true
             });
         }
 

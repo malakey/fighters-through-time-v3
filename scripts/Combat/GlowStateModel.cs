@@ -5,12 +5,19 @@ namespace FTT.Combat {
 
     /// <summary>
     /// Priority layers for the <b>secondary effect</b> outline/glow arbiter,
-    /// ordered lowest to highest. design-godot.md "Priority &amp; Overwrite":
-    /// hyper-armor / spawn invincibility override status effects. When a higher
-    /// layer clears, the next active layer takes over.
+    /// ordered lowest to highest. HUD_CONTRACT "Ownership and effects" (Package 12
+    /// W10): <b>spawn protection &gt; armor &gt; control status &gt; damage status</b>.
+    /// When a higher layer clears, the next active layer takes over; with both
+    /// status categories occupied the control glow shows while both HUD icons stay
+    /// visible.
     ///
     /// <para>Package 11 A8 / F24: the Fighter player-slot edge is no longer one of
     /// these layers — see <see cref="SlotIndicator"/>.</para>
+    ///
+    /// <para>Package 12 W10 split the single status layer into
+    /// <see cref="DamageStatus"/> and <see cref="ControlStatus"/> and moved spawn
+    /// protection above armor (the contract's stable "spawn protection, then armor"
+    /// order). The ordinals are presentation-only and never serialized.</para>
     /// </summary>
     public enum GlowLayer {
         /// <summary>
@@ -27,12 +34,35 @@ namespace FTT.Combat {
         /// compile. Nothing in the repository pushes it.</para>
         /// </summary>
         SlotIndicator = 0,
-        /// <summary>Active status effect.</summary>
-        Status = 1,
-        /// <summary>Respawn / post-rewind invulnerability aura.</summary>
-        SpawnInvulnerability = 2,
-        /// <summary>Hyper-armor (Chronal Armoring) shell; highest priority.</summary>
-        HyperArmor = 3
+        /// <summary>Damage-slot status (Venom, Radiant Burn); the lowest effect layer.</summary>
+        DamageStatus = 1,
+        /// <summary>Control-slot status (Time Dilation, Static Charge, Root, Suppression).</summary>
+        ControlStatus = 2,
+        /// <summary>Hyper-armor (Chronal Armoring) shell.</summary>
+        HyperArmor = 3,
+        /// <summary>Respawn / post-rewind / post-Defy invulnerability aura; highest priority.</summary>
+        SpawnInvulnerability = 4,
+        /// <summary>
+        /// Alias meaning "both status layers", kept for the single-glow callers
+        /// (enemies, bosses) that predate the W10 split. <c>Clear(Status)</c> clears
+        /// both status layers and <c>IsActive(Status)</c> is true when either is.
+        /// Never pushed: <see cref="GlowPalette.Status"/> always returns the type's
+        /// own layer.
+        /// </summary>
+        Status = 5
+    }
+
+    /// <summary>Layer helpers for the Package 12 W10 status split.</summary>
+    public static class GlowLayers {
+        /// <summary>The status layer a status type paints — its <c>StatusRouting</c> slot.</summary>
+        public static GlowLayer ForStatus(FTT.Core.StatusType type) =>
+            StatusRouting.SlotOf(type) == StatusSlot.Damage ? GlowLayer.DamageStatus : GlowLayer.ControlStatus;
+
+        public static GlowLayer ForSlot(StatusSlot slot) =>
+            slot == StatusSlot.Damage ? GlowLayer.DamageStatus : GlowLayer.ControlStatus;
+
+        public static bool IsStatusLayer(GlowLayer layer) =>
+            layer == GlowLayer.DamageStatus || layer == GlowLayer.ControlStatus || layer == GlowLayer.Status;
     }
 
     /// <summary>
@@ -77,7 +107,7 @@ namespace FTT.Combat {
     /// stacking, matching "the newest status completely replaces the previous one".
     /// </summary>
     public sealed class GlowStateStack {
-        private const int LayerCount = 4;
+        private const int LayerCount = 5;
         private readonly GlowState[] _states = new GlowState[LayerCount];
         private readonly bool[] _active = new bool[LayerCount];
 
@@ -99,6 +129,11 @@ namespace FTT.Combat {
         }
 
         public void Clear(GlowLayer layer) {
+            if (layer == GlowLayer.Status) {
+                Clear(GlowLayer.DamageStatus);
+                Clear(GlowLayer.ControlStatus);
+                return;
+            }
             int index = (int)layer;
             if (index < 0 || index >= LayerCount) return;
             _active[index] = false;
@@ -113,6 +148,9 @@ namespace FTT.Combat {
         }
 
         public bool IsActive(GlowLayer layer) {
+            if (layer == GlowLayer.Status) {
+                return IsActive(GlowLayer.DamageStatus) || IsActive(GlowLayer.ControlStatus);
+            }
             int index = (int)layer;
             return index >= 0 && index < LayerCount && _active[index];
         }
@@ -176,15 +214,23 @@ namespace FTT.Combat {
         public static GlowState SlotIndicator(int playerIndex) =>
             new(GlowLayer.SlotIndicator, SlotColor(playerIndex), 1f, 1f, 0f);
 
-        /// <summary>Authored per-status outline; <c>None</c> yields an invisible state.</summary>
-        public static GlowState Status(FTT.Core.StatusType type) => type switch {
-            FTT.Core.StatusType.TimeDilation => new GlowState(GlowLayer.Status, TimeDilationColor, 2f, 1.5f, 0f),
-            FTT.Core.StatusType.StaticCharge => new GlowState(GlowLayer.Status, StaticChargeColor, 2.5f, 2f, 3f),
-            FTT.Core.StatusType.RadiantBurn => new GlowState(GlowLayer.Status, RadiantBurnColor, 2f, 2.5f, 1f),
-            FTT.Core.StatusType.Venom => new GlowState(GlowLayer.Status, VenomColor, 2f, 1.5f, 0.5f),
-            FTT.Core.StatusType.Root => new GlowState(GlowLayer.Status, RootColor, 1.5f, 1.2f, 0f),
-            FTT.Core.StatusType.Suppression => new GlowState(GlowLayer.Status, SuppressionColor, 1f, 1f, 0f),
-            _ => new GlowState(GlowLayer.Status, new Color(0f, 0f, 0f, 0f), 0f, 1f, 0f)
-        };
+        /// <summary>
+        /// Authored per-status outline on the type's <b>own</b> layer (Package 12
+        /// W10: damage-slot types paint <see cref="GlowLayer.DamageStatus"/>,
+        /// control-slot types <see cref="GlowLayer.ControlStatus"/>). <c>None</c>
+        /// yields an invisible damage-layer state.
+        /// </summary>
+        public static GlowState Status(FTT.Core.StatusType type) {
+            GlowLayer layer = GlowLayers.ForStatus(type);
+            return type switch {
+                FTT.Core.StatusType.TimeDilation => new GlowState(layer, TimeDilationColor, 2f, 1.5f, 0f),
+                FTT.Core.StatusType.StaticCharge => new GlowState(layer, StaticChargeColor, 2.5f, 2f, 3f),
+                FTT.Core.StatusType.RadiantBurn => new GlowState(layer, RadiantBurnColor, 2f, 2.5f, 1f),
+                FTT.Core.StatusType.Venom => new GlowState(layer, VenomColor, 2f, 1.5f, 0.5f),
+                FTT.Core.StatusType.Root => new GlowState(layer, RootColor, 1.5f, 1.2f, 0f),
+                FTT.Core.StatusType.Suppression => new GlowState(layer, SuppressionColor, 1f, 1f, 0f),
+                _ => new GlowState(GlowLayer.DamageStatus, new Color(0f, 0f, 0f, 0f), 0f, 1f, 0f)
+            };
+        }
     }
 }

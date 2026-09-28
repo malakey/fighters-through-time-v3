@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 ; Package 11 A8 — rewritten to the HUD_CONTRACT (F24) hierarchy.
 ;
@@ -16,10 +16,15 @@
 ; Only genuinely DATA-DRIVEN counts are still built in code: the block-charge
 ; pips (base capacity plus the Story-only Resonance bonus) and the Act III anchor
 ; pips. Authoring a fixed number there would cap the HUD at today's defaults.
+;
+; Package 12 W10 (M15): BeaconAnchors sits immediately right of the rewind
+; hourglass (RewindCounter), ahead of the TimeFreezeIndicator, per HUD_CONTRACT;
+; the indicator stays its own node, never attached to the rewind counter.
 
 [ext_resource type="Script" path="res://scripts/UI/StoryHUD.cs" id="1_script"]
 [ext_resource type="Script" path="res://scripts/UI/BossPhaseNotchOverlay.cs" id="2_notches"]
 [ext_resource type="Script" path="res://scripts/UI/RadialProgress.cs" id="3_radial"]
+[ext_resource type="Script" path="res://scripts/UI/BeaconAnchorIcon.cs" id="4_beacon"]
 
 [node name="StoryHUD" type="CanvasLayer"]
 layer = 10
@@ -311,6 +316,24 @@ theme_override_colors/font_color = Color(0.6, 0.9, 1, 1)
 theme_override_font_sizes/font_size = 12
 vertical_alignment = 1
 
+[node name="BeaconAnchors" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow"]
+visible = false
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="BeaconIcon" type="Control" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow/BeaconAnchors"]
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+script = ExtResource("4_beacon")
+
+[node name="AnchorPips" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow/BeaconAnchors"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 3
+
 [node name="TimeFreezeIndicator" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow"]
 layout_mode = 2
 mouse_filter = 2
@@ -330,27 +353,6 @@ layout_mode = 2
 mouse_filter = 2
 theme_override_font_sizes/font_size = 12
 vertical_alignment = 1
-
-[node name="BeaconAnchors" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow"]
-visible = false
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 4
-
-[node name="BeaconIcon" type="Label" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow/BeaconAnchors"]
-custom_minimum_size = Vector2(24, 24)
-layout_mode = 2
-mouse_filter = 2
-text = "⌂"
-theme_override_colors/font_color = Color(0.95, 0.8, 0.3, 1)
-theme_override_font_sizes/font_size = 15
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="AnchorPips" type="HBoxContainer" parent="SafeArea/TopLeft_Panel/Vitals/TemporalRow/BeaconAnchors"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 3
 
 [node name="TopRight_Panel" type="VBoxContainer" parent="SafeArea"]
 layout_mode = 1

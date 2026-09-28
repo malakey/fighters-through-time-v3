@@ -61,7 +61,10 @@ namespace FTT.Combat {
         private bool _eventsBound;
         private bool _resolvedVisible;
         private GlowState _resolved;
-        private FTT.Core.StatusType _activeStatus = FTT.Core.StatusType.None;
+        // Package 12 W10: one remembered type per status layer (the Venom lerp
+        // reads the damage layer's occupant).
+        private FTT.Core.StatusType _controlStatus = FTT.Core.StatusType.None;
+        private FTT.Core.StatusType _damageStatus = FTT.Core.StatusType.None;
         // V7.6 Suppression (Package 11 A1): the aura-smother channel — a FOURTH
         // independent channel, deliberately not part of the glow stack, so it
         // cannot be cleared by a status ending or a telegraph starting.
@@ -201,14 +204,22 @@ namespace FTT.Combat {
             bus.OnHyperArmorChanged -= OnHyperArmorChanged;
         }
 
+        // Package 12 W10: both status events are per slot. An application paints
+        // only its own layer and a clear empties only its own layer, so the other
+        // slot's glow is never touched and nothing has to be re-announced.
         private void OnStatusEffectApplied(FTT.Core.StatusEffectPayload payload) {
             if (payload.TargetIndex != OwnerPlayerIndex) return;
-            SetStatus(payload.Type);
+            if (payload.Type == FTT.Core.StatusType.None) return;
+            SetStatusSlot(payload.ResolveSlot(), payload.Type);
         }
 
         private void OnStatusEffectCleared(FTT.Core.StatusEffectPayload payload) {
             if (payload.TargetIndex != OwnerPlayerIndex) return;
-            ClearState(GlowLayer.Status);
+            if (payload.ClearsAllSlots) {
+                ClearState(GlowLayer.Status);
+                return;
+            }
+            SetStatusSlot(payload.ResolveSlot(), FTT.Core.StatusType.None);
         }
 
         private void OnHyperArmorChanged(FTT.Core.HyperArmorPayload payload) {
@@ -254,31 +265,71 @@ namespace FTT.Combat {
 
         public void PushState(GlowState state) {
             _stack.Push(state);
-            if (state.Layer == GlowLayer.Status) _venomPhase = 0f;
+            if (state.Layer == GlowLayer.DamageStatus) _venomPhase = 0f;
             ApplyResolvedState();
         }
 
         public void ClearState(GlowLayer layer) {
             _stack.Clear(layer);
-            if (layer == GlowLayer.Status) _activeStatus = FTT.Core.StatusType.None;
+            if (layer == GlowLayer.Status || layer == GlowLayer.ControlStatus) {
+                _controlStatus = FTT.Core.StatusType.None;
+            }
+            if (layer == GlowLayer.Status || layer == GlowLayer.DamageStatus) {
+                _damageStatus = FTT.Core.StatusType.None;
+            }
             ApplyResolvedState();
         }
 
         public void ClearAllStates() {
             _stack.ClearAll();
-            _activeStatus = FTT.Core.StatusType.None;
+            _controlStatus = FTT.Core.StatusType.None;
+            _damageStatus = FTT.Core.StatusType.None;
             ApplyResolvedState();
         }
 
-        /// <summary>Pushes or clears the status layer from a status type.</summary>
+        /// <summary>
+        /// Single-glow form, kept for callers that resolve one presented status
+        /// themselves (enemies, bosses). Clears both status layers, then paints
+        /// <paramref name="type"/> on its own layer; <c>None</c> clears both.
+        /// Two-slot owners use <see cref="SetStatusSlot"/> / <see cref="SetStatusSlots"/>.
+        /// </summary>
         public void SetStatus(FTT.Core.StatusType type) {
             if (type == FTT.Core.StatusType.None) {
                 ClearState(GlowLayer.Status);
                 return;
             }
-            _activeStatus = type;
-            PushState(GlowPalette.Status(type));
+            _stack.Clear(GlowLayer.Status);
+            _controlStatus = FTT.Core.StatusType.None;
+            _damageStatus = FTT.Core.StatusType.None;
+            SetStatusSlot(StatusRouting.SlotOf(type), type);
         }
+
+        /// <summary>
+        /// Package 12 W10: paints (or with <c>None</c> clears) exactly one status
+        /// layer. The other slot's layer is untouched.
+        /// </summary>
+        public void SetStatusSlot(StatusSlot slot, FTT.Core.StatusType type) {
+            GlowLayer layer = GlowLayers.ForSlot(slot);
+            if (type == FTT.Core.StatusType.None) {
+                ClearState(layer);
+                return;
+            }
+            if (slot == StatusSlot.Damage) _damageStatus = type;
+            else _controlStatus = type;
+            GlowState state = GlowPalette.Status(type);
+            // A mis-slotted type still lands on the slot it was published for.
+            PushState(new GlowState(layer, state.OutlineColor, state.Thickness, state.Intensity, state.PulseSpeed));
+        }
+
+        /// <summary>Both status layers from authoritative two-slot state (the Fighter driver).</summary>
+        public void SetStatusSlots(FTT.Core.StatusType control, FTT.Core.StatusType damage) {
+            SetStatusSlot(StatusSlot.Control, control);
+            SetStatusSlot(StatusSlot.Damage, damage);
+        }
+
+        /// <summary>The status painting a layer, or <c>None</c>. Test seam.</summary>
+        public FTT.Core.StatusType StatusOn(StatusSlot slot) =>
+            slot == StatusSlot.Damage ? _damageStatus : _controlStatus;
 
         public void SetHyperArmor(bool active) {
             if (active) PushState(GlowPalette.HyperArmor());
@@ -555,8 +606,8 @@ namespace FTT.Combat {
             // Venom is authored as a gradient: lerp between its two colours. That
             // lerp is decorative pulsing, so C01a freezes it at the authored base
             // colour rather than animating.
-            if (_resolvedVisible && _resolved.Layer == GlowLayer.Status
-                && _activeStatus == FTT.Core.StatusType.Venom && _material != null
+            if (_resolvedVisible && _resolved.Layer == GlowLayer.DamageStatus
+                && _damageStatus == FTT.Core.StatusType.Venom && _material != null
                 && FTT.Core.ComfortSettings.ScreenTintPulseAllowed) {
                 _venomPhase += dt * 0.6f;
                 float weight = 0.5f + 0.5f * Mathf.Sin(_venomPhase * Mathf.Tau);

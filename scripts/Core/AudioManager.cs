@@ -77,6 +77,13 @@ namespace FTT.Core {
         /// <summary>The vertical-layer music director. Registered per scene.</summary>
         public StemDirector Stems { get; private set; }
 
+        /// <summary>
+        /// H04 (Package 12 W10): the core-mechanic cue presenter — the catalog's
+        /// router and the Story event subscriber. Fighter cues are raised through
+        /// it from the driver's read-only presentation pass.
+        /// </summary>
+        public CoreMechanicCuePresenter CoreCues { get; private set; }
+
         public override void _Ready() {
             Instance = this;
             ProcessMode = ProcessModeEnum.Always;
@@ -89,6 +96,10 @@ namespace FTT.Core {
 
             Stems = new StemDirector { Name = "StemDirector" };
             AddChild(Stems);
+
+            CoreCues = new CoreMechanicCuePresenter { Name = CoreMechanicCuePresenter.NodeName };
+            CoreCues.Initialize(this);
+            AddChild(CoreCues);
 
             BuildVoicePool();
             LoadPlaceholderCues();
@@ -206,6 +217,7 @@ namespace FTT.Core {
             SetLowHealth(false);
             _ultimateWindowRemaining = 0.0;
             ReleaseSnapshot(AudioSnapshot.Ultimate);
+            CoreCues?.ResetTransient();
         }
 
         private void OnPlayerHPChangedForSnapshot(PlayerHPPayload payload) {

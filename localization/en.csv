@@ -1693,3 +1693,5 @@ crash_prompt_body,The last session did not shut down cleanly. A copy of its log 
 crash_prompt_never,Don't Ask Again
 crash_prompt_dismiss,Not Now
 crash_prompt_open_logs,Open Logs Folder
+# Package 12 W10
+hud_anchor_charges_accessible,Anchor charges: {0}

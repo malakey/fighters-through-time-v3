@@ -75,6 +75,50 @@ public class CharacterPresentationTests {
         }
     }
 
+    /// <summary>
+    /// H03 (design-godot.md Section 9, 2026-09-26; Package 12 W10): the player
+    /// presentation contract is exactly the 30-name list, and the retro set's old
+    /// <c>down_attack</c> name is gone everywhere in favour of <c>down_air</c>.
+    /// grab/throw ship as placeholder rows reusing combat-atlas regions.
+    /// </summary>
+    [TestCase]
+    public void ThePresentationContractIsTheThirtyNameListAndDownAttackIsRetired() {
+        string[] thirty = {
+            "idle", "run", "jump", "fall", "skid", "crouch",
+            "roll_startup", "roll", "roll_recovery", "ledge_hang", "ledge_pull_up", "ledge_drop",
+            "basic_attack_1", "basic_attack_2", "basic_attack_3", "up_attack", "down_air", "grab", "throw",
+            "block", "hitstun",
+            "dazed", "death", "respawn", "victory", "defeat",
+            "special_1", "special_2", "movement_ability", "ultimate"
+        };
+        var contract = FTT.Core.AuthoredResources.Load<ContentSceneContract>(
+            "res://resources/Contracts/player_presentation_contract.tres");
+        AssertObject(contract).IsNotNull();
+        var required = new HashSet<string>(contract.RequiredAnimationNames);
+        AssertThat(required.Count).IsEqual(30);
+        AssertThat(contract.RequiredAnimationNames.Length).IsEqual(30);
+        var missing = new List<string>();
+        foreach (string name in thirty) {
+            if (!required.Contains(name)) missing.Add(name);
+        }
+        if (missing.Count > 0) AssertThat("contract missing: " + string.Join(", ", missing)).IsEqual("");
+
+        foreach (string characterID in InitialRoster) {
+            SpriteFrames frames = ResourceLoader.Load<SpriteFrames>(
+                $"res://resources/SpriteFrames/{characterID}_frames.tres");
+            AssertThat(frames.HasAnimation("down_attack"))
+                .OverrideFailureMessage($"{characterID} still carries the retired down_attack name")
+                .IsFalse();
+        }
+        // The runtime normalizer carries a pose target for every contract name.
+        foreach (string name in thirty) {
+            AssertThat(RetroSpriteScaleNormalizer.CharacterPoseFraction(name) > 0f)
+                .OverrideFailureMessage($"RetroSpriteScaleNormalizer has no pose row for {name}")
+                .IsTrue();
+        }
+        AssertThat(RetroSpriteScaleNormalizer.CharacterPoseFraction("down_attack")).IsEqual(-1f);
+    }
+
     [TestCase]
     public void EveryCharacterHasFourThreeFrameAbilityVfxAnimations() {
         foreach (string characterID in InitialRoster) {
@@ -179,7 +223,9 @@ public class CharacterPresentationTests {
         AssertThat(sprite.SpriteFrames.GetFrameCount("basic_attack_2")).IsEqual(3);
         AssertThat(sprite.SpriteFrames.GetFrameCount("basic_attack_3")).IsEqual(3);
         AssertThat(sprite.SpriteFrames.GetFrameCount("up_attack")).IsEqual(3);
-        AssertThat(sprite.SpriteFrames.GetFrameCount("down_attack")).IsEqual(3);
+        AssertThat(sprite.SpriteFrames.GetFrameCount("down_air")).IsEqual(3);
+        AssertThat(sprite.SpriteFrames.GetFrameCount("grab")).IsEqual(3);
+        AssertThat(sprite.SpriteFrames.GetFrameCount("throw")).IsEqual(3);
         AssertObject(player.GetNodeOrNull("PlaceholderBody")).IsNull();
         AssertObject(player.GetNodeOrNull("MeleeHitVisual")).IsNull();
         player.Free();

@@ -69,7 +69,7 @@ public class GlowPresentationControllerTests {
 
         glow.SetStatus(FTT.Core.StatusType.Root);
         AssertThat(glow.IsGlowing).IsTrue();
-        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.Status);
+        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.ControlStatus);
 
         glow.SetHyperArmor(true);
         AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.HyperArmor);
@@ -80,7 +80,7 @@ public class GlowPresentationControllerTests {
         AssertThat(glow.Light.Enabled).IsTrue();
 
         glow.SetHyperArmor(false);
-        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.Status);
+        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.ControlStatus);
 
         glow.ClearAllStates();
         AssertThat(glow.IsGlowing).IsFalse();
@@ -154,24 +154,60 @@ public class GlowPresentationControllerTests {
         player.Free();
     }
 
+    /// <summary>
+    /// Package 12 W10 / HUD_CONTRACT: "resolve simultaneous armor and spawn
+    /// protection in a stable order (spawn protection, then armor)". Rewritten in
+    /// place: the pre-W10 arbiter put hyper-armor above spawn protection.
+    /// </summary>
     [TestCase]
-    public void SpawnInvulnerabilityOutranksAStatusButNotHyperArmor() {
+    public void SpawnInvulnerabilityOutranksHyperArmorAndBothOutrankAStatus() {
         (Node2D owner, Sprite2D _, GlowPresentationController glow) = CreateSubject();
 
         glow.SetStatus(StatusType.Venom);
-        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.Status);
+        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.DamageStatus);
+
+        glow.SetHyperArmor(true);
+        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.HyperArmor);
 
         glow.SetSpawnInvulnerability(true);
         AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.SpawnInvulnerability);
         AssertThat(glow.ResolvedState.OutlineColor).IsEqual(GlowPalette.SpawnInvulnerabilityColor);
 
-        glow.SetHyperArmor(true);
-        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.HyperArmor);
-
-        glow.SetHyperArmor(false);
-        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.SpawnInvulnerability);
         glow.SetSpawnInvulnerability(false);
-        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.Status);
+        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.HyperArmor);
+        glow.SetHyperArmor(false);
+        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.DamageStatus);
+
+        owner.Free();
+    }
+
+    /// <summary>
+    /// Package 12 W10: the two-slot path. Each slot paints its own layer; the
+    /// control glow shows over the damage glow, and clearing one slot leaves the
+    /// other's glow in place with no re-announce.
+    /// </summary>
+    [TestCase]
+    public void EachStatusSlotPaintsItsOwnLayerAndClearsIndependently() {
+        (Node2D owner, Sprite2D _, GlowPresentationController glow) = CreateSubject();
+
+        glow.SetStatusSlots(StatusType.StaticCharge, StatusType.Venom);
+        AssertThat(glow.IsLayerActive(GlowLayer.ControlStatus)).IsTrue();
+        AssertThat(glow.IsLayerActive(GlowLayer.DamageStatus)).IsTrue();
+        AssertThat(glow.ResolvedState.OutlineColor).IsEqual(GlowPalette.StaticChargeColor);
+        AssertThat(glow.StatusOn(StatusSlot.Damage)).IsEqual(StatusType.Venom);
+
+        glow.SetStatusSlot(StatusSlot.Control, StatusType.None);
+        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.DamageStatus);
+        AssertThat(glow.ResolvedState.OutlineColor).IsEqual(GlowPalette.VenomColor);
+        AssertThat(glow.StatusOn(StatusSlot.Control)).IsEqual(StatusType.None);
+
+        // The single-glow form (enemies/bosses) still replaces both layers.
+        glow.SetStatus(StatusType.Root);
+        AssertThat(glow.IsLayerActive(GlowLayer.DamageStatus)).IsFalse();
+        AssertThat(glow.ResolvedState.Layer).IsEqual(GlowLayer.ControlStatus);
+
+        glow.SetStatusSlots(StatusType.None, StatusType.None);
+        AssertThat(glow.IsGlowing).IsFalse();
 
         owner.Free();
     }

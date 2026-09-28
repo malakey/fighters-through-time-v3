@@ -189,6 +189,25 @@ namespace FTT.Core {
         public StatusType Type;
         public float Duration;
         public float Intensity;
+        /// <summary>
+        /// Package 12 W10: the slot this event concerns. Authoritative only when
+        /// <see cref="SlotScoped"/> is set; <c>StatusController</c> always sets both,
+        /// so a clear empties exactly one slot and the survivor is never re-announced.
+        /// </summary>
+        public FTT.Combat.StatusSlot Slot;
+        /// <summary>
+        /// True when <see cref="Slot"/> names the affected slot. A legacy publisher
+        /// that leaves it false keeps the old reading: a typed clear empties that
+        /// type's slot, a <c>None</c> clear empties both.
+        /// </summary>
+        public bool SlotScoped;
+
+        /// <summary>The slot a consumer should touch for this payload.</summary>
+        public readonly FTT.Combat.StatusSlot ResolveSlot() =>
+            SlotScoped ? Slot : FTT.Combat.StatusRouting.SlotOf(Type);
+
+        /// <summary>True for the legacy "every slot is empty" clear.</summary>
+        public readonly bool ClearsAllSlots => !SlotScoped && Type == StatusType.None;
     }
 
     public struct UltimateMeterPayload {
@@ -532,8 +551,11 @@ namespace FTT.Core {
         public void RaiseStatusEffectApplied(StatusEffectPayload payload) => OnStatusEffectApplied?.Invoke(payload);
 
         /// <summary>
-        /// Raised when an active status expires or is replaced. The payload carries
-        /// <c>StatusType.None</c>; presentation layers clear their status treatment.
+        /// Raised when one status slot empties (expiry, cleanse, death, restore).
+        /// Package 12 W10: the payload is <b>per slot</b> — <c>Type</c> is the status
+        /// that left, <c>Slot</c>/<c>SlotScoped</c> name the slot — and the other slot
+        /// is untouched, so consumers clear only that slot. Nothing is re-announced.
+        /// A replacement inside a slot raises only the new <c>Applied</c>.
         /// </summary>
         public event Action<StatusEffectPayload> OnStatusEffectCleared;
         public void RaiseStatusEffectCleared(StatusEffectPayload payload) => OnStatusEffectCleared?.Invoke(payload);

@@ -138,4 +138,24 @@ animations = [{
 "loop": true,
 "name": &"defeat",
 "speed": 4.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"up_attack",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"down_air",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"grab",
+"speed": 8.0
+}, {
+"frames": [{"duration": 1.0, "texture": ExtResource("1_character")}],
+"loop": false,
+"name": &"throw",
+"speed": 8.0
 }]

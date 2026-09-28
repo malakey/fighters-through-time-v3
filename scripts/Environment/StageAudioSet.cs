@@ -50,6 +50,19 @@ namespace FTT.Environment {
         /// <summary>Shared loop length in seconds; used to schedule mix changes on a boundary.</summary>
         [Export(PropertyHint.Range, "0.1,600.0,0.1")] public float LoopSeconds = 1.0f;
 
+        /// <summary>
+        /// H04 (Package 12 W10): the stage hazard's warning cue — e.g. Florence's
+        /// pipe-pressure groan, Nassau's targeting-grid tick. Always played on the
+        /// Critical Cues path. Null on Story sets (no Fighter hazard); a Fighter
+        /// stage that leaves it null falls back to the catalog's
+        /// <c>stage_hazard_warning</c> row. Silent placeholder until Package 10.
+        /// </summary>
+        [ExportGroup("Hazard Cues")]
+        [Export] public AudioStream HazardWarningCue;
+
+        /// <summary>The stage hazard's impact cue (Critical Cues path). See <see cref="HazardWarningCue"/>.</summary>
+        [Export] public AudioStream HazardImpactCue;
+
         /// <summary>The three stems in mix order (ambient, combat, climax).</summary>
         public AudioStream[] Stems() => new[] { AmbientStem, CombatStem, ClimaxStem };
     }
