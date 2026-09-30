@@ -10,13 +10,13 @@ namespace FTT.Tests.Determinism;
 
 /// <summary>
 /// Deterministic Fighter-side coverage for Shakespeare's canonical ultimate,
-/// All the World's a Stage (audit gap X7): a full meter dispatches the bespoke
-/// wide owner-centered stage zone (zone type 63) instead of the generic
-/// melee-range ultimate, six sequential phantom strikes land tuning.UltimateDamage
-/// each at the authored 20-frame cadence, only the finale carries the authored
-/// ultimate knockback, the strikes reach beyond generic melee range, they bypass
-/// block via the ultimate attack class, and the whole lifecycle is
-/// snapshot/rollback safe.
+/// All the World's a Stage (S04, Package 13 W6): the press spends the meter and
+/// sends the quill's six-unit ink stroke (A02); its contact raises the Globe on
+/// the held victim — three 14-damage phantom strikes (the Witches, Romeo &amp;
+/// Juliet, the chorus) at the authored 20-frame cadence, then Hamlet's
+/// 34-damage finale (76), the only hit that carries the authored knockback.
+/// The strokes reach beyond generic melee range, bypass block, and the whole
+/// lifecycle is snapshot/rollback safe.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -37,11 +37,14 @@ public class ShakespeareUltimateTests {
 
     private const int StageZoneTypeID = (int)FighterCharacterID.Shakespeare * 10 + 3;
     private const int StrikeDamage = 14;
-    private const int StrikeCount = 6;
-    private const int SequenceFrames = 130;
+    private const int StrikeCount = 3;
+    private const int StrikeIntervalFrames = 20;
+    private const int FinaleDamage = 34;
+    private const int UltimateTotal = StrikeCount * StrikeDamage + FinaleDamage;
+    private const int SequenceFrames = 90;
 
     [TestCase]
-    public void UltimatePressConsumesTheMeterWithoutAGenericDoubleHit() {
+    public void TheInkStrokeContactRaisesTheStage() {
         var simulation = BuildSimulation(seed: 71);
         int tick = FillMeterWithBasicStrikes(simulation);
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent charged)).IsTrue();
@@ -49,12 +52,10 @@ public class ShakespeareUltimateTests {
             xpTURN.Klotho.Deterministic.Math.FP64.FromInt(100).RawValue);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
+        UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
 
-        // The bespoke dispatch consumed the meter and spawned the stage zone.
-        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
-        // caster ZERO damage-dealt meter, so the same-frame tick no longer
-        // re-credits anything - the meter reads exactly 0 after the cast.
+        // D03h: spent on acceptance, no re-credit.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent spent)).IsTrue();
         AssertThat(spent.Influence.RawValue).IsEqual(
             xpTURN.Klotho.Deterministic.Math.FP64.Zero.RawValue);
@@ -63,46 +64,37 @@ public class ShakespeareUltimateTests {
         AssertThat(zone.ZoneTypeID).IsEqual(StageZoneTypeID);
         AssertThat(zone.Damage).IsEqual(StrikeDamage);
 
-        // Exactly one phantom strike landed this frame — the generic melee
-        // ultimate (which would add its own hit and 30-frame hitstun) did not
-        // double-fire on the same press.
+        // Exactly one impulse-free phantom strike landed on the contact tick.
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(target.CurrentHP).IsEqual(before.CurrentHP - StrikeDamage);
         AssertThat(target.HitstunFrames).IsEqual(0);
     }
 
     [TestCase]
-    public void PhantomStrikesLandSequentiallyForTheAuthoredTotal() {
+    public void PhantomStrikesLandSequentiallyThenTheFinale() {
         var simulation = BuildSimulation(seed: 72);
         int tick = FillMeterWithBasicStrikes(simulation);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-        tick++;
+        tick = UltimateActivationTestKit.CastAndConnect(simulation, tick);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterFirst)).IsTrue();
         AssertThat(afterFirst.CurrentHP).IsEqual(before.CurrentHP - StrikeDamage);
 
         // Ten frames later the second strike has not yet landed: the phantoms
         // strike sequentially at the authored 20-frame cadence, not as one lump.
-        for (int step = 0; step < 10; step++, tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
+        tick = UltimateActivationTestKit.Idle(simulation, tick, 10);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent midGap)).IsTrue();
         AssertThat(midGap.CurrentHP).IsEqual(before.CurrentHP - StrikeDamage);
 
-        for (int step = 0; step < 10; step++, tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
+        tick = UltimateActivationTestKit.Idle(simulation, tick, 10);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterSecond)).IsTrue();
         AssertThat(afterSecond.CurrentHP).IsEqual(before.CurrentHP - 2 * StrikeDamage);
 
-        // The full sequence totals exactly six authored strikes, then the stage
-        // strikes (the Globe set) leave.
-        for (int step = 20; step < SequenceFrames; step++, tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
+        // The full sequence totals three strikes and Hamlet's finale, then the
+        // Globe set leaves.
+        UltimateActivationTestKit.Idle(simulation, tick, SequenceFrames);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent finished)).IsTrue();
-        AssertThat(finished.CurrentHP).IsEqual(before.CurrentHP - StrikeCount * StrikeDamage);
+        AssertThat(finished.CurrentHP).IsEqual(before.CurrentHP - UltimateTotal);
         AssertThat(simulation.ZoneCount).IsEqual(0);
     }
 
@@ -110,39 +102,37 @@ public class ShakespeareUltimateTests {
     public void FinaleStrikeCarriesTheAuthoredUltimateImpulse() {
         var simulation = BuildSimulation(seed: 73);
         int tick = FillMeterWithBasicStrikes(simulation);
+        tick = UltimateActivationTestKit.CastAndConnect(simulation, tick);
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-        tick++;
-
-        // Strikes 1-5 (press frame plus 20-frame cadence through +80) are
-        // impulse-free ultimate-class ticks: no hitstun right up to the finale.
-        for (int step = 1; step < 100; step++, tick++) {
+        // Strikes 1-3 (contact tick, +20, +40) are impulse-free ultimate-class
+        // ticks: no hitstun right up to the finale.
+        for (int step = 1; step < StrikeCount * StrikeIntervalFrames; step++, tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             AssertThat(simulation.TryGetFighter(1, out FighterStateComponent midway)).IsTrue();
             AssertThat(midway.HitstunFrames).IsEqual(0);
         }
 
-        // The sixth pulse (+100) is Hamlet's finale: authored ultimate knockback
-        // (5) and the 30-frame ultimate hitstun, launching the target away from
-        // the stage center (the target sits to the caster's right).
+        // +60 is Hamlet's finale: authored ultimate knockback (5) and the shared
+        // 30-frame finale hitstun, launching the target along the caster's facing.
         simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent launched)).IsTrue();
-        AssertThat(launched.HitstunFrames).IsEqual(30);
+        AssertThat(launched.HitstunFrames).IsEqual(UltimateActivationRules.FinaleHitstunFrames);
         AssertThat(launched.Velocity.x > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
         AssertThat(launched.Velocity.y > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
         AssertThat(launched.IsGrounded).IsEqual(0);
     }
 
     [TestCase]
-    public void PhantomStrikesReachBeyondGenericMeleeRange() {
+    public void TheInkStrokeReachesBeyondGenericMeleeRange() {
         var simulation = BuildSimulation(seed: 74);
         int tick = FillMeterWithBasicStrikes(simulation);
 
-        // The target retreats until the gap exceeds the generic melee-range
-        // ultimate's 2-unit reach while staying on the summoned stage.
+        // The target retreats until the gap exceeds the generic 2-unit reach
+        // while staying inside the stroke's six units.
         for (int step = 0; step < 24; step++, tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 127, GameplayButtons.None));
         }
+        tick = UltimateActivationTestKit.Idle(simulation, tick, 10);
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent distant)).IsTrue();
         xpTURN.Klotho.Deterministic.Math.FP64 gap =
@@ -151,7 +141,8 @@ public class ShakespeareUltimateTests {
         AssertThat(gap < xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(6.5)).IsTrue();
 
         int hpBefore = distant.CurrentHP;
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
+        UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
         AssertThat(simulation.ZoneCount).IsEqual(1);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();
         AssertThat(struck.CurrentHP).IsEqual(hpBefore - StrikeDamage);
@@ -164,13 +155,14 @@ public class ShakespeareUltimateTests {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
         AssertThat(before.BlockCharges).IsEqual(3);
 
-        // The target holds Block through the entire sequence; ultimate-class
-        // strikes ignore the shield entirely (no charge drain, full damage) and
-        // the finale's impulse still lands.
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.Block));
-        tick++;
+        // The target holds Block through the entire sequence: the stroke is
+        // unblockable, the strikes ignore the shield (no charge drain, full
+        // damage) and the finale's impulse still lands.
+        tick = UltimateActivationTestKit.CastAndConnect(
+            simulation, tick, out bool connected, victimHeld: GameplayButtons.Block);
+        AssertThat(connected).IsTrue();
         bool finaleLaunched = false;
-        for (int step = 1; step < SequenceFrames; step++, tick++) {
+        for (int step = 0; step < SequenceFrames; step++, tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.Block));
             if (simulation.TryGetFighter(1, out FighterStateComponent blocking) && blocking.HitstunFrames > 0) {
                 finaleLaunched = true;
@@ -178,7 +170,7 @@ public class ShakespeareUltimateTests {
         }
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
-        AssertThat(after.CurrentHP).IsEqual(before.CurrentHP - StrikeCount * StrikeDamage);
+        AssertThat(after.CurrentHP).IsEqual(before.CurrentHP - UltimateTotal);
         AssertThat(after.BlockCharges).IsEqual(3);
         AssertThat(finaleLaunched).IsTrue();
     }
@@ -189,13 +181,10 @@ public class ShakespeareUltimateTests {
         var restored = BuildSimulation(seed: 76);
 
         int tick = FillMeterWithBasicStrikes(uninterrupted);
-        uninterrupted.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-        tick++;
-        // Mid-sequence snapshot: two phantom strikes down, four (including the
-        // impulse finale) still pending inside the live zone.
-        for (int step = 1; step <= 40; step++, tick++) {
-            uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
+        tick = UltimateActivationTestKit.CastAndConnect(uninterrupted, tick);
+        // Mid-sequence snapshot: two phantom strikes down, one strike and the
+        // finale still pending inside the live zone and hold.
+        tick = UltimateActivationTestKit.Idle(uninterrupted, tick, 25);
         AssertThat(uninterrupted.ZoneCount).IsEqual(1);
 
         byte[] snapshot = uninterrupted.CaptureFullState();
@@ -243,12 +232,14 @@ public class ShakespeareUltimateTests {
         MovementAbility = new MovementAbilityData(),
         UltimateAttack = new AbilityData {
             ExecutionType = AbilityExecutionType.Cinematic,
-            BaseDamage = 14f,
+            BaseDamage = StrikeDamage,
             IsMultiHit = true,
-            HitCount = 6,
-            DamageTickIntervalFrames = 20,
+            HitCount = StrikeCount,
+            DamageTickIntervalFrames = StrikeIntervalFrames,
+            FinaleDamage = FinaleDamage,
+            FinaleLaunches = true,
             KnockbackForce = new Vector2(5f, -3f),
-            Lifetime = 2f
+            Lifetime = 1.3333334f
         }
     };
 

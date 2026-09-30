@@ -25,7 +25,6 @@ namespace FTT.Characters.Abilities {
         private const float FenceDamage = 4f;
         private const float FenceHalfHeightPixels = 60f;
         private const float FenceStaticChargeDuration = 1.0f;
-        private const float ExplosionRadiusPixels = 150f;
 
         public int OwnerIndex { get; private set; }
         public float ArcDamage { get; private set; }
@@ -182,16 +181,20 @@ namespace FTT.Characters.Abilities {
             ReturnToPool();
         }
 
-        /// <summary>Ultimate support: the coil detonates for double arc damage.</summary>
+        /// <summary>
+        /// Ultimate support (T03, Package 13 W6): the coil detonates, dealing
+        /// <see cref="UltimateActivationRules.CoilDetonationDamage"/> to every
+        /// enemy inside its own arc radius, and is destroyed.
+        /// </summary>
         public void Explode() {
             if (IsCoilDestroyed) return;
-            foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(GlobalPosition, ExplosionRadiusPixels)) {
+            foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(GlobalPosition, ArcRangePixels)) {
                 // Package 12 W4 (D03h): the detonation is the Cataclysm's own
                 // damage, so it is Ultimate-origin and earns Tesla no meter.
                 // A01 (Package 13 W1): a persistent object's hit is Basic-class
                 // (one charge), the burst included.
                 HitPayload burst = BuildHitPayload(
-                    ArcDamage * 2f, AttackClass.Basic, GlobalPosition,
+                    UltimateActivationRules.CoilDetonationDamage, AttackClass.Special, GlobalPosition,
                     FTT.Core.StatusType.None, 0f, Vector2.Zero, originOverride: HitOrigin.Ultimate,
                     hitboxID: "coil_burst");
                 float dealt = hurtbox.TakeHit(burst);

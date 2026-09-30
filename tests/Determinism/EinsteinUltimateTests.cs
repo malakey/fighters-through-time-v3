@@ -10,10 +10,11 @@ namespace FTT.Tests.Determinism;
 
 /// <summary>
 /// Deterministic Fighter-side coverage for Einstein's canonical ultimate, The
-/// Cosmological Constant: bespoke dispatch consumes the meter with no generic
-/// double-hit, the singularity zone lands the full multi-hit total over its
-/// lifetime, drags the opponent toward its center, fires the final explosive
-/// launch on expiry, works beyond melee range, bypasses block, and stays
+/// Cosmological Constant (E06, Package 13 W6): a press only accepts the
+/// Ultimate — the meter is spent and nothing lands until the chalk-orb
+/// activation strike connects (A02) — and contact starts the singularity on the
+/// held victim, which lands 6 × 10 pull hits and then the 18-damage launch
+/// finale (78), works beyond melee range, bypasses block, and stays
 /// snapshot/rollback safe.
 /// </summary>
 [TestSuite]
@@ -21,9 +22,10 @@ namespace FTT.Tests.Determinism;
 public class EinsteinUltimateTests {
 
     private const int UltimateZoneTypeID = (int)FighterCharacterID.Einstein * 10 + 3;
-    private const int PerTickDamage = 15;
-    private const int HitCount = 5;
-    private const int TotalUltimateDamage = PerTickDamage * HitCount;
+    private const int PerTickDamage = 10;
+    private const int HitCount = 6;
+    private const int FinaleDamage = 18;
+    private const int TotalUltimateDamage = PerTickDamage * HitCount + FinaleDamage;
 
     /// <summary>
     /// The kit tests churn large deterministic-simulation allocations alongside
@@ -39,7 +41,7 @@ public class EinsteinUltimateTests {
     }
 
     [TestCase]
-    public void UltimateCastConsumesMeterWithoutGenericDoubleHit() {
+    public void AcceptedUltimateSpendsTheMeterAndLandsNothingUntilContact() {
         var simulation = NewSimulation(seed: 61);
         int tick = FillMeterAndSettle(simulation);
 
@@ -49,90 +51,90 @@ public class EinsteinUltimateTests {
         int hpBeforeCast = beforeTarget.CurrentHP;
 
         simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
+        tick++;
 
-        // The bespoke dispatch consumed the meter and spawned the singularity.
-        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
-        // caster ZERO damage-dealt meter, so the same-frame tick no longer
-        // re-credits anything - the meter reads exactly 0 after the cast.
+        // A02: the press spends the meter at once (D03h), starts the wind-up and
+        // spawns nothing.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent castAttacker)).IsTrue();
         AssertThat(castAttacker.Influence).IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.Zero);
+        AssertThat(UltimateActivationTestKit.Phase(simulation, 0)).IsEqual(FighterUltimateActivationRules.PhaseWindup);
+        AssertThat(simulation.ZoneCount).IsEqual(0);
+
+        // Contact starts the singularity; its first pull pulse lands on the
+        // contact tick and carries no hitstun.
+        bool connected = false;
+        for (int i = 0; i < 40 && !connected; i++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            tick++;
+            connected = UltimateActivationTestKit.IsCinematic(simulation, 0);
+        }
+        AssertThat(connected).IsTrue();
         AssertThat(simulation.ZoneCount).IsEqual(1);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual(UltimateZoneTypeID);
-
-        // Only the zone's first impulse-free pulse landed: the generic
-        // melee-range ultimate (which carries 30 hitstun frames) did not fire
-        // on the same press.
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(target.CurrentHP).IsEqual(hpBeforeCast - PerTickDamage);
         AssertThat(target.HitstunFrames).IsEqual(0);
     }
 
     [TestCase]
-    public void MultiHitTotalLandsOverTheZoneLifetime() {
+    public void MultiHitTotalAndFinaleLandOverTheCinematic() {
         var simulation = NewSimulation(seed: 62);
         int tick = FillMeterAndSettle(simulation);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
         int hpBeforeCast = before.CurrentHP;
 
-        simulation.Advance(Frame(tick++, 0, GameplayButtons.Ultimate), Frame(tick - 1, 0, GameplayButtons.None));
-        for (int i = 0; i < 100; i++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-            tick++;
-        }
+        tick = UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
+        UltimateActivationTestKit.Idle(simulation, tick, 140);
 
-        // 5 ticks x 15 damage over the 1.5 s lifetime; the expiry launch is
-        // damage-free, and the zone is gone afterwards.
+        // E06: 6 pull hits x 10, then the 18-damage launch = 78; the zone is gone.
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
         AssertThat(after.CurrentHP).IsEqual(hpBeforeCast - TotalUltimateDamage);
         AssertThat(simulation.ZoneCount).IsEqual(0);
+        AssertThat(UltimateActivationTestKit.Phase(simulation, 0)).IsEqual(FighterUltimateActivationRules.PhaseNone);
     }
 
     [TestCase]
-    public void SingularityPullDragsTheOpponentTowardTheCenter() {
+    public void TheCinematicHoldsTheVictimOnTheSingularity() {
         var simulation = NewSimulation(seed: 63);
         int tick = FillMeterAndSettle(simulation);
-        // Open real distance (beyond melee, still inside the 6-unit-wide
-        // singularity): the attacker retreats while the opponent idles.
-        for (int i = 0; i < 30; i++) {
-            simulation.Advance(Frame(tick, -127, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-            tick++;
-        }
-
-        simulation.Advance(Frame(tick++, 0, GameplayButtons.Ultimate), Frame(tick - 1, 0, GameplayButtons.None));
+        tick = UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
-        var gapBefore = xpTURN.Klotho.Deterministic.Math.FP64.Abs(before.Position.x - zone.Position.x);
 
-        for (int i = 0; i < 30; i++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        // The victim tries to walk and jump away; the hold keeps them on the
+        // singularity (the zone is spawned on them) for the whole sequence.
+        for (int i = 0; i < 60; i++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 127, GameplayButtons.Jump));
             tick++;
         }
-
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
-        var gapAfter = xpTURN.Klotho.Deterministic.Math.FP64.Abs(after.Position.x - zone.Position.x);
-        AssertThat(gapAfter < gapBefore).IsTrue();
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent held)).IsTrue();
+        AssertThat(held.Position.x).IsEqual(zone.Position.x);
+        AssertThat(simulation.TryGetFighterUltimateActivation(1, out FighterUltimateActivationComponent capture)).IsTrue();
+        AssertThat(FighterUltimateActivationRules.IsCaptured(in capture)).IsTrue();
     }
 
     [TestCase]
     public void FinalLaunchCarriesRealImpulse() {
         var simulation = NewSimulation(seed: 64);
         int tick = FillMeterAndSettle(simulation);
-        simulation.Advance(Frame(tick++, 0, GameplayButtons.Ultimate), Frame(tick - 1, 0, GameplayButtons.None));
-        AssertThat(simulation.ZoneCount).IsEqual(1);
+        tick = UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
 
-        // Step to the exact expiry frame, then verify the launch hit.
+        // Step to the release (the finale tick), then verify the launch hit.
         bool launched = false;
-        for (int i = 0; i < 120 && !launched; i++) {
+        for (int i = 0; i < 140 && !launched; i++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             tick++;
-            if (simulation.ZoneCount == 0) {
+            if (!UltimateActivationTestKit.IsCinematic(simulation, 0)) {
                 AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
                 AssertThat(target.HitstunFrames > 0).IsTrue();
                 AssertThat(target.IsGrounded).IsEqual(0);
-                // UltimateKnockback 6 against weight 1 resolves to force 3 on
-                // both axes, blasting the target up and away from the center.
+                // UltimateKnockback 6 against weight 1 blasts the target up and
+                // along Einstein's facing, toward the blast zone.
                 AssertThat(target.Velocity.y > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
+                AssertThat(target.Velocity.x > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
                 launched = true;
             }
         }
@@ -140,35 +142,34 @@ public class EinsteinUltimateTests {
     }
 
     [TestCase]
-    public void UltimateFiresBeyondMeleeRangeAndBypassesBlock() {
+    public void UltimateConnectsBeyondMeleeRangeAndBypassesBlock() {
         var simulation = NewSimulation(seed: 65);
         int tick = FillMeterAndSettle(simulation);
         // Retreat beyond the 2-unit generic attack range while staying inside
-        // the 6-unit-wide singularity footprint.
+        // the orb's 6-unit activation reach.
         for (int i = 0; i < 30; i++) {
             simulation.Advance(Frame(tick, -127, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             tick++;
         }
+        tick = UltimateActivationTestKit.Idle(simulation, tick, 20);
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         var gap = xpTURN.Klotho.Deterministic.Math.FP64.Abs(target.Position.x - attacker.Position.x);
         AssertThat(gap > xpTURN.Klotho.Deterministic.Math.FP64.FromInt(2)).IsTrue();
+        AssertThat(gap < xpTURN.Klotho.Deterministic.Math.FP64.FromInt(6)).IsTrue();
         int hpBeforeCast = target.CurrentHP;
 
-        // The opponent holds Block for the whole ultimate; the meter is still
-        // consumed, the zone still spawns, and every tick still lands.
-        var blockHeld = new PlayerInputFrame {
-            MoveX = 0, MoveY = 0, Held = GameplayButtons.Block, Pressed = GameplayButtons.None
-        };
-        simulation.Advance(Frame(tick++, 0, GameplayButtons.Ultimate), blockHeld);
-        // The full meter collapsed to the first pulse's fresh 15-damage credit.
-        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent castAttacker)).IsTrue();
-        AssertThat(castAttacker.Influence).IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.Zero);
-        AssertThat(simulation.ZoneCount).IsEqual(1);
-        for (int i = 0; i < 100; i++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), blockHeld);
-            tick++;
-        }
+        // The attacker faces the opponent again (retreating turned it around).
+        simulation.Advance(Frame(tick, 127, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        tick++;
+        tick = UltimateActivationTestKit.Idle(simulation, tick, 20);
+
+        // The opponent holds Block for the whole Ultimate: the activation strike
+        // is unblockable and every hit of the cinematic still lands.
+        tick = UltimateActivationTestKit.CastAndConnect(
+            simulation, tick, out bool connected, victimHeld: GameplayButtons.Block);
+        AssertThat(connected).IsTrue();
+        UltimateActivationTestKit.Idle(simulation, tick, 140, GameplayButtons.Block);
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
         AssertThat(after.CurrentHP).IsEqual(hpBeforeCast - TotalUltimateDamage);
@@ -184,18 +185,15 @@ public class EinsteinUltimateTests {
             einstein, opponent, seed: 66, spawnDistance: 1, rules: FighterMatchRules.Disabled);
 
         int tick = FillMeterAndSettle(uninterrupted);
-        uninterrupted.Advance(Frame(tick++, 0, GameplayButtons.Ultimate), Frame(tick - 1, 0, GameplayButtons.None));
-        // Snapshot mid-singularity, with ticks and the pull in flight.
-        for (int i = 0; i < 30; i++) {
-            uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-            tick++;
-        }
+        tick = UltimateActivationTestKit.CastAndConnect(uninterrupted, tick);
+        // Snapshot mid-cinematic, with pulses and the hold in flight.
+        tick = UltimateActivationTestKit.Idle(uninterrupted, tick, 30);
 
         byte[] snapshot = uninterrupted.CaptureFullState();
         restored.RestoreFullState(snapshot);
         AssertThat(restored.CurrentHash).IsEqual(uninterrupted.CurrentHash);
 
-        // Convergence across the remaining ticks, the expiry launch, and beyond.
+        // Convergence across the remaining pulses, the finale, and beyond.
         for (int i = 0; i < 200; i++) {
             long expected = uninterrupted.Advance(
                 Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
@@ -249,12 +247,14 @@ public class EinsteinUltimateTests {
         SpecialAttackTwo = new AbilityData(),
         MovementAbility = new MovementAbilityData(),
         UltimateAttack = new AbilityData {
-            BaseDamage = 15f,
+            BaseDamage = 10f,
             IsMultiHit = true,
-            HitCount = 5,
+            HitCount = 6,
             DamageTickIntervalFrames = 18,
+            FinaleDamage = 18f,
+            FinaleLaunches = true,
             KnockbackForce = new Vector2(6, -4),
-            Lifetime = 1.5f
+            Lifetime = 2.1f
         }
     };
 

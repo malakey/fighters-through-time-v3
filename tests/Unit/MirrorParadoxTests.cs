@@ -93,6 +93,26 @@ public class MirrorParadoxTests {
     }
 
     [TestCase]
+    public void TheClonesUltimateIsTheFighterActivationStrikeVersion() {
+        // A02 (Package 13 W6): "a boss or CPU using a player kit against the
+        // player (the Mirror Paradox clone) uses the Fighter activation-strike
+        // version" — Story's players keep the screen-clearing cast.
+        MirrorParadoxController mirror = CreateMirror();
+        try {
+            AssertThat(mirror.Clone.UsesFighterUltimateActivation).IsTrue();
+            AssertThat(mirror.Clone.UltimateActivationPhase).IsEqual(0);
+            PlayerController player = CharacterFactory.CreateCharacter(MirroredCharacter);
+            try {
+                AssertThat(player.UsesFighterUltimateActivation).IsFalse();
+            } finally {
+                player.Free();
+            }
+        } finally {
+            FreeMirror(mirror);
+        }
+    }
+
+    [TestCase]
     public void ClonePoolIsTheAuthoredThousandHPBossPoolNotTheCharacterBaseline() {
         MirrorParadoxController mirror = CreateMirror();
         try {

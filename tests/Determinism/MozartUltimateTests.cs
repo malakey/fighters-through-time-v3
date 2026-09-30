@@ -11,19 +11,23 @@ namespace FTT.Tests.Determinism;
 
 /// <summary>
 /// Deterministic Fighter-side coverage for Mozart's canonical Symphony of
-/// Sorrow ultimate (audit gap X7): the bespoke dispatch consumes the meter and
-/// replaces the generic melee-range hit, the stage-wide zone lands the
-/// authored 10 x 8 meteor bombardment, Mozart hovers on FloatFrames for the
-/// window, the bombardment reaches beyond melee range, bypasses block, and
-/// stays snapshot/rollback safe.
+/// Sorrow ultimate (M05, Package 13 W6): the press spends the meter and flicks
+/// the baton's six-unit sound bolt (A02); its contact starts the bombardment
+/// zone on the held victim — eight 7-damage piano keys and then the 24-damage
+/// grand-chord finale (80) — while Mozart hovers on FloatFrames. The finale
+/// launches, reaches beyond melee range, bypasses block, and the whole
+/// sequence stays snapshot/rollback safe.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
 public class MozartUltimateTests {
 
-    private const int BombardmentFrames = 180;
-    private const int MeteorDamage = 8;
-    private const int MeteorCount = 10;
+    private const int KeyDamage = 7;
+    private const int KeyCount = 8;
+    private const int FinaleDamage = 24;
+    private const int KeyIntervalFrames = 18;
+    private const int CinematicFrames = KeyCount * KeyIntervalFrames;
+    private const int UltimateTotal = KeyDamage * KeyCount + FinaleDamage;
 
     /// <summary>
     /// The ultimate tests churn large deterministic-simulation allocations
@@ -39,37 +43,29 @@ public class MozartUltimateTests {
     }
 
     [TestCase]
-    public void SymphonyConsumesTheMeterAndLandsTheAuthoredBombardmentTotal() {
+    public void SymphonySpendsTheMeterAndLandsTheKeysAndFinale() {
         var simulation = NewSimulation(seed: 91, spawnDistance: 1);
         int tick = ChargeInfluence(simulation);
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
         int hpBefore = before.CurrentHP;
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-        tick++;
+        tick = UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
 
-        // Bespoke dispatch fired: the meter was consumed (only the first
-        // same-frame meteor's 8 damage has re-credited it) and the stage-wide
+        // The meter was spent on acceptance (D03h: no re-credit) and the
         // bombardment zone (type 73 = Mozart 7 * 10 + ultimate slot 3) is live.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
-        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
-        // caster ZERO damage-dealt meter, so the same-frame tick no longer
-        // re-credits anything - the meter reads exactly 0 after the cast.
         AssertThat(caster.Influence.RawValue).IsEqual(FP64.Zero.RawValue);
         AssertThat(simulation.ZoneCount).IsEqual(1);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual(73);
 
-        for (int i = 0; i < BombardmentFrames + 30; i++, tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
+        UltimateActivationTestKit.Idle(simulation, tick, CinematicFrames + 30);
 
-        // Exactly the authored 10 x 8 = 80 total: the generic melee ultimate
-        // (another 8 at this range) must NOT have double-fired on the press,
-        // and the zone must have expired after its 10th meteor.
+        // M05: 8 keys x 7 + the 24-damage finale = 80, and the zone is gone.
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-        AssertThat(hpBefore - target.CurrentHP).IsEqual(MeteorDamage * MeteorCount);
+        AssertThat(hpBefore - target.CurrentHP).IsEqual(UltimateTotal);
         AssertThat(simulation.ZoneCount).IsEqual(0);
     }
 
@@ -78,54 +74,48 @@ public class MozartUltimateTests {
         var simulation = NewSimulation(seed: 92, spawnDistance: 1);
         int tick = ChargeInfluence(simulation);
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
+        UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
 
         // Mozart rises into the hover: airborne, moving up, with the
-        // snapshotted FloatFrames window covering the bombardment.
+        // snapshotted FloatFrames window covering the cinematic.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
         AssertThat(caster.IsGrounded).IsEqual(0);
         AssertThat(caster.Velocity.y > FP64.Zero).IsTrue();
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
-        AssertThat(runtime.FloatFrames >= BombardmentFrames - 1).IsTrue();
-        AssertThat(runtime.FloatFrames <= BombardmentFrames).IsTrue();
+        AssertThat(runtime.FloatFrames >= CinematicFrames - 1).IsTrue();
+        AssertThat(runtime.FloatFrames <= CinematicFrames).IsTrue();
     }
 
     [TestCase]
-    public void SymphonyFiresBeyondMeleeRangeAndTheFinalMeteorLaunches() {
+    public void SymphonyConnectsBeyondMeleeRangeAndTheFinaleLaunches() {
         var simulation = NewSimulation(seed: 93, spawnDistance: 1);
         int tick = ChargeInfluence(simulation);
 
         // Walk Mozart away until the pair is beyond the 2-unit generic melee
-        // range; the bombardment must still fire and cover the opponent.
+        // range, then turn back: the sound bolt must still reach.
         for (int i = 0; i < 30; i++, tick++) {
             simulation.Advance(Frame(tick, -127, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
+        simulation.Advance(Frame(tick, 127, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        tick = UltimateActivationTestKit.Idle(simulation, tick + 1, 20);
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent opponent)).IsTrue();
         AssertThat(FP64.Abs(opponent.Position.x - caster.Position.x) > FP64.FromInt(2)).IsTrue();
         int hpBefore = opponent.CurrentHP;
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-        tick++;
-        // Meter consumed (only the first same-frame meteor has re-credited it)
-        // even though the generic melee ultimate could never reach from here.
-        AssertThat(simulation.TryGetFighter(0, out caster)).IsTrue();
-        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
-        // caster ZERO damage-dealt meter, so the same-frame tick no longer
-        // re-credits anything - the meter reads exactly 0 after the cast.
-        AssertThat(caster.Influence.RawValue).IsEqual(FP64.Zero.RawValue);
-        AssertThat(simulation.ZoneCount).IsEqual(1);
+        tick = UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
 
-        // Track the final meteor: the last pulse carries the authored ultimate
-        // knockback (magnitude 5 against weight 1 resolves to 2.5 units/s),
-        // where every earlier meteor is an impulse-free pin. The full 80-damage
-        // total identifies the frame the closing strike lands on.
+        // Track the finale: every key is an impulse-free pin; the finale carries
+        // the authored ultimate knockback. The full total identifies the frame
+        // it lands on.
         bool sawFinalLaunch = false;
-        for (int i = 0; i < BombardmentFrames + 30; i++, tick++) {
+        for (int i = 0; i < CinematicFrames + 30; i++, tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             if (!sawFinalLaunch
                 && simulation.TryGetFighter(1, out FighterStateComponent struck)
-                && hpBefore - struck.CurrentHP == MeteorDamage * MeteorCount) {
+                && hpBefore - struck.CurrentHP == UltimateTotal) {
                 sawFinalLaunch = FP64.Abs(struck.Velocity.x) >= FP64.FromInt(2);
                 AssertThat(sawFinalLaunch).IsTrue();
             }
@@ -134,7 +124,7 @@ public class MozartUltimateTests {
         AssertThat(sawFinalLaunch).IsTrue();
         AssertThat(simulation.ZoneCount).IsEqual(0);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-        AssertThat(hpBefore - target.CurrentHP).IsEqual(MeteorDamage * MeteorCount);
+        AssertThat(hpBefore - target.CurrentHP).IsEqual(UltimateTotal);
     }
 
     [TestCase]
@@ -146,16 +136,15 @@ public class MozartUltimateTests {
         int hpBefore = before.CurrentHP;
         int chargesBefore = before.BlockCharges;
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.Block));
-        tick++;
-        for (int i = 0; i < BombardmentFrames + 30; i++, tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.Block));
-        }
+        tick = UltimateActivationTestKit.CastAndConnect(
+            simulation, tick, out bool connected, victimHeld: GameplayButtons.Block);
+        AssertThat(connected).IsTrue();
+        UltimateActivationTestKit.Idle(simulation, tick, CinematicFrames + 30, GameplayButtons.Block);
 
-        // Ultimates bypass the shield entirely: full bombardment damage lands
-        // and the held block never spends a charge against it.
+        // Ultimates bypass the shield entirely: the full total lands and the
+        // held block never spends a charge against it.
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-        AssertThat(hpBefore - target.CurrentHP).IsEqual(MeteorDamage * MeteorCount);
+        AssertThat(hpBefore - target.CurrentHP).IsEqual(UltimateTotal);
         AssertThat(target.BlockCharges).IsEqual(chargesBefore);
     }
 
@@ -165,21 +154,18 @@ public class MozartUltimateTests {
         var restored = NewSimulation(seed: 95, spawnDistance: 1);
 
         int tick = ChargeInfluence(uninterrupted);
-        uninterrupted.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-        tick++;
+        tick = UltimateActivationTestKit.CastAndConnect(uninterrupted, tick);
 
-        // Snapshot mid-bombardment: hover active, meteors still falling.
-        for (int i = 0; i < 60; i++, tick++) {
-            uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
+        // Snapshot mid-bombardment: hover active, keys still falling.
+        tick = UltimateActivationTestKit.Idle(uninterrupted, tick, 60);
         AssertThat(uninterrupted.ZoneCount).IsEqual(1);
 
         byte[] snapshot = uninterrupted.CaptureFullState();
         restored.RestoreFullState(snapshot);
         AssertThat(restored.CurrentHash).IsEqual(uninterrupted.CurrentHash);
 
-        // Resimulation across the remaining meteors, the final launch, the zone
-        // expiry, and the float decay must converge tick-for-tick.
+        // Resimulation across the remaining keys, the finale, the zone expiry,
+        // and the float decay must converge tick-for-tick.
         for (int i = 0; i < 300; i++, tick++) {
             long expected = uninterrupted.Advance(
                 Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
@@ -268,12 +254,14 @@ public class MozartUltimateTests {
         },
         UltimateAttack = new AbilityData {
             ExecutionType = AbilityExecutionType.Cinematic,
-            BaseDamage = 8f,
+            BaseDamage = KeyDamage,
             IsMultiHit = true,
-            HitCount = 10,
-            DamageTickIntervalFrames = 18,
+            HitCount = KeyCount,
+            DamageTickIntervalFrames = KeyIntervalFrames,
+            FinaleDamage = FinaleDamage,
+            FinaleLaunches = true,
             KnockbackForce = new Vector2(5f, -4f),
-            Lifetime = 3f
+            Lifetime = 2.7f
         }
     };
 

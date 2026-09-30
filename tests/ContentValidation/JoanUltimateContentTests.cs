@@ -24,8 +24,12 @@ public class JoanUltimateContentTests {
         AssertThat(data.AbilityID).IsEqual("joan_grand_crusade");
         AssertThat(data.Slot).IsEqual(AbilitySlot.Ultimate);
         AssertThat(data.IsMultiHit).IsTrue();
-        AssertThat(data.BaseDamage).IsEqual(12f);
-        AssertThat(data.HitCount).IsEqual(6);
+        // J05 (Package 13 W6): eight 7-damage tramples, then the 20-damage
+        // final charge (D15) = 76.
+        AssertThat(data.BaseDamage).IsEqual(7f);
+        AssertThat(data.HitCount).IsEqual(8);
+        AssertThat(data.FinaleDamage).IsEqual(20f);
+        AssertThat(data.UltimateImpactTotal).IsEqual(76f);
         // The charge travels forward at an authored speed; the Story executor
         // reads it from ProjectileSpeed.
         AssertThat(data.ProjectileSpeed > 0f).IsTrue();
@@ -38,10 +42,10 @@ public class JoanUltimateContentTests {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/joan/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.DamageTickIntervalFrames).IsEqual(6);
-        AssertThat(data.ActiveFrames).IsEqual(36);
-        // All authored hits land within the active window at the authored tick
-        // interval (both modes deliver one hit per interval).
-        AssertThat(data.DamageTickIntervalFrames * data.HitCount <= data.ActiveFrames).IsTrue();
+        AssertThat(data.ActiveFrames).IsEqual(54);
+        // All authored hits and the finale land within the active window at
+        // the authored tick interval (both modes deliver one hit per interval).
+        AssertThat(data.DamageTickIntervalFrames * data.CinematicHitCount <= data.ActiveFrames).IsTrue();
         AssertThat(data.StartupFrames > 0).IsTrue();
         AssertThat(data.RecoveryFrames > 0).IsTrue();
     }

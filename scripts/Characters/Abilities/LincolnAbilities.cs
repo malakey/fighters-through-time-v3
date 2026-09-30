@@ -505,7 +505,9 @@ namespace FTT.Characters.Abilities {
         public override void _PhysicsProcess(double delta) {
             if (CurrentPhase == AbilityPhase.Active) {
                 _activeFramesElapsed++;
-                int hitCount = Mathf.Max(1, Data?.HitCount ?? 1);
+                // D15 (Package 13 W6): LN05 authors no finale (5 × 14 = 70);
+                // CinematicHitCount keeps the shared shape if one is ever added.
+                int hitCount = Data != null ? Data.CinematicHitCount : 1;
                 int interval = Data?.DamageTickIntervalFrames > 0
                     ? Data.DamageTickIntervalFrames
                     : Mathf.Max(1, (Data?.ActiveFrames ?? hitCount) / hitCount);
@@ -560,7 +562,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "lincoln_union_indestructible",
                     HitboxID = finalSmash ? "fence_shatter_smash" : $"rail_smash_{_smashesDone}",
                     AttackClass = AttackClass.Ultimate,
-                    Damage = (Data?.BaseDamage ?? 8f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = (Data?.CinematicHitDamage(_smashesDone) ?? 8f) * Owner.StorySpecialDamageMultiplier,
                     Knockback = finalSmash ? Data?.KnockbackForce ?? new Vector2(12f, -8f) : Vector2.Zero,
                     HitstunDuration = Data?.HitstunDuration ?? 0.5f,
                     HitOrigin = _penCenter,

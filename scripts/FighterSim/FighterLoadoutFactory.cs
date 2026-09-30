@@ -76,7 +76,10 @@ namespace FTT.FighterSim {
                     SpecialOneHit = HitData(specialOne, FighterAbilityHitData.DefaultSpecial),
                     SpecialTwoHit = HitData(specialTwo, FighterAbilityHitData.DefaultSpecial),
                     UltimateHit = HitData(ultimate, FighterAbilityHitData.DefaultUltimate),
-                    MovementHit = HitData(movement, FighterAbilityHitData.DefaultSpecial)
+                    MovementHit = HitData(movement, FighterAbilityHitData.DefaultSpecial),
+                    // A02/D15 (Package 13 W6): the Ultimate's sequence and
+                    // activation strike, loadout only.
+                    Ultimate = UltimateData(ultimate)
                 },
                 airControl: FP64.FromFloat(Math.Max(0.1f, data.AirControlMultiplier)));
         }
@@ -140,6 +143,32 @@ namespace FTT.FighterSim {
                 HasKnockbackVector = true,
                 KnockbackX = FP64.FromFloat(MathF.Abs(ability.KnockbackForce.X)),
                 KnockbackY = FP64.FromFloat(-ability.KnockbackForce.Y)
+            };
+        }
+
+        /// <summary>
+        /// A02/D15: projects an Ultimate's hit sequence (per-hit damage is
+        /// <c>UltimateDamage</c>), its finale and its Fighter activation strike.
+        /// Distances convert at 60 px per unit like every other projection. A
+        /// missing ability keeps the generic default.
+        /// </summary>
+        public static FighterUltimateData UltimateData(AbilityData ability) {
+            if (ability == null) return FighterUltimateData.Default;
+            return new FighterUltimateData {
+                HitCount = Math.Max(1, ability.HitCount),
+                TickIntervalFrames = ability.DamageTickIntervalFrames > 0
+                    ? ability.DamageTickIntervalFrames
+                    : FighterUltimateData.Default.TickIntervalFrames,
+                FinaleDamage = RoundDamage(ability.FinaleDamage),
+                FinaleLaunches = ability.FinaleLaunches,
+                ActivationShape = (int)ability.ActivationShape,
+                ActivationRange = WorldDistance(ability.ActivationRange),
+                ActivationHalfExtents = new FPVector2(
+                    WorldDistance(ability.ActivationHitboxSize.X / 2f),
+                    WorldDistance(ability.ActivationHitboxSize.Y / 2f)),
+                WindupFrames = Math.Max(1, ability.ActivationWindupFrames),
+                ActiveFrames = Math.Max(1, ability.ActivationActiveFrames),
+                WhiffRecoveryFrames = Math.Max(0, ability.ActivationWhiffRecoveryFrames)
             };
         }
 

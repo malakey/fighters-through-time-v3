@@ -9,8 +9,10 @@ namespace FTT.Tests.Determinism;
 
 /// <summary>
 /// Deterministic Fighter-side coverage for Pocahontas's canonical Tidewater
-/// Tempest ultimate (audit gap X7): the bespoke dispatch consumes the full
-/// meter and replaces the generic melee-range ultimate, the spirit storm zone
+/// Tempest ultimate (audit gap X7). Package 13 W6 (A02): her resource was
+/// deliberately not re-authored (W5 replaces her), so her activation strike is
+/// the AbilityData default — a straight six-unit shot — whose contact starts
+/// the storm on the held victim. The press consumes the full meter, the spirit storm zone
 /// (type 83) delivers the authored 8 x 10 multi-hit total at the authored
 /// 21-frame cadence, only the final surge carries the outward knockback
 /// impulse, the storm reaches beyond melee range, its ticks bypass block
@@ -47,14 +49,10 @@ public class PocahontasUltimateTests {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent beforeStorm)).IsTrue();
         int hpBeforeStorm = beforeStorm.CurrentHP;
 
-        // The press spawns the storm zone and consumes the whole meter. The
-        // storm's first tick lands on the same frame (the zone system runs
-        // after combat), so the reading is exactly the 10 influence re-earned
-        // by that tick's damage — a generic melee ultimate double-firing on
-        // the press would have credited its own damage on top.
-        simulation.Advance(
-            Frame(ultimatePressTick, 0, GameplayButtons.Ultimate),
-            Frame(ultimatePressTick, 0, GameplayButtons.None));
+        // The press consumes the whole meter; the activation contact spawns
+        // the storm, whose first tick lands on the contact frame.
+        int contactNext = UltimateActivationTestKit.CastAndConnect(simulation, ultimatePressTick, out bool connected);
+        AssertThat(connected).IsTrue();
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent spent)).IsTrue();
         // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
         // caster ZERO damage-dealt meter, so the same-frame tick no longer
@@ -64,11 +62,8 @@ public class PocahontasUltimateTests {
         AssertThat(storm.ZoneTypeID).IsEqual(TempestZoneTypeID);
         AssertThat(storm.TickIntervalFrames).IsEqual(21);
 
-        // Run past the full 168-frame storm: exactly 8 x 10 damage. A generic
-        // melee ultimate double-firing on the same press would add another hit.
-        for (int tick = ultimatePressTick + 1; tick <= ultimatePressTick + 170; tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
+        // Run past the full 168-frame storm: exactly 8 x 10 damage.
+        UltimateActivationTestKit.Idle(simulation, contactNext, 170);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterStorm)).IsTrue();
         AssertThat(hpBeforeStorm - afterStorm.CurrentHP).IsEqual(StormTotalDamage);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent _)).IsFalse();
@@ -78,23 +73,17 @@ public class PocahontasUltimateTests {
     public void TempestFinalSurgeCarriesTheAuthoredOutwardKnockbackImpulse() {
         FighterSimulation simulation = BuildSimulation(seed: 84);
         int ultimatePressTick = ChargeMeterWithBasics(simulation);
-        simulation.Advance(
-            Frame(ultimatePressTick, 0, GameplayButtons.Ultimate),
-            Frame(ultimatePressTick, 0, GameplayButtons.None));
+        int contactNext = UltimateActivationTestKit.CastAndConnect(simulation, ultimatePressTick);
 
-        // Ticks land at press + 0, 21, ..., 147; every tick before the final
+        // Ticks land at contact + 0, 21, ..., 147; every tick before the final
         // surge is impulse-free (no hitstun, no launch).
-        for (int tick = ultimatePressTick + 1; tick <= ultimatePressTick + 146; tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
+        UltimateActivationTestKit.Idle(simulation, contactNext, 146);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent beforeSurge)).IsTrue();
         AssertThat(beforeSurge.HitstunFrames).IsEqual(0);
 
         // The final surge throws the target outward from the storm center: the
         // target sits to the caster's right, so the launch is up and to the right.
-        simulation.Advance(
-            Frame(ultimatePressTick + 147, 0, GameplayButtons.None),
-            Frame(ultimatePressTick + 147, 0, GameplayButtons.None));
+        UltimateActivationTestKit.Idle(simulation, contactNext + 146, 1);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent surged)).IsTrue();
         AssertThat(surged.HitstunFrames > 0).IsTrue();
         AssertThat(surged.IsGrounded).IsEqual(0);
@@ -125,11 +114,9 @@ public class PocahontasUltimateTests {
         AssertThat(gap < 4.4f).IsTrue();
         int hpBeforeStorm = retreated.CurrentHP;
 
-        int pressTick = retreatTick;
-        simulation.Advance(Frame(pressTick, 0, GameplayButtons.Ultimate), Frame(pressTick, 0, GameplayButtons.None));
-        for (int tick = pressTick + 1; tick <= pressTick + 170; tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
+        int contactNext = UltimateActivationTestKit.CastAndConnect(simulation, retreatTick, out bool connected);
+        AssertThat(connected).IsTrue();
+        UltimateActivationTestKit.Idle(simulation, contactNext, 170);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterStorm)).IsTrue();
         AssertThat(hpBeforeStorm - afterStorm.CurrentHP).IsEqual(StormTotalDamage);
     }
@@ -144,12 +131,10 @@ public class PocahontasUltimateTests {
 
         // The target holds Block for the whole storm; ultimate-class zone hits
         // bypass the shield, so the full total lands and no charge is spent.
-        simulation.Advance(
-            Frame(ultimatePressTick, 0, GameplayButtons.Ultimate),
-            Frame(ultimatePressTick, 0, GameplayButtons.Block));
-        for (int tick = ultimatePressTick + 1; tick <= ultimatePressTick + 170; tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.Block));
-        }
+        int contactNext = UltimateActivationTestKit.CastAndConnect(
+            simulation, ultimatePressTick, out bool connected, victimHeld: GameplayButtons.Block);
+        AssertThat(connected).IsTrue();
+        UltimateActivationTestKit.Idle(simulation, contactNext, 170, GameplayButtons.Block);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterStorm)).IsTrue();
         AssertThat(hpBeforeStorm - afterStorm.CurrentHP).IsEqual(StormTotalDamage);
         AssertThat(afterStorm.BlockCharges).IsEqual(chargesBeforeStorm);
@@ -161,12 +146,8 @@ public class PocahontasUltimateTests {
         FighterSimulation restored = BuildSimulation(seed: 87);
 
         int ultimatePressTick = ChargeMeterWithBasics(uninterrupted);
-        uninterrupted.Advance(
-            Frame(ultimatePressTick, 0, GameplayButtons.Ultimate),
-            Frame(ultimatePressTick, 0, GameplayButtons.None));
-        for (int tick = ultimatePressTick + 1; tick < ultimatePressTick + 60; tick++) {
-            uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
+        int contactNext = UltimateActivationTestKit.CastAndConnect(uninterrupted, ultimatePressTick);
+        UltimateActivationTestKit.Idle(uninterrupted, contactNext, 59);
 
         byte[] snapshot = uninterrupted.CaptureFullState();
         restored.RestoreFullState(snapshot);
@@ -174,7 +155,7 @@ public class PocahontasUltimateTests {
 
         // Resimulate through the remaining ticks, the final surge launch, and
         // the zone expiry; both simulations must stay hash-identical every tick.
-        for (int tick = ultimatePressTick + 60; tick < ultimatePressTick + 260; tick++) {
+        for (int tick = contactNext + 59; tick < contactNext + 259; tick++) {
             long expected = uninterrupted.Advance(
                 Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             long actual = restored.Advance(

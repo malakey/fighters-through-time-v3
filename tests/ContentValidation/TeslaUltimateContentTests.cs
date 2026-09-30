@@ -19,14 +19,18 @@ public class TeslaUltimateContentTests {
     public void WardenclyffeCataclysmResourceAuthorsTheMultiHitColumn() {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/tesla/ultimate.tres");
         AssertObject(data).IsNotNull();
-        AssertThat(data.BaseDamage).IsEqual(18f);
+        // T03 (Package 13 W6): the AC column's five 10-damage strikes, then
+        // the 20-damage final strike (D15) = 70 before coil detonations.
+        AssertThat(data.BaseDamage).IsEqual(10f);
         AssertThat(data.IsMultiHit).IsTrue();
-        AssertThat(data.HitCount).IsEqual(4);
+        AssertThat(data.HitCount).IsEqual(5);
+        AssertThat(data.FinaleDamage).IsEqual(20f);
+        AssertThat(data.UltimateImpactTotal).IsEqual(70f);
         AssertThat(data.DamageTickIntervalFrames).IsEqual(30);
-        // The active window spans exactly the authored hit cadence, and the
-        // Lifetime mirrors it in seconds for the Fighter-side column zone.
-        AssertThat(data.ActiveFrames).IsEqual(data.HitCount * data.DamageTickIntervalFrames);
-        AssertThat(data.Lifetime).IsEqual(2f);
+        // The active window spans exactly the strikes and the finale, and the
+        // Lifetime mirrors it in seconds.
+        AssertThat(data.ActiveFrames).IsEqual(data.CinematicHitCount * data.DamageTickIntervalFrames);
+        AssertThat(data.Lifetime).IsEqual(3f);
     }
 
     [TestCase]

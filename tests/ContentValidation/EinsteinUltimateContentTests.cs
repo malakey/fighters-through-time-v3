@@ -21,11 +21,16 @@ public class EinsteinUltimateContentTests {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/einstein/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.Slot).IsEqual(AbilitySlot.Ultimate);
-        AssertThat(data.BaseDamage).IsEqual(15f);
+        // E06 (Package 13 W6): six 10-damage pull hits, then the 18-damage
+        // launch finale (D15) = 78.
+        AssertThat(data.BaseDamage).IsEqual(10f);
         AssertThat(data.IsMultiHit).IsTrue();
-        AssertThat(data.HitCount).IsEqual(5);
+        AssertThat(data.HitCount).IsEqual(6);
+        AssertThat(data.FinaleDamage).IsEqual(18f);
+        AssertThat(data.FinaleLaunches).IsTrue();
+        AssertThat(data.UltimateImpactTotal).IsEqual(78f);
         AssertThat(data.DamageTickIntervalFrames).IsEqual(18);
-        AssertThat(data.Lifetime).IsEqual(1.5f);
+        AssertThat(data.Lifetime).IsEqual(2.1f);
         AssertThat(data.KnockbackForce).IsEqual(new Vector2(6f, -4f));
     }
 
@@ -35,10 +40,10 @@ public class EinsteinUltimateContentTests {
         AssertObject(data).IsNotNull();
         AssertThat(data.StartupFrames).IsEqual(30);
         // The active window is exactly the singularity's lifetime, and the
-        // authored tick interval divides it into the authored hit count:
-        // 5 hits x 18 frames = 90 frames = 1.5 s.
-        AssertThat(data.ActiveFrames).IsEqual(90);
-        AssertThat(data.ActiveFrames).IsEqual(data.HitCount * data.DamageTickIntervalFrames);
+        // authored tick interval divides it into the six pull hits plus the
+        // finale: 7 hits x 18 frames = 126 frames = 2.1 s.
+        AssertThat(data.ActiveFrames).IsEqual(126);
+        AssertThat(data.ActiveFrames).IsEqual(data.CinematicHitCount * data.DamageTickIntervalFrames);
         AssertThat(data.ActiveFrames).IsEqual(Mathf.RoundToInt(data.Lifetime * 60f));
         AssertThat(data.RecoveryFrames).IsEqual(30);
     }

@@ -295,7 +295,8 @@ namespace FTT.Characters.Abilities {
                     Owner.Velocity.Y);
 
                 _activeFramesElapsed++;
-                int hitCount = Mathf.Max(1, Data?.HitCount ?? 1);
+                // D15 (Package 13 W6): the HitCount tramples, then the finale charge.
+                int hitCount = Data != null ? Data.CinematicHitCount : 1;
                 int interval = Data?.DamageTickIntervalFrames > 0
                     ? Data.DamageTickIntervalFrames
                     : Mathf.Max(1, (Data?.ActiveFrames ?? hitCount) / hitCount);
@@ -326,7 +327,9 @@ namespace FTT.Characters.Abilities {
                 CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
 
-            bool finalHit = _hitsDone >= (Data?.HitCount ?? 1);
+            bool finalHit = _hitsDone >= (Data?.CinematicHitCount ?? 1);
+            bool finale = Data?.IsFinaleHit(_hitsDone) ?? false;
+            bool carriesStatus = Data?.CinematicHitCarriesStatus(_hitsDone) ?? true;
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, MaxQueryResults)) {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
@@ -336,13 +339,13 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "joan_grand_crusade",
                     HitboxID = $"trample_{_hitsDone}",
                     AttackClass = AttackClass.Ultimate,
-                    Damage = (Data?.BaseDamage ?? 12f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = (Data?.CinematicHitDamage(_hitsDone) ?? 12f) * Owner.StorySpecialDamageMultiplier,
                     Knockback = finalHit ? Data?.KnockbackForce ?? new Vector2(8f, -2f) : Vector2.Zero,
-                    HitstunDuration = Data?.HitstunDuration ?? 0.2f,
+                    HitstunDuration = finale ? UltimateActivationRules.FinaleHitstunSeconds : Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = Owner.GlobalPosition,
                     AttackerFacingRight = Owner.IsFacingRight,
-                    AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.None,
-                    StatusDuration = Data?.StatusDuration ?? 0f,
+                    AppliedStatus = carriesStatus ? Data?.AppliedStatus ?? FTT.Core.StatusType.None : FTT.Core.StatusType.None,
+                    StatusDuration = carriesStatus ? Data?.StatusDuration ?? 0f : 0f,
                     StatusIntensity = Data?.StatusIntensity ?? 1f,
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f

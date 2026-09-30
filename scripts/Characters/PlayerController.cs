@@ -2342,6 +2342,12 @@ namespace FTT.Characters {
 		}
 
 		private void ProcessUsingUltimate(float dt) {
+			// A02 (Package 13 W6): the activation strike owns the state until it
+			// connects (and hands over to the real Ultimate) or whiffs.
+			if (_ultimateActivationPhase != UltimateActivationNone) {
+				ProcessUltimateActivationStrike();
+				return;
+			}
 			if (_ultimateStartedAerial && _ultimate?.IsExecuting == true) {
 				Velocity = new Vector2(Velocity.X, 0f);
 			}
@@ -4190,6 +4196,9 @@ namespace FTT.Characters {
 				&& IsAbilityUnlocked(FTT.Core.AbilitySlot.Ultimate)) {
 				bool meterReady = _ultimateMeter != null ? _ultimateMeter.IsFull : CurrentUltimateMeter >= 100f;
 				if (meterReady && _ultimate != null) {
+					// A02 (Package 13 W6): the Mirror Paradox clone plays the
+					// Fighter version — an avoidable activation strike first.
+					if (UsesFighterUltimateActivation) return BeginUltimateActivationStrike();
 					if (_ultimate.TryExecute()) {
 						BeginUltimateCast();
 						return true;
@@ -4209,6 +4218,181 @@ namespace FTT.Characters {
 			CurrentState == CharacterState.UsingMovementAbility
 			&& _movementAbility != null
 			&& _movementAbility.PassesThroughProjectilesNow;
+
+		// === A02 (Package 13 W6): the Fighter-mode activation strike, Story side ====
+		// Story keeps its screen-clearing Ultimates; only a boss or CPU using a
+		// player kit against the player — the Mirror Paradox clone — plays the
+		// Fighter version, so MirrorParadoxController is the one writer of this
+		// flag. Same rules as the sim (FighterUltimateActivationRules): the meter
+		// is spent on acceptance, the wind-up and active frames are hyper-armored
+		// (gravity 0 if started airborne), the strike is unblockable and avoided
+		// by invulnerability, a jump (ground wave) or distance, contact starts the
+		// real Ultimate, and a whiff ends in whiff recovery with the meter spent.
+
+		private const int UltimateActivationNone = 0;
+		private const int UltimateActivationWindup = 1;
+		private const int UltimateActivationActive = 2;
+		private const int UltimateActivationWhiff = 3;
+
+		/// <summary>
+		/// A02: when true this controller's Ultimate opens with the Fighter
+		/// activation strike instead of casting at once. Set by
+		/// <c>MirrorParadoxController</c> on its clone; false for every player.
+		/// </summary>
+		public bool UsesFighterUltimateActivation { get; set; }
+
+		/// <summary>0 none, 1 wind-up, 2 active, 3 whiff recovery. Test/presentation read.</summary>
+		public int UltimateActivationPhase => _ultimateActivationPhase;
+
+		private int _ultimateActivationPhase;
+		private int _ultimateActivationFrames;
+		private bool _ultimateActivationFacingRight;
+		private Vector2 _ultimateActivationOrigin;
+
+		/// <summary>
+		/// A02 avoidance for a strike aimed at this character: any invulnerability
+		/// (roll, landing tech, knockdown, post-rewind), the D04 Defy window, or
+		/// not being alive. Temporal Aegis and HP barriers are not avoidance.
+		/// </summary>
+		public bool IsUltimateActivationAvoided =>
+			CurrentState == CharacterState.Dead
+			|| CurrentState == CharacterState.Respawning
+			|| _rollInvulnerable
+			|| _techInvulnerabilitySeconds > 0f
+			|| IsKnockedDown
+			|| IsPostRewindInvulnerable
+			|| IsDefyProtected;
+
+		private bool BeginUltimateActivationStrike() {
+			FTT.Combat.AbilityData data = _ultimate?.Data;
+			if (data == null) return false;
+			// D03h: spent on acceptance; a whiff never refunds it.
+			DrainUltimateMeter(FTT.Combat.UltimateMeter.MaxValue);
+			_ultimateActivationPhase = UltimateActivationWindup;
+			_ultimateActivationFrames = Math.Max(1, data.ActivationWindupFrames);
+			_ultimateActivationFacingRight = IsFacingRight;
+			_ultimateActivationOrigin = _hurtbox?.GlobalPosition ?? GlobalPosition;
+			ApplyStoryHyperArmor(
+				(Math.Max(1, data.ActivationWindupFrames) + Math.Max(1, data.ActivationActiveFrames)) / 60f);
+			BeginUltimateCast();
+			return true;
+		}
+
+		private void ProcessUltimateActivationStrike() {
+			FTT.Combat.AbilityData data = _ultimate?.Data;
+			if (data == null) {
+				EndUltimateActivationStrike();
+				return;
+			}
+			int activeFrames = Math.Max(1, data.ActivationActiveFrames);
+			bool armored = _ultimateActivationPhase is UltimateActivationWindup or UltimateActivationActive;
+			if (armored) {
+				float lunge = 0f;
+				if (_ultimateActivationPhase == UltimateActivationActive
+					&& data.ActivationShape == FTT.Combat.UltimateActivationShape.Melee) {
+					lunge = data.ActivationRange * 60f / activeFrames;
+					if (!_ultimateActivationFacingRight) lunge = -lunge;
+				}
+				Velocity = new Vector2(lunge, _ultimateStartedAerial ? 0f : Velocity.Y);
+			}
+
+			if (_ultimateActivationPhase == UltimateActivationWhiff) {
+				if (--_ultimateActivationFrames <= 0) EndUltimateActivationStrike();
+				return;
+			}
+			if (_ultimateActivationPhase == UltimateActivationWindup) {
+				if (--_ultimateActivationFrames > 0) return;
+				_ultimateActivationPhase = UltimateActivationActive;
+				_ultimateActivationFrames = activeFrames;
+				_ultimateActivationOrigin = _hurtbox?.GlobalPosition ?? GlobalPosition;
+			}
+
+			int activeIndex = activeFrames - _ultimateActivationFrames;
+			if (UltimateActivationStrikeConnects(data, activeIndex, activeFrames)) {
+				StartUltimateFromActivation();
+				return;
+			}
+			if (--_ultimateActivationFrames > 0) return;
+			_ultimateActivationPhase = UltimateActivationWhiff;
+			_ultimateActivationFrames = Math.Max(0, data.ActivationWhiffRecoveryFrames);
+			if (_ultimateActivationFrames <= 0) EndUltimateActivationStrike();
+		}
+
+		/// <summary>
+		/// Contact: the real (Story) Ultimate starts at full damage. Its own
+		/// Validate/startup gate on — and consume — a full meter, so the meter is
+		/// lent for the execute call exactly as the F04 path lends it, and the
+		/// value the clone has earned since acceptance is restored afterwards.
+		/// </summary>
+		private void StartUltimateFromActivation() {
+			_ultimateActivationPhase = UltimateActivationNone;
+			_ultimateActivationFrames = 0;
+			float meterBefore = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
+			_ultimateMeter?.SetValue(FTT.Combat.UltimateMeter.MaxValue);
+			bool executed = _ultimate != null && _ultimate.TryExecute();
+			_ultimateMeter?.SetValue(meterBefore);
+			CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? meterBefore;
+			if (!executed) EndUltimateActivationStrike();
+		}
+
+		private void EndUltimateActivationStrike() {
+			_ultimateActivationPhase = UltimateActivationNone;
+			_ultimateActivationFrames = 0;
+			_ultimateStartedAerial = false;
+			TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
+		}
+
+		/// <summary>
+		/// The strike's box on active frame <paramref name="activeIndex"/>, in
+		/// pixels (the sim's <c>ResolveStrikeBox</c> at 60 px per unit): a melee
+		/// box rides in front of the caster; a projectile or ground wave sweeps
+		/// the segment its front travelled this frame.
+		/// </summary>
+		private bool UltimateActivationStrikeConnects(FTT.Combat.AbilityData data, int activeIndex, int activeFrames) {
+			var space = GetWorld2D()?.DirectSpaceState;
+			if (space == null) return false;
+			float facing = _ultimateActivationFacingRight ? 1f : -1f;
+			Vector2 size = data.ActivationHitboxSize;
+			Vector2 center;
+			Vector2 rectSize;
+			if (data.ActivationShape == FTT.Combat.UltimateActivationShape.Melee) {
+				Vector2 body = _hurtbox?.GlobalPosition ?? GlobalPosition;
+				center = body + new Vector2(facing * size.X / 2f, 0f);
+				rectSize = size;
+			} else {
+				int index = Math.Clamp(activeIndex, 0, activeFrames - 1);
+				float previousReach = data.ActivationRange * index / activeFrames;
+				float reach = data.ActivationRange * (index + 1) / activeFrames;
+				center = _ultimateActivationOrigin + new Vector2(facing * (previousReach + reach) / 2f, 0f);
+				rectSize = new Vector2(reach - previousReach + size.X, size.Y);
+			}
+			uint targetHurtboxLayer = PlayerIndex == 0
+				? FTT.Core.CollisionLayers.EnemyHurtbox
+				: FTT.Core.CollisionLayers.PlayerHurtbox;
+			var query = new PhysicsShapeQueryParameters2D {
+				Shape = new RectangleShape2D { Size = rectSize },
+				Transform = new Transform2D(0f, center),
+				CollideWithAreas = true,
+				CollideWithBodies = false,
+				CollisionMask = FTT.Combat.StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
+			};
+			Godot.Collections.Array<Godot.Collections.Dictionary> results = space.IntersectShape(query, 16);
+			using var lifetime = results.AsDisposable();
+			foreach (Godot.Collections.Dictionary result in results) {
+				if (result["collider"].AsGodotObject() is not FTT.Combat.Hurtbox hurtbox) continue;
+				if (hurtbox.OwnerPlayerIndex == PlayerIndex) continue;
+				CharacterBody2D body = null;
+				for (Node current = hurtbox.GetParent(); current != null; current = current.GetParent()) {
+					if (current is CharacterBody2D found) { body = found; break; }
+				}
+				if (body is PlayerController victim && victim.IsUltimateActivationAvoided) continue;
+				// LN05: a ground wave only reaches grounded targets.
+				if (data.ActivationShape == FTT.Combat.UltimateActivationShape.GroundWave
+					&& body != null && !body.IsOnFloor()) continue;
+				return true;
+			}
+			return false;
+		}
 
 		/// <summary>Shared tail of both ultimate cast paths.</summary>
 		private void BeginUltimateCast() {

@@ -18,17 +18,19 @@ namespace FTT.Tests.ContentValidation;
 public class ShakespeareUltimateContentTests {
 
     [TestCase]
-    public void AllTheWorldsAStageAuthorsSixSequentialPhantomStrikes() {
+    public void AllTheWorldsAStageAuthorsThreePhantomStrikesAndHamletsFinale() {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/shakespeare/ultimate.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.HasValidIdentity()).IsTrue();
         AssertThat(data.Slot).IsEqual(AbilitySlot.Ultimate);
 
-        // Six phantom strikes: the three Witches, Romeo & Juliet, and Hamlet.
+        // S04 (Package 13 W6): three phantom strikes (the Witches, Romeo &
+        // Juliet, the chorus) x 14, then Hamlet's 34-damage finale = 76.
         AssertThat(data.IsMultiHit).IsTrue();
-        AssertThat(data.HitCount).IsEqual(6);
-        // Per-strike damage; the sequence totals 6 x 14 = 84 in both modes.
+        AssertThat(data.HitCount).IsEqual(3);
         AssertThat(data.BaseDamage).IsEqual(14f);
+        AssertThat(data.FinaleDamage).IsEqual(34f);
+        AssertThat(data.UltimateImpactTotal).IsEqual(76f);
         // The strike cadence: one phantom every 20 frames (1/3 s).
         AssertThat(data.DamageTickIntervalFrames).IsEqual(20);
     }
@@ -39,10 +41,10 @@ public class ShakespeareUltimateContentTests {
         AssertObject(data).IsNotNull();
 
         // The Story active window holds exactly the authored sequence
-        // (HitCount x cadence) and the zone Lifetime spans the same 2 seconds.
-        AssertThat(data.ActiveFrames).IsEqual(data.HitCount * data.DamageTickIntervalFrames);
-        AssertThat(data.ActiveFrames).IsEqual(120);
-        AssertThat(data.Lifetime).IsEqual(2f);
+        // (strikes + finale, x cadence) and the Lifetime spans the same 80 frames.
+        AssertThat(data.ActiveFrames).IsEqual(data.CinematicHitCount * data.DamageTickIntervalFrames);
+        AssertThat(data.ActiveFrames).IsEqual(80);
+        AssertThat(Mathf.RoundToInt(data.Lifetime * 60f)).IsEqual(80);
         // Not a projectile: the stray authored projectile lifetime was cleared.
         AssertThat(data.ProjectileLifetime).IsEqual(0f);
         AssertThat(data.ProjectileSpeed).IsEqual(0f);

@@ -1459,6 +1459,7 @@ namespace FTT.FighterSim {
         private bool CanCommitUltimate(in CpuDecisionObservation observation) {
             if (_tuning.UltimatePercent <= 0) return false;
             if (observation.InfluenceRaw < MaxInfluence.RawValue) return false;
+            if (!UltimateActivationCanConnect(in observation)) return false;
             if (!_tuning.RequiresUltimateSetup) return true;
             if (observation.TargetHitstunFrames > 0) return true;
             if (observation.TargetMaxHP > 0
@@ -1469,6 +1470,28 @@ namespace FTT.FighterSim {
             long margin = CorneredMargin.RawValue;
             return observation.TargetPositionXRaw - observation.LeftWallRaw <= margin
                 || observation.RightWallRaw - observation.TargetPositionXRaw <= margin;
+        }
+
+        /// <summary>
+        /// A02 (Package 13 W6) CPU Ultimate rule: the activation strike is
+        /// avoidable and a whiff costs the whole meter plus a 45-frame punish, so
+        /// every band commits only when the strike can plausibly connect — the
+        /// target is inside close range (<see cref="CloseRange"/>, well inside
+        /// every character's 5–7 unit activation reach, so the wind-up's travel
+        /// cannot carry it out of range), not invulnerable, not rolling, and on
+        /// the ground (a grounded target has not already started the jump that
+        /// clears a straight shot or a ground wave). Without the target verb
+        /// state (the Story Mirror adapter) only the range test applies. "First
+        /// legal opportunity" (Easy/Medium, MIRROR_PARADOX's Easy/Normal) now
+        /// reads "first opportunity at which the strike can connect".
+        /// </summary>
+        private static bool UltimateActivationCanConnect(in CpuDecisionObservation observation) {
+            long gap = Absolute(observation.TargetPositionXRaw - observation.SelfPositionXRaw);
+            if (gap > CloseRange.RawValue) return false;
+            if (observation.HasTargetVerbState == 0) return true;
+            return observation.TargetInvulnerabilityFrames <= 0
+                && observation.TargetRolling == 0
+                && observation.TargetIsGrounded != 0;
         }
 
         private static long Absolute(long value) => value < 0 ? -value : value;

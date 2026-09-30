@@ -11,17 +11,24 @@ namespace FTT.Tests.Determinism;
 
 /// <summary>
 /// Deterministic Fighter-side coverage for Tesla's canonical Wardenclyffe
-/// Cataclysm ultimate (audit gap X7): full-meter dispatch that consumes the
-/// meter without a generic melee double-hit, the owner-centered multi-hit
-/// column (zone type 53) landing the authored 4 x 18 total with a vortex-style
-/// pull, the chain-reaction detonation of every live coil, shield bypass, and
-/// snapshot/rollback convergence across the whole ultimate window.
+/// Cataclysm ultimate (T03, Package 13 W6): the press spends the meter and
+/// fires the six-unit teleforce beam (A02); its contact raises the column
+/// (zone type 53) on the held victim — five 10-damage AC strikes, then the
+/// 20-damage final strike (70) — and detonates every live coil for
+/// <see cref="UltimateActivationRules.CoilDetonationDamage"/> each when the
+/// victim is inside that coil's arc radius (80 with both), destroying them. A
+/// whiffed beam detonates nothing. Shield bypass and snapshot/rollback
+/// convergence across the whole window.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
 public class TeslaUltimateTests {
 
     private static readonly FP64 FullMeter = FP64.FromInt(100);
+    private const int StrikeDamage = 10;
+    private const int StrikeCount = 5;
+    private const int FinaleDamage = 20;
+    private const int BaseTotal = StrikeDamage * StrikeCount + FinaleDamage;
 
     /// <summary>
     /// The ultimate tests churn large deterministic-simulation allocations
@@ -37,92 +44,74 @@ public class TeslaUltimateTests {
     }
 
     [TestCase]
-    public void CataclysmConsumesTheMeterWithoutAGenericMeleeDoubleHit() {
+    public void TheBeamContactRaisesTheColumnAndSpendsTheMeter() {
         var simulation = NewSimulation(withCoils: false, seed: 71);
         int tick = FillMeter(simulation, 0);
-        // FillMeter already settles swings and hitstun; a further pad keeps a
-        // clean gap before the ultimate press.
         tick = AdvanceNeutral(simulation, tick, 30);
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
         AssertThat(before.HitstunFrames).IsEqual(0);
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
+        UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
 
-        // The bespoke dispatch consumed the full meter and spawned the
-        // ultimate-slot column zone. The same-frame column tick re-credits its
-        // 18 damage as influence, so the meter reads exactly 18 — not 100.
+        // D03h: spent on acceptance, no re-credit.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
-        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
-        // caster ZERO damage-dealt meter, so the same-frame tick no longer
-        // re-credits anything - the meter reads exactly 0 after the cast.
         AssertThat(attacker.Influence == FP64.Zero).IsTrue();
         AssertThat(simulation.ZoneCount).IsEqual(1);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual((int)FighterCharacterID.Tesla * 10 + 3);
 
-        // Exactly one 18-damage column tick landed on the press frame; the
-        // generic melee ultimate (30 hitstun frames + knockback) must not have
-        // double-fired on the same press.
+        // Exactly one impulse-free 10-damage column strike landed on contact.
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-        AssertThat(before.CurrentHP - target.CurrentHP).IsEqual(18);
+        AssertThat(before.CurrentHP - target.CurrentHP).IsEqual(StrikeDamage);
         AssertThat(target.HitstunFrames).IsEqual(0);
         AssertThat(target.BlockCharges).IsEqual(3);
     }
 
     [TestCase]
-    public void CataclysmColumnLandsTheAuthoredMultiHitTotalAndPullsTheOpponent() {
+    public void CataclysmLandsSeventyWithoutCoilsAndHoldsTheVictim() {
         var simulation = NewSimulation(withCoils: false, seed: 72);
         int tick = FillMeter(simulation, 0);
         tick = SeparateBeyondMeleeRange(simulation, tick);
 
-        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
-        FP64 gapBefore = FP64.Abs(before.Position.x - attacker.Position.x);
+        tick = UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent anchored)).IsTrue();
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-        tick++;
-
-        // The vortex-style pull drags the opponent toward the column center.
+        // The victim is held on the column while the strikes land.
         tick = AdvanceNeutral(simulation, tick, 60);
-        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attackerMid)).IsTrue();
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent pulled)).IsTrue();
-        AssertThat(FP64.Abs(pulled.Position.x - attackerMid.Position.x) < gapBefore).IsTrue();
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent held)).IsTrue();
+        AssertThat(held.Position.x).IsEqual(anchored.Position.x);
 
-        // Over the full 120-frame column lifetime the authored multi-hit total
-        // lands: 4 hits x 18 per-hit damage = 72.
-        AdvanceNeutral(simulation, tick, 70);
+        // T03: five strikes x 10, then the 20-damage final strike = 70.
+        AdvanceNeutral(simulation, tick, 120);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
-        AssertThat(before.CurrentHP - after.CurrentHP).IsEqual(72);
+        AssertThat(before.CurrentHP - after.CurrentHP).IsEqual(BaseTotal);
         AssertThat(simulation.ZoneCount).IsEqual(0);
     }
 
     [TestCase]
-    public void CataclysmConnectsBeyondMeleeRange() {
+    public void TheBeamConnectsBeyondMeleeRange() {
         var simulation = NewSimulation(withCoils: false, seed: 73);
         int tick = FillMeter(simulation, 0);
         tick = SeparateBeyondMeleeRange(simulation, tick);
 
-        // The generic ultimate is gated to melee range (2 units); the bespoke
-        // dispatch is not. At a gap beyond 2 units the press must still fire.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent attacker)).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
         AssertThat(FP64.Abs(before.Position.x - attacker.Position.x) > FP64.FromInt(2)).IsTrue();
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-
-        // Meter consumed (only the same-frame tick's 18-damage credit remains).
+        UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent spent)).IsTrue();
-        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
-        // caster ZERO damage-dealt meter, so the same-frame tick no longer
-        // re-credits anything - the meter reads exactly 0 after the cast.
         AssertThat(spent.Influence == FP64.Zero).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-        AssertThat(before.CurrentHP - target.CurrentHP).IsEqual(18);
+        AssertThat(before.CurrentHP - target.CurrentHP).IsEqual(StrikeDamage);
     }
 
     [TestCase]
-    public void CataclysmDetonatesEveryActiveCoilInAChainReaction() {
+    public void CataclysmDetonatesEveryActiveCoilForFiveEach() {
         var simulation = NewSimulation(withCoils: true, seed: 74);
         int tick = FillMeter(simulation, 0);
         tick = AdvanceNeutral(simulation, tick, 30);
@@ -136,15 +125,48 @@ public class TeslaUltimateTests {
         AssertThat(simulation.PersistentObjectCount).IsEqual(2);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
+        tick = UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
 
-        // Both coils are gone and the chain damage landed alongside the first
-        // column tick: 18 + 2 coils x 10 (double the 5-damage arc) = 38.
+        // Both coils are destroyed and their detonations landed with the first
+        // column strike: 10 + 2 coils x 5 = 20.
         AssertThat(simulation.PersistentObjectCount).IsEqual(0);
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent atContact)).IsTrue();
+        AssertThat(before.CurrentHP - atContact.CurrentHP)
+            .IsEqual(StrikeDamage + 2 * UltimateActivationRules.CoilDetonationDamage);
+
+        // T03: the maximum is 80.
+        AdvanceNeutral(simulation, tick, 180);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
-        AssertThat(before.CurrentHP - after.CurrentHP).IsEqual(38);
-        // The coil detonation carries real impulse (unlike the column ticks).
-        AssertThat(after.HitstunFrames > 0).IsTrue();
+        AssertThat(before.CurrentHP - after.CurrentHP)
+            .IsEqual(BaseTotal + 2 * UltimateActivationRules.CoilDetonationDamage);
+    }
+
+    [TestCase]
+    public void AWhiffedBeamDetonatesNothing() {
+        var simulation = NewSimulation(withCoils: true, seed: 77);
+        int tick = FillMeter(simulation, 0);
+        tick = AdvanceNeutral(simulation, tick, 30);
+        simulation.Advance(Frame(tick, 0, GameplayButtons.Special1), Frame(tick, 0, GameplayButtons.None));
+        tick++;
+        simulation.Advance(Frame(tick, 0, GameplayButtons.Special1), Frame(tick, 0, GameplayButtons.None));
+        tick++;
+        AssertThat(simulation.PersistentObjectCount).IsEqual(2);
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
+
+        // The opponent jumps over the straight beam as it fires.
+        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
+        tick++;
+        simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.Jump));
+        tick++;
+        AdvanceNeutral(simulation, tick, 35);
+
+        AssertThat(UltimateActivationTestKit.Phase(simulation, 0))
+            .IsEqual(FighterUltimateActivationRules.PhaseWhiffRecovery);
+        AssertThat(simulation.PersistentObjectCount).IsEqual(2);
+        AssertThat(simulation.ZoneCount).IsEqual(0);
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
+        AssertThat(after.CurrentHP).IsEqual(before.CurrentHP);
     }
 
     [TestCase]
@@ -165,13 +187,16 @@ public class TeslaUltimateTests {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
         AssertThat(before.BlockCharges).IsEqual(3);
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.Block));
+        UltimateActivationTestKit.CastAndConnect(
+            simulation, tick, out bool connected, victimHeld: GameplayButtons.Block);
+        AssertThat(connected).IsTrue();
 
         // Ultimate-class hits ignore the shield entirely: full damage (column
-        // tick + both coil detonations) with no block charge spent.
+        // strike + both coil detonations) with no block charge spent.
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
         AssertThat(after.BlockCharges).IsEqual(3);
-        AssertThat(before.CurrentHP - after.CurrentHP).IsEqual(38);
+        AssertThat(before.CurrentHP - after.CurrentHP)
+            .IsEqual(StrikeDamage + 2 * UltimateActivationRules.CoilDetonationDamage);
     }
 
     [TestCase]
@@ -191,7 +216,8 @@ public class TeslaUltimateTests {
         tick++;
 
         // Snapshot just before the ultimate so the restored simulation replays
-        // the dispatch, the zone lifecycle, and the coil destruction.
+        // the acceptance, the beam, the contact, the column and the coil
+        // destruction.
         byte[] snapshot = uninterrupted.CaptureFullState();
         restored.RestoreFullState(snapshot);
         AssertThat(restored.CurrentHash).IsEqual(uninterrupted.CurrentHash);
@@ -203,7 +229,7 @@ public class TeslaUltimateTests {
         AssertThat(actual).IsEqual(expected);
         tick++;
 
-        for (int end = tick + 200; tick < end; tick++) {
+        for (int end = tick + 260; tick < end; tick++) {
             expected = uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             actual = restored.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
             AssertThat(actual).IsEqual(expected);
@@ -231,11 +257,6 @@ public class TeslaUltimateTests {
             AssertThat(simulation.TryGetFighter(1, out FighterStateComponent defender)).IsTrue();
             sbyte toward = defender.Position.x >= attacker.Position.x ? (sbyte)127 : (sbyte)-127;
             // Basics are phased swings: press only when the string is idle.
-            // Held movement no longer cancels recovery — each swing runs its
-            // full length plus the chain-hold window, whose expiry resets the
-            // string, so every press is still a fresh 0.8x opener. The mutual
-            // walk-in (attackers steer freely mid-swing now) keeps the pair
-            // inside melee range.
             GameplayButtons buttons = runtime.AttackPhase == FighterBasicAttackRules.PhaseNone
                 ? GameplayButtons.BasicAttack
                 : GameplayButtons.None;
@@ -251,8 +272,8 @@ public class TeslaUltimateTests {
 
     /// <summary>
     /// Walks both fighters apart until the gap exceeds the 2-unit generic melee
-    /// range (staying inside the column zone's 3-unit horizontal reach). Both
-    /// retreat so the separation cannot stall against an arena wall.
+    /// range (well inside the beam's six units), then Tesla turns back to face
+    /// the opponent.
     /// </summary>
     private static int SeparateBeyondMeleeRange(FighterSimulation simulation, int startTick) {
         int tick = startTick;
@@ -265,8 +286,13 @@ public class TeslaUltimateTests {
                 Frame(tick, (sbyte)(-away), GameplayButtons.None),
                 Frame(tick, away, GameplayButtons.None));
         }
-        // Two settle frames so the retreat momentum dies before the press.
-        return AdvanceNeutral(simulation, tick, 2);
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent tesla)).IsTrue();
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent opponent)).IsTrue();
+        sbyte face = opponent.Position.x >= tesla.Position.x ? (sbyte)127 : (sbyte)-127;
+        simulation.Advance(Frame(tick, face, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        tick++;
+        // Settle frames so the retreat momentum dies before the press.
+        return AdvanceNeutral(simulation, tick, 20);
     }
 
     private static int AdvanceNeutral(FighterSimulation simulation, int startTick, int frames) {
@@ -300,12 +326,18 @@ public class TeslaUltimateTests {
             : new AbilityData(),
         SpecialAttackTwo = new AbilityData(),
         MovementAbility = new MovementAbilityData(),
-        // The authored ultimate.tres numbers: 18 per hit x 4 hits every 30 frames.
+        // The authored ultimate.tres numbers: 5 strikes x 10 every 30 frames,
+        // then the 20-damage final strike; a straight six-unit beam.
         UltimateAttack = new AbilityData {
-            BaseDamage = 18f,
+            BaseDamage = StrikeDamage,
             IsMultiHit = true,
-            HitCount = 4,
+            HitCount = StrikeCount,
             DamageTickIntervalFrames = 30,
+            FinaleDamage = FinaleDamage,
+            FinaleLaunches = true,
+            ActivationShape = UltimateActivationShape.Projectile,
+            ActivationRange = 360f,
+            ActivationHitboxSize = new Vector2(60f, 30f),
             KnockbackForce = new Vector2(6f, -4f)
         }
     };

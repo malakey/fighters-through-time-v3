@@ -207,6 +207,23 @@ Owns the **ground-wave** primitive (travels along the ground, grounded targets o
 - **Hash moves:** every Fighter hash (320 layout growth, pushbox 0.6, signed knockback). All self-consistency hash/rollback suites pass.
 - **Deviations:** Ultimate knockbacks still use the flattened tuning scalar (W6 region); enemy/boss scene pushboxes not narrowed (`VERIFY-ENEMY-PUSHBOX-WIDTH`); sim hit hurtbox stays 1.0 wide (grab alone uses the design widths); no dedicated Move List air-dodge row (roll row value extended); Story grab pixel scale moved 62.5 → 60 px/unit to agree with the pushbox. Needs from W5: North Star Ward as a `ResonanceBarrier` source (append a member); from W6: refuse the air dodge during the activation strike/whiff recovery.
 
+### W6 — Ultimate activation strike (A02) and totals (D15) — `p13/W6`
+
+Handoff: `docs/handoffs/P13_W6.md`. **Test delta +20 (2527 → 2547)**, measured over two complementary filtered runs (451 + 2096, 0 failures). **Every Fighter hash moves** (component 321 on every fighter; new Ultimate timelines); rollback-readiness and the per-stage hash suites pass. No v8 derivation.
+
+- **Component 321** `FighterUltimateActivationComponent` (MaxCount 2, 64 B, all-zero inactive): caster phase/frames/aerial/facing/lunge/origin, victim captor/hold frames/anchor.
+- **Deviation 1 — the world is not paused.** A Fighter cinematic suspends the two fighters (the victim is held at the contact point, the caster action-locked); projectiles, hazards, constructs and the clock keep running. Proposed `VERIFY-ULT-CINEMATIC-PAUSE`.
+- **Deviation 2 — zones are spawned on the held victim**, so the singularity/vortex pulls are no-ops during the hold; the hold, not the pull, guarantees "full damage".
+- **Deviation 3 — Cleopatra's slam closes the sequence** (six cobras, then the 12-damage slam finale carrying the Venom); C04 lists it first. Totals and the once-only Venom are exact. Proposed `VERIFY-ULT-FINALE-ORDER`.
+- **Status rule (both modes):** a Damage-slot status rides the finale only; a Control-slot hold rides the regular hits, never the finale.
+- **Finale hitstun** is one shared rulebook value (`UltimateActivationRules.FinaleHitstunFrames` 30), not the ultimate `.tres` `HitstunFrames` (left untouched to avoid W1's `AbilityHitContractTests`).
+- **Tesla detonation** = 5 per coil within each coil's own arc radius in both modes (sim `coil.AttackRange`, Story `ArcRangePixels`); W7a's T02 4-unit arc will move it with no second value.
+- **Removed:** the generic melee Ultimate intent (`BuildIntent` branch, `LegacyUltimateHitstunFrames`), Einstein's/Leonardo's zero-damage expiry launches, Joan/Mozart/Shakespeare final-pulse knockback branches, every restated `.tres` timing constant in `FighterUltimateRules`.
+- **CPU rule:** commit only within close range (2 u) against a grounded, non-invulnerable, non-rolling target (range-only without target verb state). MIRROR_PARADOX's "first legal opportunity" becomes "first opportunity the strike can connect".
+- **Story:** only `PlayerController.UsesFighterUltimateActivation` (set by `MirrorParadoxController`) plays the activation strike; the clone's Story cinematic does not hold the player (proposed `VERIFY-STORY-MIRROR-HOLD`).
+- **Not delivered:** the red telegraph / X glyph (`DEFER-ULT-TELEGRAPH`); `ActivationHitboxOffset` / `ActivationProjectileScene`; activation box sizes and 20/10/45 are provisional (`VERIFY-ULT-ACTIVATION-TUNING`). Air dodge counts as avoidance only if W1 grants it through `InvulnerabilityFrames` — check at merge.
+- **Pocahontas untouched** (W5): default activation (6 u shot), timing now read from her `.tres`.
+
 ## 10. Closeout report
 
 *(Phase C.)*

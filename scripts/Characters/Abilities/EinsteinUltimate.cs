@@ -32,8 +32,8 @@ namespace FTT.Characters.Abilities {
         private float _tickTimer;
         private int _hitsDone;
 
-        private float DamagePerHit => Data?.BaseDamage ?? 15f;
-        private int HitCount => Data?.HitCount > 0 ? Data.HitCount : 5;
+        // D15 (Package 13 W6): HitCount pull ticks, then the FinaleDamage launch.
+        private int HitCount => Data != null ? Data.CinematicHitCount : 5;
 
         public override void _Ready() {
             base._Ready();
@@ -112,28 +112,32 @@ namespace FTT.Characters.Abilities {
 
         /// <summary>
         /// One multi-hit tick of the collapsing singularity. The final tick is
-        /// the explosive launch: it carries the authored KnockbackForce and
-        /// hitstun; earlier ticks are pure impulse-free damage so the pull keeps
-        /// its grip.
+        /// the explosive launch: the authored FinaleDamage (D15), carrying the
+        /// authored KnockbackForce and the shared finale hitstun; earlier ticks
+        /// are pure impulse-free damage so the pull keeps its grip.
         /// </summary>
         private void DealSingularityHit() {
             _hitsDone++;
             bool isLaunchHit = _hitsDone >= HitCount;
+            bool finale = Data?.IsFinaleHit(_hitsDone) ?? false;
+            bool carriesStatus = Data?.CinematicHitCarriesStatus(_hitsDone) ?? true;
             foreach (Hurtbox hurtbox in QueryTargetHurtboxes()) {
                 HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "einstein_cosmological_constant",
                     HitboxID = isLaunchHit ? "singularity_launch" : "singularity_tick",
                     AttackClass = AttackClass.Ultimate,
-                    Damage = DamagePerHit * Owner.StorySpecialDamageMultiplier,
+                    Damage = (Data?.CinematicHitDamage(_hitsDone) ?? 15f) * Owner.StorySpecialDamageMultiplier,
                     Knockback = isLaunchHit
                         ? Data?.KnockbackForce ?? new Vector2(6, -4)
                         : Vector2.Zero,
-                    HitstunDuration = isLaunchHit ? Data?.HitstunDuration ?? 0.5f : 0f,
+                    HitstunDuration = !isLaunchHit ? 0f
+                        : finale ? UltimateActivationRules.FinaleHitstunSeconds
+                        : Data?.HitstunDuration ?? 0.5f,
                     HitOrigin = _singularityCenter,
                     AttackerFacingRight = Owner.IsFacingRight,
-                    AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.None,
-                    StatusDuration = Data?.StatusDuration ?? 0f,
+                    AppliedStatus = carriesStatus ? Data?.AppliedStatus ?? FTT.Core.StatusType.None : FTT.Core.StatusType.None,
+                    StatusDuration = carriesStatus ? Data?.StatusDuration ?? 0f : 0f,
                     StatusIntensity = Data?.StatusIntensity ?? 1f,
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f

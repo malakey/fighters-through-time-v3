@@ -2581,19 +2581,11 @@ namespace FTT.FighterSim {
                     if (zone.ZoneTypeID == (int)FighterCharacterID.Leonardo * 10 + 1) {
                         ApplySpiralExpiryKnockback(ref frame, in zone);
                     }
-                    // Einstein's Cosmological Constant (ultimate zone type 3)
-                    // ends with the final explosive launch away from the
-                    // collapsed singularity toward the blast zones.
-                    if (zone.ZoneTypeID == (int)FighterCharacterID.Einstein * 10 + FighterUltimateRules.UltimateSlot) {
-                        ApplyCosmologicalLaunch(ref frame, in zone);
-                    }
-                    // Leonardo's Vitruvian Matrix (ultimate zone type 23) closes
-                    // with the massive final explosion: a zero-damage ultimate-
-                    // class knockback pulse away from the circle center (the 8
-                    // bombardment ticks deliver all the damage beforehand).
-                    if (zone.ZoneTypeID == (int)FighterCharacterID.Leonardo * 10 + FighterUltimateRules.UltimateSlot) {
-                        ApplyMatrixExpiryExplosion(ref frame, in zone);
-                    }
+                    // A02/D15 (Package 13 W6): the Cosmological Constant's final
+                    // launch and the Vitruvian Matrix's explosion are no longer
+                    // zero-damage expiry pulses here — they are the authored
+                    // FinaleDamage hits the combat system delivers when the
+                    // cinematic hold ends.
                     frame.DestroyEntity(zoneEntity);
                     continue;
                 }
@@ -2684,14 +2676,6 @@ namespace FTT.FighterSim {
                     pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).SpecialTwoKnockback;
                     pulseHitstunFrames = TempestHitstunFrames;
                     pulseContract = _contracts.For(zone.OwnerPlayerID, FighterHitContractTable.SlotSpecialTwo);
-                } else if (zone.ZoneTypeID == (int)FighterCharacterID.Joan * 10 + FighterUltimateRules.UltimateSlot
-                    && zone.LifetimeFrames <= zone.TickIntervalFrames) {
-                    // Grand Crusade: only the FINAL trample pulse carries the
-                    // authored ultimate knockback (carrying the opponent toward
-                    // the blast zone); earlier pulses stay impulse-free so the
-                    // full multi-hit total lands.
-                    pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
-                    pulseHitstunFrames = GrandCrusadeFinalHitstunFrames;
                 } else if (zone.ZoneTypeID == (int)FighterCharacterID.Lincoln * 10 + FighterUltimateRules.UltimateSlot
                     && zone.LifetimeFrames <= zone.TickIntervalFrames) {
                     // Union Indestructible's final smash shatters the fence pen:
@@ -2709,23 +2693,13 @@ namespace FTT.FighterSim {
                     // authored ultimate knockback.
                     pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
                     pulseHitstunFrames = TidewaterSurgeHitstunFrames;
-                } else if (zone.ZoneTypeID == (int)FighterCharacterID.Mozart * 10 + FighterUltimateRules.UltimateSlot
-                    && zone.LifetimeFrames <= zone.TickIntervalFrames) {
-                    // Symphony of Sorrow: earlier meteors pin the target inside
-                    // the bombardment impulse-free; only the closing strike
-                    // launches with the authored ultimate knockback.
-                    pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
-                    pulseHitstunFrames = SymphonyFinalHitstunFrames;
-                } else if (zone.ZoneTypeID == (int)FighterCharacterID.Shakespeare * 10 + FighterUltimateRules.UltimateSlot
-                    && zone.LifetimeFrames <= zone.TickIntervalFrames) {
-                    // All the World's a Stage (zone type 63): only the closing
-                    // phantom strike carries impulse — when no further pulse fits
-                    // in the remaining lifetime, this pulse is Hamlet's finale and
-                    // launches with the authored ultimate knockback. Earlier
-                    // phantom strikes stay impulse-free ultimate-class ticks.
-                    pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
-                    pulseHitstunFrames = StageFinaleHitstunFrames;
                 }
+                // A02/D15 (Package 13 W6): the Grand Crusade's final charge,
+                // Symphony of Sorrow's closing strike and Hamlet's finale are the
+                // authored FinaleDamage hits the combat system delivers when the
+                // cinematic hold ends, so every pulse of those zones is an
+                // impulse-free ultimate tick. Union Indestructible (no finale)
+                // and Tidewater Tempest keep their final-pulse knockback above.
 
                 // Ultimate-slot zones (ZoneTypeID % 10 == FighterUltimateRules
                 // .UltimateSlot) hit with the ultimate attack class so they
@@ -2821,10 +2795,6 @@ namespace FTT.FighterSim {
         // HitstunDuration on lincoln/ultimate.tres.
         private const int UnionFinisherHitstunFrames = 30;
         private const int TidewaterSurgeHitstunFrames = 24;
-        private const int SymphonyFinalHitstunFrames = 30;
-        // Matches the generic melee ultimate's 30-frame hitstun.
-        private const int StageFinaleHitstunFrames = 30;
-        private const int GrandCrusadeFinalHitstunFrames = 24;
 
         // 0.05 world units per frame (3 px at 60 px/unit), mirrored by the Story
         // vortex's 180 px/s positional drag.
@@ -2880,7 +2850,6 @@ namespace FTT.FighterSim {
         // vortex's 0.05, befitting a black hole. Mirrored by the Story
         // singularity's positional pull.
         private static readonly FP64 SingularityPullPerFrame = FP64.FromDouble(0.08);
-        private const int CosmologicalLaunchHitstunFrames = 30;
 
         /// <summary>
         /// Cosmological Constant per-frame pull (mirrors ApplyVortexPull): an
@@ -2900,73 +2869,6 @@ namespace FTT.FighterSim {
             if (dx > SingularityPullPerFrame) target.Position.x += SingularityPullPerFrame;
             else if (dx < -SingularityPullPerFrame) target.Position.x -= SingularityPullPerFrame;
             else target.Position.x = zone.Position.x;
-        }
-
-        /// <summary>
-        /// Cosmological Constant expiry launch (the expiry-knockback pattern of
-        /// ApplySpiralExpiryKnockback): a zero-damage ultimate-class hit that
-        /// blasts the opponent away from the collapsed singularity with the
-        /// attacker's authored UltimateKnockback. Ultimate class means it
-        /// bypasses shields and hyper-armor like every other ultimate hit.
-        /// </summary>
-        private static void ApplyCosmologicalLaunch(ref Frame frame, in FighterZoneComponent zone) {
-            int targetPlayerID = zone.OwnerPlayerID == 0 ? 1 : 0;
-            if (!FighterEntityQueries.TryFindFighter(ref frame, zone.OwnerPlayerID, out EntityRef attackerEntity)
-                || !FighterEntityQueries.TryFindFighter(ref frame, targetPlayerID, out EntityRef targetEntity)) return;
-            ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
-            if (!FighterEntityQueries.Overlaps(
-                    in zone.Position, in zone.HalfExtents,
-                    in target.Position, in FighterHalfExtents)) return;
-
-            ref FighterStateComponent attacker = ref frame.Get<FighterStateComponent>(attackerEntity);
-            ref FighterRuntimeComponent attackerRuntime = ref frame.Get<FighterRuntimeComponent>(attackerEntity);
-            ref FighterVerbComponent attackerVerb = ref frame.Get<FighterVerbComponent>(attackerEntity);
-            ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
-            ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
-            ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
-            ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
-            FP64 launchKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
-            FighterDamageRules.ApplyFighterHit(
-                ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
-                FighterDamageRules.UltimateAttackClass, 0, launchKnockback, CosmologicalLaunchHitstunFrames,
-                (int)StatusType.None, 0, FP64.One, zone.Position.x,
-                creditInfluence: false,
-                collectsEcho: false,
-                appliesHitstop: false);
-        }
-
-        private const int MatrixExpiryHitstunFrames = 18;
-
-        /// <summary>
-        /// Vitruvian Matrix expiry pulse: a zero-damage ultimate-class knockback
-        /// hit launching the opponent away from the circle center with the
-        /// attacker's authored ultimate knockback (the final "massive explosion";
-        /// ultimate-class impulses also pierce hyper-armor and block).
-        /// </summary>
-        private static void ApplyMatrixExpiryExplosion(ref Frame frame, in FighterZoneComponent zone) {
-            int targetPlayerID = zone.OwnerPlayerID == 0 ? 1 : 0;
-            if (!FighterEntityQueries.TryFindFighter(ref frame, zone.OwnerPlayerID, out EntityRef attackerEntity)
-                || !FighterEntityQueries.TryFindFighter(ref frame, targetPlayerID, out EntityRef targetEntity)) return;
-            ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
-            if (!FighterEntityQueries.Overlaps(
-                    in zone.Position, in zone.HalfExtents,
-                    in target.Position, in FighterHalfExtents)) return;
-
-            ref FighterStateComponent attacker = ref frame.Get<FighterStateComponent>(attackerEntity);
-            ref FighterRuntimeComponent attackerRuntime = ref frame.Get<FighterRuntimeComponent>(attackerEntity);
-            ref FighterVerbComponent attackerVerb = ref frame.Get<FighterVerbComponent>(attackerEntity);
-            ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
-            ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
-            ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
-            ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
-            FP64 explosionKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
-            FighterDamageRules.ApplyFighterHit(
-                ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
-                FighterDamageRules.UltimateAttackClass, 0, explosionKnockback, MatrixExpiryHitstunFrames,
-                (int)StatusType.None, 0, FP64.One, zone.Position.x,
-                creditInfluence: false,
-                collectsEcho: false,
-                appliesHitstop: false);
         }
 
         private static int CountLiveCoils(ref Frame frame, int ownerPlayerID) {
