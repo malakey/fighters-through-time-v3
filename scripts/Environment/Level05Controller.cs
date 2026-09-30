@@ -463,7 +463,7 @@ namespace FTT.Environment {
             base.OnBossDefeated(encounter, payload);
         }
 
-        // === Package 13 W2 region: the Eraser debut (S27) =============
+        // === Package 13 W2 region: the Eraser debut (S27) ====================
         // S27 retired Level 4A and moved its scripted Eraser debut here: the
         // Level 0 watcher's silhouette drops onto the listing boat deck,
         // between the Middle and PreBoss anchors. It is the F12 independent
@@ -505,7 +505,7 @@ namespace FTT.Environment {
         /// </summary>
         private void OnEraserDebutBegan(EraserDebutTrigger trigger) =>
             SetObjective(EraserDebutTrigger.DebutBarkKey);
-=======
+
         // === Package 13 W4: Captain Smith's taking and the lifeboats (S18/S19) ===
 
         /// <summary>The post-boss exchange at the sealing anchor (S18).</summary>
