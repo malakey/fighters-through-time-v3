@@ -71,6 +71,8 @@ public class StoryCombatContractW3Tests {
                 AttackID = "test.special",
                 HitboxID = "primary",
                 AttackClass = AttackClass.Special,
+                // A01 (Package 13 W1): only a Shield-Breaker shatters a full shield.
+                ShieldBreaker = true,
                 Damage = 20f,
                 Knockback = new Vector2(6f, -2f),
                 HitstunDuration = 0.3f,

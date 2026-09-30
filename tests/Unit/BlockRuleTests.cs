@@ -25,9 +25,17 @@ public class BlockRuleTests {
     }
 
     [TestCase]
-    public void BasicConsumesOneChargeAndSpecialConsumesAll() {
+    public void BasicConsumesOneChargeSpecialTwoAndShieldBreakerAll() {
+        // A01 (Package 13 W1), rewritten in place: an ordinary Special costs
+        // min(2, charges); only a Shield-Breaker takes every charge.
         AssertThat(BlockRules.ChargeCost(AttackClass.Basic, 3)).IsEqual(1);
-        AssertThat(BlockRules.ChargeCost(AttackClass.Special, 3)).IsEqual(3);
+        AssertThat(BlockRules.ChargeCost(AttackClass.Special, 3)).IsEqual(2);
+        AssertThat(BlockRules.ChargeCost(AttackClass.Special, 2)).IsEqual(2);
+        AssertThat(BlockRules.ChargeCost(AttackClass.Special, 1)).IsEqual(1);
+        AssertThat(BlockRules.ChargeCost(AttackClass.Special, 3, shieldBreaker: true)).IsEqual(3);
+        AssertThat(BlockRules.ChargeCost(AttackClass.Basic, 3, shieldBreaker: true))
+            .OverrideFailureMessage("The Shield-Breaker flag only means anything on a Special.")
+            .IsEqual(1);
     }
 
     [TestCase]

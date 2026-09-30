@@ -36,6 +36,12 @@ public class AbilityHitContractTests {
         "einstein_relativity_rift", "shakespeare_the_tempest", "cleopatra_sandstorm_vortex"
     };
 
+    // A01 (Package 13 W1): the whole Shield-Breaker set — adding another needs
+    // an explicit design decision.
+    private static readonly HashSet<string> ShieldBreakers = new() {
+        "joan_divine_piercing", "lincoln_emancipator", "lincoln_splitting_strike"
+    };
+
     [TestCase]
     public void EveryAbilityAuthorsTheDerivedHitContract() {
         var issues = new List<string>();
@@ -49,7 +55,11 @@ public class AbilityHitContractTests {
                 bool ultimate = data.Slot == AbilitySlot.Ultimate;
                 int expectedHitstun = data.AbilityID == "lincoln_union_indestructible" ? 30 : 12;
                 if (data.HitstunFrames != expectedHitstun) issues.Add($"{data.AbilityID} HitstunFrames {data.HitstunFrames}");
-                if (data.BlockClass != (ultimate ? BlockClass.Unblockable : BlockClass.Special)) issues.Add($"{data.AbilityID} BlockClass {data.BlockClass}");
+                // A01 (Package 13 W1): exactly three Specials are authored Shield-Breakers.
+                BlockClass expectedBlock = ultimate ? BlockClass.Unblockable
+                    : ShieldBreakers.Contains(data.AbilityID) ? BlockClass.ShieldBreaker
+                    : BlockClass.Special;
+                if (data.BlockClass != expectedBlock) issues.Add($"{data.AbilityID} BlockClass {data.BlockClass}");
                 if (data.Origin != (ultimate ? HitOrigin.Ultimate : HitOrigin.Special)) issues.Add($"{data.AbilityID} Origin {data.Origin}");
                 HitDelivery expectedDelivery = data.ExecutionType == AbilityExecutionType.PersistentObject
                     ? HitDelivery.Construct
