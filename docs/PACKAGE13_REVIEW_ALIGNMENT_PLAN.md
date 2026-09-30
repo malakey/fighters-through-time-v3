@@ -1,6 +1,6 @@
 # Package 13 — 2026-09-29 review alignment: implementation plan
 
-**Status:** Phase 0 in progress (2026-09-29). Wave 1 not started.
+**Status:** **Closed 2026-09-30.** Phase 0 committed (`d41d92d`); Wave 1 (W1/W2/W3/W4) merged with its seams at `045b1e5` (2460); W6 at `c770f36` (2480); Wave 2 (W7a/W7b/W5) at `d33917e`, with the `b81b43c` seam fix (2556); Phase C closed on `main` with save schema v8, three seams, the ledger consolidation, the AGENTS/CLAUDE rewrite and **three consecutive full-suite runs at 2561/2561**. §10 is the closeout report. Nothing in this package has been played, looked at or balanced.
 
 ## 0. Sources and baseline
 
@@ -270,6 +270,71 @@ Handoff: `docs/handoffs/P13_W6.md`. **Test delta +20 (2527 → 2547)**, measured
 - **Deviation 5 — `CalibrationDrillPicker` reads `CharacterRoster`** and binds onto the authored tiles defensively (was a literal nine-ID list).
 - **en.csv:** 34 Pocahontas rows deleted (incl. W3's accept/farewell rows for her), 34 Tubman rows added under `# Package 13 W5`; `en.en.translation` not committed.
 
-## 10. Closeout report
+## 10. Closeout report (2026-09-30)
 
-*(Phase C.)*
+### Totals
+
+| Stage | Delta | Running total | How verified |
+|---|---|---|---|
+| Package 12 baseline | — | 2527 | Three runs, 2026-09-27 |
+| W2 retire Level 4A | −152 | | handoff (2375 alone) |
+| W4 Levels 1–12 narrative | +27 | | handoff (2554 alone) |
+| W3 Level 0, hub, Act III, ending | +30 | | handoff (2557 alone) |
+| W1 universal combat | +28 | | handoff (2555 alone) |
+| **Wave 1 merged** (+ seam `045b1e5`) | **−67** | **2460** | the base both kit branches measured from |
+| W6 Ultimate activation strike | +20 | 2480 | `c770f36`, the base W5 measured from |
+| W7a kits (Einstein, Leonardo, Tesla, Shakespeare) | +32 | 2512 | handoff (2492 on 2460); arithmetic after merge |
+| W7b kits (Joan, Mozart, Cleopatra, Lincoln) | +31 | 2543 | handoff (2491 on 2460); arithmetic after merge |
+| W5 Pocahontas → Tubman | +13 | **2556** | handoff (2493 on 2480); the orchestrator's full run at `d33917e` plus the `b81b43c` seam fix |
+| Phase C | +5 | **2561** | three runs, below |
+
+**Merge-seam reconciliation.** Every branch landed its declared delta exactly: −152 + 27 + 30 + 28 = −67, then +20, +32, +31, +13 = 2556. Two seams needed a fix after merge and neither changed a count: `4cc72c3` (a stray conflict marker in `Level05Controller`, where W2's Eraser debut and W4's Captain Smith beat meet) and `b81b43c` (a Tubman Foresight test's projectile timing assumed the pre-W7a E=mc² speed; the orchestrator's first full run after the W5 merge read 2555/2556 until it was fixed and re-verified in isolation). `045b1e5` settled the Wave 1 seams (the Severed boss display name, the per-line hub set in the absence sweep). The running totals for W7a and W7b are arithmetic — no full run was taken between those two merges.
+
+**Phase C validation (2026-09-29/30, main checkout):**
+- `dotnet build FightersThroughTime.csproj --nologo --no-incremental`: 0 errors. At the start of Phase C it reported **five** warnings — the three pre-existing ones plus two `KLOTHO_DET002` float-in-sim warnings from W6 (the int `FinaleDamage` passed to the float `StatusRidesFinale` overload in `FighterSimulationSystems.DeliverUltimateFinale` and `FighterUltimateRules.SpawnCinematicZone`). Phase C added a bool overload and the sim now passes `HasFinale` (`378eb68`); the rebuild is back to the three pre-existing warnings. Behaviour and hashes are unchanged.
+- Headless `--import`: `localization/en.en.translation` was already current (the orchestrator regenerated it at `3bce524`), so nothing to commit; `UnusedTranslationKeyTests` passes with the recorded-orphan roster unchanged. Headless `--quit`: exit 0, no script errors.
+- `--quit-after 300` smoke runs, all exit 0 with no script errors: `MainMenu` clean; `HubWorld` and `Level_00_Tutorial` each print "6 ObjectDB instances leaked / 3 resources still in use at exit", against "2 / 1" for the untouched controls `Level_07_Nassau` and `Level_02_Orleans` (W3 saw the same on Level 0, which quits with the voice's pausing line up; not compared against a pre-Package-13 build). A second `HubWorld` run logged the known, save-state-dependent `Handle is not initialized` interop fault (CLAUDE.md; Package 12 §9).
+- Three consecutive full-suite runs, each with `Get-Process testhost,Godot*` empty and the `D:/Projects/.ftt-gdunit-lock` directory held:
+  - Run 1: `Passed! - Failed: 0, Passed: 2561, Skipped: 0, Total: 2561, Duration: 1 m 5 s`
+  - Run 2: `Passed! - Failed: 0, Passed: 2561, Skipped: 0, Total: 2561, Duration: 1 m 9 s`
+  - Run 3: `Passed! - Failed: 0, Passed: 2561, Skipped: 0, Total: 2561, Duration: 1 m 7 s`
+
+### What shipped, in one line per workstream
+
+- **W1** — A01 two-charge Specials and `BlockClass.ShieldBreaker = 4`, D10 signed sim knockback (Specials, projectiles, zones, the slam), A03 the air dodge (phases 5–7, `AirDodgeUsed` on 320), A04 Fighter stock-loss despawn, A05/D11 Root blocks the air dodge and the sim movement ability, A06, A11 the shared `ResonanceBarrier`, A12 the Down-Air spike with a forced bounce (320), A13 the 0.6-unit pushbox and the hurtbox-tested grab.
+- **W2** — S27: the 16-slot route with `LegacyNexus = 16` reserved, the whole Level 4A build and the GAP-14 fence deleted, N05 at 14 IDs / 700, Level 5 = 55/25/30 with the Eraser debut on its boat deck, the D2 derivation declared. Closed `VERIFY-4A-CONTENT`, `VERIFY-4A-BOSS-RULE1`, `VERIFY-NEXUS-DISPLACEMENT` as invalidated.
+- **W3** — Level 0's unlosable hold, the watcher, Wren's Full/Skip offer and first-use tooltips; the hub's Wren, triage readout and per-line gating; the Act III scripts and Commander Vale; the send-off, credits, Homecoming and the completed save's last evening aboard with Go home; `{HeroAcceptLine}` / `{HeroFarewellLine}`; four additive v8 fields.
+- **W4** — the Levels 1–12 scripts to §16, the absence beats, `{MissingSoFar}` / `{MissingPlaces}`, the Governor's Guard, Captain Smith's taking, Hakata Bay 1281 with its reskinned boss/enemies/stage text and the near-capture beat, the Linked DC-rival Chronal Inventor, and the base-ID fix for hero-variant completion.
+- **W5** — Harriet Tubman replaces Pocahontas: data, four abilities, The Crossing grid, placeholder art, `FighterCharacterID.Tubman = 9` (8 reserved), protocol v4, component 322 (Foresight), kit phases 21–22, North Star Ward, the CPU leap plan, the D4 derivation declared.
+- **W6** — A02 the Fighter activation strike on component 321 for all nine Ultimates, D15 `FinaleDamage` / `FinaleLaunches` with the per-character totals in both modes, the CPU commit rule, the Mirror clone's Fighter version, and every restated `.tres` timing constant in `FighterUltimateRules` replaced by loadout reads.
+- **W7a** — the burst-on-terrain projectile primitive; E=mc², the thrown Rift, Rift Collapse and the Warp fold; Golden Ratio, the feet-placed turret with straight bolts and the sim glide bolt; Tesla's coils, Lorentz Pulse (Root 1.0 s, D12) and the per-coil chain; Yorick's wave, the Tempest windbox and the gust burst. Closed the Leonardo half of `DEFER-FIGHTER-KIT-RULES`.
+- **W7b** — the ground-wave primitive; Righteous Smite, Divine Piercing's lunge, Ascendant Wings + Wing-Dive; Fortissimo's wall, Requiem Chord and its cooldown shave, the Sonata glissando and the once-per-airtime staff refund in both modes; the Serpent Nest and thrown Vortex, the sand rush; the Emancipator wave, Splitting Strike's spike and Rail Charge. Closed the Mozart half of `DEFER-FIGHTER-KIT-RULES`.
+- **Phase C** — save schema v8 (`847c759`, `4e8ee79`: W2's retirement then W5's roster swap on the story payload, W5's unlock on the global one, `SaveSchemaV8MigrationTests` +5); the Level 0 hold probe list (`f5dcb6c`); component 320's doc comment (`775a6bf`); the two `KLOTHO_DET002` warnings (`378eb68`); the ledger (`524fe23`); the AGENTS/CLAUDE rewrite (`a864599`). W4's feared duplicate "Hold away from the light" key does not exist — W3 authored no such Level 0 prompt, so `dlg_l09_near_capture_prompt` is the only one. The content manifest needed no change (Tubman's rows sit in grid order as `Implemented / ReadyForReplacement` with her visual set `Prototype / Placeholder`, like every other hero; no 4A row remains).
+
+### Not delivered — the honest list
+
+**Nothing here was played, looked at, listened to or balanced.** No reworked kit, air dodge, slam, activation strike, Tubman match, Level 0 hold, hub visit, rewritten script, Hakata Bay run, near-capture, send-off or Homecoming was seen by a person. Every acceptance claim above a unit test is reasoned from shipped code and headless tests. F09 frame advantage, V01 par measurement, V02 and S01 remain out of scope, so no number this package added may be called balanced.
+
+**Placeholder presentation everywhere new:** Tubman's sprites, portrait and VFX atlas (D5); the Eraser watcher silhouette; the triage readout's shards; Captain Smith's figure and the lifeboats notice; the near-capture Eraser silhouette; the send-off and Homecoming stills (a dark plate with a caption); the Story warp ghost (a `ColorRect`). The Fighter driver has no animation mapping for the new kit phases, no warp ghost or gust pose, no activation telegraph, and E=mc²'s rotating item is not built. Audio is still digital silence.
+
+**Sim Specials still fire on press** (plan D9, `DEFER-SIM-SPECIAL-PHASES`): every new Special startup/recovery lives in the `.tres` and applies in Story only. Movement abilities that became sim kit phases do honour their frames.
+
+**Provisional numbers the agents invented** (`VERIFY-P13-PROVISIONAL-VALUES`, `VERIFY-TUBMAN-PROVISIONAL`, `VERIFY-ULT-ACTIVATION-TUNING`): the eight activation hitbox sizes and the provisional 20/10/45; the shared 30-frame finale hitstun; Rift Collapse's 6 u/s launch and hitstun; the turret bolt hitstun; Smite's 10 u/s wave; the Wing-Dive (5, −9) u/s and the D13 rise read as Story's 420 px/s; the Requiem pulse impulse model; Splitting Strike's grounded shove; Foresight's 12-frame sidestep, one-tick answer and nearest-hostile Story answer; North Star Leap's frames and snap geometry; the Freedom Line boxes; Safe Passage's trail tolerance; the hold's guard cadence, the watcher's 2 s and the 5 s tooltip; the near-capture's 0.75 s / 4 s; the Thunderbomb Engineer's burning pool; the Level 5 Eraser debut position.
+
+**Copy written by agents, not the design** (`VERIFY-P13-AUTHORED-COPY`): Wren's hub tips, the tooltip lines, fallback accept/farewell lines, the lesser-return narration and the still captions (W3); Level 5's retained `preboss`, the retained Level 8 and 12 exits and their fourth-wall "Act II" wording (W4); the twelve W7b ability descriptions.
+
+**Items each handoff lists as not done:**
+- **W1:** Ultimate knockbacks still use the flattened scalar (`DEFER-ULT-KNOCKBACK-SCALAR`); enemy/boss pushboxes not narrowed (`VERIFY-ENEMY-PUSHBOX-WIDTH`); the sim hit hurtbox is still 1.0 wide (`VERIFY-SIM-HURTBOX-WIDTH`); no dedicated Move List air-dodge row; an owed sim slam bounce can carry over to a second launch (`VERIFY-SLAM-BOUNCE-CARRYOVER`).
+- **W2:** `LEGACY_LEVELS.md` / `LEGACY_CHECKPOINTS.md` carry only the retirement banner; Level 5's seeded `ParSeconds` (270) does not include the debut encounter; `level_04a_*` entries in old saves' `CompletedLevels` / `IntegrityByLevel` are never pruned (dead data by design); the debut spawns the ordinary Eraser body rather than the watcher silhouette.
+- **W3:** Wren's Training Wing replays only the six existing drills; beat 1's per-hero lines and stills and beat 7's hazards are unbuilt; the hold's locals are unvisored era mobs, with placeholders for Einstein, Mozart and Tubman (`DEFER-LEVEL0-BEATS`); tooltip triggers are proxies; the S44 lesser returns are narration lines; the portal gate is still not enforced (`DEFER-HUB-PORTAL-GATE`) and the hub is still one corridor. `epilogue_dialogue.tres` has no content-manifest row.
+- **W4:** the near-capture is in room 3, not the night stealth (`VERIFY-NEAR-CAPTURE-PLACEMENT`); the Thunderbomb Engineer's bomb and pool alternate rather than one bomb leaving one pool; absence placements are best fits (Pliny's sailor speaks in Pompeii's forum); Captain Smith and the lifeboats are placeholders; nobody has judged the world-space barks' legibility; the Level 9 boss arena half is still unbuilt (`VERIFY-BOSS-PHASE-ARENAS`).
+- **W5:** Conductor's Call uses a local stand-in for the ground-wave primitive (`DEFER-GROUND-WAVE-UNIFY`); the Foresight, leap, Freedom Line and trail placeholders above; no Foresight/answer/leap VFX; `MobilitySpecialFor` is `None` for the whole roster, so the mobility-Special planner branch is dormant.
+- **W6:** the world is not paused during a Fighter cinematic (`VERIFY-ULT-CINEMATIC-PAUSE`); Cleopatra's slam closes rather than opens (`VERIFY-ULT-FINALE-ORDER`); the Mirror clone's Story cinematic does not hold the player (`VERIFY-STORY-MIRROR-HOLD`); no telegraph (`DEFER-ULT-TELEGRAPH`); `ActivationHitboxOffset` / `ActivationProjectileScene` not added; the ultimate `.tres` `HitstunFrames` is read by nothing in the sim.
+- **W7a:** Rift Collapse decides who is caught before the burst resolves; sim turret line of sight is trivially true; the sim Tempest does not skip an Ultimate-held victim (`VERIFY-TEMPEST-ULT-HOLD`); a Story player caught by a collapse gets the launch applied directly.
+- **W7b:** the Requiem terrain burst is a local rule, not W7a's primitive (`DEFER-REQUIEM-BURST-UNIFY`); Story Rail Charge armor covers its startup (`VERIFY-RAIL-CHARGE-STARTUP-ARMOR`); every sim `MovementType.Dash`, including the synthetic default loadout's, is now the rail charge; `FighterLoadoutFactory.SpecialDamage` still folds multi-hit totals (`VERIFY-TUNING-SPECIAL-TOTAL-FOLD`); `VERIFY-WING-DIVE-LEAP`.
+
+**Still held from Package 12** (each has a ledger row): `VERIFY-BOSS-HP`, `VERIFY-STORY-PITS`, `VERIFY-STORY-HAZARD-BLOCK`, `VERIFY-ERASER-DUST`, `VERIFY-PARIS-DEEP-PIT-RECOVERY`, `DEFER-CPU-SNAPSHOT`, `VERIFY-L15-STANDIN-PLACEMENT`; and still open: `VERIFY-ABILITY-LAUNCHES` (partly ruled by the character review), `VERIFY-BOSS-TABLE-DRIFT`, `DEFER-DRONE-CARRIER`, `DEFER-FIGHTER-SAND-DECOY`, `VERIFY-M05-KNOCKDOWN-SCOPE`, `VERIFY-P12-PROVISIONAL-VALUES`, `VERIFY-N01-PRESENTATION`, `VERIFY-PAR-SECONDS`, and the architecture rows `DEFER-SAVE-VERSION-SPLIT` (v8 was again a shared bump), `DEFER-ROSTER-ENUM`, `DEFER-M04-SUBPHASE-FLAGS`, `DEFER-VARIANT-KEY-SEPARATOR`.
+
+**For the design master:** the S14 binding-sense defect (`DOC-MASTER-UNBOUND-BINDING`, §0) is still in the master and its `COMFORT_SETTINGS.md`; only the repo copies are corrected.
+
+**Out of scope by decision:** Steamworks, Package 7 online/LAN, par measurement and V01/F09/V02/S01 validation, platform and hardware runs, balance, every Package 10 art/audio half, H-7 gravity unification, the M-18 drop-through divergence.
