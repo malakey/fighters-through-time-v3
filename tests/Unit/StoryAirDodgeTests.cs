@@ -30,7 +30,8 @@ public class StoryAirDodgeTests {
             AssertThat(player.AirDodgeUsedThisAirtime).IsTrue();
 
             int invulnerable = player.IsRollInvulnerable ? 1 : 0;
-            for (int frame = 1; frame < UniversalMovementRules.AirDodgeTotalFrames; frame++) {
+            // The press frame only enters Rolling; the 22 dodge frames follow.
+            for (int frame = 1; frame <= UniversalMovementRules.AirDodgeTotalFrames; frame++) {
                 Step(player, GameplayButtons.None);
                 if (player.IsRollInvulnerable) invulnerable++;
             }

@@ -981,7 +981,7 @@ movelist_string_hit,"Hit {0}: {1}/{2}/{3} frames — {4:0.#} damage"
 movelist_aerial_startups,"Aerial startups: {0}/{1}/{2}"
 movelist_reach,"Reach: {0}% wide × {1}% tall of the standard hitbox"
 movelist_up_attack,"Up attack: {0}/{1}/{2} frames — {3:0.#} damage, vertical launcher"
-movelist_down_air,"Down air: {0}/{1}/{2} frames — {3:0.#} damage, aerial only"
+movelist_down_air,"Down air: {0}/{1}/{2} frames — {3:0.#} damage, aerial slam: spikes straight down, then one forced ground bounce"
 movelist_section_grabs,Grabs & Throws
 movelist_grab_frames,"Grab: {0}/{1}/{2} frames — grounded, unblockable, whiffs on a stunned or shieldstunned target"
 movelist_throws,"Throws: forward {0:0.#}× / up {1:0.#}× / back {2:0.#}× knockback at {3:0.#}× basic damage"
@@ -993,7 +993,7 @@ movelist_slot_movement,Movement
 movelist_slot_ultimate,Ultimate
 movelist_ability_stats,"Damage {0:0.#} — cooldown {1:0.#} s"
 movelist_section_movement,Universal Movement
-movelist_roll,"Roll: {0}/{1}/{2} frames — first {3} travel frames invulnerable"
+movelist_roll,"Roll: {0}/{1}/{2} frames — first {3} travel frames invulnerable. In the air, Roll is an air dodge: 4/8/10 frames, 8 invulnerable, once per airtime"
 movelist_jumps,"Jumps: {0} (double jump)"
 movelist_fast_fall,"Fast fall: hold Down while airborne — {0:0.#} units/s"
 movelist_style_melee,Melee
@@ -1001,7 +1001,7 @@ movelist_style_ranged,Ranged
 movelist_style_hybrid,Hybrid
 systems_card_title,Systems Card
 systems_card_block_title,Block & Shatter
-systems_card_block_body,"Three charges absorb Basic hits (8 frames of shieldstun each); any special shatters the stance and locks it out for 5 seconds."
+systems_card_block_body,"Three charges absorb Basic hits (8 frames of shieldstun each); a special costs two charges, and a Shield-Breaker special takes them all. Losing the last charge shatters the stance and locks it out for 5 seconds."
 systems_card_triangle_title,The Triangle
 systems_card_triangle_body,"Attacks beat grabs, grabs beat blocks, blocks beat attacks — and a grab whiffs against a target in shieldstun."
 systems_card_di_title,Directional Influence
@@ -1013,7 +1013,7 @@ systems_card_rally_body,"20–50% of damage taken lingers as a reclaimable echo;
 systems_card_defy_title,Defy History
 systems_card_defy_body,"At 100 meter, a lethal hit shatters the meter instead of you — survive at 1 HP, once per match."
 systems_card_echo_title,Echo Step & Resonance Momentum
-systems_card_echo_body,"Spend 30 meter during your own recovery to snap back 30 frames of position; a connecting finisher refunds 1 second of special cooldown."
+systems_card_echo_body,"Spend 30 meter during the recovery of your own basic or directional attack to snap back 30 frames of position; a connecting finisher refunds 1 second of special cooldown."
 systems_card_overtime_title,Overtime
 systems_card_overtime_body,"The final 60 seconds of a timed match double the hazard cadence and raise the Rally echo by half."
 dialogue_hold_skip,"Hold {0} to skip"
