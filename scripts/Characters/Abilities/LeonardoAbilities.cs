@@ -480,7 +480,8 @@ namespace FTT.Characters.Abilities {
                 Owner.IsFacingRight ? MatrixForwardOffsetPixels : -MatrixForwardOffsetPixels, 0f);
             _tickInterval = (Data?.DamageTickIntervalFrames ?? 18) / 60f;
             if (_tickInterval <= 0f) _tickInterval = 0.3f;
-            _ticksRemaining = Data?.IsMultiHit == true ? Mathf.Max(1, Data.HitCount) : 8;
+            // D15 (Package 13 W6): the HitCount bombardment hits, then the finale.
+            _ticksRemaining = Data?.IsMultiHit == true ? Data.CinematicHitCount : 8;
             _tickTimer = 0f; // First bombardment hit lands on the next physics step.
             _matrixActive = true;
 
@@ -514,7 +515,10 @@ namespace FTT.Characters.Abilities {
 
         private void TickBombardment() {
             bool finalHit = _ticksRemaining == 1;
-            float damage = (Data?.BaseDamage ?? 10f) * Owner.StorySpecialDamageMultiplier;
+            int hitIndex = (Data?.CinematicHitCount ?? 8) - _ticksRemaining + 1;
+            bool finale = Data?.IsFinaleHit(hitIndex) ?? false;
+            bool carriesStatus = Data?.CinematicHitCarriesStatus(hitIndex) ?? !finalHit;
+            float damage = (Data?.CinematicHitDamage(hitIndex) ?? 10f) * Owner.StorySpecialDamageMultiplier;
 
             foreach (Hurtbox hurtbox in QueryHurtboxesInCircle()) {
                 bool pushRight = hurtbox.GlobalPosition.X >= _matrixCenter.X;
@@ -529,12 +533,13 @@ namespace FTT.Characters.Abilities {
                     // earlier bombardment hits are impulse-free so the Root hold
                     // is what keeps targets caged.
                     Knockback = finalHit ? (Data?.KnockbackForce ?? new Vector2(5, -3)) : Vector2.Zero,
-                    HitstunDuration = finalHit ? (Data?.HitstunDuration ?? 0.3f) : 0.1f,
+                    HitstunDuration = finale ? UltimateActivationRules.FinaleHitstunSeconds
+                        : finalHit ? (Data?.HitstunDuration ?? 0.3f) : 0.1f,
                     HitOrigin = _matrixCenter,
                     AttackerFacingRight = pushRight,
                     // Each bombardment hit refreshes the trap's Root hold; the
                     // final explosion applies none so the launch is not held.
-                    AppliedStatus = finalHit
+                    AppliedStatus = !carriesStatus
                         ? FTT.Core.StatusType.None
                         : Data?.AppliedStatus ?? FTT.Core.StatusType.Root,
                     StatusDuration = Data?.StatusDuration > 0f ? Data.StatusDuration : 0.4f,

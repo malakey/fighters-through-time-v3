@@ -375,7 +375,6 @@ namespace FTT.Characters.Abilities {
     public partial class ShakespeareAllTheWorldsAStage : BaseSpecial {
 
         private const int MaxQueryResults = 16;
-        private const float FinaleHitstunDuration = 0.5f;
 
         private int _strikesDone;
         private int _activeFramesElapsed;
@@ -409,7 +408,8 @@ namespace FTT.Characters.Abilities {
         public override void _PhysicsProcess(double delta) {
             if (CurrentPhase == AbilityPhase.Active) {
                 _activeFramesElapsed++;
-                int hitCount = Mathf.Max(1, Data?.HitCount ?? 1);
+                // D15 (Package 13 W6): three phantom strikes, then Hamlet's finale.
+                int hitCount = Data != null ? Data.CinematicHitCount : 1;
                 int interval = Data?.DamageTickIntervalFrames > 0
                     ? Data.DamageTickIntervalFrames
                     : Mathf.Max(1, (Data?.ActiveFrames ?? hitCount) / hitCount);
@@ -441,7 +441,8 @@ namespace FTT.Characters.Abilities {
                 CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
             };
 
-            bool finale = _strikesDone >= (Data?.HitCount ?? 1);
+            bool finale = _strikesDone >= (Data?.CinematicHitCount ?? 1);
+            bool carriesStatus = Data?.CinematicHitCarriesStatus(_strikesDone) ?? true;
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, MaxQueryResults)) {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
@@ -451,15 +452,15 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "shakespeare_all_the_worlds_a_stage",
                     HitboxID = $"phantom_strike_{_strikesDone}",
                     AttackClass = AttackClass.Ultimate,
-                    Damage = (Data?.BaseDamage ?? 14f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = (Data?.CinematicHitDamage(_strikesDone) ?? 14f) * Owner.StorySpecialDamageMultiplier,
                     Knockback = finale
                         ? (Data?.KnockbackForce ?? new Vector2(5f, -3f)) * Owner.StoryKnockbackMultiplier
                         : Vector2.Zero,
-                    HitstunDuration = finale ? FinaleHitstunDuration : Data?.HitstunDuration ?? 0.2f,
+                    HitstunDuration = finale ? UltimateActivationRules.FinaleHitstunSeconds : Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = stageCenter,
                     AttackerFacingRight = Owner.IsFacingRight,
-                    AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.None,
-                    StatusDuration = Data?.StatusDuration ?? 0f,
+                    AppliedStatus = carriesStatus ? Data?.AppliedStatus ?? FTT.Core.StatusType.None : FTT.Core.StatusType.None,
+                    StatusDuration = carriesStatus ? Data?.StatusDuration ?? 0f : 0f,
                     StatusIntensity = Data?.StatusIntensity ?? 1f,
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f

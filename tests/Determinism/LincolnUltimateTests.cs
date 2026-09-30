@@ -11,12 +11,13 @@ namespace FTT.Tests.Determinism;
 
 /// <summary>
 /// Deterministic Fighter-side coverage for Lincoln's canonical Union
-/// Indestructible ultimate (audit gap X7): the bespoke dispatch consumes the
-/// full meter without a generic double-hit, the fence pen roots the trapped
-/// opponent, the rail smash sequence lands the authored multi-hit total, the
-/// final smash carries the heavy finisher impulse, the cast fires beyond the
-/// generic melee range, smashes bypass an active block, and the whole zone
-/// lifecycle is snapshot/rollback safe.
+/// Indestructible ultimate (LN05, Package 13 W6): the press spends the meter
+/// and slams the rail; the fence-line ground wave (A02: five units along the
+/// ground, grounded targets only) must connect before the pen rises on the held
+/// victim. The pen roots them, the five 14-damage rail smashes land (70 — no
+/// finale), the final smash carries the heavy finisher impulse, the cast
+/// connects beyond the generic melee range, the smashes bypass an active block,
+/// a jump clears the wave, and the whole lifecycle is snapshot/rollback safe.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -38,19 +39,16 @@ public class LincolnUltimateTests {
     }
 
     [TestCase]
-    public void UltimateConsumesTheMeterWithoutAGenericDoubleHit() {
+    public void TheGroundWaveContactRaisesThePenAndSpendsTheMeter() {
         FighterSimulation simulation = BuildChargedSimulation(seed: 71, out int nextTick);
 
-        simulation.Advance(Frame(nextTick, 0, GameplayButtons.Ultimate), Frame(nextTick, 0, GameplayButtons.None));
+        int tick = UltimateActivationTestKit.CastAndConnect(simulation, nextTick, out bool connected);
+        AssertThat(connected).IsTrue();
 
-        // The bespoke dispatch replaced the generic melee ultimate: the meter is
-        // consumed and only the first impulse-free pen smash (14 damage, no
-        // hitstun) landed this frame — a generic double-fire would have set 30
-        // hitstun frames and doubled the damage.
+        // The contact tick lands only the first impulse-free pen smash (14, no
+        // hitstun). V7.6 D03h: the meter was spent on acceptance and
+        // Ultimate-origin damage re-credits nothing.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent lincoln)).IsTrue();
-        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
-        // caster ZERO damage-dealt meter, so the same-frame tick no longer
-        // re-credits anything - the meter reads exactly 0 after the cast.
         AssertThat(lincoln.Influence.RawValue).IsEqual(FP64.Zero.RawValue);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(target.CurrentHP).IsEqual(286);
@@ -65,18 +63,18 @@ public class LincolnUltimateTests {
     public void FencePenRootsTheTrappedOpponentForTheWholeWindow() {
         FighterSimulation simulation = BuildChargedSimulation(seed: 72, out int nextTick);
 
-        simulation.Advance(Frame(nextTick, 0, GameplayButtons.Ultimate), Frame(nextTick, 0, GameplayButtons.None));
+        int tick = UltimateActivationTestKit.CastAndConnect(simulation, nextTick);
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent penned)).IsTrue();
         AssertThat(penned.StatusType).IsEqual((int)StatusType.Root);
         AssertThat(penned.StatusFrames).IsEqual(36);
 
-        // The opponent mashes away for 100 frames; each 0.5 s smash re-applies
-        // the authored 0.6 s Root, so the pen never lapses and they cannot move.
+        // The opponent mashes away for 100 frames; the hold and the refreshed
+        // 0.6 s Root keep them in the pen.
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
-        for (int step = 1; step <= 100; step++) {
+        for (int step = 0; step < 100; step++) {
             simulation.Advance(
-                Frame(nextTick + step, 0, GameplayButtons.None),
-                Frame(nextTick + step, 127, GameplayButtons.None));
+                Frame(tick + step, 0, GameplayButtons.None),
+                Frame(tick + step, 127, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent stillPenned)).IsTrue();
         AssertThat(stillPenned.StatusType).IsEqual((int)StatusType.Root);
@@ -88,17 +86,11 @@ public class LincolnUltimateTests {
     public void SmashSequenceDealsTheFullMultiHitTotalThenExpires() {
         FighterSimulation simulation = BuildChargedSimulation(seed: 73, out int nextTick);
 
-        simulation.Advance(Frame(nextTick, 0, GameplayButtons.Ultimate), Frame(nextTick, 0, GameplayButtons.None));
-        for (int step = 1; step <= 160; step++) {
-            simulation.Advance(
-                Frame(nextTick + step, 0, GameplayButtons.None),
-                Frame(nextTick + step, 0, GameplayButtons.None));
-        }
+        int tick = UltimateActivationTestKit.CastAndConnect(simulation, nextTick);
+        UltimateActivationTestKit.Idle(simulation, tick, 160);
 
-        // 5 smashes x 14 per-hit damage (V7.1 retarget: ~70 total, closing the
-        // named data-error outlier against the roster's 70-84 for the same
-        // 100 meter) on top of the 100-damage meter-charging basic, and the
-        // 2.5 s zone is gone.
+        // 5 smashes x 14 = 70 (LN05; no finale) on top of the 100-damage
+        // meter-charging basic, and the 2.5 s zone is gone.
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(target.CurrentHP).IsEqual(230);
         AssertThat(simulation.ZoneCount).IsEqual(0);
@@ -108,69 +100,80 @@ public class LincolnUltimateTests {
     public void FinalSmashCarriesTheHeavyFinisherImpulse() {
         FighterSimulation simulation = BuildChargedSimulation(seed: 74, out int nextTick);
 
-        simulation.Advance(Frame(nextTick, 0, GameplayButtons.Ultimate), Frame(nextTick, 0, GameplayButtons.None));
-        for (int step = 1; step <= 119; step++) {
-            simulation.Advance(
-                Frame(nextTick + step, 0, GameplayButtons.None),
-                Frame(nextTick + step, 0, GameplayButtons.None));
-        }
+        // The contact tick is the first smash; smashes 2-5 follow every 30 frames.
+        int tick = UltimateActivationTestKit.CastAndConnect(simulation, nextTick);
+        tick = UltimateActivationTestKit.Idle(simulation, tick, 119);
         // Smashes 1-4 stayed impulse-free so the pen kept holding.
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent penned)).IsTrue();
         AssertThat(penned.HitstunFrames).IsEqual(0);
 
-        // Frame 120 after the cast is the fifth and final smash: the fence
-        // shatters and the massive authored knockback (12) launches the target.
-        simulation.Advance(
-            Frame(nextTick + 120, 0, GameplayButtons.None),
-            Frame(nextTick + 120, 0, GameplayButtons.None));
+        // The fifth and final smash: the fence shatters, the hold releases and
+        // the massive authored knockback (12) launches the target.
+        UltimateActivationTestKit.Idle(simulation, tick, 1);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent launched)).IsTrue();
         AssertThat(launched.CurrentHP).IsEqual(230);
         AssertThat(launched.HitstunFrames).IsEqual(30);
         AssertThat(launched.IsGrounded).IsEqual(0);
         AssertThat(launched.Velocity.y > FP64.Zero).IsTrue();
+        AssertThat(simulation.TryGetFighterUltimateActivation(1, out FighterUltimateActivationComponent capture)).IsTrue();
+        AssertThat(FighterUltimateActivationRules.IsCaptured(in capture)).IsFalse();
     }
 
     [TestCase]
-    public void UltimateFiresBeyondTheGenericMeleeRange() {
+    public void TheWaveConnectsBeyondTheGenericMeleeRange() {
         FighterSimulation simulation = BuildChargedSimulation(seed: 75, out int nextTick);
 
         // Lincoln retreats for 30 frames, then turns back toward the opponent:
-        // the gap is now beyond the generic 2-unit melee attack range.
+        // the gap is now beyond the generic 2-unit melee attack range but
+        // inside the wave's five units.
         for (int step = 0; step < 30; step++) {
             simulation.Advance(
                 Frame(nextTick + step, -127, GameplayButtons.None),
                 Frame(nextTick + step, 0, GameplayButtons.None));
         }
         simulation.Advance(Frame(nextTick + 30, 127, GameplayButtons.None), Frame(nextTick + 30, 0, GameplayButtons.None));
+        int tick = UltimateActivationTestKit.Idle(simulation, nextTick + 31, 20);
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent lincoln)).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(FP64.Abs(target.Position.x - lincoln.Position.x) > FP64.FromInt(2)).IsTrue();
 
-        // The bespoke ultimate still fires: the meter is consumed and the fence
-        // pen reaches out to smash the distant opponent.
-        simulation.Advance(
-            Frame(nextTick + 31, 0, GameplayButtons.Ultimate),
-            Frame(nextTick + 31, 0, GameplayButtons.None));
+        UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
         AssertThat(simulation.ZoneCount).IsEqual(1);
-        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
-        AssertThat(caster.Influence < FP64.FromInt(100)).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent smashed)).IsTrue();
         AssertThat(smashed.CurrentHP).IsEqual(286);
+    }
+
+    [TestCase]
+    public void AJumpClearsTheGroundWave() {
+        FighterSimulation simulation = BuildChargedSimulation(seed: 78, out int nextTick);
+
+        // LN05: grounded targets only. The victim jumps as the rail slams; the
+        // wave races under them, nothing is dealt, and the meter stays spent.
+        simulation.Advance(Frame(nextTick, 0, GameplayButtons.Ultimate), Frame(nextTick, 0, GameplayButtons.None));
+        simulation.Advance(Frame(nextTick + 1, 0, GameplayButtons.None), Frame(nextTick + 1, 0, GameplayButtons.Jump));
+        UltimateActivationTestKit.Idle(simulation, nextTick + 2, 40);
+
+        AssertThat(UltimateActivationTestKit.Phase(simulation, 0))
+            .IsEqual(FighterUltimateActivationRules.PhaseWhiffRecovery);
+        AssertThat(simulation.ZoneCount).IsEqual(0);
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent jumper)).IsTrue();
+        AssertThat(jumper.CurrentHP).IsEqual(300);
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent lincoln)).IsTrue();
+        AssertThat(lincoln.Influence.RawValue).IsEqual(FP64.Zero.RawValue);
     }
 
     [TestCase]
     public void SmashesAndFinisherBypassAnActiveBlock() {
         FighterSimulation simulation = BuildChargedSimulation(seed: 76, out int nextTick);
 
-        // The opponent blocks through the whole ultimate. Pen smashes are
-        // impulse-free ticks and the finisher is ultimate-class, so no charge is
-        // ever consumed and every hit lands.
-        simulation.Advance(Frame(nextTick, 0, GameplayButtons.Ultimate), Frame(nextTick, 0, GameplayButtons.Block));
-        for (int step = 1; step <= 120; step++) {
-            simulation.Advance(
-                Frame(nextTick + step, 0, GameplayButtons.None),
-                Frame(nextTick + step, 0, GameplayButtons.Block));
-        }
+        // The opponent blocks through the whole ultimate. The wave is
+        // unblockable, the smashes are ultimate-class, and every hit lands with
+        // no charge consumed.
+        int tick = UltimateActivationTestKit.CastAndConnect(
+            simulation, nextTick, out bool connected, victimHeld: GameplayButtons.Block);
+        AssertThat(connected).IsTrue();
+        UltimateActivationTestKit.Idle(simulation, tick, 120, GameplayButtons.Block);
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent blocked)).IsTrue();
         AssertThat(blocked.CurrentHP).IsEqual(230);
@@ -186,24 +189,22 @@ public class LincolnUltimateTests {
 
         // Cast, then snapshot mid-pen with the zone alive and the Root active so
         // the whole ultimate state participates in the rollback.
-        uninterrupted.Advance(Frame(nextTick, 0, GameplayButtons.Ultimate), Frame(nextTick, 0, GameplayButtons.None));
-        for (int step = 1; step < 45; step++) {
-            uninterrupted.Advance(
-                Frame(nextTick + step, 0, GameplayButtons.None),
-                Frame(nextTick + step, -127, GameplayButtons.None));
+        int tick = UltimateActivationTestKit.CastAndConnect(uninterrupted, nextTick);
+        for (int i = 0; i < 20; i++, tick++) {
+            uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
         }
 
         byte[] snapshot = uninterrupted.CaptureFullState();
         restored.RestoreFullState(snapshot);
         AssertThat(restored.CurrentHash).IsEqual(uninterrupted.CurrentHash);
 
-        for (int step = 45; step < 420; step++) {
+        for (int i = 0; i < 375; i++, tick++) {
             long expected = uninterrupted.Advance(
-                Frame(nextTick + step, 64, GameplayButtons.None),
-                Frame(nextTick + step, -127, GameplayButtons.None));
+                Frame(tick, 64, GameplayButtons.None),
+                Frame(tick, -127, GameplayButtons.None));
             long actual = restored.Advance(
-                Frame(nextTick + step, 64, GameplayButtons.None),
-                Frame(nextTick + step, -127, GameplayButtons.None));
+                Frame(tick, 64, GameplayButtons.None),
+                Frame(tick, -127, GameplayButtons.None));
             AssertThat(actual).IsEqual(expected);
         }
     }
@@ -278,6 +279,9 @@ public class LincolnUltimateTests {
             HitCount = 5,
             DamageTickIntervalFrames = 30,
             HitstunFrames = 30,
+            ActivationShape = UltimateActivationShape.GroundWave,
+            ActivationRange = 300f,
+            ActivationHitboxSize = new Vector2(60f, 40f),
             KnockbackForce = new Vector2(12f, -8f),
             AppliedStatus = StatusType.Root,
             StatusDuration = 0.6f,

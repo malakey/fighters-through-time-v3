@@ -94,6 +94,16 @@ namespace FTT.FighterSim {
                 _ => loadout.MovementHit
             };
         }
+
+        /// <summary>
+        /// A02/D15 (Package 13 W6): <paramref name="playerID"/>'s Ultimate
+        /// sequence and activation strike — loadout data, never snapshot state.
+        /// A hand-built loadout that never set it reads the generic default.
+        /// </summary>
+        public FighterUltimateData UltimateFor(int playerID) {
+            FighterUltimateData data = (playerID == 1 ? _playerTwo : _playerOne).Ultimate;
+            return data.IsUnset ? FighterUltimateData.Default : data;
+        }
     }
 
     /// <summary>
@@ -107,6 +117,8 @@ namespace FTT.FighterSim {
         public FighterAbilityHitData SpecialTwoHit { get; init; }
         public FighterAbilityHitData UltimateHit { get; init; }
         public FighterAbilityHitData MovementHit { get; init; }
+        /// <summary>A02/D15 (Package 13 W6): the Ultimate's sequence and activation strike.</summary>
+        public FighterUltimateData Ultimate { get; init; }
 
         public int SpecialOneExecutionType { get; init; }
         public int SpecialTwoExecutionType { get; init; }
@@ -148,7 +160,8 @@ namespace FTT.FighterSim {
             SpecialOneHit = FighterAbilityHitData.DefaultSpecial,
             SpecialTwoHit = FighterAbilityHitData.DefaultSpecial,
             UltimateHit = FighterAbilityHitData.DefaultUltimate,
-            MovementHit = FighterAbilityHitData.DefaultSpecial
+            MovementHit = FighterAbilityHitData.DefaultSpecial,
+            Ultimate = FighterUltimateData.Default
         };
     }
 

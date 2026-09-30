@@ -10,12 +10,12 @@ namespace FTT.Tests.Determinism;
 
 /// <summary>
 /// Deterministic Fighter-side coverage for Joan's canonical Grand Crusade
-/// ultimate: full-meter consumption without a generic double-hit, the six
-/// 12-damage trample pulses landing their 72 total over the charge, reach well
-/// beyond melee range, shield bypass, and snapshot/rollback convergence.
-/// The charge is a wide forward-offset ultimate-slot zone (type 13) plus a
-/// forward dash impulse on Joan herself; only the final pulse carries the
-/// authored knockback.
+/// ultimate (J05, Package 13 W6): the press spends the meter and starts the
+/// banner-charge activation strike (A02) — a melee lunge of about five units —
+/// whose contact starts the stampede on the held victim: eight 7-damage trample
+/// pulses and then the 20-damage final charge (76), with shield bypass and
+/// snapshot/rollback convergence. The stampede is an ultimate-slot zone (type
+/// 13) plus a forward dash on Joan herself; the final charge is the D15 finale.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -26,58 +26,60 @@ public class JoanUltimateTests {
     // 1000 HP and Joan's basics carry zero knockback, so nobody moves or
     // loses a stock.
     private const int MeterChargeDamage = 165;
-    private const int UltimateDamagePerHit = 12;
-    private const int UltimateHitCount = 6;
-    private const int UltimateTotal = UltimateDamagePerHit * UltimateHitCount;
+    private const int UltimateDamagePerHit = 7;
+    private const int UltimateHitCount = 8;
+    private const int FinaleDamage = 20;
+    private const int UltimateTotal = UltimateDamagePerHit * UltimateHitCount + FinaleDamage;
 
     [TestCase]
-    public void GrandCrusadeConsumesTheMeterWithoutAGenericDoubleHit() {
+    public void BannerChargeLungesAndItsContactStartsTheStampede() {
         var simulation = BuildSimulation(seed: 71, spawnDistance: 1);
         int tick = ChargeMeter(simulation);
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent charged)).IsTrue();
         AssertThat(charged.Influence.RawValue)
             .IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.FromInt(100).RawValue);
 
-        // The press frame spawns the charge zone, dashes Joan forward, and lands
-        // exactly the first 12-damage pulse — not 12 plus the generic 20-damage
-        // melee ultimate (the dispatch consumed the meter before intent build).
+        // The press spends the meter and spawns nothing yet.
         simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
+        tick++;
+        AssertThat(simulation.ZoneCount).IsEqual(0);
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent joan)).IsTrue();
+        AssertThat(joan.Influence.RawValue).IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.Zero.RawValue);
+
+        bool connected = false;
+        for (int i = 0; i < 40 && !connected; i++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+            tick++;
+            connected = UltimateActivationTestKit.IsCinematic(simulation, 0);
+        }
+        AssertThat(connected).IsTrue();
         AssertThat(simulation.ZoneCount).IsEqual(1);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual(13);
-        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent joan)).IsTrue();
-        AssertThat(joan.Velocity.x > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(target.CurrentHP).IsEqual(1000 - MeterChargeDamage - UltimateDamagePerHit);
-        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
-        // caster ZERO damage-dealt meter, so the same-frame tick no longer
-        // re-credits anything - the meter reads exactly 0 after the cast.
+        // V7.6 D03h: Ultimate-origin damage re-credits nothing.
         AssertThat(simulation.TryGetFighter(0, out joan)).IsTrue();
-        AssertThat(joan.Influence.RawValue)
-            .IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.Zero.RawValue);
+        AssertThat(joan.Influence.RawValue).IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.Zero.RawValue);
     }
 
     [TestCase]
-    public void GrandCrusadeLandsItsFullMultiHitTotalOverTheCharge() {
+    public void GrandCrusadeLandsItsTramplesAndFinalCharge() {
         var simulation = BuildSimulation(seed: 72, spawnDistance: 1);
         int tick = ChargeMeter(simulation);
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-        for (int step = 1; step <= 40; step++) {
-            simulation.Advance(
-                Frame(tick + step, 0, GameplayButtons.None),
-                Frame(tick + step, 0, GameplayButtons.None));
-        }
+        tick = UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
+        UltimateActivationTestKit.Idle(simulation, tick, 60);
         AssertThat(simulation.ZoneCount).IsEqual(0);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(target.CurrentHP).IsEqual(1000 - MeterChargeDamage - UltimateTotal);
-        // The final trample pulse carried real knockback (hitstun), so the
-        // opponent was launched toward the blast zone at least once.
-        AssertThat(target.IsGrounded == 0 || target.HitstunFrames > 0 || target.Velocity.y != xpTURN.Klotho.Deterministic.Math.FP64.Zero)
+        // The final charge carried real knockback toward the blast zone.
+        AssertThat(target.IsGrounded == 0 || target.HitstunFrames > 0 || target.Velocity.x != xpTURN.Klotho.Deterministic.Math.FP64.Zero)
             .IsTrue();
     }
 
     [TestCase]
-    public void GrandCrusadeReachesWellBeyondMeleeRange() {
+    public void BannerChargeReachesWellBeyondMeleeRange() {
         var simulation = BuildSimulation(seed: 73, spawnDistance: 1);
         int tick = ChargeMeter(simulation);
 
@@ -93,12 +95,13 @@ public class JoanUltimateTests {
         AssertThat(target.Position.x - joan.Position.x > xpTURN.Klotho.Deterministic.Math.FP64.FromInt(2))
             .IsTrue();
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-        for (int step = 1; step <= 40; step++) {
-            simulation.Advance(
-                Frame(tick + step, 0, GameplayButtons.None),
-                Frame(tick + step, 0, GameplayButtons.None));
-        }
+        var startX = joan.Position.x;
+        tick = UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
+        // The lance charge carried Joan forward to reach the distant opponent.
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent charging)).IsTrue();
+        AssertThat(charging.Position.x - startX > xpTURN.Klotho.Deterministic.Math.FP64.One).IsTrue();
+        UltimateActivationTestKit.Idle(simulation, tick, 60);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();
         AssertThat(struck.CurrentHP).IsEqual(1000 - MeterChargeDamage - UltimateTotal);
     }
@@ -115,12 +118,10 @@ public class JoanUltimateTests {
                 Frame(tick + step, 0, GameplayButtons.Block));
         }
         tick += 15;
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.Block));
-        for (int step = 1; step <= 40; step++) {
-            simulation.Advance(
-                Frame(tick + step, 0, GameplayButtons.None),
-                Frame(tick + step, 0, GameplayButtons.Block));
-        }
+        tick = UltimateActivationTestKit.CastAndConnect(
+            simulation, tick, out bool connected, victimHeld: GameplayButtons.Block);
+        AssertThat(connected).IsTrue();
+        UltimateActivationTestKit.Idle(simulation, tick, 60, GameplayButtons.Block);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent defender)).IsTrue();
         AssertThat(defender.CurrentHP).IsEqual(1000 - MeterChargeDamage - UltimateTotal);
         AssertThat(defender.BlockCharges).IsEqual(3);
@@ -133,20 +134,16 @@ public class JoanUltimateTests {
         var restored = BuildSimulation(seed: 75, spawnDistance: 1);
 
         int tick = ChargeMeter(uninterrupted);
-        uninterrupted.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-        // Stop mid-charge with the zone alive and pulses pending.
-        for (int step = 1; step <= 10; step++) {
-            uninterrupted.Advance(
-                Frame(tick + step, 0, GameplayButtons.None),
-                Frame(tick + step, 0, GameplayButtons.None));
-        }
+        tick = UltimateActivationTestKit.CastAndConnect(uninterrupted, tick);
+        // Stop mid-stampede with the zone alive and pulses pending.
+        tick = UltimateActivationTestKit.Idle(uninterrupted, tick, 10);
         AssertThat(uninterrupted.ZoneCount).IsEqual(1);
 
         byte[] snapshot = uninterrupted.CaptureFullState();
         restored.RestoreFullState(snapshot);
         AssertThat(restored.CurrentHash).IsEqual(uninterrupted.CurrentHash);
 
-        for (int step = 11; step <= 310; step++) {
+        for (int step = 0; step < 300; step++) {
             long expected = uninterrupted.Advance(
                 Frame(tick + step, 0, GameplayButtons.None), Frame(tick + step, -60, GameplayButtons.None));
             long actual = restored.Advance(
@@ -183,9 +180,15 @@ public class JoanUltimateTests {
         SpecialAttackTwo = new AbilityData(),
         MovementAbility = new MovementAbilityData(),
         UltimateAttack = new AbilityData {
-            BaseDamage = 12f,
+            BaseDamage = 7f,
             IsMultiHit = true,
-            HitCount = 6,
+            HitCount = 8,
+            DamageTickIntervalFrames = 6,
+            FinaleDamage = 20f,
+            FinaleLaunches = true,
+            ActivationShape = UltimateActivationShape.Melee,
+            ActivationRange = 300f,
+            ActivationHitboxSize = new Vector2(90f, 70f),
             KnockbackForce = new Vector2(8f, -2f)
         }
     };

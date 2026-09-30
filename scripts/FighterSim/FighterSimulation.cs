@@ -249,6 +249,57 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// A02 (Package 13 W6): reads a fighter's Ultimate activation / cinematic
+        /// hold (component 321). Snapshot and hash state like everything else.
+        /// </summary>
+        public bool TryGetFighterUltimateActivation(int playerID, out FighterUltimateActivationComponent activation) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterUltimateActivationComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID == playerID) {
+                    activation = _simulation.Frame.GetReadOnly<FighterUltimateActivationComponent>(entity);
+                    return true;
+                }
+            }
+            activation = default;
+            return false;
+        }
+
+        /// <summary>
+        /// Package 13 W6 test seam: sets a fighter's Influence meter directly
+        /// (clamped to 0..100), so the A02 suites can fill the meter — or give a
+        /// whiffing caster Echo Step's 30 — without a scripted damage exchange.
+        /// Writes deterministic state and moves the hash.
+        /// </summary>
+        internal bool SeedFighterInfluenceForTest(int playerID, int influence) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref FighterStateComponent fighter = ref _simulation.Frame.Get<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                int clamped = influence < 0 ? 0 : influence > 100 ? 100 : influence;
+                fighter.Influence = FP64.FromInt(clamped);
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Package 13 W6 test seam: raises a fighter's Temporal Aegis (D02e)
+        /// directly, so the A02 suite can prove an Aegis-absorbed activation
+        /// contact still starts the cinematic. Moves the hash.
+        /// </summary>
+        internal bool SeedFighterAegisForTest(int playerID) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterDefenseComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID != playerID) continue;
+                _simulation.Frame.Get<FighterDefenseComponent>(entity).AegisActive = 1;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Package 12 W4 test seam: seeds a Conductive mark directly, so the
         /// Lorentz-chain suites can isolate the chain consumer from the basic
         /// finisher that normally applies the mark. Writes deterministic state

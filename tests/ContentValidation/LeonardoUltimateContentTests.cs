@@ -25,16 +25,19 @@ public class LeonardoUltimateContentTests {
         AssertThat(data.Slot).IsEqual(AbilitySlot.Ultimate);
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Cinematic);
 
-        // Bombardment: 8 hits of 10 (80 total) every 18 frames across 2.4 s.
+        // L04 (Package 13 W6): bombardment 5 hits of 10 every 18 frames, then
+        // the 24-damage explosion finale (D15) = 74 across 1.8 s.
         AssertThat(data.BaseDamage).IsEqual(10f);
         AssertThat(data.IsMultiHit).IsTrue();
-        AssertThat(data.HitCount).IsEqual(8);
+        AssertThat(data.HitCount).IsEqual(5);
+        AssertThat(data.FinaleDamage).IsEqual(24f);
+        AssertThat(data.UltimateImpactTotal).IsEqual(74f);
         AssertThat(data.DamageTickIntervalFrames).IsEqual(18);
-        AssertThat(data.Lifetime).IsEqual(2.4f);
+        AssertThat(data.Lifetime).IsEqual(1.8f);
 
         // The trap window equals the bombardment window: the active phase spans
-        // the authored lifetime (144 frames at 60 Hz).
-        AssertThat(data.ActiveFrames).IsEqual(144);
+        // the authored lifetime (108 frames at 60 Hz).
+        AssertThat(data.ActiveFrames).IsEqual(108);
         AssertThat(Mathf.RoundToInt(data.Lifetime * 60f)).IsEqual(data.ActiveFrames);
 
         // Trap hold: each bombardment hit refreshes a short Root so the hold

@@ -10,11 +10,13 @@ namespace FTT.Tests.Determinism;
 
 /// <summary>
 /// Deterministic Fighter-side coverage for Cleopatra's canonical Wrath of the
-/// Nile ultimate (audit gap X7): the full-meter dispatch replaces the generic
-/// melee ultimate with an arena-engulfing sandstorm zone (zone type 43) that
-/// deals 10 impulse-free ticks of the authored per-hit damage over 3.5 s,
-/// carries the authored heavy Venom, bypasses block, reaches beyond melee
-/// range, and stays snapshot/rollback safe.
+/// Nile ultimate (C04, Package 13 W6): the press spends the meter and sends the
+/// spectral asp six units straight ahead (A02); its contact raises the storm
+/// zone (type 43) on the held victim — six impulse-free 9-damage cobra strikes,
+/// then the 12-damage sarcophagus finale carrying the heavy Venom (intensity
+/// 2.0 for 3 s = 12 more), 78 in all. The Venom lands exactly once, on the
+/// finale, in both modes. The storm bypasses block, reaches beyond melee range
+/// and stays snapshot/rollback safe.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -35,102 +37,88 @@ public class CleopatraUltimateTests {
     }
 
     private const int StormZoneTypeID = (int)FighterCharacterID.Cleopatra * 10 + 3;
+    private const int CobraDamage = 9;
+    private const int CobraCount = 6;
+    private const int IntervalFrames = 21;
+    private const int SlamDamage = 12;
+    private const int VenomTotal = 12;
+    private const int ImpactTotal = CobraDamage * CobraCount + SlamDamage;
+    private const int UltimateTotal = ImpactTotal + VenomTotal;
 
     [TestCase]
-    public void UltimateConsumesFullMeterAndSpawnsStormWithoutGenericDoubleHit() {
+    public void TheAspContactRaisesTheStormWithTheVenomHeldForTheFinale() {
         FighterSimulation simulation = BuildChargedSimulation(seed: 71, out int tick);
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent beforeTarget)).IsTrue();
         int hpBeforeUltimate = beforeTarget.CurrentHP;
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-        tick++;
+        UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
 
-        // The meter is consumed by the dispatch; the storm's first tick (the
-        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
-        // caster ZERO damage-dealt meter, so the same-frame tick no longer
-        // re-credits anything - the meter reads exactly 0 after the cast.
+        // D03h: spent on acceptance, no re-credit.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
         AssertThat(caster.Influence.RawValue).IsEqual(
             xpTURN.Klotho.Deterministic.Math.FP64.Zero.RawValue);
         AssertThat(simulation.ZoneCount).IsEqual(1);
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual(StormZoneTypeID);
-        AssertThat(zone.Damage).IsEqual(8);
-        AssertThat(zone.StatusType).IsEqual((int)StatusType.Venom);
-        AssertThat(zone.StatusFrames).IsEqual(300);
+        AssertThat(zone.Damage).IsEqual(CobraDamage);
+        // C04: the Venom rides the finale, never the cobra pulses.
+        AssertThat(zone.StatusType).IsEqual((int)StatusType.None);
 
-        // No generic melee ultimate double-hit: the zone system runs after the
-        // combat system, so the storm's first 8-damage tick lands on the press
-        // frame — but only that tick. A generic double-hit would add another 8
-        // damage plus a 30-frame impulse hitstun; the storm's ticks are
-        // impulse-free, so hitstun must stay zero.
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent pressFrame)).IsTrue();
-        AssertThat(pressFrame.HitstunFrames).IsEqual(0);
-        AssertThat(hpBeforeUltimate - pressFrame.CurrentHP).IsEqual(8);
+        // The contact tick lands exactly one impulse-free cobra strike.
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent contactFrame)).IsTrue();
+        AssertThat(contactFrame.HitstunFrames).IsEqual(0);
+        AssertThat(hpBeforeUltimate - contactFrame.CurrentHP).IsEqual(CobraDamage);
+        AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent unpoisoned)).IsTrue();
+        AssertThat(unpoisoned.DamageStatusType).IsEqual((int)StatusType.None);
     }
 
     [TestCase]
-    public void StormDealsTenAuthoredTicksAndHeavyVenomSticksAndTicksAfterward() {
+    public void StormLandsSeventyEightCountingTheFinaleVenom() {
         FighterSimulation simulation = BuildChargedSimulation(seed: 72, out int tick);
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
         int hpBefore = before.CurrentHP;
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-        int ultimateTick = tick;
-        tick++;
-
-        // Run through the full 210-frame storm plus a few frames. Every zone
-        // tick re-applies Venom (resetting its 60-frame DoT timer), so no venom
-        // chip lands during the storm itself: the HP loss at storm end is
-        // exactly the 10 authored ticks of 8.
-        while (tick <= ultimateTick + 215) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-            tick++;
-        }
+        tick = UltimateActivationTestKit.CastAndConnect(simulation, tick);
+        // Through the cobras and the finale (6 x 21 frames after contact).
+        tick = UltimateActivationTestKit.Idle(simulation, tick, CobraCount * IntervalFrames);
         AssertThat(simulation.ZoneCount).IsEqual(0);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent stormEnd)).IsTrue();
-        AssertThat(hpBefore - stormEnd.CurrentHP).IsEqual(80);
+        AssertThat(hpBefore - stormEnd.CurrentHP).IsEqual(ImpactTotal);
 
-        // The heavy Venom survives the storm at the authored 5 s / 1.5
-        // intensity and keeps ticking (3 HP per second) afterward.
+        // The finale's heavy Venom (2.0 for 3 s) is attached once and ticks
+        // three times for 4 each — exactly the 12 C04 counts in the total.
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)).IsTrue();
-        // Venom occupies the V7 damage status slot; the intensity round-trips
-        // through the slot's deterministic thousandths quantization.
         AssertThat(runtime.DamageStatusType).IsEqual((int)StatusType.Venom);
         AssertThat(runtime.DamageStatusIntensity.RawValue).IsEqual(
-            (xpTURN.Klotho.Deterministic.Math.FP64.FromInt(1500)
-                / xpTURN.Klotho.Deterministic.Math.FP64.FromInt(1000)).RawValue);
-        for (int i = 0; i < 70; i++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-            tick++;
-        }
+            xpTURN.Klotho.Deterministic.Math.FP64.FromInt(2).RawValue);
+        UltimateActivationTestKit.Idle(simulation, tick, 200);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent poisoned)).IsTrue();
-        AssertThat(poisoned.CurrentHP < stormEnd.CurrentHP).IsTrue();
+        AssertThat(hpBefore - poisoned.CurrentHP).IsEqual(UltimateTotal);
     }
 
     [TestCase]
-    public void StormReachesOpponentBeyondMeleeRange() {
+    public void TheAspReachesAnOpponentBeyondMeleeRange() {
         FighterSimulation simulation = BuildChargedSimulation(seed: 73, out int tick);
 
-        // Warp Cleopatra away so the opponent sits far outside the 2-unit
-        // generic melee range before the ultimate fires.
+        // Warp Cleopatra away so the opponent sits outside the 2-unit generic
+        // melee range, then turn back toward them.
         simulation.Advance(Frame(tick, -127, GameplayButtons.MovementAbility), Frame(tick, 0, GameplayButtons.None));
         tick++;
+        simulation.Advance(Frame(tick, 127, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        tick = UltimateActivationTestKit.Idle(simulation, tick + 1, 20);
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         var separation = xpTURN.Klotho.Deterministic.Math.FP64.Abs(target.Position.x - caster.Position.x);
         AssertThat(separation > xpTURN.Klotho.Deterministic.Math.FP64.FromInt(2)).IsTrue();
         int hpBefore = target.CurrentHP;
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-        tick++;
+        tick = UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
         AssertThat(simulation.ZoneCount).IsEqual(1);
-        for (int i = 0; i < 60; i++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-            tick++;
-        }
+        UltimateActivationTestKit.Idle(simulation, tick, 60);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent hit)).IsTrue();
         AssertThat(hit.CurrentHP < hpBefore).IsTrue();
     }
@@ -142,15 +130,13 @@ public class CleopatraUltimateTests {
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
         int hpBefore = before.CurrentHP;
 
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.Block));
-        tick++;
-        for (int i = 0; i < 220; i++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.Block));
-            tick++;
-        }
+        tick = UltimateActivationTestKit.CastAndConnect(
+            simulation, tick, out bool connected, victimHeld: GameplayButtons.Block);
+        AssertThat(connected).IsTrue();
+        UltimateActivationTestKit.Idle(simulation, tick, 220, GameplayButtons.Block);
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent blocked)).IsTrue();
-        AssertThat(hpBefore - blocked.CurrentHP >= 80).IsTrue();
+        AssertThat(hpBefore - blocked.CurrentHP >= ImpactTotal).IsTrue();
         AssertThat(blocked.BlockCharges).IsEqual(3);
     }
 
@@ -163,30 +149,23 @@ public class CleopatraUltimateTests {
         var restored = new FighterSimulation(
             cleopatra, opponent, seed: 75, spawnDistance: 1, rules: FighterMatchRules.Disabled);
 
-        // Drive both simulations with the identical input script so each
-        // reaches the charged state deterministically.
         int tick = ChargeMeter(uninterrupted, startTick: 0);
-        ChargeMeter(restored, startTick: 0);
-
-        uninterrupted.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-        restored.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
-        tick++;
+        tick = UltimateActivationTestKit.CastAndConnect(uninterrupted, tick);
 
         // Snapshot mid-storm and restore into the second simulation.
-        for (int i = 0; i < 40; i++) {
-            uninterrupted.Advance(Frame(tick + i, 0, GameplayButtons.None), Frame(tick + i, -60, GameplayButtons.None));
+        for (int i = 0; i < 40; i++, tick++) {
+            uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, -60, GameplayButtons.None));
         }
         byte[] snapshot = uninterrupted.CaptureFullState();
         restored.RestoreFullState(snapshot);
         AssertThat(restored.CurrentHash).IsEqual(uninterrupted.CurrentHash);
 
-        // Cover the remaining storm ticks, zone expiry, the surviving Venom
-        // DoT, and its expiry.
-        for (int i = 40; i < 560; i++) {
+        // Cover the remaining strikes, the finale, the Venom DoT and its expiry.
+        for (int i = 0; i < 520; i++, tick++) {
             long expected = uninterrupted.Advance(
-                Frame(tick + i, 0, GameplayButtons.None), Frame(tick + i, -60, GameplayButtons.None));
+                Frame(tick, 0, GameplayButtons.None), Frame(tick, -60, GameplayButtons.None));
             long actual = restored.Advance(
-                Frame(tick + i, 0, GameplayButtons.None), Frame(tick + i, -60, GameplayButtons.None));
+                Frame(tick, 0, GameplayButtons.None), Frame(tick, -60, GameplayButtons.None));
             AssertThat(actual).IsEqual(expected);
         }
     }
@@ -217,10 +196,10 @@ public class CleopatraUltimateTests {
 
     /// <summary>
     /// Cleopatra with the canonical Wrath of the Nile numbers from
-    /// cleopatra/ultimate.tres (per-hit 8, 10 hits, 21-frame ticks, 3.5 s,
-    /// heavy Venom 5 s at 1.5 intensity), zero-knockback basics so the meter
-    /// charge never pushes the opponent out of range, and a long teleport for
-    /// the beyond-melee-range case.
+    /// cleopatra/ultimate.tres (six 9-damage cobras at 21 frames, the 12-damage
+    /// slam finale, heavy Venom 3 s at 2.0 intensity), zero-knockback basics so
+    /// the meter charge never pushes the opponent out of range, and a
+    /// three-unit teleport for the beyond-melee-range case.
     /// </summary>
     private static CharacterData BuildUltimateCharacter() => new() {
         CharacterID = "cleopatra",
@@ -237,21 +216,24 @@ public class CleopatraUltimateTests {
         MovementAbility = new MovementAbilityData {
             MovementType = MovementType.Teleport,
             MovementDuration = 0.3f,
-            DistanceMoved = 360f,
+            DistanceMoved = 180f,
             MovementSpeed = 600f,
             CooldownDuration = 5f
         },
         UltimateAttack = new AbilityData {
             ExecutionType = AbilityExecutionType.Cinematic,
-            BaseDamage = 8f,
+            BaseDamage = CobraDamage,
             IsMultiHit = true,
-            HitCount = 10,
-            DamageTickIntervalFrames = 21,
+            HitCount = CobraCount,
+            DamageTickIntervalFrames = IntervalFrames,
+            FinaleDamage = SlamDamage,
+            FinaleLaunches = false,
+            ActivationHitboxSize = new Vector2(60f, 36f),
             KnockbackForce = new Vector2(4f, -3f),
-            Lifetime = 3.5f,
+            Lifetime = 2.45f,
             AppliedStatus = StatusType.Venom,
-            StatusDuration = 5f,
-            StatusIntensity = 1.5f
+            StatusDuration = 3f,
+            StatusIntensity = 2f
         }
     };
 

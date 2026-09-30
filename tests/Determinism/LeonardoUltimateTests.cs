@@ -11,16 +11,19 @@ namespace FTT.Tests.Determinism;
 
 /// <summary>
 /// Deterministic Fighter-side coverage for Leonardo's canonical Vitruvian
-/// Matrix ultimate (audit gap X7): a full meter spawns the ultimate-slot trap
-/// zone (type 23) instead of the generic melee ultimate, its 8 bombardment
-/// ticks carry the authored per-hit damage plus the refreshing Root hold, the
-/// hits bypass block via the ultimate attack class, the zone reaches well
-/// beyond melee range, and the whole lifecycle (including the expiry
-/// explosion) is snapshot/rollback safe.
+/// Matrix ultimate (L04, Package 13 W6): the press spends the meter and throws
+/// the geometric sphere (A02: a straight seven-unit activation strike); its
+/// contact starts the trap zone (type 23) on the held victim — five 10-damage
+/// bombardment ticks carrying the refreshing Root hold, then the 24-damage
+/// explosion finale (74) — bypassing block, reaching well beyond melee range,
+/// and snapshot/rollback safe.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
 public class LeonardoUltimateTests {
+
+    private const int ChargedHP = 300;
+    private const int UltimateTotal = 5 * 10 + 24;
 
     /// <summary>
     /// The ultimate tests churn large deterministic-simulation allocations
@@ -36,7 +39,7 @@ public class LeonardoUltimateTests {
     }
 
     [TestCase]
-    public void UltimateConsumesTheMeterAndReplacesTheGenericMeleeHit() {
+    public void UltimateSpendsTheMeterAndTheSphereContactStartsTheMatrix() {
         var simulation = CreateSimulation(spawnDistance: 1, seed: 71);
 
         // One landed basic (125 x 0.8 = 100) fills the meter exactly; the
@@ -45,42 +48,35 @@ public class LeonardoUltimateTests {
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent charged)).IsTrue();
         AssertThat(charged.Influence.ToFloat()).IsEqual(100f);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterCharge)).IsTrue();
-        AssertThat(afterCharge.CurrentHP).IsEqual(300);
+        AssertThat(afterCharge.CurrentHP).IsEqual(ChargedHP);
 
-        // The ultimate press dispatches the bespoke trap zone, consumes the
-        // meter, and the generic melee ultimate cannot double-fire — the cast
-        // frame's damage is exactly one 10-damage bombardment tick.
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
+        tick = UltimateActivationTestKit.CastAndConnect(simulation, tick, out bool connected);
+        AssertThat(connected).IsTrue();
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual((int)FighterCharacterID.Leonardo * 10 + 3);
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
-        // The cast zeroes the meter; the only influence left is the standard
-        // 1-per-HP credit from the first 10-damage bombardment tick.
-        // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its
-        // caster ZERO damage-dealt meter, so the same-frame tick no longer
-        // re-credits anything - the meter reads exactly 0 after the cast.
+        // V7.6 D03h: spent on acceptance, and Ultimate-origin damage re-credits nothing.
         AssertThat(caster.Influence.ToFloat()).IsEqual(0f);
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterCast)).IsTrue();
-        AssertThat(afterCast.CurrentHP).IsEqual(290);
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterContact)).IsTrue();
+        AssertThat(afterContact.CurrentHP).IsEqual(ChargedHP - 10);
     }
 
     [TestCase]
     public void TrapRootHoldsTheTargetInsideTheMatrix() {
         var simulation = CreateSimulation(spawnDistance: 1, seed: 72);
         int tick = BasicStringTestDriver.LandChainedBasics(simulation, 0, 1);
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.None));
+        tick = UltimateActivationTestKit.CastAndConnect(simulation, tick);
 
-        // The first bombardment tick applies the authored Root hold.
+        // The first bombardment tick applies the authored Root hold (a control
+        // hold rides the regular hits, never the finale).
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent trapped)).IsTrue();
         AssertThat(trapped.StatusType).IsEqual((int)StatusType.Root);
         AssertThat(trapped.StatusFrames > 0).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent beforeHold)).IsTrue();
         var heldX = beforeHold.Position.x;
 
-        // The target mashes run-away input for the whole bombardment window but
-        // the refreshed Root keeps them caged (the pulses are impulse-free, so
-        // nothing else moves them either).
-        for (int step = 1; step <= 119; step++) {
+        // The target mashes run-away input through the bombardment but stays caged.
+        for (int step = 0; step < 80; step++) {
             simulation.Advance(
                 Frame(tick + step, 0, GameplayButtons.None),
                 Frame(tick + step, 127, GameplayButtons.None));
@@ -92,10 +88,9 @@ public class LeonardoUltimateTests {
     }
 
     [TestCase]
-    public void BombardmentLandsTheFullMultiHitTotalBeyondMeleeRange() {
+    public void TheSevenUnitSphereLandsTheFullTotalBeyondMeleeRange() {
         // Fighters spawn at +/-2 (4 units apart), beyond the 2-unit generic
-        // melee/ultimate attack range; the meter is charged with a 100-damage
-        // projectile special instead.
+        // melee range; the meter is charged with a 100-damage projectile special.
         var simulation = CreateSimulation(spawnDistance: 2, seed: 73);
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
         for (int tick = 1; tick <= 30; tick++) {
@@ -104,23 +99,21 @@ public class LeonardoUltimateTests {
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent charged)).IsTrue();
         AssertThat(charged.Influence.ToFloat()).IsEqual(100f);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent afterCharge)).IsTrue();
-        AssertThat(afterCharge.CurrentHP).IsEqual(300);
+        AssertThat(afterCharge.CurrentHP).IsEqual(ChargedHP);
+        var xBeforeFinale = afterCharge.Position.x;
 
-        // The bespoke ultimate fires despite the generic melee range whiffing.
-        simulation.Advance(Frame(31, 0, GameplayButtons.Ultimate), Frame(31, 0, GameplayButtons.None));
+        int next = UltimateActivationTestKit.CastAndConnect(simulation, 31, out bool connected);
+        AssertThat(connected).IsTrue();
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual((int)FighterCharacterID.Leonardo * 10 + 3);
 
-        // All 8 ticks of 10 land across the 2.4 s window (80 total) and the
-        // expiry explosion launches the target with real knockback.
-        var xBeforeExpiry = FP64.FromInt(2);
-        for (int tick = 32; tick <= 200; tick++) {
-            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
-        }
+        // Five ticks of 10 and the 24-damage explosion (74 total), which
+        // launches the target away with real knockback.
+        UltimateActivationTestKit.Idle(simulation, next, 150);
         AssertThat(simulation.ZoneCount).IsEqual(0);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent bombarded)).IsTrue();
-        AssertThat(bombarded.CurrentHP).IsEqual(220);
-        AssertThat(bombarded.Position.x > xBeforeExpiry).IsTrue();
+        AssertThat(bombarded.CurrentHP).IsEqual(ChargedHP - UltimateTotal);
+        AssertThat(bombarded.Position.x > xBeforeFinale).IsTrue();
     }
 
     [TestCase]
@@ -128,18 +121,16 @@ public class LeonardoUltimateTests {
         var simulation = CreateSimulation(spawnDistance: 1, seed: 74);
         int tick = BasicStringTestDriver.LandChainedBasics(simulation, 0, 1);
 
-        // The target holds Block for the entire ultimate; the ultimate-class
-        // pulses ignore the shield entirely, so the full 80 damage lands and no
-        // block charge is spent.
-        simulation.Advance(Frame(tick, 0, GameplayButtons.Ultimate), Frame(tick, 0, GameplayButtons.Block));
-        for (int step = 1; step <= 169; step++) {
-            simulation.Advance(
-                Frame(tick + step, 0, GameplayButtons.None),
-                Frame(tick + step, 0, GameplayButtons.Block));
-        }
+        // The target holds Block for the entire ultimate; the activation strike
+        // and the ultimate-class pulses ignore the shield, so the full total
+        // lands and no block charge is spent.
+        tick = UltimateActivationTestKit.CastAndConnect(
+            simulation, tick, out bool connected, victimHeld: GameplayButtons.Block);
+        AssertThat(connected).IsTrue();
+        UltimateActivationTestKit.Idle(simulation, tick, 150, GameplayButtons.Block);
         AssertThat(simulation.ZoneCount).IsEqual(0);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent blocked)).IsTrue();
-        AssertThat(blocked.CurrentHP).IsEqual(220);
+        AssertThat(blocked.CurrentHP).IsEqual(ChargedHP - UltimateTotal);
         AssertThat(blocked.BlockCharges).IsEqual(3);
     }
 
@@ -152,9 +143,9 @@ public class LeonardoUltimateTests {
         var restored = new FighterSimulation(
             leonardo, target, seed: 75, spawnDistance: 1, rules: FighterMatchRules.Disabled);
 
-        uninterrupted.Advance(Frame(0, 0, GameplayButtons.BasicAttack), Frame(0, 0, GameplayButtons.None));
-        uninterrupted.Advance(Frame(1, 0, GameplayButtons.Ultimate), Frame(1, 0, GameplayButtons.None));
-        for (int tick = 2; tick < 40; tick++) {
+        int tick = BasicStringTestDriver.LandChainedBasics(uninterrupted, 0, 1);
+        tick = UltimateActivationTestKit.CastAndConnect(uninterrupted, tick);
+        for (int i = 0; i < 38; i++, tick++) {
             uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 127, GameplayButtons.None));
         }
 
@@ -163,9 +154,9 @@ public class LeonardoUltimateTests {
         restored.RestoreFullState(snapshot);
         AssertThat(restored.CurrentHash).IsEqual(uninterrupted.CurrentHash);
 
-        // The replayed window spans the remaining ticks, the expiry explosion,
+        // The replayed window spans the remaining ticks, the explosion finale,
         // and the Root/status decay afterwards.
-        for (int tick = 40; tick < 240; tick++) {
+        for (int i = 0; i < 200; i++, tick++) {
             long expected = uninterrupted.Advance(
                 Frame(tick, 0, GameplayButtons.None), Frame(tick, 127, GameplayButtons.None));
             long actual = restored.Advance(
@@ -207,9 +198,14 @@ public class LeonardoUltimateTests {
             ExecutionType = AbilityExecutionType.Cinematic,
             BaseDamage = 10f,
             IsMultiHit = true,
-            HitCount = 8,
+            HitCount = 5,
             DamageTickIntervalFrames = 18,
-            Lifetime = 2.4f,
+            FinaleDamage = 24f,
+            FinaleLaunches = true,
+            ActivationShape = UltimateActivationShape.Projectile,
+            ActivationRange = 420f,
+            ActivationHitboxSize = new Vector2(60f, 60f),
+            Lifetime = 1.8f,
             AppliedStatus = StatusType.Root,
             StatusDuration = 0.4f,
             KnockbackForce = new Vector2(5, -3)

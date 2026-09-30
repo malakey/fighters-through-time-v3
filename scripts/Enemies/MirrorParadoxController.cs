@@ -237,6 +237,10 @@ namespace FTT.Enemies {
             // second character base-HP pool."
             Clone.EncounterMaxHPOverride = ScaledMaxHP;
             ApplyCampaignDamageMultiplier(Clone);
+            // A02 (Package 13 W6): "a boss or CPU using a player kit against the
+            // player (the Mirror Paradox clone) uses the Fighter activation-strike
+            // version" — its Ultimate must connect before the cinematic plays.
+            Clone.UsesFighterUltimateActivation = true;
             // Hostile marker: the clone's projectiles join the enemy_projectile
             // group so a rewind's world clear removes them (audit H-8).
             Clone.IsStoryHostile = true;

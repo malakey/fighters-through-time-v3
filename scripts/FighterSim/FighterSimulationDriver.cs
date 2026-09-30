@@ -1051,6 +1051,15 @@ namespace FTT.FighterSim {
             _presentedSpecialTwoCooldown[playerID] = runtime.SpecialTwoCooldownFrames;
             _presentedMovementCooldown[playerID] = runtime.MovementCooldownFrames;
 
+            // A02 (Package 13 W6): the activation strike's wind-up and active
+            // frames hold the ultimate pose for as long as they last.
+            if (Simulation.TryGetFighterUltimateActivation(playerID, out FighterUltimateActivationComponent activation)
+                && FighterUltimateActivationRules.IsArmored(in activation)) {
+                _presentedAbilityAnimation[playerID] = "ultimate";
+                _presentedAbilityAnimationFrames[playerID] = AbilityPresentationFrames;
+                return "ultimate";
+            }
+
             string started = "";
             if ((runtime.PressedButtons & UltimateButton) != 0
                     && _presentedInfluenceFull[playerID]

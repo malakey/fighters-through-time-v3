@@ -462,7 +462,8 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
-            _strikesRemaining = Data?.IsMultiHit == true ? Mathf.Max(1, Data.HitCount) : 1;
+            // D15 (Package 13 W6): the HitCount falling keys, then the grand-chord finale.
+            _strikesRemaining = Data?.IsMultiHit == true ? Data.CinematicHitCount : 1;
             _strikeIndex = 0;
             _strikeCountdownFrames = 0;
             // Hover: the shared Story float window (0.15x gravity, capped fall)
@@ -544,14 +545,18 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "mozart_symphony_of_sorrow",
                     HitboxID = finalStrike ? "meteor_final" : "meteor",
                     AttackClass = AttackClass.Ultimate,
-                    Damage = Mathf.Round(Data?.BaseDamage ?? 8f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = Mathf.Round(Data?.CinematicHitDamage(strikeIndex + 1) ?? 8f) * Owner.StorySpecialDamageMultiplier,
                     // Only the closing strike launches; earlier keys pin the
                     // target inside the bombardment.
                     Knockback = finalStrike ? Data?.KnockbackForce ?? new Vector2(5, -4) : Vector2.Zero,
-                    HitstunDuration = Data?.HitstunDuration ?? 0.2f,
+                    HitstunDuration = (Data?.IsFinaleHit(strikeIndex + 1) ?? false)
+                        ? UltimateActivationRules.FinaleHitstunSeconds
+                        : Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = strikePosition,
                     AttackerFacingRight = _stormFacingRight,
-                    AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.None,
+                    AppliedStatus = (Data?.CinematicHitCarriesStatus(strikeIndex + 1) ?? true)
+                        ? Data?.AppliedStatus ?? FTT.Core.StatusType.None
+                        : FTT.Core.StatusType.None,
                     StatusDuration = Data?.StatusDuration ?? 0f,
                     StatusIntensity = Data?.StatusIntensity ?? 1f,
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.4f,

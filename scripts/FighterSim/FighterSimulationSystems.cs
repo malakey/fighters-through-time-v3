@@ -185,6 +185,9 @@ namespace FTT.FighterSim {
             // M05 (Package 12 W3b): knockdown and get-up, component 320. All
             // zero is "not down".
             frame.Add(entity, new FighterKnockdownComponent());
+            // A02 (Package 13 W6): the Ultimate activation strike and the
+            // cinematic hold, component 321. All zero is inactive.
+            frame.Add(entity, new FighterUltimateActivationComponent());
             // V7.6 D01-D04 (Package 11 A1b): the defensive layer - Defy
             // protected recovery, the Temporal Aegis flag and the D02b HP
             // barrier. Snapshot and hash state like every other component.
@@ -337,6 +340,21 @@ namespace FTT.FighterSim {
                     verb.PendingLaunchActive = 0;
                 }
 
+                // A02 (Package 13 W6, component 321): a fighter held by an
+                // opponent's Ultimate cinematic takes no input and does not move
+                // until the combat system releases the hold. Their statuses and
+                // cooldowns keep ticking; a lethal tick hands them to the respawn.
+                ref FighterUltimateActivationComponent ultimateActivation =
+                    ref frame.Get<FighterUltimateActivationComponent>(entity);
+                if (FighterUltimateActivationRules.IsCaptured(in ultimateActivation)) {
+                    ref FighterDefenseComponent capturedDefense = ref frame.Get<FighterDefenseComponent>(entity);
+                    TickCounters(ref fighter, ref runtime, ref verb, ref capturedDefense, in tuning);
+                    if (fighter.Stocks > 0 && fighter.RespawnFramesRemaining <= 0) {
+                        FighterUltimateActivationRules.HoldCaptured(ref fighter, ref runtime, in ultimateActivation);
+                    }
+                    continue;
+                }
+
                 // V7.6 Echo Step: advance an armed wind-up (the snap fires when it
                 // reaches 0, after the destination is rechecked). Sampling already
                 // happened above, before the hitstop gate.
@@ -399,6 +417,14 @@ namespace FTT.FighterSim {
                 }
 
                 TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
+
+                // A02: the caster is action-locked through the whole Ultimate —
+                // wind-up, active, whiff recovery and cinematic. Discarding the
+                // tick's input here, before any verb reads it, is what stops Echo
+                // Step (or a block, roll, jump or grab) undoing a whiff.
+                if (FighterUltimateActivationRules.IsCasterBusy(in ultimateActivation)) {
+                    FighterUltimateActivationRules.DiscardInput(ref runtime);
+                }
 
                 // The Chronal Respawn Platform owns the fighter completely: it is
                 // frozen, invulnerable, and consumes no input until it drops.
@@ -574,6 +600,10 @@ namespace FTT.FighterSim {
                         fighter.Velocity.y = ClampToTerminal(fighter.Velocity.y);
                     }
                 }
+
+                // A02: the wind-up and active frames plant the caster (gravity 0
+                // for an airborne start) or drive a melee lunge.
+                FighterUltimateActivationRules.ApplyCasterMotion(ref fighter, in ultimateActivation);
 
                 FP64 previousY = fighter.Position.y;
                 bool wasAirborne = fighter.IsGrounded == 0;
@@ -1714,7 +1744,9 @@ namespace FTT.FighterSim {
         /// left <see cref="FighterAbilityLoadout"/> at its zero default).
         /// </summary>
         internal const int LegacySpecialHitstunFrames = 18;
-        internal const int LegacyUltimateHitstunFrames = 30;
+        // A02 (Package 13 W6): the generic melee Ultimate intent is gone, and its
+        // 30-frame legacy hitstun with it; the finale reads
+        // UltimateActivationRules.FinaleHitstunFrames.
 
         /// <summary>
         /// Resolves the hitstun and launch flag a melee intent applies: the
@@ -1853,11 +1885,14 @@ namespace FTT.FighterSim {
             bool oneActing = !oneFrozen && !FighterGrabRules.IsBusy(in verbOne);
             bool twoActing = !twoFrozen && !FighterGrabRules.IsBusy(in verbTwo);
 
-            // Bespoke character ultimates dispatch first (X7): a successful
-            // dispatch consumes the meter, so the generic melee ultimate intent
-            // below cannot double-fire on the same press.
-            if (oneActing) TryCharacterUltimate(ref frame, first, second, ref fighterOne, ref runtimeOne, in tuningOne);
-            if (twoActing) TryCharacterUltimate(ref frame, second, first, ref fighterTwo, ref runtimeTwo, in tuningTwo);
+            // A02 (Package 13 W6): live activations advance first — the phase
+            // clock, the strike's contact test, the cinematic hold and the D15
+            // finale — then a fresh press is accepted. Acceptance spends the
+            // meter, so the ultimate can never also reach a melee intent below.
+            AdvanceUltimate(ref frame, first, second);
+            AdvanceUltimate(ref frame, second, first);
+            if (oneActing) TryCharacterUltimate(ref frame, first, ref fighterOne, ref runtimeOne);
+            if (twoActing) TryCharacterUltimate(ref frame, second, ref fighterTwo, ref runtimeTwo);
 
             AttackIntent firstIntent = !oneActing ? default : BuildIntent(in fighterOne, in runtimeOne, in verbOne, in tuningOne, in fighterTwo, _contracts);
             AttackIntent secondIntent = !twoActing ? default : BuildIntent(in fighterTwo, in runtimeTwo, in verbTwo, in tuningTwo, in fighterOne, _contracts);
@@ -2434,29 +2469,230 @@ namespace FTT.FighterSim {
             return (int)(numerator / FP64.One.RawValue);
         }
 
-        private static void TryCharacterUltimate(
+        /// <summary>
+        /// A02 acceptance: a pressed Ultimate with a full meter, from a state
+        /// that could act, starts the activation wind-up. Nothing is dealt yet;
+        /// see <see cref="AdvanceUltimate"/>.
+        /// </summary>
+        private void TryCharacterUltimate(
             ref Frame frame,
             EntityRef attackerEntity,
-            EntityRef targetEntity,
             ref FighterStateComponent attacker,
-            ref FighterRuntimeComponent attackerRuntime,
-            in FighterTuningComponent tuning) {
+            ref FighterRuntimeComponent attackerRuntime) {
             if ((attackerRuntime.PressedButtons & UltimateButton) == 0
                 || attacker.Influence < MaxInfluence
                 || attacker.HitstunFrames > 0
                 || attacker.DazeFrames > 0
                 || attacker.Stocks <= 0
+                || attacker.RespawnFramesRemaining > 0
                 || FighterLedgeRules.IsHanging(in attackerRuntime)
                 || FighterUniversalMovementRules.IsCombatLocked(in attackerRuntime)) return;
+            ref FighterUltimateActivationComponent activation =
+                ref frame.Get<FighterUltimateActivationComponent>(attackerEntity);
+            if (FighterUltimateActivationRules.IsCasterBusy(in activation)
+                || FighterUltimateActivationRules.IsCaptured(in activation)) return;
+            FighterUltimateActivationRules.Accept(
+                ref attacker, ref attackerRuntime, ref activation, _contracts.UltimateFor(attacker.PlayerID));
+        }
 
-            if (FighterUltimateRules.TryExecute(
-                    ref frame, attackerEntity, targetEntity, ref attacker, ref attackerRuntime, in tuning)) {
-                FighterUniversalMovementRules.Cancel(ref attackerRuntime);
-                // The ultimate cancels an in-progress basic and resets the chain.
-                FighterBasicAttackRules.CancelString(ref attackerRuntime);
-                attacker.Influence = FP64.Zero;
+        /// <summary>
+        /// A02: one tick of <paramref name="casterEntity"/>'s Ultimate. The
+        /// wind-up, active and whiff clocks pause under hitstop (a frozen
+        /// fighter takes no action); the cinematic hold never does. A grab, a
+        /// stock loss or — during whiff recovery — hitstun or daze ends the
+        /// Ultimate with the meter still spent.
+        /// </summary>
+        private void AdvanceUltimate(ref Frame frame, EntityRef casterEntity, EntityRef targetEntity) {
+            ref FighterUltimateActivationComponent activation =
+                ref frame.Get<FighterUltimateActivationComponent>(casterEntity);
+            if (activation.Phase == FighterUltimateActivationRules.PhaseNone) return;
+
+            ref FighterStateComponent caster = ref frame.Get<FighterStateComponent>(casterEntity);
+            ref FighterVerbComponent casterVerb = ref frame.Get<FighterVerbComponent>(casterEntity);
+            ref FighterUltimateActivationComponent targetActivation =
+                ref frame.Get<FighterUltimateActivationComponent>(targetEntity);
+            int captorSlot = caster.PlayerID + 1;
+
+            if (caster.Stocks <= 0 || caster.RespawnFramesRemaining > 0 || casterVerb.BeingHeld != 0) {
+                if (targetActivation.CaptorSlot == captorSlot) {
+                    FighterUltimateActivationRules.ReleaseCapture(ref targetActivation);
+                }
+                FighterUltimateActivationRules.ClearCaster(ref caster, ref activation);
+                return;
+            }
+
+            FighterUltimateData data = _contracts.UltimateFor(caster.PlayerID);
+            ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
+            ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
+
+            if (activation.Phase == FighterUltimateActivationRules.PhaseCinematic) {
+                // The victim is gone (KO, Defy's protected recovery, or someone
+                // else's hold): the cinematic ends with no finale.
+                if (target.Stocks <= 0
+                    || target.RespawnFramesRemaining > 0
+                    || FighterDefenseRules.IsDefyProtected(in targetDefense)
+                    || targetActivation.CaptorSlot != captorSlot) {
+                    if (targetActivation.CaptorSlot == captorSlot) {
+                        FighterUltimateActivationRules.ReleaseCapture(ref targetActivation);
+                    }
+                    FighterUltimateActivationRules.ClearCaster(ref caster, ref activation);
+                    return;
+                }
+                activation.PhaseFrames--;
+                targetActivation.CapturedFrames = activation.PhaseFrames;
+                if (activation.PhaseFrames > 0) return;
+                bool facingRight = activation.FacingRight != 0;
+                FighterUltimateActivationRules.ReleaseCapture(ref targetActivation);
+                FighterUltimateActivationRules.ClearCaster(ref caster, ref activation);
+                if (data.HasFinale) {
+                    DeliverUltimateFinale(ref frame, casterEntity, targetEntity, in data, facingRight);
+                }
+                return;
+            }
+
+            if (casterVerb.HitstopFrames > 0) return;
+
+            if (activation.Phase == FighterUltimateActivationRules.PhaseWhiffRecovery) {
+                // Whiff recovery is the punish window: a hit that stuns or dazes
+                // the caster ends it (the punish owns the fighter now).
+                if (caster.HitstunFrames > 0 || caster.DazeFrames > 0 || --activation.PhaseFrames <= 0) {
+                    FighterUltimateActivationRules.ClearCaster(ref caster, ref activation);
+                }
+                return;
+            }
+
+            if (activation.Phase == FighterUltimateActivationRules.PhaseWindup) {
+                if (--activation.PhaseFrames > 0) return;
+                activation.Phase = FighterUltimateActivationRules.PhaseActive;
+                activation.PhaseFrames = data.ActiveFrames > 0 ? data.ActiveFrames : 1;
+                activation.Origin = caster.Position;
+            }
+
+            int activeFrames = data.ActiveFrames > 0 ? data.ActiveFrames : 1;
+            int activeIndex = activeFrames - activation.PhaseFrames;
+            if (FighterUltimateActivationRules.StrikeConnects(
+                    in caster, in activation, in data, activeIndex,
+                    in target, in targetDefense, in targetActivation)) {
+                StartUltimateCinematic(ref frame, casterEntity, targetEntity, in data);
+                return;
+            }
+            if (--activation.PhaseFrames > 0) return;
+            // The whiff: nothing is dealt, the meter stays spent, and the caster
+            // sits in whiff recovery (armor off).
+            caster.HyperArmorFrames = 0;
+            if (data.WhiffRecoveryFrames > 0) {
+                activation.Phase = FighterUltimateActivationRules.PhaseWhiffRecovery;
+                activation.PhaseFrames = data.WhiffRecoveryFrames;
+            } else {
+                FighterUltimateActivationRules.ClearCaster(ref caster, ref activation);
             }
         }
+
+        /// <summary>
+        /// A02 contact: the victim is held at the contact point for the whole
+        /// cinematic (their own Ultimate, grab, Echo Step wind-up, swing and
+        /// movement are cancelled) and the character's existing Ultimate starts
+        /// on them at its full authored damage. Aegis- or barrier-absorbed
+        /// contact is contact: those layers resolve against the cinematic's hits.
+        /// </summary>
+        private static void StartUltimateCinematic(
+            ref Frame frame, EntityRef casterEntity, EntityRef targetEntity, in FighterUltimateData data) {
+            ref FighterStateComponent caster = ref frame.Get<FighterStateComponent>(casterEntity);
+            ref FighterRuntimeComponent casterRuntime = ref frame.Get<FighterRuntimeComponent>(casterEntity);
+            ref readonly FighterTuningComponent casterTuning = ref frame.GetReadOnly<FighterTuningComponent>(casterEntity);
+            ref FighterUltimateActivationComponent activation =
+                ref frame.Get<FighterUltimateActivationComponent>(casterEntity);
+            ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
+            ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
+            ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
+            ref FighterUltimateActivationComponent targetActivation =
+                ref frame.Get<FighterUltimateActivationComponent>(targetEntity);
+
+            caster.HyperArmorFrames = 0;
+            activation.Phase = FighterUltimateActivationRules.PhaseCinematic;
+            activation.PhaseFrames = data.CinematicFrames;
+
+            FPVector2 anchor = target.Position;
+            if (FighterUltimateActivationRules.IsCasterBusy(in targetActivation)) {
+                FighterUltimateActivationRules.ClearCaster(ref target, ref targetActivation);
+            }
+            targetActivation.CaptorSlot = caster.PlayerID + 1;
+            targetActivation.CapturedFrames = activation.PhaseFrames;
+            targetActivation.CaptureAnchor = anchor;
+            target.Velocity = FPVector2.Zero;
+            FighterUniversalMovementRules.Cancel(ref targetRuntime);
+            FighterBasicAttackRules.CancelString(ref targetRuntime);
+            if (FighterLedgeRules.IsHanging(in targetRuntime)) FighterLedgeRules.ClearHang(ref targetRuntime);
+            if (targetVerb.GrabPhase != FighterGrabRules.PhaseNone) {
+                targetVerb.GrabPhase = FighterGrabRules.PhaseNone;
+                targetVerb.GrabPhaseFrames = 0;
+                targetVerb.ClearGrabPartner();
+            }
+            // An armed Echo Step wind-up cannot snap the victim out of the hold;
+            // its committed cost stays spent, as on any interruption.
+            targetVerb.EchoStepWindupFrames = 0;
+            targetVerb.PendingLaunchActive = 0;
+
+            if (FighterUltimateRules.TryExecute(
+                    ref frame, casterEntity, targetEntity, ref caster, ref casterRuntime,
+                    in casterTuning, in data, in anchor)) return;
+
+            // A character with no bespoke cinematic lands its whole sequence as
+            // one Ultimate hit and releases at once.
+            FighterUltimateActivationRules.ReleaseCapture(ref targetActivation);
+            bool facingRight = activation.FacingRight != 0;
+            FighterUltimateActivationRules.ClearCaster(ref caster, ref activation);
+            ref FighterVerbComponent casterVerb = ref frame.Get<FighterVerbComponent>(casterEntity);
+            ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
+            ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
+            int total = casterTuning.UltimateDamage * (data.HitCount > 0 ? data.HitCount : 1) + data.FinaleDamage;
+            FighterDamageRules.ApplyFighterHit(
+                ref caster, ref casterRuntime, ref casterVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
+                FighterDamageRules.UltimateAttackClass, total, casterTuning.UltimateKnockback,
+                FTT.Combat.UltimateActivationRules.FinaleHitstunFrames,
+                casterTuning.UltimateStatusType, casterTuning.UltimateStatusFrames, casterTuning.UltimateStatusIntensity,
+                FinaleOriginX(in target, facingRight),
+                creditInfluence: false);
+        }
+
+        /// <summary>
+        /// D15: the finale that closes the cinematic — one Ultimate-class direct
+        /// hit of the authored <c>FinaleDamage</c> with the authored Ultimate
+        /// knockback, carrying a damage-over-time status (C04's Venom) but never
+        /// a control hold, launching when <c>FinaleLaunches</c>, and
+        /// driving the victim in the caster's facing direction, toward the
+        /// blast zone. D03h: zero damage-dealt meter; D03g: a direct impact
+        /// keeps its Rally reclaim.
+        /// </summary>
+        private static void DeliverUltimateFinale(
+            ref Frame frame, EntityRef casterEntity, EntityRef targetEntity,
+            in FighterUltimateData data, bool facingRight) {
+            ref FighterStateComponent caster = ref frame.Get<FighterStateComponent>(casterEntity);
+            ref FighterRuntimeComponent casterRuntime = ref frame.Get<FighterRuntimeComponent>(casterEntity);
+            ref FighterVerbComponent casterVerb = ref frame.Get<FighterVerbComponent>(casterEntity);
+            ref readonly FighterTuningComponent casterTuning = ref frame.GetReadOnly<FighterTuningComponent>(casterEntity);
+            ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
+            ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
+            ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
+            ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
+            ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
+            bool carriesStatus = FTT.Combat.UltimateActivationRules.StatusRidesFinale(
+                (FTT.Core.StatusType)casterTuning.UltimateStatusType, data.FinaleDamage);
+            FighterDamageRules.ApplyFighterHit(
+                ref caster, ref casterRuntime, ref casterVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
+                FighterDamageRules.UltimateAttackClass, data.FinaleDamage, casterTuning.UltimateKnockback,
+                FTT.Combat.UltimateActivationRules.FinaleHitstunFrames,
+                carriesStatus ? casterTuning.UltimateStatusType : (int)FTT.Core.StatusType.None,
+                carriesStatus ? casterTuning.UltimateStatusFrames : 0,
+                casterTuning.UltimateStatusIntensity,
+                FinaleOriginX(in target, facingRight),
+                creditInfluence: false,
+                launches: data.FinaleLaunches);
+        }
+
+        /// <summary>A hit origin one unit behind the victim, so the knockback points along the caster's facing.</summary>
+        private static FP64 FinaleOriginX(in FighterStateComponent target, bool casterFacingRight) =>
+            casterFacingRight ? target.Position.x - FP64.One : target.Position.x + FP64.One;
 
         private static AttackIntent BuildIntent(
             in FighterStateComponent attacker,
@@ -2487,20 +2723,10 @@ namespace FTT.FighterSim {
             // M08/M05 (Package 12 W3b): hitstun and launch come from the
             // attacker's authored contract (DEFER-SIM-ABILITY-HITSTUN, generic
             // half), not the old fixed 18/30 frames.
-            if ((attackerRuntime.PressedButtons & UltimateButton) != 0 && attacker.Influence >= MaxInfluence) {
-                ResolveIntentContract(
-                    contracts.For(attacker.PlayerID, FighterHitContractTable.SlotUltimate),
-                    LegacyUltimateHitstunFrames, out int hitstun, out bool launches);
-                return new AttackIntent(
-                    3,
-                    tuning.UltimateDamage,
-                    tuning.UltimateKnockback,
-                    hitstun,
-                    tuning.UltimateStatusType,
-                    tuning.UltimateStatusFrames,
-                    tuning.UltimateStatusIntensity,
-                    launches: launches);
-            }
+            // A02 (Package 13 W6): there is no melee-range Ultimate intent any
+            // more — every Ultimate is accepted in TryCharacterUltimate, which
+            // spends the meter before this runs, and lands only through its
+            // activation strike (AdvanceUltimate).
             if ((attackerRuntime.PressedButtons & SpecialOneButton) != 0 && attackerRuntime.SpecialOneCooldownFrames <= 0) {
                 ResolveIntentContract(
                     contracts.For(attacker.PlayerID, FighterHitContractTable.SlotSpecialOne),
@@ -2896,6 +3122,14 @@ namespace FTT.FighterSim {
                     ref FighterKnockdownComponent knockdown =
                         ref frame.Get<FighterKnockdownComponent>(entity);
                     FighterKnockdownRules.Clear(ref knockdown);
+                }
+                // A02 (Package 13 W6): no activation, whiff recovery, cinematic
+                // or hold survives into Sudden Death ("no pending Ultimate").
+                if (frame.Has<FighterUltimateActivationComponent>(entity)) {
+                    ref FighterUltimateActivationComponent ultimateActivation =
+                        ref frame.Get<FighterUltimateActivationComponent>(entity);
+                    FighterUltimateActivationRules.ClearCaster(ref fighter, ref ultimateActivation);
+                    FighterUltimateActivationRules.ReleaseCapture(ref ultimateActivation);
                 }
                 // "Initialize a new Echo Step history generation at the spawn...
                 // Require 30 subsequent simulation ticks before use; never teleport

@@ -495,7 +495,8 @@ namespace FTT.Characters.Abilities {
                 int interval = Data?.DamageTickIntervalFrames > 0
                     ? Data.DamageTickIntervalFrames
                     : FallbackTickIntervalFrames;
-                int hitCount = Data?.IsMultiHit == true ? Mathf.Max(1, Data.HitCount) : 1;
+                // D15/T03 (Package 13 W6): five column hits, then the final strike.
+                int hitCount = Data?.IsMultiHit == true ? Data.CinematicHitCount : 1;
                 if (_hitsDone < hitCount && _framesInActive % interval == 0) {
                     _hitsDone++;
                     DealColumnHit();
@@ -520,6 +521,8 @@ namespace FTT.Characters.Abilities {
         /// </summary>
         private void DealColumnHit() {
             if (Owner == null) return;
+            bool finale = Data?.IsFinaleHit(_hitsDone) ?? false;
+            bool carriesStatus = Data?.CinematicHitCarriesStatus(_hitsDone) ?? true;
             foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(PullRadiusPixels)) {
                 DragTowardOwner(hurtbox);
                 if (Owner.GlobalPosition.DistanceTo(hurtbox.GlobalPosition) > ColumnRadiusPixels) continue;
@@ -528,13 +531,13 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "tesla_wardenclyffe_cataclysm",
                     HitboxID = "cataclysm_column",
                     AttackClass = AttackClass.Ultimate,
-                    Damage = (Data?.BaseDamage ?? 18f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = (Data?.CinematicHitDamage(_hitsDone) ?? 10f) * Owner.StorySpecialDamageMultiplier,
                     Knockback = Data?.KnockbackForce ?? new Vector2(0f, -6f),
-                    HitstunDuration = Data?.HitstunDuration ?? 0.2f,
+                    HitstunDuration = finale ? UltimateActivationRules.FinaleHitstunSeconds : Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = Owner.GlobalPosition,
                     AttackerFacingRight = Owner.IsFacingRight,
-                    AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.None,
-                    StatusDuration = Data?.StatusDuration ?? 0f,
+                    AppliedStatus = carriesStatus ? Data?.AppliedStatus ?? FTT.Core.StatusType.None : FTT.Core.StatusType.None,
+                    StatusDuration = carriesStatus ? Data?.StatusDuration ?? 0f : 0f,
                     StatusIntensity = Data?.StatusIntensity ?? 1f,
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f

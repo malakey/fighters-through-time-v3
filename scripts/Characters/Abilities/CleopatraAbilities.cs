@@ -457,15 +457,14 @@ namespace FTT.Characters.Abilities {
 
     /// <summary>
     /// Ultimate — Wrath of the Nile: a massive sandstorm/flood that engulfs the
-    /// arena around Cleopatra. The storm deals the authored HitCount ticks
-    /// (10 x 8 base at a 21-frame interval across the 210-frame active window)
-    /// through hurtbox queries with the shield-bypassing Ultimate attack class,
-    /// and the final tick leaves every caught target with the authored heavy
-    /// Venom (intensity 1.5 for 5 s). Venom rides only the last tick because
-    /// under the single-status rule earlier ticks would keep resetting the DoT
-    /// timer while the storm rages; applying it last lets the full-duration
-    /// poison survive the storm. Requires a full Ultimate meter, consumed on
-    /// cast.
+    /// arena around Cleopatra. C04/D15 (Package 13 W6): the storm deals the
+    /// authored HitCount cobra strikes (6 × 9 at a 21-frame interval) and then
+    /// the 12-damage sarcophagus finale through hurtbox queries with the
+    /// shield-bypassing Ultimate attack class, and the finale leaves every
+    /// caught target with the authored heavy Venom (intensity 2.0 for 3 s = 12,
+    /// counted in the 78 total). Venom rides only that one hit
+    /// (UltimateActivationRules.HitCarriesStatus) so it lands exactly once — in
+    /// both modes. Requires a full Ultimate meter, consumed on cast.
     /// </summary>
     public partial class CleopatraWrathOfTheNile : BaseSpecial {
 
@@ -477,7 +476,7 @@ namespace FTT.Characters.Abilities {
         private int _tickFramesRemaining;
         private Vector2 _stormCenter;
 
-        private int HitCap => Data?.HitCount > 0 ? Data.HitCount : 10;
+        private int HitCap => Data != null ? Data.CinematicHitCount : 7;
         private int TickIntervalFrames =>
             Data?.DamageTickIntervalFrames > 0 ? Data.DamageTickIntervalFrames : 21;
 
@@ -522,31 +521,32 @@ namespace FTT.Characters.Abilities {
                 if (_tickFramesRemaining <= 0) {
                     _tickFramesRemaining = TickIntervalFrames;
                     _hitsDone++;
-                    DealStormTick(_hitsDone >= HitCap);
+                    DealStormTick(_hitsDone);
                 }
             }
             base._PhysicsProcess(delta);
         }
 
-        private void DealStormTick(bool finalTick) {
+        private void DealStormTick(int hitIndex) {
+            bool carriesStatus = Data?.CinematicHitCarriesStatus(hitIndex) ?? hitIndex >= HitCap;
             foreach (Hurtbox hurtbox in QueryTargetHurtboxes()) {
                 HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "cleopatra_wrath_of_the_nile",
                     HitboxID = "sandstorm_tick",
                     AttackClass = AttackClass.Ultimate,
-                    Damage = (Data?.BaseDamage ?? 8f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = (Data?.CinematicHitDamage(hitIndex) ?? 9f) * Owner.StorySpecialDamageMultiplier,
                     Knockback = Vector2.Zero,
                     HitstunDuration = 0f,
                     HitOrigin = _stormCenter,
                     AttackerFacingRight = Owner.IsFacingRight,
-                    AppliedStatus = finalTick
+                    AppliedStatus = carriesStatus
                         ? Data?.AppliedStatus ?? FTT.Core.StatusType.Venom
                         : FTT.Core.StatusType.None,
-                    StatusDuration = Data?.StatusDuration > 0f ? Data.StatusDuration : 5f,
+                    StatusDuration = Data?.StatusDuration > 0f ? Data.StatusDuration : 3f,
                     // Story-only StatusDamage minors raise the heavy Venom's potency.
-                    StatusIntensity = (Data?.StatusIntensity ?? 1.5f)
-                        * (finalTick ? Owner.StoryStatusIntensityMultiplier : 1f),
+                    StatusIntensity = (Data?.StatusIntensity ?? 2f)
+                        * (carriesStatus ? Owner.StoryStatusIntensityMultiplier : 1f),
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.6f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.3f
                 });

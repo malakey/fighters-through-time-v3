@@ -7,10 +7,10 @@ using static GdUnit4.Assertions;
 namespace FTT.Tests.ContentValidation;
 
 /// <summary>
-/// Canonical content contract for Cleopatra's Wrath of the Nile ultimate:
-/// the authored resource carries the multi-hit storm structure (10 ticks of 8
-/// at a 21-frame interval across the 3.5 s active window) and the heavy Venom
-/// debuff (5 s at 1.5 intensity) that both modes consume.
+/// Canonical content contract for Cleopatra's Wrath of the Nile ultimate
+/// (C04, Package 13 W6): six 9-damage cobra strikes at a 21-frame interval,
+/// the 12-damage sarcophagus finale (D15), and the heavy Venom (3 s at 2.0
+/// intensity = 12) that rides the finale in both modes — 78 in all.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -24,24 +24,30 @@ public class CleopatraUltimateContentTests {
         AssertThat(data.CharacterID).IsEqual("cleopatra");
         AssertThat(data.Slot).IsEqual(AbilitySlot.Ultimate);
 
-        // Multi-hit storm: 10 ticks of 8 per-hit damage (80 total) at a
-        // 21-frame interval filling the 210-frame (3.5 s) active window.
-        AssertThat(data.BaseDamage).IsEqual(8f);
+        // Six cobras of 9 and the 12-damage slam finale (66 impacts) at a
+        // 21-frame interval filling the 147-frame (2.45 s) active window.
+        AssertThat(data.BaseDamage).IsEqual(9f);
         AssertThat(data.IsMultiHit).IsTrue();
-        AssertThat(data.HitCount).IsEqual(10);
+        AssertThat(data.HitCount).IsEqual(6);
+        AssertThat(data.FinaleDamage).IsEqual(12f);
+        AssertThat(data.FinaleLaunches).IsFalse();
+        AssertThat(data.UltimateImpactTotal).IsEqual(66f);
         AssertThat(data.DamageTickIntervalFrames).IsEqual(21);
-        AssertThat(data.Lifetime).IsEqual(3.5f);
-        AssertThat(data.ActiveFrames).IsEqual(210);
+        AssertThat(data.Lifetime).IsEqual(2.45f);
+        AssertThat(data.ActiveFrames).IsEqual(147);
         // The tick schedule must fit the authored active window exactly.
-        AssertThat(data.DamageTickIntervalFrames * data.HitCount).IsEqual(data.ActiveFrames);
+        AssertThat(data.DamageTickIntervalFrames * data.CinematicHitCount).IsEqual(data.ActiveFrames);
         // Not a projectile: the storm is an area effect, so no stray projectile
         // lifetime may contradict the zone timing.
         AssertThat(data.ProjectileLifetime).IsEqual(0f);
 
-        // Heavy Venom debuff: 5 s at 1.5 intensity (3 HP chip per second under
-        // the shared 2 x intensity Venom tick in both modes).
+        // Heavy Venom: 3 s at 2.0 intensity (4 HP per tick, three ticks = 12
+        // under the shared 2 x intensity Venom tick), and only the finale
+        // carries it.
         AssertThat(data.AppliedStatus).IsEqual(StatusType.Venom);
-        AssertThat(data.StatusDuration).IsEqual(5f);
-        AssertThat(data.StatusIntensity).IsEqual(1.5f);
+        AssertThat(data.StatusDuration).IsEqual(3f);
+        AssertThat(data.StatusIntensity).IsEqual(2f);
+        AssertThat(data.CinematicHitCarriesStatus(1)).IsFalse();
+        AssertThat(data.CinematicHitCarriesStatus(data.CinematicHitCount)).IsTrue();
     }
 }

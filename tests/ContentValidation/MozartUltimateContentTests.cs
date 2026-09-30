@@ -24,10 +24,13 @@ public class MozartUltimateContentTests {
         AssertThat(data.CharacterID).IsEqual("mozart");
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Cinematic);
 
-        // The bombardment: 10 meteors x 8 damage at an 18-frame cadence.
+        // M05 (Package 13 W6): 8 keys x 7 at an 18-frame cadence, then the
+        // 24-damage grand-chord finale (D15) = 80.
         AssertThat(data.IsMultiHit).IsTrue();
-        AssertThat(data.HitCount).IsEqual(10);
-        AssertThat(data.BaseDamage).IsEqual(8f);
+        AssertThat(data.HitCount).IsEqual(8);
+        AssertThat(data.BaseDamage).IsEqual(7f);
+        AssertThat(data.FinaleDamage).IsEqual(24f);
+        AssertThat(data.UltimateImpactTotal).IsEqual(80f);
         AssertThat(data.DamageTickIntervalFrames).IsEqual(18);
 
         // The final strike's launch; earlier meteors pin impulse-free.
@@ -35,15 +38,15 @@ public class MozartUltimateContentTests {
     }
 
     [TestCase]
-    public void SymphonyOfSorrowWindowFitsAllTenMeteors() {
+    public void SymphonyOfSorrowWindowFitsTheKeysAndTheFinale() {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/mozart/ultimate.tres");
         AssertObject(data).IsNotNull();
 
-        // The hover/bombardment window: 3 s (180 frames) active phase matching
-        // the authored Lifetime, exactly enough for 10 strikes 18 frames apart.
-        AssertThat(data.ActiveFrames).IsEqual(180);
-        AssertThat(data.Lifetime).IsEqual(3f);
-        AssertThat(data.HitCount * data.DamageTickIntervalFrames <= data.ActiveFrames).IsTrue();
+        // The hover/bombardment window: 2.7 s (162 frames) active phase matching
+        // the authored Lifetime, exactly enough for 9 strikes 18 frames apart.
+        AssertThat(data.ActiveFrames).IsEqual(162);
+        AssertThat(data.Lifetime).IsEqual(2.7f);
+        AssertThat(data.CinematicHitCount * data.DamageTickIntervalFrames <= data.ActiveFrames).IsTrue();
 
         // An ultimate consumes the full meter instead of running a cooldown,
         // and the meteors are strikes, not traveling projectiles.

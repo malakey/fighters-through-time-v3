@@ -79,6 +79,46 @@ namespace FTT.Combat {
 		[Export] public float Lifetime;
 		[Export] public float ProjectileLifetime = 5f;
 
+		[ExportGroup("Ultimate (A02 / D15)")]
+		/// <summary>
+		/// D15: the finale hit that follows the <see cref="HitCount"/> regular
+		/// hits of an Ultimate, read by both modes; 0 = no finale. The total is
+		/// <c>HitCount × BaseDamage + FinaleDamage</c>
+		/// (<see cref="UltimateActivationRules.ImpactTotal"/>).
+		/// </summary>
+		[Export] public float FinaleDamage;
+		/// <summary>D15: whether the finale is an authored launcher (M05).</summary>
+		[Export] public bool FinaleLaunches;
+		/// <summary>A02: the Fighter-mode activation strike's shape. Story never reads it except for the Mirror Paradox clone.</summary>
+		[Export] public UltimateActivationShape ActivationShape = UltimateActivationShape.Projectile;
+		/// <summary>A02: how far the activation strike reaches, in pixels (60 px = 1 world unit).</summary>
+		[Export] public float ActivationRange = 360f;
+		/// <summary>A02: the activation strike's box, in pixels.</summary>
+		[Export] public Vector2 ActivationHitboxSize = new(48f, 48f);
+		/// <summary>A02 wind-up (hyper-armored; gravity 0 if started airborne). Provisional 20.</summary>
+		[Export(PropertyHint.Range, "1,120,1")] public int ActivationWindupFrames = UltimateActivationRules.DefaultWindupFrames;
+		/// <summary>A02 active frames (hyper-armored, unblockable). Provisional 10.</summary>
+		[Export(PropertyHint.Range, "1,120,1")] public int ActivationActiveFrames = UltimateActivationRules.DefaultActiveFrames;
+		/// <summary>A02 whiff recovery; Echo Step cannot undo it. Provisional 45.</summary>
+		[Export(PropertyHint.Range, "0,240,1")] public int ActivationWhiffRecoveryFrames = UltimateActivationRules.DefaultWhiffRecoveryFrames;
+
+		/// <summary>D15: regular hits plus the finale, if any.</summary>
+		public int CinematicHitCount => UltimateActivationRules.CinematicHitCount(HitCount, FinaleDamage);
+
+		/// <summary>D15: damage of the 1-based cinematic hit.</summary>
+		public float CinematicHitDamage(int hitIndex) =>
+			UltimateActivationRules.HitDamage(hitIndex, HitCount, BaseDamage, FinaleDamage);
+
+		/// <summary>D15: true for the finale hit.</summary>
+		public bool IsFinaleHit(int hitIndex) => UltimateActivationRules.IsFinaleHit(hitIndex, HitCount, FinaleDamage);
+
+		/// <summary>D15: whether the 1-based hit carries <see cref="AppliedStatus"/>.</summary>
+		public bool CinematicHitCarriesStatus(int hitIndex) =>
+			UltimateActivationRules.HitCarriesStatus(hitIndex, HitCount, FinaleDamage, AppliedStatus);
+
+		/// <summary>D15: <c>HitCount × BaseDamage + FinaleDamage</c> (status damage excluded).</summary>
+		public float UltimateImpactTotal => UltimateActivationRules.ImpactTotal(HitCount, BaseDamage, FinaleDamage);
+
 		[ExportGroup("Persistent Object")]
 		[Export] public string PersistentObjectID = "";
 		[Export] public PackedScene PersistentObjectScene;
