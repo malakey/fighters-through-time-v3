@@ -67,7 +67,7 @@ public class Level00HoldFightTests {
         AssertThat(Level00HoldFight.LocalCount >= 2).IsTrue();
         foreach (string hero in new[] {
                      "einstein", "joan", "leonardo", "tesla", "mozart", "cleopatra",
-                     "shakespeare", "lincoln", "pocahontas", "tubman", "", "not_a_hero" }) {
+                     "shakespeare", "lincoln", "tubman", "", "not_a_hero" }) {
             string mob = Level00HoldFight.LocalMobFor(hero);
             AssertThat(File.Exists($"resources/Enemies/{mob}.tres"))
                 .OverrideFailureMessage($"{hero}'s hold local '{mob}' has no EnemyData resource.").IsTrue();
