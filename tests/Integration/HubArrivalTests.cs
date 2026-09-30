@@ -128,7 +128,13 @@ public class HubArrivalTests {
             names.Add(HubDialogueSelector.SarahSequenceFor(period));
             string okafor = HubDialogueSelector.OkaforSequenceFor(period);
             if (!string.IsNullOrEmpty(okafor)) names.Add(okafor);
+            // Package 13 W3: every per-line beat, the boundary scene and Wren.
+            foreach (HubDialogueSelector.HubLine line in HubDialogueSelector.SarahLinesFor(period)) {
+                names.Add(line.SequenceID);
+            }
+            names.Add(HubDialogueSelector.WrenSequenceFor(period));
         }
+        names.Add(HubDialogueSelector.ActIBoundary);
         foreach (string id in names) {
             AssertObject(set.Find(id))
                 .OverrideFailureMessage($"The selector names '{id}', which hub_dialogue.tres does not author.")
@@ -138,5 +144,50 @@ public class HubArrivalTests {
         DialogueSequenceData mozartSweep = set.FindSequence("hub.okafor_act2", "mozart");
         AssertString(mozartSweep.DialogueID).IsEqual("hub.okafor_act2@mozart");
         AssertString(set.FindSequence("hub.okafor_act2", "einstein").DialogueID).IsEqual("hub.okafor_act2");
+        // ...and the boundary scene carries the same swap (Princeton, 1955).
+        AssertString(set.FindSequence(HubDialogueSelector.ActIBoundary, "mozart").DialogueID)
+            .IsEqual("hub.act1_boundary@mozart");
+    }
+
+    /// <summary>
+    /// Package 13 W3 (S09/S11): Chief Engineer Wren has a post in the Training
+    /// Wing, and the wordless triage readout stands beside the portal with no
+    /// collision (it is a display, never a level select). A slotless hub still
+    /// builds it; with no campaign it reads the prologue state.
+    /// </summary>
+    [TestCase]
+    public void WrenHasAPostAndTheTriageReadoutStandsBesideThePortal() {
+        SceneTree tree = (SceneTree)Engine.GetMainLoop();
+        bool originalPaused = tree.Paused;
+        int originalSlot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+        GameManager.Instance.CurrentSession.ActiveSaveSlot = -1;
+        Node hub = null;
+        try {
+            hub = ResourceLoader.Load<PackedScene>(HubScenePath).Instantiate();
+            tree.Root.AddChild(hub);
+
+            var wren = hub.GetNodeOrNull<Area2D>(HubWorldController.WrenNodeName);
+            AssertObject(wren).OverrideFailureMessage("Chief Engineer Wren has no post in the hub.").IsNotNull();
+            var holodeck = hub.GetNodeOrNull<Node2D>("HolodeckConsole");
+            AssertThat(Mathf.Abs(wren.Position.X - holodeck.Position.X) < 400f)
+                .OverrideFailureMessage("Wren belongs in the Training Wing, beside the Holodeck.").IsTrue();
+
+            var readout = hub.GetNodeOrNull<HubTriageReadout>(HubTriageReadout.NodeName);
+            AssertObject(readout).OverrideFailureMessage("The triage readout is missing.").IsNotNull();
+            var portal = hub.GetNodeOrNull<Node2D>("TemporalPortal");
+            AssertThat(Mathf.Abs(readout.Position.X - portal.Position.X) < 300f)
+                .OverrideFailureMessage("The readout must stand beside the portal.").IsTrue();
+            foreach (Node child in readout.FindChildren("*", owned: false)) {
+                AssertThat(child is CollisionObject2D)
+                    .OverrideFailureMessage("The triage readout must be non-interactive.").IsFalse();
+            }
+        } finally {
+            if (hub != null && GodotObject.IsInstanceValid(hub)) {
+                hub.GetParent()?.RemoveChild(hub);
+                hub.Free();
+            }
+            GameManager.Instance.CurrentSession.ActiveSaveSlot = originalSlot;
+            tree.Paused = originalPaused;
+        }
     }
 }

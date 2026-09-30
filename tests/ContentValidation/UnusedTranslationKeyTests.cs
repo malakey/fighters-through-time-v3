@@ -66,7 +66,10 @@ public class UnusedTranslationKeyTests {
         ("hero_name_", "scripts/Core/DialogueTokens.cs", "$\"hero_name_{heroID}\""),
         ("hero_address_", "scripts/Core/DialogueTokens.cs", "$\"hero_address_{heroID}\""),
         ("hero_possessive_", "scripts/Core/DialogueTokens.cs", "$\"hero_possessive_{heroID}\""),
-        ("hero_home_era_", "scripts/Core/DialogueTokens.cs", "$\"hero_home_era_{heroID}\"")
+        ("hero_home_era_", "scripts/Core/DialogueTokens.cs", "$\"hero_home_era_{heroID}\""),
+        // Package 13 W3 (S07/S48): the whole-line acceptance and farewell families.
+        ("hero_accept_line_", "scripts/Core/DialogueTokens.cs", "$\"hero_accept_line_{heroID}\""),
+        ("hero_farewell_line_", "scripts/Core/DialogueTokens.cs", "$\"hero_farewell_line_{heroID}\"")
     };
 
     /// <summary>

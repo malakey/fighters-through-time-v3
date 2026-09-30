@@ -72,25 +72,32 @@ public class HubDialogueSelectorTests {
 
     [TestCase]
     public void TheFirstReturnOfAPeriodPlaysItsSetAndARepeatVisitDoesNot() {
+        // Package 13 W3 (S23/S35): Acts I and II are one line per visit, so the
+        // "period" check is now about visits. The per-line rules have their own
+        // suite (HubPerLineGatingTests); this pins the visit boundary.
         var save = new StorySaveData();
         HubPeriod actI = HubDialogueSelector.PeriodFor(CampaignLevel.Orleans, false);
+        Func<string, bool> allCompleted = _ => true;
 
-        // First return after Florence: the Act I set auto-plays.
-        string arrival = HubDialogueSelector.ArrivalSequenceFor(actI, save.ViewedDialogueIDs.Contains);
-        AssertString(arrival).IsEqual("hub.sarah_act1");
+        // First return after Florence: the Act I set's first line auto-plays.
+        string arrival = HubDialogueSelector.ArrivalSequenceFor(
+            actI, save.ViewedDialogueIDs.Contains, allCompleted, "level_02_orleans", save.LastHubLineVisit);
+        AssertString(arrival).IsEqual("hub.sarah_act1.1");
 
-        // DialogueManager's effect ledger records it on completion or confirmed skip.
+        // DialogueManager's effect ledger records it; the hub stamps the visit.
         save.ViewedDialogueIDs.Add(arrival);
+        save.LastHubLineVisit = "level_02_orleans";
 
-        // Repeat visit in the same period (after Orléans, before Chicago): nothing auto-plays.
-        HubPeriod stillActI = HubDialogueSelector.PeriodFor(CampaignLevel.Chicago, false);
-        AssertString(HubDialogueSelector.ArrivalSequenceFor(stillActI, save.ViewedDialogueIDs.Contains))
+        // A repeat arrival in the SAME visit (a Collapse or Holodeck return): nothing.
+        AssertString(HubDialogueSelector.ArrivalSequenceFor(
+                actI, save.ViewedDialogueIDs.Contains, allCompleted, "level_02_orleans", save.LastHubLineVisit))
             .IsEqual("");
 
-        // Crossing the Act I boundary is a new period with a fresh set.
+        // Crossing the Act I boundary is a new period: the boundary scene comes first.
         HubPeriod actII = HubDialogueSelector.PeriodFor(CampaignLevel.Pompeii, false);
-        AssertString(HubDialogueSelector.ArrivalSequenceFor(actII, save.ViewedDialogueIDs.Contains))
-            .IsEqual("hub.sarah_act2");
+        AssertString(HubDialogueSelector.ArrivalSequenceFor(
+                actII, save.ViewedDialogueIDs.Contains, allCompleted, "level_06_pompeii", save.LastHubLineVisit))
+            .IsEqual("hub.act1_boundary");
     }
 
     [TestCase]

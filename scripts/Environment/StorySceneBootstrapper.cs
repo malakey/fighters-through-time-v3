@@ -20,6 +20,9 @@ namespace FTT.Environment {
 
         /// <summary>Scene music + environment cues (Package 8 B5). Null when the scene has no set.</summary>
         public StoryAudioDirector Audio;
+
+        /// <summary>Package 13 W3 (S02): the skip path's first-use tooltips. Level-only.</summary>
+        public FirstUseTooltipPresenter Tooltips;
     }
 
     public static class StorySceneBootstrapper {
@@ -80,6 +83,9 @@ namespace FTT.Environment {
                     Dialogue = services.Dialogue
                 };
                 sceneRoot.AddChild(services.TimeFreeze);
+
+                // Package 13 W3 (S02): inert unless this slot skipped calibration.
+                services.Tooltips = FirstUseTooltipPresenter.Attach(sceneRoot, sceneHasTimeFreeze: true);
             }
 
             return services;

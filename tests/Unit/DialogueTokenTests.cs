@@ -86,8 +86,8 @@ public class DialogueTokenTests {
         Dictionary<string, string> rows = RowMap();
         // design-godot.md §16 Level 0: "...Where am I? {HomeEraName}? ..."
         AssertString(rows["dlg_l00_intro_2"]).Contains(DialogueTokens.HomeEraName);
-        // §16 Level 15 ending: "Thank you, {HeroAddressName}."
-        AssertString(rows["dlg_l15_ending_4"]).Contains("Thank you, " + DialogueTokens.HeroAddressName + ".");
+        // §16 Epilogue, the Time-Ship send-off (S39): "Thank you, {HeroAddressName}."
+        AssertString(rows["dlg_epilogue_sendoff_3"]).Contains("Thank you, " + DialogueTokens.HeroAddressName + ".");
         // M12: sealing the moment is what shuts the siphons and frees the locals.
         AssertString(rows["dlg_l00_intro_5"]).Contains("Seal the moment and the siphons die");
         AssertThat(rows["dlg_l15_ending_2"].Contains("dissolve from guards", StringComparison.Ordinal))

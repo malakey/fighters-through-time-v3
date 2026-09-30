@@ -203,6 +203,8 @@ namespace FTT.Environment {
             BuildHolodeck();
             BuildSarahNPC();
             BuildOkaforNPC();
+            BuildWrenNPC();
+            BuildTriageReadout();
             BuildDecorations();
         }
 
@@ -543,6 +545,12 @@ namespace FTT.Environment {
             _player.Name = "Player";
             _player.Position = ArrivalSpawnPosition;
             AddChild(_player);
+            // Package 13 W3 (S39): the last evening aboard. The hero surrendered
+            // the charge at the Founding and came aboard mortal — no aura.
+            if (IsCampaignCompleted()) {
+                _player.GetNodeOrNull<FTT.Combat.GlowPresentationController>(
+                    FTT.Combat.GlowPresentationController.NodeName)?.SetHeroAura(false);
+            }
 
             var camera = new Camera2D();
             camera.Name = "PlayerCamera";
@@ -642,19 +650,41 @@ namespace FTT.Environment {
         /// <summary>Post-campaign hub state: the Temporal Portal stands down once the timeline is restored.</summary>
         public static bool IsCampaignCompleted() => SaveManager.Instance?.IsActiveCampaignCompleted() == true;
 
+        /// <summary>The post-campaign portal notice: steady, and ready to take the hero home.</summary>
         public const string TimelineRestoredMessageKey = "hub_portal_timeline_restored";
 
-        /// <summary>What interacting with the Temporal Portal does right now.</summary>
-        public enum HubPortalAction { OpenMission, TimelineRestartChoice, TimelineRestored }
+        /// <summary>
+        /// What interacting with the Temporal Portal does right now. Package 13 W3
+        /// (S39) replaced the post-campaign <c>TimelineRestored</c> dead end with
+        /// <see cref="GoHome"/>: the completed save's portal replays the send-off
+        /// and the credits.
+        /// </summary>
+        public enum HubPortalAction { OpenMission, TimelineRestartChoice, GoHome }
 
         /// <summary>
         /// Portal gating, kept pure so it is testable without a hub scene.
         /// A completed campaign wins over everything: there is no next mission
-        /// and no collapsed level left to restart.
+        /// and no collapsed level left to restart — only the way home.
         /// </summary>
         public static HubPortalAction ResolvePortalAction(bool campaignCompleted, bool pendingTimelineRestart) {
-            if (campaignCompleted) return HubPortalAction.TimelineRestored;
+            if (campaignCompleted) return HubPortalAction.GoHome;
             return pendingTimelineRestart ? HubPortalAction.TimelineRestartChoice : HubPortalAction.OpenMission;
+        }
+
+        /// <summary>The Go home replay while it runs. Test seam.</summary>
+        public CampaignCompletionSequence GoHomeSequence { get; private set; }
+
+        /// <summary>
+        /// S39: <b>Go home</b> replays the Time-Ship send-off and the credits, then
+        /// returns to the main menu. The completion flag is already written; the
+        /// After-Credits Homecoming has played once and does not replay.
+        /// </summary>
+        public CampaignCompletionSequence GoHome() {
+            if (GoHomeSequence != null && IsInstanceValid(GoHomeSequence)) return GoHomeSequence;
+            ShowPortalMessage(TimelineRestoredMessageKey);
+            if (_player != null && IsInstanceValid(_player)) _player.ProcessMode = ProcessModeEnum.Disabled;
+            GoHomeSequence = CampaignCompletionSequence.BeginGoHome(this, _services?.Dialogue);
+            return GoHomeSequence;
         }
 
         /// <summary>
@@ -698,8 +728,15 @@ namespace FTT.Environment {
                     OpenHolodeckConsole();
                     return;
                 }
+                if (GoHomeSequence != null && IsInstanceValid(GoHomeSequence)) return;
                 if (_playerInSarah) {
-                    _services?.Dialogue?.StartSequence(HubDialogueSelector.SarahSequenceFor(CurrentPeriod()));
+                    StorySaveData ledger = ActiveCampaignSave();
+                    _services?.Dialogue?.StartSequence(HubDialogueSelector.SarahTalkSequenceFor(
+                        CurrentPeriod(), id => ledger?.ViewedDialogueIDs?.Contains(id) == true));
+                    return;
+                }
+                if (_playerInWren) {
+                    _services?.Dialogue?.StartSequence(HubDialogueSelector.WrenSequenceFor(CurrentPeriod()));
                     return;
                 }
                 if (_playerInOkafor) {
@@ -725,8 +762,8 @@ namespace FTT.Environment {
                     switch (ResolvePortalAction(
                         IsCampaignCompleted(),
                         StoryManager.Instance?.HasPendingTimelineRestart == true)) {
-                        case HubPortalAction.TimelineRestored:
-                            ShowPortalMessage(TimelineRestoredMessageKey);
+                        case HubPortalAction.GoHome:
+                            GoHome();
                             break;
                         case HubPortalAction.TimelineRestartChoice:
                             ShowTimelineRestartChoice();
@@ -850,9 +887,99 @@ namespace FTT.Environment {
             if (!IsInstanceValid(this) || !IsInsideTree()) return;
             StorySaveData save = ActiveCampaignSave();
             if (save == null) return;
-            string arrival = HubDialogueSelector.ArrivalSequenceFor(
-                CurrentPeriod(), id => save.ViewedDialogueIDs?.Contains(id) == true);
-            if (!string.IsNullOrEmpty(arrival)) _services?.Dialogue?.StartSequence(arrival);
+            string arrival = ResolveArrivalSequence(save);
+            if (string.IsNullOrEmpty(arrival)) return;
+            if (_services?.Dialogue?.StartSequence(arrival) == true
+                && HubDialogueSelector.IsPerVisitLine(arrival)) {
+                // Package 13 W3 (S23/S35): one line per visit — stamp this visit
+                // so a Collapse or Holodeck return does not play the next line.
+                save.LastHubLineVisit = CurrentVisitKey();
+            }
+        }
+
+        /// <summary>
+        /// The next mission's level ID: what makes a hub arrival a new "visit"
+        /// for the per-line Sarah sets. A Collapse or Holodeck return keeps it.
+        /// </summary>
+        public static string CurrentVisitKey() =>
+            StoryManager.GetLevelID(StoryManager.Instance?.CurrentLevel ?? CampaignLevel.Tutorial);
+
+        /// <summary>The arrival beat for <paramref name="save"/> right now. Test seam.</summary>
+        public static string ResolveArrivalSequence(StorySaveData save) {
+            if (save == null) return "";
+            return HubDialogueSelector.ArrivalSequenceFor(
+                CurrentPeriod(),
+                id => save.ViewedDialogueIDs?.Contains(id) == true,
+                levelID => save.CompletedLevels?.Contains(levelID) == true,
+                CurrentVisitKey(),
+                save.LastHubLineVisit);
+        }
+
+        // === Package 13 W3: Chief Engineer Wren (S09) and the triage readout (S11) ===
+
+        /// <summary>Chief Engineer Wren's post in the Training Wing, beside the Holodeck.</summary>
+        public const string WrenNodeName = "ChiefEngineerWren";
+        public static readonly Vector2 WrenPosition = new(2860, 860);
+
+        private Area2D _wrenArea;
+        private bool _playerInWren;
+
+        private void BuildWrenNPC() {
+            _wrenArea = new Area2D {
+                Name = WrenNodeName,
+                Position = WrenPosition,
+                CollisionLayer = CollisionLayers.Trigger,
+                CollisionMask = CollisionLayers.Player
+            };
+            _wrenArea.AddChild(new CollisionShape2D {
+                Shape = new RectangleShape2D { Size = new Vector2(90, 100) },
+                Position = new Vector2(0, -50)
+            });
+            _wrenArea.AddChild(new ColorRect {
+                Size = new Vector2(34, 62),
+                Position = new Vector2(-17, -62),
+                Color = new Color(0.6f, 0.45f, 0.25f)
+            });
+            _wrenArea.AddChild(new ColorRect {
+                Size = new Vector2(22, 18),
+                Position = new Vector2(-11, -80),
+                Color = new Color(0.75f, 0.58f, 0.44f)
+            });
+            var npcLabel = new Label {
+                Text = Tr("hub_npc_wren"),
+                Position = new Vector2(-80, -104),
+                CustomMinimumSize = new Vector2(160, 20),
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            npcLabel.AddThemeFontSizeOverride("font_size", 10);
+            npcLabel.AddThemeColorOverride("font_color", new Color(0.95f, 0.75f, 0.45f));
+            _wrenArea.AddChild(npcLabel);
+            _wrenArea.BodyEntered += body => {
+                if (body is PlayerController) _playerInWren = true;
+            };
+            _wrenArea.BodyExited += body => {
+                if (body is PlayerController) _playerInWren = false;
+            };
+            AddChild(_wrenArea);
+        }
+
+        /// <summary>The triage readout while the hub is up. Test seam.</summary>
+        public HubTriageReadout TriageReadout { get; private set; }
+
+        /// <summary>Beside the portal (x = 3400), on the Bridge side.</summary>
+        public static readonly Vector2 TriageReadoutPosition = new(3260, 880);
+
+        private void BuildTriageReadout() {
+            TriageReadout = new HubTriageReadout {
+                Name = HubTriageReadout.NodeName,
+                Position = TriageReadoutPosition
+            };
+            AddChild(TriageReadout);
+            StorySaveData save = ActiveCampaignSave();
+            TriageReadout.Build(
+                StoryManager.Instance?.CurrentLevel ?? CampaignLevel.Tutorial,
+                IsCampaignCompleted(),
+                level => save?.CompletedLevels?.Contains(StoryManager.GetLevelID(level)) == true);
         }
 
         /// <summary>

@@ -114,7 +114,7 @@ public class Level13ContentTests {
     // === Dialogue ===
 
     [TestCase]
-    public void TheDialogueSetCarriesTheThreeAuthoredBeats() {
+    public void TheDialogueSetCarriesTheFourAuthoredBeats() {
         var set = AuthoredResources.Load<DialogueSetData>(DialoguePath);
         AssertObject(set).IsNotNull();
         AssertString(set.DialogueSetID).IsEqual("dialogue_level_13");
@@ -122,8 +122,10 @@ public class Level13ContentTests {
         var ids = new List<string>();
         foreach (DialogueSequenceData sequence in set.Sequences) ids.Add(sequence.DialogueID);
         // No preboss beat here: plan section 2.3 gives that only to 5, 12 and 15.
+        // Package 13 W3 (S47): the Eraser-pair line joins the three original beats.
         AssertThat(ids).ContainsExactlyInAnyOrder(
-            "level_13.entrance", "level_13.boss_intro", "level_13.exit");
+            "level_13.entrance", "level_13.eraser_pair", "level_13.boss_intro", "level_13.exit");
+        AssertString(Level13Controller.EraserPairDialogueID).IsEqual("level_13.eraser_pair");
     }
 
     [TestCase]
@@ -182,25 +184,23 @@ public class Level13ContentTests {
         // to fail here.
         DialogueSequenceData intro = SequenceNamed("level_13.boss_intro");
         AssertObject(intro).IsNotNull();
-        AssertThat(intro.SpeakerNameKeys).ContainsExactly("speaker_mirror_paradox", "speaker_player");
+        // Package 13 W3 (S45/S47): Sarah names it over the Beacon and the hero answers.
+        AssertThat(intro.SpeakerNameKeys).ContainsExactly("speaker_sarah", "speaker_player");
 
-        // V7.5: there is no mid-campaign power loss, so the Mirror is not the
-        // resonance the hero shed. It is the model the Unbound built from a
-        // thousand simulations of the one legend that got away.
+        // S45: the Mirror is the Void's reflection — the hero's own resonance
+        // thrown back — not a model anyone built. V7.5 still holds: it is not the
+        // resonance the hero shed, because there is no mid-campaign power loss.
         string mirror = LocalizationValue("dlg_l13_boss_intro_1").ToLowerInvariant();
-        AssertString(mirror).Contains("got away");
-        AssertString(mirror).Contains("model");
+        AssertString(mirror).Contains("your own resonance, thrown back at you");
+        AssertString(mirror).Contains("mirror");
+        AssertString(LocalizationValue("dlg_l13_boss_intro_2").ToLowerInvariant())
+            .Contains("how it fights");
 
-        // The exit states the unease in the player's own voice rather than
-        // narrating it: somebody has been studying them for a very long time.
-        string doubt = LocalizationValue("dlg_l13_exit_3").ToLowerInvariant();
-        AssertString(doubt).Contains("fought like me");
-        AssertString(doubt).Contains("studying me");
-
-        // ...and hands off to Level 14 rather than to a restored era: nothing living
-        // was ever caught in the Void, so there are no locals to send home.
-        string handoff = LocalizationValue("dlg_l13_exit_5").ToLowerInvariant();
-        AssertString(handoff).Contains("bastion");
+        // The exit hands off to Level 14 at the Bastion's gate rather than to a
+        // restored era: nothing living was ever caught in the Void.
+        AssertString(LocalizationValue("dlg_l13_exit_1").ToLowerInvariant()).Contains("fortress");
+        AssertString(LocalizationValue("dlg_l13_exit_2").ToLowerInvariant()).Contains("where i'm going");
+        AssertString(LocalizationValue("dlg_l13_eraser_1").ToLowerInvariant()).Contains("erasers");
     }
 
     // === Encounter economy (locked by docs/DUST_ECONOMY.md) ===

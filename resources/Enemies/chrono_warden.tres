@@ -1,7 +1,9 @@
 ; V7.5 lore note (Package 11, plan section 2.3): this enemy's name predates the
 ; V7.5 "Wardens" faction naming and is deliberately RETAINED - in fiction it is a
-; stolen title, worn mockingly by an Unbound elite. Do not rename the resource, the
-; EnemyID, or enemy_chrono_warden_name.
+; stolen title, worn mockingly by a Severed elite. Package 13 W3 (S46): the theft is
+; literal - the Severed were founded by a Warden, Commander Vale, who deserted with
+; the unmooring method and led the secession; his officers kept the rank they walked
+; out with. Do not rename the resource, the EnemyID, or enemy_chrono_warden_name.
 [gd_resource type="Resource" script_class="EnemyData" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyData.cs" id="1"]

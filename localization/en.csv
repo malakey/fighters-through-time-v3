@@ -143,7 +143,7 @@ boss_tragedy_king_name,The Tragedy King
 boss_siege_cannon_name,The Siege Cannon
 boss_gravity_overseer_name,The Gravity Overseer
 boss_archive_prime_name,The Forge Sentinel
-boss_apex_eraser_name,The First Unbound
+boss_apex_eraser_name,The First Severed
 boss_mirror_paradox_name,The Mirror Paradox
 enemy_ability_shock_pike_name,Shock-Pike Thrust
 enemy_ability_holo_bolt_name,Holographic Bolt
@@ -399,14 +399,14 @@ emotion_determined,Determined
 emotion_shocked,Shocked
 emotion_confused,Confused
 emotion_injured,Injured
-dlg_l00_intro_1,"Welcome back to reality, traveler. Or rather, what's left of it. I am Sarah, commander of the Meridian's Wardens. Breathe — we caught you mid-transfer. Your body is still deciding when it is."
-dlg_l00_intro_2,"...Where am I? {HomeEraName}? The sky... it tore apart, and something pulled."
-dlg_l00_intro_3,"An extraction beam. The ones who fired it call themselves the Unbound — a sect from my century that went to war over the right to touch the past, and is losing. Losing makes them desperate. Now they attack history itself: cracking open its pivotal moments and draining them, remaking time in their favor. You were a target. You are the one we reached in time."
-dlg_l00_intro_4,"Then we must stop them. But what of the soldiers I saw? They looked like my people, but... wrong. Their eyes glowed, their weapons hummed with light."
-dlg_l00_intro_5,"The Unbound's doing. Where their siphons deploy, they neural-link the local inhabitants and force them to defend the machines as 'Altered Mobs' — steam automatons overcharged with chronal energy, knights with energy shields. Alongside them you will face the Unbound's own infantry from the future. Seal the moment and the siphons die — the link breaks."
+dlg_l00_intro_1,"Welcome back to reality, traveler. Or rather, what's left of it. I am Sarah, commander of the Wardens. Breathe — we caught you mid-transfer. Your body is still deciding when it is."
+dlg_l00_intro_2,"...That voice. You were in the light with me. Where am I? {HomeEraName}? The sky... it tore apart, and something pulled."
+dlg_l00_intro_3,"An extraction beam. The ones who fired it call themselves the Severed — a sect from my century that went to war over the right to touch the past, and is losing. Losing makes them desperate. Now they attack history itself: cracking open its pivotal moments and draining them, remaking time in their favor. You were a target. You are the one we reached in time."
+dlg_l00_intro_4,"And the people who came for me — they were of my own time, but... wrong. Their eyes glowed cold, and they did not know me."
+dlg_l00_intro_5,"The Severed's doing. Where their siphons deploy, they neural-link the local inhabitants and force them to defend the machines. We call them the Linked — steam automatons overcharged with chronal energy, knights with energy shields. Alongside them you will face the Severed's own infantry from the future. Seal the moment and the siphons die — the link breaks."
 dlg_l00_intro_6,"Time protects itself. When they tore your moment open, history armed the only anchor it had left — you. Everything your era is poured itself into its legend rather than let them take it. We call it Temporal Resonance."
 dlg_l00_mobility_1,"Your combat resonance is calibrated. Now let's test your spatial awareness — you'll need every advantage to navigate the fractured timelines."
-dlg_l00_complete_1,"Calibration complete. The time portals are unlocked — return to the bridge and choose your first destination."
+dlg_l00_complete_1,"Where I come from, the streets are clean, lives are long, and the law says the past belongs to everyone. The Severed call that a cage. After today, you can decide for yourself."
 dlg_l01_entrance_1,"Florence... it's beautiful, but I hear the hum of machinery. These scaffoldings aren't from my books."
 dlg_l01_entrance_2,Stay alert. The Unbound have deployed a siphon in Da Vinci's workshop. The city guards have been neural-linked. They are armed with shock-pikes. Do not let their electrical discharges lock your movements.
 dlg_l01_boss_1,You dare interrupt the harvest? The Unbound have promised Florence eternity — and promised me your resonance.
@@ -415,8 +415,7 @@ dlg_l01_exit_1,"The siphon is shattered. The energy is dispersing."
 dlg_l01_exit_2,"Outstanding. With the siphon gone, the neural-link is broken. The altered guards will wake with nothing but a headache, thinking it was a strange dream."
 dlg_l01_exit_3,"And the master of this workshop? Half-built wonders, ink still warm on the drafting table... and no Da Vinci. Where is he?"
 dlg_l01_exit_4,...I don't know. The record says he never left this room in 1503. Yet the era stands — as if history is holding its breath for him. Come home. I need to look at the other eras.
-dlg_hub_sarah_1,"The bridge is yours, {HeroAddressName}. This ship is cut off from my own century, so what you see is what we have — the Chronal Repository will bank your dust, and the Holodeck can spar you against simulated foes."
-dlg_hub_sarah_2,"When you are ready, the Temporal Portal is charged for your next destination. History is waiting."
+dlg_hub_sarah_1,"Florence, 1503. Of every era they struck, it's failing fastest. One ship, one of you — so we go where we'd lose the most. Go."
 hud_rewinds,Rewinds: {0}
 hud_checkpoint_reached,CHECKPOINT REACHED
 results_level_complete,LEVEL COMPLETE
@@ -466,10 +465,10 @@ campaign_level_globe,"London 1599 — The Globe Theatre"
 campaign_level_gettysburg,"Gettysburg 1863 — The Turning Point"
 campaign_level_lunar,"Lunar Landing 1969 — Sea of Tranquility"
 campaign_level_chronal_void,The Chronal Void
-campaign_level_neo_earth,The Unbound Bastion
+campaign_level_neo_earth,The Severed Bastion
 campaign_level_alexandria,The Meridian Founding
-hub_campaign_complete,The timeline is whole. No missions remain.
-hub_portal_timeline_restored,TEMPORAL PORTAL DORMANT — the timeline is restored.
+hub_campaign_complete,The last evening aboard. The portal is ready to take you home.
+hub_portal_timeline_restored,TEMPORAL PORTAL STEADY — press Interact to go home.
 level_door_locked,SEALED
 credits_title,FIGHTERS THROUGH TIME
 credits_role_direction,Direction
@@ -752,7 +751,7 @@ void_objective_cross_rift,Cross the rift and find the far corridor
 void_objective_drift,Ride the loose era fragments — the shelf below is pooled with stalled time
 void_objective_face_mirror,Step into the stabilised arena
 void_objective_defeat_mirror,Defeat the Mirror Paradox
-void_objective_complete,"The corridor is open. Return to the Time-Ship."
+void_objective_complete,The corridor is open. The Bastion waits.
 void_shard_orleans,ORLÉANS — BATTLEMENT STONE
 void_shard_paris,PARIS — BASTILLE IRONWORK
 void_shard_pompeii,POMPEII — BASALT STEP
@@ -768,18 +767,12 @@ void_shard_florence_gear,FLORENCE — TURNING GEAR (ADRIFT)
 void_shard_titanic_deck,TITANIC — BOAT DECK (ADRIFT)
 void_shard_lunar_gantry,TRANQUILITY — LANDING GANTRY (ADRIFT)
 void_shard_globe_stage,THE GLOBE — STAGE BOARDS (ADRIFT)
-speaker_mirror_paradox,The Mirror Paradox
-dlg_l13_entrance_1,"There is no ground here. There is no here here — only pieces. That is the flag from Tranquility Base, and that is a Bastille door, and they are falling past each other without either of them falling down."
-dlg_l13_entrance_2,"You are between dimensions, {HeroAddressName}. The trace we pulled off the Overseer runs straight through it — the Unbound cut a corridor from their own century back through every fracture they ever made, and this is the spoil heap. Head east. The far side opens on the fortress."
-dlg_l13_entrance_3,"Then I walk east on Orléans stone and Titanic decking. Tell me the moment the gravity is about to turn over."
-dlg_l13_boss_intro_1,You are the one that got away. They modelled you a thousand times to find out how — and I am the model that kept getting up.
-dlg_l13_boss_intro_2,Then you know exactly how I fight. So do I. Come on.
-dlg_l13_exit_1,"It went down the way I would have gone down. Same guard, same tell, same half-second too late. I have never had to watch myself lose before."
-dlg_l13_exit_2,"The corridor is holding. There was no siphon in here to shatter — the rift stopped tearing the moment that thing stopped drawing on it. And nothing living was ever caught in the Void, so there is nobody down there to send home. For once I have no casualty list to read you."
-dlg_l13_exit_3,"It fought like me, Sarah. Every guard, every tell. Somebody has been studying me long enough to build that."
-dlg_l13_exit_4,"Long enough to build it a thousand times over, by the look of this corridor. They are not improvising, and they have not been improvising since the first strike. The far end of this is their front door, and it is standing open."
-dlg_l13_exit_5,"Then let it be me who walks through it. Take me to the Bastion, Commander."
-neo_earth_level_title,The Unbound Bastion
+dlg_l13_entrance_1,Something in here is pulling at you. Your resonance is holding — keep it that way.
+dlg_l13_boss_intro_1,"That's your signature — your own resonance, thrown back at you. The Void's a mirror in there."
+dlg_l13_boss_intro_2,Then I know exactly how it fights.
+dlg_l13_exit_1,That's their fortress. The trace ends at its heart.
+dlg_l13_exit_2,Then that's where I'm going.
+neo_earth_level_title,The Severed Bastion
 neo_earth_room_breach_gallery,Breach Gallery — Outer Rampart
 neo_earth_room_containment_wing,The Extraction Hall
 neo_earth_room_core_approach,Forge Spine — Core Approach
@@ -794,16 +787,12 @@ neo_earth_pocket_alpha,ANTI-GRAV CONTAINMENT — ALPHA
 neo_earth_pocket_beta,ANTI-GRAV CONTAINMENT — BETA
 neo_earth_pocket_gamma,ANTI-GRAV CONTAINMENT — GAMMA
 speaker_archive_prime,The Forge Sentinel
-dlg_l14_entrance_1,"There is no sky here. No ground either — just the fortress, hanging in the space between one century and the next."
-dlg_l14_entrance_2,"That is the Bastion, {HeroAddressName}. Not a stolen era: the place they built outside all of them, and the room every siphon in history reported back to. It was made to keep people out, so the perimeter will be honest about it — security lattices on a fixed cycle, and anti-gravity containment fields they use to shift cargo. Read a lattice before you walk it. And mind the pockets: they will lift you a great deal further than you expect."
-dlg_l14_entrance_3,"Then let us walk into the one place they never rehearsed losing."
-dlg_l14_boss_intro_1,"You are a rounding error that learned to knock. I have catalogued every version of this conversation, and in the ones that matter you were filed a long time ago."
-dlg_l14_boss_intro_2,"You have catalogued an awful lot of people who never got to answer you. I am the answer."
-dlg_l14_exit_1,The intake is dark. Every siphon line in the Bastion went slack at once.
-dlg_l14_exit_2,"Confirmed — and the cradles are still holding. I want you to hear that part: we could not cut one of them loose, and the engine at the core is still charged. They come home when it dies, and not one minute before."
-dlg_l14_exit_3,"Then it dies today. The whole hall pulled at me on the way out, Sarah, and I am still carrying every scrap I took back off them."
-dlg_l14_exit_4,"Good, because there is exactly one route left and it is theirs. The Forge is firing, and the channel it opens only exists while it fires. We ride it in."
-dlg_l14_exit_5,"Then put me in the channel, Commander. One jump left, and nothing after it."
+dlg_l14_entrance_1,You're inside. The field's stronger here — close their intake valves if you can reach them.
+dlg_l14_entrance_2,"Whatever they've been feeding, it's in here."
+dlg_l14_boss_intro_1,INTRUDER: LEGEND-CLASS. CRADLE PROTOCOL ENGAGED.
+dlg_l14_exit_1,"The Forge is firing — that channel runs all the way to its target. If you're going, go now."
+dlg_l14_exit_2,Where does it lead?
+dlg_l14_exit_3,...Somewhere I've only read about. The day the Meridian was founded.
 alexandria_level_title,LEVEL 15: THE MERIDIAN FOUNDING
 alexandria_room_portico,THE FIRING CHANNEL
 alexandria_room_stacks,THE FOUNDING TERRACES
@@ -813,30 +802,26 @@ alexandria_objective_reach_anchor,Ride the firing channel down to the Meridian F
 alexandria_objective_stacks,Climb the founding terraces and force a way east
 alexandria_objective_escape,RUN — the channel is closing behind you
 alexandria_objective_rotunda,Clear the guard at the anchor seat
-alexandria_objective_defeat_boss,Defeat the First Unbound!
+alexandria_objective_defeat_boss,Defeat the First Severed!
 alexandria_objective_restore,Seal the timeline at the half-seated Prime Anchor
 alexandria_objective_complete,The Prime Anchor is shattered. Every thread goes home.
 alexandria_anchor_dormant,PRIME ANCHOR — HELD
 alexandria_anchor_ready,PRIME ANCHOR — EXPOSED
 alexandria_interaction_insert_core,Press Interact to seal the timeline
-speaker_apex_eraser,The First Unbound
+speaker_apex_eraser,The First Severed
 speaker_narration,Narration
-dlg_l15_entrance_1,"This is no era I can read. There is a city being founded down there, under a sky that has not decided what century it is."
-dlg_l15_entrance_2,"The founding day of the Meridian, {HeroAddressName} — everything my order ever was starts this morning. The Forge fired at it, and the channel you rode in on is the shot. The First Unbound is already at the seat with the Prime Anchor half in."
-dlg_l15_entrance_3,Then we finish it where they started it.
-dlg_l15_preboss_1,"The seat is through that door. Everything you have taken back since Florence is riding in you right now, and it is the one weight their anchor was never built to out-hold."
-dlg_l15_preboss_2,And the First Unbound?
-dlg_l15_preboss_3,"Standing over the stone with three phases of Unbound doctrine and a war it refuses to have lost. This is the last door, {HeroAddressName}. There is nothing after this one."
-dlg_l15_boss_intro_1,"You are a footnote that learned to walk. I have unwritten empires, languages, entire centuries of a species that never noticed the subtraction. This morning I unwrite the order that beat me — and then I come back for the line in the ledger with your name on it."
-dlg_l15_boss_intro_2,You have been paying for me with other people's centuries since the first day. I am here to close the account.
-dlg_l15_postboss_1,"It is down — and the Anchor is exposed, half in and still holding. That is it, {HeroAddressName}. Walk to the stone and seal it. Everything you have carried since the workshop goes into that one press."
+dlg_l15_entrance_1,You're through. That's — that's the Founding. The first day. I've only ever seen the paintings.
+dlg_l15_entrance_2,The channel's still pulling you toward the seat point. Break their pylons before it drags you in.
+dlg_l15_entrance_3,Then let's make sure your paintings stay true.
+dlg_l15_boss_intro_1,Little legend. You rode my own beam all the way down.
+dlg_l15_boss_intro_2,...I know that voice. Commander Vale?
+dlg_l15_postboss_1,"It is down — and the Anchor is exposed, half in and still holding. That is it, {HeroAddressName}. Walk to the stone and seal it. Everything you have carried since Florence goes into that one press."
 dlg_l15_postboss_2,Every era. All the way back.
 dlg_l15_ending_1,It's shattering! The Forge is drinking its own backlash — the cradles are opening! The resonance — all of it — it's going home!
 dlg_l15_ending_2,"Threads of light arc out of the collapsing Prime Anchor and across every era. In Renaissance Florence, in Roman Pompeii, on the fields of Gettysburg, the fracture scars heal and the people lost to the extraction step back into their streets. {CaptiveName1} wakes in their own moment, then {CaptiveName2} — and every other legend, and the hundreds behind them, dissolves into golden light and reappears each in their own moment."
 dlg_l15_ending_3,The resonance... it was never mine. It was history's — held in trust. Take it back.
-dlg_l15_ending_4,"The timelines are sealed. The war is over — and the future you saved is the one you're standing in. Thank you, {HeroAddressName}. You will wake where they tried to take you from. You will remember the Time-Ship, the battle, and the friends you fought beside... but the rifts are closed forever. You are going home."
-dlg_l15_ending_5,History... is ours to write now.
-dlg_l15_ending_6,"{HeroName} disappears — last of all the legends. The Founding's sky clears, and the Meridian's first day proceeds, untouched."
+dlg_l15_ending_4,We've got you. Come aboard — one last time.
+dlg_l15_ending_6,"The Founding's sky clears, and the Meridian's first day proceeds, untouched."
 common_confirm,Confirm
 common_cancel,Cancel
 fighter_countdown_digit,{0}
@@ -952,8 +937,7 @@ pause_restart_confirm,Restart the level from the beginning? All Chronal Dust ear
 tutorial_step_block,Calibration: hold Block to absorb the dummy's telegraphed swipes ({0}/{1})
 dlg_l00_block_1,Attacks calibrated. Now defense. The dummy will telegraph slow swipes - hold Block to absorb them and watch your shield charges fall with each impact.
 dlg_l00_block_2,"Careful: three absorbed hits exhaust your shield entirely and break your guard, leaving you dazed. Absorb the swipes to continue."
-dlg_l00_ultimate_1,I am flooding your Influence Meter to full for the final combat test. Trigger your Ultimate - your History Maker - and let history itself answer.
-dlg_l00_mobility_2,First: your unique Movement Ability. It recharges in seconds and works in the air - use it to cross the marked corridor no ordinary jump can clear.
+dlg_l00_ultimate_1,That instinct will save your life more often than your sword will.
 # Audit fixes 2026-08-10 (M-30)
 menu_quit_confirm,Are you sure you want to quit?
 # M-28 designed select-screen mechanics (two-player tokens, ready/countdown, stage step)
@@ -1222,16 +1206,16 @@ resonance_state_locked_prerequisite_any,"Locked - requires any of {0}"
 resonance_result_ability_locked,That Resonance is still dormant.
 # Package 11 A6 - V7.5 narrative content
 # Level 0: the First Strike adds a seventh line, and the nexus question is per-hero.
-dlg_l00_intro_7,We couldn't stop the beam. We could hold it — a few seconds. That was enough for the fire to finish catching. You are the one they fired on and did not get. Now — we calibrate it. Step up to the bay console.
-dlg_l00_intro_2_einstein,"...Where am I? My study. Princeton — the blackboard was an arm's length away. The sky tore apart over the elms, and something pulled."
-dlg_l00_intro_2_joan,"...Where am I? The vanguard field before Orléans. I had the banner in my hands. The sky tore apart, and something pulled."
-dlg_l00_intro_2_leonardo,"...Where am I? My workshop. Florence — the ornithopter was still on the bench. The sky tore apart, and something pulled."
-dlg_l00_intro_2_lincoln,"...Where am I? The field at Gettysburg. I had not finished the address. The sky tore apart, and something pulled."
-dlg_l00_intro_2_cleopatra,"...Where am I? My own chambers. Alexandria — the envoys were still waiting. The sky tore apart above the palace, and something pulled."
-dlg_l00_intro_2_tesla,"...Where am I? The laboratory. The coil was still singing. The sky tore apart, and something pulled."
-dlg_l00_intro_2_shakespeare,"...Where am I? The Globe. The fifth act unwritten on the table. The sky tore apart above the yard, and something pulled."
-dlg_l00_intro_2_mozart,"...Where am I? Vienna — mid-concerto, the hall holding its breath. The sky tore apart, and something pulled."
-dlg_l00_intro_2_pocahontas,"...Where am I? The Tidewater. The river path home. The sky tore apart, and something pulled."
+dlg_l00_intro_7,We couldn't stop the beam. We could hold it — a few seconds. That was enough for the fire to finish catching. You are the one they fired on and did not get.
+dlg_l00_intro_2_einstein,"...That voice. You were in the light with me. Where am I? Princeton? The sky... it tore apart, and something pulled."
+dlg_l00_intro_2_joan,"...That voice. You were in the light with me. Where am I? Orléans? The sky... it tore apart, and something pulled."
+dlg_l00_intro_2_leonardo,"...That voice. You were in the light with me. Where am I? Florence? The sky... it tore apart, and something pulled."
+dlg_l00_intro_2_lincoln,"...That voice. You were in the light with me. Where am I? Washington? The sky... it tore apart, and something pulled."
+dlg_l00_intro_2_cleopatra,"...That voice. You were in the light with me. Where am I? Alexandria? The sky... it tore apart, and something pulled."
+dlg_l00_intro_2_tesla,"...That voice. You were in the light with me. Where am I? Chicago? The sky... it tore apart, and something pulled."
+dlg_l00_intro_2_shakespeare,"...That voice. You were in the light with me. Where am I? London? The sky... it tore apart, and something pulled."
+dlg_l00_intro_2_mozart,"...That voice. You were in the light with me. Where am I? Prague? The sky... it tore apart, and something pulled."
+dlg_l00_intro_2_pocahontas,"...That voice. You were in the light with me. Where am I? Tsenacommacah? The sky... it tore apart, and something pulled."
 # Mystery Thread: the six N03 recognition speakers and their lines (master 163/169/175/196/207/213).
 speaker_apprentice,Apprentice
 speaker_captain,Captain
@@ -1264,26 +1248,25 @@ captive_name_leonardo,Da Vinci
 captive_name_cleopatra,Cleopatra
 captive_name_tesla,Tesla
 # Level 14: the Extraction Hall reveal (master-authored).
-dlg_l14_hall_1,By every saint and star... the hall goes on beyond sight. The legends — wired into the machines like lamps into a chandelier. And behind them... hundreds more.
+dlg_l14_hall_1,...The hall goes on beyond sight. The legends — wired into the machines like lamps into a chandelier. And behind them... hundreds more.
 dlg_l14_hall_2,"Extraction Cradles. This is where every stolen era went — they were never spending the energy, they were banking it. All of it feeds that engine at the core. Do NOT touch the cradles! Sever a thread while the machine is charged and the machine keeps them — forever. The only way to free them is to kill it."
 dlg_l14_hall_3,"The Warden is half right. It is called the Anchor Forge, little legend, and it was calibrated for all of you. The others we caged before their fire could catch. Yours caught — history flinched, and hid itself inside you. Every era we burned since, we burned to fill the hole you left. The deficit in my ledger carries your name. Lie down in a cradle — and history keeps the rest."
 dlg_l14_hall_4,My legacy is not yours to spend. I will break your Forge — and every thread in this hall goes home.
 dlg_l14_hall_5,Then watch it fire.
 # N05 scarred-ending variant of the final narration beat (selection logic is A3b's).
-dlg_l15_ending_6_scarred,"{HeroName} disappears — last of all the legends. The Founding's sky clears, but the plaza keeps the Prime Anchor's scar: a long cold seam across the stone that the Meridian will never quite finish explaining."
+dlg_l15_ending_6_scarred,"The Founding's sky clears, but the plaza keeps the Prime Anchor's scar: a long cold seam across the stone that the Meridian will never quite finish explaining."
 # Per-act hub refresh: Sarah and Medic Okafor on the Observation Deck.
-dlg_hub_sarah_act1_1,"The eras I send you into keep coming back with a hole in them, {HeroAddressName} — the one person each moment was built around, gone. I have stopped calling that a coincidence on the log."
-dlg_hub_sarah_act1_2,Whatever you took back off their machines out there stays with you. Carry it into the next one.
-dlg_hub_sarah_act2_1,"Every era you seal cuts one more of their roads, and you come back off each one heavier than you went in. That is the only arithmetic in this war that runs our way."
-dlg_hub_sarah_act2_2,The Observation Deck is still sweeping the shards for the others. Nothing yet. The portal is charged when you are.
-dlg_hub_sarah_act3_1,"No more eras, {HeroAddressName}. From here it is their ground, their corridor and their fortress, and there is no way back to this deck between them."
-dlg_hub_sarah_act3_2,Everything history handed you is still in your hands. Take all of it through that portal.
+dlg_hub_sarah_act1_1,"You asked who we answer to. The Meridian — the government of my century. Its first law is that the past belongs to everyone, so no one may touch it. We swore to keep that law. The Severed swore to break it."
+dlg_hub_sarah_act1_2,Every era you seal drops out of our reach. It's the best news this ship gets — and the loneliest.
+dlg_hub_sarah_act2_1,"Okafor won't sleep. Every faint shard, the same absence. I've told the crew to keep scanning."
+dlg_hub_sarah_act2_2,Your readings spike every time you seal one. History knows who's fighting for it.
+dlg_hub_sarah_act3_1,"Take this. Past the Void, nothing I own can reach you — but this can hear me."
+dlg_hub_sarah_act3_2,"We can hear you. We can't reach you. If you fall in there, you get up."
 dlg_hub_okafor_act1_1,"Medic Okafor. Sit, please — I read everyone who comes through that portal, before and after. Your resonance baseline is up eleven points since Florence."
 dlg_hub_okafor_act1_2,"That is not what the Commander expected, and I would rather she were wrong in this direction. Go carefully."
-dlg_hub_okafor_act2_1,"Up again. Whatever you are pulling out of their siphons is not passing through you, {HeroAddressName} — it is staying."
-dlg_hub_okafor_act2_2,"I have also finished the era sweep the Commander asked for. Vienna, 1787. No Mozart. I have stopped being surprised and started keeping a list."
-dlg_hub_okafor_act3_1,The readings are off my scale now. I have nothing to compare you to except the day we pulled you off that beam.
-dlg_hub_okafor_act3_2,Come back and let me take one more. That is all I am asking of you.
+dlg_hub_okafor_act2_1,"{HeroAddressName}, you've been out there five times now, and your readings haven't dimmed once. Whatever history gave you, it isn't running out."
+dlg_hub_okafor_act2_2,"There — that faint one. Prague, 1787. Too thin to open, but I can read it. A theatre full of people... and the man they came to hear isn't there."
+dlg_hub_okafor_act3_1,{HeroAddressName}. Whatever's in there — come back out. That's a medic's order.
 # M01: Steam Remote Play Together is the launch netplay message.
 fighter_remote_play_notice,Play online with a friend through Steam Remote Play Together — they join your local match from their own machine.
 # Package 11 A8
@@ -1567,7 +1550,7 @@ hero_home_era_leonardo,Florence
 hero_name_lincoln,Lincoln
 hero_address_lincoln,Mr. President
 hero_possessive_lincoln,Lincoln's
-hero_home_era_lincoln,Gettysburg
+hero_home_era_lincoln,Washington
 hero_name_cleopatra,Cleopatra
 hero_address_cleopatra,Your Majesty
 hero_possessive_cleopatra,Cleopatra's
@@ -1583,7 +1566,7 @@ hero_home_era_shakespeare,London
 hero_name_mozart,Mozart
 hero_address_mozart,Herr Mozart
 hero_possessive_mozart,Mozart's
-hero_home_era_mozart,Vienna
+hero_home_era_mozart,Prague
 hero_name_pocahontas,Pocahontas
 hero_address_pocahontas,Pocahontas
 hero_possessive_pocahontas,Pocahontas's
@@ -1597,7 +1580,7 @@ dlg_l03_exit_4__leonardo,"Orléans, and now Chicago. Every era but yours missing
 dlg_l03_exit_4__joan,"Florence, and now Chicago. Every era but yours missing the one person the moment was built around. I am starting to think that is the pattern, not the coincidence."
 dlg_l08_postboss_2__leonardo,"Nowhere. Her guards defended an empty throne with future fire. And the era holds its breath — like Orléans. Every giant but you, missing from their own moment."
 dlg_l08_postboss_2__joan,"Nowhere. Her guards defended an empty throne with future fire. And the era holds its breath — like Florence. Every giant but you, missing from their own moment."
-dlg_hub_okafor_act2_2__mozart,"I have also finished the era sweep the Commander asked for. Princeton, 1945. No Einstein. I have stopped being surprised and started keeping a list."
+dlg_hub_okafor_act2_2__mozart,"There — that faint one. Princeton, 1955. Too thin to open, but I can read it. A study with the equations still on the board... and the man who wrote them isn't there."
 # GAP-15 post-campaign epilogue on the Bridge.
 dlg_hub_sarah_epilogue_1,"The board is quiet, {HeroAddressName}. No rifts, no siphons burning — the first quiet watch since I took this command."
 dlg_hub_sarah_epilogue_2,"Every era you walked through is still standing, and the log says who held the line. Stay on the bridge as long as you like."
@@ -1718,3 +1701,103 @@ boss_ability_artillery_barrage_name,Searchlight Artillery
 boss_ability_rail_warp_name,Rail Relocation
 boss_ability_inverted_gravity_field_name,Inverted-Gravity Zone
 enemy_ability_rift_step_name,Rift Step
+# Package 13 W3
+# Level 0 Part 1: the hold (S02), the unnamed voice, and the Part 2 arrival (S06/S07/S09/S15).
+speaker_unknown_voice,???
+speaker_wren,Chief Engineer Wren
+speaker_meridian_officer,Meridian Officer
+dlg_l00_hold_1,We have the beam — we can't hold it long. They'll drag you into it. Fight them off!
+dlg_l00_hold_2,Guard — now!
+dlg_l00_hold_3,It's catching — hold on!
+dlg_l00_intro_okafor,Easy — easy. You're whole. Mostly. Commander — they're awake.
+dlg_l00_intro_8,Then send me back. My time needs me.
+dlg_l00_intro_9,"I can't. Time is fractured — their blow cracked it open across every era they struck. Until it's repaired, there is no moment whole enough to hold you."
+dlg_l00_intro_10,"You're unmoored now — outside every moment, even your own. When the last fracture is sealed, we can send you back. Not before."
+dlg_l00_intro_11,"And we're no better off. When time broke, it broke away from us. The rest of history — my own century too — is gone from our reach, as if it had never been. All that's left to us are the pieces they're still attacking. That's where we can go. That's where we'll fight."
+dlg_l00_intro_accept,{HeroAcceptLine}
+dlg_l00_intro_12,Then welcome aboard. Now — we calibrate it. Step up to the bay console.
+dlg_l00_wren_offer_1,"Wren — I run this bay. I can teach you how to fight in broken time, or you can learn it the hard way out there. Your call."
+level00_choice_full,Full calibration
+level00_choice_skip,Skip — I'll learn in the field
+dlg_l00_station_rally,The Wardens are oath-keepers. We guard the past so that no one can touch it. Fine work — until someone does.
+dlg_l00_station_grab,Wren built this bay to train Wardens. Wren will tell you you're the first recruit to make that dummy look foolish.
+dlg_l00_station_defy,History refused to let them take you once. It seems it's willing to do it again.
+dlg_l00_station_rewind,"That rewind is yours, not ours — your own time folding back to catch you. Don't make me watch it too often. I've watched enough today."
+tutorial_objective_hold,Fight them off — chain the 3-hit string
+tutorial_step_hold_guard,Hold Block to guard the telegraphed swing
+tutorial_objective_rift,Reach the Warden rift
+# S02 skip path: once-per-slot first-use tooltips.
+tooltip_first_use_rally_echo,Part of every blow lingers as an echo — strike back before it fades to reclaim it.
+tooltip_first_use_shield_break,"Three absorbed hits exhaust your shield and break your guard, leaving you dazed."
+tooltip_first_use_grab,"A raised shield stops a blade, not a hand — hold Block and press Attack to grab."
+tooltip_first_use_launch,"Hold a direction as the blow lands to steer where you fly, and hold Block as you land to recover on your feet."
+tooltip_first_use_defy,A full meter can also refuse death itself — once.
+tooltip_first_use_ledge,"Move toward the ledge while falling or rising slowly — you will grab and hang automatically. Press Jump to climb up, or Down to drop."
+tooltip_first_use_one_way,Double-tap Down to drop through thin platforms.
+tooltip_first_use_death_rewind,Your own time folds back to catch you. Each rewind spends a charge — and the last one still saves you.
+tooltip_first_use_time_freeze,Press Time Freeze to stop the world for five seconds. Nothing can be hurt while it holds.
+# S07/S48 per-hero acceptance and farewell lines ({HeroAcceptLine} / {HeroFarewellLine}).
+hero_accept_line_einstein,"Then the problem is clear, if not simple. Show me where the equations break."
+hero_accept_line_joan,I know the sound of a calling. Where do we ride?
+hero_accept_line_leonardo,A broken machine is only a puzzle no one has finished. Show me the pieces.
+hero_accept_line_tesla,Then we reroute the current. Show me where it leaks.
+hero_accept_line_mozart,Every piece comes home to its key. Very well — let's play it through.
+hero_accept_line_cleopatra,"Egypt has outlasted worse conquerors. Name their terms, Commander — then hear mine."
+hero_accept_line_shakespeare,Then the play's not ended; we are mid-act. Give me my cue.
+hero_accept_line_lincoln,"A house divided cannot stand — nor, it seems, a time. Then we mend it."
+hero_accept_line_tubman,"I never ran my train off the track, and I never lost a passenger. Show me where the line broke."
+hero_accept_line_pocahontas,Then I will walk it the way I walked the river path. Show me where the trail broke.
+hero_accept_line_fallback,Then I will fight for it. Show me where it broke.
+hero_farewell_line_einstein,There's an equation on my board I won't finish. I think that's all right.
+hero_farewell_line_joan,My banner's waiting. So are they.
+hero_farewell_line_leonardo,Every piece back where it belongs. Now — I have a wall to paint.
+hero_farewell_line_tesla,The lights are on. That's enough.
+hero_farewell_line_mozart,Every piece comes home to its key. So do I.
+hero_farewell_line_cleopatra,"My terms were met, Commander. The rest, I'll choose myself."
+hero_farewell_line_shakespeare,I have a fifth act to finish. Give me my cue.
+hero_farewell_line_lincoln,It's mended. Now I'd best go and finish the work.
+hero_farewell_line_tubman,The road's clear again. Take me back to the line — there's folks still waiting.
+hero_farewell_line_pocahontas,The river is running where it should. Take me home.
+hero_farewell_line_fallback,It's whole again. Take me home.
+# Hub: per-line Sarah sets (S23/S35), the Act I→II boundary (S16/S35), Wren (S09), the triage readout (S11).
+dlg_hub_sarah_act1_3,Wren says the ship's holding. Wren always says that.
+dlg_hub_sarah_act1_4,"I keep checking the record for Desmoulins. Every time, the page is the same — blank where he should be."
+dlg_hub_sarah_act2_3,That hunter at Hakata didn't try to kill you. It tried to keep you. I don't like what that means.
+dlg_hub_sarah_act2_4,The key's nearly open. Whatever's at the end of it — I think it's where they all went.
+dlg_hub_okafor_act2_3,"It's not only the eras we can reach, Commander. They're missing everywhere the beams fell."
+dlg_hub_sarah_boundary_1,"...Keep scanning. If they tore loose, they'll be drifting somewhere. We'll find them."
+dlg_hub_player_boundary_1,And if they didn't tear loose?
+dlg_hub_sarah_boundary_2,Then we find where they went. Pompeii's failing next. Go.
+dlg_hub_sarah_act3_3,Then I'll get up.
+dlg_hub_wren_act1_1,"Every lesson from the bay is on the Holodeck console. Run any of them again, any time — out there nobody grades you."
+dlg_hub_wren_act2_1,The clock out there doesn't wait for you. Break their Extractors early and it drains slower — I've watched the numbers.
+dlg_hub_wren_act3_1,Past the Void there's no ship to pull you back. Your anchors are all you get. Spend them like they're the last ones.
+dlg_hub_wren_epilogue_1,Portal's steady whenever you are. I'll hold it as long as you need.
+hub_npc_wren,CHIEF ENGINEER WREN
+# Act III: Level 13 Eraser pair, Level 14 captain and field re-read, Level 15 Vale reveal and phase-3 bark (S19/S44/S46/S47).
+dlg_l13_eraser_1,Erasers. They were built to unmake what you are.
+dlg_l14_hall_captain,...The captain. From the ship. They kept him.
+dlg_l14_after_hall_1,That field isn't security. It's the Forge's intake — it's been trying to cradle you since the Void.
+dlg_l15_boss_intro_3,Sarah. You kept my ship. You kept my oath. You were always better at keeping things than using them.
+dlg_l15_boss_intro_4,You taught me that oath.
+dlg_l15_boss_intro_5,And then I learned better. Watch.
+dlg_l15_boss_intro_6,She kept faith. You didn't. That's the whole difference.
+dlg_l15_phase3_1,He's drawing on them — the captives! Every move he steals is one of theirs!
+dlg_l15_ending_lesser_1,"At the Palais-Royal, Camille Desmoulins climbs back onto the café table, and the crowd roars."
+dlg_l15_ending_lesser_2,"At Misenum, Pliny steps aboard his galley, and the oars dip."
+dlg_l15_ending_lesser_3,"On the Titanic's bridge, Captain Smith stands at the wheel as the lights go out."
+dlg_l15_ending_portal,"With time whole again, the ship can reach it — a clean, steady Warden portal opens beside {HeroName}."
+# Epilogue: the Time-Ship send-off (S39/S40/S48) and After-Credits: Homecoming (S43).
+dlg_epilogue_sendoff_1,"Your readings are ordinary. Perfectly, wonderfully ordinary."
+dlg_epilogue_sendoff_2,Portal's steady. First clean jump this ship's made since the night we found you.
+dlg_epilogue_sendoff_3,"The timelines are sealed. The war is over — and the future you saved is the one we're going home to. Thank you, {HeroAddressName}. You'll wake in your own time. You'll remember the Time-Ship, the battle, and the friends you fought beside... but once you step through, the rifts close behind you, forever. You are going home."
+dlg_epilogue_sendoff_4,{HeroFarewellLine}
+dlg_epilogue_sendoff_5,{HeroName} steps through the Warden portal — last of all the legends — and it closes behind them.
+dlg_epilogue_homecoming_1,Commander. We'd written your ship off the day of the Strike.
+dlg_epilogue_homecoming_2,"We nearly were. One ship, one crew — and one legend who wouldn't be taken."
+dlg_epilogue_homecoming_3,And the Severed?
+dlg_epilogue_homecoming_4,Their Forge is gone. Everything they took went home.
+dlg_epilogue_homecoming_5,"Your report, then."
+dlg_epilogue_homecoming_6,It's a long one. Start with what I got wrong.
+epilogue_still_sendoff,THE BRIDGE — THE LAST EVENING ABOARD
+epilogue_still_homecoming,A MERIDIAN PORT — HOMECOMING

@@ -113,7 +113,7 @@ public class Level14ContentTests {
     // === Dialogue ===
 
     [TestCase]
-    public void TheDialogueSetCarriesTheFourAuthoredBeats() {
+    public void TheDialogueSetCarriesTheFiveAuthoredBeats() {
         var set = AuthoredResources.Load<DialogueSetData>(DialoguePath);
         AssertObject(set).IsNotNull();
         AssertString(set.DialogueSetID).IsEqual("dialogue_level_14");
@@ -122,9 +122,11 @@ public class Level14ContentTests {
         foreach (DialogueSequenceData sequence in set.Sequences) ids.Add(sequence.DialogueID);
         // Package 11 A6: the V7.5 Extraction Hall reveal fires on entering the
         // hall, before the final approach to the Forge core.
+        // Package 13 W3 (S47): the field re-read follows the Hall.
         AssertThat(ids).ContainsExactlyInAnyOrder(
-            "level_14.entrance", "level_14.extraction_hall",
+            "level_14.entrance", "level_14.extraction_hall", "level_14.after_hall",
             "level_14.boss_intro", "level_14.exit");
+        AssertString(Level14Controller.AfterHallDialogueID).IsEqual("level_14.after_hall");
     }
 
     [TestCase]
@@ -176,25 +178,29 @@ public class Level14ContentTests {
     [TestCase]
     public void TheExitBeatKeepsTheCradlesHeldAndHandsTheCampaignToTheFiringChannel() {
         // V7.5: severing a charged cradle consumes the captive, so breaking the
-        // intake frees nobody. The exit has to say that out loud - the retired
-        // copy claimed there was "nobody down there to bring home", which is the
-        // exact opposite of the Extraction Cradles canon.
-        string cradles = LocalizationValue("dlg_l14_exit_2").ToLowerInvariant();
-        AssertString(cradles)
-            .OverrideFailureMessage("The Bastion is full of captives; the exit must not say it is empty.")
-            .Contains("cradles are still holding");
-        AssertThat(cradles.Contains("nobody down there"))
-            .OverrideFailureMessage("The retired 'nobody down there' line contradicts the cradles.")
-            .IsFalse();
+        // intake frees nobody - the Hall says so, and no Level 14 line may claim
+        // the Bastion is empty (the retired "nobody down there" copy).
+        string hall = LocalizationValue("dlg_l14_hall_2").ToLowerInvariant();
+        AssertString(hall).Contains("touch the cradles");
+        foreach (string key in new[] { "dlg_l14_exit_1", "dlg_l14_exit_2", "dlg_l14_exit_3" }) {
+            AssertThat(LocalizationValue(key).ToLowerInvariant().Contains("nobody down there"))
+                .OverrideFailureMessage("The retired 'nobody down there' line contradicts the cradles.")
+                .IsFalse();
+        }
 
-        // No mid-campaign power loss: the hero leaves carrying everything taken back.
-        string carried = LocalizationValue("dlg_l14_exit_3").ToLowerInvariant();
-        AssertString(carried).Contains("still carrying");
+        // Package 13 W3. S41: the oath is gone - the Hall is every hero's line.
+        AssertThat(LocalizationValue("dlg_l14_hall_1").Contains("saint and star"))
+            .OverrideFailureMessage("S41 dropped the oath from the Extraction Hall.").IsFalse();
+        // S19: the captain from the ship is in the Hall.
+        AssertString(LocalizationValue("dlg_l14_hall_captain").ToLowerInvariant()).Contains("the captain");
 
-        // The only route to Level 15 is the Forge's own firing channel.
-        string handoff = LocalizationValue("dlg_l14_exit_4").ToLowerInvariant();
+        // S47: the only route to Level 15 is the Forge's own firing channel, and
+        // it runs to the day the Meridian was founded.
+        string handoff = LocalizationValue("dlg_l14_exit_1").ToLowerInvariant();
         AssertString(handoff).Contains("forge is firing");
         AssertString(handoff).Contains("channel");
+        AssertString(LocalizationValue("dlg_l14_exit_3").ToLowerInvariant()).Contains("meridian was founded");
+        AssertString(LocalizationValue("dlg_l14_boss_intro_1")).Contains("CRADLE PROTOCOL ENGAGED");
     }
 
     // === Encounter economy (locked by docs/DUST_ECONOMY.md) ===

@@ -2877,6 +2877,25 @@ namespace FTT.Characters {
 
 		public int ApplyDamage(int damage) => ApplyDamage(damage, ignoreRollInvulnerability: false);
 
+		// === Package 13 W3 (S02): Level 0 hold-fight seams ===================
+		/// <summary>
+		/// The lowest HP damage can leave this controller at. Zero (the default)
+		/// everywhere except Level 0's scripted hold fight, which is unlosable
+		/// (HP floor 1). Never persisted, never read by the Fighter simulation.
+		/// </summary>
+		public int ScriptedHPFloor { get; set; }
+
+		/// <summary>
+		/// Discards the live Rally echo without healing and without accruing its
+		/// deferred meter. Level 0's hold fight grants no Rally; this is how it
+		/// takes back what the hits it lands would otherwise leave behind.
+		/// </summary>
+		public void ClearRallyEcho() {
+			_echoPool = 0f;
+			_echoDrainPerFrame = 0f;
+		}
+		// === end Package 13 W3 ================================================
+
 		/// <summary>
 		/// One scheduled damaging tick of an already-applied status (Venom).
 		///
@@ -2965,7 +2984,9 @@ namespace FTT.Characters {
 			// ResolveIncomingHit (the hurtbox path) and at the DoT/environmental
 			// entry points, all BEFORE the block layer.
 			int previousHP = CurrentHP;
-			CurrentHP = Math.Max(0, CurrentHP - damage);
+			// Package 13 W3 (S02): Level 0's hold fight is unlosable — a scripted
+			// HP floor, zero everywhere else.
+			CurrentHP = Math.Max(Math.Max(0, ScriptedHPFloor), CurrentHP - damage);
 			int damageApplied = previousHP - CurrentHP;
 			// V7.6 D02d (Package 11 A1b): damage that actually reduces Tesla's HP
 			// restarts the three-second Wardenclyffe recharge delay, in or out of

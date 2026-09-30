@@ -99,8 +99,9 @@ public class CampaignLocalizationTests {
         AssertThat(sets).OverrideFailureMessage(
             $"Only {sets} dialogue sets were reached; the directory walk is broken.")
             // Every authored level (incl. each 4A variant) + the hub + the one shared
-            // 4A set carrying the flavour Nexus moment (Package 12 W7).
-            .IsEqual(AuthoredLevelCount + 2);
+            // 4A set carrying the flavour Nexus moment (Package 12 W7) + the
+            // epilogue set (the send-off and the Homecoming, Package 13 W3).
+            .IsEqual(AuthoredLevelCount + 3);
         AssertThat(sequences).OverrideFailureMessage(
             $"Only {sequences} dialogue sequences were reached.").IsGreaterEqual(48);
         AssertThat(lines).IsGreater(300);
