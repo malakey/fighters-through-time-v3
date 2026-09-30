@@ -127,7 +127,9 @@ public class TubmanKitTests {
         var simulation = new FighterSimulation(
             TubmanLoadout(), EinsteinLoadout(),
             seed: 1404, spawnDistance: 4, rules: FighterMatchRules.Disabled);
-        // Einstein (right) faces Tubman and fires; Tubman reads it late.
+        // Einstein (right) faces Tubman and fires; Tubman reads it late. The
+        // press distance leaves room for Foresight's startup against the 12 u/s
+        // E=mc² (Package 13 W7a).
         simulation.Advance(Frame(0, GameplayButtons.None), Frame(0, GameplayButtons.Special1));
         AssertThat(simulation.TryGetFirstProjectile(out FighterProjectileComponent _)).IsTrue();
         int tick = 1;
@@ -135,7 +137,7 @@ public class TubmanKitTests {
         for (; tick < 200 && !pressed; tick++) {
             simulation.TryGetFighter(0, out FighterStateComponent tubman);
             bool close = simulation.TryGetFirstProjectile(out FighterProjectileComponent shot)
-                && FP64.Abs(shot.Position.x - tubman.Position.x) < FP64.FromDouble(1.6);
+                && FP64.Abs(shot.Position.x - tubman.Position.x) < FP64.FromDouble(2.6);
             simulation.Advance(Frame(tick, close ? GameplayButtons.Special2 : GameplayButtons.None), Frame(tick, GameplayButtons.None));
             pressed = close;
         }
