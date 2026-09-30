@@ -83,9 +83,10 @@ public class AbilityZoneTalentTests {
                 ability._PhysicsProcess(1.0 / 60.0);
             }
 
-            // 100 px authored rift radius x 1.10 = 110 — a radius no other
-            // authored zone uses, so finding it proves the deployed rift was
-            // scaled (pooled zones from other tests keep their old radii).
+            // 90 px rift radius (1.5 units, E03 — Package 13 W7a) x 1.10 = 99 —
+            // a radius no other authored zone uses, so finding it proves the
+            // deployed rift was scaled (pooled zones from other tests keep
+            // their old radii).
             PlaceholderZone rift = null;
             Godot.Collections.Array<Node> zones = tree.GetNodesInGroup("story_zone");
             using (zones.AsDisposable()) {
@@ -93,7 +94,7 @@ public class AbilityZoneTalentTests {
                     if (node is not PlaceholderZone zone) continue;
                     var zoneShape = zone.GetNodeOrNull<CollisionShape2D>("Area/CollisionShape2D");
                     if (zoneShape?.Shape is CircleShape2D circle
-                        && Mathf.Abs(circle.Radius - 110f) < 0.01f) {
+                        && Mathf.Abs(circle.Radius - 99f) < 0.01f) {
                         rift = zone;
                     }
                 }

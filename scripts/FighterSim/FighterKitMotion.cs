@@ -36,6 +36,13 @@ namespace FTT.FighterSim {
         public const int SpiritStartup = 19;
         public const int SpiritCarry = 20;
         private const int LastPhase = 20;
+        /// <summary>
+        /// Package 13 W7a — Einstein's Relativity Warp fold startup (E04) and
+        /// Shakespeare's Prospero gust (A08). Codes 30–31, deliberately clear of
+        /// the Package 12 block (16–20) and of anything W7b appends above it.
+        /// </summary>
+        public const int WarpFoldStartup = 30;
+        public const int GustBurst = 31;
 
         private static readonly FP64 FixedDelta = FP64.One / FP64.FromInt(FighterSimulation.TickRate);
         private static readonly FP64 InverseSqrtTwo = FP64.FromDouble(0.70710678118654752);
@@ -50,7 +57,8 @@ namespace FTT.FighterSim {
         /// <summary>The sim's fixed Special hitstun (see <c>DEFER-SIM-ABILITY-HITSTUN</c>).</summary>
         public const int SpiritStrikeHitstunFrames = 18;
 
-        public static bool IsKitPhase(int state) => state >= FirstPhase && state <= LastPhase;
+        public static bool IsKitPhase(int state) =>
+            (state >= FirstPhase && state <= LastPhase) || state is WarpFoldStartup or GustBurst;
 
         /// <summary>
         /// The Lightning Blink pass-through window: the translation, and only
@@ -62,7 +70,8 @@ namespace FTT.FighterSim {
 
         /// <summary>Startup hovers and the translation/carry fly straight: no gravity.</summary>
         public static bool SuspendsGravity(in FighterRuntimeComponent runtime) =>
-            runtime.UniversalMovementState is BlinkStartup or BlinkTravel or SpiritCarry;
+            runtime.UniversalMovementState is BlinkStartup or BlinkTravel or SpiritCarry
+                or WarpFoldStartup or GustBurst;
 
         // --- activation -------------------------------------------------------
 
@@ -85,6 +94,57 @@ namespace FTT.FighterSim {
             runtime.UniversalMovementState = SpiritStartup;
             runtime.UniversalMovementFramesRemaining = KitMotionRules.SpiritStrikeStartupFrames;
             runtime.UniversalMovementDirection = facing >= 0 ? 1 : -1;
+        }
+
+        /// <summary>
+        /// E04: starts the Relativity Warp fold — the destination direction is
+        /// latched from the held stick now (packed like the blink), the ghost
+        /// shows through the 10-frame startup, and the relocation happens when it
+        /// ends. No invulnerability; a hit cancels it through the ordinary
+        /// universal-movement cancel sites (the cooldown is already spent).
+        /// </summary>
+        public static void StartWarpFold(ref FighterRuntimeComponent runtime, int facing) {
+            int directionX = runtime.MoveX > 30 ? 1 : runtime.MoveX < -30 ? -1 : 0;
+            int directionY = runtime.MoveY < -30 ? 1 : runtime.MoveY > 30 ? -1 : 0;
+            if (directionX == 0 && directionY == 0) directionX = facing;
+            runtime.UniversalMovementState = WarpFoldStartup;
+            runtime.UniversalMovementFramesRemaining = KitMotionRules.RelativityWarpStartupFrames;
+            runtime.UniversalMovementDirection = (directionX + 1) + 3 * (directionY + 1);
+        }
+
+        /// <summary>A08: starts Prospero's gust burst along facing (direction int ±1).</summary>
+        public static void StartGust(ref FighterRuntimeComponent runtime, int facing) {
+            runtime.UniversalMovementState = GustBurst;
+            runtime.UniversalMovementFramesRemaining = KitMotionRules.ProsperoGustFrames;
+            runtime.UniversalMovementDirection = facing >= 0 ? 1 : -1;
+        }
+
+        private static readonly FP64 DefaultWarpDistance = FP64.FromDouble(KitMotionRules.RelativityWarpDistanceUnits);
+        private static readonly FP64 DefaultGustForward = FP64.FromDouble(KitMotionRules.ProsperoGustForwardUnits);
+        private static readonly FP64 GustRiseSpeed = FP64.FromDouble(
+            KitMotionRules.ProsperoGustRiseUnits * FighterSimulation.TickRate / KitMotionRules.ProsperoGustFrames);
+
+        /// <summary>
+        /// E04 fold destination for a fighter at <paramref name="position"/>: the
+        /// held direction's full distance, shortened to the farthest point with
+        /// full-body clearance inside the stage. Pure; the movement system and
+        /// the presentation ghost read the same answer.
+        /// </summary>
+        public static FPVector2 WarpFoldDestination(
+            FighterStageGeometry geometry, in FPVector2 position, int packedDirection, FP64 distance) {
+            FP64 resolved = distance > FP64.Zero ? distance : DefaultWarpDistance;
+            FPVector2 offset = FighterKitGeometry.ClampedDisplacement(
+                geometry, in position, BlinkDirectionX(packedDirection), BlinkDirectionY(packedDirection), resolved);
+            FPVector2 destination = position + offset;
+            // The shortened ratio is exact to one raw step; pin the result inside
+            // the box so a diagonal fold never lands a hair past a wall.
+            FP64 left = geometry?.LeftWall ?? FP64.FromInt(-10);
+            FP64 right = geometry?.RightWall ?? FP64.FromInt(10);
+            FP64 ceiling = geometry?.Ceiling ?? FP64.FromInt(9);
+            FP64 floor = position.y < FP64.Zero ? position.y : FP64.Zero;
+            return new FPVector2(
+                FP64.Clamp(destination.x, left, right),
+                FP64.Clamp(destination.y, floor, ceiling));
         }
 
         public static int BlinkDirectionX(int packed) => packed % 3 - 1;
@@ -118,8 +178,47 @@ namespace FTT.FighterSim {
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
             in FighterAbilityModeComponent modes,
-            FP64 decelStep) {
+            FP64 decelStep,
+            FighterStageGeometry geometry = null) {
             switch (runtime.UniversalMovementState) {
+                case WarpFoldStartup:
+                    if (runtime.UniversalMovementFramesRemaining <= 0) {
+                        // Instant relocation: no travel frames, so gaps, platforms,
+                        // hazards and attacks in between are simply crossed.
+                        FPVector2 destination = WarpFoldDestination(
+                            geometry, in fighter.Position, runtime.UniversalMovementDirection, modes.MovementDistance);
+                        if (destination.y > fighter.Position.y) fighter.IsGrounded = 0;
+                        fighter.Position = destination;
+                        fighter.Velocity = FPVector2.Zero;
+                        runtime.FloatFrames = KitMotionRules.RelativityWarpFloatFrames;
+                        FighterUniversalMovementRules.Cancel(ref runtime);
+                        return false;
+                    }
+                    // The visible ghost's startup: Einstein holds in place.
+                    fighter.Velocity = FPVector2.Zero;
+                    runtime.UniversalMovementFramesRemaining--;
+                    return true;
+
+                case GustBurst:
+                    if (runtime.UniversalMovementFramesRemaining <= 0) {
+                        // A burst, not a glide: it ends with its momentum spent
+                        // and the fall is the ordinary one.
+                        fighter.Velocity = FPVector2.Zero;
+                        FighterUniversalMovementRules.Cancel(ref runtime);
+                        return false;
+                    }
+                    {
+                        FP64 forward = modes.MovementDistance > FP64.Zero ? modes.MovementDistance : DefaultGustForward;
+                        FP64 forwardSpeed = forward * FP64.FromInt(FighterSimulation.TickRate)
+                            / FP64.FromInt(KitMotionRules.ProsperoGustFrames);
+                        fighter.IsGrounded = 0;
+                        fighter.Velocity = new FPVector2(
+                            forwardSpeed * FP64.FromInt(SpiritFacing(runtime.UniversalMovementDirection)),
+                            GustRiseSpeed);
+                    }
+                    runtime.UniversalMovementFramesRemaining--;
+                    return true;
+
                 case BlinkStartup:
                     if (runtime.UniversalMovementFramesRemaining <= 0) {
                         runtime.UniversalMovementState = BlinkTravel;

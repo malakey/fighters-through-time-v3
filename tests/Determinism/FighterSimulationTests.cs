@@ -630,7 +630,9 @@ public class FighterSimulationTests {
             FighterLoadoutFactory.FromCharacterData(BuildZoneTestCharacter()),
             FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 61,
-            spawnDistance: 1,
+            // Package 13 W7a (E03): the rift is thrown 5 units ahead, so the
+            // opponent stands 4 units away, inside the 1.5-unit rift.
+            spawnDistance: 2,
             rules: FighterMatchRules.Disabled);
 
         simulation.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
@@ -641,6 +643,8 @@ public class FighterSimulationTests {
         AssertThat(zone.TickIntervalFrames).IsEqual(30);
         AssertThat(zone.StatusType).IsEqual((int)StatusType.TimeDilation);
         AssertThat(zone.GrantsOwnerSpeedBonus).IsEqual(1);
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
+        AssertThat(zone.Position.x).IsEqual(caster.Position.x + xpTURN.Klotho.Deterministic.Math.FP64.FromInt(5));
 
         // The first pulse fires on the spawn frame: chip damage plus TimeDilation,
         // with no knockback, hitstun, or block interaction.
@@ -651,9 +655,10 @@ public class FighterSimulationTests {
         AssertThat(simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent targetRuntime)).IsTrue();
         AssertThat(targetRuntime.StatusType).IsEqual((int)StatusType.TimeDilation);
 
-        // Einstein standing inside his own rift carries the +25% speed bonus flag.
+        // Einstein is 5 units from his thrown rift, so he carries no +25%
+        // speed bonus until he walks into it (the flag is still on the zone).
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent ownerRuntime)).IsTrue();
-        AssertThat(ownerRuntime.ZoneSpeedBonusFrames > 0).IsTrue();
+        AssertThat(ownerRuntime.ZoneSpeedBonusFrames).IsEqual(0);
 
         for (int tick = 1; tick <= 200; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
@@ -699,6 +704,10 @@ public class FighterSimulationTests {
         simulation.Advance(
             Frame(0, 0, GameplayButtons.MovementAbility, moveY: -127),
             Frame(0, 0, GameplayButtons.None));
+        // E04 (Package 13 W7a): the fold relocates after its 10-frame startup.
+        for (int tick = 1; tick <= FTT.Combat.KitMotionRules.RelativityWarpStartupFrames + 1; tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
 
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent warped)).IsTrue();
         AssertThat(warped.Position.y > xpTURN.Klotho.Deterministic.Math.FP64.FromInt(2)).IsTrue();
@@ -708,7 +717,7 @@ public class FighterSimulationTests {
 
         // The float glide's reduced gravity keeps the fighter airborne well past a
         // normal fall over the same window.
-        for (int tick = 1; tick <= 30; tick++) {
+        for (int tick = 12; tick <= 41; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent floating)).IsTrue();

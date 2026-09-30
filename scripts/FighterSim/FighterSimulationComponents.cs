@@ -47,6 +47,20 @@ namespace FTT.FighterSim {
         public FP64 KnockbackX { get; init; }
         public FP64 KnockbackY { get; init; }
 
+        /// <summary>
+        /// Package 13 W7a — the burst-on-terrain projectile primitive, projected
+        /// from <c>AbilityData.ProjectileBurstRadius</c> /
+        /// <c>ProjectileContactDamage</c> / <c>ProjectileBurstsOnTerrain</c>.
+        /// Loadout data like the rest of this struct: no snapshot field, no
+        /// component ID. A positive <see cref="BurstRadius"/> makes the slot's
+        /// projectile two-stage — its spawn damage is the burst, and the direct
+        /// contact deals <see cref="ContactDamage"/>.
+        /// </summary>
+        public FP64 BurstRadius { get; init; }
+        public int ContactDamage { get; init; }
+        public bool BurstsOnTerrain { get; init; }
+        public bool Bursts => BurstRadius > FP64.Zero;
+
         /// <summary>A01: true when the ability is an authored Shield-Breaker.</summary>
         public bool ShieldBreaker => BlockClass == (int)FTT.Combat.BlockClass.ShieldBreaker;
 
@@ -1239,6 +1253,12 @@ namespace FTT.FighterSim {
         public int StatusFrames;
         /// <summary>Coil-link fence tick countdown; driven by the lower-EntityID coil of a linked pair.</summary>
         public int LinkTickFramesRemaining;
+        /// <summary>
+        /// Package 13 W7a (L03/D14): 1 once this Clockwork Turret has fired the
+        /// owner's once-per-flight Ornithopter glide bolt; cleared when a new
+        /// flight starts. Zero on every other construct.
+        /// </summary>
+        public int GlideBoltSpent;
         public FP64 AttackRange;
         public FP64 Knockback;
         public FPVector2 Position;
@@ -1306,6 +1326,20 @@ namespace FTT.FighterSim {
         public int StatusType;
         public int StatusFrames;
         public int GrantsOwnerSpeedBonus;
+        /// <summary>
+        /// Package 13 W7a (E01 Rift Collapse): frames left in the collapse pull
+        /// of Einstein's Relativity Rift. Zero on every other zone and on a rift
+        /// that has not collapsed. While positive the rift no longer ticks or
+        /// buffs; it drags the caught opponents to its centre and launches them
+        /// when the count reaches zero.
+        /// </summary>
+        public int CollapseFramesRemaining;
+        /// <summary>
+        /// One bit per PlayerID caught (bit 0 = P1, bit 1 = P2): by a rift's E01
+        /// collapse, or by The Tempest's windbox (S01), which keeps pushing a
+        /// caught opponent for the rest of the storm. Zero on every other zone.
+        /// </summary>
+        public int CollapseTargetMask;
         public FP64 StatusIntensity;
         public FPVector2 Position;
         public FPVector2 HalfExtents;

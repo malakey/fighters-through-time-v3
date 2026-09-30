@@ -375,6 +375,23 @@ namespace FTT.Combat {
             return pools.Spawn(poolID, position, parent) as T;
         }
 
+        /// <summary>
+        /// Package 13 W7a (L03): the pooled placeholder projectile for a caller
+        /// that is not itself a cast — a deployed construct's bolt. The same
+        /// pool and scene a special's projectile uses; the caller runs
+        /// <see cref="PlaceholderProjectile.Setup"/>. Null without a pool.
+        /// </summary>
+        public static PlaceholderProjectile SpawnStoryProjectile(Node parent, Vector2 position) {
+            FTT.Core.PoolManager pools = FTT.Core.PoolManager.Instance;
+            if (pools == null || parent == null) return null;
+            if (!pools.IsRegistered(PlaceholderProjectilePoolID)) {
+                PackedScene scene = GD.Load<PackedScene>(PlaceholderProjectileScenePath);
+                if (scene == null) return null;
+                pools.RegisterPool(PlaceholderProjectilePoolID, scene, 1, 50, FTT.Core.PoolOverflowPolicy.Grow);
+            }
+            return pools.Spawn(PlaceholderProjectilePoolID, position, parent) as PlaceholderProjectile;
+        }
+
         protected Hitbox GetOrCreateChildHitbox(string name) {
             var existing = GetNodeOrNull<Hitbox>(name);
             if (existing != null) return existing;

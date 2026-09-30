@@ -8,7 +8,9 @@ namespace FTT.Combat {
         Dash,
         Teleport,
         Warp,
-        Float
+        Float,
+        /// <summary>Package 13 W7a (A08): a single strong gust burst along facing, then a normal fall (Prospero's Flight).</summary>
+        Gust
     }
 
     [GlobalClass]

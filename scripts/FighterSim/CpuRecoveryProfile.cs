@@ -67,6 +67,8 @@ namespace FTT.FighterSim {
         public const int MovementKindTeleport = 3;
         public const int MovementKindWarp = 4;
         public const int MovementKindFloat = 5;
+        /// <summary>Package 13 W7a (A08): Prospero's single gust burst along facing, then a normal fall.</summary>
+        public const int MovementKindGust = 6;
 
         /// <summary>
         /// True when the profile was built from a real loadout. A CPU constructed
@@ -111,7 +113,7 @@ namespace FTT.FighterSim {
         /// him to "obtain necessary height through legal jumps".
         /// </summary>
         public bool MovementProvidesLift =>
-            MovementKind is MovementKindGlide or MovementKindFloat
+            MovementKind is MovementKindGlide or MovementKindFloat or MovementKindGust
             || MovementIsDirectional;
 
         /// <summary>
@@ -150,6 +152,8 @@ namespace FTT.FighterSim {
             get {
                 if (MovementIsDirectional) return MovementDistance;
                 if (MovementKind == MovementKindFloat) return FP64.Zero;
+                // A08: the gust carries its authored forward distance, no glide.
+                if (MovementKind == MovementKindGust) return MovementDistance;
                 FP64 seconds = FP64.FromInt(MovementDurationFrames)
                     / FP64.FromInt(FighterSimulation.TickRate);
                 return MovementSpeed * seconds;
@@ -165,6 +169,10 @@ namespace FTT.FighterSim {
         public FP64 MovementLift {
             get {
                 if (MovementIsDirectional) return MovementDistance;
+                // A08: the gust's rise is the shared kit-motion rulebook value.
+                if (MovementKind == MovementKindGust) {
+                    return FP64.FromDouble(FTT.Combat.KitMotionRules.ProsperoGustRiseUnits);
+                }
                 if (MovementKind is MovementKindGlide or MovementKindFloat) {
                     FP64 launch = MovementSpeed > FP64.Zero ? MovementSpeed : FP64.FromInt(8);
                     FP64 gravity = -FighterMovementSystem.GravityPerSecondSquared;

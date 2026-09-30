@@ -37,13 +37,18 @@ public class CpuRecoveryProfileTests {
     private const int Ticks = 600;
 
     [TestCase]
-    public void EinsteinPlansRelativityWarpAndNeverTreatsRelativityRiftAsRecovery() =>
-        AssertProfile(
+    public void EinsteinPlansRelativityWarpAndNeverTreatsRelativityRiftAsRecovery() {
+        CpuRecoveryProfile profile = AssertProfile(
             "einstein",
             movementAbilityID: "einstein_relativity_warp",
             expectedMovementKind: CpuRecoveryProfile.MovementKindWarp,
             excludedAbilityID: "einstein_relativity_rift",
             excludedSlot: 2);
+        // E04 (Package 13 W7a): the fold's reach is the loadout's 4 units.
+        AssertThat(profile.MovementIsDirectional).IsTrue();
+        AssertThat(profile.MovementDistance > FP64.FromDouble(3.9)
+            && profile.MovementDistance < FP64.FromDouble(4.1)).IsTrue();
+    }
 
     [TestCase]
     public void JoanPlansAscendantWingsWithNoStoryWingsRefresh() =>
@@ -73,13 +78,21 @@ public class CpuRecoveryProfileTests {
             excludedSlot: 2);
 
     [TestCase]
-    public void ShakespearePlansProsperosFlightWithNoRetiredTeleport() =>
-        AssertProfile(
+    public void ShakespearePlansProsperosFlightWithNoRetiredTeleport() {
+        CpuRecoveryProfile profile = AssertProfile(
             "shakespeare",
             movementAbilityID: "shakespeare_prosperos_flight",
-            expectedMovementKind: CpuRecoveryProfile.MovementKindGlide,
+            // A08 (Package 13 W7a): a single gust burst, no longer a glide.
+            expectedMovementKind: CpuRecoveryProfile.MovementKindGust,
             excludedAbilityID: null,
             excludedSlot: 0);
+        // The planner's reach is the loadout's gust: ~4 units forward, 2.5 up.
+        AssertThat(profile.MovementProvidesLift).IsTrue();
+        AssertThat(profile.MovementHorizontalReach).IsEqual(profile.MovementDistance);
+        AssertThat(profile.MovementDistance > FP64.FromDouble(3.9)
+            && profile.MovementDistance < FP64.FromDouble(4.1)).IsTrue();
+        AssertThat(profile.MovementLift).IsEqual(FP64.FromDouble(KitMotionRules.ProsperoGustRiseUnits));
+    }
 
     [TestCase]
     public void MozartPlansSonataDriftAsAVerticalPopOnly() {

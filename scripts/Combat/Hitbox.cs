@@ -137,7 +137,11 @@ namespace FTT.Combat {
                     : 0UL,
                 Launches = Launches,
                 Delivery = Delivery,
-                Origin = Origin
+                Origin = Origin,
+                // Package 13 W7a (L03): a construct's pooled bolt carries no
+                // hitstop, the V7.3 construct rule every direct construct
+                // payload already stamps.
+                ExemptFromHitstop = Delivery == HitDelivery.Construct
             };
         }
 
