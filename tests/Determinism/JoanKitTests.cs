@@ -71,8 +71,9 @@ public class JoanKitTests {
         AssertThat(open.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();
         AssertThat(struck.CurrentHP).IsEqual(88);
 
-        // V7.6 F15 (Package 11 A1b), rewritten in place: Divine Piercing is an
-        // ORDINARY Special-class FULL shatter in both modes. The retired
+        // V7.6 F15 / A01 (Package 13 W1), rewritten in place: Divine Piercing is
+        // a Shield-Breaker FULL shatter in both modes (the loadout projects its
+        // BlockClass; an ordinary Special would spend only two). The retired
         // two-charge "shield-stutter" exception took 3 charges to 1 and left the
         // defender undazed; the Special class now takes 1, 2 or 3 charges to 0
         // with the normal shatter response (shatter-freeze, daze, 5 s lockout).
@@ -180,7 +181,9 @@ public class JoanKitTests {
         IsMultiHit = true,
         HitCount = 4,
         KnockbackForce = new Vector2(4f, -1f),
-        CooldownDuration = 10f
+        CooldownDuration = 10f,
+        // A01 (Package 13 W1): Divine Piercing is an authored Shield-Breaker.
+        BlockClass = FTT.Combat.BlockClass.ShieldBreaker
     };
 
     private static MovementAbilityData BuildWingsAbility() => new() {

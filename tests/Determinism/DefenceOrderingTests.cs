@@ -134,9 +134,31 @@ public class DefenceOrderingTests {
     }
 
     [TestCase]
-    public void APartialAbsorptionOfASpecialStillFullShattersTheRemainder() {
-        // D01: "the same remainder from a Special still causes the existing full
-        // shatter" — the barrier does not downgrade the attack's classification.
+    public void APartialAbsorptionOfAShieldBreakerStillFullShattersTheRemainder() {
+        // D01: the barrier does not downgrade the attack's classification.
+        // A01 (Package 13 W1): the full shatter belongs to the authored
+        // Shield-Breakers only.
+        Fixture f = Fixture.New();
+        f.Runtime.HeldButtons = (int)GameplayButtons.Block;
+        f.Defense.BarrierPoints = 10;
+        f.Defense.BarrierCapacity = 30;
+
+        f.Hit(FighterDamageRules.SpecialAttackClass, damage: 30,
+              knockback: FP64.FromInt(4), hitstunFrames: 20, shieldBreaker: true);
+
+        AssertThat(f.Target.BlockCharges)
+            .OverrideFailureMessage("A Shield-Breaker remainder still takes every charge.")
+            .IsEqual(0);
+        AssertThat(f.Target.DazeFrames)
+            .OverrideFailureMessage("The shatter still dazes.")
+            .IsEqual(60);
+        AssertThat(f.Verb.BlockLockoutFrames).IsEqual(BasicComboRules.BlockShatterLockoutFrames);
+    }
+
+    [TestCase]
+    public void APartialAbsorptionOfAnOrdinarySpecialSpendsTwoChargesOfTheRemainder() {
+        // A01: an ordinary Special's remainder keeps its Special classification
+        // and spends two charges from a full shield, with ordinary shieldstun.
         Fixture f = Fixture.New();
         f.Runtime.HeldButtons = (int)GameplayButtons.Block;
         f.Defense.BarrierPoints = 10;
@@ -145,13 +167,9 @@ public class DefenceOrderingTests {
         f.Hit(FighterDamageRules.SpecialAttackClass, damage: 30,
               knockback: FP64.FromInt(4), hitstunFrames: 20);
 
-        AssertThat(f.Target.BlockCharges)
-            .OverrideFailureMessage("A Special remainder still takes every charge.")
-            .IsEqual(0);
-        AssertThat(f.Target.DazeFrames)
-            .OverrideFailureMessage("The shatter still dazes.")
-            .IsEqual(60);
-        AssertThat(f.Verb.BlockLockoutFrames).IsEqual(BasicComboRules.BlockShatterLockoutFrames);
+        AssertThat(f.Target.BlockCharges).IsEqual(1);
+        AssertThat(f.Target.DazeFrames).IsEqual(0);
+        AssertThat(f.Verb.ShieldStunFrames).IsEqual(BasicComboRules.ShieldstunFrames);
     }
 
     [TestCase]
@@ -248,7 +266,8 @@ public class DefenceOrderingTests {
             int hitstunFrames = 0,
             int statusType = (int)StatusType.None,
             int statusFrames = 0,
-            bool bypassesFiniteShields = false) {
+            bool bypassesFiniteShields = false,
+            bool shieldBreaker = false) {
             // The target faces RIGHT, so "in front" is +x: the attacker stands
             // to the target's right and a held stance can legally absorb.
             Attacker.Position = new FPVector2(Target.Position.x + FP64.One, Target.Position.y);
@@ -258,7 +277,8 @@ public class DefenceOrderingTests {
                 attackClass, damage, knockback, hitstunFrames,
                 statusType, statusFrames, FP64.One,
                 Attacker.Position.x,
-                bypassesFiniteShields: bypassesFiniteShields);
+                bypassesFiniteShields: bypassesFiniteShields,
+                shieldBreaker: shieldBreaker);
         }
     }
 
