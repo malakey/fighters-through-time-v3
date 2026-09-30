@@ -29,6 +29,8 @@ namespace FTT.Combat {
         [Export] public int BlockChargeCost;
         /// <summary>V7.2: boss-only red-telegraph attacks no block answers.</summary>
         [Export] public bool Unblockable;
+        /// <summary>A01 (Package 13 W1): a Shield-Breaker Special — a valid block spends every charge.</summary>
+        [Export] public bool ShieldBreaker;
         /// <summary>
         /// V7.6 F07: a caster-owned combo mark this hitbox applies, independent of
         /// <see cref="AppliedStatus"/>. Tesla's finisher sets Conductive.
@@ -127,6 +129,7 @@ namespace FTT.Combat {
                 ScreenShakeDuration = Mathf.Max(0f, ScreenShakeDuration),
                 BlockChargeCost = Mathf.Max(0, BlockChargeCost),
                 Unblockable = Unblockable,
+                ShieldBreaker = ShieldBreaker && AttackClass == AttackClass.Special,
                 ComboMark = ComboMark,
                 ComboMarkFrames = Mathf.Max(0, ComboMarkFrames),
                 SourceActorId = SourcePlayer != null && IsInstanceValid(SourcePlayer)
@@ -154,6 +157,7 @@ namespace FTT.Combat {
             BlockChargeCost = HitClassification.BlockChargeCostFor(data.BlockClass);
             Unblockable = data.BlockClass == BlockClass.Unblockable
                 && data.Origin != HitOrigin.Ultimate;
+            ShieldBreaker = HitClassification.IsShieldBreaker(data.BlockClass);
             HitstunDuration = data.HitstunDuration;
             Launches = data.Launches;
             Delivery = data.Delivery;

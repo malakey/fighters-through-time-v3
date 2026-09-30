@@ -133,7 +133,13 @@ namespace FTT.FighterSim {
                 BlockClass = (int)ability.BlockClass,
                 Launches = ability.Launches,
                 Delivery = (int)ability.Delivery,
-                Origin = (int)ability.Origin
+                Origin = (int)ability.Origin,
+                // D10 (Package 13 W1): the signed vector, Godot Y-down → sim Y-up.
+                // The horizontal sign is not authored meaning (Story's
+                // DamageCalculator also pushes |x| away from the attacker).
+                HasKnockbackVector = true,
+                KnockbackX = FP64.FromFloat(MathF.Abs(ability.KnockbackForce.X)),
+                KnockbackY = FP64.FromFloat(-ability.KnockbackForce.Y)
             };
         }
 

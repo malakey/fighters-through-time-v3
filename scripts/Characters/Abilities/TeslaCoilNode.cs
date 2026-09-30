@@ -188,9 +188,12 @@ namespace FTT.Characters.Abilities {
             foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(GlobalPosition, ExplosionRadiusPixels)) {
                 // Package 12 W4 (D03h): the detonation is the Cataclysm's own
                 // damage, so it is Ultimate-origin and earns Tesla no meter.
+                // A01 (Package 13 W1): a persistent object's hit is Basic-class
+                // (one charge), the burst included.
                 HitPayload burst = BuildHitPayload(
-                    ArcDamage * 2f, AttackClass.Special, GlobalPosition,
-                    FTT.Core.StatusType.None, 0f, Vector2.Zero, originOverride: HitOrigin.Ultimate);
+                    ArcDamage * 2f, AttackClass.Basic, GlobalPosition,
+                    FTT.Core.StatusType.None, 0f, Vector2.Zero, originOverride: HitOrigin.Ultimate,
+                    hitboxID: "coil_burst");
                 float dealt = hurtbox.TakeHit(burst);
                 CreditOwnerInfluence(in burst, dealt);
             }
@@ -274,10 +277,11 @@ namespace FTT.Characters.Abilities {
             FTT.Core.StatusType status, float statusDuration, Vector2 knockback,
             FTT.Combat.ComboMarkType comboMark = FTT.Combat.ComboMarkType.None,
             int comboMarkFrames = 0,
-            HitOrigin? originOverride = null) => StampConstruct(new HitPayload {
+            HitOrigin? originOverride = null,
+            string hitboxID = "coil_arc") => StampConstruct(new HitPayload {
             AttackerIndex = OwnerIndex,
             AttackID = _data?.AbilityID ?? "tesla_tesla_coil",
-            HitboxID = attackClass == AttackClass.Basic ? "coil_arc" : "coil_burst",
+            HitboxID = hitboxID,
             AttackClass = attackClass,
             Damage = damage,
             Knockback = knockback,

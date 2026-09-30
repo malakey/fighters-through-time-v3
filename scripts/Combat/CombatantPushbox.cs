@@ -12,7 +12,9 @@ namespace FTT.Combat {
     public partial class CombatantPushbox : Area2D {
         public const string GroupName = "CombatantPushboxes";
 
-        [Export] public Vector2 BoxSize = new(30f, 48f);
+        /// <summary>A13 (Package 13 W1): defaults to the universal 0.6-unit (36 px) width.</summary>
+        [Export] public Vector2 BoxSize = new(
+            BasicComboRules.PushboxWidthUnits * KitMotionRules.StoryPixelsPerUnit, 48f);
         [Export] public bool BlocksRollThrough;
         public bool PushEnabled { get; private set; } = true;
 

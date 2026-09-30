@@ -20,12 +20,26 @@ namespace FTT.Combat {
     public enum BlockClass {
         /// <summary>Spends one charge.</summary>
         Basic = 0,
-        /// <summary>Full shatter: spends every remaining charge.</summary>
+        /// <summary>
+        /// A01 (Package 13 W1, 2026-09-29): an ordinary player Special spends
+        /// <c>min(2, charges)</c> — leaving one charge from a full shield with
+        /// the ordinary shieldstun, shattering at one or two. It no longer
+        /// full-shatters; only <see cref="ShieldBreaker"/> does.
+        /// </summary>
         Special = 1,
         /// <summary>Spends two charges (the V7.2 enemy classification).</summary>
         GuardCrush = 2,
         /// <summary>Bypasses the ordinary block (Ultimates, boss red telegraphs).</summary>
-        Unblockable = 3
+        Unblockable = 3,
+        /// <summary>
+        /// A01 (Package 13 W1): a player Special that consumes <b>every</b>
+        /// remaining charge and shatters the shield outright. Appended — never
+        /// renumber. The set is exactly Divine Piercing, The Emancipator and
+        /// Splitting Strike; adding another needs an explicit design decision.
+        /// It is a separate player classification from Story Guard-Crush, so
+        /// Shield of Orléans' Guard-Crush refund never triggers from it.
+        /// </summary>
+        ShieldBreaker = 4
     }
 
     /// <summary>
@@ -78,6 +92,9 @@ namespace FTT.Combat {
             if (origin == HitOrigin.Ultimate) return AttackClass.Ultimate;
             return blockClass == BlockClass.Basic ? AttackClass.Basic : AttackClass.Special;
         }
+
+        /// <summary>A01: true for the full-shatter player Special classification.</summary>
+        public static bool IsShieldBreaker(BlockClass blockClass) => blockClass == BlockClass.ShieldBreaker;
 
         /// <summary>The explicit per-hit charge cost a block class implies (0 = the AttackClass default).</summary>
         public static int BlockChargeCostFor(BlockClass blockClass) =>
@@ -132,10 +149,17 @@ namespace FTT.Combat {
         public float ScreenShakeDuration;
         /// <summary>
         /// V7.2 enemy-attack classification: charges a block spends for this
-        /// hit. 0 uses the class default (Basic/Hazard 1, Special full
-        /// shatter); Guard-Crush attacks author 2.
+        /// hit. 0 uses the class default (Basic/Hazard 1, Special 2 — A01);
+        /// Guard-Crush attacks author 2. Player Specials deliberately leave it
+        /// at 0: Shield of Orléans keys its refund on an explicit 2 here.
         /// </summary>
         public int BlockChargeCost;
+        /// <summary>
+        /// A01 (Package 13 W1): a Shield-Breaker Special — a valid block spends
+        /// every remaining charge. Stamped from the ability's authored
+        /// <see cref="BlockClass.ShieldBreaker"/>; never set on a construct hit.
+        /// </summary>
+        public bool ShieldBreaker;
         /// <summary>V7.2: boss-only red-telegraph attacks that no block answers.</summary>
         public bool Unblockable;
         /// <summary>V7.3: construct/DoT ticks carry no hitstop — only direct

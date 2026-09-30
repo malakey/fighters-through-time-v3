@@ -147,7 +147,7 @@ public class DirectionalAttackTests {
     }
 
     [TestCase]
-    public void BothVariantsLaunchTheVictimUpward() {
+    public void TheUpAttackLaunchesUpwardAndTheDownAirSpikesDownward() {
         var up = NewOverlappingSimulation(seed: 505);
         for (int tick = 0; tick <= BasicComboRules.UpAttackStartupFrames; tick++) {
             Advance(up, tick,
@@ -173,12 +173,12 @@ public class DirectionalAttackTests {
                 p1Held: GameplayButtons.Down);
         }
         AssertThat(down.TryGetFighter(1, out FighterStateComponent spiked)).IsTrue();
-        AssertThat(spiked.Velocity.y > FP64.Zero)
-            .OverrideFailureMessage("The down-air also launches upward (§2.8 — no spike in this batch).")
+        AssertThat(spiked.Velocity.y < FP64.Zero)
+            .OverrideFailureMessage("A12 (Package 13 W1): the down-air slam spikes straight down.")
             .IsTrue();
 
-        // The launch is mostly vertical: the authored 2.5 / 0.3 ratio means the
-        // upward component dominates the horizontal one by a wide margin.
+        // The slam is straight down (A12): no horizontal component at all, so
+        // the vertical component dominates the horizontal one by a wide margin.
         AssertThat(FP64.Abs(spiked.Velocity.y) > FP64.Abs(spiked.Velocity.x) * FP64.FromInt(4))
             .OverrideFailureMessage("Directional knockback must be mostly vertical.")
             .IsTrue();

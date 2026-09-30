@@ -291,6 +291,13 @@ namespace FTT.Combat {
                 payload.Launches = data.Launches;
             }
             if (deliveryOverride.HasValue) payload.Delivery = deliveryOverride.Value;
+            // A01 (Package 13 W1): the payload carries the resource's block
+            // class. A Shield-Breaker ability's own Special-class hits spend
+            // every charge; a construct hit is Basic-class and never breaks.
+            payload.ShieldBreaker = data != null
+                && HitClassification.IsShieldBreaker(data.BlockClass)
+                && payload.AttackClass == AttackClass.Special
+                && payload.Delivery != HitDelivery.Construct;
             if (payload.ContactId == 0) payload.ContactId = HitClassification.NextContactId();
             if (owner != null && GodotObject.IsInstanceValid(owner)) {
                 payload.SourceActorId = owner.GetInstanceId();

@@ -234,7 +234,9 @@ public class FighterCombatContractW3Tests {
             FighterDamageRules.SpecialAttackClass,
             20, FP64.FromInt(6), 18,
             (int)StatusType.None, 0, FP64.One,
-            target.Position.x + FP64.FromInt(attackerOffset));
+            target.Position.x + FP64.FromInt(attackerOffset),
+            // A01 (Package 13 W1): only a Shield-Breaker shatters a full shield.
+            shieldBreaker: true);
 
         AssertThat(target.BlockCharges).IsEqual(0);
         AssertThat(target.DazeFrames > 0).IsTrue();

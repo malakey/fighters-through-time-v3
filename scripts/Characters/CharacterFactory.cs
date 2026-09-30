@@ -295,7 +295,10 @@ namespace FTT.Characters {
 		private static void BuildPushbox(PlayerController player, int playerIndex) {
 			var pushbox = new CombatantPushbox {
 				Name = "Pushbox",
-				BoxSize = new Vector2(30f, 48f),
+				// A13 (Package 13 W1): the universal 0.6-unit pushbox (36 px).
+				BoxSize = new Vector2(
+					FTT.Combat.BasicComboRules.PushboxWidthUnits * FTT.Combat.KitMotionRules.StoryPixelsPerUnit,
+					48f),
 				Position = new Vector2(0f, -28f),
 				CollisionLayer = CollisionLayers.BodyLayerForFighterSlot(playerIndex),
 				CollisionMask = playerIndex == 0 ? CollisionLayers.Enemy : CollisionLayers.Player,

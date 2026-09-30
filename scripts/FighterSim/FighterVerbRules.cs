@@ -240,4 +240,88 @@ namespace FTT.FighterSim {
             }
         }
     }
+
+    /// <summary>
+    /// A12 (Package 13 W1): the Down-Air slam's single forced ground bounce.
+    /// State is the <c>SlamBouncePending</c> / <c>SlamBounceSpeed</c> pair on
+    /// component 320 (plan D7). A slam that leaves its victim tumbling arms the
+    /// bounce; the first floor or one-way surface contact during that tumble
+    /// consumes it — <b>forced, untechable</b> — popping the victim back up at
+    /// the slam's own scaled vertical magnitude (the Up-Attack's vertical
+    /// profile) with DI read again. The bounce keeps the tumble, so the NEXT
+    /// landing is techable normally. One bounce per slam; it never repeats.
+    /// </summary>
+    public static class FighterSlamRules {
+        /// <summary>True while a bounce is owed.</summary>
+        public static bool IsPending(in FighterKnockdownComponent knockdown) => knockdown.SlamBouncePending != 0;
+
+        public static void Clear(ref FighterKnockdownComponent knockdown) {
+            knockdown.SlamBouncePending = 0;
+            knockdown.SlamBounceSpeed = FP64.Zero;
+        }
+
+        /// <summary>
+        /// Arms the bounce after a CONNECTED slam (blocked, absorbed, defied or
+        /// lethal slams never reach a tumble). The speed is the stashed launch's
+        /// downward magnitude — weight and low-HP scaling already applied — so
+        /// DI's later bend never changes it (DI never changes magnitude either).
+        /// </summary>
+        public static void TryArm(
+            in FighterStateComponent target,
+            in FighterVerbComponent targetVerb,
+            ref FighterKnockdownComponent targetKnockdown) {
+            if (target.Stocks <= 0 || target.RespawnFramesRemaining > 0) return;
+            if (target.HitstunFrames <= 0 || targetVerb.Tumble != 1) return;
+            FP64 downward = targetVerb.PendingLaunchActive == 1 ? targetVerb.PendingLaunchY : target.Velocity.y;
+            FP64 speed = FP64.Abs(downward);
+            if (speed <= FP64.Zero) return;
+            targetKnockdown.SlamBouncePending = 1;
+            targetKnockdown.SlamBounceSpeed = speed;
+        }
+
+        /// <summary>
+        /// Drops a bounce whose tumble ended some other way — hitstun ran out,
+        /// a tech or knockdown already resolved it — or whose fighter fell.
+        /// </summary>
+        public static void ClearIfStale(
+            in FighterStateComponent fighter,
+            in FighterVerbComponent verb,
+            ref FighterKnockdownComponent knockdown) {
+            if (knockdown.SlamBouncePending == 0) return;
+            if (fighter.Stocks <= 0
+                || fighter.RespawnFramesRemaining > 0
+                || fighter.HitstunFrames <= 0
+                || verb.Tumble != 1) {
+                Clear(ref knockdown);
+            }
+        }
+
+        /// <summary>
+        /// Consumes an owed bounce on a ground contact. Returns true when it
+        /// fired, in which case the landing tech and the knockdown are skipped
+        /// for this contact — the bounce is forced.
+        /// </summary>
+        public static bool TryBounce(
+            ref FighterStateComponent fighter,
+            in FighterRuntimeComponent runtime,
+            ref FighterVerbComponent verb,
+            ref FighterKnockdownComponent knockdown) {
+            if (knockdown.SlamBouncePending == 0) return false;
+            FP64 speed = knockdown.SlamBounceSpeed;
+            Clear(ref knockdown);
+            if (fighter.Stocks <= 0 || fighter.HitstunFrames <= 0 || verb.Tumble != 1 || speed <= FP64.Zero) {
+                return false;
+            }
+            fighter.IsGrounded = 0;
+            // The bounce is a fresh tumble with the Up-Attack's vertical profile:
+            // its hitstun is refreshed to the directional window so the pop reads
+            // as a launch, and DI is read again on the bounce itself.
+            if (fighter.HitstunFrames < FTT.Combat.BasicComboRules.DirectionalAttackHitstunFrames) {
+                fighter.HitstunFrames = FTT.Combat.BasicComboRules.DirectionalAttackHitstunFrames;
+            }
+            FighterVerbRules.StashPendingLaunch(ref verb, new FPVector2(fighter.Velocity.x, speed));
+            FighterVerbRules.ResolvePendingLaunch(ref fighter, in runtime, ref verb);
+            return true;
+        }
+    }
 }
