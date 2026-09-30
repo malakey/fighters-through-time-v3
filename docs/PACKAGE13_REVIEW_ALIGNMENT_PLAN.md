@@ -158,6 +158,12 @@ Owns the **ground-wave** primitive (travels along the ground, grounded targets o
 
 *(Each workstream appends its entry here at merge.)*
 
+### W1 — Universal combat rules (branch `p13/W1`; handoff `docs/handoffs/P13_W1.md`)
+- **Shipped:** A01 (`BlockClass.ShieldBreaker = 4`, `SpecialBlockChargeCost = 2`, both modes, via `BlockRules.ChargeCost`/`ApplyFighterHit(shieldBreaker)` — never via `BlockChargeCost`; constructs Basic-class), D10 (signed `FighterAbilityHitData.KnockbackX/Y` for Special intents, projectiles and zone pulses), A03 (air dodge, phases 5–7, `AirDodgeUsed` on 320), A04 (`FighterStockLossRules`), A05/D11 (Root blocks the air dodge and the sim movement ability), A06 (Story Special recovery no longer arms Echo Step), A11 (`StoryShieldEffect.ResonanceBarrier = 5`, `GrantResonanceBarrier`), A12 (Down-Air slam + forced bounce, `SlamBouncePending`/`SlamBounceSpeed` on 320; Story mobs bounce too), A13 (0.6-unit pushbox, hurtbox-tested grab).
+- **Test delta:** +28 (2527 → 2555 by filtered namespace runs); per-file table in the handoff.
+- **Hash moves:** every Fighter hash (320 layout growth, pushbox 0.6, signed knockback). All self-consistency hash/rollback suites pass.
+- **Deviations:** Ultimate knockbacks still use the flattened tuning scalar (W6 region); enemy/boss scene pushboxes not narrowed (`VERIFY-ENEMY-PUSHBOX-WIDTH`); sim hit hurtbox stays 1.0 wide (grab alone uses the design widths); no dedicated Move List air-dodge row (roll row value extended); Story grab pixel scale moved 62.5 → 60 px/unit to agree with the pushbox. Needs from W5: North Star Ward as a `ResonanceBarrier` source (append a member); from W6: refuse the air dodge during the activation strike/whiff recovery.
+
 ## 10. Closeout report
 
 *(Phase C.)*
