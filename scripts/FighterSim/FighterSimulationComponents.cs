@@ -1137,8 +1137,8 @@ namespace FTT.FighterSim {
     /// (14 f) get-up chosen from the held direction on the frame the knockdown
     /// ends. Neither get-up is invulnerable, and both lock every action.
     ///
-    /// <para>Six ints and one FP64, 32 bytes, since Package 13 W1 added the
-    /// A03 air-dodge latch and the A12 slam-bounce pair (plan D7 allocated
+    /// <para>Seven ints and one FP64, 36 bytes, since Package 13 W1 added the
+    /// A03 air-dodge latch and the A12 slam-bounce pair and W7b the M04 staff-refund latch (plan D7 allocated
     /// them here; no new component ID). Snapshot and hash state like every
     /// other component. Zero-initialised means "not down, dodge available, no
     /// bounce owed": every field's inactive value is 0, so a Klotho default
