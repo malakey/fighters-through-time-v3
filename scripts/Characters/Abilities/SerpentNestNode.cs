@@ -17,7 +17,9 @@ namespace FTT.Characters.Abilities {
     /// </summary>
     public partial class SerpentNestNode : FTT.Core.PooledNode, FTT.Core.IPoolable, FTT.Environment.IStoryRewindSimulation, FTT.Environment.IStoryTimeFreezable {
 
-        private const float BiteRangePixels = 90f;   // 1.5 world units at 60 px/unit; "passing over" contact.
+        /// <summary>C01 (Package 13 W7b): the nest is 2.0 units wide — it bites within 1.0 unit (60 px) of its centre.</summary>
+        public static float BiteRangePixels =>
+            (float)KitReachRules.SerpentNestWidthUnits * KitMotionRules.StoryPixelsPerUnit * 0.5f;
         private const int MaxNestHP = 15;
         private const float RootHitstunSeconds = 1.0f;
         private const float VenomDurationFallback = 4f;

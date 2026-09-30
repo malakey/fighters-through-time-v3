@@ -695,10 +695,10 @@ internal static class RollbackHarnessKits {
             characterID switch {
                 // (special 1 exec, special 2 exec, movement type, s1 construct, s2 construct, movement construct)
                 FighterCharacterID.Einstein => (1, 2, 4, 0, 0, 0),
-                FighterCharacterID.Joan => (1, 0, 1, 0, 0, 0),
+                FighterCharacterID.Joan => (1, 0, 10, 0, 0, 0),
                 FighterCharacterID.Leonardo => (2, 3, 1, 0, 2, 0),
-                FighterCharacterID.Lincoln => (2, 0, 2, 0, 0, 0),
-                FighterCharacterID.Cleopatra => (3, 2, 3, 3, 0, 0),
+                FighterCharacterID.Lincoln => (1, 0, 2, 0, 0, 0),
+                FighterCharacterID.Cleopatra => (3, 2, 11, 3, 0, 0),
                 FighterCharacterID.Tesla => (3, 2, 0, 1, 0, 0),
                 // Package 13 W7a (A08): Prospero's Flight is a gust burst (MovementType 6).
                 FighterCharacterID.Shakespeare => (1, 2, 6, 0, 0, 0),

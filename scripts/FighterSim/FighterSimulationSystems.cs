@@ -376,7 +376,11 @@ namespace FTT.FighterSim {
                 // dropped. A03: a stock loss refreshes the air dodge (the
                 // stock-loss chokepoint has no Frame; the platform is the tell).
                 FighterSlamRules.ClearIfStale(in fighter, in verb, ref knockdown);
-                if (FighterStockLossRules.IsFallen(in fighter)) FighterAirDodgeRules.Refresh(ref knockdown);
+                if (FighterStockLossRules.IsFallen(in fighter)) {
+                    FighterAirDodgeRules.Refresh(ref knockdown);
+                    // Package 13 W7b (M04): a stock loss re-arms the staff refund too.
+                    knockdown.StaffRefundUsed = 0;
+                }
                 if (FighterKnockdownRules.IsActive(in knockdown)) {
                     TickCounters(ref fighter, ref runtime, ref verb, ref defense, in tuning);
                     // A lethal Venom tick inside TickCounters is a stock loss;
@@ -396,7 +400,7 @@ namespace FTT.FighterSim {
                     fighter.Position.x = FP64.Clamp(fighter.Position.x, _geometry.LeftWall, _geometry.RightWall);
                     // A roll get-up can carry the fighter off a platform end or
                     // an Open-stage floor edge: the get-up ends and they fall.
-                    if (!HasGroundSupport(in fighter)) {
+                    if (!HasGroundSupport(in fighter) && !FighterReachKitRules.StandsOnStaff(ref frame, in fighter)) {
                         fighter.IsGrounded = 0;
                         FighterKnockdownRules.Clear(ref knockdown);
                     }
@@ -520,6 +524,10 @@ namespace FTT.FighterSim {
                     // The basic-combo phase machine advances before movement so its
                     // locks and cancels gate the same tick's movement, mirroring how
                     // Story resolves both inside one _PhysicsProcess.
+                    // Package 13 W7b (A08): Attack during the Wing-Dive ends the
+                    // dive so this same tick's phase machine starts the aerial
+                    // string — the dive is an approach, not a hover.
+                    FighterKitMotion.TryWingDiveAttackCancel(ref runtime);
                     ProcessBasicAttackPhase(ref fighter, ref runtime, in verb);
                     bool attacking = runtime.AttackPhase != FighterBasicAttackRules.PhaseNone;
                     bool blockStance = FighterBasicAttackRules.IsBlockStance(in fighter, in runtime, in verb);
@@ -634,12 +642,20 @@ namespace FTT.FighterSim {
                 // end above the floor plane, or (Package 11 A9) the end of a main
                 // floor segment on an Open stage. An unbroken floor supports every
                 // x, so the Sealed stages never take the second branch.
-                if (fighter.IsGrounded != 0 && !HasGroundSupport(in fighter)) {
+                // Package 13 W7b (M04): a Sonata staff platform is a walkable
+                // one-way surface for either fighter while it lives.
+                if (fighter.IsGrounded != 0 && !HasGroundSupport(in fighter)
+                    && !FighterReachKitRules.StandsOnStaff(ref frame, in fighter)) {
                     fighter.IsGrounded = 0;
                 }
 
+                bool landedOnOwnStaff = false;
                 if (fighter.DropThroughFrames <= 0 && fighter.Velocity.y <= FP64.Zero) {
                     TryLandOnPlatform(ref fighter, in tuning, previousY);
+                    if (fighter.IsGrounded == 0) {
+                        int staffOwner = FighterReachKitRules.TryLandOnStaff(ref frame, ref fighter, in tuning, previousY);
+                        landedOnOwnStaff = wasAirborne && staffOwner == fighter.PlayerID;
+                    }
                 }
 
                 // The blast zone is resolved before the ground snap. With the old
@@ -691,6 +707,14 @@ namespace FTT.FighterSim {
                     verb.LedgeGrabsThisAirtime = 0;
                     FighterAirDodgeRules.Refresh(ref knockdown);
                 }
+                // M04 (Package 13 W7b, both modes per D14): landing on his OWN
+                // staff refunds half of Sonata Drift's remaining cooldown, at most
+                // once per airtime; real ground (not a staff) re-arms it.
+                if (landedOnOwnStaff) {
+                    FighterReachKitRules.ApplyStaffRefund(ref runtime, ref knockdown);
+                } else if (fighter.IsGrounded != 0 && !FighterReachKitRules.StandsOnStaff(ref frame, in fighter)) {
+                    knockdown.StaffRefundUsed = 0;
+                }
 
                 // §2.11 ledge capture, resolved last so landing and the ground snap
                 // both win: a fighter who reached a surface is standing on it, not
@@ -698,6 +722,7 @@ namespace FTT.FighterSim {
                 // resolve are candidates. A03: a grab refreshes the air dodge.
                 if (TryGrabLedge(ref fighter, ref runtime, ref verb, in tuning)) {
                     FighterAirDodgeRules.Refresh(ref knockdown);
+                    knockdown.StaffRefundUsed = 0;
                 }
             }
 
@@ -1847,6 +1872,9 @@ namespace FTT.FighterSim {
             // A03 (Package 13 W1): the air dodge's invulnerable frames drop the pushbox.
             if (FighterAirDodgeRules.IsInvulnerablePhase(in firstRuntime)
                 || FighterAirDodgeRules.IsInvulnerablePhase(in secondRuntime)) return;
+            // C03 (Package 13 W7b): Desert Mirage's sand rush passes through opponents.
+            if (FighterKitMotion.PassesThroughFighters(in firstRuntime)
+                || FighterKitMotion.PassesThroughFighters(in secondRuntime)) return;
             // A hanging fighter is pinned to its ledge anchor by the movement
             // system; jostling it would fight that pin for a frame. Co-hangs on
             // the same anchor never persist past the tick they occur — the V7.3
@@ -2939,6 +2967,31 @@ namespace FTT.FighterSim {
             // The block stance ignores attack inputs, exactly as Story's Blocking
             // state does.
             if (FighterBasicAttackRules.IsBlockStance(in attacker, in attackerRuntime, in attackerVerb)) return default;
+            // Package 13 W7b (LN03): Splitting Strike is a 2.2-unit overhead arc
+            // that catches grounded and airborne targets alike and spikes the
+            // airborne ones — tested against its own box, not the generic 2-unit
+            // melee gate.
+            if (attacker.CharacterID == (int)FighterCharacterID.Lincoln
+                && (attackerRuntime.PressedButtons & SpecialTwoButton) != 0
+                && attackerRuntime.SpecialTwoCooldownFrames <= 0
+                && (attackerRuntime.PressedButtons & UltimateButton) == 0) {
+                if (!FighterReachKitRules.SplittingArcReaches(in attacker, in target)) return default;
+                FighterAbilityHitData splitting = contracts.For(attacker.PlayerID, FighterHitContractTable.SlotSpecialTwo);
+                ResolveIntentContract(splitting, LegacySpecialHitstunFrames, out int splitHitstun, out bool splitLaunches);
+                return new AttackIntent(
+                    4,
+                    tuning.SpecialTwoDamage,
+                    splitting.HasKnockbackVector ? splitting.KnockbackX : tuning.SpecialTwoKnockback,
+                    splitHitstun,
+                    tuning.SpecialTwoStatusType,
+                    tuning.SpecialTwoStatusFrames,
+                    tuning.SpecialTwoStatusIntensity,
+                    tuning.SpecialTwoCooldownFrames,
+                    launches: splitLaunches && FighterReachKitRules.SplittingLaunches(in splitting, in target),
+                    shieldBreaker: splitting.ShieldBreaker,
+                    hasKnockbackVector: splitting.HasKnockbackVector,
+                    knockbackVertical: FighterReachKitRules.SplittingVertical(in splitting, in target));
+            }
             if (FP64.Abs(target.Position.x - attacker.Position.x) > AttackRange) return default;
             // V7.3: melee-execution specials and the generic melee ultimate are
             // front-only, matching ResolveStringBox's convention — nothing in

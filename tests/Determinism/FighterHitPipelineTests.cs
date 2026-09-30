@@ -254,9 +254,10 @@ public class FighterHitPipelineTests {
 
     [TestCase]
     public void MeleeSpecialsNeverHitBehindTheAttacker() {
-        // Joan's Divine Piercing is a melee-execution intent. Facing the
-        // target it lands; turned away it must whiff (front-only, matching the
-        // string hitboxes).
+        // Joan's Special 2 on the synthetic default loadout (not her authored
+        // Divine Piercing, which is the Package 13 W7b lunge pinned by
+        // DivinePiercingLungeTests). Facing the target it lands; turned away it
+        // must whiff (front-only, matching the string hitboxes).
         var facing = NewJoanPair(seed: 992);
         facing.Advance(Frame(0, GameplayButtons.Special2), Frame(0, GameplayButtons.None));
         AssertThat(facing.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();

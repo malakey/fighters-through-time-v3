@@ -11,20 +11,24 @@ namespace FTT.Tests.Determinism;
 
 /// <summary>
 /// Deterministic Fighter-side coverage for the canonical Mozart kit: the
-/// Requiem Chord projectile folding its multi-hit burst total into one hit,
-/// the heavy-knockback Fortissimo Wave, the harmless type-5 Sonata
-/// staff-platform lifecycle, and rollback safety across the whole kit.
+/// Requiem Chord's contact plus its three-pulse burst (M03, Package 13 W7b —
+/// 16 total), the heavy-knockback Fortissimo Wave (M01: a ground wall of
+/// sound), the harmless type-5 Sonata staff-platform lifecycle, and rollback
+/// safety across the whole kit.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
 public class MozartKitTests {
 
     [TestCase]
-    public void RequiemChordFoldsTheMultiHitBurstTotalIntoOneProjectileHit() {
-        // The authored burst is 3 hits x 4 damage; the deterministic projectile
-        // lands as a single hit, so the loadout folds the 12-damage total.
+    public void RequiemChordLandsItsContactAndAllThreeBurstPulses() {
+        // M03 (Package 13 W7b), rewritten in place: the sim used to fold the
+        // 3 x 4 burst into one 12-damage hit and skip the contact. The chord
+        // now lands its 4-damage contact (per-hit, from the contract) and then
+        // bursts into three 4-damage pulses in a 1.2-unit radius — 16 total.
         FighterLoadout loadout = FighterLoadoutFactory.FromCharacterData(BuildMozart());
-        AssertThat(loadout.SpecialOneDamage).IsEqual(12);
+        AssertThat(loadout.AbilityModes.SpecialOneHit.Damage).IsEqual(4);
+        AssertThat(loadout.AbilityModes.SpecialOneHit.HitCount).IsEqual(3);
 
         var simulation = new FighterSimulation(
             loadout,
@@ -39,15 +43,14 @@ public class MozartKitTests {
         }
 
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-        AssertThat(target.CurrentHP).IsEqual(88);
+        AssertThat(target.CurrentHP).IsEqual(84);
+        AssertThat(simulation.ZoneCount).IsEqual(0);
     }
 
     [TestCase]
     public void FortissimoWaveDealsTwelveWithHeavyForwardKnockback() {
-        // V7: the wave is a lobbed arc that rises past a point-blank target and
-        // crashes down ~4.5-6 units of travel out, so the opponent stands in the
-        // landing zone (fighters spawn at +/-spawnDistance = 6 units apart)
-        // rather than at melee range.
+        // M01 (Package 13 W7b): the lob is retired — the wave is a wall of sound
+        // travelling along the ground, so it reaches the opponent 6 units away.
         var simulation = new FighterSimulation(
             FighterLoadoutFactory.FromCharacterData(BuildMozart()),
             FighterLoadout.Default(FighterCharacterID.Joan),
@@ -167,7 +170,8 @@ public class MozartKitTests {
         },
         MovementAbility = new MovementAbilityData {
             MovementType = MovementType.Float,
-            MovementDuration = 3f,
+            MovementDuration = 0.3f,
+            DistanceMoved = 180f,
             CooldownDuration = 5f,
             PersistentObjectID = "sonata_platform",
             MaxActiveObjects = 1,

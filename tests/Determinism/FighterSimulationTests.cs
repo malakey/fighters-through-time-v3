@@ -772,8 +772,10 @@ public class FighterSimulationTests {
         UltimateAttack = new AbilityData { BaseDamage = 20f }
     };
 
+    // Package 13 W7b: not "joan" — her Melee Special 2 is the Divine Piercing
+    // lunge now, whose thrusts land later than this same-tick status pin reads.
     private static CharacterData BuildStatusTestCharacter() => new() {
-        CharacterID = "joan",
+        CharacterID = "cleopatra",
         MaxHP = 100,
         Weight = 1f,
         MaxBlockCharges = 3,

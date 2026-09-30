@@ -66,9 +66,17 @@ namespace FTT.FighterSim {
         public const int MovementKindDash = 2;
         public const int MovementKindTeleport = 3;
         public const int MovementKindWarp = 4;
+        /// <summary>
+        /// Mozart's Sonata Drift. Since Package 13 W7b (M04) a rising glissando of
+        /// the authored distance along the held stick, so it plans as directional.
+        /// </summary>
         public const int MovementKindFloat = 5;
         /// <summary>Package 13 W7a (A08): Prospero's single gust burst along facing, then a normal fall.</summary>
         public const int MovementKindGust = 6;
+        /// <summary>Package 13 W7b (A08): Joan's rising slash-leap (the held Wing-Dive descends, so the planner never holds it).</summary>
+        public const int MovementKindWingDive = 10;
+        /// <summary>Package 13 W7b (C03): Cleopatra's 8-direction sand rush.</summary>
+        public const int MovementKindSandRush = 11;
 
         /// <summary>
         /// True when the profile was built from a real loadout. A CPU constructed
@@ -92,6 +100,11 @@ namespace FTT.FighterSim {
         public FP64 MovementDistance { get; init; }
         /// <summary>Normalized launch speed in world units per second (Glide/Dash/Float).</summary>
         public FP64 MovementSpeed { get; init; }
+        /// <summary>
+        /// Package 13 W7b (A08): the Ascendant Wings rise's length — the
+        /// movement ability's authored startup + active + recovery frames.
+        /// </summary>
+        public int MovementRiseFrames { get; init; }
         /// <summary>Authored float/glide duration in frames.</summary>
         public int MovementDurationFrames { get; init; }
         public int MovementCooldownFrames { get; init; }
@@ -113,7 +126,7 @@ namespace FTT.FighterSim {
         /// him to "obtain necessary height through legal jumps".
         /// </summary>
         public bool MovementProvidesLift =>
-            MovementKind is MovementKindGlide or MovementKindFloat or MovementKindGust
+            MovementKind is MovementKindGlide or MovementKindGust or MovementKindWingDive
             || MovementIsDirectional;
 
         /// <summary>
@@ -151,9 +164,11 @@ namespace FTT.FighterSim {
         public FP64 MovementHorizontalReach {
             get {
                 if (MovementIsDirectional) return MovementDistance;
-                if (MovementKind == MovementKindFloat) return FP64.Zero;
                 // A08: the gust carries its authored forward distance, no glide.
                 if (MovementKind == MovementKindGust) return MovementDistance;
+                // A08: the Wing-Dive's rise is vertical; its forward travel is a
+                // descent the planner never takes offstage.
+                if (MovementKind == MovementKindWingDive) return FP64.Zero;
                 FP64 seconds = FP64.FromInt(MovementDurationFrames)
                     / FP64.FromInt(FighterSimulation.TickRate);
                 return MovementSpeed * seconds;
@@ -173,7 +188,13 @@ namespace FTT.FighterSim {
                 if (MovementKind == MovementKindGust) {
                     return FP64.FromDouble(FTT.Combat.KitMotionRules.ProsperoGustRiseUnits);
                 }
-                if (MovementKind is MovementKindGlide or MovementKindFloat) {
+                // A08: the slash-leap climbs at the authored speed for the whole
+                // cast (no gravity, no glide) — FighterKitMotion.WingRise.
+                if (MovementKind == MovementKindWingDive) {
+                    return MovementSpeed * FP64.FromInt(MovementRiseFrames)
+                        / FP64.FromInt(FighterSimulation.TickRate);
+                }
+                if (MovementKind == MovementKindGlide) {
                     FP64 launch = MovementSpeed > FP64.Zero ? MovementSpeed : FP64.FromInt(8);
                     FP64 gravity = -FighterMovementSystem.GravityPerSecondSquared;
                     if (gravity <= FP64.Zero) return FP64.Zero;
@@ -196,8 +217,11 @@ namespace FTT.FighterSim {
                 HasKit = true,
                 Character = character,
                 MovementKind = kind,
+                // Package 13 W7b: the sand rush (C03) and the glissando (M04)
+                // travel along the held stick like the blink.
                 MovementIsDirectional =
-                    kind is MovementKindBlink or MovementKindTeleport or MovementKindWarp,
+                    kind is MovementKindBlink or MovementKindTeleport or MovementKindWarp
+                        or MovementKindSandRush or MovementKindFloat,
                 MovementDistance = loadout.AbilityModes.MovementDistance > FP64.Zero
                     ? loadout.AbilityModes.MovementDistance
                     : FP64.FromInt(2),
@@ -208,6 +232,7 @@ namespace FTT.FighterSim {
                     ? loadout.AbilityModes.MovementDurationFrames
                     : 180,
                 MovementCooldownFrames = loadout.AbilityModes.MovementCooldownFrames,
+                MovementRiseFrames = loadout.AbilityModes.MovementHit.TotalFrames,
                 MovementResetsJump = loadout.AbilityModes.MovementResetsJump != 0,
                 JumpSpeed = loadout.JumpSpeed,
                 MoveSpeed = loadout.MoveSpeed,

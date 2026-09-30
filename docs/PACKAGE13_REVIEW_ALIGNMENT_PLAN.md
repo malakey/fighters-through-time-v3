@@ -231,6 +231,32 @@ Handoff: `docs/handoffs/P13_W6.md`. **Test delta +20 (2527 → 2547)**, measured
 - **Deviations:** (1) Rift Collapse decides who is caught at the detonation instant, before the burst resolves, so a blocker the burst shatters is still not pulled; (2) sim turret line of sight is trivially true on the sim's open stages; (3) the Tempest's Ultimate-cinematic exclusion is Story-only (no sim state for it yet — W6); (4) a Story `PlayerController` caught by a collapse gets the launch applied directly (its damage path ignores 0-damage hits); (5) kit-phase codes 30/31 were chosen clear of W7b — union `IsKitPhase` at merge; (6) `Hitbox.CreatePayload` stamps `ExemptFromHitstop` for construct delivery (turret bolts; no other `Hitbox` used it); (7) placeholder presentation only — the sim driver draws no warp ghost/gust pose and E=mc²'s rotating item is not built; (8) invented provisional values: collapse launch 6 u/s, collapse hitstun 30 f / 0.5 s, bolt hitstun 10 f / 0.15 s.
 - **Ledger for Phase C:** close the Leonardo half of `DEFER-FIGHTER-KIT-RULES`; D9 still covers the sim specials' startup (`DEFER-SIM-SPECIAL-PHASES`). No save field, no v8 derivation.
 
+### W7b — Kits: Joan, Mozart, Cleopatra, Lincoln (branch `p13/W7b`; handoff `docs/handoffs/P13_W7b.md`)
+- **Shipped (both modes):** the ground-wave primitive (sim `FighterGroundWave` on component 302 by type ID;
+  Story `StoryGroundWave`) under Righteous Smite (J02: 2.5 u, grounded, 30 f hitstun, no launch), The
+  Emancipator (LN03: 5 u at 10 u/s, grounded, zone path deleted) and Fortissimo Wave (M01: 1.5 u wall, 4 u/s ×
+  6 u, not grounded-only; the lob is gone); Divine Piercing's ~3 u lunge with three once-each 8-damage thrusts
+  (J01/J03: 11 s / 13 f / 20 f); Ascendant Wings rise + held Wing-Dive + Attack cancel (A08, `MovementType
+  .WingDive = 10`, no glide); Requiem Chord 14 u/s no range limit, contact 4 + 3 × 4 burst in 1.2 u (M03) and
+  the once-per-execution 2 s Fortissimo shave (M02); Sonata Drift glissando ~3 u along the held direction,
+  2.0 u staff at its end, half-cooldown refund once per airtime (M04, D14 — sim staffs are now walkable);
+  Serpent Nest at her feet 2.0 u wide and the Vortex thrown up to 5 u ground-snapped, radius 1.8 (C01);
+  Desert Mirage 8-way 4 u / 15 f sand rush through opponents (C03, `MovementType.SandRush = 11`); Splitting
+  Strike 2.2 u arc spiking airborne targets (LN03); Rail Charge 5 u / 30 f, 6-damage non-launching ram that
+  stops on contact (LN02). Venom (C02) verified unchanged.
+- **Test delta +31** (2460 → 2491 on this branch; Determinism 479, Unit 1345, ContentValidation+Integration
+  667, all green under the lock protocol). Per-file table in the handoff.
+- **Hash moves:** all Fighter hashes (309 `ExecutionFlags`, 320 `StaffRefundUsed`, kit behaviour); every
+  self-consistency hash/rollback suite passes. No v8 derivation.
+- **Deviations:** (1) D13 read as Story's shipped rise (420 px/s over the 36-frame cast ≈ 4.2 u); the sim now
+  matches it — `VERIFY-WING-DIVE-LEAP`; (2) the Requiem terrain burst is a local rule (sim walls only, Story
+  Environment point query) — replace with W7a's primitive at merge; (3) Story Rail Charge armor still covers
+  its 12 f startup (shared `StoryCombatRules` window); (4) every sim `MovementType.Dash` is now the rail
+  charge, including the synthetic default loadout; (5) design-silent choices recorded in the handoff (Smite
+  wave speed, impulse-free contact/early pulses, grounded Splitting Strike = horizontal shove, sim vortex
+  snap over pits); (6) `MovementType` ordinals are explicit 10/11 and kit phases 24–29 so W7a's parallel
+  appends cannot collide; (7) no animation mapping for the new kit phases in the Fighter driver.
+
 ## 10. Closeout report
 
 *(Phase C.)*

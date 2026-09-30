@@ -143,6 +143,17 @@ namespace FTT.FighterSim {
                 HasKnockbackVector = true,
                 KnockbackX = FP64.FromFloat(MathF.Abs(ability.KnockbackForce.X)),
                 KnockbackY = FP64.FromFloat(-ability.KnockbackForce.Y),
+                // Package 13 W7b: per-hit damage and the authored hitbox, so a
+                // kit rule reads the resource instead of restating it.
+                Damage = RoundDamage(ability.BaseDamage),
+                HitCount = Math.Max(1, ability.HitCount),
+                ActiveFrames = Math.Max(1, ability.ActiveFrames),
+                TotalFrames = Math.Max(0, ability.StartupFrames) + Math.Max(1, ability.ActiveFrames)
+                    + Math.Max(0, ability.RecoveryFrames),
+                HitboxHalfX = FP64.FromFloat(Math.Max(0f, ability.HitboxSize.X) / 120f),
+                HitboxHalfY = FP64.FromFloat(Math.Max(0f, ability.HitboxSize.Y) / 120f),
+                HitboxOffsetX = FP64.FromFloat(ability.HitboxOffset.X / 60f),
+                HitboxOffsetY = FP64.FromFloat(-ability.HitboxOffset.Y / 60f),
                 // Package 13 W7a: the burst primitive (px → units).
                 BurstRadius = WorldDistance(ability.ProjectileBurstRadius),
                 ContactDamage = RoundDamage(ability.ProjectileContactDamage),

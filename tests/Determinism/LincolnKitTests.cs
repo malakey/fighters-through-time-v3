@@ -10,17 +10,17 @@ namespace FTT.Tests.Determinism;
 
 /// <summary>
 /// Deterministic Fighter-side coverage for the canonical Lincoln kit: the
-/// Emancipator forward ground-wave zone whose single pulse carries a real
-/// knock-up impulse (the one impulse-carrying zone type), Rail Charge
-/// hyper-armor frames that keep damage but suppress hitstun, and rollback
-/// safety across an active Emancipator zone.
+/// Emancipator ground wave (LN03, Package 13 W7b — a travelling wave on the
+/// shared ground-wave primitive, no longer a static zone) that knocks a
+/// grounded target upward, Rail Charge's armor window (LN02: exactly the
+/// travel), and rollback safety across a wave in flight.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
 public class LincolnKitTests {
 
     [TestCase]
-    public void EmancipatorZonePulseCarriesKnockUpImpulse() {
+    public void EmancipatorGroundWaveCarriesKnockUpImpulse() {
         var simulation = new FighterSimulation(
             FighterLoadoutFactory.FromCharacterData(BuildEmancipatorCharacter()),
             FighterLoadout.Default(FighterCharacterID.Joan),
@@ -30,58 +30,56 @@ public class LincolnKitTests {
 
         simulation.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
 
-        // The wave is a forward-offset zone (type CharacterID 3 * 10 + slot 1).
-        AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
-        AssertThat(zone.ZoneTypeID).IsEqual((int)FighterCharacterID.Lincoln * 10 + 1);
-        AssertThat(zone.Position.x > xpTURN.Klotho.Deterministic.Math.FP64.FromInt(-1)).IsTrue();
+        // LN03 (Package 13 W7b), rewritten in place: the wave is a travelling
+        // ground wave (projectile type CharacterID 3 * 10 + slot 1) riding the
+        // floor, not a zone.
+        AssertThat(simulation.ZoneCount).IsEqual(0);
+        AssertThat(simulation.TryGetFirstProjectile(out FighterProjectileComponent wave)).IsTrue();
+        AssertThat(wave.ProjectileTypeID).IsEqual((int)FighterCharacterID.Lincoln * 10 + 1);
+        AssertThat(FighterGroundWave.SurfaceY(in wave)).IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.Zero);
 
-        // Unlike every other zone, the Emancipator pulse carries real impulse:
-        // damage, hitstun, and an upward launch off the ground.
-        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
-        AssertThat(target.CurrentHP).IsEqual(80);
-        AssertThat(target.HitstunFrames).IsEqual(18);
-        AssertThat(target.IsGrounded).IsEqual(0);
-        AssertThat(target.Velocity.y > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
-
-        // The 0.25 s wave expires after its single pulse.
-        for (int tick = 1; tick <= 20; tick++) {
+        // It reaches the grounded opponent within a few ticks and carries real
+        // impulse: damage, hitstun, and an upward launch off the ground.
+        for (int tick = 1; tick <= 6; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
-        AssertThat(simulation.ZoneCount).IsEqual(0);
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
+        AssertThat(target.CurrentHP).IsEqual(80);
+        AssertThat(target.IsGrounded).IsEqual(0);
+        AssertThat(target.Velocity.y > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
+        // The hit consumed the wave.
+        AssertThat(simulation.ProjectileCount).IsEqual(0);
     }
 
     [TestCase]
-    public void RailChargeHyperArmorFramesPreventHitstun() {
+    public void RailChargeArmorsExactlyItsTravel() {
         var simulation = new FighterSimulation(
             FighterLoadoutFactory.FromCharacterData(BuildRailChargeCharacter()),
             FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 62,
-            spawnDistance: 1,
+            spawnDistance: 5,
             rules: FighterMatchRules.Disabled);
 
-        // Rail Charge grants hyper-armor for the full authored 3 s duration.
+        // LN02 (Package 13 W7b), rewritten in place: the retired 3 s charge
+        // armored 180 frames. Rail Charge is now 5 units over 30 frames and is
+        // armored for exactly that travel.
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent before)).IsTrue();
         simulation.Advance(Frame(0, 0, GameplayButtons.MovementAbility), Frame(0, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent charging)).IsTrue();
-        AssertThat(charging.HyperArmorFrames).IsEqual(180);
-        AssertThat(charging.Velocity.x > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
+        AssertThat(charging.HyperArmorFrames).IsEqual(30);
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
+        AssertThat(runtime.UniversalMovementState).IsEqual(FighterKitMotion.RailCharge);
 
-        // The opponent's basic lands during the charge: damage sticks, but the
-        // armored Lincoln takes no hitstun (design: damage yes, hitstun no).
-        simulation.Advance(Frame(1, 0, GameplayButtons.None), Frame(1, 0, GameplayButtons.BasicAttack));
-        // Basics are phased swings: the hit lands during the active window
-        // (Joan's V7.1 opener starts up in 5 frames and its damage shape is a
-        // full 1.0x), still deep inside the 180-frame armor.
-        for (int tick = 2; tick <= 15; tick++) {
+        for (int tick = 1; tick <= 31; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
-        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent struck)).IsTrue();
-        AssertThat(struck.CurrentHP).IsEqual(90);
-        AssertThat(struck.HitstunFrames).IsEqual(0);
-        // 180 armed at tick 0, ticked once per un-frozen frame through tick 15;
-        // the V7.1 hitstop from the 10-damage connect suspends the armor timer
-        // for the shared window (armor outlives the freeze, it never shrinks by it).
-        AssertThat(struck.HyperArmorFrames)
-            .IsEqual(165 + FTT.Combat.BasicComboRules.HitstopFrames(10));
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent after)).IsTrue();
+        AssertThat(after.HyperArmorFrames).IsEqual(0);
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent ended)).IsTrue();
+        AssertThat(ended.UniversalMovementState).IsEqual(0);
+        var travelled = after.Position.x - before.Position.x;
+        AssertThat(travelled > xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(4.9)).IsTrue();
+        AssertThat(travelled < xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(5.1)).IsTrue();
     }
 
     [TestCase]
@@ -94,10 +92,10 @@ public class LincolnKitTests {
             loadout, FighterLoadout.Default(FighterCharacterID.Joan),
             seed: 63, spawnDistance: 1, rules: FighterMatchRules.Disabled);
 
-        // Cast the wave, then snapshot while the zone is alive and the target is
-        // mid-knock-up so both the zone entity and the impulse state roll back.
+        // Cast the wave, then snapshot while it is in flight so both the wave
+        // entity and the target's impulse state roll back.
         uninterrupted.Advance(Frame(0, 0, GameplayButtons.Special1), Frame(0, 0, GameplayButtons.None));
-        for (int tick = 1; tick < 8; tick++) {
+        for (int tick = 1; tick < 2; tick++) {
             uninterrupted.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
         }
 
@@ -105,7 +103,7 @@ public class LincolnKitTests {
         restored.RestoreFullState(snapshot);
         AssertThat(restored.CurrentHash).IsEqual(uninterrupted.CurrentHash);
 
-        for (int tick = 8; tick < 420; tick++) {
+        for (int tick = 2; tick < 420; tick++) {
             long expected = uninterrupted.Advance(
                 Frame(tick, 64, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
             long actual = restored.Advance(
@@ -125,11 +123,13 @@ public class LincolnKitTests {
         BasicAttackDamage = 15f,
         BasicAttackKnockback = 5f,
         SpecialAttackOne = new AbilityData {
-            ExecutionType = AbilityExecutionType.Area,
+            ExecutionType = AbilityExecutionType.Projectile,
             BaseDamage = 20f,
             KnockbackForce = new Vector2(2f, -6f),
-            CooldownDuration = 10f,
-            Lifetime = 0.25f
+            Launches = true,
+            ProjectileSpeed = 600f,
+            ProjectileLifetime = 0.5f,
+            CooldownDuration = 10f
         },
         SpecialAttackTwo = new AbilityData { BaseDamage = 18f },
         MovementAbility = new MovementAbilityData(),
@@ -150,9 +150,13 @@ public class LincolnKitTests {
         SpecialAttackTwo = new AbilityData(),
         MovementAbility = new MovementAbilityData {
             MovementType = MovementType.Dash,
-            MovementDuration = 3f,
-            MovementSpeed = 360f,
+            MovementDuration = 0.5f,
+            DistanceMoved = 300f,
+            MovementSpeed = 600f,
             GrantsHyperArmor = true,
+            BaseDamage = 6f,
+            KnockbackForce = new Vector2(5f, 0f),
+            Launches = false,
             CooldownDuration = 5f
         },
         UltimateAttack = new AbilityData { BaseDamage = 25f }

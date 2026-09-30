@@ -28,7 +28,7 @@ namespace FTT.FighterSim {
     /// <c>MovementDurationFrames</c>). Nothing here reads a Story modifier:
     /// Long Blink never reaches the sim.</para>
     /// </summary>
-    public static class FighterKitMotion {
+    public static partial class FighterKitMotion {
         public const int FirstPhase = 16;
         public const int BlinkStartup = 16;
         public const int BlinkTravel = 17;
@@ -58,7 +58,10 @@ namespace FTT.FighterSim {
         public const int SpiritStrikeHitstunFrames = 18;
 
         public static bool IsKitPhase(int state) =>
-            (state >= FirstPhase && state <= LastPhase) || state is WarpFoldStartup or GustBurst;
+            (state >= FirstPhase && state <= LastPhase) || state is WarpFoldStartup or GustBurst
+            // Package 13 W7b: Joan / Cleopatra / Lincoln / Mozart phases 24–29
+            // (FighterKitMotion.Reach.cs).
+            || IsReachPhase(state);
 
         /// <summary>
         /// The Lightning Blink pass-through window: the translation, and only
@@ -71,7 +74,8 @@ namespace FTT.FighterSim {
         /// <summary>Startup hovers and the translation/carry fly straight: no gravity.</summary>
         public static bool SuspendsGravity(in FighterRuntimeComponent runtime) =>
             runtime.UniversalMovementState is BlinkStartup or BlinkTravel or SpiritCarry
-                or WarpFoldStartup or GustBurst;
+                or WarpFoldStartup or GustBurst
+            || ReachSuspendsGravity(in runtime);
 
         // --- activation -------------------------------------------------------
 
@@ -180,6 +184,9 @@ namespace FTT.FighterSim {
             in FighterAbilityModeComponent modes,
             FP64 decelStep,
             FighterStageGeometry geometry = null) {
+            if (IsReachPhase(runtime.UniversalMovementState)) {
+                return ProcessReach(ref fighter, ref runtime, in modes);
+            }
             switch (runtime.UniversalMovementState) {
                 case WarpFoldStartup:
                     if (runtime.UniversalMovementFramesRemaining <= 0) {

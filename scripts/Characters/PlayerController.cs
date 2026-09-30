@@ -2793,6 +2793,17 @@ namespace FTT.Characters {
 				&& !CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)) {
 				CheckAttackInput();
 			}
+			// Package 13 W7b (A08, Joan kit hook): Attack during the Wing-Dive
+			// ends the dive and starts her aerial string on the same frame — the
+			// dive is an approach, not a hover.
+			if (_movementAbility is Abilities.JoanAscendantWings { IsWingDiving: true } wings
+				&& !TimeFrozen
+				&& CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)
+				&& !CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)
+				&& wings.TryCancelDiveForAttack()) {
+				TransitionTo(CharacterState.Airborne);
+				CheckAttackInput();
+			}
 		}
 
 		// === State Transitions ===

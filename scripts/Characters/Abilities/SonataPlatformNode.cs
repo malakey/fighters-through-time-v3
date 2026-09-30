@@ -17,7 +17,9 @@ namespace FTT.Characters.Abilities {
 
         /// <summary>Body top relative to the root origin (body is 12 px thick, centered).</summary>
         private const float SurfaceOffsetPixels = 6f;
-        private const float StandHalfWidthPixels = 100f;
+        /// <summary>M04 (Package 13 W7b): the staff is 2.0 units wide (the scene's collider matches).</summary>
+        public static float StandHalfWidthPixels =>
+            (float)FTT.Combat.KitReachRules.SonataPlatformWidthUnits * FTT.Combat.KitMotionRules.StoryPixelsPerUnit * 0.5f;
         private const float StandVerticalTolerancePixels = 14f;
 
         public int OwnerIndex { get; private set; }
@@ -38,22 +40,12 @@ namespace FTT.Characters.Abilities {
             _lifetime = (data?.Lifetime > 0f ? data.Lifetime : 3f)
                 * (owner?.StoryPersistentDurationMultiplier ?? 1f);
             _rewindFrozen = false;
-            _landingRefundSpent = false;
             SetBodyCollisionEnabled(true);
         }
 
-        private bool _landingRefundSpent;
-
-        /// <summary>
-        /// Package 12 W4: Sonata Drift's staff-landing refund is granted once
-        /// per platform, so hopping on the same staff cannot keep halving the
-        /// recharge. Returns true exactly once per spawned platform.
-        /// </summary>
-        public bool TryConsumeLandingRefund() {
-            if (_landingRefundSpent) return false;
-            _landingRefundSpent = true;
-            return true;
-        }
+        // Package 13 W7b (M04): the staff-landing refund is once per AIRTIME,
+        // owned by MozartSonataDrift.ResolveStaffRefund — the retired
+        // once-per-platform latch let two staffs chain refunds indefinitely.
 
         /// <summary>
         /// True while the given player stands on this staff's surface. Used by the
@@ -79,7 +71,6 @@ namespace FTT.Characters.Abilities {
             _ownerPlayer = null;
             _lifetime = 0f;
             _rewindFrozen = false;
-            _landingRefundSpent = false;
         }
 
         public void SetStoryRewindFrozen(bool frozen) => _rewindFrozen = frozen;
