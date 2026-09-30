@@ -14,7 +14,8 @@ namespace FTT.Tests.Unit;
 /// <see cref="SavedMatchSettings.DeriveStageHazardsEnabled"/>. Every fixture is
 /// a v6 JSON payload. Nothing here reads a resource, but the suite keeps the
 /// Godot runtime so that a future step which does cannot turn it into failure
-/// signature 7.
+/// signature 7. Package 13's v8 bump moved every "current version" pin to
+/// <see cref="SaveSchemaMigrator.CurrentVersion"/>; the v7 step itself is unchanged.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -32,7 +33,7 @@ public class SaveSchemaV7MigrationTests {
             DepositedChronalDust = new Dictionary<string, int> { ["tesla"] = 50 }
         }), out int loaded);
         AssertThat(loaded).IsEqual(6);
-        AssertThat(unminted.SaveVersion).IsEqual(7);
+        AssertThat(unminted.SaveVersion).IsEqual(SaveSchemaMigrator.CurrentVersion);
         AssertThat(unminted.LevelChronalDust).IsEqual(0);
         AssertThat(unminted.DepositedChronalDust["tesla"]).IsEqual(170);
 
@@ -98,7 +99,7 @@ public class SaveSchemaV7MigrationTests {
     public void AVersionSixGlobalPayloadDerivesTheHazardToggleFromTheRetiredRate() {
         GlobalSaveData off = SaveSchemaMigrator.DeserializeGlobal(
             "{\"SaveVersion\":6,\"LastMatchSettings\":{\"Saved\":true,\"HazardRate\":0}}");
-        AssertThat(off.SaveVersion).IsEqual(7);
+        AssertThat(off.SaveVersion).IsEqual(SaveSchemaMigrator.CurrentVersion);
         AssertThat(off.LastMatchSettings.StageHazardsEnabled == false).IsTrue();
 
         foreach (int rate in new[] { 1, 2, 3, 9 }) {
@@ -130,7 +131,7 @@ public class SaveSchemaV7MigrationTests {
 
         // Saving and reloading the migrated payload runs nothing again.
         StorySaveData second = SaveSchemaMigrator.DeserializeStory(Json(first), out int loaded);
-        AssertThat(loaded).IsEqual(7);
+        AssertThat(loaded).IsEqual(SaveSchemaMigrator.CurrentVersion);
         AssertThat(second.DepositedChronalDust["cleopatra"]).IsEqual(74);
         AssertThat(second.LevelChronalDust).IsEqual(0);
         AssertThat(second.LowestDifficultyUsed).IsEqual(Difficulty.Normal);
@@ -157,10 +158,10 @@ public class SaveSchemaV7MigrationTests {
             LowestDifficultyUsed = Difficulty.Normal
         };
         story.Normalize();
-        AssertThat(story.SaveVersion).IsEqual(7);
+        AssertThat(story.SaveVersion).IsEqual(SaveSchemaMigrator.CurrentVersion);
 
         StorySaveData restored = SaveSchemaMigrator.DeserializeStory(Json(story), out int loaded);
-        AssertThat(loaded).IsEqual(7);
+        AssertThat(loaded).IsEqual(SaveSchemaMigrator.CurrentVersion);
         AssertThat(restored.LevelChronalDust).IsEqual(25);
         AssertThat(restored.DepositedChronalDust.ContainsKey("lincoln")).IsFalse();
         AssertThat(restored.LowestDifficultyUsed).IsEqual(Difficulty.Normal);
@@ -171,13 +172,13 @@ public class SaveSchemaV7MigrationTests {
         global.LastMatchSettings.MeterPickupsEnabled = true;
         global.Normalize();
         GlobalSaveData globalRestored = SaveSchemaMigrator.DeserializeGlobal(Json(global), out int globalLoaded);
-        AssertThat(globalLoaded).IsEqual(7);
+        AssertThat(globalLoaded).IsEqual(SaveSchemaMigrator.CurrentVersion);
         AssertThat(globalRestored.LastMatchSettings.StageHazardsEnabled == false).IsTrue();
         AssertThat(globalRestored.LastMatchSettings.MeterPickupsEnabled).IsTrue();
 
         bool rejected = false;
         try {
-            SaveSchemaMigrator.DeserializeGlobal("{\"SaveVersion\":8}");
+            SaveSchemaMigrator.DeserializeGlobal("{\"SaveVersion\":9}");
         } catch (SaveVersionException) {
             rejected = true;
         }

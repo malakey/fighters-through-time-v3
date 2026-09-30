@@ -152,8 +152,8 @@ public class SaveEnvelopeTests {
         StorySaveData migrated = SaveSchemaMigrator.DeserializeStory(
             "{\"SaveVersion\":4,\"SelectedCharacterID\":\"joan\",\"LevelChronalDust\":42}");
 
-        AssertThat(SaveSchemaMigrator.CurrentVersion).IsEqual(7);
-        AssertThat(migrated.SaveVersion).IsEqual(7);
+        AssertThat(SaveSchemaMigrator.CurrentVersion).IsEqual(8);
+        AssertThat(migrated.SaveVersion).IsEqual(8);
         AssertThat(migrated.LevelChronalDust).IsEqual(0);
         AssertThat(migrated.DepositedChronalDust["joan"]).IsEqual(42);
         AssertObject(migrated.ActivatedCheckpointIDs).IsNotNull();
@@ -215,10 +215,10 @@ public class SaveEnvelopeTests {
         AssertThat(restored.ViewedDialogueIDs[0]).IsEqual("level_02.entrance");
         AssertThat(restored.HasSeenCollapseBeat).IsTrue();
 
-        // The version fence still holds: v8 is the future and stays rejected.
+        // The version fence still holds: v9 is the future and stays rejected.
         bool rejected = false;
         try {
-            SaveSchemaMigrator.DeserializeStory("{\"SaveVersion\":8}");
+            SaveSchemaMigrator.DeserializeStory("{\"SaveVersion\":9}");
         } catch (SaveVersionException) {
             rejected = true;
         }

@@ -297,8 +297,18 @@ namespace FTT.Core {
         /// (W5's hazard toggle). Every other Package 12 field is additive with a
         /// field initializer equal to its legacy meaning. The counter is still
         /// shared (<c>DEFER-SAVE-VERSION-SPLIT</c>).</para>
+        ///
+        /// <para>v8 (Package 13, Phase C) is the package's single bump. It composes
+        /// exactly the declared derivations — <see cref="MigrateStoryToV8"/> (W2's
+        /// Level 4A retirement, then W5's Pocahontas → Tubman roster swap) and
+        /// <see cref="MigrateGlobalToV8"/> (W5's replacement unlock). W3's four
+        /// story fields (<c>SkippedCalibration</c>, <c>ShownFirstUseTooltips</c>,
+        /// <c>LastHubLineVisit</c>, <c>HomecomingSeen</c>) are additive with field
+        /// initializers equal to their legacy meaning and need no derivation.
+        /// Both derivations are pure and engine-free, so a v7 payload migrates
+        /// without the Godot runtime.</para>
         /// </summary>
-        public const int CurrentVersion = 7;
+        public const int CurrentVersion = 8;
 
         public static StorySaveData DeserializeStory(string json) => DeserializeStory(json, out _);
 
@@ -322,6 +332,7 @@ namespace FTT.Core {
             if (version < 7) ReconcileStoryCompletionForV7(data);
             if (version < 6) MigrateStoryToV6(data);
             if (version < 7) MigrateStoryToV7(data);
+            if (version < 8) MigrateStoryToV8(data);
             data.Normalize();
             return data;
         }
@@ -342,6 +353,7 @@ namespace FTT.Core {
             GlobalSaveData data = root.ToObject<GlobalSaveData>() ?? new GlobalSaveData();
             if (version < 6) MigrateGlobalToV6(data);
             if (version < 7) MigrateGlobalToV7(data);
+            if (version < 8) MigrateGlobalToV8(data);
             data.Normalize();
             return data;
         }
@@ -537,6 +549,39 @@ namespace FTT.Core {
             data.LastMatchSettings ??= new SavedMatchSettings();
             data.LastMatchSettings.StageHazardsEnabled ??=
                 SavedMatchSettings.DeriveStageHazardsEnabled(data.LastMatchSettings.HazardRate);
+        }
+
+        /// <summary>
+        /// Story v7 → v8 (Package 13, plan D2 + D4). Two declared derivations, in
+        /// this order:
+        /// <list type="number">
+        /// <item><b>W2 <see cref="StoryAttemptState.RetireLegacyLevelV8"/></b> — a
+        /// payload parked on a deleted <c>Level_04A_&lt;hero&gt;.tscn</c> banks its
+        /// held wallet once into the selected hero's deposited dust and re-parks at
+        /// Level 5 on a fresh attempt.</item>
+        /// <item><b>W5 <see cref="RosterSwapV8.MigrateRosterSwapV8"/></b> — a
+        /// <c>pocahontas</c> save is locked to <c>tubman</c>, her grid is refunded
+        /// and her deposited balance moves to Tubman.</item>
+        /// </list>
+        /// The retirement runs first so that dust it banks under
+        /// <c>pocahontas</c> is then carried to Tubman by the swap. The two commute
+        /// (the swap first would re-key the selection before the bank), but this
+        /// order states the intent. Both are idempotent and engine-free.
+        /// </summary>
+        private static void MigrateStoryToV8(StorySaveData data) {
+            if (data == null) return;
+            StoryAttemptState.RetireLegacyLevelV8(data);
+            RosterSwapV8.MigrateRosterSwapV8(data);
+        }
+
+        /// <summary>
+        /// Global v7 → v8 (Package 13 W5, D4). Adds <c>tubman</c> once to a
+        /// non-empty <c>UnlockedCharacters</c>; the <c>pocahontas</c> entry, her
+        /// wins/losses and seen dialogue stay as dead data.
+        /// </summary>
+        private static void MigrateGlobalToV8(GlobalSaveData data) {
+            if (data == null) return;
+            RosterSwapV8.EnsureReplacementUnlocked(data);
         }
 
         /// <summary>
