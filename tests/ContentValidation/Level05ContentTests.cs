@@ -93,9 +93,11 @@ public class Level05ContentTests {
 
         var ids = new List<string>();
         foreach (DialogueSequenceData sequence in set.Sequences) ids.Add(sequence.DialogueID);
-        // preboss is the Act-finale extra beat (plan section 2.3: levels 5, 12, 15).
+        // preboss is the Act-finale extra beat (plan section 2.3: levels 5, 12, 15);
+        // postboss is Package 13 W4's S18/S19 exchange at the sealing anchor.
         AssertThat(ids).ContainsExactlyInAnyOrder(
-            "level_05.entrance", "level_05.preboss", "level_05.boss_intro", "level_05.exit");
+            "level_05.entrance", "level_05.preboss", "level_05.boss_intro",
+            "level_05.postboss", "level_05.exit");
     }
 
     [TestCase]
@@ -135,13 +137,15 @@ public class Level05ContentTests {
     }
 
     [TestCase]
-    public void TheExitBeatPlantsTheOrbitalRelayLeadThatLevelTwelvePaysOff() {
-        // The Act I hook: defeating the Tidal Eraser must hand the player the
-        // reason the campaign later goes to the Moon. If this line stops naming an
-        // orbital relay, level 12 loses its setup.
-        string exitLine = LocalizationValue("dlg_l05_exit_4");
-        AssertString(exitLine.ToLowerInvariant()).Contains("orbital");
-        AssertString(exitLine.ToLowerInvariant()).Contains("relay");
+    public void TheExitBeatPlantsTheEncryptedKeyLeadThatLevelTwelvePaysOff() {
+        // The Act I hook (design §16, Level 5 exit): the Overseer carried an
+        // encrypted key that points off this world - Level 11's exit says it is
+        // nearly cracked and Level 12 opens on it. Package 13 W4 replaced the
+        // cargo-uplink clue (the old dlg_l05_exit_4) with this line.
+        string exitLine = LocalizationValue("dlg_l05_exit_1").ToLowerInvariant();
+        AssertString(exitLine).Contains("encrypted key");
+        AssertString(exitLine).Contains("off this world");
+        AssertString(LocalizationValue("dlg_l12_entrance_1").ToLowerInvariant()).Contains("key's cracked");
     }
 
     // === Encounter economy (locked by docs/DUST_ECONOMY.md) ===

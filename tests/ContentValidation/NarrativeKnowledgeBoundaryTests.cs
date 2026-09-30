@@ -58,6 +58,16 @@ public class NarrativeKnowledgeBoundaryTests {
     };
 
     /// <summary>
+    /// Package 13 W4: nouns matched <b>case-sensitively</b>. "the Landing" is the
+    /// plan's proper noun; the design's own Level 12 arrival ("an outpost beside
+    /// the landing site", Apollo 11's landing site) uses the common noun and is
+    /// not a plan fact.
+    /// </summary>
+    private static readonly HashSet<string> CaseSensitiveNouns = new(StringComparer.Ordinal) {
+        "the Landing"
+    };
+
+    /// <summary>
     /// The other half of the same rule, stated positively: the retired "your
     /// resonance fades as history heals" arc. V7.5 is explicit that the power
     /// <i>grows</i> across the campaign and that the hero surrenders it exactly once,
@@ -80,7 +90,10 @@ public class NarrativeKnowledgeBoundaryTests {
         foreach ((string key, string english) in EnglishRows()) {
             if (!IsGuarded(key)) continue;
             foreach (string noun in ForbiddenBeforeActIII) {
-                if (english.Contains(noun, StringComparison.OrdinalIgnoreCase)) {
+                StringComparison comparison = CaseSensitiveNouns.Contains(noun)
+                    ? StringComparison.Ordinal
+                    : StringComparison.OrdinalIgnoreCase;
+                if (english.Contains(noun, comparison)) {
                     leaks.Add($"{key} states '{noun}' before Level 13");
                 }
             }

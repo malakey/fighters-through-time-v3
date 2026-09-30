@@ -91,7 +91,9 @@ public class EnemyRetroSpriteAssetTests {
         // Package 12 W9 adds eight: the Borgia after-image dash (M18), the Rift
         // Phantom's rift step (M20) and six Rule 1 Phase 2 abilities. Their
         // placeholder rows reuse an existing row of the same owner's atlas.
-        AssertThat(inspected).IsEqual(90);
+        // Package 13 W4 adds one: the Thunderbomb Engineer's burning pool, which
+        // shares the retained neural_mech_walker row of its thunder-bomb lob.
+        AssertThat(inspected).IsEqual(91);
         foreach (string fallback in new[] {
             "chrono_rioter.basic", "chrono_slasher.basic",
             "rift_phantom.basic", "shock_shield_legionnaire.basic"

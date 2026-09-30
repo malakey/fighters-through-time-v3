@@ -487,9 +487,10 @@ public class Level11ContentTests {
         var set = AuthoredResources.Load<DialogueSetData>(Level11Controller.DialogueResourcePath);
         AssertObject(set).IsNotNull();
         AssertString(set.DialogueSetID).IsEqual("dialogue_level_11");
-        // Package 11 A6: three base beats plus the two N03 Lincoln hero variants.
-        AssertThat(set.Sequences.Length).IsEqual(5);
-        foreach (string variant in new[] { "level_11.entrance@lincoln", "level_11.exit@lincoln" }) {
+        // Package 13 W4 (S30): four base beats (the silent-telegraph absence added)
+        // plus the two N03 Lincoln variants (absence-slot recognition and exit).
+        AssertThat(set.Sequences.Length).IsEqual(6);
+        foreach (string variant in new[] { "level_11.absence@lincoln", "level_11.exit@lincoln" }) {
             DialogueSequenceData branch = set.Find(variant);
             AssertObject(branch).OverrideFailureMessage(
                 $"The N03 recognition variant '{variant}' is missing.").IsNotNull();
@@ -511,7 +512,8 @@ public class Level11ContentTests {
             "gettysburg_lane_shielded", "gettysburg_gate_sealed"
         };
 
-        foreach (string sequenceID in new[] { "level_11.entrance", "level_11.boss_intro", "level_11.exit" }) {
+        foreach (string sequenceID in new[] {
+            "level_11.entrance", "level_11.absence", "level_11.boss_intro", "level_11.exit" }) {
             DialogueSequenceData sequence = set.Find(sequenceID);
             AssertObject(sequence).OverrideFailureMessage(
                 $"Dialogue sequence '{sequenceID}' is missing from the set.").IsNotNull();

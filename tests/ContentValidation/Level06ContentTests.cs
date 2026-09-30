@@ -124,7 +124,8 @@ public class Level06ContentTests {
         AssertString(dialogue.DialogueSetID).IsEqual("dialogue_level_06");
 
         HashSet<string> keys = EnglishKeys();
-        string[] expectedSequences = { "level_06.entrance", "level_06.boss_intro", "level_06.exit" };
+        // Package 13 W4 (S37): Pliny's absence beat plays for every hero.
+        string[] expectedSequences = { "level_06.entrance", "level_06.absence", "level_06.boss_intro", "level_06.exit" };
         AssertThat(dialogue.Sequences.Length).IsEqual(expectedSequences.Length);
 
         foreach (string dialogueID in expectedSequences) {

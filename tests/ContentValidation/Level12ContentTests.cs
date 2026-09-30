@@ -193,17 +193,23 @@ public class Level12ContentTests {
 
     [TestCase]
     public void ThePostBossBeatCompletesTheTraceAndNamesTwoCaptivesThroughTheTokens() {
-        // M13: Narration / Sarah (Shocked) / Player (Determined), after the
-        // Overseer falls. The preboss_3..5 keys keep their names (legacy
-        // identifiers are never renamed) and now carry this scene.
+        // M13 + S01: Narration / Sarah (Shocked) / the hero's "You knew." / Sarah's
+        // confession (Injured) / Player (Determined), after the Overseer falls. The
+        // preboss_3..5 keys keep their names (legacy identifiers are never renamed);
+        // Package 13 W4 inserted the S01 confession pair between the reveal and the
+        // hero's closing line.
         DialogueSequenceData postboss = SequenceNamed("level_12.postboss");
         AssertObject(postboss).IsNotNull();
         AssertThat(postboss.LineKeys).ContainsExactly(
-            "dlg_l12_preboss_3", "dlg_l12_preboss_4", "dlg_l12_preboss_5");
+            "dlg_l12_preboss_3", "dlg_l12_preboss_4", "dlg_l12_postboss_confront",
+            "dlg_l12_postboss_confession", "dlg_l12_preboss_5");
         AssertThat(postboss.SpeakerNameKeys).ContainsExactly(
-            "speaker_narration", "speaker_sarah", "speaker_player");
+            "speaker_narration", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player");
         AssertString(postboss.EmotionKeys[1]).IsEqual("emotion_shocked");
-        AssertString(postboss.EmotionKeys[2]).IsEqual("emotion_determined");
+        AssertString(postboss.EmotionKeys[3]).IsEqual("emotion_injured");
+        AssertString(postboss.EmotionKeys[4]).IsEqual("emotion_determined");
+        AssertString(LocalizationValue("dlg_l12_postboss_confront")).Contains("You knew.");
+        AssertString(LocalizationValue("dlg_l12_postboss_confession")).Contains("I'm sorry.");
         AssertString(LocalizationValue("dlg_l12_preboss_3").ToLowerInvariant()).Contains("overseer falls");
 
         // The tokens still render for every hero: two distinct captives, never
@@ -240,14 +246,15 @@ public class Level12ContentTests {
     }
 
     [TestCase]
-    public void TheEntranceBeatPaysOffTheOrbitalRelayLeadPlantedOnTheTitanic() {
-        // Level 5's exit hands the player "an orbital communications relay" as the
-        // reason the campaign goes to the Moon. If this line stops acknowledging
-        // it, the Act I hook lands nowhere.
-        string briefing = LocalizationValue("dlg_l12_entrance_2").ToLowerInvariant();
-        AssertString(briefing).Contains("relay");
-        AssertString(briefing).Contains("titanic");
-        AssertString(briefing).Contains("broadcast");
+    public void TheEntranceBeatPaysOffTheEncryptedKeyLeadPlantedOnTheTitanic() {
+        // Level 5's exit hands the player the Overseer's encrypted key "pointing off
+        // this world" (design §16); the arrival opens on it cracked, pointing at a
+        // relay on the Moon. If this line stops acknowledging it, the Act I hook
+        // lands nowhere.
+        string arrival = LocalizationValue("dlg_l12_entrance_1").ToLowerInvariant();
+        AssertString(arrival).Contains("key's cracked");
+        AssertString(arrival).Contains("relay");
+        AssertString(arrival).Contains("moon");
     }
 
     // === Encounter economy (locked by docs/DUST_ECONOMY.md) ===
