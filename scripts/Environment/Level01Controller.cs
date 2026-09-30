@@ -170,7 +170,8 @@ namespace FTT.Environment {
         }
 
         private void OnDialogueComplete(string dialogueID) {
-            if (dialogueID == "level_01.exit") ShowCompletionResults();
+            // Package 13 W4: level_01.exit@leonardo completes under its variant ID.
+            if (FTT.UI.DialogueSequenceData.BaseIDOf(dialogueID) == "level_01.exit") ShowCompletionResults();
         }
 
         // === Level construction ===

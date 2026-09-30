@@ -371,7 +371,12 @@ namespace FTT.Environment {
             }
         }
 
-        private void HandleDialogueComplete(string dialogueID) {
+        private void HandleDialogueComplete(string completedID) {
+            // Package 13 W4: a hero variant completes under its own ID
+            // ("level_02.exit@joan"), so the chain compares base IDs — otherwise
+            // a variant exit never presents the results and a variant post-boss
+            // beat stalls the chain.
+            string dialogueID = FTT.UI.DialogueSequenceData.BaseIDOf(completedID);
             if (dialogueID == ExitDialogueID) {
                 ShowCompletionResults();
                 return;

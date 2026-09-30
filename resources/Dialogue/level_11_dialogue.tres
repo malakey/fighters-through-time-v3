@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="DialogueSetData" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
@@ -6,37 +6,46 @@
 [sub_resource type="Resource" id="Entrance"]
 script = ExtResource("2")
 DialogueID = "level_11.entrance"
-SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah")
-LineKeys = PackedStringArray("dlg_l11_entrance_1", "dlg_l11_entrance_2")
-EmotionKeys = PackedStringArray("emotion_shocked", "emotion_neutral")
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_sarah", "speaker_player")
+LineKeys = PackedStringArray("dlg_l11_entrance_1", "dlg_l11_entrance_2", "dlg_l11_entrance_3")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="Absence"]
+script = ExtResource("2")
+DialogueID = "level_11.absence"
+SpeakerNameKeys = PackedStringArray("speaker_union_officer")
+LineKeys = PackedStringArray("dlg_l11_absence_1")
+EmotionKeys = PackedStringArray("emotion_confused")
 PausesGameplay = true
 AutoAdvance = false
 
 [sub_resource type="Resource" id="BossIntro"]
 script = ExtResource("2")
 DialogueID = "level_11.boss_intro"
-SpeakerNameKeys = PackedStringArray("speaker_siege_cannon", "speaker_player")
-LineKeys = PackedStringArray("dlg_l11_boss_1", "dlg_l11_boss_2")
-EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined")
+SpeakerNameKeys = PackedStringArray("speaker_siege_cannon")
+LineKeys = PackedStringArray("dlg_l11_boss_1")
+EmotionKeys = PackedStringArray("emotion_neutral")
 PausesGameplay = true
 AutoAdvance = false
 
 [sub_resource type="Resource" id="Exit"]
 script = ExtResource("2")
 DialogueID = "level_11.exit"
-SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player")
-LineKeys = PackedStringArray("dlg_l11_exit_1", "dlg_l11_exit_2", "dlg_l11_exit_3", "dlg_l11_exit_4", "dlg_l11_exit_5")
-EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_injured", "emotion_neutral", "emotion_determined")
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l11_exit_1", "dlg_l11_exit_2", "dlg_l11_exit_3")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_injured", "emotion_neutral")
 PausesGameplay = true
 AutoAdvance = false
 
-[sub_resource type="Resource" id="EntranceLincoln"]
+[sub_resource type="Resource" id="AbsenceLincoln"]
 script = ExtResource("2")
-DialogueID = "level_11.entrance@lincoln"
+DialogueID = "level_11.absence@lincoln"
 HeroConditionCharacterID = "lincoln"
-SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_union_officer")
-LineKeys = PackedStringArray("dlg_l11_entrance_1", "dlg_l11_entrance_2", "dlg_l11_recognition_lincoln")
-EmotionKeys = PackedStringArray("emotion_shocked", "emotion_neutral", "emotion_determined")
+SpeakerNameKeys = PackedStringArray("speaker_union_officer")
+LineKeys = PackedStringArray("dlg_l11_recognition_lincoln")
+EmotionKeys = PackedStringArray("emotion_shocked")
 PausesGameplay = true
 AutoAdvance = false
 
@@ -44,13 +53,13 @@ AutoAdvance = false
 script = ExtResource("2")
 DialogueID = "level_11.exit@lincoln"
 HeroConditionCharacterID = "lincoln"
-SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player")
-LineKeys = PackedStringArray("dlg_l11_exit_1", "dlg_l11_exit_2", "dlg_l11_exit_3_lincoln", "dlg_l11_exit_4_lincoln", "dlg_l11_exit_5")
-EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_determined", "emotion_neutral", "emotion_determined")
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l11_exit_1", "dlg_l11_exit_3_lincoln", "dlg_l11_exit_4_lincoln")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_injured", "emotion_neutral")
 PausesGameplay = true
 AutoAdvance = false
 
 [resource]
 script = ExtResource("1")
 DialogueSetID = "dialogue_level_11"
-Sequences = [SubResource("Entrance"), SubResource("BossIntro"), SubResource("Exit"), SubResource("EntranceLincoln"), SubResource("ExitLincoln")]
+Sequences = [SubResource("Entrance"), SubResource("Absence"), SubResource("BossIntro"), SubResource("Exit"), SubResource("AbsenceLincoln"), SubResource("ExitLincoln")]

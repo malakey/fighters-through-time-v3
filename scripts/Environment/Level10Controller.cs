@@ -8,7 +8,7 @@ namespace FTT.Environment {
 
     /// <summary>
     /// Level 10 - The Globe Theatre, London 1599. Opening night of <i>Hamlet</i>.
-    /// The Unbound has seeded neural-manipulators through the galleries and
+    /// The Severed have seeded neural-manipulators through the galleries and
     /// rigged collapse charges under the stage, meaning to turn the house into a
     /// fatal stampede. Four rooms across 10,240 px:
     /// <list type="number">
@@ -35,7 +35,7 @@ namespace FTT.Environment {
     /// <para>
     /// Era roster: <c>holo_page</c> (the London standard - a spectral prompt-boy
     /// hurling holographic daggers that apply TimeDilation) mixed with
-    /// <c>chrono_slasher</c> (Unbound shock-trooper standard).
+    /// <c>chrono_slasher</c> (Severed shock-trooper standard).
     /// </para>
     ///
     /// <para>
@@ -176,7 +176,7 @@ namespace FTT.Environment {
 
         // === Authored encounter tables (the locked economy row lives here) ===
 
-        /// <summary>The Yard: groundlings the Unbound has already turned, standing in the pit.</summary>
+        /// <summary>The Yard: groundlings the Severed have already turned, standing in the pit.</summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2 PatrolA, Vector2 PatrolB)[] Room1Spawns = {
             ("holo_page", new Vector2(1180, EnemyGroundY), new Vector2(1020, EnemyGroundY), new Vector2(1340, EnemyGroundY)),
             ("chrono_slasher", new Vector2(1720, EnemyGroundY), new Vector2(1560, EnemyGroundY), new Vector2(1880, EnemyGroundY)),
@@ -534,6 +534,10 @@ namespace FTT.Environment {
             BuildRoomDecoration(Room4StartX, "globe_room_tiring_house", new Color(0.98f, 0.40f, 0.52f));
             BuildRoomTransition("globe_room_tiring_house", new Vector2(Room4StartX + 30, 800), Room4CameraBounds,
                 triggerSize: new Vector2(80, LevelHeight));
+
+            // Package 13 W4 (S35): backstage, where the prompt-book stops mid-scene.
+            // Before the boss reveal (9900 - 900), so the two sequences never collide.
+            BuildAbsenceTrigger(new Vector2(Room4StartX + 200, GroundY - 200));
 
             _kingEncounter = BuildBossEncounter(BossResourcePath, new Vector2(9900, EnemyGroundY),
                 encounterName: "TragedyKingEncounter", revealDistance: 900f);

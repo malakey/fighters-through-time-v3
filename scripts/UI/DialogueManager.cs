@@ -490,6 +490,9 @@ namespace FTT.UI {
             // pass, so every line shown through this box resolves all of them.
             text = FTT.Core.DialogueTokens.SubstituteHeroTokens(
                 text, ActiveHeroID(), key => TranslationServer.Translate(key).ToString());
+            // Package 13 W4 (M14/S29): the Mystery Thread absence lists.
+            text = FTT.Core.MissingLegendTokens.Substitute(
+                text, ActiveHeroID(), key => TranslationServer.Translate(key).ToString());
             bool hasFirst = text.Contains(CaptiveNameToken1);
             bool hasSecond = text.Contains(CaptiveNameToken2);
             if (!hasFirst && !hasSecond) return text;

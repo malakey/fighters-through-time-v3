@@ -145,7 +145,7 @@ namespace FTT.Environment {
 
         /// <summary>
         /// Era roster: `plasma_spear_ward` (Egypt standard, plasma javelins) mixed with
-        /// `chrono_slasher` (Unbound shock-trooper standard, melee). No elites - the locked
+        /// `chrono_slasher` (Severed shock-trooper standard, melee). No elites - the locked
         /// row for level 8 is E = 0.
         /// </summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] DuneSpawns = {
@@ -339,6 +339,10 @@ namespace FTT.Environment {
             BuildRoomDecoration(Room4StartX, "egypt_room_chamber", new Color(0.95f, 0.35f, 0.45f));
             BuildRoomTransition("egypt_room_chamber", new Vector2(Room4StartX + 40, 1200), Room4CameraBounds,
                 new Vector2(80, 1080));
+
+            // Package 13 W4 (S35): the throne room, held for a queen three nights gone.
+            // Before the boss reveal (9800 - 900), so the two sequences never collide.
+            BuildAbsenceTrigger(new Vector2(8500, TombFloorY - 200));
 
             BuildBossEncounter(BossResourcePath, new Vector2(9800, TombEnemyY),
                 "jackal_priest_encounter", revealDistance: 900f);

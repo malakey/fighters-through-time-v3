@@ -224,13 +224,13 @@ namespace FTT.Environment {
 
         /// <summary>Lunar era standard: grav-beams that PULL rather than knock back.</summary>
         public const string DiggerEnemyID = "vacuum_digger";
-        /// <summary>Unbound shock-trooper standard, mixed through the outpost garrison.</summary>
+        /// <summary>Severed shock-trooper standard, mixed through the outpost garrison.</summary>
         public const string CultistEnemyID = "chrono_slasher";
         /// <summary>Lunar era elite.</summary>
         public const string EliteEnemyID = "void_enforcer";
         /// <summary>
         /// V7.6 (Package 11 A7a): the Eraser, salted through Levels 7-15. Not an
-        /// era enemy - it is an Unbound hunter that followed the hero here, which
+        /// era enemy - it is a Severed hunter that followed the hero here, which
         /// is exactly why it reads wrong against the 1969 landing pad. Never authored into a room
         /// with a Chrono-Warden before Act III (EncounterCompositionTests).
         /// </summary>
@@ -249,7 +249,7 @@ namespace FTT.Environment {
             (DiggerEnemyID, 1, new Vector2(1100f, StandY)),
             (DiggerEnemyID, 1, new Vector2(1900f, StandY)),
             (DiggerEnemyID, 1, new Vector2(2600f, StandY)),
-            // Wave 2 - the vent field. Unbound troopers join the local excavation crews.
+            // Wave 2 - the vent field. Severed troopers join the local excavation crews.
             (DiggerEnemyID, 2, new Vector2(3400f, StandY)),
             (CultistEnemyID, 2, new Vector2(3900f, StandY)),
             (DiggerEnemyID, 2, new Vector2(4600f, StandY)),

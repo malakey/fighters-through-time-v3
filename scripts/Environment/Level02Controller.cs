@@ -10,7 +10,7 @@ namespace FTT.Environment {
     /// the French vanguard approach, the English siege line under a rolling mortar
     /// barrage, a vertical battlement climb, and the Siegemaster Duke's court.
     ///
-    /// Era identity is mechanical, not decorative: the Unbound has given the
+    /// Era identity is mechanical, not decorative: the Severed have given the
     /// English two kinetic <see cref="ShieldGeneratorTower"/>s, and each one keeps a
     /// <see cref="ForcefieldBarrier"/> solid across the only route forward. The
     /// player has to break the generators to advance, which is the sabotage the
@@ -101,7 +101,7 @@ namespace FTT.Environment {
 
         /// <summary>
         /// Era roster: `laser_archer` (Orléans standard, ranged) mixed with
-        /// `chrono_slasher` (Unbound shock-trooper standard, melee). No elites - the locked
+        /// `chrono_slasher` (Severed shock-trooper standard, melee). No elites - the locked
         /// row for level 2 is E = 0.
         /// </summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] Room1Spawns = {
@@ -187,6 +187,8 @@ namespace FTT.Environment {
             BuildCheckpoint(200, EnemyGroundY, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(Room1StartX, "orleans_room_vanguard", new Color(0.85f, 0.72f, 0.35f));
             BuildRoomTransition("orleans_room_vanguard", new Vector2(300, 600), Room1CameraBounds);
+            // Package 13 W4 (S23): the vanguard, where the banner stands with no one holding it.
+            BuildAbsenceTrigger(new Vector2(1100, GroundY - 200));
         }
 
         /// <summary>
