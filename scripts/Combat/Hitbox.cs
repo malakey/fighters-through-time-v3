@@ -134,25 +134,12 @@ namespace FTT.Combat {
                     : 0UL,
                 Launches = Launches,
                 Delivery = Delivery,
-                Origin = Origin,
-                // Package 12 W4 (GAP-14): latched at spawn for projectiles, or
-                // read live for a melee Ultimate hitbox mid-Nexus-cast.
-                PuzzleOnly = PuzzleOnly
-                    || (Origin == HitOrigin.Ultimate
-                        && SourcePlayer != null && IsInstanceValid(SourcePlayer)
-                        && SourcePlayer.IsNexusCastInFlight)
+                Origin = Origin
             };
         }
 
         /// <summary>The placeholder and enemy projectile paths both tag their hitbox "projectile".</summary>
         public bool IsProjectileHitbox => HitboxID == "projectile";
-
-        /// <summary>
-        /// Package 12 W4 (GAP-14): set by a pooled projectile spawned during a
-        /// Nexus-authorized Ultimate so a shot that outlives the cast stays
-        /// puzzle-only. Reset by the owner's spawn path.
-        /// </summary>
-        public bool PuzzleOnly;
 
         /// <summary>
         /// M08 (Package 12 W3): copies an ability's authored hit contract onto

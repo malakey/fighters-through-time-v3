@@ -25,13 +25,11 @@ namespace FTT.Combat {
         private const float OwnerBuffRefreshSeconds = 0.05f;
 
         /// <summary>
-        /// Authored identity of the ability that placed this zone, or "". Package 11
-        /// A12: Level 4A's zone-shaped kit gates must accept only their own hero's
-        /// ability (V01c), and a zone applies its effects to bodies rather than to
-        /// hurtbox areas — so a gate cannot learn the identity from a
-        /// <c>HitPayload.AttackID</c> the way a strike gate does. Read-only and
-        /// derived from the same authored <see cref="AbilityData"/> the zone already
-        /// receives, so it creates no second canonical value.
+        /// Authored identity of the ability that placed this zone, or "". Added by
+        /// Package 11 A12 for the (since retired, S27) Level 4A zone gates; still
+        /// read by the zone's own authored visual. Read-only and derived from the
+        /// same authored <see cref="AbilityData"/> the zone already receives, so it
+        /// creates no second canonical value.
         /// </summary>
         public string AbilityID { get; private set; } = "";
 
@@ -44,9 +42,6 @@ namespace FTT.Combat {
         /// same signal from <c>ZoneTypeID % 10</c>.
         /// </summary>
         public bool UltimateOrigin { get; private set; }
-
-        /// <summary>Package 12 W4 (GAP-14): laid by a Nexus puzzle cast — pulses reach nobody.</summary>
-        public bool PuzzleOnly { get; private set; }
 
         /// <summary>M08: every zone pulse is <see cref="HitDelivery.Tick"/>.</summary>
         public const HitDelivery TickDelivery = HitDelivery.Tick;
@@ -73,9 +68,6 @@ namespace FTT.Combat {
             AbilityID = data?.AbilityID ?? "";
             // M08 (Package 12 W3): the AUTHORED origin, not the slot.
             UltimateOrigin = data != null && HitClassification.IsUltimateOrigin(data.Origin);
-            // Package 12 W4 (GAP-14): a zone laid by a Nexus-authorized Ultimate
-            // stays puzzle-only for its whole life, even after the cast ends.
-            PuzzleOnly = UltimateOrigin && ownerPlayer != null && ownerPlayer.IsNexusCastInFlight;
 
             EnsureNodes();
             bool usesAuthoredVisual = ApplyAuthoredVisual(data, radius);
@@ -158,7 +150,6 @@ namespace FTT.Combat {
         /// so tests can pulse a constructed target without a physics frame.
         /// </summary>
         public void ApplyTickTo(Node2D body) {
-            if (PuzzleOnly) return;
             int tickDamage = _damage > 0f
                 ? ComputeTickDamage(_damage, _ownerPlayer?.StorySpecialDamageMultiplier ?? 1f)
                 : 0;
@@ -268,7 +259,6 @@ namespace FTT.Combat {
             _tickTimer = 0f;
             AbilityID = "";
             UltimateOrigin = false;
-            PuzzleOnly = false;
             Modulate = Colors.White;
         }
 
@@ -288,7 +278,6 @@ namespace FTT.Combat {
             _ownerPlayer = null;
             AbilityID = "";
             UltimateOrigin = false;
-            PuzzleOnly = false;
             if (_authoredVisual != null) {
                 _authoredVisual.Stop();
                 _authoredVisual.Visible = false;

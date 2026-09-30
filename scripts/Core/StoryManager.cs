@@ -22,14 +22,13 @@ namespace FTT.Core {
         Alexandria = 15,
 
         /// <summary>
-        /// V7.6 Level 4A — the per-character Legacy Level (Package 11 §2.4).
-        /// Appended at 16 so <b>nothing renumbers</b>: the enum value is a stable
-        /// identity, never a position in the campaign. Its place in the run is
-        /// carried by <see cref="StoryManager.CampaignRoute"/>, which orders
-        /// 0,1,2,3,4,<b>16</b>,5…15, and its scene path resolves per hero
-        /// (<c>Level_04A_&lt;hero&gt;.tscn</c>) — the one campaign slot whose
-        /// route depends on the locked character.
+        /// <b>Retired (S27, Package 13 W2).</b> V7.6's per-character Legacy Level
+        /// (Level 4A) was removed from the design on 2026-09-28 and its build was
+        /// deleted. The ordinal is kept as a <b>reserved identity</b> because saves
+        /// and manifests cast level indices: it is never routed, never resolves to
+        /// a scene or a level ID, and must never be reused for another level.
         /// </summary>
+        [System.Obsolete("Level 4A was retired by S27 (Package 13 W2). Reserved ordinal; never route it or reuse 16.")]
         LegacyNexus = 16
     }
 
@@ -95,17 +94,16 @@ namespace FTT.Core {
         /// <summary>Rewinds spent in the most recently finished level.</summary>
         public int LastLevelRewindsUsed { get; private set; }
 
-        // === Campaign routing (Package 11 A12) =====================================
-        // The route used to be "the enum value IS the array index, advance with +1".
-        // Level 4A (V7.6) breaks that: it is played between Levels 4 and 5 but must
-        // not renumber anything, and its scene path depends on the locked hero. So
-        // the model is now an explicit ordered route plus an ID-keyed path table.
-        // Nothing indexes LevelScenePaths by enum value any more.
+        // === Campaign routing (Package 11 A12; Package 13 W2) =======================
+        // The route is an explicit ordered list plus an ID-keyed path table, so the
+        // enum's numeric values are identities, not positions. Package 11 used that
+        // to slot Level 4A (ordinal 16) between Paris and the Titanic; S27 retired
+        // 4A and the route is sixteen slots again. Nothing indexes LevelScenePaths
+        // by enum value.
 
         /// <summary>
-        /// The campaign in play order (Package 11 §2.4): Level 4A sits between
-        /// Paris and the Titanic. <see cref="AdvanceToNextLevel"/> steps this list;
-        /// the enum's numeric values are identities, not positions.
+        /// The campaign in play order: Levels 0-15. <see cref="AdvanceToNextLevel"/>
+        /// steps this list; the enum's numeric values are identities, not positions.
         /// </summary>
         private static readonly CampaignLevel[] Route = {
             CampaignLevel.Tutorial,
@@ -113,7 +111,6 @@ namespace FTT.Core {
             CampaignLevel.Orleans,
             CampaignLevel.Chicago,
             CampaignLevel.Paris,
-            CampaignLevel.LegacyNexus,
             CampaignLevel.Titanic,
             CampaignLevel.Pompeii,
             CampaignLevel.Nassau,
@@ -127,14 +124,8 @@ namespace FTT.Core {
             CampaignLevel.Alexandria,
         };
 
-        /// <summary>The campaign in play order. Seventeen slots as of V7.6.</summary>
+        /// <summary>The campaign in play order. Sixteen slots since S27 (Package 13 W2).</summary>
         public static IReadOnlyList<CampaignLevel> CampaignRoute => Route;
-
-        /// <summary>Per-hero Level 4A scene prefix; the suffix is the lowercase character ID.</summary>
-        public const string LegacyLevelScenePrefix = "res://scenes/campaign/Level_04A_";
-
-        /// <summary>Per-hero Level 4A level-ID prefix (<c>level_04a_einstein</c>).</summary>
-        public const string LegacyLevelIDPrefix = "level_04a_";
 
         private static readonly Dictionary<CampaignLevel, string> LevelScenePaths = new() {
             { CampaignLevel.Tutorial, "res://scenes/campaign/Level_00_Tutorial.tscn" },
@@ -271,12 +262,18 @@ namespace FTT.Core {
 
         public void ResumeCampaign(int slot, StorySaveData save) {
             if (save == null || GameManager.Instance == null) return;
+            // Package 13 W2 (S27, plan D2): a save still parked on a deleted
+            // Level_04A_<hero> scene must never fall through to the Tutorial.
+            // The declared v8 derivation re-parks it at Level 5 on a fresh
+            // attempt and banks its held 4A wallet once. Phase C composes it
+            // into the v7 -> v8 step; applying it here as well keeps a load
+            // that reaches this point first correct (it is idempotent).
+            StoryAttemptState.RetireLegacyLevelV8(save);
             // Package 11 A12: a path -> ID lookup over the route, not a path ->
-            // array-index scan. The save's own character resolves its 4A variant,
-            // because the session has not been repointed at this slot yet.
+            // array-index scan.
             CurrentLevel = CampaignLevel.Tutorial;
             foreach (CampaignLevel level in Route) {
-                if (GetLevelScenePath(level, save.SelectedCharacterID) == save.CurrentLevelID) {
+                if (GetLevelScenePath(level) == save.CurrentLevelID) {
                     CurrentLevel = level;
                     break;
                 }
@@ -1123,7 +1120,7 @@ namespace FTT.Core {
 
         /// <summary>
         /// Steps <see cref="CampaignRoute"/> (Package 11 A12), so Paris advances to
-        /// Level 4A and 4A advances to the Titanic. A level that is not on the route
+        /// the Titanic (S27 retired Level 4A). A level that is not on the route
         /// (or the finale) is a no-op, which keeps the old hard cap at Alexandria.
         /// </summary>
         public void AdvanceToNextLevel() {
@@ -1149,48 +1146,13 @@ namespace FTT.Core {
         }
 
         /// <summary>
-        /// Resolves a campaign slot to its scene, using the session's locked hero for
-        /// the per-hero Level 4A. Unknown slots resolve to "" and callers refuse the
-        /// route rather than changing to a missing scene.
-        /// </summary>
-        public static string GetLevelScenePath(CampaignLevel level) => GetLevelScenePath(level, null);
-
-        /// <summary>
         /// Resolves a campaign slot to its scene path by ID (never by array index).
-        ///
-        /// <para>Level 4A is authored once per roster character, so its path is
-        /// <c>Level_04A_&lt;hero&gt;.tscn</c>. <paramref name="heroCharacterID"/> wins
-        /// when supplied (the resume path knows the save's character before the
-        /// session does); otherwise the live session's selected character is used, and
-        /// failing that the active save's locked character. With no character at all —
-        /// a developer direct launch that skipped character select — this returns ""
-        /// so the route is refused rather than pointed at a scene that cannot
-        /// exist.</para>
+        /// Unknown slots — including the retired <c>LegacyNexus</c> ordinal — resolve
+        /// to "" and callers refuse the route rather than changing to a missing scene.
+        /// No slot depends on the hero since S27 retired Level 4A.
         /// </summary>
-        public static string GetLevelScenePath(CampaignLevel level, string heroCharacterID) {
-            if (level == CampaignLevel.LegacyNexus) {
-                string hero = ResolveLegacyHeroID(heroCharacterID);
-                return string.IsNullOrWhiteSpace(hero) ? "" : $"{LegacyLevelScenePrefix}{hero}.tscn";
-            }
-            return LevelScenePaths.TryGetValue(level, out string path) ? path : "";
-        }
-
-        /// <summary>The hero whose Level 4A variant the campaign would route to right now.</summary>
-        public static string ResolveLegacyHeroID(string heroCharacterID = null) {
-            if (!string.IsNullOrWhiteSpace(heroCharacterID)) return heroCharacterID.ToLowerInvariant();
-            string session = GameManager.Instance?.CurrentSession.SelectedCharacterID;
-            if (!string.IsNullOrWhiteSpace(session)) return session.ToLowerInvariant();
-            StorySaveData save = Instance?.GetActiveSave();
-            return string.IsNullOrWhiteSpace(save?.SelectedCharacterID)
-                ? ""
-                : save.SelectedCharacterID.ToLowerInvariant();
-        }
-
-        /// <summary>The 4A level ID for a hero (<c>level_04a_einstein</c>).</summary>
-        public static string LegacyLevelID(string heroCharacterID) =>
-            string.IsNullOrWhiteSpace(heroCharacterID)
-                ? ""
-                : LegacyLevelIDPrefix + heroCharacterID.ToLowerInvariant();
+        public static string GetLevelScenePath(CampaignLevel level) =>
+            LevelScenePaths.TryGetValue(level, out string path) ? path : "";
 
         public void CollectDust(int amount) {
             ChronalDustCollected += Mathf.Max(0, amount);
@@ -1503,13 +1465,9 @@ namespace FTT.Core {
         /// True when the results overlay for the level just completed should play
         /// the Resonance Restored beat — for <b>every</b> milestone slot.
         ///
-        /// <para>Package 12 W7 (design §2, Level 4A "Results and economy",
-        /// Low-item decision 2026-09-26): the Ultimate's beat plays on Level 4's
-        /// results screen like every other unlock. The Package 11 A5 exclusion,
-        /// which deferred it to 4A entry through a consume-once hand-off that no
-        /// scene ever consumed, is removed. Level 4A instead opens on a flavour
-        /// Nexus moment (<c>LegacyLevelControllerBase.NexusMomentDialogueID</c>)
-        /// that grants nothing and is not a second unlock beat.</para>
+        /// <para>Package 12 W7 (Low-item decision 2026-09-26): the Ultimate's beat
+        /// plays on Level 4's results screen like every other unlock. S27 retired
+        /// Level 4A, so Level 5 is the first level played with the full kit.</para>
         /// </summary>
         public bool ShouldPlayResonanceRestoredOnResults => LastLegacyUnlockSlot.HasValue;
 
@@ -1656,9 +1614,8 @@ namespace FTT.Core {
         }
 
         /// <summary>
-        /// The stable authored level ID for every shared campaign slot. Level 4A
-        /// is absent because its ID is per hero
-        /// (<see cref="LegacyLevelID"/>); Level 0 and 1 are present but untimed,
+        /// The stable authored level ID for every campaign slot. The retired
+        /// Level 4A ordinal is absent (S27). Level 0 and 1 are present but untimed,
         /// so N05 excludes them explicitly rather than by omission.
         /// </summary>
         private static readonly Dictionary<CampaignLevel, string> LevelIDs = new() {
@@ -1680,19 +1637,16 @@ namespace FTT.Core {
             { CampaignLevel.Alexandria, "level_15_alexandria" },
         };
 
-        /// <summary>The authored level ID for a campaign slot ("" for Level 4A without a hero).</summary>
-        public static string GetLevelID(CampaignLevel level, string heroCharacterID = null) =>
-            level == CampaignLevel.LegacyNexus
-                ? LegacyLevelID(ResolveLegacyHeroID(heroCharacterID))
-                : LevelIDs.TryGetValue(level, out string id) ? id : "";
+        /// <summary>The authored level ID for a campaign slot ("" for an unrouted ordinal, including the retired 16).</summary>
+        public static string GetLevelID(CampaignLevel level) =>
+            LevelIDs.TryGetValue(level, out string id) ? id : "";
 
         /// <summary>
         /// The three Act III levels of the V7.6 Gauntlet.
         ///
-        /// <para><b>Not</b> <c>(int)level &gt;= (int)ChronalVoid</c>: Level 4A was
-        /// appended at enum value <b>16</b> so nothing renumbered, and that
-        /// ordinal comparison classifies the Legacy Level — played between
-        /// Levels 4 and 5 — as Act III. The set is explicit for exactly that
+        /// <para><b>Not</b> <c>(int)level &gt;= (int)ChronalVoid</c>: the retired
+        /// Level 4A ordinal is <b>16</b>, and that ordinal comparison would
+        /// classify it as Act III. The set is explicit for exactly that
         /// reason.</para>
         /// </summary>
         public static bool IsActIIILevel(CampaignLevel level) =>
@@ -2198,27 +2152,24 @@ namespace FTT.Core {
 
         /// <summary>
         /// The clean-restoration threshold, in <b>summed percentage points</b>
-        /// across the fifteen counted levels: 50% × 15 = 750. The comparison is
+        /// across the fourteen counted levels: 50% × 14 = 700 (S27 retired the
+        /// fifteenth, Level 4A). The comparison is
         /// deliberately against the unrounded sum, never a rounded average, so
         /// display rounding can never change the ending.
         /// </summary>
-        public const float CleanEndingThresholdPoints = 750f;
+        public const float CleanEndingThresholdPoints = 700f;
 
         /// <summary>
-        /// N05's counted set: <b>exactly fifteen</b> unique level IDs — the
-        /// fourteen shared levels 2 through 15, plus the saved hero's <b>one</b>
-        /// Level 4A. Untimed Levels 0 and 1 and the other eight 4A variants are
-        /// excluded.
+        /// N05's counted set: <b>exactly fourteen</b> unique level IDs — Levels 2
+        /// through 15 — with no hero dependence. Untimed Levels 0 and 1 are
+        /// excluded, and so is every retired Level 4A record: a v7 save that still
+        /// carries a <c>level_04a_*</c> entry in <c>IntegrityByLevel</c> keeps it as
+        /// dead data that never counts (Package 13 W2, plan D2).
         /// </summary>
-        public static List<string> RequiredEndingLevelIDs(string heroCharacterID) {
+        public static List<string> RequiredEndingLevelIDs() {
             var ids = new List<string>();
             foreach (CampaignLevel level in Route) {
                 if (level == CampaignLevel.Tutorial || level == CampaignLevel.Florence) continue;
-                if (level == CampaignLevel.LegacyNexus) {
-                    string legacy = LegacyLevelID(ResolveLegacyHeroID(heroCharacterID));
-                    if (!string.IsNullOrWhiteSpace(legacy)) ids.Add(legacy);
-                    continue;
-                }
                 string id = GetLevelID(level);
                 if (!string.IsNullOrWhiteSpace(id)) ids.Add(id);
             }
@@ -2231,10 +2182,10 @@ namespace FTT.Core {
         /// missing record contributes zero — it cannot be guessed, and F10
         /// forbids a smaller denominator.
         /// </summary>
-        public static float ResolveEndingPointTotal(StorySaveData save, string heroCharacterID) {
+        public static float ResolveEndingPointTotal(StorySaveData save) {
             if (save?.IntegrityByLevel == null) return 0f;
             float total = 0f;
-            foreach (string id in RequiredEndingLevelIDs(heroCharacterID)) {
+            foreach (string id in RequiredEndingLevelIDs()) {
                 if (save.IntegrityByLevel.TryGetValue(id, out float percent)) {
                     total += Mathf.Clamp(percent, 0f, TimelineIntegrityRules.StartPercent);
                 }
@@ -2243,12 +2194,12 @@ namespace FTT.Core {
         }
 
         /// <summary>
-        /// True for the clean restoration ending. Exactly 750 points selects it;
+        /// True for the clean restoration ending. Exactly 700 points selects it;
         /// anything below selects the scarred ending, even where UI rounding
-        /// would display 50%. Identical on every difficulty.
+        /// would display 50%. Identical on every difficulty and for every hero.
         /// </summary>
-        public static bool IsCleanRestorationEnding(StorySaveData save, string heroCharacterID) =>
-            ResolveEndingPointTotal(save, heroCharacterID) >= CleanEndingThresholdPoints;
+        public static bool IsCleanRestorationEnding(StorySaveData save) =>
+            ResolveEndingPointTotal(save) >= CleanEndingThresholdPoints;
 
         // === Durability: the ordered write and the per-second snapshot ======
 

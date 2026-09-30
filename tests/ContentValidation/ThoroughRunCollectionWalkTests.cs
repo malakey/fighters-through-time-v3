@@ -11,13 +11,13 @@ namespace FTT.Tests.ContentValidation;
 /// <summary>
 /// Package 12 W8 — GAP-03 acceptance: "verify physical collection … and
 /// complete-route totals rather than only allocator sums". This walk loads every
-/// campaign level a run visits (Levels 1–15 plus each hero's one Level 4A),
+/// campaign level a run visits (Levels 1–15; S27 retired the per-hero Level 4A),
 /// finds the optional sources that are <b>physically placed</b> in the built
 /// scene — every Chronal Extractor / Resonance Hold node and the secret cache —
 /// resolves each through its real completion path, and collects the pickup it
 /// spawns. Required encounters and the boss are issued and claimed through the
 /// ledger exactly as a kill or a boss defeat would. A thorough run must pay the
-/// F05 base <b>1,000</b> for every hero (720 required-route + 280 optional).
+/// F05 base <b>1,000</b> (720 required-route + 280 optional).
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -27,7 +27,7 @@ public class ThoroughRunCollectionWalkTests {
     private const int OptionalBase = 280;
 
     [TestCase]
-    public void AThoroughRunCollectsTheFullOneThousandBaseDustForEveryHero() {
+    public void AThoroughRunCollectsTheFullOneThousandBaseDust() {
         StoryManager story = StoryManager.Instance;
         CampaignLevel originalLevel = story.CurrentLevel;
         Difficulty originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
@@ -36,22 +36,20 @@ public class ThoroughRunCollectionWalkTests {
         bool originalPaused = ((SceneTree)Engine.GetMainLoop()).Paused;
         var issues = new List<string>();
         try {
-            int sharedTotal = 0;
-            int sharedOptional = 0;
+            // Package 13 W2 (S27): Levels 1-15 are the whole run; no level
+            // depends on the hero since the per-hero Level 4A was retired.
+            int total = 0;
+            int optionalTotal = 0;
             for (int index = 1; index <= 15; index++) {
-                (int total, int optional) = WalkLevel((CampaignLevel)index, "einstein", issues);
-                sharedTotal += total;
-                sharedOptional += optional;
+                (int levelTotal, int optional) = WalkLevel((CampaignLevel)index, "einstein", issues);
+                total += levelTotal;
+                optionalTotal += optional;
             }
-            foreach (string hero in LegacyHeroes()) {
-                (int legacyTotal, int legacyOptional) = WalkLevel(CampaignLevel.LegacyNexus, hero, issues);
-                if (sharedTotal + legacyTotal != ThoroughBase) {
-                    issues.Add($"{hero}: a thorough run collects {sharedTotal + legacyTotal}, expected {ThoroughBase}");
-                }
-                if (sharedOptional + legacyOptional != OptionalBase) {
-                    issues.Add($"{hero}: physically placed optional sources pay {sharedOptional + legacyOptional}, "
-                        + $"expected {OptionalBase}");
-                }
+            if (total != ThoroughBase) {
+                issues.Add($"a thorough run collects {total}, expected {ThoroughBase}");
+            }
+            if (optionalTotal != OptionalBase) {
+                issues.Add($"physically placed optional sources pay {optionalTotal}, expected {OptionalBase}");
             }
         } finally {
             ((SceneTree)Engine.GetMainLoop()).Paused = originalPaused;
@@ -76,13 +74,13 @@ public class ThoroughRunCollectionWalkTests {
         story.ClearLevelAttemptState();
         LevelRewardDirectory.ResetAttempt();
         LevelRewardLedger ledger = LevelRewardDirectory.EnsureCompiled();
-        string label = level == CampaignLevel.LegacyNexus ? $"4A/{hero}" : level.ToString();
+        string label = level.ToString();
         if (ledger == null) {
             issues.Add($"{label}: no reward ledger");
             return (0, 0);
         }
 
-        string scenePath = StoryManager.GetLevelScenePath(level, hero);
+        string scenePath = StoryManager.GetLevelScenePath(level);
         var packed = ResourceLoader.Load<PackedScene>(scenePath);
         if (packed == null) {
             issues.Add($"{label}: scene '{scenePath}' did not load");
@@ -131,7 +129,7 @@ public class ThoroughRunCollectionWalkTests {
                 required += amount;
             }
         }
-        // Scripted required sources (e.g. the 4A Eraser debut) are keyed directly.
+        // Scripted required sources are keyed directly.
         foreach (KeyValuePair<string, int> award in ledger.Awards) {
             if (LevelRewardDirectory.IsClaimed(award.Key) || award.Key == ledger.BossSourceID) continue;
             if (award.Key.Contains(".secret") || award.Key.Contains("extractor")) continue;
@@ -149,16 +147,6 @@ public class ThoroughRunCollectionWalkTests {
             boss = bossAmount;
         }
         return (required + boss + optional, optional);
-    }
-
-    private static IEnumerable<string> LegacyHeroes() {
-        foreach (Type type in typeof(LegacyLevelControllerBase).Assembly.GetTypes()) {
-            if (type.IsAbstract || !type.IsSubclassOf(typeof(LegacyLevelControllerBase))) continue;
-            var controller = (LegacyLevelControllerBase)Activator.CreateInstance(type);
-            string hero = controller.HeroCharacterID;
-            controller.Free();
-            yield return hero;
-        }
     }
 
     private static void Collect(Node node, List<ChronalExtractor> extractors, List<SecretCache> caches) {

@@ -423,6 +423,94 @@ namespace FTT.Core {
             return amount;
         }
 
+        // === Package 13 W2: the declared v7→v8 S27 derivation ==============
+
+        /// <summary>The deleted Level 4A scene prefix (<c>Level_04A_&lt;hero&gt;.tscn</c>).</summary>
+        public const string RetiredLegacyLevelScenePrefix = "res://scenes/campaign/Level_04A_";
+
+        /// <summary>The deleted Level 4A level-ID prefix (<c>level_04a_&lt;hero&gt;</c>).</summary>
+        public const string RetiredLegacyLevelIDPrefix = "level_04a_";
+
+        /// <summary>
+        /// Where a retired-4A save re-parks: Level 5 (the Titanic). Spelled as
+        /// literals rather than read from <c>StoryManager</c>, because this method
+        /// must stay engine-free (failure signature 7); <c>RetireLegacyLevelV8Tests</c>
+        /// pins them against <c>StoryManager.GetLevelScenePath</c> /
+        /// <c>GetLevelID</c> under the Godot runtime.
+        /// </summary>
+        public const string LegacyRetirementScenePath = "res://scenes/campaign/Level_05_Titanic.tscn";
+
+        /// <summary>The Level 5 level ID the fresh attempt is minted for.</summary>
+        public const string LegacyRetirementLevelID = "level_05_titanic";
+
+        /// <summary>True when <paramref name="scenePath"/> is a deleted Level 4A scene.</summary>
+        public static bool IsRetiredLegacyLevelScene(string scenePath) =>
+            !string.IsNullOrWhiteSpace(scenePath)
+            && scenePath.StartsWith(RetiredLegacyLevelScenePrefix, StringComparison.Ordinal);
+
+        /// <summary>
+        /// <b>Declared by Package 13 W2; wired by Package 13 Phase C</b> into the
+        /// single v7 → v8 step (plan D2). S27 (2026-09-28) retired Level 4A and
+        /// deleted its nine scenes, so a v7 story payload whose
+        /// <see cref="StorySaveData.CurrentLevelID"/> still names a
+        /// <c>Level_04A_&lt;hero&gt;.tscn</c> points at a scene that no longer
+        /// exists — and <c>StoryManager.ResumeCampaign</c> used to fall back to the
+        /// Tutorial for an unknown path. This re-parks it:
+        ///
+        /// <list type="bullet">
+        /// <item><b>Bank the held 4A wallet once.</b> The level can never be
+        /// completed now, so its undeposited <see cref="StorySaveData.LevelChronalDust"/>
+        /// (collected dust, or the post-fee dust a Collapse/exit left held) is
+        /// deposited into <see cref="StorySaveData.DepositedChronalDust"/> for the
+        /// selected character and the wallet is zeroed in the same step — no fee,
+        /// no tier bonus.</item>
+        /// <item><b>Re-park at Level 5 on a fresh attempt.</b> The current level
+        /// becomes Level 5, <see cref="StorySaveData.LastCheckpointID"/> is cleared
+        /// (so the next entry is a fresh entry, never a resume), every loose
+        /// per-attempt registry is cleared, Integrity reopens at 100, and a new
+        /// <see cref="StoryAttemptState"/> is minted for <c>level_05_titanic</c>.
+        /// Load routing then sends the save to the hub, whose portal starts
+        /// Level 5.</item>
+        /// <item><b>Leave history alone.</b> A <c>level_04a_*</c> entry in
+        /// <see cref="StorySaveData.CompletedLevels"/>, <see cref="StorySaveData.IntegrityByLevel"/>
+        /// or the per-level secret tally stays as dead data: N05 counts exactly
+        /// Levels 2–15 and never reads it. Deposited dust, the grid, Legacy
+        /// unlocks and completed levels are untouched.</item>
+        /// </list>
+        ///
+        /// <para>Idempotent: a payload not parked on a retired scene is a no-op,
+        /// and the first application moves it off one. Pure and engine-free.</para>
+        /// </summary>
+        /// <returns>The amount banked, or -1 when the payload did not qualify
+        /// (0 means it was re-parked with an empty wallet).</returns>
+        public static int RetireLegacyLevelV8(StorySaveData save) {
+            if (save == null || !IsRetiredLegacyLevelScene(save.CurrentLevelID)) return -1;
+
+            int banked = 0;
+            string characterID = save.SelectedCharacterID ?? "";
+            if (save.LevelChronalDust > 0 && characterID.Length > 0) {
+                banked = save.LevelChronalDust;
+                save.DepositedChronalDust ??= new Dictionary<string, int>();
+                int balance = save.DepositedChronalDust.TryGetValue(characterID, out int existing) ? existing : 0;
+                save.DepositedChronalDust[characterID] = checked(balance + banked);
+            }
+            save.LevelChronalDust = 0;
+
+            save.CurrentLevelID = LegacyRetirementScenePath;
+            save.LastCheckpointID = "";
+            save.ActivatedCheckpointIDs = new List<string>();
+            save.DestroyedExtractorIDs = new List<string>();
+            save.FoundSecretIDs = new List<string>();
+            save.FontUsesConsumed = new Dictionary<string, int>();
+            save.ClaimedRewardSourceIDs = new List<string>();
+            save.LevelIntegrityPercent = 100f;
+            save.CheckpointIntegrityPercent = 100f;
+            save.StoryDefyHistoryUsed = false;
+            save.AnchorCharges = 0;
+            save.AttemptState = CreateFresh(LegacyRetirementLevelID, 0);
+            return banked;
+        }
+
         public void Normalize() {
             AttemptID ??= "";
             LevelID ??= "";

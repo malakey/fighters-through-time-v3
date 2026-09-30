@@ -245,8 +245,7 @@ namespace FTT.UI {
         /// <summary>
         /// Names the ability this level's completion restored — Levels 1–4 alike.
         /// Package 12 W7: Level 4's Ultimate grant plays here like every other
-        /// unlock (design §2, Level 4A "Results and economy"); Level 4A opens on a
-        /// flavour Nexus moment instead of a second, deferred unlock beat.
+        /// unlock; Level 5 is the first full-kit level (S27 retired Level 4A).
         /// </summary>
         private void ShowResonanceRestoredBeat() {
             if (_resonanceRestoredLabel == null) return;

@@ -20,50 +20,23 @@ namespace FTT.Tests.ContentValidation;
 [RequireGodotRuntime]
 public class RewardManifestTests {
 
-    /// <summary>Every visited level: the sixteen campaign rows plus Level 4A (index 16).</summary>
+    /// <summary>
+    /// Every visited level: Levels 1–15. Package 13 W2 (S27) retired Level 4A and
+    /// its nine per-hero manifests; its row folded into Level 5.
+    /// </summary>
     internal static readonly int[] LedgerLevels = {
-        1, 2, 3, 4, 16, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
     };
 
     internal static readonly Difficulty[] Difficulties = {
         Difficulty.Easy, Difficulty.Normal, Difficulty.Hard
     };
 
-    /// <summary>
-    /// The roster, from <c>content_manifest.csv</c> — never a literal list, so a
-    /// tenth character demands a tenth 4A manifest on its own. Mirrors
-    /// <c>Level04AVariantCoverageTests</c>.
-    /// </summary>
-    internal static IReadOnlyList<string> RosterHeroes() {
-        ContentManifest contentManifest = ContentManifest.LoadDefault();
-        AssertObject(contentManifest).IsNotNull();
-        var heroes = new List<string>();
-        foreach (ContentManifestEntry entry in contentManifest.ForCategory(ContentCategory.Character)) {
-            if (!string.IsNullOrWhiteSpace(entry?.ContentID)) heroes.Add(entry.ContentID);
-        }
-        AssertThat(heroes.Count > 0)
-            .OverrideFailureMessage("The manifest lists no Character rows; the ledger sweep would pass vacuously.")
-            .IsTrue();
-        return heroes;
-    }
+    /// <summary>Every authored manifest's campaign level. No manifest depends on the hero.</summary>
+    internal static IEnumerable<int> LedgerManifests() => LedgerLevels;
 
-    /// <summary>
-    /// Every authored manifest as (campaign level, hero). Level 4A expands to one
-    /// entry per roster hero: the nine Legacy Levels share campaign index 16 and
-    /// each authors its own approach inventory, so each ships its own manifest.
-    /// </summary>
-    internal static IEnumerable<(int Level, string Hero)> LedgerManifests() {
-        foreach (int levelIndex in LedgerLevels) {
-            if (levelIndex != LevelRewardManifest.LegacyLevelIndex) {
-                yield return (levelIndex, "");
-                continue;
-            }
-            foreach (string hero in RosterHeroes()) yield return (levelIndex, hero);
-        }
-    }
-
-    internal static LevelRewardManifest Load(int levelIndex, string hero = "") {
-        string path = LevelRewardManifest.PathFor(levelIndex, hero);
+    internal static LevelRewardManifest Load(int levelIndex) {
+        string path = LevelRewardManifest.PathFor(levelIndex);
         AssertThat(ResourceLoader.Exists(path))
             .OverrideFailureMessage($"Missing reward manifest '{path}'.")
             .IsTrue();
@@ -75,9 +48,9 @@ public class RewardManifestTests {
     [TestCase]
     public void EveryLevelsAuthoredSourcesSumExactlyToItsBudgetRowOnAllThreeDifficulties() {
         var issues = new List<string>();
-        foreach ((int levelIndex, string hero) in LedgerManifests()) {
-            string label = hero.Length == 0 ? $"level {levelIndex}" : $"level 4A/{hero}";
-            LevelRewardManifest manifest = Load(levelIndex, hero);
+        foreach (int levelIndex in LedgerManifests()) {
+            string label = $"level {levelIndex}";
+            LevelRewardManifest manifest = Load(levelIndex);
             foreach (Difficulty difficulty in Difficulties) {
                 LevelRewardLedger ledger = LevelRewardDirectory.Compile(manifest, difficulty);
                 if (ledger == null) {
@@ -117,9 +90,9 @@ public class RewardManifestTests {
     public void EverySourceIDIsStableUniqueAndCarriesExactlyOneBudgetCategory() {
         var issues = new List<string>();
         var seenAcrossCampaign = new HashSet<string>(System.StringComparer.Ordinal);
-        foreach ((int levelIndex, string hero) in LedgerManifests()) {
-            string label = hero.Length == 0 ? $"level {levelIndex}" : $"level 4A/{hero}";
-            LevelRewardManifest manifest = Load(levelIndex, hero);
+        foreach (int levelIndex in LedgerManifests()) {
+            string label = $"level {levelIndex}";
+            LevelRewardManifest manifest = Load(levelIndex);
             var categories = new Dictionary<string, string>(System.StringComparer.Ordinal);
 
             void Claim(string sourceID, string category) {
@@ -170,9 +143,9 @@ public class RewardManifestTests {
         // authored number. An enemy ID that does not resolve would silently
         // allocate as a standard and quietly skew the level's distribution.
         var issues = new List<string>();
-        foreach ((int levelIndex, string hero) in LedgerManifests()) {
-            string label = hero.Length == 0 ? $"level {levelIndex}" : $"level 4A/{hero}";
-            LevelRewardManifest manifest = Load(levelIndex, hero);
+        foreach (int levelIndex in LedgerManifests()) {
+            string label = $"level {levelIndex}";
+            LevelRewardManifest manifest = Load(levelIndex);
             foreach ((string _, string[] enemyIDs) in manifest.ParseWaves()) {
                 foreach (string enemyID in enemyIDs) {
                     EnemyData data = null;
@@ -189,82 +162,72 @@ public class RewardManifestTests {
     }
 
     [TestCase]
-    public void EveryRosterHerosLevel4AManifestCarriesTheLockedRowAndItsOwnAuthoredApproachTable() {
-        // Level 4A is the one campaign slot whose manifest is per hero. The
-        // budget ROW is identical for all nine — 15 / 25 / 10 regardless of
-        // layout or enemy count — but each variant authors its own approach
-        // inventory, so each needs its own source list. A manifest that drifts
-        // from its controller's table would allocate against enemies the level
+    public void TheTitanicManifestCarriesTheFoldedRowAndItsControllersSpawnTableAndEraserDebut() {
+        // Package 13 W2 (S27): the retired Level 4A row (15 / 25 / 10) folds into
+        // Level 5 — 55 required / 25 boss / 30 optional. A manifest that drifts
+        // from its controller's tables would allocate against enemies the level
         // never spawns and silently strand part of the pool.
+        LevelRewardManifest manifest = Load((int)CampaignLevel.Titanic);
         var issues = new List<string>();
-        foreach (string hero in RosterHeroes()) {
-            LevelRewardManifest manifest = Load(LevelRewardManifest.LegacyLevelIndex, hero);
+        if (manifest.RequiredEncounterPool != 55 || manifest.BossAward != 25 || manifest.OptionalPool != 30) {
+            issues.Add($"row is {manifest.RequiredEncounterPool}/{manifest.BossAward}/{manifest.OptionalPool}, "
+                + "the S27 Level 5 row is 55/25/30");
+        }
+        if (manifest.LevelID != Level05Controller.TitanicLevelID) {
+            issues.Add($"manifest LevelID '{manifest.LevelID}' is not '{Level05Controller.TitanicLevelID}'");
+        }
 
-            if (manifest.RequiredEncounterPool != LegacyLevelControllerBase.RequiredEncounterDust
-                || manifest.BossAward != LegacyLevelControllerBase.BossDust
-                || manifest.OptionalPool != LegacyLevelControllerBase.OptionalDust) {
-                issues.Add($"{hero}: row is {manifest.RequiredEncounterPool}/{manifest.BossAward}/"
-                    + $"{manifest.OptionalPool}, the locked 4A row is "
-                    + $"{LegacyLevelControllerBase.RequiredEncounterDust}/"
-                    + $"{LegacyLevelControllerBase.BossDust}/{LegacyLevelControllerBase.OptionalDust}");
-            }
-            if (manifest.LevelID != StoryManager.LegacyLevelID(hero)) {
-                issues.Add($"{hero}: manifest LevelID '{manifest.LevelID}' is not "
-                    + $"'{StoryManager.LegacyLevelID(hero)}'");
-            }
-
-            System.Type controller = typeof(LegacyLevelControllerBase).Assembly.GetType(
-                $"FTT.Environment.Level04A{char.ToUpperInvariant(hero[0])}{hero.Substring(1)}Controller");
-            if (controller == null) { issues.Add($"{hero}: no Level04A controller type"); continue; }
-            System.Reflection.FieldInfo spawnField = controller.GetField(
-                "ApproachSpawns",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-            if (spawnField?.GetValue(null) is not System.Array spawns) {
-                issues.Add($"{hero}: controller has no static ApproachSpawns table");
-                continue;
-            }
+        var waves = new Dictionary<string, (string Head, string[] Enemies)>(System.StringComparer.Ordinal);
+        foreach ((string head, string[] enemyIDs) in manifest.ParseWaves()) {
+            waves[head.Split('@')[0]] = (head, enemyIDs);
+        }
+        for (int wave = 1; wave <= 3; wave++) {
             var authored = new List<string>();
-            foreach (object entry in spawns) {
-                authored.Add((string)((System.Runtime.CompilerServices.ITuple)entry)[0]);
+            foreach ((string enemyID, int entryWave, Godot.Vector2 _) in Level05Controller.SpawnTable) {
+                if (entryWave == wave) authored.Add(enemyID);
             }
-
-            var waves = manifest.ParseWaves();
-            string approachHead = $"{StoryManager.LegacyLevelID(hero)}.approach";
-            string debutHead = $"{StoryManager.LegacyLevelID(hero)}.eraser_debut";
-            string[] approach = null;
-            string[] debut = null;
-            foreach ((string head, string[] enemyIDs) in waves) {
-                string id = head.Split('@')[0];
-                if (id == approachHead) approach = enemyIDs;
-                else if (id == debutHead) debut = enemyIDs;
+            string id = $"level_05.wave{wave}";
+            if (!waves.TryGetValue(id, out var row)) { issues.Add($"no '{id}' wave"); continue; }
+            if (string.Join(",", row.Enemies) != string.Join(",", authored)) {
+                issues.Add($"{id} is [{string.Join(",", row.Enemies)}], the controller spawns "
+                    + $"[{string.Join(",", authored)}]");
             }
+        }
 
-            if (approach == null) { issues.Add($"{hero}: no '{approachHead}' wave"); }
-            else if (string.Join(",", approach) != string.Join(",", authored)) {
-                issues.Add($"{hero}: approach wave is [{string.Join(",", approach)}], "
-                    + $"the controller spawns [{string.Join(",", authored)}]");
+        // The debut: one Eraser, never scaled by difficulty (@0), named for the
+        // enemy the trigger ACTUALLY spawns (Package 12 W2 GAP-02 — the reward
+        // lookup is keyed by the real enemy ID).
+        string liveDebutEnemy = LiveEraserDebutEnemyID();
+        if (!waves.TryGetValue("level_05.eraser_debut", out var debut)) {
+            issues.Add("no 'level_05.eraser_debut' wave");
+        } else {
+            if (!debut.Head.EndsWith("@0", System.StringComparison.Ordinal)) {
+                issues.Add($"the debut head '{debut.Head}' must be '@0' (never difficulty-scaled)");
             }
-
-            // The debut is 4A's only elite. Package 12 W2 (GAP-02): the manifest
-            // must name the enemy the trigger ACTUALLY spawns, read from a live
-            // trigger rather than a constant — comparing against the retired
-            // placeholder is exactly how nine manifests shipped bound to
-            // chrono_guard_elite while the debut spawned unbound_eraser, so the
-            // reward lookup (keyed by the real enemy ID) could never pay it.
-            string liveDebutEnemy = LiveEraserDebutEnemyID();
-            if (debut == null) { issues.Add($"{hero}: no '{debutHead}' wave"); }
-            else if (debut.Length != 1 || debut[0] != liveDebutEnemy) {
-                issues.Add($"{hero}: debut wave is [{string.Join(",", debut)}], but the trigger spawns "
+            if (debut.Enemies.Length != 1 || debut.Enemies[0] != liveDebutEnemy) {
+                issues.Add($"debut wave is [{string.Join(",", debut.Enemies)}], but the trigger spawns "
                     + $"[{liveDebutEnemy}]");
             }
+        }
+        if (waves.Count != 4) issues.Add($"expected 3 waves plus the debut, found {waves.Count}");
+
+        // Optional: half to the four Extractors (15 → 4/4/4/3), half to the secret.
+        LevelRewardLedger ledger = LevelRewardDirectory.Compile(manifest, Difficulty.Normal);
+        int extractors = 0;
+        foreach (string extractorID in manifest.ExtractorSourceIDs) extractors += ledger.Award(extractorID);
+        if (manifest.ExtractorSourceIDs.Length != 4 || extractors != 15) {
+            issues.Add($"{manifest.ExtractorSourceIDs.Length} extractors pay {extractors}, expected 4 paying 15");
+        }
+        if (ledger.Award(manifest.SecretSourceID) != 15) {
+            issues.Add($"the secret pays {ledger.Award(manifest.SecretSourceID)}, expected 15");
         }
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 
     /// <summary>
-    /// The enemy a Level 4A Eraser debut really spawns: the default of a freshly
-    /// constructed trigger, which is exactly what <c>LegacyLevelControllerBase</c>
-    /// builds (it sets no <c>EnemyID</c> override).
+    /// The enemy the Level 5 Eraser debut really spawns: the default of a freshly
+    /// constructed trigger, which is exactly what <c>Level05Controller</c> builds
+    /// (it sets no <c>EnemyID</c> override).
     /// </summary>
     internal static string LiveEraserDebutEnemyID() {
         var trigger = new EraserDebutTrigger();
@@ -276,15 +239,15 @@ public class RewardManifestTests {
     }
 
     /// <summary>
-    /// Package 12 W2 (GAP-02). The acceptance the gap names: kill and collect
-    /// every required source in every Level 4A variant on every difficulty and
-    /// the required pool pays exactly 15 — through the real issue/claim path the
-    /// kill-drop system uses, keyed by the enemy IDs the level actually spawns
-    /// (the controller's approach table plus the live debut enemy). No pool is
-    /// enlarged to make it add up.
+    /// Package 12 W2 (GAP-02), moved to Level 5 by Package 13 W2. Kill and
+    /// collect every required source the Titanic actually spawns on every
+    /// difficulty — each wave's difficulty-scaled prefix, exactly as
+    /// <c>Level05Controller.SpawnWave</c> spawns it, plus the unscaled Eraser
+    /// debut — and the required pool pays exactly 55 through the real
+    /// issue/claim path the kill-drop system uses.
     /// </summary>
     [TestCase]
-    public void EveryLevel4AVariantsRequiredPoolPaysExactlyFifteenWhenEverySpawnedSourceIsCollected() {
+    public void TheTitanicsRequiredPoolPaysExactlyFiftyFiveWhenEverySpawnedSourceIsCollected() {
         StoryManager story = StoryManager.Instance;
         CampaignLevel originalLevel = story.CurrentLevel;
         Difficulty originalDifficulty = GameManager.Instance.CurrentSession.Difficulty;
@@ -293,43 +256,43 @@ public class RewardManifestTests {
         string debutEnemy = LiveEraserDebutEnemyID();
         var issues = new List<string>();
         try {
-            foreach (string hero in RosterHeroes()) {
-                System.Type controller = typeof(LegacyLevelControllerBase).Assembly.GetType(
-                    $"FTT.Environment.Level04A{char.ToUpperInvariant(hero[0])}{hero.Substring(1)}Controller");
+            foreach (Difficulty difficulty in Difficulties) {
                 var spawned = new List<string>();
-                if (controller?.GetField("ApproachSpawns",
-                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
-                        ?.GetValue(null) is System.Array spawns) {
-                    foreach (object entry in spawns) {
-                        spawned.Add((string)((System.Runtime.CompilerServices.ITuple)entry)[0]);
+                for (int wave = 1; wave <= 3; wave++) {
+                    var authored = new List<string>();
+                    foreach ((string enemyID, int entryWave, Godot.Vector2 _) in Level05Controller.SpawnTable) {
+                        if (entryWave == wave) authored.Add(enemyID);
                     }
-                } else {
-                    issues.Add($"{hero}: no static ApproachSpawns table");
-                    continue;
+                    int count = StoryDifficultyTuning.ScaleEncounterCount(authored.Count, difficulty);
+                    for (int index = 0; index < count && index < authored.Count; index++) {
+                        spawned.Add(authored[index]);
+                    }
                 }
                 spawned.Add(debutEnemy);
 
-                foreach (Difficulty difficulty in Difficulties) {
-                    // Slotless, so nothing here can write a save.
-                    story.PrepareDirectLevel(CampaignLevel.LegacyNexus, hero, difficulty);
-                    LevelRewardDirectory.ResetAttempt();
-                    LevelRewardLedger ledger = LevelRewardDirectory.EnsureCompiled();
-                    if (ledger == null) { issues.Add($"{hero} {difficulty}: no ledger"); continue; }
+                // Slotless, so nothing here can write a save.
+                story.PrepareDirectLevel(CampaignLevel.Titanic, "einstein", difficulty);
+                LevelRewardDirectory.ResetAttempt();
+                LevelRewardLedger ledger = LevelRewardDirectory.EnsureCompiled();
+                if (ledger == null) { issues.Add($"{difficulty}: no ledger"); continue; }
 
-                    int paid = 0;
-                    foreach (string enemyID in spawned) {
-                        if (!LevelRewardDirectory.TryIssueEnemyAward(enemyID, out string sourceID, out int amount)) {
-                            issues.Add($"{hero} {difficulty}: killing '{enemyID}' issued no source");
-                            continue;
-                        }
-                        LevelRewardDirectory.CommitClaim(sourceID);
-                        paid += amount;
+                int paid = 0;
+                bool debutPaid = false;
+                foreach (string enemyID in spawned) {
+                    if (!LevelRewardDirectory.TryIssueEnemyAward(enemyID, out string sourceID, out int amount)) {
+                        issues.Add($"{difficulty}: killing '{enemyID}' issued no source");
+                        continue;
                     }
-                    if (paid != LegacyLevelControllerBase.RequiredEncounterDust) {
-                        issues.Add($"{hero} {difficulty}: collecting every required source paid {paid}, "
-                            + $"expected {LegacyLevelControllerBase.RequiredEncounterDust}");
+                    LevelRewardDirectory.CommitClaim(sourceID);
+                    paid += amount;
+                    if (sourceID.StartsWith("level_05.eraser_debut", System.StringComparison.Ordinal)) {
+                        debutPaid = amount > 0;
                     }
                 }
+                if (paid != 55) {
+                    issues.Add($"{difficulty}: collecting every required source paid {paid}, expected 55");
+                }
+                if (!debutPaid) issues.Add($"{difficulty}: the Eraser debut paid nothing");
             }
         } finally {
             story.PrepareDirectLevel(originalLevel, originalCharacter ?? "einstein", originalDifficulty);
@@ -338,7 +301,6 @@ public class RewardManifestTests {
             story.ClearLevelAttemptState();
             LevelRewardDirectory.ResetAttempt();
         }
-        AssertThat(LegacyLevelControllerBase.RequiredEncounterDust).IsEqual(15);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 }

@@ -10,8 +10,8 @@ namespace FTT.Environment {
     ///
     /// <para>Born as Level 15's Alexandria Prime Anchor (the Temporal Core
     /// insertion that gates the ending) and generalised by Package 12 W8
-    /// (GAP-05, D12(a)) into the reusable anchor every boss level and every
-    /// Level 4A places beside its boss pickup. Level 15 keeps its scene-authored
+    /// (GAP-05, D12(a)) into the reusable anchor every boss level places
+    /// beside its boss pickup. Level 15 keeps its scene-authored
     /// Prime Anchor and its own keys; every other level builds one through
     /// <see cref="CreateSealingAnchor"/> from <see cref="StoryLevelControllerBase"/>.</para>
     ///

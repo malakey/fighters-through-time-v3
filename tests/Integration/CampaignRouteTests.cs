@@ -16,98 +16,65 @@ namespace FTT.Tests.Integration;
 /// the manifest and its pool config both said `level_10_globe` — a silent route
 /// break that nothing caught until Package 5 planning.
 ///
-/// <para>Package 11 A12 (V7.6) raised it from sixteen slots to <b>seventeen</b>.
-/// Level 4A, the per-character Legacy Level, is appended to the enum at 16 so
-/// nothing renumbers, and the campaign's play order moved out of "the enum value is
-/// the array index" into an explicit route — 0,1,2,3,4,<b>16</b>,5…15. Its scene
-/// path is the one route in the campaign that depends on the locked hero, so half of
-/// what this suite now proves is that resolution happens by ID and by character,
-/// never by position.</para>
+/// <para>Package 11 A12 raised the route to seventeen slots for the per-character
+/// Level 4A (enum value 16, played between Levels 4 and 5). <b>Package 13 W2 (S27)
+/// retired Level 4A</b>: the route is sixteen slots again, 0–15 in order, and
+/// <c>CampaignLevel.LegacyNexus = 16</c> survives only as an <c>[Obsolete]</c>
+/// reserved identity that resolves to nothing.</para>
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
 public class CampaignRouteTests {
 
-    /// <summary>Shared campaign levels: the sixteen slots that are not Level 4A.</summary>
-    private const int SharedCampaignLevelCount = 16;
+    /// <summary>The campaign: Levels 0–15.</summary>
+    private const int CampaignRouteLength = 16;
 
-    /// <summary>Shared levels plus Level 4A.</summary>
-    private const int CampaignRouteLength = 17;
-
-    private const string ExemplarHero = "einstein";
-
-    /// <summary>
-    /// The manifest's expected StoryLevel row count: the sixteen shared levels plus
-    /// <b>one row per authored Level 4A variant</b> — not the route length.
-    ///
-    /// <para>Package 11 B1: these two numbers coincided only while A12's Einstein
-    /// exemplar was the single variant. B1/B2/B3 each add three more, so the
-    /// assertion is expressed against the rows actually present rather than a literal
-    /// that every B agent would have to bump in turn.</para>
-    /// </summary>
-    private static int ExpectedStoryLevelRowCount(IEnumerable<ContentManifestEntry> rows) {
-        int legacyRows = rows.Count(entry =>
-            entry.ContentID.StartsWith(StoryManager.LegacyLevelIDPrefix, StringComparison.Ordinal));
-        AssertThat(legacyRows >= 1).OverrideFailureMessage(
-            "At least the Einstein Level 4A variant must be registered in the manifest.").IsTrue();
-        return SharedCampaignLevelCount + legacyRows;
-    }
+    /// <summary>The retired Level 4A ordinal, spelled as a number so no case needs the obsolete member.</summary>
+    private const int RetiredLegacyOrdinal = 16;
 
     // === Route shape ===
 
     [TestCase]
-    public void TheCampaignRouteIsSeventeenSlotsWithLevelFourABetweenParisAndTheTitanic() {
+    public void TheCampaignRouteIsSixteenSlotsInEnumOrder() {
         IReadOnlyList<CampaignLevel> route = StoryManager.CampaignRoute;
         AssertThat(route.Count).IsEqual(CampaignRouteLength);
 
-        // The enum value is an identity, never a position: 4A is 16 and plays sixth.
-        AssertThat((int)CampaignLevel.LegacyNexus).IsEqual(16);
-        int legacyIndex = StoryManager.RouteIndexOf(CampaignLevel.LegacyNexus);
-        AssertThat(legacyIndex).IsEqual(5);
-        AssertThat(route[legacyIndex - 1]).IsEqual(CampaignLevel.Paris);
-        AssertThat(route[legacyIndex + 1]).IsEqual(CampaignLevel.Titanic);
-
-        // Nothing renumbered: every shared slot keeps the value it shipped with.
-        AssertThat((int)CampaignLevel.Tutorial).IsEqual(0);
+        // Nothing renumbered: every slot keeps the value it shipped with, and the
+        // route position IS the enum value again now that 4A is gone.
+        for (int index = 0; index < CampaignRouteLength; index++) {
+            AssertThat((int)route[index]).OverrideFailureMessage(
+                $"Route slot {index} is {route[index]}.").IsEqual(index);
+        }
         AssertThat((int)CampaignLevel.Paris).IsEqual(4);
         AssertThat((int)CampaignLevel.Titanic).IsEqual(5);
         AssertThat((int)CampaignLevel.Alexandria).IsEqual(15);
-
-        // Every slot appears exactly once, and the finale is last.
         AssertThat(route.Distinct().Count()).IsEqual(CampaignRouteLength);
         AssertThat(route[route.Count - 1]).IsEqual(CampaignLevel.Alexandria);
     }
 
     [TestCase]
-    public void TheLegacyRouteResolvesPerHeroAndRefusesWhenNoCharacterIsLocked() {
-        AssertString(StoryManager.GetLevelScenePath(CampaignLevel.LegacyNexus, ExemplarHero))
-            .IsEqual("res://scenes/campaign/Level_04A_einstein.tscn");
-        AssertString(StoryManager.GetLevelScenePath(CampaignLevel.LegacyNexus, "Pocahontas"))
-            .IsEqual("res://scenes/campaign/Level_04A_pocahontas.tscn");
-        AssertString(StoryManager.LegacyLevelID("einstein")).IsEqual("level_04a_einstein");
-
-        // No explicit hero, no session character and no save slot: the route is
-        // refused rather than pointed at a scene that cannot exist. StoryManager
-        // validates a path before changing scene, so "" is a clean refusal.
-        using var session = new ScratchSession(character: "");
-        AssertString(StoryManager.GetLevelScenePath(CampaignLevel.LegacyNexus)).IsEqual("");
-
-        // With a session character, the parameterless overload resolves it.
-        session.SetCharacter(ExemplarHero);
-        AssertString(StoryManager.GetLevelScenePath(CampaignLevel.LegacyNexus))
-            .IsEqual("res://scenes/campaign/Level_04A_einstein.tscn");
+    public void TheRetiredLegacyOrdinalIsReservedAndRoutesToNothing() {
+        var retired = (CampaignLevel)RetiredLegacyOrdinal;
+        // The member still exists (saves cast level indices) ...
+        AssertThat(Enum.IsDefined(typeof(CampaignLevel), retired)).IsTrue();
+        // ... but it is off the route, has no scene and no level ID, whoever the
+        // session's hero is, and none of the nine deleted variant scenes remains.
+        AssertThat(StoryManager.RouteIndexOf(retired)).IsEqual(-1);
+        AssertString(StoryManager.GetLevelScenePath(retired)).IsEqual("");
+        AssertString(StoryManager.GetLevelID(retired)).IsEqual("");
+        AssertThat(StoryManager.CampaignRoute.Contains(retired)).IsFalse();
+        AssertThat(ResourceLoader.Exists("res://scenes/campaign/Level_04A_einstein.tscn")).IsFalse();
     }
 
     // === Manifest agreement ===
 
     [TestCase]
     public void EveryManifestStoryLevelRowMatchesTheStoryManagerScenePath() {
-        using var session = new ScratchSession(ExemplarHero);
         ContentManifest manifest = ContentManifest.LoadDefault();
         List<ContentManifestEntry> rows = manifest.ForCategory(ContentCategory.StoryLevel).ToList();
-        AssertThat(rows.Count).IsEqual(ExpectedStoryLevelRowCount(rows));
+        AssertThat(rows.Count).IsEqual(CampaignRouteLength);
 
-        for (int index = 0; index < SharedCampaignLevelCount; index++) {
+        for (int index = 0; index < CampaignRouteLength; index++) {
             string prefix = $"level_{index:00}_";
             ContentManifestEntry row = rows.FirstOrDefault(entry =>
                 entry.ContentID.StartsWith(prefix, StringComparison.Ordinal));
@@ -119,27 +86,16 @@ public class CampaignRouteTests {
             AssertThat(row.ResourcePath == routed).OverrideFailureMessage(
                 $"Manifest row '{row.ContentID}' points at '{row.ResourcePath}' but StoryManager " +
                 $"routes {(CampaignLevel)index} to '{routed}'.").IsTrue();
+            AssertString(row.ContentID).IsEqual(StoryManager.GetLevelID((CampaignLevel)index));
         }
 
-        // The Legacy rows are keyed by hero, not by slot number. B1-B3 add the other
-        // eight; every one present must agree with the per-hero resolver.
-        List<ContentManifestEntry> legacyRows = rows
-            .Where(row => row.ContentID.StartsWith(StoryManager.LegacyLevelIDPrefix, StringComparison.Ordinal))
-            .ToList();
-        AssertThat(legacyRows.Count >= 1).OverrideFailureMessage(
-            "No Level 4A StoryLevel row in the manifest.").IsTrue();
-        foreach (ContentManifestEntry row in legacyRows) {
-            string hero = row.ContentID.Substring(StoryManager.LegacyLevelIDPrefix.Length);
-            string routed = StoryManager.GetLevelScenePath(CampaignLevel.LegacyNexus, hero);
-            AssertThat(row.ResourcePath == routed).OverrideFailureMessage(
-                $"Manifest row '{row.ContentID}' points at '{row.ResourcePath}' but the Legacy " +
-                $"resolver routes hero '{hero}' to '{routed}'.").IsTrue();
-        }
+        // S27: no Level 4A row survives in the manifest.
+        AssertThat(rows.Any(row => row.ContentID.StartsWith("level_04a_", StringComparison.Ordinal)))
+            .IsFalse();
     }
 
     [TestCase]
     public void EveryCampaignRouteSlotResolvesToADistinctAuthoredScenePath() {
-        using var session = new ScratchSession(ExemplarHero);
         var seen = new HashSet<string>();
         foreach (CampaignLevel level in StoryManager.CampaignRoute) {
             string path = StoryManager.GetLevelScenePath(level);
@@ -166,13 +122,11 @@ public class CampaignRouteTests {
 
     /// <summary>
     /// Package 5 C1 raised this from "every routed scene that happens to exist" to
-    /// the whole campaign; A12 extends it to all seventeen route slots for the
-    /// exemplar hero. A route pointing at a scene that is missing, unloadable, or not
-    /// a campaign level is a hard failure, never a silently skipped index.
+    /// the whole campaign. A route pointing at a scene that is missing, unloadable,
+    /// or not a campaign level is a hard failure, never a silently skipped index.
     /// </summary>
     [TestCase]
     public void EveryRoutedSceneExistsLoadsAndInstantiates() {
-        using var session = new ScratchSession(ExemplarHero);
         var missing = new List<string>();
         foreach (CampaignLevel level in StoryManager.CampaignRoute) {
             string path = StoryManager.GetLevelScenePath(level);
@@ -187,8 +141,8 @@ public class CampaignRouteTests {
         }
 
         AssertThat(missing.Count == 0).OverrideFailureMessage(
-            "Every campaign route slot is authored for the exemplar hero; these resolve to " +
-            "nothing: " + string.Join(", ", missing)).IsTrue();
+            "Every campaign route slot is authored; these resolve to nothing: "
+            + string.Join(", ", missing)).IsTrue();
     }
 
     /// <summary>
@@ -198,17 +152,16 @@ public class CampaignRouteTests {
     /// path-agreement assertion alone.
     ///
     /// <para>The state assertion is "not <c>Planned</c>, and <c>Valid</c>", not
-    /// "<c>Implemented</c>". Levels 2-15 and 4A are <c>Implemented</c>; the Tutorial
-    /// and Florence are deliberately still <c>Prototype</c> — they predate Package 5,
+    /// "<c>Implemented</c>". Levels 2-15 are <c>Implemented</c>; the Tutorial and
+    /// Florence are deliberately still <c>Prototype</c> — they predate Package 5,
     /// were built before the <c>StoryLevelControllerBase</c> convention, and were not
-    /// retrofitted to it. What matters here is that no campaign level claims to be
-    /// unbuilt when its scene is on disk.</para>
+    /// retrofitted to it.</para>
     /// </summary>
     [TestCase]
     public void EveryManifestStoryLevelRowPointsAtAnAuthoredScene() {
         ContentManifest manifest = ContentManifest.LoadDefault();
         List<ContentManifestEntry> rows = manifest.ForCategory(ContentCategory.StoryLevel).ToList();
-        AssertThat(rows.Count).IsEqual(ExpectedStoryLevelRowCount(rows));
+        AssertThat(rows.Count).IsEqual(CampaignRouteLength);
 
         foreach (ContentManifestEntry row in rows) {
             AssertThat(ResourceLoader.Exists(row.ResourcePath)).OverrideFailureMessage(
@@ -238,17 +191,13 @@ public class CampaignRouteTests {
     /// would leak into every later test.
     /// </summary>
     [TestCase]
-    public void SequentialAdvanceWalksTheWholeSeventeenSlotRouteAndCapsAtAlexandria() {
+    public void SequentialAdvanceWalksTheWholeSixteenSlotRouteAndCapsAtAlexandria() {
         AssertObject(StoryManager.Instance)
             .OverrideFailureMessage("StoryManager autoload is missing.").IsNotNull();
 
-        using var session = new ScratchSession(ExemplarHero);
         var manager = new StoryManager();
         try {
             AssertThat(manager.CurrentLevel).IsEqual(CampaignLevel.Tutorial);
-            // Package 5 C1: the old form was `Exists(path) || path.Length > 0`, which
-            // any non-empty string satisfied. Every slot is authored now, so each
-            // step of the walk must land on a scene that is really there.
             AssertThat(ResourceLoader.Exists(manager.GetCurrentLevelPath())).OverrideFailureMessage(
                 $"Campaign start routes to '{manager.GetCurrentLevelPath()}', which does not exist.")
                 .IsTrue();
@@ -277,21 +226,15 @@ public class CampaignRouteTests {
     }
 
     /// <summary>
-    /// The A12 acceptance criterion in one case: a campaign advancing from Level 4
-    /// lands on the active hero's 4A, and advancing from 4A lands on Level 5.
+    /// S27 in one case: a campaign advancing from Level 4 lands straight on the
+    /// Titanic, which is now the first full-kit level.
     /// </summary>
     [TestCase]
-    public void AdvancingFromParisLandsOnTheHeroLegacyLevelAndThenOnTheTitanic() {
-        using var session = new ScratchSession(ExemplarHero);
+    public void AdvancingFromParisLandsOnTheTitanic() {
         var manager = new StoryManager();
         try {
             for (int step = 0; step < 4; step++) manager.AdvanceToNextLevel();
             AssertThat(manager.CurrentLevel).IsEqual(CampaignLevel.Paris);
-
-            manager.AdvanceToNextLevel();
-            AssertThat(manager.CurrentLevel).IsEqual(CampaignLevel.LegacyNexus);
-            AssertString(manager.GetCurrentLevelPath())
-                .IsEqual("res://scenes/campaign/Level_04A_einstein.tscn");
 
             manager.AdvanceToNextLevel();
             AssertThat(manager.CurrentLevel).IsEqual(CampaignLevel.Titanic);
@@ -316,40 +259,5 @@ public class CampaignRouteTests {
                 .IsTrue();
         }
         AssertThat(keys.Count).IsEqual(CampaignRouteLength);
-    }
-
-    // === Helpers ===
-
-    /// <summary>
-    /// Borrows the session's locked character (the Legacy route reads it) and puts it
-    /// back. The session is shared autoload state; a test that leaves a character
-    /// behind changes every later 4A resolution.
-    /// </summary>
-    private sealed class ScratchSession : IDisposable {
-        private readonly string _originalCharacter;
-        private readonly int _originalSlot;
-
-        public ScratchSession(string character) {
-            SessionData session = GameManager.Instance.CurrentSession;
-            _originalCharacter = session.SelectedCharacterID;
-            _originalSlot = session.ActiveSaveSlot;
-            session.SelectedCharacterID = character;
-            // No slot: the save fallback inside the resolver must not find one.
-            session.ActiveSaveSlot = -1;
-            GameManager.Instance.CurrentSession = session;
-        }
-
-        public void SetCharacter(string character) {
-            SessionData session = GameManager.Instance.CurrentSession;
-            session.SelectedCharacterID = character;
-            GameManager.Instance.CurrentSession = session;
-        }
-
-        public void Dispose() {
-            SessionData session = GameManager.Instance.CurrentSession;
-            session.SelectedCharacterID = _originalCharacter;
-            session.ActiveSaveSlot = _originalSlot;
-            GameManager.Instance.CurrentSession = session;
-        }
     }
 }

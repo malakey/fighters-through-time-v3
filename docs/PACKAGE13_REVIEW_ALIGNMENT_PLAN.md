@@ -158,6 +158,31 @@ Owns the **ground-wave** primitive (travels along the ground, grounded targets o
 
 *(Each workstream appends its entry here at merge.)*
 
+### W2 — retire Level 4A (S27) — branch `p13/W2`, handoff `docs/handoffs/P13_W2.md`
+
+- **Delivered as scoped.** Route 16 slots; `LegacyNexus = 16` `[Obsolete]` and unroutable; N05 = 14 IDs, 700 points, no
+  hero parameter (`RequiredEndingLevelIDs()`, `ResolveEndingPointTotal(save)`, `IsCleanRestorationEnding(save)`); the 4A build,
+  bosses, manifests, dialogue, pools, audio, manifest rows and 168 en.csv rows deleted (`eraser_debut_bark` kept); Level 5
+  = 55/25/30 with an `@0` `level_05.eraser_debut` wave and the `EraserDebutTrigger` on the boat deck between Middle and
+  PreBoss; developer select 16 tiles.
+- **Deviation 1 — the whole GAP-14 `PuzzleOnly` fence was deleted, not just `HitboxSystem`'s field.** Its only producer was
+  `PlayerController.IsNexusCastInFlight`, so the stamps in `BaseSpecial`, `Hitbox`, `PlaceholderProjectile`,
+  `PlaceholderZone` and the discard in `Hurtbox.TakeHit` were dead with it. W1/W6/W7 editing those files should expect the
+  lines to be gone.
+- **Deviation 2 — `NexusResonanceSource.WorldTimeSuspendedProbe` moved to `EraserDebutTrigger.WorldTimeSuspendedProbe`**
+  (the debut's only dependency on a deleted type).
+- **Deviation 3 — `ResumeCampaign` already applies the D2 derivation** (`StoryAttemptState.RetireLegacyLevelV8`, idempotent)
+  so a retired-4A save cannot fall back to the Tutorial before Phase C lands; Phase C should still compose it into the
+  v7→v8 step. `CurrentVersion` untouched.
+- **Deviation 4 — `HubDialogueSelectorTests` skips ordinal 16** in its `Enum.GetValues` sweep; `PeriodFor(16)` now falls to
+  the default arm (`ActIIIDeparture`), which is unreachable because nothing routes to 16.
+- **Content counts:** `ContentManifestValidator` StoryLevel 25→16, DialogueSet 26→17, AudioSet 28→27;
+  `scene_pool_catalog.tres` lost 9 entries.
+- **Hash moves:** none. **Test delta:** −152 (−159 deleted, SecretCachePlacement −1, EraserDebutTrigger +2, new
+  RetireLegacyLevelV8Tests +4 and RetireLegacyLevelResumeTests +2) → 2375 on this branch alone.
+- **Ledger:** `VERIFY-4A-CONTENT`, `VERIFY-4A-BOSS-RULE1`, `VERIFY-NEXUS-DISPLACEMENT` closed as invalidated by S27;
+  `VERIFY-STORY-PITS`, `VERIFY-PAR-SECONDS`, `VERIFY-ERASER-DUST` amended. AGENTS.md/CLAUDE.md left for Phase C.
+
 ## 10. Closeout report
 
 *(Phase C.)*

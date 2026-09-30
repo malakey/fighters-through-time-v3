@@ -7,7 +7,7 @@ namespace FTT.Environment {
     /// <summary>
     /// Package 12 W8 (GAP-05, N01 with D12(a)): the one statement of the
     /// persisted <b>AwaitingSeal</b> rules, shared by
-    /// <see cref="StoryLevelControllerBase"/> (Levels 2–15 and every Level 4A)
+    /// <see cref="StoryLevelControllerBase"/> (Levels 2–15)
     /// and Florence's own controller, which predates the base.
     ///
     /// <para>AwaitingSeal lives in <c>attemptState.sealReadiness</c>

@@ -248,8 +248,8 @@ namespace FTT.Environment {
             // than spawned and fought again.
             DetectPreSealLoad();
             BuildLevel();
-            // Package 12 W8: base-owned content hooks every level (and every
-            // sealed 4A BuildLevel) gets — the F05 secret cache and the N01
+            // Package 12 W8: base-owned content hooks every level gets — the
+            // F05 secret cache and the N01
             // sealing anchor, both at per-level authored positions.
             BuildAuthoredSecretCache();
             BuildGenericSealingAnchor();
@@ -949,13 +949,14 @@ namespace FTT.Environment {
         /// suffix, its array position or the level's checkpoint count. The
         /// stable IDs are unchanged, so saves and content tests keep resolving;
         /// the role is the alias map <see cref="StoryManager.RegisterCheckpointRole"/>
-        /// records, which is what lets a saved <c>_checkpoint_1</c> mean Middle
-        /// on a shared level and PreBoss on Level 4A without either guessing.
+        /// records, so a saved checkpoint ID means exactly the role its level
+        /// authored — never one guessed from an ID suffix (the retired Level 4A's
+        /// PreBoss anchor ended <c>_1</c>).
         /// </summary>
         protected CheckpointTrigger BuildCheckpoint(float x, float y, string id, CheckpointRole role) {
             // F12: Hard's middle fracture is inert in the shared Acts I-II
-            // levels only. Act III keeps its Hard middle active (A3b), and 4A's
-            // PreBoss anchor is never disabled merely because its ID ends `_1`.
+            // levels only. Act III keeps its Hard middle active (A3b), and no
+            // anchor is disabled merely because of how its ID ends.
             bool inert = IsMiddleAnchorInert(
                 Level, role, GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal);
             var checkpoint = new CheckpointTrigger {
@@ -1374,9 +1375,8 @@ namespace FTT.Environment {
 
         /// <summary>
         /// The level's designated F05 secret source ID — the <c>{level}.secret</c>
-        /// row its reward manifest reserves. Levels 2–15 are <c>level_NN.secret</c>;
-        /// a Level 4A variant is <c>level_04a_&lt;hero&gt;.secret</c>, which is
-        /// exactly <c>{DialoguePrefix}.secret</c> in both cases.
+        /// row its reward manifest reserves. Levels 2–15 are <c>level_NN.secret</c>,
+        /// which is exactly <c>{DialoguePrefix}.secret</c>.
         /// </summary>
         public virtual string SecretSourceID => $"{DialoguePrefix}.secret";
 
@@ -1385,8 +1385,7 @@ namespace FTT.Environment {
         /// reserves no secret (the Tutorial, Florence). Authored per level —
         /// off the critical path and reachable with the Legacy-locked kit (base
         /// jumps and roll only) — and placed by the base after
-        /// <see cref="BuildLevel"/>, so a sealed Level 4A <c>BuildLevel</c> gets
-        /// it too. The position is the trigger's centre; stand on the surface
+        /// <see cref="BuildLevel"/>. The position is the trigger's centre; stand on the surface
         /// under it to discover it.
         /// </summary>
         protected virtual Vector2? SecretCachePosition => null;
@@ -1516,7 +1515,7 @@ namespace FTT.Environment {
             IsRestoringAwaitingSeal = true;
             ResumedAwaitingSeal = true;
             // Set before BuildLevel/OnLevelReady so a level reading
-            // IsBossDefeated (Level 15's Prime Anchor, the 4A objective) sees the
+            // IsBossDefeated (Level 15's Prime Anchor) sees the
             // committed defeat.
             _bossDefeated = true;
             _bossIntroShown = true;

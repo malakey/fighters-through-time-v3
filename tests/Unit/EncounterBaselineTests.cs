@@ -36,9 +36,6 @@ public class EncounterBaselineTests {
             AssertObject(type).OverrideFailureMessage($"No Level{level:00}Controller type.").IsNotNull();
             yield return type;
         }
-        foreach (Type type in typeof(StoryLevelControllerBase).Assembly.GetTypes()) {
-            if (!type.IsAbstract && type.IsSubclassOf(typeof(LegacyLevelControllerBase))) yield return type;
-        }
     }
 
     [TestCase]
@@ -53,8 +50,7 @@ public class EncounterBaselineTests {
                 IReadOnlyDictionary<string, string[]> map = controller.AuthoredEncounterBaselines;
                 if (map == null) { issues.Add($"{type.Name}: no explicit encounter-baseline map"); continue; }
 
-                bool legacy = controller is LegacyLevelControllerBase;
-                int anchors = legacy ? 2 : 3;
+                const int anchors = 3;
                 var previous = new HashSet<string>(StringComparer.Ordinal);
                 for (int index = 0; index < anchors; index++) {
                     string checkpointID = $"{levelID}_checkpoint_{index}";
@@ -84,8 +80,8 @@ public class EncounterBaselineTests {
             }
         }
         AssertThat(checkedControllers)
-            .OverrideFailureMessage("Fourteen shared-base levels plus the nine Level 4A variants.")
-            .IsEqual(14 + 9);
+            .OverrideFailureMessage("Fourteen shared-base levels (S27 retired the nine Level 4A variants).")
+            .IsEqual(14);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 

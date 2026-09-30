@@ -9,8 +9,8 @@ namespace FTT.Environment {
     /// this — <b>never</b> the checkpoint's numeric ID suffix, its array
     /// position or the level's checkpoint count. F12 is explicit: a saved
     /// <c>_1</c> must never be reinterpreted as PreBoss, which is exactly what
-    /// would strand Level 4A (whose PreBoss anchor IS <c>_checkpoint_1</c>)
-    /// under the Hard middle rule.
+    /// stranded the retired Level 4A (whose PreBoss anchor was
+    /// <c>_checkpoint_1</c>) under the Hard middle rule.
     ///
     /// Append-only: the ordinals are exported into authored scenes.
     /// </summary>

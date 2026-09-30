@@ -6,11 +6,11 @@
 script = ExtResource("1_manifest")
 LevelID = "level_05_titanic"
 CampaignLevelIndex = 5
-RequiredEncounterPool = 15
+RequiredEncounterPool = 55
 BossAward = 25
-OptionalPool = 20
+OptionalPool = 30
 BossSourceID = "level_05.boss"
-RequiredWaves = PackedStringArray("level_05.wave1:chrono_slasher,chrono_slasher,chrono_slasher,chrono_slasher", "level_05.wave2:chrono_slasher,chrono_slasher,chrono_slasher,chrono_slasher", "level_05.wave3:chrono_slasher,chrono_slasher,chrono_slasher,chrono_slasher,tech_enforcer")
+RequiredWaves = PackedStringArray("level_05.wave1:chrono_slasher,chrono_slasher,chrono_slasher,chrono_slasher", "level_05.wave2:chrono_slasher,chrono_slasher,chrono_slasher,chrono_slasher", "level_05.wave3:chrono_slasher,chrono_slasher,chrono_slasher,chrono_slasher,tech_enforcer", "level_05.eraser_debut@0:unbound_eraser")
 ScriptedRequiredSources = PackedStringArray()
 ExtractorSourceIDs = PackedStringArray("level_05_extractor_0", "level_05_extractor_1", "level_05_extractor_2", "level_05_extractor_3")
 SecretSourceID = "level_05.secret"
