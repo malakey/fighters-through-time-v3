@@ -293,9 +293,9 @@ public class BossRosterActIIandIIITests {
         BossData firstUnbound = Load("apex_eraser");
         AssertThat(firstUnbound.BossID).IsEqual("apex_eraser");
         AssertThat(firstUnbound.DisplayNameKey).IsEqual("boss_apex_eraser_name");
-        AssertThat(firstUnbound.DisplayName).IsEqual("The First Unbound");
+        AssertThat(firstUnbound.DisplayName).IsEqual("The First Severed");
         AssertThat(TranslationServer.Translate("boss_apex_eraser_name").ToString())
-            .IsEqual("The First Unbound");
+            .IsEqual("The First Severed");
 
         // Ability identifiers are untouched by the rename.
         foreach (EnemyAbilityData ability in firstUnbound.BossAbilities) {

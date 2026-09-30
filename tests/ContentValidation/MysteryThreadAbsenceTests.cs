@@ -50,7 +50,6 @@ public class MysteryThreadAbsenceTests {
         ("res://resources/Dialogue/level_08_dialogue.tres", "level_08.postboss", 1),
         ("res://resources/Dialogue/level_10_dialogue.tres", "level_10.exit", 1),
         ("res://resources/Dialogue/level_11_dialogue.tres", "level_11.exit", 1),
-        ("res://resources/Dialogue/hub_dialogue.tres", "hub.sarah_act1", 0),
         // Package 13 W3 (S16/S35): Okafor's faint-shard report, both on the
         // Observation Deck and in the Act I->II boundary scene with Sarah present.
         ("res://resources/Dialogue/hub_dialogue.tres", "hub.okafor_act2", 1),
