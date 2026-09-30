@@ -47,42 +47,8 @@ namespace FTT.Combat {
         public static int LightningBlinkTotalFrames =>
             LightningBlinkStartupFrames + LightningBlinkTravelFrames + LightningBlinkRecoveryFrames;
 
-        // --- Pocahontas: Spirit Strike (design §5, 2026-09-26) ----------------
-
-        /// <summary>
-        /// The eagle carries Pocahontas up-forward at 45° for this many frames;
-        /// equal to <c>ActiveFrames</c> on <c>pocahontas/special_1.tres</c>.
-        /// </summary>
-        public const int SpiritStrikeCarryFrames = 15;
-        /// <summary>Wind-up before the carry; equal to the resource's <c>StartupFrames</c>.</summary>
-        public const int SpiritStrikeStartupFrames = 12;
-        /// <summary>The forced dash length along the 45° diagonal ("about 3 units").</summary>
-        public const float SpiritStrikeCarryUnits = 3.0f;
-
-        /// <summary>
-        /// Where the eagle's hitbox starts, relative to Pocahontas at the first
-        /// carry frame: ahead of her and above her head (units, +up).
-        /// PROVISIONAL placeholder geometry — the design gives the two vectors,
-        /// not the eagle's box.
-        /// </summary>
-        public const float SpiritEagleStartForwardUnits = 1.5f;
-        public const float SpiritEagleStartUpUnits = 1.0f;
-        /// <summary>Half extent of the eagle's square hitbox (units).</summary>
-        public const float SpiritEagleHalfExtentUnits = 0.75f;
-
-        /// <summary>Per-axis carry per frame: (3 / √2) / 15 units.</summary>
-        public static double SpiritStrikeAxisStepUnits =>
-            SpiritStrikeCarryUnits / Math.Sqrt(2.0) / SpiritStrikeCarryFrames;
-
-        /// <summary>
-        /// The eagle's offset from Pocahontas on carry frame
-        /// <paramref name="carryFrame"/> (0-based), in units with +up. She rises
-        /// up-forward while the eagle dives down-forward at the same speed, so
-        /// relative to her the eagle keeps its forward lead and drops at twice
-        /// the per-axis step — "the two vectors are separate".
-        /// </summary>
-        public static (double Forward, double Up) SpiritEagleOffsetUnits(int carryFrame) =>
-            (SpiritEagleStartForwardUnits,
-             SpiritEagleStartUpUnits - 2.0 * SpiritStrikeAxisStepUnits * Math.Max(0, carryFrame));
+        // Package 13 W5: Pocahontas's Spirit Strike left with her (roster swap,
+        // D3). Harriet Tubman's North Star Leap and Foresight numbers live in
+        // TubmanKitRules.
     }
 }

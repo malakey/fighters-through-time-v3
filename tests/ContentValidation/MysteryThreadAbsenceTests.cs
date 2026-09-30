@@ -66,7 +66,7 @@ public class MysteryThreadAbsenceTests {
         ["lincoln"] = new[] { "Gettysburg", "Lincoln" },
         ["mozart"] = new[] { "Vienna", "Prague", "Mozart" },
         ["einstein"] = new[] { "Princeton", "Einstein" },
-        ["pocahontas"] = new[] { "Tidewater", "Tsenacommacah", "Pocahontas" },
+        ["tubman"] = new[] { "Maryland", "Tubman", "Harriet" },
     };
 
     [TestCase]

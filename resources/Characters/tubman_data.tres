@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="CharacterData" load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://scripts/Characters/CharacterData.cs" id="1"]
+[ext_resource type="Resource" path="res://resources/Abilities/tubman/special_1.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/Abilities/tubman/special_2.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/Abilities/tubman/movement.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/Abilities/tubman/ultimate.tres" id="5"]
+[ext_resource type="SpriteFrames" path="res://resources/SpriteFrames/tubman_frames.tres" id="6"]
+[ext_resource type="Texture2D" path="res://assets/sprites/characters/portraits/tubman_portrait.png" id="7"]
+
+[resource]
+script = ExtResource("1")
+CharacterID = "tubman"
+DisplayNameKey = "character_tubman_name"
+DisplayName = "Harriet Tubman"
+Style = 2
+MaxHP = 100
+Weight = 1.0
+MaxBlockCharges = 3
+MaxMoveSpeed = 6.75
+Acceleration = 40.0
+GroundFriction = 20.0
+MaxJumpForce = 12.5
+MaxJumpCount = 2
+AirControlMultiplier = 0.55
+BasicAttackDamage = 5.5
+BasicAttackKnockback = 3.0
+SpecialAttackOne = ExtResource("2")
+SpecialAttackTwo = ExtResource("3")
+MovementAbility = ExtResource("4")
+UltimateAttack = ExtResource("5")
+SpriteFramesResource = ExtResource("6")
+PlaceholderBodyColor = Color(0.2, 0.22, 0.38, 1)
+PlaceholderAccentColor = Color(0.95, 0.75, 0.3, 1)
+PlaceholderDetailColor = Color(0.45, 0.3, 0.2, 1)
+CharacterPortrait = ExtResource("7")
+DialogueChirpPitch = 1.26

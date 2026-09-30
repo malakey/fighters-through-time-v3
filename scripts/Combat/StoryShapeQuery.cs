@@ -20,9 +20,9 @@ namespace FTT.Combat {
     ///
     /// <para>Deliberately <b>not</b> routed through this mask (they keep the bare
     /// hurtbox layer): pure displacement queries that deal no damage (Shakespeare's
-    /// storm push, Pocahontas's tornado lift — a zero-damage lift must not strike a
-    /// checkpoint), and the four autonomous constructs (Tesla coil, Leonardo turret,
-    /// serpent nest, vine snare), whose queries are target <i>acquisition</i> —
+    /// storm push — a zero-damage push must not strike a
+    /// checkpoint), and the three autonomous constructs (Tesla coil, Leonardo turret,
+    /// serpent nest), whose queries are target <i>acquisition</i> —
     /// widening them would lock the construct onto props and its own sibling
     /// constructs.</para>
     ///

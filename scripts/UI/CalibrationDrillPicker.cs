@@ -22,11 +22,14 @@ namespace FTT.UI {
     /// </summary>
     public partial class CalibrationDrillPicker : Control {
 
-        /// <summary>The locked nine-character roster, in authored grid order.</summary>
-        private static readonly string[] RosterIDs = {
-            "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-            "tesla", "shakespeare", "mozart", "pocahontas"
-        };
+        /// <summary>
+        /// The runtime roster, in authored grid order. Package 13 W5: read from
+        /// <see cref="CharacterRoster"/> (the content manifest's Character rows)
+        /// instead of a literal list — the roster swap replaced a literal
+        /// <c>"pocahontas"</c> here — and bound defensively onto the authored
+        /// tiles, so a roster larger than the grid degrades instead of throwing.
+        /// </summary>
+        private static string[] RosterIDs => CharacterRoster.ToArray();
 
         private const string Root = "Select/Root/";
 
@@ -34,14 +37,15 @@ namespace FTT.UI {
         private Label _statsLabel;
         private MoveListScreen _moveList;
         private SystemsCardScreen _systemsCard;
-        private readonly Button[] _tiles = new Button[RosterIDs.Length];
+        private string[] _roster = System.Array.Empty<string>();
+        private Button[] _tiles = System.Array.Empty<Button>();
         private int _highlighted;
 
         /// <summary>The character the preview panel is describing. Test surface.</summary>
-        public string HighlightedCharacterID => RosterIDs[_highlighted];
+        public string HighlightedCharacterID => _roster.Length > 0 ? _roster[_highlighted] : "";
 
-        /// <summary>The nine roster IDs this screen offers. Test surface.</summary>
-        public static System.Collections.Generic.IReadOnlyList<string> Roster => RosterIDs;
+        /// <summary>The roster IDs this screen offers (the manifest roster). Test surface.</summary>
+        public static System.Collections.Generic.IReadOnlyList<string> Roster => CharacterRoster.IDs;
 
         public override void _Ready() {
             UIPalette.ApplyTheme(this);
@@ -49,17 +53,25 @@ namespace FTT.UI {
             _statsLabel = GetNode<Label>(Root + "Preview/PreviewStats");
 
             var grid = GetNode<GridContainer>(Root + "Grid");
-            for (int index = 0; index < RosterIDs.Length; index++) {
+            string[] roster = RosterIDs;
+            var tiles = new System.Collections.Generic.List<Button>(roster.Length);
+            for (int index = 0; index < roster.Length; index++) {
+                var tile = grid.GetNodeOrNull<Button>($"CharacterButton{index}");
+                if (tile == null) break; // more roster than authored tiles: bind what fits
+                tiles.Add(tile);
+            }
+            _tiles = tiles.ToArray();
+            _roster = roster[.._tiles.Length];
+            for (int index = 0; index < _tiles.Length; index++) {
                 int captured = index;
-                var tile = grid.GetNode<Button>($"CharacterButton{index}");
+                Button tile = _tiles[index];
                 tile.Text = string.Empty;
-                AddPortraitLayer(tile, PortraitFor(RosterIDs[index]), NameFor(RosterIDs[index]));
+                AddPortraitLayer(tile, PortraitFor(_roster[index]), NameFor(_roster[index]));
                 // Unlike the Fighter select's cursor-driven tiles, these are plain
                 // focusable buttons: one player, one token, so focus *is* the cursor.
                 tile.FocusEntered += () => Highlight(captured);
                 tile.MouseEntered += () => Highlight(captured);
                 tile.Pressed += () => Choose(captured);
-                _tiles[index] = tile;
             }
 
             GetNode<Button>(Root + "ButtonRow/MoveListButton").Pressed += OpenMoveList;
@@ -68,22 +80,23 @@ namespace FTT.UI {
 
             Highlight(StartingIndex());
             FocusChainBuilder.Apply(GetNode<Control>("Select"));
-            _tiles[_highlighted].GrabFocus();
+            if (_tiles.Length > 0) _tiles[_highlighted].GrabFocus();
         }
 
         /// <summary>
         /// Opens on the session's character when there is one, so re-entering the
         /// route lands where the player left it. Never reads a save slot.
         /// </summary>
-        private static int StartingIndex() {
+        private int StartingIndex() {
             string current = GameManager.Instance?.CurrentSession.SelectedCharacterID;
-            int index = System.Array.IndexOf(RosterIDs, current ?? "");
+            int index = System.Array.IndexOf(_roster, current ?? "");
             return index < 0 ? 0 : index;
         }
 
         private void Highlight(int index) {
+            if (index < 0 || index >= _roster.Length) return;
             _highlighted = index;
-            string characterID = RosterIDs[index];
+            string characterID = _roster[index];
             if (_nameLabel != null) _nameLabel.Text = NameFor(characterID);
             if (_statsLabel != null) _statsLabel.Text = StatsFor(characterID);
         }
@@ -106,7 +119,7 @@ namespace FTT.UI {
         public string ApplyChoiceToSession(int index) {
             if (GameManager.Instance == null) return null;
             SessionData session = GameManager.Instance.CurrentSession;
-            session.SelectedCharacterID = RosterIDs[index];
+            session.SelectedCharacterID = _roster[index];
             session.CalibrationDrillIndex = 0;
             if (string.IsNullOrWhiteSpace(session.CalibrationReturnScenePath)) {
                 session.CalibrationReturnScenePath = CalibrationRoute.MainMenuScenePath;

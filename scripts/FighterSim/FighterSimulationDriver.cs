@@ -1067,6 +1067,14 @@ namespace FTT.FighterSim {
                 _presentedAbilityAnimationFrames[playerID] = AbilityPresentationFrames;
                 return "ultimate";
             }
+            // Package 13 W5: Tubman's Foresight holds its stance pose for the
+            // whole stance (startup, window, whiff recovery, sidestep).
+            if (Simulation.TryGetFighterCounter(playerID, out FighterCounterComponent counter)
+                && FighterForesightRules.IsBusy(in counter)) {
+                _presentedAbilityAnimation[playerID] = "special_2";
+                _presentedAbilityAnimationFrames[playerID] = AbilityPresentationFrames;
+                return "special_2";
+            }
 
             string started = "";
             if ((runtime.PressedButtons & UltimateButton) != 0

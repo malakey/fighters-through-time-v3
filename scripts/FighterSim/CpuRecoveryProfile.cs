@@ -44,7 +44,7 @@ namespace FTT.FighterSim {
     /// <c>leonardo_ornithopter_flight</c>, <c>lincoln_rail_charge</c>,
     /// <c>cleopatra_desert_mirage</c>, <c>tesla_lightning_blink</c>,
     /// <c>shakespeare_prosperos_flight</c>, <c>mozart_sonata_drift</c>,
-    /// <c>pocahontas_breeze_glide</c>). The planner never hardcodes one of those
+    /// <c>tubman_north_star_leap</c>). The planner never hardcodes one of those
     /// strings as a capability: it reads <see cref="MovementKind"/>, which is the
     /// authored <c>MovementType</c> the simulation itself switches on.
     /// </para>
@@ -52,11 +52,12 @@ namespace FTT.FighterSim {
     /// <b>Every named exclusion in <c>CPU_RECOVERY.md</c> is honoured by
     /// construction.</b> Relativity Rift, Lorentz Pulse, Sandstorm Vortex, Vine
     /// Snare, the Leonardo turret and the Joan/Lincoln Story perks are all
-    /// Specials or Story-only upgrades; <see cref="MobilitySpecial"/> is
-    /// <see cref="CpuMobilitySpecialSlot.None"/> for eight characters.
-    /// Pocahontas's Spirit Strike is the one <i>candidate</i> the contract
-    /// names, and since Package 12 W4 it is approved after the validation the
-    /// contract demands — see <see cref="MobilitySpecialFor"/>.
+    /// Specials or Story-only upgrades, and <c>CPU_RECOVERY.md</c> names
+    /// Tubman's Conductor's Call and Foresight as "not recovery tools";
+    /// <see cref="MobilitySpecial"/> is <see cref="CpuMobilitySpecialSlot.None"/>
+    /// for every character since the Package 13 roster swap retired the one
+    /// approved candidate (Pocahontas's Spirit Strike) — see
+    /// <see cref="MobilitySpecialFor"/>.
     /// </para>
     /// </remarks>
     public readonly struct CpuRecoveryProfile {
@@ -93,15 +94,23 @@ namespace FTT.FighterSim {
         /// <summary>Authored float/glide duration in frames.</summary>
         public int MovementDurationFrames { get; init; }
         public int MovementCooldownFrames { get; init; }
-        /// <summary>Non-zero when the ability refunds the air-jump budget (Breeze Glide).</summary>
+        /// <summary>Non-zero when the ability refunds the air-jump budget (no shipped kit since the Package 13 roster swap).</summary>
         public bool MovementResetsJump { get; init; }
+        /// <summary>
+        /// Package 13 W5: how much farther than the normal capture box the
+        /// movement ability snaps to a ledge — Tubman's North Star Leap
+        /// (<see cref="FighterKitMotion.LeapLedgeSnapBonus"/>, 0.5 units), zero
+        /// for everyone else. The sim applies the snap itself; the planner uses
+        /// it to credit the leap with that much extra reach toward an edge.
+        /// </summary>
+        public FP64 MovementLedgeSnapBonus { get; init; }
         /// <summary>Normalized jump launch speed, world units per second.</summary>
         public FP64 JumpSpeed { get; init; }
         /// <summary>Normalized ground run speed, world units per second.</summary>
         public FP64 MoveSpeed { get; init; }
         public FP64 AirControl { get; init; }
         public int MaxJumpCount { get; init; }
-        /// <summary>The validated optional mobility Special; only Pocahontas has one (Spirit Strike).</summary>
+        /// <summary>The validated optional mobility Special; <see cref="CpuMobilitySpecialSlot.None"/> for the whole roster since Package 13.</summary>
         public CpuMobilitySpecialSlot MobilitySpecial { get; init; }
 
         /// <summary>
@@ -148,7 +157,7 @@ namespace FTT.FighterSim {
         /// </summary>
         public FP64 MovementHorizontalReach {
             get {
-                if (MovementIsDirectional) return MovementDistance;
+                if (MovementIsDirectional) return MovementDistance + MovementLedgeSnapBonus;
                 if (MovementKind == MovementKindFloat) return FP64.Zero;
                 FP64 seconds = FP64.FromInt(MovementDurationFrames)
                     / FP64.FromInt(FighterSimulation.TickRate);
@@ -201,6 +210,9 @@ namespace FTT.FighterSim {
                     : 180,
                 MovementCooldownFrames = loadout.AbilityModes.MovementCooldownFrames,
                 MovementResetsJump = loadout.AbilityModes.MovementResetsJump != 0,
+                MovementLedgeSnapBonus = character == FighterCharacterID.Tubman
+                    ? FighterKitMotion.LeapLedgeSnapBonus
+                    : FP64.Zero,
                 JumpSpeed = loadout.JumpSpeed,
                 MoveSpeed = loadout.MoveSpeed,
                 AirControl = loadout.AirControl,
@@ -210,35 +222,27 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
-        /// The validated optional mobility Special per character: Pocahontas's
-        /// Spirit Strike (Special 1) and nobody else.
+        /// The validated optional mobility Special per character: none.
         /// </summary>
         /// <remarks>
         /// <para>
-        /// Eight characters have no candidate at all: the contract names
-        /// Relativity Rift, Lorentz Pulse, Sandstorm Vortex, the Leonardo turret,
-        /// the retired Shakespeare teleport and the Joan/Lincoln Story perks
-        /// explicitly as <i>not</i> recovery tools, and Mozart's staff platform is
-        /// a product of his movement ability rather than a Special.
+        /// No character has a candidate: the contract names Relativity Rift,
+        /// Lorentz Pulse, Sandstorm Vortex, the Leonardo turret, the retired
+        /// Shakespeare teleport, the Joan/Lincoln Story perks and — since the
+        /// 2026-09-29 roster swap — Tubman's Conductor's Call and Foresight
+        /// explicitly as <i>not</i> recovery tools, and Mozart's staff platform
+        /// is a product of his movement ability rather than a Special.
         /// </para>
         /// <para>
-        /// <b>Pocahontas's Spirit Strike is approved (Package 12 W4, GAP-10b).</b>
-        /// The contract admits it only "after confirming aerial legality and the
-        /// implemented trajectory". Until W4 the sim had no caster translation
-        /// for it — a range-gated melee intent that travelled nowhere — so it was
-        /// rejected. It is now a real kit phase (<c>FighterKitMotion</c>): usable
-        /// in the air, 12 startup frames, then a forced 45-degree up-forward dash
-        /// of <c>KitMotionRules.SpiritStrikeCarryUnits</c> (3.0) units over 15
-        /// frames along current facing, whether or not an opponent is in range.
-        /// <c>CpuRecoveryMatrixTests</c> drills it from both Paris edges and at
-        /// depth. Medium's one-activation-per-episode cap still counts it with the
-        /// movement ability, and Easy never casts a Special at all.
+        /// <b>Package 13 W5.</b> Pocahontas's Spirit Strike was the one approved
+        /// entry (Package 12 W4, GAP-10b); it left the roster with her. The
+        /// planner's mobility-Special branch and
+        /// <c>CpuBandTuning.RecoveryMobilitySpecialPercent</c> survive, dormant,
+        /// so a future kit can be approved here after the validation
+        /// <c>CPU_RECOVERY.md</c> demands, without re-plumbing the planner.
         /// </para>
         /// </remarks>
         public static CpuMobilitySpecialSlot MobilitySpecialFor(FighterCharacterID character) =>
-            character switch {
-                FighterCharacterID.Pocahontas => CpuMobilitySpecialSlot.SpecialOne,
-                _ => CpuMobilitySpecialSlot.None
-            };
+            CpuMobilitySpecialSlot.None;
     }
 }

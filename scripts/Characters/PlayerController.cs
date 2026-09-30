@@ -139,7 +139,7 @@ namespace FTT.Characters {
 		public float StoryProjectileSpeedMultiplier { get; set; } = 1f;
 		public float StoryProjectileDamageMultiplier { get; set; } = 1f;
 		public float StoryGlideSpeedMultiplier { get; set; } = 1f;
-		/// <summary>Story-only "GlideDuration" minors (e.g. Pocahontas wr2) lengthen glide windows.</summary>
+		/// <summary>Story-only "GlideDuration" minors lengthen glide windows (no V7.6 grid authors one).</summary>
 		public float StoryGlideDurationMultiplier { get; set; } = 1f;
 		/// <summary>Story-only "ZoneRadius" minors (Einstein u2, Leonardo a2, Cleopatra dm1) widen authored ability zones.</summary>
 		public float StoryZoneRadiusMultiplier { get; set; } = 1f;
@@ -1111,6 +1111,11 @@ namespace FTT.Characters {
 			// hitstun, launch or status, and grants no damage, Rally or block
 			// reward. Existing statuses are NOT cleansed.
 			if (IsDefyProtected) return 0f;
+			// Package 13 W5 (Tubman's Foresight): the counter window nullifies an
+			// eligible strike or projectile before any shield, block or HP layer,
+			// and the post-trigger sidestep takes no hits at all.
+			if (_special2 is Abilities.TubmanForesight foresight
+				&& (foresight.IsSidestepping || foresight.TryCounter(in hit))) return 0f;
 			if (HasStoryProjectileImmunity && hit.HitboxID == "projectile") return 0f;
 			bool wasLedgeHanging = CurrentState == CharacterState.LedgeHanging;
 
@@ -1952,7 +1957,7 @@ namespace FTT.Characters {
 			// the 8-frame ground ramp was accidental here (audit M-17).
 			float rampFrames = isAccelerating ? AirAccelRampFrames : AirDecelRampFrames;
 			// V7.2 wiring: AirControlMultiplier was authored on all nine characters
-			// (0.4 Lincoln .. 0.75 Pocahontas) and read by nothing — it scales how
+			// (0.40 Lincoln .. 0.70 Leonardo/Cleopatra) and read by nothing — it scales how
 			// quickly held input changes airborne velocity (aerial identity).
 			float step = maxSpeed / rampFrames * dt * 60f * (Data?.AirControlMultiplier ?? 1f);
 			var vel = Velocity;
@@ -2784,14 +2789,12 @@ namespace FTT.Characters {
 				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
 				return;
 			}
-			// Package 12 W4 (V7 kit rule, Pocahontas): the basic string is usable
-			// mid-glide without ending the glide. The glide keeps steering through
-			// the swing and reclaims the state when the swing ends in the air.
-			if (_movementAbility is Abilities.PocahontasBreezeGlide { AllowsBasicAttackMidGlide: true }
+			// Package 13 W5 (Tubman): Star Guide re-aims a North Star Leap once
+			// mid-flight on a fresh Movement press (Story-only traversal node).
+			if (_movementAbility is Abilities.TubmanNorthStarLeap leap
 				&& !TimeFrozen
-				&& CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)
-				&& !CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Block)) {
-				CheckAttackInput();
+				&& CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.MovementAbility)) {
+				leap.TryStarGuideRedirect();
 			}
 		}
 
@@ -3770,7 +3773,7 @@ namespace FTT.Characters {
 			// the 8-frame ground ramp was accidental here (audit M-17).
 			float rampFrames = isAccelerating ? AirAccelRampFrames : AirDecelRampFrames;
 			// V7.2 wiring: AirControlMultiplier was authored on all nine characters
-			// (0.4 Lincoln .. 0.75 Pocahontas) and read by nothing — it scales how
+			// (0.40 Lincoln .. 0.70 Leonardo/Cleopatra) and read by nothing — it scales how
 			// quickly held input changes airborne velocity (aerial identity).
 			float step = maxSpeed / rampFrames * dt * 60f * (Data?.AirControlMultiplier ?? 1f);
 			var vel = Velocity;
@@ -4431,15 +4434,11 @@ namespace FTT.Characters {
 			// Package 11 A5 gate.
 			if (!IsAbilityUnlocked(FTT.Core.AbilitySlot.MovementAbility)) return false;
 			if (!CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.MovementAbility)) return false;
-			// Second Glide (Story-only traversal node, Pocahontas): ONE extra
-			// Breeze Glide entry per airtime, which is the only thing in the
-			// kit that may start a movement ability while its cooldown runs.
-			// The allowance is consumed atomically before TryExecute, and a
-			// refused execute leaves it spent by design - the input was
-			// accepted. The latch clears on grounding and on a stock loss.
-			// Package 12 W4: the bypass is generalised (Second Glide, Mozart's
-			// banked Extra Note charge) and a bypassing cast neither checks NOR
-			// restarts the running cooldown.
+			// Package 12 W4: a movement ability may authorize one cast while its
+			// cooldown runs (Mozart's banked Extra Note charge; Pocahontas's
+			// Second Glide left with her in Package 13). The allowance is
+			// consumed atomically before TryExecute, and a bypassing cast
+			// neither checks NOR restarts the running cooldown.
 			bool bypass = MovementAbilityCooldownTimer > 0
 				&& _movementAbility != null
 				&& _movementAbility.TryConsumeCooldownBypass();
@@ -4458,7 +4457,9 @@ namespace FTT.Characters {
 		/// buy more than one extra entry.
 		/// </summary>
 		private void ResetAirtimeTraversalLatches() {
-			(_movementAbility as Abilities.PocahontasBreezeGlide)?.ResetAirtimeAllowance();
+			// Package 13 W5: the one per-airtime latch (Pocahontas's Second
+			// Glide) left the roster with her; Star Guide is per-activation.
+			// The hook stays so a future airtime traversal node has one home.
 		}
 
 		private bool CheckInteractInput() {
@@ -4678,6 +4679,68 @@ namespace FTT.Characters {
 		}
 
 		// === end Package 12 W2 region =======================================
+
+		// ====================================================================
+		// === Package 13 W5 — Harriet Tubman hooks                          ===
+		// ====================================================================
+
+		/// <summary>
+		/// Never Lost a Passenger (Story-only, Tubman): a successful Foresight
+		/// counter reclaims an extra fraction of the LIVE Rally echo pool on top
+		/// of the counter strike's own damage-scaled reclaim. Routes through the
+		/// one pool-fraction chokepoint Zealous Vigor uses.
+		/// </summary>
+		public void ReclaimRallyEchoFraction(float fraction) => ReclaimEchoPoolFraction(fraction);
+
+		/// <summary>
+		/// North Star Leap's extended snap: the nearest free <c>Ledge</c> whose
+		/// capture area, widened by <paramref name="extraReachPixels"/> on each
+		/// side, contains this player's body centre. The normal Story capture is
+		/// the ledge Area2D overlapping the body; this widens that box by the
+		/// design's 0.5 units (placeholder geometry — the body centre is taken
+		/// 30 px above the feet origin, and the body half-width is the pushbox's).
+		/// </summary>
+		public FTT.Environment.LedgeGrabPoint FindLedgeWithinSnapReach(float extraReachPixels) {
+			if (!IsInsideTree()) return null;
+			var ledges = GetTree().GetNodesInGroup("Ledge");
+			using var lifetime = ledges.AsDisposable();
+			Vector2 body = GlobalPosition + new Vector2(0f, -30f);
+			float bodyHalfWidth = FTT.Combat.BasicComboRules.PushboxWidthUnits
+				* FTT.Combat.KitMotionRules.StoryPixelsPerUnit / 2f;
+			FTT.Environment.LedgeGrabPoint best = null;
+			float bestDistance = float.MaxValue;
+			foreach (Node node in ledges) {
+				if (node is not FTT.Environment.LedgeGrabPoint ledge || !IsInstanceValid(ledge)) continue;
+				Vector2 half = new(14f, 22f);
+				if (ledge.GetNodeOrNull<CollisionShape2D>("CollisionShape2D")?.Shape is RectangleShape2D rect) {
+					half = rect.Size / 2f;
+				}
+				Vector2 delta = body - ledge.GlobalPosition;
+				if (Mathf.Abs(delta.X) > half.X + bodyHalfWidth + extraReachPixels) continue;
+				if (Mathf.Abs(delta.Y) > half.Y + 30f) continue;
+				float distance = delta.Length();
+				if (distance < bestDistance) {
+					bestDistance = distance;
+					best = ledge;
+				}
+			}
+			return best;
+		}
+
+		/// <summary>
+		/// Latches <paramref name="ledge"/> through the ordinary capture path
+		/// (<see cref="TryGrabLedge"/> — the regrab lockout, the per-airtime grab
+		/// budget and the V7.3 trump all still apply). The leap has already ended
+		/// its cast, so the hero is airborne and still.
+		/// </summary>
+		public bool SnapToLedge(FTT.Environment.LedgeGrabPoint ledge) {
+			if (ledge == null) return false;
+			Velocity = Vector2.Zero;
+			if (CurrentState != CharacterState.Airborne) TransitionTo(CharacterState.Airborne);
+			return TryGrabLedge(ledge);
+		}
+
+		// === end Package 13 W5 region =======================================
 
 		// === Ledge Detection ===
 

@@ -26,8 +26,15 @@ namespace FTT.Networking {
         /// frame changed and a v2 peer would resolve a chord differently. A
         /// mismatched version already fails the exact-length-plus-version check in
         /// <c>TryDeserialize</c>.</para>
+        ///
+        /// <para><b>v4 (Package 13 W5, D3).</b> The roster changed: Harriet
+        /// Tubman is <c>FighterCharacterID.Tubman = 9</c> (appended) and
+        /// Pocahontas's ordinal 8 is reserved. The character ordinal serializes
+        /// into snapshots and match setup, so a v3 peer would build a different
+        /// fighter from the same match; the packet layout and both serialized
+        /// sizes are unchanged.</para>
         /// </summary>
-        public const ushort ProtocolVersion = 3;
+        public const ushort ProtocolVersion = 4;
         public const int SerializedSize = 47;
         public readonly uint SessionID;
         public readonly uint Sequence;

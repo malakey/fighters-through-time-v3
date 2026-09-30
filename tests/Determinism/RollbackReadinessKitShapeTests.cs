@@ -33,7 +33,7 @@ public class RollbackReadinessKitShapeTests {
             ("tesla", FighterCharacterID.Tesla),
             ("shakespeare", FighterCharacterID.Shakespeare),
             ("mozart", FighterCharacterID.Mozart),
-            ("pocahontas", FighterCharacterID.Pocahontas)
+            ("tubman", FighterCharacterID.Tubman)
         };
 
         foreach ((string id, FighterCharacterID slot) in roster) {

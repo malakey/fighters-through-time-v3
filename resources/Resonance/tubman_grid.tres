@@ -1,0 +1,141 @@
+[gd_resource type="Resource" script_class="ResonanceGridData" load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceGridData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/Environment/ResonanceNodeData.cs" id="2"]
+
+[sub_resource type="Resource" id="N1"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tubman_stride"
+DisplayNameKey = "resonance_tubman_stride_name"
+DescriptionKey = "resonance_tubman_stride_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "MoveSpeed"
+StatModifierValue = 0.03
+StatModifierIsPercent = true
+Tier = 1
+LayoutPosition = Vector2(0.12, 0.2)
+
+[sub_resource type="Resource" id="N2"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tubman_cane_edge"
+DisplayNameKey = "resonance_tubman_cane_edge_name"
+DescriptionKey = "resonance_tubman_cane_edge_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "BasicAttackDamage"
+StatModifierValue = 0.08
+StatModifierIsPercent = true
+Tier = 1
+LayoutPosition = Vector2(0.12, 0.7)
+
+[sub_resource type="Resource" id="N3"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tubman_resolve"
+DisplayNameKey = "resonance_tubman_resolve_name"
+DescriptionKey = "resonance_tubman_resolve_description"
+UnlockCost = 50
+PrerequisiteNodeIDs = PackedStringArray()
+StatModifierKey = "MaxHP"
+StatModifierValue = 15
+Tier = 1
+LayoutPosition = Vector2(0.3, 0.95)
+
+[sub_resource type="Resource" id="N4"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tubman_call_distance"
+DisplayNameKey = "resonance_tubman_call_distance_name"
+DescriptionKey = "resonance_tubman_call_distance_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("tubman_stride")
+StatModifierKey = "AbilityRange"
+AbilityScope = "tubman_conductors_call"
+StatModifierValue = 0.2
+StatModifierIsPercent = true
+Tier = 2
+GatedAbilityID = "special1"
+LayoutPosition = Vector2(0.52, 0.18)
+
+[sub_resource type="Resource" id="N5"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tubman_foresight_window"
+DisplayNameKey = "resonance_tubman_foresight_window_name"
+DescriptionKey = "resonance_tubman_foresight_window_description"
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("tubman_cane_edge")
+StatModifierKey = "AbilityDuration"
+AbilityScope = "tubman_foresight"
+StatModifierValue = 0.2
+StatModifierIsPercent = true
+Tier = 2
+GatedAbilityID = "special2"
+LayoutPosition = Vector2(0.52, 0.68)
+
+[sub_resource type="Resource" id="N6"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tubman_star_guide"
+DisplayNameKey = "resonance_tubman_star_guide_name"
+DescriptionKey = "resonance_tubman_star_guide_description"
+Type = 2
+UnlockCost = 75
+PrerequisiteNodeIDs = PackedStringArray("tubman_stride", "tubman_cane_edge")
+PrerequisiteMode = 1
+AbilityModifierKey = "star_guide"
+Tier = 2
+GatedAbilityID = "movement"
+LayoutPosition = Vector2(0.36, 0.45)
+
+[sub_resource type="Resource" id="N7"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tubman_safe_passage"
+DisplayNameKey = "resonance_tubman_safe_passage_name"
+DescriptionKey = "resonance_tubman_safe_passage_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("tubman_call_distance")
+AbilityModifierKey = "safe_passage"
+Tier = 3
+GatedAbilityID = "special1"
+LayoutPosition = Vector2(0.84, 0.14)
+
+[sub_resource type="Resource" id="N8"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tubman_never_lost_a_passenger"
+DisplayNameKey = "resonance_tubman_never_lost_a_passenger_name"
+DescriptionKey = "resonance_tubman_never_lost_a_passenger_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("tubman_foresight_window")
+AbilityModifierKey = "never_lost_a_passenger"
+Tier = 3
+GatedAbilityID = "special2"
+LayoutPosition = Vector2(0.84, 0.72)
+
+[sub_resource type="Resource" id="N9"]
+script = ExtResource("2")
+SchemaVersion = 2
+NodeID = "tubman_north_star_ward"
+DisplayNameKey = "resonance_tubman_north_star_ward_name"
+DescriptionKey = "resonance_tubman_north_star_ward_description"
+Type = 1
+UnlockCost = 200
+PrerequisiteNodeIDs = PackedStringArray("tubman_star_guide", "tubman_resolve")
+AbilityModifierKey = "north_star_ward"
+Tier = 3
+GatedAbilityID = "movement"
+LayoutPosition = Vector2(0.62, 0.95)
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 2
+GridID = "tubman_resonance_grid"
+CharacterID = "tubman"
+Nodes = Array[ExtResource("2")]([SubResource("N1"), SubResource("N2"), SubResource("N3"), SubResource("N4"), SubResource("N5"), SubResource("N6"), SubResource("N7"), SubResource("N8"), SubResource("N9")])

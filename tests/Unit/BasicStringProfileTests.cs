@@ -30,7 +30,7 @@ public class BasicStringProfileTests {
     /// </summary>
     private static readonly string[] RosterIDs = {
         "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-        "tesla", "shakespeare", "mozart", "pocahontas"
+        "tesla", "shakespeare", "mozart", "tubman"
     };
 
     [TestCase]
@@ -103,8 +103,8 @@ public class BasicStringProfileTests {
             .IsSame(BasicComboRules.StringProfileFor("shakespeare"));
         AssertObject(FighterBasicAttackRules.StringProfileFor((int)FighterCharacterID.Mozart))
             .IsSame(BasicComboRules.StringProfileFor("mozart"));
-        AssertObject(FighterBasicAttackRules.StringProfileFor((int)FighterCharacterID.Pocahontas))
-            .IsSame(BasicComboRules.StringProfileFor("pocahontas"));
+        AssertObject(FighterBasicAttackRules.StringProfileFor((int)FighterCharacterID.Tubman))
+            .IsSame(BasicComboRules.StringProfileFor("tubman"));
         // Out-of-range sim IDs (enemy shots use -1) get the template.
         AssertObject(FighterBasicAttackRules.StringProfileFor(-1))
             .IsSame(BasicComboRules.TemplateStringProfile);

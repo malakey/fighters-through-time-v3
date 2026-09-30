@@ -470,10 +470,10 @@ public class MainMenuSceneTests {
             primed.ActiveSaveSlot = 1;
             GameManager.Instance.CurrentSession = primed;
 
-            StoryManager.Instance.PrepareDirectLevel(CampaignLevel.Nassau, "pocahontas", Difficulty.Hard);
+            StoryManager.Instance.PrepareDirectLevel(CampaignLevel.Nassau, "tubman", Difficulty.Hard);
 
             SessionData session = GameManager.Instance.CurrentSession;
-            AssertThat(session.SelectedCharacterID).IsEqual("pocahontas");
+            AssertThat(session.SelectedCharacterID).IsEqual("tubman");
             AssertThat(session.Difficulty).IsEqual(Difficulty.Hard);
             // The dev launch clears the slot so nothing in the level can autosave
             // over a real campaign.

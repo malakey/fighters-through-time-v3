@@ -118,7 +118,7 @@ public class ShapeQueryPropDeliveryTests {
         // The documented exclusions: pure displacement with no damage. The four
         // autonomous construct nodes (*Node.cs) are target acquisition and are
         // outside this sweep by file.
-        var allowedBareMaskMethods = new HashSet<string> { "PushAdjacentTargets", "ApplyTornadoLift" };
+        var allowedBareMaskMethods = new HashSet<string> { "PushAdjacentTargets" };
         var methodPattern = new Regex(@"^\s*(?:public|private|protected|internal)[^=;(]*\s(\w+)\s*\(");
         var issues = new List<string>();
         int shared = 0;
@@ -159,7 +159,7 @@ public class ShapeQueryPropDeliveryTests {
     public void MozartsSymphonyOfSorrowStrikesAProp() => AssertCastStrikesProp("mozart", "Ultimate", true);
 
     [TestCase]
-    public void PocahontassTidewaterTempestStrikesAProp() => AssertCastStrikesProp("pocahontas", "Ultimate", true);
+    public void TubmansFreedomLineStrikesAProp() => AssertCastStrikesProp("tubman", "Ultimate", true);
 
     [TestCase]
     public void ShakespearesAllTheWorldsAStageStrikesAProp() => AssertCastStrikesProp("shakespeare", "Ultimate", true);

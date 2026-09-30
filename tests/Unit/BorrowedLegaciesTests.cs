@@ -70,10 +70,13 @@ public class BorrowedLegaciesTests {
             .IsEqual(EnemyAbilityArchetype.MeleeStrike);
 
         // And the live roster proves the mapping against real authored data:
-        // Einstein's Mass-Energy Conversion is a projectile, Pocahontas's Spirit
-        // Strike is melee, Tesla's coil is a placed construct.
+        // Einstein's Mass-Energy Conversion and Tubman's Conductor's Call are
+        // projectiles, Leonardo's Golden Ratio is an area burst, Tesla's coil is
+        // a placed construct. (Package 13 W5: no Special 1 is melee since the
+        // roster swap retired Spirit Strike.)
         AssertThat(ProjectionFor("einstein").Archetype).IsEqual(EnemyAbilityArchetype.Projectile);
-        AssertThat(ProjectionFor("pocahontas").Archetype).IsEqual(EnemyAbilityArchetype.MeleeStrike);
+        AssertThat(ProjectionFor("tubman").Archetype).IsEqual(EnemyAbilityArchetype.Projectile);
+        AssertThat(ProjectionFor("leonardo").Archetype).IsEqual(EnemyAbilityArchetype.AreaPulse);
         AssertThat(ProjectionFor("tesla").Archetype).IsEqual(EnemyAbilityArchetype.AreaPulse);
     }
 

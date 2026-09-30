@@ -25,7 +25,7 @@ public class AbilityHitContractTests {
 
     private static readonly string[] Roster = {
         "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-        "tesla", "shakespeare", "mozart", "pocahontas"
+        "tesla", "shakespeare", "mozart", "tubman"
     };
     private static readonly string[] Slots = { "special_1", "special_2", "movement", "ultimate" };
 
@@ -65,7 +65,10 @@ public class AbilityHitContractTests {
                     ? HitDelivery.Construct
                     : TickAbilities.Contains(data.AbilityID) ? HitDelivery.Tick : HitDelivery.DirectHit;
                 if (data.Delivery != expectedDelivery) issues.Add($"{data.AbilityID} Delivery {data.Delivery}");
-                bool expectedLaunch = data.KnockbackForce != Vector2.Zero;
+                // Package 13 W5: Conductor's Call is the design's non-launching
+                // "push" (ABILITY_DATA) — the one authored knockback that is not a launch.
+                bool expectedLaunch = data.KnockbackForce != Vector2.Zero
+                    && data.AbilityID != "tubman_conductors_call";
                 if (data.Launches != expectedLaunch) issues.Add($"{data.AbilityID} Launches {data.Launches}");
                 // The runtime class is the one mapping of the pair — it must
                 // reproduce the old slot-derived class exactly.

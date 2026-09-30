@@ -33,7 +33,6 @@ public class NonSolidConstructTests {
         "res://scenes/constructs/ClockworkTurret.tscn",
         "res://scenes/constructs/SerpentNest.tscn",
         "res://scenes/constructs/SonataPlatform.tscn",
-        "res://scenes/constructs/VineSnare.tscn",
         "res://scenes/templates/PersistentConstructTemplate.tscn",
     };
 

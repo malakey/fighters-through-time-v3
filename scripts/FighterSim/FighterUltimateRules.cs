@@ -48,14 +48,16 @@ namespace FTT.FighterSim {
                 case FighterCharacterID.Cleopatra:
                 case FighterCharacterID.Leonardo:
                 case FighterCharacterID.Lincoln:
-                case FighterCharacterID.Pocahontas:
                 case FighterCharacterID.Shakespeare:
+                case FighterCharacterID.Tubman:
                     // The Cosmological Constant (zone 3: the singularity's pull),
                     // Wrath of the Nile (43: the storm's drag), the Vitruvian
                     // Matrix (23), Union Indestructible (33: the Root pen and the
-                    // final smash's knockback), Tidewater Tempest (83: the final
-                    // surge) and All the World's a Stage (63): the per-type rules
-                    // live in FighterZoneSystem; the sequence is the loadout's.
+                    // final smash's knockback), All the World's a Stage (63) and
+                    // The Freedom Line (93, Package 13 W5: seven 8-damage lantern
+                    // pulses, then the 20-damage final rush as the D15 finale):
+                    // the per-type rules live in FighterZoneSystem; the sequence
+                    // is the loadout's. Zone 83 (Tidewater Tempest) is retired.
                     SpawnCinematicZone(ref frame, ref attacker, in tuning, in data, in anchor);
                     return true;
                 case FighterCharacterID.Joan:

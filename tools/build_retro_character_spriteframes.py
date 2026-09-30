@@ -40,9 +40,12 @@ ROSTER_ABILITIES = {
         "mozart_requiem_chord", "mozart_fortissimo_wave",
         "mozart_sonata_drift", "mozart_symphony_of_sorrow",
     ),
-    "pocahontas": (
-        "pocahontas_spirit_strike", "pocahontas_vine_snare",
-        "pocahontas_breeze_glide", "pocahontas_tidewater_tempest",
+    # Package 13 W5 (D5): Harriet Tubman replaced Pocahontas. Her atlases are
+    # generated placeholders (tools/asset_src/tubman/build_tubman_svgs.py ->
+    # generate_assets.gd group=tubman), not retro-pulp keyed art.
+    "tubman": (
+        "tubman_conductors_call", "tubman_foresight",
+        "tubman_north_star_leap", "tubman_freedom_line",
     ),
 }
 

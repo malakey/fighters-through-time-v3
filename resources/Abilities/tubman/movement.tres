@@ -1,0 +1,51 @@
+[gd_resource type="Resource" script_class="MovementAbilityData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/MovementAbilityData.cs" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/VfxBeam.tscn" id="vfx_beam"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/VfxImpact.tscn" id="vfx_impact"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "tubman_north_star_leap"
+CharacterID = "tubman"
+Slot = 2
+ExecutionType = 4
+AbilityName = "North Star Leap"
+DisplayNameKey = "ability_tubman_north_star_leap_name"
+DescriptionKey = "ability_tubman_north_star_leap_description"
+BaseDamage = 0.0
+IsMultiHit = false
+HitCount = 1
+DamageTickIntervalFrames = 0
+HitstunFrames = 12
+BlockClass = 1
+Launches = false
+Delivery = 0
+Origin = 1
+KnockbackForce = Vector2(0, 0)
+ProjectileSpeed = 0.0
+GrantsHyperArmor = false
+HitboxSize = Vector2(60, 50)
+HitboxOffset = Vector2(30, 0)
+StartupFrames = 1
+ActiveFrames = 18
+RecoveryFrames = 8
+CooldownDuration = 5.0
+Lifetime = 0.0
+ProjectileLifetime = 0.0
+PersistentObjectID = ""
+MaxActiveObjects = 0
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+AnimationName = "movement"
+ScreenShakeIntensity = 0.1
+ScreenShakeDuration = 0.1
+MovementType = 0
+MovementDuration = 0.3
+DistanceMoved = 240.0
+MovementSpeed = 800.0
+ResetsDoubleJump = false
+CastVFXScene = ExtResource("vfx_beam")
+ImpactVFXScene = ExtResource("vfx_impact")

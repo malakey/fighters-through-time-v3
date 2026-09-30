@@ -27,7 +27,7 @@ public class FighterKnockdownTests {
         // Lincoln's hit 2. Directional strikes and throws are launchers.
         foreach (string id in new[] {
                      "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-                     "tesla", "shakespeare", "mozart", "pocahontas" }) {
+                     "tesla", "shakespeare", "mozart", "tubman" }) {
             AssertThat(BasicComboRules.StringHitLaunchesFor(id, 0)).IsFalse();
             AssertThat(BasicComboRules.StringHitLaunchesFor(id, 1))
                 .OverrideFailureMessage($"{id}: only Lincoln's hit 2 launches (M07).")

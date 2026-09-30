@@ -19,18 +19,29 @@ namespace FTT.Combat {
         HenrysBastion = 1,
         /// <summary>A11: a grant SOURCE of <see cref="ResonanceBarrier"/>, never a live effect ID.</summary>
         RoyalAegis = 2,
-        /// <summary>A11: a grant SOURCE of <see cref="ResonanceBarrier"/>, never a live effect ID.</summary>
+        /// <summary>
+        /// RESERVED (Package 13 W5): Pocahontas's Leaf Barrier left the roster
+        /// with her. The ordinal is kept so 4 and 5 never move; it is no longer
+        /// a <see cref="ResonanceBarrier"/> source. North Star Ward replaces it.
+        /// </summary>
+        [System.Obsolete("Reserved: Leaf Barrier was retired with Pocahontas (Package 13 W5). Use NorthStarWard.")]
         LeafBarrier = 3,
         Wardenclyffe = 4,
         /// <summary>
         /// A11 (Package 13 W1, appended — ordinals 1–4 are stable): the one
-        /// shared status Henry's Bastion, Royal Aegis and Leaf Barrier (North
-        /// Star Ward once W5 lands) grant. 10 % max HP, the D02c 8-second live
+        /// shared status Henry's Bastion, Royal Aegis and North Star Ward grant. 10 % max HP, the D02c 8-second live
         /// lifetime, refill-not-stack on any valid grant from any source, at
         /// most one instance per recipient. The granting source is recorded on
         /// <see cref="StoryShieldInstance.Source"/> for presentation only.
         /// </summary>
-        ResonanceBarrier = 5
+        ResonanceBarrier = 5,
+        /// <summary>
+        /// A11 (Package 13 W5, appended): Tubman's North Star Ward — the third
+        /// grant SOURCE of <see cref="ResonanceBarrier"/>, never a live effect ID.
+        /// Each accepted North Star Leap activation grants it; a Star Guide
+        /// redirect is not a new activation.
+        /// </summary>
+        NorthStarWard = 6
     }
 
     /// <summary>
@@ -52,7 +63,7 @@ namespace FTT.Combat {
         public StoryShieldEffect EffectId;
         /// <summary>
         /// A11: the source that granted a <see cref="StoryShieldEffect.ResonanceBarrier"/>
-        /// (Henry's Bastion / Royal Aegis / Leaf Barrier) — presentation and
+        /// (Henry's Bastion / Royal Aegis / North Star Ward) — presentation and
         /// source-specific eligibility only, never a separate stack. Equal to
         /// <see cref="EffectId"/> for every other effect.
         /// </summary>
@@ -72,7 +83,7 @@ namespace FTT.Combat {
     /// </summary>
     public static class StoryDefenseRules {
         /// <summary>
-        /// D02c: Henry's Bastion, Royal Aegis and Leaf Barrier each last eight
+        /// D02c: Henry's Bastion, Royal Aegis and North Star Ward each last eight
         /// seconds of <b>live gameplay</b> — 480 active ticks at 60 Hz — or
         /// until their absorption reaches zero, whichever comes first. Time
         /// Freeze, menus, world-frozen recovery and boss-rewind presentations
@@ -86,12 +97,14 @@ namespace FTT.Combat {
 
         /// <summary>
         /// A11 (Package 13 W1): the three perk grants that feed the one shared
-        /// <see cref="StoryShieldEffect.ResonanceBarrier"/>.
+        /// <see cref="StoryShieldEffect.ResonanceBarrier"/> — Henry's Bastion,
+        /// Royal Aegis and (Package 13 W5) North Star Ward. The retired Leaf
+        /// Barrier ordinal is not a source.
         /// </summary>
         public static bool IsResonanceBarrierSource(StoryShieldEffect effect) =>
             effect is StoryShieldEffect.HenrysBastion
                 or StoryShieldEffect.RoyalAegis
-                or StoryShieldEffect.LeafBarrier;
+                or StoryShieldEffect.NorthStarWard;
 
         /// <summary>D02d: Wardenclyffe's absorption cap is 15% of max HP.</summary>
         public const float WardenclyffeCapacityShare = 0.15f;

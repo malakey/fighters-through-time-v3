@@ -12,6 +12,8 @@ extends SceneTree
 ##                  FastNoiseLite cloud layers + particle field (stars/embers) +
 ##                  vignette. Seeded; same JSON in, same PNG out.
 ##   "blend"      - alpha-composite one generated PNG over another.
+##   "svg_atlas"  - rasterize one SVG per cell and pack a fixed-grid sprite atlas
+##                  (each cell downscaled on its own, so nothing bleeds across cells).
 ##
 ## SVG sources sit under res://tools/asset_src/ behind a .gdignore so the editor
 ## never imports them; only the PNGs this script writes into assets/ ship.
@@ -72,6 +74,8 @@ func _run_job(job: Dictionary) -> Error:
 			return _job_svg(job)
 		"svg_dir":
 			return _job_svg_dir(job)
+		"svg_atlas":
+			return _job_svg_atlas(job)
 		"atmosphere":
 			return _job_atmosphere(job)
 		"blend":
@@ -151,6 +155,42 @@ func _job_svg_dir(job: Dictionary) -> Error:
 				Vector2i((i % columns) * width, (i / columns) * height))
 		return _save(sheet, sheet_out)
 	return OK
+
+
+## Rasterizes one SVG per atlas cell and packs them into a fixed grid, so no
+## cell's antialiasing or downscale can bleed into its neighbour. Cell files are
+## <cell_dir>/<prefix><row>_<column>.svg; "rows" lists the row names top to
+## bottom (the order the SpriteFrames builder reads them).
+func _job_svg_atlas(job: Dictionary) -> Error:
+	var cell_dir := str(job.get("cell_dir", ""))
+	var prefix := str(job.get("prefix", ""))
+	var rows: Array = job.get("rows", [])
+	var columns := int(job.get("columns", 3))
+	var width := int(job.get("cell_width", 96))
+	var height := int(job.get("cell_height", 128))
+	var supersample := float(job.get("supersample", 4.0))
+	if rows.is_empty():
+		push_error("svg_atlas needs a non-empty \"rows\" list")
+		return ERR_INVALID_PARAMETER
+
+	var atlas := Image.create_empty(columns * width, rows.size() * height, false, Image.FORMAT_RGBA8)
+	atlas.fill(Color(0, 0, 0, 0))
+	for row in rows.size():
+		for column in columns:
+			var path := cell_dir.path_join("%s%s_%d.svg" % [prefix, str(rows[row]), column])
+			var svg_text := FileAccess.get_file_as_string(path)
+			if svg_text.is_empty():
+				push_error("Cannot read SVG " + path)
+				return ERR_FILE_NOT_FOUND
+			var image := Image.new()
+			var err := image.load_svg_from_string(svg_text, supersample)
+			if err != OK:
+				push_error("SVG failed: " + path)
+				return err
+			image.resize(width, height, Image.INTERPOLATE_LANCZOS)
+			image.convert(Image.FORMAT_RGBA8)
+			atlas.blit_rect(image, Rect2i(0, 0, width, height), Vector2i(column * width, row * height))
+	return _save(atlas, str(job.get("out", "")))
 
 
 # --- atmosphere ------------------------------------------------------------

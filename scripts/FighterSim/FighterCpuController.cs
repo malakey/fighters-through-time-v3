@@ -853,7 +853,7 @@ namespace FTT.FighterSim {
         /// <para><b>Hard</b> compares routes: it holds a jump back when the
         /// movement ability alone already covers the gap and the ability is the
         /// better opener, chains jump → movement → refunded jump where the kit
-        /// actually refunds (Breeze Glide), re-evaluates every decision, and past
+        /// actually refunds (none since the Package 13 roster swap), re-evaluates every decision, and past
         /// <see cref="OffstageStallLimitFrames"/> drops every optional hesitation so
         /// it cannot stall offstage on cooldown cycles.</para>
         /// <para>Every distance, duration and trajectory comes from
@@ -897,8 +897,9 @@ namespace FTT.FighterSim {
             }
             // The validated optional mobility Special. CPU_RECOVERY.md forbids
             // casting a Special merely because it occupies a slot, so only a
-            // CpuRecoveryProfile approval reaches this branch — since Package 12
-            // W4 that is Pocahontas's Spirit Strike alone (GAP-10b).
+            // CpuRecoveryProfile approval reaches this branch. Package 13 W5: no
+            // character is approved since Spirit Strike left with Pocahontas, so
+            // the branch is dormant (kept for a future validated kit).
             if (_profile.MobilitySpecial != CpuMobilitySpecialSlot.None
                 && _tuning.RecoveryMobilitySpecialPercent > 0
                 && MobilitySpecialActivationsAllowed()
@@ -1600,8 +1601,8 @@ namespace FTT.FighterSim {
         /// retired <c>RecoverySpecialTwoPercent</c>, whose whole premise — that
         /// slot 2 is a universal recovery move — the design rejects: "Special 2 is
         /// not a universal recovery move", and Specials are forbidden outright on
-        /// Easy. Only Pocahontas approves one (Spirit Strike, Package 12 W4), so
-        /// this rate is live for her alone on Medium and Hard.
+        /// Easy. Package 13 W5: no character approves one since Pocahontas's
+        /// Spirit Strike left the roster, so this rate is dormant everywhere.
         /// </summary>
         public int RecoveryMobilitySpecialPercent { get; init; }
         /// <summary>
