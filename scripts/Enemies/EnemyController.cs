@@ -527,8 +527,28 @@ namespace FTT.Enemies {
 
             ApplyPhasingMask();
             ApplyGravity(dt);
+            ResolveSlamBounce();
             MoveAndSlide();
             _pushbox?.ResolveStoryOverlaps();
+        }
+
+        // === A12 (Package 13 W1): the Down-Air slam's single ground bounce ===
+        // A mob struck by the player's Down-Air is spiked straight down; on the
+        // ground, or on reaching the floor or a one-way surface, it bounces back
+        // up ONCE at the slam's own scaled vertical speed. Story mobs have no
+        // tumble or tech (VERIFY-M05-KNOCKDOWN-SCOPE), so the bounce is the whole
+        // rule here. Any later knockback replaces the owed bounce.
+        private bool _slamBouncePending;
+        private float _slamBounceSpeed;
+
+        /// <summary>A12 test seam: this mob still owes its slam bounce.</summary>
+        public bool SlamBouncePending => _slamBouncePending;
+
+        private void ResolveSlamBounce() {
+            if (!_slamBouncePending || !IsOnFloor() || CurrentState == EnemyState.Dead) return;
+            _slamBouncePending = false;
+            Velocity = new Vector2(Velocity.X, -_slamBounceSpeed);
+            _slamBounceSpeed = 0f;
         }
 
         private bool IsFlying => Data?.Behavior == DefaultBehavior.Flying;
@@ -1680,6 +1700,14 @@ namespace FTT.Enemies {
                 ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(damageApplied));
             }
             ApplyKnockback(hit.Knockback, hit.AttackerFacingRight);
+            // A12 (Package 13 W1): a Down-Air slam that actually moved this mob
+            // (armor windows and flying mobs refuse it) owes one ground bounce;
+            // any other knockback-carrying hit clears a stale one.
+            if (hit.Knockback != Vector2.Zero) {
+                _slamBouncePending = hit.HitboxID == FTT.Combat.BasicComboRules.DownAirHitboxID
+                    && !IsFlying && !IsStaggerArmored && Velocity.Y > 0f;
+                _slamBounceSpeed = _slamBouncePending ? Mathf.Abs(Velocity.Y) : 0f;
+            }
             // F07 (V7.6): Static Charge's action lock counts as stun in PvE, so a
             // hit that carries BOTH hitstun and a Static Charge runs them
             // CONCURRENTLY and counts the GREATER duration ONCE — Tesla's finisher

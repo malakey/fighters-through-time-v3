@@ -1076,10 +1076,15 @@ namespace FTT.FighterSim {
     /// (14 f) get-up chosen from the held direction on the frame the knockdown
     /// ends. Neither get-up is invulnerable, and both lock every action.
     ///
-    /// <para>Four ints, 16 bytes. Snapshot and hash state like every other
-    /// component. Zero-initialised means "not down": every field's inactive
-    /// value is 0, so a Klotho default instance is already correct. Fields are
-    /// written only through <see cref="FighterKnockdownRules"/>.</para>
+    /// <para>Six ints and one FP64, 32 bytes, since Package 13 W1 added the
+    /// A03 air-dodge latch and the A12 slam-bounce pair (plan D7 allocated
+    /// them here; no new component ID). Snapshot and hash state like every
+    /// other component. Zero-initialised means "not down, dodge available, no
+    /// bounce owed": every field's inactive value is 0, so a Klotho default
+    /// instance is already correct. The knockdown fields are written only
+    /// through <see cref="FighterKnockdownRules"/>, the air dodge through
+    /// <see cref="FighterAirDodgeRules"/> and the bounce through
+    /// <see cref="FighterSlamRules"/>.</para>
     /// </summary>
     [KlothoComponent(320, MaxCount = 2)]
     [StructLayout(LayoutKind.Sequential, Pack = 4)]
@@ -1092,6 +1097,27 @@ namespace FTT.FighterSim {
         public int GetUpFrames;
         /// <summary>Roll get-up direction: -1 left, +1 right, 0 for a neutral get-up.</summary>
         public int GetUpDirection;
+
+        // --- Package 13 W1 (plan D7: 320 carries the landing/aerial state) ---
+
+        /// <summary>
+        /// A03: 1 once the fighter has air-dodged this airtime. Refreshed by
+        /// landing and by a ledge grab; cleared on stock loss.
+        /// </summary>
+        public int AirDodgeUsed;
+        /// <summary>
+        /// A12: 1 while a Down-Air slam's single forced ground bounce is owed —
+        /// set when the slam lands, consumed by the first floor or one-way
+        /// surface contact during that tumble (untechable), cleared when the
+        /// tumble ends another way or on stock loss.
+        /// </summary>
+        public int SlamBouncePending;
+        /// <summary>
+        /// A12: the bounce's upward speed — the slam's own scaled vertical
+        /// magnitude (the Up-Attack's 2.5× vertical profile, weight and low-HP
+        /// scaled at the slam). Zero when no bounce is owed.
+        /// </summary>
+        public FP64 SlamBounceSpeed;
     }
 
     [KlothoComponent(301)]

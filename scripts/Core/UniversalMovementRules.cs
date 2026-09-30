@@ -58,6 +58,26 @@ namespace FTT.Core {
         public const float RollSpeedMultiplier = 1.5f;
 
         public const int RollTotalFrames = RollStartupFrames + RollTravelFrames + RollRecoveryFrames;
+
+        // === A03 air dodge (Package 13 W1, 2026-09-29; provisional under A07) ===
+        // Roll pressed while airborne: an AirDodge sub-phase of Rolling in both
+        // modes. No speed is added — gravity, momentum and normal air control
+        // continue — and a held direction adds only a small positional shift
+        // across the invulnerable frames. Once per airtime, refreshed by landing
+        // or a ledge grab; landing does not cancel its recovery.
+
+        public const int AirDodgeStartupFrames = 4;
+        public const int AirDodgeInvulnerableFrames = 8;
+        public const int AirDodgeRecoveryFrames = 10;
+        public const int AirDodgeTotalFrames =
+            AirDodgeStartupFrames + AirDodgeInvulnerableFrames + AirDodgeRecoveryFrames;
+
+        /// <summary>
+        /// The whole shift a held direction adds across the eight invulnerable
+        /// frames, in world units (a diagonal is normalized to the same length).
+        /// Neutral dodges in place.
+        /// </summary>
+        public const float AirDodgeShiftUnits = 1.0f;
     }
 
     public enum UniversalMovementPhase {
@@ -70,6 +90,12 @@ namespace FTT.Core {
         Dash = 1,
         RollStartup = 2,
         RollTravel = 3,
-        RollRecovery = 4
+        RollRecovery = 4,
+        /// <summary>A03 (Package 13 W1): air dodge startup (4 f). Appended; kit phases own 16–20.</summary>
+        AirDodgeStartup = 5,
+        /// <summary>A03: the eight invulnerable, pushbox-free frames carrying the held shift.</summary>
+        AirDodgeInvulnerable = 6,
+        /// <summary>A03: recovery (10 f); a landing does not cancel it.</summary>
+        AirDodgeRecovery = 7
     }
 }

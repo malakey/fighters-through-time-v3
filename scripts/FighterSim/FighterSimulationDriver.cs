@@ -330,7 +330,11 @@ namespace FTT.FighterSim {
             if (Simulation.GetMatchState().MatchState == FighterMatchStates.Countdown) return "Countdown";
             if (runtime.UniversalMovementState is (int)UniversalMovementPhase.RollStartup
                 or (int)UniversalMovementPhase.RollTravel
-                or (int)UniversalMovementPhase.RollRecovery) return "Rolling";
+                or (int)UniversalMovementPhase.RollRecovery
+                // A03 (Package 13 W1): the air dodge is a Rolling sub-phase.
+                or (int)UniversalMovementPhase.AirDodgeStartup
+                or (int)UniversalMovementPhase.AirDodgeInvulnerable
+                or (int)UniversalMovementPhase.AirDodgeRecovery) return "Rolling";
             if (FighterLedgeRules.IsHanging(in runtime)) return "Ledge Hang";
             if (Simulation.TryGetFighterKnockdown(playerID, out FighterKnockdownComponent knockdown)
                 && FighterKnockdownRules.IsActive(in knockdown)) {
@@ -1001,7 +1005,11 @@ namespace FTT.FighterSim {
             }
             if (runtime.UniversalMovementState is (int)UniversalMovementPhase.RollStartup
                 or (int)UniversalMovementPhase.RollTravel
-                or (int)UniversalMovementPhase.RollRecovery) return "roll";
+                or (int)UniversalMovementPhase.RollRecovery
+                // A03: the air dodge reuses the roll animation.
+                or (int)UniversalMovementPhase.AirDodgeStartup
+                or (int)UniversalMovementPhase.AirDodgeInvulnerable
+                or (int)UniversalMovementPhase.AirDodgeRecovery) return "roll";
             if (FighterBasicAttackRules.IsBlockStance(in state, in runtime, in verb)) return "block";
             if (state.IsGrounded == 0) {
                 return state.Velocity.y > xpTURN.Klotho.Deterministic.Math.FP64.Zero ? "jump" : "fall";

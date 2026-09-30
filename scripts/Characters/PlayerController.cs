@@ -643,6 +643,37 @@ namespace FTT.Characters {
 		private Vector2 _pendingLaunch;
 		private bool _hasPendingLaunch;
 		private bool _stunTumble;
+		// A12 (Package 13 W1): the Down-Air slam's owed ground bounce and its
+		// upward speed in px/s (the slam's own scaled vertical magnitude).
+		private bool _slamBouncePending;
+		private float _slamBounceSpeed;
+
+		/// <summary>A12 test seam: a slam bounce is still owed.</summary>
+		public bool SlamBouncePending => _slamBouncePending;
+
+		/// <summary>
+		/// A12: consumes the owed bounce on ground contact — forced and
+		/// untechable, popping the victim back up at the slam's own vertical
+		/// speed with DI read again. The tumble survives, so the NEXT landing
+		/// techs (or knocks down) normally. One bounce per slam.
+		/// </summary>
+		private bool TryResolveSlamBounce() {
+			if (!_slamBouncePending || !_stunTumble || !IsOnFloor()) return false;
+			_slamBouncePending = false;
+			float speed = _slamBounceSpeed;
+			_slamBounceSpeed = 0f;
+			if (speed <= 0f) return false;
+			FTT.Combat.BasicComboRules.ResolveDirectionalInfluence(
+				Velocity.X, -speed,
+				CurrentInputFrame.Horizontal, CurrentInputFrame.Vertical,
+				out float bounceX, out float bounceY);
+			Velocity = new Vector2(bounceX, bounceY);
+			_stunLeftTheGround = false;
+			_hasPendingLaunch = false;
+			float bounceStun = FTT.Combat.BasicComboRules.DirectionalAttackHitstunFrames / 60f;
+			if (_stunTimer < bounceStun) _stunTimer = bounceStun;
+			return true;
+		}
 		// V7.3 hit-2 cancel gate: true while the current hitstun came from
 		// string hit 1 ("combo_1") and cannot be block-cancelled.
 		private bool _hitstunBlockCancelBlocked;
@@ -1195,6 +1226,13 @@ namespace FTT.Characters {
 					// A throw is never techable — its trajectory IS the decision.
 					// M05 (Package 12 W3b): only an authored launcher tumbles.
 					_stunTumble = !thrown && launches && hit.Knockback != Vector2.Zero;
+					// A12 (Package 13 W1): a Down-Air slam owes one forced,
+					// untechable ground bounce at its own scaled vertical speed.
+					// Every stunning hit rewrites the latch, so a later
+					// non-slam launch never inherits a stale bounce.
+					_slamBouncePending = _stunTumble
+						&& hit.HitboxID == FTT.Combat.BasicComboRules.DownAirHitboxID;
+					_slamBounceSpeed = _slamBouncePending ? MathF.Abs(Velocity.Y) : 0f;
 					// V7.3 hit-2 cancel gate: string hit 1 is never
 					// block-cancelable; from hit two on the escape opens.
 					_hitstunBlockCancelBlocked = hit.HitboxID == "combo_1";
@@ -1432,7 +1470,11 @@ namespace FTT.Characters {
 			if (_techInvulnerabilitySeconds > 0f) _techInvulnerabilitySeconds -= dt;
 			if (_ledgeRegrabLockoutSeconds > 0f) _ledgeRegrabLockoutSeconds -= dt;
 			// V7.3 regrab cap: floor contact resets the per-airtime ledge budget.
-			if (IsOnFloor()) _ledgeGrabsThisAirtime = 0;
+			if (IsOnFloor()) {
+				_ledgeGrabsThisAirtime = 0;
+				// A03 (Package 13 W1): landing refreshes the air dodge.
+				_airDodgeUsed = false;
+			}
 
 			// V7.1 Echo Step bookkeeping: sample the position ring, tick the
 			// cooldown, and advance an armed wind-up (the snap fires at 0).
@@ -1726,6 +1768,10 @@ namespace FTT.Characters {
 		}
 
 		private void ProcessRolling(float dt) {
+			if (_airDodge) {
+				ProcessAirDodge(dt);
+				return;
+			}
 			ApplyGravity(dt);
 			_rollInvulnerable = false;
 
@@ -1755,8 +1801,80 @@ namespace FTT.Characters {
 			}
 		}
 
+		// === A03 air dodge (Package 13 W1) ====================================
+		// Roll pressed while airborne: an AirDodge sub-phase of Rolling, the
+		// Story mirror of FighterAirDodgeRules. 4 startup / 8 invulnerable / 10
+		// recovery; no speed added (gravity, momentum and air control continue);
+		// a held direction adds only a 1.0-unit shift across the invulnerable
+		// frames; pushbox off while invulnerable; once per airtime, refreshed by
+		// landing or a ledge grab; landing does not cancel its recovery.
+
+		/// <summary>A03: the live Rolling state is an air dodge.</summary>
+		private bool _airDodge;
+		/// <summary>A03: the once-per-airtime latch.</summary>
+		private bool _airDodgeUsed;
+		/// <summary>A03: the held-direction shift applied on each invulnerable frame, in pixels.</summary>
+		private Vector2 _airDodgeShiftPerFrame;
+
+		/// <summary>A03 test seams.</summary>
+		public bool IsAirDodging => CurrentState == CharacterState.Rolling && _airDodge;
+		public bool AirDodgeUsedThisAirtime => _airDodgeUsed;
+
+		/// <summary>
+		/// A03: starts an air dodge if one is legal — airborne, unused this
+		/// airtime, not rooted (A05; the caller already checked). The caller owns
+		/// the other legality rules: only Airborne and an aerial swing's recovery
+		/// or chain window reach here.
+		/// </summary>
+		private bool TryStartAirDodge() {
+			if (_airDodgeUsed || IsOnFloor()) return false;
+			float h = CurrentInputFrame.Horizontal;
+			float v = CurrentInputFrame.Vertical;
+			int dx = h > 0.25f ? 1 : h < -0.25f ? -1 : 0;
+			// Godot 2D Y is down: a held Up reads as a negative vertical axis.
+			int dy = v < FTT.Combat.BasicComboRules.StoryUpInputThreshold ? -1 : v > 0.25f ? 1 : 0;
+			Vector2 direction = new(dx, dy);
+			if (direction != Vector2.Zero) direction = direction.Normalized();
+			_airDodgeShiftPerFrame = direction
+				* (FTT.Core.UniversalMovementRules.AirDodgeShiftUnits
+					* FTT.Combat.KitMotionRules.StoryPixelsPerUnit
+					/ FTT.Core.UniversalMovementRules.AirDodgeInvulnerableFrames);
+			if (dx != 0) _rollDirection = dx;
+			_airDodgeUsed = true;
+			_airDodge = true;
+			TransitionTo(CharacterState.Rolling);
+			return true;
+		}
+
+		private void ProcessAirDodge(float dt) {
+			ApplyGravity(dt);
+			bool grounded = IsOnFloor();
+			// No speed is added: air control continues in the air, and a dodge
+			// that lands plays its remaining frames out grounded, decelerating.
+			if (grounded) DecelerateHorizontal(dt);
+			else ApplyAirControl(dt);
+
+			int startup = FTT.Core.UniversalMovementRules.AirDodgeStartupFrames;
+			int invulnerable = FTT.Core.UniversalMovementRules.AirDodgeInvulnerableFrames;
+			bool invulnerableFrame = _rollFrame >= startup && _rollFrame < startup + invulnerable;
+			_rollInvulnerable = invulnerableFrame;
+			_pushbox?.SetPushEnabled(!invulnerableFrame);
+			if (invulnerableFrame && _airDodgeShiftPerFrame != Vector2.Zero) {
+				// A positional shift, never velocity — and through the body, so
+				// terrain still stops it.
+				MoveAndCollide(_airDodgeShiftPerFrame);
+			}
+			PlayAnimation(_rollFrame < startup ? "roll_startup" : invulnerableFrame ? "roll" : "roll_recovery");
+
+			_rollFrame++;
+			if (_rollFrame >= FTT.Core.UniversalMovementRules.AirDodgeTotalFrames) {
+				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
+			}
+		}
+
 		private bool IsRollTravelFrame =>
-			_rollFrame >= FTT.Core.UniversalMovementRules.RollStartupFrames
+			!_airDodge
+			&& _rollFrame >= FTT.Core.UniversalMovementRules.RollStartupFrames
 			&& _rollFrame < FTT.Core.UniversalMovementRules.RollStartupFrames
 				+ FTT.Core.UniversalMovementRules.RollTravelFrames;
 
@@ -1867,6 +1985,8 @@ namespace FTT.Characters {
 				return;
 			}
 
+			// A03 (Package 13 W1): the air's defensive verb.
+			if (CheckRollInput()) return;
 			if (CheckJumpInput()) return;
 			if (CheckAttackInput()) return;
 			if (CheckSpecialInput()) return;
@@ -2513,6 +2633,10 @@ namespace FTT.Characters {
 			// the tech never fired. The latch detects the real airborne →
 			// grounded transition instead; fixed in the V7.3 pass.)
 			if (!IsOnFloor()) _stunLeftTheGround = true;
+			// A12 (Package 13 W1): a slammed victim on the ground, or reaching
+			// the floor or a one-way surface, ground-bounces ONCE — forced, so it
+			// is checked before (and consumes the contact instead of) the tech.
+			if (TryResolveSlamBounce()) return;
 			// V7.1 landing tech (ukemi): a launched victim (tumble) holding Block
 			// on the ground-contact frame techs — hitstun ends in place with a
 			// 12-frame invulnerable recovery. Checked before the grounded
@@ -3355,6 +3479,7 @@ namespace FTT.Characters {
 		}
 
 		private void CleanupRoll() {
+			_airDodge = false;
 			_rollInvulnerable = false;
 			_pushbox?.SetPushEnabled(true);
 			_pushbox?.ResolveStoryOverlaps(_rollDirection);
@@ -3633,8 +3758,11 @@ namespace FTT.Characters {
 		}
 
 		private bool CheckRollInput() {
-			if (IsMovementRooted || !IsOnFloor()) return false;
+			// A05: Root refuses the roll and the air dodge alike.
+			if (IsMovementRooted) return false;
 			if (!CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Roll)) return false;
+			// A03 (Package 13 W1): Roll pressed while airborne is the air dodge.
+			if (!IsOnFloor()) return TryStartAirDodge();
 			float input = GetHorizontalInput();
 			_rollDirection = Mathf.Abs(input) > 0.1f ? Math.Sign(input) : (IsFacingRight ? 1 : -1);
 			TransitionTo(CharacterState.Rolling);
@@ -3840,12 +3968,17 @@ namespace FTT.Characters {
 				_meleeHitbox.AppliedStatus = FTT.Core.StatusType.None;
 				_meleeHitbox.StatusDuration = 0f;
 				_meleeHitbox.StatusIntensity = 1f;
-				// Both strikes launch: a small horizontal nudge and a strong
+				// The Up-Attack launches: a small horizontal nudge and a strong
 				// upward component (Godot 2D Y is down, so upward is negative).
+				// A12 (Package 13 W1): the Down-Air is a slam — it spikes the
+				// victim STRAIGHT DOWN at the same vertical magnitude, and the
+				// victim owes one forced ground bounce (TryResolveSlamBounce).
 				float baseKB = Data?.BasicAttackKnockback ?? 3f;
-				_meleeHitbox.KnockbackForce = new Vector2(
-					baseKB * FTT.Combat.BasicComboRules.DirectionalAttackHorizontalKnockback,
-					-baseKB * FTT.Combat.BasicComboRules.DirectionalAttackVerticalKnockback);
+				_meleeHitbox.KnockbackForce = upAttack
+					? new Vector2(
+						baseKB * FTT.Combat.BasicComboRules.DirectionalAttackHorizontalKnockback,
+						-baseKB * FTT.Combat.BasicComboRules.DirectionalAttackVerticalKnockback)
+					: new Vector2(0f, baseKB * FTT.Combat.BasicComboRules.DirectionalAttackVerticalKnockback);
 			}
 
 			TransitionTo(CharacterState.Attacking);
@@ -4433,6 +4566,8 @@ namespace FTT.Characters {
 			if (!ledge.IsInGroup("Ledge") || !ledge.TryAcquire(this)) return false;
 
 			_ledgeGrabsThisAirtime++;
+			// A03 (Package 13 W1): a ledge grab refreshes the air dodge.
+			_airDodgeUsed = false;
 			_activeLedge = ledge;
 			GlobalPosition = ledge.HangPosition;
 			IsFacingRight = ledge.StageIsToRight;
