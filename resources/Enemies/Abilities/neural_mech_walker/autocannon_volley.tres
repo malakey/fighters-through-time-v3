@@ -2,6 +2,12 @@
 
 [ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
 
+; Package 13 W4 (S32): the Thunderbomb Engineer's Thunder-Bomb Lob - two arcing
+; ceramic tetsuhau. Retains the legacy AbilityID / PresentationEventID / file name
+; (autocannon_volley) per D6; only the tuning shape (an arc instead of a flat
+; volley) and the English display name moved. The burning pool is its sibling
+; ability, burning_pool.tres.
+
 [resource]
 script = ExtResource("1")
 SchemaVersion = 1
@@ -9,24 +15,24 @@ AbilityID = "enemy.neural_mech_walker.autocannon_volley"
 DisplayNameKey = "enemy_ability_autocannon_volley_name"
 Archetype = 1
 RangeClass = 1
-TelegraphFrames = 26
+TelegraphFrames = 30
 ActiveFrames = 10
 RecoveryFrames = 28
 CooldownSeconds = 8.5
 SelectionWeight = 1.0
-Damage = 12.0
-KnockbackForce = Vector2(2.5, -1.0)
-HitstunDuration = 0.15
-HitboxSize = Vector2(20, 10)
-HitboxOffset = Vector2(32, -46)
-ProjectileSpeed = 760.0
-ProjectileCount = 4
-ProjectileSpreadDegrees = 10.0
-ProjectileLifetime = 2.2
-ProjectileGravity = 0.0
+Damage = 14.0
+KnockbackForce = Vector2(2.5, -2.0)
+HitstunDuration = 0.2
+HitboxSize = Vector2(22, 22)
+HitboxOffset = Vector2(24, -60)
+ProjectileSpeed = 520.0
+ProjectileCount = 2
+ProjectileSpreadDegrees = 14.0
+ProjectileLifetime = 2.6
+ProjectileGravity = 520.0
 PiercesTargets = false
 AppliedStatus = 0
 StatusDuration = 0.0
 StatusIntensity = 1.0
-TelegraphTint = Color(0.75, 0.85, 0.4, 1)
+TelegraphTint = Color(1, 0.55, 0.15, 1)
 PresentationEventID = "enemy.neural_mech_walker.autocannon_volley"

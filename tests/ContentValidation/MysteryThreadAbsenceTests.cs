@@ -26,6 +26,15 @@ namespace FTT.Tests.ContentValidation;
 /// <para>Selection is by the saved hero ID, never a localized name, and new variant
 /// keys use the D6(a) <c>__heroid</c> suffix while existing keys keep
 /// <c>_heroid</c>.</para>
+///
+/// <para><b>Package 13 W4:</b> the Level 3 and Level 8 lists are now the
+/// <c>{MissingSoFar}</c> / <c>{MissingPlaces}</c> tokens
+/// (<see cref="MissingLegendTokens"/>), resolved per hero from
+/// <c>missing_so_far_*</c> / <c>missing_places_*</c> rows with a fallback, so the
+/// sweep resolves every line through the same token pass the dialogue box runs
+/// before looking for markers. Package 12's four <c>__leonardo</c>/<c>__joan</c>
+/// sequence variants are retired. The absence-list line of each rewritten exit is
+/// the hero's line at index 1 (design §16, S23/S29/S35).</para>
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -36,11 +45,11 @@ public class MysteryThreadAbsenceTests {
     /// enumerates missing legends).
     /// </summary>
     private static readonly (string SetPath, string BaseID, int LineIndex)[] AbsenceReports = {
-        ("res://resources/Dialogue/level_02_dialogue.tres", "level_02.exit", 3),
-        ("res://resources/Dialogue/level_03_dialogue.tres", "level_03.exit", 3),
+        ("res://resources/Dialogue/level_02_dialogue.tres", "level_02.exit", 1),
+        ("res://resources/Dialogue/level_03_dialogue.tres", "level_03.exit", 1),
         ("res://resources/Dialogue/level_08_dialogue.tres", "level_08.postboss", 1),
-        ("res://resources/Dialogue/level_10_dialogue.tres", "level_10.exit", 3),
-        ("res://resources/Dialogue/level_11_dialogue.tres", "level_11.exit", 3),
+        ("res://resources/Dialogue/level_10_dialogue.tres", "level_10.exit", 1),
+        ("res://resources/Dialogue/level_11_dialogue.tres", "level_11.exit", 1),
         ("res://resources/Dialogue/hub_dialogue.tres", "hub.sarah_act1", 0),
         ("res://resources/Dialogue/hub_dialogue.tres", "hub.okafor_act2", 1),
     };
@@ -77,6 +86,9 @@ public class MysteryThreadAbsenceTests {
                 }
                 string key = sequence.LineKeys[lineIndex];
                 string line = english.TryGetValue(key, out string value) ? value : "";
+                // Resolve the list tokens exactly as the dialogue box does.
+                line = MissingLegendTokens.Substitute(line, hero,
+                    row => english.TryGetValue(row, out string resolved) ? resolved : row);
                 checkedLines++;
                 foreach (string marker in markers) {
                     if (line.Contains(marker, StringComparison.Ordinal)) {
@@ -90,22 +102,38 @@ public class MysteryThreadAbsenceTests {
     }
 
     [TestCase]
-    public void TheFourM14VariantsAreAuthoredWithDoubleUnderscoreKeysAndSelectedForTheirHero() {
+    public void TheM14ListsAreTokensNotSequenceVariantsAndDropOnlyTheActiveHero() {
         var level03 = AuthoredResources.Load<DialogueSetData>("res://resources/Dialogue/level_03_dialogue.tres");
         var level08 = AuthoredResources.Load<DialogueSetData>("res://resources/Dialogue/level_08_dialogue.tres");
-        foreach (string hero in new[] { "leonardo", "joan" }) {
-            DialogueSequenceData exit = level03.FindSequence("level_03.exit", hero);
-            AssertString(exit.DialogueID).IsEqual($"level_03.exit@{hero}");
-            AssertString(exit.HeroConditionCharacterID).IsEqual(hero);
-            AssertString(exit.LineKeys[3]).IsEqual($"dlg_l03_exit_4__{hero}");
+        Dictionary<string, string> english = EnglishRows();
+        string Rows(string row) => english.TryGetValue(row, out string value) ? value : row;
 
-            DialogueSequenceData postboss = level08.FindSequence("level_08.postboss", hero);
-            AssertString(postboss.DialogueID).IsEqual($"level_08.postboss@{hero}");
-            AssertString(postboss.LineKeys[1]).IsEqual($"dlg_l08_postboss_2__{hero}");
+        // Leonardo and Joan read the base sequences now - the token does the work.
+        foreach (string hero in new[] { "leonardo", "joan", "einstein" }) {
+            AssertString(level03.FindSequence("level_03.exit", hero).DialogueID).IsEqual("level_03.exit");
         }
-        // Everyone else keeps the base report - never another hero's variant.
-        AssertString(level03.FindSequence("level_03.exit", "einstein").DialogueID).IsEqual("level_03.exit");
-        AssertString(level08.FindSequence("level_08.postboss", "mozart").DialogueID).IsEqual("level_08.postboss");
+        foreach (string hero in new[] { "leonardo", "joan", "tesla", "mozart" }) {
+            AssertString(level08.FindSequence("level_08.postboss", hero).DialogueID).IsEqual("level_08.postboss");
+        }
+        AssertString(Rows("dlg_l03_exit_2")).Contains(MissingLegendTokens.MissingSoFar);
+        AssertString(Rows("dlg_l08_postboss_2")).Contains(MissingLegendTokens.MissingPlaces);
+
+        // The design's lists, verbatim (design section 16, M14 notes).
+        AssertString(MissingLegendTokens.Substitute("{MissingSoFar}", "einstein", Rows)).IsEqual("Da Vinci, Joan");
+        AssertString(MissingLegendTokens.Substitute("{MissingSoFar}", "leonardo", Rows)).IsEqual("Joan");
+        AssertString(MissingLegendTokens.Substitute("{MissingSoFar}", "joan", Rows)).IsEqual("Da Vinci");
+        AssertString(MissingLegendTokens.Substitute("{MissingPlaces}", "mozart", Rows))
+            .IsEqual("Florence. Like Orléans. Like Chicago");
+        AssertString(MissingLegendTokens.Substitute("{MissingPlaces}", "leonardo", Rows)).IsEqual("Orléans. Like Chicago");
+        AssertString(MissingLegendTokens.Substitute("{MissingPlaces}", "joan", Rows)).IsEqual("Florence. Like Chicago");
+        AssertString(MissingLegendTokens.Substitute("{MissingPlaces}", "tesla", Rows)).IsEqual("Florence. Like Orléans");
+
+        // The retired Package 12 variant keys are gone from the table.
+        foreach (string retired in new[] {
+            "dlg_l03_exit_4__leonardo", "dlg_l03_exit_4__joan",
+            "dlg_l08_postboss_2__leonardo", "dlg_l08_postboss_2__joan" }) {
+            AssertThat(english.ContainsKey(retired)).OverrideFailureMessage($"{retired} should be retired").IsFalse();
+        }
     }
 
     private static Dictionary<string, string> EnglishRows() {

@@ -106,7 +106,8 @@ public class EnemyRosterActIIWestTests {
         }
         // 4 authored ranged primaries + 4 elite abilities across the eight entries;
         // the four melee primaries stay synthesized from the scalar EnemyData fields.
-        AssertThat(authored).IsEqual(8);
+        // Package 13 W4 (S32): +1, the Thunderbomb Engineer's burning pool.
+        AssertThat(authored).IsEqual(9);
     }
 
     [TestCase]

@@ -108,10 +108,13 @@ public class Level03ContentTests {
             AssertObject(sequence).IsNotNull();
             byID[sequence.DialogueID] = sequence;
         }
-        // Package 11 A6: the two N03 Tesla hero variants join the three base beats.
+        // Package 13 W4 (S23): the powerhouse absence joins the three base beats, and
+        // the two N03 Tesla variants are the absence-slot recognition and the exit.
+        // Package 12's {MissingSoFar} sequence variants are gone (the token resolves it).
+        AssertThat(set.Sequences.Length).IsEqual(6);
         foreach (string beat in new[] {
-            "level_03.entrance", "level_03.boss_intro", "level_03.exit",
-            "level_03.entrance@tesla", "level_03.exit@tesla" }) {
+            "level_03.entrance", "level_03.absence", "level_03.boss_intro", "level_03.exit",
+            "level_03.absence@tesla", "level_03.exit@tesla" }) {
             AssertThat(byID.ContainsKey(beat))
                 .OverrideFailureMessage($"Dialogue sequence '{beat}' is missing from the level 3 set.")
                 .IsTrue();

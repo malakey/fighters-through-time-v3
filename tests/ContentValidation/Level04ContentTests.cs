@@ -108,7 +108,8 @@ public class Level04ContentTests {
         AssertString(dialogue.DialogueSetID).IsEqual("dialogue_level_04");
 
         HashSet<string> keys = EnglishKeys();
-        string[] expectedSequences = { "level_04.entrance", "level_04.boss_intro", "level_04.exit" };
+        // Package 13 W4 (S26): the Desmoulins absence beat plays for every hero.
+        string[] expectedSequences = { "level_04.entrance", "level_04.absence", "level_04.boss_intro", "level_04.exit" };
         AssertThat(dialogue.Sequences.Length).IsEqual(expectedSequences.Length);
 
         foreach (string dialogueID in expectedSequences) {

@@ -246,9 +246,11 @@ public class Level02ContentTests {
         var set = FTT.Core.AuthoredResources.Load<DialogueSetData>(Level02Controller.DialogueResourcePath);
         AssertObject(set).IsNotNull();
         AssertString(set.DialogueSetID).IsEqual("dialogue_level_02");
-        // Package 11 A6: three base beats plus the two N03 Joan hero variants.
-        AssertThat(set.Sequences.Length).IsEqual(5);
-        foreach (string variant in new[] { "level_02.entrance@joan", "level_02.exit@joan" }) {
+        // Package 13 W4 (S23): four base beats (entrance, the vanguard absence, boss
+        // intro, exit) plus the two N03 Joan variants - the recognition now lives in
+        // the absence slot it replaces, not appended to the entrance.
+        AssertThat(set.Sequences.Length).IsEqual(6);
+        foreach (string variant in new[] { "level_02.absence@joan", "level_02.exit@joan" }) {
             DialogueSequenceData branch = set.Find(variant);
             AssertObject(branch).OverrideFailureMessage(
                 $"The N03 recognition variant '{variant}' is missing.").IsNotNull();
@@ -269,7 +271,8 @@ public class Level02ContentTests {
             "orleans_objective_complete", "orleans_gate_shielded"
         };
 
-        foreach (string sequenceID in new[] { "level_02.entrance", "level_02.boss_intro", "level_02.exit" }) {
+        foreach (string sequenceID in new[] {
+            "level_02.entrance", "level_02.absence", "level_02.boss_intro", "level_02.exit" }) {
             DialogueSequenceData sequence = set.Find(sequenceID);
             AssertObject(sequence).OverrideFailureMessage(
                 $"Dialogue sequence '{sequenceID}' is missing from the set.").IsNotNull();

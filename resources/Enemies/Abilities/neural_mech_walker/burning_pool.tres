@@ -1,0 +1,35 @@
+[gd_resource type="Resource" script_class="EnemyAbilityData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/Enemies/EnemyAbilityData.cs" id="1"]
+
+; Package 13 W4 (S32): the Thunderbomb Engineer's burning pool. A thrown tetsuhau
+; lands where the target stood at cast and leaves a burning pool (RadiantBurn) that
+; refreshes on anyone standing in it - the area-denial half of the elite. Authored
+; on the existing PersistentFieldAtTarget archetype; no new archetype. The pool
+; shares the thunder-bomb's placeholder presentation event (the ID is owned by
+; the retained neural_mech_walker VFX atlas).
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "enemy.neural_mech_walker.burning_pool"
+DisplayNameKey = "enemy_ability_burning_pool_name"
+Archetype = 8
+RangeClass = 1
+TelegraphFrames = 30
+ActiveFrames = 10
+RecoveryFrames = 28
+CooldownSeconds = 8.5
+SelectionWeight = 1.0
+Damage = 0.0
+KnockbackForce = Vector2(0, 0)
+HitstunDuration = 0.0
+HitboxSize = Vector2(0, 0)
+HitboxOffset = Vector2(0, -32)
+PulseRadius = 110.0
+FieldDurationSeconds = 3.5
+AppliedStatus = 4
+StatusDuration = 2.0
+StatusIntensity = 1.0
+TelegraphTint = Color(1, 0.55, 0.15, 1)
+PresentationEventID = "enemy.neural_mech_walker.autocannon_volley"

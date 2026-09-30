@@ -358,8 +358,9 @@ public class Level08ContentTests {
         AssertObject(set).IsNotNull();
         AssertString(set.DialogueSetID).IsEqual("dialogue_level_08");
         AssertThat(set.Sequences.Length).OverrideFailureMessage(
-            "Level 8 ships four beats, the two N03 Cleopatra hero variants and the two " +
-            "Package 12 W7 M14 absence-list variants (@leonardo, @joan).").IsEqual(8);
+            "Level 8 ships five beats (Package 13 W4 added the throne-room absence) and the " +
+            "two N03 Cleopatra variants; the Package 12 M14 list variants are now the " +
+            "{MissingPlaces} token.").IsEqual(7);
 
         var keys = new HashSet<string>(StringComparer.Ordinal);
         foreach (string line in File.ReadAllLines("localization/en.csv")) {
@@ -378,7 +379,8 @@ public class Level08ContentTests {
         foreach ((string _, string labelKey, int _) in Level08Controller.GlyphPlan) required.Add(labelKey);
 
         foreach (string sequenceID in new[] {
-            "level_08.entrance", "level_08.boss_intro", "level_08.postboss", "level_08.exit" }) {
+            "level_08.entrance", "level_08.absence", "level_08.boss_intro", "level_08.postboss",
+            "level_08.exit" }) {
             DialogueSequenceData sequence = set.Find(sequenceID);
             AssertObject(sequence).OverrideFailureMessage(
                 $"Dialogue sequence '{sequenceID}' is missing from the set.").IsNotNull();
@@ -405,7 +407,7 @@ public class Level08ContentTests {
         AssertString(postBoss.GetSpeakerKey(3)).IsEqual("speaker_sarah");
 
         foreach (string variant in new[] {
-            "level_08.entrance@cleopatra", "level_08.postboss@cleopatra" }) {
+            "level_08.absence@cleopatra", "level_08.postboss@cleopatra" }) {
             DialogueSequenceData branch = set.Find(variant);
             AssertObject(branch).OverrideFailureMessage(
                 $"The N03 recognition variant '{variant}' is missing.").IsNotNull();

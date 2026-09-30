@@ -183,6 +183,19 @@ Owns the **ground-wave** primitive (travels along the ground, grounded targets o
 - **Ledger:** `VERIFY-4A-CONTENT`, `VERIFY-4A-BOSS-RULE1`, `VERIFY-NEXUS-DISPLACEMENT` closed as invalidated by S27;
   `VERIFY-STORY-PITS`, `VERIFY-PAR-SECONDS`, `VERIFY-ERASER-DUST` amended. AGENTS.md/CLAUDE.md left for Phase C.
 
+### W4 — Narrative B: Levels 1–12 (branch `p13/W4`; handoff `docs/handoffs/P13_W4.md`)
+
+**Delta +27** (7 new suites; 17 existing files edited in place, 0 count change). No save field, no v8 derivation, no hash move.
+
+1. **Token home.** `{MissingSoFar}` / `{MissingPlaces}` are per-hero rows with a fallback in a sibling class `FTT.Core.MissingLegendTokens`, not inside `DialogueTokens`, to avoid a same-region edit with W3; hooked by one line in `DialogueManager.SubstituteCaptiveNames`. Package 12's four M14 sequence variants and their `__leonardo`/`__joan` keys are retired.
+2. **Shared-file edits outside the owned region, all additive or a bug fix:** `StoryLevelControllerBase.HandleDialogueComplete` compares base IDs (a latent bug — a hero-variant exit never presented the results and a variant post-boss beat stalled the chain); a new partial `StoryLevelControllerBase.Narrative.cs` for the absence-beat helper; `IntegrityClockPause.ScriptedBeat = 16` appended in `StoryManager.cs`; `AudioManager.SurfacePitch` gains `"wet_deck"`.
+3. **Retained non-§16 beats:** Level 5 `preboss` (rewritten, motive removed), Level 8 and Level 12 exits (§16 has none; wording only).
+4. **S36 placement:** the near-capture fires at the storm-anchor ship's entrance (room 3), not in the lantern room, because room 2 holds the level's Chrono-Warden (salt rule). The Eraser is a silhouette; the beat takes the tree pause for the struggle and releases the pause, the clock flag and the smother in `_ExitTree`.
+5. **Thunderbomb Engineer:** bomb lob and burning pool alternate through the elite cycle (existing archetypes only); the pool shares the lob's presentation event.
+6. **Test gates relaxed deliberately:** `CampaignLocalizationTests` hero-token floor 20 → 12 (the §16 scripts dropped most M35 radio tokens); `NarrativeKnowledgeBoundaryTests` matches "the Landing" case-sensitively (the design's "landing site").
+7. **Prompt key duplication:** `dlg_l09_near_capture_prompt` duplicates W3's Level 0 "Hold away from the light" English; fold at merge.
+8. Recognition lines moved from entrance variants to the new absence slots (§16/N03); five entrance variants retired.
+
 ## 10. Closeout report
 
 *(Phase C.)*

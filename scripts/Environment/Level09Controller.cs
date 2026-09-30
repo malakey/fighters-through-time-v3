@@ -7,44 +7,52 @@ using FTT.Enemies;
 namespace FTT.Environment {
 
     /// <summary>
-    /// Level 9 - Berlin, 1961 (The Division of Berlin). The campaign's designated
-    /// stealth level. Four rooms across 10,560 px:
+    /// Level 9 - Hakata Bay, 1281 (the second Mongol invasion of Japan; S32 replaced
+    /// the retired Berlin 1961 level - the scene ID <c>Level_09_Berlin</c>, the
+    /// <c>level_09_berlin</c> level ID, the <c>CampaignLevel.Berlin</c> member and
+    /// every <c>berlin_*</c> translation key are retained per D6). The campaign's
+    /// designated stealth level: samurai night raids on the moored fleet, with the
+    /// Severed's storm-anchors drinking the typhoon that is coming. Four rooms across
+    /// 10,560 px:
     /// <list type="number">
-    /// <item><b>Checkpoint Charlie</b> (0-2880) - snowed-in ruined urban blocks;
-    ///       the opening firefight, no beams yet.</item>
-    /// <item><b>The Death Strip</b> (2880-6400) - the era beat. Three
-    ///       <see cref="SearchlightZone"/> beams in
-    ///       <see cref="SearchlightMode.DelayedStrike"/> mode with deliberately
-    ///       desynced sweep periods, three rubble cover pockets sitting in the gaps
-    ///       between their swept footprints, a guard-tower climb on drop-through
-    ///       platforms, and the three surveillance feed relays that cut them.</item>
-    /// <item><b>Radar Yard</b> (6400-8640) - past the sealed radar gate; the cloaked
-    ///       mast climb and the heaviest wave, led by the level's single elite.</item>
-    /// <item><b>Bunker Street</b> (8640-10560) - the Iron Chancellor's bunker defense
-    ///       battle: a flat snowy street, two waist-high fortifications, and two high
-    ///       guard-tower balconies.</item>
+    /// <item><b>The Stone Seawall</b> (0-2880) - wet timber and sand under the
+    ///       seawall; the opening firefight, no lanterns yet.</item>
+    /// <item><b>The Moored Fleet - Lantern Watch</b> (2880-6400) - the era beat.
+    ///       Three fleet lanterns (<see cref="SearchlightZone"/> in
+    ///       <see cref="SearchlightMode.DelayedStrike"/> mode, the Level 4 searchlight
+    ///       remixed as the design asks) with deliberately desynced sweeps, three
+    ///       shadowed cover pockets in the gaps between their swept footprints, a
+    ///       mast climb on drop-through platforms, and the three lantern signal lines
+    ///       that darken them.</item>
+    /// <item><b>The Storm-Anchor Ship</b> (6400-8640) - past the barred boarding
+    ///       gate; the rigging climb, the heaviest wave led by the level's single
+    ///       elite (the Thunderbomb Engineer), and the S36 Eraser near-capture.</item>
+    /// <item><b>The Flagship Deck</b> (8640-10560) - the Thunderbomb General's
+    ///       flagship duel: a flat deck, two gunwale barricades, and two high castle
+    ///       decks.</item>
     /// </list>
     ///
     /// <para><b>How the stealth reads, and how it differs from Paris.</b> Level 4 runs
     /// the same component in <see cref="SearchlightMode.UltimateDrain"/>: standing in a
     /// Paris beam is an attrition tax on the Ultimate meter that a player can simply
-    /// eat. Berlin's beams never touch the meter. Exposure accumulates silently for
+    /// eat. Hakata's lanterns never touch the meter. Exposure accumulates silently for
     /// <see cref="SearchlightZone.ExposureGraceSeconds"/> (1.5 s, the figure the design
-    /// quantifies) and then an automated drone laser lands for
-    /// <see cref="StrikeDamage"/> with knockback, and keeps landing every 1.5 s while
-    /// the player stays lit. Crossing is therefore a timing problem with a real fail
-    /// state rather than a resource cost, and the answer is either the sweep window or
-    /// one of the three un-swept cover pockets.</para>
+    /// quantifies) and then a thunder-bomb volley lands with knockback, and keeps
+    /// landing every 1.5 s while the player stays lit. Crossing is therefore a timing
+    /// problem with a real fail state rather than a resource cost, and the answer is
+    /// either the sweep window or one of the three un-swept cover pockets.</para>
     ///
-    /// <para><b>Agency over patience.</b> Each beam is fed by a
-    /// <see cref="DestructibleBlock"/> surveillance relay placed past that beam. Cutting
-    /// a relay permanently darkens its light, so the gauntlet gets progressively safer
-    /// as the player works forward instead of demanding the same patience three times.
-    /// All three relays satisfy the <see cref="PuzzleManager"/> that unseals the radar
-    /// gate into room three.</para>
+    /// <para><b>Agency over patience.</b> Each lantern is fed by a
+    /// <see cref="DestructibleBlock"/> signal line placed past it. Cutting a line
+    /// permanently darkens its lantern, so the gauntlet gets progressively safer as
+    /// the player works forward instead of demanding the same patience three times.
+    /// All three lines satisfy the <see cref="PuzzleManager"/> that unbars the
+    /// boarding gate into room three. (The node names - <c>FeedRelay*</c>,
+    /// <c>Searchlight*</c>, <c>RadarGate</c> - are retained authored identifiers.)</para>
     ///
     /// Encounter economy is locked by docs/DUST_ECONOMY.md: exactly 12 standards,
-    /// 1 elite, 1 boss, 3 extractors.
+    /// 1 elite, 1 boss, 3 extractors. The near-capture Eraser is a presentation
+    /// silhouette (<see cref="NearCaptureBeat"/>), never a spawned enemy.
     /// </summary>
     public partial class Level09Controller : StoryLevelControllerBase {
 
@@ -77,22 +85,23 @@ namespace FTT.Environment {
 
         // === Authored encounter table (asserted by Level09ContentTests) ===
 
-        /// <summary>The Berlin era standard: a long-telegraph, long-range sniper.</summary>
+        /// <summary>The Hakata era standard, the Lantern-Eye Archer: a long-telegraph, long-range spotter.</summary>
         public const string SentryEnemyID = "infrared_border_sentry";
 
-        /// <summary>The Unbound shock-trooper standard mixed through every era roster.</summary>
+        /// <summary>The Severed shock-trooper standard mixed through every era roster.</summary>
         public const string CultistEnemyID = "chrono_slasher";
 
-        /// <summary>The Berlin elite. Exactly one, per the locked economy row.</summary>
+        /// <summary>The Hakata elite, the Thunderbomb Engineer. Exactly one, per the locked economy row.</summary>
         public const string EliteEnemyID = "neural_mech_walker";
 
         /// <summary>
         /// V7.1 design law, first actually placed in V7.6 (Package 11 A7a): the
         /// Chrono-Warden is "salted through Levels 7-15 alongside the
         /// Tech-Enforcer" and had never been spawned in any level (recon G8). The
-        /// Death Strip is the right room for it - a Dilation Field dropped on the
-        /// searchlight lane turns a timing puzzle into a real problem. No Eraser
-        /// is authored here: the two may not share a level before Act III.
+        /// Lantern Watch is the right room for it - a Dilation Field dropped on the
+        /// lantern lane turns a timing puzzle into a real problem. No Eraser enemy
+        /// is spawned here (the S36 near-capture Eraser is a presentation silhouette):
+        /// the two may not share a level before Act III.
         /// </summary>
         public const string WardenEnemyID = "chrono_warden";
 
@@ -105,17 +114,17 @@ namespace FTT.Environment {
         /// every earlier wave still alive.
         /// </summary>
         public static readonly (string EnemyID, int Wave, Vector2 Position)[] SpawnTable = {
-            // Wave 1 - Checkpoint Charlie. A sniper on the rubble, Unbound troopers on the street.
+            // Wave 1 - the stone seawall. An archer on the rubble, Severed troopers on the sand.
             (CultistEnemyID, 1, new Vector2(1000f, 1150f)),
             (SentryEnemyID, 1, new Vector2(1700f, 990f)),
             (CultistEnemyID, 1, new Vector2(2450f, 1150f)),
-            // Wave 2 - The Death Strip. Sentries hold the beams; one owns the walkway.
+            // Wave 2 - the Lantern Watch. Archers hold the lanterns; one owns the gangway.
             (SentryEnemyID, 2, new Vector2(3400f, 1150f)),
             (CultistEnemyID, 2, new Vector2(4100f, 1150f)),
             (SentryEnemyID, 2, new Vector2(5000f, 1150f)),
             (SentryEnemyID, 2, new Vector2(5900f, 460f)),
             (WardenEnemyID, 2, new Vector2(4600f, 1150f)),
-            // Wave 3 - Radar Yard. The elite walker anchors the yard.
+            // Wave 3 - the storm-anchor ship. The Thunderbomb Engineer anchors the deck.
             (SentryEnemyID, 3, new Vector2(6800f, 1150f)),
             (CultistEnemyID, 3, new Vector2(7100f, 1150f)),
             (SentryEnemyID, 3, new Vector2(7350f, 570f)),
@@ -125,7 +134,7 @@ namespace FTT.Environment {
         };
 
         /// <summary>
-        /// The three authored cover slabs in the Death Strip, as (centre X, width).
+        /// The three authored cover slabs in the Lantern Watch, as (centre X, width).
         /// Each one is deliberately authored in a gap between two searchlight
         /// footprints, so it is genuinely safe ground; the content test proves it
         /// against <see cref="SweptFootprint"/> rather than trusting these numbers.
@@ -176,7 +185,7 @@ namespace FTT.Environment {
 
         // Package 12 W8 (GAP-03): the secret cache sits on
         // the rubble crest past the ruins extractor (Platform 2650/860, top 852) — a
-        // dead-end perch before the Checkpoint Charlie transition, off the floor route.
+        // dead-end perch before the seawall transition, off the floor route.
         protected override Vector2? SecretCachePosition => new(2650f, 757f);
         public override Rect2 LevelBounds => new(0, 0, LevelWidth, LevelHeight);
 
@@ -184,21 +193,24 @@ namespace FTT.Environment {
         protected override string BossObjectiveKey => "berlin_objective_defeat_boss";
         protected override string CompletionObjectiveKey => "berlin_objective_complete";
 
-        // === Snow-tinted graybox palette ===
+        // === Night-sea graybox palette (S32: wet deck and sand, lantern-lit) ===
 
-        protected override Color FloorColor => new(0.72f, 0.75f, 0.80f);
-        protected override Color FloorEdgeColor => new(0.91f, 0.94f, 0.98f);
-        protected override Color PlatformColor => new(0.50f, 0.54f, 0.60f);
-        protected override Color WallColor => new(0.23f, 0.25f, 0.30f);
-        protected override Color HazardColor => new(0.34f, 0.54f, 0.72f);
+        protected override Color FloorColor => new(0.28f, 0.22f, 0.17f);
+        protected override Color FloorEdgeColor => new(0.62f, 0.52f, 0.36f);
+        protected override Color PlatformColor => new(0.36f, 0.27f, 0.19f);
+        protected override Color WallColor => new(0.10f, 0.12f, 0.18f);
+        protected override Color HazardColor => new(0.92f, 0.52f, 0.20f);
 
-        private static readonly Color SnowRubbleColor = new(0.62f, 0.66f, 0.72f);
-        private static readonly Color CoverPocketColor = new(0.40f, 0.46f, 0.54f);
+        private static readonly Color WetTimberColor = new(0.42f, 0.33f, 0.24f);
+        private static readonly Color CoverPocketColor = new(0.16f, 0.18f, 0.24f);
+
+        /// <summary>The lit fleet-lantern tint over the retained searchlight cone.</summary>
+        public static readonly Color LanternBeamModulate = new(1.0f, 0.74f, 0.38f, 1f);
         private static readonly Color DarkenedBeamModulate = new(0.25f, 0.27f, 0.32f, 0.35f);
 
         // === Scene-authored toolkit instances ===
 
-        /// <summary>One surveillance relay and the beam it powers.</summary>
+        /// <summary>One lantern signal line (a retained "feed relay" node) and the lantern it lights.</summary>
         public readonly record struct FeedLink(string FeedNodeName, string LightNodeName, string ConditionID);
 
         /// <summary>
@@ -222,7 +234,7 @@ namespace FTT.Environment {
         public IReadOnlyList<DestructibleBlock> FeedRelays => _feedRelays;
         public PuzzleManager FeedPuzzle => _feedPuzzle;
 
-        /// <summary>False until every surveillance relay is cut and the radar gate lifts.</summary>
+        /// <summary>False until every lantern signal line is cut and the boarding gate (RadarGate) lifts.</summary>
         public bool RadarGateOpen { get; private set; }
 
         /// <summary>How many relays have been cut (0-3). Drives the HUD counter.</summary>
@@ -261,6 +273,8 @@ namespace FTT.Environment {
                     _searchlights.Add(light);
                     _lightsByName[link.LightNodeName] = light;
                     light.PlayerDetected += _ => OnBeamExposure();
+                    // S32 reskin: the searchlight cone reads as a warm fleet lantern.
+                    if (light.GetNodeOrNull<CanvasItem>("Visual") is CanvasItem cone) cone.Modulate = LanternBeamModulate;
                 }
                 if (GetNodeOrNull<DestructibleBlock>($"FeedPuzzle/{link.FeedNodeName}") is DestructibleBlock relay) {
                     _feedRelays.Add(relay);
@@ -270,17 +284,17 @@ namespace FTT.Environment {
             }
         }
 
-        /// <summary>Room 1: snowed-in ruined blocks. Flat street, rubble climbs, exposed rebar.</summary>
+        /// <summary>Room 1: the stone seawall. Wet sand, timber and stone climbs, caltrops.</summary>
         private void BuildCheckpointCharlie() {
             BuildRoomBackground("BG_Room1_CheckpointCharlie", Room1StartX, 2880f, LevelHeight,
                 new Color(0.14f, 0.16f, 0.20f, 0.45f));
 
             BuildFloor(Room1StartX, GroundY, 2880f);
-            BuildPlatform(600f, 1060f, 300f, SnowRubbleColor);
-            BuildPlatform(1150f, 940f, 260f, SnowRubbleColor);
-            BuildPlatform(1700f, 1050f, 280f, SnowRubbleColor);
-            BuildPlatform(2300f, 980f, 320f, SnowRubbleColor);   // holds extractor 1
-            BuildPlatform(2650f, 860f, 220f, SnowRubbleColor);
+            BuildPlatform(600f, 1060f, 300f, WetTimberColor);
+            BuildPlatform(1150f, 940f, 260f, WetTimberColor);
+            BuildPlatform(1700f, 1050f, 280f, WetTimberColor);
+            BuildPlatform(2300f, 980f, 320f, WetTimberColor);   // holds extractor 1
+            BuildPlatform(2650f, 860f, 220f, WetTimberColor);
 
             BuildHazardSpikes(1450f, 1190f, 140f);
             BuildHazardSpikes(2050f, 1190f, 120f);
@@ -294,10 +308,10 @@ namespace FTT.Environment {
         }
 
         /// <summary>
-        /// Room 2: the stealth gauntlet. The beams themselves are authored in the
+        /// Room 2: the Lantern Watch stealth gauntlet. The lanterns themselves are authored in the
         /// scene; this builds the geometry that makes timing them matter - three
         /// cover pockets sitting in the gaps between the swept cone footprints, and
-        /// the guard-tower climb that ends on the beam-swept upper walkway.
+        /// the mast climb that ends on the lantern-swept upper gangway.
         /// </summary>
         private void BuildDeathStrip() {
             BuildRoomBackground("BG_Room2_DeathStrip", Room2StartX, 3520f, LevelHeight,
@@ -335,21 +349,21 @@ namespace FTT.Environment {
             BuildWaveTrigger("Room2WaveTrigger", new Vector2(Room2StartX + 120f, 1100f), () => SpawnWave(2));
         }
 
-        /// <summary>Room 3: the cloaked radar mast, past the gate the relays unseal.</summary>
+        /// <summary>Room 3: the storm-anchor ship, past the boarding gate the signal lines unbar.</summary>
         private void BuildRadarYard() {
             BuildRoomBackground("BG_Room3_RadarYard", Room3StartX, 2240f, LevelHeight,
                 new Color(0.12f, 0.14f, 0.18f, 0.5f));
 
             BuildFloor(Room3StartX, GroundY, 2240f);
 
-            // Radar mast: the second guard-tower climb.
+            // Rigging: the second mast climb.
             BuildOneWayPlatform(6900f, 1040f, 220f);
             BuildOneWayPlatform(7150f, 900f, 220f);
             BuildOneWayPlatform(6950f, 760f, 200f);
             BuildPlatform(7250f, 620f, 420f);   // mast gantry, holds extractor 3
 
-            BuildPlatform(7900f, 1040f, 260f, SnowRubbleColor);
-            BuildPlatform(8300f, 920f, 240f, SnowRubbleColor);
+            BuildPlatform(7900f, 1040f, 260f, WetTimberColor);
+            BuildPlatform(8300f, 920f, 240f, WetTimberColor);
 
             BuildCheckpoint(8480f, GroundY - 50f, CheckpointID(2), CheckpointRole.PreBoss);
             BuildRoomDecoration(Room3StartX, "berlin_room_radar_yard", new Color(0.60f, 0.85f, 0.70f));
@@ -358,14 +372,44 @@ namespace FTT.Environment {
                 new Rect2(Room3StartX, 0f, 2240f, LevelHeight),
                 triggerSize: new Vector2(80f, LevelHeight));
 
+            BuildNearCapture();
             BuildWaveTrigger("Room3WaveTrigger", new Vector2(Room3StartX + 200f, 1100f), () => SpawnWave(3));
         }
 
+        // === Package 13 W4 (S36): the Eraser near-capture ===
+
         /// <summary>
-        /// Room 4: the bunker defense battle. A flat snowy street with two waist-high
-        /// fortifications for the Chancellor's shockwaves to break line on, and the two
-        /// high guard-tower balconies the design asks for. The west wall stops above the
-        /// entry so the player is not sealed out of the radar yard.
+        /// Where the snare catches the hero: just past the boarding gate, before the
+        /// room's wave arms, in the dark after the lanterns. No Chrono-Warden shares
+        /// this room (the Act I/II salt rule), and the Eraser is a silhouette.
+        /// </summary>
+        public const float NearCaptureTriggerX = Room3StartX + 100f;
+
+        /// <summary>The scripted beat. Built with the room.</summary>
+        public NearCaptureBeat NearCapture { get; private set; }
+
+        private void BuildNearCapture() {
+            NearCapture = new NearCaptureBeat {
+                Name = "NearCaptureBeat",
+                StartDialogue = id => StartDialogue(id)
+            };
+            AddChild(NearCapture);
+            BuildWaveTrigger("NearCaptureTrigger", new Vector2(NearCaptureTriggerX, 1100f),
+                () => BeginNearCapture());
+        }
+
+        /// <summary>Snares the hero once. Public so tests can drive it.</summary>
+        public bool BeginNearCapture() =>
+            NearCapture != null && IsInstanceValid(NearCapture) && NearCapture.Begin(Player);
+
+        protected override void OnDialogueSequenceComplete(string dialogueID) =>
+            NearCapture?.OnDialogueComplete(dialogueID);
+
+        /// <summary>
+        /// Room 4: the flagship duel. A flat deck with two waist-high gunwale
+        /// barricades for the General's shockwaves to break line on, and the two high
+        /// castle decks. The west wall stops above the
+        /// entry so the player is not sealed out of the storm-anchor ship.
         /// </summary>
         private void BuildBunkerStreet() {
             BuildRoomBackground("BG_Room4_BunkerStreet", Room4StartX, 1920f, LevelHeight,
@@ -373,8 +417,8 @@ namespace FTT.Environment {
 
             BuildFloor(Room4StartX, GroundY, 1920f);
 
-            BuildPlatform(9100f, 800f, 420f);    // west guard-tower balcony
-            BuildPlatform(10100f, 800f, 420f);   // east guard-tower balcony
+            BuildPlatform(9100f, 800f, 420f);    // west castle deck
+            BuildPlatform(10100f, 800f, 420f);   // east castle deck
 
             BuildPlatform(9280f, 1090f, 200f, CoverPocketColor);   // fortification
             BuildPlatform(9960f, 1090f, 200f, CoverPocketColor);   // fortification
@@ -414,7 +458,7 @@ namespace FTT.Environment {
             }
         }
 
-        // Package 12 W2 (GAP-13): explicit encounter baseline. Berlin's numbering
+        // Package 12 W2 (GAP-13): explicit encounter baseline. This level's numbering
         // is NOT the old derivation: wave 1 is the initial spawn and is never
         // restored as cleared, so the middle anchor clears wave 2 only and the
         // PreBoss anchor clears waves 2 and 3.
@@ -438,7 +482,7 @@ namespace FTT.Environment {
         /// <summary>The anchor's non-encounter world state; the waves come from the baseline.</summary>
         protected override void MarkWavesClearedThrough(string checkpointID) {
             if (checkpointID == CheckpointID(2)) {
-                // Checkpoint 2 stands east of the radar gate. A resume that lost the
+                // Checkpoint 2 stands east of the boarding gate. A resume that lost the
                 // puzzle flag would strand the player behind a sealed gate with the
                 // gauntlet still live behind it, so the gate opens and the beams go
                 // dark structurally rather than relying on the save.
@@ -470,8 +514,8 @@ namespace FTT.Environment {
         }
 
         /// <summary>
-        /// Berlin's beams never touch the Ultimate meter; a catch is a warning that a
-        /// drone strike lands in <see cref="SearchlightZone.ExposureGraceSeconds"/>.
+        /// Hakata's lanterns never touch the Ultimate meter; a catch is a warning that a
+        /// thunder-bomb volley lands in <see cref="SearchlightZone.ExposureGraceSeconds"/>.
         /// The 12-standard budget is locked, so this posts an objective rather than an
         /// alarm wave.
         /// </summary>

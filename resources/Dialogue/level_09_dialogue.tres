@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="DialogueSetData" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
@@ -6,8 +6,26 @@
 [sub_resource type="Resource" id="Entrance"]
 script = ExtResource("2")
 DialogueID = "level_09.entrance"
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_sarah", "speaker_player", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l09_entrance_1", "dlg_l09_entrance_2", "dlg_l09_entrance_3", "dlg_l09_entrance_4")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_determined", "emotion_neutral")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="NearCapture"]
+script = ExtResource("2")
+DialogueID = "level_09.near_capture"
+SpeakerNameKeys = PackedStringArray("speaker_sarah")
+LineKeys = PackedStringArray("dlg_l09_near_capture_1")
+EmotionKeys = PackedStringArray("emotion_shocked")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="NearCaptureAfter"]
+script = ExtResource("2")
+DialogueID = "level_09.near_capture_after"
 SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah")
-LineKeys = PackedStringArray("dlg_l09_entrance_1", "dlg_l09_entrance_2")
+LineKeys = PackedStringArray("dlg_l09_near_capture_2", "dlg_l09_near_capture_3")
 EmotionKeys = PackedStringArray("emotion_shocked", "emotion_neutral")
 PausesGameplay = true
 AutoAdvance = false
@@ -15,22 +33,22 @@ AutoAdvance = false
 [sub_resource type="Resource" id="BossIntro"]
 script = ExtResource("2")
 DialogueID = "level_09.boss_intro"
-SpeakerNameKeys = PackedStringArray("speaker_iron_chancellor", "speaker_player")
-LineKeys = PackedStringArray("dlg_l09_boss_1", "dlg_l09_boss_2")
-EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined")
+SpeakerNameKeys = PackedStringArray("speaker_iron_chancellor")
+LineKeys = PackedStringArray("dlg_l09_boss_1")
+EmotionKeys = PackedStringArray("emotion_neutral")
 PausesGameplay = true
 AutoAdvance = false
 
 [sub_resource type="Resource" id="Exit"]
 script = ExtResource("2")
 DialogueID = "level_09.exit"
-SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah", "speaker_player")
-LineKeys = PackedStringArray("dlg_l09_exit_1", "dlg_l09_exit_2", "dlg_l09_exit_3", "dlg_l09_exit_4", "dlg_l09_exit_5")
-EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_confused", "emotion_neutral", "emotion_determined")
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l09_exit_1", "dlg_l09_exit_2", "dlg_l09_exit_3")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined", "emotion_neutral")
 PausesGameplay = true
 AutoAdvance = false
 
 [resource]
 script = ExtResource("1")
 DialogueSetID = "dialogue_level_09"
-Sequences = [SubResource("Entrance"), SubResource("BossIntro"), SubResource("Exit")]
+Sequences = [SubResource("Entrance"), SubResource("NearCapture"), SubResource("NearCaptureAfter"), SubResource("BossIntro"), SubResource("Exit")]

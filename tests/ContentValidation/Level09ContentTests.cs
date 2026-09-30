@@ -12,14 +12,15 @@ using static GdUnit4.Assertions;
 namespace FTT.Tests.ContentValidation;
 
 /// <summary>
-/// Package 5 Wave B: content contracts for Level 9 - Berlin, 1961.
+/// Package 5 Wave B: content contracts for Level 9 - Hakata Bay, 1281 (the retired
+/// Berlin 1961 level until Package 13 W4 / S32; identifiers retained).
 /// <para>
 /// Covers the per-level gate from docs/PACKAGE5_CAMPAIGN_PLAN.md §5: the scene
 /// resolves at the exact <see cref="StoryManager"/> path, the controller reports
 /// the manifest level id and its three checkpoints, the dialogue set and every
 /// authored line key are localized, the authored encounter table matches the
-/// locked 12/1/1/3 economy row, the Iron Chancellor's ranged band fits the bunker
-/// street, and both halves of the era identity are driven for real - a beam that
+/// locked 12/1/1/3 economy row, the Thunderbomb General's ranged band fits the flagship
+/// deck, and both halves of the era identity are driven for real - a beam that
 /// strikes only after its grace period, and a surveillance relay that permanently
 /// darkens the beam it feeds.
 /// </para>
@@ -156,7 +157,10 @@ public class Level09ContentTests {
         AssertString(dialogue.DialogueSetID).IsEqual("dialogue_level_09");
 
         HashSet<string> keys = EnglishKeys();
-        string[] expectedSequences = { "level_09.entrance", "level_09.boss_intro", "level_09.exit" };
+        // Package 13 W4 (S36): the two near-capture beats join the three.
+        string[] expectedSequences = {
+            "level_09.entrance", "level_09.near_capture", "level_09.near_capture_after",
+            "level_09.boss_intro", "level_09.exit" };
         AssertThat(dialogue.Sequences.Length).IsEqual(expectedSequences.Length);
 
         foreach (string dialogueID in expectedSequences) {
@@ -186,7 +190,7 @@ public class Level09ContentTests {
             "berlin_room_radar_yard", "berlin_room_bunker_street",
             "berlin_objective_infiltrate", "berlin_objective_exposed", "berlin_objective_cut_feeds",
             "berlin_objective_reach_bunker", "berlin_objective_defeat_boss", "berlin_objective_complete",
-            "berlin_gate_locked", "speaker_iron_chancellor",
+            "berlin_gate_locked", "speaker_iron_chancellor", "dlg_l09_near_capture_prompt",
             // Reused shared keys the level depends on.
             "checkpoint", "campaign_level_berlin", "boss_iron_chancellor_name",
             "enemy_infrared_border_sentry_name", "enemy_neural_mech_walker_name"

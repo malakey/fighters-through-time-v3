@@ -137,10 +137,11 @@ public class Level10ContentTests {
         AssertString(dialogue.DialogueSetID).IsEqual("dialogue_level_10");
 
         HashSet<string> keys = EnglishKeys();
-        // Package 11 A6: the two N03 Shakespeare hero variants join the three base beats.
+        // Package 13 W4 (S35): the backstage absence joins the three base beats; the
+        // N03 Shakespeare variants are the absence-slot recognition and the exit.
         string[] expectedSequences = {
-            "level_10.entrance", "level_10.boss_intro", "level_10.exit",
-            "level_10.entrance@shakespeare", "level_10.exit@shakespeare" };
+            "level_10.entrance", "level_10.absence", "level_10.boss_intro", "level_10.exit",
+            "level_10.absence@shakespeare", "level_10.exit@shakespeare" };
         AssertThat(dialogue.Sequences.Length).IsEqual(expectedSequences.Length);
 
         foreach (string dialogueID in expectedSequences) {

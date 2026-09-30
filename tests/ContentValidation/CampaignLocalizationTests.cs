@@ -316,9 +316,12 @@ public class CampaignLocalizationTests {
                 }
             }
         }
+        // Package 13 W4: 20 -> 12. The design's verbatim Levels 1-12 scripts (S23/S35)
+        // replaced most of the M35 {HeroAddressName} radio lines; the floor still
+        // catches a tokenless rewrite of the hub, Level 0 and Act III families.
         AssertThat(tokenLines).OverrideFailureMessage(
             $"Only {tokenLines} dialogue lines carry a hero token; the M35 rewrite is missing.")
-            .IsGreaterEqual(20);
+            .IsGreaterEqual(12);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
 

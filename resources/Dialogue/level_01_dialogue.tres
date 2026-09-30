@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="DialogueSetData" load_steps=8 format=3]
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
 [ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
@@ -15,9 +15,9 @@ AutoAdvance = false
 [sub_resource type="Resource" id="BossIntro"]
 script = ExtResource("2")
 DialogueID = "level_01.boss_intro"
-SpeakerNameKeys = PackedStringArray("speaker_borgia", "speaker_player")
-LineKeys = PackedStringArray("dlg_l01_boss_1", "dlg_l01_boss_2")
-EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined")
+SpeakerNameKeys = PackedStringArray("speaker_borgia")
+LineKeys = PackedStringArray("dlg_l01_boss_1")
+EmotionKeys = PackedStringArray("emotion_neutral")
 PausesGameplay = true
 AutoAdvance = false
 
@@ -34,9 +34,19 @@ AutoAdvance = false
 script = ExtResource("2")
 DialogueID = "level_01.entrance@leonardo"
 HeroConditionCharacterID = "leonardo"
-SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_apprentice")
-LineKeys = PackedStringArray("dlg_l01_entrance_1", "dlg_l01_entrance_2", "dlg_l01_recognition_leonardo")
-EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined", "emotion_shocked")
+SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l01_entrance_1__leonardo", "dlg_l01_entrance_2")
+EmotionKeys = PackedStringArray("emotion_shocked", "emotion_determined")
+PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="BossIntroLeonardo"]
+script = ExtResource("2")
+DialogueID = "level_01.boss_intro@leonardo"
+HeroConditionCharacterID = "leonardo"
+SpeakerNameKeys = PackedStringArray("speaker_borgia", "speaker_player")
+LineKeys = PackedStringArray("dlg_l01_boss_1__leonardo", "dlg_l01_boss_2__leonardo")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined")
 PausesGameplay = true
 AutoAdvance = false
 
@@ -44,13 +54,13 @@ AutoAdvance = false
 script = ExtResource("2")
 DialogueID = "level_01.exit@leonardo"
 HeroConditionCharacterID = "leonardo"
-SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_player", "speaker_sarah")
-LineKeys = PackedStringArray("dlg_l01_exit_1", "dlg_l01_exit_2", "dlg_l01_exit_3_leonardo", "dlg_l01_exit_4_leonardo")
-EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_determined", "emotion_neutral")
+SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_apprentice", "speaker_player", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l01_exit_1", "dlg_l01_exit_2", "dlg_l01_recognition_leonardo", "dlg_l01_exit_3_leonardo", "dlg_l01_exit_4_leonardo")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_shocked", "emotion_determined", "emotion_confused")
 PausesGameplay = true
 AutoAdvance = false
 
 [resource]
 script = ExtResource("1")
 DialogueSetID = "dialogue_level_01"
-Sequences = [SubResource("Entrance"), SubResource("BossIntro"), SubResource("Exit"), SubResource("EntranceLeonardo"), SubResource("ExitLeonardo")]
+Sequences = [SubResource("Entrance"), SubResource("BossIntro"), SubResource("Exit"), SubResource("EntranceLeonardo"), SubResource("BossIntroLeonardo"), SubResource("ExitLeonardo")]

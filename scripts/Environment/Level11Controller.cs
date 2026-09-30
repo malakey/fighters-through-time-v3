@@ -197,7 +197,7 @@ namespace FTT.Environment {
         /// <summary>
         /// Era roster: `laser_rifle_infantry` (the Gettysburg standard - fast beam-bolts,
         /// which is why this level carries the campaign's highest `enemy_projectile` warm
-        /// count) mixed with `chrono_slasher` (Unbound shock-trooper standard, melee).
+        /// count) mixed with `chrono_slasher` (Severed shock-trooper standard, melee).
         /// </summary>
         public static readonly (string EnemyID, Vector2 Position, Vector2? PatrolA, Vector2? PatrolB)[] Room1Spawns = {
             ("laser_rifle_infantry", new Vector2(1500, EnemyGroundY), new Vector2(1400, EnemyGroundY), new Vector2(1620, EnemyGroundY)),
@@ -318,6 +318,8 @@ namespace FTT.Environment {
             BuildCheckpoint(200, EnemyGroundY, Checkpoint0, CheckpointRole.Entry);
             BuildRoomDecoration(Room1StartX, "gettysburg_room_seminary_ridge", new Color(0.85f, 0.78f, 0.42f));
             BuildRoomTransition("gettysburg_room_seminary_ridge", new Vector2(300, 600), Room1CameraBounds);
+            // Package 13 W4 (S30): the Union headquarters tent and its silent telegraph.
+            BuildAbsenceTrigger(new Vector2(1400, GroundY - 200));
         }
 
         /// <summary>
