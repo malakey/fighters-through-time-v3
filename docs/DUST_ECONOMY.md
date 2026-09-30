@@ -14,7 +14,7 @@
 
 # Chronal Dust Economy — F05 Option A
 
-Design revision: 2026-09-12. User-selected direction: retain the **975-dust Resonance Grid** and meaningful upgrade choices. This ledger specifies the replacement reward budgets; it is not a measurement of shipped levels. Scene reward manifests, resource values, and gameplay validation still need implementation.
+Design revision: 2026-09-12; **amended 2026-09-28 (S27): the Legacy Level (4A) is retired and its row folds into Level 5 — every total, maximum and pacing threshold below is unchanged.** User-selected direction: retain the **975-dust Resonance Grid** and meaningful upgrade choices. This ledger specifies the replacement reward budgets; it is not a measurement of shipped levels. Scene reward manifests, resource values, and gameplay validation still need implementation.
 
 This file is the economy design ledger referenced by [the main design](../design-godot-v7.md). Its budgets replace the former universal 1–2 dust per standard enemy, 20 per elite, 50 per boss, and 25 per Extractor. The historical shipped Extractor value of 15 and the Mirror Paradox wallet-direct exception are not exceptions to this new design.
 
@@ -24,13 +24,13 @@ This file is the economy design ledger referenced by [the main design](../design
 - The required route pays **720 base dust**, or **720–787 after Integrity bonuses**.
 - Fully collecting optional content adds **280 base dust**. A thorough run pays **1,000 base**, or **1,000–1,094 after Integrity bonuses**.
 - These figures assume completion of each source once, collection of all drops on the chosen route, and no dust-loss penalties. Missed pickups, skipped encounters, and the established collapse/exit penalties can reduce income; the target is not a guaranteed wallet floor or automatic compensation.
-- Level 0 and training award no persistent dust. A run includes Levels 1–15 plus exactly one character's Level 4A, not all nine Legacy variants.
-- Level 1 has no Integrity clock and grants no Integrity bonus. Levels 2–15 and 4A use their existing tier rules. All difficulties and all 4A character variants use the same base envelopes.
+- Level 0 and training award no persistent dust. A run includes Levels 1–15.
+- Level 1 has no Integrity clock and grants no Integrity bonus. Levels 2–15 use their existing tier rules. All difficulties use the same base envelopes.
 - “Required route” means all authored mandatory combat and its boss, excluding optional detours. “Thorough” adds all Extractors, the designated secret, and any other optional rewards; no optional reward is added outside the envelope.
 
 ## Per-level budgets
 
-Boss rewards are **25 dust each** (16 bosses = 400). The required encounter column includes every other mandatory reward, including elite/Eraser ambushes. The optional column is a total for the level, never a reward per object. Cumulative columns exclude bonuses.
+Boss rewards are **25 dust each** (15 bosses = 375). The required encounter column includes every other mandatory reward, including elite/Eraser ambushes; Level 5's larger pool absorbs the retired 4A row (its 15 encounter + 25 boss dust, plus 10 optional). The optional column is a total for the level, never a reward per object. Cumulative columns exclude bonuses.
 
 | Level | Required encounters | Boss | Required total | Optional total | Required cumulative | Thorough cumulative |
 |---|---:|---:|---:|---:|---:|---:|
@@ -38,8 +38,7 @@ Boss rewards are **25 dust each** (16 bosses = 400). The required encounter colu
 | 2 | 15 | 25 | 40 | 10 | 90 | 110 |
 | 3 | 15 | 25 | 40 | 10 | 130 | 160 |
 | 4 | 15 | 25 | 40 | 20 | 170 | 220 |
-| 4A | 15 | 25 | 40 | 10 | 210 | 270 |
-| 5 | 15 | 25 | 40 | 20 | 250 | 330 |
+| 5 | 55 | 25 | 80 | 30 | 250 | 330 |
 | 6 | 15 | 25 | 40 | 20 | 290 | 390 |
 | 7 | 15 | 25 | 40 | 20 | 330 | 450 |
 | 8 | 15 | 25 | 40 | 20 | 370 | 510 |
@@ -50,9 +49,9 @@ Boss rewards are **25 dust each** (16 bosses = 400). The required encounter colu
 | 13 | 35 | 25 | 60 | 20 | 600 | 840 |
 | 14 | 35 | 25 | 60 | 20 | 660 | 920 |
 | 15 | 35 | 25 | 60 | 20 | 720 | 1000 |
-| **Total** | **320** | **400** | **720** | **280** | **720** | **1,000** |
+| **Total** | **345** | **375** | **720** | **280** | **720** | **1,000** |
 
-Level 1's optional allocation belongs to its Extractors; it does not add a secret before the existing Level 2 introduction. All nine Level 4A variants use 15 required encounter dust, 25 boss dust, and 10 optional dust regardless of layout or enemy count. Act III conduits, valves, and pylons use the Extractor allocation; their narrative names do not create extra currency. Under M16 (2026-09-26) they are 3-second Interact channels rather than combat machines; completion pays the same allocation once as a physical pickup.
+Level 1's optional allocation belongs to its Extractors; it does not add a secret before the existing Level 2 introduction. Act III conduits, valves, and pylons use the Extractor allocation; their narrative names do not create extra currency. Under M16 (2026-09-26) they are 3-second Interact channels rather than combat machines; completion pays the same allocation once as a physical pickup.
 
 ## Turning budgets into drops
 
@@ -65,7 +64,7 @@ These are authored budgets, not an invisible runtime cap that stops paying after
 5. Each difficulty compiles its authored source list against the same level pool. More enemies on Hard change the distribution, not the total. Reinforcements/summons that can repeat indefinitely have zero dust; finite scripted waves draw from the existing allocation. Changing a layout requires regenerating and validating its manifest before shipping.
 6. Optional allocations: Level 1 assigns all 10 to its Extractors. Other levels assign half their optional pool to all Extractors combined, and half to the designated secret/discovery reward. Split the Extractor half evenly by the same integer/remainder rule. With a 20-dust optional pool, two Extractors pay 5 each or three pay 4/3/3, and discovery pays 10. With a 10-dust optional pool, two pay 3/2 or three pay 2/2/1, and discovery pays 5.
 7. If an Extractor is also the designated secret, it owns the sum of its machine share and the discovery share, paid once as one pickup; the discovery flag must not trigger a second payout. A secret containing a Story item still carries its budgeted dust share. Optional guards draw no additional dust by default; if their kills carry some of the discovery reward, explicitly transfer that amount from the same pool and record each source. There is never an extra universal elite award.
-8. Puzzles, the Nexus Resonance Source, tutorial enemies, training, and repeatable spawns award no extra dust. Any bespoke bonus must be funded by an existing envelope. The Mirror Paradox boss follows the same 25-dust physical-pickup rule; remove its wallet-direct path.
+8. Puzzles, tutorial enemies, training, and repeatable spawns award no extra dust. Any bespoke bonus must be funded by an existing envelope. The Mirror Paradox boss follows the same 25-dust physical-pickup rule; remove its wallet-direct path.
 9. Keep the existing quantity-based sprite thresholds: Small 1–5, Medium 6–24, Large 25+. Every boss still produces a Large pickup at the arena center. An ordinary Extractor produces a Small or Medium icon according to its actual award, not a forced Large icon. E01 keeps the actual-collection +N dust feedback separate from destruction's brief future-drain notice; it neither credits an uncollected pickup nor changes this allocation. See [Extractor feedback](CAMPAIGN_VALIDATION.md#e01--readable-extractor-detours).
 
 For example, allocating 15 encounter dust to ten standard enemies and two elites gives quotas of 0.75 for each standard and 3.75 for each elite. Integer allocation pays the exact 15 across that authored list; it does not promise 1–2 per standard plus 20 per elite. If an author wants a particular elite to carry more of the pool, author a fixed share and distribute only the remainder; validate the unchanged total.
@@ -118,11 +117,11 @@ Affordability means total deposited earnings sufficient for a legal purchase pat
 
 ## Validation and implementation handoff
 
-Verified design arithmetic: 16 boss awards total 400; required encounter budgets total 320; optional allocations total 280; base totals are 720/1,000; all-Restored maxima are 787/1,094; the full grid remains 975. Integer source allocation must preserve each pool for every difficulty.
+Verified design arithmetic (rechecked after S27): 15 boss awards total 375; required encounter budgets total 345; optional allocations total 280; base totals are 720/1,000; all-Restored maxima are 787/1,094; the full grid remains 975. Integer source allocation must preserve each pool for every difficulty.
 
 Still required before gameplay sign-off:
 
-- Author actual stable source IDs and per-source values for all 16 visited levels, all nine 4A variants, and each difficulty; this checkout supplies design budgets, not validated scene inventories.
+- Author actual stable source IDs and per-source values for all 15 visited levels and each difficulty; this checkout supplies design budgets, not validated scene inventories.
 - Verify source sums, overlapping secret/Extractor ownership, finite ambushes, zero-reward repeatable spawns, and all bespoke awards against the ledger.
 - Exercise reward persistence with collected and uncollected drops across death rewind, collapse, Anchor Snap, quit, crash, restart, and completion reload.
 - Check representative legal first/second-Major routes in all nine grids and playtest affordability against encounter difficulty. Review poor-performance/loss-heavy runs separately; never inflate the “required-route” claim to include compensation that does not exist.
@@ -130,17 +129,24 @@ Still required before gameplay sign-off:
 
 ---
 
-# Implementation map (Package 11 A10, 2026-09-13)
+# Implementation map (Package 11 A10, 2026-09-13; revised Package 13 W2, 2026-09-29)
 
 Where each rule above lives. This section is the only part of this file that is not the contract.
+
+**S27 (Package 13 W2).** The per-hero Level 4A was retired: its nine scenes, controllers, bosses
+(`resources/Bosses/legacy/`) and reward manifests were deleted, and its 15 / 25 / 10 row folded
+into Level 5, which now pays **55 required / 25 boss / 30 optional** and hosts the scripted
+Eraser debut. Fifteen boss awards total 375, required encounters 345, optional 280; 720 / 1,000
+and 787 / 1,094 are unchanged.
 
 ## Data
 
 | Thing | Where |
 |---|---|
-| Per-level budget rows + the stable source inventory | `resources/Content/reward_manifests/level_NN_rewards.tres` — 25 files: levels 0-15, plus `level_04a_<hero>_rewards.tres` for each of the nine Legacy Levels. 4A is the one slot whose manifest depends on the locked character (the nine variants share campaign index 16 and each authors its own approach inventory), so `LevelRewardManifest.FileNameFor` takes the hero for that index. |
+| Per-level budget rows + the stable source inventory | `resources/Content/reward_manifests/level_NN_rewards.tres` — **16 files**, levels 0–15. No manifest depends on the locked character; `LevelRewardManifest.PathFor` / `FileNameFor` / `LoadFor` take the campaign index only. |
 | Manifest schema | `scripts/Environment/LevelRewardManifest.cs` (`[GlobalClass] LevelRewardManifest : Resource`) |
-| Boss award (25, all sixteen) | `resources/Bosses/*.tres` + `resources/Bosses/legacy/*.tres` `ChronalDustDrop`, and the `BossData.ChronalDustDrop` default |
+| Boss award (25, all fifteen) | `resources/Bosses/*.tres` `ChronalDustDrop`, and the `BossData.ChronalDustDrop` default |
+| Level 5's Eraser debut source | `level_05_rewards.tres` wave `level_05.eraser_debut@0:unbound_eraser` (source `level_05.eraser_debut#0`, elite weight 5, never difficulty-scaled), spawned by `Level05Controller.EraserDebut` (`EraserDebutTrigger`, ID `level_05_titanic_eraser_debut`) |
 | Enemy `ChronalDustDrop`, `ChronalExtractor.DustReward` | **Advisory fallbacks only.** They apply in a context with no compiled ledger (the Test Arena, the unit harness). A ledgered level never reads them. |
 | Icon bands (Small 1-5 / Medium 6-24 / Large 25+) | `resources/Drops/dust_visual_tiers.tres` |
 | Tier rates 10 / 5 / 0 % | `TimelineIntegrityRules.DustBonusPercent` (A3 owns the 50/20 tier lines) |
@@ -148,10 +154,10 @@ Where each rule above lives. This section is the only part of this file that is 
 A wave row reads `waveID[@authoredCount]:enemy_a,enemy_b,...` in authored spawn order and expands to
 source IDs `waveID#0`, `waveID#1`… `@N` is the argument the level controller passes to
 `StoryDifficultyTuning.ScaleEncounterCount` when it differs from the table length; `@0` means the
-level spawns the whole table unconditionally (Level 4A). A scripted row reads `sourceID:amount`.
-Wave and source lists are plain `PackedStringArray`s, deliberately — an authored **empty
-Script-typed array** corrupts the Godot 4.7.1 .NET heap, and a manifest with no Extractors or no
-secret is an ordinary case.
+level spawns the whole table unconditionally (Level 5's Eraser debut). A scripted row reads
+`sourceID:amount`. Wave and source lists are plain `PackedStringArray`s, deliberately — an authored
+**empty Script-typed array** corrupts the Godot 4.7.1 .NET heap, and a manifest with no Extractors
+or no secret is an ordinary case.
 
 ## Code
 
@@ -159,16 +165,18 @@ secret is an ordinary case.
 |---|---|
 | floor + largest-remainder allocation, ties by stable source ID; fixed shares; even split | `scripts/Environment/RewardAllocator.cs` (pure C#) |
 | Manifest -> per-difficulty ledger; enemy queues; optional half/half split; Extractor-is-the-secret merge | `LevelRewardDirectory.Compile` |
+| Ledger cache key | `LevelRewardDirectory.EnsureCompiled` — level and difficulty (the 4A hero key was removed with S27) |
 | Three source states (unissued / spawned-uncollected / collected) and issuing | `LevelRewardDirectory.TryIssueEnemyAward`, `TryIssueBossAward`, `TryIssueSourceAward` |
 | Claim commits with the wallet increment | `ChronalDustPickup.Collect` -> `LevelRewardDirectory.CommitClaim` |
 | Kill drops read the ledger, not `EnemyData` | `StoryDropSystem.SpawnKillDust` |
 | Milestone awards (boss, Extractor, secret) | `StoryDropSystem.SpawnDustAward(amount, position, parent, source, sourceID)` |
 | Extractor share | `ChronalExtractor.OnDestroyed` |
 | Boss share, including the Mirror Paradox | `BossEncounterController.OnBossDefeated`, `MirrorParadoxEncounterController.OnBossDefeated` |
-| Tier bonus, once, inside the completion transaction | `StoryManager.ApplyIntegrityTierBonus` (called from `OnLevelComplete`) |
+| Tier bonus and the deposit, once, inside the completion transaction (H02) | `StoryManager.CommitCompletionTransaction` |
 | Claims persist per attempt | `StorySaveData.ClaimedRewardSourceIDs`, written/restored/cleared in `StoryManager.WriteAttemptStateToSave` / `RestoreAttemptStateFromSave` / `ClearLevelAttemptState` |
 | Loss tally (the 20% Collapse fee) | `StoryManager.ApplyTimelineCollapseDustPenalty` -> `LevelRewardDirectory.RecordDustLoss` |
 | Six itemized results values | `StoryLevelControllerBase.PresentCompletion` and `Level01Controller.ShowCompletionResults` -> `LevelResultsPanel.ShowResults(…, optional, losses, tierBonus, …)` |
+| A v7 save parked on a retired 4A scene | `StoryAttemptState.RetireLegacyLevelV8` (declared by Package 13 W2 for the v8 step): banks the held 4A wallet once, re-parks at Level 5 on a fresh attempt |
 
 `DustAwardSource` gained `Secret = 3` (append-only) for the sixth results category.
 
@@ -178,30 +186,22 @@ secret is an ordinary case.
 |---|---|
 | `tests/Unit/DustAllocatorTests.cs` | The allocator's arithmetic: the contract's worked example, ID tie-breaking, distribution-not-total, zero allocations, fixed shares, the Extractor even-split examples |
 | `tests/Unit/TierBonusTests.cs` | `floor(retained x rate)` at 10/5/0, no compounding, no bonus on an untimed level |
-| `tests/ContentValidation/RewardManifestTests.cs` | Every level's authored sources sum exactly to its budget row on all three difficulties; source IDs are stable, unique and single-category; every authored enemy ID resolves. The 4A rows expand per roster hero (read from `content_manifest.csv`, never a literal list), and each variant's manifest is checked against its controller's own `ApproachSpawns` table |
-| `tests/ContentValidation/DustEconomyTests.cs` | The ledger itself: the 17 budget rows, 320/400/280, 720/1,000, 16 x 25, the icon bands, 787/1,094 with Level 1 excluded, Level 0 paying nothing, and the upgrade-pacing thresholds |
+| `tests/ContentValidation/RewardManifestTests.cs` | Every level's authored sources sum exactly to its budget row on all three difficulties; source IDs are stable, unique and single-category; every authored enemy ID resolves; Level 5's 55/25/30 row, its waves against `Level05Controller.SpawnTable`, the `@0` Eraser debut against the live trigger, and a kill-and-collect walk that pays exactly 55 on every difficulty |
+| `tests/ContentValidation/DustEconomyTests.cs` | The ledger itself: the 15 budget rows, 345/375/280, 720/1,000, 15 x 25, the icon bands, 787/1,094 with Level 1 excluded, Level 0 paying nothing, and the upgrade-pacing thresholds |
+| `tests/ContentValidation/ThoroughRunCollectionWalkTests.cs` | A thorough run over Levels 1–15 physically collects 1,000 (280 optional) |
+| `tests/Unit/RetireLegacyLevelV8Tests.cs` | The v8 derivation banks a held 4A wallet once and re-parks at Level 5 |
 | `tests/Unit/StoryDropsAndRewindTests.cs` | The boss's Large plate, an Extractor's real-quantity icon, and claim-commits-at-collection |
 | `tests/Unit/MirrorParadoxTests.cs` | The Mirror pays the same 25-dust physical pickup, with no wallet-direct path |
 
-## Known gaps (not closed by A10)
+## Known gaps
 
-1. **No level authors a `SecretCache`.** The discovery half of every level's optional pool is
-   budgeted and allocated (`level_NN.secret`) but has no content to issue it, so a thorough run
-   cannot actually reach 1,000 today. `SecretCache` exists and A3 retained `IsSpecialSecret` as
-   authoring metadata; placing the caches is level-content work. **The nine Level 4A variants are
-   the sharpest case:** `LegacyLevelControllerBase` builds no `SecretCache` and no
-   `ChronalExtractor` at all (its own content suites assert `Extractors.Count == 0` and their prose
-   says the optional allocation "is its secret, not a machine row"), so 4A's whole 10-dust optional
-   pool is currently unreachable. Each variant's manifest reserves `level_04a_<hero>.secret` for the
-   B wave to attach a cache to; nothing else needs to change when it does.
-2. **Boss summons can consume a skipped mandatory source of the same enemy ID.** Issuing is keyed by
-   enemy ID against a finite queue, so the level total is never exceeded — but a summoned
-   `chrono_slasher` in Level 15 can draw a mandatory `chrono_slasher`'s unissued allocation if the
-   player skipped one. `EnemyController` needs an explicit `RewardEligible = false` at the
-   `EnemyAbilityExecutor` summon site (A7a's file) to close it exactly.
+1. **Closed by Package 12 W8:** every level 2–15 authors a `SecretCache` keyed to its manifest's
+   `level_NN.secret` (`SecretCachePlacementTests`). The Level 4A half of the old gap was closed by
+   deleting the level (S27).
+2. **Closed by Package 12 W2:** summon provenance — a boss summon no longer draws a skipped
+   mandatory source of the same enemy ID.
 3. **The losses line only ever shows the Collapse fee.** A voluntary pause-menu exit never reaches a
    results screen, so its retention fee has no line to appear on.
-4. **Banking is unchanged.** F05 says the tier bonus "auto-deposits once using the level-completion
-   transaction"; the bonus is added to the level wallet at completion and banks with it at the hub,
-   which is where deposit has always happened. Moving the deposit itself to level completion was
-   explicitly out of A10's scope.
+4. **Closed by Package 12 W2 (H02):** the deposit moved into the level-completion transaction.
+5. **The Eraser's interim `ChronalDustDrop` 10** is an advisory fallback only (`VERIFY-ERASER-DUST`);
+   the ledger pays the Level 5 debut its elite-weighted share of the 55-dust pool.
