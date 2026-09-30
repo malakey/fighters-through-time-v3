@@ -402,6 +402,8 @@ namespace FTT.UI {
             string emotionKey = _currentSequence.GetEmotionKey(_currentIndex);
             ApplyEmotion(DialogueEmotionTreatment.Resolve(emotionKey), emotionKey);
             if (_portrait != null) _portrait.Texture = _currentSequence.GetPortrait(_currentIndex) ?? _defaultPortrait;
+            // Package 13 W3 (S02): the Level 0 unnamed voice ("???") has no portrait.
+            if (_portraitFrame != null) _portraitFrame.Visible = !IsPortraitlessSpeaker(speakerKey);
 
             _textLabel.Text = SubstituteCaptiveNames(Tr(_currentSequence.GetLineKey(_currentIndex)));
             // G10: a shown line enters the session log the moment it appears.
@@ -519,6 +521,12 @@ namespace FTT.UI {
             string display = TranslationServer.Translate(displayKey).ToString();
             return display == displayKey ? characterID : display;
         }
+
+        /// <summary>Package 13 W3 (S02): the speaker shown with no portrait frame.</summary>
+        public const string UnknownVoiceSpeakerKey = "speaker_unknown_voice";
+
+        /// <summary>True for a speaker the design draws with no portrait (the Level 0 voice).</summary>
+        public static bool IsPortraitlessSpeaker(string speakerKey) => speakerKey == UnknownVoiceSpeakerKey;
 
         private string ResolveSpeakerName(string speakerKey) {
             if (speakerKey == PlayerSpeakerKey) {

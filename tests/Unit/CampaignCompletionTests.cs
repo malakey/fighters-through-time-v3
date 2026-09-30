@@ -288,16 +288,17 @@ public class CampaignCompletionTests {
     // === Post-campaign hub ===
 
     [TestCase]
-    public void TheHubPortalStandsDownOnceTheCampaignIsComplete() {
+    public void TheHubPortalOffersGoHomeOnceTheCampaignIsComplete() {
         AssertThat(HubWorldController.ResolvePortalAction(false, false))
             .IsEqual(HubWorldController.HubPortalAction.OpenMission);
         AssertThat(HubWorldController.ResolvePortalAction(false, true))
             .IsEqual(HubWorldController.HubPortalAction.TimelineRestartChoice);
-        // Completion wins over a pending collapse: there is no level left to retry.
+        // Completion wins over a pending collapse: there is no level left to retry,
+        // only the way home (Package 13 W3, S39: Go home replays the send-off and credits).
         AssertThat(HubWorldController.ResolvePortalAction(true, false))
-            .IsEqual(HubWorldController.HubPortalAction.TimelineRestored);
+            .IsEqual(HubWorldController.HubPortalAction.GoHome);
         AssertThat(HubWorldController.ResolvePortalAction(true, true))
-            .IsEqual(HubWorldController.HubPortalAction.TimelineRestored);
+            .IsEqual(HubWorldController.HubPortalAction.GoHome);
     }
 
     [TestCase]

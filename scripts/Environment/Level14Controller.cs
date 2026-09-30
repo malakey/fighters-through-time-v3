@@ -686,6 +686,23 @@ namespace FTT.Environment {
             return StartDialogue(ExtractionHallDialogueID);
         }
 
+        /// <summary>
+        /// Package 13 W3 (S47): the Resonance Hold re-read that follows the Hall —
+        /// "That field isn't security. It's the Forge's intake."
+        /// </summary>
+        public const string AfterHallDialogueID = "level_14.after_hall";
+
+        /// <summary>True once the after-Hall line has played. Test seam.</summary>
+        public bool AfterHallPlayed { get; private set; }
+
+        protected override void OnDialogueSequenceComplete(string dialogueID) {
+            base.OnDialogueSequenceComplete(dialogueID);
+            if (dialogueID == ExtractionHallDialogueID && !AfterHallPlayed) {
+                AfterHallPlayed = true;
+                StartDialogue(AfterHallDialogueID);
+            }
+        }
+
         // === end Package 11 A3b region ===
 
         private void EnterSecurityCore() {

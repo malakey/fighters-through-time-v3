@@ -469,6 +469,7 @@ namespace FTT.Environment {
             WireFirestormFinishLine();
             SettleFirestormForResume();
             ResolvePrimeAnchor();
+            BindPhaseEvents();
         }
 
         /// <summary>
@@ -601,10 +602,58 @@ namespace FTT.Environment {
         /// <c>OnLevelComplete</c>, so this returns null.
         /// </summary>
         protected override LevelResultsPanel PresentCompletion() {
+            // Package 13 W3 (S39): the hero gives the charge back at the Founding
+            // and comes aboard mortal — the aura goes with the release, and the
+            // chain carries on into the Time-Ship send-off and, after the credits,
+            // the once-only Homecoming (S43).
+            Player?.GetNodeOrNull<FTT.Combat.GlowPresentationController>(
+                FTT.Combat.GlowPresentationController.NodeName)?.SetHeroAura(false);
             Completion = CampaignCompletionSequence.Begin(
-                this, Services?.Dialogue, SelectedEndingDialogueID, ReturnToMainMenuOnCompletion);
+                this, Services?.Dialogue, SelectedEndingDialogueID, ReturnToMainMenuOnCompletion,
+                CampaignCompletionSequence.SendOffSequenceID, CampaignCompletionSequence.HomecomingSequenceID);
             return null;
         }
+
+        // === Package 13 W3 region: the phase-3 bark (S47) ====================
+
+        /// <summary>The non-blocking bark as the Borrowed Legacies phase begins.</summary>
+        public const string PhaseThreeBarkDialogueID = "level_15.phase3_bark";
+
+        /// <summary>True once the bark has played this level entry. Test seam.</summary>
+        public bool PhaseThreeBarkPlayed { get; private set; }
+
+        private bool _phaseEventsBound;
+
+        /// <summary>
+        /// Sarah names what the First Severed is doing as its final (Borrowed
+        /// Legacies, 0-based phase 2) phase begins: "He's drawing on them — the
+        /// captives!" Non-blocking, once per entry.
+        /// </summary>
+        public bool PlayPhaseThreeBark() {
+            if (PhaseThreeBarkPlayed || IsBossDefeated) return false;
+            PhaseThreeBarkPlayed = true;
+            return StartDialogue(PhaseThreeBarkDialogueID);
+        }
+
+        private void OnBossPhaseChanged(int phaseIndex) {
+            if (phaseIndex >= 2) PlayPhaseThreeBark();
+        }
+
+        private void BindPhaseEvents() {
+            if (_phaseEventsBound || EventBus.Instance == null) return;
+            EventBus.Instance.OnBossPhaseChanged += OnBossPhaseChanged;
+            _phaseEventsBound = true;
+        }
+
+        public override void _ExitTree() {
+            if (_phaseEventsBound && EventBus.Instance != null) {
+                EventBus.Instance.OnBossPhaseChanged -= OnBossPhaseChanged;
+            }
+            _phaseEventsBound = false;
+            base._ExitTree();
+        }
+
+        // === end Package 13 W3 region ===
 
         // === Package 11 A3b region: N05 ending selection ====================
 

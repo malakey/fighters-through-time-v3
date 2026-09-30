@@ -13,7 +13,16 @@ namespace FTT.Core {
     /// <item><c>{HeroAddressName}</c> — how the Wardens address them ("Maestro", "Mr. President").</item>
     /// <item><c>{HeroPossessiveName}</c> — the possessive form ("Da Vinci's").</item>
     /// <item><c>{HomeEraName}</c> — the hero's own home era ("Florence", "Princeton").</item>
+    /// <item><c>{HeroAcceptLine}</c> — Package 13 W3 (S07): the hero's whole Level 0
+    /// acceptance line, spoken after Sarah says they cannot go home.</item>
+    /// <item><c>{HeroFarewellLine}</c> — Package 13 W3 (S48): the hero's whole
+    /// farewell in the Time-Ship send-off, answering the acceptance line.</item>
     /// </list>
+    ///
+    /// <para>The two line tokens are whole-line families: a sequence line whose
+    /// English is exactly the token resolves to that hero's row. They follow the
+    /// same fallback chain as the name forms, so a roster addition without its
+    /// rows speaks the <c>_fallback</c> line rather than a raw token.</para>
     ///
     /// <para>Every form lives in <c>localization/en.csv</c> as a
     /// <c>hero_&lt;form&gt;_&lt;heroID&gt;</c> row — the nine-hero name table — so
@@ -33,10 +42,12 @@ namespace FTT.Core {
         public const string HeroAddressName = "{HeroAddressName}";
         public const string HeroPossessiveName = "{HeroPossessiveName}";
         public const string HomeEraName = "{HomeEraName}";
+        public const string HeroAcceptLine = "{HeroAcceptLine}";
+        public const string HeroFarewellLine = "{HeroFarewellLine}";
 
         /// <summary>Every hero token, in the order the pass resolves them.</summary>
         public static readonly IReadOnlyList<string> HeroTokens = new[] {
-            HeroName, HeroAddressName, HeroPossessiveName, HomeEraName
+            HeroName, HeroAddressName, HeroPossessiveName, HomeEraName, HeroAcceptLine, HeroFarewellLine
         };
 
         /// <summary>The row a hero without a table entry resolves to.</summary>
@@ -46,10 +57,13 @@ namespace FTT.Core {
         public static string AddressKey(string heroID) => $"hero_address_{heroID}";
         public static string PossessiveKey(string heroID) => $"hero_possessive_{heroID}";
         public static string HomeEraKey(string heroID) => $"hero_home_era_{heroID}";
+        public static string AcceptLineKey(string heroID) => $"hero_accept_line_{heroID}";
+        public static string FarewellLineKey(string heroID) => $"hero_farewell_line_{heroID}";
 
-        /// <summary>The four table keys for one hero, in <see cref="HeroTokens"/> order.</summary>
+        /// <summary>The six table keys for one hero, in <see cref="HeroTokens"/> order.</summary>
         public static string[] TableKeysFor(string heroID) => new[] {
-            NameKey(heroID), AddressKey(heroID), PossessiveKey(heroID), HomeEraKey(heroID)
+            NameKey(heroID), AddressKey(heroID), PossessiveKey(heroID), HomeEraKey(heroID),
+            AcceptLineKey(heroID), FarewellLineKey(heroID)
         };
 
         /// <summary>True when the text carries any hero token.</summary>
@@ -79,6 +93,12 @@ namespace FTT.Core {
                 text = text.Replace(HeroPossessiveName, Resolve(PossessiveKey, heroID, translate, "the traveler's"));
             if (text.Contains(HomeEraName, StringComparison.Ordinal))
                 text = text.Replace(HomeEraName, Resolve(HomeEraKey, heroID, translate, "Home"));
+            if (text.Contains(HeroAcceptLine, StringComparison.Ordinal))
+                text = text.Replace(HeroAcceptLine,
+                    Resolve(AcceptLineKey, heroID, translate, "Then I will fight for it."));
+            if (text.Contains(HeroFarewellLine, StringComparison.Ordinal))
+                text = text.Replace(HeroFarewellLine,
+                    Resolve(FarewellLineKey, heroID, translate, "Take me home."));
             return text;
         }
 

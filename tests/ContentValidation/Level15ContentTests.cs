@@ -125,7 +125,7 @@ public class Level15ContentTests {
     // === Dialogue ===
 
     [TestCase]
-    public void TheDialogueSetCarriesAllBeatsIncludingThePreBossAndBothEndings() {
+    public void TheDialogueSetCarriesAllBeatsIncludingThePhaseThreeBarkAndBothEndings() {
         var set = AuthoredResources.Load<DialogueSetData>(DialoguePath);
         AssertObject(set).IsNotNull();
         AssertString(set.DialogueSetID).IsEqual("dialogue_level_15");
@@ -136,9 +136,14 @@ public class Level15ContentTests {
         // Package 11 A6: N05 authors a second closing narration for a campaign
         // average below 50% - the Prime Anchor's visible scar. A3b owns the
         // unrounded 700-point selection between the two (750 before S27).
+        // Package 13 W3 (S47): the design authors no pre-boss beat for Level 15 -
+        // the Vale reveal is the boss intro - and adds the non-blocking phase-3
+        // bark. PreBossDialogueID survives as a no-op hook (StartSequence of an
+        // unauthored ID returns false).
         AssertThat(ids).ContainsExactlyInAnyOrder(
-            "level_15.entrance", "level_15.preboss", "level_15.boss_intro",
+            "level_15.entrance", "level_15.boss_intro", "level_15.phase3_bark",
             "level_15.postboss", "level_15.ending", "level_15.ending_scarred");
+        AssertString(Level15Controller.PhaseThreeBarkDialogueID).IsEqual("level_15.phase3_bark");
         // No exit beat, deliberately - see ExitDialogueID above.
         AssertThat(ids.Contains("level_15.exit")).IsFalse();
     }
@@ -200,12 +205,15 @@ public class Level15ContentTests {
     public void TheEndingBeatIsTheAuthoredFinaleScriptFromTheDesignDocument() {
         // design-godot.md 3389-3399. This is the last thing anyone who finishes the
         // game reads, so its content is pinned, not just its shape.
+        // Package 13 W3 (S39/S44): the release, the three lesser returns, the
+        // Founding's sky, the Warden portal, and "Come aboard — one last time".
         DialogueSequenceData ending = SequenceNamed("level_15.ending");
         AssertObject(ending).IsNotNull();
-        AssertThat(ending.LineKeys.Length).IsEqual(6);
+        AssertThat(ending.LineKeys.Length).IsEqual(9);
         AssertThat(ending.SpeakerNameKeys).ContainsExactly(
-            "speaker_sarah", "speaker_narration", "speaker_player",
-            "speaker_sarah", "speaker_player", "speaker_narration");
+            "speaker_sarah", "speaker_narration", "speaker_narration", "speaker_narration",
+            "speaker_narration", "speaker_player", "speaker_narration", "speaker_narration",
+            "speaker_sarah");
 
         // Sarah on the radio: the anchor takes the feedback, the siphons die.
         string sarahsCall = LocalizationValue("dlg_l15_ending_1").ToLowerInvariant();
@@ -225,21 +233,22 @@ public class Level15ContentTests {
         AssertString(release).Contains("resonance");
         AssertString(release).Contains("held in trust");
 
-        // Sarah's farewell.
-        string farewell = LocalizationValue("dlg_l15_ending_4").ToLowerInvariant();
-        AssertString(farewell).Contains("rifts are closed");
-        AssertString(farewell).Contains("timelines are sealed");
+        // S44: Desmoulins, Pliny and Captain Smith return on screen.
+        AssertString(LocalizationValue("dlg_l15_ending_lesser_1")).Contains("Desmoulins");
+        AssertString(LocalizationValue("dlg_l15_ending_lesser_2")).Contains("Pliny");
+        AssertString(LocalizationValue("dlg_l15_ending_lesser_3")).Contains("Captain Smith");
 
-        // The closing line.
-        AssertString(LocalizationValue("dlg_l15_ending_5").ToLowerInvariant()).Contains("ours to write");
+        // S39: the ship can reach the whole timeline again, and Sarah calls the
+        // hero aboard; her farewell moved to the Time-Ship send-off.
+        string call = LocalizationValue("dlg_l15_ending_4").ToLowerInvariant();
+        AssertString(call).Contains("come aboard");
+        AssertString(call).Contains("one last time");
+        AssertString(LocalizationValue("dlg_l15_ending_portal").ToLowerInvariant()).Contains("warden portal");
 
-        // Plan section 2.6 defers character-specific variants, so the farewell must
-        // stay generic: no character's home is named in the ending.
-        foreach (string place in new[] { "princeton", "orleans", "orléans", "palace" }) {
-            AssertThat(farewell.Contains(place))
-                .OverrideFailureMessage(
-                    $"The ending names '{place}'; character-specific writing is deferred (plan 2.6).")
-                .IsFalse();
+        // S48 retired "History... is ours to write now"; the per-hero farewell replaces it.
+        foreach (string key in new[] { "dlg_l15_ending_4", "dlg_l15_ending_6", "dlg_l15_ending_6_scarred" }) {
+            AssertThat(LocalizationValue(key).ToLowerInvariant().Contains("ours to write"))
+                .OverrideFailureMessage($"{key} still carries the retired closing line.").IsFalse();
         }
     }
 
@@ -255,8 +264,11 @@ public class Level15ContentTests {
             .IsFalse();
 
         // The in-level beats keep the ordinary convention.
+        // ...and so does the phase-3 bark, which plays over a live fight.
+        AssertThat(SequenceNamed("level_15.phase3_bark").PausesGameplay).IsFalse();
+
         foreach (string id in new[] {
-            "level_15.entrance", "level_15.preboss", "level_15.boss_intro", "level_15.postboss"
+            "level_15.entrance", "level_15.boss_intro", "level_15.postboss"
         }) {
             AssertThat(SequenceNamed(id).PausesGameplay)
                 .OverrideFailureMessage($"'{id}' should pause gameplay like every other level beat.")
@@ -612,6 +624,15 @@ public class Level15ContentTests {
 
                 EventBus.Instance.RaiseDialogueComplete("level_15.ending");
                 AssertThat(chain.IsEndingDialogueActive).IsFalse();
+                // Package 13 W3 (S39): the Time-Ship send-off plays before the credits.
+                AssertThat(chain.IsSendOffActive)
+                    .OverrideFailureMessage("The send-off must follow the release.").IsTrue();
+                AssertObject(chain.Credits)
+                    .OverrideFailureMessage("Credits must wait for the send-off.").IsNull();
+                order.Add("send_off");
+
+                EventBus.Instance.RaiseDialogueComplete(CampaignCompletionSequence.SendOffSequenceID);
+                AssertThat(chain.IsSendOffActive).IsFalse();
                 AssertObject(chain.Credits).IsNotNull();
                 order.Add("credits_rolling");
 
@@ -625,6 +646,13 @@ public class Level15ContentTests {
                 AssertThat(chain.CampaignMarkedCompleted).IsTrue();
 
                 chain.Credits.Skip();
+                // S43: the once-only After-Credits Homecoming, then the menu.
+                AssertThat(chain.IsHomecomingActive)
+                    .OverrideFailureMessage("The Homecoming must follow the credits once.").IsTrue();
+                AssertThat(SaveManager.Instance.SaveSlots[ScratchSlot].HomecomingSeen).IsTrue();
+                AssertThat(chain.IsFinished).IsFalse();
+                order.Add("homecoming");
+                EventBus.Instance.RaiseDialogueComplete(CampaignCompletionSequence.HomecomingSequenceID);
                 AssertThat(chain.IsFinished).IsTrue();
                 AssertThat(chain.CampaignMarkedCompleted)
                     .OverrideFailureMessage("The campaign completion flag was never written.").IsTrue();
@@ -646,7 +674,7 @@ public class Level15ContentTests {
 
         AssertThat(order).ContainsExactly(
             "boss_defeated", "level_complete", "core_inserted", "ending_started",
-            "credits_rolling", "chain_finished", "completed_flag");
+            "send_off", "credits_rolling", "homecoming", "chain_finished", "completed_flag");
         AssertThat(levelCompletes)
             .OverrideFailureMessage("The level advanced more than once.").IsEqual(1);
         AssertThat(chainFinishes)
@@ -668,13 +696,17 @@ public class Level15ContentTests {
         level.PrimeAnchor.InsertCore();
         CampaignCompletionSequence chain = level.Completion;
         EventBus.Instance.RaiseDialogueComplete("level_15.ending");
+        EventBus.Instance.RaiseDialogueComplete(CampaignCompletionSequence.SendOffSequenceID);
 
         AssertThat(chain.Credits.IsFinished).IsFalse();
         AssertThat(chain.CreditsRolling).IsTrue();
 
         chain.SkipToEnd();
-
+        // The credits skip lands on the once-only Homecoming; skipping again ends it.
         AssertThat(chain.Credits.IsFinished).IsTrue();
+        AssertThat(chain.IsHomecomingActive).IsTrue();
+        chain.SkipToEnd();
+
         AssertThat(chain.IsFinished).IsTrue();
         AssertThat(SaveManager.Instance.SaveSlots[ScratchSlot].IsCompleted).IsTrue();
         // The overlay the other fourteen levels show must never appear here.
@@ -717,6 +749,7 @@ public class Level15ContentTests {
         AssertThat(level.PrimeAnchor.InsertCore()).IsTrue();
         AssertObject(level.Completion).IsNotNull();
         EventBus.Instance.RaiseDialogueComplete("level_15.ending");
+        EventBus.Instance.RaiseDialogueComplete(CampaignCompletionSequence.SendOffSequenceID);
         level.Completion.SkipToEnd();
         AssertThat(level.Completion.CampaignMarkedCompleted).IsTrue();
         AssertThat(SaveManager.Instance.SaveSlots[ScratchSlot].IsCompleted).IsTrue();

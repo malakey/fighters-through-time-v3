@@ -93,9 +93,10 @@ public class CampaignLocalizationTests {
 
         AssertThat(sets).OverrideFailureMessage(
             $"Only {sets} dialogue sets were reached; the directory walk is broken.")
-            // Every authored level + the hub (S27 deleted the nine 4A variant sets
-            // and the shared 4A set).
-            .IsEqual(AuthoredLevelCount + 1);
+            // Every authored level + the hub + the epilogue set (the send-off and the
+            // Homecoming, Package 13 W3). S27 deleted the nine 4A variant sets and the
+            // shared 4A set.
+            .IsEqual(AuthoredLevelCount + 2);
         AssertThat(sequences).OverrideFailureMessage(
             $"Only {sequences} dialogue sequences were reached.").IsGreaterEqual(48);
         AssertThat(lines).IsGreater(300);

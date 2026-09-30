@@ -119,6 +119,33 @@ public class NarrativeKnowledgeBoundaryTests {
     /// The sweep is worthless if the corpus walk silently reaches nothing — a renamed
     /// prefix family would make both cases above pass by checking zero rows.
     /// </summary>
+    /// <summary>
+    /// Package 13 W3 (S46/S47): the First Severed is Commander Vale, Sarah's
+    /// former commanding officer — and nobody may say so before Level 15's boss
+    /// intro. Sarah goes quiet at the voice in Level 14's Extraction Hall and
+    /// places it only at the Founding. The sweep is every row outside Level 15
+    /// and the epilogue, UI copy included, and it must actually find the reveal.
+    /// </summary>
+    [TestCase]
+    public void CommanderValeIsNamedOnlyFromLevelFifteenOn() {
+        var vale = new System.Text.RegularExpressions.Regex(@"\bVale\b");
+        var leaks = new List<string>();
+        bool revealed = false;
+        foreach ((string key, string english) in EnglishRows()) {
+            if (!vale.IsMatch(english)) continue;
+            if (key.StartsWith("dlg_l15_", StringComparison.Ordinal)
+                || key.StartsWith("dlg_epilogue_", StringComparison.Ordinal)) {
+                if (key == "dlg_l15_boss_intro_2") revealed = true;
+                continue;
+            }
+            leaks.Add($"{key} names Vale before Level 15");
+        }
+        AssertThat(revealed)
+            .OverrideFailureMessage("Level 15's boss intro no longer carries the Vale reveal (S46).")
+            .IsTrue();
+        if (leaks.Count > 0) AssertThat(string.Join(" | ", leaks)).IsEqual("");
+    }
+
     [TestCase]
     public void TheGuardedCorpusIsLargeEnoughForTheSweepToMeanSomething() {
         int guarded = 0;

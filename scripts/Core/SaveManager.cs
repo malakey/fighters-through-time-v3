@@ -136,8 +136,34 @@ namespace FTT.Core {
         /// </summary>
         public Difficulty LowestDifficultyUsed = Difficulty.Hard;
 
+        // === Package 13 W3 (S02/S23/S35/S43, additive — declared for the v8 step) ===
+        /// <summary>
+        /// S02: the player chose <b>Skip</b> at Wren's Level 0 offer, so the
+        /// skipped calibration lessons are delivered as once-per-slot first-use
+        /// tooltips (<see cref="FirstUseTooltips"/>). False on every older payload,
+        /// which is exact: every pre-v8 campaign ran the full calibration.
+        /// </summary>
+        public bool SkippedCalibration;
+
+        /// <summary>S02: the first-use tooltip IDs this slot has already shown (once per slot).</summary>
+        public List<string> ShownFirstUseTooltips = new();
+
+        /// <summary>
+        /// S23/S35 per-line hub gating: the next-mission level ID of the hub
+        /// visit that last played a one-line Sarah beat. A later arrival with the
+        /// same next mission (a Collapse or Holodeck return) is the same visit and
+        /// plays nothing new. The order itself is derived from
+        /// <see cref="ViewedDialogueIDs"/>, so no per-line index is stored.
+        /// </summary>
+        public string LastHubLineVisit = "";
+
+        /// <summary>S43: the After-Credits Homecoming has played for this campaign (it plays once).</summary>
+        public bool HomecomingSeen;
+
         public void Normalize() {
             SaveVersion = SaveSchemaMigrator.CurrentVersion;
+            ShownFirstUseTooltips ??= new List<string>();
+            LastHubLineVisit ??= "";
             if (!Enum.IsDefined(typeof(Difficulty), LowestDifficultyUsed)) LowestDifficultyUsed = Difficulty.Hard;
             AttemptState ??= new StoryAttemptState();
             AttemptState.Normalize();

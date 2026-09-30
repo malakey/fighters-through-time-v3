@@ -51,7 +51,10 @@ public class MysteryThreadAbsenceTests {
         ("res://resources/Dialogue/level_10_dialogue.tres", "level_10.exit", 1),
         ("res://resources/Dialogue/level_11_dialogue.tres", "level_11.exit", 1),
         ("res://resources/Dialogue/hub_dialogue.tres", "hub.sarah_act1", 0),
+        // Package 13 W3 (S16/S35): Okafor's faint-shard report, both on the
+        // Observation Deck and in the Act I->II boundary scene with Sarah present.
         ("res://resources/Dialogue/hub_dialogue.tres", "hub.okafor_act2", 1),
+        ("res://resources/Dialogue/hub_dialogue.tres", "hub.act1_boundary", 1),
     };
 
     /// <summary>How the copy names each legend, and their era, when reporting them missing.</summary>
@@ -62,7 +65,7 @@ public class MysteryThreadAbsenceTests {
         ["cleopatra"] = new[] { "Alexandria", "Cleopatra" },
         ["shakespeare"] = new[] { "Globe", "Shakespeare" },
         ["lincoln"] = new[] { "Gettysburg", "Lincoln" },
-        ["mozart"] = new[] { "Vienna", "Mozart" },
+        ["mozart"] = new[] { "Vienna", "Prague", "Mozart" },
         ["einstein"] = new[] { "Princeton", "Einstein" },
         ["pocahontas"] = new[] { "Tidewater", "Tsenacommacah", "Pocahontas" },
     };

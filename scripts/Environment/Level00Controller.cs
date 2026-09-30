@@ -26,14 +26,24 @@ namespace FTT.Environment {
     /// jump reach alone; its movement-ability corridor is gone.</para>
     /// </summary>
     public partial class Level00Controller : Node2D {
-        private enum TutorialPhase { Fracture, Calibration, Mobility, CombatTrial, Complete }
+        /// <summary>
+        /// Package 13 W3 (S02): Part 1 is now a fight. <c>Hold</c> is beat 5 (the
+        /// scripted, unlosable hold), <c>Rift</c> is beats 6–7 (the beam breaks,
+        /// the watcher, the walk to the Warden rift), <c>Arrival</c> is Part 2's
+        /// mandatory dialogue and Wren's Full / Skip offer; the calibration
+        /// phases after it run only on Full.
+        /// </summary>
+        public enum TutorialPhase { Hold, Rift, Arrival, Calibration, Mobility, CombatTrial, Complete }
 
         private PlayerController _player;
         private TrainingDummy _dummy;
         private StorySceneServices _services;
         private LevelManager _levelManager;
 
-        private TutorialPhase _phase = TutorialPhase.Fracture;
+        private TutorialPhase _phase = TutorialPhase.Hold;
+
+        /// <summary>The current tutorial phase. Test seam.</summary>
+        public TutorialPhase Phase => _phase;
         private readonly TutorialCalibrationScript _calibration = new();
 
         private Area2D _doubleJumpGate;
@@ -111,7 +121,7 @@ namespace FTT.Environment {
             }
 
             // Defer one frame so the dialogue UI is fully in the tree before pausing.
-            CallDeferred(MethodName.StartFracturePresentation);
+            CallDeferred(MethodName.StartHoldFight);
         }
 
         public override void _ExitTree() {
@@ -123,21 +133,384 @@ namespace FTT.Environment {
                 EventBus.Instance.OnBlockBroken -= OnBlockBroken;
             }
             if (_dummy != null && IsInstanceValid(_dummy)) _dummy.HitLanded -= OnDummyHit;
+            // The hold's seams are scene-scoped: never leave a floor or a player
+            // freeze behind (the player is ours, but be explicit).
+            if (_player != null && IsInstanceValid(_player)) _player.ScriptedHPFloor = 0;
+            ResetHoldLocalPresentation();
             // Pooled combat-trial enemies are parented here; hand them back or the
             // pool keeps freed references once this scene unloads.
             PoolManager.Instance?.ReleaseActiveUnder(this);
         }
 
-        // === Part 1: fracture presentation ===
+        // === Package 13 W3: Part 1 beat 5 — the hold (S02) ===================
+        //
+        // The beam's pull stalls: the Wardens have caught it. Visored locals of
+        // the hero's own era walk out of the drained world to drag the hero into
+        // the column, and an unnamed voice ("???", no portrait — Sarah, recognized
+        // in Part 2) coaches the fight: the 3-hit string, then Block against one
+        // telegraphed swing that repeats until it is blocked. It cannot be lost
+        // (HP floor 1) and nothing here uses or grants rewind charges, Rally,
+        // meter, dust or Integrity: the locals are summoned (no F05 award, and
+        // Level 0's ledger pays nothing anyway), the tutorial has no Integrity
+        // clock, and the meter and echo the fight would leave are handed back
+        // every physics frame. Step order lives in Level00HoldFight.
 
-        private void StartFracturePresentation() {
-            _services?.Dialogue?.StartSequence("level_00.intro");
+        private readonly Level00HoldFight _hold = new();
+        private readonly System.Collections.Generic.List<EnemyController> _holdLocals = new();
+        private EnemyController _guardLocal;
+        private int _guardTelegraphFrames = -1;
+        private bool _guardSwingBlocked;
+        private float _holdMeterBaseline;
+        private Area2D _riftGate;
+        private TwoOptionPrompt _calibrationPrompt;
+
+        /// <summary>The hold's step. Test seam.</summary>
+        public HoldFightStep HoldStep => _hold.Step;
+
+        /// <summary>The Full / Skip prompt, while Wren's offer is open. Test seam.</summary>
+        public TwoOptionPrompt CalibrationPrompt => _calibrationPrompt;
+
+        /// <summary>Where the hold's locals walk out of the tear.</summary>
+        public static readonly Vector2[] HoldLocalSpawns = {
+            new(980, 850), new(1160, 850), new(1340, 850)
+        };
+
+        /// <summary>Where the Translation lands the hero in the Calibration Bay.</summary>
+        public static readonly Vector2 BayArrivalPosition = new(820, 850);
+
+        /// <summary>The Eraser watcher's time on screen (S10: "about 2 s").</summary>
+        public const float WatcherSeconds = 2f;
+
+        /// <summary>The hold's scripted swing: small, Basic-class, blockable.</summary>
+        public const float GuardSwingDamage = 5f;
+
+        private bool _holdStarted;
+
+        /// <summary>
+        /// Beat 5 begins: the HP floor goes on and the unnamed voice speaks.
+        /// Deferred from <c>_Ready</c>; public and idempotent so a test can drive it.
+        /// </summary>
+        public void StartHoldFight() {
+            if (_holdStarted || _phase != TutorialPhase.Hold) return;
+            _holdStarted = true;
+            if (_player != null && IsInstanceValid(_player)) {
+                _player.ScriptedHPFloor = Level00HoldFight.HeroHPFloor;
+                _holdMeterBaseline = _player.CurrentUltimateMeter;
+            }
+            _services?.HUD?.SetObjective("tutorial_objective_hold");
+            // The voice speaks first; the locals come when it finishes. A missing
+            // dialogue stack must never strand the beat.
+            if (_services?.Dialogue == null || !_services.Dialogue.StartSequence("level_00.hold_start")) {
+                BeginHoldLocals();
+            }
         }
+
+        private void BeginHoldLocals() {
+            if (!_hold.BeginFight()) return;
+            string heroID = _player?.Data?.CharacterID ?? "";
+            string mob = Level00HoldFight.LocalMobFor(heroID);
+            for (int index = 0; index < Level00HoldFight.LocalCount && index < HoldLocalSpawns.Length; index++) {
+                EnemyController local = EnemyFactory.SpawnSummoned(mob, this, HoldLocalSpawns[index]);
+                if (local == null) continue;
+                _holdLocals.Add(local);
+            }
+            if (_holdLocals.Count == 0) {
+                // Never strand the story: no locals, no fight, the beam still breaks.
+                _hold.ForceComplete();
+                CompleteHold();
+            }
+        }
+
+        /// <summary>
+        /// Every physics frame of the hold: hand back the meter and Rally echo the
+        /// fight would otherwise leave behind, and drive the Guard lesson's
+        /// telegraphed swing.
+        /// </summary>
+        private void ProcessHoldFight() {
+            if (_phase != TutorialPhase.Hold) return;
+            if (_player != null && IsInstanceValid(_player)) {
+                _player.ClearRallyEcho();
+                if (_player.CurrentUltimateMeter > _holdMeterBaseline) {
+                    _player.DrainUltimateMeter(_player.CurrentUltimateMeter - _holdMeterBaseline);
+                }
+            }
+            if (_hold.Step != HoldFightStep.Guard || _guardTelegraphFrames < 0) return;
+            if (_guardLocal == null || !IsInstanceValid(_guardLocal)) {
+                if (_hold.ForceComplete()) CompleteHold();
+                return;
+            }
+            // Telegraph: pulse the local toward the Basic warning tint so the
+            // wind-up reads, exactly like the calibration dummy's swipe.
+            float progress = 1f - (float)_guardTelegraphFrames / Level00HoldFight.GuardTelegraphFrames;
+            float pulse = 0.5f + 0.5f * Mathf.Sin(progress * Mathf.Pi * 4f);
+            _guardLocal.Modulate = Colors.White.Lerp(new Color(1f, 0.85f, 0.3f), 0.6f * pulse + 0.2f);
+            if (_guardTelegraphFrames > 0) {
+                _guardTelegraphFrames--;
+                return;
+            }
+            _guardLocal.Modulate = Colors.White;
+            if (_hold.RegisterGuardSwing(DeliverGuardSwing())) {
+                _guardTelegraphFrames = -1;
+                ReleaseGuardLocal();
+                _services?.HUD?.SetObjective("tutorial_objective_hold");
+            } else {
+                _guardTelegraphFrames = Level00HoldFight.GuardTelegraphFrames + Level00HoldFight.GuardRepeatFrames;
+            }
+        }
+
+        /// <summary>
+        /// Resolves one telegraphed swing through the real hurtbox/block path, so a
+        /// held guard absorbs it and raises the ordinary block event. Returns true
+        /// when the swing was blocked. Public so tests can resolve a swing without
+        /// stepping the telegraph.
+        /// </summary>
+        public bool DeliverGuardSwing() {
+            if (_player == null || !IsInstanceValid(_player) || _guardLocal == null || !IsInstanceValid(_guardLocal)) {
+                return false;
+            }
+            var hurtbox = _player.GetNodeOrNull<FTT.Combat.Hurtbox>("Hurtbox");
+            if (hurtbox == null) return false;
+            _guardSwingBlocked = false;
+            float applied = hurtbox.TakeHit(new FTT.Combat.HitPayload {
+                AttackerIndex = 99,
+                TargetIndex = _player.PlayerIndex,
+                AttackID = "level_00_hold_guard_swing",
+                HitboxID = "primary",
+                AttackClass = FTT.Combat.AttackClass.Basic,
+                Damage = GuardSwingDamage,
+                Knockback = new Vector2(1.5f, -0.5f),
+                HitstunDuration = 0.1f,
+                HitOrigin = _guardLocal.GlobalPosition,
+                AttackerFacingRight = _player.GlobalPosition.X >= _guardLocal.GlobalPosition.X,
+                AppliedStatus = StatusType.None,
+                StatusIntensity = 1f,
+                ScreenShakeIntensity = 0.1f,
+                ScreenShakeDuration = 0.05f
+            });
+            return _guardSwingBlocked || (applied <= 0f && _player.CurrentState == CharacterState.Blocking);
+        }
+
+        /// <summary>
+        /// The Guard lesson: the last local stops fighting (held in the inert
+        /// rewind-freeze state, unkillable until its swing is blocked) and winds up
+        /// the telegraphed swing after the voice's "Guard — now!".
+        /// </summary>
+        private void BeginGuardLesson() {
+            foreach (EnemyController local in _holdLocals) {
+                if (local == null || !IsInstanceValid(local) || local.CurrentState == EnemyState.Dead) continue;
+                _guardLocal = local;
+                break;
+            }
+            if (_guardLocal == null) {
+                if (_hold.ForceComplete()) CompleteHold();
+                return;
+            }
+            _guardLocal.DrillInvulnerable = true;
+            _guardLocal.SetStoryRewindFrozen(true);
+            _services?.HUD?.SetObjective("tutorial_step_hold_guard");
+            if (_services?.Dialogue == null || !_services.Dialogue.StartSequence("level_00.hold_guard")) {
+                ArmGuardTelegraph();
+            }
+        }
+
+        private void ArmGuardTelegraph() => _guardTelegraphFrames = Level00HoldFight.GuardTelegraphFrames;
+
+        private void ReleaseGuardLocal() {
+            if (_guardLocal == null || !IsInstanceValid(_guardLocal)) return;
+            _guardLocal.Modulate = Colors.White;
+            _guardLocal.DrillInvulnerable = false;
+            _guardLocal.SetStoryRewindFrozen(false);
+        }
+
+        /// <summary>Pooled bodies outlive this scene: never hand one back tinted or held.</summary>
+        private void ResetHoldLocalPresentation() {
+            foreach (EnemyController local in _holdLocals) {
+                if (local == null || !IsInstanceValid(local)) continue;
+                local.Modulate = Colors.White;
+                local.DrillInvulnerable = false;
+                if (local == _guardLocal && local.GetParent() == this) local.SetStoryRewindFrozen(false);
+            }
+        }
+
+        private void OnHoldLocalKilled() {
+            HoldFightStep before = _hold.Step;
+            HoldFightStep after = _hold.RegisterLocalDefeated();
+            if (before == HoldFightStep.FightOff && after == HoldFightStep.Guard) BeginGuardLesson();
+            else if (after == HoldFightStep.Done && before != HoldFightStep.Done) CompleteHold();
+        }
+
+        /// <summary>"It's catching — hold on!" — then the beam breaks.</summary>
+        private void CompleteHold() {
+            if (_phase != TutorialPhase.Hold) return;
+            if (_player != null && IsInstanceValid(_player)) {
+                _player.ClearRallyEcho();
+                if (_player.CurrentUltimateMeter > _holdMeterBaseline) {
+                    _player.DrainUltimateMeter(_player.CurrentUltimateMeter - _holdMeterBaseline);
+                }
+            }
+            if (_services?.Dialogue == null || !_services.Dialogue.StartSequence("level_00.hold_catching")) {
+                BreakTheBeam();
+            }
+        }
+
+        // === Beats 6–8: the beam breaks, the watcher, the Warden rift =========
+
+        /// <summary>
+        /// Beat 6: the ignition completes and the cold column cracks against the
+        /// gold; for about two seconds the Eraser watcher stands at the tear's
+        /// edge (S10) — no line, prompt or UI; then the Warden portal opens beside
+        /// the tear and the hero walks to it (beat 7).
+        /// </summary>
+        public void BreakTheBeam() {
+            if (_phase != TutorialPhase.Hold) return;
+            _phase = TutorialPhase.Rift;
+            if (_player != null && IsInstanceValid(_player)) _player.ScriptedHPFloor = 0;
+            PlayBeamBreak();
+            ShowEraserWatcher();
+            _riftGate = BuildGateZone("WardenRiftGate", RiftGatePosition, new Vector2(120, 200),
+                new Color(FTT.UI.UIPalette.WardenPortal, 0.2f), "tutorial_objective_rift");
+            _services?.HUD?.SetObjective("tutorial_objective_rift");
+        }
+
+        /// <summary>Beat 7's destination: the Warden portal beside the tear.</summary>
+        public static readonly Vector2 RiftGatePosition = new(670, 820);
+
+        /// <summary>
+        /// The watcher (S10): a lean visored figure with a long lance at the edge
+        /// of the jagged tear, ~2 s, wordless. Placeholder silhouette; the Level 5
+        /// debut reuses the same shape so the player recognizes it.
+        /// </summary>
+        private void ShowEraserWatcher() {
+            var watcher = new Node2D {
+                Name = "EraserWatcher",
+                Position = new Vector2(120, 850),
+                Modulate = new Color(1f, 1f, 1f, 0f)
+            };
+            watcher.AddChild(new ColorRect {
+                Name = "Silhouette",
+                Size = new Vector2(22, 104),
+                Position = new Vector2(-11, -104),
+                Color = new Color(0.05f, 0.06f, 0.09f, 0.95f)
+            });
+            watcher.AddChild(new ColorRect {
+                Name = "Visor",
+                Size = new Vector2(16, 4),
+                Position = new Vector2(-6, -94),
+                Color = FTT.UI.UIPalette.UnboundCold
+            });
+            watcher.AddChild(new ColorRect {
+                Name = "Lance",
+                Size = new Vector2(4, 150),
+                Position = new Vector2(14, -140),
+                Color = new Color(0.12f, 0.14f, 0.2f, 0.95f)
+            });
+            AddChild(watcher);
+            Tween appear = watcher.CreateTween();
+            appear.TweenProperty(watcher, "modulate:a", 1f, 0.3);
+            appear.TweenInterval(WatcherSeconds - 0.6);
+            appear.TweenProperty(watcher, "modulate:a", 0f, 0.3);
+            appear.TweenCallback(Callable.From(watcher.QueueFree));
+        }
+
+        /// <summary>
+        /// Beat 8, the Translation: the hero steps into the Warden rift and wakes
+        /// in the Calibration Bay — healed ("You're whole. Mostly."), with the
+        /// fracture left behind — and Part 2's arrival dialogue plays.
+        /// </summary>
+        public void TranslateToBay() {
+            if (_phase != TutorialPhase.Rift) return;
+            _phase = TutorialPhase.Arrival;
+            if (_riftGate != null && IsInstanceValid(_riftGate)) {
+                _riftGate.QueueFree();
+                _riftGate = null;
+            }
+            GetNodeOrNull<Node2D>("ChronalFracture")?.Hide();
+            if (_player != null && IsInstanceValid(_player)) {
+                _player.GlobalPosition = BayArrivalPosition;
+                _player.Velocity = Vector2.Zero;
+                _player.HealStory(_player.MaximumHP);
+            }
+            _services?.HUD?.SetObjective("tutorial_objective_fracture");
+            if (_services?.Dialogue == null || !_services.Dialogue.StartSequence("level_00.intro")) {
+                OfferCalibration();
+            }
+        }
+
+        // === Part 2: Wren's offer (S02/S09, D16) =============================
+
+        private void OfferCalibration() {
+            if (_phase != TutorialPhase.Arrival || _calibrationPrompt != null) return;
+            _calibrationPrompt = TwoOptionPrompt.Create(
+                "dlg_l00_wren_offer_1", "level00_choice_full", "level00_choice_skip", "speaker_wren");
+            _calibrationPrompt.Chosen += OnCalibrationChosen;
+            AddChild(_calibrationPrompt);
+            if (_player != null && IsInstanceValid(_player)) _player.ProcessMode = ProcessModeEnum.Disabled;
+            _calibrationPrompt.Open();
+        }
+
+        private void OnCalibrationChosen(int option) {
+            if (_player != null && IsInstanceValid(_player)) _player.ProcessMode = ProcessModeEnum.Inherit;
+            if (_calibrationPrompt != null && IsInstanceValid(_calibrationPrompt)) _calibrationPrompt.QueueFree();
+            _calibrationPrompt = null;
+            if (option == 0) ChooseFullCalibration();
+            else ChooseSkipCalibration();
+        }
+
+        /// <summary>Full calibration: every Part 2 and Part 3 lesson, in order.</summary>
+        public void ChooseFullCalibration() {
+            if (_phase != TutorialPhase.Arrival) return;
+            BeginCalibration();
+        }
+
+        /// <summary>
+        /// Skip — I'll learn in the field: the skipped lessons arm the slot's
+        /// first-use tooltips and the portal to Level 1 opens straight away. The
+        /// story-critical exposition already played; skippers lose only the
+        /// station flavour lines.
+        /// </summary>
+        public void ChooseSkipCalibration() {
+            if (_phase != TutorialPhase.Arrival) return;
+            FirstUseTooltips.ArmForSkippedCalibration(ActiveCampaignSave());
+            CompleteTutorial(playCompletionLine: false);
+        }
+
+        private static StorySaveData ActiveCampaignSave() {
+            if (GameManager.Instance == null || SaveManager.Instance == null) return null;
+            int slot = GameManager.Instance.CurrentSession.ActiveSaveSlot;
+            return slot >= 0 && slot < SaveManager.Instance.SaveSlots.Length ? SaveManager.Instance.SaveSlots[slot] : null;
+        }
+
+        // === end Package 13 W3 Part 1/2 region ================================
 
         private void OnDialogueComplete(string dialogueID) {
             switch (dialogueID) {
+                case "level_00.hold_start":
+                    BeginHoldLocals();
+                    break;
+                case "level_00.hold_guard":
+                    ArmGuardTelegraph();
+                    break;
+                case "level_00.hold_catching":
+                    BreakTheBeam();
+                    break;
                 case "level_00.intro":
-                    BeginCalibration();
+                    if (_services?.Dialogue == null || !_services.Dialogue.StartSequence("level_00.wren_offer")) {
+                        OfferCalibration();
+                    }
+                    break;
+                case "level_00.wren_offer":
+                    OfferCalibration();
+                    break;
+                // S08 station flavour lines: each plays once as its station
+                // completes, then the next lesson starts.
+                case "level_00.station_grab":
+                    BeginHitstunAgencyLesson();
+                    break;
+                case "level_00.station_defy":
+                    BeginRewindDemonstration();
+                    break;
+                case "level_00.station_rewind":
+                    BeginTimeFreezeDrill();
                     break;
                 case "level_00.block_intro":
                     BeginBlockLesson();
@@ -208,6 +581,10 @@ namespace FTT.Environment {
         }
 
         private void OnBlockAbsorbed(int playerIndex, int remainingCharges) {
+            if (_phase == TutorialPhase.Hold && playerIndex == 0) {
+                _guardSwingBlocked = true;
+                return;
+            }
             if (_phase != TutorialPhase.Calibration || playerIndex != 0) return;
             bool advanced = _calibration.RegisterBlockedHit();
             if (_calibration.Step == TutorialCalibrationStep.Block) {
@@ -218,6 +595,10 @@ namespace FTT.Environment {
         }
 
         private void OnBlockBroken(int playerIndex) {
+            if (_phase == TutorialPhase.Hold && playerIndex == 0) {
+                _guardSwingBlocked = true;
+                return;
+            }
             if (_phase != TutorialPhase.Calibration || playerIndex != 0) return;
             // A guard break is the complete depletion lesson in one stroke.
             if (_calibration.RegisterGuardBreak()) CompleteBlockLesson();
@@ -298,7 +679,10 @@ namespace FTT.Environment {
             // "Grabs beat blocks. Strikes beat grabs." — the follow-up names the
             // rule both ways before the next beat starts.
             _services.HUD?.SetObjective("tutorial_step_grab_complete");
-            BeginHitstunAgencyLesson();
+            // S08: the Grab station's flavour line, then the next lesson.
+            if (_services?.Dialogue == null || !_services.Dialogue.StartSequence("level_00.station_grab")) {
+                BeginHitstunAgencyLesson();
+            }
         }
 
         // === V7.6 Hitstun Agency Calibration ============================
@@ -415,7 +799,12 @@ namespace FTT.Environment {
             _player.ApplyEnvironmentalDamage(_player.CurrentHP);
             PublishDefySeal(_player.StoryDefyHistoryUsed ? DefySealState.Spent : DefySealState.Building);
             _services.HUD?.SetObjective("tutorial_step_defy_spent");
-            if (_calibration.RegisterDefyProc()) BeginRewindDemonstration();
+            if (_calibration.RegisterDefyProc()) {
+                // S08: the Meter & Defy station's flavour line, then the rewind.
+                if (_services?.Dialogue == null || !_services.Dialogue.StartSequence("level_00.station_defy")) {
+                    BeginRewindDemonstration();
+                }
+            }
         }
 
         /// <summary>
@@ -476,7 +865,10 @@ namespace FTT.Environment {
             if (!_calibration.RegisterRewindComplete()) return;
             // The guided demonstration never spends the player's real pool.
             _services.RewindManager?.RefundRewind();
-            BeginTimeFreezeDrill();
+            // S08: the Rewind drill's flavour line (an S01 tell), then Time Freeze.
+            if (_services?.Dialogue == null || !_services.Dialogue.StartSequence("level_00.station_rewind")) {
+                BeginTimeFreezeDrill();
+            }
         }
 
         // === V7.6 Time Freeze escape drill (Package 11 A2) ====================
@@ -634,6 +1026,9 @@ namespace FTT.Environment {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // Package 13 W3: Part 1's hold and the walk to the Warden rift.
+            ProcessHoldFight();
+            if (_phase == TutorialPhase.Rift && ZoneContainsPlayer(_riftGate)) TranslateToBay();
             ProcessRewindDemo();
             if (_phase == TutorialPhase.Calibration) {
                 // V7.6 beats. Each is phase-gated inside itself, so the order
@@ -748,6 +1143,10 @@ namespace FTT.Environment {
         private bool _waveTwoActive;
 
         private void OnEnemyKilled(EnemyKilledPayload payload) {
+            if (_phase == TutorialPhase.Hold) {
+                OnHoldLocalKilled();
+                return;
+            }
             if (_phase != TutorialPhase.CombatTrial || _levelComplete) return;
             _enemiesKilled++;
             UpdateWaveObjective("tutorial_objective_progress");
@@ -762,7 +1161,15 @@ namespace FTT.Environment {
             _services.HUD?.SetObjective(key, _enemiesKilled, _totalEnemies);
         }
 
-        private void CompleteTutorial() {
+        /// <summary>
+        /// Ends Level 0. The Full path closes on the Combat Trial's S08 flavour line
+        /// before the results; the Skip path (<paramref name="playCompletionLine"/>
+        /// false) goes straight to them — "Skip opens the portal to Level 1
+        /// immediately". Both land on the Bridge, where Sarah's S11 triage line
+        /// charges the portal (the hub prologue set).
+        /// </summary>
+        private void CompleteTutorial(bool playCompletionLine = true) {
+            if (_levelComplete) return;
             _levelComplete = true;
             _phase = TutorialPhase.Complete;
 
@@ -770,8 +1177,11 @@ namespace FTT.Environment {
             // CompleteLevel raises OnLevelComplete, which advances the campaign
             // level and autosaves completion; do not also advance manually.
             _levelManager?.CompleteLevel();
-            _services.HUD?.SetObjective("tutorial_objective_complete");
-            _services.Dialogue?.StartSequence("level_00.complete");
+            _services?.HUD?.SetObjective("tutorial_objective_complete");
+            if (!playCompletionLine || _services?.Dialogue == null
+                || !_services.Dialogue.StartSequence("level_00.complete")) {
+                ShowCompletionResults();
+            }
         }
 
         private void ShowCompletionResults() {
@@ -946,31 +1356,52 @@ namespace FTT.Environment {
             });
 
             // --- The beat timeline ------------------------------------------
-            // One chained tween so the order is authored in one readable place
-            // rather than spread across four timers.
+            // Package 13 W3 (S02): the timeline is split around the hold fight.
+            // Beats 1–2 play on load — the beam bites, the ignition BEGINS — and
+            // the column stays up while the locals come (beat 5). Beats 3–4 (the
+            // beam breaks, the Warden door opens) play from PlayBeamBreak once
+            // the hold is won, which is what the fight buys the ignition time for.
+            _fractureBeam = beam;
+            _fractureHalo = coldHalo;
+            _fracturePortal = portal;
             Tween beat = rift.CreateTween();
             // 1. The beam bites: cold flares to full over the first second.
             beat.TweenProperty(beam, "modulate:a", 1f, 0.9);
             // 2. Gold answers on the hero.
             beat.TweenProperty(ignition, "modulate:a", 1f, 0.7)
                 .SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
-            // 3. The beam breaks — the cold guts out rather than fading evenly.
-            beat.TweenProperty(beam, "modulate:a", 0.28f, 0.5)
+        }
+
+        private Node2D _fractureBeam;
+        private ColorRect _fractureHalo;
+        private Node2D _fracturePortal;
+
+        /// <summary>
+        /// Beats 3–4 of the ignition grammar, after the hold: the beam breaks — the
+        /// cold guts out rather than fading evenly — and the Warden door opens
+        /// beside the tear, steady (a linear fade, no overshoot, no bounce).
+        /// </summary>
+        private void PlayBeamBreak() {
+            Node2D rift = GetNodeOrNull<Node2D>("ChronalFracture");
+            if (rift == null || _fractureBeam == null || !IsInstanceValid(_fractureBeam)) return;
+            Tween beat = rift.CreateTween();
+            beat.TweenProperty(_fractureBeam, "modulate:a", 0.28f, 0.5)
                 .SetTrans(Tween.TransitionType.Expo).SetEase(Tween.EaseType.In);
-            beat.Parallel().TweenProperty(coldHalo, "modulate:a", 0.35f, 0.5);
-            // 4. The Warden door opens beside the tear. Steady: a linear fade,
-            //    no overshoot, no bounce — it behaves as unlike the rift as it
-            //    looks.
-            beat.TweenProperty(portal, "modulate:a", 1f, 0.8)
-                .SetTrans(Tween.TransitionType.Linear);
+            if (_fractureHalo != null && IsInstanceValid(_fractureHalo)) {
+                beat.Parallel().TweenProperty(_fractureHalo, "modulate:a", 0.35f, 0.5);
+            }
+            if (_fracturePortal != null && IsInstanceValid(_fracturePortal)) {
+                beat.TweenProperty(_fracturePortal, "modulate:a", 1f, 0.8)
+                    .SetTrans(Tween.TransitionType.Linear);
+            }
 
             // The broken beam keeps a slow cold flicker afterwards: the wound is
             // still open, which is the level's whole premise. The portal is NOT
             // animated — steady geometry is half its definition.
             Tween flicker = rift.CreateTween().SetLoops();
             flicker.TweenInterval(3.0);
-            flicker.TweenProperty(beam, "modulate:a", 0.16f, 1.1);
-            flicker.TweenProperty(beam, "modulate:a", 0.34f, 1.1);
+            flicker.TweenProperty(_fractureBeam, "modulate:a", 0.16f, 1.1);
+            flicker.TweenProperty(_fractureBeam, "modulate:a", 0.34f, 1.1);
         }
 
         private void BuildFloor(float x, float y, float width) {

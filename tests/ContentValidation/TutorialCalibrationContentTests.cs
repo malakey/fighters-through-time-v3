@@ -41,8 +41,14 @@ public class TutorialCalibrationContentTests {
             .Where(sequence => string.IsNullOrEmpty(sequence.HeroConditionCharacterID))
             .Select(sequence => sequence.DialogueID)
             .ToArray();
+        // Package 13 W3 (S02/S08/S09): Part 1's hold (three voice beats), the
+        // arrival, Wren's offer, then the Full Calibration's lesson sequences with
+        // the station flavour lines threaded between them.
         AssertThat(string.Join(",", baseIDs)).IsEqual(
-            "level_00.intro,level_00.block_intro,level_00.ultimate_intro," +
+            "level_00.hold_start,level_00.hold_guard,level_00.hold_catching," +
+            "level_00.intro,level_00.wren_offer," +
+            "level_00.block_intro,level_00.station_grab,level_00.ultimate_intro," +
+            "level_00.station_defy,level_00.station_rewind," +
             "level_00.mobility_intro,level_00.complete");
 
         // Every hero variant is a full replacement for the shared opening, so it
@@ -69,17 +75,21 @@ public class TutorialCalibrationContentTests {
 
         DialogueSequenceData block = set.Find("level_00.block_intro");
         AssertObject(block).IsNotNull();
-        AssertThat(string.Join(",", block.LineKeys)).IsEqual("dlg_l00_block_1,dlg_l00_block_2");
+        // S08: the Rally station's flavour line opens the block briefing.
+        AssertThat(string.Join(",", block.LineKeys))
+            .IsEqual("dlg_l00_station_rally,dlg_l00_block_1,dlg_l00_block_2");
         AssertThat(block.PausesGameplay).IsTrue();
 
         DialogueSequenceData ultimate = set.Find("level_00.ultimate_intro");
         AssertObject(ultimate).IsNotNull();
         AssertThat(string.Join(",", ultimate.LineKeys)).IsEqual("dlg_l00_ultimate_1");
 
-        // The mobility briefing gained the movement-ability gate instruction.
+        // S09: Wren, not Sarah, opens Part 3; the movement-ability line is gone
+        // with the lesson (the ability unlocks after Level 1).
         DialogueSequenceData mobility = set.Find("level_00.mobility_intro");
         AssertObject(mobility).IsNotNull();
-        AssertThat(string.Join(",", mobility.LineKeys)).IsEqual("dlg_l00_mobility_1,dlg_l00_mobility_2");
+        AssertThat(string.Join(",", mobility.LineKeys)).IsEqual("dlg_l00_mobility_1");
+        AssertThat(string.Join(",", mobility.SpeakerNameKeys)).IsEqual("speaker_wren");
     }
 
     [TestCase]
@@ -104,7 +114,16 @@ public class TutorialCalibrationContentTests {
             "dlg_l00_block_1",
             "dlg_l00_block_2",
             "dlg_l00_ultimate_1",
-            "dlg_l00_mobility_2",
+            // Package 13 W3: the hold, the offer and the station lines.
+            "dlg_l00_hold_1",
+            "dlg_l00_hold_2",
+            "dlg_l00_hold_3",
+            "dlg_l00_wren_offer_1",
+            "level00_choice_full",
+            "level00_choice_skip",
+            "tutorial_objective_hold",
+            "tutorial_step_hold_guard",
+            "tutorial_objective_rift",
             // Story pause additions (audit M-2).
             "menu_save",
             "menu_restart",

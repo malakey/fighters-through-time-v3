@@ -739,9 +739,26 @@ namespace FTT.Environment {
 
             int count = StoryDifficultyTuning.ScaleEncounterCount(
                 authored.Count, StoryDifficultyTuning.CurrentStoryDifficulty);
+            bool eraserSpawned = false;
             for (int index = 0; index < count && index < authored.Count; index++) {
                 EnemyFactory.Spawn(authored[index].EnemyID, this, authored[index].Position);
+                if (authored[index].EnemyID == EraserEnemyID) eraserSpawned = true;
             }
+            // Package 13 W3 (S47): Sarah names the Eraser pair as it springs —
+            // only when a difficulty's prefix actually fields one.
+            if (eraserSpawned) PlayEraserPairLine();
+        }
+
+        /// <summary>The Eraser-pair line (S47): "Erasers. They were built to unmake what you are."</summary>
+        public const string EraserPairDialogueID = "level_13.eraser_pair";
+
+        /// <summary>True once the Eraser-pair line has played this entry. Test seam.</summary>
+        public bool EraserPairLinePlayed { get; private set; }
+
+        public bool PlayEraserPairLine() {
+            if (EraserPairLinePlayed) return false;
+            EraserPairLinePlayed = true;
+            return StartDialogue(EraserPairDialogueID);
         }
     }
 }

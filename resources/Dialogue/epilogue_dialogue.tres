@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="DialogueSetData" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/UI/DialogueSetData.cs" id="1"]
+[ext_resource type="Script" path="res://scripts/UI/DialogueSequenceData.cs" id="2"]
+
+[sub_resource type="Resource" id="SendOff"]
+script = ExtResource("2")
+DialogueID = "epilogue.sendoff"
+SpeakerNameKeys = PackedStringArray("speaker_okafor", "speaker_wren", "speaker_sarah", "speaker_player", "speaker_narration")
+LineKeys = PackedStringArray("dlg_epilogue_sendoff_1", "dlg_epilogue_sendoff_2", "dlg_epilogue_sendoff_3", "dlg_epilogue_sendoff_4", "dlg_epilogue_sendoff_5")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_neutral", "emotion_determined", "emotion_neutral")
+PausesGameplay = false
+AutoAdvance = false
+
+[sub_resource type="Resource" id="Homecoming"]
+script = ExtResource("2")
+DialogueID = "epilogue.homecoming"
+SpeakerNameKeys = PackedStringArray("speaker_meridian_officer", "speaker_sarah", "speaker_meridian_officer", "speaker_sarah", "speaker_meridian_officer", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_epilogue_homecoming_1", "dlg_epilogue_homecoming_2", "dlg_epilogue_homecoming_3", "dlg_epilogue_homecoming_4", "dlg_epilogue_homecoming_5", "dlg_epilogue_homecoming_6")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_neutral", "emotion_neutral", "emotion_neutral", "emotion_neutral")
+PausesGameplay = false
+AutoAdvance = false
+
+[resource]
+script = ExtResource("1")
+DialogueSetID = "dialogue_epilogue"
+Sequences = [SubResource("SendOff"), SubResource("Homecoming")]

@@ -6,28 +6,28 @@
 [sub_resource type="Resource" id="Entrance"]
 script = ExtResource("2")
 DialogueID = "level_15.entrance"
-SpeakerNameKeys = PackedStringArray("speaker_player", "speaker_sarah", "speaker_player")
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_sarah", "speaker_player")
 LineKeys = PackedStringArray("dlg_l15_entrance_1", "dlg_l15_entrance_2", "dlg_l15_entrance_3")
 EmotionKeys = PackedStringArray("emotion_shocked", "emotion_neutral", "emotion_determined")
-PausesGameplay = true
-AutoAdvance = false
-
-[sub_resource type="Resource" id="PreBoss"]
-script = ExtResource("2")
-DialogueID = "level_15.preboss"
-SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_player", "speaker_sarah")
-LineKeys = PackedStringArray("dlg_l15_preboss_1", "dlg_l15_preboss_2", "dlg_l15_preboss_3")
-EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined", "emotion_neutral")
 PausesGameplay = true
 AutoAdvance = false
 
 [sub_resource type="Resource" id="BossIntro"]
 script = ExtResource("2")
 DialogueID = "level_15.boss_intro"
-SpeakerNameKeys = PackedStringArray("speaker_apex_eraser", "speaker_player")
-LineKeys = PackedStringArray("dlg_l15_boss_intro_1", "dlg_l15_boss_intro_2")
-EmotionKeys = PackedStringArray("emotion_neutral", "emotion_determined")
+SpeakerNameKeys = PackedStringArray("speaker_apex_eraser", "speaker_sarah", "speaker_apex_eraser", "speaker_sarah", "speaker_apex_eraser", "speaker_player")
+LineKeys = PackedStringArray("dlg_l15_boss_intro_1", "dlg_l15_boss_intro_2", "dlg_l15_boss_intro_3", "dlg_l15_boss_intro_4", "dlg_l15_boss_intro_5", "dlg_l15_boss_intro_6")
+EmotionKeys = PackedStringArray("emotion_neutral", "emotion_shocked", "emotion_neutral", "emotion_neutral", "emotion_neutral", "emotion_determined")
 PausesGameplay = true
+AutoAdvance = false
+
+[sub_resource type="Resource" id="Phase3Bark"]
+script = ExtResource("2")
+DialogueID = "level_15.phase3_bark"
+SpeakerNameKeys = PackedStringArray("speaker_sarah")
+LineKeys = PackedStringArray("dlg_l15_phase3_1")
+EmotionKeys = PackedStringArray("emotion_shocked")
+PausesGameplay = false
 AutoAdvance = false
 
 [sub_resource type="Resource" id="PostBoss"]
@@ -42,22 +42,22 @@ AutoAdvance = false
 [sub_resource type="Resource" id="Ending"]
 script = ExtResource("2")
 DialogueID = "level_15.ending"
-SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_narration", "speaker_player", "speaker_sarah", "speaker_player", "speaker_narration")
-LineKeys = PackedStringArray("dlg_l15_ending_1", "dlg_l15_ending_2", "dlg_l15_ending_3", "dlg_l15_ending_4", "dlg_l15_ending_5", "dlg_l15_ending_6")
-EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_shocked", "emotion_neutral", "emotion_determined", "emotion_neutral")
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_narration", "speaker_narration", "speaker_narration", "speaker_narration", "speaker_player", "speaker_narration", "speaker_narration", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l15_ending_1", "dlg_l15_ending_2", "dlg_l15_ending_lesser_1", "dlg_l15_ending_lesser_2", "dlg_l15_ending_lesser_3", "dlg_l15_ending_3", "dlg_l15_ending_6", "dlg_l15_ending_portal", "dlg_l15_ending_4")
+EmotionKeys = PackedStringArray("emotion_shocked", "emotion_neutral", "emotion_neutral", "emotion_neutral", "emotion_neutral", "emotion_determined", "emotion_neutral", "emotion_neutral", "emotion_neutral")
 PausesGameplay = false
 AutoAdvance = false
 
 [sub_resource type="Resource" id="EndingScarred"]
 script = ExtResource("2")
 DialogueID = "level_15.ending_scarred"
-SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_narration", "speaker_player", "speaker_sarah", "speaker_player", "speaker_narration")
-LineKeys = PackedStringArray("dlg_l15_ending_1", "dlg_l15_ending_2", "dlg_l15_ending_3", "dlg_l15_ending_4", "dlg_l15_ending_5", "dlg_l15_ending_6_scarred")
-EmotionKeys = PackedStringArray("emotion_neutral", "emotion_neutral", "emotion_shocked", "emotion_neutral", "emotion_determined", "emotion_neutral")
+SpeakerNameKeys = PackedStringArray("speaker_sarah", "speaker_narration", "speaker_narration", "speaker_narration", "speaker_narration", "speaker_player", "speaker_narration", "speaker_narration", "speaker_sarah")
+LineKeys = PackedStringArray("dlg_l15_ending_1", "dlg_l15_ending_2", "dlg_l15_ending_lesser_1", "dlg_l15_ending_lesser_2", "dlg_l15_ending_lesser_3", "dlg_l15_ending_3", "dlg_l15_ending_6_scarred", "dlg_l15_ending_portal", "dlg_l15_ending_4")
+EmotionKeys = PackedStringArray("emotion_shocked", "emotion_neutral", "emotion_neutral", "emotion_neutral", "emotion_neutral", "emotion_determined", "emotion_neutral", "emotion_neutral", "emotion_neutral")
 PausesGameplay = false
 AutoAdvance = false
 
 [resource]
 script = ExtResource("1")
 DialogueSetID = "dialogue_level_15"
-Sequences = [SubResource("Entrance"), SubResource("PreBoss"), SubResource("BossIntro"), SubResource("PostBoss"), SubResource("Ending"), SubResource("EndingScarred")]
+Sequences = [SubResource("Entrance"), SubResource("BossIntro"), SubResource("Phase3Bark"), SubResource("PostBoss"), SubResource("Ending"), SubResource("EndingScarred")]

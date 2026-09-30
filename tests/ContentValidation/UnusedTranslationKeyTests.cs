@@ -70,7 +70,10 @@ public class UnusedTranslationKeyTests {
         // Package 13 W4 (M14/S29): the Mystery Thread absence lists, built from the
         // saved hero ID (or the fallback row) by the same render-time pass.
         ("missing_so_far_", "scripts/Core/MissingLegendTokens.cs", "$\"missing_so_far_{heroID}\""),
-        ("missing_places_", "scripts/Core/MissingLegendTokens.cs", "$\"missing_places_{heroID}\"")
+        ("missing_places_", "scripts/Core/MissingLegendTokens.cs", "$\"missing_places_{heroID}\""),
+        // Package 13 W3 (S07/S48): the whole-line acceptance and farewell families.
+        ("hero_accept_line_", "scripts/Core/DialogueTokens.cs", "$\"hero_accept_line_{heroID}\""),
+        ("hero_farewell_line_", "scripts/Core/DialogueTokens.cs", "$\"hero_farewell_line_{heroID}\"")
     };
 
     /// <summary>
