@@ -86,7 +86,7 @@ namespace FTT.FighterSim {
             in FighterUltimateData data,
             in FPVector2 anchor) {
             bool statusOnPulses = !FTT.Combat.UltimateActivationRules.StatusRidesFinale(
-                (FTT.Core.StatusType)tuning.UltimateStatusType, data.FinaleDamage);
+                (FTT.Core.StatusType)tuning.UltimateStatusType, data.HasFinale);
             FighterAbilityEntitySystem.SpawnZone(
                 ref frame, ref attacker, UltimateSlot,
                 maxActive: 1,

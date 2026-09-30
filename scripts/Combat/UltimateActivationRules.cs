@@ -77,7 +77,16 @@ namespace FTT.Combat {
         /// Burn), which has to land exactly once to count toward the total.
         /// </summary>
         public static bool StatusRidesFinale(FTT.Core.StatusType status, float finaleDamage) =>
-            finaleDamage > 0f && status != FTT.Core.StatusType.None
+            StatusRidesFinale(status, finaleDamage > 0f);
+
+        /// <summary>
+        /// Float-free form for the deterministic sim (Package 13 Phase C: the
+        /// float overload tripped Klotho's <c>KLOTHO_DET002</c> analyzer from
+        /// <c>scripts/FighterSim/</c>). Same rule; the caller states whether a
+        /// finale is authored.
+        /// </summary>
+        public static bool StatusRidesFinale(FTT.Core.StatusType status, bool hasFinale) =>
+            hasFinale && status != FTT.Core.StatusType.None
             && StatusRouting.SlotOf(status) == StatusSlot.Damage;
 
         /// <summary>

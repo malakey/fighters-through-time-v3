@@ -2977,7 +2977,7 @@ namespace FTT.FighterSim {
             ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
             ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
             bool carriesStatus = FTT.Combat.UltimateActivationRules.StatusRidesFinale(
-                (FTT.Core.StatusType)casterTuning.UltimateStatusType, data.FinaleDamage);
+                (FTT.Core.StatusType)casterTuning.UltimateStatusType, data.HasFinale);
             FighterDamageRules.ApplyFighterHit(
                 ref caster, ref casterRuntime, ref casterVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                 FighterDamageRules.UltimateAttackClass, data.FinaleDamage, casterTuning.UltimateKnockback,
