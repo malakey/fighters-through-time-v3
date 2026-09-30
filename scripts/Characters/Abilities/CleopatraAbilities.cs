@@ -428,12 +428,10 @@ namespace FTT.Characters.Abilities {
                 // eight-second lifetime; it never adds capacity or duration.
                 // The grant identity is the accepted cast, so a duplicate
                 // animation or collision callback for the same cast is refused.
+                // A11 (Package 13 W1): Royal Aegis is a grant source of the
+                // shared ResonanceBarrier.
                 float capacity = FTT.Combat.StoryDefenseRules.GrantedShieldCapacityShare * Owner.MaximumHP;
-                Owner.GrantStoryShield(
-                    FTT.Combat.StoryShieldEffect.RoyalAegis,
-                    capacity,
-                    FTT.Combat.StoryDefenseRules.GrantedShieldLifetimeFrames,
-                    castId);
+                Owner.GrantResonanceBarrier(FTT.Combat.StoryShieldEffect.RoyalAegis, castId);
                 // D02a: "the decoy inherits it as a SEPARATE recipient" — its own
                 // capacity, depletion, lifetime and grant identity, never pooled
                 // with Cleopatra's (Package 12 W4 closes the P11 A1b deviation).

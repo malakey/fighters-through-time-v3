@@ -146,7 +146,8 @@ namespace FTT.Characters.Abilities {
                     AttackerIndex = OwnerIndex,
                     AttackID = _data?.AbilityID ?? "cleopatra_serpent_nest",
                     HitboxID = "nest_bite",
-                    AttackClass = AttackClass.Special,
+                    // A01 (Package 13 W1): persistent-object hits are Basic-class.
+                    AttackClass = AttackClass.Basic,
                     Damage = (_data?.BaseDamage ?? 10f) * damageMultiplier,
                     Knockback = Vector2.Zero,
                     // The design's brief Root (1 s) lands as bite hitstun so the

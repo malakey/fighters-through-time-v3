@@ -53,10 +53,10 @@ namespace FTT.Characters.Abilities {
     /// <summary>
     /// Special 2 — Divine Piercing: a stationary flurry of broadsword thrusts.
     /// The authored HitCount thrusts are spread across the active frames and
-    /// total BaseDamage * HitCount (12). Against a blocking opponent the flurry
-    /// shreds exactly 2 block charges (design Section 5) instead of the
-    /// special-class full shatter, so the block interaction is handled here
-    /// rather than through the generic block path.
+    /// total BaseDamage * HitCount. It is one of the three authored
+    /// Shield-Breakers (A01, Package 13 W1): against a blocking opponent the
+    /// first absorbed thrust spends every remaining charge through the generic
+    /// block path (<c>BlockClass.ShieldBreaker</c> on the resource).
     /// </summary>
     public partial class JoanDivinePiercing : BaseSpecial {
 
@@ -116,12 +116,12 @@ namespace FTT.Characters.Abilities {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
 
-                // V7.6 F15 (Package 11 A1b): Divine Piercing is an ORDINARY
-                // Special-class FULL shatter. The bespoke two-charge
-                // "shield-stutter" path is deleted - the payload below carries
-                // AttackClass.Special, and BlockSystem.ResolveHit takes 1, 2 or
-                // 3 charges to 0 with the normal Special shatter response
-                // (shatter-freeze, daze, 5 s lockout).
+                // V7.6 F15 / A01 (Package 13 W1): Divine Piercing is a
+                // Shield-Breaker — a FULL shatter. joan/special_2.tres authors
+                // BlockClass.ShieldBreaker and Stamp() carries it onto the
+                // payload, so BlockSystem.ResolveHit takes 1, 2 or 3 charges to
+                // 0 with the normal shatter response (shatter-freeze, daze,
+                // 5 s lockout). An ordinary Special would spend only two.
                 //
                 // The multi-hit shatters exactly ONCE per execution without a
                 // separate latch: the shatter transitions the victim to Dazed,

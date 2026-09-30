@@ -16,10 +16,18 @@ namespace FTT.Combat {
                 : hitOrigin.X <= defenderPosition.X;
         }
 
-        public static int ChargeCost(AttackClass attackClass, int currentCharges) => attackClass switch {
+        /// <summary>
+        /// The class-default block cost. A01 (Package 13 W1): an ordinary
+        /// Special spends <c>min(<see cref="BasicComboRules.SpecialBlockChargeCost"/>,
+        /// charges)</c> — a full shield keeps one charge — and only a
+        /// <paramref name="shieldBreaker"/> Special spends every charge.
+        /// </summary>
+        public static int ChargeCost(AttackClass attackClass, int currentCharges, bool shieldBreaker = false) => attackClass switch {
             AttackClass.Basic => 1,
             AttackClass.Hazard => 1,
-            AttackClass.Special => currentCharges,
+            AttackClass.Special => shieldBreaker
+                ? currentCharges
+                : Mathf.Min(BasicComboRules.SpecialBlockChargeCost, currentCharges),
             _ => 0
         };
 
@@ -92,9 +100,11 @@ namespace FTT.Combat {
             // V7.2 classification: an authored per-hit charge cost (Guard-Crush
             // = 2) overrides the class default; no single enemy hit ever
             // full-shatters — shatter comes only from chip or 2 + 2 pressure.
+            // A01 (Package 13 W1): a player Special's default is two charges;
+            // only an authored Shield-Breaker spends every charge.
             int cost = hit.BlockChargeCost > 0
                 ? Mathf.Min(hit.BlockChargeCost, CurrentCharges)
-                : BlockRules.ChargeCost(hit.AttackClass, CurrentCharges);
+                : BlockRules.ChargeCost(hit.AttackClass, CurrentCharges, hit.ShieldBreaker);
             if (cost <= 0) return BlockResult.NotBlocked;
 
             CurrentCharges = Mathf.Max(0, CurrentCharges - cost);
@@ -115,12 +125,12 @@ namespace FTT.Combat {
 
         /// <summary>Story-only Resonance perk key: a successful block summons a phantom shield guard.</summary>
         public const string HenrysBastionPerkKey = "henrys_bastion";
-        private const float HenrysBastionCapacityShare = 0.10f;
 
         /// <summary>
         /// Henry's Bastion (Story-only): a qualifying REAL block summons a
-        /// phantom royal shield guard absorbing up to 10% of Shakespeare's
-        /// maximum HP.
+        /// phantom royal shield guard — a grant of the shared A11
+        /// <c>ResonanceBarrier</c> (Package 13 W1), whose 10%-max-HP capacity
+        /// lives once in <see cref="StoryDefenseRules.GrantedShieldCapacityShare"/>.
         ///
         /// <para><b>V7.6 D01/D02a/D02c (Package 11 A1b).</b> It is granted only
         /// AFTER that block resolves and cannot absorb its own triggering hit —
@@ -135,11 +145,7 @@ namespace FTT.Combat {
         /// </summary>
         private void GrantHenrysBastion(int grantEventId) {
             if (_owner == null || !_owner.HasStoryPerk(HenrysBastionPerkKey)) return;
-            _owner.GrantStoryShield(
-                StoryShieldEffect.HenrysBastion,
-                HenrysBastionCapacityShare * _owner.MaximumHP,
-                StoryDefenseRules.GrantedShieldLifetimeFrames,
-                grantEventId);
+            _owner.GrantResonanceBarrier(StoryShieldEffect.HenrysBastion, grantEventId);
         }
 
         /// <summary>
@@ -206,9 +212,10 @@ namespace FTT.Combat {
         /// <para><b>V7.6 F15 (Package 11 A1b).</b> This is no longer a combat
         /// rule. It used to implement the retired two-charge "shield-stutter"
         /// exception for Lincoln's Emancipator and Joan's Divine Piercing, which
-        /// are now ordinary Special-class FULL shatters resolved through
-        /// <see cref="ResolveHit"/> like every other Special — both call sites
-        /// are deleted. What remains is a plain charge-spend utility for
+        /// are FULL shatters resolved through <see cref="ResolveHit"/> — since
+        /// A01 (Package 13 W1) as authored <see cref="BlockClass.ShieldBreaker"/>
+        /// Specials, alongside Splitting Strike — and both call sites are
+        /// deleted. What remains is a plain charge-spend utility for
         /// scripted and test setup, and it deliberately no longer fires the
         /// Guard Impact haptic, because nothing routed through it is a
         /// "successful block" any more.</para>

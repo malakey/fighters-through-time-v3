@@ -1616,7 +1616,13 @@ namespace FTT.FighterSim {
     /// fighter pushbox.
     /// </summary>
     public sealed class FighterPushboxSystem : ISystem {
-        public static readonly FP64 MinimumHorizontalDistance = FP64.FromDouble(0.8);
+        /// <summary>
+        /// A13 (Package 13 W1): the universal 0.6-unit lower-torso pushbox —
+        /// two fighters at contact stand this far apart. Was 0.8, wider than
+        /// the grab could reach from contact.
+        /// </summary>
+        public static readonly FP64 MinimumHorizontalDistance =
+            FP64.FromDouble(FTT.Combat.BasicComboRules.PushboxWidthUnits);
         private static readonly FP64 MaximumVerticalDistance = FP64.FromDouble(1.6);
 
         private readonly FP64 LeftWall;
@@ -1737,12 +1743,11 @@ namespace FTT.FighterSim {
         private const int SpecialOneButton = 1 << 3;
         private const int SpecialTwoButton = 1 << 4;
         private const int UltimateButton = 1 << 7;
-        // V7.6 F15 (Package 11 A1b): the two-charge "shield-stutter" exception
-        // is RETIRED. Joan's Divine Piercing and Lincoln's Emancipator are
-        // ordinary Special-class FULL shatters against a charge-based shield in
-        // both modes - 1, 2 or 3 charges all go to 0 with the normal Special
-        // shatter response (shatter-freeze, daze, 5 s lockout). Lincoln's S1
-        // already passed 0 here, so the two modes disagreed until now.
+        // A01 (Package 13 W1): an ordinary blocked Special spends min(2,
+        // charges); the three authored Shield-Breakers (Divine Piercing, The
+        // Emancipator, Splitting Strike) spend every charge — 1, 2 or 3 go to 0
+        // with the normal shatter response. The block class rides the
+        // projected FighterAbilityHitData, never a blockChargeCost override.
         private static readonly FP64 AttackRange = FP64.FromInt(2);
         private static readonly FP64 AttackVerticalRange = FP64.FromDouble(1.6);
         // V7 normative string hitboxes (design "Hitbox & Hurtbox Geometry"):
@@ -2501,11 +2506,12 @@ namespace FTT.FighterSim {
                     tuning.UltimateStatusIntensity,
                     launches: launches);
             }
+            // A01/D10 (Package 13 W1): a melee Special intent reads the
+            // contract's block class (Shield-Breaker) and signed knockback.
             if ((attackerRuntime.PressedButtons & SpecialOneButton) != 0 && attackerRuntime.SpecialOneCooldownFrames <= 0) {
-                ResolveIntentContract(
-                    contracts.For(attacker.PlayerID, FighterHitContractTable.SlotSpecialOne),
-                    LegacySpecialHitstunFrames, out int hitstun, out bool launches);
-                return new AttackIntent(
+                FighterAbilityHitData contract = contracts.For(attacker.PlayerID, FighterHitContractTable.SlotSpecialOne);
+                ResolveIntentContract(contract, LegacySpecialHitstunFrames, out int hitstun, out bool launches);
+                return AttackIntent.Special(
                     2,
                     tuning.SpecialOneDamage,
                     tuning.SpecialOneKnockback,
@@ -2514,13 +2520,13 @@ namespace FTT.FighterSim {
                     tuning.SpecialOneStatusFrames,
                     tuning.SpecialOneStatusIntensity,
                     tuning.SpecialOneCooldownFrames,
-                    launches: launches);
+                    launches,
+                    in contract);
             }
             if ((attackerRuntime.PressedButtons & SpecialTwoButton) != 0 && attackerRuntime.SpecialTwoCooldownFrames <= 0) {
-                ResolveIntentContract(
-                    contracts.For(attacker.PlayerID, FighterHitContractTable.SlotSpecialTwo),
-                    LegacySpecialHitstunFrames, out int hitstun, out bool launches);
-                return new AttackIntent(
+                FighterAbilityHitData contract = contracts.For(attacker.PlayerID, FighterHitContractTable.SlotSpecialTwo);
+                ResolveIntentContract(contract, LegacySpecialHitstunFrames, out int hitstun, out bool launches);
+                return AttackIntent.Special(
                     4,
                     tuning.SpecialTwoDamage,
                     tuning.SpecialTwoKnockback,
@@ -2529,7 +2535,8 @@ namespace FTT.FighterSim {
                     tuning.SpecialTwoStatusFrames,
                     tuning.SpecialTwoStatusIntensity,
                     tuning.SpecialTwoCooldownFrames,
-                    launches: launches);
+                    launches,
+                    in contract);
             }
             // Basic attacks no longer resolve here: the phase machine in
             // FighterMovementSystem starts and times the swing, and
@@ -2594,7 +2601,10 @@ namespace FTT.FighterSim {
                 // (D03g), which is why collectsEcho is untouched.
                 creditInfluence: attackClass != FighterDamageRules.UltimateAttackClass,
                 blockChargeCost: intent.BlockChargeCost,
-                launches: intent.Launches);
+                launches: intent.Launches,
+                shieldBreaker: intent.ShieldBreaker,
+                hasKnockbackVector: intent.HasKnockbackVector,
+                knockbackVertical: intent.KnockbackVertical);
         }
 
         private readonly struct AttackIntent {
@@ -2609,6 +2619,12 @@ namespace FTT.FighterSim {
             public readonly int BlockChargeCost;
             /// <summary>M05: the authored launch flag of the ability this intent executes.</summary>
             public readonly bool Launches;
+            /// <summary>A01: the ability is an authored Shield-Breaker.</summary>
+            public readonly bool ShieldBreaker;
+            /// <summary>D10: the knockback is the authored signed vector (Knockback = |x|).</summary>
+            public readonly bool HasKnockbackVector;
+            /// <summary>D10: the authored Y-up vertical; negative is a spike.</summary>
+            public readonly FP64 KnockbackVertical;
 
             public AttackIntent(
                 int kind,
@@ -2620,7 +2636,10 @@ namespace FTT.FighterSim {
                 FP64 statusIntensity = default,
                 int cooldownFrames = 600,
                 int blockChargeCost = 0,
-                bool launches = true) {
+                bool launches = true,
+                bool shieldBreaker = false,
+                bool hasKnockbackVector = false,
+                FP64 knockbackVertical = default) {
                 Kind = kind;
                 Damage = damage;
                 Knockback = knockback;
@@ -2631,7 +2650,26 @@ namespace FTT.FighterSim {
                 CooldownFrames = cooldownFrames;
                 BlockChargeCost = blockChargeCost;
                 Launches = launches;
+                ShieldBreaker = shieldBreaker;
+                HasKnockbackVector = hasKnockbackVector;
+                KnockbackVertical = knockbackVertical;
             }
+
+            /// <summary>
+            /// D10: the intent's knockback — the contract's signed vector when
+            /// one is projected, otherwise the historical tuning scalar.
+            /// </summary>
+            public static AttackIntent Special(
+                int kind, int damage, FP64 tuningKnockback, int hitstunFrames,
+                int statusType, int statusFrames, FP64 statusIntensity, int cooldownFrames,
+                bool launches, in FighterAbilityHitData contract) =>
+                new(kind, damage,
+                    contract.HasKnockbackVector ? contract.KnockbackX : tuningKnockback,
+                    hitstunFrames, statusType, statusFrames, statusIntensity, cooldownFrames,
+                    launches: launches,
+                    shieldBreaker: contract.ShieldBreaker,
+                    hasKnockbackVector: contract.HasKnockbackVector,
+                    knockbackVertical: contract.KnockbackY);
         }
     }
 
@@ -2656,6 +2694,12 @@ namespace FTT.FighterSim {
             bool timerExpired = match.TimerEnabled == 1 && match.RemainingFrames <= 0;
             UpdateOvertimeFlags(ref frame, in match);
             TrackStockLosses(ref frame, ref match, out int playerOneFell, out int playerTwoFell);
+            // A04 (Package 13 W1): a stock lost anywhere in this tick — the
+            // blast zone included, which resolves after the object systems ran
+            // — despawns the fallen fighter's objects and zones on this tick.
+            if (playerOneFell > 0 || playerTwoFell > 0) {
+                FighterStockLossRules.DespawnOwnedBy(ref frame, playerOneFell > 0, playerTwoFell > 0);
+            }
 
             // F22: the next ACTUAL death ends it — one dead fighter loses, two in
             // the same tick is the existing Draw. Nothing else can end Sudden Death

@@ -15,10 +15,22 @@ namespace FTT.Combat {
     /// </summary>
     public enum StoryShieldEffect {
         None = 0,
+        /// <summary>A11: a grant SOURCE of <see cref="ResonanceBarrier"/>, never a live effect ID.</summary>
         HenrysBastion = 1,
+        /// <summary>A11: a grant SOURCE of <see cref="ResonanceBarrier"/>, never a live effect ID.</summary>
         RoyalAegis = 2,
+        /// <summary>A11: a grant SOURCE of <see cref="ResonanceBarrier"/>, never a live effect ID.</summary>
         LeafBarrier = 3,
-        Wardenclyffe = 4
+        Wardenclyffe = 4,
+        /// <summary>
+        /// A11 (Package 13 W1, appended — ordinals 1–4 are stable): the one
+        /// shared status Henry's Bastion, Royal Aegis and Leaf Barrier (North
+        /// Star Ward once W5 lands) grant. 10 % max HP, the D02c 8-second live
+        /// lifetime, refill-not-stack on any valid grant from any source, at
+        /// most one instance per recipient. The granting source is recorded on
+        /// <see cref="StoryShieldInstance.Source"/> for presentation only.
+        /// </summary>
+        ResonanceBarrier = 5
     }
 
     /// <summary>
@@ -38,6 +50,13 @@ namespace FTT.Combat {
         public const int NoExpiry = -1;
 
         public StoryShieldEffect EffectId;
+        /// <summary>
+        /// A11: the source that granted a <see cref="StoryShieldEffect.ResonanceBarrier"/>
+        /// (Henry's Bastion / Royal Aegis / Leaf Barrier) — presentation and
+        /// source-specific eligibility only, never a separate stack. Equal to
+        /// <see cref="EffectId"/> for every other effect.
+        /// </summary>
+        public StoryShieldEffect Source;
         public float Points;
         public float Capacity;
         public int RemainingFrames;
@@ -62,8 +81,17 @@ namespace FTT.Combat {
         /// </summary>
         public const int GrantedShieldLifetimeFrames = 480;
 
-        /// <summary>The three granted shields share a 10%-max-HP capacity.</summary>
+        /// <summary>The shared <c>ResonanceBarrier</c> absorbs 10 % of max HP (A11).</summary>
         public const float GrantedShieldCapacityShare = 0.10f;
+
+        /// <summary>
+        /// A11 (Package 13 W1): the three perk grants that feed the one shared
+        /// <see cref="StoryShieldEffect.ResonanceBarrier"/>.
+        /// </summary>
+        public static bool IsResonanceBarrierSource(StoryShieldEffect effect) =>
+            effect is StoryShieldEffect.HenrysBastion
+                or StoryShieldEffect.RoyalAegis
+                or StoryShieldEffect.LeafBarrier;
 
         /// <summary>D02d: Wardenclyffe's absorption cap is 15% of max HP.</summary>
         public const float WardenclyffeCapacityShare = 0.15f;

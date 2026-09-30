@@ -113,9 +113,34 @@ namespace FTT.FighterSim {
 
             FP64 dx = target.Position.x - grabber.Position.x;
             FP64 front = grabber.FacingRight != 0 ? dx : -dx;
-            return front >= FP64.Zero && front <= GrabReach
+            // A13 (Package 13 W1): the grab box runs from the grabber's pivot to
+            // GrabReach forward at hurtbox height and is tested against the
+            // TARGET'S HURTBOX, not its pivot — so it always connects at pushbox
+            // contact (pivots 0.6 apart) and out to reach + half the target's
+            // hurtbox (1.2 against the 0.8 template). Mirrors
+            // BasicComboRules.GrabBoxReaches in fixed point.
+            FP64 half = TargetHurtboxHalfWidth(target.CharacterID);
+            return front >= -half && front <= GrabReach + half
                 && FP64.Abs(target.Position.y - grabber.Position.y) <= FP64.One;
         }
+
+        private static readonly FP64 TemplateHurtboxHalfWidth =
+            FP64.FromDouble(FTT.Combat.BasicComboRules.TemplateHurtboxWidthUnits / 2.0);
+        private static readonly FP64 LincolnHurtboxHalfWidth =
+            FP64.FromDouble(FTT.Combat.BasicComboRules.LincolnHurtboxWidthUnits / 2.0);
+        private static readonly FP64 CleopatraHurtboxHalfWidth =
+            FP64.FromDouble(FTT.Combat.BasicComboRules.CleopatraHurtboxWidthUnits / 2.0);
+
+        /// <summary>
+        /// A13: half the design hurtbox width of a roster character — the
+        /// template, with the Lincoln and Cleopatra overrides. Process-constant
+        /// fixed point; no float math runs per tick.
+        /// </summary>
+        internal static FP64 TargetHurtboxHalfWidth(int characterID) => (FighterCharacterID)characterID switch {
+            FighterCharacterID.Lincoln => LincolnHurtboxHalfWidth,
+            FighterCharacterID.Cleopatra => CleopatraHurtboxHalfWidth,
+            _ => TemplateHurtboxHalfWidth
+        };
 
         /// <summary>
         /// Resolves the throw direction from the grabber's held input when the

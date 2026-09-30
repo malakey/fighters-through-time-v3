@@ -7,9 +7,9 @@ namespace FTT.Characters.Abilities {
 
     /// <summary>
     /// Special 1 — The Emancipator: Lincoln slams his rail into the ground and a
-    /// shockwave travels forward along the floor, knocking enemies upward. Blocked
-    /// hits deplete exactly 2 block charges instead of the generic full-shatter
-    /// special rule. Timing, damage, speed, and travel come from the authored
+    /// shockwave travels forward along the floor, knocking enemies upward. It is
+    /// an authored Shield-Breaker (A01, Package 13 W1): a blocked wave spends
+    /// every remaining charge. Timing, damage, speed, and travel come from the authored
     /// AbilityData (travel distance = ProjectileSpeed x ProjectileLifetime).
     /// Story-only Resonance perk Executive Order: +50% travel distance and +20%
     /// damage.
@@ -111,12 +111,11 @@ namespace FTT.Characters.Abilities {
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
                 if (!_struckHurtboxes.Add(hurtbox.GetInstanceId())) continue;
 
-                // V7.6 F15 (Package 11 A1b): The Emancipator is an ORDINARY
-                // Special-class FULL shatter. The bespoke two-charge
-                // "shield-stutter" path is deleted; the Special-class payload
-                // below takes 1, 2 or 3 charges to 0 through the normal
-                // BlockSystem.ResolveHit response. The sim already passed 0 for
-                // Lincoln's S1, so the two modes disagreed until now.
+                // V7.6 F15 / A01 (Package 13 W1): The Emancipator is a
+                // Shield-Breaker FULL shatter. Stamp() carries the resource's
+                // BlockClass.ShieldBreaker onto the payload, so the normal
+                // BlockSystem.ResolveHit response takes 1, 2 or 3 charges to 0;
+                // an ordinary Special would spend only two.
                 HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "lincoln_emancipator",
@@ -142,8 +141,8 @@ namespace FTT.Characters.Abilities {
 
     /// <summary>
     /// Special 2 — Splitting Strike: a massive overhead arc dealing the authored
-    /// 18 damage through the shared hitbox contract. A blocking target loses every
-    /// charge at once (the canonical special-versus-shield shatter rule); airborne
+    /// damage through the shared hitbox contract. A blocking target loses every
+    /// charge at once (an authored Shield-Breaker — A01, Package 13 W1); airborne
     /// targets caught in the arc are spiked straight down. The Story-only
     /// Resonance perk Kinetic Splitting (V7.6) bounces a spiked target off the
     /// ground into a follow-up window and adds +50% against Chronal Extractors

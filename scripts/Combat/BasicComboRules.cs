@@ -397,6 +397,14 @@ namespace FTT.Combat {
 
         /// <summary>Frames a non-shatter blocked hit locks the blocker into the stance.</summary>
         public const int ShieldstunFrames = 8;
+        /// <summary>
+        /// A01 (Package 13 W1, 2026-09-29): charges an ordinary blocked player
+        /// Special spends — <c>min(2, charges)</c>, leaving one from a full
+        /// shield (with the ordinary shieldstun) and shattering at one or two.
+        /// Only a <c>BlockClass.ShieldBreaker</c> Special spends every charge.
+        /// Both modes read this one value.
+        /// </summary>
+        public const int SpecialBlockChargeCost = 2;
         /// <summary>A shatter replaces the blocked-hit hitstop with this shared freeze.</summary>
         public const int ShatterFreezeFrames = 16;
         /// <summary>Post-shatter lockout (5 s): no stance, regen held. With the
@@ -438,8 +446,56 @@ namespace FTT.Combat {
         public const int GrabActiveFrames = 4;
         /// <summary>Whiff recovery — the most punishable committal in the kit.</summary>
         public const int GrabWhiffRecoveryFrames = 24;
-        /// <summary>Grab reach in world units (inside jab range).</summary>
+        /// <summary>
+        /// Grab reach in world units (inside jab range). A13 (Package 13 W1):
+        /// the grab box spans from the grabber's pivot to this far forward, at
+        /// hurtbox height, and is tested against the TARGET's hurtbox — so it
+        /// connects at pushbox contact and out to <see cref="GrabMaxPivotDistanceUnits"/>.
+        /// </summary>
         public const float GrabReachUnits = 0.8f;
+
+        // === A13 combatant geometry (Package 13 W1, 2026-09-29) ===
+
+        /// <summary>
+        /// A13: every combatant's lower-torso pushbox is this wide, so two
+        /// fighters at pushbox contact stand this far apart pivot-to-pivot.
+        /// Story's <c>CombatantPushbox</c> (× <see cref="KitMotionRules.StoryPixelsPerUnit"/>)
+        /// and the sim's minimum separation both read it.
+        /// </summary>
+        public const float PushboxWidthUnits = 0.6f;
+
+        /// <summary>The universal template hurtbox width (design "Hitbox &amp; Hurtbox Geometry").</summary>
+        public const float TemplateHurtboxWidthUnits = 0.8f;
+        /// <summary>Abraham Lincoln's hurtbox override width (tall/heavy).</summary>
+        public const float LincolnHurtboxWidthUnits = 0.9f;
+        /// <summary>Cleopatra's hurtbox override width (slim).</summary>
+        public const float CleopatraHurtboxWidthUnits = 0.7f;
+
+        /// <summary>The design hurtbox width for a roster character ID.</summary>
+        public static float HurtboxWidthUnitsFor(string characterID) => characterID switch {
+            "lincoln" => LincolnHurtboxWidthUnits,
+            "cleopatra" => CleopatraHurtboxWidthUnits,
+            _ => TemplateHurtboxWidthUnits
+        };
+
+        /// <summary>
+        /// A13: the farthest pivot-to-pivot distance at which a grab connects
+        /// with <paramref name="targetCharacterID"/> — the reach plus half the
+        /// target's hurtbox (1.2 against the 0.8 template).
+        /// </summary>
+        public static float GrabMaxPivotDistanceUnits(string targetCharacterID) =>
+            GrabReachUnits + HurtboxWidthUnitsFor(targetCharacterID) * 0.5f;
+
+        /// <summary>
+        /// A13: the one grab-reach predicate both modes mirror. The grab box is
+        /// [0, <see cref="GrabReachUnits"/>] ahead of the grabber's pivot; the
+        /// target hurtbox is its pivot ± half its width. They overlap when the
+        /// target's front-signed pivot offset lies in [-half, reach + half].
+        /// </summary>
+        public static bool GrabBoxReaches(float frontOffsetUnits, float targetHurtboxWidthUnits) {
+            float half = targetHurtboxWidthUnits * 0.5f;
+            return frontOffsetUnits >= -half && frontOffsetUnits <= GrabReachUnits + half;
+        }
         /// <summary>Two grabs connecting the same frame bounce both back this long.</summary>
         public const int GrabClashBounceFrames = 8;
         /// <summary>The held victim's decision window before the throw resolves.</summary>

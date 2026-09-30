@@ -280,13 +280,25 @@ namespace FTT.Characters {
 			int lifetimeFrames = FTT.Combat.StoryDefenseRules.GrantedShieldLifetimeFrames,
 			int grantEventId = 0) {
 			if (effect == FTT.Combat.StoryShieldEffect.None || capacity <= 0f) return false;
+			// A11 (Package 13 W1): Henry's Bastion, Royal Aegis and Leaf Barrier
+			// are grant SOURCES of the one shared ResonanceBarrier. Any valid
+			// grant from any source refills the single instance and restarts its
+			// lifetime; the source is recorded for presentation. A duplicate
+			// callback is keyed on (source, grant event), so one source's repeat
+			// ID never refuses another source's genuine grant.
+			FTT.Combat.StoryShieldEffect source = effect;
+			if (FTT.Combat.StoryDefenseRules.IsResonanceBarrierSource(effect)) {
+				effect = FTT.Combat.StoryShieldEffect.ResonanceBarrier;
+			}
 			if (grantEventId != 0
 				&& _storyShield.EffectId == effect
+				&& _storyShield.Source == source
 				&& _storyShield.GrantEventId == grantEventId) {
 				return false;
 			}
 			_storyShield = new FTT.Combat.StoryShieldInstance {
 				EffectId = effect,
+				Source = source,
 				Capacity = MathF.Max(0f, capacity),
 				Points = MathF.Max(0f, capacity),
 				RemainingFrames = lifetimeFrames,
@@ -294,6 +306,25 @@ namespace FTT.Characters {
 			};
 			return true;
 		}
+
+		/// <summary>
+		/// A11 (Package 13 W1): grant or refill the shared
+		/// <see cref="FTT.Combat.StoryShieldEffect.ResonanceBarrier"/> from
+		/// <paramref name="source"/> — 10 % of max HP
+		/// (<see cref="FTT.Combat.StoryDefenseRules.GrantedShieldCapacityShare"/>)
+		/// for the D02c 480 live ticks. The one entry point the three perks use,
+		/// so the capacity and lifetime live in exactly one place.
+		/// </summary>
+		public bool GrantResonanceBarrier(FTT.Combat.StoryShieldEffect source, int grantEventId) =>
+			FTT.Combat.StoryDefenseRules.IsResonanceBarrierSource(source)
+			&& GrantStoryShield(
+				source,
+				FTT.Combat.StoryDefenseRules.GrantedShieldCapacityShare * MaximumHP,
+				FTT.Combat.StoryDefenseRules.GrantedShieldLifetimeFrames,
+				grantEventId);
+
+		/// <summary>A11: the source that granted the live barrier (presentation only).</summary>
+		public FTT.Combat.StoryShieldEffect StoryShieldSource => _storyShield.Source;
 
 		/// <summary>
 		/// Wardenclyffe only (D02d). The shield is a CONTINUOUSLY RECHARGING
@@ -309,6 +340,7 @@ namespace FTT.Characters {
 				// builds at the normal rate and never starts full.
 				_storyShield = new FTT.Combat.StoryShieldInstance {
 					EffectId = FTT.Combat.StoryShieldEffect.Wardenclyffe,
+					Source = FTT.Combat.StoryShieldEffect.Wardenclyffe,
 					Capacity = resolved,
 					Points = 0f,
 					RemainingFrames = FTT.Combat.StoryShieldInstance.NoExpiry,
@@ -708,8 +740,43 @@ namespace FTT.Characters {
 		private int _grabThrowDirection;
 		private FTT.Enemies.EnemyController _grabbedEnemy;
 
-		/// <summary>Grab reach in Story pixels (0.8 units at 62.5 px/unit).</summary>
-		private const float GrabReachPixels = FTT.Combat.BasicComboRules.GrabReachUnits * 62.5f;
+		/// <summary>
+		/// Grab reach in Story pixels. A13 (Package 13 W1): at the Story
+		/// convention of <see cref="FTT.Combat.KitMotionRules.StoryPixelsPerUnit"/>
+		/// (60) — the same scale the 36 px pushbox uses — rather than the stage
+		/// conformance scale 62.5, so contact geometry agrees with the pushbox.
+		/// </summary>
+		private const float GrabReachPixels =
+			FTT.Combat.BasicComboRules.GrabReachUnits * FTT.Combat.KitMotionRules.StoryPixelsPerUnit;
+
+		/// <summary>
+		/// A13: the target's actual hurtbox width in pixels (its <c>Hurtbox</c>
+		/// child's rectangle), falling back to the 0.8-unit template. The grab
+		/// box is tested against this, not the target's pivot.
+		/// </summary>
+		internal static float HurtboxWidthPixels(Node body) {
+			if (body?.GetNodeOrNull<FTT.Combat.Hurtbox>("Hurtbox") is FTT.Combat.Hurtbox hurtbox) {
+				Godot.Collections.Array<Node> children = hurtbox.GetChildren();
+				using var lifetime = children.AsDisposable();
+				foreach (Node child in children) {
+					if (child is CollisionShape2D { Shape: RectangleShape2D rect }) return rect.Size.X;
+				}
+			}
+			return FTT.Combat.BasicComboRules.TemplateHurtboxWidthUnits * FTT.Combat.KitMotionRules.StoryPixelsPerUnit;
+		}
+
+		/// <summary>
+		/// A13 Story mirror of <see cref="FTT.Combat.BasicComboRules.GrabBoxReaches"/>:
+		/// the box [0, reach] ahead of this pivot against the target hurtbox.
+		/// </summary>
+		internal bool GrabBoxReaches(Node2D target) {
+			float facing = IsFacingRight ? 1f : -1f;
+			Vector2 offset = target.GlobalPosition - GlobalPosition;
+			float half = HurtboxWidthPixels(target) * 0.5f;
+			float front = offset.X * facing;
+			return front >= -half && front <= GrabReachPixels + half
+				&& Mathf.Abs(offset.Y) <= FTT.Combat.KitMotionRules.StoryPixelsPerUnit;
+		}
 
 		/// <summary>Current grab phase (0 when not grabbing). Test seam.</summary>
 		public int GrabPhase => _grabPhase;
@@ -2041,7 +2108,8 @@ namespace FTT.Characters {
 
 		/// <summary>
 		/// V7.6 Echo Step initiation. During the recovery frames of the player's own
-		/// swing (basic, directional, or special) the Block+Roll chord — or the
+		/// basic or directional swing (A06, Package 13 W1: a Special's recovery no
+		/// longer qualifies) the Block+Roll chord — or the
 		/// direct <c>gameplay_echo_step</c> bind — snaps to the position held
 		/// <b>exactly</b> 30 ticks earlier.
 		///
@@ -2131,9 +2199,10 @@ namespace FTT.Characters {
 				? 0.5f
 				: 1f;
 			ApplyGravity(dt * gravityMultiplier);
-			// V7.1 Echo Step: a special's recovery frames also qualify.
+			// A06 (Package 13 W1): Echo Step is eligible only from the recovery
+			// of your own basic or directional attack — a Special's recovery no
+			// longer qualifies, so a zoner cannot fire and rewind to safety.
 			if (ability?.CurrentPhase == FTT.Combat.AbilityPhase.Recovery) {
-				TryStartEchoStep();
 				// Package 12 W3: Block may cancel a Special's RECOVERY frames,
 				// exactly as it cancels a basic's (design 752/3080: recovery
 				// frames define block-cancel eligibility, M08). Grounded only —
@@ -2255,10 +2324,9 @@ namespace FTT.Characters {
 				// Grabs are a neutral tool: they whiff against a victim already
 				// in hitstun or daze, exactly as the sim's rule reads.
 				if (enemy.CurrentState is FTT.Enemies.EnemyState.Stunned) continue;
-				Vector2 offset = enemy.GlobalPosition - GlobalPosition;
-				float front = offset.X * facing;
-				if (front < 0f || front > GrabReachPixels) continue;
-				if (Mathf.Abs(offset.Y) > 62.5f) continue;
+				// A13: the grab box is tested against the enemy's hurtbox.
+				if (!GrabBoxReaches(enemy)) continue;
+				float front = (enemy.GlobalPosition.X - GlobalPosition.X) * facing;
 				if (front < bestDistance) {
 					bestDistance = front;
 					best = enemy;

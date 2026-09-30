@@ -363,11 +363,9 @@ namespace FTT.Characters.Abilities {
         /// </summary>
         private void ApplyLeafBarrier() {
             if (Owner == null || !Owner.HasStoryPerk(LeafBarrierPerkKey)) return;
-            Owner.GrantStoryShield(
-                FTT.Combat.StoryShieldEffect.LeafBarrier,
-                FTT.Combat.StoryDefenseRules.GrantedShieldCapacityShare * Owner.MaximumHP,
-                FTT.Combat.StoryDefenseRules.GrantedShieldLifetimeFrames,
-                ++_glideEntryId);
+            // A11 (Package 13 W1): a grant source of the shared ResonanceBarrier
+            // (W5 replaces it with Tubman's North Star Ward).
+            Owner.GrantResonanceBarrier(FTT.Combat.StoryShieldEffect.LeafBarrier, ++_glideEntryId);
         }
 
         /// <summary>

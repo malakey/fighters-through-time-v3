@@ -169,7 +169,8 @@ namespace FTT.Characters.Abilities {
             AttackerIndex = OwnerIndex,
             AttackID = _data?.AbilityID ?? "pocahontas_vine_snare",
             HitboxID = hitboxID,
-            AttackClass = AttackClass.Special,
+            // A01 (Package 13 W1): persistent-object hits are Basic-class.
+            AttackClass = AttackClass.Basic,
             Damage = damage,
             Knockback = Vector2.Zero,
             HitstunDuration = 0f,

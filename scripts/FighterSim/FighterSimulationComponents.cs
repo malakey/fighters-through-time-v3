@@ -34,6 +34,21 @@ namespace FTT.FighterSim {
         public bool Launches { get; init; }
         public int Delivery { get; init; }
         public int Origin { get; init; }
+        /// <summary>
+        /// D10 (Package 13 W1): the authored knockback as a SIGNED vector in sim
+        /// world units — <see cref="KnockbackX"/> the horizontal magnitude
+        /// (pushed away from the hit origin) and <see cref="KnockbackY"/> the
+        /// Y-up vertical, negative for a spike. Replaces the retired
+        /// <c>max(|x|, |y|)</c> flattening for every path that reads the
+        /// contract. False for a slot with no projected ability, which keeps
+        /// the tuning scalar.
+        /// </summary>
+        public bool HasKnockbackVector { get; init; }
+        public FP64 KnockbackX { get; init; }
+        public FP64 KnockbackY { get; init; }
+
+        /// <summary>A01: true when the ability is an authored Shield-Breaker.</summary>
+        public bool ShieldBreaker => BlockClass == (int)FTT.Combat.BlockClass.ShieldBreaker;
 
         /// <summary>Today's generic Special contract: 12 f, Special, launches, direct, Special origin.</summary>
         public static FighterAbilityHitData DefaultSpecial => new() {

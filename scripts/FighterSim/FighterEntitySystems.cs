@@ -113,6 +113,59 @@ namespace FTT.FighterSim {
     }
 
     /// <summary>
+    /// A04 (Package 13 W1, Fighter only): a fighter who loses a stock loses
+    /// every persistent object (component 303 — constructs, the turret, the
+    /// nest, the snare, Mozart's staff platforms) and every attack zone
+    /// (component 309) it owns, on the KO tick, with no final attack and no
+    /// pending damage. Projectiles already in flight are untouched and finish.
+    /// Story keeps its persist-through-death rule; nothing here reaches it.
+    ///
+    /// <para>The stock-loss chokepoint <c>FighterSimulationRules.ApplyStockLoss</c>
+    /// holds no Frame, so — exactly like the Conductive mark's
+    /// <c>ClearMarkIfRespawning</c> — the observable post-KO state is read
+    /// instead: a fighter on the Chronal Respawn Platform, or out of stocks, is
+    /// by definition past a stock loss. The platform holds every input, so a
+    /// fallen owner cannot deploy anything new while this reads true. The sweep
+    /// runs at the top of the persistent-object and zone systems (so a KO
+    /// earlier in the tick denies the object its next action) and after the
+    /// match system's KO bookkeeping (so a late-tick blast-zone KO also clears
+    /// on its own tick). It is idempotent and needs no new snapshot field.</para>
+    /// </summary>
+    internal static class FighterStockLossRules {
+        public static bool IsFallen(in FighterStateComponent fighter) =>
+            fighter.Stocks <= 0 || fighter.RespawnFramesRemaining > 0;
+
+        /// <summary>Destroys every 303/309 entity owned by a fallen fighter.</summary>
+        public static void DespawnOwnedByFallenFighters(ref Frame frame) {
+            bool playerOneFallen = false;
+            bool playerTwoFallen = false;
+            var fighters = frame.Filter<FighterStateComponent>();
+            while (fighters.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref frame.GetReadOnly<FighterStateComponent>(entity);
+                if (!IsFallen(in fighter)) continue;
+                if (fighter.PlayerID == 0) playerOneFallen = true;
+                else if (fighter.PlayerID == 1) playerTwoFallen = true;
+            }
+            if (!playerOneFallen && !playerTwoFallen) return;
+            DespawnOwnedBy(ref frame, playerOneFallen, playerTwoFallen);
+        }
+
+        /// <summary>Destroys the persistent objects and zones of the flagged owners.</summary>
+        public static void DespawnOwnedBy(ref Frame frame, bool playerOne, bool playerTwo) {
+            var persistents = frame.Filter<FighterPersistentObjectComponent>();
+            while (persistents.Next(out EntityRef entity)) {
+                int owner = frame.GetReadOnly<FighterPersistentObjectComponent>(entity).OwnerPlayerID;
+                if ((owner == 0 && playerOne) || (owner == 1 && playerTwo)) frame.DestroyEntity(entity);
+            }
+            var zones = frame.Filter<FighterZoneComponent>();
+            while (zones.Next(out EntityRef entity)) {
+                int owner = frame.GetReadOnly<FighterZoneComponent>(entity).OwnerPlayerID;
+                if ((owner == 0 && playerOne) || (owner == 1 && playerTwo)) frame.DestroyEntity(entity);
+            }
+        }
+    }
+
+    /// <summary>
     /// V7.6 F07 (Package 11 A1): the deterministic half of the caster-owned
     /// Conductive MARK. A mark is NOT a status — it occupies neither status slot,
     /// causes no action lock, and contributes zero stagger budget — so it has its
@@ -337,7 +390,21 @@ namespace FTT.FighterSim {
             bool appliesHitstop = true,
             bool blockCancelableHitstun = true,
             bool bypassesFiniteShields = false,
-            bool launches = true) {
+            bool launches = true,
+            bool shieldBreaker = false,
+            bool hasKnockbackVector = false,
+            FP64 knockbackVertical = default) {
+            // A01 (Package 13 W1): shieldBreaker marks an authored Shield-Breaker
+            // Special — a valid block spends every charge; an ordinary Special
+            // spends min(2, charges).
+            //
+            // D10 (Package 13 W1): with hasKnockbackVector the impulse is the
+            // authored SIGNED vector — `knockback` is the horizontal magnitude
+            // (always pushed away from the hit origin) and `knockbackVertical`
+            // the Y-up vertical component, negative for a spike. Both are scaled
+            // by the same weight / low-HP rule. Without it the historical scalar
+            // form stands: one magnitude on both axes, the vertical biased by
+            // verticalKnockbackScale.
             if (target.InvulnerabilityFrames > 0 || target.Stocks <= 0) return false;
             // V7.6 D04 (Package 11 A1b): the Defy protected-recovery gate sits
             // ABOVE every other layer. A rejected contact spends no Aegis, no
@@ -381,7 +448,9 @@ namespace FTT.FighterSim {
             // Pure tick/status pulses (zone effects) carry no impulse: they bypass
             // the front-facing shield and must not interrupt movement or zero the
             // target's velocity.
-            bool carriesImpulse = knockback > FP64.Zero || hitstunFrames > 0;
+            bool hasImpulse = knockback > FP64.Zero
+                || (hasKnockbackVector && knockbackVertical != FP64.Zero);
+            bool carriesImpulse = hasImpulse || hitstunFrames > 0;
             // The absorb requires the real grounded stance (mirrors Story's
             // Blocking state): no blocking while airborne, mid-swing, mid
             // roll, or inside hitstun/daze.
@@ -392,13 +461,19 @@ namespace FTT.FighterSim {
                 : hitOriginX <= target.Position.x;
             if (targetBlocking && hitInFront && attackClass != UltimateAttackClass && target.BlockCharges > 0) {
                 // blockChargeCost > 0 overrides the class default (a Story
-                // Guard-Crush costs 2). V7.6 F15 retired the two-charge
-                // "shield-stutter" exception: Divine Piercing and The
-                // Emancipator are ordinary Special-class FULL shatters in both
-                // modes, so nothing passes a cost here for them any more.
+                // Guard-Crush costs 2). A01 (Package 13 W1): an ordinary
+                // Special spends min(2, charges) — a full shield keeps one —
+                // and only an authored Shield-Breaker (Divine Piercing, The
+                // Emancipator, Splitting Strike) spends every charge.
                 int cost = blockChargeCost > 0
                     ? blockChargeCost
-                    : attackClass == SpecialAttackClass ? target.BlockCharges : 1;
+                    : attackClass == SpecialAttackClass
+                        ? shieldBreaker
+                            ? target.BlockCharges
+                            : target.BlockCharges < FTT.Combat.BasicComboRules.SpecialBlockChargeCost
+                                ? target.BlockCharges
+                                : FTT.Combat.BasicComboRules.SpecialBlockChargeCost
+                        : 1;
                 target.BlockCharges -= cost;
                 // A spent charge re-arms the regeneration interval, as Story does.
                 targetRuntime.BlockRegenFrames = FTT.Combat.BasicComboRules.BlockChargeRegenFrames;
@@ -561,7 +636,7 @@ namespace FTT.FighterSim {
             }
 
 			if (carriesImpulse && (target.HyperArmorFrames <= 0 || attackClass == UltimateAttackClass)) {
-                if (knockback > FP64.Zero) {
+                if (hasImpulse) {
                     // Gameplay-feel plan §2.5 — low-health knockback scaling. The
                     // impulse is multiplied by 1 + the victim's missing-HP fraction
                     // measured *after* this hit's damage, a linear 1x at full HP to
@@ -574,9 +649,14 @@ namespace FTT.FighterSim {
                     // Launcher-class impulses (Nassau's mortar) bias the impulse
                     // upward; everything else keeps the symmetric 1:1 pulse.
                     FP64 verticalScale = verticalKnockbackScale > FP64.Zero ? verticalKnockbackScale : FP64.One;
+                    // D10: the signed vertical of an authored vector, scaled by
+                    // the same rule; a negative value is a spike.
+                    FP64 verticalForce = hasKnockbackVector
+                        ? ScaleByMissingHP(knockbackVertical, in target) / (FP64.One + target.Weight)
+                        : force * verticalScale;
                     target.Velocity.x = hitOriginX <= target.Position.x ? force : -force;
                     if (launches) {
-                        target.Velocity.y = force * verticalScale;
+                        target.Velocity.y = verticalForce;
                         target.IsGrounded = 0;
                         // DI (V7): a launching hit's direction is finalized when the
                         // victim's hitstop ends, bent by their held direction.
@@ -596,7 +676,7 @@ namespace FTT.FighterSim {
                         // M05: a non-launcher on an airborne victim keeps its
                         // authored vector, but it is not a launch — no tumble,
                         // no DI, no tech, and so no knockdown on landing.
-                        target.Velocity.y = force * verticalScale;
+                        target.Velocity.y = verticalForce;
                     }
                 }
                 // A zero-knockback hit with hitstun (a construct arc/bite) stuns
@@ -985,9 +1065,14 @@ namespace FTT.FighterSim {
                 }
 
                 // Story never polls the movement ability during a swing.
+                // A05/D11 (Package 13 W1): Root is a true immobilize — it refuses
+                // the movement ability here as Story's IsMovementRooted does
+                // (attacks, specials and block remain). A refused press spends
+                // nothing: the cooldown is only armed by ApplyMovement.
                 if (runtime.AttackPhase == FighterBasicAttackRules.PhaseNone
                     && (runtime.PressedButtons & MovementButton) != 0
-                    && runtime.MovementCooldownFrames <= 0) {
+                    && runtime.MovementCooldownFrames <= 0
+                    && runtime.StatusType != (int)StatusType.Root) {
                     ApplyMovement(ref frame, ref fighter, ref runtime, in tuning, in modes);
                 }
             }
@@ -1490,19 +1575,32 @@ namespace FTT.FighterSim {
         /// </summary>
         internal static void ResolveProjectileContract(
             FighterHitContractTable contracts, in FighterProjectileComponent projectile,
-            out int hitstunFrames, out bool launches) {
+            out int hitstunFrames, out bool launches) =>
+            ResolveProjectileContract(contracts, in projectile, out hitstunFrames, out launches, out _);
+
+        /// <summary>
+        /// A01/D10 (Package 13 W1): the same resolution, also returning the
+        /// slot's contract so the hit reads its Shield-Breaker class and its
+        /// signed knockback vector. <paramref name="contract"/> is default when
+        /// the projectile's slot has no projected contract.
+        /// </summary>
+        internal static void ResolveProjectileContract(
+            FighterHitContractTable contracts, in FighterProjectileComponent projectile,
+            out int hitstunFrames, out bool launches, out FighterAbilityHitData contract) {
             int slot = projectile.UltimateOrigin != 0
                 ? FighterHitContractTable.SlotUltimate
                 : projectile.ProjectileTypeID % 10;
             hitstunFrames = projectile.HitstunFrames;
             launches = true;
+            contract = default;
             if (slot != FighterHitContractTable.SlotSpecialOne
                 && slot != FighterHitContractTable.SlotSpecialTwo
                 && slot != FighterHitContractTable.SlotUltimate) return;
-            FighterAbilityHitData contract = contracts.For(projectile.OwnerPlayerID, slot);
-            if (contract.HitstunFrames <= 0) return;
-            hitstunFrames = contract.HitstunFrames;
-            launches = contract.Launches;
+            FighterAbilityHitData authored = contracts.For(projectile.OwnerPlayerID, slot);
+            if (authored.HitstunFrames <= 0) return;
+            contract = authored;
+            hitstunFrames = authored.HitstunFrames;
+            launches = authored.Launches;
         }
         private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
@@ -1544,17 +1642,28 @@ namespace FTT.FighterSim {
                 ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
                 ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
-                ResolveProjectileContract(_contracts, in projectile, out int projectileHitstun, out bool projectileLaunches);
+                ResolveProjectileContract(
+                    _contracts, in projectile, out int projectileHitstun, out bool projectileLaunches,
+                    out FighterAbilityHitData projectileContract);
+                // D10: an Ultimate-origin shot keeps its spawn-time scalar (the
+                // Ultimate finale knockbacks are W6's region); a Special shot
+                // reads its slot's signed vector.
+                bool projectileVector = projectile.UltimateOrigin == 0 && projectileContract.HasKnockbackVector;
                 FighterDamageRules.ApplyFighterHit(
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
-                    projectile.AttackClass, projectile.Damage, projectile.Knockback.x,
+                    projectile.AttackClass, projectile.Damage,
+                    projectileVector ? projectileContract.KnockbackX : projectile.Knockback.x,
                     projectileHitstun, projectile.StatusType, projectile.StatusFrames,
                     projectile.StatusIntensity, projectile.Position.x,
                     // V7.6 D03h (Package 11 A1b): an Ultimate-spawned projectile
                     // awards its caster no damage-dealt meter. A player-fired
                     // ordinary projectile still reclaims Rally (D03g) either way.
                     creditInfluence: projectile.UltimateOrigin == 0,
-                    launches: projectileLaunches);
+                    launches: projectileLaunches,
+                    shieldBreaker: projectile.AttackClass == FighterDamageRules.SpecialAttackClass
+                        && projectileContract.ShieldBreaker,
+                    hasKnockbackVector: projectileVector,
+                    knockbackVertical: projectileContract.KnockbackY);
                 frame.DestroyEntity(projectileEntity);
             }
         }
@@ -1581,6 +1690,9 @@ namespace FTT.FighterSim {
         private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
         public void Update(ref Frame frame) {
+            // A04 (Package 13 W1): a fallen owner's objects are gone before
+            // any of them can act again — no final attack, no pending damage.
+            FighterStockLossRules.DespawnOwnedByFallenFighters(ref frame);
             UpdateCoilLinks(ref frame);
             var filter = frame.Filter<FighterPersistentObjectComponent>();
             while (filter.Next(out EntityRef persistentEntity)) {
@@ -2442,7 +2554,22 @@ namespace FTT.FighterSim {
         private const int OwnerBonusRefreshFrames = 2;
         private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
+        /// <summary>
+        /// A01/D10 (Package 13 W1): the two fighters' authored hit contracts,
+        /// static match configuration like the combat and projectile systems
+        /// hold. A Special zone pulse reads its slot's block class and signed
+        /// knockback here.
+        /// </summary>
+        private readonly FighterHitContractTable _contracts;
+
+        public FighterZoneSystem(FighterHitContractTable contracts = null) {
+            _contracts = contracts ?? FighterHitContractTable.Default;
+        }
+
         public void Update(ref Frame frame) {
+            // A04 (Package 13 W1): a fallen owner's zones are gone before any of
+            // them can pulse again — no final attack, no pending damage.
+            FighterStockLossRules.DespawnOwnedByFallenFighters(ref frame);
             var filter = frame.Filter<FighterZoneComponent>();
             while (filter.Next(out EntityRef zoneEntity)) {
                 ref FighterZoneComponent zone = ref frame.Get<FighterZoneComponent>(zoneEntity);
@@ -2545,12 +2672,18 @@ namespace FTT.FighterSim {
                 // knockback.
                 FP64 pulseKnockback = FP64.Zero;
                 int pulseHitstunFrames = 0;
+                // A01/D10 (Package 13 W1): the two Special impulse pulses read
+                // their slot's contract — its signed knockback vector and its
+                // block class (the Emancipator is a Shield-Breaker).
+                FighterAbilityHitData pulseContract = default;
                 if (zone.ZoneTypeID == (int)FighterCharacterID.Lincoln * 10 + 1) {
                     pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).SpecialOneKnockback;
                     pulseHitstunFrames = EmancipatorHitstunFrames;
+                    pulseContract = _contracts.For(zone.OwnerPlayerID, FighterHitContractTable.SlotSpecialOne);
                 } else if (zone.ZoneTypeID == (int)FighterCharacterID.Shakespeare * 10 + 2) {
                     pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).SpecialTwoKnockback;
                     pulseHitstunFrames = TempestHitstunFrames;
+                    pulseContract = _contracts.For(zone.OwnerPlayerID, FighterHitContractTable.SlotSpecialTwo);
                 } else if (zone.ZoneTypeID == (int)FighterCharacterID.Joan * 10 + FighterUltimateRules.UltimateSlot
                     && zone.LifetimeFrames <= zone.TickIntervalFrames) {
                     // Grand Crusade: only the FINAL trample pulse carries the
@@ -2611,13 +2744,19 @@ namespace FTT.FighterSim {
                 // collectsEcho: true and therefore did reclaim.
                 // V7.6 D03h: an Ultimate-spawned zone earns its caster zero
                 // damage-dealt meter; ZoneTypeID's slot digit is the origin.
+                bool pulseVector = !ultimateZone && pulseContract.HasKnockbackVector;
                 bool pulseLanded = FighterDamageRules.ApplyFighterHit(
                     ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
-                    pulseAttackClass, pulseDamage, pulseKnockback, pulseHitstunFrames,
+                    pulseAttackClass, pulseDamage,
+                    pulseVector ? pulseContract.KnockbackX : pulseKnockback,
+                    pulseHitstunFrames,
                     zone.StatusType, zone.StatusFrames, zone.StatusIntensity, zone.Position.x,
                     creditInfluence: !ultimateZone,
                     collectsEcho: false,
-                    appliesHitstop: false);
+                    appliesHitstop: false,
+                    shieldBreaker: !ultimateZone && pulseContract.ShieldBreaker,
+                    hasKnockbackVector: pulseVector,
+                    knockbackVertical: pulseContract.KnockbackY);
 
                 if (pulseLanded && zone.ZoneTypeID == (int)FighterCharacterID.Tesla * 10 + 2) {
                     TryResolveLorentzChain(
