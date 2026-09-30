@@ -37,7 +37,7 @@ Character,cleopatra,5,res://resources/Characters/cleopatra_data.tres,CharacterFa
 Character,tesla,5,res://resources/Characters/tesla_data.tres,CharacterFactory,Implemented,ReadyForReplacement,Valid,true
 Character,shakespeare,5,res://resources/Characters/shakespeare_data.tres,CharacterFactory,Implemented,ReadyForReplacement,Valid,true
 Character,mozart,5,res://resources/Characters/mozart_data.tres,CharacterFactory,Implemented,ReadyForReplacement,Valid,true
-Character,pocahontas,5,res://resources/Characters/pocahontas_data.tres,CharacterFactory,Implemented,ReadyForReplacement,Valid,true
+Character,tubman,5,res://resources/Characters/tubman_data.tres,CharacterFactory,Implemented,ReadyForReplacement,Valid,true
 # Thirty-six canonical abilities
 Ability,einstein_mass_energy_conversion,5,res://resources/Abilities/einstein/special_1.tres,AbilitySystem,Implemented,ReadyForReplacement,Valid,true
 Ability,einstein_relativity_rift,5,res://resources/Abilities/einstein/special_2.tres,AbilitySystem,Implemented,ReadyForReplacement,Valid,true
@@ -71,10 +71,10 @@ Ability,mozart_requiem_chord,5,res://resources/Abilities/mozart/special_1.tres,A
 Ability,mozart_fortissimo_wave,5,res://resources/Abilities/mozart/special_2.tres,AbilitySystem,Implemented,ReadyForReplacement,Valid,true
 Ability,mozart_sonata_drift,5,res://resources/Abilities/mozart/movement.tres,AbilitySystem,Implemented,ReadyForReplacement,Valid,true
 Ability,mozart_symphony_of_sorrow,5,res://resources/Abilities/mozart/ultimate.tres,AbilitySystem,Implemented,ReadyForReplacement,Valid,true
-Ability,pocahontas_spirit_strike,5,res://resources/Abilities/pocahontas/special_1.tres,AbilitySystem,Implemented,ReadyForReplacement,Valid,true
-Ability,pocahontas_vine_snare,5,res://resources/Abilities/pocahontas/special_2.tres,AbilitySystem,Implemented,ReadyForReplacement,Valid,true
-Ability,pocahontas_breeze_glide,5,res://resources/Abilities/pocahontas/movement.tres,AbilitySystem,Implemented,ReadyForReplacement,Valid,true
-Ability,pocahontas_tidewater_tempest,5,res://resources/Abilities/pocahontas/ultimate.tres,AbilitySystem,Implemented,ReadyForReplacement,Valid,true
+Ability,tubman_conductors_call,5,res://resources/Abilities/tubman/special_1.tres,AbilitySystem,Implemented,ReadyForReplacement,Valid,true
+Ability,tubman_foresight,5,res://resources/Abilities/tubman/special_2.tres,AbilitySystem,Implemented,ReadyForReplacement,Valid,true
+Ability,tubman_north_star_leap,5,res://resources/Abilities/tubman/movement.tres,AbilitySystem,Implemented,ReadyForReplacement,Valid,true
+Ability,tubman_freedom_line,5,res://resources/Abilities/tubman/ultimate.tres,AbilitySystem,Implemented,ReadyForReplacement,Valid,true
 # Nine Story-only Resonance grids
 ResonanceGrid,einstein,3|5,res://resources/Resonance/einstein_grid.tres,ResonanceProgression,Implemented,NotRequired,Valid,true
 ResonanceGrid,joan,3|5,res://resources/Resonance/joan_grid.tres,ResonanceProgression,Implemented,NotRequired,Valid,true
@@ -84,7 +84,7 @@ ResonanceGrid,cleopatra,3|5,res://resources/Resonance/cleopatra_grid.tres,Resona
 ResonanceGrid,tesla,3|5,res://resources/Resonance/tesla_grid.tres,ResonanceProgression,Implemented,NotRequired,Valid,true
 ResonanceGrid,shakespeare,3|5,res://resources/Resonance/shakespeare_grid.tres,ResonanceProgression,Implemented,NotRequired,Valid,true
 ResonanceGrid,mozart,3|5,res://resources/Resonance/mozart_grid.tres,ResonanceProgression,Implemented,NotRequired,Valid,true
-ResonanceGrid,pocahontas,3|5,res://resources/Resonance/pocahontas_grid.tres,ResonanceProgression,Implemented,NotRequired,Valid,true
+ResonanceGrid,tubman,3|5,res://resources/Resonance/tubman_grid.tres,ResonanceProgression,Implemented,NotRequired,Valid,true
 # Complete Section 6 standard/elite roster: 27 authored EnemyData resources (Package 4)
 Enemy,chrono_slasher,6,res://resources/Enemies/chrono_slasher.tres,EnemyFactory,Implemented,ReadyForReplacement,Valid,true
 Enemy,tech_enforcer,6,res://resources/Enemies/tech_enforcer.tres,EnemyFactory,Implemented,ReadyForReplacement,Valid,true
@@ -217,7 +217,7 @@ VisualSet,visual_character_cleopatra,9|17,res://resources/SpriteFrames/cleopatra
 VisualSet,visual_character_tesla,9|17,res://resources/SpriteFrames/tesla_frames.tres,CharacterFactory,Prototype,Placeholder,Valid,true
 VisualSet,visual_character_shakespeare,9|17,res://resources/SpriteFrames/shakespeare_frames.tres,CharacterFactory,Prototype,Placeholder,Valid,true
 VisualSet,visual_character_mozart,9|17,res://resources/SpriteFrames/mozart_frames.tres,CharacterFactory,Prototype,Placeholder,Valid,true
-VisualSet,visual_character_pocahontas,9|17,res://resources/SpriteFrames/pocahontas_frames.tres,CharacterFactory,Prototype,Placeholder,Valid,true
+VisualSet,visual_character_tubman,9|17,res://resources/SpriteFrames/tubman_frames.tres,CharacterFactory,Prototype,Placeholder,Valid,true
 VisualSet,visual_enemy_roster,9|17,res://assets/placeholders/enemy_silhouette.svg,EnemyFactory,Prototype,Placeholder,Valid,true
 VisualSet,visual_boss_roster,9|17,res://assets/placeholders/boss_silhouette.svg,BossController,Prototype,Placeholder,Valid,true
 VisualSet,visual_level_00,9|17,res://assets/placeholders/parallax_far.svg,LevelManager,Prototype,Placeholder,Valid,true

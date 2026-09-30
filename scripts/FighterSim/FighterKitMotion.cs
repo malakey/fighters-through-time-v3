@@ -4,11 +4,12 @@ using xpTURN.Klotho.Deterministic.Math;
 namespace FTT.FighterSim {
 
     /// <summary>
-    /// Package 12 W4 — the deterministic half of the two kit moves that
+    /// Package 12 W4 — the deterministic half of the kit moves that
     /// translate their caster over several frames: Tesla's Lightning Blink
     /// (6 startup / 12 translation / 10 recovery, projectile pass-through
-    /// during the translation only) and Pocahontas's Spirit Strike (12 startup,
-    /// then a 15-frame 45° carry while the eagle dives).
+    /// during the translation only) and, since Package 13 W5, Harriet Tubman's
+    /// North Star Leap (an 18-frame guided leap in any of eight directions,
+    /// then one settle frame, with the extended ledge snap).
     ///
     /// <para><b>No new state and no component ID.</b> Both moves run as
     /// sim-local phases of the existing universal-movement slot on
@@ -24,18 +25,25 @@ namespace FTT.FighterSim {
     /// retired Dash ordinal reserved).</para>
     ///
     /// <para>Every number comes from <see cref="KitMotionRules"/> (shared with
-    /// Story) or from the normalized loadout (<c>MovementDistance</c>,
-    /// <c>MovementDurationFrames</c>). Nothing here reads a Story modifier:
-    /// Long Blink never reaches the sim.</para>
+    /// Story) or <see cref="TubmanKitRules"/>, or from the normalized loadout
+    /// (<c>MovementDistance</c>, <c>MovementDurationFrames</c>). Nothing here
+    /// reads a Story modifier: Long Blink and Star Guide never reach the sim.</para>
+    ///
+    /// <para><b>Retired codes.</b> 19 and 20 were Pocahontas's Spirit Strike
+    /// (startup, carry). They left with her in the Package 13 roster swap and
+    /// are never reused; the leap takes 21 and 22.</para>
     /// </summary>
     public static partial class FighterKitMotion {
         public const int FirstPhase = 16;
         public const int BlinkStartup = 16;
         public const int BlinkTravel = 17;
         public const int BlinkRecovery = 18;
-        public const int SpiritStartup = 19;
-        public const int SpiritCarry = 20;
-        private const int LastPhase = 20;
+        // 19 (SpiritStartup) and 20 (SpiritCarry) are retired: never reuse.
+        /// <summary>North Star Leap: the guided 8-way travel.</summary>
+        public const int LeapTravel = 21;
+        /// <summary>North Star Leap: one settle frame at the end (velocity 0, gravity still off) in which the extended ledge snap can catch.</summary>
+        public const int LeapEnd = 22;
+        private const int LastPhase = 22;
         /// <summary>
         /// Package 13 W7a — Einstein's Relativity Warp fold startup (E04) and
         /// Shakespeare's Prospero gust (A08). Codes 30–31, deliberately clear of
@@ -46,16 +54,11 @@ namespace FTT.FighterSim {
 
         private static readonly FP64 FixedDelta = FP64.One / FP64.FromInt(FighterSimulation.TickRate);
         private static readonly FP64 InverseSqrtTwo = FP64.FromDouble(0.70710678118654752);
-        /// <summary>Per-axis carry per frame (units): (3 / √2) / 15.</summary>
-        public static readonly FP64 SpiritAxisStep = FP64.FromDouble(KitMotionRules.SpiritStrikeAxisStepUnits);
-        private static readonly FP64 SpiritAxisSpeed = SpiritAxisStep * FP64.FromInt(FighterSimulation.TickRate);
-        private static readonly FP64 EagleStartForward = FP64.FromDouble(KitMotionRules.SpiritEagleStartForwardUnits);
-        private static readonly FP64 EagleStartUp = FP64.FromDouble(KitMotionRules.SpiritEagleStartUpUnits);
-        public static readonly FPVector2 EagleHalfExtents = new(
-            FP64.FromDouble(KitMotionRules.SpiritEagleHalfExtentUnits),
-            FP64.FromDouble(KitMotionRules.SpiritEagleHalfExtentUnits));
-        /// <summary>The sim's fixed Special hitstun (see <c>DEFER-SIM-ABILITY-HITSTUN</c>).</summary>
-        public const int SpiritStrikeHitstunFrames = 18;
+        /// <summary>
+        /// The leap's ledge-snap bonus: <see cref="TubmanKitRules.NorthStarLeapLedgeSnapBonusUnits"/>
+        /// added to <c>FighterLedgeRules.CaptureHalfWidth</c> while the leap flies and on its settle frame.
+        /// </summary>
+        public static readonly FP64 LeapLedgeSnapBonus = FP64.FromDouble(TubmanKitRules.NorthStarLeapLedgeSnapBonusUnits);
 
         public static bool IsKitPhase(int state) =>
             (state >= FirstPhase && state <= LastPhase) || state is WarpFoldStartup or GustBurst
@@ -73,9 +76,17 @@ namespace FTT.FighterSim {
 
         /// <summary>Startup hovers and the translation/carry fly straight: no gravity.</summary>
         public static bool SuspendsGravity(in FighterRuntimeComponent runtime) =>
-            runtime.UniversalMovementState is BlinkStartup or BlinkTravel or SpiritCarry
+            runtime.UniversalMovementState is BlinkStartup or BlinkTravel or LeapTravel or LeapEnd
                 or WarpFoldStartup or GustBurst
             || ReachSuspendsGravity(in runtime);
+
+        /// <summary>
+        /// North Star Leap's extended ledge snap window: the travel and the
+        /// settle frame. <c>FighterMovementSystem.TryGrabLedge</c> widens the
+        /// capture box by <see cref="LeapLedgeSnapBonus"/> while this holds.
+        /// </summary>
+        public static bool HasLedgeSnapBonus(in FighterRuntimeComponent runtime) =>
+            runtime.UniversalMovementState is LeapTravel or LeapEnd;
 
         // --- activation -------------------------------------------------------
 
@@ -93,11 +104,22 @@ namespace FTT.FighterSim {
             runtime.UniversalMovementDirection = (directionX + 1) + 3 * (directionY + 1);
         }
 
-        /// <summary>Starts Spirit Strike; the direction int is ±1 (facing), ±2 once the eagle has struck.</summary>
-        public static void StartSpiritStrike(ref FighterRuntimeComponent runtime, int facing) {
-            runtime.UniversalMovementState = SpiritStartup;
-            runtime.UniversalMovementFramesRemaining = KitMotionRules.SpiritStrikeStartupFrames;
-            runtime.UniversalMovementDirection = facing >= 0 ? 1 : -1;
+        /// <summary>
+        /// Starts North Star Leap with its direction latched from the held stick
+        /// (any of eight directions; a neutral stick leaps along facing), packed
+        /// like the blink's. There is no startup: the leap travels from the next
+        /// tick for <paramref name="travelFrames"/> frames (the loadout's
+        /// <c>MovementDurationFrames</c>).
+        /// </summary>
+        public static void StartNorthStarLeap(ref FighterRuntimeComponent runtime, int facing, int travelFrames) {
+            int directionX = runtime.MoveX > 30 ? 1 : runtime.MoveX < -30 ? -1 : 0;
+            int directionY = runtime.MoveY < -30 ? 1 : runtime.MoveY > 30 ? -1 : 0;
+            if (directionX == 0 && directionY == 0) directionX = facing;
+            runtime.UniversalMovementState = LeapTravel;
+            runtime.UniversalMovementFramesRemaining = travelFrames > 0
+                ? travelFrames
+                : TubmanKitRules.NorthStarLeapTravelFrames;
+            runtime.UniversalMovementDirection = (directionX + 1) + 3 * (directionY + 1);
         }
 
         /// <summary>
@@ -153,20 +175,6 @@ namespace FTT.FighterSim {
 
         public static int BlinkDirectionX(int packed) => packed % 3 - 1;
         public static int BlinkDirectionY(int packed) => packed / 3 - 1;
-        public static int SpiritFacing(int packed) => packed >= 0 ? 1 : -1;
-        public static bool SpiritEagleStruck(int packed) => packed == 2 || packed == -2;
-        public static void MarkSpiritEagleStruck(ref FighterRuntimeComponent runtime) =>
-            runtime.UniversalMovementDirection = SpiritFacing(runtime.UniversalMovementDirection) * 2;
-
-        /// <summary>0-based carry frame for the tick the movement system just advanced.</summary>
-        public static int SpiritCarryFrameIndex(in FighterRuntimeComponent runtime) =>
-            KitMotionRules.SpiritStrikeCarryFrames - runtime.UniversalMovementFramesRemaining - 1;
-
-        /// <summary>The eagle's hitbox centre for a carry frame, relative to the caster's position.</summary>
-        public static FPVector2 EagleCenter(in FPVector2 casterPosition, int facing, int carryFrame) {
-            FP64 up = EagleStartUp - FP64.FromInt(2) * SpiritAxisStep * FP64.FromInt(carryFrame < 0 ? 0 : carryFrame);
-            return casterPosition + new FPVector2(EagleStartForward * FP64.FromInt(facing), up);
-        }
 
         // --- per-tick advance (FighterMovementSystem) --------------------------
 
@@ -220,7 +228,7 @@ namespace FTT.FighterSim {
                             / FP64.FromInt(KitMotionRules.ProsperoGustFrames);
                         fighter.IsGrounded = 0;
                         fighter.Velocity = new FPVector2(
-                            forwardSpeed * FP64.FromInt(SpiritFacing(runtime.UniversalMovementDirection)),
+                            forwardSpeed * FP64.FromInt(runtime.UniversalMovementDirection >= 0 ? 1 : -1),
                             GustRiseSpeed);
                     }
                     runtime.UniversalMovementFramesRemaining--;
@@ -256,27 +264,24 @@ namespace FTT.FighterSim {
                     runtime.UniversalMovementFramesRemaining--;
                     return true;
 
-                case SpiritStartup:
+                case LeapTravel:
                     if (runtime.UniversalMovementFramesRemaining <= 0) {
-                        runtime.UniversalMovementState = SpiritCarry;
-                        runtime.UniversalMovementFramesRemaining = KitMotionRules.SpiritStrikeCarryFrames;
-                        goto case SpiritCarry;
+                        runtime.UniversalMovementState = LeapEnd;
+                        runtime.UniversalMovementFramesRemaining = 1;
+                        goto case LeapEnd;
                     }
-                    fighter.Velocity.x = MoveToward(fighter.Velocity.x, FP64.Zero, decelStep);
+                    ApplyLeapVelocity(ref fighter, in runtime, in modes);
                     runtime.UniversalMovementFramesRemaining--;
                     return true;
 
-                case SpiritCarry:
+                case LeapEnd:
                     if (runtime.UniversalMovementFramesRemaining <= 0) {
-                        // The carry is a forced dash: it ends with its momentum spent.
-                        fighter.Velocity = FPVector2.Zero;
                         FighterUniversalMovementRules.Cancel(ref runtime);
                         return false;
                     }
-                    fighter.IsGrounded = 0;
-                    fighter.Velocity = new FPVector2(
-                        SpiritAxisSpeed * FP64.FromInt(SpiritFacing(runtime.UniversalMovementDirection)),
-                        SpiritAxisSpeed);
+                    // The leap ends where it ends: no carried momentum, and one
+                    // weightless frame in which the extended ledge snap can catch.
+                    fighter.Velocity = FPVector2.Zero;
                     runtime.UniversalMovementFramesRemaining--;
                     return true;
 
@@ -301,6 +306,26 @@ namespace FTT.FighterSim {
             // distance over the translation frames, per second.
             FP64 speed = distance * FP64.FromInt(FighterSimulation.TickRate)
                 / FP64.FromInt(BlinkTravelFrames(in modes));
+            if (directionX != 0 && directionY != 0) speed *= InverseSqrtTwo;
+            fighter.Velocity = new FPVector2(speed * FP64.FromInt(directionX), speed * FP64.FromInt(directionY));
+            if (directionY > 0) fighter.IsGrounded = 0;
+        }
+
+        private static int LeapTravelFrames(in FighterAbilityModeComponent modes) =>
+            modes.MovementDurationFrames > 0 ? modes.MovementDurationFrames : TubmanKitRules.NorthStarLeapTravelFrames;
+
+        private static void ApplyLeapVelocity(
+            ref FighterStateComponent fighter,
+            in FighterRuntimeComponent runtime,
+            in FighterAbilityModeComponent modes) {
+            int directionX = BlinkDirectionX(runtime.UniversalMovementDirection);
+            int directionY = BlinkDirectionY(runtime.UniversalMovementDirection);
+            FP64 distance = modes.MovementDistance > FP64.Zero
+                ? modes.MovementDistance
+                : FP64.FromDouble(TubmanKitRules.NorthStarLeapDistanceUnits);
+            // distance over the travel frames, per second.
+            FP64 speed = distance * FP64.FromInt(FighterSimulation.TickRate)
+                / FP64.FromInt(LeapTravelFrames(in modes));
             if (directionX != 0 && directionY != 0) speed *= InverseSqrtTwo;
             fighter.Velocity = new FPVector2(speed * FP64.FromInt(directionX), speed * FP64.FromInt(directionY));
             if (directionY > 0) fighter.IsGrounded = 0;

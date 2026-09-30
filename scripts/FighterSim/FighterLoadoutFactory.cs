@@ -94,7 +94,8 @@ namespace FTT.FighterSim {
                 case "tesla": value = FighterCharacterID.Tesla; return true;
                 case "shakespeare": value = FighterCharacterID.Shakespeare; return true;
                 case "mozart": value = FighterCharacterID.Mozart; return true;
-                case "pocahontas": value = FighterCharacterID.Pocahontas; return true;
+                // Package 13 W5 (D3): "pocahontas" no longer resolves; ordinal 8 is reserved.
+                case "tubman": value = FighterCharacterID.Tubman; return true;
                 default: value = default; return false;
             }
         }
@@ -200,7 +201,7 @@ namespace FTT.FighterSim {
             "tesla_coil" => 1,
             "clockwork_turret" => 2,
             "serpent_nest" => 3,
-            "vine_snare" => 4,
+            // 4 was "vine_snare" (Pocahontas, retired in Package 13 W5): never reuse.
             "sonata_platform" => 5,
             _ => 0
         };

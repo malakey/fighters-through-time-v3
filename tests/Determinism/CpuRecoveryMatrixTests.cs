@@ -49,7 +49,7 @@ public class CpuRecoveryMatrixTests {
 
     private static readonly string[] Roster = {
         "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-        "tesla", "shakespeare", "mozart", "pocahontas"
+        "tesla", "shakespeare", "mozart", "tubman"
     };
 
     // === Paris Bastille: a 5.0-wide pit at stage centre, ledges at ∓2.5 ===
@@ -99,66 +99,63 @@ public class CpuRecoveryMatrixTests {
     public void HardRecoversTheWholeRosterFromTheNassauStern() =>
         SweepRoster("nassau_flagship", CpuDifficulty.Hard, dropX: 7.0);
 
-    // === GAP-10b (Package 12 W4): Pocahontas's approved Spirit Strike ===
+    // === Package 13 W5: Tubman's North Star Leap (the roster swap) ===
+    // Pocahontas's approved Spirit Strike and its two drills left with her; no
+    // character approves a mobility Special now. Tubman's plan is the leap.
 
     /// <summary>
-    /// Both Paris edges and a deep drop, on Hard (the band that plans past its
-    /// movement ability): every drill must land, may use only the approved
-    /// Special 1, and never steers away from the return.
+    /// Both Paris edges and a deep drop, on Hard: every drill lands, no Special
+    /// is ever cast to recover (CPU_RECOVERY: Conductor's Call and Foresight are
+    /// not recovery tools), and she never steers away from the return.
     /// </summary>
     [TestCase]
-    public void HardPocahontasRecoversFromBothParisEdgesAndFromDepth() {
+    public void HardTubmanRecoversFromBothParisEdgesAndFromDepthWithTheLeap() {
         FighterStageGeometry paris = FighterStageGeometry.ForStage("paris_bastille");
-        CpuRecoveryProfile pocahontas = ProfileFor("pocahontas");
-        AssertThat(pocahontas.MobilitySpecial).IsEqual(CpuMobilitySpecialSlot.SpecialOne);
+        CpuRecoveryProfile tubman = ProfileFor("tubman");
+        AssertThat(tubman.MobilitySpecial).IsEqual(CpuMobilitySpecialSlot.None);
         foreach ((double dropX, double startY) in new[] { (-2.0, -0.25), (2.0, -0.25), (-1.5, -2.0), (1.5, -2.0) }) {
-            // The opponent stands on the near floor, so neutral-combat Spirit
-            // Strikes (a Special the CPU may throw at an opponent) point the
-            // same way as the return rather than at the pit centre.
             DrillResult result = RunDrill(
-                paris, CpuDifficulty.Hard, pocahontas, dropX, seed: 20260927,
+                paris, CpuDifficulty.Hard, tubman, dropX, seed: 20260927,
                 startY: startY, targetX: dropX < 0 ? -5.0 : 5.0);
             string drill = $"x={dropX}, y={startY}";
-            AssertThat(result.SpecialEdges)
-                .OverrideFailureMessage($"Pocahontas cast an unapproved Special ({drill}).").IsEqual(0);
+            AssertThat(result.SpecialEdges + result.ApprovedSpecialEdges)
+                .OverrideFailureMessage($"Tubman cast a Special to recover ({drill}).").IsEqual(0);
             AssertThat(result.SteeredAwayFromReturn)
-                .OverrideFailureMessage($"Pocahontas steered away from the return ({drill}).").IsFalse();
+                .OverrideFailureMessage($"Tubman steered away from the return ({drill}).").IsFalse();
             AssertThat(result.Landed)
                 .OverrideFailureMessage(
-                    $"Pocahontas failed the Paris drill {drill} (ended at x={result.FinalX}, y={result.FinalY}).")
+                    $"Tubman failed the Paris drill {drill} (ended at x={result.FinalX}, y={result.FinalY}).")
                 .IsTrue();
         }
     }
 
     /// <summary>
-    /// With her jumps spent and Breeze Glide on cooldown, Spirit Strike is the
-    /// only tool left: Hard casts it, and the carry — the same 45-degree dash the
-    /// sim runs — brings her back from a shallow Paris knock on both sides.
+    /// With her jumps spent the aimed 8-way leap alone brings her back from a
+    /// shallow Paris knock on both sides, on Medium and Hard; Easy still never
+    /// casts a Special with nothing else in hand.
     /// </summary>
     [TestCase]
-    public void WithGlideAndJumpsSpentHardPocahontasRecoversWithSpiritStrike() {
+    public void WithJumpsSpentTubmansAimedLeapStillBringsHerBack() {
         FighterStageGeometry paris = FighterStageGeometry.ForStage("paris_bastille");
-        CpuRecoveryProfile pocahontas = ProfileFor("pocahontas");
-        foreach (double dropX in new[] { -2.0, 2.0 }) {
-            DrillResult result = RunDrill(
-                paris, CpuDifficulty.Hard, pocahontas, dropX, seed: 20260928,
-                startY: 0.0, startMovementCooldown: pocahontas.MovementCooldownFrames, startJumps: 0,
-                targetX: dropX < 0 ? -5.0 : 5.0);
-            AssertThat(result.SpiritStrikesCast > 0)
-                .OverrideFailureMessage($"Hard never cast Spirit Strike from x={dropX} with nothing else left.")
-                .IsTrue();
-            AssertThat(result.Landed)
-                .OverrideFailureMessage(
-                    $"Spirit Strike did not bring her back from x={dropX} (ended at x={result.FinalX}, y={result.FinalY}).")
-                .IsTrue();
+        CpuRecoveryProfile tubman = ProfileFor("tubman");
+        foreach (CpuDifficulty band in new[] { CpuDifficulty.Normal, CpuDifficulty.Hard }) {
+            foreach (double dropX in new[] { -2.0, 2.0 }) {
+                DrillResult result = RunDrill(
+                    paris, band, tubman, dropX, seed: 20260928,
+                    startY: 0.0, startJumps: 0, targetX: dropX < 0 ? -5.0 : 5.0);
+                AssertThat(result.LeapsCast > 0)
+                    .OverrideFailureMessage($"{band} never leapt from x={dropX} with no jumps left.")
+                    .IsTrue();
+                AssertThat(result.Landed)
+                    .OverrideFailureMessage(
+                        $"The leap did not bring her back from x={dropX} on {band} (ended at x={result.FinalX}, y={result.FinalY}).")
+                    .IsTrue();
+            }
         }
-        // Easy never casts a Special, even with nothing else in hand.
         DrillResult easy = RunDrill(
-            paris, CpuDifficulty.Easy, pocahontas, -2.0, seed: 20260928,
-            startY: 0.0, startMovementCooldown: pocahontas.MovementCooldownFrames, startJumps: 0,
-            targetX: -5.0);
-        AssertThat(easy.ApprovedSpecialEdges).IsEqual(0);
-        AssertThat(easy.SpiritStrikesCast).IsEqual(0);
+            paris, CpuDifficulty.Easy, tubman, -2.0, seed: 20260928,
+            startY: 0.0, startJumps: 0, targetX: -5.0);
+        AssertThat(easy.ApprovedSpecialEdges + easy.SpecialEdges).IsEqual(0);
     }
 
     /// <summary>
@@ -284,8 +281,8 @@ public class CpuRecoveryMatrixTests {
         int remainingJumps = startJumps >= 0 ? startJumps : profile.MaxJumpCount;
         int movementCooldown = startMovementCooldown;
         int specialCooldown = 0;
-        // Package 12 W4: the blink and Spirit Strike are multi-frame kit phases
-        // in the sim (FighterKitMotion), mirrored here frame for frame.
+        // Package 12 W4 / 13 W5: the blink and North Star Leap are multi-frame
+        // kit phases in the sim (FighterKitMotion), mirrored here frame for frame.
         int kitPhase = KitNone;
         int kitFrames = 0;
         int kitDirectionX = 0;
@@ -358,7 +355,10 @@ public class CpuRecoveryMatrixTests {
             }
             if (!inKitPhase && frame.IsPressed(GameplayButtons.MovementAbility) && movementCooldown <= 0) {
                 movementCooldown = profile.MovementCooldownFrames;
-                if (profile.MovementKind == CpuRecoveryProfile.MovementKindBlink) {
+                if (profile.Character == FighterCharacterID.Tubman) {
+                    StartLeap(frame, facing, profile, ref kitPhase, ref kitFrames, ref kitDirectionX, ref kitDirectionY);
+                    result.LeapsCast++;
+                } else if (profile.MovementKind == CpuRecoveryProfile.MovementKindBlink) {
                     StartBlink(frame, facing, ref kitPhase, ref kitFrames, ref kitDirectionX, ref kitDirectionY);
                 } else if (profile.MovementKind == CpuRecoveryProfile.MovementKindGust) {
                     // A08 (Package 13 W7a): the gust burst is a kit phase along facing.
@@ -371,14 +371,6 @@ public class CpuRecoveryMatrixTests {
                         profile, frame, facing, ref x, ref y, ref velocityX, ref velocityY, ref floatFrames);
                 }
                 if (profile.MovementResetsJump) remainingJumps = profile.MaxJumpCount;
-            }
-            if (!inKitPhase && profile.MobilitySpecial == CpuMobilitySpecialSlot.SpecialOne
-                && frame.IsPressed(GameplayButtons.Special1) && specialCooldown <= 0) {
-                specialCooldown = SpiritStrikeCooldownFrames;
-                kitPhase = KitSpiritStartup;
-                kitFrames = KitMotionRules.SpiritStrikeStartupFrames;
-                kitDirectionX = facing;
-                result.SpiritStrikesCast++;
             }
             if (movementCooldown > 0) movementCooldown--;
             if (specialCooldown > 0) specialCooldown--;
@@ -427,11 +419,9 @@ public class CpuRecoveryMatrixTests {
     private const int KitBlinkStartup = 1;
     private const int KitBlinkTravel = 2;
     private const int KitBlinkRecovery = 3;
-    private const int KitSpiritStartup = 4;
-    private const int KitSpiritCarry = 5;
+    private const int KitLeapTravel = 4;
+    private const int KitLeapEnd = 5;
     private const int KitGust = 6;
-    /// <summary>Spirit Strike's authored 9 s cooldown; no drill outlasts it.</summary>
-    private const int SpiritStrikeCooldownFrames = 540;
 
     private static void StartBlink(
         PlayerInputFrame frame, int facing,
@@ -443,11 +433,23 @@ public class CpuRecoveryMatrixTests {
         kitFrames = KitMotionRules.LightningBlinkStartupFrames;
     }
 
+    /// <summary>Mirrors <c>FighterKitMotion.StartNorthStarLeap</c>: 8-way from the stick, neutral = facing.</summary>
+    private static void StartLeap(
+        PlayerInputFrame frame, int facing, CpuRecoveryProfile profile,
+        ref int kitPhase, ref int kitFrames, ref int directionX, ref int directionY) {
+        directionX = frame.MoveX > 30 ? 1 : frame.MoveX < -30 ? -1 : 0;
+        directionY = frame.MoveY < -30 ? 1 : frame.MoveY > 30 ? -1 : 0;
+        if (directionX == 0 && directionY == 0) directionX = facing;
+        kitPhase = KitLeapTravel;
+        kitFrames = BlinkTravelFrames(profile);
+    }
+
     /// <summary>
     /// Mirrors <c>FighterKitMotion.Process</c>: the blink hovers through its
     /// startup, translates its authored distance over the translation frames,
-    /// then recovers under gravity; Spirit Strike winds up under gravity and
-    /// carries 3 units at 45 degrees. Returns whether gravity applies this tick.
+    /// then recovers under gravity; North Star Leap travels its authored
+    /// distance over its authored frames, then holds one weightless settle
+    /// frame. Returns whether gravity applies this tick.
     /// </summary>
     private static bool AdvanceKitPhase(
         CpuRecoveryProfile profile,
@@ -487,25 +489,26 @@ public class CpuRecoveryMatrixTests {
                 }
                 kitFrames--;
                 return true;
-            case KitSpiritStartup:
+            case KitLeapTravel:
                 if (kitFrames <= 0) {
-                    kitPhase = KitSpiritCarry;
-                    kitFrames = KitMotionRules.SpiritStrikeCarryFrames;
-                    goto case KitSpiritCarry;
+                    kitPhase = KitLeapEnd;
+                    kitFrames = 1;
+                    goto case KitLeapEnd;
                 }
+                FP64 leapSpeed = profile.MovementDistance * FP64.FromInt(60) / FP64.FromInt(BlinkTravelFrames(profile));
+                if (directionX != 0 && directionY != 0) leapSpeed *= FP64.FromDouble(0.70710678118654752);
+                velocityX = leapSpeed * FP64.FromInt(directionX);
+                velocityY = leapSpeed * FP64.FromInt(directionY);
                 kitFrames--;
-                return true;
-            case KitSpiritCarry:
+                return false;
+            case KitLeapEnd:
                 if (kitFrames <= 0) {
-                    velocityX = FP64.Zero;
-                    velocityY = FP64.Zero;
                     kitPhase = KitNone;
                     kitOwnsVelocity = false;
                     return true;
                 }
-                FP64 axis = FighterKitMotion.SpiritAxisStep * FP64.FromInt(60);
-                velocityX = axis * FP64.FromInt(directionX);
-                velocityY = axis;
+                velocityX = FP64.Zero;
+                velocityY = FP64.Zero;
                 kitFrames--;
                 return false;
             case KitGust:
@@ -653,8 +656,8 @@ public class CpuRecoveryMatrixTests {
         public int SpecialEdges;
         /// <summary>Presses of the profile's approved mobility Special while unsupported.</summary>
         public int ApprovedSpecialEdges;
-        /// <summary>Spirit Strikes the harness actually executed.</summary>
-        public int SpiritStrikesCast;
+        /// <summary>North Star Leaps the harness actually executed.</summary>
+        public int LeapsCast;
         public int MovementActivations;
         public bool SteeredAwayFromReturn;
         public bool Landed;

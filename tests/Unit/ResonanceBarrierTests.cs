@@ -22,7 +22,7 @@ public class ResonanceBarrierTests {
         PlayerController player = NewPlayer();
         try {
             foreach (StoryShieldEffect source in new[] {
-                         StoryShieldEffect.HenrysBastion, StoryShieldEffect.RoyalAegis, StoryShieldEffect.LeafBarrier }) {
+                         StoryShieldEffect.HenrysBastion, StoryShieldEffect.RoyalAegis, StoryShieldEffect.NorthStarWard }) {
                 AssertThat(player.GrantResonanceBarrier(source, 100 + (int)source)).IsTrue();
                 AssertThat(player.StoryShieldEffectId).IsEqual(StoryShieldEffect.ResonanceBarrier);
                 AssertThat(player.StoryShieldSource).IsEqual(source);

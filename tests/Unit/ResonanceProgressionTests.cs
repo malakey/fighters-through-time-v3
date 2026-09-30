@@ -13,7 +13,7 @@ namespace FTT.Tests.Unit;
 /// <para>Every structural assumption the pre-V7.6 suite made is now false:
 /// "Tier 1 has no prerequisites" breaks in four grids, "a Major has exactly one
 /// prerequisite" breaks for Leonardo's capstone, all three Shakespeare Majors
-/// and Pocahontas's Leaf Barrier, and "Tier 2 has exactly one prerequisite"
+/// and Tubman's North Star Ward, and "Tier 2 has exactly one prerequisite"
 /// breaks for every Any-of and paired node. The grids are nine unique
 /// topologies now, so the suite pins the explicit <c>Tier</c> field, the
 /// 50/75/200 = 975 economy, prerequisite-mode validity, the per-character
@@ -63,7 +63,7 @@ public class ResonanceProgressionTests {
         ["mozart"] = 350,
         ["cleopatra"] = 375,
         ["lincoln"] = 325,
-        ["pocahontas"] = 325
+        ["tubman"] = 325
     };
 
     // ======================================================================
@@ -529,7 +529,7 @@ public class ResonanceProgressionTests {
         // The Any-of count is the cheapest single fingerprint of a topology:
         // Einstein's mesh gives every non-root node two routes in, Leonardo's
         // gear rings mesh at one tooth, Shakespeare's three Act II nodes each
-        // accept any Act I node, Pocahontas's crossing accepts either current,
+        // accept any Act I node, Tubman's crossing accepts either road,
         // and the linear/paired grids use none.
         var expectedAnyOf = new Dictionary<string, int> {
             ["einstein"] = 6,
@@ -540,7 +540,7 @@ public class ResonanceProgressionTests {
             ["mozart"] = 0,
             ["cleopatra"] = 0,
             ["lincoln"] = 0,
-            ["pocahontas"] = 1
+            ["tubman"] = 1
         };
         var issues = new List<string>();
         foreach (string characterID in CharacterIDs) {
@@ -589,17 +589,17 @@ public class ResonanceProgressionTests {
 
     [TestCase]
     public void TheTwoMultiPrerequisiteMajorsAreAuthoredAsAllOf() {
-        // Leonardo's capstone needs all three of his Tier 2 nodes; Pocahontas's
-        // Leaf Barrier needs the Second Glide crossing AND Forest Vigor.
+        // Leonardo's capstone needs all three of his Tier 2 nodes; Tubman's
+        // North Star Ward needs the Star Guide crossing AND Minor Resolve.
         ResonanceNodeData daedalus = FindNode(LoadGrid("leonardo"), "leonardo_daedalus_wings");
         AssertThat(daedalus.PrerequisiteMode).IsEqual(PrerequisiteMode.All);
         AssertThat(daedalus.PrerequisiteNodeIDs.Length).IsEqual(3);
 
-        ResonanceNodeData leaf = FindNode(LoadGrid("pocahontas"), "pocahontas_leaf_barrier");
-        AssertThat(leaf.PrerequisiteMode).IsEqual(PrerequisiteMode.All);
-        AssertThat(leaf.PrerequisiteNodeIDs.Length).IsEqual(2);
-        AssertThat(System.Array.IndexOf(leaf.PrerequisiteNodeIDs, "pocahontas_second_glide") >= 0).IsTrue();
-        AssertThat(System.Array.IndexOf(leaf.PrerequisiteNodeIDs, "pocahontas_forest_vigor") >= 0).IsTrue();
+        ResonanceNodeData ward = FindNode(LoadGrid("tubman"), "tubman_north_star_ward");
+        AssertThat(ward.PrerequisiteMode).IsEqual(PrerequisiteMode.All);
+        AssertThat(ward.PrerequisiteNodeIDs.Length).IsEqual(2);
+        AssertThat(System.Array.IndexOf(ward.PrerequisiteNodeIDs, "tubman_star_guide") >= 0).IsTrue();
+        AssertThat(System.Array.IndexOf(ward.PrerequisiteNodeIDs, "tubman_resolve") >= 0).IsTrue();
     }
 
     [TestCase]

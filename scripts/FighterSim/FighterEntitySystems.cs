@@ -965,13 +965,9 @@ namespace FTT.FighterSim {
             ref readonly FighterMatchComponent match = ref frame.GetReadOnlySingleton<FighterMatchComponent>();
             if (match.MatchState != 1) return;
 
-            // Package 12 W4: Spirit Strike's eagle dives on every carry frame of
-            // a cast in flight, before the per-fighter gates below (which skip a
-            // combat-locked fighter — and the carry is exactly that).
-            ResolveSpiritEagles(ref frame);
             // Package 13 W7b: Divine Piercing's thrusts and Rail Charge's ram
             // resolve on the lunge/charge frames the movement system just
-            // advanced — the same pattern, for the same reason.
+            // advanced, before the per-fighter combat gates below.
             ResolveReachKitHits(ref frame);
 
             // Package 13 W7a (L03/D14): Leonardo's once-per-flight glide bolt.
@@ -1012,16 +1008,16 @@ namespace FTT.FighterSim {
                 int specialOneCooldownBefore = runtime.SpecialOneCooldownFrames;
                 int specialTwoCooldownBefore = runtime.SpecialTwoCooldownFrames;
 
-                // Package 12 W4 (GAP-10b): Pocahontas's Spirit Strike is a caster
-                // translation, not a range-gated melee intent. It fires whether or
-                // not the opponent is near: 12 startup frames, then the eagle
-                // carries her 3 units up-forward at 45 degrees over 15 frames
-                // while its hitbox dives ahead of her (ResolveSpiritEagles).
-                if (fighter.CharacterID == (int)FighterCharacterID.Pocahontas
-                    && (runtime.PressedButtons & SpecialOneButton) != 0
-                    && runtime.SpecialOneCooldownFrames <= 0) {
-                    runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
-                    FighterKitMotion.StartSpiritStrike(ref runtime, fighter.FacingRight != 0 ? 1 : -1);
+                // Package 13 W5: Tubman's Foresight is a counter stance, not a
+                // range-gated melee intent. It is accepted whether or not the
+                // opponent is near (arming the cooldown here keeps the combat
+                // system's melee intent from also firing), and component 322
+                // runs the 4 / 20 / 24 stance (FighterForesightRules).
+                if (fighter.CharacterID == (int)FighterCharacterID.Tubman
+                    && (runtime.PressedButtons & SpecialTwoButton) != 0
+                    && runtime.SpecialTwoCooldownFrames <= 0) {
+                    runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
+                    FighterForesightRules.Begin(ref frame.Get<FighterCounterComponent>(entity));
                 }
 
                 // Package 13 W7b (J01): Divine Piercing is no longer a
@@ -1253,52 +1249,6 @@ namespace FTT.FighterSim {
             }
         }
 
-        /// <summary>
-        /// Package 12 W4: the Spirit Strike eagle. On each carry frame the
-        /// movement system has just advanced, the eagle's box sits ahead of
-        /// Pocahontas and drops toward the ground (KitMotionRules); the first
-        /// frame it overlaps the opponent it strikes once — the authored Special
-        /// 1 damage, knockback and status as a Special-class direct hit — and
-        /// the cast is marked struck so it never hits twice.
-        /// </summary>
-        private static void ResolveSpiritEagles(ref Frame frame) {
-            var filter = frame.Filter<FighterStateComponent, FighterRuntimeComponent>();
-            while (filter.Next(out EntityRef entity)) {
-                ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(entity);
-                if (runtime.UniversalMovementState != FighterKitMotion.SpiritCarry
-                    || FighterKitMotion.SpiritEagleStruck(runtime.UniversalMovementDirection)) continue;
-                ref FighterStateComponent attacker = ref frame.Get<FighterStateComponent>(entity);
-                ref FighterVerbComponent attackerVerb = ref frame.Get<FighterVerbComponent>(entity);
-                if (attackerVerb.HitstopFrames > 0 || attacker.Stocks <= 0) continue;
-                int targetPlayerID = attacker.PlayerID == 0 ? 1 : 0;
-                if (!FighterEntityQueries.TryFindFighter(ref frame, targetPlayerID, out EntityRef targetEntity)) continue;
-                ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
-                int facing = FighterKitMotion.SpiritFacing(runtime.UniversalMovementDirection);
-                FPVector2 eagle = FighterKitMotion.EagleCenter(
-                    in attacker.Position, facing, FighterKitMotion.SpiritCarryFrameIndex(in runtime));
-                if (!FighterEntityQueries.Overlaps(
-                        in eagle, in FighterKitMotion.EagleHalfExtents,
-                        in target.Position, in FighterHalfExtents)) continue;
-
-                FighterKitMotion.MarkSpiritEagleStruck(ref runtime);
-                ref readonly FighterTuningComponent attackerTuning = ref frame.GetReadOnly<FighterTuningComponent>(entity);
-                ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
-                ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
-                ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
-                ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
-                FighterDamageRules.ApplyFighterHit(
-                    ref attacker, ref runtime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
-                    FighterDamageRules.SpecialAttackClass,
-                    attackerTuning.SpecialOneDamage,
-                    attackerTuning.SpecialOneKnockback,
-                    FighterKitMotion.SpiritStrikeHitstunFrames,
-                    attackerTuning.SpecialOneStatusType,
-                    attackerTuning.SpecialOneStatusFrames,
-                    attackerTuning.SpecialOneStatusIntensity,
-                    attacker.Position.x);
-            }
-        }
-
         private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
         internal static void SpawnProjectile(
@@ -1439,9 +1389,9 @@ namespace FTT.FighterSim {
                 : objectTypeID == 5 ? 0
                 : requestedDamage > 0 ? requestedDamage : 4;
             // V7 tuning batch: cadence mirrors the authored
-            // DamageTickIntervalFrames — coil/turret every 2 s (120), nest and
-            // vine snare every 1 s (60) — replacing the flat 4 s that left a
-            // lone construct ignorable.
+            // DamageTickIntervalFrames — coil/turret every 2 s (120), nest every
+            // 1 s (60) — replacing the flat 4 s that left a lone construct
+            // ignorable. (Type 4, the vine snare, is retired with Pocahontas.)
             actionCooldown = objectTypeID == 1 || objectTypeID == 2 ? 120 : 60;
             // Clockwork Turret: the authored HitCount (V7: 4 bolts, then it
             // self-destructs).
@@ -1646,12 +1596,14 @@ namespace FTT.FighterSim {
                 centersOnOwner = true;
                 return;
             }
-            // Pocahontas's Tidewater Tempest ultimate (zone type 83): a wide
-            // spirit storm centered on the caster. The design's screen-engulfing
-            // storm is approximated by an 8x5-unit footprint (480x300 px, matching
-            // the Story hitbox) so the storm stays escapable at the arena edges.
-            if (zoneTypeID == (int)FighterCharacterID.Pocahontas * 10 + FighterUltimateRules.UltimateSlot) {
-                halfExtents = new FPVector2(FP64.FromDouble(4.0), FP64.FromDouble(2.5));
+            // Zone type 83 was Pocahontas's Tidewater Tempest — retired with her
+            // in the Package 13 roster swap (D3) and never reused.
+            // Tubman's The Freedom Line (ultimate zone type 93, Package 13 W5):
+            // the spectral train of lantern light. A02 re-anchors the zone on the
+            // held victim, so the footprint is the train's carriage around them
+            // (a 6 x 2-unit box), not a stage sweep.
+            if (zoneTypeID == (int)FighterCharacterID.Tubman * 10 + FighterUltimateRules.UltimateSlot) {
+                halfExtents = new FPVector2(FP64.FromInt(3), FP64.One);
                 grantsOwnerSpeedBonus = 0;
                 centersOnOwner = true;
                 return;
@@ -1693,9 +1645,16 @@ namespace FTT.FighterSim {
             FP64 distance = modes.MovementDistance > FP64.Zero ? modes.MovementDistance : FP64.FromInt(2);
             FP64 speed = modes.MovementSpeed > FP64.Zero ? modes.MovementSpeed : FP64.FromInt(8);
 
+            if (fighter.CharacterID == (int)FighterCharacterID.Tubman) {
+                // Package 13 W5: North Star Leap — a guided leap of the loadout's
+                // MovementDistance (4 units) in any of eight directions over its
+                // MovementDurationFrames (18), then a settle frame; the extended
+                // ledge snap rides the kit phase (FighterKitMotion). Its authored
+                // MovementType is Blink so the CPU plans it as a directional move.
+                FighterKitMotion.StartNorthStarLeap(ref runtime, facing, modes.MovementDurationFrames);
             // Package 13 W7b: Ascendant Wings (A08), Desert Mirage (C03), Rail
             // Charge (LN02, any Dash) and Sonata Drift (M04) are kit phases.
-            if (modes.MovementType == (int)FTT.Combat.MovementType.WingDive) {
+            } else if (modes.MovementType == (int)FTT.Combat.MovementType.WingDive) {
                 FighterKitMotion.StartWingRise(
                     ref fighter, ref runtime, speed, facing,
                     _contracts.For(fighter.PlayerID, -1).TotalFrames);
@@ -1703,7 +1662,7 @@ namespace FTT.FighterSim {
                 FighterKitMotion.StartSandRush(ref runtime, facing, modes.MovementDurationFrames);
             } else if (modes.MovementType == 1) {
                 // Glide (Leonardo's Ornithopter, Joan's Ascendant Wings,
-                // Shakespeare's Prospero's Flight, Pocahontas's Breeze Glide):
+                // Shakespeare's Prospero's Flight):
                 // a forward-and-upward boost that cancels into a reduced-gravity
                 // float for the authored duration (design: up to 3 s = 180
                 // frames). FloatFrames is a snapshotted FighterRuntimeComponent
@@ -1906,6 +1865,18 @@ namespace FTT.FighterSim {
                 // A ground wave is not a projectile for this rule (W7b).
                 if (!groundWave && FighterKitMotion.PassesThroughProjectiles(
                         in frame.GetReadOnly<FighterRuntimeComponent>(targetEntity))) continue;
+                // Package 13 W5: Conductor's Call rushes along the ground and
+                // strikes grounded targets only — an airborne target is not
+                // contacted and the rush is not consumed.
+                if (!FighterConductorsCallRules.CanStrike(projectile.ProjectileTypeID, in target)) continue;
+                // Package 13 W5: a projectile is one of the two things Foresight
+                // catches. A caught shot is consumed and applies nothing; the
+                // combat system lands the answer if its owner is within 2.5 units.
+                if (FighterForesightRules.TryCounter(
+                        ref frame.Get<FighterCounterComponent>(targetEntity), ref target)) {
+                    frame.DestroyEntity(projectileEntity);
+                    continue;
+                }
 
                 ref FighterStateComponent owner = ref frame.Get<FighterStateComponent>(ownerEntity);
                 ref FighterRuntimeComponent ownerRuntime = ref frame.Get<FighterRuntimeComponent>(ownerEntity);
@@ -3026,22 +2997,16 @@ namespace FTT.FighterSim {
                     // impulse-free so the Root pen keeps holding).
                     pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
                     pulseHitstunFrames = UnionFinisherHitstunFrames;
-                } else if (zone.ZoneTypeID == (int)FighterCharacterID.Pocahontas * 10 + FighterUltimateRules.UltimateSlot
-                    && zone.LifetimeFrames < zone.TickIntervalFrames) {
-                    // Pocahontas's Tidewater Tempest (zone type 83): the storm's
-                    // intermediate ticks are impulse-free; only the final surge —
-                    // the tick with less than one full interval of lifetime left —
-                    // throws the target outward from the storm center with the
-                    // authored ultimate knockback.
-                    pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).UltimateKnockback;
-                    pulseHitstunFrames = TidewaterSurgeHitstunFrames;
                 }
                 // A02/D15 (Package 13 W6): the Grand Crusade's final charge,
                 // Symphony of Sorrow's closing strike and Hamlet's finale are the
                 // authored FinaleDamage hits the combat system delivers when the
                 // cinematic hold ends, so every pulse of those zones is an
                 // impulse-free ultimate tick. Union Indestructible (no finale)
-                // and Tidewater Tempest keep their final-pulse knockback above.
+                // keeps its final-pulse knockback above. Package 13 W5: The
+                // Freedom Line (zone 93) is a finale Ultimate too — its seven
+                // pulses are impulse-free and its 20-damage final rush is the
+                // finale; the retired Tidewater Tempest (83) branch is gone.
 
                 // Ultimate-slot zones (ZoneTypeID % 10 == FighterUltimateRules
                 // .UltimateSlot) hit with the ultimate attack class so they
@@ -3147,7 +3112,6 @@ namespace FTT.FighterSim {
         // Union Indestructible finisher: 0.5 s, matching the authored
         // HitstunDuration on lincoln/ultimate.tres.
         private const int UnionFinisherHitstunFrames = 30;
-        private const int TidewaterSurgeHitstunFrames = 24;
 
         // 0.05 world units per frame (3 px at 60 px/unit), mirrored by the Story
         // vortex's 180 px/s positional drag.

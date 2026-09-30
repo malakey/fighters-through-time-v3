@@ -153,7 +153,7 @@ namespace FTT.Environment {
         public readonly float ProjectileSpeedMultiplier;
         public readonly float ProjectileDamageMultiplier;
         public readonly float GlideSpeedMultiplier;
-        /// <summary>Glide-window length multiplier (from "GlideDuration" nodes, e.g. Pocahontas wr2).</summary>
+        /// <summary>Glide-window length multiplier (from "GlideDuration" nodes; no V7.6 grid authors one).</summary>
         public readonly float GlideDurationMultiplier;
         /// <summary>Ability-zone radius multiplier (from "ZoneRadius" nodes: Einstein u2, Leonardo a2, Cleopatra dm1).</summary>
         public readonly float ZoneRadiusMultiplier;

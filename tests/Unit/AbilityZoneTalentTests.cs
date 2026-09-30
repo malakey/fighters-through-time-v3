@@ -25,41 +25,33 @@ namespace FTT.Tests.Unit;
 public class AbilityZoneTalentTests {
 
     [TestCase]
-    public void GlideDurationMinorExtendsPocahontasBreezeGlideWindow() {
+    public void ForesightWindowMinorLengthensTubmansCounterWindowByFourFrames() {
+        // Package 13 W5 (replaces the retired Breeze Glide case): Minor
+        // Foresight Window is AbilityDuration(tubman_foresight) +20%, which on
+        // the authored 20-frame window is exactly the design's +4 frames.
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
-        PlayerController player = CharacterFactory.CreateCharacter("pocahontas");
+        PlayerController player = CharacterFactory.CreateCharacter("tubman");
         tree.Root.AddChild(player);
         try {
-            // pocahontas_glide_duration: AbilityDuration(pocahontas_breeze_glide) +20%.
-            player.StoryScopedStats = Scoped("AbilityDuration", "pocahontas_breeze_glide", 1.2f);
-            player.TransitionTo(CharacterState.Airborne);
-            player.Velocity = Vector2.Down;
-            SendInput(player, GameplayButtons.MovementAbility);
-
-            var ability = player.GetNode<BaseSpecial>("MovementAbility");
-            AssertThat(ability.IsExecuting).IsTrue();
-            var data = (MovementAbilityData)ability.Data;
-            int baseGlideFrames = Mathf.CeilToInt(data.MovementDuration * 60f);
-            int scaledGlideFrames = Mathf.CeilToInt(data.MovementDuration * 1.2f * 60f);
-
-            // Run the cast through startup + active into the glide.
-            int leadInFrames = data.StartupFrames + data.ActiveFrames + 1;
-            for (int frame = 0; frame < leadInFrames; frame++) {
-                ability._PhysicsProcess(1.0 / 60.0);
+            player.StoryScopedStats = Scoped("AbilityDuration", "tubman_foresight", 1.2f);
+            var foresight = player.GetNode<TubmanForesight>("Special2");
+            AssertThat(foresight.TryExecute()).IsTrue();
+            for (int frame = 0; frame < foresight.Data.StartupFrames; frame++) {
+                foresight._PhysicsProcess(1.0 / 60.0);
             }
-            AssertThat(ability.IsExecuting).IsTrue();
+            AssertThat(foresight.IsWindowOpen).IsTrue();
+            AssertThat(foresight.WindowFrames).IsEqual(foresight.Data.ActiveFrames + 4);
 
-            // Past the unmodified window the glide is still going...
-            for (int frame = 0; frame < baseGlideFrames + 10; frame++) {
-                ability._PhysicsProcess(1.0 / 60.0);
+            // Past the unmodified 20-frame window it is still open...
+            for (int frame = 0; frame < foresight.Data.ActiveFrames + 2; frame++) {
+                foresight._PhysicsProcess(1.0 / 60.0);
             }
-            AssertThat(ability.IsExecuting).IsTrue();
-
-            // ...and it ends once the scaled window expires.
-            for (int frame = 0; frame < scaledGlideFrames - baseGlideFrames + 10; frame++) {
-                ability._PhysicsProcess(1.0 / 60.0);
+            AssertThat(foresight.IsWindowOpen).IsTrue();
+            // ...and it closes once the scaled window expires.
+            for (int frame = 0; frame < 3; frame++) {
+                foresight._PhysicsProcess(1.0 / 60.0);
             }
-            AssertThat(ability.IsExecuting).IsFalse();
+            AssertThat(foresight.IsWindowOpen).IsFalse();
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);
             player.Free();

@@ -42,7 +42,16 @@ namespace FTT.FighterSim {
         /// <see cref="FighterLedgeRules.CanGrab"/>.
         /// </summary>
         public bool IsInCaptureBox(in FPVector2 position, int side) =>
-            FP64.Abs(position.x - EdgeX(side)) <= FighterLedgeRules.CaptureHalfWidth
+            IsInCaptureBox(in position, side, FP64.Zero);
+
+        /// <summary>
+        /// Package 13 W5: the capture box widened by
+        /// <paramref name="extraHalfWidth"/> horizontally — North Star Leap
+        /// "snaps to ledges from 0.5 units farther than normal". Zero is the
+        /// ordinary box.
+        /// </summary>
+        public bool IsInCaptureBox(in FPVector2 position, int side, FP64 extraHalfWidth) =>
+            FP64.Abs(position.x - EdgeX(side)) <= FighterLedgeRules.CaptureHalfWidth + extraHalfWidth
             && position.y <= SurfaceY
             && position.y >= SurfaceY - FighterLedgeRules.CaptureDepth;
     }
@@ -499,10 +508,19 @@ namespace FTT.FighterSim {
         /// wall are skipped: they are not ledges. The legacy flat arena has no
         /// platforms and no segments, and therefore no ledges.</para>
         /// </summary>
-        public bool TryFindLedge(in FPVector2 position, out int anchor) {
+        public bool TryFindLedge(in FPVector2 position, out int anchor) =>
+            TryFindLedge(in position, FP64.Zero, out anchor);
+
+        /// <summary>
+        /// Package 13 W5: <see cref="TryFindLedge(in FPVector2, out int)"/> with
+        /// every capture box widened by <paramref name="extraHalfWidth"/> (North
+        /// Star Leap's extended snap). Same search order, so overlapping boxes
+        /// still resolve identically on every peer.
+        /// </summary>
+        public bool TryFindLedge(in FPVector2 position, FP64 extraHalfWidth, out int anchor) {
             for (int index = 0; index < Platforms.Length; index++) {
                 for (int side = 0; side < 2; side++) {
-                    if (!Platforms[index].IsInCaptureBox(in position, side)) continue;
+                    if (!Platforms[index].IsInCaptureBox(in position, side, extraHalfWidth)) continue;
                     anchor = index * 2 + side;
                     return true;
                 }
@@ -510,7 +528,7 @@ namespace FTT.FighterSim {
             for (int index = 0; index < FloorSegments.Length; index++) {
                 for (int side = 0; side < 2; side++) {
                     if (!IsFloorLedge(index, side)) continue;
-                    if (!FloorSegments[index].IsInCaptureBox(in position, side)) continue;
+                    if (!FloorSegments[index].IsInCaptureBox(in position, side, extraHalfWidth)) continue;
                     anchor = (Platforms.Length + index) * 2 + side;
                     return true;
                 }

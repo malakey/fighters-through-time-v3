@@ -232,10 +232,10 @@ public class RollbackReadinessTests {
     [TestCase(5, 5)]
     [TestCase(6, 6)]
     [TestCase(7, 7)]
-    [TestCase(8, 8)]
+    [TestCase(9, 9)]
     [TestCase(0, 5)]
     [TestCase(2, 4)]
-    [TestCase(8, 3)]
+    [TestCase(9, 3)]
     [TestCase(6, 7)]
     [TestCase(1, 2)]
     [TestCase(7, 0)]
@@ -703,7 +703,10 @@ internal static class RollbackHarnessKits {
                 // Package 13 W7a (A08): Prospero's Flight is a gust burst (MovementType 6).
                 FighterCharacterID.Shakespeare => (1, 2, 6, 0, 0, 0),
                 FighterCharacterID.Mozart => (1, 1, 5, 0, 0, 5),
-                FighterCharacterID.Pocahontas => (0, 3, 1, 0, 4, 0),
+                // Package 13 W5: Tubman (Conductor's Call projectile, Foresight
+                // melee stance, North Star Leap authored as Blink); ordinal 8 is
+                // the reserved Pocahontas slot and falls to the default arm.
+                FighterCharacterID.Tubman => (1, 0, 0, 0, 0, 0),
                 _ => (0, 0, 2, 0, 0, 0)
             };
 

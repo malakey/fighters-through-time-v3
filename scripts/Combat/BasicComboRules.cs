@@ -195,7 +195,6 @@ namespace FTT.Combat {
             new() {
                 //                                 gOpen gFin aOpen aFin  d1  d2  d3  width height
                 { "joan",        new BasicStringProfile(5, 14, 4, 11, 10, 10, 13,  90, 110) },
-                { "pocahontas",  new BasicStringProfile(5, 14, 4, 11,  8, 10, 15,  95, 100) },
                 // Cleopatra's finisher "marks" (kit brief): a light Venom
                 // (0.5 intensity, 2 s = 2 chip) riding the damage status slot,
                 // so it survives her own vortex slow into the nest loop.

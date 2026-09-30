@@ -13,7 +13,17 @@ namespace FTT.FighterSim {
         Tesla = 5,
         Shakespeare = 6,
         Mozart = 7,
-        Pocahontas = 8
+        /// <summary>
+        /// Package 13 W5 (D3): Pocahontas left the roster (character review
+        /// P01). The ordinal is RESERVED — this enum is append-only because it
+        /// serializes into snapshots and the network protocol — so it is never
+        /// removed, renumbered or reused. <c>FighterLoadoutFactory</c> no longer
+        /// resolves any character ID to it.
+        /// </summary>
+        [System.Obsolete("Reserved ordinal: Pocahontas was removed from the roster (Package 13 W5, D3). Never reuse 8.")]
+        Pocahontas = 8,
+        /// <summary>Package 13 W5 (D3): Harriet Tubman, appended; protocol v4.</summary>
+        Tubman = 9
     }
 
     /// <summary>

@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/AbilityData.cs" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/VfxBurst.tscn" id="vfx_burst"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/VfxImpact.tscn" id="vfx_impact"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "tubman_foresight"
+CharacterID = "tubman"
+Slot = 1
+ExecutionType = 0
+AbilityName = "Foresight"
+DisplayNameKey = "ability_tubman_foresight_name"
+DescriptionKey = "ability_tubman_foresight_description"
+BaseDamage = 20.0
+IsMultiHit = false
+HitCount = 1
+DamageTickIntervalFrames = 0
+HitstunFrames = 12
+BlockClass = 1
+Launches = true
+Delivery = 0
+Origin = 1
+KnockbackForce = Vector2(4, -5)
+ProjectileSpeed = 0.0
+GrantsHyperArmor = false
+HitboxSize = Vector2(150, 120)
+HitboxOffset = Vector2(0, 0)
+StartupFrames = 4
+ActiveFrames = 20
+RecoveryFrames = 24
+CooldownDuration = 10.0
+Lifetime = 0.0
+ProjectileLifetime = 0.0
+PersistentObjectID = ""
+MaxActiveObjects = 0
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+AnimationName = "special_2"
+ScreenShakeIntensity = 0.25
+ScreenShakeDuration = 0.15
+CastVFXScene = ExtResource("vfx_burst")
+ImpactVFXScene = ExtResource("vfx_impact")

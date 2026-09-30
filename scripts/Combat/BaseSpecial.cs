@@ -69,7 +69,7 @@ namespace FTT.Combat {
 
         /// <summary>
         /// Package 12 W4: a movement ability may authorize a cast while its
-        /// cooldown is still running (Pocahontas's Second Glide, Mozart's
+        /// cooldown is still running (Mozart's
         /// banked Extra Note charge). Returns true and consumes that allowance
         /// atomically; such a cast never re-arms the cooldown. Default: none.
         /// </summary>

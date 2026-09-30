@@ -37,7 +37,7 @@ public class CharacterPresentationTests {
         ["tesla"] = new[] { "tesla_tesla_coil", "tesla_lorentz_pulse", "tesla_lightning_blink", "tesla_wardenclyffe_cataclysm" },
         ["shakespeare"] = new[] { "shakespeare_yoricks_lament", "shakespeare_the_tempest", "shakespeare_prosperos_flight", "shakespeare_all_the_worlds_a_stage" },
         ["mozart"] = new[] { "mozart_requiem_chord", "mozart_fortissimo_wave", "mozart_sonata_drift", "mozart_symphony_of_sorrow" },
-        ["pocahontas"] = new[] { "pocahontas_spirit_strike", "pocahontas_vine_snare", "pocahontas_breeze_glide", "pocahontas_tidewater_tempest" }
+        ["tubman"] = new[] { "tubman_conductors_call", "tubman_foresight", "tubman_north_star_leap", "tubman_freedom_line" }
     };
 
     [After]

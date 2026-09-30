@@ -314,6 +314,99 @@
         {"count": 140, "colors": ["#ffffff", "#cfe4ff", "#ffe9c9"], "size_min": 0.5, "size_max": 1.6, "glow": 2.4, "seed_offset": 3}
       ],
       "vignette": {"strength": 0.4, "power": 2.4}
+    },
+    {
+      "type": "svg_atlas",
+      "group": "tubman",
+      "cell_dir": "res://tools/asset_src/tubman/generated/cells",
+      "prefix": "tubman_",
+      "rows": ["idle", "run", "jump", "fall", "skid", "crouch"],
+      "columns": 3,
+      "cell_width": 96,
+      "cell_height": 128,
+      "supersample": 4,
+      "out": "res://assets/sprites/characters/tubman/retro/tubman_locomotion_atlas.png"
+    },
+    {
+      "type": "svg_atlas",
+      "group": "tubman",
+      "cell_dir": "res://tools/asset_src/tubman/generated/cells",
+      "prefix": "tubman_",
+      "rows": ["roll_startup", "roll", "roll_recovery", "ledge_hang", "ledge_pull_up", "ledge_drop"],
+      "columns": 3,
+      "cell_width": 96,
+      "cell_height": 128,
+      "supersample": 4,
+      "out": "res://assets/sprites/characters/tubman/retro/tubman_traversal_atlas.png"
+    },
+    {
+      "type": "svg_atlas",
+      "group": "tubman",
+      "cell_dir": "res://tools/asset_src/tubman/generated/cells",
+      "prefix": "tubman_",
+      "rows": ["basic_attack_1", "basic_attack_2", "basic_attack_3", "block", "hitstun"],
+      "columns": 3,
+      "cell_width": 96,
+      "cell_height": 128,
+      "supersample": 4,
+      "out": "res://assets/sprites/characters/tubman/retro/tubman_combat_atlas.png"
+    },
+    {
+      "type": "svg_atlas",
+      "group": "tubman",
+      "cell_dir": "res://tools/asset_src/tubman/generated/cells",
+      "prefix": "tubman_",
+      "rows": ["dazed", "death", "respawn", "victory", "defeat"],
+      "columns": 3,
+      "cell_width": 96,
+      "cell_height": 128,
+      "supersample": 4,
+      "out": "res://assets/sprites/characters/tubman/retro/tubman_states_atlas.png"
+    },
+    {
+      "type": "svg_atlas",
+      "group": "tubman",
+      "cell_dir": "res://tools/asset_src/tubman/generated/cells",
+      "prefix": "tubman_",
+      "rows": ["special_1", "special_2", "movement_ability", "ultimate"],
+      "columns": 3,
+      "cell_width": 96,
+      "cell_height": 128,
+      "supersample": 4,
+      "out": "res://assets/sprites/characters/tubman/retro/tubman_abilities_atlas.png"
+    },
+    {
+      "type": "svg_atlas",
+      "group": "tubman",
+      "cell_dir": "res://tools/asset_src/tubman/generated/cells",
+      "prefix": "tubman_",
+      "rows": ["up_attack", "down_air"],
+      "columns": 3,
+      "cell_width": 96,
+      "cell_height": 128,
+      "supersample": 4,
+      "out": "res://assets/sprites/characters/tubman/retro/tubman_directional_attacks_atlas.png"
+    },
+    {
+      "type": "svg_atlas",
+      "group": "tubman",
+      "cell_dir": "res://tools/asset_src/tubman/generated/cells",
+      "prefix": "tubman_",
+      "rows": ["conductors_call", "foresight", "north_star_leap", "freedom_line"],
+      "columns": 3,
+      "cell_width": 192,
+      "cell_height": 192,
+      "supersample": 2,
+      "out": "res://assets/sprites/vfx/tubman/tubman_ability_vfx_atlas.png"
+    },
+    {
+      "type": "svg",
+      "group": "tubman",
+      "src": "res://tools/asset_src/tubman/generated/tubman_portrait.svg",
+      "out": "res://assets/sprites/characters/portraits/tubman_portrait.png",
+      "width": 512,
+      "height": 512,
+      "supersample": 2
     }
   ]
 }

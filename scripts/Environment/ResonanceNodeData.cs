@@ -6,7 +6,7 @@ namespace FTT.Environment {
     /// How a node's <see cref="ResonanceNodeData.PrerequisiteNodeIDs"/> list is
     /// satisfied. <see cref="All"/> is the default so every pre-V7.6 authoring
     /// keeps its meaning; <see cref="Any"/> powers Einstein's mesh, Leonardo's
-    /// meshing gear rings, Shakespeare's Three Acts and Pocahontas's crossing.
+    /// meshing gear rings, Shakespeare's Three Acts and Tubman's Crossing.
     /// An EMPTY prerequisite list is root-eligible under either mode.
     /// </summary>
     public enum PrerequisiteMode { All, Any }

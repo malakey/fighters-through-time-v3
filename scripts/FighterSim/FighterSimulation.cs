@@ -266,6 +266,23 @@ namespace FTT.FighterSim {
         }
 
         /// <summary>
+        /// Package 13 W5: reads a fighter's Foresight counter stance (component
+        /// 322). Snapshot and hash state like everything else.
+        /// </summary>
+        public bool TryGetFighterCounter(int playerID, out FighterCounterComponent counter) {
+            var filter = _simulation.Frame.Filter<FighterStateComponent, FighterCounterComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref _simulation.Frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.PlayerID == playerID) {
+                    counter = _simulation.Frame.GetReadOnly<FighterCounterComponent>(entity);
+                    return true;
+                }
+            }
+            counter = default;
+            return false;
+        }
+
+        /// <summary>
         /// Package 13 W6 test seam: sets a fighter's Influence meter directly
         /// (clamped to 0..100), so the A02 suites can fill the meter — or give a
         /// whiffing caster Echo Step's 30 — without a scripted damage exchange.

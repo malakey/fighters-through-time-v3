@@ -188,6 +188,9 @@ namespace FTT.FighterSim {
             // A02 (Package 13 W6): the Ultimate activation strike and the
             // cinematic hold, component 321. All zero is inactive.
             frame.Add(entity, new FighterUltimateActivationComponent());
+            // Package 13 W5: Tubman's Foresight counter stance, component 322.
+            // All zero is inactive; every fighter carries it.
+            frame.Add(entity, new FighterCounterComponent());
             // V7.6 D01-D04 (Package 11 A1b): the defensive layer - Defy
             // protected recovery, the Temporal Aegis flag and the D02b HP
             // barrier. Snapshot and hash state like every other component.
@@ -346,6 +349,12 @@ namespace FTT.FighterSim {
                 // cooldowns keep ticking; a lethal tick hands them to the respawn.
                 ref FighterUltimateActivationComponent ultimateActivation =
                     ref frame.Get<FighterUltimateActivationComponent>(entity);
+                // Package 13 W5 (component 322): Tubman's Foresight stance clock,
+                // after the hitstop gate. A hit, grab, capture or stock loss ends it.
+                ref FighterCounterComponent counter = ref frame.Get<FighterCounterComponent>(entity);
+                FighterForesightRules.Advance(
+                    ref counter, in fighter, in verb,
+                    FighterUltimateActivationRules.IsCaptured(in ultimateActivation));
                 if (FighterUltimateActivationRules.IsCaptured(in ultimateActivation)) {
                     ref FighterDefenseComponent capturedDefense = ref frame.Get<FighterDefenseComponent>(entity);
                     TickCounters(ref fighter, ref runtime, ref verb, ref capturedDefense, in tuning);
@@ -432,6 +441,12 @@ namespace FTT.FighterSim {
                 // tick's input here, before any verb reads it, is what stops Echo
                 // Step (or a block, roll, jump or grab) undoing a whiff.
                 if (FighterUltimateActivationRules.IsCasterBusy(in ultimateActivation)) {
+                    FighterUltimateActivationRules.DiscardInput(ref runtime);
+                }
+                // Package 13 W5: the Foresight stance (startup, window, whiff
+                // recovery, sidestep) is action-locked the same way — nothing
+                // cancels a whiffed read.
+                if (FighterForesightRules.IsBusy(in counter)) {
                     FighterUltimateActivationRules.DiscardInput(ref runtime);
                 }
 
@@ -544,7 +559,7 @@ namespace FTT.FighterSim {
                     // A03: an air dodge adds no speed; airborne it leaves normal
                     // air control running (jumps withheld), grounded it decelerates.
                     bool airDodging = FighterAirDodgeRules.IsAirDodge(runtime.UniversalMovementState);
-                    // Package 12 W4: Tesla's blink and Pocahontas's Spirit Strike run
+                    // Package 12 W4 / 13 W5: Tesla's blink and Tubman's North Star Leap run
                     // as sim-local phases of the same universal-movement slot.
                     bool movementHandled = FighterKitMotion.IsKitPhase(runtime.UniversalMovementState)
                         ? FighterKitMotion.Process(
@@ -598,7 +613,7 @@ namespace FTT.FighterSim {
                             allowJump: !attacking && !shieldStunned && !airDodging,
                             allowDropThrough: !shieldStunned && !airDodging);
                     }
-                    // Package 12 W4: the blink hover/translation and the Spirit Strike
+                    // Package 12 W4 / 13 W5: the blink hover/translation and the leap
                     // carry fly straight — no gravity, no fast-fall snap.
                     if (fighter.IsGrounded == 0 && !FighterKitMotion.SuspendsGravity(in runtime)) {
                         // Fast-fall (§2.9, 2026-08-10): a stateless rule derived
@@ -780,7 +795,13 @@ namespace FTT.FighterSim {
             ref FighterVerbComponent verb,
             in FighterTuningComponent tuning) {
             if (!FighterLedgeRules.CanGrab(in fighter, in runtime, in verb)) return false;
-            if (!_geometry.TryFindLedge(in fighter.Position, out int anchor)) return false;
+            // Package 13 W5: North Star Leap snaps to ledges from 0.5 units
+            // farther than the normal capture box, while it flies and on its
+            // settle frame (FighterKitMotion.HasLedgeSnapBonus).
+            FP64 snapBonus = FighterKitMotion.HasLedgeSnapBonus(in runtime)
+                ? FighterKitMotion.LeapLedgeSnapBonus
+                : FP64.Zero;
+            if (!_geometry.TryFindLedge(in fighter.Position, snapBonus, out int anchor)) return false;
             if (!_geometry.TryGetHangPosition(anchor, out FPVector2 hangPosition)) return false;
             FighterLedgeRules.Grab(ref fighter, ref runtime, ref verb, in tuning, anchor, in hangPosition);
             return true;
@@ -1000,8 +1021,8 @@ namespace FTT.FighterSim {
             FP64 rampStep = maximumSpeed / FP64.FromInt(accelerationFrames);
             if (fighter.IsGrounded == 0) {
                 // V7.2 wiring: per-character aerial input responsiveness
-                // (CharacterData.AirControlMultiplier — 0.4 Lincoln .. 0.75
-                // Pocahontas). Zero from hand-built tunings reads as 1.0.
+                // (CharacterData.AirControlMultiplier — 0.40 Lincoln .. 0.70
+                // Leonardo/Cleopatra). Zero from hand-built tunings reads as 1.0.
                 FP64 airControl = tuning.AirControl > FP64.Zero ? tuning.AirControl : FP64.One;
                 rampStep *= airControl;
             }
@@ -1377,7 +1398,7 @@ namespace FTT.FighterSim {
                 or UniversalMovementPhase.AirDodgeStartup
                 or UniversalMovementPhase.AirDodgeInvulnerable
                 or UniversalMovementPhase.AirDodgeRecovery
-                // Package 12 W4: a blink or Spirit Strike in flight is an action.
+                // Package 12 W4 / 13 W5: a blink or a North Star Leap in flight is an action.
                 || FighterKitMotion.IsKitPhase(runtime.UniversalMovementState);
         }
 
@@ -1708,9 +1729,11 @@ namespace FTT.FighterSim {
                 airborne: fighter.IsGrounded == 0);
 
         // V7.1 per-character string profiles, indexed by FighterCharacterID
-        // (Einstein 0 .. Pocahontas 8). Resolved once from the shared rulebook —
+        // (Einstein 0 .. Tubman 9). Resolved once from the shared rulebook —
         // the same profiles Story consumes — so the modes cannot drift; unknown
-        // IDs fall back to the template.
+        // IDs fall back to the template. Package 13 W5: ordinal 8 is the
+        // reserved Pocahontas slot (no row left, so it resolves the template);
+        // Tubman plays the template profile.
         private static readonly FTT.Combat.BasicStringProfile[] StringProfiles = {
             FTT.Combat.BasicComboRules.StringProfileFor("einstein"),
             FTT.Combat.BasicComboRules.StringProfileFor("joan"),
@@ -1720,7 +1743,8 @@ namespace FTT.FighterSim {
             FTT.Combat.BasicComboRules.StringProfileFor("tesla"),
             FTT.Combat.BasicComboRules.StringProfileFor("shakespeare"),
             FTT.Combat.BasicComboRules.StringProfileFor("mozart"),
-            FTT.Combat.BasicComboRules.StringProfileFor("pocahontas")
+            FTT.Combat.BasicComboRules.TemplateStringProfile,
+            FTT.Combat.BasicComboRules.StringProfileFor("tubman")
         };
 
         public static FTT.Combat.BasicStringProfile StringProfileFor(int characterID) =>
@@ -2089,8 +2113,12 @@ namespace FTT.FighterSim {
 
             AttackIntent firstIntent = !oneActing ? default : BuildIntent(in fighterOne, in runtimeOne, in verbOne, in tuningOne, in fighterTwo, _contracts);
             AttackIntent secondIntent = !twoActing ? default : BuildIntent(in fighterTwo, in runtimeTwo, in verbTwo, in tuningTwo, in fighterOne, _contracts);
-            ApplyIntent(ref fighterOne, ref runtimeOne, ref verbOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, in firstIntent);
-            ApplyIntent(ref fighterTwo, ref runtimeTwo, ref verbTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, in secondIntent);
+            // Package 13 W5 (component 322): Tubman's Foresight catches a melee
+            // Special intent or a basic swing on the victim's side.
+            ref FighterCounterComponent counterOne = ref frame.Get<FighterCounterComponent>(first);
+            ref FighterCounterComponent counterTwo = ref frame.Get<FighterCounterComponent>(second);
+            ApplyIntent(ref fighterOne, ref runtimeOne, ref verbOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, in firstIntent, ref counterTwo);
+            ApplyIntent(ref fighterTwo, ref runtimeTwo, ref verbTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, in secondIntent, ref counterOne);
             // F07 marks are written onto the VICTIM's component 318.
             ref FighterConductiveComponent conductiveOne = ref frame.Get<FighterConductiveComponent>(first);
             ref FighterConductiveComponent conductiveTwo = ref frame.Get<FighterConductiveComponent>(second);
@@ -2115,13 +2143,23 @@ namespace FTT.FighterSim {
             ref FighterKnockdownComponent knockdownOne = ref frame.Get<FighterKnockdownComponent>(first);
             ref FighterKnockdownComponent knockdownTwo = ref frame.Get<FighterKnockdownComponent>(second);
             if (oneActing) {
-                ApplyBasicSwing(ref fighterOne, ref runtimeOne, ref verbOne, in tuningOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, ref conductiveTwo, ref knockdownTwo);
+                ApplyBasicSwing(ref fighterOne, ref runtimeOne, ref verbOne, in tuningOne, ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo, ref conductiveTwo, ref knockdownTwo, ref counterTwo);
                 ApplyConstructSwing(ref frame, ref fighterOne, ref runtimeOne, in tuningOne);
             }
             if (twoActing) {
-                ApplyBasicSwing(ref fighterTwo, ref runtimeTwo, ref verbTwo, in tuningTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, ref conductiveOne, ref knockdownOne);
+                ApplyBasicSwing(ref fighterTwo, ref runtimeTwo, ref verbTwo, in tuningTwo, ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne, ref conductiveOne, ref knockdownOne, ref counterOne);
                 ApplyConstructSwing(ref frame, ref fighterTwo, ref runtimeTwo, in tuningTwo);
             }
+            // Package 13 W5: a Foresight trigger owes its counter strike. Both
+            // answers resolve after every ordinary hit of the tick (a caught
+            // projectile's answer lands on the next tick, because projectiles
+            // resolve after this system).
+            ResolveForesightAnswer(
+                ref fighterOne, ref runtimeOne, ref verbOne, ref counterOne, in tuningOne,
+                ref fighterTwo, ref runtimeTwo, ref verbTwo, ref defenseTwo, in tuningTwo);
+            ResolveForesightAnswer(
+                ref fighterTwo, ref runtimeTwo, ref verbTwo, ref counterTwo, in tuningTwo,
+                ref fighterOne, ref runtimeOne, ref verbOne, ref defenseOne, in tuningOne);
         }
 
         /// <summary>
@@ -2489,7 +2527,8 @@ namespace FTT.FighterSim {
             ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning,
             ref FighterConductiveComponent targetConductive,
-            ref FighterKnockdownComponent targetKnockdown) {
+            ref FighterKnockdownComponent targetKnockdown,
+            ref FighterCounterComponent targetCounter) {
             if (attackerRuntime.AttackPhase != FighterBasicAttackRules.PhaseActive) return;
             if ((attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagHitResolved) != 0) return;
             if (attacker.Stocks <= 0) return;
@@ -2500,7 +2539,7 @@ namespace FTT.FighterSim {
                 ApplyDirectionalSwing(
                     ref attacker, ref attackerRuntime, ref attackerVerb, in attackerTuning,
                     ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
-                    ref targetKnockdown);
+                    ref targetKnockdown, ref targetCounter);
                 return;
             }
 
@@ -2536,6 +2575,8 @@ namespace FTT.FighterSim {
                 ? FP64.FromInt(profile.Hit2VerticalLaunchTenths) / FP64.FromInt(10)
                 : FP64.Zero;
             attackerRuntime.AttackFlags |= FighterBasicAttackRules.FlagHitResolved;
+            // Package 13 W5: a string swing is a strike Foresight can catch.
+            if (FighterForesightRules.TryCounter(ref targetCounter, ref target)) return;
             bool connected = FighterDamageRules.ApplyFighterHit(
                 ref attacker,
                 ref attackerRuntime,
@@ -2622,7 +2663,8 @@ namespace FTT.FighterSim {
             ref FighterVerbComponent targetVerb,
             ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning,
-            ref FighterKnockdownComponent targetKnockdown) {
+            ref FighterKnockdownComponent targetKnockdown,
+            ref FighterCounterComponent targetCounter) {
             bool upAttack = (attackerRuntime.AttackFlags & FighterBasicAttackRules.FlagUpAttack) != 0;
             FP64 horizontalReach = upAttack ? UpAttackHorizontalReach : DownAirHorizontalReach;
             if (FP64.Abs(target.Position.x - attacker.Position.x) > horizontalReach) return;
@@ -2637,6 +2679,8 @@ namespace FTT.FighterSim {
 
             int damage = ScaleDamage(attackerTuning.BasicDamage, DirectionalDamageMultiplier);
             attackerRuntime.AttackFlags |= FighterBasicAttackRules.FlagHitResolved;
+            // Package 13 W5: the Up-Attack and the Down-Air are strikes too.
+            if (FighterForesightRules.TryCounter(ref targetCounter, ref target)) return;
             if (!upAttack) {
                 ApplyDownAirSlam(
                     ref attacker, ref attackerRuntime, ref attackerVerb, in attackerTuning,
@@ -2950,6 +2994,58 @@ namespace FTT.FighterSim {
         private static FP64 FinaleOriginX(in FighterStateComponent target, bool casterFacingRight) =>
             casterFacingRight ? target.Position.x - FP64.One : target.Position.x + FP64.One;
 
+        /// <summary>
+        /// Package 13 W5 — Foresight's counter strike. On the tick after a
+        /// trigger (<see cref="FighterCounterComponent.AnswerPending"/>) Tubman
+        /// answers the opponent if they are within
+        /// <see cref="FTT.Combat.TubmanKitRules.ForesightAnswerRangeUnits"/>: one
+        /// Special-class direct hit of her Special 2 damage (20), her Special 2
+        /// contract's hitstun, signed knockback and launch flag, pushed away
+        /// from her. It never asks the opponent's own Foresight (a counter
+        /// strike cannot trigger another), and an attacker out of range is
+        /// simply not answered. The pending flag clears either way.
+        /// </summary>
+        private void ResolveForesightAnswer(
+            ref FighterStateComponent tubman,
+            ref FighterRuntimeComponent tubmanRuntime,
+            ref FighterVerbComponent tubmanVerb,
+            ref FighterCounterComponent counter,
+            in FighterTuningComponent tubmanTuning,
+            ref FighterStateComponent opponent,
+            ref FighterRuntimeComponent opponentRuntime,
+            ref FighterVerbComponent opponentVerb,
+            ref FighterDefenseComponent opponentDefense,
+            in FighterTuningComponent opponentTuning) {
+            if (counter.AnswerPending == 0) return;
+            counter.AnswerPending = 0;
+            if (tubman.Stocks <= 0 || !FighterForesightRules.AnswerReaches(in tubman, in opponent)) return;
+            FighterAbilityHitData contract = _contracts.For(tubman.PlayerID, FighterHitContractTable.SlotSpecialTwo);
+            ResolveIntentContract(contract, LegacySpecialHitstunFrames, out int hitstun, out bool launches);
+            // The answer faces the attacker it read.
+            tubman.FacingRight = opponent.Position.x >= tubman.Position.x ? 1 : 0;
+            FighterDamageRules.ApplyFighterHit(
+                ref tubman,
+                ref tubmanRuntime,
+                ref tubmanVerb,
+                ref opponent,
+                ref opponentRuntime,
+                ref opponentVerb,
+                ref opponentDefense,
+                in opponentTuning,
+                FighterDamageRules.SpecialAttackClass,
+                tubmanTuning.SpecialTwoDamage,
+                contract.HasKnockbackVector ? contract.KnockbackX : tubmanTuning.SpecialTwoKnockback,
+                hitstun,
+                (int)FTT.Core.StatusType.None,
+                0,
+                FP64.One,
+                tubman.Position.x,
+                launches: launches,
+                shieldBreaker: contract.ShieldBreaker,
+                hasKnockbackVector: contract.HasKnockbackVector,
+                knockbackVertical: contract.KnockbackY);
+        }
+
         private static AttackIntent BuildIntent(
             in FighterStateComponent attacker,
             in FighterRuntimeComponent attackerRuntime,
@@ -3055,7 +3151,8 @@ namespace FTT.FighterSim {
             ref FighterVerbComponent targetVerb,
             ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning,
-            in AttackIntent intent) {
+            in AttackIntent intent,
+            ref FighterCounterComponent targetCounter) {
             if (intent.Kind == 0) return;
 
             FighterUniversalMovementRules.Cancel(ref attackerRuntime);
@@ -3073,6 +3170,10 @@ namespace FTT.FighterSim {
             } else {
                 attacker.Influence = FP64.Zero;
             }
+
+            // Package 13 W5: a melee Special intent is a strike Foresight can
+            // catch. The attacker's cooldown is already spent; nothing lands.
+            if (intent.Kind != 3 && FighterForesightRules.TryCounter(ref targetCounter, ref target)) return;
 
             int attackClass = intent.Kind == 1
                 ? FighterDamageRules.BasicAttackClass

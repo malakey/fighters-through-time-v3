@@ -354,7 +354,7 @@ namespace FTT.Characters {
 				"tesla" => new BaseSpecial[] { new TeslaTeslaCoil(), new TeslaLorentzPulse(), new TeslaLightningBlink(), new TeslaWardenclyffeCataclysm() },
 				"shakespeare" => new BaseSpecial[] { new ShakespeareYoricksLament(), new ShakespeareTheTempest(), new ShakespeareProsperosFlight(), new ShakespeareAllTheWorldsAStage() },
 				"mozart" => new BaseSpecial[] { new MozartRequiemChord(), new MozartFortissimoWave(), new MozartSonataDrift(), new MozartSymphonyOfSorrow() },
-				"pocahontas" => new BaseSpecial[] { new PocahontasSpiritStrike(), new PocahontasVineSnare(), new PocahontasBreezeGlide(), new PocahontasTidewaterTempest() },
+				"tubman" => new BaseSpecial[] { new TubmanConductorsCall(), new TubmanForesight(), new TubmanNorthStarLeap(), new TubmanFreedomLine() },
 				_ => throw new InvalidOperationException($"No ability implementation map exists for '{characterID}'.")
 			};
 
@@ -388,8 +388,6 @@ namespace FTT.Characters {
 			("lincoln", 3) => new[] { "TrapHitbox", "SmashHitbox" },
 			("tesla", 3) => new[] { "ShockwaveHitbox" },
 			("shakespeare", 3) => new[] { "PhantomHitbox" },
-			("pocahontas", 0) => new[] { "EagleHitbox" },
-			("pocahontas", 3) => new[] { "StormHitbox" },
 			_ => Array.Empty<string>()
 		};
 

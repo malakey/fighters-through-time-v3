@@ -24,11 +24,10 @@ namespace FTT.Tests.Determinism;
 /// game ships. That is why the suite requires the Godot runtime.
 /// </para>
 /// <para>
-/// <b>Exactly one profile approves an optional mobility Special.</b> Eight
-/// characters have no candidate at all. Pocahontas's Spirit Strike — the one
-/// candidate the contract names — was rejected until Package 12 W4 gave the sim
-/// its forced diagonal-up dash (<c>FighterKitMotion</c>); it is now approved as
-/// Special 1, and <c>CpuRecoveryMatrixTests</c> drills it.
+/// <b>No profile approves an optional mobility Special</b> since the Package 13
+/// roster swap retired Pocahontas's Spirit Strike, the one approved entry. The
+/// contract names Tubman's Conductor's Call and Foresight as "not recovery
+/// tools"; her North Star Leap and its extended ledge snap are the plan.
 /// </para>
 /// </remarks>
 [TestSuite]
@@ -146,29 +145,27 @@ public class CpuRecoveryProfileTests {
     }
 
     [TestCase]
-    public void PocahontasPlansBreezeGlideWithItsJumpResetAndApprovesSpiritStrike() {
+    public void TubmanPlansNorthStarLeapWithItsLedgeSnapAndNoSpecialIsARecoveryTool() {
+        // CPU_RECOVERY (Package 13 W5): "Aim the 8-way, 4-unit leap (18 frames)
+        // and use its extended 0.5-unit ledge snap. No Story Star Guide
+        // redirect. Conductor's Call and Foresight are not recovery tools."
         CpuRecoveryProfile profile = AssertProfile(
-            "pocahontas",
-            movementAbilityID: "pocahontas_breeze_glide",
-            expectedMovementKind: CpuRecoveryProfile.MovementKindGlide,
-            excludedAbilityID: "pocahontas_vine_snare",
-            excludedSlot: 2,
-            expectedMobilitySpecial: CpuMobilitySpecialSlot.SpecialOne);
-        // "the baseline double-jump reset; the reset can supply another legal
-        // jump within the same plan."
-        AssertThat(profile.MovementResetsJump).IsTrue();
-        // GAP-10b (Package 12 W4): the one named candidate, approved after the
-        // validation the contract asks for — the sim now carries her 3 units
-        // up-forward at 45 degrees (PocahontasSpiritStrikeSimTests), and the
-        // approval names Special 1, never Vine Snare in Special 2.
-        AbilityData spiritStrike = AuthoredResources.Load<AbilityData>(
-            "res://resources/Abilities/pocahontas/special_1.tres");
-        AssertThat(spiritStrike.AbilityID).IsEqual("pocahontas_spirit_strike");
-        AssertThat(profile.MobilitySpecial).IsEqual(CpuMobilitySpecialSlot.SpecialOne);
-        foreach (FighterCharacterID other in System.Enum.GetValues<FighterCharacterID>()) {
-            if (other == FighterCharacterID.Pocahontas) continue;
-            AssertThat(CpuRecoveryProfile.MobilitySpecialFor(other))
-                .OverrideFailureMessage($"{other} must not approve a mobility Special.")
+            "tubman",
+            movementAbilityID: "tubman_north_star_leap",
+            expectedMovementKind: CpuRecoveryProfile.MovementKindBlink,
+            excludedAbilityID: "tubman_foresight",
+            excludedSlot: 2);
+        AssertThat(profile.MovementIsDirectional).IsTrue();
+        AssertThat(profile.MovementDistance).IsEqual(FP64.FromDouble(TubmanKitRules.NorthStarLeapDistanceUnits));
+        AssertThat(profile.MovementLedgeSnapBonus).IsEqual(FighterKitMotion.LeapLedgeSnapBonus);
+        AssertThat(profile.MovementHorizontalReach)
+            .IsEqual(profile.MovementDistance + FighterKitMotion.LeapLedgeSnapBonus);
+        AssertThat(profile.MovementResetsJump).IsFalse();
+        // The retired Spirit Strike approval is gone for every ordinal,
+        // including Pocahontas's reserved 8.
+        foreach (FighterCharacterID any in System.Enum.GetValues<FighterCharacterID>()) {
+            AssertThat(CpuRecoveryProfile.MobilitySpecialFor(any))
+                .OverrideFailureMessage($"{any} must not approve a mobility Special.")
                 .IsEqual(CpuMobilitySpecialSlot.None);
         }
     }
@@ -208,8 +205,8 @@ public class CpuRecoveryProfileTests {
         AssertThat(profile.MaxJumpCount).IsEqual(loadout.MaxJumpCount);
         AssertThat(profile.MovementCooldownFrames)
             .IsEqual(loadout.AbilityModes.MovementCooldownFrames);
-        // Only an explicitly validated slot is ever a capability (Pocahontas's
-        // Spirit Strike since Package 12 W4); a slot number never is.
+        // Only an explicitly validated slot is ever a capability (none since
+        // the Package 13 roster swap); a slot number never is.
         AssertThat(profile.MobilitySpecial)
             .OverrideFailureMessage($"{characterID} must not treat a Special slot as a capability.")
             .IsEqual(expectedMobilitySpecial);

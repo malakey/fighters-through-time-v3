@@ -119,19 +119,19 @@ public class StoryDefenceOrderTests {
         // recreated visual and restored state all grant nothing. A genuinely new
         // grant event refills to the cap and restarts the timer, never adding.
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
-        PlayerController player = CharacterFactory.CreateCharacter("pocahontas");
+        PlayerController player = CharacterFactory.CreateCharacter("tubman");
         tree.Root.AddChild(player);
         try {
-            AssertThat(player.GrantStoryShield(StoryShieldEffect.LeafBarrier, 10f, 480, 7)).IsTrue();
+            AssertThat(player.GrantStoryShield(StoryShieldEffect.NorthStarWard, 10f, 480, 7)).IsTrue();
             player.GetNode<Hurtbox>("Hurtbox").TakeHit(Hit(damage: 6f));
             AssertThat(player.StoryShieldPoints).IsEqualApprox(4f, 0.001f);
 
-            AssertThat(player.GrantStoryShield(StoryShieldEffect.LeafBarrier, 10f, 480, 7))
+            AssertThat(player.GrantStoryShield(StoryShieldEffect.NorthStarWard, 10f, 480, 7))
                 .OverrideFailureMessage("The same grant event must be refused.")
                 .IsFalse();
             AssertThat(player.StoryShieldPoints).IsEqualApprox(4f, 0.001f);
 
-            AssertThat(player.GrantStoryShield(StoryShieldEffect.LeafBarrier, 10f, 480, 8)).IsTrue();
+            AssertThat(player.GrantStoryShield(StoryShieldEffect.NorthStarWard, 10f, 480, 8)).IsTrue();
             AssertThat(player.StoryShieldPoints)
                 .OverrideFailureMessage("4/10 refills to 10/10 - never 14, never 20.")
                 .IsEqualApprox(10f, 0.001f);
@@ -150,10 +150,10 @@ public class StoryDefenceOrderTests {
         // discards the remaining absorption with no heal, meter, block event or
         // expiry proc.
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
-        PlayerController player = CharacterFactory.CreateCharacter("pocahontas");
+        PlayerController player = CharacterFactory.CreateCharacter("tubman");
         tree.Root.AddChild(player);
         try {
-            player.GrantStoryShield(StoryShieldEffect.LeafBarrier, 10f, 480, 1);
+            player.GrantStoryShield(StoryShieldEffect.NorthStarWard, 10f, 480, 1);
             int hpBefore = player.CurrentHP;
             float meterBefore = player.CurrentUltimateMeter;
 

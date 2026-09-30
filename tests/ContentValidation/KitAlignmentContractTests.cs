@@ -27,7 +27,7 @@ namespace FTT.Tests.ContentValidation;
 public class KitAlignmentContractTests {
 
     [TestCase]
-    public void TheBlinkAndSpiritStrikeResourcesEqualTheSharedMotionRulebook() {
+    public void TheBlinkAndTubmanResourcesEqualTheSharedKitRulebooks() {
         var blink = AuthoredResources.Load<MovementAbilityData>("res://resources/Abilities/tesla/movement.tres");
         AssertThat(blink.StartupFrames).IsEqual(KitMotionRules.LightningBlinkStartupFrames);
         AssertThat(blink.ActiveFrames).IsEqual(KitMotionRules.LightningBlinkTravelFrames);
@@ -37,10 +37,19 @@ public class KitAlignmentContractTests {
             KitMotionRules.LightningBlinkDistanceUnits * KitMotionRules.StoryPixelsPerUnit, 0.001f);
         AssertThat(KitMotionRules.LightningBlinkTotalFrames <= KitMotionRules.LightningBlinkActionCapFrames).IsTrue();
 
-        var spirit = AuthoredResources.Load<AbilityData>("res://resources/Abilities/pocahontas/special_1.tres");
-        AssertThat(spirit.StartupFrames).IsEqual(KitMotionRules.SpiritStrikeStartupFrames);
-        AssertThat(spirit.ActiveFrames).IsEqual(KitMotionRules.SpiritStrikeCarryFrames);
-        AssertFloat(spirit.CooldownDuration).IsEqual(9f);
+        // Package 13 W5 (replaces the retired Spirit Strike pin): the sim reads
+        // TubmanKitRules for North Star Leap's travel and Foresight's stance; the
+        // Story phase timers read the resources. They must agree.
+        var leap = AuthoredResources.Load<MovementAbilityData>("res://resources/Abilities/tubman/movement.tres");
+        AssertThat(leap.ActiveFrames).IsEqual(TubmanKitRules.NorthStarLeapTravelFrames);
+        AssertThat(Mathf.RoundToInt(leap.MovementDuration * 60f)).IsEqual(TubmanKitRules.NorthStarLeapTravelFrames);
+        AssertFloat(leap.DistanceMoved).IsEqualApprox(
+            TubmanKitRules.NorthStarLeapDistanceUnits * KitMotionRules.StoryPixelsPerUnit, 0.001f);
+        var foresight = AuthoredResources.Load<AbilityData>("res://resources/Abilities/tubman/special_2.tres");
+        AssertThat(foresight.StartupFrames).IsEqual(TubmanKitRules.ForesightStartupFrames);
+        AssertThat(foresight.ActiveFrames).IsEqual(TubmanKitRules.ForesightWindowFrames);
+        AssertThat(foresight.RecoveryFrames).IsEqual(TubmanKitRules.ForesightWhiffRecoveryFrames);
+        AssertFloat(foresight.CooldownDuration).IsEqual(10f);
     }
 
     [TestCase]

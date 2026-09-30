@@ -619,7 +619,7 @@ public class Level07ContentTests {
     /// scaled by 60, falls run 1.8x that and clamp to a 600 px/s terminal velocity,
     /// and air control tops out at MaxMoveSpeed * 60.
     ///
-    /// Movement abilities (Pocahontas's glide, warps, dashes) are excluded on
+    /// Movement abilities (Leonardo's glide, warps, dashes, leaps) are excluded on
     /// purpose - the claim being pinned is that the channel beats a *jump*, which is
     /// what makes the rope swing the route. The callers apply headroom on top so a
     /// movement retune cannot quietly falsify the level design.

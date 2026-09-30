@@ -44,7 +44,7 @@ public class ConductiveMarkTests {
         // No other character authors a mark: F07 is a Tesla rider.
         foreach (string id in new[] {
             "einstein", "joan", "leonardo", "lincoln",
-            "cleopatra", "shakespeare", "mozart", "pocahontas"
+            "cleopatra", "shakespeare", "mozart", "tubman"
         }) {
             AssertThat(BasicComboRules.StringProfileFor(id).FinisherMarkType)
                 .OverrideFailureMessage($"{id} must author no combo mark.")

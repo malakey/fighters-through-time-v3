@@ -46,7 +46,6 @@ character_cleopatra_name,Cleopatra
 character_tesla_name,Nikola Tesla
 character_shakespeare_name,William Shakespeare
 character_mozart_name,Wolfgang Amadeus Mozart
-character_pocahontas_name,Pocahontas
 ability_einstein_mass_energy_conversion_name,Mass-Energy Conversion
 ability_einstein_mass_energy_conversion_description,"Fling an energized object straight ahead; it bursts in radiant energy on a fighter, terrain or a wall. Bursting inside your own Rift collapses it."
 ability_einstein_relativity_rift_name,Relativity Rift
@@ -111,14 +110,6 @@ ability_mozart_sonata_drift_name,Sonata Drift
 ability_mozart_sonata_drift_description,Rise along a glissando and leave a temporary musical staff platform at its peak.
 ability_mozart_symphony_of_sorrow_name,Symphony of Sorrow
 ability_mozart_symphony_of_sorrow_description,Conduct a rain of glowing piano-key meteors.
-ability_pocahontas_spirit_strike_name,Spirit Strike
-ability_pocahontas_spirit_strike_description,Call a spectral eagle into a staggering dive.
-ability_pocahontas_vine_snare_name,Vine Snare
-ability_pocahontas_vine_snare_description,Grow thorny vines that damage and root enemies.
-ability_pocahontas_breeze_glide_name,Breeze Glide
-ability_pocahontas_breeze_glide_description,Ride a wind current and refresh the extra jump.
-ability_pocahontas_tidewater_tempest_name,Tidewater Tempest
-ability_pocahontas_tidewater_tempest_description,Channel forest spirits through a lifting storm.
 enemy_chrono_slasher_name,Chrono-Slasher
 enemy_tech_enforcer_name,Tech-Enforcer
 enemy_cyber_guard_name,Cyber-Guard
@@ -1151,24 +1142,6 @@ resonance_lincoln_homestead_bulwark_name,Homestead Bulwark
 resonance_lincoln_homestead_bulwark_description,A Rail Charge that connects grants 3 seconds of hyper-armor.
 resonance_lincoln_kinetic_splitting_name,Kinetic Splitting
 resonance_lincoln_kinetic_splitting_description,"Splitting Strike's spike bounces an airborne enemy off the ground into a 20-frame follow-up window, and deals +50% to Chronal Extractors and enemy constructs."
-resonance_pocahontas_windstep_name,Minor Windstep
-resonance_pocahontas_windstep_description,Wind. Move speed +3%.
-resonance_pocahontas_staff_edge_name,Minor Staff Edge
-resonance_pocahontas_staff_edge_description,River. Basic attack damage +8%.
-resonance_pocahontas_forest_vigor_name,Minor Forest Vigor
-resonance_pocahontas_forest_vigor_description,Spirit. Maximum health +15.
-resonance_pocahontas_glide_duration_name,Minor Glide Duration
-resonance_pocahontas_glide_duration_description,The Breeze Glide lasts 20% longer.
-resonance_pocahontas_snare_duration_name,Minor Snare Duration
-resonance_pocahontas_snare_duration_description,The Vine Snare Roots for 2.0 seconds instead of 1.5.
-resonance_pocahontas_second_glide_name,Second Glide
-resonance_pocahontas_second_glide_description,The crossing. Traversal: the Breeze Glide can be re-entered once per airtime.
-resonance_pocahontas_tornado_lift_name,Tornado Lift
-resonance_pocahontas_tornado_lift_description,Starting a Breeze Glide raises an updraft that launches nearby enemies.
-resonance_pocahontas_thorn_snare_name,Thorn Snare
-resonance_pocahontas_thorn_snare_description,Rooted enemies bleed for the Root's whole duration.
-resonance_pocahontas_leaf_barrier_name,Leaf Barrier
-resonance_pocahontas_leaf_barrier_description,"Entering a Breeze Glide grants a leaf shield absorbing 10% of maximum health for 8 seconds. Every valid entry, including a Second Glide, refills it rather than stacking."
 resonance_state_locked_ability,"Dormant - unlocks with a Legacy you have not recovered yet."
 resonance_dormant_node,Dormant Resonance
 resonance_state_locked_prerequisite_any,"Locked - requires any of {0}"
@@ -1184,7 +1157,6 @@ dlg_l00_intro_2_cleopatra,"...That voice. You were in the light with me. Where a
 dlg_l00_intro_2_tesla,"...That voice. You were in the light with me. Where am I? Chicago? The sky... it tore apart, and something pulled."
 dlg_l00_intro_2_shakespeare,"...That voice. You were in the light with me. Where am I? London? The sky... it tore apart, and something pulled."
 dlg_l00_intro_2_mozart,"...That voice. You were in the light with me. Where am I? Prague? The sky... it tore apart, and something pulled."
-dlg_l00_intro_2_pocahontas,"...That voice. You were in the light with me. Where am I? Tsenacommacah? The sky... it tore apart, and something pulled."
 # Mystery Thread: the six N03 recognition speakers and their lines (master 163/169/175/196/207/213).
 speaker_apprentice,Florentine Apprentice
 speaker_captain,French Captain
@@ -1373,10 +1345,6 @@ hero_name_mozart,Mozart
 hero_address_mozart,Herr Mozart
 hero_possessive_mozart,Mozart's
 hero_home_era_mozart,Prague
-hero_name_pocahontas,Pocahontas
-hero_address_pocahontas,Pocahontas
-hero_possessive_pocahontas,Pocahontas's
-hero_home_era_pocahontas,Tsenacommacah
 hero_name_fallback,The traveler
 hero_address_fallback,traveler
 hero_possessive_fallback,the traveler's
@@ -1593,7 +1561,6 @@ hero_accept_line_cleopatra,"Egypt has outlasted worse conquerors. Name their ter
 hero_accept_line_shakespeare,Then the play's not ended; we are mid-act. Give me my cue.
 hero_accept_line_lincoln,"A house divided cannot stand — nor, it seems, a time. Then we mend it."
 hero_accept_line_tubman,"I never ran my train off the track, and I never lost a passenger. Show me where the line broke."
-hero_accept_line_pocahontas,Then I will walk it the way I walked the river path. Show me where the trail broke.
 hero_accept_line_fallback,Then I will fight for it. Show me where it broke.
 hero_farewell_line_einstein,There's an equation on my board I won't finish. I think that's all right.
 hero_farewell_line_joan,My banner's waiting. So are they.
@@ -1604,7 +1571,6 @@ hero_farewell_line_cleopatra,"My terms were met, Commander. The rest, I'll choos
 hero_farewell_line_shakespeare,I have a fifth act to finish. Give me my cue.
 hero_farewell_line_lincoln,It's mended. Now I'd best go and finish the work.
 hero_farewell_line_tubman,The road's clear again. Take me back to the line — there's folks still waiting.
-hero_farewell_line_pocahontas,The river is running where it should. Take me home.
 hero_farewell_line_fallback,It's whole again. Take me home.
 # Hub: per-line Sarah sets (S23/S35), the Act I→II boundary (S16/S35), Wren (S09), the triage readout (S11).
 dlg_hub_sarah_act1_3,Wren says the ship's holding. Wren always says that.
@@ -1648,3 +1614,37 @@ dlg_epilogue_homecoming_5,"Your report, then."
 dlg_epilogue_homecoming_6,It's a long one. Start with what I got wrong.
 epilogue_still_sendoff,THE BRIDGE — THE LAST EVENING ABOARD
 epilogue_still_homecoming,A MERIDIAN PORT — HOMECOMING
+# Package 13 W5
+# Roster swap: Harriet Tubman replaces Pocahontas (character review P01; decisions D3-D5).
+character_tubman_name,Harriet Tubman
+ability_tubman_conductors_call_name,Conductor's Call
+ability_tubman_conductors_call_description,Call a line of spectral Union scouts that rush along the ground.
+ability_tubman_foresight_name,Foresight
+ability_tubman_foresight_description,"Read the next blow: turn aside one strike or shot, then answer with a launching lantern strike."
+ability_tubman_north_star_leap_name,North Star Leap
+ability_tubman_north_star_leap_description,Follow the North Star in a leap in any of eight directions and catch a ledge from farther away.
+ability_tubman_freedom_line_name,The Freedom Line
+ability_tubman_freedom_line_description,A spectral train of lantern light carries every foe along its line.
+resonance_tubman_stride_name,Minor Stride
+resonance_tubman_stride_description,Road. Move speed +3%.
+resonance_tubman_cane_edge_name,Minor Cane Edge
+resonance_tubman_cane_edge_description,Cane. Basic attack damage +8%.
+resonance_tubman_resolve_name,Minor Resolve
+resonance_tubman_resolve_description,Faith. Maximum health +15.
+resonance_tubman_call_distance_name,Minor Call Distance
+resonance_tubman_call_distance_description,Conductor's Call travels 20% farther.
+resonance_tubman_foresight_window_name,Minor Foresight Window
+resonance_tubman_foresight_window_description,Foresight's counter window lasts 4 frames longer.
+resonance_tubman_star_guide_name,Star Guide
+resonance_tubman_star_guide_description,"The crossing. Traversal: press Movement again mid-leap to re-aim North Star Leap's remaining travel once, without restarting the cooldown."
+resonance_tubman_safe_passage_name,Safe Passage
+resonance_tubman_safe_passage_description,Conductor's Call leaves a lantern trail for 2 seconds. Tubman moves 20% faster while on it.
+resonance_tubman_never_lost_a_passenger_name,Never Lost a Passenger
+resonance_tubman_never_lost_a_passenger_description,A successful Foresight counter reclaims an extra 50% of the Rally echo pool.
+resonance_tubman_north_star_ward_name,North Star Ward
+resonance_tubman_north_star_ward_description,"Each North Star Leap grants a lantern-light shield absorbing 10% of maximum health for 8 seconds. A new leap refills it rather than stacking; a Star Guide redirect is not a new leap."
+dlg_l00_intro_2_tubman,"...That voice. You were in the light with me. Where am I? Maryland? The sky... it tore apart, and something pulled."
+hero_name_tubman,Tubman
+hero_address_tubman,Miss Tubman
+hero_possessive_tubman,Tubman's
+hero_home_era_tubman,Maryland

@@ -1,0 +1,46 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/AbilityData.cs" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/VfxShockwave.tscn" id="vfx_shockwave"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/VfxImpact.tscn" id="vfx_impact"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "tubman_conductors_call"
+CharacterID = "tubman"
+Slot = 0
+ExecutionType = 1
+AbilityName = "Conductor's Call"
+DisplayNameKey = "ability_tubman_conductors_call_name"
+DescriptionKey = "ability_tubman_conductors_call_description"
+BaseDamage = 18.0
+IsMultiHit = false
+HitCount = 1
+DamageTickIntervalFrames = 0
+HitstunFrames = 12
+BlockClass = 1
+Launches = false
+Delivery = 0
+Origin = 1
+KnockbackForce = Vector2(4, 0)
+ProjectileSpeed = 600.0
+GrantsHyperArmor = false
+HitboxSize = Vector2(60, 60)
+HitboxOffset = Vector2(30, 0)
+StartupFrames = 12
+ActiveFrames = 30
+RecoveryFrames = 18
+CooldownDuration = 9.0
+Lifetime = 0.0
+ProjectileLifetime = 0.4
+PersistentObjectID = ""
+MaxActiveObjects = 0
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+AnimationName = "special_1"
+ScreenShakeIntensity = 0.2
+ScreenShakeDuration = 0.15
+CastVFXScene = ExtResource("vfx_shockwave")
+ImpactVFXScene = ExtResource("vfx_impact")

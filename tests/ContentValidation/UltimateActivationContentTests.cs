@@ -12,12 +12,12 @@ namespace FTT.Tests.ContentValidation;
 
 /// <summary>
 /// Package 13 W6 — the ABILITY_DATA Ultimate table (A02 activation strikes,
-/// D15 totals) against the eight shipped <c>ultimate.tres</c> files. Both modes
+/// D15 totals) against the nine shipped <c>ultimate.tres</c> files. Both modes
 /// read the same resource: Story's scripts walk
 /// <see cref="AbilityData.CinematicHitDamage"/> and the Fighter sim reads the
 /// loadout projection (<see cref="FighterLoadoutFactory.UltimateData"/>), so the
 /// suite pins the table, the projection, and a real-loadout cinematic landing
-/// the design total. Pocahontas is deliberately absent (W5 replaces her).
+/// the design total. Package 13 W5 added Tubman's The Freedom Line (76).
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -27,7 +27,7 @@ public class UltimateActivationContentTests {
         string Character, float Total, float StatusDamage,
         UltimateActivationShape Shape, float RangePixels);
 
-    // ABILITY_DATA.md "Ultimates" (E06, J05, L04, T03, S04, M05, C04, LN05).
+    // ABILITY_DATA.md "Ultimates" (E06, J05, L04, T03, S04, M05, C04, LN05, Tubman).
     // Tesla's row is its base (no coils); Cleopatra's 78 counts the 12 Venom.
     private static readonly Row[] Table = {
         new("einstein", 78f, 0f, UltimateActivationShape.Projectile, 360f),
@@ -38,6 +38,7 @@ public class UltimateActivationContentTests {
         new("mozart", 80f, 0f, UltimateActivationShape.Projectile, 360f),
         new("cleopatra", 78f, 12f, UltimateActivationShape.Projectile, 360f),
         new("lincoln", 70f, 0f, UltimateActivationShape.GroundWave, 300f),
+        new("tubman", 76f, 0f, UltimateActivationShape.Projectile, 360f),
     };
 
     [TestCase]

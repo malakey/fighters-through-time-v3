@@ -35,7 +35,7 @@ public class ResonanceTraversalTests {
         ("mozart", "mozart_extra_note", MozartSonataDrift.ExtraNotePerkKey),
         ("cleopatra", "cleopatra_vortex_step", CleopatraSandstormVortex.VortexStepPerkKey),
         ("lincoln", "lincoln_rail_breaker", LincolnRailCharge.RailBreakerPerkKey),
-        ("pocahontas", "pocahontas_second_glide", PocahontasBreezeGlide.SecondGlidePerkKey)
+        ("tubman", "tubman_star_guide", TubmanNorthStarLeap.StarGuidePerkKey)
     };
 
     [TestCase]
@@ -239,27 +239,37 @@ public class ResonanceTraversalTests {
     }
 
     [TestCase]
-    public void PocahontasSecondGlideGrantsOneReEntryPerAirtimeAndResetsOnGrounding() {
-        PlayerController player = CharacterFactory.CreateCharacter("pocahontas");
+    public void TubmanStarGuideReAimsOneLeapOnceWithoutRestartingTheCooldown() {
+        // Package 13 W5 (replaces the retired Second Glide case): Star Guide
+        // re-aims the remaining travel of a North Star Leap ONCE, on a fresh
+        // Movement press, in the newly held direction — no cooldown restart.
+        PlayerController player = CharacterFactory.CreateCharacter("tubman");
         Node host = Attach(player);
         try {
-            var glide = player.GetNode<PocahontasBreezeGlide>("MovementAbility");
-
-            // Without the node there is no re-entry at all.
+            var leap = player.GetNode<TubmanNorthStarLeap>("MovementAbility");
             player.TransitionTo(CharacterState.Airborne);
-            AssertThat(glide.TryConsumeSecondGlide()).IsFalse();
+            SendAxes(player, GameplayButtons.MovementAbility, 1f, 0f);
+            AssertThat(leap.IsExecuting).IsTrue();
+            AssertThat(leap.LeapDirection).IsEqual(Vector2.Right);
+            leap._PhysicsProcess(1.0 / 60.0); // the one startup frame
+            float cooldown = player.MovementAbilityCooldownTimer;
 
-            player.StoryAbilityPerks.Add(PocahontasBreezeGlide.SecondGlidePerkKey);
-            AssertThat(glide.SecondGlideConsumed).IsFalse();
-            AssertThat(glide.TryConsumeSecondGlide()).IsTrue();
-            AssertThat(glide.SecondGlideConsumed).IsTrue();
-            // ONE per airtime: the second attempt is refused.
-            AssertThat(glide.TryConsumeSecondGlide()).IsFalse();
+            // Without the node, a mid-flight press changes nothing.
+            SendAxes(player, GameplayButtons.MovementAbility, 0f, -1f);
+            AssertThat(leap.RedirectUsed).IsFalse();
+            AssertThat(leap.LeapDirection).IsEqual(Vector2.Right);
 
-            // The latch clears on grounding, so a new jump earns a fresh one.
-            glide.ResetAirtimeAllowance();
-            AssertThat(glide.SecondGlideConsumed).IsFalse();
-            AssertThat(glide.TryConsumeSecondGlide()).IsTrue();
+            player.StoryAbilityPerks.Add(TubmanNorthStarLeap.StarGuidePerkKey);
+            SendAxes(player, GameplayButtons.MovementAbility, 0f, -1f);
+            AssertThat(leap.RedirectUsed).IsTrue();
+            AssertThat(leap.LeapDirection).IsEqual(Vector2.Up);
+            AssertThat(player.MovementAbilityCooldownTimer <= cooldown)
+                .OverrideFailureMessage("A Star Guide redirect must not restart the cooldown.")
+                .IsTrue();
+
+            // ONE per leap: a second press is refused.
+            SendAxes(player, GameplayButtons.MovementAbility, -1f, 0f);
+            AssertThat(leap.LeapDirection).IsEqual(Vector2.Up);
         } finally {
             Teardown(host, player);
         }
@@ -305,6 +315,13 @@ public class ResonanceTraversalTests {
     private static void SendInput(PlayerController player, GameplayButtons buttons) {
         var source = new BufferedInputSource();
         source.SetNextFrame(PlayerInputFrame.Create(0, 0f, 0f, buttons));
+        InputManager.Instance.SetInputSource(player.PlayerIndex, source);
+        player._PhysicsProcess(1.0 / 60.0);
+    }
+
+    private static void SendAxes(PlayerController player, GameplayButtons buttons, float horizontal, float vertical) {
+        var source = new BufferedInputSource();
+        source.SetNextFrame(PlayerInputFrame.Create(0, horizontal, vertical, buttons));
         InputManager.Instance.SetInputSource(player.PlayerIndex, source);
         player._PhysicsProcess(1.0 / 60.0);
     }

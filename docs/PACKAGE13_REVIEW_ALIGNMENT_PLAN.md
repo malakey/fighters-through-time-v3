@@ -257,6 +257,19 @@ Handoff: `docs/handoffs/P13_W6.md`. **Test delta +20 (2527 → 2547)**, measured
   snap over pits); (6) `MovementType` ordinals are explicit 10/11 and kit phases 24–29 so W7a's parallel
   appends cannot collide; (7) no animation mapping for the new kit phases in the Fighter driver.
 
+### W5 — Roster swap: Pocahontas → Harriet Tubman (D3–D5) — `p13/W5`, handoff `docs/handoffs/P13_W5.md`
+
+- **Test delta +13 (2480 → 2493 on this branch)**: −21 from the seven deleted Pocahontas suites, +34 new (TubmanContent 4, TubmanKit 9, TubmanUltimate 2, RosterSwapProtocol 2, TubmanKitStory 7, RosterSwapV8 10); the shared suites in the handoff table rewritten in place (0 count change). Two complementary filtered runs (Determinism 470 + rest 2023, 0 failed), lock protocol.
+- **Hash moves:** every Fighter hash (component **322** `FighterCounterComponent`, 16 B, on every fighter; roster, kit phases 21/22, projectile 91, zone 93). Rollback readiness and every per-stage suite pass.
+- **IDs:** `FighterCharacterID.Tubman = 9`, `Pocahontas = 8` `[Obsolete]` reserved; protocol **v4**; persistent type 4, zone type 83 and kit phases 19–20 retired; `StoryShieldEffect.NorthStarWard = 6`, `LeafBarrier = 3` `[Obsolete]` and no longer a source.
+- **v8 derivation declared:** `RosterSwapV8.MigrateRosterSwapV8(StorySaveData)` + `EnsureReplacementUnlocked(GlobalSaveData)` (engine-free); `CurrentVersion` untouched.
+- **Deviation 1 — Conductor's Call is a local stand-in for W7b's ground wave** (sim: the Special 1 projectile contacts grounded targets only; Story: a ground sweep). Unify at merge.
+- **Deviation 2 — Foresight placeholders:** 12-frame invulnerable sidestep with no displacement; the answer lands one tick after the trigger with the authored 12-frame hitstun; the Story answer strikes the nearest hostile within 2.5 u. North Star Leap: sim 18 travel + 1 settle frame, Story 1/18/8, Story snap checked once at the end of travel.
+- **Deviation 3 — `MobilitySpecialFor` returns `None` for the whole roster;** the planner branch and `RecoveryMobilitySpecialPercent` remain, dormant.
+- **Deviation 4 — `AbilityHitContractTests`** now exempts Conductor's Call from "knockback ≠ 0 launches" (the design's push); Foresight's `HitstunFrames` is the template 12.
+- **Deviation 5 — `CalibrationDrillPicker` reads `CharacterRoster`** and binds onto the authored tiles defensively (was a literal nine-ID list).
+- **en.csv:** 34 Pocahontas rows deleted (incl. W3's accept/farewell rows for her), 34 Tubman rows added under `# Package 13 W5`; `en.en.translation` not committed.
+
 ## 10. Closeout report
 
 *(Phase C.)*

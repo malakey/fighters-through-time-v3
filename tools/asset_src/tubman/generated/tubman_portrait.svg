@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<defs>
+<radialGradient id="glow"><stop offset="0" stop-color="#fff1bf" stop-opacity="0.85"/>
+<stop offset="0.35" stop-color="#ffb43a" stop-opacity="0.45"/><stop offset="1" stop-color="#ffb43a" stop-opacity="0"/></radialGradient>
+<radialGradient id="glass"><stop offset="0" stop-color="#fff1bf"/><stop offset="1" stop-color="#ffcf5a"/></radialGradient>
+<radialGradient id="spectral"><stop offset="0" stop-color="#ffffff" stop-opacity="0.9"/>
+<stop offset="0.5" stop-color="#bfe3ff" stop-opacity="0.55"/><stop offset="1" stop-color="#bfe3ff" stop-opacity="0"/></radialGradient>
+<linearGradient id="skirt" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22325a"/><stop offset="1" stop-color="#16213e"/></linearGradient>
+</defs>
+<defs>
+<linearGradient id="face" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#4a2c1b"/><stop offset="1" stop-color="#6e452b"/></linearGradient>
+<linearGradient id="wrapg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ad5632"/><stop offset="1" stop-color="#6e2f1b"/></linearGradient>
+<linearGradient id="dressg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2b3d6b"/><stop offset="1" stop-color="#16213e"/></linearGradient>
+</defs>
+<!-- shoulders: dark-blue dress, brown jacket, shawl -->
+<path d="M40,512 Q52,380 150,352 L206,334 L306,334 L362,352 Q460,380 472,512 Z" fill="url(#dressg)" stroke="#120c0a" stroke-width="6" stroke-linejoin="round"/>
+<path d="M70,512 Q86,410 170,372 L256,420 L342,372 Q426,410 442,512 Z" fill="#4e3322" stroke="#120c0a" stroke-width="5" stroke-linejoin="round"/>
+<path d="M120,380 Q256,330 392,380 L330,470 L256,420 L182,470 Z" fill="#735236" stroke="#120c0a" stroke-width="5" stroke-linejoin="round"/>
+<path d="M182,470 L256,420 L330,470" fill="none" stroke="#5a3e27" stroke-width="4"/>
+<!-- neck -->
+<path d="M214,300 L214,356 Q256,380 298,356 L298,300 Z" fill="#4e2f1d" stroke="#120c0a" stroke-width="5"/>
+<!-- face -->
+<ellipse cx="258" cy="236" rx="78" ry="96" fill="url(#face)" stroke="#120c0a" stroke-width="6"/>
+<ellipse cx="182" cy="248" rx="13" ry="22" fill="#4a2c1b" stroke="#120c0a" stroke-width="5"/>
+<path d="M222,222 Q238,214 252,222" fill="none" stroke="#120c0a" stroke-width="6" stroke-linecap="round"/>
+<path d="M280,222 Q296,212 312,220" fill="none" stroke="#120c0a" stroke-width="6" stroke-linecap="round"/>
+<path d="M226,240 Q238,232 250,240 Q238,246 226,240 Z" fill="#1a0f0a"/>
+<path d="M282,240 Q294,232 306,240 Q294,246 282,240 Z" fill="#1a0f0a"/>
+<circle cx="241" cy="239" r="2.5" fill="#f3e2c8"/><circle cx="297" cy="239" r="2.5" fill="#f3e2c8"/>
+<path d="M270,244 Q262,276 266,286 Q276,294 290,286" fill="none" stroke="#3a2214" stroke-width="5" stroke-linecap="round"/>
+<path d="M240,306 Q268,318 298,304" fill="none" stroke="#2a170e" stroke-width="6" stroke-linecap="round"/>
+<path d="M248,314 Q268,322 290,312" fill="none" stroke="#6e3a28" stroke-width="3" stroke-linecap="round"/>
+<path d="M300,190 Q326,230 322,280" fill="none" stroke="#8a5a3a" stroke-width="7" stroke-linecap="round" opacity="0.55"/>
+<!-- head wrap -->
+<path d="M176,214 Q168,110 258,98 Q350,94 344,200 Q330,168 300,160 Q250,150 214,170 Q188,184 176,214 Z" fill="url(#wrapg)" stroke="#120c0a" stroke-width="6" stroke-linejoin="round"/>
+<path d="M196,172 Q250,128 330,150" fill="none" stroke="#6e2f1b" stroke-width="6" stroke-linecap="round"/>
+<path d="M208,132 Q262,112 322,124" fill="none" stroke="#c46a3e" stroke-width="5" stroke-linecap="round"/>
+<path d="M176,150 Q138,126 150,94 Q176,112 196,120 Z" fill="url(#wrapg)" stroke="#120c0a" stroke-width="5" stroke-linejoin="round"/>
+<ellipse cx="176" cy="130" rx="20" ry="16" fill="#a14f2e" stroke="#120c0a" stroke-width="5"/>
+<!-- lantern, lower right, lighting the face -->
+<circle cx="420" cy="426" r="84" fill="url(#glow)"/>
+<path d="M420,356 L420,378" stroke="#120c0a" stroke-width="5"/>
+<path d="M400,392 L440,392 L432,378 L408,378 Z" fill="#2b1d12" stroke="#120c0a" stroke-width="4" stroke-linejoin="round"/>
+<rect x="394" y="392" width="52" height="66" rx="8" fill="url(#glass)" stroke="#2b1d12" stroke-width="7"/>
+<path d="M420,392 L420,458" stroke="#2b1d12" stroke-width="4"/>
+<rect x="390" y="456" width="60" height="12" rx="3" fill="#2b1d12" stroke="#120c0a" stroke-width="3"/>
+<path d="M346,512 Q352,470 392,452 L406,470 Q384,486 382,512 Z" fill="#5a3622" stroke="#120c0a" stroke-width="5" stroke-linejoin="round"/>
+</svg>

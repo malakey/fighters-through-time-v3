@@ -1,0 +1,54 @@
+[gd_resource type="Resource" script_class="AbilityData" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/Combat/AbilityData.cs" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/VfxBeam.tscn" id="vfx_beam"]
+[ext_resource type="PackedScene" path="res://scenes/vfx/VfxImpact.tscn" id="vfx_impact"]
+
+[resource]
+script = ExtResource("1")
+SchemaVersion = 1
+AbilityID = "tubman_freedom_line"
+CharacterID = "tubman"
+Slot = 3
+ExecutionType = 5
+AbilityName = "The Freedom Line"
+DisplayNameKey = "ability_tubman_freedom_line_name"
+DescriptionKey = "ability_tubman_freedom_line_description"
+BaseDamage = 8.0
+IsMultiHit = true
+HitCount = 7
+DamageTickIntervalFrames = 18
+HitstunFrames = 12
+BlockClass = 3
+Launches = true
+Delivery = 0
+Origin = 2
+KnockbackForce = Vector2(6, -4)
+ProjectileSpeed = 0.0
+GrantsHyperArmor = false
+HitboxSize = Vector2(960, 240)
+HitboxOffset = Vector2(0, 0)
+StartupFrames = 30
+ActiveFrames = 144
+RecoveryFrames = 30
+CooldownDuration = 0.0
+Lifetime = 2.4
+ProjectileLifetime = 0.0
+FinaleDamage = 20.0
+FinaleLaunches = true
+ActivationShape = 1
+ActivationRange = 360.0
+ActivationHitboxSize = Vector2(60, 30)
+ActivationWindupFrames = 20
+ActivationActiveFrames = 10
+ActivationWhiffRecoveryFrames = 45
+PersistentObjectID = ""
+MaxActiveObjects = 0
+AppliedStatus = 0
+StatusDuration = 0.0
+StatusIntensity = 1.0
+AnimationName = "ultimate"
+ScreenShakeIntensity = 0.6
+ScreenShakeDuration = 0.3
+CastVFXScene = ExtResource("vfx_beam")
+ImpactVFXScene = ExtResource("vfx_impact")
