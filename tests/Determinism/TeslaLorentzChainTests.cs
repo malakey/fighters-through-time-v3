@@ -12,7 +12,9 @@ namespace FTT.Tests.Determinism;
 /// Package 12 W4 (GAP-10a, F07) — the sim's Lorentz chain consumer. A pulse that
 /// lands on a target carrying THIS Tesla's Conductive mark, while he has a live
 /// coil, consumes the mark through <c>FighterConductiveRules.TryConsumeChain</c>
-/// and chains once: each coil arcs 5 into the target. Static Charge alone,
+/// and chains once: each eligible coil arcs into the target — since Package 13
+/// W7a (T01) an eligible coil is one of his own within 8 units of the target, and
+/// each fires its own 8-damage direct Special-class arc. Static Charge alone,
 /// another Tesla's mark, or no coil never chains. The pulse here is authored as
 /// three ticks (5-frame interval over 0.25 s), which is what makes "once per
 /// pulse" observable.
@@ -28,7 +30,7 @@ public class TeslaLorentzChainTests {
         FighterSimulation simulation = DeployCoilThenPulse(markSource: 0);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(target.CurrentHP)
-            .OverrideFailureMessage("Three pulse ticks plus exactly one 5-damage chain from the one coil.")
+            .OverrideFailureMessage("Three pulse ticks plus exactly one 8-damage chain from the one coil.")
             .IsEqual(100 - PulseTicks * PulseDamage - FighterZoneSystemCoilArc);
         AssertThat(simulation.TryGetFighterConductive(1, out FighterConductiveComponent mark)).IsTrue();
         AssertThat(FighterConductiveRules.HasMarkFrom(in mark, 0))
@@ -95,8 +97,70 @@ public class TeslaLorentzChainTests {
             .IsEqual(100 - PulseTicks * PulseDamage - FighterZoneSystemCoilArc);
     }
 
-    /// <summary>The coil arc the chain deals per live coil (the sim's CoilArcDamage).</summary>
-    private const int FighterZoneSystemCoilArc = 5;
+    /// <summary>T01: the arc each eligible coil fires (Package 13 W7a: 5 → 8).</summary>
+    private const int FighterZoneSystemCoilArc = FighterLorentzChainRules.ArcDamage;
+
+    /// <summary>T01: two eligible coils fire two separate 8-damage arcs — 16 in all.</summary>
+    [TestCase]
+    public void TwoEligibleCoilsFireTwoEightDamageArcs() {
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(ChainTesla()),
+            FighterLoadout.Default(FighterCharacterID.Joan),
+            seed: 1404, spawnDistance: 1, rules: FighterMatchRules.Disabled);
+        simulation.Advance(Frame(0, GameplayButtons.Special1), Frame(0, GameplayButtons.None));
+        simulation.Advance(Frame(1, GameplayButtons.None), Frame(1, GameplayButtons.None));
+        simulation.Advance(Frame(2, GameplayButtons.Special1), Frame(2, GameplayButtons.None));
+        for (int tick = 3; tick < 5; tick++) {
+            simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
+        }
+        AssertThat(simulation.PersistentObjectCount).IsEqual(2);
+        simulation.SeedFighterConductiveForTest(1, 0, BasicComboRules.ConductiveMarkBaselineFrames);
+        simulation.Advance(Frame(5, GameplayButtons.Special2), Frame(5, GameplayButtons.None));
+        for (int tick = 6; tick < 30; tick++) {
+            simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
+        AssertThat(target.CurrentHP).IsEqual(100 - PulseTicks * PulseDamage - 2 * FighterZoneSystemCoilArc);
+        AssertThat(2 * FighterZoneSystemCoilArc).IsEqual(16);
+    }
+
+    /// <summary>
+    /// T01: a coil more than 8 units from the marked target is not eligible — no
+    /// chain fires and the mark is left to expire.
+    /// </summary>
+    [TestCase]
+    public void ACoilBeyondEightUnitsOfTheTargetNeverChains() {
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(ChainTesla()),
+            FighterLoadout.Default(FighterCharacterID.Joan),
+            seed: 1405, spawnDistance: 5, rules: FighterMatchRules.Disabled);
+        // Deploy at x = -5, then walk to the target at x = +5 (10 units from the coil).
+        simulation.Advance(Frame(0, GameplayButtons.Special1), Frame(0, GameplayButtons.None));
+        int tick = 1;
+        for (; tick < 200; tick++) {
+            simulation.Advance(Frame(tick, GameplayButtons.None, 127), Frame(tick, GameplayButtons.None));
+            simulation.TryGetFighter(0, out FighterStateComponent walker);
+            if (walker.Position.x > xpTURN.Klotho.Deterministic.Math.FP64.FromInt(3)) break;
+        }
+        for (int settle = 0; settle < 20; settle++, tick++) {
+            simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
+        AssertThat(simulation.TryGetFirstPersistentObject(out FighterPersistentObjectComponent coil)).IsTrue();
+        xpTURN.Klotho.Deterministic.Math.FP64 gap = before.Position.x - coil.Position.x;
+        AssertThat(gap > xpTURN.Klotho.Deterministic.Math.FP64.FromInt(8)).IsTrue();
+        simulation.SeedFighterConductiveForTest(1, 0, BasicComboRules.ConductiveMarkBaselineFrames);
+        simulation.Advance(Frame(tick, GameplayButtons.Special2), Frame(tick, GameplayButtons.None));
+        tick++;
+        for (int end = tick + 24; tick < end; tick++) {
+            simulation.Advance(Frame(tick, GameplayButtons.None), Frame(tick, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
+        AssertThat(after.CurrentHP).IsEqual(before.CurrentHP - PulseTicks * PulseDamage);
+        AssertThat(simulation.TryGetFighterConductive(1, out FighterConductiveComponent kept)).IsTrue();
+        AssertThat(FighterConductiveRules.HasMarkFrom(in kept, 0))
+            .OverrideFailureMessage("An ineligible coil leaves the mark to expire.").IsTrue();
+    }
 
     private static FighterSimulation DeployCoilThenPulse(int markSource) {
         var simulation = new FighterSimulation(

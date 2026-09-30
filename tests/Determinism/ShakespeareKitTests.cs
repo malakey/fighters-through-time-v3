@@ -59,8 +59,14 @@ public class ShakespeareKitTests {
         AssertThat(target.CurrentHP).IsEqual(86);
     }
 
+    /// <summary>
+    /// S01/S02 (Package 13 W7a): The Tempest is a windbox — the opponent it
+    /// touches is shoved ~3 units outward over the storm's 12 frames by a
+    /// positional push, with no damage, hitstun or velocity change, while
+    /// Shakespeare is lifted.
+    /// </summary>
     [TestCase]
-    public void TempestZonePushesTheOpponentAwayFromCenterAndLiftsTheOwner() {
+    public void TempestWindboxPushesTheOpponentThreeUnitsAndLiftsTheOwner() {
         var simulation = new FighterSimulation(
             FighterLoadoutFactory.FromCharacterData(BuildTempestCharacter()),
             FighterLoadout.Default(FighterCharacterID.Joan),
@@ -74,12 +80,13 @@ public class ShakespeareKitTests {
         AssertThat(simulation.TryGetFirstZone(out FighterZoneComponent zone)).IsTrue();
         AssertThat(zone.ZoneTypeID).IsEqual((int)FighterCharacterID.Shakespeare * 10 + 2);
 
-        // The first pulse shoves the opponent outward (the opponent spawns to the
-        // right of the storm center, so the wind pushes further right) with zero
-        // damage.
+        // The storm pushes, it does not hit: no damage, no hitstun, and the
+        // opponent's own velocity is untouched.
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(target.CurrentHP).IsEqual(100);
-        AssertThat(target.Velocity.x > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
+        AssertThat(target.HitstunFrames).IsEqual(0);
+        AssertThat(target.Velocity.x).IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.Zero);
+        AssertThat(target.Position.x > before.Position.x).IsTrue();
 
         // The gust lifts the caster airborne on cast.
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent owner)).IsTrue();
@@ -89,14 +96,56 @@ public class ShakespeareKitTests {
         for (int tick = 1; tick <= 20; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
+        AssertThat(simulation.ZoneCount).IsEqual(0);
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
-        AssertThat(after.Position.x > before.Position.x).IsTrue();
+        xpTURN.Klotho.Deterministic.Math.FP64 pushed = after.Position.x - before.Position.x;
+        AssertThat(pushed > xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(2.95)
+            && pushed < xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(3.05)).IsTrue();
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent lifted)).IsTrue();
-        AssertThat(lifted.Position.y > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
+        AssertThat(lifted.Position.y > xpTURN.Klotho.Deterministic.Math.FP64.FromInt(2)).IsTrue();
     }
 
+    /// <summary>
+    /// S01: a blocking opponent is pushed all the same, but the windbox spends no
+    /// block charge, applies no shieldstun, hitstun or hitstop, and builds no meter
+    /// for either side.
+    /// </summary>
     [TestCase]
-    public void ProsperosFlightGlideHoldsTheAuthoredFloatWindow() {
+    public void TempestWindboxSpendsNoBlockChargeAndBuildsNoMeter() {
+        var simulation = new FighterSimulation(
+            FighterLoadoutFactory.FromCharacterData(BuildTempestCharacter()),
+            FighterLoadout.Default(FighterCharacterID.Joan),
+            seed: 65,
+            spawnDistance: 1,
+            rules: FighterMatchRules.Disabled);
+        // The opponent turns to face the storm, then raises the stance.
+        simulation.Advance(Frame(0, 0, GameplayButtons.None), Frame(0, -127, GameplayButtons.None));
+        for (int tick = 1; tick < 4; tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.Block));
+        }
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent before)).IsTrue();
+        simulation.Advance(Frame(4, 0, GameplayButtons.Special2), Frame(4, 0, GameplayButtons.Block));
+        for (int tick = 5; tick <= 20; tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.Block));
+        }
+        AssertThat(simulation.TryGetFighter(1, out FighterStateComponent after)).IsTrue();
+        AssertThat(after.Position.x > before.Position.x + xpTURN.Klotho.Deterministic.Math.FP64.FromInt(2)).IsTrue();
+        AssertThat(after.BlockCharges).IsEqual(before.BlockCharges);
+        AssertThat(after.HitstunFrames).IsEqual(0);
+        AssertThat(after.Influence).IsEqual(before.Influence);
+        AssertThat(simulation.TryGetFighterVerb(1, out FighterVerbComponent verb)).IsTrue();
+        AssertThat(verb.ShieldStunFrames).IsEqual(0);
+        AssertThat(verb.HitstopFrames).IsEqual(0);
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent caster)).IsTrue();
+        AssertThat(caster.Influence).IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.Zero);
+    }
+
+    /// <summary>
+    /// A08 (Package 13 W7a): Prospero's Flight is a single gust burst — about 4
+    /// units forward and 2.5 up over 20 frames, then a normal fall with no glide.
+    /// </summary>
+    [TestCase]
+    public void ProsperosFlightIsAGustBurstThenANormalFall() {
         var simulation = new FighterSimulation(
             FighterLoadoutFactory.FromCharacterData(BuildFlightCharacter()),
             FighterLoadout.Default(FighterCharacterID.Joan),
@@ -104,20 +153,31 @@ public class ShakespeareKitTests {
             spawnDistance: 4,
             rules: FighterMatchRules.Disabled);
 
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent start)).IsTrue();
         simulation.Advance(Frame(0, 0, GameplayButtons.MovementAbility), Frame(0, 0, GameplayButtons.None));
-        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent owner)).IsTrue();
-        AssertThat(owner.IsGrounded).IsEqual(0);
-        AssertThat(owner.Velocity.y > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
-        // The authored 3 s glide becomes 180 reduced-gravity float frames after
-        // the boost.
-        AssertThat(runtime.FloatFrames).IsEqual(180);
-
-        for (int tick = 1; tick <= 180; tick++) {
+        AssertThat(runtime.UniversalMovementState).IsEqual(FighterKitMotion.GustBurst);
+        for (int tick = 1; tick <= KitMotionRules.ProsperoGustFrames; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
-        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent settled)).IsTrue();
-        AssertThat(settled.FloatFrames).IsEqual(0);
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent apex)).IsTrue();
+        xpTURN.Klotho.Deterministic.Math.FP64 forward = apex.Position.x - start.Position.x;
+        xpTURN.Klotho.Deterministic.Math.FP64 rise = apex.Position.y - start.Position.y;
+        AssertThat(forward > xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(3.9)
+            && forward < xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(4.1)).IsTrue();
+        AssertThat(rise > xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(2.4)
+            && rise < xpTURN.Klotho.Deterministic.Math.FP64.FromDouble(2.6)).IsTrue();
+
+        // Then the burst is spent: no glide float window, and an ordinary fall.
+        simulation.Advance(Frame(21, 0, GameplayButtons.None), Frame(21, 0, GameplayButtons.None));
+        AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent after)).IsTrue();
+        AssertThat(after.FloatFrames).IsEqual(0);
+        AssertThat(after.UniversalMovementState).IsEqual((int)UniversalMovementPhase.None);
+        for (int tick = 22; tick <= 120; tick++) {
+            simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
+        AssertThat(simulation.TryGetFighter(0, out FighterStateComponent landed)).IsTrue();
+        AssertThat(landed.IsGrounded).IsEqual(1);
     }
 
     [TestCase]
@@ -190,10 +250,11 @@ public class ShakespeareKitTests {
         SpecialAttackTwo = new AbilityData {
             ExecutionType = AbilityExecutionType.Area,
             BaseDamage = 0f,
-            KnockbackForce = new Vector2(4f, -2f),
+            KnockbackForce = Vector2.Zero,
             CooldownDuration = 10f,
-            Lifetime = 1.2f,
-            DamageTickIntervalFrames = 30
+            // S02 (Package 13 W7a): the windbox lives for its 12 active frames.
+            Lifetime = 0.2f,
+            DamageTickIntervalFrames = 0
         },
         MovementAbility = new MovementAbilityData(),
         UltimateAttack = new AbilityData { BaseDamage = 14f }
@@ -212,9 +273,10 @@ public class ShakespeareKitTests {
         SpecialAttackOne = new AbilityData(),
         SpecialAttackTwo = new AbilityData(),
         MovementAbility = new MovementAbilityData {
-            MovementType = MovementType.Glide,
-            MovementDuration = 3f,
-            MovementSpeed = 180f,
+            // A08 (Package 13 W7a): the gust burst.
+            MovementType = MovementType.Gust,
+            MovementDuration = 1f / 3f,
+            DistanceMoved = 240f,
             CooldownDuration = 5f
         },
         UltimateAttack = new AbilityData { BaseDamage = 14f }

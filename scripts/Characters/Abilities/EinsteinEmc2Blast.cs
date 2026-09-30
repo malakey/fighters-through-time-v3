@@ -1,6 +1,7 @@
 using Godot;
 using FTT.Combat;
 using FTT.Characters;
+using FTT.Core;
 
 namespace FTT.Characters.Abilities {
 
@@ -17,7 +18,8 @@ namespace FTT.Characters.Abilities {
         public const string CriticalMassPerkKey = "critical_mass";
 
         private const float ContactDamageShare = 1f / 3f;
-        private const float BurstRadius = 100f;
+        /// <summary>Fallback burst radius (1.2 units) when the resource authors none.</summary>
+        private const float DefaultBurstRadius = 72f;
         private const float EventHorizonDamageMultiplier = 1.2f;
         private const float CriticalMassBurnDuration = 3f;
 
@@ -39,13 +41,21 @@ namespace FTT.Characters.Abilities {
 
         private void SpawnProjectile() {
             if (Owner == null) return;
-            float contactDamage = Mathf.Round((Data?.BaseDamage ?? 15f) * ContactDamageShare);
+            // Package 13 W7a (E05): the designed two-stage hit is authored —
+            // 7 contact + 20 burst — rather than a hidden 1/3 split.
+            float contactDamage = Data?.ProjectileContactDamage > 0f
+                ? Data.ProjectileContactDamage
+                : Mathf.Round((Data?.BaseDamage ?? 15f) * ContactDamageShare);
             var projectile = SpawnPlaceholderProjectile(
                 Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 50f : -50f, 0f),
-                Data?.ProjectileSpeed ?? 350f, Owner.IsFacingRight, new Color(0.3f, 0.6f, 1f),
+                Data?.ProjectileSpeed ?? 720f, Owner.IsFacingRight, new Color(0.3f, 0.6f, 1f),
                 new Vector2(20, 14), Data?.ProjectileLifetime ?? 5f, contactDamage);
             if (projectile != null) {
                 projectile.DetonateOnImpact = true;
+                projectile.MakeMinorContactStage();
+                // E05: a straight shot with no range limit — it bursts on a
+                // fighter, terrain or a wall (and at its lifetime cap).
+                projectile.BurstsOnTerrain = Data?.ProjectileBurstsOnTerrain ?? true;
                 projectile.Impacted += OnProjectileImpacted;
             }
         }
@@ -59,9 +69,16 @@ namespace FTT.Characters.Abilities {
         private void Detonate(Vector2 impactPosition) {
             if (Owner == null || !IsInstanceValid(Owner)) return;
 
+            // E01 (Package 13 W7a): a burst inside Einstein's own active rift
+            // collapses it — the same E=mc² execution, never a second cast. Who
+            // is caught is decided at the detonation instant, before the burst
+            // resolves, so a blocker the burst then shatters is not pulled.
+            GetOwnRift()?.TryCollapse(impactPosition);
+
             // Burst flash visual only; damage is applied through the shape query so
             // per-target perk multipliers can be evaluated.
-            SpawnPlaceholderZone(impactPosition, 0f, 0.25f, 1f, new Color(1f, 0.9f, 0.4f), BurstRadius);
+            float burstRadius = BurstRadius;
+            SpawnPlaceholderZone(impactPosition, 0f, 0.25f, 1f, new Color(1f, 0.9f, 0.4f), burstRadius);
 
             var space = Owner.GetWorld2D()?.DirectSpaceState;
             if (space == null) return;
@@ -69,7 +86,7 @@ namespace FTT.Characters.Abilities {
                 ? FTT.Core.CollisionLayers.EnemyHurtbox
                 : FTT.Core.CollisionLayers.PlayerHurtbox;
             var query = new PhysicsShapeQueryParameters2D {
-                Shape = new CircleShape2D { Radius = BurstRadius },
+                Shape = new CircleShape2D { Radius = burstRadius },
                 Transform = new Transform2D(0f, impactPosition),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
@@ -116,6 +133,22 @@ namespace FTT.Characters.Abilities {
                 // return zero, which is the design's gating list.
                 if (criticalMass && dealt > 0f) ApplyCriticalMassBurn(hurtbox);
             }
+        }
+
+        /// <summary>The burst radius in pixels: the authored value, 1.2 units by default.</summary>
+        public float BurstRadius => Data?.ProjectileBurstRadius > 0f ? Data.ProjectileBurstRadius : DefaultBurstRadius;
+
+        /// <summary>Test seam: resolves the burst at <paramref name="impactPosition"/> synchronously.</summary>
+        public void DetonateForTest(Vector2 impactPosition) => Detonate(impactPosition);
+
+        private EinsteinRelativityRift GetOwnRift() {
+            if (Owner == null || !IsInstanceValid(Owner)) return null;
+            Godot.Collections.Array<Node> children = Owner.GetChildren();
+            using var lifetime = children.AsDisposable();
+            foreach (Node child in children) {
+                if (child is EinsteinRelativityRift rift) return rift;
+            }
+            return null;
         }
 
         /// <summary>

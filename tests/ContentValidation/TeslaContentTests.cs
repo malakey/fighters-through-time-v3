@@ -27,14 +27,20 @@ public class TeslaContentTests {
         AssertThat(data.MaxActiveObjects).IsEqual(2);
         AssertThat(data.PersistentObjectID).IsEqual("tesla_coil");
         AssertObject(data.PersistentObjectScene).IsNotNull();
+        // T02 (Package 13 W7a): coils arc within 4 units in both modes.
+        AssertThat(FTT.Characters.Abilities.TeslaCoilNode.ArcRangePixels).IsEqual(240f);
+        AssertThat(KitMotionRules.TeslaCoilArcRangeUnits).IsEqual(4f);
     }
 
     [TestCase]
-    public void LorentzPulseResourceRootsForTwoSecondsWithOnePulseLifetime() {
+    public void LorentzPulseResourceRootsForOneSecondWithOnePulseLifetime() {
         var data = FTT.Core.AuthoredResources.Load<AbilityData>("res://resources/Abilities/tesla/special_2.tres");
         AssertObject(data).IsNotNull();
         AssertThat(data.AppliedStatus).IsEqual(StatusType.Root);
-        AssertThat(data.StatusDuration).IsEqual(2f);
+        // A05 (Package 13 W7a): Root 1.0 s; T02: 14 startup (the cane charge), 20 recovery.
+        AssertThat(data.StatusDuration).IsEqual(1f);
+        AssertThat(data.StartupFrames).IsEqual(14);
+        AssertThat(data.RecoveryFrames).IsEqual(20);
         AssertThat(data.Lifetime).IsEqual(0.25f);
         // V7: the unearned (coil-less) cast is trimmed out of the top band; the
         // chain-lightning reward with coils primed makes up the difference.

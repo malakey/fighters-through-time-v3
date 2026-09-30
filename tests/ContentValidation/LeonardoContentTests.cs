@@ -27,8 +27,15 @@ public class LeonardoContentTests {
         AssertThat(data.CooldownDuration).IsEqual(8f);
         AssertThat(data.IsMultiHit).IsTrue();
         AssertThat(data.HitCount).IsEqual(3);
-        AssertThat(data.DamageTickIntervalFrames).IsEqual(30);
-        AssertThat(data.Lifetime).IsEqual(1.5f);
+        // L02 (Package 13 W7a): 3 ticks 0.3 s apart, and a lifetime that fits
+        // exactly those three (ticks at 0 / 18 / 36 frames, gone by 42).
+        AssertThat(data.DamageTickIntervalFrames).IsEqual(18);
+        AssertThat(data.Lifetime).IsEqual(0.7f);
+        int lifetimeFrames = Mathf.RoundToInt(data.Lifetime * 60f);
+        AssertThat(lifetimeFrames > 2 * data.DamageTickIntervalFrames).IsTrue();
+        AssertThat(lifetimeFrames <= 3 * data.DamageTickIntervalFrames).IsTrue();
+        AssertThat(data.StartupFrames).IsEqual(12);
+        AssertThat(data.RecoveryFrames).IsEqual(18);
     }
 
     [TestCase]
@@ -45,6 +52,10 @@ public class LeonardoContentTests {
         AssertThat(data.MaxActiveObjects).IsEqual(1);
         AssertThat(data.PersistentObjectID).IsEqual("clockwork_turret");
         AssertObject(data.PersistentObjectScene).IsNotNull();
+        // L03 (Package 13 W7a): straight bolts at 12 units/s, pinned to the
+        // rulebook the sim's bolt fallback reads.
+        AssertThat(data.ProjectileSpeed)
+            .IsEqual(KitMotionRules.TurretBoltSpeedUnits * KitMotionRules.StoryPixelsPerUnit);
     }
 
     [TestCase]

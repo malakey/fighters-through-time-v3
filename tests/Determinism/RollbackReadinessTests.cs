@@ -700,7 +700,8 @@ internal static class RollbackHarnessKits {
                 FighterCharacterID.Lincoln => (2, 0, 2, 0, 0, 0),
                 FighterCharacterID.Cleopatra => (3, 2, 3, 3, 0, 0),
                 FighterCharacterID.Tesla => (3, 2, 0, 1, 0, 0),
-                FighterCharacterID.Shakespeare => (1, 2, 1, 0, 0, 0),
+                // Package 13 W7a (A08): Prospero's Flight is a gust burst (MovementType 6).
+                FighterCharacterID.Shakespeare => (1, 2, 6, 0, 0, 0),
                 FighterCharacterID.Mozart => (1, 1, 5, 0, 0, 5),
                 FighterCharacterID.Pocahontas => (0, 3, 1, 0, 4, 0),
                 _ => (0, 0, 2, 0, 0, 0)
@@ -730,7 +731,16 @@ internal static class RollbackHarnessKits {
             SpecialOneProjectileSpeed = FP64.FromDouble(0.25),
             SpecialTwoProjectileSpeed = FP64.FromDouble(0.2),
             MovementDistance = FP64.FromDouble(2.5),
-            MovementSpeed = FP64.FromInt(10)
+            MovementSpeed = FP64.FromInt(10),
+            // Package 13 W7a: E=mc² and Yorick's Lament are two-stage bursting
+            // projectiles, so the gate resimulates the burst primitive too.
+            SpecialOneHit = characterID is FighterCharacterID.Einstein or FighterCharacterID.Shakespeare
+                ? FighterAbilityHitData.DefaultSpecial with {
+                    BurstRadius = FP64.FromDouble(1.2),
+                    ContactDamage = 5,
+                    BurstsOnTerrain = true
+                }
+                : default
         };
 
         return new FighterLoadout(

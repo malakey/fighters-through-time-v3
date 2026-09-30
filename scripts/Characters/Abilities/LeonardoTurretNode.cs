@@ -6,10 +6,13 @@ namespace FTT.Characters.Abilities {
 
     /// <summary>
     /// Story-mode Clockwork Turret construct (design Section 4 specification):
-    /// 20 HP, 15 s lifespan, max 1 active per owner. Fires a ballista bolt at
-    /// the nearest enemy within 30 world units (1800 px) on the authored
-    /// interval (V7: every 2 s), and self-destructs after its final bolt — the
-    /// authored HitCount (V7: 4 bolts) — or when its lifespan/HP runs out.
+    /// 20 HP, 15 s lifespan, max 1 active per owner, placed at Leonardo's feet.
+    /// Fires a straight ballista bolt (12 units/s, L03) at the nearest enemy in
+    /// line of sight within 30 world units (1800 px) on the authored interval
+    /// (V7: every 2 s) and only while one is in range, so the lifespan is the
+    /// idle cap; it self-destructs after its final bolt — the authored HitCount
+    /// (V7: 4 bolts, the glide's bonus bolt spending one) — or when its
+    /// lifespan/HP runs out.
     /// The turret is damageable/destroyable, persists across owner death, freezes
     /// during Chronal Rewind, and fully resets its pooled state. Story-only
     /// Resonance perk Clockwork Overdrive upgrades it to a rapid burst of 5 bolts.
@@ -21,6 +24,10 @@ namespace FTT.Characters.Abilities {
         private const int BaseBoltLimit = 4;
         private const int OverdriveBoltLimit = 5;
         private const float OverdriveIntervalMultiplier = 0.5f;
+        /// <summary>L03 fallback bolt speed (12 units/s) when the resource authors none.</summary>
+        private const float DefaultBoltSpeedPixels = 720f;
+        /// <summary>Where the bolt leaves the placeholder turret body (px above its feet).</summary>
+        private static readonly Vector2 MuzzleOffset = new(0f, -20f);
 
         public int OwnerIndex { get; private set; }
         public float BoltDamage { get; private set; }
@@ -101,6 +108,7 @@ namespace FTT.Characters.Abilities {
                 _fireInterval *= OverdriveIntervalMultiplier;
             }
             _fireTimer = _fireInterval;
+            BoltsFired = 0;
             UpdateHPBar();
         }
 
@@ -180,23 +188,63 @@ namespace FTT.Characters.Abilities {
         }
 
         /// <summary>
-        /// Fires an instant-strike ballista bolt at the nearest enemy hurtbox in
-        /// range. Returns false when no target is available so the bolt is not
-        /// consumed while the turret waits (mirrors the Fighter-sim turret, which
-        /// only decrements RemainingAttacks on an actual attack).
+        /// Fires one ballista bolt at the nearest enemy hurtbox in range AND in
+        /// line of sight. Returns false when no target is available so the bolt
+        /// is not consumed while the turret waits (mirrors the Fighter-sim
+        /// turret, which only decrements RemainingAttacks on an actual shot).
+        ///
+        /// <para><b>Package 13 W7a (L03).</b> The bolt is a real straight
+        /// projectile at the authored <c>ProjectileSpeed</c> (12 units/s) aimed at
+        /// the target, stopping on solid terrain — no longer an instant strike.
+        /// It stays a construct hit: Basic-class, impulse-free, non-launching, no
+        /// Rally reclaim and no hitstop. With no projectile pool (a bare unit
+        /// harness) the historical instant strike is the fallback.</para>
         /// </summary>
         private bool TryFireBolt() {
             Hurtbox nearest = null;
             float nearestDistance = TargetRangePixels;
+            Vector2 muzzle = GlobalPosition + MuzzleOffset;
             foreach (Hurtbox hurtbox in QueryEnemyHurtboxes(GlobalPosition, TargetRangePixels)) {
                 float distance = GlobalPosition.DistanceTo(hurtbox.GlobalPosition);
-                if (distance <= nearestDistance) {
+                if (distance <= nearestDistance && HasLineOfSight(muzzle, hurtbox.GlobalPosition)) {
                     nearestDistance = distance;
                     nearest = hurtbox;
                 }
             }
             if (nearest == null) return false;
 
+            Vector2 aim = nearest.GlobalPosition - muzzle;
+            PlaceholderProjectile bolt = BaseSpecial.SpawnStoryProjectile(GetParent(), muzzle);
+            if (bolt == null) {
+                StrikeInstantly(nearest);
+                return true;
+            }
+            float speed = (_data?.ProjectileSpeed > 0f ? _data.ProjectileSpeed : DefaultBoltSpeedPixels)
+                * (_ownerPlayer?.StoryProjectileSpeedMultiplier ?? 1f);
+            float lifetime = _data?.ProjectileLifetime > 0f ? _data.ProjectileLifetime : TargetRangePixels / speed;
+            bolt.Setup(BoltDamage, Vector2.Zero, speed, aim.X >= 0f, OwnerIndex,
+                new Color(0.85f, 0.65f, 0.3f), new Vector2(16f, 6f), lifetime, _ownerPlayer, _data);
+            bolt.ConfigureConstructHit();
+            bolt.ConfigureDirection(aim);
+            bolt.StopsOnTerrain = true;
+            BoltsFired++;
+            return true;
+        }
+
+        /// <summary>Bolts this deployment has fired as projectiles. Test seam.</summary>
+        public int BoltsFired { get; private set; }
+
+        /// <summary>L03: the straight bolt needs a clear line through solid terrain.</summary>
+        private bool HasLineOfSight(Vector2 from, Vector2 to) {
+            var space = GetWorld2D()?.DirectSpaceState;
+            if (space == null) return true;
+            var query = PhysicsRayQueryParameters2D.Create(from, to, FTT.Core.CollisionLayers.Environment);
+            using Godot.Collections.Dictionary hit = space.IntersectRay(query);
+            return hit == null || hit.Count == 0;
+        }
+
+        /// <summary>The pre-W7a instant strike, kept only as the no-pool fallback.</summary>
+        private void StrikeInstantly(Hurtbox nearest) {
             bool targetIsRight = nearest.GlobalPosition.X >= GlobalPosition.X;
             HitPayload bolt = BaseSpecial.WithAbilityContract(new HitPayload {
                 AttackerIndex = OwnerIndex,
@@ -204,7 +252,7 @@ namespace FTT.Characters.Abilities {
                 HitboxID = "turret_bolt",
                 AttackClass = AttackClass.Basic,
                 Damage = BoltDamage,
-                Knockback = _data?.KnockbackForce ?? Vector2.Zero,
+                Knockback = Vector2.Zero,
                 HitstunDuration = 0.15f,
                 HitOrigin = GlobalPosition,
                 AttackerFacingRight = targetIsRight,
@@ -221,7 +269,6 @@ namespace FTT.Characters.Abilities {
                 // Construct delivery never reclaims Rally (D03g), read off the payload.
                 BaseSpecial.CreditDealt(_ownerPlayer, in bolt, dealt);
             }
-            return true;
         }
 
         private System.Collections.Generic.List<Hurtbox> QueryEnemyHurtboxes(Vector2 center, float radius) {

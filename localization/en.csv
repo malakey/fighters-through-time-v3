@@ -48,11 +48,11 @@ character_shakespeare_name,William Shakespeare
 character_mozart_name,Wolfgang Amadeus Mozart
 character_pocahontas_name,Pocahontas
 ability_einstein_mass_energy_conversion_name,Mass-Energy Conversion
-ability_einstein_mass_energy_conversion_description,Throw an object that detonates in a burst of radiant energy.
+ability_einstein_mass_energy_conversion_description,"Fling an energized object straight ahead; it bursts in radiant energy on a fighter, terrain or a wall. Bursting inside your own Rift collapses it."
 ability_einstein_relativity_rift_name,Relativity Rift
-ability_einstein_relativity_rift_description,Create a damaging field that slows opponents.
+ability_einstein_relativity_rift_description,Throw a damaging field ahead of you that slows opponents; the slow lingers briefly after they leave.
 ability_einstein_relativity_warp_name,Relativity Warp
-ability_einstein_relativity_warp_description,Warp a short distance in the input direction.
+ability_einstein_relativity_warp_description,Fold spacetime: after a brief startup, reappear up to four units away in the input direction.
 ability_einstein_cosmological_constant_name,The Cosmological Constant
 ability_einstein_cosmological_constant_description,Collapse a miniature black hole into a final launch.
 ability_joan_righteous_smite_name,Righteous Smite
@@ -64,11 +64,11 @@ ability_joan_ascendant_wings_description,Leap upward and glide on ethereal wings
 ability_joan_grand_crusade_name,The Grand Crusade
 ability_joan_grand_crusade_description,Summon a spectral cavalry charge.
 ability_leonardo_golden_ratio_name,Golden Ratio
-ability_leonardo_golden_ratio_description,Draw a multi-hit expanding Fibonacci spiral.
+ability_leonardo_golden_ratio_description,Unleash an expanding spiral that strikes three times and pushes foes away.
 ability_leonardo_clockwork_turret_name,Clockwork Turret
-ability_leonardo_clockwork_turret_description,Deploy a turret that fires three bolts.
+ability_leonardo_clockwork_turret_description,Deploy a turret at your feet that fires four bolts at targets in sight.
 ability_leonardo_ornithopter_flight_name,Ornithopter Flight
-ability_leonardo_ornithopter_flight_description,Gain a vertical boost and controlled glide.
+ability_leonardo_ornithopter_flight_description,Gain a vertical boost and a long glide; attack mid-glide to fire one turret bolt.
 ability_leonardo_vitruvian_matrix_name,The Vitruvian Matrix
 ability_leonardo_vitruvian_matrix_description,Trap foes in a blueprint dimension and bombard them.
 ability_lincoln_emancipator_name,The Emancipator
@@ -88,19 +88,19 @@ ability_cleopatra_desert_mirage_description,Dissolve into sand and rush in the i
 ability_cleopatra_wrath_of_the_nile_name,Wrath of the Nile
 ability_cleopatra_wrath_of_the_nile_description,Engulf the stage in venomous spectral cobras.
 ability_tesla_tesla_coil_name,Tesla Coil
-ability_tesla_tesla_coil_description,Deploy a coil that arcs electricity at nearby enemies.
+ability_tesla_tesla_coil_description,Place a coil at your feet that arcs electricity at nearby enemies; two coils link into a fence.
 ability_tesla_lorentz_pulse_name,Lorentz Pulse
-ability_tesla_lorentz_pulse_description,Release a magnetic pulse that roots enemies.
+ability_tesla_lorentz_pulse_description,Release a magnetic pulse that roots enemies; marked foes draw chain lightning from nearby coils.
 ability_tesla_lightning_blink_name,Lightning Blink
 ability_tesla_lightning_blink_description,Become current and blink in the input direction.
 ability_tesla_wardenclyffe_cataclysm_name,Wardenclyffe Cataclysm
 ability_tesla_wardenclyffe_cataclysm_description,Call down a stage-wide electromagnetic strike.
 ability_shakespeare_yoricks_lament_name,Yorick's Lament
-ability_shakespeare_yoricks_lament_description,Throw a wailing skull that slows its target.
+ability_shakespeare_yoricks_lament_description,Throw Yorick's skull straight ahead; it bursts into a wail that slows.
 ability_shakespeare_the_tempest_name,The Tempest
-ability_shakespeare_the_tempest_description,Summon a wind storm that lifts and repels.
+ability_shakespeare_the_tempest_description,Ariel raises a wind that lifts you and pushes foes away.
 ability_shakespeare_prosperos_flight_name,Prospero's Flight
-ability_shakespeare_prosperos_flight_description,Ride a magical gust into a horizontal glide.
+ability_shakespeare_prosperos_flight_description,Ride a single strong gust forward and up.
 ability_shakespeare_all_the_worlds_a_stage_name,All the World's a Stage
 ability_shakespeare_all_the_worlds_a_stage_description,Summon tragic phantoms for sequential strikes.
 ability_mozart_requiem_chord_name,Requiem Chord
@@ -1093,8 +1093,8 @@ resonance_shakespeare_chronicle_rally_name,Minor Chronicle Rally
 resonance_shakespeare_chronicle_rally_description,Act II. Rally echo pool +10% of every hit taken.
 resonance_shakespeare_macbeths_curse_name,Macbeth's Curse
 resonance_shakespeare_macbeths_curse_description,"Act III. Yorick's Lament also inflicts Venom for 3 seconds, stacking with its Time Dilation."
-resonance_shakespeare_midsummer_glide_name,Midsummer Glide
-resonance_shakespeare_midsummer_glide_description,Act III. Prospero's Flight deals 8.0 damage to enemies glided through and moves 20% faster.
+resonance_shakespeare_midsummer_glide_name,Midsummer Gust
+resonance_shakespeare_midsummer_glide_description,Act III. Prospero's Flight deals 8.0 damage to enemies the gust passes through and carries 20% farther.
 resonance_shakespeare_henrys_bastion_name,Henry's Bastion
 resonance_shakespeare_henrys_bastion_description,"Act III. A real block summons a phantom guard absorbing 10% of maximum health for 8 seconds. It cannot absorb the hit that summoned it, and a later block refills it rather than stacking."
 resonance_mozart_tempo_name,Minor Tempo

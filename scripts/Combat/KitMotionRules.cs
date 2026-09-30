@@ -84,5 +84,56 @@ namespace FTT.Combat {
         public static (double Forward, double Up) SpiritEagleOffsetUnits(int carryFrame) =>
             (SpiritEagleStartForwardUnits,
              SpiritEagleStartUpUnits - 2.0 * SpiritStrikeAxisStepUnits * Math.Max(0, carryFrame));
+
+        // --- Package 13 W7a: Einstein, Leonardo, Tesla, Shakespeare ----------
+        // Every value below is provisional under A07 (ABILITY_DATA.md). Where a
+        // .tres also authors the number (Story reads the resource), a content
+        // test pins the resource EQUAL to the constant.
+
+        /// <summary>E04: Relativity Warp's startup before the instant relocation (the visible ghost).</summary>
+        public const int RelativityWarpStartupFrames = 10;
+        /// <summary>E04: maximum fold distance; <c>DistanceMoved = 240</c> px on the resource.</summary>
+        public const float RelativityWarpDistanceUnits = 4.0f;
+        /// <summary>The post-fold float window (unchanged from the pre-E04 warp).</summary>
+        public const int RelativityWarpFloatFrames = 60;
+
+        /// <summary>A08: Prospero's Flight gust length (frames); then a normal fall.</summary>
+        public const int ProsperoGustFrames = 20;
+        /// <summary>A08: forward travel over the gust ("about 4 units"); <c>DistanceMoved = 240</c> px.</summary>
+        public const float ProsperoGustForwardUnits = 4.0f;
+        /// <summary>A08: rise over the gust ("2.5 up").</summary>
+        public const float ProsperoGustRiseUnits = 2.5f;
+        /// <summary>Story-only Midsummer Gust: 20% more gust distance.</summary>
+        public const float MidsummerGustDistanceMultiplier = 1.2f;
+
+        /// <summary>E01: Rift Collapse pulls every caught opponent to the rift centre over this many frames.</summary>
+        public const int RiftCollapsePullFrames = 6;
+        /// <summary>E01: the upward launch at the end of the pull (units/s, provisional).</summary>
+        public const float RiftCollapseLaunchUnits = 6.0f;
+        /// <summary>E03: Relativity Rift thrown up to this far ahead of Einstein.</summary>
+        public const float RelativityRiftThrowUnits = 5.0f;
+        /// <summary>E03: rift radius.</summary>
+        public const float RelativityRiftRadiusUnits = 1.5f;
+        /// <summary>E03: Time Dilation lingers this long after leaving the rift (re-entry refreshes).</summary>
+        public const int RelativityRiftLingerFrames = 30;
+
+        /// <summary>S01/S02: The Tempest's windbox radius.</summary>
+        public const float TempestRadiusUnits = 2.0f;
+        /// <summary>S02: opponents pushed about 3 units outward over <see cref="TempestPushFrames"/>.</summary>
+        public const float TempestPushUnits = 3.0f;
+        public const int TempestPushFrames = 12;
+        /// <summary>S02: Shakespeare is lifted about 2.5 units.</summary>
+        public const float TempestLiftUnits = 2.5f;
+
+        /// <summary>L03: turret bolts fly straight at 12 units/s.</summary>
+        public const float TurretBoltSpeedUnits = 12.0f;
+        /// <summary>T02: coil arcs reach 4 units.</summary>
+        public const float TeslaCoilArcRangeUnits = 4.0f;
+        /// <summary>T01: an eligible coil is one of that Tesla's own active coils within 8 units of the target.</summary>
+        public const float LorentzChainCoilRangeUnits = 8.0f;
+        /// <summary>T01: each eligible coil's chain arc damage (max 16 with both coils).</summary>
+        public const int LorentzChainArcDamage = 8;
+        /// <summary>T02: Lorentz Pulse radius.</summary>
+        public const float LorentzPulseRadiusUnits = 2.5f;
     }
 }

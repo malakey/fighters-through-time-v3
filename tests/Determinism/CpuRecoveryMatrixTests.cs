@@ -360,6 +360,12 @@ public class CpuRecoveryMatrixTests {
                 movementCooldown = profile.MovementCooldownFrames;
                 if (profile.MovementKind == CpuRecoveryProfile.MovementKindBlink) {
                     StartBlink(frame, facing, ref kitPhase, ref kitFrames, ref kitDirectionX, ref kitDirectionY);
+                } else if (profile.MovementKind == CpuRecoveryProfile.MovementKindGust) {
+                    // A08 (Package 13 W7a): the gust burst is a kit phase along facing.
+                    kitPhase = KitGust;
+                    kitFrames = KitMotionRules.ProsperoGustFrames;
+                    kitDirectionX = facing;
+                    kitDirectionY = 0;
                 } else {
                     ApplyMovementAbility(
                         profile, frame, facing, ref x, ref y, ref velocityX, ref velocityY, ref floatFrames);
@@ -423,6 +429,7 @@ public class CpuRecoveryMatrixTests {
     private const int KitBlinkRecovery = 3;
     private const int KitSpiritStartup = 4;
     private const int KitSpiritCarry = 5;
+    private const int KitGust = 6;
     /// <summary>Spirit Strike's authored 9 s cooldown; no drill outlasts it.</summary>
     private const int SpiritStrikeCooldownFrames = 540;
 
@@ -499,6 +506,22 @@ public class CpuRecoveryMatrixTests {
                 FP64 axis = FighterKitMotion.SpiritAxisStep * FP64.FromInt(60);
                 velocityX = axis * FP64.FromInt(directionX);
                 velocityY = axis;
+                kitFrames--;
+                return false;
+            case KitGust:
+                // Mirrors FighterKitMotion's GustBurst: the authored forward
+                // distance and the rulebook rise over 20 frames, then a normal
+                // fall with the momentum spent.
+                if (kitFrames <= 0) {
+                    velocityX = FP64.Zero;
+                    velocityY = FP64.Zero;
+                    kitPhase = KitNone;
+                    kitOwnsVelocity = false;
+                    return true;
+                }
+                velocityX = profile.MovementDistance * FP64.FromInt(60)
+                    / FP64.FromInt(KitMotionRules.ProsperoGustFrames) * FP64.FromInt(directionX);
+                velocityY = FP64.FromDouble(KitMotionRules.ProsperoGustRiseUnits * 60 / KitMotionRules.ProsperoGustFrames);
                 kitFrames--;
                 return false;
             default:

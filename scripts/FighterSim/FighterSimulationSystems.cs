@@ -517,7 +517,9 @@ namespace FTT.FighterSim {
                             ref fighter,
                             ref runtime,
                             in frame.GetReadOnly<FighterAbilityModeComponent>(entity),
-                            tuning.MoveSpeed / FP64.FromInt(UniversalMovementRules.RunDecelerationFrames))
+                            tuning.MoveSpeed / FP64.FromInt(UniversalMovementRules.RunDecelerationFrames),
+                            // Package 13 W7a: the Warp fold's clearance check.
+                            _geometry)
                         : airDodging
                             ? FighterAirDodgeRules.Advance(
                                 ref fighter,

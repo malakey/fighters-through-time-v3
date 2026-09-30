@@ -43,15 +43,23 @@ public class TeslaKitTests {
         // Stop well before the fence's cumulative damage KOs the target — a
         // respawn would restore full HP and mask the assertion.
         bool everStaticCharged = false;
+        bool everMarked = false;
         for (int tick = 42; tick < 200; tick++) {
             simulation.Advance(Frame(tick, -127, GameplayButtons.None), Frame(tick, -127, GameplayButtons.None));
             if (simulation.TryGetFighterRuntime(1, out FighterRuntimeComponent runtime)
                 && runtime.StatusType == (int)StatusType.StaticCharge) {
                 everStaticCharged = true;
             }
+            // F07/T02 (Package 13 W7a): a landed fence tick also lays this
+            // Tesla's Conductive mark in the sim, as Story's fence does.
+            if (simulation.TryGetFighterConductive(1, out FighterConductiveComponent mark)
+                && FighterConductiveRules.HasMarkFrom(in mark, 0)) {
+                everMarked = true;
+            }
         }
 
         AssertThat(everStaticCharged).IsTrue();
+        AssertThat(everMarked).IsTrue();
         AssertThat(simulation.TryGetFighter(1, out FighterStateComponent target)).IsTrue();
         AssertThat(target.CurrentHP < target.MaxHP).IsTrue();
     }

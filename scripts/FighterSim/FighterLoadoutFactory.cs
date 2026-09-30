@@ -139,7 +139,11 @@ namespace FTT.FighterSim {
                 // DamageCalculator also pushes |x| away from the attacker).
                 HasKnockbackVector = true,
                 KnockbackX = FP64.FromFloat(MathF.Abs(ability.KnockbackForce.X)),
-                KnockbackY = FP64.FromFloat(-ability.KnockbackForce.Y)
+                KnockbackY = FP64.FromFloat(-ability.KnockbackForce.Y),
+                // Package 13 W7a: the burst primitive (px → units).
+                BurstRadius = WorldDistance(ability.ProjectileBurstRadius),
+                ContactDamage = RoundDamage(ability.ProjectileContactDamage),
+                BurstsOnTerrain = ability.ProjectileBurstsOnTerrain
             };
         }
 

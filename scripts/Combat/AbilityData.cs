@@ -65,6 +65,27 @@ namespace FTT.Combat {
 		[Export] public float ProjectileSpeed;
 		[Export] public PackedScene ProjectileScene;
 		[Export] public bool ProjectilePierces;
+
+		// --- Package 13 W7a: the burst-on-terrain projectile primitive ---------
+		/// <summary>
+		/// Radius (px; 60 px = 1 unit) of the burst a two-stage projectile
+		/// releases where it stops. Zero = an ordinary single-stage shot. When
+		/// set, <see cref="BaseDamage"/> is the BURST damage and
+		/// <see cref="ProjectileContactDamage"/> the direct contact stage
+		/// (E=mc² 7 + 20 in 1.2 u; Yorick 5 + 16 in 1.5 u). Both modes read it:
+		/// Story's kit scripts and the sim's projectile system (through the
+		/// loadout hit contract).
+		/// </summary>
+		[Export] public float ProjectileBurstRadius;
+		/// <summary>Contact-stage damage of a bursting projectile; the burst deals <see cref="BaseDamage"/>.</summary>
+		[Export] public float ProjectileContactDamage;
+		/// <summary>
+		/// Opt-in: the projectile also bursts when it strikes terrain or a wall,
+		/// or reaches its maximum range (its lifetime), instead of vanishing.
+		/// Without it a bursting projectile bursts only on a fighter.
+		/// </summary>
+		[Export] public bool ProjectileBurstsOnTerrain;
+
 		[Export] public bool GrantsHyperArmor;
 
 		[ExportGroup("Hitbox")]

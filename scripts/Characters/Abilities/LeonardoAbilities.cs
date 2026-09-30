@@ -218,9 +218,10 @@ namespace FTT.Characters.Abilities {
                 oldest.ReturnToPool();
             }
 
+            // L03 (Package 13 W7a): placed on the ground at Leonardo's feet.
             Node spawned = FTT.Core.PoolManager.Instance?.Spawn(
                 Data.PersistentObjectScene,
-                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 70f : -70f, 0f),
+                Owner.GlobalPosition,
                 Owner.GetParent());
             if (spawned is not LeonardoTurretNode turret) return;
 
@@ -238,8 +239,7 @@ namespace FTT.Characters.Abilities {
                 if (node is not LeonardoTurretNode turret) continue;
                 if (!IsInstanceValid(turret) || turret.IsTurretDestroyed) continue;
                 if (!turret.TryConsumeReplacement()) continue;
-                turret.GlobalPosition =
-                    Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 70f : -70f, 0f);
+                turret.GlobalPosition = Owner.GlobalPosition;
                 return true;
             }
             return false;

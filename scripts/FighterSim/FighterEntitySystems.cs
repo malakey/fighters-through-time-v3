@@ -946,6 +946,13 @@ namespace FTT.FighterSim {
         private const int AreaExecutionType = 2;
         private const int PersistentExecutionType = 3;
 
+        /// <summary>Package 13 W7a: stage bounds for the Relativity Rift throw and ground snap; null = the legacy flat arena.</summary>
+        private readonly FighterStageGeometry _geometry;
+
+        public FighterAbilityEntitySystem(FighterStageGeometry geometry = null) {
+            _geometry = geometry;
+        }
+
         public void Update(ref Frame frame) {
             ref readonly FighterMatchComponent match = ref frame.GetReadOnlySingleton<FighterMatchComponent>();
             if (match.MatchState != 1) return;
@@ -954,6 +961,11 @@ namespace FTT.FighterSim {
             // a cast in flight, before the per-fighter gates below (which skip a
             // combat-locked fighter — and the carry is exactly that).
             ResolveSpiritEagles(ref frame);
+
+            // Package 13 W7a (L03/D14): Leonardo's once-per-flight glide bolt.
+            // Read before the combat gates (the basic press also swings, the
+            // way Story's glide command sits beside the aerial string).
+            ResolveGlideBolts(ref frame);
 
             var filter = frame.Filter<
                 FighterStateComponent,
@@ -1021,7 +1033,7 @@ namespace FTT.FighterSim {
                             modes.SpecialOneMaxActiveObjects, modes.SpecialOnePersistentLifetimeFrames,
                             modes.SpecialOneTickIntervalFrames, tuning.SpecialOneDamage,
                             tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames,
-                            tuning.SpecialOneStatusIntensity);
+                            tuning.SpecialOneStatusIntensity, _geometry);
                         runtime.SpecialOneCooldownFrames = PositiveCooldown(tuning.SpecialOneCooldownFrames);
                     }
                 }
@@ -1047,7 +1059,7 @@ namespace FTT.FighterSim {
                             modes.SpecialTwoMaxActiveObjects, modes.SpecialTwoPersistentLifetimeFrames,
                             modes.SpecialTwoTickIntervalFrames, tuning.SpecialTwoDamage,
                             tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames,
-                            tuning.SpecialTwoStatusIntensity);
+                            tuning.SpecialTwoStatusIntensity, _geometry);
                         runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
                     }
                 }
@@ -1079,6 +1091,17 @@ namespace FTT.FighterSim {
         }
 
         private static int PositiveCooldown(int frames) => frames > 0 ? frames : 1;
+
+        private static void ResolveGlideBolts(ref Frame frame) {
+            var filter = frame.Filter<FighterStateComponent, FighterRuntimeComponent, FighterAbilityModeComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref readonly FighterStateComponent fighter = ref frame.GetReadOnly<FighterStateComponent>(entity);
+                if (fighter.CharacterID != (int)FighterCharacterID.Leonardo || fighter.Stocks <= 0) continue;
+                ref readonly FighterRuntimeComponent runtime = ref frame.GetReadOnly<FighterRuntimeComponent>(entity);
+                ref readonly FighterAbilityModeComponent modes = ref frame.GetReadOnly<FighterAbilityModeComponent>(entity);
+                FighterTurretRules.TryCommandGlideBolt(ref frame, in fighter, in runtime, in modes);
+            }
+        }
 
         /// <summary>
         /// Package 12 W4: the Spirit Strike eagle. On each carry frame the
@@ -1241,6 +1264,8 @@ namespace FTT.FighterSim {
             });
         }
 
+        private static readonly FP64 TeslaCoilArcRange = FP64.FromDouble(FTT.Combat.KitMotionRules.TeslaCoilArcRangeUnits);
+
         private static void ResolvePersistentSpec(
             int objectTypeID,
             int requestedLifetime,
@@ -1274,15 +1299,15 @@ namespace FTT.FighterSim {
             remainingAttacks = objectTypeID == 2 ? 4 : -1;
             // Clockwork Turret (type 2) targets at the design's 30-unit range,
             // bounded by the visible arena (half-width 10 units).
+            // T02 (Package 13 W7a): a Tesla coil (type 1) arcs within 4 units.
             attackRange = objectTypeID == 4 ? FP64.FromInt(2)
                 : objectTypeID == 2 ? FP64.FromInt(10)
+                : objectTypeID == 1 ? TeslaCoilArcRange
                 : FP64.FromInt(5);
             // Construct attacks carry whatever the resource authors — the zeroed
             // KnockbackForce means impulse-free hits (no legacy 2-unit fallback).
             knockback = requestedKnockback > FP64.Zero ? requestedKnockback : FP64.Zero;
         }
-
-        private static readonly FP64 TempestLiftSpeed = FP64.FromInt(10);
 
         internal static void SpawnZone(
             ref Frame frame,
@@ -1294,7 +1319,8 @@ namespace FTT.FighterSim {
             int damage,
             int statusType,
             int statusFrames,
-            FP64 statusIntensity) {
+            FP64 statusIntensity,
+            FighterStageGeometry geometry = null) {
             int zoneTypeID = owner.CharacterID * 10 + specialSlot;
             int deployLimit = maxActive > 0 ? maxActive : 1;
             int activeCount = 0;
@@ -1319,7 +1345,8 @@ namespace FTT.FighterSim {
             // air as the storm spawns; the storm itself only shoves the opponent
             // (see FighterZoneSystem's per-type pulse impulse).
             if (zoneTypeID == (int)FighterCharacterID.Shakespeare * 10 + 2) {
-                owner.Velocity.y = TempestLiftSpeed;
+                // S02 (Package 13 W7a): lifted about 2.5 units, then a normal fall.
+                owner.Velocity.y = FighterTempestRules.LiftSpeed;
                 owner.IsGrounded = 0;
             }
             int resolvedTick = tickIntervalFrames > 0 ? tickIntervalFrames : 30;
@@ -1328,6 +1355,11 @@ namespace FTT.FighterSim {
             FPVector2 zonePosition = centersOnOwner
                 ? owner.Position
                 : owner.Position + new FPVector2(FP64.FromInt(facing * 2), FP64.Zero);
+            // E03 (Package 13 W7a): the Relativity Rift is thrown up to 5 units
+            // ahead inside the walls, ground-snapped when cast grounded.
+            if (zoneTypeID == FighterRiftRules.RiftZoneTypeID) {
+                zonePosition = FighterRiftRules.Placement(geometry, in owner);
+            }
             EntityRef created = frame.CreateEntity();
             frame.Add(created, new FighterZoneComponent {
                 EntityID = match.NextEntityID++,
@@ -1355,19 +1387,24 @@ namespace FTT.FighterSim {
         /// FighterZoneSystem.
         /// Shakespeare's Tempest is a wind storm centered on the caster.
         /// </summary>
+        private static readonly FP64 LorentzPulseRadius = FP64.FromDouble(FTT.Combat.KitMotionRules.LorentzPulseRadiusUnits);
+
         private static void ResolveZoneSpec(
             int zoneTypeID,
             out FPVector2 halfExtents,
             out int grantsOwnerSpeedBonus,
             out bool centersOnOwner) {
+            // Package 13 W7a: the kit radii (E03 rift 1.5, T02 Lorentz 2.5, L02
+            // spiral 2.0, S02 Tempest 2.0) as square boxes — the sim's zones are
+            // AABBs, the radius-equivalent of the design's circles.
             if (zoneTypeID == (int)FighterCharacterID.Einstein * 10 + 2) {
-                halfExtents = new FPVector2(FP64.FromDouble(2.0), FP64.FromDouble(1.5));
+                halfExtents = new FPVector2(FighterRiftRules.Radius, FighterRiftRules.Radius);
                 grantsOwnerSpeedBonus = 1;
                 centersOnOwner = false;
                 return;
             }
             if (zoneTypeID == (int)FighterCharacterID.Tesla * 10 + 2) {
-                halfExtents = new FPVector2(FP64.FromDouble(2.0), FP64.FromDouble(1.5));
+                halfExtents = new FPVector2(LorentzPulseRadius, LorentzPulseRadius);
                 grantsOwnerSpeedBonus = 0;
                 centersOnOwner = true;
                 return;
@@ -1389,13 +1426,13 @@ namespace FTT.FighterSim {
             // 2 units), centered on the cast point; the zone system applies a
             // radial knockback pulse when it expires.
             if (zoneTypeID == (int)FighterCharacterID.Leonardo * 10 + 1) {
-                halfExtents = new FPVector2(FP64.FromDouble(2.0), FP64.FromDouble(1.5));
+                halfExtents = new FPVector2(FP64.FromDouble(2.0), FP64.FromDouble(2.0));
                 grantsOwnerSpeedBonus = 0;
                 centersOnOwner = true;
                 return;
             }
             if (zoneTypeID == (int)FighterCharacterID.Shakespeare * 10 + 2) {
-                halfExtents = new FPVector2(FP64.FromDouble(2.0), FP64.FromDouble(1.5));
+                halfExtents = new FPVector2(FighterTempestRules.Radius, FighterTempestRules.Radius);
                 grantsOwnerSpeedBonus = 0;
                 centersOnOwner = true;
                 return;
@@ -1516,6 +1553,19 @@ namespace FTT.FighterSim {
                 fighter.Velocity.y = speed / FP64.FromInt(2);
                 fighter.IsGrounded = 0;
                 runtime.FloatFrames = modes.MovementDurationFrames > 0 ? modes.MovementDurationFrames : 180;
+                // L03/D14 (Package 13 W7a): a fresh flight re-arms the once-per-
+                // flight turret bolt (Leonardo's is the only glide that fires one).
+                FighterTurretRules.BeginFlight(ref frame, fighter.PlayerID);
+            } else if (modes.MovementType == (int)FTT.Combat.MovementType.Gust) {
+                // A08 (Package 13 W7a): Prospero's Flight is a single gust burst —
+                // a 20-frame kit phase along facing, then a normal fall, no glide.
+                FighterKitMotion.StartGust(ref runtime, facing);
+            } else if (modes.MovementType == (int)FTT.Combat.MovementType.Warp) {
+                // E04 (Package 13 W7a): the spacetime fold — a 10-frame startup
+                // (hittable; a hit cancels it with the cooldown spent), then an
+                // instant relocation along the held direction, clearance-shortened
+                // inside the stage, then the float window.
+                FighterKitMotion.StartWarpFold(ref runtime, facing);
             } else if (modes.MovementType == 5) {
                 // Float (Mozart's Sonata Drift pop): upward velocity only.
                 fighter.Velocity.y = speed / FP64.FromInt(2);
@@ -1562,8 +1612,12 @@ namespace FTT.FighterSim {
         private static readonly FP64 FixedDelta = FP64.One / FP64.FromInt(60);
         private readonly FighterHitContractTable _contracts;
 
-        public FighterProjectileSystem(FighterHitContractTable contracts = null) {
+        /// <summary>Package 13 W7a: stage bounds for the burst-on-terrain primitive; null = the legacy flat arena.</summary>
+        private readonly FighterStageGeometry _geometry;
+
+        public FighterProjectileSystem(FighterHitContractTable contracts = null, FighterStageGeometry geometry = null) {
             _contracts = contracts ?? FighterHitContractTable.Default;
+            _geometry = geometry;
         }
 
         /// <summary>
@@ -1613,6 +1667,23 @@ namespace FTT.FighterSim {
                 if (projectile.GravityPerSecond > FP64.Zero) {
                     projectile.Velocity.y -= projectile.GravityPerSecond * FixedDelta;
                 }
+                // Package 13 W7a: a two-stage (bursting) Special projectile reads
+                // its slot's burst radius/contact damage from the loadout contract.
+                ResolveProjectileContract(
+                    _contracts, in projectile, out int projectileHitstun, out bool projectileLaunches,
+                    out FighterAbilityHitData projectileContract);
+                bool bursting = projectile.UltimateOrigin == 0 && projectileContract.Bursts;
+                bool burstsOnTerrain = bursting && projectileContract.BurstsOnTerrain;
+                if (burstsOnTerrain
+                    && (projectile.LifetimeFrames <= 0
+                        || FighterProjectileBurstRules.StruckTerrain(_geometry, in projectile))) {
+                    // Straight until it strikes a fighter, terrain, a wall or its
+                    // maximum range — and bursts where it stops.
+                    FPVector2 burstPoint = projectile.Position;
+                    FighterProjectileBurstRules.Burst(ref frame, in projectile, in projectileContract, in burstPoint);
+                    frame.DestroyEntity(projectileEntity);
+                    continue;
+                }
                 if (projectile.LifetimeFrames <= 0
                     || FP64.Abs(projectile.Position.x) > FP64.FromInt(12)
                     // A lobbed arc that crashes below the floor line is spent.
@@ -1642,28 +1713,42 @@ namespace FTT.FighterSim {
                 ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
                 ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
-                ResolveProjectileContract(
-                    _contracts, in projectile, out int projectileHitstun, out bool projectileLaunches,
-                    out FighterAbilityHitData projectileContract);
+                // Package 13 W7a (L03): a Clockwork Turret bolt is a construct
+                // hit — Basic-class, impulse-free, non-launching, no Rally
+                // reclaim (D03g) and no hitstop (V7.3), exactly like the
+                // construct's old instant strike.
+                bool constructBolt = FighterTurretRules.IsConstructBolt(in projectile);
                 // D10: an Ultimate-origin shot keeps its spawn-time scalar (the
                 // Ultimate finale knockbacks are W6's region); a Special shot
-                // reads its slot's signed vector.
-                bool projectileVector = projectile.UltimateOrigin == 0 && projectileContract.HasKnockbackVector;
+                // reads its slot's signed vector. A bursting shot's contact is
+                // the minor impulse-free stage: the burst carries the knockback
+                // and the status.
+                bool projectileVector = projectile.UltimateOrigin == 0 && projectileContract.HasKnockbackVector
+                    && !bursting;
                 FighterDamageRules.ApplyFighterHit(
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
-                    projectile.AttackClass, projectile.Damage,
-                    projectileVector ? projectileContract.KnockbackX : projectile.Knockback.x,
-                    projectileHitstun, projectile.StatusType, projectile.StatusFrames,
+                    projectile.AttackClass,
+                    bursting ? projectileContract.ContactDamage : projectile.Damage,
+                    bursting ? FP64.Zero : projectileVector ? projectileContract.KnockbackX : projectile.Knockback.x,
+                    projectileHitstun,
+                    bursting ? (int)StatusType.None : projectile.StatusType,
+                    bursting ? 0 : projectile.StatusFrames,
                     projectile.StatusIntensity, projectile.Position.x,
                     // V7.6 D03h (Package 11 A1b): an Ultimate-spawned projectile
                     // awards its caster no damage-dealt meter. A player-fired
                     // ordinary projectile still reclaims Rally (D03g) either way.
                     creditInfluence: projectile.UltimateOrigin == 0,
-                    launches: projectileLaunches,
+                    collectsEcho: !constructBolt,
+                    appliesHitstop: !constructBolt,
+                    launches: !constructBolt && !bursting && projectileLaunches,
                     shieldBreaker: projectile.AttackClass == FighterDamageRules.SpecialAttackClass
                         && projectileContract.ShieldBreaker,
                     hasKnockbackVector: projectileVector,
                     knockbackVertical: projectileContract.KnockbackY);
+                if (bursting) {
+                    FPVector2 burstPoint = projectile.Position;
+                    FighterProjectileBurstRules.Burst(ref frame, in projectile, in projectileContract, in burstPoint);
+                }
                 frame.DestroyEntity(projectileEntity);
             }
         }
@@ -1706,6 +1791,14 @@ namespace FTT.FighterSim {
                 if (persistent.Damage <= 0) continue;
                 if (persistent.ActionCooldownFrames > 0) {
                     persistent.ActionCooldownFrames--;
+                    continue;
+                }
+
+                // L03 (Package 13 W7a): the Clockwork Turret fires a real bolt —
+                // a straight 12 u/s projectile at the opponent — and only with
+                // the opponent in range; the lifetime is the idle cap.
+                if (persistent.ObjectTypeID == FighterTurretRules.TurretObjectTypeID) {
+                    FighterTurretRules.TryFireBolt(ref frame, ref persistent);
                     continue;
                 }
 
@@ -1802,13 +1895,21 @@ namespace FTT.FighterSim {
                 ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
                 // Fence ticks are construct damage — no Rally echo reclaim,
                 // no hitstop (V7.3).
-                FighterDamageRules.ApplyFighterHit(
+                bool fenceLanded = FighterDamageRules.ApplyFighterHit(
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     FighterDamageRules.BasicAttackClass, FenceDamage, FP64.Zero, FenceHitstunFrames,
                     (int)StatusType.StaticCharge, FenceStaticChargeFrames, FP64.FromDouble(0.5),
                     fenceCenter.x, collectsEcho: false,
                     appliesHitstop: false,
                     launches: false);
+                // F07/T02 (Package 13 W7a): a landed fence tick also lays the
+                // owning Tesla's baseline Conductive mark (Story's fence already
+                // did), so a fence catch primes the Lorentz chain in both modes.
+                if (fenceLanded) {
+                    FighterConductiveRules.ApplyMark(
+                        ref frame.Get<FighterConductiveComponent>(targetEntity),
+                        ownerID, FTT.Combat.BasicComboRules.ConductiveMarkFenceFrames);
+                }
             }
         }
     }
@@ -2573,6 +2674,20 @@ namespace FTT.FighterSim {
             var filter = frame.Filter<FighterZoneComponent>();
             while (filter.Next(out EntityRef zoneEntity)) {
                 ref FighterZoneComponent zone = ref frame.Get<FighterZoneComponent>(zoneEntity);
+                // E01 (Package 13 W7a): a collapsing Relativity Rift no longer
+                // ticks, buffs or expires on its own clock — it pulls its caught
+                // opponents to its centre and launches them, then is gone.
+                if (FighterRiftRules.IsCollapsing(in zone)) {
+                    if (FighterRiftRules.AdvanceCollapse(ref frame, ref zone, _contracts)) {
+                        frame.DestroyEntity(zoneEntity);
+                    }
+                    continue;
+                }
+                // S01/S02 (Package 13 W7a): the Tempest windbox pushes on every
+                // frame of its authored life (12 pushes of 0.25 = 3 units).
+                if (FighterTempestRules.IsTempest(in zone)) {
+                    FighterTempestRules.Push(ref frame, ref zone);
+                }
                 zone.LifetimeFrames--;
                 if (zone.LifetimeFrames <= 0) {
                     // Leonardo's Golden Ratio (zone type 21) ends with a radial
@@ -2608,6 +2723,16 @@ namespace FTT.FighterSim {
                         ownerRuntime.ZoneSpeedBonusFrames = OwnerBonusRefreshFrames;
                     }
                 }
+
+                // E03 (Package 13 W7a): Time Dilation inside the rift is refreshed
+                // every frame and lingers the authored 0.5 s after leaving.
+                if (FighterRiftRules.IsRift(in zone)) {
+                    FighterRiftRules.RefreshLinger(ref frame, in zone);
+                }
+
+                // S01 (Package 13 W7a): The Tempest is a windbox, not a hit — a
+                // push applied above, and it never reaches the pulse below.
+                if (FighterTempestRules.IsTempest(in zone)) continue;
 
                 // Cleopatra's Sandstorm Vortex drags the opponent toward its
                 // center every frame: a small positional shift that never touches
@@ -2666,10 +2791,8 @@ namespace FTT.FighterSim {
                 // Two zones carry real impulse on their pulses; every other zone
                 // stays an impulse-free tick by design. Lincoln's Emancipator
                 // (zone type 31) knocks the target up with the authored Special 1
-                // knockback; Shakespeare's Tempest (zone type 62) shoves the
-                // opponent away from the storm center (hitOriginX at the zone
-                // center yields the outward direction) with the authored Special 2
-                // knockback.
+                // knockback. (Shakespeare's Tempest is a windbox since Package 13
+                // W7a and never reaches this pulse — see FighterTempestRules.)
                 FP64 pulseKnockback = FP64.Zero;
                 int pulseHitstunFrames = 0;
                 // A01/D10 (Package 13 W1): the two Special impulse pulses read
@@ -2680,10 +2803,6 @@ namespace FTT.FighterSim {
                     pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).SpecialOneKnockback;
                     pulseHitstunFrames = EmancipatorHitstunFrames;
                     pulseContract = _contracts.For(zone.OwnerPlayerID, FighterHitContractTable.SlotSpecialOne);
-                } else if (zone.ZoneTypeID == (int)FighterCharacterID.Shakespeare * 10 + 2) {
-                    pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).SpecialTwoKnockback;
-                    pulseHitstunFrames = TempestHitstunFrames;
-                    pulseContract = _contracts.For(zone.OwnerPlayerID, FighterHitContractTable.SlotSpecialTwo);
                 } else if (zone.ZoneTypeID == (int)FighterCharacterID.Joan * 10 + FighterUltimateRules.UltimateSlot
                     && zone.LifetimeFrames <= zone.TickIntervalFrames) {
                     // Grand Crusade: only the FINAL trample pulse carries the
@@ -2794,7 +2913,10 @@ namespace FTT.FighterSim {
             ref FighterVerbComponent targetVerb,
             ref FighterDefenseComponent targetDefense,
             in FighterTuningComponent targetTuning) {
-            int coils = CountLiveCoils(ref frame, zone.OwnerPlayerID);
+            // T01 (Package 13 W7a): only this Tesla's own live coils within 8
+            // units of the marked target are eligible; with none the mark is
+            // left to expire.
+            int coils = FighterLorentzChainRules.EligibleCoils(ref frame, zone.OwnerPlayerID, in target.Position);
             if (coils <= 0) return;
             ref FighterConductiveComponent mark = ref frame.Get<FighterConductiveComponent>(targetEntity);
             // Execution IDs must be non-zero; entity IDs start at zero.
@@ -2802,21 +2924,19 @@ namespace FTT.FighterSim {
             // Consumed: the mark is spent, the per-execution guard stays set.
             mark.FramesRemaining = 0;
             mark.SourcePlayerID = -1;
-            FighterDamageRules.ApplyFighterHit(
-                ref attacker, ref attackerRuntime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
-                FighterDamageRules.SpecialAttackClass, CoilArcDamage * coils, FP64.Zero, LorentzChainHitstunFrames,
-                (int)StatusType.None, 0, FP64.One, zone.Position.x,
-                collectsEcho: false,
-                appliesHitstop: false);
+            // Each eligible coil fires its own instant 8-damage arc — a direct
+            // Special-class hit (meter and Rally as normal), no added launch,
+            // never recursive.
+            FighterLorentzChainRules.FireArcs(
+                ref frame, zone.OwnerPlayerID,
+                ref attacker, ref attackerRuntime, ref attackerVerb,
+                ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning);
         }
 
-        /// <summary>Per-coil chain arc damage (the coil's own arc, mirrored by Story's <c>TeslaCoilNode.ArcDamage</c>).</summary>
-        internal const int CoilArcDamage = 5;
-        /// <summary>Story's chain arcs carry a 0.1 s hitstun.</summary>
-        private const int LorentzChainHitstunFrames = 6;
+        /// <summary>T01 per-coil chain arc damage (Package 13 W7a: 5 → 8; see <see cref="FighterLorentzChainRules"/>).</summary>
+        internal const int CoilArcDamage = FighterLorentzChainRules.ArcDamage;
         private const int CoilObjectTypeID = 1;
         private const int EmancipatorHitstunFrames = 18;
-        private const int TempestHitstunFrames = 10;
         // Union Indestructible finisher: 0.5 s, matching the authored
         // HitstunDuration on lincoln/ultimate.tres.
         private const int UnionFinisherHitstunFrames = 30;

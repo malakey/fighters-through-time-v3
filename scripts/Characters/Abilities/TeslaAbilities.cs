@@ -49,9 +49,10 @@ namespace FTT.Characters.Abilities {
                 oldest.ReturnToPool();
             }
 
+            // T02 (Package 13 W7a): placed on the ground at Tesla's feet.
             Node spawned = FTT.Core.PoolManager.Instance?.Spawn(
                 Data.PersistentObjectScene,
-                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 70f : -70f, 0f),
+                Owner.GlobalPosition,
                 Owner.GetParent());
             if (spawned is not TeslaCoilNode coil) return;
 
@@ -180,15 +181,21 @@ namespace FTT.Characters.Abilities {
     /// mark occupies no status slot, the pulse's own Root can never evict it.
     /// Story-only Resonance perk Lorentz
     /// Attraction pulls enemies toward Tesla before rooting them and extends the
-    /// root by one second.
+    /// root by half a second (D12, Package 13 W7a).
     /// </summary>
     public partial class TeslaLorentzPulse : BaseSpecial {
 
         public const string LorentzAttractionPerkKey = "lorentz_attraction";
 
-        private const float PulseRadiusPixels = 140f;
+        /// <summary>T02 (Package 13 W7a): a 2.5-unit radial pulse.</summary>
+        private const float PulseRadiusPixels = KitMotionRules.LorentzPulseRadiusUnits * KitMotionRules.StoryPixelsPerUnit;
         private const float AttractionStopDistancePixels = 70f;
-        private const float AttractionRootBonusSeconds = 1f;
+        /// <summary>D12 (Package 13 W7a): Lorentz Attraction extends the Root by 0.5 s (the GDD), not 1.0 s.</summary>
+        public const float AttractionRootBonusSeconds = 0.5f;
+        /// <summary>T01: an eligible coil is within 8 units of the marked target.</summary>
+        private const float ChainCoilRangePixels = KitMotionRules.LorentzChainCoilRangeUnits * KitMotionRules.StoryPixelsPerUnit;
+        /// <summary>A05 root fallback (1.0 s) when the resource authors none.</summary>
+        private const float DefaultRootSeconds = 1f;
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
@@ -221,7 +228,7 @@ namespace FTT.Characters.Abilities {
 
             bool attraction = Owner.HasStoryPerk(LorentzAttractionPerkKey);
             // Story-only StatusDuration minors lengthen the pulse's Root.
-            float rootDuration = ((Data?.StatusDuration > 0f ? Data.StatusDuration : 2f)
+            float rootDuration = ((Data?.StatusDuration > 0f ? Data.StatusDuration : DefaultRootSeconds)
                 + (attraction ? AttractionRootBonusSeconds : 0f))
                 * Owner.StoryStatusDurationMultiplier;
 
@@ -257,21 +264,32 @@ namespace FTT.Characters.Abilities {
                 // F07 (Package 12 W4, parity with the sim's GAP-10a consumer): only
                 // a pulse that LANDED chains, only while one of his coils stands,
                 // and the chain CONSUMES the mark — once per pulse per target.
-                if (primed && dealt > 0f && HasLiveCoil() && ConsumeConductiveMark(hurtbox)) {
+                if (primed && dealt > 0f && HasEligibleCoil(hurtbox) && ConsumeConductiveMark(hurtbox)) {
                     ChainLightningToCoils(hurtbox);
                 }
             }
         }
 
+        /// <summary>
+        /// T01 (Package 13 W7a): each of his own active coils within 8 units of
+        /// the marked target fires one instant 8-damage arc at it (max 16 with
+        /// both). Arcs are DIRECT Special-class hits — meter and Rally reclaim
+        /// as normal — with no added launch, and they never chain recursively
+        /// (they carry no mark).
+        /// </summary>
         private void ChainLightningToCoils(Hurtbox target) {
+            // Snapshot first: a lethal arc can run a death sweep that edits the list.
+            var eligible = new System.Collections.Generic.List<TeslaCoilNode>();
             foreach (Node2D node in Owner.ActivePersistentObjects) {
-                if (node is not TeslaCoilNode coil || !IsInstanceValid(coil) || coil.IsCoilDestroyed) continue;
+                if (node is TeslaCoilNode coil && IsEligibleChainCoil(coil, target)) eligible.Add(coil);
+            }
+            foreach (TeslaCoilNode coil in eligible) {
                 HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "tesla_lorentz_pulse",
                     HitboxID = "chain_lightning",
                     AttackClass = AttackClass.Special,
-                    Damage = coil.ArcDamage * Owner.StorySpecialDamageMultiplier,
+                    Damage = KitMotionRules.LorentzChainArcDamage * Owner.StorySpecialDamageMultiplier,
                     Knockback = Vector2.Zero,
                     HitstunDuration = 0.1f,
                     HitOrigin = coil.GlobalPosition,
@@ -281,15 +299,20 @@ namespace FTT.Characters.Abilities {
                     StatusIntensity = 1f,
                     ScreenShakeIntensity = 0.1f,
                     ScreenShakeDuration = 0.05f
-                }, HitDelivery.Construct);
+                }, HitDelivery.DirectHit);
+                hit.Launches = false;
                 float dealt = target.TakeHit(hit);
                 Credit(in hit, dealt);
             }
         }
 
-        private bool HasLiveCoil() {
+        private bool IsEligibleChainCoil(TeslaCoilNode coil, Hurtbox target) =>
+            coil != null && IsInstanceValid(coil) && !coil.IsCoilDestroyed
+            && coil.GlobalPosition.DistanceTo(target.GlobalPosition) <= ChainCoilRangePixels;
+
+        private bool HasEligibleCoil(Hurtbox target) {
             foreach (Node2D node in Owner.ActivePersistentObjects) {
-                if (node is TeslaCoilNode coil && IsInstanceValid(coil) && !coil.IsCoilDestroyed) return true;
+                if (node is TeslaCoilNode coil && IsEligibleChainCoil(coil, target)) return true;
             }
             return false;
         }

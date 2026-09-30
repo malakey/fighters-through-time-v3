@@ -17,7 +17,8 @@ namespace FTT.Characters.Abilities {
     public partial class TeslaCoilNode : FTT.Core.PooledNode, FTT.Core.IPoolable, FTT.Environment.IStoryRewindSimulation, FTT.Environment.IStoryTimeFreezable {
 
         public const float LinkRangePixels = 480f;   // 8 world units at 60 px/unit.
-        private const float ArcRangePixels = 300f;   // 5 world units; mirrors the Fighter sim AttackRange.
+        /// <summary>T02 (Package 13 W7a): coils arc at targets within 4 units; mirrors the Fighter sim AttackRange.</summary>
+        public const float ArcRangePixels = KitMotionRules.TeslaCoilArcRangeUnits * KitMotionRules.StoryPixelsPerUnit;
         private const int MaxCoilHP = 25;
         // 2026-08-11 construct rebalance: fence cadence halved and damage halved
         // alongside the .tres arc retune; construct hits carry no knockback.

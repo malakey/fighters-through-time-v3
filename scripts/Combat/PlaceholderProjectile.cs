@@ -24,6 +24,56 @@ namespace FTT.Combat {
         public event System.Action<Vector2> Impacted;
 
         /// <summary>
+        /// Package 13 W7a — the burst-on-terrain primitive (Story half; the sim's
+        /// is <c>FighterProjectileBurstRules</c>). Opt-in, from
+        /// <c>AbilityData.ProjectileBurstsOnTerrain</c>: a detonating projectile
+        /// also raises <see cref="Impacted"/> where it strikes terrain or a wall
+        /// (an <c>Environment</c>-layer ray along each step's travel) or reaches
+        /// its maximum range (its lifetime), instead of vanishing silently.
+        /// Cleared on despawn.
+        /// </summary>
+        public bool BurstsOnTerrain { get; set; }
+
+        /// <summary>
+        /// Package 13 W7a (L03): the shot stops (vanishes) where it strikes
+        /// terrain — line of sight for the turret's straight bolts. Implied by
+        /// <see cref="BurstsOnTerrain"/>. Cleared on despawn.
+        /// </summary>
+        public bool StopsOnTerrain { get; set; }
+
+        /// <summary>
+        /// Package 13 W7a (L03): aims the shot straight along an arbitrary
+        /// direction at its configured speed (the turret's bolts fly at the
+        /// target, not only horizontally). Call after <see cref="Setup"/>.
+        /// </summary>
+        public void ConfigureDirection(Vector2 direction) {
+            if (direction == Vector2.Zero) return;
+            Vector2 unit = direction.Normalized();
+            float speed = _speed;
+            _movingRight = unit.X >= 0f;
+            _speed = speed * Mathf.Abs(unit.X);
+            _verticalVelocity = speed * unit.Y;
+            _arcGravity = 0f;
+        }
+
+        /// <summary>
+        /// Package 13 W7a (L03): a construct's bolt — Basic-class, impulse-free,
+        /// non-launching, construct delivery (no Rally reclaim), never a
+        /// Shield-Breaker. Call after <see cref="Setup"/>.
+        /// </summary>
+        public void ConfigureConstructHit() {
+            if (_hitbox == null) return;
+            _hitbox.AttackClass = AttackClass.Basic;
+            _hitbox.BlockChargeCost = 0;
+            _hitbox.Unblockable = false;
+            _hitbox.ShieldBreaker = false;
+            _hitbox.Launches = false;
+            _hitbox.Delivery = HitDelivery.Construct;
+            _hitbox.KnockbackForce = Vector2.Zero;
+            _hitbox.HitstunDuration = 0.15f;
+        }
+
+        /// <summary>
         /// Package 11 A4 (Resonance V7.6). Authoring flag for Lincoln's Rail
         /// Breaker traversal node: only a projectile marked breakable can be
         /// destroyed by a Rail Charge. Beams, persistent zones and
@@ -57,6 +107,18 @@ namespace FTT.Combat {
             if (_hitbox == null) return;
             _hitbox.AppliedStatus = FTT.Core.StatusType.None;
             _hitbox.StatusDuration = 0f;
+        }
+
+        /// <summary>
+        /// Package 13 W7a: the contact stage of a two-stage (bursting) shot is
+        /// the minor hit — its own damage, no status, no knockback, no launch;
+        /// the burst carries all three. Mirrors the sim's contact stage.
+        /// </summary>
+        public void MakeMinorContactStage() {
+            ClearContactStatus();
+            if (_hitbox == null) return;
+            _hitbox.KnockbackForce = Vector2.Zero;
+            _hitbox.Launches = false;
         }
 
         /// <summary>Owning local player slot (mirrors the hitbox); -1 marks an enemy shot.</summary>
@@ -170,17 +232,60 @@ namespace FTT.Combat {
         public override void _PhysicsProcess(double delta) {
             float dt = (float)delta;
             _lifetime -= dt;
-            if (_lifetime <= 0) { ReturnToPool(); return; }
+            if (_lifetime <= 0) {
+                // W7a: a bursting shot bursts at its maximum range.
+                if (BurstsOnTerrain && DetonateOnImpact) BurstAt(GlobalPosition);
+                else ReturnToPool();
+                return;
+            }
 
             var pos = GlobalPosition;
+            Vector2 from = pos;
             pos.X += (_movingRight ? _speed : -_speed) * dt;
             if (_arcGravity != 0f || _verticalVelocity != 0f) {
                 pos.Y += _verticalVelocity * dt;
                 _verticalVelocity += _arcGravity * dt;
             }
+            if ((BurstsOnTerrain || StopsOnTerrain) && TryStrikeTerrain(from, pos, out Vector2 terrainPoint)) {
+                GlobalPosition = terrainPoint;
+                if (BurstsOnTerrain && DetonateOnImpact) BurstAt(terrainPoint);
+                else ReturnToPool();
+                return;
+            }
             GlobalPosition = pos;
 
             Modulate = new Color(1, 1, 1, Mathf.Min(1f, _lifetime * 2f));
+        }
+
+        /// <summary>
+        /// W7a: the burst stage outside a hurtbox contact — at a terrain strike or
+        /// the maximum range. One burst per flight, like the contact path.
+        /// </summary>
+        private void BurstAt(Vector2 point) {
+            DetonateOnImpact = false;
+            _hitbox?.Deactivate();
+            Impacted?.Invoke(point);
+            ReturnToPool();
+        }
+
+        /// <summary>
+        /// W7a: true when this step's travel crosses solid terrain (the
+        /// <c>Environment</c> layer — walls, floors, solid props; one-way
+        /// platforms are not terrain). <paramref name="point"/> is the contact.
+        /// Pure query, legal outside a physics signal flush.
+        /// </summary>
+        private bool TryStrikeTerrain(Vector2 from, Vector2 to, out Vector2 point) {
+            point = to;
+            if (!IsInsideTree() || from == to) return false;
+            PhysicsDirectSpaceState2D space = GetWorld2D()?.DirectSpaceState;
+            if (space == null) return false;
+            var query = PhysicsRayQueryParameters2D.Create(from, to, CollisionLayers.Environment);
+            query.CollideWithAreas = false;
+            query.CollideWithBodies = true;
+            using Godot.Collections.Dictionary hit = space.IntersectRay(query);
+            if (hit == null || hit.Count == 0) return false;
+            point = hit["position"].AsVector2();
+            return true;
         }
 
         public void OnSpawn() {
@@ -197,6 +302,8 @@ namespace FTT.Combat {
             _verticalVelocity = 0f;
             _arcGravity = 0f;
             DetonateOnImpact = false;
+            BurstsOnTerrain = false;
+            StopsOnTerrain = false;
             Impacted = null;
             if (_authoredVisual != null) {
                 _authoredVisual.Stop();

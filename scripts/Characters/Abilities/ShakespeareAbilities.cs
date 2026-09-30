@@ -5,7 +5,9 @@ using FTT.Characters;
 namespace FTT.Characters.Abilities {
 
     /// <summary>
-    /// Special 1 — Yorick's Lament: throws a rolling skull that deals minor
+    /// Special 1 — Yorick's Lament: conjures Yorick's skull from <i>Hamlet</i>
+    /// and throws it STRAIGHT (S03, Package 13 W7a — no longer rolling) at 10
+    /// units/s up to 8 units; it deals minor
     /// contact damage, then releases a wailing sonic wave at the impact point
     /// applying TimeDilation for the authored 2.5 s. The authored StatusIntensity
     /// is 0.6 because the shared TimeDilation formula in both modes is
@@ -19,7 +21,8 @@ namespace FTT.Characters.Abilities {
         public const string MacbethsCursePerkKey = "macbeths_curse";
 
         private const float ContactDamageShare = 1f / 3f;
-        private const float WaveRadius = 110f;
+        /// <summary>S03 fallback wave radius (1.5 units) when the resource authors none.</summary>
+        private const float DefaultWaveRadius = 90f;
         private const float MacbethVenomDuration = 3f;
         // VenomStrategy/EnemyController tick 2 HP x intensity per second, so 0.5
         // yields the design's 1 chip damage every 1.0 s.
@@ -40,19 +43,31 @@ namespace FTT.Characters.Abilities {
 
         private void LaunchSkull() {
             if (Owner == null) return;
-            float contactDamage = Mathf.Round((Data?.BaseDamage ?? 14f) * ContactDamageShare);
+            // S03 (Package 13 W7a): thrown straight at 10 units/s up to 8 units
+            // (the authored speed x lifetime), 5 contact + 16 wave.
+            float contactDamage = Data?.ProjectileContactDamage > 0f
+                ? Data.ProjectileContactDamage
+                : Mathf.Round((Data?.BaseDamage ?? 14f) * ContactDamageShare);
             var projectile = SpawnPlaceholderProjectile(
                 Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 40f : -40f, -10f),
-                Data?.ProjectileSpeed ?? 200f, Owner.IsFacingRight, new Color(0.8f, 0.7f, 0.5f),
-                new Vector2(18, 18), Data?.ProjectileLifetime ?? 5f, contactDamage);
+                Data?.ProjectileSpeed ?? 600f, Owner.IsFacingRight, new Color(0.8f, 0.7f, 0.5f),
+                new Vector2(18, 18), Data?.ProjectileLifetime ?? 0.8f, contactDamage);
             if (projectile != null) {
                 projectile.DetonateOnImpact = true;
-                // The wave owns the TimeDilation; without this the skull's contact
-                // hit applied the same slow a second time (V7 tuning batch).
-                projectile.ClearContactStatus();
+                // The wave owns the TimeDilation and the knockback; the skull's
+                // contact is the minor stage (the slow is applied once).
+                projectile.MakeMinorContactStage();
+                // Bursts on a fighter, terrain or at max range.
+                projectile.BurstsOnTerrain = Data?.ProjectileBurstsOnTerrain ?? true;
                 projectile.Impacted += OnProjectileImpacted;
             }
         }
+
+        /// <summary>The sonic wave's radius in pixels: the authored value, 1.5 units by default.</summary>
+        public float WaveRadius => Data?.ProjectileBurstRadius > 0f ? Data.ProjectileBurstRadius : DefaultWaveRadius;
+
+        /// <summary>Test seam: resolves the wave at <paramref name="impactPosition"/> synchronously.</summary>
+        public void EmitSonicWaveForTest(Vector2 impactPosition) => EmitSonicWave(impactPosition);
 
         private void OnProjectileImpacted(Vector2 impactPosition) {
             // Area signals fire while the physics space is locked; defer the wave
@@ -65,7 +80,8 @@ namespace FTT.Characters.Abilities {
 
             // Wave flash visual only; damage and status are applied through the
             // shape query so the Macbeth's Curse perk can be evaluated per target.
-            SpawnPlaceholderZone(impactPosition, 0f, 0.25f, 1f, new Color(0.7f, 0.65f, 0.9f), WaveRadius);
+            float waveRadius = WaveRadius;
+            SpawnPlaceholderZone(impactPosition, 0f, 0.25f, 1f, new Color(0.7f, 0.65f, 0.9f), waveRadius);
 
             var space = Owner.GetWorld2D()?.DirectSpaceState;
             if (space == null) return;
@@ -73,7 +89,7 @@ namespace FTT.Characters.Abilities {
                 ? FTT.Core.CollisionLayers.EnemyHurtbox
                 : FTT.Core.CollisionLayers.PlayerHurtbox;
             var query = new PhysicsShapeQueryParameters2D {
-                Shape = new CircleShape2D { Radius = WaveRadius },
+                Shape = new CircleShape2D { Radius = waveRadius },
                 Transform = new Transform2D(0f, impactPosition),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
@@ -138,12 +154,17 @@ namespace FTT.Characters.Abilities {
     }
 
     /// <summary>
-    /// Special 2 — The Tempest: a localized wind storm around Shakespeare that
-    /// continuously shoves adjacent enemies away from him while the gust lifts
-    /// him into the air. Zero-damage crowd control; storm duration comes from the
-    /// authored active frames and the cooldown from the resource. Targets are
-    /// found through the shared hurtbox contract, so Story enemies and sparring
-    /// players are both affected.
+    /// Special 2 — The Tempest, raised by a summoned Ariel (A10 presentation):
+    /// <b>a windbox, not a hit</b> (S01, Package 13 W7a). For the storm's
+    /// authored active frames (12) every opponent inside the 2-unit radius,
+    /// blocking or not, is pushed about 3 units outward — a positional shove
+    /// through the body's own collision, so walls stop it. It consumes no block
+    /// charge and causes no hitstun, hitstop or shieldstun, grants no DI or
+    /// tumble, and builds no meter or Rally reclaim; nothing here builds a
+    /// <see cref="HitPayload"/> at all. Targets in a grab state or an Ultimate
+    /// cinematic and knockback-immune bosses are not moved. Shakespeare is
+    /// lifted about 2.5 units over the same frames, then falls normally, with
+    /// no invulnerability (S02).
     /// </summary>
     public partial class ShakespeareTheTempest : BaseSpecial {
 
@@ -156,9 +177,15 @@ namespace FTT.Characters.Abilities {
         /// </summary>
         public const string TempestApexJumpPerkKey = "tempest_apex_jump";
 
-        private const float StormRadius = 120f;
-        private const float LiftSpeed = 200f;
-        private const float PushAcceleration = 180f;
+        private const float PixelsPerUnit = KitMotionRules.StoryPixelsPerUnit;
+        /// <summary>S02: 2.0-unit radius.</summary>
+        public const float StormRadius = KitMotionRules.TempestRadiusUnits * PixelsPerUnit;
+        /// <summary>S02: ~3 units outward over <see cref="KitMotionRules.TempestPushFrames"/> frames.</summary>
+        public const float PushPerFramePixels =
+            KitMotionRules.TempestPushUnits * PixelsPerUnit / KitMotionRules.TempestPushFrames;
+        /// <summary>S02: the lift covers ~2.5 units over the push frames.</summary>
+        private const float LiftSpeed =
+            KitMotionRules.TempestLiftUnits * PixelsPerUnit * 60f / KitMotionRules.TempestPushFrames;
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
@@ -166,10 +193,17 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
+            _caught.Clear();
         }
+
+        /// <summary>H-4: an interrupted storm stops pushing.</summary>
+        protected override void OnInterrupted() => _caught.Clear();
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
+            _caught.Clear();
+            // The lift is spent: the recovery plays in the air, then a normal fall.
+            if (Owner != null && Owner.Velocity.Y < 0f) Owner.Velocity = new Vector2(Owner.Velocity.X, 0f);
             // Tempest Apex Jump (traversal): the lift has just finished, which
             // IS the apex — refresh the jump budget so Shakespeare can leave
             // from the top. A refresh only; it grants no glide, cancels
@@ -181,14 +215,14 @@ namespace FTT.Characters.Abilities {
 
         public override void _PhysicsProcess(double delta) {
             if (CurrentPhase == AbilityPhase.Active && Owner != null) {
-                float dt = (float)delta;
                 Owner.Velocity = new Vector2(Owner.Velocity.X, -LiftSpeed);
-                PushAdjacentTargets(dt);
+                PushAdjacentTargets();
             }
             base._PhysicsProcess(delta);
         }
 
-        private void PushAdjacentTargets(float dt) {
+        /// <summary>One frame of the windbox. Public so tests can drive it without input.</summary>
+        public void PushAdjacentTargets() {
             var space = Owner.GetWorld2D()?.DirectSpaceState;
             if (space == null) return;
             uint targetHurtboxLayer = Owner.PlayerIndex == 0
@@ -202,78 +236,109 @@ namespace FTT.Characters.Abilities {
                 CollisionMask = targetHurtboxLayer
             };
 
+            // A body the storm touches is caught for the rest of the storm, so
+            // the shove carries its full ~3 units rather than stopping at the
+            // radius edge (the sim's caught mask is the same rule).
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
-                PushTargetAway(hurtbox, dt);
+                CharacterBody2D body = FindBody(hurtbox);
+                if (body != null) _caught.Add(body);
+            }
+            foreach (CharacterBody2D body in _caught) {
+                if (body == null || !IsInstanceValid(body) || !CanBePushed(body)) continue;
+                PushTargetAway(body);
             }
         }
 
-        private void PushTargetAway(Hurtbox hurtbox, float dt) {
+        private readonly System.Collections.Generic.HashSet<CharacterBody2D> _caught = new();
+
+        /// <summary>S01: grab states, an Ultimate cinematic and immovable bosses are never moved.</summary>
+        public static bool CanBePushed(CharacterBody2D body) => body switch {
+            PlayerController player => player.CurrentState is not (CharacterState.Grabbing
+                or CharacterState.Thrown or CharacterState.UsingUltimate or CharacterState.Dead),
+            FTT.Enemies.EnemyController enemy => !enemy.IsHeldByPlayer,
+            FTT.Enemies.BossController boss => boss.Data?.IsKnockbackImmune != true,
+            _ => true
+        };
+
+        private void PushTargetAway(CharacterBody2D body) {
+            float away = body.GlobalPosition.X - Owner.GlobalPosition.X;
+            float direction = away > 0f ? 1f : away < 0f ? -1f : (Owner.IsFacingRight ? 1f : -1f);
+            // Story-only KnockbackForce minors strengthen the storm's push.
+            float step = PushPerFramePixels * Owner.StoryKnockbackMultiplier;
+            // A positional shove through the body's own collision: walls stop it,
+            // and it touches neither velocity nor hit state.
+            body.MoveAndCollide(new Vector2(direction * step, 0f));
+        }
+
+        private static CharacterBody2D FindBody(Hurtbox hurtbox) {
             Node current = hurtbox.GetParent();
             while (current != null) {
-                if (current is CharacterBody2D body) {
-                    Vector2 away = body.GlobalPosition - Owner.GlobalPosition;
-                    Vector2 pushDir = away == Vector2.Zero
-                        ? (Owner.IsFacingRight ? Vector2.Right : Vector2.Left)
-                        : away.Normalized();
-                    // Story-only KnockbackForce minors strengthen the storm's push.
-                    body.Velocity += pushDir * PushAcceleration * Owner.StoryKnockbackMultiplier * dt;
-                    return;
-                }
+                if (current is CharacterBody2D body) return body;
                 current = current.GetParent();
             }
+            return null;
         }
     }
 
     /// <summary>
-    /// Movement — Prospero's Flight: a magical gust propels Shakespeare forward
-    /// and upward, then lets him glide horizontally for up to the authored glide
-    /// duration (3 s). Usable in the air for recovery. Glide speed, glide
-    /// duration, and cooldown come from the authored MovementAbilityData.
-    /// Story-only Resonance perk: Midsummer Glide (+20% glide speed and 8 damage
-    /// to enemies glided through, each struck once per glide).
+    /// Movement — Prospero's Flight: a single strong <b>gust burst</b> (A08,
+    /// Package 13 W7a) — about 4 units forward and 2.5 up over 20 frames along
+    /// facing, then a normal fall. No sustained glide, and (F15) no teleport or
+    /// invulnerability. Distance comes from the authored MovementAbilityData;
+    /// the rise and frame count from <c>KitMotionRules</c>, shared with the sim.
+    /// Story-only Resonance perk <b>Midsummer Gust</b> (node ID and perk key
+    /// kept as <c>midsummer_glide</c>): 20% more gust distance and 8 damage to
+    /// enemies the gust carries him through, each struck once per gust.
     /// </summary>
     public partial class ShakespeareProsperosFlight : BaseSpecial {
 
+        /// <summary>Retained perk key (the node is displayed as Midsummer Gust).</summary>
         public const string MidsummerGlidePerkKey = "midsummer_glide";
 
-        private const float GustForce = 400f;
-        private const float GlideFallSpeedCap = 35f;
-        private const float GlideStrikeRadius = 50f;
-        private const float MidsummerGlideSpeedMultiplier = 1.2f;
-        private const float MidsummerGlideDamage = 8f;
+        private const float PixelsPerUnit = KitMotionRules.StoryPixelsPerUnit;
+        private const float GustStrikeRadius = 50f;
+        /// <summary>Midsummer Gust: 8.0 contact damage.</summary>
+        public const float MidsummerGustDamage = 8f;
 
-        private bool _isGliding;
-        private float _glideTimer;
-        private float _glideSpeed;
+        private bool _isGusting;
+        private Vector2 _gustVelocity;
         private Vector2 _startPosition;
-        private readonly System.Collections.Generic.HashSet<Hurtbox> _glideVictims = new();
+        private readonly System.Collections.Generic.HashSet<Hurtbox> _gustVictims = new();
 
         private MovementAbilityData MovementData => Data as MovementAbilityData;
 
+        /// <summary>True while the gust is carrying him. Test seam.</summary>
+        public bool IsGusting => _isGusting;
+
+        /// <summary>The gust's velocity in px/s (x along facing, y up is negative). Test seam.</summary>
+        public Vector2 GustVelocity => _gustVelocity;
+
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
-            _isGliding = false;
             _startPosition = Owner.GlobalPosition;
-            float hDir = Owner.IsFacingRight ? 1f : -1f;
-            Owner.Velocity = new Vector2(hDir * GustForce * 0.5f, -GustForce);
         }
 
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
+            int frames = Mathf.Max(1, Data?.ActiveFrames ?? KitMotionRules.ProsperoGustFrames);
+            float seconds = frames / 60f;
+            float forward = MovementData?.DistanceMoved > 0f
+                ? MovementData.DistanceMoved
+                : KitMotionRules.ProsperoGustForwardUnits * PixelsPerUnit;
+            if (Owner.HasStoryPerk(MidsummerGlidePerkKey)) forward *= KitMotionRules.MidsummerGustDistanceMultiplier;
+            float rise = KitMotionRules.ProsperoGustRiseUnits * PixelsPerUnit;
+            float facing = Owner.IsFacingRight ? 1f : -1f;
+            _gustVelocity = new Vector2(facing * forward / seconds, -rise / seconds);
+            _isGusting = true;
+            _gustVictims.Clear();
+            Owner.Velocity = _gustVelocity;
         }
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
-            _isGliding = true;
-            _glideTimer = MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : 3f;
-            _glideSpeed = MovementData?.MovementSpeed > 0f ? MovementData.MovementSpeed : 130f;
-            if (Owner.HasStoryPerk(MidsummerGlidePerkKey)) {
-                _glideSpeed *= MidsummerGlideSpeedMultiplier;
-            }
-            _glideVictims.Clear();
-
+            EndGust();
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 AbilityName = Data?.AbilityName ?? "Prospero's Flight",
@@ -282,51 +347,40 @@ namespace FTT.Characters.Abilities {
             });
         }
 
-        /// <summary>H-4: a stun/death mid-cast releases the glide's velocity steering.</summary>
+        /// <summary>H-4: a stun/death mid-cast releases the gust's velocity steering.</summary>
         protected override void OnInterrupted() {
-            _isGliding = false;
-            _glideVictims.Clear();
+            _isGusting = false;
+            _gustVictims.Clear();
         }
 
         public override void _PhysicsProcess(double delta) {
-            float dt = (float)delta;
-
-            if (_isGliding) {
-                _glideTimer -= dt;
-                float hInput = Owner.CurrentInputFrame.Horizontal;
-
-                var vel = Owner.Velocity;
-                vel.X = hInput * _glideSpeed;
-                vel.Y = Mathf.Min(vel.Y, GlideFallSpeedCap);
-                Owner.Velocity = vel;
-
-                if (Owner.HasStoryPerk(MidsummerGlidePerkKey)) {
-                    StrikeGlidedThroughTargets();
-                }
-
-                if (_glideTimer <= 0 || Owner.IsOnFloor()) {
-                    _isGliding = false;
-                    _glideVictims.Clear();
-                    if (CurrentPhase != AbilityPhase.Inactive) AdvanceToCleanup();
-                }
-                return;
+            if (_isGusting && CurrentPhase == AbilityPhase.Active && Owner != null) {
+                Owner.Velocity = _gustVelocity;
+                if (Owner.HasStoryPerk(MidsummerGlidePerkKey)) StrikeGustedThroughTargets();
             }
-
             base._PhysicsProcess(delta);
         }
 
+        /// <summary>A burst, not a glide: it ends with its momentum spent, then the fall is the ordinary one.</summary>
+        private void EndGust() {
+            if (!_isGusting) return;
+            _isGusting = false;
+            _gustVictims.Clear();
+            if (Owner != null) Owner.Velocity = Vector2.Zero;
+        }
+
         /// <summary>
-        /// Midsummer Glide (Story-only): enemies Shakespeare passes through while
-        /// gliding take 8 damage, once per target per glide.
+        /// Midsummer Gust (Story-only): enemies Shakespeare passes through during
+        /// the gust take 8 damage, once per target per gust.
         /// </summary>
-        private void StrikeGlidedThroughTargets() {
+        private void StrikeGustedThroughTargets() {
             var space = Owner.GetWorld2D()?.DirectSpaceState;
             if (space == null) return;
             uint targetHurtboxLayer = Owner.PlayerIndex == 0
                 ? FTT.Core.CollisionLayers.EnemyHurtbox
                 : FTT.Core.CollisionLayers.PlayerHurtbox;
             var query = new PhysicsShapeQueryParameters2D {
-                Shape = new CircleShape2D { Radius = GlideStrikeRadius },
+                Shape = new CircleShape2D { Radius = GustStrikeRadius },
                 Transform = new Transform2D(0f, Owner.GlobalPosition),
                 CollideWithAreas = true,
                 CollideWithBodies = false,
@@ -336,14 +390,14 @@ namespace FTT.Characters.Abilities {
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
-                if (!_glideVictims.Add(hurtbox)) continue;
+                if (!_gustVictims.Add(hurtbox)) continue;
 
                 HitPayload hit = Stamp(new HitPayload {
                     AttackerIndex = Owner.PlayerIndex,
                     AttackID = Data?.AbilityID ?? "shakespeare_prosperos_flight",
-                    HitboxID = "glide_strike",
+                    HitboxID = "gust_strike",
                     AttackClass = AttackClass.Special,
-                    Damage = MidsummerGlideDamage * Owner.StorySpecialDamageMultiplier,
+                    Damage = MidsummerGustDamage * Owner.StorySpecialDamageMultiplier,
                     Knockback = new Vector2(2, -1),
                     HitstunDuration = 0.1f,
                     HitOrigin = Owner.GlobalPosition,
@@ -359,7 +413,6 @@ namespace FTT.Characters.Abilities {
             }
         }
     }
-
     /// <summary>
     /// Ultimate — All the World's a Stage (design Section 5): a Globe Theatre
     /// set rises around Shakespeare and tragic phantoms — the three Witches,
