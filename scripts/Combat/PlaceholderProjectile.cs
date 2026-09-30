@@ -59,6 +59,23 @@ namespace FTT.Combat {
             _hitbox.StatusDuration = 0f;
         }
 
+        /// <summary>
+        /// Package 13 W7b: replaces the contact knockback after <see cref="Setup"/>
+        /// (Mozart's Requiem Chord contact holds without an impulse so its burst
+        /// lands). Reset by the next Setup.
+        /// </summary>
+        public void OverrideContactKnockback(Vector2 knockback) {
+            if (_hitbox == null) return;
+            _hitbox.KnockbackForce = knockback;
+            _hitbox.Launches = false;
+        }
+
+        /// <summary>
+        /// Package 13 W7b: the HP the detonating contact actually dealt (0 when
+        /// blocked or absorbed), readable inside <see cref="Impacted"/>.
+        /// </summary>
+        public float LastImpactDamage { get; private set; }
+
         /// <summary>Owning local player slot (mirrors the hitbox); -1 marks an enemy shot.</summary>
         public int OwnerPlayerIndex => _hitbox?.OwnerPlayerIndex ?? -1;
 
@@ -162,6 +179,7 @@ namespace FTT.Combat {
             // second hurtbox in the same flush would detonate again.
             DetonateOnImpact = false;
             _hitbox?.Deactivate();
+            LastImpactDamage = damageApplied;
             Vector2 impactPosition = GlobalPosition;
             Impacted?.Invoke(impactPosition);
             ReturnToPool();
@@ -198,6 +216,7 @@ namespace FTT.Combat {
             _arcGravity = 0f;
             DetonateOnImpact = false;
             Impacted = null;
+            LastImpactDamage = 0f;
             if (_authoredVisual != null) {
                 _authoredVisual.Stop();
                 _authoredVisual.Visible = false;

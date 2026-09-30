@@ -5,20 +5,26 @@ using FTT.Characters;
 namespace FTT.Characters.Abilities {
 
     /// <summary>
-    /// Special 1 — Righteous Smite: a downward broadsword swing that launches a
-    /// holy shockwave along the ground, dealing the authored 14 damage and
-    /// applying RadiantBurn for 3 s. All numbers (damage, speed, lifetime,
-    /// status, phase frames) come from the authored AbilityData; the placeholder
-    /// projectile travels ground-hugging until production VFX lands.
-    /// Story-only Resonance perk Unstoppable Crusade grants hyper-armor through
-    /// the active swing plus 1.5 s after casting.
+    /// Special 1 — Righteous Smite (J02, Package 13 W7b): a downward broadsword
+    /// swing that sends a SHORT ground shockwave rolling about 2.5 units along
+    /// the floor. It is a ground wave, not a projectile: grounded targets only,
+    /// low knockback with the authored 30 frames of hitstun and no launch, so
+    /// the Radiant Burn string can follow. Damage, speed, travel (speed ×
+    /// lifetime), hitstun, status and phase frames all come from the authored
+    /// AbilityData. Story-only Resonance perk Unstoppable Crusade grants
+    /// hyper-armor through the active swing plus 1.5 s after casting.
     /// </summary>
     public partial class JoanRighteousSmite : BaseSpecial {
 
         public const string UnstoppableCrusadePerkKey = "unstoppable_crusade";
 
         private const float PostCastHyperArmorSeconds = 1.5f;
-        private const float GroundHugOffsetY = 24f;
+        private const float WaveLeadPixels = 30f;
+
+        private readonly StoryGroundWave _wave = new();
+
+        /// <summary>The live shockwave (test seam).</summary>
+        public StoryGroundWave Wave => _wave;
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
@@ -42,21 +48,71 @@ namespace FTT.Characters.Abilities {
 
         private void SpawnShockwave() {
             if (Owner == null) return;
-            float damage = (Data?.BaseDamage ?? 14f) * Owner.StorySpecialDamageMultiplier;
-            SpawnPlaceholderProjectile(
-                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 40f : -40f, GroundHugOffsetY),
-                Data?.ProjectileSpeed ?? 250f, Owner.IsFacingRight, new Color(0.95f, 0.85f, 0.3f),
-                new Vector2(36, 18), Data?.ProjectileLifetime ?? 5f, damage);
+            float speed = Data?.ProjectileSpeed > 0f ? Data.ProjectileSpeed : 600f;
+            float lifetime = Data?.ProjectileLifetime > 0f ? Data.ProjectileLifetime : 0.25f;
+            _wave.Start(
+                Owner.GetWorld2D()?.DirectSpaceState,
+                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? WaveLeadPixels : -WaveLeadPixels, 0f),
+                Owner.IsFacingRight, speed, speed * lifetime,
+                Data?.HitboxSize ?? new Vector2(40f, 30f), groundedOnly: true);
+            SpawnPlaceholderZone(_wave.Front, 0f, lifetime, 1f, new Color(0.95f, 0.85f, 0.3f),
+                (Data?.HitboxSize.Y ?? 30f) * 0.5f);
+        }
+
+        public override void _PhysicsProcess(double delta) {
+            base._PhysicsProcess(delta);
+            if (!_wave.Active || Owner == null || !IsInstanceValid(Owner)) return;
+            _wave.Advance((float)delta, Owner.GetWorld2D()?.DirectSpaceState,
+                StoryShapeQuery.DeliveryMask(TargetHurtboxLayer()), Owner.PlayerIndex, StrikeWithWave);
+        }
+
+        private uint TargetHurtboxLayer() => Owner.PlayerIndex == 0
+            ? FTT.Core.CollisionLayers.EnemyHurtbox
+            : FTT.Core.CollisionLayers.PlayerHurtbox;
+
+        /// <summary>One shockwave contact: the authored Special hit, delivered once per target.</summary>
+        internal void StrikeWithWave(Hurtbox hurtbox, Vector2 front) {
+            string abilityID = Data?.AbilityID ?? JoanAscendantWings.RighteousSmiteAttackID;
+            HitPayload hit = Stamp(new HitPayload {
+                AttackerIndex = Owner.PlayerIndex,
+                AttackID = abilityID,
+                HitboxID = "ground_wave",
+                AttackClass = AttackClass.Special,
+                // Minor Smite Damage is ability-scoped (AbilityDamage keyed by
+                // the ability ID); the wave delivers through a direct TakeHit, so
+                // the lane is read here as the Emancipator's wave always did.
+                Damage = (Data?.BaseDamage ?? 28f) * Owner.StorySpecialDamageMultiplier
+                    * Owner.StoryScoped("AbilityDamage", abilityID),
+                Knockback = (Data?.KnockbackForce ?? new Vector2(2f, -1f)) * Owner.StoryKnockbackMultiplier,
+                HitstunDuration = Data?.HitstunDuration ?? 0.5f,
+                HitOrigin = front,
+                AttackerFacingRight = _wave.MovingRight,
+                AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.RadiantBurn,
+                StatusDuration = (Data?.StatusDuration ?? 3f) * Owner.StoryStatusDurationMultiplier,
+                StatusIntensity = Data?.StatusIntensity ?? 1f,
+                ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
+                ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
+            });
+            float dealt = hurtbox.TakeHit(hit);
+            Credit(in hit, dealt);
+            if (dealt > 0f) {
+                EmitImpactVfx(front);
+                // Wings Refresh reads "a direct Righteous Smite hit" off the
+                // shared hit-landed hook the Hitbox path raises.
+                Owner.NotifyStoryHitLanded(hit);
+            }
         }
     }
 
     /// <summary>
-    /// Special 2 — Divine Piercing: a stationary flurry of broadsword thrusts.
-    /// The authored HitCount thrusts are spread across the active frames and
-    /// total BaseDamage * HitCount. It is one of the three authored
-    /// Shield-Breakers (A01, Package 13 W1): against a blocking opponent the
-    /// first absorbed thrust spends every remaining charge through the generic
-    /// block path (<c>BlockClass.ShieldBreaker</c> on the resource).
+    /// Special 2 — Divine Piercing (J01/J03, Package 13 W7b): Joan LUNGES about
+    /// 3 units forward across the active frames while her broadsword thrusts —
+    /// her ground gap-closer. The authored HitCount thrusts (3 × 8 = 24) are
+    /// spread across the active frames; only the last carries the authored
+    /// knockback, so the flurry lands in full. It is one of the three authored
+    /// Shield-Breakers (A01): against a blocking opponent the first absorbed
+    /// thrust spends every remaining charge through the generic block path
+    /// (<c>BlockClass.ShieldBreaker</c> on the resource).
     /// </summary>
     public partial class JoanDivinePiercing : BaseSpecial {
 
@@ -64,6 +120,12 @@ namespace FTT.Characters.Abilities {
 
         private int _thrustsDone;
         private int _activeFramesElapsed;
+        private bool _lungeRight;
+
+        /// <summary>The lunge speed in px/s: the J01 distance over the authored active frames.</summary>
+        public float LungeSpeedPixelsPerSecond =>
+            (float)KitReachRules.DivinePiercingLungeUnits * KitMotionRules.StoryPixelsPerUnit
+                * 60f / Mathf.Max(1, Data?.ActiveFrames ?? 12);
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
@@ -73,14 +135,23 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
+            _lungeRight = Owner.IsFacingRight;
         }
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
+            if (Owner != null) Owner.Velocity = new Vector2(0f, Owner.Velocity.Y);
+        }
+
+        protected override void OnInterrupted() {
+            if (Owner != null && IsInstanceValid(Owner)) Owner.Velocity = new Vector2(0f, Owner.Velocity.Y);
         }
 
         public override void _PhysicsProcess(double delta) {
             if (CurrentPhase == AbilityPhase.Active) {
+                Owner.Velocity = new Vector2(
+                    _lungeRight ? LungeSpeedPixelsPerSecond : -LungeSpeedPixelsPerSecond,
+                    Owner.Velocity.Y);
                 _activeFramesElapsed++;
                 int hitCount = Mathf.Max(1, Data?.HitCount ?? 1);
                 int interval = Mathf.Max(1, (Data?.ActiveFrames ?? hitCount) / hitCount);
@@ -134,7 +205,7 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "joan_divine_piercing",
                     HitboxID = $"thrust_{_thrustsDone}",
                     AttackClass = AttackClass.Special,
-                    Damage = (Data?.BaseDamage ?? 3f) * Owner.StorySpecialDamageMultiplier,
+                    Damage = (Data?.BaseDamage ?? 8f) * Owner.StorySpecialDamageMultiplier,
                     Knockback = finalThrust ? Data?.KnockbackForce ?? new Vector2(4f, -1f) : Vector2.Zero,
                     HitstunDuration = Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = Owner.GlobalPosition,
@@ -145,6 +216,8 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.1f
                 });
+                // Only the final thrust launches; the others hold.
+                if (!finalThrust) hit.Launches = false;
                 float dealt = hurtbox.TakeHit(hit);
                 Credit(in hit, dealt);
             }
@@ -153,10 +226,17 @@ namespace FTT.Characters.Abilities {
     }
 
     /// <summary>
-    /// Movement — Ascendant Wings: a rising vertical leap; holding Jump glides
-    /// downward on ethereal wings for up to the authored duration (3 s). Usable
-    /// in the air. Leap speed, glide duration, cooldown, and phase frames come
-    /// from the authored MovementAbilityData.
+    /// Movement — Ascendant Wings (A08, Package 13 W7b): a rising slash-leap,
+    /// usable in the air. The rise is unchanged (D13,
+    /// <c>VERIFY-WING-DIVE-LEAP</c>): the hero climbs at the authored
+    /// <c>MovementSpeed</c> for the cast's authored startup + active + recovery
+    /// frames. There is no glide. Holding the movement button when the rise
+    /// ends starts the <b>Wing-Dive</b> — a steep forward descent for up to the
+    /// authored <c>MovementDuration</c> (1 s); releasing the button ends it into
+    /// a normal fall, and pressing Attack during it ends it into her aerial
+    /// string (<c>PlayerController.ProcessUsingMovementAbility</c> reads
+    /// <see cref="IsWingDiving"/>). The Fighter sim runs the same rise and dive
+    /// (<c>FighterKitMotion.WingRise</c> / <c>WingDive</c>).
     /// </summary>
     public partial class JoanAscendantWings : BaseSpecial {
 
@@ -173,19 +253,27 @@ namespace FTT.Characters.Abilities {
         /// <summary>The AttackID Righteous Smite's shockwave carries.</summary>
         public const string RighteousSmiteAttackID = "joan_righteous_smite";
 
-        private const float GlideGravityScale = 0.35f;
         private const float DefaultLeapSpeed = 420f;
-        private const float DefaultGlideSeconds = 3f;
+        private const float DefaultDiveSeconds = 1f;
 
-        private bool _isGliding;
-        private float _glideTimer;
+        private bool _isDiving;
+        private int _diveFramesRemaining;
+        private bool _diveRight;
+
+        /// <summary>True while the held Wing-Dive is descending.</summary>
+        public bool IsWingDiving => _isDiving;
+
+        /// <summary>The dive velocity in px/s (Y down): forward and steeply downward.</summary>
+        public static Vector2 WingDiveVelocity(bool facingRight) => new(
+            (facingRight ? 1f : -1f) * (float)KitReachRules.WingDiveForwardUnitsPerSecond * KitMotionRules.StoryPixelsPerUnit,
+            (float)KitReachRules.WingDiveDescentUnitsPerSecond * KitMotionRules.StoryPixelsPerUnit);
 
         private MovementAbilityData MovementData => Data as MovementAbilityData;
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
-            _isGliding = false;
-            _glideTimer = 0f;
+            _isDiving = false;
+            _diveFramesRemaining = 0;
             float leapSpeed = MovementData?.MovementSpeed > 0f ? MovementData.MovementSpeed : DefaultLeapSpeed;
             Owner.Velocity = new Vector2(Owner.Velocity.X, -leapSpeed);
         }
@@ -204,38 +292,51 @@ namespace FTT.Characters.Abilities {
             });
         }
 
-        /// <summary>H-4: a stun/death mid-cast releases the wing glide's velocity hold.</summary>
+        /// <summary>H-4: a stun/death mid-cast ends the dive's velocity hold.</summary>
         protected override void OnInterrupted() {
-            _isGliding = false;
+            _isDiving = false;
+        }
+
+        /// <summary>
+        /// A08: Attack during the dive ends it; the owner then starts the aerial
+        /// string on the same frame. Returns true when a dive was cancelled.
+        /// </summary>
+        public bool TryCancelDiveForAttack() {
+            if (!_isDiving) return false;
+            _isDiving = false;
+            Interrupt();
+            return true;
+        }
+
+        /// <summary>
+        /// The rise is over. A held button in the air turns it into the
+        /// Wing-Dive (the cast stays live until the dive ends); otherwise the
+        /// cast ends into a normal fall.
+        /// </summary>
+        protected override void OnCleanup() {
+            if (!_isDiving && Owner != null && !Owner.IsOnFloor()
+                && Owner.CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.MovementAbility)) {
+                _isDiving = true;
+                _diveRight = Owner.IsFacingRight;
+                _diveFramesRemaining = Mathf.RoundToInt(
+                    (MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : DefaultDiveSeconds) * 60f);
+                return;
+            }
+            _isDiving = false;
+            base.OnCleanup();
         }
 
         public override void _PhysicsProcess(double delta) {
-            float dt = (float)delta;
-
-            if (CurrentPhase == AbilityPhase.Recovery || CurrentPhase == AbilityPhase.Cleanup) {
-                if (!_isGliding && !Owner.IsOnFloor() &&
-                    Owner.CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Jump)) {
-                    _isGliding = true;
-                    _glideTimer = MovementData?.MovementDuration > 0f
-                        ? MovementData.MovementDuration
-                        : DefaultGlideSeconds;
+            if (_isDiving) {
+                _diveFramesRemaining--;
+                Owner.Velocity = WingDiveVelocity(_diveRight);
+                if (_diveFramesRemaining <= 0 || Owner.IsOnFloor()
+                    || !Owner.CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.MovementAbility)) {
+                    _isDiving = false;
+                    base.OnCleanup();
                 }
-
-                if (_isGliding) {
-                    _glideTimer -= dt;
-                    var vel = Owner.Velocity;
-                    vel.Y = Mathf.Min(vel.Y, 30f * 60f * GlideGravityScale * dt);
-                    Owner.Velocity = vel;
-
-                    if (_glideTimer <= 0 || Owner.IsOnFloor() ||
-                        !Owner.CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Jump)) {
-                        _isGliding = false;
-                        AdvanceToCleanup();
-                    }
-                    return;
-                }
+                return;
             }
-
             base._PhysicsProcess(delta);
         }
     }

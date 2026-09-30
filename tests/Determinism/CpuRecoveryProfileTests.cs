@@ -46,13 +46,20 @@ public class CpuRecoveryProfileTests {
             excludedSlot: 2);
 
     [TestCase]
-    public void JoanPlansAscendantWingsWithNoStoryWingsRefresh() =>
-        AssertProfile(
+    public void JoanPlansAscendantWingsWithNoStoryWingsRefresh() {
+        CpuRecoveryProfile profile = AssertProfile(
             "joan",
             movementAbilityID: "joan_ascendant_wings",
-            expectedMovementKind: CpuRecoveryProfile.MovementKindGlide,
+            expectedMovementKind: CpuRecoveryProfile.MovementKindWingDive,
             excludedAbilityID: null,
             excludedSlot: 0);
+        // A08 (Package 13 W7b, rewritten in place): the rise is height, not
+        // distance — the held Wing-Dive descends, so the planner takes no
+        // horizontal reach from it.
+        AssertThat(profile.MovementProvidesLift).IsTrue();
+        AssertThat(profile.MovementLift > FP64.Zero).IsTrue();
+        AssertThat(profile.MovementHorizontalReach).IsEqual(FP64.Zero);
+    }
 
     [TestCase]
     public void LeonardoPlansOrnithopterFlightAndNeverStepsOnHisTurret() =>
@@ -82,19 +89,20 @@ public class CpuRecoveryProfileTests {
             excludedSlot: 0);
 
     [TestCase]
-    public void MozartPlansSonataDriftAsAVerticalPopOnly() {
+    public void MozartPlansSonataDriftAsASteerableGlissando() {
         CpuRecoveryProfile profile = AssertProfile(
             "mozart",
             movementAbilityID: "mozart_sonata_drift",
             expectedMovementKind: CpuRecoveryProfile.MovementKindFloat,
             excludedAbilityID: null,
             excludedSlot: 0);
-        // The contract's Mozart row is about height, not distance: the apex staff
-        // platform is a by-product, and the planner must not treat it as
-        // permanent geometry. The Float kind carries no horizontal travel at all,
-        // which is what keeps that honest.
-        AssertThat(profile.MovementHorizontalReach).IsEqual(FP64.Zero);
-        AssertThat(profile.MovementLift > FP64.Zero).IsTrue();
+        // M04 (Package 13 W7b, rewritten in place): the glissando rises about 3
+        // units along the held stick, so it plans as directional — aimed up and
+        // toward the stage. The apex staff is still a by-product the planner
+        // never treats as permanent geometry.
+        AssertThat(profile.MovementIsDirectional).IsTrue();
+        AssertThat(profile.MovementDistance).IsEqual(FP64.FromInt(3));
+        AssertThat(profile.MovementLift).IsEqual(FP64.FromInt(3));
     }
 
     [TestCase]
@@ -102,7 +110,7 @@ public class CpuRecoveryProfileTests {
         AssertProfile(
             "cleopatra",
             movementAbilityID: "cleopatra_desert_mirage",
-            expectedMovementKind: CpuRecoveryProfile.MovementKindTeleport,
+            expectedMovementKind: CpuRecoveryProfile.MovementKindSandRush,
             excludedAbilityID: "cleopatra_sandstorm_vortex",
             excludedSlot: 2);
 
@@ -119,6 +127,9 @@ public class CpuRecoveryProfileTests {
         AssertThat(profile.MovementProvidesLift).IsFalse();
         AssertThat(profile.MovementLift).IsEqual(FP64.Zero);
         AssertThat(profile.JumpApexHeight > FP64.Zero).IsTrue();
+        // LN02 (Package 13 W7b): 5 units over 30 frames.
+        AssertThat(profile.MovementDurationFrames).IsEqual(30);
+        AssertThat(profile.MovementHorizontalReach).IsEqual(FP64.FromInt(5));
     }
 
     [TestCase]

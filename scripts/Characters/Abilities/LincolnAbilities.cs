@@ -7,12 +7,15 @@ namespace FTT.Characters.Abilities {
 
     /// <summary>
     /// Special 1 — The Emancipator: Lincoln slams his rail into the ground and a
-    /// shockwave travels forward along the floor, knocking enemies upward. It is
+    /// shockwave travels forward along the floor, knocking enemies upward. Since
+    /// Package 13 W7b (LN03) it is the shared ground wave
+    /// (<see cref="StoryGroundWave"/>): 5 units at 10 units/s, grounded targets
+    /// only — a jump clears it — ending at a wall or where the floor ends. It is
     /// an authored Shield-Breaker (A01, Package 13 W1): a blocked wave spends
-    /// every remaining charge. Timing, damage, speed, and travel come from the authored
-    /// AbilityData (travel distance = ProjectileSpeed x ProjectileLifetime).
-    /// Story-only Resonance perk Executive Order: +50% travel distance and +20%
-    /// damage.
+    /// every remaining charge. Timing, damage, speed, and travel come from the
+    /// authored AbilityData (travel distance = ProjectileSpeed x
+    /// ProjectileLifetime). Story-only Resonance perk Executive Order: +50%
+    /// travel distance (7.5 units) and +20% damage.
     /// </summary>
     public partial class LincolnEmancipator : BaseSpecial {
 
@@ -21,16 +24,14 @@ namespace FTT.Characters.Abilities {
         private const float ExecutiveOrderTravelMultiplier = 1.5f;
         private const float ExecutiveOrderDamageMultiplier = 1.2f;
         private const int WaveVisualIntervalFrames = 6;
-        private const float WaveFloorOffsetY = 10f;
+        private const float WaveLeadPixels = 50f;
 
-        private bool _waveActive;
-        private Vector2 _waveFront;
-        private bool _waveMovingRight;
-        private float _waveSpeed;
-        private float _waveDistanceRemaining;
+        private readonly StoryGroundWave _wave = new();
         private float _waveDamage;
         private int _waveVisualCountdown;
-        private readonly System.Collections.Generic.HashSet<ulong> _struckHurtboxes = new();
+
+        /// <summary>The live shockwave (test seam).</summary>
+        public StoryGroundWave Wave => _wave;
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
@@ -48,9 +49,8 @@ namespace FTT.Characters.Abilities {
         private void StartWave() {
             if (Owner == null) return;
             bool executiveOrder = Owner.HasStoryPerk(ExecutiveOrderPerkKey);
-            _waveMovingRight = Owner.IsFacingRight;
-            _waveSpeed = Data?.ProjectileSpeed > 0f ? Data.ProjectileSpeed : 200f;
-            _waveDistanceRemaining = _waveSpeed * (Data?.ProjectileLifetime > 0f ? Data.ProjectileLifetime : 1.5f)
+            float speed = Data?.ProjectileSpeed > 0f ? Data.ProjectileSpeed : 600f;
+            float travel = speed * (Data?.ProjectileLifetime > 0f ? Data.ProjectileLifetime : 0.5f)
                 * (executiveOrder ? ExecutiveOrderTravelMultiplier : 1f);
             // Package 11 A4: V7.6 re-scopes "Minor Shockwave Damage" from the
             // character-wide SpecialDamage lane onto
@@ -61,86 +61,68 @@ namespace FTT.Characters.Abilities {
                 * (executiveOrder ? ExecutiveOrderDamageMultiplier : 1f)
                 * Owner.StorySpecialDamageMultiplier
                 * Owner.StoryScoped("AbilityDamage", Data?.AbilityID ?? "lincoln_emancipator");
-            _waveFront = Owner.GlobalPosition
-                + new Vector2(_waveMovingRight ? 50f : -50f, WaveFloorOffsetY);
+            _wave.Start(
+                Owner.GetWorld2D()?.DirectSpaceState,
+                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? WaveLeadPixels : -WaveLeadPixels, 0f),
+                Owner.IsFacingRight, speed, travel,
+                Data?.HitboxSize ?? new Vector2(60f, 50f), groundedOnly: true);
             _waveVisualCountdown = 0;
-            _struckHurtboxes.Clear();
-            _waveActive = true;
         }
 
         public override void _PhysicsProcess(double delta) {
             base._PhysicsProcess(delta);
-            if (!_waveActive) return;
+            if (!_wave.Active) return;
             if (Owner == null || !IsInstanceValid(Owner)) {
-                _waveActive = false;
+                _wave.Stop();
                 return;
             }
-
-            float step = _waveSpeed * (float)delta;
-            _waveFront.X += _waveMovingRight ? step : -step;
-            _waveDistanceRemaining -= step;
-            if (_waveDistanceRemaining <= 0f) _waveActive = false;
-
-            if (--_waveVisualCountdown <= 0) {
-                _waveVisualCountdown = WaveVisualIntervalFrames;
-                SpawnPlaceholderZone(
-                    _waveFront, 0f, 0.2f, 1f, new Color(0.2f, 0.2f, 0.5f),
-                    (Data?.HitboxSize.Y ?? 50f) / 2f);
-            }
-
-            StrikeWaveFront();
-        }
-
-        private void StrikeWaveFront() {
-            var space = Owner.GetWorld2D()?.DirectSpaceState;
-            if (space == null) return;
 
             uint targetHurtboxLayer = Owner.PlayerIndex == 0
                 ? FTT.Core.CollisionLayers.EnemyHurtbox
                 : FTT.Core.CollisionLayers.PlayerHurtbox;
-            var query = new PhysicsShapeQueryParameters2D {
-                Shape = new RectangleShape2D { Size = Data?.HitboxSize ?? new Vector2(60, 50) },
-                Transform = new Transform2D(0f, _waveFront),
-                CollideWithAreas = true,
-                CollideWithBodies = false,
-                CollisionMask = StoryShapeQuery.DeliveryMask(targetHurtboxLayer)
-            };
+            _wave.Advance((float)delta, Owner.GetWorld2D()?.DirectSpaceState,
+                StoryShapeQuery.DeliveryMask(targetHurtboxLayer), Owner.PlayerIndex, StrikeWithWave);
 
-            foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
-                if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
-                if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
-                if (!_struckHurtboxes.Add(hurtbox.GetInstanceId())) continue;
-
-                // V7.6 F15 / A01 (Package 13 W1): The Emancipator is a
-                // Shield-Breaker FULL shatter. Stamp() carries the resource's
-                // BlockClass.ShieldBreaker onto the payload, so the normal
-                // BlockSystem.ResolveHit response takes 1, 2 or 3 charges to 0;
-                // an ordinary Special would spend only two.
-                HitPayload hit = Stamp(new HitPayload {
-                    AttackerIndex = Owner.PlayerIndex,
-                    AttackID = Data?.AbilityID ?? "lincoln_emancipator",
-                    HitboxID = "ground_wave",
-                    AttackClass = AttackClass.Special,
-                    Damage = _waveDamage,
-                    Knockback = Data?.KnockbackForce ?? new Vector2(2f, -6f),
-                    HitstunDuration = Data?.HitstunDuration ?? 0.2f,
-                    HitOrigin = _waveFront,
-                    AttackerFacingRight = _waveMovingRight,
-                    AppliedStatus = FTT.Core.StatusType.None,
-                    StatusDuration = 0f,
-                    StatusIntensity = 1f,
-                    ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
-                    ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
-                });
-                float dealt = hurtbox.TakeHit(hit);
-                Credit(in hit, dealt);
+            if (_wave.Active && --_waveVisualCountdown <= 0) {
+                _waveVisualCountdown = WaveVisualIntervalFrames;
+                SpawnPlaceholderZone(
+                    _wave.Front, 0f, 0.2f, 1f, new Color(0.2f, 0.2f, 0.5f),
+                    (Data?.HitboxSize.Y ?? 50f) / 2f);
             }
+        }
+
+        /// <summary>One shockwave contact, delivered once per grounded target.</summary>
+        internal void StrikeWithWave(Hurtbox hurtbox, Vector2 front) {
+            // V7.6 F15 / A01 (Package 13 W1): The Emancipator is a
+            // Shield-Breaker FULL shatter. Stamp() carries the resource's
+            // BlockClass.ShieldBreaker onto the payload, so the normal
+            // BlockSystem.ResolveHit response takes 1, 2 or 3 charges to 0;
+            // an ordinary Special would spend only two.
+            HitPayload hit = Stamp(new HitPayload {
+                AttackerIndex = Owner.PlayerIndex,
+                AttackID = Data?.AbilityID ?? "lincoln_emancipator",
+                HitboxID = "ground_wave",
+                AttackClass = AttackClass.Special,
+                Damage = _waveDamage,
+                Knockback = Data?.KnockbackForce ?? new Vector2(2f, -6f),
+                HitstunDuration = Data?.HitstunDuration ?? 0.2f,
+                HitOrigin = front,
+                AttackerFacingRight = _wave.MovingRight,
+                AppliedStatus = FTT.Core.StatusType.None,
+                StatusDuration = 0f,
+                StatusIntensity = 1f,
+                ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
+                ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
+            });
+            float dealt = hurtbox.TakeHit(hit);
+            Credit(in hit, dealt);
         }
 
     }
 
     /// <summary>
-    /// Special 2 — Splitting Strike: a massive overhead arc dealing the authored
+    /// Special 2 — Splitting Strike (LN03, Package 13 W7b: a 2.2-unit arc, the
+    /// authored HitboxSize/HitboxOffset): a massive overhead arc dealing the authored
     /// damage through the shared hitbox contract. A blocking target loses every
     /// charge at once (an authored Shield-Breaker — A01, Package 13 W1); airborne
     /// targets caught in the arc are spiked straight down. The Story-only
@@ -201,7 +183,13 @@ namespace FTT.Characters.Abilities {
             if (_overheadHitbox == null || Owner == null) return;
 
             _overheadHitbox.Damage = (Data?.BaseDamage ?? 18f) * Owner.StorySpecialDamageMultiplier;
-            _overheadHitbox.KnockbackForce = Data?.KnockbackForce ?? new Vector2(4f, 5f);
+            // LN03 (Package 13 W7b): the authored vector is the airborne spike;
+            // a grounded target takes its horizontal half as grounded knockback
+            // (no launch), and SpikeAirborneTargets drives the airborne ones
+            // down — the same split the Fighter sim applies.
+            Vector2 authored = Data?.KnockbackForce ?? new Vector2(4f, 5f);
+            _overheadHitbox.KnockbackForce = new Vector2(authored.X, 0f);
+            _overheadHitbox.Launches = false;
             _overheadHitbox.OwnerPlayerIndex = Owner.PlayerIndex;
             _overheadHitbox.SourcePlayer = Owner;
 
@@ -281,13 +269,15 @@ namespace FTT.Characters.Abilities {
     }
 
     /// <summary>
-    /// Movement — Rail Charge: a shoulder charge behind the wooden rail, usable in
-    /// the air for horizontal recovery. Duration (capped at the design's 3 s),
-    /// speed, and cooldown come from the authored MovementAbilityData. Lincoln has
-    /// hyper-armor for the whole charge (damage yes, hitstun no via
-    /// StoryCombatRules), and contact deals the authored damage without applying
-    /// hitstun to the target. Story-only Resonance perk Homestead Bulwark: landing
-    /// a charge hit grants 3 s of hyper-armor.
+    /// Movement — Rail Charge (LN02, Package 13 W7b): a SHORT ARMORED BURST
+    /// behind the wooden rail — the authored distance (5 units) over the
+    /// authored duration (30 frames), usable in the air for horizontal recovery.
+    /// Lincoln has hyper-armor for the charge (damage yes, hitstun no via
+    /// StoryCombatRules); grabs still beat it. On contact the ram deals the
+    /// authored 6 damage with moderate horizontal knockback (not a launch) and
+    /// the charge STOPS. The retired 3-second duration is gone. Story-only
+    /// Resonance perk Homestead Bulwark: landing a charge hit grants 3 s of
+    /// hyper-armor.
     /// </summary>
     public partial class LincolnRailCharge : BaseSpecial {
 
@@ -313,23 +303,27 @@ namespace FTT.Characters.Abilities {
         /// <summary>True once this activation has spent its break. Test seam.</summary>
         public bool RailBreakerSpent { get; private set; }
 
-        private const float MaxChargeDuration = 3.0f;
         private const float HomesteadBulwarkArmorSeconds = 3f;
 
         private Vector2 _chargeDirection;
         private Vector2 _startPosition;
-        private float _chargeDuration = MaxChargeDuration;
-        private float _chargeSpeed = 200f;
+        private float _chargeDuration = 0.5f;
+        private float _chargeSpeed = 600f;
+        private bool _contactStopPending;
+
+        /// <summary>The charge speed in px/s: the authored distance over the authored duration.</summary>
+        public float ChargeSpeedPixelsPerSecond => _chargeSpeed;
         private readonly System.Collections.Generic.HashSet<ulong> _struckHurtboxes = new();
 
         private MovementAbilityData MovementData => Data as MovementAbilityData;
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
-            _chargeDuration = Mathf.Min(
-                MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : MaxChargeDuration,
-                MaxChargeDuration);
-            _chargeSpeed = MovementData?.MovementSpeed > 0f ? MovementData.MovementSpeed : 200f;
+            _chargeDuration = MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : 0.5f;
+            _chargeSpeed = MovementData?.DistanceMoved > 0f
+                ? MovementData.DistanceMoved / _chargeDuration
+                : MovementData?.MovementSpeed > 0f ? MovementData.MovementSpeed : 600f;
+            _contactStopPending = false;
             _chargeDirection = Owner.IsFacingRight ? Vector2.Right : Vector2.Left;
             _startPosition = Owner.GlobalPosition;
             _struckHurtboxes.Clear();
@@ -358,8 +352,19 @@ namespace FTT.Characters.Abilities {
                 // projectile never applies its damage or on-hit effects.
                 TryBreakProjectile();
                 StrikeContacts();
+                if (_contactStopPending) {
+                    // LN02: the charge stops dead on contact — travel and armor
+                    // (the Active phase) both end.
+                    _contactStopPending = false;
+                    Owner.Velocity = new Vector2(0f, Owner.Velocity.Y);
+                    AdvanceToRecovery();
+                }
             }
             base._PhysicsProcess(delta);
+        }
+
+        protected override void OnInterrupted() {
+            _contactStopPending = false;
         }
 
         /// <summary>
@@ -394,9 +399,9 @@ namespace FTT.Characters.Abilities {
         }
 
         /// <summary>
-        /// Contact damage along the charge path. Each target is struck once per
-        /// charge and takes damage without hitstun (design: "damage yes, hitstun
-        /// no" so the ram never stun-locks along its 3 s travel).
+        /// LN02: the ram. The first contact deals the authored damage with the
+        /// authored horizontal knockback and hitstun (no launch) and stops the
+        /// charge; each target is struck at most once.
         /// </summary>
         private void StrikeContacts() {
             if (Owner == null) return;
@@ -427,9 +432,9 @@ namespace FTT.Characters.Abilities {
                     AttackID = Data?.AbilityID ?? "lincoln_rail_charge",
                     HitboxID = "ram",
                     AttackClass = AttackClass.Special,
-                    Damage = (Data?.BaseDamage ?? 5f) * Owner.StorySpecialDamageMultiplier,
-                    Knockback = Data?.KnockbackForce ?? new Vector2(3f, -1f),
-                    HitstunDuration = 0f,
+                    Damage = (Data?.BaseDamage ?? 6f) * Owner.StorySpecialDamageMultiplier,
+                    Knockback = Data?.KnockbackForce ?? new Vector2(5f, 0f),
+                    HitstunDuration = Data?.HitstunDuration ?? 0.2f,
                     HitOrigin = contactCenter,
                     AttackerFacingRight = Owner.IsFacingRight,
                     AppliedStatus = FTT.Core.StatusType.None,
@@ -439,6 +444,8 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
                 float dealt = hurtbox.TakeHit(hit);
+                // Contact stops the charge whether the ram landed or was blocked.
+                _contactStopPending = true;
                 if (dealt > 0f) {
                     Credit(in hit, dealt);
                     if (Owner.HasStoryPerk(HomesteadBulwarkPerkKey)) {

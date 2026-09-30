@@ -56,11 +56,11 @@ ability_einstein_relativity_warp_description,Warp a short distance in the input 
 ability_einstein_cosmological_constant_name,The Cosmological Constant
 ability_einstein_cosmological_constant_description,Collapse a miniature black hole into a final launch.
 ability_joan_righteous_smite_name,Righteous Smite
-ability_joan_righteous_smite_description,Send a radiant ground shockwave that inflicts Radiant Burn.
+ability_joan_righteous_smite_description,Send a short radiant shockwave along the ground that inflicts Radiant Burn.
 ability_joan_divine_piercing_name,Divine Piercing
-ability_joan_divine_piercing_description,Unleash rapid thrusts that shred shields.
+ability_joan_divine_piercing_description,Lunge forward in a flurry of thrusts that shatter shields.
 ability_joan_ascendant_wings_name,Ascendant Wings
-ability_joan_ascendant_wings_description,Leap upward and glide on ethereal wings.
+ability_joan_ascendant_wings_description,"Leap upward in a rising slash; hold to Wing-Dive forward, and attack out of the dive."
 ability_joan_grand_crusade_name,The Grand Crusade
 ability_joan_grand_crusade_description,Summon a spectral cavalry charge.
 ability_leonardo_golden_ratio_name,Golden Ratio
@@ -72,19 +72,19 @@ ability_leonardo_ornithopter_flight_description,Gain a vertical boost and contro
 ability_leonardo_vitruvian_matrix_name,The Vitruvian Matrix
 ability_leonardo_vitruvian_matrix_description,Trap foes in a blueprint dimension and bombard them.
 ability_lincoln_emancipator_name,The Emancipator
-ability_lincoln_emancipator_description,Launch a heavy ground-traveling rail shockwave.
+ability_lincoln_emancipator_description,Slam the rail to send a shield-breaking shockwave along the ground.
 ability_lincoln_splitting_strike_name,Splitting Strike
-ability_lincoln_splitting_strike_description,Deliver an overhead strike that shatters shields.
+ability_lincoln_splitting_strike_description,Bring the rail down in an overhead arc that shatters shields and spikes airborne foes.
 ability_lincoln_rail_charge_name,Rail Charge
-ability_lincoln_rail_charge_description,Charge forward with hyper-armor.
+ability_lincoln_rail_charge_description,"Charge a short distance with hyper-armor, stopping on the first foe you hit."
 ability_lincoln_union_indestructible_name,Union Indestructible
 ability_lincoln_union_indestructible_description,Trap opponents behind rails before a crushing smash.
 ability_cleopatra_serpent_nest_name,Serpent Nest
-ability_cleopatra_serpent_nest_description,Deploy spectral asps that root and poison trespassers.
+ability_cleopatra_serpent_nest_description,Plant a nest of spectral asps at your feet that seize and poison trespassers.
 ability_cleopatra_sandstorm_vortex_name,Sandstorm Vortex
-ability_cleopatra_sandstorm_vortex_description,Pull foes into a damaging time-slowing vortex.
+ability_cleopatra_sandstorm_vortex_description,"Hurl a sandstorm ahead that drags foes in, slows them and wears them down."
 ability_cleopatra_desert_mirage_name,Desert Mirage
-ability_cleopatra_desert_mirage_description,Dissolve into sand and rush in the input direction.
+ability_cleopatra_desert_mirage_description,"Rush through foes as sand in any of eight directions, leaving a decoy behind."
 ability_cleopatra_wrath_of_the_nile_name,Wrath of the Nile
 ability_cleopatra_wrath_of_the_nile_description,Engulf the stage in venomous spectral cobras.
 ability_tesla_tesla_coil_name,Tesla Coil
@@ -104,11 +104,11 @@ ability_shakespeare_prosperos_flight_description,Ride a magical gust into a hori
 ability_shakespeare_all_the_worlds_a_stage_name,All the World's a Stage
 ability_shakespeare_all_the_worlds_a_stage_description,Summon tragic phantoms for sequential strikes.
 ability_mozart_requiem_chord_name,Requiem Chord
-ability_mozart_requiem_chord_description,Fire a chord that bursts into a sonic shockwave.
+ability_mozart_requiem_chord_description,"Fire a fast chord that bursts into a sonic shockwave; a hit hastens the Fortissimo Wave."
 ability_mozart_fortissimo_wave_name,Fortissimo Wave
-ability_mozart_fortissimo_wave_description,Conduct a sweeping wave of heavy sound.
+ability_mozart_fortissimo_wave_description,Send a slow wall of sound rolling along the ground with heavy pushback.
 ability_mozart_sonata_drift_name,Sonata Drift
-ability_mozart_sonata_drift_description,Create a temporary floating musical staff platform.
+ability_mozart_sonata_drift_description,Rise along a glissando and leave a temporary musical staff platform at its peak.
 ability_mozart_symphony_of_sorrow_name,Symphony of Sorrow
 ability_mozart_symphony_of_sorrow_description,Conduct a rain of glowing piano-key meteors.
 ability_pocahontas_spirit_strike_name,Spirit Strike

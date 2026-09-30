@@ -942,9 +942,24 @@ namespace FTT.FighterSim {
         private const int SpecialOneButton = 1 << 3;
         private const int SpecialTwoButton = 1 << 4;
         private const int MovementButton = 1 << 5;
+        private const int MeleeExecutionType = 0;
         private const int ProjectileExecutionType = 1;
         private const int AreaExecutionType = 2;
         private const int PersistentExecutionType = 3;
+
+        /// <summary>
+        /// Package 13 W7b: the fighters' projected hit contracts and the stage
+        /// geometry — static match configuration, never snapshot state. The
+        /// ground waves read the surface they ride, the kit hits read their
+        /// authored per-hit damage, hitbox and knockback vector.
+        /// </summary>
+        private readonly FighterHitContractTable _contracts;
+        private readonly FighterStageGeometry _geometry;
+
+        public FighterAbilityEntitySystem(FighterHitContractTable contracts = null, FighterStageGeometry geometry = null) {
+            _contracts = contracts ?? FighterHitContractTable.Default;
+            _geometry = geometry ?? FighterStageGeometry.Default;
+        }
 
         public void Update(ref Frame frame) {
             ref readonly FighterMatchComponent match = ref frame.GetReadOnlySingleton<FighterMatchComponent>();
@@ -954,6 +969,10 @@ namespace FTT.FighterSim {
             // a cast in flight, before the per-fighter gates below (which skip a
             // combat-locked fighter — and the carry is exactly that).
             ResolveSpiritEagles(ref frame);
+            // Package 13 W7b: Divine Piercing's thrusts and Rail Charge's ram
+            // resolve on the lunge/charge frames the movement system just
+            // advanced — the same pattern, for the same reason.
+            ResolveReachKitHits(ref frame);
 
             var filter = frame.Filter<
                 FighterStateComponent,
@@ -1000,9 +1019,26 @@ namespace FTT.FighterSim {
                     FighterKitMotion.StartSpiritStrike(ref runtime, fighter.FacingRight != 0 ? 1 : -1);
                 }
 
+                // Package 13 W7b (J01): Divine Piercing is no longer a
+                // range-gated melee intent that thrusts in place. On press it
+                // lunges ~3 units forward across its active frames, and its
+                // thrusts land along the way (ResolveReachKitHits). It fires
+                // whether or not the opponent is near — it is her gap-closer.
+                // Keyed on the authored Melee execution (her Divine Piercing), so a
+                // synthetic loadout that gives the slot another shape keeps it.
+                if (fighter.CharacterID == (int)FighterCharacterID.Joan
+                    && modes.SpecialTwoExecutionType == MeleeExecutionType
+                    && (runtime.PressedButtons & SpecialTwoButton) != 0
+                    && runtime.SpecialTwoCooldownFrames <= 0) {
+                    runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
+                    FighterAbilityHitData piercing = _contracts.For(fighter.PlayerID, FighterHitContractTable.SlotSpecialTwo);
+                    FighterKitMotion.StartPiercingLunge(
+                        ref runtime, fighter.FacingRight != 0 ? 1 : -1, piercing.ActiveFrames);
+                }
+
                 if ((runtime.PressedButtons & SpecialOneButton) != 0 && runtime.SpecialOneCooldownFrames <= 0) {
                     if (modes.SpecialOneExecutionType == ProjectileExecutionType) {
-                        SpawnProjectile(
+                        SpawnSpecialProjectile(
                             ref frame, in fighter, 1, tuning.SpecialOneDamage, tuning.SpecialOneKnockback,
                             tuning.SpecialOneStatusType, tuning.SpecialOneStatusFrames,
                             tuning.SpecialOneStatusIntensity, modes.SpecialOneProjectileLifetimeFrames,
@@ -1028,7 +1064,7 @@ namespace FTT.FighterSim {
 
                 if ((runtime.PressedButtons & SpecialTwoButton) != 0 && runtime.SpecialTwoCooldownFrames <= 0) {
                     if (modes.SpecialTwoExecutionType == ProjectileExecutionType) {
-                        SpawnProjectile(
+                        SpawnSpecialProjectile(
                             ref frame, in fighter, 2, tuning.SpecialTwoDamage, tuning.SpecialTwoKnockback,
                             tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames,
                             tuning.SpecialTwoStatusIntensity, modes.SpecialTwoProjectileLifetimeFrames,
@@ -1042,12 +1078,17 @@ namespace FTT.FighterSim {
                             tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames);
                         runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
                     } else if (modes.SpecialTwoExecutionType == AreaExecutionType) {
+                        // Package 13 W7b (C01): the Sandstorm Vortex is thrown up
+                        // to five units ahead and ground-snapped.
+                        bool vortex = fighter.CharacterID * 10 + 2 == FighterReachKitRules.SandstormVortexZone;
                         SpawnZone(
                             ref frame, ref fighter, 2,
                             modes.SpecialTwoMaxActiveObjects, modes.SpecialTwoPersistentLifetimeFrames,
                             modes.SpecialTwoTickIntervalFrames, tuning.SpecialTwoDamage,
                             tuning.SpecialTwoStatusType, tuning.SpecialTwoStatusFrames,
-                            tuning.SpecialTwoStatusIntensity);
+                            tuning.SpecialTwoStatusIntensity,
+                            hasAnchor: vortex,
+                            anchor: vortex ? FighterReachKitRules.VortexAnchor(_geometry, in fighter) : default);
                         runtime.SpecialTwoCooldownFrames = PositiveCooldown(tuning.SpecialTwoCooldownFrames);
                     }
                 }
@@ -1079,6 +1120,122 @@ namespace FTT.FighterSim {
         }
 
         private static int PositiveCooldown(int frames) => frames > 0 ? frames : 1;
+
+        /// <summary>
+        /// Package 13 W7b: a Projectile-execution Special. The three ground
+        /// waves (Righteous Smite, The Emancipator, Fortissimo Wave) ride the
+        /// surface under the caster; the Requiem Chord's contact carries its
+        /// authored per-hit damage (its burst pulses carry the rest); everything
+        /// else is the ordinary flat shot.
+        /// </summary>
+        private void SpawnSpecialProjectile(
+            ref Frame frame, in FighterStateComponent fighter, int slot, int damage, FP64 knockback,
+            int statusType, int statusFrames, FP64 statusIntensity, int lifetimeFrames, FP64 speed) {
+            FighterAbilityHitData contract = _contracts.For(fighter.PlayerID, slot);
+            if (FighterGroundWave.IsGroundWave(fighter.CharacterID, slot)) {
+                FighterGroundWave.Spawn(
+                    ref frame, _geometry, in fighter, slot, in contract, damage, knockback,
+                    statusType, statusFrames, statusIntensity, lifetimeFrames, speed);
+                return;
+            }
+            if (fighter.CharacterID * 10 + slot == FighterReachKitRules.RequiemChordProjectile && contract.Damage > 0) {
+                damage = contract.Damage;
+            }
+            SpawnProjectile(
+                ref frame, in fighter, slot, damage, knockback,
+                statusType, statusFrames, statusIntensity, lifetimeFrames, speed);
+        }
+
+        /// <summary>
+        /// Package 13 W7b. <b>Divine Piercing (J01/J03):</b> on each thrust frame
+        /// of the lunge, a thrust box ahead of Joan strikes once for the authored
+        /// per-hit damage — a Shield-Breaker Special; only the last thrust carries
+        /// the authored knockback, so the flurry lands in full. <b>Rail Charge
+        /// (LN02):</b> the first frame the contact box ahead of Lincoln overlaps
+        /// the opponent, the ram deals the movement ability's authored damage with
+        /// its horizontal, non-launching knockback, and the charge stops dead —
+        /// travel and armor both end, blocked or not.
+        /// </summary>
+        private void ResolveReachKitHits(ref Frame frame) {
+            var filter = frame.Filter<FighterStateComponent, FighterRuntimeComponent>();
+            while (filter.Next(out EntityRef entity)) {
+                ref FighterRuntimeComponent runtime = ref frame.Get<FighterRuntimeComponent>(entity);
+                int state = runtime.UniversalMovementState;
+                if (state != FighterKitMotion.PiercingLunge && state != FighterKitMotion.RailCharge) continue;
+                ref FighterStateComponent attacker = ref frame.Get<FighterStateComponent>(entity);
+                ref FighterVerbComponent attackerVerb = ref frame.Get<FighterVerbComponent>(entity);
+                if (attackerVerb.HitstopFrames > 0 || attacker.Stocks <= 0) continue;
+                int targetPlayerID = attacker.PlayerID == 0 ? 1 : 0;
+                if (!FighterEntityQueries.TryFindFighter(ref frame, targetPlayerID, out EntityRef targetEntity)) continue;
+                ref FighterStateComponent target = ref frame.Get<FighterStateComponent>(targetEntity);
+
+                FPVector2 center;
+                FPVector2 halfExtents;
+                FighterAbilityHitData contract;
+                bool finalThrust = false;
+                if (state == FighterKitMotion.PiercingLunge) {
+                    contract = _contracts.For(attacker.PlayerID, FighterHitContractTable.SlotSpecialTwo);
+                    int total = FighterKitMotion.PiercingTotalFrames(runtime.UniversalMovementDirection);
+                    int elapsed = FighterKitMotion.PiercingElapsedFrames(in runtime);
+                    if (!FighterReachKitRules.IsThrustFrame(elapsed, total, contract.HitCount)) continue;
+                    // One resolution per thrust, however long a hitstop holds
+                    // the lunge on its thrust frame. A whiff still spends it.
+                    if (FighterKitMotion.PiercingThrustsResolved(runtime.UniversalMovementDirection)
+                        >= FighterReachKitRules.ThrustIndex(elapsed, total, contract.HitCount)) continue;
+                    FighterKitMotion.MarkPiercingThrustResolved(ref runtime);
+                    finalThrust = FighterReachKitRules.IsFinalThrust(elapsed, total, contract.HitCount);
+                    FighterReachKitRules.ThrustBox(
+                        in attacker, FighterKitMotion.PiercingFacing(runtime.UniversalMovementDirection), in contract,
+                        out center, out halfExtents);
+                } else {
+                    contract = _contracts.For(attacker.PlayerID, -1);
+                    FighterReachKitRules.RailContactBox(
+                        in attacker, FighterKitMotion.ChargeFacing(runtime.UniversalMovementDirection), out center);
+                    halfExtents = FighterReachKitRules.RailContactExtents;
+                }
+                if (!FighterEntityQueries.Overlaps(in center, in halfExtents, in target.Position, in FighterHalfExtents)) continue;
+
+                ref FighterRuntimeComponent targetRuntime = ref frame.Get<FighterRuntimeComponent>(targetEntity);
+                ref FighterVerbComponent targetVerb = ref frame.Get<FighterVerbComponent>(targetEntity);
+                ref FighterDefenseComponent targetDefense = ref frame.Get<FighterDefenseComponent>(targetEntity);
+                ref readonly FighterTuningComponent targetTuning = ref frame.GetReadOnly<FighterTuningComponent>(targetEntity);
+                if (state == FighterKitMotion.PiercingLunge) {
+                    ref readonly FighterTuningComponent attackerTuning = ref frame.GetReadOnly<FighterTuningComponent>(entity);
+                    // Per-hit damage from the contract; an unprojected slot splits
+                    // the folded tuning total across the thrusts.
+                    int thrustDamage = contract.Damage > 0
+                        ? contract.Damage
+                        : attackerTuning.SpecialTwoDamage / (contract.HitCount > 0 ? contract.HitCount : 1);
+                    FighterDamageRules.ApplyFighterHit(
+                        ref attacker, ref runtime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
+                        FighterDamageRules.SpecialAttackClass,
+                        thrustDamage,
+                        finalThrust ? contract.KnockbackX : FP64.Zero,
+                        contract.HitstunFrames > 0 ? contract.HitstunFrames : 12,
+                        attackerTuning.SpecialTwoStatusType,
+                        attackerTuning.SpecialTwoStatusFrames,
+                        attackerTuning.SpecialTwoStatusIntensity,
+                        attacker.Position.x,
+                        launches: finalThrust && contract.Launches,
+                        shieldBreaker: contract.ShieldBreaker,
+                        hasKnockbackVector: finalThrust && contract.HasKnockbackVector,
+                        knockbackVertical: finalThrust ? contract.KnockbackY : FP64.Zero);
+                } else {
+                    FighterDamageRules.ApplyFighterHit(
+                        ref attacker, ref runtime, ref attackerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
+                        FighterDamageRules.SpecialAttackClass,
+                        contract.Damage,
+                        contract.KnockbackX,
+                        contract.HitstunFrames > 0 ? contract.HitstunFrames : 12,
+                        (int)StatusType.None, 0, FP64.One,
+                        attacker.Position.x,
+                        launches: contract.Launches,
+                        hasKnockbackVector: contract.HasKnockbackVector,
+                        knockbackVertical: contract.KnockbackY);
+                    FighterKitMotion.StopRailCharge(ref attacker, ref runtime);
+                }
+            }
+        }
 
         /// <summary>
         /// Package 12 W4: the Spirit Strike eagle. On each carry frame the
@@ -1128,10 +1285,6 @@ namespace FTT.FighterSim {
 
         private static readonly FPVector2 FighterHalfExtents = new(FP64.FromDouble(0.5), FP64.One);
 
-        // Fortissimo lob in sim units (60 px = 1 unit): 200 px/s launch, 350 px/s² pull.
-        private static readonly FP64 LobLaunchSpeed = FP64.FromDouble(200.0 / 60.0);
-        private static readonly FP64 LobGravityPerSecond = FP64.FromDouble(350.0 / 60.0);
-
         internal static void SpawnProjectile(
             ref Frame frame,
             in FighterStateComponent owner,
@@ -1147,12 +1300,8 @@ namespace FTT.FighterSim {
             ref FighterMatchComponent match = ref frame.GetSingleton<FighterMatchComponent>();
             int facing = owner.FacingRight != 0 ? 1 : -1;
             FP64 resolvedSpeed = speed > FP64.Zero ? speed : FP64.FromInt(6);
-            // Mozart's Fortissimo Wave (V7 directive — his two projectiles must
-            // never read as duplicates): the slot-2 shot is a lobbed arc, launched
-            // rising and pulled back down by gravity. Story mirrors this in
-            // MozartFortissimoWave.ConfigureArc (200 px/s up, 350 px/s² down).
-            bool fortissimoLob = owner.CharacterID == (int)FighterCharacterID.Mozart
-                && projectileTypeID == 2;
+            // Package 13 W7b (M01): Mozart's Fortissimo Wave is no longer a lob —
+            // it is a ground wave (FighterGroundWave), so no shot here arcs.
             EntityRef projectile = frame.CreateEntity();
             frame.Add(projectile, new FighterProjectileComponent {
                 EntityID = match.NextEntityID++,
@@ -1168,11 +1317,9 @@ namespace FTT.FighterSim {
                 // shot landing long after the cinematic still earns zero meter.
                 UltimateOrigin = ultimateOrigin ? 1 : 0,
                 StatusIntensity = statusIntensity,
-                GravityPerSecond = fortissimoLob ? LobGravityPerSecond : FP64.Zero,
+                GravityPerSecond = FP64.Zero,
                 Position = owner.Position + new FPVector2(FP64.FromInt(facing), FP64.One),
-                Velocity = new FPVector2(
-                    resolvedSpeed * FP64.FromInt(facing),
-                    fortissimoLob ? LobLaunchSpeed : FP64.Zero),
+                Velocity = new FPVector2(resolvedSpeed * FP64.FromInt(facing), FP64.Zero),
                 HalfExtents = new FPVector2(FP64.FromDouble(0.35), FP64.FromDouble(0.35)),
                 Knockback = new FPVector2(knockback, knockback)
             });
@@ -1187,7 +1334,9 @@ namespace FTT.FighterSim {
             int damage,
             FP64 knockback,
             int statusType,
-            int statusFrames) {
+            int statusFrames,
+            bool hasAnchor = false,
+            FPVector2 anchor = default) {
             if (objectTypeID <= 0) return;
             int deployLimit = maxActive > 0 ? maxActive : 1;
             int activeCount = 0;
@@ -1236,8 +1385,15 @@ namespace FTT.FighterSim {
                 // on the floor line, so a box centered there rendered (and read
                 // as) half-buried. Raising the center by the half height sets
                 // the construct's base on the ground.
-                Position = owner.Position + new FPVector2(FP64.Zero, FP64.FromDouble(0.6)),
-                HalfExtents = new FPVector2(FP64.FromDouble(0.6), FP64.FromDouble(0.6))
+                // Package 13 W7b (M04): a Sonata staff is a thin 2.0-unit
+                // walkable surface whose Position IS the surface (the fighter's
+                // feet land on it) — placed where the glissando ends.
+                Position = objectTypeID == FighterReachKitRules.StaffPlatformTypeID
+                    ? (hasAnchor ? anchor : owner.Position)
+                    : (hasAnchor ? anchor : owner.Position) + new FPVector2(FP64.Zero, FP64.FromDouble(0.6)),
+                HalfExtents = objectTypeID == FighterReachKitRules.StaffPlatformTypeID
+                    ? FighterReachKitRules.StaffHalfExtents
+                    : new FPVector2(FP64.FromDouble(0.6), FP64.FromDouble(0.6))
             });
         }
 
@@ -1274,8 +1430,11 @@ namespace FTT.FighterSim {
             remainingAttacks = objectTypeID == 2 ? 4 : -1;
             // Clockwork Turret (type 2) targets at the design's 30-unit range,
             // bounded by the visible arena (half-width 10 units).
+            // Package 13 W7b (C01): the Serpent Nest is placed at her feet and is
+            // 2.0 units wide, so it bites within 1.0 of its centre.
             attackRange = objectTypeID == 4 ? FP64.FromInt(2)
                 : objectTypeID == 2 ? FP64.FromInt(10)
+                : objectTypeID == 3 ? FP64.FromDouble(FTT.Combat.KitReachRules.SerpentNestWidthUnits / 2.0)
                 : FP64.FromInt(5);
             // Construct attacks carry whatever the resource authors — the zeroed
             // KnockbackForce means impulse-free hits (no legacy 2-unit fallback).
@@ -1294,7 +1453,9 @@ namespace FTT.FighterSim {
             int damage,
             int statusType,
             int statusFrames,
-            FP64 statusIntensity) {
+            FP64 statusIntensity,
+            bool hasAnchor = false,
+            FPVector2 anchor = default) {
             int zoneTypeID = owner.CharacterID * 10 + specialSlot;
             int deployLimit = maxActive > 0 ? maxActive : 1;
             int activeCount = 0;
@@ -1325,9 +1486,11 @@ namespace FTT.FighterSim {
             int resolvedTick = tickIntervalFrames > 0 ? tickIntervalFrames : 30;
             ref FighterMatchComponent match = ref frame.GetSingleton<FighterMatchComponent>();
             int facing = owner.FacingRight != 0 ? 1 : -1;
-            FPVector2 zonePosition = centersOnOwner
-                ? owner.Position
-                : owner.Position + new FPVector2(FP64.FromInt(facing * 2), FP64.Zero);
+            FPVector2 zonePosition = hasAnchor
+                ? anchor
+                : centersOnOwner
+                    ? owner.Position
+                    : owner.Position + new FPVector2(FP64.FromInt(facing * 2), FP64.Zero);
             EntityRef created = frame.CreateEntity();
             frame.Add(created, new FighterZoneComponent {
                 EntityID = match.NextEntityID++,
@@ -1372,14 +1535,11 @@ namespace FTT.FighterSim {
                 centersOnOwner = true;
                 return;
             }
-            if (zoneTypeID == (int)FighterCharacterID.Lincoln * 10 + 1) {
-                halfExtents = new FPVector2(FP64.FromDouble(2.5), FP64.FromDouble(0.75));
-                grantsOwnerSpeedBonus = 0;
-                centersOnOwner = false;
-                return;
-            }
-            if (zoneTypeID == (int)FighterCharacterID.Cleopatra * 10 + 2) {
-                halfExtents = new FPVector2(FP64.FromDouble(1.5), FP64.One);
+            // Package 13 W7b: the Emancipator is a ground wave now (LN03) and no
+            // longer spawns a zone. The Sandstorm Vortex has the C01 1.8-unit
+            // radius and is placed by FighterReachKitRules.VortexAnchor.
+            if (zoneTypeID == FighterReachKitRules.SandstormVortexZone) {
+                halfExtents = FighterReachKitRules.VortexHalfExtents;
                 grantsOwnerSpeedBonus = 0;
                 centersOnOwner = false;
                 return;
@@ -1494,7 +1654,7 @@ namespace FTT.FighterSim {
             centersOnOwner = false;
         }
 
-        private static void ApplyMovement(
+        private void ApplyMovement(
             ref Frame frame,
             ref FighterStateComponent fighter,
             ref FighterRuntimeComponent runtime,
@@ -1505,7 +1665,15 @@ namespace FTT.FighterSim {
             FP64 distance = modes.MovementDistance > FP64.Zero ? modes.MovementDistance : FP64.FromInt(2);
             FP64 speed = modes.MovementSpeed > FP64.Zero ? modes.MovementSpeed : FP64.FromInt(8);
 
-            if (modes.MovementType == 1) {
+            // Package 13 W7b: Ascendant Wings (A08), Desert Mirage (C03), Rail
+            // Charge (LN02, any Dash) and Sonata Drift (M04) are kit phases.
+            if (modes.MovementType == (int)FTT.Combat.MovementType.WingDive) {
+                FighterKitMotion.StartWingRise(
+                    ref fighter, ref runtime, speed, facing,
+                    _contracts.For(fighter.PlayerID, -1).TotalFrames);
+            } else if (modes.MovementType == (int)FTT.Combat.MovementType.SandRush) {
+                FighterKitMotion.StartSandRush(ref runtime, facing, modes.MovementDurationFrames);
+            } else if (modes.MovementType == 1) {
                 // Glide (Leonardo's Ornithopter, Joan's Ascendant Wings,
                 // Shakespeare's Prospero's Flight, Pocahontas's Breeze Glide):
                 // a forward-and-upward boost that cancels into a reduced-gravity
@@ -1517,11 +1685,27 @@ namespace FTT.FighterSim {
                 fighter.IsGrounded = 0;
                 runtime.FloatFrames = modes.MovementDurationFrames > 0 ? modes.MovementDurationFrames : 180;
             } else if (modes.MovementType == 5) {
-                // Float (Mozart's Sonata Drift pop): upward velocity only.
-                fighter.Velocity.y = speed / FP64.FromInt(2);
+                // M04 (Package 13 W7b): Sonata Drift's glissando rises about 3
+                // units along the held direction over the authored frames, and
+                // its staff platform is placed under his feet where it ends,
+                // not at the cast point.
+                int glissando = FighterKitMotion.GlissandoDirection(in runtime);
+                FighterKitMotion.StartGlissando(ref runtime, modes.MovementDurationFrames);
                 fighter.IsGrounded = 0;
+                if (modes.MovementPersistentTypeID > 0) {
+                    FP64 travel = modes.MovementDistance > FP64.Zero ? modes.MovementDistance : FP64.FromInt(3);
+                    SpawnPersistent(
+                        ref frame, in fighter, modes.MovementPersistentTypeID,
+                        modes.MovementMaxActiveObjects, modes.MovementPersistentLifetimeFrames,
+                        0, FP64.Zero, (int)StatusType.None, 0,
+                        hasAnchor: true,
+                        anchor: FighterReachKitRules.GlissandoEnd(_geometry, in fighter, glissando, travel));
+                }
             } else if (modes.MovementType == 2) {
-                fighter.Velocity.x = speed * FP64.FromInt(facing);
+                // LN02 (Package 13 W7b): a Dash is an armored charge over the
+                // authored distance and frames that stops on contact; the armor
+                // below covers exactly the travel.
+                FighterKitMotion.StartRailCharge(ref runtime, facing, modes.MovementDurationFrames);
             } else if (modes.MovementType == 0) {
                 // Package 12 W4: Tesla's Lightning Blink is no longer an instant
                 // teleport. It runs 6 startup / 12 translation / 10 recovery
@@ -1549,7 +1733,7 @@ namespace FTT.FighterSim {
             if (modes.MovementGrantsHyperArmor != 0) {
                 fighter.HyperArmorFrames = modes.MovementDurationFrames > 0 ? modes.MovementDurationFrames : 12;
             }
-            if (modes.MovementPersistentTypeID > 0) {
+            if (modes.MovementPersistentTypeID > 0 && modes.MovementType != 5) {
                 SpawnPersistent(
                     ref frame, in fighter, modes.MovementPersistentTypeID,
                     modes.MovementMaxActiveObjects, modes.MovementPersistentLifetimeFrames,
@@ -1561,9 +1745,12 @@ namespace FTT.FighterSim {
     public sealed class FighterProjectileSystem : ISystem {
         private static readonly FP64 FixedDelta = FP64.One / FP64.FromInt(60);
         private readonly FighterHitContractTable _contracts;
+        /// <summary>Package 13 W7b: ground waves ride the stage's surfaces; shots stop at its walls.</summary>
+        private readonly FighterStageGeometry _geometry;
 
-        public FighterProjectileSystem(FighterHitContractTable contracts = null) {
+        public FighterProjectileSystem(FighterHitContractTable contracts = null, FighterStageGeometry geometry = null) {
             _contracts = contracts ?? FighterHitContractTable.Default;
+            _geometry = geometry ?? FighterStageGeometry.Default;
         }
 
         /// <summary>
@@ -1613,10 +1800,33 @@ namespace FTT.FighterSim {
                 if (projectile.GravityPerSecond > FP64.Zero) {
                     projectile.Velocity.y -= projectile.GravityPerSecond * FixedDelta;
                 }
+                bool groundWave = FighterGroundWave.IsGroundWave(projectile.ProjectileTypeID);
+                bool requiem = projectile.UltimateOrigin == 0
+                    && projectile.ProjectileTypeID == FighterReachKitRules.RequiemChordProjectile;
+                // Package 13 W7b (M03): the Requiem Chord has no range limit — it
+                // crosses the stage until it strikes a fighter or a wall, and a
+                // wall bursts it. (W7a owns the shared burst-on-terrain primitive;
+                // this is the chord's local rule until it lands.)
+                if (requiem
+                    && (projectile.Position.x <= _geometry.LeftWall || projectile.Position.x >= _geometry.RightWall)) {
+                    FP64 wallX = projectile.Position.x <= _geometry.LeftWall ? _geometry.LeftWall : _geometry.RightWall;
+                    FighterReachKitRules.SpawnRequiemBurst(
+                        ref frame, projectile.OwnerPlayerID, new FPVector2(wallX, projectile.Position.y),
+                        _contracts.For(projectile.OwnerPlayerID, FighterHitContractTable.SlotSpecialOne),
+                        alreadyShaved: false);
+                    frame.DestroyEntity(projectileEntity);
+                    continue;
+                }
                 if (projectile.LifetimeFrames <= 0
                     || FP64.Abs(projectile.Position.x) > FP64.FromInt(12)
-                    // A lobbed arc that crashes below the floor line is spent.
-                    || projectile.Position.y < FP64.Zero) {
+                    || projectile.Position.y < FP64.Zero
+                    // Package 13 W7b: a ground wave dissipates at a wall or where
+                    // its surface ends (a platform edge, an Open stage's pit).
+                    || (groundWave
+                        && (projectile.Position.x <= _geometry.LeftWall
+                            || projectile.Position.x >= _geometry.RightWall
+                            || !FighterGroundWave.SurfaceContinues(
+                                _geometry, projectile.Position.x, FighterGroundWave.SurfaceY(in projectile))))) {
                     frame.DestroyEntity(projectileEntity);
                     continue;
                 }
@@ -1629,10 +1839,14 @@ namespace FTT.FighterSim {
                 if (!FighterEntityQueries.Overlaps(
                         in projectile.Position, in projectile.HalfExtents,
                         in target.Position, in FighterHalfExtents)) continue;
+                // Package 13 W7b: a grounded-only ground wave passes under a
+                // jumper (and anyone on another surface) without being consumed.
+                if (groundWave && !FighterGroundWave.CanStrike(in projectile, in target)) continue;
                 // Package 12 W4 (Tesla kit rule): during the Lightning Blink
                 // translation the shot passes straight through — no contact, and
                 // it is not consumed. Derived from the existing movement phase.
-                if (FighterKitMotion.PassesThroughProjectiles(
+                // A ground wave is not a projectile for this rule (W7b).
+                if (!groundWave && FighterKitMotion.PassesThroughProjectiles(
                         in frame.GetReadOnly<FighterRuntimeComponent>(targetEntity))) continue;
 
                 ref FighterStateComponent owner = ref frame.Get<FighterStateComponent>(ownerEntity);
@@ -1649,10 +1863,14 @@ namespace FTT.FighterSim {
                 // Ultimate finale knockbacks are W6's region); a Special shot
                 // reads its slot's signed vector.
                 bool projectileVector = projectile.UltimateOrigin == 0 && projectileContract.HasKnockbackVector;
-                FighterDamageRules.ApplyFighterHit(
+                // M03: the chord's contact is the first of its four hits — it
+                // holds the target in hitstun with no impulse, so the burst's
+                // pulses land; the last pulse carries the authored knockback.
+                if (requiem) projectileVector = false;
+                bool projectileLanded = FighterDamageRules.ApplyFighterHit(
                     ref owner, ref ownerRuntime, ref ownerVerb, ref target, ref targetRuntime, ref targetVerb, ref targetDefense, in targetTuning,
                     projectile.AttackClass, projectile.Damage,
-                    projectileVector ? projectileContract.KnockbackX : projectile.Knockback.x,
+                    requiem ? FP64.Zero : projectileVector ? projectileContract.KnockbackX : projectile.Knockback.x,
                     projectileHitstun, projectile.StatusType, projectile.StatusFrames,
                     projectile.StatusIntensity, projectile.Position.x,
                     // V7.6 D03h (Package 11 A1b): an Ultimate-spawned projectile
@@ -1664,6 +1882,16 @@ namespace FTT.FighterSim {
                         && projectileContract.ShieldBreaker,
                     hasKnockbackVector: projectileVector,
                     knockbackVertical: projectileContract.KnockbackY);
+                if (requiem) {
+                    // M02: a chord whose contact HIT (not a block) shaves
+                    // Fortissimo's remaining cooldown now, and its burst is
+                    // marked so the pulses cannot shave again.
+                    if (projectileLanded) FighterReachKitRules.ShaveFortissimo(ref ownerRuntime);
+                    FighterReachKitRules.SpawnRequiemBurst(
+                        ref frame, projectile.OwnerPlayerID, in projectile.Position,
+                        _contracts.For(projectile.OwnerPlayerID, FighterHitContractTable.SlotSpecialOne),
+                        alreadyShaved: projectileLanded);
+                }
                 frame.DestroyEntity(projectileEntity);
             }
         }
@@ -2676,10 +2904,18 @@ namespace FTT.FighterSim {
                 // their slot's contract — its signed knockback vector and its
                 // block class (the Emancipator is a Shield-Breaker).
                 FighterAbilityHitData pulseContract = default;
-                if (zone.ZoneTypeID == (int)FighterCharacterID.Lincoln * 10 + 1) {
-                    pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).SpecialOneKnockback;
-                    pulseHitstunFrames = EmancipatorHitstunFrames;
+                // Package 13 W7b (M03): the Requiem Chord's burst. Every pulse is a
+                // Special direct hit that holds the target in the authored
+                // hitstun; only the last carries the authored knockback, so the
+                // three pulses land together. The Emancipator (formerly zone 31)
+                // is a ground wave now and has no zone branch.
+                bool requiemBurst = zone.ZoneTypeID == FighterReachKitRules.RequiemBurstZone;
+                bool requiemFinalPulse = requiemBurst && zone.LifetimeFrames <= zone.TickIntervalFrames;
+                if (requiemBurst) {
                     pulseContract = _contracts.For(zone.OwnerPlayerID, FighterHitContractTable.SlotSpecialOne);
+                    pulseHitstunFrames = pulseContract.HitstunFrames > 0 ? pulseContract.HitstunFrames : 12;
+                    if (!requiemFinalPulse) pulseContract = default;
+                    else pulseKnockback = pulseContract.KnockbackX;
                 } else if (zone.ZoneTypeID == (int)FighterCharacterID.Shakespeare * 10 + 2) {
                     pulseKnockback = frame.GetReadOnly<FighterTuningComponent>(attackerEntity).SpecialTwoKnockback;
                     pulseHitstunFrames = TempestHitstunFrames;
@@ -2752,11 +2988,22 @@ namespace FTT.FighterSim {
                     pulseHitstunFrames,
                     zone.StatusType, zone.StatusFrames, zone.StatusIntensity, zone.Position.x,
                     creditInfluence: !ultimateZone,
-                    collectsEcho: false,
+                    // The Requiem burst is the chord's own direct hit, not a
+                    // persistent zone tick, so it reclaims Rally (D03g) like
+                    // Story's pulses.
+                    collectsEcho: requiemBurst,
                     appliesHitstop: false,
                     shieldBreaker: !ultimateZone && pulseContract.ShieldBreaker,
                     hasKnockbackVector: pulseVector,
-                    knockbackVertical: pulseContract.KnockbackY);
+                    knockbackVertical: pulseContract.KnockbackY,
+                    launches: !requiemBurst || (requiemFinalPulse && pulseContract.Launches));
+
+                // M02: the first pulse of a chord execution that lands shaves
+                // Fortissimo's remaining cooldown, once per execution.
+                if (requiemBurst && pulseLanded && (zone.ExecutionFlags & FighterReachKitRules.FlagFortissimoShaved) == 0) {
+                    zone.ExecutionFlags |= FighterReachKitRules.FlagFortissimoShaved;
+                    FighterReachKitRules.ShaveFortissimo(ref attackerRuntime);
+                }
 
                 if (pulseLanded && zone.ZoneTypeID == (int)FighterCharacterID.Tesla * 10 + 2) {
                     TryResolveLorentzChain(
@@ -2815,7 +3062,6 @@ namespace FTT.FighterSim {
         /// <summary>Story's chain arcs carry a 0.1 s hitstun.</summary>
         private const int LorentzChainHitstunFrames = 6;
         private const int CoilObjectTypeID = 1;
-        private const int EmancipatorHitstunFrames = 18;
         private const int TempestHitstunFrames = 10;
         // Union Indestructible finisher: 0.5 s, matching the authored
         // HitstunDuration on lincoln/ultimate.tres.

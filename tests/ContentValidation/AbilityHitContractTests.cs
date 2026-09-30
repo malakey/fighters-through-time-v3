@@ -36,6 +36,18 @@ public class AbilityHitContractTests {
         "einstein_relativity_rift", "shakespeare_the_tempest", "cleopatra_sandstorm_vortex"
     };
 
+    // Package 13 W7b: the character review's explicit hit-contract rulings that
+    // depart from the derived defaults. J02 — Righteous Smite applies 30 frames
+    // of hitstun and does not launch (low knockback, so the Radiant Burn string
+    // follows); LN02 — Rail Charge's ram is moderate horizontal knockback, not
+    // a launch.
+    private static readonly Dictionary<string, int> AuthoredHitstun = new() {
+        ["joan_righteous_smite"] = 30
+    };
+    private static readonly HashSet<string> RuledNonLaunching = new() {
+        "joan_righteous_smite", "lincoln_rail_charge"
+    };
+
     // A01 (Package 13 W1): the whole Shield-Breaker set — adding another needs
     // an explicit design decision.
     private static readonly HashSet<string> ShieldBreakers = new() {
@@ -53,7 +65,9 @@ public class AbilityHitContractTests {
                 if (data == null) { issues.Add($"{path} did not load"); continue; }
                 checkedCount++;
                 bool ultimate = data.Slot == AbilitySlot.Ultimate;
-                int expectedHitstun = data.AbilityID == "lincoln_union_indestructible" ? 30 : 12;
+                int expectedHitstun = data.AbilityID == "lincoln_union_indestructible" ? 30
+                    : AuthoredHitstun.TryGetValue(data.AbilityID, out int ruled) ? ruled
+                    : 12;
                 if (data.HitstunFrames != expectedHitstun) issues.Add($"{data.AbilityID} HitstunFrames {data.HitstunFrames}");
                 // A01 (Package 13 W1): exactly three Specials are authored Shield-Breakers.
                 BlockClass expectedBlock = ultimate ? BlockClass.Unblockable
@@ -65,7 +79,8 @@ public class AbilityHitContractTests {
                     ? HitDelivery.Construct
                     : TickAbilities.Contains(data.AbilityID) ? HitDelivery.Tick : HitDelivery.DirectHit;
                 if (data.Delivery != expectedDelivery) issues.Add($"{data.AbilityID} Delivery {data.Delivery}");
-                bool expectedLaunch = data.KnockbackForce != Vector2.Zero;
+                bool expectedLaunch = data.KnockbackForce != Vector2.Zero
+                    && !RuledNonLaunching.Contains(data.AbilityID);
                 if (data.Launches != expectedLaunch) issues.Add($"{data.AbilityID} Launches {data.Launches}");
                 // The runtime class is the one mapping of the pair — it must
                 // reproduce the old slot-derived class exactly.

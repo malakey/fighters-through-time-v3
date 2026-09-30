@@ -10,10 +10,10 @@ namespace FTT.Tests.Determinism;
 
 /// <summary>
 /// Deterministic Fighter-side coverage for the canonical Joan kit: the
-/// Righteous Smite ground-shockwave projectile with RadiantBurn and its
-/// damage-amplification behavior, Divine Piercing's 12-damage multi-hit total
-/// and exact 2-charge block depletion, the Ascendant Wings authored glide
-/// float window, and rollback safety across the full kit.
+/// Righteous Smite short ground wave (J02, Package 13 W7b) with RadiantBurn and
+/// its damage-amplification behavior, Divine Piercing's lunging three-thrust
+/// flurry (J01/J03) and its Shield-Breaker shatter, Ascendant Wings' rising
+/// leap with no glide float (A08), and rollback safety across the full kit.
 /// </summary>
 [TestSuite]
 [RequireGodotRuntime]
@@ -60,7 +60,9 @@ public class JoanKitTests {
 
     [TestCase]
     public void DivinePiercingDealsFullMultiHitTotalAndFullShattersABlockedStance() {
-        // Unblocked: the rapid thrusts resolve as their full 3 x 4 = 12 total.
+        // J01/J03 (Package 13 W7b), rewritten in place: the thrusts are no longer
+        // one instant hit on the press tick. Joan lunges across the 12 active
+        // frames and three 8-damage thrusts land along the way — 24 total.
         var open = new FighterSimulation(
             FighterLoadoutFactory.FromCharacterData(BuildPiercingCharacter()),
             FighterLoadout.Default(FighterCharacterID.Tesla),
@@ -68,8 +70,13 @@ public class JoanKitTests {
             spawnDistance: 1,
             rules: FighterMatchRules.Disabled);
         open.Advance(Frame(0, 0, GameplayButtons.Special2), Frame(0, 0, GameplayButtons.None));
+        AssertThat(open.TryGetFighter(1, out FighterStateComponent untouched)).IsTrue();
+        AssertThat(untouched.CurrentHP).IsEqual(100);
+        for (int tick = 1; tick <= 40; tick++) {
+            open.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
+        }
         AssertThat(open.TryGetFighter(1, out FighterStateComponent struck)).IsTrue();
-        AssertThat(struck.CurrentHP).IsEqual(88);
+        AssertThat(struck.CurrentHP).IsEqual(76);
 
         // V7.6 F15 / A01 (Package 13 W1), rewritten in place: Divine Piercing is
         // a Shield-Breaker FULL shatter in both modes (the loadout projects its
@@ -87,6 +94,12 @@ public class JoanKitTests {
             rules: FighterMatchRules.Disabled);
         blocked.Advance(Frame(0, 0, GameplayButtons.None), Frame(0, 0, GameplayButtons.Block));
         blocked.Advance(Frame(1, 0, GameplayButtons.Special2), Frame(1, 0, GameplayButtons.Block));
+        // Step to the first absorbed thrust.
+        for (int tick = 2; tick <= 20; tick++) {
+            AssertThat(blocked.TryGetFighter(1, out FighterStateComponent probe)).IsTrue();
+            if (probe.BlockCharges == 0) break;
+            blocked.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.Block));
+        }
         AssertThat(blocked.TryGetFighter(1, out FighterStateComponent defender)).IsTrue();
         AssertThat(defender.BlockCharges)
             .OverrideFailureMessage("A full shatter takes every remaining charge to zero.")
@@ -104,7 +117,10 @@ public class JoanKitTests {
     }
 
     [TestCase]
-    public void AscendantWingsGrantsTheAuthoredThreeSecondGlideFloatWindow() {
+    public void AscendantWingsIsARisingLeapWithNoGlideFloat() {
+        // A08 (Package 13 W7b), rewritten in place: the retired 3 s glide armed a
+        // 180-frame float window. Ascendant Wings is now a rising slash-leap at
+        // the authored speed for the cast's frames — no float at all.
         var simulation = new FighterSimulation(
             FighterLoadoutFactory.FromCharacterData(BuildWingsCharacter()),
             FighterLoadout.Default(FighterCharacterID.Tesla),
@@ -115,16 +131,18 @@ public class JoanKitTests {
         simulation.Advance(Frame(0, 0, GameplayButtons.MovementAbility), Frame(0, 0, GameplayButtons.None));
         AssertThat(simulation.TryGetFighter(0, out FighterStateComponent joan)).IsTrue();
         AssertThat(joan.IsGrounded).IsEqual(0);
-        AssertThat(joan.Velocity.y > xpTURN.Klotho.Deterministic.Math.FP64.Zero).IsTrue();
+        AssertThat(joan.Velocity.y).IsEqual(xpTURN.Klotho.Deterministic.Math.FP64.FromInt(7));
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent runtime)).IsTrue();
-        AssertThat(runtime.FloatFrames).IsEqual(180);
+        AssertThat(runtime.FloatFrames).IsEqual(0);
+        AssertThat(runtime.UniversalMovementState).IsEqual(FighterKitMotion.WingRise);
 
-        // The reduced-gravity float window decays one frame per tick.
+        // Released at the top of the rise, she simply falls: no glide window.
         for (int tick = 1; tick <= 60; tick++) {
             simulation.Advance(Frame(tick, 0, GameplayButtons.None), Frame(tick, 0, GameplayButtons.None));
         }
         AssertThat(simulation.TryGetFighterRuntime(0, out FighterRuntimeComponent later)).IsTrue();
-        AssertThat(later.FloatFrames).IsEqual(120);
+        AssertThat(later.FloatFrames).IsEqual(0);
+        AssertThat(later.UniversalMovementState).IsEqual(0);
     }
 
     [TestCase]
@@ -166,8 +184,11 @@ public class JoanKitTests {
     private static AbilityData BuildSmiteAbility() => new() {
         ExecutionType = AbilityExecutionType.Projectile,
         BaseDamage = 14f,
-        ProjectileSpeed = 250f,
-        ProjectileLifetime = 5f,
+        // J02 (Package 13 W7b): a short ground wave, 2.5 units at 10 u/s.
+        ProjectileSpeed = 600f,
+        ProjectileLifetime = 0.25f,
+        HitstunFrames = 30,
+        Launches = false,
         KnockbackForce = Vector2.Zero,
         CooldownDuration = 10f,
         AppliedStatus = StatusType.RadiantBurn,
@@ -177,9 +198,10 @@ public class JoanKitTests {
 
     private static AbilityData BuildPiercingAbility() => new() {
         ExecutionType = AbilityExecutionType.Melee,
-        BaseDamage = 3f,
+        BaseDamage = 8f,
         IsMultiHit = true,
-        HitCount = 4,
+        HitCount = 3,
+        ActiveFrames = 12,
         KnockbackForce = new Vector2(4f, -1f),
         CooldownDuration = 10f,
         // A01 (Package 13 W1): Divine Piercing is an authored Shield-Breaker.
@@ -187,8 +209,8 @@ public class JoanKitTests {
     };
 
     private static MovementAbilityData BuildWingsAbility() => new() {
-        MovementType = MovementType.Glide,
-        MovementDuration = 3f,
+        MovementType = MovementType.WingDive,
+        MovementDuration = 1f,
         MovementSpeed = 420f,
         CooldownDuration = 5f
     };

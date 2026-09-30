@@ -60,10 +60,10 @@ namespace FTT.FighterSim {
             _simulation.AddSystem(new FighterInputSystem(), SystemPhase.PreUpdate);
             _simulation.AddSystem(new FighterCountdownSystem(), SystemPhase.PreUpdate);
             _simulation.AddSystem(new FighterMovementSystem(geometry), SystemPhase.Update);
-            _simulation.AddSystem(new FighterAbilityEntitySystem(), SystemPhase.Update);
+            _simulation.AddSystem(new FighterAbilityEntitySystem(hitContracts, geometry), SystemPhase.Update);
             _simulation.AddSystem(new FighterPushboxSystem(geometry), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterCombatSystem(hitContracts), SystemPhase.PostUpdate);
-            _simulation.AddSystem(new FighterProjectileSystem(hitContracts), SystemPhase.PostUpdate);
+            _simulation.AddSystem(new FighterProjectileSystem(hitContracts, geometry), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterPersistentObjectSystem(), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterZoneSystem(hitContracts), SystemPhase.PostUpdate);
             _simulation.AddSystem(new FighterHazardSystem(geometry), SystemPhase.PostUpdate);

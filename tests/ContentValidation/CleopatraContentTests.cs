@@ -32,6 +32,10 @@ public class CleopatraContentTests {
         // V7 two-slot status rule the DoT survives later control statuses.
         AssertThat(data.AppliedStatus).IsEqual(StatusType.Venom);
         AssertThat(data.StatusDuration).IsEqual(4f);
+        // C01 (Package 13 W7b): placed at her feet, 2.0 units wide — the bite
+        // reaches 1.0 unit (60 px) from the nest's centre.
+        AssertFloat(FTT.Characters.Abilities.SerpentNestNode.BiteRangePixels).IsEqualApprox(60f, 0.01f);
+        AssertThat(KitReachRules.SerpentNestWidthUnits).IsEqual(2.0);
     }
 
     [TestCase]
@@ -46,15 +50,23 @@ public class CleopatraContentTests {
         AssertThat(data.StatusDuration).IsEqual(2f);
         // -40% speed: TimeDilation multiplies speed by (1 - 0.5 * intensity).
         AssertThat(data.StatusIntensity).IsEqual(0.8f);
+        // C01 (Package 13 W7b): thrown up to 5 units ahead, 1.8-unit radius,
+        // pulling at 3 units/s.
+        AssertThat(KitReachRules.SandstormVortexMaxThrowUnits).IsEqual(5.0);
+        AssertFloat(FTT.Characters.Abilities.CleopatraSandstormVortex.VortexRadiusPixels).IsEqualApprox(108f, 0.01f);
+        AssertThat(KitReachRules.SandstormVortexPullUnitsPerSecond).IsEqual(3.0);
     }
 
     [TestCase]
-    public void DesertMirageResourceStaysWithinTheThreeSecondDesignCap() {
+    public void DesertMirageResourceIsAFourUnitSandRushOverFifteenFrames() {
         var data = ResourceLoader.Load<MovementAbilityData>("res://resources/Abilities/cleopatra/movement.tres");
         AssertObject(data).IsNotNull();
-        AssertThat(data.MovementType).IsEqual(MovementType.Teleport);
-        AssertThat(data.MovementDuration <= 3f).IsTrue();
-        AssertThat(data.DistanceMoved).IsEqual(180f);
+        // C03 (Package 13 W7b): a sand rush, not a teleport — 4 units (240 px)
+        // over 15 frames; the 3-second cap is retired.
+        AssertThat(data.MovementType).IsEqual(MovementType.SandRush);
+        AssertThat(data.DistanceMoved).IsEqual(240f);
+        AssertFloat(data.MovementDuration * 60f).IsEqualApprox(15f, 0.01f);
+        AssertThat(data.ActiveFrames).IsEqual(15);
         AssertThat(data.CooldownDuration).IsEqual(5f);
     }
 

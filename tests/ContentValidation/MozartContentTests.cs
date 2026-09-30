@@ -27,6 +27,12 @@ public class MozartContentTests {
         // cooldown (design §5: fast/flat/cheap, opposite of Fortissimo's lob).
         AssertThat(data.BaseDamage).IsEqual(4f);
         AssertThat(data.CooldownDuration).IsEqual(7f);
+        // M03 (Package 13 W7b): straight at 14 units/s (840 px/s) with no range
+        // limit — the lifetime crosses any stage; a wall bursts it.
+        AssertThat(data.ProjectileSpeed).IsEqual(840f);
+        AssertThat(data.ProjectileSpeed * data.ProjectileLifetime > 20f * 60f).IsTrue();
+        AssertThat(data.StartupFrames).IsEqual(10);
+        AssertThat(data.RecoveryFrames).IsEqual(14);
     }
 
     [TestCase]
@@ -36,12 +42,15 @@ public class MozartContentTests {
         AssertThat(data.ExecutionType).IsEqual(AbilityExecutionType.Projectile);
         AssertThat(data.BaseDamage).IsEqual(24f);
         AssertThat(data.KnockbackForce.X).IsEqual(8f);
-        // V7: the slow arcing lob that holds space — 180 px/s with committed
-        // haymaker frames and a top-band cooldown, never a Requiem duplicate.
-        AssertThat(data.ProjectileSpeed).IsEqual(180f);
+        // M01 (Package 13 W7b): the lob is retired — a slow wall of sound 1.5
+        // units tall (90 px) that travels 4 units/s (240 px/s) along the ground
+        // for 6 units, with committed haymaker frames and a top-band cooldown.
+        AssertThat(data.ProjectileSpeed).IsEqual(240f);
+        AssertThat(data.ProjectileLifetime).IsEqual(1.5f);
+        AssertFloat(data.ProjectileSpeed * data.ProjectileLifetime).IsEqualApprox(360f, 0.01f);
+        AssertThat(data.HitboxSize.Y).IsEqual(90f);
         AssertThat(data.CooldownDuration).IsEqual(12f);
         AssertThat(data.StartupFrames).IsEqual(16);
-        AssertThat(data.ProjectileLifetime).IsEqual(6f);
     }
 
     [TestCase]
@@ -53,6 +62,10 @@ public class MozartContentTests {
         AssertThat(data.Lifetime).IsEqual(3f);
         AssertThat(data.MaxActiveObjects).IsEqual(1);
         AssertThat(data.CooldownDuration).IsEqual(5f);
+        // M04 (Package 13 W7b): the glissando rises about 3 units (180 px)
+        // along the held direction over its active frames.
+        AssertThat(data.DistanceMoved).IsEqual(180f);
+        AssertFloat(data.MovementDuration * 60f).IsEqualApprox(data.ActiveFrames, 0.01f);
     }
 
     [TestCase]
@@ -74,5 +87,8 @@ public class MozartContentTests {
         var bodyShape = root.GetNodeOrNull<CollisionShape2D>("Body/CollisionShape2D");
         AssertObject(bodyShape).IsNotNull();
         AssertThat(bodyShape.OneWayCollision).IsTrue();
+        // M04 (Package 13 W7b): the staff is 2.0 units (120 px) wide.
+        AssertThat(((RectangleShape2D)bodyShape.Shape).Size.X).IsEqual(120f);
+        AssertFloat(FTT.Characters.Abilities.SonataPlatformNode.StandHalfWidthPixels).IsEqualApprox(60f, 0.01f);
     }
 }

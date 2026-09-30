@@ -88,20 +88,39 @@ public class MozartSonataDriftChargeTests {
         }
     }
 
+    /// <summary>
+    /// Package 13 W7b (M04), rewritten in place from the retired "once per
+    /// platform" pin: the staff refund is at most once per AIRTIME — a second
+    /// staff in the same airtime refunds nothing (so he gets at most two drifts
+    /// before touching down), and real ground or a ledge grab re-arms it. Extra
+    /// Note obeys the same limit.
+    /// </summary>
     [TestCase]
-    public void AStaffGrantsItsLandingRefundOncePerPlatform() {
+    public void AStaffLandingRefundsHalfTheCooldownOncePerAirtime() {
         AssertThat(MozartSonataDrift.StaffLandingRefundShare).IsEqual(0.5f);
-        var platform = new SonataPlatformNode();
+        PlayerController player = CharacterFactory.CreateCharacter("mozart");
+        Node host = Attach(player);
         try {
-            AssertThat(platform.TryConsumeLandingRefund()).IsTrue();
-            AssertThat(platform.TryConsumeLandingRefund())
-                .OverrideFailureMessage("Hopping on the same staff must not keep halving the recharge.")
+            var drift = player.GetNode<MozartSonataDrift>("MovementAbility");
+            player.StoryAbilityPerks.Add(MozartSonataDrift.ExtraNotePerkKey);
+            player.MovementAbilityCooldownTimer = 4f;
+            AssertThat(drift.ResolveStaffRefund(landedOnOwnStaff: true, onRealGroundOrLedge: false)).IsTrue();
+            AssertFloat(player.MovementAbilityCooldownTimer).IsEqualApprox(2f, 0.0001f);
+
+            // A second staff landing in the same airtime (Extra Note's second
+            // platform included) refunds nothing.
+            AssertThat(drift.ResolveStaffRefund(landedOnOwnStaff: true, onRealGroundOrLedge: false))
+                .OverrideFailureMessage("A second staff in one airtime must not keep halving the recharge.")
                 .IsFalse();
-            // A recycled platform is a fresh staff.
-            platform.OnDespawn();
-            AssertThat(platform.TryConsumeLandingRefund()).IsTrue();
+            AssertFloat(player.MovementAbilityCooldownTimer).IsEqualApprox(2f, 0.0001f);
+
+            // Real ground (or a ledge) re-arms it.
+            drift.ResolveStaffRefund(landedOnOwnStaff: false, onRealGroundOrLedge: true);
+            AssertThat(drift.RefundUsedThisAirtime).IsFalse();
+            AssertThat(drift.ResolveStaffRefund(landedOnOwnStaff: true, onRealGroundOrLedge: false)).IsTrue();
+            AssertFloat(player.MovementAbilityCooldownTimer).IsEqualApprox(1f, 0.0001f);
         } finally {
-            platform.Free();
+            Teardown(host, player);
         }
     }
 

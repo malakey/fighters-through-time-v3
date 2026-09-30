@@ -47,6 +47,30 @@ namespace FTT.FighterSim {
         public FP64 KnockbackX { get; init; }
         public FP64 KnockbackY { get; init; }
 
+        // --- Package 13 W7b: per-hit shape and damage, loadout only ---------
+
+        /// <summary>
+        /// W7b: the authored per-hit <c>BaseDamage</c>, rounded — NOT the folded
+        /// multi-hit total the tuning component carries. Divine Piercing's thrust
+        /// (8), the Requiem Chord's contact and each burst pulse (4), and Rail
+        /// Charge's contact (6) read it. Zero for a slot with no projected ability.
+        /// </summary>
+        public int Damage { get; init; }
+        /// <summary>W7b: the authored <c>HitCount</c> (thrusts, burst pulses); at least 1.</summary>
+        public int HitCount { get; init; }
+        /// <summary>W7b: the authored active frames (Divine Piercing's lunge length).</summary>
+        public int ActiveFrames { get; init; }
+        /// <summary>W7b: startup + active + recovery (Ascendant Wings' rise lasts the whole cast).</summary>
+        public int TotalFrames { get; init; }
+        /// <summary>W7b: the authored <c>HitboxSize</c> as world-unit half extents (0 when unprojected).</summary>
+        public FP64 HitboxHalfX { get; init; }
+        public FP64 HitboxHalfY { get; init; }
+        /// <summary>W7b: the authored <c>HitboxOffset</c> in world units, Godot Y-down → sim Y-up.</summary>
+        public FP64 HitboxOffsetX { get; init; }
+        public FP64 HitboxOffsetY { get; init; }
+        /// <summary>W7b: true when an authored hitbox was projected.</summary>
+        public bool HasHitbox => HitboxHalfX > FP64.Zero && HitboxHalfY > FP64.Zero;
+
         /// <summary>A01: true when the ability is an authored Shield-Breaker.</summary>
         public bool ShieldBreaker => BlockClass == (int)FTT.Combat.BlockClass.ShieldBreaker;
 
@@ -1118,6 +1142,15 @@ namespace FTT.FighterSim {
         /// scaled at the slam). Zero when no bounce is owed.
         /// </summary>
         public FP64 SlamBounceSpeed;
+
+        // --- Package 13 W7b (plan D7: 320 carries the landing/aerial state) ---
+
+        /// <summary>
+        /// M04: 1 once a Sonata Drift staff landing has refunded half the movement
+        /// cooldown this airtime. Reset by landing on real ground (an authored
+        /// surface, not a staff) or by a ledge grab.
+        /// </summary>
+        public int StaffRefundUsed;
     }
 
     [KlothoComponent(301)]
@@ -1293,6 +1326,13 @@ namespace FTT.FighterSim {
         public int StatusType;
         public int StatusFrames;
         public int GrantsOwnerSpeedBonus;
+        /// <summary>
+        /// Package 13 W7b: per-execution flags a zone carries for its whole life
+        /// (<c>FighterReachKitRules.FlagFortissimoShaved</c>: the Requiem Chord
+        /// execution this burst belongs to has already shaved Fortissimo's
+        /// cooldown — M02's once-per-execution rule). Zero for every other zone.
+        /// </summary>
+        public int ExecutionFlags;
         public FP64 StatusIntensity;
         public FPVector2 Position;
         public FPVector2 HalfExtents;

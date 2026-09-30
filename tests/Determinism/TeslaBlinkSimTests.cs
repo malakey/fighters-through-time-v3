@@ -130,8 +130,10 @@ public class TeslaBlinkSimTests {
         FighterLoadoutFactory.FromCharacterData(
             AuthoredResources.Load<CharacterData>("res://resources/Characters/tesla_data.tres"));
 
+    // Package 13 W7b: not "joan" — her Special 1 is a ground wave now, which is
+    // deliberately not a projectile for the blink's pass-through.
     private static CharacterData ShooterData() => new() {
-        CharacterID = "joan",
+        CharacterID = "leonardo",
         MaxHP = 100,
         Weight = 1f,
         MaxBlockCharges = 3,

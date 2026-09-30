@@ -5,38 +5,56 @@ using FTT.Characters;
 namespace FTT.Characters.Abilities {
 
     /// <summary>
-    /// Special 1 — Requiem Chord: a projectile chord of musical notes that bursts
-    /// into a multi-hit sonic shockwave on impact. The contact note deals one
-    /// per-hit tick; the burst then delivers the authored multi-hit total
-    /// (BaseDamage x HitCount) as staged expanding pulses, mirroring the
-    /// EinsteinEmc2Blast detonation pattern. Timing/damage come from the authored
-    /// AbilityData. Story-only Resonance perks: Requiem Crescendo (a secondary,
-    /// wider shockwave at 50% of the burst total) and Rest Shield (standing
-    /// still or blocking for 1.5 s grants a bubble that absorbs incoming
-    /// physical projectiles, implemented as the Story projectile-immunity flag).
+    /// Special 1 — Requiem Chord (M02/M03, Package 13 W7b): a straight chord of
+    /// musical notes at the authored 14 units/s with <b>no range limit</b> — it
+    /// crosses the stage until it strikes a target, terrain or a wall. It bursts
+    /// there into the authored <c>HitCount</c> pulses (3 × 4) in a 1.2-unit
+    /// radius over 0.3 s; a contact hit adds the first 4 (16 total). The contact
+    /// and the first two pulses hold the target in hitstun with no impulse, so
+    /// the whole burst lands; the last pulse carries the authored knockback. It
+    /// hits airborne targets. <b>Tempo (M02):</b> an execution that hits an
+    /// opponent (not a block) shortens Fortissimo Wave's remaining cooldown by
+    /// 2 s, once per execution. Story-only Resonance perks: Requiem Crescendo (a
+    /// secondary, wider shockwave at 50% of the burst total) and Rest Shield
+    /// (standing still or blocking for 1.5 s grants a bubble that absorbs
+    /// incoming physical projectiles, implemented as the Story
+    /// projectile-immunity flag).
+    ///
+    /// <para>The terrain/wall burst is a local rule: W7a owns the shared
+    /// burst-on-terrain projectile primitive, which was not on main when this
+    /// shipped. A point query against Environment each frame bursts the chord
+    /// where it meets a wall or solid terrain.</para>
     /// </summary>
     public partial class MozartRequiemChord : BaseSpecial {
 
         public const string RequiemCrescendoPerkKey = "requiem_crescendo";
         public const string RestShieldPerkKey = "rest_shield";
 
-        private const float BasePulseRadius = 90f;
-        private const float PulseRadiusGrowth = 30f;
-        private const int PulseIntervalFrames = 6;
         private const float CrescendoRadiusMultiplier = 1.5f;
         private const float CrescendoDamageShare = 0.5f;
         private const float RestShieldChargeSeconds = 1.5f;
         private const float PerkRefreshSeconds = 0.1f;
 
+        /// <summary>M03: the burst radius in pixels (1.2 units).</summary>
+        public static float BurstRadiusPixels =>
+            (float)KitReachRules.RequiemBurstRadiusUnits * KitMotionRules.StoryPixelsPerUnit;
+
+        private PlaceholderProjectile _chord;
         private Vector2 _burstPosition;
         private int _pulsesRemaining;
-        private int _pulseIndex;
         private int _pulseCountdownFrames;
         private bool _crescendoPending;
+        private bool _executionShaved;
         private float _restShieldTimer;
+
+        /// <summary>True once this execution has shaved Fortissimo's cooldown (test seam).</summary>
+        public bool ExecutionShavedFortissimo => _executionShaved;
+        /// <summary>Pulses still to land from the current burst (test seam).</summary>
+        public int PendingPulses => _pulsesRemaining;
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
+            _executionShaved = false;
         }
 
         protected override void OnActive() {
@@ -53,64 +71,104 @@ namespace FTT.Characters.Abilities {
             float contactDamage = Mathf.Round(Data?.BaseDamage ?? 4f);
             var chord = SpawnPlaceholderProjectile(
                 Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 45f : -45f, -5f),
-                Data?.ProjectileSpeed ?? 280f, Owner.IsFacingRight, new Color(0.6f, 0.4f, 0.8f),
-                new Vector2(22, 16), Data?.ProjectileLifetime ?? 5f, contactDamage);
-            if (chord != null) {
-                chord.DetonateOnImpact = true;
-                chord.Impacted += OnChordImpacted;
-            }
+                Data?.ProjectileSpeed ?? 840f, Owner.IsFacingRight, new Color(0.6f, 0.4f, 0.8f),
+                new Vector2(22, 16), Data?.ProjectileLifetime ?? 3f, contactDamage);
+            if (chord == null) return;
+            chord.DetonateOnImpact = true;
+            // M03: the contact holds without an impulse so the burst lands.
+            chord.OverrideContactKnockback(Vector2.Zero);
+            chord.Impacted += OnChordImpacted;
+            _chord = chord;
         }
 
         private void OnChordImpacted(Vector2 impactPosition) {
+            PlaceholderProjectile chord = _chord;
+            _chord = null;
+            // M02: a contact that dealt damage is a hit, not a block.
+            if (chord != null && IsInstanceValid(chord) && chord.LastImpactDamage > 0f) ShaveFortissimo();
             // Area signals fire while the physics space is locked; defer the burst
             // setup one step so the first pulse's shape cast is legal.
             CallDeferred(nameof(BeginBurst), impactPosition);
         }
 
-        private void BeginBurst(Vector2 impactPosition) {
+        /// <summary>Starts the burst at <paramref name="position"/>: the authored pulses, one every six frames.</summary>
+        public void BeginBurst(Vector2 position) {
             if (Owner == null || !IsInstanceValid(Owner)) return;
-            _burstPosition = impactPosition;
+            _burstPosition = position;
             _pulsesRemaining = Data?.IsMultiHit == true ? Mathf.Max(1, Data.HitCount) : 1;
-            _pulseIndex = 0;
-            _pulseCountdownFrames = 0;
+            _pulseCountdownFrames = KitReachRules.RequiemPulseIntervalFrames;
             _crescendoPending = Owner.HasStoryPerk(RequiemCrescendoPerkKey);
+        }
+
+        /// <summary>
+        /// M02: shortens Fortissimo Wave's remaining cooldown by two seconds,
+        /// once per Requiem execution (stacking with Resonance Momentum).
+        /// </summary>
+        public void ShaveFortissimo() {
+            if (_executionShaved || Owner == null) return;
+            _executionShaved = true;
+            Owner.SpecialTwoCooldownTimer = Mathf.Max(
+                0f, Owner.SpecialTwoCooldownTimer - (float)KitReachRules.RequiemFortissimoShaveSeconds);
         }
 
         public override void _PhysicsProcess(double delta) {
             base._PhysicsProcess(delta);
+            TrackChordAgainstTerrain();
             UpdateShockwavePulses();
             UpdateRestShield((float)delta);
+        }
+
+        /// <summary>M03: the chord bursts where it meets a wall or solid terrain.</summary>
+        private void TrackChordAgainstTerrain() {
+            if (_chord == null) return;
+            if (!IsInstanceValid(_chord) || !_chord.IsInsideTree() || !_chord.CanProcess()) {
+                _chord = null;
+                return;
+            }
+            var space = _chord.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return;
+            var query = new PhysicsPointQueryParameters2D {
+                Position = _chord.GlobalPosition,
+                CollisionMask = FTT.Core.CollisionLayers.Environment,
+                CollideWithBodies = true,
+                CollideWithAreas = false
+            };
+            if (space.IntersectPoint(query, 1).Count == 0) return;
+            Vector2 position = _chord.GlobalPosition;
+            PlaceholderProjectile chord = _chord;
+            _chord = null;
+            chord.Impacted -= OnChordImpacted;
+            chord.ReturnToPool();
+            BeginBurst(position);
         }
 
         private void UpdateShockwavePulses() {
             if (_pulsesRemaining <= 0 && !_crescendoPending) return;
             if (_pulseCountdownFrames > 0) {
                 _pulseCountdownFrames--;
-                return;
+                if (_pulseCountdownFrames > 0) return;
             }
 
             if (_pulsesRemaining > 0) {
-                float radius = BasePulseRadius + _pulseIndex * PulseRadiusGrowth;
-                EmitShockwavePulse(radius, Data?.BaseDamage ?? 4f, "shockwave");
-                _pulseIndex++;
+                bool finalPulse = _pulsesRemaining == 1;
+                EmitShockwavePulse(BurstRadiusPixels, Data?.BaseDamage ?? 4f, "shockwave", finalPulse);
                 _pulsesRemaining--;
-                _pulseCountdownFrames = PulseIntervalFrames;
+                _pulseCountdownFrames = KitReachRules.RequiemPulseIntervalFrames;
                 return;
             }
 
             // Requiem Crescendo (Story-only): the chord detonates a second time
             // with a wider shockwave dealing 50% of the burst total.
-            float finalRadius = BasePulseRadius + Mathf.Max(0, _pulseIndex - 1) * PulseRadiusGrowth;
             float burstTotal = (Data?.BaseDamage ?? 4f)
                 * (Data?.IsMultiHit == true ? Mathf.Max(1, Data.HitCount) : 1);
             EmitShockwavePulse(
-                finalRadius * CrescendoRadiusMultiplier,
+                BurstRadiusPixels * CrescendoRadiusMultiplier,
                 Mathf.Round(burstTotal * CrescendoDamageShare),
-                "crescendo");
+                "crescendo", finalPulse: true);
             _crescendoPending = false;
         }
 
-        private void EmitShockwavePulse(float radius, float damage, string hitboxID) {
+        private void EmitShockwavePulse(float radius, float damage, string hitboxID, bool finalPulse) {
             if (Owner == null || !IsInstanceValid(Owner)) return;
 
             // Pulse flash visual only; damage is applied through the shape query.
@@ -132,26 +190,34 @@ namespace FTT.Characters.Abilities {
             foreach (Godot.Collections.Dictionary result in space.IntersectShape(query, 16)) {
                 if (result["collider"].AsGodotObject() is not Hurtbox hurtbox) continue;
                 if (hurtbox.OwnerPlayerIndex == Owner.PlayerIndex) continue;
-
-                HitPayload hit = Stamp(new HitPayload {
-                    AttackerIndex = Owner.PlayerIndex,
-                    AttackID = Data?.AbilityID ?? "mozart_requiem_chord",
-                    HitboxID = hitboxID,
-                    AttackClass = AttackClass.Special,
-                    Damage = damage * Owner.StorySpecialDamageMultiplier,
-                    Knockback = Data?.KnockbackForce ?? new Vector2(3, -2),
-                    HitstunDuration = Data?.HitstunDuration ?? 0.2f,
-                    HitOrigin = _burstPosition,
-                    AttackerFacingRight = Owner.IsFacingRight,
-                    AppliedStatus = FTT.Core.StatusType.None,
-                    StatusDuration = 0f,
-                    StatusIntensity = 1f,
-                    ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
-                    ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
-                });
-                float dealt = hurtbox.TakeHit(hit);
-                Credit(in hit, dealt);
+                StrikeWithPulse(hurtbox, damage, hitboxID, finalPulse);
             }
+        }
+
+        /// <summary>One burst pulse against one hurtbox; internal so a test can drive it without a query.</summary>
+        internal float StrikeWithPulse(Hurtbox hurtbox, float damage, string hitboxID, bool finalPulse) {
+            HitPayload hit = Stamp(new HitPayload {
+                AttackerIndex = Owner.PlayerIndex,
+                AttackID = Data?.AbilityID ?? "mozart_requiem_chord",
+                HitboxID = hitboxID,
+                AttackClass = AttackClass.Special,
+                Damage = damage * Owner.StorySpecialDamageMultiplier,
+                Knockback = finalPulse ? Data?.KnockbackForce ?? new Vector2(3, -2) : Vector2.Zero,
+                HitstunDuration = Data?.HitstunDuration ?? 0.2f,
+                HitOrigin = _burstPosition,
+                AttackerFacingRight = Owner.IsFacingRight,
+                AppliedStatus = FTT.Core.StatusType.None,
+                StatusDuration = 0f,
+                StatusIntensity = 1f,
+                ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
+                ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
+            });
+            if (!finalPulse) hit.Launches = false;
+            float dealt = hurtbox.TakeHit(hit);
+            Credit(in hit, dealt);
+            // M02: a pulse that dealt damage is a hit, not a block.
+            if (dealt > 0f) ShaveFortissimo();
+            return dealt;
         }
 
         /// <summary>
@@ -178,20 +244,24 @@ namespace FTT.Characters.Abilities {
     }
 
     /// <summary>
-    /// Special 2 — Fortissimo Wave: Mozart's haymaker, the deliberate opposite of
-    /// Requiem Chord's fast flat poke (V7 directive: the two projectiles must
-    /// never read as duplicates). A tall wave of sound energy lobbed on a slow
-    /// arc — rising first, then crashing down under its own gravity — that holds
-    /// space along its path, deals the authored damage, and shoves enemies back
-    /// with the roster's heaviest horizontal knockback.
+    /// Special 2 — Fortissimo Wave (M01, Package 13 W7b): Mozart's haymaker,
+    /// the deliberate opposite of the fast, small Requiem Chord. A slow wall of
+    /// sound 1.5 units tall (the authored <c>HitboxSize</c>) travels straight
+    /// along the ground at the authored 4 units/s for 6 units
+    /// (<c>ProjectileSpeed</c> × <c>ProjectileLifetime</c>), then dissipates. It
+    /// is a ground wave (<see cref="StoryGroundWave"/>) — not a projectile, and
+    /// not a lob — but its height reaches anything that has not jumped clear,
+    /// so it is not grounded-only. It deals the authored damage with the
+    /// roster's heaviest horizontal pushback.
     /// </summary>
     public partial class MozartFortissimoWave : BaseSpecial {
 
-        // The lob: launched rising at 200 px/s and pulled down at 350 px/s², the
-        // wave crests ~57 px up at ~0.57 s and returns to launch height ~205 px
-        // out at the authored 180 px/s travel speed, then keeps falling.
-        private const float LobLaunchVelocity = -200f;
-        private const float LobGravity = 350f;
+        private const float WaveLeadPixels = 40f;
+
+        private readonly StoryGroundWave _wave = new();
+
+        /// <summary>The live wall of sound (test seam).</summary>
+        public StoryGroundWave Wave => _wave;
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
@@ -208,47 +278,127 @@ namespace FTT.Characters.Abilities {
 
         private void EmitWave() {
             if (Owner == null) return;
-            float damage = Mathf.Round((Data?.BaseDamage ?? 12f) * Owner.StorySpecialDamageMultiplier);
-            var wave = SpawnPlaceholderProjectile(
-                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 50f : -50f, -40f),
-                Data?.ProjectileSpeed ?? 180f, Owner.IsFacingRight, new Color(0.8f, 0.6f, 0.9f),
-                new Vector2(30, 110), Data?.ProjectileLifetime ?? 6f, damage);
-            wave?.ConfigureArc(LobLaunchVelocity, LobGravity);
+            float speed = Data?.ProjectileSpeed > 0f ? Data.ProjectileSpeed : 240f;
+            float lifetime = Data?.ProjectileLifetime > 0f ? Data.ProjectileLifetime : 1.5f;
+            _wave.Start(
+                Owner.GetWorld2D()?.DirectSpaceState,
+                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? WaveLeadPixels : -WaveLeadPixels, 0f),
+                Owner.IsFacingRight, speed, speed * lifetime,
+                Data?.HitboxSize ?? new Vector2(30f, 90f), groundedOnly: false);
+            SpawnPlaceholderZone(_wave.Front, 0f, lifetime, 1f, new Color(0.8f, 0.6f, 0.9f),
+                (Data?.HitboxSize.Y ?? 90f) * 0.5f);
+        }
+
+        public override void _PhysicsProcess(double delta) {
+            base._PhysicsProcess(delta);
+            if (!_wave.Active || Owner == null || !IsInstanceValid(Owner)) return;
+            uint targetHurtboxLayer = Owner.PlayerIndex == 0
+                ? FTT.Core.CollisionLayers.EnemyHurtbox
+                : FTT.Core.CollisionLayers.PlayerHurtbox;
+            _wave.Advance((float)delta, Owner.GetWorld2D()?.DirectSpaceState,
+                StoryShapeQuery.DeliveryMask(targetHurtboxLayer), Owner.PlayerIndex, StrikeWithWave);
+        }
+
+        /// <summary>One wall-of-sound contact, delivered once per target.</summary>
+        internal void StrikeWithWave(Hurtbox hurtbox, Vector2 front) {
+            string abilityID = Data?.AbilityID ?? "mozart_fortissimo_wave";
+            HitPayload hit = Stamp(new HitPayload {
+                AttackerIndex = Owner.PlayerIndex,
+                AttackID = abilityID,
+                HitboxID = "ground_wave",
+                AttackClass = AttackClass.Special,
+                Damage = Mathf.Round((Data?.BaseDamage ?? 24f) * Owner.StorySpecialDamageMultiplier)
+                    * Owner.StoryScoped("AbilityDamage", abilityID),
+                Knockback = (Data?.KnockbackForce ?? new Vector2(8f, -2f)) * Owner.StoryKnockbackMultiplier,
+                HitstunDuration = Data?.HitstunDuration ?? 0.2f,
+                HitOrigin = front,
+                AttackerFacingRight = _wave.MovingRight,
+                AppliedStatus = Data?.AppliedStatus ?? FTT.Core.StatusType.None,
+                StatusDuration = Data?.StatusDuration ?? 0f,
+                StatusIntensity = Data?.StatusIntensity ?? 1f,
+                ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
+                ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
+            });
+            float dealt = hurtbox.TakeHit(hit);
+            Credit(in hit, dealt);
+            if (dealt > 0f) EmitImpactVfx(front);
         }
     }
 
     /// <summary>
-    /// Movement — Sonata Drift: deploys a floating musical staff platform under
-    /// Mozart's feet that he can run on to recover or escape. Usable in the air;
-    /// the authored construct persists for the design's strict 3-second limit.
-    /// Story-only Resonance perk Virtuoso Dash grants +20% move speed and
-    /// complete immunity to ranged projectiles while he stands on a staff.
+    /// Movement — Sonata Drift (M04, Package 13 W7b): a directable rising
+    /// glissando. Mozart rises about 3 units (the authored <c>DistanceMoved</c>)
+    /// along the held direction over the authored <c>MovementDuration</c> — up
+    /// by default, up-left/up-right or sideways when held, never down — and
+    /// leaves a 2.0-unit-wide staff platform under his feet where it ends. The
+    /// staff is a one-way platform he (or anyone) can land on; it lasts the
+    /// authored 3 seconds. Landing on his own staff refunds half the remaining
+    /// cooldown <b>at most once per airtime</b> (reset by landing on real ground
+    /// or grabbing a ledge), so he gets at most two drifts before touching down;
+    /// the Story Extra Note node obeys the same limit. The Fighter sim runs the
+    /// same glissando, staff and refund (D14). Story-only Resonance perk
+    /// Virtuoso Dash grants +20% move speed and complete immunity to ranged
+    /// projectiles while he stands on a staff.
     /// </summary>
     public partial class MozartSonataDrift : BaseSpecial {
 
         public const string VirtuosoDashPerkKey = "virtuoso_dash";
 
-        private const float PlatformDropPixels = 10f;
+        private const float PlatformDropPixels = 6f;
         private const float VirtuosoSpeedMultiplier = 1.2f;
         private const float PerkRefreshSeconds = 0.1f;
+        private const float DefaultDistancePixels = 180f;
+        private const float DefaultDurationSeconds = 0.3f;
+
+        private Vector2 _glissandoDirection = Vector2.Up;
+        private float _glissandoSpeed;
+
+        private MovementAbilityData MovementData => Data as MovementAbilityData;
+
+        /// <summary>The latched glissando direction (unit, Godot Y down; test seam).</summary>
+        public Vector2 GlissandoDirection => _glissandoDirection;
+
+        /// <summary>
+        /// M04: the held direction, 8-way, with any Down component dropped;
+        /// neutral rises straight up.
+        /// </summary>
+        public static Vector2 ResolveGlissandoDirection(float horizontal, float vertical) {
+            int x = horizontal > 0.3f ? 1 : horizontal < -0.3f ? -1 : 0;
+            int y = vertical < -0.3f ? -1 : 0;
+            if (x == 0 && y == 0) y = -1;
+            return new Vector2(x, y).Normalized();
+        }
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
+            _glissandoDirection = ResolveGlissandoDirection(
+                Owner.CurrentInputFrame.Horizontal, Owner.CurrentInputFrame.Vertical);
+            float distance = MovementData?.DistanceMoved > 0f ? MovementData.DistanceMoved : DefaultDistancePixels;
+            float duration = MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : DefaultDurationSeconds;
+            _glissandoSpeed = distance / duration;
+            // The opening beat holds him in place.
+            Owner.Velocity = Vector2.Zero;
         }
 
         protected override void OnActive() {
-            UseAuthoredPhaseFrames();
-            DeployPlatform();
+            PhaseTimer = MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : DefaultDurationSeconds;
         }
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
+            Owner.Velocity = Vector2.Zero;
+            // The staff is placed under his feet where the glissando ends.
+            DeployPlatform();
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 AbilityName = Data?.AbilityName ?? "Sonata Drift",
                 StartPosition = Owner.GlobalPosition,
                 EndPosition = Owner.GlobalPosition
             });
+        }
+
+        protected override void OnInterrupted() {
+            if (Owner != null && IsInstanceValid(Owner)) Owner.Velocity = Vector2.Zero;
         }
 
         /// <summary>
@@ -305,18 +455,21 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            if (CurrentPhase == AbilityPhase.Active && Owner != null) {
+                Owner.Velocity = _glissandoDirection * _glissandoSpeed;
+            }
             base._PhysicsProcess(delta);
             UpdateVirtuosoDash();
             UpdateCharges();
         }
 
-        // === Package 12 W4: Sonata Drift charges and the staff refund ==========
+        // === Package 12 W4: Sonata Drift charges; Package 13 W7b: the refund ==
         //
-        // Story-only. The owner's MovementAbilityCooldownTimer stays the ONE
-        // recharge clock: it times the charge currently recharging. A charge that
-        // is already restored but not yet spent is "banked" here. So the charges
-        // available are (timer idle ? 1 : 0) + banked, and Extra Note (design
-        // §5, Low-item decision 2026-09-26) raises the cap to two:
+        // Story-only charges. The owner's MovementAbilityCooldownTimer stays the
+        // ONE recharge clock: it times the charge currently recharging. A charge
+        // that is already restored but not yet spent is "banked" here. So the
+        // charges available are (timer idle ? 1 : 0) + banked, and Extra Note
+        // (design §5, Low-item decision 2026-09-26) raises the cap to two:
         //   - a cast from a full stock arms the timer through the ordinary path;
         //   - a cast while the timer runs spends a banked charge and never
         //     restarts the running recharge (TryExecute(armCooldown: false));
@@ -324,17 +477,20 @@ namespace FTT.Characters.Abilities {
         //     charge's recharge starts at once — one at a time, on the 5 s
         //     cooldown;
         //   - landing on one of his own staff platforms halves the recharging
-        //     charge's REMAINING time, once per platform (baseline kit rule).
-        // Fighter Mode never reads any of this: the sim platform is a harmless
-        // marker with no walkable surface, and grid perks never reach the sim.
+        //     charge's REMAINING time, at most once per airtime (M04, baseline
+        //     kit rule in both modes; Extra Note obeys the same limit).
 
         /// <summary>Remaining-time share a staff landing refunds (half).</summary>
-        public const float StaffLandingRefundShare = 0.5f;
+        public const float StaffLandingRefundShare = (float)KitReachRules.SonataStaffRefundShare;
 
         private int _bankedCharges;
         private bool _chargesInitialized;
         private bool _wasRecharging;
         private bool _wasOnOwnStaff;
+        private bool _refundUsedThisAirtime;
+
+        /// <summary>True once a staff landing has refunded this airtime (test seam).</summary>
+        public bool RefundUsedThisAirtime => _refundUsedThisAirtime;
 
         /// <summary>Two with Extra Note, one otherwise.</summary>
         public int MaxCharges => Owner != null && Owner.HasStoryPerk(ExtraNotePerkKey)
@@ -349,6 +505,25 @@ namespace FTT.Characters.Abilities {
         public override bool TryConsumeCooldownBypass() {
             if (_bankedCharges <= 0) return false;
             _bankedCharges--;
+            return true;
+        }
+
+        /// <summary>
+        /// M04: the once-per-airtime staff refund. A fresh landing on his own
+        /// staff halves the remaining cooldown unless this airtime already
+        /// refunded; real ground or a ledge grab re-arms it. Returns true when a
+        /// refund was granted. Public so the rule is testable without physics.
+        /// </summary>
+        public bool ResolveStaffRefund(bool landedOnOwnStaff, bool onRealGroundOrLedge) {
+            if (onRealGroundOrLedge && !landedOnOwnStaff) {
+                _refundUsedThisAirtime = false;
+                return false;
+            }
+            if (!landedOnOwnStaff || _refundUsedThisAirtime || Owner == null) return false;
+            _refundUsedThisAirtime = true;
+            if (Owner.MovementAbilityCooldownTimer > 0f) {
+                Owner.MovementAbilityCooldownTimer *= 1f - StaffLandingRefundShare;
+            }
             return true;
         }
 
@@ -373,11 +548,9 @@ namespace FTT.Characters.Abilities {
 
             SonataPlatformNode landed = FindStaffUnderOwner();
             bool onStaff = landed != null;
-            if (onStaff && !_wasOnOwnStaff && landed.TryConsumeLandingRefund()) {
-                if (Owner.MovementAbilityCooldownTimer > 0f) {
-                    Owner.MovementAbilityCooldownTimer *= 1f - StaffLandingRefundShare;
-                }
-            }
+            bool realGround = !onStaff && Owner.IsOnFloor();
+            bool ledge = Owner.CurrentState == CharacterState.LedgeHanging;
+            ResolveStaffRefund(onStaff && !_wasOnOwnStaff, realGround || ledge);
             _wasOnOwnStaff = onStaff;
         }
 

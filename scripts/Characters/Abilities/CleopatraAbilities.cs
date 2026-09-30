@@ -6,7 +6,8 @@ namespace FTT.Characters.Abilities {
 
     /// <summary>
     /// Special 1 — Serpent Nest: deploys a persistent nest construct (15 HP, 12 s,
-    /// max 1 active). Spectral asps bite enemies passing over the nest for light
+    /// max 1 active) AT HER FEET, 2.0 units wide (C01, Package 13 W7b — it is a
+    /// defensive trap now, no longer placed 80 px ahead). Spectral asps bite enemies passing over the nest for light
     /// damage, one second of immobilizing hitstun (the design's brief Root under
     /// the single-status rule), and Venom for 4 s. Story-only Resonance perk
     /// Asp's Bite doubles Venom potency against airborne targets.
@@ -45,7 +46,7 @@ namespace FTT.Characters.Abilities {
 
             Node spawned = FTT.Core.PoolManager.Instance?.Spawn(
                 Data.PersistentObjectScene,
-                Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 80f : -80f, 0f),
+                Owner.GlobalPosition,
                 Owner.GetParent());
             if (spawned is not SerpentNestNode nest) return;
 
@@ -70,8 +71,10 @@ namespace FTT.Characters.Abilities {
     }
 
     /// <summary>
-    /// Special 2 — Sandstorm Vortex: a swirling sand zone ahead of Cleopatra that
-    /// pulls caught targets toward its center (a steady horizontal positional
+    /// Special 2 — Sandstorm Vortex: a swirling sand zone THROWN up to 5 units
+    /// ahead of Cleopatra and snapped to the ground there (C01, Package 13 W7b;
+    /// a wall stops the throw short), 1.8 units in radius, that
+    /// pulls caught targets toward its center at 3 units/s (a steady horizontal positional
     /// drag that never zeroes velocity), deals the authored tick damage (5 ticks
     /// at 0.4 s across the 2 s lifetime; the final tick carries the authored
     /// launch so escaping the sand costs something), and applies TimeDilation
@@ -82,13 +85,20 @@ namespace FTT.Characters.Abilities {
     /// </summary>
     public partial class CleopatraSandstormVortex : BaseSpecial {
 
-        public const float VortexRadiusPixels = 120f;
-        // Mirrors the Fighter sim's 0.05 units-per-frame pull (3 px/frame).
-        private const float PullPixelsPerSecond = 180f;
+        /// <summary>C01: 1.8 units — one value in <see cref="KitReachRules"/>, both modes.</summary>
+        public static float VortexRadiusPixels =>
+            (float)KitReachRules.SandstormVortexRadiusUnits * KitMotionRules.StoryPixelsPerUnit;
+        /// <summary>C01: 3 units/s — the Fighter sim's 0.05 units-per-frame pull.</summary>
+        private static float PullPixelsPerSecond =>
+            (float)KitReachRules.SandstormVortexPullUnitsPerSecond * KitMotionRules.StoryPixelsPerUnit;
+        /// <summary>C01: the throw reaches up to 5 units ahead.</summary>
+        public static float MaxThrowPixels =>
+            (float)KitReachRules.SandstormVortexMaxThrowUnits * KitMotionRules.StoryPixelsPerUnit;
+        private const float GroundSnapDropPixels = 480f;
 
         private bool _vortexActive;
         private Vector2 _vortexCenter;
-        private float _vortexRadius = VortexRadiusPixels;
+        private float _vortexRadius = (float)KitReachRules.SandstormVortexRadiusUnits * KitMotionRules.StoryPixelsPerUnit;
         private float _vortexLifetime;
         private float _vortexTickInterval;
         private float _vortexTickTimer;
@@ -147,7 +157,7 @@ namespace FTT.Characters.Abilities {
 
         private void SpawnVortex() {
             if (Owner == null) return;
-            _vortexCenter = Owner.GlobalPosition + new Vector2(Owner.IsFacingRight ? 100f : -100f, 0f);
+            _vortexCenter = ResolveThrowTarget();
             // Story-only minors: "Sand Radius +15%" (cleopatra_dm1, ZoneRadius)
             // widens the vortex; "Sand Duration +20%" (cleopatra_dm2,
             // ZoneDuration) lengthens it. Neutral 1f outside Story Mode.
@@ -175,6 +185,33 @@ namespace FTT.Characters.Abilities {
                 1f,
                 new Color(0.8f, 0.7f, 0.3f),
                 _vortexRadius);
+        }
+
+        /// <summary>
+        /// C01: the throw lands up to five units ahead — short of a wall it
+        /// meets — and snaps to the ground under that point. Over a pit it stays
+        /// at her feet's height.
+        /// </summary>
+        public Vector2 ResolveThrowTarget() {
+            Vector2 origin = Owner.GlobalPosition;
+            float direction = Owner.IsFacingRight ? 1f : -1f;
+            Vector2 target = origin + new Vector2(direction * MaxThrowPixels, 0f);
+            var space = Owner.GetWorld2D()?.DirectSpaceState;
+            if (space == null) return target;
+            Vector2 throwHeight = new(0f, -24f);
+            var wallQuery = PhysicsRayQueryParameters2D.Create(
+                origin + throwHeight, target + throwHeight, FTT.Core.CollisionLayers.Environment);
+            Godot.Collections.Dictionary wall = space.IntersectRay(wallQuery);
+            if (wall.Count > 0 && wall.ContainsKey("position")) {
+                float wallX = ((Vector2)wall["position"]).X;
+                target.X = wallX - direction * Mathf.Min(VortexRadiusPixels, Mathf.Abs(wallX - origin.X));
+            }
+            var floorQuery = PhysicsRayQueryParameters2D.Create(
+                new Vector2(target.X, origin.Y - 24f), new Vector2(target.X, origin.Y + GroundSnapDropPixels),
+                FTT.Core.CollisionLayers.Environment | FTT.Core.CollisionLayers.OneWayPlatform);
+            Godot.Collections.Dictionary floor = space.IntersectRay(floorQuery);
+            if (floor.Count > 0 && floor.ContainsKey("position")) target.Y = ((Vector2)floor["position"]).Y;
+            return target;
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -310,10 +347,13 @@ namespace FTT.Characters.Abilities {
     }
 
     /// <summary>
-    /// Movement — Desert Mirage: Cleopatra dissolves into sand and rushes a short
-    /// distance in the held input direction, usable in the air for recovery.
-    /// Distance, duration (capped at the design's 3 s limit), and cooldown come
-    /// from the authored MovementAbilityData resource. Every accepted cast
+    /// Movement — Desert Mirage (C03, Package 13 W7b): a SAND RUSH. Cleopatra
+    /// dissolves into sand and travels the authored distance (4 units) in any of
+    /// eight directions over the authored duration (15 frames), passing through
+    /// opponents (her pushbox is off for the rush), with no invulnerability. The
+    /// retired 3-second cap and the "short teleport" reading are gone. Usable in
+    /// the air for recovery; cooldown from the authored MovementAbilityData.
+    /// Every accepted cast
     /// leaves a one-second sand decoy at its origin that Story enemies target
     /// (<see cref="SandDecoyNode"/>, Package 12 W4). Story-only Resonance
     /// perks: Quicksand Grip (vortex-caught targets are rooted 1 s on cast) and
@@ -325,13 +365,26 @@ namespace FTT.Characters.Abilities {
         public const string QuicksandGripPerkKey = "quicksand_grip";
         public const string RoyalAegisPerkKey = "royal_aegis";
 
-        private const float MaxMirageDuration = 3.0f;
         private const float QuicksandRootDuration = 1.0f;
 
         private Vector2 _mirageDirection;
         private Vector2 _startPosition;
-        private float _mirageDuration = 0.3f;
-        private float _mirageDistance = 180f;
+        private float _mirageDuration = 0.25f;
+        private float _mirageDistance = 240f;
+
+        /// <summary>The latched rush direction (unit, Godot Y down; test seam).</summary>
+        public Vector2 MirageDirection => _mirageDirection;
+
+        /// <summary>
+        /// C03: the held stick quantized to the eight directions (diagonals
+        /// normalized); neutral rushes along facing.
+        /// </summary>
+        public static Vector2 ResolveRushDirection(float horizontal, float vertical, bool facingRight) {
+            int x = horizontal > 0.3f ? 1 : horizontal < -0.3f ? -1 : 0;
+            int y = vertical > 0.3f ? 1 : vertical < -0.3f ? -1 : 0;
+            if (x == 0 && y == 0) x = facingRight ? 1 : -1;
+            return new Vector2(x, y).Normalized();
+        }
 
         private MovementAbilityData MovementData => Data as MovementAbilityData;
 
@@ -367,20 +420,13 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnStartup() {
             UseAuthoredPhaseFrames();
-            _mirageDuration = Mathf.Min(
-                MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : 0.3f,
-                MaxMirageDuration);
-            _mirageDistance = MovementData?.DistanceMoved > 0f ? MovementData.DistanceMoved : 180f;
+            _mirageDuration = MovementData?.MovementDuration > 0f ? MovementData.MovementDuration : 0.25f;
+            _mirageDistance = MovementData?.DistanceMoved > 0f ? MovementData.DistanceMoved : 240f;
 
-            float hInput = Owner.CurrentInputFrame.Horizontal;
             // Negative vertical aims upward (Godot 2D Y is down); since §2.7 it
             // comes from the Up input rather than a held Jump.
-            float vInput = Owner.CurrentInputFrame.Vertical;
-            _mirageDirection = new Vector2(hInput, vInput);
-            if (_mirageDirection == Vector2.Zero) {
-                _mirageDirection = Owner.IsFacingRight ? Vector2.Right : Vector2.Left;
-            }
-            _mirageDirection = _mirageDirection.Normalized();
+            _mirageDirection = ResolveRushDirection(
+                Owner.CurrentInputFrame.Horizontal, Owner.CurrentInputFrame.Vertical, Owner.IsFacingRight);
             _startPosition = Owner.GlobalPosition;
             // Vortex Step (traversal): consumed atomically at the accepted
             // cast, BEFORE the cooldown is armed in BaseSpecial, and never
@@ -392,10 +438,23 @@ namespace FTT.Characters.Abilities {
 
         protected override void OnActive() {
             PhaseTimer = _mirageDuration;
+            // C03: the rush passes through opponents.
+            SetPushbox(false);
+        }
+
+        protected override void OnInterrupted() {
+            SetPushbox(true);
+        }
+
+        private void SetPushbox(bool enabled) {
+            Owner?.GetNodeOrNull<CombatantPushbox>("Pushbox")?.SetPushEnabled(enabled);
         }
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
+            SetPushbox(true);
+            // The rush ends with its momentum spent.
+            Owner.Velocity = Vector2.Zero;
             FTT.Core.EventBus.Instance?.RaiseMovementAbilityUsed(new FTT.Core.MovementAbilityPayload {
                 PlayerIndex = Owner.PlayerIndex,
                 AbilityName = Data?.AbilityName ?? "Desert Mirage",
