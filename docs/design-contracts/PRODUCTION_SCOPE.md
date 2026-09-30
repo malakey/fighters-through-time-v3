@@ -1,5 +1,7 @@
 # Production scope and evidence — P01
 
+> **Amended 2026-09-28 (story review S27): the Legacy Level is retired, which supersedes P01 Option A's nine variants.** Non-tutorial production is now **15 level/boss slots**, and one run is **15 levels plus Level 0**. The Legacy art/music coverage and the Joan 4A prototype below are kept as history. Level 0's per-hero nexus openings still need their settings (Princeton, Prague and the Maryland–Pennsylvania line have no shared-level art to reuse).
+
 Decision: 2026-09-12. User selected **Option A: retain nine Legacy Levels, reuse suitable era art and musical themes, add necessary variants, and prototype one representative 4A before accepting production estimates**. This is a design/budgeting contract; it does not supply finished assets, a playable prototype or measured costs.
 
 ## Count authored content separately from original assets
@@ -7,9 +9,8 @@ Decision: 2026-09-12. User selected **Option A: retain nine Legacy Levels, reuse
 | Scope | Authored coverage |
 |---|---|
 | Shared non-tutorial campaign | 15 levels and 15 boss encounter slots, Levels 1–15 |
-| Per-character Legacy content | 9 distinct 4A levels and 9 boss encounter slots, one for each current roster hero |
-| Total non-tutorial production | **24 level/boss slots** |
-| One campaign run | 15 shared levels + the chosen 4A = **16 non-tutorial levels**, plus Level 0 |
+| Total non-tutorial production | **15 level/boss slots** (S27) |
+| One campaign run | **15 non-tutorial levels**, plus Level 0 |
 | Separate coverage | Level 0 and its per-hero opening variants, Time-Ship hub, Fighter arenas and drills; not extra non-tutorial boss slots |
 
 An encounter slot is a required implementation/presentation binding, not an automatic new atlas, rig, music composition or boss archetype. Mirror Paradox retains its existing fighter-kit reuse. Reused assets still incur integration, layout, telegraph, performance and validation work. Count shared source assets once and per-level adaptation work separately.
@@ -30,7 +31,7 @@ The following are **candidate reuse families**, not verified asset IDs or claims
 | Abraham Lincoln | Gettysburg-era materials where the authored nexus supports them | Gettysburg theme/stems when suitable; no forced battlefield treatment for a different nexus |
 | Albert Einstein | Review compatible existing period/interior assets against his authored nexus; source mapping pending | No shared home-era score is assumed. Select suitable existing material or budget a targeted arrangement/new material |
 | Wolfgang Amadeus Mozart | Review existing period/interior assets against his authored nexus; source mapping pending | Select a suitable musical theme/stem family or budget missing material; character identity does not remove composition/arrangement work |
-| Pocahontas | Review existing landscape/nature materials against her authored nexus; source mapping pending | No shared home-era score is assumed. Select suitable existing material or budget targeted new material |
+| Harriet Tubman | Review existing rural nineteenth-century landscape and night materials against her authored nexus; source mapping pending | No shared home-era score is assumed. Select suitable existing material (spirituals-inspired motifs, respectfully arranged) or budget targeted new material |
 
 For each variant, record stable level/hero and boss encounter IDs, source asset/music IDs, reuse-versus-adaptation-versus-new work, and pending authoring/validation. Do not manufacture an ID/path for an unavailable resource. Period, place, personal story and puzzle readability take precedence over reuse; a superficially similar asset/theme is not automatically suitable.
 

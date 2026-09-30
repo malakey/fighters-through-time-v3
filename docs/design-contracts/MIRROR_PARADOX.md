@@ -1,5 +1,7 @@
 # Mirror Paradox campaign AI — F20, Option A
 
+> **Fiction (story review S45, 2026-09-29):** the Mirror Paradox is the Void's reflection — rift-space throws the hero's own resonance back as an echo. No one built it.
+
 Decision: 2026-09-12. Mirror Paradox remains the mandatory Level 13 mirror duel with one phase and the active character's full core kit. Its reactions and defense now scale with Story difficulty. This replaces the blanket Hard-CPU assignment. Implementation and encounter validation are pending.
 
 ## Campaign profile

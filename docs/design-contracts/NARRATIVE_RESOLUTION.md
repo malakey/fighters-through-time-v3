@@ -1,12 +1,16 @@
 # Narrative resolution decisions
 
+> **Amended 2026-09-29 (story review S33):** the Severed never try to change historical outcomes; they drain the energy of pivotal moments, and the Linked and Severed forces only protect the extraction. Read "repaired outcome", "sabotage" and "threatened outcome" below as the drained moment that sealing mends — not an altered history being put back.
+
+> **Amended 2026-09-28 (story review S27): the per-character Legacy Level (4A) is retired.** Everything below that applies only to 4A is kept as history and marked retired. N05 now counts **14 levels (2–15) against 700 percentage points**. The hero's Level 0 nexus wound is healed by the ending's total release, not by a mission.
+
 Design revision: 2026-09-12. N01 is resolved by user-selected **Option B: after the boss, the player interacts with a marked anchor to seal the timeline and trigger the restoration/completion sequence**. N02 is resolved by user-selected **Option A: sealing permanently repairs a specific historical moment/outcome; 4A addresses the separate unresolved nexus wound in the same era**. N03 is resolved by user-selected **Option A: brief recognition in the shared home-era level, with the larger personal story reserved for 4A**. N04 is resolved by user-selected **Option A: keep named captive/release scenes, selected from the non-active roster, and rescue only the chosen hero in the opening**. This specifies design behavior; scene authoring, implementation and runtime validation remain pending.
 
 Authority: [main design](../design-godot-v7.md), [Story persistence](STORY_PERSISTENCE.md), [dust economy](DUST_ECONOMY.md), [comfort settings](COMFORT_SETTINGS.md) and [temporal rules](TEMPORAL_STATE_CONTRACT.md).
 
 ## N01 — Player-triggered sealing after the boss
 
-For campaign boss levels, including each 4A, boss defeat unlocks a sealing interaction rather than immediately completing the level. Level 0 keeps its existing tutorial transition. The repeated sequence is: defeat the boss → existing brief defeat dialogue → regain control beside the boss reward and clearly marked sealing anchor → use Interact → restoration vignette/results and the existing onward destination.
+For campaign boss levels, boss defeat unlocks a sealing interaction rather than immediately completing the level. Level 0 keeps its existing tutorial transition. The repeated sequence is: defeat the boss → existing brief defeat dialogue → regain control beside the boss reward and clearly marked sealing anchor → use Interact → restoration vignette/results and the existing onward destination.
 
 Show the current C01c binding with **“Seal Timeline — Complete Level.”** Use a single deliberate Interact press, without a new hold/channel, meter cost, consumable, purchased perk, combat move or added confirmation dialog. This is the normal completion action, not another puzzle or a search for remaining Extractors.
 
@@ -30,7 +34,7 @@ The pre-boss clock is already locked: time spent collecting the boss pickup or a
 
 Acts I–II retain the results/deposit/Time-Ship route. Levels 13–14 retain the existing no-hub transition to the next level and completion-only Beacon deposit. Use their authored local objective to express the same interaction: securing the passage or disabling the remaining local intake. Do not imply that the Forge, every captive or the firing channel is released at those earlier endpoints.
 
-At Level 14, the interaction completes the local objective and triggers the authored firing/escape-to-Level-15 sequence; the firing channel remains the route to the Meridian. At Level 15, defeating The First Unbound exposes the half-seated Prime Anchor for the player's sealing interaction. That accepted interaction triggers its shattering and the existing total-release ending. It adds no second boss phase or attack test. Preserve the final campaign-average ending variant, all captives' release and the hero's eventual return. Commit completion/rewards before credits, not when credits finish.
+At Level 14, the interaction completes the local objective and triggers the authored firing/escape-to-Level-15 sequence; the firing channel remains the route to the Meridian. At Level 15, defeating The First Severed exposes the half-seated Prime Anchor for the player's sealing interaction. That accepted interaction triggers its shattering and the existing total-release ending. It adds no second boss phase or attack test. Preserve the final campaign-average ending variant, all captives' release and the hero's eventual return. Commit completion/rewards before credits, not when credits finish.
 
 ### Persistence and event ordering
 
@@ -44,7 +48,7 @@ Use distinct boss-defeat, seal-ready, seal-accepted and presentation event ident
 
 ## Pending verification
 
-Verify every boss level and 4A on all difficulties; ready interaction with empty meter/spent healing/unavailable cooldowns, C01c remaps, Time Freeze rejection and safe anchor/pickup access. Check uncollected versus collected boss rewards, all/none/some optional Extractors destroyed, no shutdown loot or secret credit and identical final Integrity/tier before and after sealing.
+Verify every boss level on all difficulties; ready interaction with empty meter/spent healing/unavailable cooldowns, C01c remaps, Time Freeze rejection and safe anchor/pickup access. Check uncollected versus collected boss rewards, all/none/some optional Extractors destroyed, no shutdown loot or secret credit and identical final Integrity/tier before and after sealing.
 
 Exercise quit/crash before boss defeat commit, AwaitingSeal, pickup collection, seal commit, vignette skip/interruption, results/deposit and final credits. Confirm one boss reward, one completion/deposit, preserved locked score and correct Act III/no-hub and final-ending destinations. Validate actual era-specific restoration imagery and reduced presentation; no runtime passes are claimed.
 
@@ -54,9 +58,11 @@ User selected Option A on 2026-09-12. **Sealing protects the particular repaired
 
 A successfully sealed mission's repaired outcome remains permanent within the campaign. A later incursion elsewhere in that era cannot reopen the same sealed wound, reverse its victory, reset its completion/rewards or demand that the player complete it again. “Restore an era” may remain concise mission language only when its context clearly means that mission's historical moment; lore explanations must not promise era-wide immunity.
 
-### The separate 4A wound
+### The separate 4A wound — retired (S27)
 
-Level 0 rescues the hero from the attempted extraction but does not complete a sealing of that hero's nexus wound. The later shared-level victory repairs its own authored sabotage/outcome. Level 4A returns to the still-unresolved nexus, where the Unbound are renewing their extraction attempt against the escaped legend. The phrase “second incursion” means a renewed attempt at that unresolved wound, not reopening a completed shared level.
+*Retired 2026-09-28: there is no Legacy Level. The hero's nexus wound stays open until the ending's total release. The paragraphs below are kept as history.*
+
+Level 0 rescues the hero from the attempted extraction but does not complete a sealing of that hero's nexus wound. The later shared-level victory repairs its own authored sabotage/outcome. Level 4A returns to the still-unresolved nexus, where the Severed are renewing their extraction attempt against the escaped legend. The phrase “second incursion” means a renewed attempt at that unresolved wound, not reopening a completed shared level.
 
 Keep existing character-specific settings in real history: Joan's vanguard field, Leonardo's nexus site and the other authored locations do not move into rift space. They can share an era, and even the broader historical episode, with a shared level, but must have a distinct unresolved wound and objective. A different room alone is not the explanation. The 4A threat concerns the legend/nexus; it cannot undo the shared mission's already-sealed historical outcome.
 
@@ -68,15 +74,17 @@ Each mission dossier/scene manifest must name its stable repaired-moment or woun
 
 N01's sealing interaction closes the rifts and shuts down the local siphons belonging to that mission's wound. It does not globally disable every machine or outstanding mission with the same era label. Persist the repaired-wound scope with the existing completion/sealed result, or reconstruct it from an immutable versioned level-to-wound mapping. Restore completed results on load; never migrate a completed shared level into an unsealed state merely to enable 4A. Actual schema/mapping migration remains implementation work.
 
-Use a concise explanation on the 4A briefing when an earlier repair could make the return confusing, for example: **“The victory you restored still holds. Your nexus is a separate wound—we pulled you free, but never sealed it.”** This is proposed reusable briefing intent, not nine finalized character scripts. Keep the Acts I–II knowledge boundary: no early Forge/harvest explanation is needed.
+*(Retired with 4A, S27.)* Use a concise explanation on the 4A briefing when an earlier repair could make the return confusing, for example: **“The victory you restored still holds. Your nexus is a separate wound—we pulled you free, but never sealed it.”** This is proposed reusable briefing intent, not nine finalized character scripts. Keep the Acts I–II knowledge boundary: no early Forge/harvest explanation is needed.
 
-Completing 4A seals that nexus mission through the same N01 interaction. It does not end the hero's unmoored condition, remove their kit or return them home permanently. Preserve the single total release and voluntary power surrender at the existing final ending. The global ending can resolve the wider crisis without requiring new playable levels for every other legend.
+*(Retired with 4A, S27.)* Completing 4A seals that nexus mission through the same N01 interaction. It does not end the hero's unmoored condition, remove their kit or return them home permanently. Preserve the single total release and voluntary power surrender at the existing final ending. The global ending can resolve the wider crisis without requiring new playable levels for every other legend.
 
 ### Pending verification
 
-Review all nine Legacy/shared-level relationships, including shared-before-4A and shared-after-4A ordering. Verify distinct wound/outcome mappings, no reopened victories, correct linked-siphon shutdown and no automatic completion/rewards in the other mission. Check early dialogue/briefings, level results and the final ending for era-wide immunity claims or an unintended early return/power loss. Verify load/migration preserves completed outcomes. Scene mappings, final dialogue and runtime validation remain pending.
+Verify distinct wound/outcome mappings, no reopened victories, correct linked-siphon shutdown and no automatic completion/rewards in the other mission. Check early dialogue/briefings, level results and the final ending for era-wide immunity claims or an unintended early return/power loss. Verify load/migration preserves completed outcomes. Scene mappings, final dialogue and runtime validation remain pending.
 
 ## N03 — Shared recognition, larger Legacy homecoming
+
+*Amended 2026-09-28 (S27): the Legacy homecoming is retired. The brief recognition beat is now the hero's personal moment in their home level; references below to 4A are history.*
 
 User selected Option A on 2026-09-12. When the active campaign hero is the central roster legend of a shared historical level, replace its missing-legend beat with **brief recognition of that hero's presence**. Keep the larger personal confrontation, nexus return and emotional payoff in Level 4A. The Legacy Level does not remove recognition from the shared mission or make its present hero “missing.”
 
@@ -111,7 +119,7 @@ Resolve stable dialogue/presentation variant IDs from the hero/level mapping, no
 
 ### Pending verification
 
-Check all six matching hero/level pairs and each nonmatching roster choice, including shared-before-4A and shared-after-4A order. Verify no active hero is called missing in dialogue, briefings or absence-specific art, while other missing-legend beats remain. Check short line scope, speaker placement, existing hero-line budget, no duplicate actor, localized names/glyphs, skip/reload/cross-slot variants and preserved puzzle/boss/sealing state. Final localization, scene authoring and runtime validation remain pending.
+Check all six matching hero/level pairs and each nonmatching roster choice, Verify no active hero is called missing in dialogue, briefings or absence-specific art, while other missing-legend beats remain. Check short line scope, speaker placement, existing hero-line budget, no duplicate actor, localized names/glyphs, skip/reload/cross-slot variants and preserved puzzle/boss/sealing state. Final localization, scene authoring and runtime validation remain pending.
 
 ## N04 — Named captive scenes exclude the active hero
 
@@ -133,7 +141,7 @@ Use the authored priority **Leonardo, Cleopatra, Tesla**, filter out the active 
 | Cleopatra | Da Vinci, Tesla |
 | Any of the other seven | Da Vinci, Cleopatra |
 
-Sarah's Moon line becomes: “...Coordinates. A fortress in the space between timelines. And inside it — resonance signatures. Alive. It's them. {CaptiveName1}. {CaptiveName2}. The others we lost. They were never adrift. The Unbound have had them since the first strike — and their resonance is draining.”
+Sarah's Moon line becomes: “...Coordinates. A fortress in the space between timelines. And inside it — resonance signatures. Alive. It's them. {CaptiveName1}. {CaptiveName2}. The others we lost. They were never adrift. The Severed have had them since the first strike — and their resonance is draining.”
 
 This retains the existing reveal: location, captivity and draining, without explaining the Forge, deficit or rewrite before Level 14. Keep the scene's current duration/line allocation; no added roll call.
 
@@ -158,25 +166,25 @@ User selected Option A on 2026-09-12. Each timed mission contributes equally to 
 
 ### Exact counted set and calculation
 
-The completed campaign contributes exactly **15 unique level IDs**: the fourteen shared levels numbered 2 through 15, inclusive, plus the selected hero's single Level 4A. Exclude untimed Levels 0 and 1, the other eight 4A variants, training and any noncampaign content. Use stable authored level IDs and the saved campaign hero's 4A mapping, including existing legacy scene IDs; do not parse localized titles or take every dictionary entry.
+The completed campaign contributes exactly **14 unique level IDs**: the levels numbered 2 through 15, inclusive (S27: the retired Legacy Level no longer counts). Exclude untimed Levels 0 and 1, training and any noncampaign content. Use stable authored level IDs and the saved campaign hero's 4A mapping, including existing legacy scene IDs; do not parse localized titles or take every dictionary entry.
 
 For each counted mission, use its final Integrity locked on successful PreBoss activation, then recorded with its accepted N01 sealing/completion transaction. Boss time, post-boss pickup collection and sealing presentation cannot change that value. The successful completed result is the one contribution; failed attempts, prior restart records and checkpoint samples do not add entries or impose new deductions. F10/F11 recovery rules remain unchanged.
 
 ```text
-requiredIds = shared Levels 2..15 + selectedHeroLegacyLevelId
-require 15 distinct completed IDs with valid recorded final Integrity
+requiredIds = Levels 2..15
+require 14 distinct completed IDs with valid recorded final Integrity
 total = sum(unrounded levelIntegrity[id] for id in requiredIds)
-endingAverage = total / 15
-cleanRestoration = total >= 750 percentage points
+endingAverage = total / 14
+cleanRestoration = total >= 700 percentage points
 ```
 
 Each valid final percentage is finite and within 0–100. Retain authoritative stored precision; do not round each level or the average before selection. Compare equivalent scaled units if the implementation uses fixed point. Exactly 50% selects the clean restoration; a value below 50% selects the scarred ending even if UI rounding would display 50. This is a rule for the existing ending, not a new numerical meter.
 
-Length, authored par, difficulty multiplier, optional dust, roster identity and narrative era size do not weight the entries. A ten-percentage-point improvement in any one counted level raises the average by 10/15 percentage points. All 4A variants have one equal contribution despite differing layouts and pars.
+Length, authored par, difficulty multiplier, optional dust, roster identity and narrative era size do not weight the entries. A ten-percentage-point improvement in any one counted level raises the average by 10/14 percentage points. All levels have one equal contribution despite differing layouts and pars.
 
 ### Narrative meaning
 
-The average is an abstract measure of the campaign's overall success resisting extraction. Acts I–II preserve historical moments; Act III represents resistance to smothering and disruption of the Unbound's delivery system. Equal contributions express each mission's importance, not equal quantities of harvested energy.
+The average is an abstract measure of the campaign's overall success resisting extraction. Acts I–II preserve historical moments; Act III represents resistance to smothering and disruption of the Severed's delivery system. Equal contributions express each mission's importance, not equal quantities of harvested energy.
 
 Retain the Forge's fictional use of captive resonance and stolen years, the escaped hero's deficit and both existing outcomes. At 50% or above, the campaign has sufficiently starved/disrupted the operation for the Prime Anchor to fail cleanly. Below 50%, it partially seats before destruction and leaves the existing visible scar. Do not equate the average, its complement or a single Integrity point with a measured quantity of Forge charge. The Act III candle rule still gives the hero full power until smothered; it is not gradual fuel loss.
 
@@ -184,10 +192,10 @@ N01's final shattering, N04's filtered captive release and final hero farewell, 
 
 ### Persistence and validation
 
-At accepted Level 15 sealing, include its locked final Integrity and completion marker in the same atomic transaction as the final selected ending variant and its rule version. Calculate against that proposed complete 15-level record, not a precommit 14-level dictionary. Commit before the ending presentation. Skip, reload and credits resume the committed variant without recomputation under later tuning or duplicate rewards.
+At accepted Level 15 sealing, include its locked final Integrity and completion marker in the same atomic transaction as the final selected ending variant and its rule version. Calculate against that proposed complete 14-level record, not a precommit 13-level dictionary. Commit before the ending presentation. Skip, reload and credits resume the committed variant without recomputation under later tuning or duplicate rewards.
 
 A missing or invalid required record is a save/migration validation problem, not an automatic zero, 100, smaller denominator or guessed level score. Recover trustworthy records under versioned migration/backup rules; preserve the original slot and balances when data cannot be reconstructed and report the unresolved data. Do not invent a new restart penalty or silently change an already-committed ending. Preserve an existing completed save's recorded ending under its recorded rule version; implementation must inspect shipped formats before choosing concrete schema fields/version numbers.
 
-Check all nine hero-to-4A mappings, identical contributions across differing level lengths, exclusion of 0/1 and stray/other-hero entries, exact/just-below/just-above threshold, retained fractional precision, F10/F11 retry histories, the Level 15 transaction, duplicate sealing, interrupted writes, skip/reload and legacy saves. Illustrative arithmetic: fifteen 50% results total 750 and select clean restoration; fourteen 50% results plus one 49.9% total 749.9 and select the scarred ending. These are design examples, not evidence of runtime tests or attainable route balance.
+Check identical contributions across differing level lengths, exclusion of 0/1 and stray/other-hero entries, exact/just-below/just-above threshold, retained fractional precision, F10/F11 retry histories, the Level 15 transaction, duplicate sealing, interrupted writes, skip/reload and legacy saves. Illustrative arithmetic: fifteen 50% results total 750 and select clean restoration; fourteen 50% results plus one 49.9% total 749.9 and select the scarred ending. These are design examples, not evidence of runtime tests or attainable route balance.
 
 N01–N05 are resolved in design. Scene authoring, save binding/migration, route balance and runtime validation remain pending.

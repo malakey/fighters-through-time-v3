@@ -1,5 +1,7 @@
 # Checkpoint recovery budgets — F11 Option A
 
+> **Amended 2026-09-28 (story review S27):** the per-character Legacy Level (4A) is retired, and with it F04 (the Nexus Resonance Source) and F12's two-checkpoint 4A structure. Every rule below that applies only to 4A, F04 or the Legacy checkpoint contract is history, not design of record; the shared-level rules are unchanged. The ending counts Levels 2–15 (14 IDs).
+
 Decision: 2026-09-12. Timer-collapse recovery uses an authored minimum for each checkpoint and difficulty, based on the remaining mandatory route plus a safety margin. **25% remains the lower bound.** This supplements [Timeline Integrity](../design-godot-v7.md) and [F10 persistence](STORY_PERSISTENCE.md). It does not change the normal F01 drain formula.
 
 ## Calculation

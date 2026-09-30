@@ -24,10 +24,13 @@ Create one result row per character, attack variant, tested contact frame/height
 |---|---|---|---|
 | Ground string | Each hit; early/late contact; every startup profile; legal cancels | Pending | Pending |
 | Aerial string | Each hit; high contact and contact just before landing; fast-fall | Pending | Pending |
-| Directional attacks | Ground/air up-attack; late landing down-air; early/late contact | Pending | Pending |
+| Directional attacks | Ground/air up-attack; late landing down-air; down-air slam spike offstage, forced ground bounce on floor and one-way platforms (A12); early/late contact | Pending | Pending |
 | Specials/projectiles | Blockable variants; distance-dependent arrival; eligible cancels | Pending | Pending |
 | Persistent constructs | Single tick and overlapping sources; no-hitstop exemption | Pending | Pending |
-| Shatter | Basic final-charge block; special shatter; applicable Story Guard-Crush | Pending | Pending |
+| Shatter | Basic final-charge block; 2-charge Special at 3 and at 1–2 charges; Shield-Breaker shatter (A01); applicable Story Guard-Crush | Pending | Pending |
+| Ultimate activation (A02) | Fighter activation strike: roll-through, jump-over and out-of-range whiffs; whiff-recovery punish; Aegis/barrier-absorbed contact | Pending | Pending |
+| Air dodge (A03) | Invulnerable-frame coverage vs aerial strings and up-attack; once-per-airtime refresh on landing/ledge; late-dodge grounded recovery punish | Pending | Pending |
+| Grab reach (A13) | Grab connects at pushbox contact for every character pair, including Lincoln and Cleopatra hurtbox overrides; maximum 1.2-unit pivot distance | Pending | Pending |
 
 No row is currently a measured result. An unimplemented move or stage is blocked coverage, not a passing test. An illustrative frame calculation cannot substitute for this table.
 
@@ -47,7 +50,7 @@ Run mechanical escape checks with deterministic defender inputs that explore leg
 | Landing tech | Tumble contact with charges 0/full, including shatter lockout; missed and held input | Existing charge-independent 12-frame invulnerable, action-locked recovery; distinguish a genuine ground contact from airborne pressure |
 | Knockdown and get-up (M05) | Missed tech on flat ground, near ledges and walls; neutral vs roll get-up each direction; attacker meaty timing; Story mobs under stagger accounting | 30-frame invulnerable knockdown prevents grounded hits; measure whether 10-frame neutral / 14-frame roll get-ups (no invulnerability) are reliably punishable or escapable, and whether the authored `Launches` set is complete |
 | Control statuses | Root, Static Charge, their reapplication/overlap with hitstun; Tesla Conductive present/absent | Legal actions under each status; mark duration must not be treated as stun; F07 rules respected |
-| Construct-assisted pressure | Each damaging construct; overlaps up to authored caps; melee follow-ups; owner death while objects persist | Effect of cadence, remaining lifetime, destruction opportunities, and resource limits on repetition |
+| Construct-assisted pressure | Each damaging construct; overlaps up to authored caps; melee follow-ups; Story owner death while objects persist; Fighter stock-loss despawn on the same tick (A04) | Effect of cadence, remaining lifetime, destruction opportunities, and resource limits on repetition |
 | Story protection | Standard enemies, elites, and flinchable bosses under basic/special/Static pressure | Existing resistance, getup protection, diminishing returns, and stagger budget apply; do not use them as evidence for PvP escape |
 
 Cover every character's relevant attacker kit and both mirror and contrasting defender weights/recovery kits. Sweep attack contact/landing boundaries and record tested ranges. Reproduce issues on open ground, walls, ceilings, platforms, and ledges where authored. Deferred pits/open-stage geometry remains blocked coverage until implemented. Check Fighter baseline first; test relevant Story grid effects separately, including F07's mark extension. Do not import Story Time Freeze, purchased perks, or enemy armor into Fighter results.

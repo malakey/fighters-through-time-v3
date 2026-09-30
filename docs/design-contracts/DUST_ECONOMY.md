@@ -1,6 +1,6 @@
 # Chronal Dust Economy — F05 Option A
 
-Design revision: 2026-09-12. User-selected direction: retain the **975-dust Resonance Grid** and meaningful upgrade choices. This ledger specifies the replacement reward budgets; it is not a measurement of shipped levels. Scene reward manifests, resource values, and gameplay validation still need implementation.
+Design revision: 2026-09-12; **amended 2026-09-28 (S27): the Legacy Level (4A) is retired and its row folds into Level 5 — every total, maximum and pacing threshold below is unchanged.** User-selected direction: retain the **975-dust Resonance Grid** and meaningful upgrade choices. This ledger specifies the replacement reward budgets; it is not a measurement of shipped levels. Scene reward manifests, resource values, and gameplay validation still need implementation.
 
 This file is the economy design ledger referenced by [the main design](../design-godot-v7.md). Its budgets replace the former universal 1–2 dust per standard enemy, 20 per elite, 50 per boss, and 25 per Extractor. The historical shipped Extractor value of 15 and the Mirror Paradox wallet-direct exception are not exceptions to this new design.
 
@@ -10,13 +10,13 @@ This file is the economy design ledger referenced by [the main design](../design
 - The required route pays **720 base dust**, or **720–787 after Integrity bonuses**.
 - Fully collecting optional content adds **280 base dust**. A thorough run pays **1,000 base**, or **1,000–1,094 after Integrity bonuses**.
 - These figures assume completion of each source once, collection of all drops on the chosen route, and no dust-loss penalties. Missed pickups, skipped encounters, and the established collapse/exit penalties can reduce income; the target is not a guaranteed wallet floor or automatic compensation.
-- Level 0 and training award no persistent dust. A run includes Levels 1–15 plus exactly one character's Level 4A, not all nine Legacy variants.
-- Level 1 has no Integrity clock and grants no Integrity bonus. Levels 2–15 and 4A use their existing tier rules. All difficulties and all 4A character variants use the same base envelopes.
+- Level 0 and training award no persistent dust. A run includes Levels 1–15.
+- Level 1 has no Integrity clock and grants no Integrity bonus. Levels 2–15 use their existing tier rules. All difficulties use the same base envelopes.
 - “Required route” means all authored mandatory combat and its boss, excluding optional detours. “Thorough” adds all Extractors, the designated secret, and any other optional rewards; no optional reward is added outside the envelope.
 
 ## Per-level budgets
 
-Boss rewards are **25 dust each** (16 bosses = 400). The required encounter column includes every other mandatory reward, including elite/Eraser ambushes. The optional column is a total for the level, never a reward per object. Cumulative columns exclude bonuses.
+Boss rewards are **25 dust each** (15 bosses = 375). The required encounter column includes every other mandatory reward, including elite/Eraser ambushes; Level 5's larger pool absorbs the retired 4A row (its 15 encounter + 25 boss dust, plus 10 optional). The optional column is a total for the level, never a reward per object. Cumulative columns exclude bonuses.
 
 | Level | Required encounters | Boss | Required total | Optional total | Required cumulative | Thorough cumulative |
 |---|---:|---:|---:|---:|---:|---:|
@@ -24,8 +24,7 @@ Boss rewards are **25 dust each** (16 bosses = 400). The required encounter colu
 | 2 | 15 | 25 | 40 | 10 | 90 | 110 |
 | 3 | 15 | 25 | 40 | 10 | 130 | 160 |
 | 4 | 15 | 25 | 40 | 20 | 170 | 220 |
-| 4A | 15 | 25 | 40 | 10 | 210 | 270 |
-| 5 | 15 | 25 | 40 | 20 | 250 | 330 |
+| 5 | 55 | 25 | 80 | 30 | 250 | 330 |
 | 6 | 15 | 25 | 40 | 20 | 290 | 390 |
 | 7 | 15 | 25 | 40 | 20 | 330 | 450 |
 | 8 | 15 | 25 | 40 | 20 | 370 | 510 |
@@ -36,9 +35,9 @@ Boss rewards are **25 dust each** (16 bosses = 400). The required encounter colu
 | 13 | 35 | 25 | 60 | 20 | 600 | 840 |
 | 14 | 35 | 25 | 60 | 20 | 660 | 920 |
 | 15 | 35 | 25 | 60 | 20 | 720 | 1000 |
-| **Total** | **320** | **400** | **720** | **280** | **720** | **1,000** |
+| **Total** | **345** | **375** | **720** | **280** | **720** | **1,000** |
 
-Level 1's optional allocation belongs to its Extractors; it does not add a secret before the existing Level 2 introduction. All nine Level 4A variants use 15 required encounter dust, 25 boss dust, and 10 optional dust regardless of layout or enemy count. Act III conduits, valves, and pylons use the Extractor allocation; their narrative names do not create extra currency. Under M16 (2026-09-26) they are 3-second Interact channels rather than combat machines; completion pays the same allocation once as a physical pickup.
+Level 1's optional allocation belongs to its Extractors; it does not add a secret before the existing Level 2 introduction. Act III conduits, valves, and pylons use the Extractor allocation; their narrative names do not create extra currency. Under M16 (2026-09-26) they are 3-second Interact channels rather than combat machines; completion pays the same allocation once as a physical pickup.
 
 ## Turning budgets into drops
 
@@ -51,7 +50,7 @@ These are authored budgets, not an invisible runtime cap that stops paying after
 5. Each difficulty compiles its authored source list against the same level pool. More enemies on Hard change the distribution, not the total. Reinforcements/summons that can repeat indefinitely have zero dust; finite scripted waves draw from the existing allocation. Changing a layout requires regenerating and validating its manifest before shipping.
 6. Optional allocations: Level 1 assigns all 10 to its Extractors. Other levels assign half their optional pool to all Extractors combined, and half to the designated secret/discovery reward. Split the Extractor half evenly by the same integer/remainder rule. With a 20-dust optional pool, two Extractors pay 5 each or three pay 4/3/3, and discovery pays 10. With a 10-dust optional pool, two pay 3/2 or three pay 2/2/1, and discovery pays 5.
 7. If an Extractor is also the designated secret, it owns the sum of its machine share and the discovery share, paid once as one pickup; the discovery flag must not trigger a second payout. A secret containing a Story item still carries its budgeted dust share. Optional guards draw no additional dust by default; if their kills carry some of the discovery reward, explicitly transfer that amount from the same pool and record each source. There is never an extra universal elite award.
-8. Puzzles, the Nexus Resonance Source, tutorial enemies, training, and repeatable spawns award no extra dust. Any bespoke bonus must be funded by an existing envelope. The Mirror Paradox boss follows the same 25-dust physical-pickup rule; remove its wallet-direct path.
+8. Puzzles, tutorial enemies, training, and repeatable spawns award no extra dust. Any bespoke bonus must be funded by an existing envelope. The Mirror Paradox boss follows the same 25-dust physical-pickup rule; remove its wallet-direct path.
 9. Keep the existing quantity-based sprite thresholds: Small 1–5, Medium 6–24, Large 25+. Every boss still produces a Large pickup at the arena center. An ordinary Extractor produces a Small or Medium icon according to its actual award, not a forced Large icon. E01 keeps the actual-collection +N dust feedback separate from destruction's brief future-drain notice; it neither credits an uncollected pickup nor changes this allocation. See [Extractor feedback](CAMPAIGN_VALIDATION.md#e01--readable-extractor-detours).
 
 For example, allocating 15 encounter dust to ten standard enemies and two elites gives quotas of 0.75 for each standard and 3.75 for each elite. Integer allocation pays the exact 15 across that authored list; it does not promise 1–2 per standard plus 20 per elite. If an author wants a particular elite to carry more of the pool, author a fixed share and distribute only the remainder; validate the unchanged total.
@@ -104,11 +103,11 @@ Affordability means total deposited earnings sufficient for a legal purchase pat
 
 ## Validation and implementation handoff
 
-Verified design arithmetic: 16 boss awards total 400; required encounter budgets total 320; optional allocations total 280; base totals are 720/1,000; all-Restored maxima are 787/1,094; the full grid remains 975. Integer source allocation must preserve each pool for every difficulty.
+Verified design arithmetic (rechecked after S27): 15 boss awards total 375; required encounter budgets total 345; optional allocations total 280; base totals are 720/1,000; all-Restored maxima are 787/1,094; the full grid remains 975. Integer source allocation must preserve each pool for every difficulty.
 
 Still required before gameplay sign-off:
 
-- Author actual stable source IDs and per-source values for all 16 visited levels, all nine 4A variants, and each difficulty; this checkout supplies design budgets, not validated scene inventories.
+- Author actual stable source IDs and per-source values for all 15 visited levels and each difficulty; this checkout supplies design budgets, not validated scene inventories.
 - Verify source sums, overlapping secret/Extractor ownership, finite ambushes, zero-reward repeatable spawns, and all bespoke awards against the ledger.
 - Exercise reward persistence with collected and uncollected drops across death rewind, collapse, Anchor Snap, quit, crash, restart, and completion reload.
 - Check representative legal first/second-Major routes in all nine grids and playtest affordability against encounter difficulty. Review poor-performance/loss-heavy runs separately; never inflate the “required-route” claim to include compensation that does not exist.

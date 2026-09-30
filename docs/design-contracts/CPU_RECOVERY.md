@@ -20,7 +20,7 @@ No CPU-only jump resets, cooldown refunds, invulnerability, teleport reach or St
 | Medium | Estimate reachable nearby landings/ledges and select a basic route using remaining jumps plus one suitable recovery ability activation. The movement ability is the default; a validated mobility Special may substitute where its trajectory fits better. Account for ascent versus horizontal distance and avoid obviously blocked routes. No multi-ability or deliberate platform/refund chains. |
 | Hard | Compare feasible routes and plan longer legal sequences using remaining jumps, movement abilities and explicitly validated mobility Specials or temporary platforms. Account for available resources, platform lifetime and visible threats through the reaction buffer. Re-evaluate after interruption or changed geometry; do not execute a fixed jump → movement → Special 2 script. Every action must make progress toward returning, not create indefinite offstage cooldown/ledge stalls. |
 
-An offstage episode ends on a stable landing on an authored stage platform or successful legal stage-ledge capture, or on KO. A jump refund or temporary staff-platform landing alone does not reset Easy/Medium's one-activation planning limit. Baseline ability effects still occur normally, including Pocahontas's jump reset and Mozart's platform/cooldown behavior; the limit constrains AI planning, not the character's kit.
+An offstage episode ends on a stable landing on an authored stage platform or successful legal stage-ledge capture, or on KO. A jump refund or temporary staff-platform landing alone does not reset Easy/Medium's one-activation planning limit. Baseline ability effects still occur normally, including Mozart's platform/cooldown behavior and Tubman's ledge snap; the limit constrains AI planning, not the character's kit.
 
 ## Per-character recovery profiles
 
@@ -28,15 +28,15 @@ All profiles include universal movement and legal ledge capture. These are desig
 
 | Character | Primary movement ability | Planning constraints |
 |---|---|---|
-| Einstein | Relativity Warp | Aim horizontal, vertical or diagonal translation; use the authored reduced-gravity float window when useful. Fast-fall cancels that float. Relativity Rift is not a directional recovery Special. |
-| Joan | Ascendant Wings | Rising leap followed by held glide, up to its normal three seconds. No purchased Wings Refresh in Fighter. |
+| Einstein | Relativity Warp | Aim the horizontal, vertical or diagonal spacetime fold (10-frame startup, instant relocation up to 4 units — E04); use the authored reduced-gravity float window when useful. Fast-fall cancels that float. Relativity Rift is not a directional recovery Special. |
+| Joan | Ascendant Wings | Rising leap followed by held Wing-Dive, up to its normal one second (A08). No purchased Wings Refresh in Fighter. |
 | Leonardo | Ornithopter Flight | Vertical boost followed by horizontal glide, up to its normal three seconds. A turret is not a solid stepping platform or prerequisite for recovery. |
 | Tesla | Lightning Blink | Aim the short directional blink at a legal return route; respect translation/collision rules and authored duration. Lorentz Pulse does not move Tesla back to a ledge. |
-| Shakespeare | Prospero's Flight | Forward/upward gust followed by horizontal glide. No retired teleport, facing swap or Story Midsummer Glide bonus. |
-| Mozart | Sonata Drift | Steer the rising glissando; its apex staff platform lasts three seconds. Hard may plan a valid staff landing and use the existing half-cooldown refund, accounting for expiry and return progress; do not treat it as permanent geometry. |
-| Cleopatra | Desert Mirage | Use its actual directional travel and collision behavior. No Story Vortex Step discount; Sandstorm Vortex is not a recovery launch. |
-| Lincoln | Rail Charge | Horizontal armored travel; obtain necessary height through legal jumps. Armor does not prevent damage or pit KOs. No Story Rail Breaker benefit. |
-| Pocahontas | Breeze Glide | Horizontal glide and the baseline double-jump reset; the reset can supply another legal jump within the same plan. Spirit Strike (Special 1) is a candidate mobility Special for Medium/Hard because its design includes a forced diagonal-up dash, but enable it only after confirming aerial legality and the implemented trajectory. Vine Snare is not a recovery move. |
+| Shakespeare | Prospero's Flight | Single forward/upward gust burst, no sustained glide (A08). No retired teleport, facing swap or Story Midsummer Gust bonus. |
+| Mozart | Sonata Drift | Steer the rising glissando; its apex staff platform lasts three seconds. Hard may plan a valid staff landing and use the existing half-cooldown refund (once per airtime — M04), accounting for expiry and return progress; do not treat it as permanent geometry. |
+| Cleopatra | Desert Mirage | Use its 8-direction 4-unit sand rush over 15 frames (C03). No Story Vortex Step discount; Sandstorm Vortex is not a recovery launch. |
+| Lincoln | Rail Charge | Horizontal armored travel of 5 units over 30 frames (LN02); obtain necessary height through legal jumps. Armor does not prevent damage or pit KOs. No Story Rail Breaker benefit. |
+| Harriet Tubman | North Star Leap | Aim the 8-way, 4-unit leap (18 frames) and use its extended 0.5-unit ledge snap. No Story Star Guide redirect. Conductor's Call and Foresight are not recovery tools. |
 
 Author a CPU recovery profile per character, linked to canonical ability identifiers. Each usable action needs its input/steering policy, aerial eligibility, resource prerequisites and a deterministic trajectory/landing check using shared movement rules. Reject missing or unvalidated optional Special mappings; fall back to verified jumps/movement instead of treating a slot number as a capability. Do not invent a new movement effect to satisfy an AI profile.
 

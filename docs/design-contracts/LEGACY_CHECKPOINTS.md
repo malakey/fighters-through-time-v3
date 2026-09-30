@@ -1,5 +1,8 @@
 # Legacy Level checkpoints — F12 Option A
 
+> **RETIRED 2026-09-28 (story review S27).** The per-character Legacy Level (4A) was dropped from the game by user decision. This contract is kept as history only and is not design of record. See [STORY_REVIEW_2026-09-27.md](../STORY_REVIEW_2026-09-27.md).
+
+
 Decision: 2026-09-12. Every character's Level 4A has **exactly two checkpoints: Entry and PreBoss**, both enabled on Easy, Normal and Hard. There is no Middle checkpoint or extra hidden recovery anchor. This shared contract applies to every `Level_04A_Legacy_{characterID}` variant and supplements its future scene/dossier manifest.
 
 ## Roles and authored identifiers
