@@ -158,6 +158,11 @@ Owns the **ground-wave** primitive (travels along the ground, grounded targets o
 
 *(Each workstream appends its entry here at merge.)*
 
+### W3 — Narrative A (branch `p13/W3`; handoff `docs/handoffs/P13_W3.md`)
+- **Test delta +30** (2527 → 2557 standalone): eight new suites (+28) and one case each in `NarrativeKnowledgeBoundaryTests` and `HubArrivalTests`; ten suites rewritten in place. Two filtered lock-protocol runs green (190/190, 260/260). No hash moves (nothing in `scripts/FighterSim/`).
+- **v8 fields declared** (additive, no derivation needed): `StorySaveData.SkippedCalibration`, `ShownFirstUseTooltips`, `LastHubLineVisit`, `HomecomingSeen`. The per-line hub **order** is derived from `ViewedDialogueIDs`; only the visit stamp is stored.
+- **Deviations:** (1) the hold's HP floor is a new `PlayerController.ScriptedHPFloor` clamp inside `ApplyDamage` plus `ClearRallyEcho()` — a shared-file touch outside the §3.7 regions, one marked block; (2) `DialogueManager` hides the portrait frame for `speaker_unknown_voice`; (3) `StorySceneBootstrapper` attaches `FirstUseTooltipPresenter` to every level; (4) `level_15.preboss` deleted (the design authors none) and `hub.sarah_act1` / `hub.sarah_act2` split into per-line sequences; (5) the hero's Level 0 cold-open lines and beat-7 hazards are not built (no design text), and Wren's Training Wing replay covers only the six existing drills; (6) copy W3 had to author beyond the design (Wren's hub tips, tooltip lines, fallback/Pocahontas accept-farewell lines, montage narration wording, objective lines) is listed for review in the handoff; (7) `hero_accept_line_tubman` / `hero_farewell_line_tubman` already exist — W5 must not re-add them.
+
 ## 10. Closeout report
 
 *(Phase C.)*
