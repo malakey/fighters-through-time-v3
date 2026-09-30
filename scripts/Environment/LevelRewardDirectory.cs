@@ -62,7 +62,6 @@ namespace FTT.Environment {
 
         private static LevelRewardLedger _ledger;
         private static int _ledgerLevelIndex = -1;
-        private static string _ledgerHeroID = "";
         private static Difficulty _ledgerDifficulty = Difficulty.Normal;
 
         private static readonly HashSet<string> Issued = new(StringComparer.Ordinal);
@@ -95,9 +94,9 @@ namespace FTT.Environment {
         internal static bool SuppressLedgerForTest { get; set; }
 
         /// <summary>
-        /// Compiles (or reuses) the ledger for the level, hero and difficulty
+        /// Compiles (or reuses) the ledger for the level and difficulty
         /// the session is currently on. Safe to call from anywhere and on every
-        /// award — it only rebuilds when one of those three changes.
+        /// award — it only rebuilds when one of those two changes.
         /// </summary>
         public static LevelRewardLedger EnsureCompiled() {
             if (SuppressLedgerForTest) return null;
@@ -105,21 +104,12 @@ namespace FTT.Environment {
             if (story == null) return _ledger;
             int levelIndex = (int)story.CurrentLevel;
             Difficulty difficulty = GameManager.Instance?.CurrentSession.Difficulty ?? Difficulty.Normal;
-            // Level 4A's manifest is per hero: the nine Legacy Levels share
-            // campaign index 16 and each authors its own approach inventory, so
-            // the locked character belongs in the cache key — otherwise a
-            // ledger compiled for one hero is reused for the next run's.
-            string heroID = levelIndex == LevelRewardManifest.LegacyLevelIndex
-                ? (GameManager.Instance?.CurrentSession.SelectedCharacterID ?? "")
-                : "";
-            if (_ledger != null && _ledgerLevelIndex == levelIndex && _ledgerDifficulty == difficulty
-                && string.Equals(_ledgerHeroID, heroID, StringComparison.Ordinal)) {
+            if (_ledger != null && _ledgerLevelIndex == levelIndex && _ledgerDifficulty == difficulty) {
                 return _ledger;
             }
             _ledgerLevelIndex = levelIndex;
-            _ledgerHeroID = heroID;
             _ledgerDifficulty = difficulty;
-            _ledger = Compile(LevelRewardManifest.LoadFor(levelIndex, heroID), difficulty);
+            _ledger = Compile(LevelRewardManifest.LoadFor(levelIndex), difficulty);
             return _ledger;
         }
 
@@ -178,7 +168,7 @@ namespace FTT.Environment {
             // Half to all Extractors combined, half to the designated secret. A
             // level with no secret gives the whole pool to its machines (Level
             // 1); a level with no machines gives the whole pool to its secret
-            // (Level 4A).
+            // (no shipped level since S27 retired Level 4A).
             var extractorIDs = new List<string>();
             foreach (string id in manifest.ExtractorSourceIDs ?? Array.Empty<string>()) {
                 if (!string.IsNullOrWhiteSpace(id)) extractorIDs.Add(id);
@@ -229,7 +219,7 @@ namespace FTT.Environment {
             if (at <= 0) return (head, enemyCount);
             string id = head.Substring(0, at);
             // "@0" means the level spawns the whole table unconditionally, with
-            // no difficulty scaling (Level 4A's Legacy approach).
+            // no difficulty scaling (Level 5's scripted Eraser debut).
             return int.TryParse(head.Substring(at + 1), out int authored)
                 ? (id, authored)
                 : (id, enemyCount);
@@ -353,7 +343,6 @@ namespace FTT.Environment {
             LastTierBonusDust = 0;
             _ledger = null;
             _ledgerLevelIndex = -1;
-            _ledgerHeroID = "";
             SuppressLedgerForTest = false;
         }
 

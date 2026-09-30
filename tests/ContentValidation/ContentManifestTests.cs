@@ -15,11 +15,9 @@ public class ContentManifestTests {
 
         AssertThat(manifest.SchemaVersion).IsEqual(ContentManifest.CurrentSchemaVersion);
         AssertThat(ContentManifestValidator.HasErrors(issues)).IsFalse();
-        // Sixteen shared campaign levels plus the authored Level 4A variants (V7.6).
-        // A12 ships the Einstein exemplar; B1-B3 raise this to 25 with the other
-        // eight heroes in Wave 2. B1 added joan/leonardo/lincoln (+3); B2 and B3 add
-        // three each in parallel, and the merged wave value is 25.
-        AssertThat(manifest.ForCategory(ContentCategory.StoryLevel).Count()).IsEqual(25);
+        // The sixteen campaign levels. Package 11 raised this to 25 with the nine
+        // Level 4A variants; Package 13 W2 (S27) retired them.
+        AssertThat(manifest.ForCategory(ContentCategory.StoryLevel).Count()).IsEqual(16);
         AssertThat(manifest.ForCategory(ContentCategory.FighterStage).Count()).IsEqual(10);
         // Package 11 A6b: the roster-sized rows are pinned as AGREEMENT rather
         // than as the number nine. This is the single surviving manifest

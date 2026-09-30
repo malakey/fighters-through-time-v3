@@ -614,18 +614,19 @@ namespace FTT.Environment {
         /// <summary>
         /// N05 (V7.6): which of the two authored endings this campaign earned.
         ///
-        /// <para>An <b>equal-weight average of exactly fifteen timed levels</b> —
-        /// the fourteen shared Levels 2–15 plus the saved hero's <b>one</b> Level
-        /// 4A. Untimed Levels 0 and 1 and the other eight 4A variants are
-        /// excluded; length, authored par, difficulty multiplier, optional dust
-        /// and era size weight nothing. Each contribution is that level's
-        /// PreBoss-<i>locked</i> final Integrity at full stored precision.</para>
+        /// <para>An <b>equal-weight average of exactly fourteen timed levels</b> —
+        /// Levels 2–15, with no hero dependence (S27 retired Level 4A; any
+        /// <c>level_04a_*</c> record a v7 save still carries is dead data).
+        /// Untimed Levels 0 and 1 are excluded; length, authored par, difficulty
+        /// multiplier, optional dust and era size weight nothing. Each
+        /// contribution is that level's PreBoss-<i>locked</i> final Integrity at
+        /// full stored precision.</para>
         ///
-        /// <para>The comparison is the <b>unrounded sum against 750 percentage
-        /// points</b> (50% across fifteen levels), never a rounded average or a
+        /// <para>The comparison is the <b>unrounded sum against 700 percentage
+        /// points</b> (50% across fourteen levels), never a rounded average or a
         /// per-level rounding: display rounding cannot change which ending plays,
-        /// so a run that would render as "50%" but sums below 750 gets the
-        /// scarred ending. Exactly 750 selects the clean restoration. Identical
+        /// so a run that would render as "50%" but sums below 700 gets the
+        /// scarred ending. Exactly 700 selects the clean restoration. Identical
         /// on every difficulty.</para>
         ///
         /// <para>Resolved here, inside the sealing transaction and before any
@@ -636,7 +637,7 @@ namespace FTT.Environment {
             get {
                 StorySaveData save = ResolveActiveSave();
                 if (save == null) return EndingDialogueID;
-                return StoryManager.IsCleanRestorationEnding(save, save.SelectedCharacterID)
+                return StoryManager.IsCleanRestorationEnding(save)
                     ? EndingDialogueID
                     : ScarredEndingDialogueID;
             }

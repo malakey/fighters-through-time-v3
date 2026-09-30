@@ -77,8 +77,9 @@ public class EncounterCompositionTests {
             .OverrideFailureMessage($"The Warden's authored debut is Level 6; the earliest placement is {wardenLevels[0]}.")
             .IsEqual(6);
 
-        // The Eraser is salted through 7-15 and debuts before that at Level 4A,
-        // which lives on its own route trigger rather than in a spawn table.
+        // The Eraser is salted through 7-15 and debuts before that at Level 5
+        // (S27; Level 4A until then), which lives on its own route trigger
+        // rather than in a spawn table.
         List<int> eraserLevels = rooms.Where(room => room.EnemyIDs.Contains(EraserID))
             .Select(room => room.Level).Distinct().OrderBy(level => level).ToList();
         AssertThat(eraserLevels.Count)
@@ -92,24 +93,20 @@ public class EncounterCompositionTests {
             .OverrideFailureMessage("Level 13's scripted ambush is a PAIR of Erasers.")
             .IsEqual(2);
 
-        // And the 4A debut trigger points at the real enemy, not the interim body.
-        // Every one of the nine Legacy variants builds its trigger through
-        // LegacyLevelControllerBase.BuildEraserDebut(), which never sets EnemyID -
-        // so the DEFAULT is what each variant actually spawns, and flipping it is
-        // what re-points all nine at once.
+        // And the debut trigger points at the real enemy, not the interim body.
+        // Level05Controller builds its trigger without setting EnemyID, so the
+        // DEFAULT is what the debut actually spawns.
         AssertString(EraserDebutTrigger.EraserEnemyID).IsEqual(EraserID);
         var defaultTrigger = AutoFree(new EraserDebutTrigger())!;
         AssertString(defaultTrigger.EnemyID)
-            .OverrideFailureMessage("Every Level 4A variant must get the real Eraser by default.")
+            .OverrideFailureMessage("The Level 5 debut must get the real Eraser by default.")
             .IsEqual(EraserID);
-        foreach (string hero in new[] {
-            "einstein", "joan", "leonardo", "lincoln", "cleopatra",
-            "tesla", "shakespeare", "mozart", "pocahontas"
-        }) {
-            AssertThat(FileAccess.FileExists($"res://scenes/campaign/Level_04A_{hero}.tscn"))
-                .OverrideFailureMessage($"Level 4A variant for '{hero}' is missing.")
-                .IsTrue();
-        }
+        // Package 13 W2 (S27): the debut moved from the retired Level 4A to Level 5,
+        // ahead of every salted placement.
+        AssertString(Level05Controller.EraserDebutTriggerID).IsEqual("level_05_titanic_eraser_debut");
+        AssertThat(FileAccess.FileExists("res://scenes/campaign/Level_04A_einstein.tscn"))
+            .OverrideFailureMessage("The retired Level 4A variants must be deleted.")
+            .IsFalse();
     }
 
     // === The authored room tables ===

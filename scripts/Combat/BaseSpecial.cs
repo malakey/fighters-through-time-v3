@@ -276,7 +276,7 @@ namespace FTT.Combat {
         /// <summary>
         /// Stamps a kit-built payload with the authored M08 hit contract of
         /// <paramref name="data"/> — Origin, Delivery, Launches — plus a fresh
-        /// per-contact identity, the owning actor and the GAP-14 Nexus fence.
+        /// per-contact identity and the owning actor.
         /// The ONE place a kit script copies these values; it never authors a
         /// second copy of them. <paramref name="deliveryOverride"/> is for the
         /// few kit hits whose delivery is structurally different from the
@@ -294,10 +294,6 @@ namespace FTT.Combat {
             if (payload.ContactId == 0) payload.ContactId = HitClassification.NextContactId();
             if (owner != null && GodotObject.IsInstanceValid(owner)) {
                 payload.SourceActorId = owner.GetInstanceId();
-                // GAP-14: every hit of a Nexus-authorized Ultimate is puzzle-only.
-                if (owner.IsNexusCastInFlight && payload.Origin == HitOrigin.Ultimate) {
-                    payload.PuzzleOnly = true;
-                }
             }
             return payload;
         }

@@ -42,13 +42,14 @@ public class DustEconomyTests {
 
     // The contract's §"Per-level budgets" table, in campaign-route order.
     // { CampaignLevel index, required encounters, boss, optional }
+    // Package 13 W2 (S27): the retired Level 4A row (15 / 25 / 10) folds into
+    // Level 5, which becomes 55 / 25 / 30. Every total is unchanged.
     internal static readonly int[][] LedgerRows = {
         new[] { 1, 25, 25, 10 },
         new[] { 2, 15, 25, 10 },
         new[] { 3, 15, 25, 10 },
         new[] { 4, 15, 25, 20 },
-        new[] { 16, 15, 25, 10 },   // Level 4A — one hero's Legacy Level, not all nine
-        new[] { 5, 15, 25, 20 },
+        new[] { 5, 55, 25, 30 },
         new[] { 6, 15, 25, 20 },
         new[] { 7, 15, 25, 20 },
         new[] { 8, 15, 25, 20 },
@@ -62,8 +63,8 @@ public class DustEconomyTests {
     };
 
     private const int BossAward = 25;
-    private const int RequiredEncounterTotal = 320;
-    private const int BossTotal = 400;
+    private const int RequiredEncounterTotal = 345;
+    private const int BossTotal = 375;
     private const int OptionalTotal = 280;
     private const int RequiredBase = 720;
     private const int ThoroughBase = 1000;
@@ -73,15 +74,9 @@ public class DustEconomyTests {
     /// <summary>Level 1 is untimed and can never pay an Integrity tier bonus.</summary>
     private static bool IsTimed(int campaignLevelIndex) => campaignLevelIndex != 1;
 
-    /// <summary>
-    /// A run visits Levels 1-15 plus EXACTLY ONE character's 4A, so the ledger-row
-    /// arithmetic below reads 4A once. With no hero this resolves to the
-    /// representative variant; all nine carry the identical row, which
-    /// <c>RewardManifestTests</c> proves per hero against each controller's own table.
-    /// </summary>
-    private static LevelRewardManifest Manifest(int campaignLevelIndex, string heroCharacterID = "") =>
-        AuthoredResources.Load<LevelRewardManifest>(
-            LevelRewardManifest.PathFor(campaignLevelIndex, heroCharacterID));
+    /// <summary>A run visits Levels 1-15; since S27 no manifest depends on the hero.</summary>
+    private static LevelRewardManifest Manifest(int campaignLevelIndex) =>
+        AuthoredResources.Load<LevelRewardManifest>(LevelRewardManifest.PathFor(campaignLevelIndex));
 
     [TestCase]
     public void AllNineGridsShareTheDocumentedCostCurve() {
@@ -146,9 +141,9 @@ public class DustEconomyTests {
 
     [TestCase]
     public void TheCampaignBudgetsTotalSevenHundredTwentyBaseAndOneThousandThorough() {
-        // "Verified design arithmetic: 16 boss awards total 400; required
-        // encounter budgets total 320; optional allocations total 280; base
-        // totals are 720/1,000."
+        // "Verified design arithmetic (rechecked after S27): 15 boss awards total
+        // 375; required encounter budgets total 345; optional allocations total
+        // 280; base totals are 720/1,000."
         int required = 0;
         int boss = 0;
         int optional = 0;
@@ -164,13 +159,13 @@ public class DustEconomyTests {
         AssertThat(optional).IsEqual(OptionalTotal);
         AssertThat(required + boss).IsEqual(RequiredBase);
         AssertThat(required + boss + optional).IsEqual(ThoroughBase);
-        // A run is Levels 1-15 plus EXACTLY ONE character's 4A, not all nine.
-        AssertThat(LedgerRows.Length).IsEqual(16);
+        // A run is Levels 1-15: fifteen boss levels, no Level 4A (S27).
+        AssertThat(LedgerRows.Length).IsEqual(15);
     }
 
     [TestCase]
-    public void AllSixteenBossesPayTwentyFiveAndOnlyTheBossForcesTheLargeIcon() {
-        // "Boss rewards are 25 dust each (16 bosses = 400)... The Mirror Paradox
+    public void AllFifteenBossesPayTwentyFiveAndOnlyTheBossForcesTheLargeIcon() {
+        // "Boss rewards are 25 dust each (15 bosses = 375)... The Mirror Paradox
         // boss follows the same 25-dust physical-pickup rule."
         var issues = new List<string>();
         foreach (string path in TopLevelResources("res://resources/Bosses")) {
@@ -180,14 +175,9 @@ public class DustEconomyTests {
                 issues.Add($"{path} pays {boss.ChronalDustDrop}, not {BossAward}");
             }
         }
-        // All nine Legacy bosses, not just one: a run visits exactly one of them,
-        // so any variant paying a different number silently changes that run's row.
-        foreach (string path in TopLevelResources("res://resources/Bosses/legacy")) {
-            BossData legacyBoss = AuthoredResources.Load<BossData>(path);
-            if (legacyBoss == null) continue;
-            if (legacyBoss.ChronalDustDrop != BossAward) {
-                issues.Add($"the Level 4A boss {path} pays {legacyBoss.ChronalDustDrop}, not {BossAward}");
-            }
+        // S27 deleted the nine per-hero Level 4A bosses with their subdirectory.
+        if (DirAccess.DirExistsAbsolute("res://resources/Bosses/legacy")) {
+            issues.Add("res://resources/Bosses/legacy still exists; the Level 4A bosses were retired");
         }
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
 
@@ -195,10 +185,9 @@ public class DustEconomyTests {
         var fresh = new BossData();
         AssertThat(fresh.ChronalDustDrop).IsEqual(BossAward);
 
-        // Every manifest reserves that same 25 as its single boss award. Level
-        // 4A's manifest is per hero, so all nine are checked.
-        foreach ((int levelIndex, string hero) in RewardManifestTests.LedgerManifests()) {
-            AssertThat(Manifest(levelIndex, hero).BossAward).IsEqual(BossAward);
+        // Every manifest reserves that same 25 as its single boss award.
+        foreach (int levelIndex in RewardManifestTests.LedgerManifests()) {
+            AssertThat(Manifest(levelIndex).BossAward).IsEqual(BossAward);
         }
     }
 
@@ -218,8 +207,9 @@ public class DustEconomyTests {
         AssertThat(BossAward >= tiers.LargeThreshold).IsTrue();
 
         // No authored Extractor share on any level can reach the Large band:
-        // the largest optional pool is 20 and half of it is split across the
-        // machines, so a machine's icon is always its real quantity.
+        // the largest optional pool is 30 (Level 5 since S27) and half of it is
+        // split across its four machines, so a machine's icon is always its real
+        // quantity.
         var issues = new List<string>();
         foreach (int[] row in LedgerRows) {
             LevelRewardManifest manifest = Manifest(row[0]);
@@ -325,7 +315,7 @@ public class DustEconomyTests {
         AssertThat(ThoroughBase - LedgerRows[^1].Skip(1).Sum() < FullGridCost).IsTrue();
     }
 
-    /// <summary>Non-recursive: the boss data resources, excluding the Abilities and legacy subtrees.</summary>
+    /// <summary>Non-recursive: the boss data resources, excluding the Abilities subtree.</summary>
     private static IEnumerable<string> TopLevelResources(string directory) {
         using DirAccess dir = DirAccess.Open(directory);
         if (dir == null) yield break;

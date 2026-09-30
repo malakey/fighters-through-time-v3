@@ -135,7 +135,7 @@ public class Level15ContentTests {
         // postboss carries the Core prompt; ending is the authored finale script.
         // Package 11 A6: N05 authors a second closing narration for a campaign
         // average below 50% - the Prime Anchor's visible scar. A3b owns the
-        // unrounded 750-point selection between the two.
+        // unrounded 700-point selection between the two (750 before S27).
         AssertThat(ids).ContainsExactlyInAnyOrder(
             "level_15.entrance", "level_15.preboss", "level_15.boss_intro",
             "level_15.postboss", "level_15.ending", "level_15.ending_scarred");
@@ -765,7 +765,8 @@ public class Level15ContentTests {
     /// <para><b>Package 11 A3b.</b> The ending is no longer a single authored
     /// sequence: <c>Level15Controller.SelectedEndingDialogueID</c> picks between
     /// <c>level_15.ending</c> and <c>level_15.ending_scarred</c> from the
-    /// unrounded sum of the fifteen counted levels against 750 percentage points.
+    /// unrounded sum of the fourteen counted levels against 700 percentage points
+    /// (fifteen and 750 until S27 retired Level 4A).
     /// An empty <c>IntegrityByLevel</c> sums to zero and correctly selects the
     /// scarred variant, so these endgame-CHAIN cases — which are about ordering,
     /// one-shot completion and the pause hand-off, not about which variant plays
@@ -780,7 +781,7 @@ public class Level15ContentTests {
             CurrentHP = 80,
             CurrentUltimateMeter = 30f
         };
-        foreach (string levelID in StoryManager.RequiredEndingLevelIDs("einstein")) {
+        foreach (string levelID in StoryManager.RequiredEndingLevelIDs()) {
             save.IntegrityByLevel[levelID] = 70f;
         }
         return save;

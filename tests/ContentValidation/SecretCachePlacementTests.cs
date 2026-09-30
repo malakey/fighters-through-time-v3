@@ -14,10 +14,9 @@ namespace FTT.Tests.ContentValidation;
 /// Package 12 W8: the two base-owned content hooks every boss level carries,
 /// checked against each level as it is really built — the authored scene
 /// entered into the tree once, so the code-built geometry exists — for
-/// Levels 2–15 and every Level 4A variant. The 4A variants are enumerated by
-/// reflection over <see cref="LegacyLevelControllerBase"/> subclasses, never a
-/// hero list, and each scene is instantiated ONCE per session: both cases read
-/// the same captured snapshot.
+/// Levels 2–15 (Package 13 W2: S27 retired the nine Level 4A variants this
+/// suite also swept). Each scene is instantiated ONCE per session: both cases
+/// read the same captured snapshot.
 ///
 /// <para><b>GAP-03 — the F05 secret cache.</b> Exactly one
 /// <see cref="SecretCache"/>, keyed to the manifest's <c>SecretSourceID</c>,
@@ -33,8 +32,7 @@ namespace FTT.Tests.ContentValidation;
 /// problem. The cache also keeps 300 px from every checkpoint and the spawn and
 /// stays outside every boss (and Mirror) reveal radius.</para>
 ///
-/// <para><b>GAP-05 — the N01 sealing anchor.</b> Levels 2–14 and every 4A
-/// variant carry the generic <see cref="TemporalCoreAnchor"/>: dormant at load,
+/// <para><b>GAP-05 — the N01 sealing anchor.</b> Levels 2–14 carry the generic <see cref="TemporalCoreAnchor"/>: dormant at load,
 /// ID <c>{DialoguePrefix}.sealing_anchor</c>, over a standable surface within
 /// 200 px below it (its interaction area is 220×320 centred 40 px above it),
 /// not buried in a solid body, and within 700 px of where the boss (or the
@@ -57,8 +55,8 @@ public class SecretCachePlacementTests {
         var issues = new List<string>();
         float doubleRise = 2f * WorstSingleJumpRise();
         List<LevelSnapshot> levels = Snapshots();
-        // Levels 2–15 plus one 4A per roster character.
-        AssertThat(levels.Count).IsEqual(14 + CharacterRoster.IDs.Count);
+        // Levels 2–15 (S27 retired the per-hero Level 4A variants).
+        AssertThat(levels.Count).IsEqual(14);
         foreach (LevelSnapshot level in levels) CheckSecret(level, doubleRise, issues);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
     }
@@ -68,17 +66,6 @@ public class SecretCachePlacementTests {
         var issues = new List<string>();
         foreach (LevelSnapshot level in Snapshots()) CheckSealingAnchor(level, issues);
         if (issues.Count > 0) AssertThat(string.Join(" | ", issues)).IsEqual("");
-    }
-
-    [TestCase]
-    public void EveryLegacyVariantMustAuthorItsSecretPosition() {
-        // The base declares the position abstract, so a future variant cannot
-        // compile without one; this pins that the declaration stays abstract.
-        var property = typeof(LegacyLevelControllerBase).GetProperty(
-            "SecretCachePosition",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        AssertObject(property).IsNotNull();
-        AssertThat(property.GetMethod.IsAbstract).IsTrue();
     }
 
     // === The two contracts ===
@@ -202,14 +189,6 @@ public class SecretCachePlacementTests {
         for (int level = 2; level <= 15; level++) {
             yield return ($"Level{level:00}", StoryManager.GetLevelScenePath((CampaignLevel)level), level, "");
         }
-        foreach (Type type in typeof(StoryLevelControllerBase).Assembly.GetTypes()) {
-            if (type.IsAbstract || !type.IsSubclassOf(typeof(LegacyLevelControllerBase))) continue;
-            var probe = (LegacyLevelControllerBase)Activator.CreateInstance(type);
-            string hero = probe.HeroCharacterID;
-            probe.Free();
-            yield return (type.Name, StoryManager.GetLevelScenePath(CampaignLevel.LegacyNexus, hero),
-                (int)CampaignLevel.LegacyNexus, hero);
-        }
     }
 
     /// <summary>
@@ -231,7 +210,7 @@ public class SecretCachePlacementTests {
             GameManager.Instance.CurrentSession.SelectedCharacterID = string.IsNullOrEmpty(hero) ? "einstein" : hero;
             GameManager.Instance.CurrentSession.Difficulty = Difficulty.Normal;
 
-            snapshot.ManifestSecretID = LevelRewardManifest.LoadFor(index, hero)?.SecretSourceID;
+            snapshot.ManifestSecretID = LevelRewardManifest.LoadFor(index)?.SecretSourceID;
             PackedScene scene = ResourceLoader.Load<PackedScene>(scenePath);
             if (scene == null) { snapshot.LoadError = $"scene '{scenePath}' did not load"; return snapshot; }
             level = scene.Instantiate<StoryLevelControllerBase>();

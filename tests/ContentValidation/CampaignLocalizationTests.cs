@@ -31,22 +31,17 @@ namespace FTT.Tests.ContentValidation;
 [RequireGodotRuntime]
 public class CampaignLocalizationTests {
     /// <summary>
-    /// Authored campaign level scenes: the sixteen shared levels plus <b>one per
-    /// Level 4A variant</b>. Package 11 A12 (V7.6) added the first (the Einstein
-    /// exemplar) and B1-B3 add the other eight, so this is derived from the content
-    /// manifest rather than hardcoded — the three B agents author their heroes in
-    /// parallel and land in any order. The manifest's own count is pinned
-    /// independently by <c>ContentManifestValidator.ExactRequiredCounts</c>.
-    ///
-    /// <para>This is not the route length: all nine 4A variants share the single
-    /// <see cref="CampaignLevel.LegacyNexus"/> slot, so one playthrough still visits
-    /// sixteen levels plus one 4A variant.</para>
+    /// Authored campaign level scenes, derived from the content manifest rather
+    /// than hardcoded; the manifest's own count is pinned independently by
+    /// <c>ContentManifestValidator.ExactRequiredCounts</c>. Package 11 added one
+    /// row per Level 4A variant; Package 13 W2 (S27) retired all nine, so this is
+    /// the sixteen campaign levels again.
     /// </summary>
     private static int AuthoredLevelCount =>
         ContentManifest.LoadDefault().ForCategory(ContentCategory.StoryLevel).Count();
 
-    /// <summary>Route slots, including the one shared Legacy Nexus slot.</summary>
-    private const int CampaignRouteSlotCount = 17;
+    /// <summary>Route slots: Levels 0–15 (S27 retired the Legacy Nexus slot).</summary>
+    private const int CampaignRouteSlotCount = 16;
     private const string DialogueDirectory = "res://resources/Dialogue/";
 
     /// <summary>
@@ -98,9 +93,9 @@ public class CampaignLocalizationTests {
 
         AssertThat(sets).OverrideFailureMessage(
             $"Only {sets} dialogue sets were reached; the directory walk is broken.")
-            // Every authored level (incl. each 4A variant) + the hub + the one shared
-            // 4A set carrying the flavour Nexus moment (Package 12 W7).
-            .IsEqual(AuthoredLevelCount + 2);
+            // Every authored level + the hub (S27 deleted the nine 4A variant sets
+            // and the shared 4A set).
+            .IsEqual(AuthoredLevelCount + 1);
         AssertThat(sequences).OverrideFailureMessage(
             $"Only {sequences} dialogue sequences were reached.").IsGreaterEqual(48);
         AssertThat(lines).IsGreater(300);

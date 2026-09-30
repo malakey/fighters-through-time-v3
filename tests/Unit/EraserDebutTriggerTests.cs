@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using FTT.Environment;
 using GdUnit4;
 using Godot;
@@ -7,7 +8,9 @@ using static GdUnit4.Assertions;
 namespace FTT.Tests.Unit;
 
 /// <summary>
-/// F12 — the Level 4A Eraser debut route trigger (V7.6, Package 11 A12).
+/// F12 — the Eraser debut route trigger (V7.6, Package 11 A12). Built for the
+/// per-character Level 4A; Package 13 W2 (S27) moved it to Level 5, where the
+/// Level 0 watcher drops onto the Titanic's listing boat deck.
 ///
 /// <para>The trigger's whole authority is "spawn the ambush and raise the bark". The
 /// three rules worth pinning are the ones a later change could quietly violate: it
@@ -35,9 +38,9 @@ public class EraserDebutTriggerTests {
         AssertThat(fixture.Trigger.SpawnEraserDebut()).IsTrue();
         AssertThat(fixture.Trigger.SpawnCount).IsEqual(1);
 
-        // Its timing depends on neither difficulty nor a middle checkpoint — 4A has
-        // no middle checkpoint to depend on, and the trigger reads neither.
-        AssertString(fixture.Trigger.TriggerID).IsEqual("level_04a_test_eraser_debut");
+        // Its timing depends on neither difficulty nor a middle checkpoint — the
+        // trigger reads neither.
+        AssertString(fixture.Trigger.TriggerID).IsEqual(Level05Controller.EraserDebutTriggerID);
     }
 
     [TestCase]
@@ -111,13 +114,13 @@ public class EraserDebutTriggerTests {
     [TestCase]
     public void TimeFreezeCannotActivateTheEncounter() {
         using var fixture = new TriggerFixture();
-        NexusResonanceSource.WorldTimeSuspendedProbe = static () => true;
+        EraserDebutTrigger.WorldTimeSuspendedProbe = static () => true;
         try {
             AssertThat(fixture.Trigger.SpawnEraserDebut())
                 .OverrideFailureMessage("Time Freeze cannot activate the debut encounter.").IsFalse();
             AssertThat(fixture.Trigger.SpawnCount).IsEqual(0);
         } finally {
-            NexusResonanceSource.WorldTimeSuspendedProbe = static () => false;
+            EraserDebutTrigger.WorldTimeSuspendedProbe = static () => false;
         }
         AssertThat(fixture.Trigger.SpawnEraserDebut()).IsTrue();
     }
@@ -135,9 +138,9 @@ public class EraserDebutTriggerTests {
             .OverrideFailureMessage("The debut's enemy must be an authored resource.")
             .IsTrue();
 
-        // The DEFAULT is the real Eraser, so every Level 4A variant gets it with
-        // no per-variant change. The old interim body survives only as a
-        // documented fallback an authored scene may still select.
+        // The DEFAULT is the real Eraser, so Level 5 gets it with no override.
+        // The old interim body survives only as a documented fallback an
+        // authored scene may still select.
         var defaultTrigger = AutoFree(new EraserDebutTrigger())!;
         AssertString(defaultTrigger.EnemyID).IsEqual(EraserDebutTrigger.EraserEnemyID);
         AssertString(EraserDebutTrigger.PlaceholderEnemyID).IsEqual("chrono_guard_elite");
@@ -159,22 +162,114 @@ public class EraserDebutTriggerTests {
             .IsNotEqual(EraserDebutTrigger.DebutBarkKey);
     }
 
-    // === Fixture ===
+    // === Level 5 placement (Package 13 W2, S27) ===
+
+    [TestCase]
+    public void TheTitanicPlacesTheDebutOnTheBoatDeckBetweenTheMiddleAndPreBossAnchors() {
+        using var fixture = new TitanicFixture(null);
+        Level05Controller level = fixture.Level;
+        EraserDebutTrigger debut = level.EraserDebut;
+        AssertObject(debut).OverrideFailureMessage("Level 5 builds no Eraser debut.").IsNotNull();
+        AssertString(debut.TriggerID).IsEqual($"{Level05Controller.TitanicLevelID}_eraser_debut");
+        AssertString(debut.EnemyID).IsEqual(EraserDebutTrigger.EraserEnemyID);
+
+        // An independent route encounter between the Middle and PreBoss anchors,
+        // never a checkpoint benefit and never timed by difficulty.
+        AssertThat(level.Levels.TryGetCheckpointPosition(Level05Controller.Checkpoint1, out Vector2 middle)).IsTrue();
+        AssertThat(level.Levels.TryGetCheckpointPosition(Level05Controller.Checkpoint2, out Vector2 preBoss)).IsTrue();
+        float x = debut.GlobalPosition.X;
+        AssertThat(x > middle.X && x < preBoss.X)
+            .OverrideFailureMessage($"The debut at x={x} is not between Middle ({middle.X}) and PreBoss ({preBoss.X}).")
+            .IsTrue();
+        // The watcher drops in from above, onto the deck ahead of the player.
+        AssertThat(debut.SpawnOffset.Y < 0f).IsTrue();
+        AssertThat(debut.GlobalPosition.X + debut.SpawnOffset.X < preBoss.X).IsTrue();
+
+        // Encounter baselines: the Middle anchor precedes it (still live); the
+        // PreBoss anchor restores it as fought.
+        IReadOnlyDictionary<string, string[]> map = level.AuthoredEncounterBaselines;
+        AssertThat(new List<string>(map[Level05Controller.Checkpoint1]).Contains(debut.TriggerID)).IsFalse();
+        AssertThat(new List<string>(map[Level05Controller.Checkpoint2]).Contains(debut.TriggerID)).IsTrue();
+    }
+
+    [TestCase]
+    public void ResumingAtTheTitanicsAnchorsRebuildsOrCompletesTheDebutPerTheBaseline() {
+        foreach (string checkpointID in new[] { Level05Controller.Checkpoint1, Level05Controller.Checkpoint2 }) {
+            using var fixture = new TitanicFixture(new FTT.Core.StorySaveData {
+                SelectedCharacterID = "einstein",
+                CurrentLevelID = FTT.Core.StoryManager.GetLevelScenePath(FTT.Core.CampaignLevel.Titanic),
+                LastCheckpointID = checkpointID,
+                CurrentHP = 70
+            });
+            Level05Controller level = fixture.Level;
+            AssertThat(level.ResumedMidLevel).OverrideFailureMessage($"'{checkpointID}' did not restore.").IsTrue();
+            bool preBoss = checkpointID == Level05Controller.Checkpoint2;
+            AssertThat(level.EraserDebut.EncounterCleared)
+                .OverrideFailureMessage(preBoss
+                    ? "The PreBoss baseline must restore the debut as fought."
+                    : "A reload at the Middle anchor must leave the debut triggerable.")
+                .IsEqual(preBoss);
+            AssertThat(level.EraserDebut.RewardClaimed).IsEqual(preBoss);
+            AssertThat(level.EraserDebut.SpawnEraserDebut()).IsEqual(!preBoss);
+        }
+    }
+
+    // === Fixtures ===
+
+    /// <summary>The authored Titanic, slotless unless a save is supplied (scratch slot 2).</summary>
+    private sealed class TitanicFixture : IDisposable {
+        private const int ScratchSlot = 2;
+        public readonly Level05Controller Level;
+        private readonly int _originalSlot;
+        private readonly string _originalCharacter;
+        private readonly FTT.Core.StorySaveData _originalSave;
+        private readonly bool _originalPaused;
+
+        public TitanicFixture(FTT.Core.StorySaveData save) {
+            SceneTree tree = (SceneTree)Engine.GetMainLoop();
+            _originalPaused = tree.Paused;
+            _originalSlot = FTT.Core.GameManager.Instance.CurrentSession.ActiveSaveSlot;
+            _originalCharacter = FTT.Core.GameManager.Instance.CurrentSession.SelectedCharacterID;
+            _originalSave = FTT.Core.SaveManager.Instance.SaveSlots[ScratchSlot];
+            EraserDebutTrigger.WorldTimeSuspendedProbe = static () => false;
+
+            FTT.Core.GameManager.Instance.CurrentSession.ActiveSaveSlot = save == null ? -1 : ScratchSlot;
+            FTT.Core.GameManager.Instance.CurrentSession.SelectedCharacterID = "einstein";
+            if (save != null) FTT.Core.SaveManager.Instance.SaveSlots[ScratchSlot] = save;
+
+            Level = ResourceLoader.Load<PackedScene>("res://scenes/campaign/Level_05_Titanic.tscn")
+                .Instantiate<Level05Controller>();
+            Level.Name = "Level_05_Titanic_DebutTest";
+            tree.Root.AddChild(Level);
+        }
+
+        public void Dispose() {
+            FTT.Core.PoolManager.Instance?.ReleaseActiveInGroup("Enemies");
+            if (GodotObject.IsInstanceValid(Level)) {
+                Level.GetParent()?.RemoveChild(Level);
+                Level.Free();
+            }
+            FTT.Core.SaveManager.Instance.SaveSlots[ScratchSlot] = _originalSave;
+            FTT.Core.GameManager.Instance.CurrentSession.ActiveSaveSlot = _originalSlot;
+            FTT.Core.GameManager.Instance.CurrentSession.SelectedCharacterID = _originalCharacter;
+            ((SceneTree)Engine.GetMainLoop()).Paused = _originalPaused;
+        }
+    }
 
     private sealed class TriggerFixture : IDisposable {
         public readonly EraserDebutTrigger Trigger;
 
         public TriggerFixture() {
-            NexusResonanceSource.WorldTimeSuspendedProbe = static () => false;
+            EraserDebutTrigger.WorldTimeSuspendedProbe = static () => false;
             Trigger = new EraserDebutTrigger {
                 Name = "TestEraserDebut",
-                TriggerID = "level_04a_test_eraser_debut"
+                TriggerID = Level05Controller.EraserDebutTriggerID
             };
             ((SceneTree)Engine.GetMainLoop()).Root.AddChild(Trigger);
         }
 
         public void Dispose() {
-            NexusResonanceSource.WorldTimeSuspendedProbe = static () => false;
+            EraserDebutTrigger.WorldTimeSuspendedProbe = static () => false;
             if (GodotObject.IsInstanceValid(Trigger)) {
                 FTT.Core.PoolManager.Instance?.ReleaseActiveUnder(Trigger);
                 Trigger.Free();

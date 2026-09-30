@@ -9,14 +9,17 @@ namespace FTT.Environment {
 
     /// <summary>
     /// F12 Eraser debut route trigger (V7.6, Package 11 A12) — the scripted
-    /// single-Eraser ambush that Level 4A places between Entry and PreBoss, at the
-    /// hero's own nexus.
+    /// single-Eraser ambush. Built for the per-character Level 4A; since S27
+    /// retired that level (Package 13 W2) it is placed by
+    /// <see cref="Level05Controller"/> on the Titanic's listing boat deck, between
+    /// the Middle and PreBoss anchors, where the Level 0 watcher's silhouette drops
+    /// in to finish the hunt.
     ///
     /// <para>It is an <b>independent authored route trigger</b>, not a checkpoint
     /// benefit: crossing it starts the encounter and its Sarah bark, and it grants
     /// <b>no</b> checkpoint, no Checkpoint Mending, no rewind refill and no Timeline
     /// Integrity lock. Its timing never depends on a middle-checkpoint activation or
-    /// on difficulty — Level 4A has no middle checkpoint at all.</para>
+    /// on difficulty.</para>
     ///
     /// <para>Idempotent reconstruction is the hard part of the contract, so the state
     /// is split three ways and each half is asked a different question:</para>
@@ -36,8 +39,7 @@ namespace FTT.Environment {
     /// <para><b>A7a (Wave 2) closed the handoff.</b> The Eraser elite now exists
     /// (<c>resources/Enemies/unbound_eraser.tres</c>, Null Lance, Siphon Snare,
     /// <c>StatusType.Suppression</c>), so <see cref="EnemyID"/> defaults to
-    /// <see cref="EraserEnemyID"/> and every Level 4A variant gets the real body
-    /// with no per-variant change. <see cref="PlaceholderEnemyID"/> is retained
+    /// <see cref="EraserEnemyID"/> and the debut gets the real body. <see cref="PlaceholderEnemyID"/> is retained
     /// only as the documented fallback an authored scene may still select.</para>
     /// </summary>
     public partial class EraserDebutTrigger : Node2D {
@@ -53,14 +55,29 @@ namespace FTT.Environment {
         public const string EraserEnemyID = "unbound_eraser";
 
         /// <summary>
-        /// The pre-A7a interim body, retained as a documented fallback. No Level 4A
-        /// variant selects it any more - <see cref="EnemyID"/> defaults to the real
+        /// The pre-A7a interim body, retained as a documented fallback. No shipped
+        /// level selects it - <see cref="EnemyID"/> defaults to the real
         /// Eraser.
         /// </summary>
         public const string PlaceholderEnemyID = "chrono_guard_elite";
 
         /// <summary>Sarah's non-blocking debut bark: "That one isn't guarding anything…".</summary>
         public const string DebutBarkKey = "eraser_debut_bark";
+
+        /// <summary>
+        /// The world-suspension probe: while it reports true the ambush refuses to
+        /// begin. Moved here from the deleted <c>NexusResonanceSource</c> (S27,
+        /// Package 13 W2), where it was declared and never wired in production;
+        /// tests drive it. Default: the world is never suspended.
+        /// </summary>
+        public static Func<bool> WorldTimeSuspendedProbe { get; set; } = static () => false;
+
+        private static bool WorldTimeSuspended {
+            get {
+                try { return WorldTimeSuspendedProbe?.Invoke() == true; }
+                catch { return false; }
+            }
+        }
 
         [Export] public string TriggerID = "";
 
@@ -127,7 +144,7 @@ namespace FTT.Environment {
         /// </summary>
         public bool SpawnEraserDebut() {
             if (EncounterCleared || EncounterLive) return false;
-            if (NexusResonanceSource.WorldTimeSuspendedProbe?.Invoke() == true) return false;
+            if (WorldTimeSuspended) return false;
 
             PruneDeadEnemies();
             EncounterLive = true;

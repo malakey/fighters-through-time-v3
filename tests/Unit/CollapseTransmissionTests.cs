@@ -32,7 +32,7 @@ public class CollapseTransmissionTests {
         AssertThat(StoryManager.IsActIIILevel(CampaignLevel.ChronalVoid)).IsTrue();
         AssertThat(StoryManager.IsActIIILevel(CampaignLevel.NeoEarth)).IsTrue();
         AssertThat(StoryManager.IsActIIILevel(CampaignLevel.Alexandria)).IsTrue();
-        AssertThat(StoryManager.IsActIIILevel(CampaignLevel.LegacyNexus)).IsFalse();
+        AssertThat(StoryManager.IsActIIILevel((CampaignLevel)16)).IsFalse();
     }
 
     [TestCase]

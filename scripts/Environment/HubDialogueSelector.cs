@@ -53,7 +53,7 @@ namespace FTT.Environment {
                 CampaignLevel.Tutorial => HubPeriod.Prologue,
                 CampaignLevel.Florence => HubPeriod.Prologue,
                 CampaignLevel.Orleans or CampaignLevel.Chicago or CampaignLevel.Paris
-                    or CampaignLevel.LegacyNexus or CampaignLevel.Titanic => HubPeriod.ActI,
+                    or CampaignLevel.Titanic => HubPeriod.ActI,
                 CampaignLevel.Pompeii or CampaignLevel.Nassau or CampaignLevel.Egypt
                     or CampaignLevel.Berlin or CampaignLevel.London or CampaignLevel.Gettysburg
                     or CampaignLevel.Lunar => HubPeriod.ActII,

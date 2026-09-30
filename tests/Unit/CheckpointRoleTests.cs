@@ -196,16 +196,17 @@ public class CheckpointRoleTests {
             story.BeginLevelRun();
             // An unregistered ID must never be guessed into PreBoss — Entry is
             // the safe answer because it cannot lock the boss clock.
-            AssertThat(story.HasCheckpointRole("level_04a_einstein_checkpoint_1")).IsFalse();
-            AssertThat(story.GetCheckpointRole("level_04a_einstein_checkpoint_1"))
+            AssertThat(story.HasCheckpointRole("level_harness_two_anchor_checkpoint_1")).IsFalse();
+            AssertThat(story.GetCheckpointRole("level_harness_two_anchor_checkpoint_1"))
                 .OverrideFailureMessage("F12: never reinterpret a saved `_1` blindly as PreBoss.")
                 .IsEqual(CheckpointRole.Entry);
 
-            // 4A registers `_checkpoint_1` as PreBoss; a shared level registers
+            // A two-anchor level (as the retired 4A was) registers `_checkpoint_1`
+            // as PreBoss; a shared level registers
             // the same spelling as Middle. Both resolve correctly by alias.
-            story.RegisterCheckpointRole("level_04a_einstein_checkpoint_1", CheckpointRole.PreBoss);
+            story.RegisterCheckpointRole("level_harness_two_anchor_checkpoint_1", CheckpointRole.PreBoss);
             story.RegisterCheckpointRole("level_02_orleans_checkpoint_1", CheckpointRole.Middle);
-            AssertThat(story.GetCheckpointRole("level_04a_einstein_checkpoint_1"))
+            AssertThat(story.GetCheckpointRole("level_harness_two_anchor_checkpoint_1"))
                 .IsEqual(CheckpointRole.PreBoss);
             AssertThat(story.GetCheckpointRole("level_02_orleans_checkpoint_1"))
                 .IsEqual(CheckpointRole.Middle);

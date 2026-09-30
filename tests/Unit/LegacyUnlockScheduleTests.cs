@@ -62,8 +62,8 @@ public class LegacyUnlockScheduleTests {
     public void LevelIdsResolveTheirMilestoneAndFourAGrantsNothing() {
         AssertThat(LegacyUnlockSchedule.LevelNumberOf("level_00_tutorial")).IsEqual(0);
         AssertThat(LegacyUnlockSchedule.LevelNumberOf("level_11_gettysburg")).IsEqual(11);
-        // Level 4A is a separate slot, not a second Level 4: it is the first
-        // FULL-kit level and must never re-grant (or pre-grant) a milestone.
+        // The retired Level 4A (S27) was a separate slot, not a second Level 4;
+        // the dead ID an old save carries must never grant a milestone.
         AssertThat(LegacyUnlockSchedule.LevelNumberOf("level_04a_einstein")).IsEqual(-1);
         AssertThat(LegacyUnlockSchedule.LevelNumberOf("hub")).IsEqual(-1);
         AssertThat(LegacyUnlockSchedule.LevelNumberOf("")).IsEqual(-1);
@@ -241,33 +241,35 @@ public class LegacyUnlockScheduleTests {
     }
 
     [TestCase]
-    public void LevelFourAOpensOnAFlavourNexusMomentThatIsNotASecondUnlockBeat() {
-        // Package 12 W7: 4A opens with Sarah's line and the Ultimate ring igniting,
-        // chained after the entrance scene. It grants nothing and plays once.
-        var shared = AuthoredResources.Load<FTT.UI.DialogueSetData>(
-            FTT.Environment.LegacyLevelControllerBase.SharedDialogueSetPath);
-        AssertObject(shared).IsNotNull();
-        FTT.UI.DialogueSequenceData moment =
-            shared.Find(FTT.Environment.LegacyLevelControllerBase.NexusMomentDialogueID);
-        AssertObject(moment).IsNotNull();
-        AssertString(moment.SpeakerNameKeys[0]).IsEqual("speaker_sarah");
-
-        var ring = new List<AbilitySlotLockPayload>();
-        void Capture(AbilitySlotLockPayload payload) => ring.Add(payload);
-        EventBus.Instance.OnAbilitySlotLockChanged += Capture;
-        var level = new FTT.Environment.Level04AEinsteinController();
-        try {
-            AssertThat(level.NexusMomentPlayed).IsFalse();
-            level.PlayNexusMoment();
-            level.PlayNexusMoment();
-            AssertThat(level.NexusMomentPlayed).IsTrue();
-            AssertThat(ring.Count).OverrideFailureMessage("The ring ignites once.").IsEqual(1);
-            AssertThat(ring[0].Slot).IsEqual(AbilitySlot.Ultimate);
-            AssertThat(ring[0].State).IsEqual(AbilitySlotLockState.Clear);
-        } finally {
-            EventBus.Instance.OnAbilitySlotLockChanged -= Capture;
-            level.Free();
+    public void LevelFiveIsTheFirstFullKitLevelAndARetiredFourARecordGrantsNothing() {
+        // Package 13 W2 (S27): Level 4A and its flavour Nexus moment are gone.
+        // Paris's completion restores the last slot, so the route's next level —
+        // the Titanic — is the first played with the full kit, and it grants no
+        // milestone of its own.
+        AssertThat(StoryManager.CampaignRoute[StoryManager.RouteIndexOf(CampaignLevel.Paris) + 1])
+            .IsEqual(CampaignLevel.Titanic);
+        var throughParis = new List<string> {
+            "level_01_florence", "level_02_orleans", "level_03_chicago", "level_04_paris"
+        };
+        foreach (AbilitySlot slot in LegacyUnlockSchedule.GatedSlots) {
+            AssertThat(LegacyUnlockSchedule.IsUnlocked(slot, throughParis))
+                .OverrideFailureMessage($"{slot} must be restored before the Titanic.")
+                .IsTrue();
         }
+        AssertThat(LegacyUnlockSchedule.TryGrantedSlotForLevel("level_05_titanic", out _)).IsFalse();
+
+        // A v7 save that completed its hero's 4A keeps the ID as dead data: on
+        // its own it restores nothing, and it never adds a key to the backfill.
+        var deadOnly = new List<string> { "level_04a_einstein" };
+        foreach (AbilitySlot slot in LegacyUnlockSchedule.GatedSlots) {
+            AssertThat(LegacyUnlockSchedule.IsUnlocked(slot, deadOnly)).IsFalse();
+        }
+        var withDead = new List<string>(throughParis) { "level_04a_einstein" };
+        AssertThat(LegacyUnlockSchedule.UnlockedKeysFor(withDead).Count)
+            .IsEqual(LegacyUnlockSchedule.UnlockedKeysFor(throughParis).Count);
+
+        // The 4A shared dialogue set (and its Nexus moment) was deleted.
+        AssertThat(ResourceLoader.Exists("res://resources/Dialogue/level_04a_shared_dialogue.tres")).IsFalse();
     }
 
     // === Helpers =======================================================

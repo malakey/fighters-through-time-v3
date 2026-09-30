@@ -40,13 +40,13 @@ public class ActThreeChainingTests {
                 .OverrideFailureMessage("Alexandria is still the campaign's hard cap.")
                 .IsEqual(CampaignLevel.Alexandria);
 
-            // And the three levels are exactly the gauntlet — Level 4A, appended
-            // at enum value 16, is emphatically not part of it.
+            // And the three levels are exactly the gauntlet — the retired Level 4A
+            // ordinal 16, numerically past them, is emphatically not part of it.
             AssertThat(StoryManager.IsActIIILevel(CampaignLevel.ChronalVoid)).IsTrue();
             AssertThat(StoryManager.IsActIIILevel(CampaignLevel.NeoEarth)).IsTrue();
             AssertThat(StoryManager.IsActIIILevel(CampaignLevel.Alexandria)).IsTrue();
             AssertThat(StoryManager.IsActIIILevel(CampaignLevel.Lunar)).IsFalse();
-            AssertThat(StoryManager.IsActIIILevel(CampaignLevel.LegacyNexus)).IsFalse();
+            AssertThat(StoryManager.IsActIIILevel((CampaignLevel)16)).IsFalse();
         } finally {
             story.SuppressSceneLoadsForTesting = false;
             story.PrepareDirectLevel(originalLevel, "einstein", Difficulty.Normal);
@@ -119,10 +119,10 @@ public class ActThreeChainingTests {
                 CampaignLevel.Lunar, CheckpointRole.Middle, Difficulty.Normal))
             .OverrideFailureMessage("The rule is Hard-only.")
             .IsFalse();
-        // Role, never the ID suffix: Level 4A's PreBoss anchor is spelled
-        // `_checkpoint_1` and must never be disabled for it.
+        // Role, never the ID suffix: a PreBoss anchor (the retired Level 4A's was
+        // spelled `_checkpoint_1`) is never disabled by the Hard middle rule.
         AssertThat(StoryLevelControllerBase.IsMiddleAnchorInert(
-                CampaignLevel.LegacyNexus, CheckpointRole.PreBoss, Difficulty.Hard))
+                CampaignLevel.Titanic, CheckpointRole.PreBoss, Difficulty.Hard))
             .OverrideFailureMessage("A PreBoss anchor is never inert, whatever its ID ends with.")
             .IsFalse();
         AssertThat(StoryLevelControllerBase.IsMiddleAnchorInert(

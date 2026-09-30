@@ -54,10 +54,6 @@ public class PuzzleResetPlacementTests {
                 found.Add("script:" + Path.GetFileName(file));
             }
         }
-        string legacy = File.ReadAllText("scripts/Environment/LegacyLevelControllerBase.cs");
-        if (ScriptMarkers.Any(marker => legacy.Contains(marker, StringComparison.Ordinal))) {
-            found.Add("script:LegacyLevelControllerBase.cs");
-        }
 
         var expected = new SortedSet<string>(StationCatalog.Select(entry => entry.ScenePath), StringComparer.Ordinal);
         AssertThat(string.Join(" | ", found)).IsEqual(string.Join(" | ", expected));

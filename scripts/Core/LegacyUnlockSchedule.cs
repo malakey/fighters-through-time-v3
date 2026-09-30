@@ -94,9 +94,10 @@ namespace FTT.Core {
         /// The slot a completed level ID grants, if any. Matches on the
         /// <c>level_NN</c> prefix rather than the whole ID, so the era suffix
         /// (<c>_orleans</c>, <c>_chicago</c>) is free to change without touching
-        /// the schedule. Level 4A (<c>level_04a_&lt;hero&gt;</c>) grants nothing —
-        /// it is the first FULL-kit level, entered after the Ultimate is already
-        /// granted by Level 4's completion.
+        /// the schedule. Level 5 is the first FULL-kit level (S27 retired Level
+        /// 4A), entered after the Ultimate is granted by Level 4's completion. A
+        /// retired <c>level_04a_&lt;hero&gt;</c> ID an old save still carries grants
+        /// nothing.
         /// </summary>
         public static bool TryGrantedSlotForLevel(string levelID, out AbilitySlot slot) {
             slot = AbilitySlot.Special1;
@@ -160,8 +161,9 @@ namespace FTT.Core {
             char tens = levelID[prefix.Length];
             char ones = levelID[prefix.Length + 1];
             if (!char.IsDigit(tens) || !char.IsDigit(ones)) return -1;
-            // "level_04a_einstein" is Level 4A, a separate slot that grants no
-            // milestone — a trailing letter disqualifies the match.
+            // "level_04a_einstein" is the retired Level 4A (S27), which never
+            // granted a milestone — a trailing letter disqualifies the match, so
+            // the dead ID an old save carries in CompletedLevels stays inert.
             int next = prefix.Length + 2;
             if (next < levelID.Length && char.IsLetter(levelID[next])) return -1;
             return (tens - '0') * 10 + (ones - '0');

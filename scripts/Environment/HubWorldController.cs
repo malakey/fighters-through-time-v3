@@ -632,10 +632,6 @@ namespace FTT.Environment {
             CampaignLevel.ChronalVoid => "campaign_level_chronal_void",
             CampaignLevel.NeoEarth => "campaign_level_neo_earth",
             CampaignLevel.Alexandria => "campaign_level_alexandria",
-            // V7.6 Level 4A. One key for all nine variants: the hub's next-mission
-            // label names the slot, and the hero it resolves to is already the
-            // player's own locked character.
-            CampaignLevel.LegacyNexus => "campaign_level_legacy_nexus",
             _ => "campaign_level_tutorial"
         };
 

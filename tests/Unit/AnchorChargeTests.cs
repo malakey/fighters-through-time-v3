@@ -48,10 +48,10 @@ public class AnchorChargeTests {
             AssertThat(story.AnchorChargesRemaining).IsEqual(2);
             AssertThat(story.AnchorChargeMaximum).IsEqual(2);
 
-            // Level 4A is enum value 16 — numerically past ChronalVoid — and is
-            // played between Levels 4 and 5. It is not Act III.
-            AssertThat(StoryManager.IsActIIILevel(CampaignLevel.LegacyNexus))
-                .OverrideFailureMessage("Level 4A must never be classified as Act III.")
+            // The retired Level 4A ordinal is 16 — numerically past ChronalVoid.
+            // It is not Act III.
+            AssertThat(StoryManager.IsActIIILevel((CampaignLevel)16))
+                .OverrideFailureMessage("The retired Level 4A ordinal must never be classified as Act III.")
                 .IsFalse();
         } finally {
             story.SuppressSceneLoadsForTesting = false;

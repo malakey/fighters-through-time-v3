@@ -30,13 +30,13 @@ namespace FTT.Environment {
         /// <summary>The level's stable ID (matches <c>StoryLevelControllerBase.LevelID</c>).</summary>
         [Export] public string LevelID = "";
 
-        /// <summary>The <c>CampaignLevel</c> ordinal this manifest serves (16 = Level 4A).</summary>
+        /// <summary>The <c>CampaignLevel</c> ordinal this manifest serves (0–15; the retired 16 has none).</summary>
         [Export] public int CampaignLevelIndex = -1;
 
         /// <summary>Ledger column "Required encounters" — every mandatory non-boss reward.</summary>
         [Export] public int RequiredEncounterPool;
 
-        /// <summary>Ledger column "Boss" — 25 for all sixteen bosses. 0 = no boss.</summary>
+        /// <summary>Ledger column "Boss" — 25 for all fifteen bosses. 0 = no boss.</summary>
         [Export] public int BossAward = 25;
 
         /// <summary>Ledger column "Optional total" — the whole level, never per object.</summary>
@@ -80,28 +80,15 @@ namespace FTT.Environment {
         /// <summary>Ledger check: required encounters + boss.</summary>
         public int RequiredTotal => Math.Max(0, RequiredEncounterPool) + Math.Max(0, BossAward);
 
-        /// <summary><c>CampaignLevel.LegacyNexus</c>: the one campaign slot whose
-        /// manifest depends on the locked character.</summary>
-        public const int LegacyLevelIndex = 16;
-
-        public static string PathFor(int campaignLevelIndex, string heroCharacterID = "") =>
-            $"{FolderPath}{FileNameFor(campaignLevelIndex, heroCharacterID)}";
+        public static string PathFor(int campaignLevelIndex) =>
+            $"{FolderPath}{FileNameFor(campaignLevelIndex)}";
 
         /// <summary>
-        /// Level 4A resolves <b>per hero</b>
-        /// (<c>level_04a_&lt;hero&gt;_rewards.tres</c>), because each of the nine
-        /// Legacy Levels authors its own approach inventory. The budget ROW is
-        /// identical across all nine — 15 required / 25 boss / 10 optional
-        /// "regardless of layout or enemy count" — but the source list is not.
-        /// Every other level is <c>level_NN_rewards</c>.
+        /// Every level is <c>level_NN_rewards</c>. The per-hero Level 4A manifests
+        /// were deleted with the level (S27, Package 13 W2); their row folded into
+        /// Level 5, so no manifest depends on the locked character any more.
         /// </summary>
-        public static string FileNameFor(int campaignLevelIndex, string heroCharacterID = "") {
-            if (campaignLevelIndex != LegacyLevelIndex) return $"level_{campaignLevelIndex:00}_rewards.tres";
-            string hero = (heroCharacterID ?? "").Trim().ToLowerInvariant();
-            return hero.Length == 0
-                ? "level_04a_einstein_rewards.tres"
-                : $"level_04a_{hero}_rewards.tres";
-        }
+        public static string FileNameFor(int campaignLevelIndex) => $"level_{campaignLevelIndex:00}_rewards.tres";
 
         /// <summary>
         /// Parses <see cref="RequiredWaves"/> into (waveID, ordered enemy IDs).
@@ -139,9 +126,9 @@ namespace FTT.Environment {
         }
 
         /// <summary>Loads a level's manifest through the pinning cache. Null when unauthored.</summary>
-        public static LevelRewardManifest LoadFor(int campaignLevelIndex, string heroCharacterID = "") {
+        public static LevelRewardManifest LoadFor(int campaignLevelIndex) {
             if (campaignLevelIndex < 0) return null;
-            string path = PathFor(campaignLevelIndex, heroCharacterID);
+            string path = PathFor(campaignLevelIndex);
             if (!ResourceLoader.Exists(path)) return null;
             return FTT.Core.AuthoredResources.Load<LevelRewardManifest>(path);
         }

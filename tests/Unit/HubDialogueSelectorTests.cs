@@ -31,7 +31,6 @@ public class HubDialogueSelectorTests {
             [CampaignLevel.Orleans] = HubPeriod.ActI,
             [CampaignLevel.Chicago] = HubPeriod.ActI,
             [CampaignLevel.Paris] = HubPeriod.ActI,
-            [CampaignLevel.LegacyNexus] = HubPeriod.ActI,
             [CampaignLevel.Titanic] = HubPeriod.ActI,
             [CampaignLevel.Pompeii] = HubPeriod.ActII,
             [CampaignLevel.Nassau] = HubPeriod.ActII,
@@ -45,6 +44,10 @@ public class HubDialogueSelectorTests {
             [CampaignLevel.Alexandria] = HubPeriod.ActIIIDeparture,
         };
         foreach (CampaignLevel level in Enum.GetValues<CampaignLevel>()) {
+            // Package 13 W2 (S27): the retired Level 4A ordinal (16) is never a
+            // next mission — the route skips it and the v8 derivation re-parks
+            // any save that still names it — so it has no hub period to pin.
+            if ((int)level == 16) continue;
             AssertThat(expected.ContainsKey(level))
                 .OverrideFailureMessage($"{level} has no hub period pinned here.").IsTrue();
             AssertThat(HubDialogueSelector.PeriodFor(level, campaignCompleted: false))

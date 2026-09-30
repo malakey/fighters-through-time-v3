@@ -127,30 +127,23 @@ namespace FTT.Core {
 
     public static class ContentManifestValidator {
         /// <summary>
-        /// Package 11 A12 (V7.6): the campaign grew a seventeenth slot — Level 4A, the
-        /// per-character Legacy Level. A12 ships the Einstein exemplar, so StoryLevel is
-        /// 17 and DialogueSet 18; all nine variants share one AudioSet, so that moved by
-        /// one. <b>B1-B3 raise StoryLevel to 25 and DialogueSet to 26</b> with the other
-        /// eight heroes; AudioSet stays at 28.
-        ///
-        /// <para><b>Package 11 B3</b> adds Mozart and Pocahontas: StoryLevel 17 → 19 and
-        /// DialogueSet 18 → 20. B1 (+3) and B2 (+3) raise the same two constants in
-        /// parallel branches; the orchestrator reconciles the three bumps to 25 / 26 at
-        /// merge. AudioSet is untouched — all nine variants share one set.</para>
+        /// Package 11 A12 (V7.6) grew the campaign a seventeenth slot — the nine
+        /// per-character Level 4A variants — raising StoryLevel to 25, DialogueSet to
+        /// 26 and AudioSet to 28. <b>Package 13 W2 (S27) retired Level 4A</b> and
+        /// deleted its nine StoryLevel rows, nine DialogueSet rows and its one shared
+        /// AudioSet row: StoryLevel 25 → 16, DialogueSet 26 → 17, AudioSet 28 → 27.
         /// </summary>
         private static readonly Dictionary<ContentCategory, int> ExactRequiredCounts = new() {
-            // B1 (joan, leonardo, lincoln) raised these by three. B2 and B3 raise them
-            // by three each in their own branches; the merged wave value is 25 / 26.
-            [ContentCategory.StoryLevel] = 25,
+            [ContentCategory.StoryLevel] = 16,
             [ContentCategory.FighterStage] = 10,
             [ContentCategory.Character] = 9,
             [ContentCategory.Ability] = 36,
             [ContentCategory.ResonanceGrid] = 9,
             [ContentCategory.Boss] = 15,
-            [ContentCategory.DialogueSet] = 26,
+            [ContentCategory.DialogueSet] = 17,
             [ContentCategory.UIScreen] = 22,
             [ContentCategory.Pool] = 7,
-            [ContentCategory.AudioSet] = 28,
+            [ContentCategory.AudioSet] = 27,
             [ContentCategory.VisualSet] = 41,
             [ContentCategory.Template] = 14
         };

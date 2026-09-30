@@ -34,6 +34,9 @@ namespace FTT.Environment {
     /// 1 boss, 4 extractors. The Titanic is a civilian vessel with no local military
     /// population for the Unbound to brainwash, so the roster is Unbound-only
     /// (design-godot.md 2363): chrono_slasher standards, one tech_enforcer elite.
+    /// Since S27 (Package 13 W2) it also hosts the scripted Eraser debut — one
+    /// <c>unbound_eraser</c> at <see cref="EraserDebutTriggerID"/> — and pays the
+    /// retired Level 4A's dust row: 55 required / 25 boss / 30 optional.
     /// </summary>
     public partial class Level05Controller : StoryLevelControllerBase {
 
@@ -277,6 +280,7 @@ namespace FTT.Environment {
             BuildOneWayPlatform(8300f, 600f, 200f);
             BuildOneWayPlatform(8600f, 660f, 240f);
 
+            BuildEraserDebut();
             BuildCheckpoint(8650f, DeckBoat - 10f, Checkpoint2, CheckpointRole.PreBoss);
             BuildRoomDecoration(Room3StartX, "titanic_room_boat_deck", new Color(0.6f, 0.78f, 0.9f));
 
@@ -454,6 +458,49 @@ namespace FTT.Environment {
             base.OnBossDefeated(encounter, payload);
         }
 
+        // === Package 13 W2 region: the Eraser debut (S27) ====================
+        // S27 retired Level 4A and moved its scripted Eraser debut here: the
+        // Level 0 watcher's silhouette drops onto the listing boat deck,
+        // between the Middle and PreBoss anchors. It is the F12 independent
+        // route trigger — crossing it spawns one Eraser and Sarah's bark and
+        // grants no checkpoint, Mending, rewind refill or Integrity lock; its
+        // timing never depends on a checkpoint or on difficulty (@0 in the
+        // reward manifest: never scaled).
+
+        /// <summary>The debut's stable route-encounter and reward-source ID.</summary>
+        public const string EraserDebutTriggerID = TitanicLevelID + "_eraser_debut";
+
+        /// <summary>
+        /// The trigger sits on the E-deck run of the boat deck, past the Middle
+        /// anchor (6100) and well before PreBoss (8650).
+        /// </summary>
+        public static readonly Vector2 EraserDebutPosition = new(6900f, DeckE2 - 200f);
+
+        /// <summary>The Eraser drops in from above, onto the listing deck ahead of the player.</summary>
+        public static readonly Vector2 EraserDebutSpawnOffset = new(360f, -260f);
+
+        public EraserDebutTrigger EraserDebut { get; private set; }
+
+        private bool _eraserDebutCleared;
+
+        private void BuildEraserDebut() {
+            EraserDebut = new EraserDebutTrigger {
+                Name = "EraserDebut",
+                TriggerID = EraserDebutTriggerID,
+                Position = EraserDebutPosition,
+                SpawnOffset = EraserDebutSpawnOffset
+            };
+            EraserDebut.DebutBegan += OnEraserDebutBegan;
+            AddChild(EraserDebut);
+        }
+
+        /// <summary>
+        /// Sarah's non-blocking debut bark. Never pauses gameplay — it is a barked
+        /// line over a live ambush, not a sequence.
+        /// </summary>
+        private void OnEraserDebutBegan(EraserDebutTrigger trigger) =>
+            SetObjective(EraserDebutTrigger.DebutBarkKey);
+
         // === Checkpoint resume ===
 
         /// <summary>
@@ -467,16 +514,33 @@ namespace FTT.Environment {
             // Package 12 W2 (GAP-13): the cleared waves come from the explicit
             // encounter baseline below; this keeps only the flood state.
             RestoreFloodForCheckpoint(checkpointID);
+            // Package 13 W2: before PreBoss the debut is rebuilt and stays
+            // triggerable; the PreBoss baseline declares it fought, with its
+            // reward still claimed.
+            EraserDebut?.RestoreFromCheckpoint(_eraserDebutCleared, rewardAlreadyClaimed: _eraserDebutCleared);
         }
 
         // Package 12 W2 (GAP-13): explicit encounter baseline — waves 1+2 at the
         // middle anchor, 1+2+3 at the PreBoss anchor, authored rather than derived.
-        private static readonly IReadOnlyDictionary<string, string[]> Baselines =
-            NumberedWaveBaselines(TitanicLevelID, new[] { 1, 2 }, new[] { 1, 2, 3 });
+        // Package 13 W2 (S27): the PreBoss anchor also restores the Eraser debut
+        // as fought; the middle anchor precedes it, so it stays live there.
+        private static readonly IReadOnlyDictionary<string, string[]> Baselines = BuildBaselines();
+
+        private static IReadOnlyDictionary<string, string[]> BuildBaselines() {
+            var map = new Dictionary<string, string[]>(
+                NumberedWaveBaselines(TitanicLevelID, new[] { 1, 2 }, new[] { 1, 2, 3 }));
+            var preBoss = new List<string>(map[Checkpoint2]) { EraserDebutTriggerID };
+            map[Checkpoint2] = preBoss.ToArray();
+            return map;
+        }
 
         protected override IReadOnlyDictionary<string, string[]> EncounterBaselineMap => Baselines;
 
         protected override void MarkEncounterCleared(string encounterID) {
+            if (encounterID == EraserDebutTriggerID) {
+                _eraserDebutCleared = true;
+                return;
+            }
             if (TryParseWaveEncounter(TitanicLevelID, encounterID, out int wave)) _wavesSpawned.Add(wave);
         }
 

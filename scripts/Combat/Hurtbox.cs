@@ -18,11 +18,6 @@ namespace FTT.Combat {
 
         public float TakeHit(HitPayload payload) {
             payload.TargetIndex = OwnerPlayerIndex;
-            // Package 12 W4 (GAP-14, F04): a Nexus-authorized Ultimate is a
-            // puzzle verb, never a combat one. Its hits reach no receiver, so
-            // an enemy, boss, construct or prop caught in the set-piece takes
-            // no damage and the caster earns no meter, Rally or drop from it.
-            if (payload.PuzzleOnly) return 0f;
             // Package 12 W1 (R03 / GAP-06): while the Story world is held — the
             // Post-Landing Hold or a boss's T01b suspension — frozen actors are
             // invulnerable and give no credit. Many kit abilities deliver through
