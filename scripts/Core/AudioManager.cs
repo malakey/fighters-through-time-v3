@@ -479,7 +479,9 @@ namespace FTT.Core {
             "stone" or "marble" => 1.15f,
             "metal" => 1.30f,
             "sand" or "dirt" => 0.85f,
-            "snow" => 0.75f,
+            // Package 13 W4 (S32): the design's "Snow (Berlin)" surface is now "Wet
+            // deck & sand (Hakata Bay)". "snow" is kept as a retained surface ID.
+            "wet_deck" or "snow" => 0.75f,
             _ => 1.0f
         };
 

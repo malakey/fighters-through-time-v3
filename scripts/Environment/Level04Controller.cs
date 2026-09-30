@@ -19,12 +19,18 @@ namespace FTT.Environment {
     ///       haul the inner courtyard gate open.</item>
     /// <item><b>Inner Courtyard</b> (8640-10240) - two drawbridge walkways over a
     ///       central lower pit, with a flat pit floor wide enough for the
-    ///       Revolutionary Tribunal's summoned adds to land and path.</item>
+    ///       Governor's Guard's summoned garrison to land and path.</item>
     /// </list>
     ///
     /// Encounter economy is locked by docs/DUST_ECONOMY.md: exactly 10 standards,
-    /// 0 elites, 1 boss, 3 extractors. Boss-summoned rioters are boss-driven and
+    /// 0 elites, 1 boss, 3 extractors. Boss-summoned adds are boss-driven and
     /// deliberately sit outside that budget.
+    ///
+    /// <para><b>The boss is the Governor's Guard</b> (Package 13 W4, design §6/S23):
+    /// Governor de Launay and his garrison captain, both Linked. The legacy
+    /// identifiers — <c>revolutionary_tribunal.tres</c>, the <c>Tribunal*</c>
+    /// members below, the <c>RevolutionaryTribunalEncounter</c> node name and every
+    /// translation key — are retained (D6); only English values and prose moved.</para>
     /// </summary>
     public partial class Level04Controller : StoryLevelControllerBase {
 
@@ -211,6 +217,8 @@ namespace FTT.Environment {
 
             BuildRoomTransition("paris_room_gatehouse", new Vector2(560, 600),
                 new Rect2(Room1StartX, 0, 3200, LevelHeight));
+            // Package 13 W4 (S26): the Bastille gates, and no Desmoulins to name what they came for.
+            BuildAbsenceTrigger(new Vector2(1100, GroundY - 200));
         }
 
         /// <summary>
@@ -298,7 +306,7 @@ namespace FTT.Environment {
 
         /// <summary>
         /// Room 4: the boss arena. Two drawbridge walkways ride above a single flat
-        /// pit floor - the Tribunal's summoned rioters need a continuous surface to
+        /// pit floor - the Governor's Guard's summoned garrison needs a continuous surface to
         /// land on and path along, so the pit is deliberately not a hazard.
         /// </summary>
         private void BuildInnerCourtyard() {
@@ -306,7 +314,7 @@ namespace FTT.Environment {
                 new Color(0.16f, 0.06f, 0.07f, 0.5f));
 
             // M19: the courtyard floor is authored in three pieces so its centre can
-            // collapse into the Tribunal's Phase 2 pit (see BuildTribunalPit).
+            // collapse into the Governor's Guard's Phase 2 pit (see BuildTribunalPit).
             BuildFloor(Room4StartX, PitFloorY, TribunalPitLeftX - Room4StartX);
             BuildFloor(TribunalPitRightX, PitFloorY, Room4StartX + 1600f - TribunalPitRightX);
             BuildTribunalPit();
@@ -329,7 +337,7 @@ namespace FTT.Environment {
             if (_tribunalEncounter != null) _tribunalEncounter.PhaseEntered += OnTribunalPhaseEntered;
         }
 
-        // === Package 12 W9 (M19) — the Tribunal's Phase 2 pit ===
+        // === Package 12 W9 (M19) — the Governor's Guard's Phase 2 pit ===
         //
         // Design §6: "P2 triggers on the first member's defeat: the survivor absorbs
         // the fallen's ability set and the floor's central section collapses into

@@ -50,7 +50,13 @@ namespace FTT.Core {
         /// <summary>A death-rewind presentation or the Timeline Collapse beat.</summary>
         DeathRewind = 4,
         /// <summary>The boss-intro name-card ritual.</summary>
-        BossIntro = 8
+        BossIntro = 8,
+        /// <summary>
+        /// Package 13 W4 (S36): a scripted in-level presentation beat — Level 9's
+        /// Eraser near-capture — that "pauses the clock for the beat, like other
+        /// scripted presentations". Appended; the owner releases it on teardown.
+        /// </summary>
+        ScriptedBeat = 16
     }
 
     /// <summary>Why a Timeline Collapse is being resolved (F01 / F11).</summary>

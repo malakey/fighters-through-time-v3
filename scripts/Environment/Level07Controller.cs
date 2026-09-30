@@ -9,9 +9,10 @@ namespace FTT.Environment {
     /// <summary>
     /// Level 7 - Nassau, 1715. The Golden Age of Piracy.
     ///
-    /// The pirate republic has just declared independence, and the Unbound is
-    /// steering the Royal Navy onto it with sub-aquatic torpedoes and a chronal
-    /// targeting grid. The level is therefore a ship-to-ship crossing, not a walk:
+    /// The Republic of Pirates is at its height (S31: it never declared
+    /// independence, and it ended in 1718 with the King's pardon), and the Severed
+    /// have moored their siphons in its harbor, guarded by Linked crews with
+    /// sub-aquatic torpedoes and a chronal targeting grid. The level is therefore a ship-to-ship crossing, not a walk:
     /// four rooms strung between hulls with open water in two of them.
     ///
     /// Era identity, all mechanically real:
@@ -41,7 +42,7 @@ namespace FTT.Environment {
     ///
     /// Encounter economy is locked by docs/DUST_ECONOMY.md: 10 standards, 1 elite,
     /// 1 boss, 3 extractors. Roster is the Nassau era pair - `laser_pistol_deckhand`
-    /// (rapid low-damage ranged) - mixed with `chrono_slasher` Unbound troopers, and the
+    /// (rapid low-damage ranged) - mixed with `chrono_slasher` Severed troopers, and the
     /// single elite is the `overcharged_cannon_master`.
     /// </summary>
     public partial class Level07Controller : StoryLevelControllerBase {
@@ -219,7 +220,7 @@ namespace FTT.Environment {
         public const string EliteEnemyID = "overcharged_cannon_master";
         /// <summary>
         /// V7.6 (Package 11 A7a): the Eraser, salted through Levels 7-15. Not an
-        /// era enemy - it is an Unbound hunter that followed the hero here, which
+        /// era enemy - it is a Severed hunter that followed the hero here, which
         /// is exactly why it reads wrong against a 1715 gun pier. Never authored into a room
         /// with a Chrono-Warden before Act III (EncounterCompositionTests).
         /// </summary>
@@ -578,7 +579,32 @@ namespace FTT.Environment {
                 authored.Count, StoryDifficultyTuning.CurrentStoryDifficulty);
             for (int index = 0; index < count && index < authored.Count; index++) {
                 EnemyFactory.Spawn(authored[index].EnemyID, this, authored[index].Position);
+                if (authored[index].EnemyID == EraserEnemyID) PostFirstEraserBark();
             }
+        }
+
+        // === Package 13 W4 (S35): the first salted Eraser ===
+
+        /// <summary>Sarah's non-blocking bark on Level 7's first Eraser encounter.</summary>
+        public const string FirstEraserBarkKey = "dlg_l07_eraser_bark";
+
+        /// <summary>Seconds the bark stays up.</summary>
+        public const float EraserBarkSeconds = 4.5f;
+
+        /// <summary>True once the bark has been raised this scene. Test seam.</summary>
+        public bool FirstEraserBarkShown { get; private set; }
+
+        /// <summary>
+        /// Non-blocking, like the Level 5 debut bark: a world-space notice over the
+        /// hero, never a pausing dialogue sequence, so the ambush plays out live.
+        /// </summary>
+        public bool PostFirstEraserBark() {
+            if (FirstEraserBarkShown) return false;
+            FirstEraserBarkShown = true;
+            if (Player != null && IsInstanceValid(Player)) {
+                EnvironmentNotice.Post(FirstEraserBarkKey, Player, EraserBarkSeconds);
+            }
+            return true;
         }
     }
 }

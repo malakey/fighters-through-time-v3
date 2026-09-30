@@ -1,3 +1,6 @@
+; Package 13 W4 (S32): Level 9 is Hakata Bay, 1281 - "Night Storm / War Drums" (taiko,
+; shakuhachi, storm wind, pulsing cold bass). The level_09_berlin StageID and this
+; SetID are retained identifiers; every stem is still placeholder silence.
 [gd_resource type="Resource" script_class="StageAudioSet" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/Environment/StageAudioSet.cs" id="1_set"]

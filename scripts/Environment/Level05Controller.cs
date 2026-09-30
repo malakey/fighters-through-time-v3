@@ -9,8 +9,9 @@ namespace FTT.Environment {
     /// <summary>
     /// Level 5 - The Sinking Titanic, 1912. The Act I finale.
     ///
-    /// The Unbound is siphoning the emotional weight of the disaster itself,
-    /// so the level is a losing race with the sea: the player climbs sternward
+    /// The Severed have a siphon aboard, drinking the night's energy dry (S18/S33:
+    /// they want only the energy, never a better or worse outcome), so the level
+    /// is a losing race with the sea: the player climbs sternward
     /// across four listing deck sections while a level-wide
     /// <see cref="RisingWaterZone"/> escalates room by room behind them.
     ///
@@ -20,7 +21,7 @@ namespace FTT.Environment {
     ///       down by the bow. Steps up on room entry, on a mid-corridor trigger,
     ///       and then on a timer once the boat deck is reached.</item>
     /// <item><b>Arena flood</b> (<see cref="ArenaStartX"/> - level end): sealed
-    ///       and inert until the Tidal Eraser reaches phase 2, which is what makes
+    ///       and inert until the Tidal Overseer reaches phase 2, which is what makes
     ///       it the design's "drowning arena hazard boss".</item>
     /// </list>
     /// They never overlap, because <see cref="EnvironmentPlayerModifiers"/>
@@ -32,7 +33,7 @@ namespace FTT.Environment {
     ///
     /// Encounter economy is locked by docs/DUST_ECONOMY.md: 12 standards, 1 elite,
     /// 1 boss, 4 extractors. The Titanic is a civilian vessel with no local military
-    /// population for the Unbound to brainwash, so the roster is Unbound-only
+    /// population for the Severed to brainwash, so the roster is Severed-only
     /// (design-godot.md 2363): chrono_slasher standards, one tech_enforcer elite.
     /// </summary>
     public partial class Level05Controller : StoryLevelControllerBase {
@@ -318,7 +319,7 @@ namespace FTT.Environment {
             ArenaFlood = BuildFloodZone("ArenaFlood", "level_05.arena_flood",
                 new Vector2((ArenaStartX + LevelWidth) / 2f, ArenaWaterOriginY), LevelWidth - ArenaStartX,
                 ArenaStepHeights, ArenaWaterColor, drownDamage: 4, drownGrace: 4f);
-            // Sealed until the Tidal Eraser breaks the stern open in phase 2.
+            // Sealed until the Tidal Overseer breaks the stern open in phase 2.
             ArenaFlood.Enabled = false;
         }
 
@@ -364,6 +365,7 @@ namespace FTT.Environment {
                 _phaseBound = true;
                 EventBus.Instance.OnBossPhaseChanged += OnBossPhaseChanged;
             }
+            BuildCaptainTaking();
         }
 
         public override void _ExitTree() {
@@ -451,7 +453,61 @@ namespace FTT.Environment {
         protected override void OnBossDefeated(BossEncounterController encounter, BossDefeatedPayload payload) {
             StopBoatDeckFlooding();
             if (ArenaFlood != null && IsInstanceValid(ArenaFlood)) ArenaFlood.AutoAdvanceSeconds = 0f;
+            // Package 13 W4 (S19): as the Overseer falls, a cold column takes
+            // Captain Smith at the wheel — before the post-boss exchange (S18).
+            if (!IsBossDefeated) CaptainTaking?.Play();
             base.OnBossDefeated(encounter, payload);
+        }
+
+        // === Package 13 W4: Captain Smith's taking and the lifeboats (S18/S19) ===
+
+        /// <summary>The post-boss exchange at the sealing anchor (S18).</summary>
+        public string PostBossDialogueID => $"{DialoguePrefix}.postboss";
+
+        private string[] _postBossBeats;
+
+        protected override IReadOnlyList<string> PostBossDialogueIDs =>
+            _postBossBeats ??= new[] { PostBossDialogueID };
+
+        /// <summary>
+        /// Where the captain stands: on the bridge wing above the stern arena, in
+        /// view of the fight and out of the player's reach.
+        /// </summary>
+        public static readonly Vector2 CaptainPosition = new(10820f, 520f);
+
+        /// <summary>The restoration vignette's placeholder line: the lifeboats row clear.</summary>
+        public const string LifeboatsNoticeKey = "titanic_notice_lifeboats";
+
+        /// <summary>The captain and the beam that takes him. Built at level ready.</summary>
+        public ExtractionBeamPresentation CaptainTaking { get; private set; }
+
+        /// <summary>True once the lifeboats vignette notice has been posted.</summary>
+        public bool LifeboatsVignetteShown { get; private set; }
+
+        private void BuildCaptainTaking() {
+            if (CaptainTaking != null && IsInstanceValid(CaptainTaking)) return;
+            CaptainTaking = new ExtractionBeamPresentation {
+                Name = "CaptainSmith",
+                Position = CaptainPosition
+            };
+            AddChild(CaptainTaking);
+            // A pre-seal reload lands after the taking: the captain is already gone.
+            if (IsBossDefeated || IsRestoringAwaitingSeal) CaptainTaking.MarkTaken();
+        }
+
+        /// <summary>
+        /// The exit beat is the restoration vignette; its placeholder presentation is
+        /// the lifeboats rowing clear as the lights go out.
+        /// </summary>
+        protected override void StartExitSequence() {
+            if (!LifeboatsVignetteShown) {
+                LifeboatsVignetteShown = true;
+                Node2D anchor = SealingAnchor != null && IsInstanceValid(SealingAnchor)
+                    ? SealingAnchor
+                    : Player;
+                EnvironmentNotice.Post(LifeboatsNoticeKey, anchor, seconds: 4f);
+            }
+            base.StartExitSequence();
         }
 
         // === Checkpoint resume ===
