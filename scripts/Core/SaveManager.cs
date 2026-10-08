@@ -1308,7 +1308,16 @@ namespace FTT.Core {
             SaveStorySlot(slot);
         }
 
+        /// <summary>
+        /// Diagnostics seam: the playtest bot runner (<c>scripts/Diagnostics/</c>)
+        /// sets this so automated runs never write the player's real saves —
+        /// a bot that skips dialogue would otherwise mark it seen globally.
+        /// Writes report success without touching disk.
+        /// </summary>
+        public static bool SuppressWritesForDiagnostics { get; set; }
+
         private bool WritePayload(string path, string payloadType, int schemaVersion, string json) {
+            if (SuppressWritesForDiagnostics) return true;
             if (_masterKey == null) {
                 // Explicit no-save state (M-22): refuse loudly rather than fail
                 // silently, and never write anything without a verified key.
