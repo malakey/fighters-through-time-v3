@@ -61,7 +61,7 @@ MaxHP = 30
 HitsToBreak = 2
 
 [node name="FeedRelayTower" parent="FeedPuzzle" instance=ExtResource("5_feed")]
-position = Vector2(6150, 464)
+position = Vector2(6020, 464)
 ObjectID = "level_09.feed_relay_tower"
 MaxHP = 30
 HitsToBreak = 2

@@ -41,6 +41,10 @@ namespace FTT.Core {
         /// <summary>Number of distinct resources currently pinned. Diagnostics only.</summary>
         public static int PinnedCount => Cache.Count;
 
+        /// <summary>True when a live resource is pinned under <paramref name="path"/>. Diagnostics and tests only.</summary>
+        public static bool IsPinned(string path) =>
+            !string.IsNullOrEmpty(path) && Cache.TryGetValue(path, out Resource cached) && GodotObject.IsInstanceValid(cached);
+
         /// <summary>
         /// Loads an authored data resource once and pins it for the lifetime of the
         /// process. Returns null (without caching) when the path is empty or the
@@ -55,6 +59,31 @@ namespace FTT.Core {
             var loaded = ResourceLoader.Load<T>(path);
             if (loaded != null) Cache[path] = loaded;
             return loaded;
+        }
+
+        /// <summary>
+        /// Pins an authored data resource that reached C# without going through
+        /// <see cref="Load{T}"/>: an <c>[Export]</c> a scene file assigns, such as
+        /// <c>ContentTemplateMarker.Contract</c> on every enemy, checkpoint and
+        /// pickup scene. Unpinned, such a resource cycles exactly as described
+        /// above: when the last scene instance holding it is freed its wrapper
+        /// becomes collectable, and if the next scene load takes the still-cached
+        /// native resource back <i>before</i> the finalizer has run, Godot cannot
+        /// re-strengthen the collected wrapper, releases its handle, and the
+        /// late finalizer then trips the same <c>gchandle.is_released()</c>
+        /// FATAL. Call it from the export's setter, so the resource is pinned the
+        /// first time any instance sees it. Resources without a file path
+        /// (scene-local or built in code) are returned untouched, since they are
+        /// owned by their scene. Returns <paramref name="resource"/>.
+        /// </summary>
+        public static T Pin<T>(T resource) where T : Resource {
+            if (resource == null) return null;
+            string path = resource.ResourcePath;
+            if (string.IsNullOrEmpty(path) || path.Contains("::")) return resource;
+            if (!Cache.TryGetValue(path, out Resource cached) || !GodotObject.IsInstanceValid(cached)) {
+                Cache[path] = resource;
+            }
+            return resource;
         }
     }
 }

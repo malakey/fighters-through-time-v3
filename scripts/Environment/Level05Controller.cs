@@ -136,6 +136,28 @@ namespace FTT.Environment {
         public const string BossResourcePath = "res://resources/Bosses/tidal_eraser.tres";
 
         /// <summary>
+        /// P1 (2026-10-04): the stern rail. West edge is <see cref="BossArenaWestX"/>
+        /// (spawn 10300 - 900), so the pre-boss beat at 8720 lands first; east edge
+        /// is the stern wall's inner face. The Overseer used to fight on the boat
+        /// deck at x ~8000, outside the arena entirely.
+        /// </summary>
+        public static readonly Rect2 BossArenaBounds = new(BossArenaWestX, 0f, LevelWidth - 220f - BossArenaWestX, LevelHeight);
+
+        /// <summary>
+        /// A4 (2026-10-04): the boss's spawn X, the one value the arena's west
+        /// edge derives from (the encounter is built at it).
+        /// </summary>
+        public const float BossSpawnX = 10300f;
+        /// <summary>
+        /// How far west of <see cref="BossSpawnX"/> the arena starts: the old
+        /// 900 px reveal radius (ARENA-WEST-EDGE-AT-OLD-REVEAL-LINE). The
+        /// arena rect is the reveal now, so this is the radius's only remaining use.
+        /// </summary>
+        public const float BossArenaApproachPixels = 900f;
+        /// <summary>The arena's west edge (and the reveal line).</summary>
+        public const float BossArenaWestX = BossSpawnX - BossArenaApproachPixels;
+
+        /// <summary>
         /// Authored Normal-difficulty spawn table. Wave 1 is live on entry; waves 2
         /// and 3 arm on their room triggers. Difficulty scaling takes a prefix of
         /// each wave through <see cref="StoryDifficultyTuning.ScaleEncounterCount"/>.
@@ -311,8 +333,8 @@ namespace FTT.Environment {
 
             // Arena spans 2160 px; the boss's ranged band (10 m x 60 px/unit = 600 px)
             // and the plan's wider 12 m reading both fit with room to reposition.
-            BuildBossEncounter(BossResourcePath, new Vector2(10300f, DeckBoat - 50f),
-                "TidalEraserEncounter", revealDistance: 900f);
+            BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, DeckBoat - 50f),
+                "TidalEraserEncounter", BossArenaBounds);
         }
 
         private void BuildFloodZones() {
@@ -436,8 +458,13 @@ namespace FTT.Environment {
         private void StartPreBossBeat() {
             if (_preBossShown) return;
             _preBossShown = true;
-            StartDialogue(PreBossDialogueID);
+            // G4: never after the Overseer has fallen (it would land after, or
+            // over, the post-boss exchange).
+            StartPreBossDialogue(PreBossDialogueID);
         }
+
+        /// <summary>True once the pre-boss trigger has been crossed (whether or not the beat played). Test seam.</summary>
+        public bool PreBossTriggerCrossed => _preBossShown;
 
         /// <summary>
         /// The design's "drowning arena hazard boss": phase 2 breaks the stern open.

@@ -91,6 +91,8 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the cast clock (base) holds through a caster freeze; the
+            // Wardenclyffe shield is a passive and keeps its own clock.
             base._PhysicsProcess(delta);
             UpdateWardenclyffeShield((float)delta);
         }
@@ -259,7 +261,7 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
                 float dealt = hurtbox.TakeHit(hit);
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
 
                 // F07 (Package 12 W4, parity with the sim's GAP-10a consumer): only
                 // a pulse that LANDED chains, only while one of his coils stands,
@@ -302,7 +304,7 @@ namespace FTT.Characters.Abilities {
                 }, HitDelivery.DirectHit);
                 hit.Launches = false;
                 float dealt = target.TakeHit(hit);
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, target.GlobalPosition);
             }
         }
 
@@ -455,6 +457,8 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the blink carries its caster, so it holds with a frozen caster.
+            if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Startup) {
                 Owner.Velocity = Vector2.Zero;
             } else if (CurrentPhase == AbilityPhase.Active && _translationSeconds > 0f) {
@@ -513,6 +517,9 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the column strikes are paced by the cast's active window, so
+            // they hold with the frozen caster (the phase clock does too).
+            if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Active) {
                 _framesInActive++;
                 int interval = Data?.DamageTickIntervalFrames > 0
@@ -569,7 +576,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 

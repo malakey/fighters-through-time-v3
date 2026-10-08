@@ -79,6 +79,8 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the cast clock (base) holds through a caster freeze; the
+            // deployed spiral is a world object and keeps ticking.
             base._PhysicsProcess(delta);
             if (!_spiralActive) return;
             if (Owner == null || !IsInstanceValid(Owner)) { _spiralActive = false; return; }
@@ -142,7 +144,7 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
                 float dealt = hurtbox.TakeHit(hit);
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 
@@ -348,6 +350,9 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the glide and the Daedalus dive hold with the frozen caster
+            // (a bolt already fired is its own pooled node and keeps flying).
+            if (CastClockSuspended) return;
             float dt = (float)delta;
 
             if (_isDiving) {
@@ -501,6 +506,8 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the cast clock (base) holds through a caster freeze; the
+            // trap circle runs on its own tick count and keeps bombarding.
             base._PhysicsProcess(delta);
             if (!_matrixActive) return;
             if (Owner == null || !IsInstanceValid(Owner)) { _matrixActive = false; return; }
@@ -551,7 +558,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 

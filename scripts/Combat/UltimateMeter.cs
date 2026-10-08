@@ -12,9 +12,12 @@ namespace FTT.Combat {
         public const float StockLossRetention = 0.75f;
 
         private int _playerIndex;
+        /// <summary>The controller whose <c>CurrentUltimateMeter</c> mirrors this node (G2).</summary>
+        private PlayerController _owner;
 
         public override void _Ready() {
-            _playerIndex = GetParent<PlayerController>()?.PlayerIndex ?? 0;
+            _owner = GetParent() as PlayerController;
+            _playerIndex = _owner?.PlayerIndex ?? 0;
             Publish();
         }
 
@@ -36,6 +39,13 @@ namespace FTT.Combat {
 
         public void SetValue(float value) {
             CurrentValue = Mathf.Clamp(value, 0f, MaxValue);
+            // 2026-10-04 fix pass (G2): the owning controller's public
+            // CurrentUltimateMeter field is a mirror of this node, read by Defy
+            // History, the Defy seal and the save writers. Writers that reach the
+            // node directly (every Ultimate's own Consume, an orb, a test) used to
+            // leave that mirror stale until the next controller-side meter event,
+            // so it is synced on every write rather than at each call site.
+            (_owner ?? GetParent() as PlayerController)?.SyncUltimateMeterFromNode(CurrentValue);
             Publish();
         }
 

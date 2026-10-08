@@ -86,6 +86,8 @@ namespace FTT.Characters.Abilities {
         public bool IsCollapsing => _collapseFramesRemaining > 0;
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the cast clock (base) holds through a caster freeze; the open
+            // rift and its collapse are world objects and keep running.
             base._PhysicsProcess(delta);
             if (_collapseFramesRemaining > 0) {
                 AdvanceCollapse();
@@ -258,7 +260,7 @@ namespace FTT.Characters.Abilities {
             // 0 damage: TakeHit returns 0 and Credit awards nothing — no meter,
             // no Rally, exactly the design's "earns nothing of its own".
             float dealt = hurtbox.TakeHit(hit);
-            Credit(in hit, dealt);
+            Credit(in hit, dealt, hurtbox.GlobalPosition);
             // The player damage path stops at a zero-damage hit (enemies still
             // take its knockback and stun), so a caught PlayerController — the
             // Level 13 Mirror, a sparring partner — gets the launch directly.

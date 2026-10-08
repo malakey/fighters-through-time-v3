@@ -38,16 +38,17 @@ namespace FTT.UI {
             AddChild(_label);
         }
 
-        public void Initialize(int damage, Vector2 position) {
+        public void Initialize(int damage, Vector2 position, Color? tint = null) {
             GlobalPosition = position;
             _label.Text = damage.ToString();
-            // White for every hit; the shimmer treatment is Package 10 art.
-            _label.AddThemeColorOverride("font_color", Colors.White);
+            // White for every hit; the shimmer treatment is Package 10 art. A
+            // tint marks a refused hit (a warded boss's "0", A5 2026-10-04).
+            _label.AddThemeColorOverride("font_color", tint ?? Colors.White);
             _lifetime = MaxLifetime;
             _velocity = new Vector2(0f, -RiseUnitsPerSecond * PixelsPerUnit);
         }
 
-        public static FloatingDamageNumber Show(int damage, Vector2 position, Node parent = null) {
+        public static FloatingDamageNumber Show(int damage, Vector2 position, Node parent = null, Color? tint = null) {
             if (FTT.Core.SaveManager.Instance?.GlobalData?.DamageNumbersVisible == false) return null;
             if (FTT.Core.PoolManager.Instance == null) return null;
             _scene ??= GD.Load<PackedScene>(ScenePath);
@@ -59,7 +60,7 @@ namespace FTT.UI {
                 MaxCapacity,
                 FTT.Core.PoolOverflowPolicy.RecycleOldest);
             var number = FTT.Core.PoolManager.Instance.Spawn(_scene, position, parent) as FloatingDamageNumber;
-            number?.Initialize(damage, position);
+            number?.Initialize(damage, position, tint);
             return number;
         }
 

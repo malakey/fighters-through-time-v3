@@ -56,17 +56,21 @@ namespace FTT.Characters.Abilities {
                 // E05: a straight shot with no range limit — it bursts on a
                 // fighter, terrain or a wall (and at its lifetime cap).
                 projectile.BurstsOnTerrain = Data?.ProjectileBurstsOnTerrain ?? true;
-                projectile.Impacted += OnProjectileImpacted;
+                // R12 (2026-10-04 fix pass): the burst belongs to the cast that
+                // fired the shot, however late it lands (the pooled projectile
+                // clears its Impacted subscribers on despawn).
+                int executionSerial = ExecutionSerial;
+                projectile.Impacted += impactPosition => OnProjectileImpacted(impactPosition, executionSerial);
             }
         }
 
-        private void OnProjectileImpacted(Vector2 impactPosition) {
+        private void OnProjectileImpacted(Vector2 impactPosition, int executionSerial) {
             // Area signals fire while the physics space is locked; defer the burst
             // query one step so the shape cast is legal.
-            CallDeferred(nameof(Detonate), impactPosition);
+            CallDeferred(nameof(Detonate), impactPosition, executionSerial);
         }
 
-        private void Detonate(Vector2 impactPosition) {
+        private void Detonate(Vector2 impactPosition, int executionSerial) {
             if (Owner == null || !IsInstanceValid(Owner)) return;
 
             // E01 (Package 13 W7a): a burst inside Einstein's own active rift
@@ -126,8 +130,10 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.3f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
+                // R12: the firing cast's serial (0 = the current execution).
+                hit.SourceExecutionSerial = executionSerial;
                 float dealt = hurtbox.TakeHit(hit);
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
                 // dealt > 0 is exactly "the hit resolved into real damage":
                 // a block, an invulnerable target and a DoT-only contact all
                 // return zero, which is the design's gating list.
@@ -139,7 +145,7 @@ namespace FTT.Characters.Abilities {
         public float BurstRadius => Data?.ProjectileBurstRadius > 0f ? Data.ProjectileBurstRadius : DefaultBurstRadius;
 
         /// <summary>Test seam: resolves the burst at <paramref name="impactPosition"/> synchronously.</summary>
-        public void DetonateForTest(Vector2 impactPosition) => Detonate(impactPosition);
+        public void DetonateForTest(Vector2 impactPosition) => Detonate(impactPosition, 0);
 
         private EinsteinRelativityRift GetOwnRift() {
             if (Owner == null || !IsInstanceValid(Owner)) return null;

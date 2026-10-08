@@ -104,6 +104,7 @@ namespace FTT.Enemies {
             } else if (_hitboxShape != null && _hitboxShape.Shape == null) {
                 _hitboxShape.Shape = new RectangleShape2D { Size = new Vector2(48f, 48f) };
             }
+            _unclippedHitboxSize = Vector2.Zero;
         }
 
         /// <summary>
@@ -139,6 +140,10 @@ namespace FTT.Enemies {
             ActiveUnblockable = unblockable;
             _facingRight = facingRight;
             _targetPosition = targetPosition;
+            // P3: a telegraph promised to Cleopatra's sand decoy stays on the sand
+            // at fire time (GAP-10c) — see ResolveFireAim.
+            _telegraphedAtLure = HonoursSandDecoy
+                && FTT.Characters.Abilities.SandDecoyNode.IsLureAt(targetPosition);
             Phase = EnemyAbilityPhase.Telegraph;
             FramesRemainingInPhase = Math.Max(0, ability.TelegraphFrames);
             ApplyTelegraphTint();
@@ -169,6 +174,9 @@ namespace FTT.Enemies {
                 EnterRecovery();
                 return;
             }
+
+            // P2: a moving owner (a charge) re-clips its forward hitbox each frame.
+            if (Phase == EnemyAbilityPhase.Active) RefreshWallClip();
 
             FramesRemainingInPhase--;
             if (FramesRemainingInPhase > 0) return;
@@ -204,11 +212,14 @@ namespace FTT.Enemies {
             Cancel();
             ShieldDamageReduction = 0f;
             ShieldSecondsRemaining = 0f;
+            WallProbeRaysCast = 0;
         }
 
         private void ClearActiveEffects() {
             RestoreTint();
             _hitbox?.Deactivate();
+            _wallClipped = false;
+            _wallClipFollowsOwner = false;
             DashVelocity = Vector2.Zero;
             // A hard stop takes the tether with it: freeze teardown, despawn and
             // death must never leave a channel draining a player nobody owns.
@@ -232,6 +243,8 @@ namespace FTT.Enemies {
 
         private void EnterRecovery() {
             _hitbox?.Deactivate();
+            _wallClipped = false;
+            _wallClipFollowsOwner = false;
             DashVelocity = Vector2.Zero;
             int recovery = Math.Max(0, ActiveAbility?.RecoveryFrames ?? 0);
             RaisePresentation(EnemyPresentationPhase.Recovery);
@@ -470,8 +483,190 @@ namespace FTT.Enemies {
             _hitbox.CollisionMask = CollisionLayers.EnemyHitboxMask;
             _hitbox.Monitorable = true;
             _hitbox.Position = new Vector2(mirrored ? offset.X * direction : offset.X, offset.Y);
-            if (_hitboxShape?.Shape is RectangleShape2D rect && size.X > 0f && size.Y > 0f) rect.Size = size;
+            if (_hitboxShape?.Shape is RectangleShape2D rect) {
+                // A size-less ability keeps the last AUTHORED size, never a box a
+                // previous swing's wall clip shrank (P2).
+                if (size.X > 0f && size.Y > 0f) _unclippedHitboxSize = size;
+                else if (_unclippedHitboxSize == Vector2.Zero) _unclippedHitboxSize = rect.Size;
+                rect.Size = _unclippedHitboxSize;
+            }
+            // P2 (2026-10-04): a forward (mirrored) swing or charge stops at the
+            // first wall. Area2D hitboxes ignore Environment, so the Duke's Siege
+            // Smash used to land on a player standing behind a 20 px wall.
+            _wallClipped = mirrored;
+            _wallClipBlocked = false;
+            // A3: only a charge carries its hitbox into walls as the owner moves;
+            // a strike's box is fixed to a standing owner, so it clips once here.
+            _wallClipFollowsOwner = mirrored && ability.Archetype == EnemyAbilityArchetype.ChargeDash;
+            _wallClipOffset = offset;
+            _wallClipSize = _unclippedHitboxSize != Vector2.Zero ? _unclippedHitboxSize : size;
+            if (mirrored && !ClipHitboxToWalls()) {
+                // The whole forward reach is behind the wall: the swing lands nothing.
+                _wallClipBlocked = true;
+                _hitbox.Deactivate();
+                return;
+            }
             _hitbox.Activate();
+        }
+
+        // === P2 (2026-10-04): wall clipping for forward hitboxes ===
+
+        private bool _wallClipped;
+        private bool _wallClipBlocked;
+        /// <summary>A3: true for a ChargeDash, whose moving owner re-clips each active frame.</summary>
+        private bool _wallClipFollowsOwner;
+        /// <summary>A3: where the owner stood (and faced) at the last clip, so a halted charge probes nothing.</summary>
+        private Vector2 _lastClipOwnerPosition;
+        private bool _lastClipFacingRight;
+        private Vector2 _wallClipOffset;
+        private Vector2 _wallClipSize;
+        /// <summary>The hitbox size last authored by an ability (before any wall clip).</summary>
+        private Vector2 _unclippedHitboxSize;
+        /// <summary>
+        /// A3: the one ray query this executor reuses for every wall probe
+        /// (RefCounted, held for the executor's life, never disposed).
+        /// </summary>
+        private PhysicsRayQueryParameters2D _wallProbeQuery;
+
+        /// <summary>True when the last forward hitbox found its whole reach behind a wall. Test seam.</summary>
+        public bool LastHitboxWallBlocked => _wallClipBlocked;
+
+        /// <summary>Wall-probe rays this executor has cast since its last <see cref="Reset"/>. Test seam (A3).</summary>
+        public int WallProbeRaysCast { get; private set; }
+
+        /// <summary>The executor's reused probe query, or null before its first probe. Test seam (A3).</summary>
+        internal PhysicsRayQueryParameters2D WallProbeQueryForTest => _wallProbeQuery;
+
+        /// <summary>
+        /// Recomputes the live forward hitbox from its authored offset and size
+        /// against the walls in front of the owner right now
+        /// (<see cref="FTT.Combat.EnemyAttackGeometryRules.ClipForwardSpan"/>).
+        /// Returns false when nothing of the forward reach is left.
+        /// </summary>
+        private bool ClipHitboxToWalls() {
+            if (_hitbox == null || _hitboxShape?.Shape is not RectangleShape2D rect) return true;
+            float direction = _facingRight ? 1f : -1f;
+            float near = _wallClipOffset.X - _wallClipSize.X / 2f;
+            float far = _wallClipOffset.X + _wallClipSize.X / 2f;
+            if (far <= 0f) return true;
+            _lastClipOwnerPosition = _owner.GlobalPosition;
+            _lastClipFacingRight = _facingRight;
+            float wall = NearestBlockingWall(direction, far);
+            if (!FTT.Combat.EnemyAttackGeometryRules.ClipForwardSpan(near, far, wall,
+                    out float clippedNear, out float clippedFar)) {
+                return false;
+            }
+            rect.Size = new Vector2(clippedFar - clippedNear, _wallClipSize.Y);
+            _hitbox.Position = new Vector2(direction * (clippedNear + clippedFar) / 2f, _wallClipOffset.Y);
+            return true;
+        }
+
+        /// <summary>
+        /// Distance to the wall face in front of the owner along the hitbox's
+        /// height, or -1 when any sampled height reaches the far edge unobstructed
+        /// (the open part of the swing still lands).
+        /// </summary>
+        private float NearestBlockingWall(float direction, float far) {
+            int rays = Math.Max(1, FTT.Combat.EnemyAttackGeometryRules.WallProbeRays);
+            Vector2 owner = _owner.GlobalPosition;
+            float farthestHit = -1f;
+            _wallProbeQuery ??= FTT.Combat.EnvironmentProbe.CreateReusableQuery();
+            for (int index = 0; index < rays; index++) {
+                float fraction = (index + 1f) / (rays + 1f) - 0.5f;
+                float y = owner.Y + _wallClipOffset.Y + fraction * _wallClipSize.Y;
+                var from = new Vector2(owner.X, y);
+                var to = new Vector2(owner.X + direction * far, y);
+                WallProbeRaysCast++;
+                float hit = FTT.Combat.EnvironmentProbe.FirstHitDistance(_owner, _wallProbeQuery, from, to);
+                if (hit < 0f) return -1f;
+                farthestHit = Mathf.Max(farthestHit, hit);
+            }
+            return farthestHit;
+        }
+
+        /// <summary>
+        /// A charge carries its hitbox into walls as the owner moves, so the clip
+        /// is recomputed every active frame the owner has moved or turned. A
+        /// hitbox that ends up fully behind a wall is switched off for the rest of
+        /// the phase and never re-armed, so a re-grow can never re-deliver the
+        /// same swing. A3: a MeleeStrike's owner stands still for the swing, so
+        /// its activation clip stands and no frame re-probes it.
+        /// </summary>
+        private void RefreshWallClip() {
+            if (!_wallClipped || !_wallClipFollowsOwner || _wallClipBlocked
+                || _hitbox == null || !_hitbox.IsActive) return;
+            if (_owner.GlobalPosition == _lastClipOwnerPosition && _facingRight == _lastClipFacingRight) return;
+            if (ClipHitboxToWalls()) return;
+            _wallClipBlocked = true;
+            _hitbox.Deactivate();
+        }
+
+        // === P3 (2026-10-04): shots re-sample and lead their target ===
+
+        /// <summary>True when this telegraph was aimed at a live sand decoy (GAP-10c).</summary>
+        private bool _telegraphedAtLure;
+
+        /// <summary>
+        /// Only an <see cref="EnemyController"/> is lured by the sand decoy
+        /// (its <c>TargetAimPosition</c>); bosses ignore it.
+        /// </summary>
+        private bool HonoursSandDecoy => _owner is EnemyController;
+
+        /// <summary>
+        /// Where a shot fired now should aim. The telegraph captured a point; at
+        /// fire time the living campaign player nearest that point (within
+        /// <see cref="FTT.Combat.EnemyAttackGeometryRules.ResampleRadiusPixels"/>)
+        /// is re-sampled at body height and led by its velocity over the shot's
+        /// flight time. A target that crossed to the other side of the shooter
+        /// during the telegraph keeps the telegraphed aim — dodging through the
+        /// archer answers the promise rather than turning it around. Nobody near
+        /// the point: the telegraphed point itself.
+        ///
+        /// <para><b>The sand decoy (GAP-10c).</b> A mob aims at Cleopatra's live
+        /// decoy instead of her (<see cref="EnemyController.TargetAimPosition"/>),
+        /// and she always stands within the re-sample radius of her own decoy,
+        /// so a re-sample would turn every lured shot back onto her. A telegraph
+        /// that was aimed at a lure keeps its telegraphed point; and a re-sampled
+        /// player who raised a decoy during the telegraph is answered at the
+        /// decoy, exactly as the mob's own aim would be. Bosses ignore the decoy
+        /// (they never aim at it), so neither rule applies to them.</para>
+        /// </summary>
+        private Vector2 ResolveFireAim(EnemyAbilityData ability, Vector2 origin) {
+            if (_telegraphedAtLure) return _targetPosition;
+            FTT.Characters.PlayerController target = ResampleTarget();
+            if (target == null) return _targetPosition;
+            if (HonoursSandDecoy
+                && FTT.Characters.Abilities.SandDecoyNode.TryGetLure(target, out Vector2 lure)) {
+                return lure;
+            }
+            Vector2 aim = target.GlobalPosition
+                - new Vector2(0f, FTT.Combat.EnemyAttackGeometryRules.BodyAimHeightPixels);
+            Vector2 led = FTT.Combat.EnemyAttackGeometryRules.LeadPoint(
+                origin, aim, target.Velocity, ability?.ProjectileSpeed ?? 0f);
+            float telegraphedSide = Mathf.Sign(_targetPosition.X - origin.X);
+            float firedSide = Mathf.Sign(led.X - origin.X);
+            if (telegraphedSide != 0f && firedSide != 0f && telegraphedSide != firedSide) return _targetPosition;
+            return led;
+        }
+
+        private FTT.Characters.PlayerController ResampleTarget() {
+            SceneTree tree = _owner.IsInsideTree() ? _owner.GetTree() : null;
+            if (tree == null) return null;
+            Godot.Collections.Array<Node> players = tree.GetNodesInGroup("Players");
+            using var playersLifetime = players.AsDisposable();
+            FTT.Characters.PlayerController best = null;
+            float bestDistance = FTT.Combat.EnemyAttackGeometryRules.ResampleRadiusPixels;
+            foreach (Node node in players) {
+                if (node is not FTT.Characters.PlayerController player || !GodotObject.IsInstanceValid(player)) continue;
+                if (player == _owner || player.IsStoryHostile) continue;
+                if (player.CurrentState is FTT.Characters.CharacterState.Dead
+                    or FTT.Characters.CharacterState.Respawning) continue;
+                float distance = player.GlobalPosition.DistanceTo(_targetPosition);
+                if (distance > bestDistance) continue;
+                best = player;
+                bestDistance = distance;
+            }
+            return best;
         }
 
         private void SpawnProjectiles(EnemyAbilityData ability, bool lockVertical) {
@@ -480,7 +675,7 @@ namespace FTT.Enemies {
                 ? _abilityOrigin.GlobalPosition
                 : _owner.GlobalPosition + new Vector2((_facingRight ? 1f : -1f) * 24f, -40f);
 
-            Vector2 toTarget = _targetPosition - origin;
+            Vector2 toTarget = ResolveFireAim(ability, origin) - origin;
             Vector2 baseDirection = toTarget.LengthSquared() > 1f
                 ? toTarget.Normalized()
                 : new Vector2(_facingRight ? 1f : -1f, 0f);
@@ -499,6 +694,7 @@ namespace FTT.Enemies {
                 var projectile = PoolManager.Instance.Spawn(ProjectilePoolID, origin, parent) as EnemyProjectile;
                 projectile?.Setup(ability, direction * Mathf.Max(1f, ability.ProjectileSpeed), damage, SourceID,
                     lockVertical, ActiveGuardCrush, ActiveUnblockable);
+                if (projectile != null) projectile.SourceIsStandardMob = _owner is EnemyController { Data.Tier: EnemyTier.Standard }; // F7 (FEEL)
             }
         }
 

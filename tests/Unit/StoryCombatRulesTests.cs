@@ -62,65 +62,84 @@ public class StoryCombatRulesTests {
     }
 
     [TestCase]
-    public void AuthoredBasicAnimationsContainMethodEventTracks() {
-        AnimationLibrary library = ResourceLoader.Load<AnimationLibrary>(
-            "res://resources/Animations/placeholder_combat_animation_library.tres");
-        AssertObject(library).IsNotNull();
-
-        foreach (string animationName in new[] {
-            "basic_ground_1", "basic_ground_2", "basic_ground_3",
-            "basic_air_1", "basic_air_2", "basic_air_3"
-        }) {
-            AssertThat(library.HasAnimation(animationName)).IsTrue();
-            Animation animation = library.GetAnimation(animationName);
-            AssertThat(animation.GetTrackCount()).IsEqual(1);
-            AssertThat((int)animation.TrackGetType(0)).IsEqual((int)Animation.TrackType.Method);
-            AssertThat(animation.TrackGetKeyCount(0)).IsEqual(2);
+    public void NoSecondAttackClockDuplicatesTheFrameTables() {
+        // 2026-10-04 feel pass (F2): the placeholder method-track library that
+        // timed template-profile swings on an AnimationPlayer idle clock was a
+        // second copy of the BasicComboRules frame tables, and its clock ignored
+        // hitstop. It is deleted; every swing runs on the physics frame clock.
+        AssertThat(ResourceLoader.Exists("res://resources/Animations/placeholder_combat_animation_library.tres"))
+            .OverrideFailureMessage("The method-track library must not come back as a second copy of the frame tables.")
+            .IsFalse();
+        PlayerController player = CharacterFactory.CreateCharacter("tesla", 0, applyStoryProgression: false);
+        try {
+            AssertObject(player.GetNodeOrNull("CombatAnimationPlayer")).IsNull();
+            var children = player.GetChildren();
+            using var lifetime = children.AsDisposable();
+            foreach (Node child in children) {
+                AssertThat(child is AnimationPlayer)
+                    .OverrideFailureMessage($"{child.Name} is a second attack clock.")
+                    .IsFalse();
+            }
+        } finally {
+            player.Free();
         }
     }
 
     [TestCase]
-    public void AuthoredAnimationEventsActivateAndDeactivateTheRuntimeHitbox() {
-        SceneTree tree = (SceneTree)Engine.GetMainLoop();
-        // Tesla's V7.1 string profile is the exact template, so the shared
-        // placeholder animation timing stays authoritative for him.
-        PlayerController player = CharacterFactory.CreateCharacter("tesla");
-        tree.Root.AddChild(player);
+    public void TemplateTimedSwingsActivateTheRuntimeHitboxOnTheFrameClock() {
+        // Tesla's V7.1 string profile is the exact template — the character whose
+        // grounded opener used to be timed by the deleted animation library. The
+        // frame clock now opens the box on the authored startup frame and closes
+        // it after the authored active window.
+        StaticBody2D floor = CreateFlatFloor();
+        PlayerController player = CreateGroundedPlayer("tesla");
         try {
-            player.TransitionTo(CharacterState.Airborne);
-            player.Velocity = Vector2.Down;
             SendInput(player, GameplayButtons.BasicAttack);
-
-            var animationPlayer = player.GetNode<AnimationPlayer>("CombatAnimationPlayer");
             var sprite = player.GetNode<AnimatedSprite2D>("AnimatedSprite2D");
             var hitbox = player.GetNode<Hitbox>("MeleeHitbox");
             AssertThat(player.CurrentState).IsEqual(CharacterState.Attacking);
             AssertThat(sprite.Animation.ToString()).IsEqual("basic_attack_1");
-            AssertThat(sprite.IsPlaying()).IsTrue();
             AssertThat(hitbox.IsActive).IsFalse();
 
-            animationPlayer.Advance(0.1);
-            AssertThat(hitbox.IsActive).IsTrue();
-            animationPlayer.Advance(0.15);
+            // The press frame runs no attack tick: the Nth call after it is
+            // elapsed frame N-1.
+            int startup = BasicComboRules.StringProfileFor("tesla").GroundStartupFrames[0];
+            for (int frame = 0; frame < startup; frame++) {
+                SendInput(player, GameplayButtons.None);
+                AssertThat(hitbox.IsActive)
+                    .OverrideFailureMessage($"The box opened during startup (elapsed {frame}).")
+                    .IsFalse();
+            }
+            for (int frame = 0; frame < BasicComboRules.GroundActiveFrames[0]; frame++) {
+                SendInput(player, GameplayButtons.None);
+                AssertThat(hitbox.IsActive)
+                    .OverrideFailureMessage($"The box must be live through the active window (frame {frame}).")
+                    .IsTrue();
+            }
+            SendInput(player, GameplayButtons.None);
             AssertThat(hitbox.IsActive).IsFalse();
         } finally {
             InputManager.Instance?.ClearInputSource(player.PlayerIndex);
             player.Free();
+            floor.Free();
         }
     }
 
     [TestCase]
     public void AerialComboUsesIndependentStateAndLandingResetDoesNotLeakIntoGroundCombo() {
         SceneTree tree = (SceneTree)Engine.GetMainLoop();
-        // Template-profile character (see above): animation-driven chain timing.
+        // Template-profile character: the aerial opener runs its whole authored
+        // window on the frame clock, then the chain hold accepts hit two.
         PlayerController player = CharacterFactory.CreateCharacter("tesla");
         tree.Root.AddChild(player);
         try {
             player.TransitionTo(CharacterState.Airborne);
             player.Velocity = Vector2.Down;
             SendInput(player, GameplayButtons.BasicAttack);
-            var animationPlayer = player.GetNode<AnimationPlayer>("CombatAnimationPlayer");
-            animationPlayer.Advance(0.5);
+            int opener = BasicComboRules.StringProfileFor("tesla").AerialStartupFrames[0]
+                + BasicComboRules.AerialActiveFrames[0]
+                + BasicComboRules.AerialRecoveryFrames[0];
+            for (int frame = 0; frame < opener; frame++) SendInput(player, GameplayButtons.None);
             SendInput(player, GameplayButtons.BasicAttack);
 
             AssertThat(player.AerialComboCounter).IsEqual(1);
@@ -620,8 +639,8 @@ public class StoryCombatRulesTests {
         return floor;
     }
 
-    private static PlayerController CreateGroundedPlayer() {
-        PlayerController player = CharacterFactory.CreateCharacter("einstein");
+    private static PlayerController CreateGroundedPlayer(string characterID = "einstein") {
+        PlayerController player = CharacterFactory.CreateCharacter(characterID);
         ((SceneTree)Engine.GetMainLoop()).Root.AddChild(player);
         player.GlobalPosition = new Vector2(0f, -8f);
         var neutral = new BufferedInputSource();

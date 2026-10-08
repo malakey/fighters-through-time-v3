@@ -1512,16 +1512,16 @@ namespace FTT.Environment {
             _player.Position = new Vector2(400, 850);
             AddChild(_player);
 
-            var camera = new Camera2D();
-            camera.Name = "PlayerCamera";
-            camera.Enabled = true;
-            camera.LimitLeft = 0;
-            camera.LimitRight = 4800;
-            camera.LimitTop = 0;
-            camera.LimitBottom = 1080;
-            camera.PositionSmoothingEnabled = true;
-            camera.PositionSmoothingSpeed = 5.0f;
+            // F8 (2026-10-04): the shared Story follow rig (StoryCameraRules) over
+            // the same 4800 x 1080 limits; a scripted relocation (the rift to the
+            // bay) is a teleport the rig cuts on rather than pans across.
+            var camera = new StoryCameraConfiner {
+                Name = "PlayerCamera",
+                Enabled = true,
+                ActiveBounds = new Rect2(0, 0, 4800, 1080)
+            };
             _player.AddChild(camera);
+            camera.EnableFollow(_player);
         }
     }
 }

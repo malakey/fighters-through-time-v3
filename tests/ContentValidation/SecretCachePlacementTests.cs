@@ -30,7 +30,9 @@ namespace FTT.Tests.ContentValidation;
 /// source (any drop is allowed). Deliberately coarse — it ignores walls and
 /// hazards, so it catches a cache stranded in the sky, not a subtle route
 /// problem. The cache also keeps 300 px from every checkpoint and the spawn and
-/// stays outside every boss (and Mirror) reveal radius.</para>
+/// stays out of every boss fight: outside the arena rect of an arena encounter
+/// (the arena is its reveal), outside the reveal radius of a radius encounter,
+/// and outside both the Mirror's reveal radius and its arena.</para>
 ///
 /// <para><b>GAP-05 — the N01 sealing anchor.</b> Levels 2–14 carry the generic <see cref="TemporalCoreAnchor"/>: dormant at load,
 /// ID <c>{DialoguePrefix}.sealing_anchor</c>, over a standable surface within
@@ -103,7 +105,14 @@ public class SecretCachePlacementTests {
         }
         if (level.Encounters.Count == 0) issues.Add($"{label}: no boss encounter found to fence the arena");
         foreach (Encounter encounter in level.Encounters) {
-            if (position.DistanceTo(encounter.Position) <= encounter.Reveal) {
+            // The fight's own zone: the arena rect where one is authored (it is
+            // the reveal and the leash — the encounter ignores its radius then,
+            // A4), and the reveal radius where that is what reveals the fight
+            // (a radius encounter, and the Mirror, whose arena is its leash).
+            if (encounter.HasArena && encounter.Arena.HasPoint(position)) {
+                issues.Add($"{label}: cache {position} is inside the boss arena {encounter.Arena}");
+            }
+            if (encounter.Reveal > 0f && position.DistanceTo(encounter.Position) <= encounter.Reveal) {
                 issues.Add($"{label}: cache {position} is inside the boss reveal radius ({encounter.Reveal}) of {encounter.Position}");
             }
         }
@@ -154,7 +163,14 @@ public class SecretCachePlacementTests {
         public bool IsFloor;
     }
 
-    private readonly record struct Encounter(Vector2 Position, float Reveal, Vector2 BossSpawn);
+    /// <summary>
+    /// One boss (or Mirror) encounter. <see cref="Reveal"/> is the radius that
+    /// reveals it (0 when an arena rect does instead); <see cref="Arena"/> is its
+    /// arena rect, default when it has none.
+    /// </summary>
+    private readonly record struct Encounter(Vector2 Position, float Reveal, Vector2 BossSpawn, Rect2 Arena) {
+        public bool HasArena => Arena.Size.X > 0f && Arena.Size.Y > 0f;
+    }
 
     private sealed class LevelSnapshot {
         public string Label;
@@ -249,10 +265,16 @@ public class SecretCachePlacementTests {
             case SecretCache cache: snapshot.Caches.Add((cache.SecretID, cache.GlobalPosition)); break;
             case CheckpointTrigger checkpoint: snapshot.Checkpoints.Add((checkpoint.CheckpointID, checkpoint.GlobalPosition)); break;
             case BossEncounterController boss:
-                snapshot.Encounters.Add(new Encounter(boss.GlobalPosition, boss.RevealDistance, boss.GlobalPosition + boss.SpawnOffset));
+                // A4: an arena encounter reveals on its rect and its RevealDistance
+                // is the unused export default — fence the rect, not that number.
+                snapshot.Encounters.Add(new Encounter(boss.GlobalPosition,
+                    boss.HasArena ? 0f : boss.RevealDistance,
+                    boss.GlobalPosition + boss.SpawnOffset,
+                    boss.HasArena ? boss.ArenaBounds : default));
                 break;
             case MirrorParadoxEncounterController mirror:
-                snapshot.Encounters.Add(new Encounter(mirror.GlobalPosition, mirror.RevealDistance, mirror.GlobalPosition));
+                snapshot.Encounters.Add(new Encounter(mirror.GlobalPosition, mirror.RevealDistance, mirror.GlobalPosition,
+                    mirror.ArenaBounds));
                 break;
         }
         bool oneWay = node is OneWayPlatform;

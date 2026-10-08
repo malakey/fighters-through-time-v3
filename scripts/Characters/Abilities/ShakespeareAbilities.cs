@@ -59,7 +59,11 @@ namespace FTT.Characters.Abilities {
                 projectile.MakeMinorContactStage();
                 // Bursts on a fighter, terrain or at max range.
                 projectile.BurstsOnTerrain = Data?.ProjectileBurstsOnTerrain ?? true;
-                projectile.Impacted += OnProjectileImpacted;
+                // R12 (2026-10-04 fix pass): the wave belongs to the cast that
+                // threw the skull, however late it lands (the pooled projectile
+                // clears its Impacted subscribers on despawn).
+                int executionSerial = ExecutionSerial;
+                projectile.Impacted += impactPosition => OnProjectileImpacted(impactPosition, executionSerial);
             }
         }
 
@@ -67,15 +71,15 @@ namespace FTT.Characters.Abilities {
         public float WaveRadius => Data?.ProjectileBurstRadius > 0f ? Data.ProjectileBurstRadius : DefaultWaveRadius;
 
         /// <summary>Test seam: resolves the wave at <paramref name="impactPosition"/> synchronously.</summary>
-        public void EmitSonicWaveForTest(Vector2 impactPosition) => EmitSonicWave(impactPosition);
+        public void EmitSonicWaveForTest(Vector2 impactPosition) => EmitSonicWave(impactPosition, 0);
 
-        private void OnProjectileImpacted(Vector2 impactPosition) {
+        private void OnProjectileImpacted(Vector2 impactPosition, int executionSerial) {
             // Area signals fire while the physics space is locked; defer the wave
             // query one step so the shape cast is legal.
-            CallDeferred(nameof(EmitSonicWave), impactPosition);
+            CallDeferred(nameof(EmitSonicWave), impactPosition, executionSerial);
         }
 
-        private void EmitSonicWave(Vector2 impactPosition) {
+        private void EmitSonicWave(Vector2 impactPosition, int executionSerial) {
             if (Owner == null || !IsInstanceValid(Owner)) return;
 
             // Wave flash visual only; damage and status are applied through the
@@ -122,8 +126,10 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeIntensity = Data?.ScreenShakeIntensity ?? 0.2f,
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
+                // R12: the throwing cast's serial (0 = the current execution).
+                hit.SourceExecutionSerial = executionSerial;
                 float dealt = hurtbox.TakeHit(hit);
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
 
                 if (macbethsCurse) ApplyMacbethVenom(hurtbox);
             }
@@ -194,14 +200,22 @@ namespace FTT.Characters.Abilities {
         protected override void OnActive() {
             UseAuthoredPhaseFrames();
             _caught.Clear();
+            // F5: the storm lives exactly the authored active window, on its
+            // own count — so a caster freeze, which holds the cast's phase
+            // clock and the lift, neither stops the shove nor stretches it.
+            _windboxFramesRemaining = PhaseFramesRemaining;
         }
 
         /// <summary>H-4: an interrupted storm stops pushing.</summary>
-        protected override void OnInterrupted() => _caught.Clear();
+        protected override void OnInterrupted() {
+            _caught.Clear();
+            _windboxFramesRemaining = 0;
+        }
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
             _caught.Clear();
+            _windboxFramesRemaining = 0;
             // The lift is spent: the recovery plays in the air, then a normal fall.
             if (Owner != null && Owner.Velocity.Y < 0f) Owner.Velocity = new Vector2(Owner.Velocity.X, 0f);
             // Tempest Apex Jump (traversal): the lift has just finished, which
@@ -213,9 +227,20 @@ namespace FTT.Characters.Abilities {
             }
         }
 
+        /// <summary>Frames of shove the live storm has left (test seam).</summary>
+        public int WindboxFramesRemaining => _windboxFramesRemaining;
+
+        private int _windboxFramesRemaining;
+
         public override void _PhysicsProcess(double delta) {
-            if (CurrentPhase == AbilityPhase.Active && Owner != null) {
+            // F5: the lift is the caster's and holds with a frozen caster; the
+            // windbox is the storm's — a world object, like the sim's Tempest
+            // zone — and keeps pushing for its own authored frames.
+            if (CurrentPhase == AbilityPhase.Active && Owner != null && !CastClockSuspended) {
                 Owner.Velocity = new Vector2(Owner.Velocity.X, -LiftSpeed);
+            }
+            if (_windboxFramesRemaining > 0 && Owner != null) {
+                _windboxFramesRemaining--;
                 PushAdjacentTargets();
             }
             base._PhysicsProcess(delta);
@@ -354,6 +379,8 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the gust carries its caster, so it holds with a frozen caster.
+            if (CastClockSuspended) return;
             if (_isGusting && CurrentPhase == AbilityPhase.Active && Owner != null) {
                 Owner.Velocity = _gustVelocity;
                 if (Owner.HasStoryPerk(MidsummerGlidePerkKey)) StrikeGustedThroughTargets();
@@ -409,7 +436,7 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeDuration = 0.05f
                 });
                 float dealt = hurtbox.TakeHit(hit);
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
             }
         }
     }
@@ -459,6 +486,9 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the strikes are paced by the cast's active window, so they
+            // hold with the frozen caster (the phase clock does too).
+            if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Active) {
                 _activeFramesElapsed++;
                 // D15 (Package 13 W6): three phantom strikes, then Hamlet's finale.
@@ -522,7 +552,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
             }
         }
     }

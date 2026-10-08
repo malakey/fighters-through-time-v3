@@ -65,6 +65,8 @@ namespace FTT.Enemies {
         // shortened. Counted in physics frames so it cannot drift against the
         // 60 Hz clock the shared frame tables are authored in.
         private int _hitstopFramesRemaining;
+        /// <summary>Read-only view of the shared hitstop freeze (diagnostics / feel telemetry).</summary>
+        public int HitstopFramesRemaining => _hitstopFramesRemaining;
 
         // === V7.2 Grabs & Throws (Story: the beat-em-up payoff) ===
         // A held mob is pinned by the player each frame; a thrown mob is a
@@ -74,6 +76,36 @@ namespace FTT.Enemies {
         private bool _thrownFlight;
         private int _thrownBowlingDamage;
         private readonly System.Collections.Generic.HashSet<ulong> _bowledVictims = new();
+
+        // === 2026-10-04 playtest-feel pass (StoryEnemyCombatRules; Story only) ===
+        // _hitstopFramesRemaining doubles as the corpse's kill freeze: a lethal
+        // direct hit holds the victim hitstop before the death animation plays.
+        // S2: hits landed in the current uninterrupted stun chain (1-based once a
+        // chain opens). The chain survives the hits of an Armored Recovery the
+        // chain itself tripped (S3) and resets on natural stun expiry, the end of
+        // that armored window, death, spawn/pool reset and rewind.
+        private int _confirmChainHits;
+        // S2: per stun chain, whether each Special (keyed by AttackID) was a
+        // confirm — its first hit in the chain landed on hitstun another attack
+        // opened. Every later hit of that Special in the chain keeps the same
+        // answer, so a multi-hit Special's own follow-up hits (Divine Piercing's
+        // 3 x 8, the Lorentz chain arc) are never prorated against the hitstun
+        // their own first hit applied. Cleared with the chain.
+        private readonly System.Collections.Generic.Dictionary<string, bool> _chainSpecialConfirms = new();
+        // P4: the room x-bounds this mob is leashed to, resolved once per spawn
+        // from the owning StoryLevelControllerBase (or set explicitly).
+        private bool _leashRoomResolved;
+        private bool _hasLeashRoom;
+        private float _leashRoomMinX;
+        private float _leashRoomMaxX;
+        // P4: body extents read once from the authored collision shape, for the
+        // ledge and wall probes and the floating damage number's height.
+        private float _bodyHalfWidth = 23f;
+        private float _bodyHeight = 72f;
+        private float _bodyCenterY = -36f;
+        private PhysicsRayQueryParameters2D _probeQuery;
+        // P3: the authored |x| of the AbilityOrigin marker, mirrored by SetFacing.
+        private float _abilityOriginBaseX;
 
         /// <summary>Standard mobs only; elites and bosses are grab-immune.</summary>
         public bool IsGrabbable =>
@@ -109,22 +141,32 @@ namespace FTT.Enemies {
         /// </summary>
         public void LaunchThrown(Vector2 velocity, int bowlingDamage) {
             _isHeldByPlayer = false;
+            // A throw whose own damage killed the mob launches nothing
+            // (PlayerController resolves the throw damage, then launches): the
+            // Dead branch never runs a flight, so the latch would only ride the
+            // corpse through the pool into the next spawn (2026-10-04 review).
+            if (CurrentState == EnemyState.Dead) return;
             _thrownFlight = true;
             _thrownBowlingDamage = Mathf.Max(0, bowlingDamage);
             _bowledVictims.Clear();
             Velocity = velocity;
-            ApplyStun(1.2f);
+            // A throw is a knockdown, not hitstun: it spends no poise budget (S3).
+            // The throw velocity just written is the flight, so the stun keeps it.
+            ApplyStun(1.2f, 0f, fromSpecial: false, chargesStaggerBudget: false, eliteBudgetMinimumSeconds: 0f,
+                chargesStandardPoise: false, carriesKnockback: true);
         }
 
         /// <summary>
         /// Thrown-projectile flight: gravity and motion only (no AI), sweeping
-        /// nearby standard enemies for the crowd-bowling hit. Ends as a
-        /// knockdown when the mob returns to the floor.
+        /// nearby enemies — standards and elites alike — for the crowd-bowling
+        /// hit. Ends as a knockdown when the mob returns to the floor.
         /// </summary>
         private void ProcessThrownFlight(float dt) {
             ApplyGravity(dt);
             MoveAndSlide();
-            foreach (Node node in GetTree().GetNodesInGroup("Enemies")) {
+            Godot.Collections.Array<Node> enemies = GetTree().GetNodesInGroup("Enemies");
+            using var enemiesLifetime = enemies.AsDisposable();
+            foreach (Node node in enemies) {
                 if (node is not EnemyController other || other == this) continue;
                 if (other.CurrentState == EnemyState.Dead || other._thrownFlight || other._isHeldByPlayer) continue;
                 if (!_bowledVictims.Add(other.GetInstanceId())) continue;
@@ -134,8 +176,15 @@ namespace FTT.Enemies {
                 }
                 // Crowd bowling: 0.5x BasicAttackDamage and a knockdown.
                 other.TakeDamage(_thrownBowlingDamage, GlobalPosition);
-                other.ApplyKnockback(new Vector2(2.5f, -1.5f), Velocity.X >= 0f);
-                other.ApplyStun(1.0f);
+                bool bowledKnockback = other.TryApplyKnockback(new Vector2(2.5f, -1.5f), Velocity.X >= 0f);
+                // A bowled STANDARD's knockdown is not hitstun and spends no S3
+                // poise; a bowled ELITE keeps the V7.4 budget charge it took
+                // before the 2026-10-04 pass (the applied stun, no floor).
+                other.ApplyStun(1.0f, 0f, fromSpecial: false,
+                    chargesStaggerBudget: other.Data?.Tier == EnemyTier.Elite,
+                    eliteBudgetMinimumSeconds: 0f,
+                    chargesStandardPoise: false,
+                    carriesKnockback: bowledKnockback);
             }
             if (IsOnFloor()) {
                 _thrownFlight = false;
@@ -343,7 +392,11 @@ namespace FTT.Enemies {
         /// </summary>
         public bool IsStaggerArmored => IsGetupArmored || IsArmoredRecovery;
 
-        /// <summary>Accumulated post-resistance stun credit (elites only). Test seam.</summary>
+        /// <summary>
+        /// Accumulated post-resistance stun credit (elites since V7.4; standards
+        /// since the 2026-10-04 S3 poise, Special-sourced stuns at a premium).
+        /// Test seam.
+        /// </summary>
         public float StaggerBudgetSeconds => _staggerBudget;
 
         /// <summary>
@@ -382,6 +435,14 @@ namespace FTT.Enemies {
             if (_hurtbox != null) _hurtbox.OwnerPlayerIndex = -1;
             _pushbox = GetNodeOrNull<FTT.Combat.CombatantPushbox>("Pushbox");
             _abilityOrigin = GetNodeOrNull<Node2D>("AbilityOrigin");
+            // P3: the scenes author the marker for a right-facing body; SetFacing
+            // mirrors it so a left-facing caster fires from in front, not behind.
+            if (_abilityOrigin != null) _abilityOriginBaseX = Mathf.Abs(_abilityOrigin.Position.X);
+            if (GetNodeOrNull<CollisionShape2D>("CollisionShape2D") is { Shape: RectangleShape2D bodyRect } bodyShape) {
+                _bodyHalfWidth = bodyRect.Size.X * 0.5f;
+                _bodyHeight = bodyRect.Size.Y;
+                _bodyCenterY = bodyShape.Position.Y;
+            }
             _hpBar = GetNodeOrNull<ProgressBar>("HPBar") ?? GetNodeOrNull<ProgressBar>("Presentation/HPBar");
             _nameLabel = GetNodeOrNull<Label>("NameLabel") ?? GetNodeOrNull<Label>("Presentation/NameLabel");
             Executor.Bind(_sprite, _attackHitbox, _abilityOrigin);
@@ -471,6 +532,7 @@ namespace FTT.Enemies {
             Difficulty difficulty = StoryDifficultyTuning.CurrentStoryDifficulty;
             _attackHitbox.Damage = StoryDifficultyTuning.ScaleEnemyDamage(Data.AttackDamage, difficulty);
             _attackHitbox.OwnerPlayerIndex = -1;
+            _attackHitbox.SourceIsStandardMob = Data.Tier == EnemyTier.Standard; // F7 (FEEL): standard-mob hits never launch the player
         }
 
         public override void _PhysicsProcess(double delta) {
@@ -483,6 +545,20 @@ namespace FTT.Enemies {
             ApplyBarVisibility();
 
             if (CurrentState == EnemyState.Dead) {
+                // 2026-10-04 kill weight (victim half): a lethal direct hit holds
+                // the corpse in its flashed hitstun pose for the hit's own victim
+                // hitstop before the death animation and the release clock start.
+                // Gameplay (the kill payload, dust, collision) already resolved
+                // in Die(); this is presentation timing only.
+                if (_hitstopFramesRemaining > 0) {
+                    _hitstopFramesRemaining--;
+                    Velocity = Vector2.Zero;
+                    if (_hitstopFramesRemaining <= 0) {
+                        if (_sprite != null) _sprite.SpeedScale = 1f;
+                        PlayAnimation("death");
+                    }
+                    return;
+                }
                 ProcessDead(dt);
                 return;
             }
@@ -654,7 +730,11 @@ namespace FTT.Enemies {
             // the enemy approaches and strikes for its one-second life.
             Vector2 aim = TargetAimPosition;
             float dist = GlobalPosition.DistanceTo(aim);
-            if (dist > (Data?.DeAggroRadius ?? 600f)) {
+            // P4 (2026-10-04, provisional): crossing DeAggroRadius no longer drops
+            // the chase on its own — an aggroed mob keeps after a target still in
+            // its room, or within the leash multiple of the radius (the only test
+            // when the mob has no room). Aggro acquisition is unchanged.
+            if (dist > (Data?.DeAggroRadius ?? 600f) && !KeepsChasingTarget()) {
                 StartReturning();
                 return;
             }
@@ -672,6 +752,13 @@ namespace FTT.Enemies {
 
             Vector2 toTarget = aim - GlobalPosition;
             float sign = Mathf.Sign(toTarget.X);
+
+            // P4: a ground mob whose target sits (nearly) straight above holds
+            // its post and its facing rather than flipping under the player.
+            if (!IsFlying && FTT.Combat.StoryEnemyCombatRules.HoldsUnderTarget(toTarget.X, toTarget.Y)) {
+                HoldChasePosition(dt);
+                return;
+            }
             if (sign != 0) SetFacing(sign > 0);
 
             // Stand-off band: once inside striking distance of the enemy's own
@@ -693,11 +780,150 @@ namespace FTT.Enemies {
                 return;
             }
 
+            // P4: ground mobs do not jump (design-godot.md:2984), so they stop at
+            // a drop-off or a wall instead of walking into the void or pushing
+            // forever. Phasers pursue through walls by design and skip the wall
+            // half; flying mobs skip both.
+            if (!IsFlying && IsChaseStepBlocked(sign)) {
+                // An edge or a wall stops the walk on the spot: decelerating
+                // past the probe would carry the body over the drop.
+                Velocity = new Vector2(0f, Velocity.Y);
+                PlayAnimation("idle");
+                return;
+            }
+
             float verticalVelocity = IsFlying
                 ? Mathf.Clamp(toTarget.Y, -MoveSpeedPixels, MoveSpeedPixels)
                 : Velocity.Y;
             Velocity = new Vector2(sign * MoveSpeedPixels, verticalVelocity);
             PlayAnimation("patrol");
+        }
+
+        // === P4 (2026-10-04, provisional): chase leash and ledge/wall awareness ===
+
+        /// <summary>
+        /// Leashes this mob's chase to an explicit room x-range (level authoring
+        /// and test seam). Without a call, the range is resolved once per spawn
+        /// from the owning <see cref="StoryLevelControllerBase"/>'s room triggers.
+        /// </summary>
+        public void SetChaseLeashRoom(float minX, float maxX) {
+            _leashRoomResolved = true;
+            _hasLeashRoom = maxX >= minX;
+            _leashRoomMinX = Mathf.Min(minX, maxX);
+            _leashRoomMaxX = Mathf.Max(minX, maxX);
+        }
+
+        /// <summary>True when this mob is leashed to a room x-range. Test seam.</summary>
+        public bool HasChaseLeashRoom {
+            get {
+                EnsureLeashRoomResolved();
+                return _hasLeashRoom;
+            }
+        }
+
+        private bool KeepsChasingTarget() {
+            if (_target == null || !IsInstanceValid(_target)) return false;
+            EnsureLeashRoomResolved();
+            float targetX = _target.GlobalPosition.X;
+            bool inRoom = _hasLeashRoom && targetX >= _leashRoomMinX && targetX <= _leashRoomMaxX;
+            return FTT.Combat.StoryEnemyCombatRules.KeepsChasing(
+                GlobalPosition.DistanceTo(_target.GlobalPosition),
+                Data?.DeAggroRadius ?? 600f,
+                inRoom);
+        }
+
+        /// <summary>
+        /// The mob's room is the authored room trigger whose camera bounds span
+        /// its spawn x (the first match, as <c>FindRoomTriggerContaining</c>
+        /// resolves overlaps). Florence and the Tutorial, which do not extend the
+        /// level base, leave the mob on the radius leash alone.
+        /// </summary>
+        private void EnsureLeashRoomResolved() {
+            if (_leashRoomResolved) return;
+            _leashRoomResolved = true;
+            _hasLeashRoom = false;
+            for (Node node = GetParent(); node != null; node = node.GetParent()) {
+                if (node is not StoryLevelControllerBase level) continue;
+                foreach (RoomTransitionTrigger trigger in level.RoomTriggers) {
+                    if (trigger == null || !IsInstanceValid(trigger)) continue;
+                    Rect2 bounds = trigger.CameraBounds;
+                    if (_spawnPosition.X < bounds.Position.X || _spawnPosition.X > bounds.End.X) continue;
+                    _hasLeashRoom = true;
+                    _leashRoomMinX = bounds.Position.X;
+                    _leashRoomMaxX = bounds.End.X;
+                    return;
+                }
+                return;
+            }
+        }
+
+        /// <summary>Decelerates to rest in place, keeping the current facing.</summary>
+        private void HoldChasePosition(float dt) {
+            float decel = StandOffDecelerationPerSecond * dt;
+            Velocity = new Vector2(Mathf.MoveToward(Velocity.X, 0f, decel), Velocity.Y);
+            PlayAnimation("idle");
+        }
+
+        /// <summary>
+        /// True when a grounded walker's next step in <paramref name="direction"/>
+        /// is a drop deeper than <see cref="FTT.Combat.StoryEnemyCombatRules.LedgeProbeDepthPixels"/>
+        /// or a wall. Airborne mobs (a launch, a fall) are never blocked here.
+        /// </summary>
+        private bool IsChaseStepBlocked(float direction) {
+            if (direction == 0f || !IsOnFloor()) return false;
+            if (!HasFloorAhead(direction, FTT.Combat.StoryEnemyCombatRules.LedgeProbeDepthPixels)) return true;
+            if (Data?.PhasesThroughWalls == true) return false;
+            if (IsOnWall() && GetWallNormal().X * direction < -0.5f) return true;
+            return HasWallAhead(direction);
+        }
+
+        /// <summary>The chase ledge/wall check, without any AI. Test seam.</summary>
+        internal bool IsChaseStepBlockedForTest(float direction) => IsChaseStepBlocked(direction);
+
+        /// <summary>
+        /// Floor probe: a vertical ray just past the front edge, from
+        /// <see cref="FTT.Combat.StoryEnemyCombatRules.LedgeProbeRisePixels"/> above the
+        /// feet to <paramref name="depth"/> below them, against Environment and
+        /// one-way platforms. Starting inside a rising slope counts as floor.
+        /// </summary>
+        private bool HasFloorAhead(float direction, float depth) {
+            float x = GlobalPosition.X + Mathf.Sign(direction)
+                * (_bodyHalfWidth + FTT.Combat.StoryEnemyCombatRules.LedgeProbeAheadMarginPixels);
+            return ProbeHits(
+                new Vector2(x, GlobalPosition.Y - FTT.Combat.StoryEnemyCombatRules.LedgeProbeRisePixels),
+                new Vector2(x, GlobalPosition.Y + depth),
+                CollisionLayers.EnemyBodyMask,
+                hitFromInside: true,
+                fallback: true);
+        }
+
+        /// <summary>Wall probe: a horizontal ray at body centre height, Environment only.</summary>
+        private bool HasWallAhead(float direction) {
+            Vector2 centre = GlobalPosition + new Vector2(0f, _bodyCenterY);
+            float reach = _bodyHalfWidth + FTT.Combat.StoryEnemyCombatRules.WallProbeMarginPixels;
+            return ProbeHits(centre, centre + new Vector2(Mathf.Sign(direction) * reach, 0f),
+                CollisionLayers.Environment, hitFromInside: false, fallback: false);
+        }
+
+        /// <summary>
+        /// One ray against the physics space, reusing a single query object (never
+        /// disposed — it is RefCounted) and disposing the engine-returned result.
+        /// The masks never include the Enemy layer, so the body needs no exclusion.
+        /// Outside the tree — or inside a physics in/out callback flush, where the
+        /// direct space state is inaccessible (<see cref="FTT.Core.PhysicsCallbackGuard"/>)
+        /// — the probe answers <paramref name="fallback"/> without querying.
+        /// </summary>
+        private bool ProbeHits(Vector2 from, Vector2 to, uint mask, bool hitFromInside, bool fallback) {
+            if (!IsInsideTree() || FTT.Core.PhysicsCallbackGuard.IsInPhysicsCallback) return fallback;
+            PhysicsDirectSpaceState2D space = GetWorld2D()?.DirectSpaceState;
+            if (space == null) return fallback;
+            _probeQuery ??= new PhysicsRayQueryParameters2D { CollideWithAreas = false, CollideWithBodies = true };
+            _probeQuery.From = from;
+            _probeQuery.To = to;
+            _probeQuery.CollisionMask = mask;
+            _probeQuery.HitFromInside = hitFromInside;
+            using Godot.Collections.Dictionary hit = space.IntersectRay(_probeQuery);
+            return hit.Count > 0;
         }
 
         /// <summary>
@@ -973,9 +1199,11 @@ namespace FTT.Enemies {
         }
 
         private void ProcessStunned(float dt) {
-            Velocity = new Vector2(0, IsFlying ? 0f : Velocity.Y);
+            ApplyStunnedKnockbackFriction(dt);
             _stunTimer -= dt;
             if (_stunTimer <= 0) {
+                // S2: natural expiry ends the uninterrupted stun chain.
+                ResetConfirmChain();
                 // V7.4 armored getup recovery: a NATURALLY expiring hitstun (a
                 // refresh mid-stun never reaches here) arms the armor window —
                 // damage still lands, flinch and knockback do not, and the
@@ -992,6 +1220,30 @@ namespace FTT.Enemies {
             }
         }
 
+        /// <summary>
+        /// S1 (2026-10-04): the knockback a hit wrote decays under friction while
+        /// the mob is stunned instead of being zeroed on the next frame, so the
+        /// string nudges a mob and the 4.5× finisher actually carries it. Ground
+        /// friction while grounded, a lighter drag while launched or flying;
+        /// flying mobs keep their stunned hover (vertical zeroed). A ground mob
+        /// never slides or sails off a drop: knockback heading over a ledge (or,
+        /// airborne, over a void) is cancelled at the edge.
+        /// </summary>
+        private void ApplyStunnedKnockbackFriction(float dt) {
+            bool grounded = !IsFlying && IsOnFloor();
+            float decel = grounded
+                ? FTT.Combat.StoryEnemyCombatRules.StunnedGroundFrictionPixelsPerSecondSquared
+                : FTT.Combat.StoryEnemyCombatRules.StunnedAirDragPixelsPerSecondSquared;
+            float vx = Mathf.MoveToward(Velocity.X, 0f, decel * dt);
+            if (vx != 0f && !IsFlying) {
+                float depth = grounded
+                    ? FTT.Combat.StoryEnemyCombatRules.LedgeProbeDepthPixels
+                    : FTT.Combat.StoryEnemyCombatRules.KnockbackAirborneLedgeProbeDepthPixels;
+                if (!HasFloorAhead(vx, depth)) vx = 0f;
+            }
+            Velocity = new Vector2(vx, IsFlying ? 0f : Velocity.Y);
+        }
+
         // === V7.4 Enemy Stagger Discipline (EnemyStaggerRules; PvE only) ===
 
         /// <summary>
@@ -1003,8 +1255,12 @@ namespace FTT.Enemies {
         private void TickStaggerDiscipline(float dt) {
             if (_specialStunWindowTimer > 0f) _specialStunWindowTimer -= dt;
             if (_staggerBudget > 0f && CurrentState != EnemyState.Stunned) {
-                _staggerBudget = Mathf.Max(
-                    0f, _staggerBudget - FTT.Combat.EnemyStaggerRules.StaggerDecayPerSecond * dt);
+                // S3 (2026-10-04, provisional): a standard's poise drains faster,
+                // so it is spent inside one stun chain; elites keep V7.4's rate.
+                float decayPerSecond = Data?.Tier == EnemyTier.Standard
+                    ? FTT.Combat.StoryEnemyCombatRules.StandardStaggerDecayPerSecond
+                    : FTT.Combat.EnemyStaggerRules.StaggerDecayPerSecond;
+                _staggerBudget = Mathf.Max(0f, _staggerBudget - decayPerSecond * dt);
             }
             if (_getupArmorFramesRemaining > 0) {
                 _getupArmorFramesRemaining--;
@@ -1014,6 +1270,8 @@ namespace FTT.Enemies {
                 _armoredRecoveryTimer -= dt;
                 if (_armoredRecoveryTimer <= 0f) {
                     _armoredRecoveryTimer = 0f;
+                    // S2: the trip's exchange is over with its armored window.
+                    ResetConfirmChain();
                     RefreshArmorPresentation();
                     TryPressureExitAttack();
                 }
@@ -1055,8 +1313,17 @@ namespace FTT.Enemies {
         /// </summary>
         private void BeginArmoredRecovery() {
             _staggerBudget = 0f;
-            _armoredRecoveryTimer = FTT.Combat.EnemyStaggerRules.EliteArmoredRecoverySeconds;
+            // S3 (2026-10-04, provisional): a standard's poise trip is the short
+            // window; elites keep the V7.4 1.5 s.
+            _armoredRecoveryTimer = Data?.Tier == EnemyTier.Elite
+                ? FTT.Combat.EnemyStaggerRules.EliteArmoredRecoverySeconds
+                : FTT.Combat.StoryEnemyCombatRules.StandardArmoredRecoverySeconds;
             _stunTimer = 0f;
+            // S2 (2026-10-04 review): the confirm chain deliberately survives the
+            // trip. The hits that land on the armored window are still the same
+            // exchange (a multi-hit confirm's later hits, a second Special), so
+            // they keep prorating; TickStaggerDiscipline ends the chain when the
+            // window expires.
             // F07: Static Charge cannot persist as a separate input lock once
             // stagger protection has ended the effective stun. Entering armored
             // recovery drops the lock (and ApplyStatusEffect rejects its
@@ -1192,6 +1459,7 @@ namespace FTT.Enemies {
 
         private void Die() {
             CurrentState = EnemyState.Dead;
+            ResetConfirmChain();
             // V7.6: death clears both status slots and the caster-owned mark.
             ClearAllStatusEffects();
             ClearConductiveMark();
@@ -1230,13 +1498,23 @@ namespace FTT.Enemies {
             });
         }
 
-        public void ApplyKnockback(Vector2 knockback, bool attackerFacingRight) {
-            if (CurrentState == EnemyState.Dead) return;
+        public void ApplyKnockback(Vector2 knockback, bool attackerFacingRight) =>
+            TryApplyKnockback(knockback, attackerFacingRight);
+
+        /// <summary>
+        /// <see cref="ApplyKnockback"/>, reporting whether it actually wrote the
+        /// knockback velocity. The stun that follows a hit needs the answer: a
+        /// stun opened by a hit that wrote no knockback stops the mob instead of
+        /// letting S1's friction decay its chase or dash speed, while a refresh
+        /// of a running stun keeps the slide (2026-10-04 review).
+        /// </summary>
+        private bool TryApplyKnockback(Vector2 knockback, bool attackerFacingRight) {
+            if (CurrentState == EnemyState.Dead) return false;
             // V7.4: both armor windows are knockback-proof (damage still lands).
-            if (IsStaggerArmored) return;
+            if (IsStaggerArmored) return false;
             // Impulse-free hits (construct arcs/bites carry zero knockback)
             // must not replace the velocity with a zero vector.
-            if (knockback == Vector2.Zero) return;
+            if (knockback == Vector2.Zero) return false;
             float weight = Data?.Weight ?? 1.0f;
             // Knockback replaces velocity, matching the player and the Fighter
             // sim — a hit imparts the same impulse regardless of prior motion —
@@ -1248,6 +1526,7 @@ namespace FTT.Enemies {
                 attackerFacingRight,
                 CurrentHP,
                 ScaledMaxHP) * 60f;
+            return true;
         }
 
         /// <summary>
@@ -1267,24 +1546,72 @@ namespace FTT.Enemies {
 
         /// <summary>
         /// Applies hitstun scaled down by the authored <c>StunResistance</c>,
-        /// floored at <paramref name="minimumSeconds"/>. Basic-class string
-        /// hits pass <c>BasicComboRules.EnemyBasicStunFloorFrames</c> so no
-        /// roster enemy — however resistant — can act between chain hits.
+        /// floored at <paramref name="minimumSeconds"/>. Since S5 (2026-10-04)
+        /// <c>OnHurtboxHit</c> does not come through here: it passes the
+        /// hit-indexed <c>StoryEnemyCombatRules.BasicStringStunFloorFrames</c>
+        /// (34/44/24) as the stun floor, so no roster enemy — however
+        /// resistant — can act between chain hits, and the pre-S5
+        /// <c>BasicComboRules.EnemyBasicStunFloorFrames</c> only as the separate
+        /// elite-budget floor of the private overload. A direct caller of this
+        /// overload charges the elite budget exactly the stun it applies.
         /// V7.4 (Enemy Stagger Discipline): both armor windows deny the stun
         /// outright (damage already landed in TakeDamage); a special-sourced
         /// stun inside the diminish window applies at half strength; and on
         /// elites the applied stun feeds the stagger budget, tripping Armored
-        /// Recovery when it exceeds <c>EliteStaggerBudgetSeconds</c>.
+        /// Recovery when it exceeds <c>EliteStaggerBudgetSeconds</c>. A direct
+        /// caller writes no knockback, so a stun it <i>opens</i> stops the mob's
+        /// horizontal motion on the spot, while a <i>refresh</i> of a running
+        /// stun keeps it (see the private overload's <c>carriesKnockback</c>).
+        /// For Lincoln's Kinetic Splitting bounce window that depends on how long
+        /// the spiked body fell: one that lands inside the spike's own stun gets
+        /// a refresh and keeps its slide; one that lands inside the getup armor
+        /// that stun's natural expiry arms has the window refused; and only a
+        /// fall outlasting both opens a fresh stun, which zeroes the horizontal
+        /// speed and keeps the bounce's upward speed.
         /// </summary>
-        public void ApplyStun(float duration, float minimumSeconds, bool fromSpecial) {
+        public void ApplyStun(float duration, float minimumSeconds, bool fromSpecial) =>
+            ApplyStun(duration, minimumSeconds, fromSpecial, chargesStaggerBudget: true,
+                eliteBudgetMinimumSeconds: minimumSeconds, chargesStandardPoise: true, carriesKnockback: false);
+
+        /// <summary>
+        /// <paramref name="chargesStaggerBudget"/> false is the grab system's
+        /// knockdown on a standard (the thrown flight and a bowled standard): a
+        /// knockdown is not hitstun, so it does not spend the poise budget a
+        /// follow-up string needs (S3, 2026-10-04). A bowled <i>elite</i> passes
+        /// true — elites are grab-immune but not bowling-immune, and the
+        /// knockdown keeps charging their V7.4 budget as it always did.
+        /// <paramref name="eliteBudgetMinimumSeconds"/> is the floor the V7.4
+        /// elite budget is charged at — the pre-S5 shared floor for a basic-set
+        /// hit, so the longer S5 stun floor never raises an elite's poise cost
+        /// (2026-10-04 review). Direct callers pass their own floor, which keeps
+        /// the charge equal to the applied stun exactly as before.
+        /// <paramref name="chargesStandardPoise"/> false exempts the stun from the
+        /// S3 <i>standard</i> budget only — an Ultimate-sourced hit
+        /// (<see cref="FTT.Combat.StoryEnemyCombatRules.ChargesStandardPoise"/>);
+        /// the elite budget ignores it.
+        /// <paramref name="carriesKnockback"/> says the caller just wrote this
+        /// body's velocity as knockback (or a throw). Otherwise a stun that
+        /// <i>opens</i> here stops the mob — whatever chase, patrol or charge
+        /// speed it carried is not knockback, and S1's stunned friction must not
+        /// slide it 100+ px (2026-10-04 review). A refresh of a running stun
+        /// keeps the knockback slide the earlier hit wrote.
+        /// No poise accrues and no Armored Recovery trips while the body is
+        /// frozen (<see cref="SetStoryRewindFrozen"/> / Time Freeze) or
+        /// <see cref="DrillInvulnerable"/>: a frozen trip would commit an attack
+        /// on a body that cannot act, and the budget never drains while frozen.
+        /// </summary>
+        private void ApplyStun(float duration, float minimumSeconds, bool fromSpecial, bool chargesStaggerBudget,
+            float eliteBudgetMinimumSeconds, bool chargesStandardPoise, bool carriesKnockback) {
             if (CurrentState == EnemyState.Dead) return;
             // V7.4 armor: flinch-proof. Armor only arms on natural stun expiry
             // or a budget trip, so a hit landing DURING stun still refreshes
             // the stun normally through this path.
             if (IsStaggerArmored) return;
             float resistance = Mathf.Clamp(Data?.StunResistance ?? 0f, 0f, 1f);
-            float stun = Mathf.Max(duration * (1f - resistance), minimumSeconds);
+            float resisted = duration * (1f - resistance);
+            float stun = Mathf.Max(resisted, minimumSeconds);
             if (stun <= 0f) return;
+            float eliteBudgetCharge = Mathf.Max(resisted, eliteBudgetMinimumSeconds);
             // V7.4 diminishing special stun: a special-sourced stun landing
             // within the window of the previous one applies full damage but
             // half stun; the window refreshes on every special-sourced stun.
@@ -1292,9 +1619,11 @@ namespace FTT.Enemies {
             if (fromSpecial) {
                 if (_specialStunWindowTimer > 0f) {
                     stun *= FTT.Combat.EnemyStaggerRules.SpecialStunDiminishFactor;
+                    eliteBudgetCharge *= FTT.Combat.EnemyStaggerRules.SpecialStunDiminishFactor;
                 }
                 _specialStunWindowTimer = FTT.Combat.EnemyStaggerRules.SpecialStunDiminishWindowSeconds;
             }
+            bool accruesPoise = chargesStaggerBudget && !_rewindFrozen && !DrillInvulnerable;
             // V7.6 F14 (A7a): a stun that gets this far is a SUCCESSFUL stagger
             // interrupt — the two armor windows returned above and a zero stun
             // returned above it — so it severs a maintained Siphon tether. An
@@ -1306,19 +1635,34 @@ namespace FTT.Enemies {
             // BossController, whose hit intake ignores hitstun entirely): each
             // applied stun adds its post-resistance duration, and exceeding
             // the budget answers with Armored Recovery instead of the stun.
-            if (Data?.Tier == EnemyTier.Elite) {
-                _staggerBudget += stun;
+            if (accruesPoise && Data?.Tier == EnemyTier.Elite) {
+                _staggerBudget += eliteBudgetCharge;
                 if (_staggerBudget > FTT.Combat.EnemyStaggerRules.EliteStaggerBudgetSeconds) {
                     BeginArmoredRecovery();
                     return;
                 }
+            } else if (accruesPoise && chargesStandardPoise && Data?.Tier == EnemyTier.Standard) {
+                // S3 standard poise (2026-10-04, provisional): the same rule a
+                // tier down, with a budget one full string fits inside and a
+                // Special-sourced stun charging extra, so string + Special trips
+                // the short Armored Recovery and its committed counterattack.
+                // Ultimate-sourced stuns charge nothing (review fix).
+                _staggerBudget += FTT.Combat.StoryEnemyCombatRules.StandardBudgetCost(stun, fromSpecial);
+                if (_staggerBudget > FTT.Combat.StoryEnemyCombatRules.StandardStaggerBudgetSeconds) {
+                    BeginArmoredRecovery();
+                    return;
+                }
             }
+            bool opensStun = CurrentState != EnemyState.Stunned;
             Executor.Cancel();
             _attackCommitted = false;
             _secondaryBlinkInFlight = false;
             _reactionFramesRemaining = 0;
             _stunTimer = stun;
             CurrentState = EnemyState.Stunned;
+            // S1 review fix: the stunned friction decays knockback, not the
+            // chase / patrol / ChargeDash speed the mob happened to be carrying.
+            if (opensStun && !carriesKnockback) Velocity = new Vector2(0f, IsFlying ? 0f : Velocity.Y);
             PlayAnimation("hitstun");
         }
 
@@ -1486,7 +1830,21 @@ namespace FTT.Enemies {
         private void SetFacing(bool facingRight) {
             _facingRight = facingRight;
             if (_sprite != null) _sprite.FlipH = !facingRight;
+            // P3 (2026-10-04): the AbilityOrigin marker (EliteEnemy.tscn authors
+            // it at (44, -58)) is mirrored with the body, so a left-facing caster
+            // spawns its projectiles in front of it rather than behind its back.
+            if (_abilityOrigin != null) {
+                _abilityOrigin.Position = new Vector2(
+                    facingRight ? _abilityOriginBaseX : -_abilityOriginBaseX,
+                    _abilityOrigin.Position.Y);
+            }
         }
+
+        /// <summary>The AbilityOrigin marker's current local position, or null when the scene has none. Test seam.</summary>
+        public Vector2? AbilityOriginLocalPosition => _abilityOrigin?.Position;
+
+        /// <summary>Turns the body (and its AbilityOrigin) without any AI. Test seam.</summary>
+        internal void SetFacingForTest(bool facingRight) => SetFacing(facingRight);
 
         private void PlayAnimation(string animationName) {
             if (_sprite?.SpriteFrames == null || string.IsNullOrEmpty(animationName)) return;
@@ -1513,6 +1871,9 @@ namespace FTT.Enemies {
         public void ConfigureSpawn(Vector2 position, Vector2? waypointA = null, Vector2? waypointB = null) {
             GlobalPosition = position;
             _spawnPosition = position;
+            // P4: the leash room follows the (new) spawn point.
+            _leashRoomResolved = false;
+            _hasLeashRoom = false;
             Marker2D left = GetNodeOrNull<Marker2D>("Waypoints/Left") ?? GetNodeOrNull<Marker2D>("WaypointA");
             Marker2D right = GetNodeOrNull<Marker2D>("Waypoints/Right") ?? GetNodeOrNull<Marker2D>("WaypointB");
             if (left == null || right == null) return;
@@ -1564,6 +1925,14 @@ namespace FTT.Enemies {
             _armoredRecoveryTimer = 0f;
             _staggerBudget = 0f;
             _specialStunWindowTimer = 0f;
+            // 2026-10-04 pass: a recycled body starts with no stun chain, no
+            // kill freeze and an unresolved room leash.
+            ResetConfirmChain();
+            _hitstopFramesRemaining = 0;
+            if (_sprite != null) _sprite.SpeedScale = 1f;
+            _leashRoomResolved = false;
+            _hasLeashRoom = false;
+            ResetGrabAndSlamState();
             _patrolIdleTimer = 0f;
             _deathTimer = 0f;
             _patrolForward = true;
@@ -1620,9 +1989,33 @@ namespace FTT.Enemies {
             _armoredRecoveryTimer = 0f;
             _staggerBudget = 0f;
             _specialStunWindowTimer = 0f;
+            ResetConfirmChain();
+            _hitstopFramesRemaining = 0;
+            if (_sprite != null) _sprite.SpeedScale = 1f;
+            _leashRoomResolved = false;
+            _hasLeashRoom = false;
+            ResetGrabAndSlamState();
             Velocity = Vector2.Zero;
             CollisionLayer = 0;
             CollisionMask = 0;
+        }
+
+        /// <summary>
+        /// Pool and rewind hygiene for the V7.2 grab/throw latches and the A12
+        /// slam bounce: a body released mid-flight, while held, or still owing a
+        /// bounce (the level unloads, or a later hit kills it first) must not
+        /// carry any of it into its next spawn, where a stale thrown flight bowls
+        /// the neighbours it spawned beside and a stale bounce launches it off its
+        /// first floor contact; a rewind restore drops them the same way
+        /// (2026-10-04 review).
+        /// </summary>
+        private void ResetGrabAndSlamState() {
+            _isHeldByPlayer = false;
+            _thrownFlight = false;
+            _thrownBowlingDamage = 0;
+            _bowledVictims.Clear();
+            _slamBouncePending = false;
+            _slamBounceSpeed = 0f;
         }
 
         // === Rewind ===
@@ -1666,10 +2059,12 @@ namespace FTT.Enemies {
             _armoredRecoveryTimer = 0f;
             _staggerBudget = 0f;
             _specialStunWindowTimer = 0f;
+            ResetConfirmChain();
             RefreshArmorPresentation();
             _hitstopFramesRemaining = 0;
-            _isHeldByPlayer = false;
-            _thrownFlight = false;
+            // The restored body is standing at its spawn/checkpoint: no grab,
+            // no flight and no slam bounce owed from the abandoned timeline.
+            ResetGrabAndSlamState();
             if (_sprite != null) _sprite.SpeedScale = 1f;
             _deathTimer = 0f;
             _attackCommitted = false;
@@ -1691,15 +2086,32 @@ namespace FTT.Enemies {
         private void OnRewindTriggered(Vector2 targetPosition) => ApplyStoryRewind();
 
         private float OnHurtboxHit(FTT.Combat.HitPayload hit) {
+            // S2 + S4 (2026-10-04, provisional): the Story intake scale — confirm
+            // proration over the current stun chain, then basics pacing against
+            // standards — is resolved before the hit can change the stun state.
+            int baseDamage = Mathf.Max(0, (int)Mathf.Round(hit.Damage));
             int damageApplied = TakeDamage(
-                Mathf.Max(0, (int)Mathf.Round(hit.Damage)), hit.HitOrigin,
+                FTT.Combat.StoryEnemyCombatRules.ScaleIntakeDamage(baseDamage, ResolveIntakeScale(in hit)),
+                hit.HitOrigin,
                 ignoreDefenses: hit.AttackClass == FTT.Combat.AttackClass.Ultimate);
-            // V7.1 hitstop (victim side): scaled by the damage that landed; a
-            // killing blow skips — the death animation owns that moment.
-            if (damageApplied > 0 && CurrentState != EnemyState.Dead) {
-                ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(damageApplied));
+            bool skipsHitstop = FTT.Combat.StoryEnemyCombatRules.VictimSkipsHitstop(
+                hit.Delivery, hit.ExemptFromHitstop);
+            if (damageApplied > 0 && !skipsHitstop) {
+                // One rule for both halves (StoryEnemyCombatRules.VictimHitstopFrames).
+                int victimHitstop = FTT.Combat.StoryEnemyCombatRules.VictimHitstopFrames(damageApplied, hit.Launches);
+                if (CurrentState != EnemyState.Dead) {
+                    // V7.1 hitstop (victim side), scaled by the damage that
+                    // landed. F5 (2026-10-04): tick, construct and hazard
+                    // deliveries and ExemptFromHitstop payloads never freeze.
+                    ApplyHitstop(victimHitstop);
+                } else {
+                    // Kill weight (2026-10-04, victim half): a lethal direct hit
+                    // no longer skips — the corpse holds its flashed hit pose for
+                    // the same victim hitstop before the death animation.
+                    BeginKillFreeze(victimHitstop);
+                }
             }
-            ApplyKnockback(hit.Knockback, hit.AttackerFacingRight);
+            bool knockbackWritten = TryApplyKnockback(hit.Knockback, hit.AttackerFacingRight);
             // A12 (Package 13 W1): a Down-Air slam that actually moved this mob
             // (armor windows and flying mobs refuse it) owes one ground bounce;
             // any other knockback-carrying hit clears a stale one.
@@ -1726,17 +2138,34 @@ namespace FTT.Enemies {
                 // post-resistance stun so the universal basic set holds every
                 // roster enemy (max StunResistance 0.65) through its gaps. Other
                 // Basic-class sources — Leonardo's turret, Tesla's coil arcs —
-                // keep their authored short stuns.
+                // keep their authored short stuns. S5 (2026-10-04): the floor is
+                // hit-indexed (Story-only rulebook) so it actually spans the
+                // buffered string's connect gaps — 34 frames after hit 1, 44
+                // after hit 2 — instead of the shared 24 that released a
+                // resistant mob between hits.
                 bool basicStringHit = hit.AttackClass == FTT.Combat.AttackClass.Basic
                     && FTT.Combat.BasicComboRules.IsBasicStringHitbox(hit.HitboxID);
                 float minimumSeconds = basicStringHit
-                    ? FTT.Combat.BasicComboRules.EnemyBasicStunFloorFrames / 60f
+                    ? FTT.Combat.StoryEnemyCombatRules.BasicStringStunFloorFrames(hit.HitboxID) / 60f
+                    : 0f;
+                // The V7.4 elite stagger budget keeps charging the pre-S5 floor:
+                // the S5 floor lengthens the stun, not the elite's poise cost.
+                float eliteBudgetMinimumSeconds = basicStringHit
+                    ? FTT.Combat.StoryEnemyCombatRules.EliteBudgetStunFloorFrames(hit.HitboxID) / 60f
                     : 0f;
                 // V7.4: Special-class hits are marked so ApplyStun can run the
                 // diminishing-special-stun window (ultimates and basics are
                 // exempt — the loop being closed is the special-ability chain).
+                // S3 review fix: an Ultimate-sourced stun (class or origin)
+                // charges no standard poise. S1 review fix: a stun this hit
+                // opens without writing knockback stops the mob.
                 ApplyStun(concurrentStun, minimumSeconds,
-                    fromSpecial: hit.AttackClass == FTT.Combat.AttackClass.Special);
+                    fromSpecial: hit.AttackClass == FTT.Combat.AttackClass.Special,
+                    chargesStaggerBudget: true,
+                    eliteBudgetMinimumSeconds: eliteBudgetMinimumSeconds,
+                    chargesStandardPoise: FTT.Combat.StoryEnemyCombatRules.ChargesStandardPoise(
+                        hit.AttackClass, hit.Origin),
+                    carriesKnockback: knockbackWritten);
             }
             if (hit.AppliedStatus != StatusType.None && hit.StatusDuration > 0f) {
                 ApplyStatusEffect(hit.AppliedStatus, hit.StatusDuration, hit.StatusIntensity,
@@ -1748,7 +2177,112 @@ namespace FTT.Enemies {
             if (hit.ComboMark == FTT.Combat.ComboMarkType.Conductive && hit.ComboMarkFrames > 0) {
                 ApplyConductiveMark(hit.AttackerIndex, hit.ComboMarkFrames);
             }
+            PresentDealtHit(in hit, damageApplied);
             return damageApplied;
+        }
+
+        // === 2026-10-04 playtest-feel pass: intake, kill weight, feedback ===
+
+        /// <summary>Hits counted in the current uninterrupted stun chain (S2). Test seam.</summary>
+        public int ConfirmChainHits => _confirmChainHits;
+
+        /// <summary>
+        /// The Story intake scale for one payload hit. S2 confirm proration: a
+        /// non-exempt hit opens a chain (hit 1) on a mob that is not in hitstun and
+        /// extends it on a mob that is — or that is in the Armored Recovery the
+        /// chain's own poise trip opened; the chain's 4th and later hits decay, and a
+        /// Special that is a confirm (see <see cref="IsSpecialConfirm"/>) is cut
+        /// further. Ultimates, ticks and hazards are exempt and do not advance the
+        /// chain. S4 basics pacing then scales the universal basic set against
+        /// Standard-tier mobs. Advances the chain, so it is called exactly once
+        /// per hit.
+        /// </summary>
+        private float ResolveIntakeScale(in FTT.Combat.HitPayload hit) {
+            if (CurrentState == EnemyState.Dead) return 1f;
+            float scale = 1f;
+            if (!FTT.Combat.StoryEnemyCombatRules.IsProrationExempt(hit.AttackClass, hit.Origin, hit.Delivery)) {
+                // In the chain: in hitstun, or in the Armored Recovery the chain's
+                // own poise trip opened (S3) — that window is the same exchange,
+                // so its hits keep prorating instead of landing at full value.
+                bool inChain = CurrentState == EnemyState.Stunned || IsArmoredRecovery;
+                // A hit on a mob outside the chain opens a fresh one.
+                if (!inChain) ResetConfirmChain();
+                _confirmChainHits++;
+                bool specialConfirm = hit.AttackClass == FTT.Combat.AttackClass.Special
+                    && IsSpecialConfirm(hit.AttackID, inChain);
+                scale *= FTT.Combat.StoryEnemyCombatRules.ConfirmProrationScale(_confirmChainHits, specialConfirm);
+            }
+            if (Data?.Tier == EnemyTier.Standard
+                && FTT.Combat.StoryEnemyCombatRules.IsBasicsPacingHit(hit.AttackClass, hit.HitboxID)) {
+                scale *= FTT.Combat.StoryEnemyCombatRules.StandardBasicDamageScale;
+            }
+            return scale;
+        }
+
+        /// <summary>
+        /// S2: a Special is a confirm when its first hit in the current chain
+        /// landed on hitstun (opened by another attack); every later hit of the
+        /// same Special (same <c>AttackID</c>) in the chain keeps that answer. A
+        /// multi-hit Special's own follow-ups therefore never prorate against the
+        /// hitstun its own first hit applied, while a whole Special fired into a
+        /// string is prorated hit for hit. An unidentified Special (no AttackID)
+        /// is judged per hit. "Hitstun" here is the chain (<paramref name="inChain"/>):
+        /// a Special whose first hit lands on the chain's Armored Recovery is a
+        /// confirm too.
+        /// </summary>
+        private bool IsSpecialConfirm(string attackID, bool inChain) {
+            if (string.IsNullOrEmpty(attackID)) return inChain;
+            if (_chainSpecialConfirms.TryGetValue(attackID, out bool confirm)) return confirm;
+            _chainSpecialConfirms[attackID] = inChain;
+            return inChain;
+        }
+
+        /// <summary>S2: ends the uninterrupted stun chain (hit count and per-Special confirm record).</summary>
+        private void ResetConfirmChain() {
+            _confirmChainHits = 0;
+            _chainSpecialConfirms.Clear();
+        }
+
+        /// <summary>
+        /// The corpse's kill freeze: hit pose, red hit flash, frozen animation, and
+        /// the release clock held until it ends (see the Dead branch of
+        /// <see cref="_PhysicsProcess"/>). Die() has already resolved every gameplay
+        /// consequence of the kill.
+        /// </summary>
+        private void BeginKillFreeze(int frames) {
+            if (frames <= 0) return;
+            _hitstopFramesRemaining = Math.Max(_hitstopFramesRemaining, frames);
+            PlayAnimation("hitstun");
+            if (_sprite != null) _sprite.SpeedScale = 0f;
+            _glow?.FlashHit();
+        }
+
+        /// <summary>True while a killed mob holds its kill freeze. Test seam.</summary>
+        public bool IsInKillFreeze => CurrentState == EnemyState.Dead && _hitstopFramesRemaining > 0;
+
+        /// <summary>
+        /// F9 (2026-10-04): a player-dealt hit that landed damage floats a damage
+        /// number over the mob (FloatingDamageNumber already honours the
+        /// damage-number visibility setting) and, for a direct hit, shakes the
+        /// camera through the CameraShake autoload (which applies the
+        /// accessibility screen-shake scale): an ability's authored
+        /// <c>ScreenShakeIntensity</c>/<c>Duration</c> when the payload carries
+        /// one, else the basics' damage-and-launch curve. Presentation only.
+        /// </summary>
+        private void PresentDealtHit(in FTT.Combat.HitPayload hit, int damageApplied) {
+            if (damageApplied <= 0) return;
+            if (!FTT.Combat.StoryEnemyCombatRules.IsPlayerDealt(hit.AttackerIndex, hit.AttackClass, hit.Delivery)) return;
+            if (FTT.Combat.StoryEnemyCombatRules.DealtHitShakes(hit.Delivery, hit.ExemptFromHitstop)) {
+                FTT.Core.CameraShake.Instance?.Shake(
+                    FTT.Combat.StoryEnemyCombatRules.DealtHitShakeIntensity(
+                        hit.AttackClass, hit.ScreenShakeIntensity, damageApplied, hit.Launches),
+                    FTT.Combat.StoryEnemyCombatRules.DealtHitShakeDuration(
+                        hit.AttackClass, hit.ScreenShakeIntensity, hit.ScreenShakeDuration, hit.Launches));
+            }
+            if (!IsInsideTree()) return;
+            Vector2 numberPosition = GlobalPosition + new Vector2(
+                0f, _bodyCenterY - _bodyHeight * 0.5f - FTT.Combat.StoryEnemyCombatRules.DamageNumberHeadClearancePixels);
+            FTT.UI.FloatingDamageNumber.Show(damageApplied, numberPosition, GetParent());
         }
 
         /// <summary>

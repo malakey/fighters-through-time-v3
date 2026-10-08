@@ -41,6 +41,11 @@ namespace FTT.Characters.Abilities {
 
         private PlaceholderProjectile _chord;
         private Vector2 _burstPosition;
+        /// <summary>
+        /// R12 (2026-10-04 fix pass): the execution of the cast whose chord this
+        /// burst belongs to, stamped on every pulse; 0 = the current execution.
+        /// </summary>
+        private int _burstSerial;
         private int _pulsesRemaining;
         private int _pulseCountdownFrames;
         private bool _crescendoPending;
@@ -86,15 +91,22 @@ namespace FTT.Characters.Abilities {
             _chord = null;
             // M02: a contact that dealt damage is a hit, not a block.
             if (chord != null && IsInstanceValid(chord) && chord.LastImpactDamage > 0f) ShaveFortissimo();
+            // R12: the burst belongs to the cast that fired the chord.
+            int executionSerial = chord != null && IsInstanceValid(chord) ? chord.SourceExecutionSerial : 0;
             // Area signals fire while the physics space is locked; defer the burst
             // setup one step so the first pulse's shape cast is legal.
-            CallDeferred(nameof(BeginBurst), impactPosition);
+            CallDeferred(nameof(BeginBurst), impactPosition, executionSerial);
         }
 
-        /// <summary>Starts the burst at <paramref name="position"/>: the authored pulses, one every six frames.</summary>
-        public void BeginBurst(Vector2 position) {
+        /// <summary>
+        /// Starts the burst at <paramref name="position"/>: the authored pulses, one
+        /// every six frames, credited to execution <paramref name="executionSerial"/>
+        /// (R12; 0 = the current execution).
+        /// </summary>
+        public void BeginBurst(Vector2 position, int executionSerial) {
             if (Owner == null || !IsInstanceValid(Owner)) return;
             _burstPosition = position;
+            _burstSerial = executionSerial;
             _pulsesRemaining = Data?.IsMultiHit == true ? Mathf.Max(1, Data.HitCount) : 1;
             _pulseCountdownFrames = KitReachRules.RequiemPulseIntervalFrames;
             _crescendoPending = Owner.HasStoryPerk(RequiemCrescendoPerkKey);
@@ -112,6 +124,9 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the cast clock (base) holds through a caster freeze; the
+            // chord in flight and its burst pulses are world objects and keep
+            // running, as does the Rest Shield's passive charge.
             base._PhysicsProcess(delta);
             TrackChordAgainstTerrain();
             UpdateShockwavePulses();
@@ -137,9 +152,10 @@ namespace FTT.Characters.Abilities {
             Vector2 position = _chord.GlobalPosition;
             PlaceholderProjectile chord = _chord;
             _chord = null;
+            int executionSerial = chord.SourceExecutionSerial;
             chord.Impacted -= OnChordImpacted;
             chord.ReturnToPool();
-            BeginBurst(position);
+            BeginBurst(position, executionSerial);
         }
 
         private void UpdateShockwavePulses() {
@@ -213,8 +229,9 @@ namespace FTT.Characters.Abilities {
                 ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
             });
             if (!finalPulse) hit.Launches = false;
+            hit.SourceExecutionSerial = _burstSerial;
             float dealt = hurtbox.TakeHit(hit);
-            Credit(in hit, dealt);
+            Credit(in hit, dealt, hurtbox.GlobalPosition);
             // M02: a pulse that dealt damage is a hit, not a block.
             if (dealt > 0f) ShaveFortissimo();
             return dealt;
@@ -290,6 +307,8 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the cast clock (base) holds through a caster freeze; the
+            // wall of sound is a world object and keeps travelling.
             base._PhysicsProcess(delta);
             if (!_wave.Active || Owner == null || !IsInstanceValid(Owner)) return;
             uint targetHurtboxLayer = Owner.PlayerIndex == 0
@@ -320,8 +339,8 @@ namespace FTT.Characters.Abilities {
                 ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
             });
             float dealt = hurtbox.TakeHit(hit);
-            Credit(in hit, dealt);
-            if (dealt > 0f) EmitImpactVfx(front);
+            // The impact VFX lands inside Credit, at the wave's front.
+            Credit(in hit, dealt, front);
         }
     }
 
@@ -455,7 +474,9 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
-            if (CurrentPhase == AbilityPhase.Active && Owner != null) {
+            // F5: the glissando holds with the frozen caster; the staff perks
+            // and the charge bookkeeping below are not the cast's and keep running.
+            if (CurrentPhase == AbilityPhase.Active && Owner != null && !CastClockSuspended) {
                 Owner.Velocity = _glissandoDirection * _glissandoSpeed;
             }
             base._PhysicsProcess(delta);
@@ -660,7 +681,9 @@ namespace FTT.Characters.Abilities {
 
         public override void _PhysicsProcess(double delta) {
             base._PhysicsProcess(delta);
-            UpdateMeteorStrikes();
+            // F5: the strikes are paced by the cast's active window, so they
+            // hold with the frozen caster (the phase clock does too).
+            if (!CastClockSuspended) UpdateMeteorStrikes();
         }
 
         private void UpdateMeteorStrikes() {
@@ -739,7 +762,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
             }
         }
     }

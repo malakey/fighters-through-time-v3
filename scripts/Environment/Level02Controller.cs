@@ -79,6 +79,14 @@ namespace FTT.Environment {
         public const float GateBX = 8700f;
 
         /// <summary>
+        /// Width of the barrier ShieldGeneratorTowerTemplate hangs centred on each
+        /// gate x (its BarrierShape). The gate columns are centred on the gate and
+        /// cover it (StoryGateRules); ArenaGeometryContentTests measures the live
+        /// barrier against its column, so a template change cannot reopen a lip.
+        /// </summary>
+        private const float GateBarrierWidth = 48f;
+
+        /// <summary>
         /// ShieldGeneratorTowerTemplate hangs its barrier at a fixed local offset, so
         /// a generator authored in the scene has to stand exactly this far west of the
         /// gate it seals. Level02ContentTests pins the scene positions against it.
@@ -96,6 +104,30 @@ namespace FTT.Environment {
         public static readonly Rect2 Room4CameraBounds = new(Room4StartX - 320f, 0, 1920, LevelHeight);
 
         public const int TowerCount = 2;
+
+        /// <summary>
+        /// P1 (2026-10-04): the Duke's court. West edge is
+        /// <see cref="BossArenaWestX"/> (spawn 10200 - 900), so the pre-boss anchor
+        /// at 9060 stays a breather outside it; east edge is the court wall's inner
+        /// face. The Duke waits dormant inside it until the player crosses in, and
+        /// never leaves it (he used to march 1,250 px west and fight against the
+        /// footing wall).
+        /// </summary>
+        public static readonly Rect2 BossArenaBounds = new(BossArenaWestX, 0f, 10540f - BossArenaWestX, LevelHeight);
+
+        /// <summary>
+        /// A4 (2026-10-04): the boss's spawn X, the one value the arena's west
+        /// edge derives from (the encounter is built at it).
+        /// </summary>
+        public const float BossSpawnX = 10200f;
+        /// <summary>
+        /// How far west of <see cref="BossSpawnX"/> the arena starts: the old
+        /// 900 px reveal radius (ARENA-WEST-EDGE-AT-OLD-REVEAL-LINE). The
+        /// arena rect is the reveal now, so this is the radius's only remaining use.
+        /// </summary>
+        public const float BossArenaApproachPixels = 900f;
+        /// <summary>The arena's west edge (and the reveal line).</summary>
+        public const float BossArenaWestX = BossSpawnX - BossArenaApproachPixels;
 
         // === Authored encounter tables (the locked economy row lives here) ===
 
@@ -209,9 +241,13 @@ namespace FTT.Environment {
             BuildCheckpoint(5300, EnemyGroundY, Checkpoint1, CheckpointRole.Middle);
             BuildRoomDecoration(Room2StartX, "orleans_room_siege_line", new Color(0.9f, 0.55f, 0.25f));
 
-            // The barrier covers y 582..902; this arch seals everything above it, so
-            // the gate cannot be jumped while generator A still stands.
-            BuildWall(GateAX, 0, 600, GateColor);
+            // The barrier covers x 6276..6324, y 582..902; this column seals
+            // everything above it, so the gate cannot be jumped while generator A
+            // still stands. P5: it rises past the top of the level
+            // (StoryGateRules) instead of stopping at y 0, and it is centred on the
+            // barrier and wider than it - the old left-anchored 20 px arch left the
+            // barrier's west 24 px as a standable lip.
+            BuildGateColumn(GateAX, GateBarrierWidth, 600, GateColor);
             BuildGateLabel("GateALabel", new Vector2(GateAX, 540));
 
             BuildRoomTransition("orleans_room_siege_line", new Vector2(Room2StartX, 600), Room2CameraBounds,
@@ -229,7 +265,10 @@ namespace FTT.Environment {
         /// </summary>
         private void BuildRoom3BattlementClimb() {
             BuildRoomBackground("BG_Room3", Room3StartX, 2560, LevelHeight, new Color(0.10f, 0.09f, 0.08f, 0.4f));
-            BuildFloor(Room3StartX, GroundY, 2500);
+            // P5 (2026-10-04): the floor runs all the way to the court (8960). It
+            // used to stop at 8900, leaving a 60 px hole east of the footing wall
+            // that a player walking west out of the court fell through forever.
+            BuildFloor(Room3StartX, GroundY, Room4StartX - Room3StartX);
 
             BuildOneWayPlatform(6900, 790, 200);
             BuildOneWayPlatform(7250, 700, 200);
@@ -243,8 +282,13 @@ namespace FTT.Environment {
             // Footing under the east end of the walkway: closes the ground route.
             BuildWall(8880, WalkwayY + DefaultPlatformThickness / 2f, LevelHeight - WalkwayY - DefaultPlatformThickness / 2f);
 
-            // Generator B's barrier covers y 232..552; this seals 0..240 above it.
-            BuildWall(GateBX, 0, 240, GateColor);
+            // Generator B's barrier covers x 8676..8724, y 232..552; this seals
+            // everything above it. P5: the old arch spanned only x 8700..8720 and
+            // y 0..240, so the barrier's west 24 px was a lip at y 232 with open
+            // sky, and a double jump off it (or off the battlement Extractor, top
+            // ~188) went over the top. The column is centred on the barrier, wider
+            // than it, and rises past the level top.
+            BuildGateColumn(GateBX, GateBarrierWidth, 240, GateColor);
             BuildGateLabel("GateBLabel", new Vector2(GateBX, 200));
 
             BuildHazardSpikes(6750, 890, 120);
@@ -273,8 +317,8 @@ namespace FTT.Environment {
             BuildRoomDecoration(Room4StartX, "orleans_room_boss", new Color(0.95f, 0.3f, 0.25f));
             BuildRoomTransition("orleans_room_boss", new Vector2(Room4StartX + 30, 540), Room4CameraBounds);
 
-            BuildBossEncounter(BossResourcePath, new Vector2(10200, EnemyGroundY),
-                "siegemaster_duke_encounter", revealDistance: 900f);
+            BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, EnemyGroundY),
+                "siegemaster_duke_encounter", BossArenaBounds);
         }
 
         /// <summary>Placeholder gate signage; replaced with production art in Package 8.</summary>

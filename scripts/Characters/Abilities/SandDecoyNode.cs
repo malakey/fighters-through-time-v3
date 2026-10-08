@@ -81,6 +81,26 @@ namespace FTT.Characters.Abilities {
             return false;
         }
 
+        /// <summary>
+        /// True when a live decoy stands at <paramref name="position"/> (within
+        /// <paramref name="tolerancePixels"/>): the point an enemy telegraphed is
+        /// the sand, not its owner. Playtest pass 2026-10-04 (P3): a shot that
+        /// re-acquires its target at fire time uses this to keep a lured
+        /// telegraph on the decoy.
+        /// </summary>
+        public static bool IsLureAt(Vector2 position, float tolerancePixels = 1f) {
+            float toleranceSquared = tolerancePixels * tolerancePixels;
+            for (int index = Active.Count - 1; index >= 0; index--) {
+                SandDecoyNode decoy = Active[index];
+                if (!IsInstanceValid(decoy) || !decoy.IsActive) {
+                    Active.RemoveAt(index);
+                    continue;
+                }
+                if (decoy.GlobalPosition.DistanceSquaredTo(position) <= toleranceSquared) return true;
+            }
+            return false;
+        }
+
         public override void _Ready() => EnsureNodes();
 
         public override void _ExitTree() {

@@ -53,6 +53,28 @@ namespace FTT.Environment {
         public const string Checkpoint1 = ID + "_checkpoint_1";
         public const string Checkpoint2 = ID + "_checkpoint_2";
         public const string BossResourcePath = "res://resources/Bosses/tragedy_king.tres";
+
+        /// <summary>
+        /// P1 (2026-10-04): the Globe's stage. West edge is
+        /// <see cref="BossArenaWestX"/> (spawn 9900 - 900), keeping the pre-boss
+        /// anchor (8420) and the tiring-house absence beat (8520) outside; east
+        /// edge is the stage wall.
+        /// </summary>
+        public static readonly Rect2 BossArenaBounds = new(BossArenaWestX, 0f, 10220f - BossArenaWestX, LevelHeight);
+
+        /// <summary>
+        /// A4 (2026-10-04): the boss's spawn X, the one value the arena's west
+        /// edge derives from (the encounter is built at it).
+        /// </summary>
+        public const float BossSpawnX = 9900f;
+        /// <summary>
+        /// How far west of <see cref="BossSpawnX"/> the arena starts: the old
+        /// 900 px reveal radius (ARENA-WEST-EDGE-AT-OLD-REVEAL-LINE). The
+        /// arena rect is the reveal now, so this is the radius's only remaining use.
+        /// </summary>
+        public const float BossArenaApproachPixels = 900f;
+        /// <summary>The arena's west edge (and the reveal line).</summary>
+        public const float BossArenaWestX = BossSpawnX - BossArenaApproachPixels;
         public const string DialogueResourcePath = "res://resources/Dialogue/level_10_dialogue.tres";
 
         public override string LevelID => ID;
@@ -536,11 +558,11 @@ namespace FTT.Environment {
                 triggerSize: new Vector2(80, LevelHeight));
 
             // Package 13 W4 (S35): backstage, where the prompt-book stops mid-scene.
-            // Before the boss reveal (9900 - 900), so the two sequences never collide.
+            // Before the boss reveal (BossArenaWestX), so the two sequences never collide.
             BuildAbsenceTrigger(new Vector2(Room4StartX + 200, GroundY - 200));
 
-            _kingEncounter = BuildBossEncounter(BossResourcePath, new Vector2(9900, EnemyGroundY),
-                encounterName: "TragedyKingEncounter", revealDistance: 900f);
+            _kingEncounter = BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, EnemyGroundY),
+                "TragedyKingEncounter", BossArenaBounds);
             if (_kingEncounter != null) _kingEncounter.PhaseEntered += OnKingPhaseEntered;
             // GAP-07: the arena boards hold still until the King's second act.
             SetArenaTrapdoorsCycling(false);

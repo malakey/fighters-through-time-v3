@@ -57,6 +57,17 @@ namespace FTT.Combat {
         }
 
         /// <summary>
+        /// R12 (2026-10-04 fix pass): the execution of the cast that fired this
+        /// shot (<see cref="Hitbox.SourceExecutionSerial"/>), stamped by
+        /// <c>BaseSpecial.SpawnPlaceholderProjectile</c> after <see cref="Setup"/>;
+        /// 0 for a shot no cast owns. Reset on every Setup and despawn (pooled).
+        /// </summary>
+        public int SourceExecutionSerial {
+            get => _hitbox?.SourceExecutionSerial ?? 0;
+            set { if (_hitbox != null) _hitbox.SourceExecutionSerial = value; }
+        }
+
+        /// <summary>
         /// Package 13 W7a (L03): a construct's bolt — Basic-class, impulse-free,
         /// non-launching, construct delivery (no Rally reclaim), never a
         /// Shield-Breaker. Call after <see cref="Setup"/>.
@@ -141,6 +152,19 @@ namespace FTT.Combat {
         /// <summary>Owning local player slot (mirrors the hitbox); -1 marks an enemy shot.</summary>
         public int OwnerPlayerIndex => _hitbox?.OwnerPlayerIndex ?? -1;
 
+        /// <summary>
+        /// 2026-10-04 fix pass: true from <see cref="Setup"/> until the shot is
+        /// despawned — the shot is in flight. A released shot is PARKED under the
+        /// pool manager, not removed: it stays inside the tree, stays in the
+        /// <c>story_projectile</c> group (the template scene and <see cref="_Ready"/>
+        /// both put it there) and keeps its last owner slot on the hitbox, so a
+        /// scan of that group must skip anything not live. The Level 13 Mirror's
+        /// nearest-hostile-projectile read (<c>MirrorParadoxDecisionAdapter</c>)
+        /// used to take every parked player shot for incoming fire at the spot it
+        /// despawned. Never-Setup warm-up instances read false.
+        /// </summary>
+        public bool IsLive { get; private set; }
+
         /// <summary>Current horizontal travel velocity in pixels per second (+X right).</summary>
         public float HorizontalVelocity => _movingRight ? _speed : -_speed;
 
@@ -191,6 +215,8 @@ namespace FTT.Combat {
             _hitbox.ScreenShakeDuration = data?.ScreenShakeDuration ?? 0.1f;
             _hitbox.OwnerPlayerIndex = ownerIndex;
             _hitbox.SourcePlayer = sourcePlayer;
+            // R12: pooled reset; the firing cast stamps it after Setup.
+            _hitbox.SourceExecutionSerial = 0;
             _hitbox.CollisionLayer = CollisionLayers.Projectile;
             _hitbox.CollisionMask = CollisionLayers.ProjectileMask;
             _hitbox.Monitorable = true;
@@ -202,6 +228,7 @@ namespace FTT.Combat {
             if (hostileToPlayer) AddToGroup("enemy_projectile");
             else RemoveFromGroup("enemy_projectile");
             _hitbox.Activate();
+            IsLive = true;
         }
 
         private void EnsureNodes() {
@@ -312,7 +339,9 @@ namespace FTT.Combat {
         }
 
         public void OnDespawn() {
+            IsLive = false;
             _hitbox?.Deactivate();
+            if (_hitbox != null) _hitbox.SourceExecutionSerial = 0;
             RemoveFromGroup("enemy_projectile");
             _speed = 0f;
             _lifetime = 0f;

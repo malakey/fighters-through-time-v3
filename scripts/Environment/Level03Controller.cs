@@ -72,6 +72,32 @@ namespace FTT.Environment {
         public const float RoutingStartX = 6400f;
         public const float BossStartX = 8320f;
 
+        private const float CourtDoorWidth = 40f;
+        private const float CourtDoorHeight = 720f;
+        private static readonly Color CourtDoorColor = new(0.3f, 0.36f, 0.46f);
+
+        /// <summary>
+        /// P1 (2026-10-04): the Court of Honor arena. West edge is
+        /// <see cref="BossArenaWestX"/> (spawn 9800 - 800), so the pre-boss anchor
+        /// at 8420 and the west coil platform stay outside; east edge is the court
+        /// wall's inner face.
+        /// </summary>
+        public static readonly Rect2 BossArenaBounds = new(BossArenaWestX, 0f, LevelWidth - 20f - BossArenaWestX, LevelHeight);
+
+        /// <summary>
+        /// A4 (2026-10-04): the boss's spawn X, the one value the arena's west
+        /// edge derives from (the encounter is built at it).
+        /// </summary>
+        public const float BossSpawnX = 9800f;
+        /// <summary>
+        /// How far west of <see cref="BossSpawnX"/> the arena starts: the old
+        /// 800 px reveal radius (ARENA-WEST-EDGE-AT-OLD-REVEAL-LINE). The
+        /// arena rect is the reveal now, so this is the radius's only remaining use.
+        /// </summary>
+        public const float BossArenaApproachPixels = 800f;
+        /// <summary>The arena's west edge (and the reveal line).</summary>
+        public const float BossArenaWestX = BossSpawnX - BossArenaApproachPixels;
+
         /// <summary>Bottom-anchored 1080-tall camera window for the ground-level rooms.</summary>
         private const float GroundRoomCameraTop = LevelHeight - 1080f;
 
@@ -240,10 +266,14 @@ namespace FTT.Environment {
 
             BuildRoomDecoration(RoutingStartX, "chicago_room_routing", new Color(0.9f, 0.75f, 0.35f));
 
-            // Tall enough that the gallery catwalk at y=960 cannot be used to hop
-            // the gate: the door top sits at y=680, well above the coil platforms.
+            // The door top sits at y=680, above the coil platforms - but a double
+            // jump off the gallery catwalk (top 952) or its Extractor still clears
+            // 680, so P5 (2026-10-04) seals everything above the door with a
+            // permanent gate column. The routing puzzle opens the door; nothing
+            // ever opens the sky over it.
             _courtDoor = BuildDoor("CourtOfHonorDoor", new Vector2(BossStartX - 20, GroundY),
-                "chicago_door_sealed", new Vector2(40, 720), new Color(0.3f, 0.36f, 0.46f));
+                "chicago_door_sealed", new Vector2(CourtDoorWidth, CourtDoorHeight), CourtDoorColor);
+            BuildGateColumn(BossStartX - 20, CourtDoorWidth, GroundY - CourtDoorHeight, CourtDoorColor);
 
             BuildRoomTransitionPair(
                 RoutingStartX, "chicago_room_routing", "chicago_room_electricity",
@@ -284,8 +314,8 @@ namespace FTT.Environment {
             BuildRoomTransition("chicago_room_boss", new Vector2(BossStartX + 80, GroundY - 400),
                 new Rect2(BossStartX, GroundRoomCameraTop, width, 1080));
 
-            _inventorEncounter = BuildBossEncounter(BossResourcePath, new Vector2(9800, GroundY - 50),
-                "ChronalInventorEncounter", revealDistance: 800f);
+            _inventorEncounter = BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, GroundY - 50),
+                "ChronalInventorEncounter", BossArenaBounds);
             if (_inventorEncounter != null) _inventorEncounter.PhaseEntered += OnInventorPhaseEntered;
         }
 

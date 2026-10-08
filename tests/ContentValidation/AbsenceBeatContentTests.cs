@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using FTT.Core;
+using FTT.Enemies;
 using FTT.Environment;
 using FTT.UI;
 using GdUnit4;
@@ -24,24 +25,23 @@ namespace FTT.Tests.ContentValidation;
 public class AbsenceBeatContentTests {
 
     private sealed record Beat(
-        string Level, string Scene, string Speaker, string LineKey, string Hero, string RecognitionKey,
-        float BossX, float RevealDistance);
+        string Level, string Scene, string Speaker, string LineKey, string Hero, string RecognitionKey);
 
     private static readonly Beat[] Beats = {
         new("02", "res://scenes/campaign/Level_02_Orleans.tscn", "speaker_captain", "dlg_l02_absence_1",
-            "joan", "dlg_l02_recognition_joan", 10200f, 900f),
+            "joan", "dlg_l02_recognition_joan"),
         new("03", "res://scenes/campaign/Level_03_Chicago.tscn", "speaker_engineer", "dlg_l03_absence_1",
-            "tesla", "dlg_l03_recognition_tesla", 9800f, 800f),
+            "tesla", "dlg_l03_recognition_tesla"),
         new("04", "res://scenes/campaign/Level_04_Paris.tscn", "speaker_parisian", "dlg_l04_absence_1",
-            null, null, 9400f, 800f),
+            null, null),
         new("06", "res://scenes/campaign/Level_06_Pompeii.tscn", "speaker_roman_sailor", "dlg_l06_absence_1",
-            null, null, 10150f, 900f),
+            null, null),
         new("08", "res://scenes/campaign/Level_08_Egypt.tscn", "speaker_guard", "dlg_l08_absence_1",
-            "cleopatra", "dlg_l08_recognition_cleopatra", 9800f, 900f),
+            "cleopatra", "dlg_l08_recognition_cleopatra"),
         new("10", "res://scenes/campaign/Level_10_Globe.tscn", "speaker_player_company", "dlg_l10_absence_1",
-            "shakespeare", "dlg_l10_recognition_shakespeare", 9900f, 900f),
+            "shakespeare", "dlg_l10_recognition_shakespeare"),
         new("11", "res://scenes/campaign/Level_11_Gettysburg.tscn", "speaker_union_officer", "dlg_l11_absence_1",
-            "lincoln", "dlg_l11_recognition_lincoln", 10900f, 900f),
+            "lincoln", "dlg_l11_recognition_lincoln"),
     };
 
     private static DialogueSetData SetFor(Beat beat) =>
@@ -124,9 +124,18 @@ public class AbsenceBeatContentTests {
                     if (trigger == null) { issues.Add($"level_{beat.Level} built no AbsenceTrigger"); continue; }
                     if (trigger.GetParent() != level) issues.Add($"level_{beat.Level}'s trigger is not a level child");
                     // Before the boss reveal band, so the absence and the boss intro
-                    // can never contend for the dialogue box.
-                    if (trigger.Position.X >= beat.BossX - beat.RevealDistance) {
-                        issues.Add($"level_{beat.Level}'s trigger at {trigger.Position.X} is inside the boss reveal");
+                    // can never contend for the dialogue box. The band is read off
+                    // the level's own encounter — its arena's west edge, which is
+                    // the reveal since A4 (2026-10-04), or its reveal radius for a
+                    // radius encounter — never a hand copy of either number.
+                    if (level.BossEncounters.Count == 0) issues.Add($"level_{beat.Level} built no boss encounter");
+                    foreach (BossEncounterController encounter in level.BossEncounters) {
+                        float revealLine = encounter.HasArena
+                            ? encounter.ArenaBounds.Position.X
+                            : encounter.GlobalPosition.X - encounter.RevealDistance;
+                        if (trigger.GlobalPosition.X >= revealLine) {
+                            issues.Add($"level_{beat.Level}'s trigger at {trigger.GlobalPosition.X} is inside the boss reveal (from {revealLine})");
+                        }
                     }
                     if (level.AbsenceBeatShown) issues.Add($"level_{beat.Level} played its beat on load");
                 } finally {

@@ -694,11 +694,13 @@ namespace FTT.FighterSim {
             // V7 universal hitstop, scaled by the damage that landed. Lethal hits
             // skip it — the KO presentation owns that moment. Construct, zone,
             // and hazard ticks are exempt (V7.3: only direct player-authored
-            // hits carry hitstop).
+            // hits carry hitstop). PROVISIONAL-HITSTOP-WEIGHT (2026-10-04 feel
+            // pass, F6): an authored launcher adds the shared launch bonus — the
+            // one integer rule Story's PlayerController also calls.
             if (appliesHitstop && target.CurrentHP > 0 && actualDamage > 0) {
                 FighterVerbRules.ApplyHitstop(
                     ref attackerVerb, ref targetVerb,
-                    FTT.Combat.BasicComboRules.HitstopFrames(actualDamage));
+                    FTT.Combat.BasicComboRules.HitstopFrames(actualDamage, launches));
             }
             // A launching hit whose victim ended up with no hitstop (an exempt
             // source) resolves its DI immediately — a stashed launch must never

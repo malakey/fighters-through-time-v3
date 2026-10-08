@@ -25,6 +25,11 @@ namespace FTT.Enemies {
         [Export] public bool SpawnOnReady = true;
         /// <summary>Distance at which the HUD bar and intro fire; 0 reveals immediately.</summary>
         [Export] public float RevealDistance = 800f;
+        /// <summary>
+        /// P1 (2026-10-04): the arena the clone is leashed to (global; horizontal
+        /// extent only; zero width = unbounded). The reveal stays the radius.
+        /// </summary>
+        [Export] public Rect2 ArenaBounds;
         [Export] public bool AwardDustOnDefeat = true;
         [Export] public ulong DecisionSeed;
         [Export] public StoryRewindPolicy MirrorRewindPolicy { get; set; } = StoryRewindPolicy.PreserveCurrentState;
@@ -91,7 +96,8 @@ namespace FTT.Enemies {
                 RewindPolicy = MirrorRewindPolicy,
                 SpawnOnReady = true,
                 // The clone stands inert until Reveal() starts the fight.
-                ActivateOnSpawn = false
+                ActivateOnSpawn = false,
+                ArenaBounds = ArenaBounds
             };
             AddChild(Mirror);
             return Mirror;

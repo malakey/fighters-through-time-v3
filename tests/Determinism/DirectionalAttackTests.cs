@@ -77,7 +77,9 @@ public class DirectionalAttackTests {
         int total = BasicComboRules.UpAttackStartupFrames
             + BasicComboRules.UpAttackActiveFrames
             + BasicComboRules.UpAttackRecoveryFrames
-            + BasicComboRules.HitstopFrames(expectedDamage);
+            // F6 (2026-10-04, provisional): the up-attack is a launcher, so its
+            // freeze carries the shared launch bonus.
+            + BasicComboRules.HitstopFrames(expectedDamage, BasicComboRules.DirectionalAttackLaunches);
         for (int tick = BasicComboRules.UpAttackStartupFrames + 1; tick < total; tick++) {
             Advance(grounded, tick, p1MoveY: UpAxis);
             AssertThat(grounded.TryGetFighterRuntime(0, out FighterRuntimeComponent midSwing)).IsTrue();
@@ -274,7 +276,7 @@ public class DirectionalAttackTests {
         // attacker's phase machine. "No lag" is measured on the first tick the
         // attacker is actually running again.
         int nextTick = landingTick + 1;
-        for (int guard = 0; guard < BasicComboRules.HitstopMaxFrames + 2; guard++) {
+        for (int guard = 0; guard < BasicComboRules.HitstopCeilingFrames + 2; guard++) {
             AssertThat(simulation.TryGetFighterVerb(0, out FighterVerbComponent frozen)).IsTrue();
             if (frozen.HitstopFrames <= 0) break;
             Advance(simulation, nextTick++, p1Held: GameplayButtons.Down);

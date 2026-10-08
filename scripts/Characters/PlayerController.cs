@@ -838,7 +838,6 @@ namespace FTT.Characters {
 		private AnimatedSprite2D _animatedSprite;
 		private CollisionShape2D _collisionShape;
 		private Area2D _ledgeDetector;
-		private AnimationPlayer _combatAnimationPlayer;
 		private Marker2D _aerialHitboxMarker;
 		private FTT.Combat.GlowPresentationController _glow;
 		private FTT.Environment.LedgeGrabPoint _activeLedge;
@@ -889,13 +888,28 @@ namespace FTT.Characters {
 		private int _comboBufferFramesRemaining;
 		private bool _comboBufferActive;
 		private bool _nextAttackBuffered;
+		/// <summary>F3: a second press made while the next hit was already buffered — it buffers the hit after.</summary>
+		private bool _queuedAttackBuffered;
 		private bool _attackHitActive;
 		private bool _attackInRecovery;
 		private bool _inRecoveryHold;
 		private int _pendingSpecialSlot;
 		private bool _attackStartedAerial;
 		private bool _attackStartedCrouched;
-		private bool _attackAnimationDriven;
+		/// <summary>
+		/// F1: the sheet the running swing is posed on (<c>basic_attack_N</c>,
+		/// <c>up_attack</c>, <c>down_air</c>). Presentation only — the pose is
+		/// chosen from the frame-clock phase, never played at the sheet's fps.
+		/// </summary>
+		private string _attackPoseAnimation = "basic_attack_1";
+		/// <summary>
+		/// F5: true while this character's hitstop has paused its four ability
+		/// nodes' CAST clocks (<see cref="FTT.Combat.BaseSpecial.CastClockSuspended"/>:
+		/// the phase timer and the caster-bound kit work), so a frozen caster's
+		/// cast is frozen with it while what the cast put into the world keeps
+		/// running. Released on the first thawed tick.
+		/// </summary>
+		private bool _castClocksSuspended;
 		/// <summary>
 		/// Which basic the running swing is (gameplay feel §2.8):
 		/// <c>BasicComboRules.VariantChain</c>, <c>VariantUpAttack</c>, or
@@ -994,7 +1008,6 @@ namespace FTT.Characters {
 			_animatedSprite = GetNodeOrNull<AnimatedSprite2D>("AnimatedSprite2D");
 			_collisionShape = GetNodeOrNull<CollisionShape2D>("CollisionShape2D");
 			_ledgeDetector = GetNodeOrNull<Area2D>("LedgeDetector");
-			_combatAnimationPlayer = GetNodeOrNull<AnimationPlayer>("CombatAnimationPlayer");
 			_aerialHitboxMarker = GetNodeOrNull<Marker2D>("AerialHitboxMarker");
 			_glow = GetNodeOrNull<FTT.Combat.GlowPresentationController>(
 				FTT.Combat.GlowPresentationController.NodeName);
@@ -1007,9 +1020,6 @@ namespace FTT.Characters {
 			if (_ledgeDetector != null) {
 				_ledgeDetector.AreaEntered += OnLedgeAreaEntered;
 			}
-			if (_combatAnimationPlayer != null) {
-				_combatAnimationPlayer.AnimationFinished += OnCombatAnimationFinished;
-			}
 
 			MotionMode = MotionModeEnum.Grounded;
 			UpDirection = Vector2.Up;
@@ -1020,7 +1030,6 @@ namespace FTT.Characters {
 
 		public override void _ExitTree() {
 			if (_ledgeDetector != null) _ledgeDetector.AreaEntered -= OnLedgeAreaEntered;
-			if (_combatAnimationPlayer != null) _combatAnimationPlayer.AnimationFinished -= OnCombatAnimationFinished;
 			if (_hurtbox != null) _hurtbox.OnHit -= OnHurtboxHit;
 			if (_meleeHitbox != null) _meleeHitbox.HitConfirmed -= OnMeleeHitConfirmed;
 			ReleaseActiveLedge();
@@ -1186,12 +1195,15 @@ namespace FTT.Characters {
 			_defySuppressHitEffects = false;
 
 			bool hasHyperArmor = HasActiveHyperArmorAgainst(hit.AttackClass);
+			// M05 (Package 12 W3b): only an authored launcher launches. F7: a
+			// Standard-tier mob's hit no longer does. F6: the same flag adds the
+			// launch bonus to the victim's freeze below (the sim reads its hit's
+			// launch flag the same way, armored or not).
+			bool launches = ResolveHitLaunches(in hit);
 			if (!hasHyperArmor && !defySuppressed) {
 				// An impulse-free hit (construct arcs/bites carry zero
 				// knockback) must not replace the velocity — a zero vector
 				// would freeze the victim mid-motion.
-				// M05 (Package 12 W3b): only an authored launcher launches.
-				bool launches = ResolveHitLaunches(in hit);
 				if (hit.Knockback != Vector2.Zero) {
 					// Low-health knockback scaling (gameplay-feel plan §2.5): the
 					// impulse scales with the victim's missing HP *after* this
@@ -1247,8 +1259,9 @@ namespace FTT.Characters {
 			// V7.1 hitstop (victim side): scaled by the damage that actually
 			// applied; a lethal hit skips — the death presentation owns it.
 			// V7.3: construct/DoT ticks are exempt from hitstop entirely.
+			// F6 (provisional): a launching hit adds the shared launch bonus.
 			if (CurrentState != CharacterState.Dead && !hit.ExemptFromHitstop) {
-				ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(damageApplied));
+				ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(damageApplied, launches));
 			}
 			// A launching hit whose victim ended up with no freeze resolves its
 			// DI immediately — a stashed launch must never sit armed waiting to
@@ -1303,7 +1316,7 @@ namespace FTT.Characters {
 				CurrentUltimateMeter = _ultimateMeter?.CurrentValue ?? CurrentUltimateMeter;
 			}
 			float shakeIntensity = hit.ScreenShakeIntensity > 0f
-				? hit.ScreenShakeIntensity * 12f
+				? hit.ScreenShakeIntensity * FTT.Combat.StoryEnemyCombatRules.AuthoredShakePixelsPerIntensity
 				: damageApplied * 0.25f;
 			FTT.Core.CameraShake.Instance?.Shake(shakeIntensity, hit.ScreenShakeDuration);
 			_glow?.FlashHit();
@@ -1323,8 +1336,12 @@ namespace FTT.Characters {
 			if (damageApplied > 0f) {
 				// V7.1 hitstop (attacker side): the same shared freeze the victim
 				// takes in their own hit handler — both parties suspend together.
+				// F6: a launching swing (the finisher, Up-Attack, Down-Air,
+				// Lincoln's hit 2) adds the launch bonus. A killing blow on a
+				// Story mob still lands here (enemies report the lethal damage),
+				// so the attacker always takes the kill freeze.
 				ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(
-					Math.Max(0, (int)MathF.Round(damageApplied))));
+					Math.Max(0, (int)MathF.Round(damageApplied)), payload.Launches));
 				// V7.1 Resonance Momentum: only the CONNECTING string finisher
 				// refunds — never hits 1-2 or the directional strikes.
 				if (payload.HitboxID == "combo_3") ApplyMomentumRefund();
@@ -1357,6 +1374,106 @@ namespace FTT.Characters {
 		public void NotifyStoryHitLanded(in FTT.Combat.HitPayload payload) {
 			TryWingsRefresh(payload);
 		}
+
+		/// <summary>
+		/// 2026-10-04 feel pass (F5 + the completeness review): a Hitbox-delivered
+		/// ability hit — an ability hitbox, a factory-built cinematic hitbox, or a
+		/// pooled projectile the cast fired — gets the same landed-hit feedback as
+		/// a kit shape-query hit: impact VFX, HitConfirm and the once-per-execution
+		/// caster freeze, through <see cref="FTT.Combat.BaseSpecial.ConfirmAbilityHit"/>.
+		/// Raised by <c>Hitbox</c> for every landed Story hit it delivers; a basic
+		/// swing resolves to no ability and is left to <c>OnMeleeHitConfirmed</c>.
+		/// </summary>
+		public void ConfirmAbilityHitboxHit(in FTT.Combat.HitPayload payload, float dealt, Vector2 impactPosition) {
+			FTT.Combat.BaseSpecial source = ResolveAbilityForAttackID(payload.AttackID);
+			source?.ConfirmAbilityHit(in payload, dealt, impactPosition);
+		}
+
+		// === 2026-10-04 feel pass, F5: the caster half of ability hitstop =========
+
+		/// <summary>
+		/// F5 (design-godot.md "Hitstop / Hitlag": every landed direct,
+		/// player-authored hit freezes BOTH parties — specials, ultimates and
+		/// projectiles included). True for a payload whose landing freezes the
+		/// caster: a Special- or Ultimate-origin hit delivered directly. Zone and
+		/// DoT ticks, construct hits and hazards are on the V7.3 exemption list
+		/// and freeze nobody; basics freeze through <c>OnMeleeHitConfirmed</c>.
+		/// </summary>
+		public static bool AbilityHitFreezesCaster(in FTT.Combat.HitPayload payload) =>
+			payload.Delivery == FTT.Combat.HitDelivery.DirectHit
+			&& !payload.ExemptFromHitstop
+			&& payload.Origin is FTT.Combat.HitOrigin.Special or FTT.Combat.HitOrigin.Ultimate;
+
+		/// <summary>
+		/// F5: freezes this caster for the shared hitstop window when one of its
+		/// abilities lands a direct hit — once per execution (the first landed
+		/// hit of a multi-hit Special, a screen-clearing Ultimate or a piercing
+		/// shot), scaled by that hit's dealt damage with the F6 launch bonus. A
+		/// killing blow on a mob still counts: enemies report lethal damage. The
+		/// Fighter simulation freezes both parties of a direct melee or projectile
+		/// hit, but delivers its zone-resolved Specials and Ultimates (Golden
+		/// Ratio, the Requiem burst, the Ultimate zones) as pulses without hitstop
+		/// — a recorded Story/Fighter difference (ledger ZONE-RESOLVED-HIT-FREEZE).
+		/// </summary>
+		public void ApplyAbilityCasterHitstop(
+			FTT.Combat.BaseSpecial source, in FTT.Combat.HitPayload payload, float dealt) {
+			if (source == null || dealt <= 0f || CurrentState == CharacterState.Dead) return;
+			if (!AbilityHitFreezesCaster(in payload)) return;
+			// R12 (2026-10-04 fix pass): claimed for the execution that FIRED the
+			// hit (a pooled shot carries its cast's serial), not the current one.
+			if (!source.TryClaimCasterHitstop(payload.SourceExecutionSerial)) return;
+			ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(
+				Math.Max(0, (int)MathF.Round(dealt)), payload.Launches));
+		}
+
+		/// <summary>The ability node whose authored ID a payload carries, or null (basics, sub-hits).</summary>
+		private FTT.Combat.BaseSpecial ResolveAbilityForAttackID(string attackID) {
+			if (string.IsNullOrEmpty(attackID)) return null;
+			if (MatchesAbility(_special1, attackID)) return _special1;
+			if (MatchesAbility(_special2, attackID)) return _special2;
+			if (MatchesAbility(_ultimate, attackID)) return _ultimate;
+			if (MatchesAbility(_movementAbility, attackID)) return _movementAbility;
+			return null;
+		}
+
+		private static bool MatchesAbility(FTT.Combat.BaseSpecial ability, string attackID) =>
+			ability != null && IsInstanceValid(ability)
+			&& string.Equals(ability.Data?.AbilityID, attackID, StringComparison.Ordinal);
+
+		/// <summary>
+		/// F5: a frozen character's CAST is frozen with it — and only the cast.
+		/// Hitstop already stops this controller's own clock; the ability nodes
+		/// are children with their own physics callbacks, and those callbacks
+		/// also tick world effects the cast already deployed (ground waves, the
+		/// vortex, the rift, spirals, trails, the Tempest's windbox). So the
+		/// node keeps processing and only its cast clock is paused
+		/// (<see cref="FTT.Combat.BaseSpecial.CastClockSuspended"/>): the phase
+		/// timer and the caster-bound work each kit gates on it. World objects
+		/// keep running through the caster's freeze, as the hitstop rule says
+		/// and as the Fighter sim's zone/projectile systems do.
+		///
+		/// <para>Synced once per tick at the top of <see cref="_PhysicsProcess"/>,
+		/// which runs before the ability children: a freeze of N frames pauses
+		/// the cast for exactly the same N ticks as the caster, whichever node
+		/// applied it and when in the tick it landed.</para>
+		/// </summary>
+		private void SetCastClocksSuspended(bool suspended) {
+			// Pushed every tick (four bool writes), so a slot node is never left
+			// holding a stale flag.
+			_castClocksSuspended = suspended;
+			SuspendCastClock(_special1, suspended);
+			SuspendCastClock(_special2, suspended);
+			SuspendCastClock(_movementAbility, suspended);
+			SuspendCastClock(_ultimate, suspended);
+		}
+
+		private static void SuspendCastClock(FTT.Combat.BaseSpecial ability, bool suspended) {
+			if (ability == null || !IsInstanceValid(ability)) return;
+			ability.SetCastClockSuspended(suspended);
+		}
+
+		/// <summary>True while hitstop has paused this character's cast clocks (test/presentation read).</summary>
+		public bool CastClocksSuspended => _castClocksSuspended;
 
 		/// <summary>
 		/// Wings Refresh (Story-only traversal node, Joan). A DIRECT connecting
@@ -1456,10 +1573,15 @@ namespace FTT.Characters {
 			// read (it feeds DI below). At expiry a stashed launching hit
 			// resolves directional influence from the held direction.
 			if (_hitstopFramesRemaining > 0) {
+				// F3 (2026-10-04 feel pass): a BasicAttack press made while frozen
+				// is buffered for the next chain hit instead of being dropped —
+				// the freeze is the impact moment players mash into.
+				BufferChainPress();
+				SetCastClocksSuspended(true);
 				_hitstopFramesRemaining--;
 				if (_animatedSprite != null) _animatedSprite.SpeedScale = 0f;
 				if (_hitstopFramesRemaining <= 0) {
-					if (_animatedSprite != null) _animatedSprite.SpeedScale = 1f;
+					if (_animatedSprite != null) _animatedSprite.SpeedScale = StatusAnimationMultiplier;
 					if (_hasPendingLaunch) {
 						FTT.Combat.BasicComboRules.ResolveDirectionalInfluence(
 							_pendingLaunch.X, _pendingLaunch.Y,
@@ -1471,6 +1593,9 @@ namespace FTT.Characters {
 				}
 				return;
 			}
+			// F5: the first thawed tick hands the cast clocks back; the ability
+			// nodes process after this controller, so they resume this same tick.
+			SetCastClocksSuspended(false);
 
 			if (_techInvulnerabilitySeconds > 0f) _techInvulnerabilitySeconds -= dt;
 			if (_ledgeRegrabLockoutSeconds > 0f) _ledgeRegrabLockoutSeconds -= dt;
@@ -1529,6 +1654,8 @@ namespace FTT.Characters {
 			if (_techLockoutSeconds > 0f) {
 				_techLockoutSeconds -= dt;
 				Velocity = Vector2.Zero;
+				// F4 / H03: a landing tech plays roll_recovery, as the Fighter driver does.
+				PlayAnimation("roll_recovery");
 				if (_techLockoutSeconds <= 0f) TransitionTo(CharacterState.Idle);
 				return;
 			}
@@ -1716,11 +1843,17 @@ namespace FTT.Characters {
 			}
 
 			if (CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down)) {
+				// 2026-10-04 fix pass (G7): read the Down tap BEFORE the crouch.
+				// The crouch used to come first, so the first tap from standing
+				// never opened the double-tap window and the second only crouched
+				// again: a double-tap from Idle or Running never dropped (only
+				// Blocking and Attacking, which read the tap themselves, could).
+				// A second tap drops; anything else still just crouches.
+				if (CheckDropThrough()) return;
 				TransitionTo(CharacterState.Crouching);
 				return;
 			}
 
-			CheckDropThrough();
 			PlayAnimation("idle");
 		}
 
@@ -1756,6 +1889,8 @@ namespace FTT.Characters {
 			}
 
 			if (CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.Down)) {
+				// G7: the tap is read before the crouch, as from Idle.
+				if (CheckDropThrough()) return;
 				TransitionTo(CharacterState.Crouching);
 				return;
 			}
@@ -1768,7 +1903,6 @@ namespace FTT.Characters {
 
 			ApplyHorizontalMovement(hAxis, dt);
 			UpdateFacing(hAxis);
-			CheckDropThrough();
 			PlayAnimation("run");
 		}
 
@@ -2045,12 +2179,11 @@ namespace FTT.Characters {
 			CheckDropThrough();
 
 			// Directional attacks are single strikes: they never buffer into the
-			// three-hit string (§2.8).
-			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)
-				&& !_attackHitActive
-				&& _attackVariant == FTT.Combat.BasicComboRules.VariantChain) {
-				_nextAttackBuffered = true;
-			}
+			// three-hit string (§2.8). F3: a press anywhere in a chain swing —
+			// startup, ACTIVE frames (the old exclusion is gone) or recovery —
+			// buffers the next hit; a second press while one is already buffered
+			// is queued for the hit after it (see CompleteCurrentComboHit).
+			BufferChainPress();
 
 			// Design 752/3080 — during recovery frames, jumping, rolling, or
 			// blocking cancels the swing and resets the chain. Held movement
@@ -2064,11 +2197,14 @@ namespace FTT.Characters {
 				if (TryRecoveryCancel()) return;
 			}
 
-			if (_attackAnimationDriven) return;
-
+			// F2 (2026-10-04 feel pass): every swing runs on this one physics
+			// frame clock — the one hitstop suspends — so a freeze extends every
+			// hit identically. (The template-timed hits used to run on an
+			// AnimationPlayer idle clock that hitstop never paused.)
 			FTT.Combat.CombatFrameTimeline timeline = GetActiveComboTimeline();
 			int elapsedFrame = timeline.TotalFrames - _attackFramesRemaining;
-			bool shouldBeActive = timeline.IsActive(elapsedFrame);
+			FTT.Combat.CombatFramePhase phase = timeline.GetPhase(elapsedFrame);
+			bool shouldBeActive = phase == FTT.Combat.CombatFramePhase.Active;
 
 			if (shouldBeActive && !_attackHitActive) {
 				OnAttackActiveStarted();
@@ -2077,6 +2213,9 @@ namespace FTT.Characters {
 			if (_attackHitActive && !shouldBeActive) {
 				OnAttackActiveEnded();
 			}
+
+			// F1: the sheet's three poses follow the authored windows.
+			ShowAttackPose(_attackPoseAnimation, FTT.Combat.AttackPoseRules.PoseFor(phase));
 
 			// Story-only ComboSpeed minors advance the authored attack clock
 			// faster than real time (a 1f multiplier steps exactly one frame).
@@ -2089,6 +2228,34 @@ namespace FTT.Characters {
 				CompleteCurrentComboHit();
 			}
 		}
+
+		/// <summary>
+		/// F3: true when this tick carries a BasicAttack press the chain may
+		/// buffer — a chain swing (never a directional strike), and never under
+		/// Time Freeze, which discards attack input rather than queueing it.
+		/// </summary>
+		private bool ChainPressThisTick() =>
+			!TimeFrozen
+			&& CurrentState == CharacterState.Attacking
+			&& !_inRecoveryHold
+			&& _attackVariant == FTT.Combat.BasicComboRules.VariantChain
+			&& CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack);
+
+		/// <summary>
+		/// F3: buffers this tick's BasicAttack press for the next chain hit, or —
+		/// when that hit is already buffered — queues it for the hit after, so a
+		/// quick double tap during one swing is not silently eaten. One deep:
+		/// the string's pace is fixed by its swings, so no queue can speed it up.
+		/// </summary>
+		private void BufferChainPress() {
+			if (!ChainPressThisTick()) return;
+			if (_nextAttackBuffered) _queuedAttackBuffered = true;
+			else _nextAttackBuffered = true;
+		}
+
+		/// <summary>F3: BasicAttack is held (outside Time Freeze) — holding continues the chain.</summary>
+		private bool ChainAttackHeld() =>
+			!TimeFrozen && CurrentInputFrame.IsHeld(FTT.Core.GameplayButtons.BasicAttack);
 
 		/// <summary>
 		/// The post-recovery chain window. Reached only from
@@ -2106,7 +2273,8 @@ namespace FTT.Characters {
 				return;
 			}
 
-			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)) {
+			// V7.6 Time Freeze discards the press (never buffers it).
+			if (!TimeFrozen && CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.BasicAttack)) {
 				_inRecoveryHold = false;
 				AdvanceActiveCombo();
 				StartComboHit();
@@ -2121,6 +2289,20 @@ namespace FTT.Characters {
 				_inRecoveryHold = false;
 				return;
 			}
+
+			// F3 (design-godot.md: "Holding the attack button through the window
+			// also continues the chain") — checked after the cancel set, so a
+			// held button never swallows a Block, Jump or Roll cancel.
+			if (ChainAttackHeld()) {
+				_inRecoveryHold = false;
+				AdvanceActiveCombo();
+				StartComboHit();
+				return;
+			}
+
+			// F4: the hold is not a swing — the body reads as moving or standing
+			// rather than frozen on the last follow-through pose.
+			PlayLocomotionAnimation();
 
 			if (_comboBufferFramesRemaining <= 0) {
 				_inRecoveryHold = false;
@@ -2319,6 +2501,11 @@ namespace FTT.Characters {
 
 		private void ProcessUsingSpecial(float dt) {
 			var ability = _pendingSpecialSlot == 2 ? _special2 : _special1;
+			// F1: the Special's three poses follow its own authored phases.
+			if (ability?.IsExecuting == true) {
+				ShowAttackPose(_pendingSpecialSlot == 2 ? "special_2" : "special_1",
+					FTT.Combat.AttackPoseRules.PoseFor(ability.CurrentPhase));
+			}
 			float gravityMultiplier = _specialStartedAerial && ability?.CurrentPhase is
 				FTT.Combat.AbilityPhase.Startup or FTT.Combat.AbilityPhase.Active
 				? 0.5f
@@ -2350,8 +2537,18 @@ namespace FTT.Characters {
 			// A02 (Package 13 W6): the activation strike owns the state until it
 			// connects (and hands over to the real Ultimate) or whiffs.
 			if (_ultimateActivationPhase != UltimateActivationNone) {
+				// F1: the Mirror clone's activation strike poses wind-up, strike
+				// and whiff recovery the same way.
+				ShowAttackPose("ultimate", _ultimateActivationPhase switch {
+					UltimateActivationWindup => FTT.Combat.AttackPoseRules.WindUpPose,
+					UltimateActivationActive => FTT.Combat.AttackPoseRules.StrikePose,
+					_ => FTT.Combat.AttackPoseRules.FollowThroughPose
+				});
 				ProcessUltimateActivationStrike();
 				return;
+			}
+			if (_ultimate?.IsExecuting == true) {
+				ShowAttackPose("ultimate", FTT.Combat.AttackPoseRules.PoseFor(_ultimate.CurrentPhase));
 			}
 			if (_ultimateStartedAerial && _ultimate?.IsExecuting == true) {
 				Velocity = new Vector2(Velocity.X, 0f);
@@ -2619,6 +2816,7 @@ namespace FTT.Characters {
 		/// </summary>
 		private void ProcessThrown(float dt) {
 			ApplyGravity(dt);
+			PlayAnimation("hitstun");
 			_stunTimer -= dt;
 			if (_stunTimer > 0f) return;
 			_stunTumble = false;
@@ -2636,6 +2834,8 @@ namespace FTT.Characters {
 				return;
 			}
 			ApplyGravity(dt);
+			// F4: ordinary and launched hitstun both read as hitstun (H03).
+			PlayAnimation("hitstun");
 			// Track the launch leaving the ground with a per-stun latch.
 			// (IsOnFloor() here reflects the PREVIOUS frame's MoveAndSlide, and
 			// _wasGrounded is written from the same cached value at frame end —
@@ -2719,6 +2919,7 @@ namespace FTT.Characters {
 
 		private void ProcessDazed(float dt) {
 			ApplyGravity(dt);
+			PlayAnimation("dazed");
 			_dazeTimer -= dt;
 			if (_dazeTimer <= 0) {
 				TransitionTo(CharacterState.Idle);
@@ -2852,6 +3053,8 @@ namespace FTT.Characters {
 					break;
 				case CharacterState.Dazed:
 					_dazeTimer = DazeDuration;
+					// F4: a guard break reads at once, from the reel's first frame.
+					RestartAnimation("dazed");
 					break;
 				case CharacterState.Respawning:
 					_respawnTimer = 2.0f;
@@ -2913,6 +3116,9 @@ namespace FTT.Characters {
 			// M05: a hit during the (vulnerable) get-up ends it.
 			ClearKnockdown();
 			TransitionTo(thrown ? CharacterState.Thrown : CharacterState.Stunned);
+			// F4 (H03 reuse rule: held, thrown, tumbling and knocked-down bodies
+			// all play hitstun): every new hit restarts the reel.
+			if (CurrentState is CharacterState.Stunned or CharacterState.Thrown) RestartAnimation("hitstun");
 		}
 
 		/// <summary>
@@ -2925,6 +3131,10 @@ namespace FTT.Characters {
 		public void ApplyHitstop(int frames) {
 			if (frames <= 0 || CurrentState == CharacterState.Dead) return;
 			if (frames > _hitstopFramesRemaining) _hitstopFramesRemaining = frames;
+			// F5: the cast clocks follow on this controller's next tick (the
+			// per-tick sync in _PhysicsProcess). Pausing them here as well would
+			// cost a cast whose own kit tick landed the hit one extra frozen tick
+			// over its caster.
 		}
 
 		/// <summary>True while the hitstop freeze suspends this character's
@@ -2941,12 +3151,23 @@ namespace FTT.Characters {
 		/// M05: whether a hit launches this victim. A player-sourced hit (a
 		/// basic, a directional strike, a throw, an ability hitbox — anything
 		/// with a real owner index) launches only when its payload says so. A
-		/// non-player source — enemies, bosses and hazards, which author no
-		/// launch flag yet — keeps the legacy "any knockback launches" rule;
-		/// recorded under VERIFY-ABILITY-LAUNCHES for a later enemy pass.
+		/// non-player source authors no launch flag yet, so:
+		/// <list type="bullet">
+		/// <item>F7 (2026-10-04 feel pass, provisional — resolves the
+		/// enemy/boss/hazard half of VERIFY-ABILITY-LAUNCHES): an ordinary
+		/// Standard-tier mob's hit (<see cref="FTT.Combat.HitPayload.SourceIsStandardMob"/>)
+		/// never launches — grounded hitstun with a slide, no tumble and no
+		/// knockdown — unless its payload explicitly authors
+		/// <see cref="FTT.Combat.HitPayload.Launches"/>;</item>
+		/// <item>elites, bosses and hazards keep the legacy "any knockback
+		/// launches" rule.</item>
+		/// </list>
 		/// </summary>
-		internal static bool ResolveHitLaunches(in FTT.Combat.HitPayload hit) =>
-			hit.AttackerIndex >= 0 ? hit.Launches : hit.Knockback != Vector2.Zero;
+		internal static bool ResolveHitLaunches(in FTT.Combat.HitPayload hit) {
+			if (hit.AttackerIndex >= 0) return hit.Launches;
+			if (hit.Launches) return true;
+			return !hit.SourceIsStandardMob && hit.Knockback != Vector2.Zero;
+		}
 
 		/// <summary>M05: down on the floor — invulnerable and action-locked.</summary>
 		public bool IsKnockedDown => CurrentState == CharacterState.Stunned && _knockdownFrames > 0;
@@ -3374,6 +3595,20 @@ namespace FTT.Characters {
 			}
 		}
 
+		/// <summary>
+		/// 2026-10-04 fix pass (G2): called by this controller's own
+		/// <see cref="FTT.Combat.UltimateMeter"/> node on every write, so
+		/// <see cref="CurrentUltimateMeter"/> — Defy History's full-meter test, the
+		/// <see cref="DefySeal"/> read-model and the save writers' source — can
+		/// never lag the node. Before this an Ultimate that spent the node inside
+		/// its own startup (<c>JoanGrandCrusade.OnStartup</c>'s <c>Consume</c>)
+		/// left the field at 100 until the next controller-side meter event, so a
+		/// lethal hit right after the cast was defied on an empty meter and a
+		/// checkpoint saved a full one. The seal itself is still published once
+		/// per update by <c>PublishDefySealIfChanged</c>.
+		/// </summary>
+		internal void SyncUltimateMeterFromNode(float value) => CurrentUltimateMeter = value;
+
 		public void DrainUltimateMeter(float points) {
 			if (_ultimateMeter != null) {
 				_ultimateMeter.SetValue(_ultimateMeter.CurrentValue - Mathf.Max(0f, points));
@@ -3455,12 +3690,25 @@ namespace FTT.Characters {
 
 		public string ActiveAnimationName => _animatedSprite?.Animation ?? "idle";
 
+		/// <summary>
+		/// The centre of this fighter's body collision shape (follows the crouch
+		/// resize) — the swinger's end of the M1 line-of-sight ray a basic swing
+		/// must clear to land on an enemy or boss (<c>Hitbox.RequiresEnvironmentLineOfSight</c>;
+		/// the ray is cast from the target back to here).
+		/// </summary>
+		public Vector2 BodyCentreGlobalPosition =>
+			(_collisionShape ?? GetNodeOrNull<CollisionShape2D>("CollisionShape2D"))?.GlobalPosition ?? GlobalPosition;
+
 		public void PlayPresentationAnimation(string animationName) {
 			if (_animatedSprite == null || string.IsNullOrWhiteSpace(animationName)) return;
 			// Same-name guard so per-frame presentation drivers do not restart
-			// the animation at frame zero every tick.
-			if (_animatedSprite.Animation == animationName) return;
-			if (_animatedSprite.SpriteFrames?.HasAnimation(animationName) == true) _animatedSprite.Play(animationName);
+			// the animation at frame zero every tick — unless the sheet is held on
+			// an F1 attack pose, which resumes as an ordinary reel.
+			if (_animatedSprite.Animation == animationName && !_spritePosed) return;
+			if (_animatedSprite.SpriteFrames?.HasAnimation(animationName) == true) {
+				_animatedSprite.Play(animationName);
+				_spritePosed = false;
+			}
 		}
 
 		/// <summary>
@@ -3547,6 +3795,7 @@ namespace FTT.Characters {
 			// that hit. The Defy History flag deliberately survives: once per
 			// level, not once per life.
 			_hitstopFramesRemaining = 0;
+			SetCastClocksSuspended(false);
 			_hasPendingLaunch = false;
 			_stunTumble = false;
 			_stunLeftTheGround = false;
@@ -3880,6 +4129,7 @@ namespace FTT.Characters {
 			_attackHitActive = false;
 			_attackInRecovery = false;
 			_nextAttackBuffered = false;
+			_queuedAttackBuffered = false;
 			_inRecoveryHold = false;
 
 			if (_attackVariant != FTT.Combat.BasicComboRules.VariantChain) {
@@ -3960,25 +4210,11 @@ namespace FTT.Characters {
 			}
 
 			TransitionTo(CharacterState.Attacking);
-			PlayAnimation($"basic_attack_{comboIdx + 1}");
-			string animationName = $"basic_{(_attackStartedAerial ? "air" : "ground")}_{comboIdx + 1}";
-			// The shared combat-animation library is authored to the template
-			// string; a hit whose authored startup deviates (V7.1 string
-			// profiles) runs on the frame clock so per-character timing stays
-			// authoritative while the sheet remains presentation.
-			bool templateTiming = _attackStartedAerial
-				? _stringProfile.AerialStartupFrames[comboIdx]
-					== FTT.Combat.BasicComboRules.AerialStartupFrames[comboIdx]
-				: _stringProfile.GroundStartupFrames[comboIdx]
-					== FTT.Combat.BasicComboRules.GroundStartupFrames[comboIdx];
-			_attackAnimationDriven = templateTiming
-				&& _combatAnimationPlayer?.HasAnimation(animationName) == true;
-			if (_attackAnimationDriven) {
-				// Story-only ComboSpeed minors run the basic string faster; the
-				// animation clock carries the hit-activation callbacks with it.
-				_combatAnimationPlayer.SpeedScale = StoryComboSpeedMultiplier;
-				_combatAnimationPlayer.Play(animationName);
-			}
+			// F2: every chain hit runs on the physics frame clock (ProcessAttacking)
+			// — template and authored-profile startups alike. F1: the sheet is
+			// posed from that clock, wind-up first.
+			_attackPoseAnimation = $"basic_attack_{comboIdx + 1}";
+			ShowAttackPose(_attackPoseAnimation, FTT.Combat.AttackPoseRules.WindUpPose);
 			_attackFrameProgress = 0f;
 		}
 
@@ -4023,10 +4259,10 @@ namespace FTT.Characters {
 			}
 
 			TransitionTo(CharacterState.Attacking);
-			PlayAnimation(upAttack ? "up_attack" : "down_air");
-			// Directional gameplay timing is fixed by BasicComboRules rather than
-			// animation callbacks, so only presentation uses the authored sheet.
-			_attackAnimationDriven = false;
+			// Directional gameplay timing is fixed by BasicComboRules on the frame
+			// clock; F1 poses the authored sheet from it.
+			_attackPoseAnimation = upAttack ? "up_attack" : "down_air";
+			ShowAttackPose(_attackPoseAnimation, FTT.Combat.AttackPoseRules.WindUpPose);
 			_attackFrameProgress = 0f;
 		}
 
@@ -4081,15 +4317,8 @@ namespace FTT.Characters {
 			_meleeHitbox?.Deactivate();
 		}
 
-		private void OnCombatAnimationFinished(StringName animationName) {
-			if (CurrentState != CharacterState.Attacking || !_attackAnimationDriven) return;
-			if (!animationName.ToString().StartsWith("basic_", StringComparison.Ordinal)) return;
-			CompleteCurrentComboHit();
-		}
-
 		private void CompleteCurrentComboHit() {
 			OnAttackActiveEnded();
-			_attackAnimationDriven = false;
 			int comboIndex = GetActiveComboIndex();
 
 			// A directional attack exits straight out: no buffered continuation,
@@ -4098,31 +4327,38 @@ namespace FTT.Characters {
 				_attackVariant = FTT.Combat.BasicComboRules.VariantChain;
 				ResetActiveCombo();
 				_nextAttackBuffered = false;
+				_queuedAttackBuffered = false;
 				_inRecoveryHold = false;
 				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
 				return;
 			}
 
-			if (comboIndex < 2 && _nextAttackBuffered) {
+			// F3: a buffered press — or BasicAttack still held — continues the
+			// chain; a queued second press carries into the hit that starts here.
+			if (FTT.Combat.BasicComboRules.ChainContinues(comboIndex, _nextAttackBuffered, ChainAttackHeld())) {
+				bool queued = _queuedAttackBuffered;
 				AdvanceActiveCombo();
 				StartComboHit();
+				_nextAttackBuffered = queued;
 			} else if (comboIndex >= 2) {
 				ResetActiveCombo();
 				_nextAttackBuffered = false;
+				_queuedAttackBuffered = false;
 				_inRecoveryHold = false;
 				TransitionTo(IsOnFloor() ? CharacterState.Idle : CharacterState.Airborne);
 			} else {
 				_inRecoveryHold = true;
 				_comboBufferFramesRemaining = ComboBufferFrames;
 				_nextAttackBuffered = false;
+				_queuedAttackBuffered = false;
+				PlayLocomotionAnimation();
 			}
 		}
 
 		private void CancelActiveAttack() {
-			_combatAnimationPlayer?.Stop();
-			_attackAnimationDriven = false;
 			_inRecoveryHold = false;
 			_nextAttackBuffered = false;
+			_queuedAttackBuffered = false;
 			_attackVariant = FTT.Combat.BasicComboRules.VariantChain;
 			OnAttackActiveEnded();
 			_attackInRecovery = false;
@@ -4170,7 +4406,7 @@ namespace FTT.Characters {
 				if (_special1 != null && _special1.TryExecute()) {
 					_pendingSpecialSlot = 1;
 					_specialStartedAerial = !IsOnFloor();
-					PlayAnimation("special_1");
+					ShowAttackPose("special_1", FTT.Combat.AttackPoseRules.WindUpPose);
 					TransitionTo(CharacterState.UsingSpecial);
 					return true;
 				}
@@ -4182,7 +4418,7 @@ namespace FTT.Characters {
 				if (_special2 != null && _special2.TryExecute()) {
 					_pendingSpecialSlot = 2;
 					_specialStartedAerial = !IsOnFloor();
-					PlayAnimation("special_2");
+					ShowAttackPose("special_2", FTT.Combat.AttackPoseRules.WindUpPose);
 					TransitionTo(CharacterState.UsingSpecial);
 					return true;
 				}
@@ -4411,7 +4647,7 @@ namespace FTT.Characters {
 		/// <summary>Shared tail of both ultimate cast paths.</summary>
 		private void BeginUltimateCast() {
 			_ultimateStartedAerial = !IsOnFloor();
-			PlayAnimation("ultimate");
+			ShowAttackPose("ultimate", FTT.Combat.AttackPoseRules.WindUpPose);
 			TransitionTo(CharacterState.UsingUltimate);
 			FTT.Core.EventBus.Instance?.RaiseUltimateActivation(new FTT.Core.UltimateActivationPayload {
 				PlayerIndex = PlayerIndex,
@@ -4477,35 +4713,40 @@ namespace FTT.Characters {
 			return false; // Interaction handled by interaction system
 		}
 
-		private void CheckDropThrough() {
-			if (CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Down)) {
-				if (_downTapFramesRemaining > 0) {
-					TryDropThrough();
-					_downTapFramesRemaining = 0;
-				} else {
-					_downTapFramesRemaining = FTT.Combat.StoryCombatRules.DownDoubleTapFrames;
-				}
+		/// <summary>
+		/// Story drop-through is a double-tap of Down (design-godot.md; the sim's
+		/// Down+Jump is separate and untouched). A press opens the
+		/// <see cref="FTT.Combat.StoryCombatRules.DownDoubleTapFrames"/> window and
+		/// a second press inside it drops through the one-way platform underfoot.
+		/// Returns true when this tick's press dropped the fighter.
+		/// </summary>
+		private bool CheckDropThrough() {
+			if (!CurrentInputFrame.IsPressed(FTT.Core.GameplayButtons.Down)) return false;
+			if (_downTapFramesRemaining > 0) {
+				_downTapFramesRemaining = 0;
+				return TryDropThrough();
 			}
+			_downTapFramesRemaining = FTT.Combat.StoryCombatRules.DownDoubleTapFrames;
+			return false;
 		}
 
-		private void TryDropThrough() {
-			if (!FTT.Combat.StoryCombatRules.IsDropThroughAllowed(CurrentState)) return;
+		private bool TryDropThrough() {
+			if (!FTT.Combat.StoryCombatRules.IsDropThroughAllowed(CurrentState)) return false;
 
 			// Find one-way platform below
-			if (IsOnFloor()) {
-				var collision = GetLastSlideCollision();
-				if (collision != null) {
-					var collider = collision.GetCollider() as PhysicsBody2D;
-					if (collider == null || !collider.IsInGroup("OneWayPlatform")) return;
+			if (!IsOnFloor()) return false;
+			var collision = GetLastSlideCollision();
+			if (collision == null) return false;
+			var collider = collision.GetCollider() as PhysicsBody2D;
+			if (collider == null || !collider.IsInGroup("OneWayPlatform")) return false;
 
-					_dropThroughPlatform = collider;
-					AddCollisionExceptionWith(collider);
-					_dropThroughFramesRemaining = FTT.Combat.StoryCombatRules.DropThroughFrames;
-					_dropThroughTimer = DropThroughDuration;
-					Velocity = new Vector2(Velocity.X, Mathf.Max(90f, Velocity.Y));
-					if (CurrentState != CharacterState.Attacking) TransitionTo(CharacterState.Airborne);
-				}
-			}
+			_dropThroughPlatform = collider;
+			AddCollisionExceptionWith(collider);
+			_dropThroughFramesRemaining = FTT.Combat.StoryCombatRules.DropThroughFrames;
+			_dropThroughTimer = DropThroughDuration;
+			Velocity = new Vector2(Velocity.X, Mathf.Max(90f, Velocity.Y));
+			if (CurrentState != CharacterState.Attacking) TransitionTo(CharacterState.Airborne);
+			return true;
 		}
 
 		private void UpdateDropThrough(float dt) {
@@ -4592,10 +4833,88 @@ namespace FTT.Characters {
 		private void PlayAnimation(string animName) {
 			if (_animatedSprite == null) return;
 			_animatedSprite.SpeedScale = StatusAnimationMultiplier;
-			if (_animatedSprite.Animation != animName
-				&& _animatedSprite.SpriteFrames?.HasAnimation(animName) == true) {
+			if (_animatedSprite.SpriteFrames?.HasAnimation(animName) != true) return;
+			if (_animatedSprite.Animation != animName) {
 				_animatedSprite.Play(animName);
+				_spritePosed = false;
+			} else if (_spritePosed) {
+				// F1: a sheet held on an attack pose resumes playing when the same
+				// animation is asked for as an ordinary reel.
+				_animatedSprite.Play(animName);
+				_spritePosed = false;
 			}
+		}
+
+		// === 2026-10-04 feel pass: attack poses and reactive animation (F1/F4) ===
+
+		/// <summary>
+		/// F4: the body speed (px/s) above which a non-acting body reads as
+		/// running rather than standing — the 0.1 world-unit/s threshold the
+		/// Fighter presentation uses. Presentation only.
+		/// </summary>
+		private const float LocomotionRunAnimationSpeedPixels = 6f;
+
+		/// <summary>
+		/// F1: shows pose <paramref name="pose"/> of an attack sheet, held — the
+		/// sprite is paused on the chosen frame, so a freeze, a slow finisher
+		/// or a long recovery shows the right pose for exactly as long as the
+		/// authored window lasts (design-godot.md's retro 3-frame contract).
+		/// The scale normalizer re-anchors on the animation/frame change signals.
+		/// </summary>
+		private void ShowAttackPose(string animName, int pose) {
+			if (_animatedSprite == null || string.IsNullOrEmpty(animName)) return;
+			SpriteFrames frames = _animatedSprite.SpriteFrames;
+			if (frames == null || !frames.HasAnimation(animName)) return;
+			if (_animatedSprite.Animation != animName) _animatedSprite.Animation = animName;
+			if (_animatedSprite.IsPlaying()) _animatedSprite.Pause();
+			_spritePosed = true;
+			int frame = FTT.Combat.AttackPoseRules.ClampToFrameCount(pose, frames.GetFrameCount(animName));
+			if (_animatedSprite.Frame != frame) _animatedSprite.Frame = frame;
+		}
+
+		/// <summary>
+		/// F1: true while the sprite is held on a chosen attack pose rather than
+		/// playing a reel. Presentation only.
+		/// </summary>
+		private bool _spritePosed;
+
+		/// <summary>The sheet frame currently shown (presentation read for tests and the Fighter driver).</summary>
+		public int ActiveAnimationFrame => _animatedSprite?.Frame ?? 0;
+
+		/// <summary>True while the sprite is held on an attack pose (F1; presentation read).</summary>
+		public bool IsShowingAttackPose => _spritePosed && _animatedSprite != null && !_animatedSprite.IsPlaying();
+
+		/// <summary>
+		/// F1, Fighter presentation entry point: holds <paramref name="pose"/> of
+		/// an attack sheet. The driver chooses the pose from read-only sim phase
+		/// state; nothing here writes back into the simulation.
+		/// </summary>
+		public void PlayPresentationPose(string animationName, int pose) => ShowAttackPose(animationName, pose);
+
+		/// <summary>
+		/// F4: plays <paramref name="animName"/> from its first frame even when it
+		/// is already the current animation — each new hit restarts the hitstun
+		/// reel instead of letting the same-name guard swallow it.
+		/// </summary>
+		private void RestartAnimation(string animName) {
+			if (_animatedSprite == null) return;
+			if (_animatedSprite.SpriteFrames?.HasAnimation(animName) != true) return;
+			_animatedSprite.SpeedScale = StatusAnimationMultiplier;
+			_animatedSprite.Play(animName);
+			_animatedSprite.SetFrameAndProgress(0, 0f);
+			_spritePosed = false;
+		}
+
+		/// <summary>
+		/// F4: the body's own movement pose — run/idle on the ground, jump/fall
+		/// in the air — for windows that are not a swing (the chain hold).
+		/// </summary>
+		private void PlayLocomotionAnimation() {
+			if (!IsOnFloor()) {
+				PlayAnimation(Velocity.Y < 0 ? "jump" : "fall");
+				return;
+			}
+			PlayAnimation(Mathf.Abs(Velocity.X) > LocomotionRunAnimationSpeedPixels ? "run" : "idle");
 		}
 
 		public void ResetStatusModifiers() {

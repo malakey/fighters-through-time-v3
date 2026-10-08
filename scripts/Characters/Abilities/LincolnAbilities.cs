@@ -70,6 +70,8 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the cast clock (base) holds through a caster freeze; the
+            // travelling shockwave is a world object and keeps going.
             base._PhysicsProcess(delta);
             if (!_wave.Active) return;
             if (Owner == null || !IsInstanceValid(Owner)) {
@@ -115,7 +117,7 @@ namespace FTT.Characters.Abilities {
                 ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
             });
             float dealt = hurtbox.TakeHit(hit);
-            Credit(in hit, dealt);
+            Credit(in hit, dealt, hurtbox.GlobalPosition);
         }
 
     }
@@ -201,7 +203,10 @@ namespace FTT.Characters.Abilities {
 
         public override void _PhysicsProcess(double delta) {
             base._PhysicsProcess(delta);
-            if (CurrentPhase == AbilityPhase.Active) SpikeAirborneTargets();
+            // F5: the arc's per-active-frame spike is the cast's, so it holds
+            // with the frozen caster; a spiked body's ground bounce is the
+            // world's and keeps resolving.
+            if (CurrentPhase == AbilityPhase.Active && !CastClockSuspended) SpikeAirborneTargets();
             ResolveGroundBounces();
         }
 
@@ -211,10 +216,11 @@ namespace FTT.Characters.Abilities {
         /// <see cref="GroundBounceWindowFrames"/>-frame follow-up window, so
         /// Lincoln can true-combo into the string's launching Hit 2. PvE only:
         /// the watch list only ever holds <c>EnemyController</c> bodies, and
-        /// nothing here reaches <c>scripts/FighterSim/</c>. The stun the window
-        /// applies runs through the enemy's ordinary Special-class intake, so
-        /// the V7.4 Stagger Discipline's diminishing special stun and its
-        /// getup armor both still govern it.
+        /// nothing here reaches <c>scripts/FighterSim/</c>. The window's stun
+        /// goes through the public <c>EnemyController.ApplyStun(duration)</c>
+        /// as a non-Special stun: the V7.4 getup armor, the elite stagger budget
+        /// and the S3 standard poise still govern it, but the diminishing
+        /// special stun does not (it is not Special-sourced).
         /// </summary>
         private void ResolveGroundBounces() {
             if (_bounceWatch.Count == 0) return;
@@ -346,6 +352,8 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the charge and its contacts hold with the frozen caster.
+            if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Active) {
                 Owner.Velocity = _chargeDirection * _chargeSpeed;
                 // Rail Breaker runs BEFORE contact resolution so the broken
@@ -447,7 +455,7 @@ namespace FTT.Characters.Abilities {
                 // Contact stops the charge whether the ram landed or was blocked.
                 _contactStopPending = true;
                 if (dealt > 0f) {
-                    Credit(in hit, dealt);
+                    Credit(in hit, dealt, hurtbox.GlobalPosition);
                     if (Owner.HasStoryPerk(HomesteadBulwarkPerkKey)) {
                         Owner.ApplyStoryHyperArmor(HomesteadBulwarkArmorSeconds);
                     }
@@ -510,6 +518,9 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the smashes are paced by the cast's active window, so they
+            // hold with the frozen caster (the phase clock does too).
+            if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Active) {
                 _activeFramesElapsed++;
                 // D15 (Package 13 W6): LN05 authors no finale (5 × 14 = 70);
@@ -584,7 +595,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 

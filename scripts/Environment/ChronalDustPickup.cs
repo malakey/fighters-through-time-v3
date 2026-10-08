@@ -5,7 +5,12 @@ namespace FTT.Environment {
 
     public partial class ChronalDustPickup : FTT.Core.PooledNode, FTT.Core.IPoolable, IStoryTimeFreezable {
         [Export] public int DustAmount = 10;
-        [Export] public DustVisualTierSet VisualTiers;
+        // Scene-assigned scripted data, pinned on first sight (AuthoredResources.Pin).
+        [Export] public DustVisualTierSet VisualTiers {
+            get => _visualTiers;
+            set => _visualTiers = FTT.Core.AuthoredResources.Pin(value);
+        }
+        private DustVisualTierSet _visualTiers;
 
         /// <summary>V7.3 Single Icon Rule: which system spawned this award.
         /// Collection attributes the amount to the matching results line.</summary>

@@ -122,6 +122,29 @@ namespace FTT.Environment {
 
         /// <summary>Volcanic rockfall sealing the eastern road out of the vault.</summary>
         public const float RockfallX = 5400f;
+        private const float RockfallWidth = 56f;
+        private const float RockfallHeight = 620f;
+
+        /// <summary>
+        /// P1 (2026-10-04): the caldera arena. West edge is
+        /// <see cref="BossArenaWestX"/> (spawn 10150 - 900), keeping the pre-boss
+        /// anchor at 9060 outside; east edge is the caldera wall's inner face.
+        /// </summary>
+        public static readonly Rect2 BossArenaBounds = new(BossArenaWestX, 0f, 10540f - BossArenaWestX, LevelHeight);
+
+        /// <summary>
+        /// A4 (2026-10-04): the boss's spawn X, the one value the arena's west
+        /// edge derives from (the encounter is built at it).
+        /// </summary>
+        public const float BossSpawnX = 10150f;
+        /// <summary>
+        /// How far west of <see cref="BossSpawnX"/> the arena starts: the old
+        /// 900 px reveal radius (ARENA-WEST-EDGE-AT-OLD-REVEAL-LINE). The
+        /// arena rect is the reveal now, so this is the radius's only remaining use.
+        /// </summary>
+        public const float BossArenaApproachPixels = 900f;
+        /// <summary>The arena's west edge (and the reveal line).</summary>
+        public const float BossArenaWestX = BossSpawnX - BossArenaApproachPixels;
 
         public static readonly Rect2 Room1CameraBounds = new(Room1StartX, 0, 2880, LevelHeight);
         public static readonly Rect2 Room2CameraBounds = new(Room2StartX, 0, 2880, LevelHeight);
@@ -357,8 +380,13 @@ namespace FTT.Environment {
             BuildPlatform(1720, 560, 260);   // holds extractor 1
             BuildPlatform(2260, 680, 240);
 
-            // Flanking roofs over the two legionnaire posts.
-            BuildOneWayPlatform(1000, 700, 220);
+            // Flanking roofs over the two legionnaire posts. G5 (2026-10-04): the
+            // west roof sat at 700 (top 690), 62 px under the 1120 stump's solid
+            // underside (628) where the two overlap — less than the 64 px hero,
+            // and inside the one-way's 12 px landing margin, so a hero jumping up
+            // through it there was pushed onto it and wedged. At 720 (top 710) it
+            // leaves 82 px.
+            BuildOneWayPlatform(1000, 720, 220);
             BuildOneWayPlatform(2450, 690, 220);
 
             BuildCheckpoint(240, EnemyGroundY, Checkpoint0, CheckpointRole.Entry);
@@ -424,9 +452,15 @@ namespace FTT.Environment {
 
             // The rockfall itself, plus the ceiling slab above it - a 620 px slab
             // alone would simply be jumped and the era mechanic would be decorative.
+            // P5 (2026-10-04): the slab used to stop at y 0 and spanned only
+            // x 5400..5420 over a rockfall centred on 5400 (x 5372..5428), leaving
+            // a 28 px lip on the rockfall's top at y 280 with open sky; a double
+            // jump off that lip or the villa Extractor (top ~208) cleared it. The
+            // column is now centred on the rockfall, wider than it, and rises past
+            // the level top (StoryGateRules).
             _rockfall = BuildDoor("Rockfall", new Vector2(RockfallX, GroundY),
-                "pompeii_rockfall_blocked", new Vector2(56, 620), RockfallColor);
-            BuildWall(RockfallX, 0, 280, RockfallColor);
+                "pompeii_rockfall_blocked", new Vector2(RockfallWidth, RockfallHeight), RockfallColor);
+            BuildGateColumn(RockfallX, RockfallWidth, GroundY - RockfallHeight, RockfallColor);
 
             BuildRoomTransition("pompeii_room_vault", new Vector2(Room2StartX, 600), Room2CameraBounds,
                 onEntered: _ => {
@@ -495,8 +529,8 @@ namespace FTT.Environment {
             BuildRoomDecoration(Room4StartX, "pompeii_room_caldera", new Color(0.98f, 0.32f, 0.20f));
             BuildRoomTransition("pompeii_room_caldera", new Vector2(Room4StartX + 30, 540), Room4CameraBounds);
 
-            BuildBossEncounter(BossResourcePath, new Vector2(10150, EnemyGroundY),
-                encounterName: "VulcanDecimatorEncounter", revealDistance: 900f);
+            BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, EnemyGroundY),
+                "VulcanDecimatorEncounter", BossArenaBounds);
         }
 
         /// <summary>

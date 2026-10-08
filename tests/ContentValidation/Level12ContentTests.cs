@@ -586,6 +586,60 @@ public class Level12ContentTests {
             .IsTrue();
     }
 
+    /// <summary>
+    /// G3 (2026-10-04): the jump-budget contract above reads
+    /// <see cref="Level12Controller.Lifts"/>, so the table must be the scene. Each
+    /// row is the deck centre at the lift's lowest and highest authored stops, and
+    /// the critical-path spire lift's bottom stop is a walk-on one: its deck top is
+    /// flush with the regolith.
+    /// </summary>
+    [TestCase]
+    public void TheLiftTableIsTheAuthoredSceneAndTheSpireLiftBoardsWithoutAStep() {
+        PackedScene scene = ResourceLoader.Load<PackedScene>(ScenePath);
+        Node instance = scene.Instantiate();
+        try {
+            int matched = 0;
+            foreach ((string platformID, float bottomY, float topY) in Level12Controller.Lifts) {
+                PathMovingPlatform lift = null;
+                Godot.Collections.Array<Node> children = instance.GetChildren();
+                using (children.AsDisposable()) {
+                    foreach (Node child in children) {
+                        if (child is PathMovingPlatform platform && platform.PlatformID == platformID) lift = platform;
+                    }
+                }
+                AssertObject(lift).OverrideFailureMessage($"No authored lift '{platformID}'.").IsNotNull();
+                // Not in the tree, so _Ready has not run: Position is the authored origin.
+                float lowest = float.MinValue;
+                float highest = float.MaxValue;
+                foreach (Vector2 waypoint in lift.Waypoints) {
+                    float y = lift.Position.Y + waypoint.Y;
+                    lowest = Mathf.Max(lowest, y);
+                    highest = Mathf.Min(highest, y);
+                }
+                AssertFloat(lowest)
+                    .OverrideFailureMessage($"Lift '{platformID}' bottoms out at {lowest}, the table says {bottomY}.")
+                    .IsEqualApprox(bottomY, 0.5f);
+                AssertFloat(highest)
+                    .OverrideFailureMessage($"Lift '{platformID}' tops out at {highest}, the table says {topY}.")
+                    .IsEqualApprox(topY, 0.5f);
+
+                if (platformID == Level12Controller.SpireLiftID) {
+                    var shape = (RectangleShape2D)lift.GetNode<CollisionShape2D>("CollisionShape2D").Shape;
+                    float deckTop = lowest - shape.Size.Y / 2f;
+                    AssertFloat(deckTop)
+                        .OverrideFailureMessage(
+                            $"The spire lift's bottom stop puts its deck top at {deckTop}, not flush with the " +
+                            $"regolith at {Level12Controller.SurfaceY}.")
+                        .IsEqualApprox(Level12Controller.SurfaceY, 0.5f);
+                }
+                matched++;
+            }
+            AssertThat(matched).IsEqual(2);
+        } finally {
+            instance.Free();
+        }
+    }
+
     [TestCase]
     public void TheOutpostCurtainCanOnlyBePassedOnTheHighline() {
         float bestTotalJump = 0f;

@@ -376,8 +376,31 @@ namespace FTT.Combat {
         /// horizontal movement steers the attacker but never cancels — letting
         /// it cancel allowed a moving attacker to restart hit one faster than
         /// the authored string pace.
+        ///
+        /// <para>Chain buffer (2026-10-04 feel pass, F3, both modes): a
+        /// BasicAttack press anywhere in a chain swing — startup, ACTIVE frames
+        /// (the old active-frame exclusion is gone; it is not in the design) or
+        /// the hitstop freeze — buffers the next hit; a second press made while
+        /// the next hit is already buffered queues the hit after it, one deep
+        /// (Story <c>_queuedAttackBuffered</c>, sim
+        /// <c>FighterBasicAttackRules.FlagQueuedBuffered</c>), so N presses
+        /// give at most N swings at the authored pace; and
+        /// HOLDING BasicAttack when the swing's recovery ends, or through this
+        /// window, continues the chain (design-godot.md: "Holding the attack
+        /// button through the window also continues the chain"). Directional
+        /// strikes never buffer, and Time Freeze discards rather than buffers.
+        /// <see cref="ChainContinues"/> is the shared statement.</para>
         /// </summary>
         public const int ChainHoldFrames = 24;
+
+        /// <summary>
+        /// F3: whether a chain swing that has just finished its recovery goes
+        /// straight into the next string hit — a buffered press, or BasicAttack
+        /// still held. The finisher never continues (it exits straight out).
+        /// Both modes call this at the recovery-to-hold boundary.
+        /// </summary>
+        public static bool ChainContinues(int comboStep, bool buffered, bool attackHeld) =>
+            comboStep < ComboHits - 1 && (buffered || attackHeld);
 
         /// <summary>
         /// Frames between block-charge regenerations while not blocking (3.0 s,
@@ -415,21 +438,51 @@ namespace FTT.Combat {
         // window scaled by the hit's damage; blocked hits use a flat 2 frames.
         // During hitstop both parties' animation, velocity, position, and timers
         // are suspended (world objects — projectiles, constructs, hazards, the
-        // match clock — keep running). Lethal hits skip hitstop entirely: the
-        // KO presentation owns that moment. Both modes read these numbers.
+        // match clock — keep running). In Fighter Mode a lethal hit skips
+        // hitstop — the KO presentation owns that moment. A Story mob kill
+        // still freezes the ATTACKER (the kill freeze); the dead victim's
+        // presentation is the enemy controllers' concern. Both modes read
+        // these numbers.
+        //
+        // PROVISIONAL-HITSTOP-WEIGHT (2026-10-04 playtest feel pass, F6; the
+        // user named hitstop as a cause of the sluggish feel): the floor rose
+        // 3 -> 4 and a LAUNCHING hit (the finisher, Up-Attack, Down-Air, the
+        // throws, a launching Special or Ultimate) adds a flat +3 on top of the
+        // damage curve, capped at 11. Recorded in DESIGN_BUILD_DEVIATIONS.md
+        // against design-godot.md's locked 3–8 curve; reversible here alone.
 
-        /// <summary>Hitstop at ≤5 damage.</summary>
-        public const int HitstopMinFrames = 3;
-        /// <summary>Hitstop at ≥25 damage.</summary>
+        /// <summary>Hitstop at ≤5 damage (provisional floor; the locked design value is 3).</summary>
+        public const int HitstopMinFrames = 4;
+        /// <summary>Hitstop at ≥25 damage — the top of the damage curve.</summary>
         public const int HitstopMaxFrames = 8;
+        /// <summary>Provisional: the extra freeze a launching hit adds to the damage curve.</summary>
+        public const int LaunchHitstopBonusFrames = 3;
+        /// <summary>The longest ordinary hit freeze: the curve's top plus the launch bonus (11).</summary>
+        public const int HitstopCeilingFrames = HitstopMaxFrames + LaunchHitstopBonusFrames;
         /// <summary>Hitstop on a blocked hit.</summary>
         public const int BlockedHitstopFrames = 2;
 
-        /// <summary>3 frames at ≤5 damage scaling linearly to 8 at ≥25 (integer floor).</summary>
-        public static int HitstopFrames(int damage) {
-            if (damage <= 5) return HitstopMinFrames;
-            if (damage >= 25) return HitstopMaxFrames;
-            return HitstopMinFrames + (damage - 5) * (HitstopMaxFrames - HitstopMinFrames) / 20;
+        /// <summary>
+        /// The non-launching freeze: <see cref="HitstopMinFrames"/> at ≤5 damage
+        /// scaling linearly to <see cref="HitstopMaxFrames"/> at ≥25 (integer
+        /// floor). Equivalent to <c>HitstopFrames(damage, launches: false)</c>.
+        /// </summary>
+        public static int HitstopFrames(int damage) => HitstopFrames(damage, launches: false);
+
+        /// <summary>
+        /// The one hitstop rule both modes call. The damage curve, plus
+        /// <see cref="LaunchHitstopBonusFrames"/> when the hit is an authored
+        /// launcher (Story: <c>HitPayload.Launches</c>; the sim: the hit's
+        /// <c>launches</c> flag), capped at <see cref="HitstopCeilingFrames"/>.
+        /// Integer-only, so the deterministic simulation can call it.
+        /// </summary>
+        public static int HitstopFrames(int damage, bool launches) {
+            int frames;
+            if (damage <= 5) frames = HitstopMinFrames;
+            else if (damage >= 25) frames = HitstopMaxFrames;
+            else frames = HitstopMinFrames + (damage - 5) * (HitstopMaxFrames - HitstopMinFrames) / 20;
+            if (launches) frames += LaunchHitstopBonusFrames;
+            return frames > HitstopCeilingFrames ? HitstopCeilingFrames : frames;
         }
 
         // === Grabs & Throws (V7.2, applied 2026-08-24) ===

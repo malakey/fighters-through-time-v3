@@ -155,9 +155,13 @@ namespace FTT.Environment {
         /// offset, half width). The scene is pinned to these and
         /// <see cref="SkiffTravelSpans"/> derives the water the player is over while
         /// riding, so a checkpoint can be proven never to land on a departed skiff.
+        /// <para>G3 (2026-10-04): the first skiff's west stop used to slide 60 px into
+        /// the gun pier (its deck flush with the pier top, its hull inside the pier);
+        /// it now berths against the pier's face at <see cref="ChannelStartX"/>, the
+        /// same boarding edge, without entering the geometry.</para>
         /// </summary>
         public static readonly (Vector2 Position, float WestOffsetX, float EastOffsetX, float HalfWidth)[] Skiffs = {
-            (new Vector2(6700f, 916f), -140f, 200f, 120f),
+            (new Vector2(6700f, 916f), -80f, 200f, 120f),
             (new Vector2(7275f, 876f), -155f, 155f, 120f),
             (new Vector2(7830f, 866f), -150f, 150f, 120f)
         };
@@ -226,6 +230,27 @@ namespace FTT.Environment {
         /// </summary>
         public const string EraserEnemyID = "unbound_eraser";
         public const string BossResourcePath = "res://resources/Bosses/dread_admiral.tres";
+
+        /// <summary>
+        /// P1 (2026-10-04): the burning flagship. West edge is
+        /// <see cref="BossArenaWestX"/> (spawn 10250 - 900); east edge is the stern
+        /// wall's inner face.
+        /// </summary>
+        public static readonly Rect2 BossArenaBounds = new(BossArenaWestX, 0f, LevelWidth - 20f - BossArenaWestX, LevelHeight);
+
+        /// <summary>
+        /// A4 (2026-10-04): the boss's spawn X, the one value the arena's west
+        /// edge derives from (the encounter is built at it).
+        /// </summary>
+        public const float BossSpawnX = 10250f;
+        /// <summary>
+        /// How far west of <see cref="BossSpawnX"/> the arena starts: the old
+        /// 900 px reveal radius (ARENA-WEST-EDGE-AT-OLD-REVEAL-LINE). The
+        /// arena rect is the reveal now, so this is the radius's only remaining use.
+        /// </summary>
+        public const float BossArenaApproachPixels = 900f;
+        /// <summary>The arena's west edge (and the reveal line).</summary>
+        public const float BossArenaWestX = BossSpawnX - BossArenaApproachPixels;
 
         /// <summary>
         /// Authored Normal-difficulty spawn table. Wave 1 is live on entry; waves 2
@@ -447,8 +472,8 @@ namespace FTT.Environment {
             // 2100 px of deck against the Admiral's authored 11.0-unit ranged band
             // (660 px at BossController's 60 px per unit), so the gatling zoner can
             // actually use its range instead of being pinned in melee.
-            BuildBossEncounter(BossResourcePath, new Vector2(10250f, ListDeckEastY - 40f),
-                "DreadAdmiralEncounter", revealDistance: 900f);
+            BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, ListDeckEastY - 40f),
+                "DreadAdmiralEncounter", BossArenaBounds);
         }
 
         /// <summary>Deck slab tilted about its own top centre; positive degrees list to starboard (east).</summary>

@@ -102,6 +102,40 @@ namespace FTT.Environment {
 
         public const string SealingAnchorID = "level_01.sealing_anchor";
         private const float BossSpawnX = Room4OffsetX + 700f;
+
+        /// <summary>P5: the permanent column over the workshop door. Test seam.</summary>
+        public StaticBody2D WorkshopDoorColumn { get; private set; }
+
+        /// <summary>The workshop door: 40 px wide, standing from y 500 to the floor at 900.</summary>
+        private const float WorkshopDoorWidth = 40f;
+        private const float WorkshopDoorTopY = 500f;
+
+        /// <summary>
+        /// P1 (2026-10-04): the boss room's last checkpoint, which stands in the
+        /// antechamber between the doorway and the arena so it can be struck
+        /// before the reveal. Test seam.
+        /// </summary>
+        public const string BossRoomCheckpointID = "florence_checkpoint_2";
+        private const float BossRoomCheckpointX = Room4OffsetX + 100f;
+
+        /// <summary>
+        /// P1 (2026-10-04): the arena the Borgia boss is revealed by and leashed
+        /// to — from the Phase 2 west barricade's inner face (the closed arena's
+        /// own west edge) to the east wall's inner face. It starts east of the
+        /// boss room's checkpoint (<see cref="BossRoomCheckpointID"/>, 80 px west
+        /// of the edge), so the hero can strike that checkpoint from the
+        /// antechamber before stepping in; the reveal used to fire the moment the
+        /// hero cleared the doorway, with the last checkpoint still unstruck.
+        /// </summary>
+        public static readonly Rect2 BossArenaBounds = new(
+            ArenaShrinkLeftWallX + BarricadeThickness, 0f,
+            Room4OffsetX + 940f - (ArenaShrinkLeftWallX + BarricadeThickness), LevelHeight);
+
+        /// <summary>
+        /// P1 (2026-10-04): bottom of the arena's west wall. Below it (to the floor
+        /// at 900) is the ground-level doorway into the arena, 200 px tall.
+        /// </summary>
+        public const float ArenaDoorwayTopY = 700f;
         private const float BossSpawnY = 850f;
         private static readonly Vector2 BossSpawnPosition = new(BossSpawnX, BossSpawnY);
 
@@ -418,6 +452,16 @@ namespace FTT.Environment {
             BuildRoomDecoration(offsetX, "florence_room_workshop", new Color(0.5f, 0.3f, 0.15f));
 
             _workshopDoor = BuildDoor("WorkshopDoor", new Vector2(offsetX, 0));
+            // P5 (2026-10-04): the door spans y 500..900 and nothing stood above
+            // it, so a double jump off the print shop's last platform (top 542)
+            // cleared it with the gear puzzle unsolved. A permanent column seals
+            // the sky above the door; the puzzle still opens the door itself. The
+            // column is centred on the door and wider than it (StoryGateRules), so
+            // the door's top is never a ledge.
+            float columnWidth = StoryGateRules.ColumnWidth(WorkshopDoorWidth);
+            WorkshopDoorColumn = BuildWall(offsetX - columnWidth / 2f, StoryGateRules.ColumnTopY,
+                WorkshopDoorTopY - StoryGateRules.ColumnTopY, columnWidth);
+            WorkshopDoorColumn.Name = "WorkshopDoorColumn";
 
             BuildWaveTrigger("Room3WaveTrigger", new Vector2(offsetX + 150, 800), () => {
                 if (_room3WaveSpawned) return;
@@ -434,15 +478,18 @@ namespace FTT.Environment {
                 CollisionLayer = CollisionLayers.Environment,
                 CollisionMask = 0
             };
+            // P5: enumerable by the gate sweep, like every base-class door.
+            door.AddToGroup(StoryGateRules.DoorGroup);
 
+            float doorHeight = 900f - WorkshopDoorTopY;
             var col = new CollisionShape2D();
-            col.Shape = new RectangleShape2D { Size = new Vector2(40, 400) };
-            col.Position = new Vector2(0, 700);
+            col.Shape = new RectangleShape2D { Size = new Vector2(WorkshopDoorWidth, doorHeight) };
+            col.Position = new Vector2(0, WorkshopDoorTopY + doorHeight / 2f);
             door.AddChild(col);
 
             var visual = new ColorRect {
-                Size = new Vector2(40, 400),
-                Position = new Vector2(-20, 500),
+                Size = new Vector2(WorkshopDoorWidth, doorHeight),
+                Position = new Vector2(-WorkshopDoorWidth / 2f, WorkshopDoorTopY),
                 Color = new Color(0.5f, 0.35f, 0.12f)
             };
             door.AddChild(visual);
@@ -476,10 +523,16 @@ namespace FTT.Environment {
             _scaffolding.Add(BuildScaffolding("florence_scaffold_west", offsetX + 300, 650, 200));
             _scaffolding.Add(BuildScaffolding("florence_scaffold_east", offsetX + 660, 650, 200));
 
-            BuildWall(offsetX, 0, LevelHeight);
+            // P1 (2026-10-04): the west wall used to run the full height (y 0..1080)
+            // over a floor at 900, sealing the arena: no hero could enter it (Level
+            // 1 has no movement ability yet), and the old radius reveal only ever
+            // started a fight through the wall. The arena reveal needs the hero
+            // inside, so the wall now stops at ArenaDoorwayTopY, leaving a ground-
+            // level doorway; Phase 2's full-height burning barricade still closes it.
+            BuildWall(offsetX, 0, ArenaDoorwayTopY);
             BuildWall(offsetX + 940, 0, LevelHeight);
 
-            BuildCheckpoint(offsetX + 100, 850, "florence_checkpoint_2");
+            BuildCheckpoint(BossRoomCheckpointX, 850, BossRoomCheckpointID);
             BuildRoomDecoration(offsetX, "florence_room_boss", new Color(0.9f, 0.2f, 0.2f));
 
             SpawnBoss(BossSpawnX, BossSpawnY);
@@ -557,7 +610,7 @@ namespace FTT.Environment {
             AddChild(plat);
         }
 
-        private void BuildWall(float x, float y, float height) {
+        private StaticBody2D BuildWall(float x, float y, float height, float thickness = 20f) {
             var wall = new StaticBody2D();
             wall.CollisionLayer = CollisionLayers.Environment;
             wall.CollisionMask = 0;
@@ -566,17 +619,18 @@ namespace FTT.Environment {
 
             var col = new CollisionShape2D();
             var shape = new RectangleShape2D();
-            shape.Size = new Vector2(20, height);
+            shape.Size = new Vector2(thickness, height);
             col.Shape = shape;
-            col.Position = new Vector2(10, height / 2f);
+            col.Position = new Vector2(thickness / 2f, height / 2f);
             wall.AddChild(col);
 
             var visual = new ColorRect();
-            visual.Size = new Vector2(20, height);
+            visual.Size = new Vector2(thickness, height);
             visual.Color = new Color(0.2f, 0.15f, 0.08f);
             wall.AddChild(visual);
 
             AddChild(wall);
+            return wall;
         }
 
         private void BuildHazardSpikes(float x, float y, float width) {
@@ -672,16 +726,15 @@ namespace FTT.Environment {
             AddChild(_player);
             RestoreSavedCheckpoint();
 
-            var camera = new Camera2D();
-            camera.Name = "PlayerCamera";
-            camera.Enabled = true;
-            camera.LimitLeft = 0;
-            camera.LimitRight = (int)LevelWidth;
-            camera.LimitTop = 0;
-            camera.LimitBottom = (int)LevelHeight;
-            camera.PositionSmoothingEnabled = true;
-            camera.PositionSmoothingSpeed = 5.0f;
+            // F8 (2026-10-04): the shared Story follow rig (StoryCameraRules) over
+            // the same whole-level limits.
+            var camera = new StoryCameraConfiner {
+                Name = "PlayerCamera",
+                Enabled = true,
+                ActiveBounds = new Rect2(0, 0, LevelWidth, LevelHeight)
+            };
             _player.AddChild(camera);
+            camera.EnableFollow(_player);
         }
 
         private void RestoreSavedCheckpoint() {
@@ -777,6 +830,9 @@ namespace FTT.Environment {
                 Position = new Vector2(x, y),
                 Data = AuthoredResources.Load<BossData>("res://resources/Bosses/borgia_inquisitor.tres"),
                 RevealDistance = 800f,
+                // P1 (2026-10-04): dormant until the player is inside the walled
+                // arena, and leashed to it.
+                ArenaBounds = BossArenaBounds,
                 // Package 12 W8 (N01): a pre-seal load never respawns the boss.
                 SpawnOnReady = !_restoringAwaitingSeal
             };
@@ -940,7 +996,12 @@ namespace FTT.Environment {
         private void KeepInsideShrunkArena(PlayerController player) {
             if (!ArenaShrunk || player == null || !IsInstanceValid(player)) return;
             float x = player.GlobalPosition.X;
-            if (x < Room4OffsetX || x > Room4OffsetX + 960f) return; // not in the arena at all
+            // P1 (2026-10-04): since the west wall has a doorway, a hero can be
+            // west of the arena when the barricades close (hitting the boss from
+            // the doorway, or a rewind landing back in the workshop). The closed
+            // arena is the only way forward, so such a hero is brought in too
+            // rather than locked out with the boss.
+            if (x > Room4OffsetX + 960f) return; // beyond the arena: nothing there
             float left = ArenaInnerLeftX + 24f;
             float right = ArenaInnerRightX - 24f;
             if (x >= left && x <= right) return;

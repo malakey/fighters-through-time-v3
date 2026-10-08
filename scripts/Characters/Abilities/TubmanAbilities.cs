@@ -114,7 +114,19 @@ namespace FTT.Characters.Abilities {
             _groundY = Owner.GlobalPosition.Y;
             _frontDistance = 0f;
             _rushSpeed = RushReachPixels * 60f / Mathf.Max(1, Data?.ActiveFrames ?? 30);
+            // F5: the scouts run exactly the authored active window on their own
+            // count — a ground wave, like the sim's — so a caster freeze, which
+            // holds the cast's phase clock, neither stops the rush nor stretches it.
+            _rushFramesRemaining = PhaseFramesRemaining;
         }
+
+        /// <summary>H-4: an interrupted call stops its rush (the trail is laid only by a finished one).</summary>
+        protected override void OnInterrupted() => _rushFramesRemaining = 0;
+
+        private int _rushFramesRemaining;
+
+        /// <summary>True while the scouts are still running (test seam).</summary>
+        public bool RushActive => _rushFramesRemaining > 0;
 
         protected override void OnRecovery() {
             UseAuthoredPhaseFrames();
@@ -128,7 +140,12 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
-            if (CurrentPhase == AbilityPhase.Active) AdvanceRush((float)delta);
+            // F5: the rush and the Safe Passage trail are the world's and keep
+            // running through a caster freeze; only the cast clock (base) holds.
+            if (_rushFramesRemaining > 0) {
+                _rushFramesRemaining--;
+                AdvanceRush((float)delta);
+            }
             TickSafePassage((float)delta);
             base._PhysicsProcess(delta);
         }
@@ -162,8 +179,8 @@ namespace FTT.Characters.Abilities {
                     ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
                 });
                 float dealt = hurtbox.TakeHit(hit);
-                Credit(in hit, dealt);
-                if (dealt > 0f) EmitImpactVfx(hurtbox.GlobalPosition);
+                // The impact VFX lands inside Credit.
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 
@@ -258,6 +275,9 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the stance, its sidestep and the answer are the cast's, so they
+            // hold with a frozen caster (the sim's component 322 does the same).
+            if (CastClockSuspended) return;
             if (_sidestepFrames > 0) _sidestepFrames--;
             if (IsExecuting && Owner != null) {
                 // Planted: the stance holds her ground.
@@ -331,9 +351,9 @@ namespace FTT.Characters.Abilities {
                 ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
             });
             float dealt = nearest.TakeHit(hit);
-            Credit(in hit, dealt);
+            // The impact VFX lands inside Credit.
+            Credit(in hit, dealt, nearest.GlobalPosition);
             if (dealt > 0f) {
-                EmitImpactVfx(nearest.GlobalPosition);
                 if (Owner.HasStoryPerk(NeverLostAPassengerPerkKey)) {
                     Owner.ReclaimRallyEchoFraction(NeverLostAPassengerEchoFraction);
                 }
@@ -434,6 +454,8 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the leap carries its caster, so it holds with a frozen caster.
+            if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Startup) {
                 Owner.Velocity = Vector2.Zero;
             } else if (CurrentPhase == AbilityPhase.Active) {
@@ -507,6 +529,9 @@ namespace FTT.Characters.Abilities {
 
         public override void _PhysicsProcess(double delta) {
             base._PhysicsProcess(delta);
+            // F5: the train's strikes are paced by the cast's active window, so
+            // they hold with the frozen caster (the phase clock does too).
+            if (CastClockSuspended) return;
             if (CurrentPhase != AbilityPhase.Active || _hitsRemaining <= 0) return;
             Owner.Velocity = new Vector2(0f, Owner.Velocity.Y);
             if (_countdownFrames > 0) {
@@ -548,7 +573,7 @@ namespace FTT.Characters.Abilities {
                 });
                 float dealt = hurtbox.TakeHit(hit);
                 // D03h: Ultimate-origin damage earns no meter; Rally reclaim retained (D03g).
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
             }
         }
     }

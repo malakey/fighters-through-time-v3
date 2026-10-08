@@ -42,7 +42,7 @@ MaxLaunchSpeed = 900.0
 [node name="SkiffA" parent="." instance=ExtResource("4_skiff")]
 position = Vector2(6700, 916)
 PlatformID = "level_07.skiff_a"
-Waypoints = PackedVector2Array(-140, 0, 200, 0)
+Waypoints = PackedVector2Array(-80, 0, 200, 0)
 Speed = 130.0
 EndpointWaitSeconds = 1.2
 Mode = 0

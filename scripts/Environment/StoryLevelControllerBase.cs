@@ -386,6 +386,8 @@ namespace FTT.Environment {
             bool finishedPostBossBeat = IsActivePostBossBeat(dialogueID);
             OnDialogueSequenceComplete(dialogueID);
             if (finishedPostBossBeat) AdvancePostBossChain();
+            // G4: a beat that came due while this sequence was on screen runs now.
+            ReleaseBeatsAwaitingDialogue();
         }
 
         /// <summary>
@@ -451,11 +453,12 @@ namespace FTT.Environment {
             Camera = new StoryCameraConfiner {
                 Name = "PlayerCamera",
                 Enabled = true,
-                ActiveBounds = LevelBounds,
-                PositionSmoothingEnabled = true,
-                PositionSmoothingSpeed = 5.0f
+                ActiveBounds = LevelBounds
             };
             Player.AddChild(Camera);
+            // F8 (2026-10-04): the design's dead-zone / look-ahead follow rig
+            // replaces the plain 5.0-speed position smoothing.
+            Camera.EnableFollow(Player);
             LinkRoomCameras();
         }
 
@@ -756,6 +759,62 @@ namespace FTT.Environment {
             !string.IsNullOrWhiteSpace(dialogueID) &&
             Services?.Dialogue?.StartSequence(dialogueID) == true;
 
+        /// <summary>
+        /// True while any sequence is on screen. The post-boss and exit beats wait
+        /// for it rather than request a beat the manager would refuse (G4): the
+        /// manager drops a sequence requested over another one while its ID
+        /// overload still reports true, so the chain would wait for a completion
+        /// that never comes. Virtual beside <see cref="StartDialogue"/> so a
+        /// substituted dialogue source can answer it too.
+        /// </summary>
+        protected virtual bool IsDialogueSequenceActive => Services?.Dialogue?.IsSequenceActive == true;
+
+        /// <summary>
+        /// G4 (2026-10-04): starts a level's pre-boss beat (Sarah's word before the
+        /// arena, <c>level_NN.preboss</c>) — but only while the boss is still up. A
+        /// hero who crosses the pre-boss trigger for the first time after the boss
+        /// fell (a bot fought the Tidal Overseer short of its arena, then came back
+        /// to strike the PreBoss fracture beside the trigger) would otherwise hear
+        /// the lead-in after the post-boss exchange, or over it. Levels 5, 12 and
+        /// 15 route their pre-boss triggers through here; the fracture strike
+        /// itself starts no dialogue.
+        /// </summary>
+        protected bool StartPreBossDialogue(string dialogueID) =>
+            !IsBossDefeated && !SealAccepted && !LevelComplete && StartDialogue(dialogueID);
+
+        // === G4 (2026-10-04): scripted beats wait for the screen to be free ===
+
+        private readonly List<Action> _beatsAwaitingDialogue = new();
+
+        /// <summary>How many scripted beats are waiting for the current sequence to end. Test seam.</summary>
+        public int BeatsAwaitingDialogue => _beatsAwaitingDialogue.Count;
+
+        /// <summary>
+        /// Runs <paramref name="beat"/> now, or — when another sequence is on screen
+        /// (a late absence or boss-intro beat, an encounter sequence) — once that
+        /// sequence completes, after the usual beat delay. A post-boss or exit beat
+        /// requested over another sequence used to be dropped by the manager while
+        /// the chain recorded it as playing, stranding the seal chain with no anchor
+        /// (or the sealed level with no results). Only the base's post-boss and exit
+        /// beats route through here; every other dialogue call is unchanged.
+        /// </summary>
+        private void RunBeatWhenDialogueFree(Action beat) {
+            if (beat == null) return;
+            if (IsDialogueSequenceActive) {
+                _beatsAwaitingDialogue.Add(beat);
+                return;
+            }
+            beat();
+        }
+
+        /// <summary>Releases the waiting beats once no sequence is on screen.</summary>
+        private void ReleaseBeatsAwaitingDialogue() {
+            if (_beatsAwaitingDialogue.Count == 0 || IsDialogueSequenceActive) return;
+            Action[] beats = _beatsAwaitingDialogue.ToArray();
+            _beatsAwaitingDialogue.Clear();
+            foreach (Action beat in beats) RunAfterBeatDelay(() => RunBeatWhenDialogueFree(beat));
+        }
+
         // === Geometry builders (graybox; Package 2 TileMap conversion is separate) ===
 
         /// <summary>
@@ -901,6 +960,33 @@ namespace FTT.Environment {
 
             AddChild(wall);
             return wall;
+        }
+
+        private readonly List<StaticBody2D> _gateColumns = new();
+
+        /// <summary>Every gate column this level built (P5). Test seam for the reach sweep.</summary>
+        public IReadOnlyList<StaticBody2D> GateColumns => _gateColumns;
+
+        /// <summary>
+        /// P5 (2026-10-04): the solid column over a gate — a shield barrier, a
+        /// sealed door, a rockfall — from <paramref name="bottomY"/> (the gate's top
+        /// edge) up to <see cref="StoryGateRules.ColumnTopY"/>, so the gate can only
+        /// be passed by the mechanic that opens it. Permanent: opening the gate
+        /// below never removes it.
+        ///
+        /// <para>Centred on the gate (<paramref name="centerX"/>, the x a door or
+        /// barrier is centred on) and <see cref="StoryGateRules.ColumnMarginPixels"/>
+        /// wider than it on each side, so no part of the gate's top is left as a
+        /// standable lip under open sky. <paramref name="margin"/> 0 is for a gate
+        /// that is itself a wall segment of the same span (the Level 12 curtain).</para>
+        /// </summary>
+        protected StaticBody2D BuildGateColumn(float centerX, float gateWidth, float bottomY, Color? fill = null,
+            float margin = StoryGateRules.ColumnMarginPixels) {
+            float width = StoryGateRules.ColumnWidth(gateWidth, margin);
+            StaticBody2D column = BuildWall(centerX - width / 2f, StoryGateRules.ColumnTopY,
+                bottomY - StoryGateRules.ColumnTopY, fill, width);
+            _gateColumns.Add(column);
+            return column;
         }
 
         protected Area2D BuildHazardSpikes(float x, float y, float width, int damage = 15, Color? fill = null, float thickness = 10f) {
@@ -1224,6 +1310,12 @@ namespace FTT.Environment {
         /// Solid placeholder door standing ON <paramref name="basePosition"/> (its
         /// floor contact point) and extending upward. Call <see cref="OpenDoor"/>
         /// when the gate that seals it clears.
+        ///
+        /// <para>P5 (2026-10-04): a door seals nothing on its own — the Story
+        /// levels have no sky — so every door needs a
+        /// <see cref="BuildGateColumn"/> over it. The door joins
+        /// <see cref="StoryGateRules.DoorGroup"/> and the content sweep fails on
+        /// one without a column.</para>
         /// </summary>
         protected StaticBody2D BuildDoor(string name, Vector2 basePosition, string lockedLabelKey = "level_door_locked",
             Vector2? size = null, Color? fill = null) {
@@ -1234,6 +1326,9 @@ namespace FTT.Environment {
                 CollisionLayer = CollisionLayers.Environment,
                 CollisionMask = 0
             };
+            // P5: every sealed door is enumerable, so the content sweep can
+            // demand a gate column over each one (StoryGateRules.DoorGroup).
+            door.AddToGroup(StoryGateRules.DoorGroup);
 
             door.AddChild(new CollisionShape2D {
                 Shape = new RectangleShape2D { Size = doorSize },
@@ -1625,13 +1720,54 @@ namespace FTT.Environment {
         /// dialogue and objective flow: reveal posts the boss objective and starts
         /// the intro sequence; defeat posts the completion objective, tallies the
         /// authored dust, and (after a beat) starts the exit sequence.
+        ///
+        /// <para>This overload is the legacy radius reveal: the encounter reveals
+        /// when the player comes within <paramref name="revealDistance"/> of the
+        /// boss, and the boss is not leashed. Every campaign boss uses the arena
+        /// overload below.</para>
         /// </summary>
         protected BossEncounterController BuildBossEncounter(
             string bossResourcePath,
             Vector2 position,
             string encounterName = null,
             float revealDistance = 800f,
+            Vector2 spawnOffset = default) =>
+            CreateBossEncounter(bossResourcePath, position, encounterName, revealDistance, spawnOffset, default);
+
+        /// <summary>
+        /// P1 (2026-10-04): the arena encounter. <paramref name="arenaBounds"/> is
+        /// the boss arena in level coordinates: the boss spawns dormant, is
+        /// leashed to the rect's horizontal extent, and the encounter reveals when
+        /// the player enters the rect.
+        ///
+        /// <para>A4: there is deliberately no reveal distance here — the arena rect
+        /// is the reveal, and the encounter ignores a radius whenever it has one.
+        /// The campaign levels used to pass both, so an edit to one of the two
+        /// numbers silently diverged from the other. A level whose arena edge
+        /// stands a fixed distance in front of the boss derives it from the spawn
+        /// X it passes here (<c>BossArenaWestX = BossSpawnX -
+        /// BossArenaApproachPixels</c>).</para>
+        /// </summary>
+        protected BossEncounterController BuildBossEncounter(
+            string bossResourcePath,
+            Vector2 position,
+            string encounterName,
+            Rect2 arenaBounds,
             Vector2 spawnOffset = default) {
+            if (arenaBounds.Size.X <= 0f || arenaBounds.Size.Y <= 0f) {
+                GD.PushError($"Boss arena for level '{LevelID}' is empty ({arenaBounds}); " +
+                    "use the radius overload for an unbounded boss.");
+            }
+            return CreateBossEncounter(bossResourcePath, position, encounterName, null, spawnOffset, arenaBounds);
+        }
+
+        private BossEncounterController CreateBossEncounter(
+            string bossResourcePath,
+            Vector2 position,
+            string encounterName,
+            float? revealDistance,
+            Vector2 spawnOffset,
+            Rect2 arenaBounds) {
             var data = AuthoredResources.Load<BossData>(bossResourcePath);
             if (data == null) {
                 GD.PushError($"Boss resource missing for level '{LevelID}': {bossResourcePath}");
@@ -1643,11 +1779,12 @@ namespace FTT.Environment {
                 Position = position,
                 Data = data,
                 SpawnOffset = spawnOffset,
-                RevealDistance = revealDistance,
+                ArenaBounds = arenaBounds,
                 // Package 12 W8 (N01): a pre-seal load reconstructs the boss as
                 // already defeated — it is never spawned and fought again.
                 SpawnOnReady = !IsRestoringAwaitingSeal
             };
+            if (revealDistance.HasValue) encounter.RevealDistance = revealDistance.Value;
             encounter.BossRevealed += () => OnBossRevealed(encounter);
             encounter.BossDefeated += payload => OnBossDefeated(encounter, payload);
             // Package 8 B5: the climax layer is wired to the encounter directly rather
@@ -1731,7 +1868,8 @@ namespace FTT.Environment {
                 EnterAwaitingSeal();
                 return;
             }
-            RunAfterBeatDelay(PlayNextPostBossBeat);
+            // G4: a beat due while another sequence is on screen waits for it.
+            RunAfterBeatDelay(() => RunBeatWhenDialogueFree(PlayNextPostBossBeat));
         }
 
         private void PlayNextPostBossBeat() {
@@ -1751,11 +1889,16 @@ namespace FTT.Environment {
                    beats[_postBossBeatIndex] == dialogueID;
         }
 
-        /// <summary>Delayed hand-off from the boss beat to the exit dialogue.</summary>
+        /// <summary>
+        /// Delayed hand-off from the boss beat to the exit dialogue. G4: an exit
+        /// beat due while another sequence is on screen waits for it, instead of
+        /// being dropped by the manager and leaving the sealed level with no
+        /// results at all.
+        /// </summary>
         protected virtual void StartExitSequence() =>
-            RunAfterBeatDelay(() => {
+            RunAfterBeatDelay(() => RunBeatWhenDialogueFree(() => {
                 if (!StartDialogue(ExitDialogueID)) ShowCompletionResults();
-            });
+            }));
 
         /// <summary>
         /// Runs <paramref name="step"/> after <see cref="ExitDialogueDelaySeconds"/>,

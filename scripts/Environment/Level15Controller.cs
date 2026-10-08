@@ -220,6 +220,28 @@ namespace FTT.Environment {
         public const string EraserEnemyID = "unbound_eraser";
         public const string BossResourcePath = "res://resources/Bosses/apex_eraser.tres";
 
+        /// <summary>
+        /// P1 (2026-10-04): the rotunda. West edge is <see cref="BossArenaWestX"/>
+        /// (spawn 10500 - 750), after the pre-boss beat (9330) and the wave-4
+        /// garrison; east edge is the rotunda wall. The T01b historical recovery
+        /// anchor (10400) stands inside it.
+        /// </summary>
+        public static readonly Rect2 BossArenaBounds = new(BossArenaWestX, 0f, ArenaEndX - BossArenaWestX, LevelHeight);
+
+        /// <summary>
+        /// A4 (2026-10-04): the boss's spawn X, the one value the arena's west
+        /// edge derives from (the encounter is built at it).
+        /// </summary>
+        public const float BossSpawnX = 10500f;
+        /// <summary>
+        /// How far west of <see cref="BossSpawnX"/> the arena starts: the old
+        /// 750 px reveal radius (ARENA-WEST-EDGE-AT-OLD-REVEAL-LINE). The
+        /// arena rect is the reveal now, so this is the radius's only remaining use.
+        /// </summary>
+        public const float BossArenaApproachPixels = 750f;
+        /// <summary>The arena's west edge (and the reveal line).</summary>
+        public const float BossArenaWestX = BossSpawnX - BossArenaApproachPixels;
+
         private const float StandY = FloorY - 50f;
 
         /// <summary>
@@ -404,8 +426,8 @@ namespace FTT.Environment {
             // band (600 px at BossController's 60 px per unit); the content test
             // asserts the fit against the resource, not against a hardcoded width.
             BossEncounterController encounter = BuildBossEncounter(
-                BossResourcePath, new Vector2(10500f, FloorY - 50f),
-                "ApexEraserEncounter", revealDistance: 750f);
+                BossResourcePath, new Vector2(BossSpawnX, FloorY - 50f),
+                "ApexEraserEncounter", BossArenaBounds);
             BuildHistoricalRecoveryAnchor(encounter);
         }
 
@@ -524,7 +546,8 @@ namespace FTT.Environment {
         private void StartPreBossBeat() {
             if (_preBossShown) return;
             _preBossShown = true;
-            StartDialogue(PreBossDialogueID);
+            // G4: never once the First Severed has fallen.
+            StartPreBossDialogue(PreBossDialogueID);
         }
 
         /// <summary>Starts the firestorm at the player's back. Idempotent.</summary>

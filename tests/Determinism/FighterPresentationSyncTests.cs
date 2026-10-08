@@ -111,7 +111,12 @@ public class FighterPresentationSyncTests {
 
             var sprite = one.GetNode<AnimatedSprite2D>("AnimatedSprite2D");
             AssertThat(sprite.Animation).IsEqual(new StringName("special_1"));
-            AssertThat(sprite.IsPlaying()).IsTrue();
+            // 2026-10-04 feel pass (F1): the sheet is POSED across the cosmetic
+            // hold (the sim's Specials resolve on press), wind-up first — held
+            // on the chosen frame rather than played at the sheet's fps.
+            AssertThat(sprite.Frame).IsEqual(FTT.Combat.AttackPoseRules.WindUpPose);
+            AssertThat(sprite.IsPlaying()).IsFalse();
+            AssertThat(one.IsShowingAttackPose).IsTrue();
 
             // The deterministic ability resolves immediately, but presentation
             // keeps the three-frame pose long enough to be seen.
@@ -121,6 +126,15 @@ public class FighterPresentationSyncTests {
             InputManager.Instance.SetInputSource(0, playerOneInput);
             driver._PhysicsProcess(Step);
             AssertThat(sprite.Animation).IsEqual(new StringName("special_1"));
+            // A third of the way through the hold the strike pose shows.
+            for (int frame = 0; frame < 5; frame++) {
+                playerOneInput.SetNextFrame(PlayerInputFrame.Create(
+                    attackFrame + 2 + (uint)frame, 0f, 0f, GameplayButtons.None));
+                InputManager.Instance.SetInputSource(0, playerOneInput);
+                driver._PhysicsProcess(Step);
+            }
+            AssertThat(sprite.Animation).IsEqual(new StringName("special_1"));
+            AssertThat(sprite.Frame).IsEqual(FTT.Combat.AttackPoseRules.StrikePose);
         } finally {
             InputManager.Instance.ClearInputSource(0);
             InputManager.Instance.ClearInputSource(1);

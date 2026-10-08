@@ -127,6 +127,8 @@ namespace FTT.Environment {
         /// from the regolith at all.
         /// </summary>
         public const float CurtainWallX = 8560f;
+        /// <summary>Thickness of both curtain segments.</summary>
+        private const float CurtainThickness = 24f;
         /// <summary>Bottom edge of the upper curtain segment - the slot's ceiling.</summary>
         public const float CurtainSlotTopY = 250f;
         /// <summary>Top edge of the lower curtain segment - the slot's floor.</summary>
@@ -134,6 +136,28 @@ namespace FTT.Environment {
 
         /// <summary>Rise from the regolith a player would need to enter the cargo slot.</summary>
         public static float CurtainSlotRise => SurfaceY - CurtainSlotBottomY;
+
+        /// <summary>
+        /// P1 (2026-10-04): the landing pad arena. West edge is
+        /// <see cref="BossArenaWestX"/> (spawn 10500 - 700), so the pre-boss thesis
+        /// scene at 8980 and the wave-4 garrison are fought before the Overseer
+        /// wakes; east edge is the pad wall.
+        /// </summary>
+        public static readonly Rect2 BossArenaBounds = new(BossArenaWestX, 0f, ArenaEndX - BossArenaWestX, LevelHeight);
+
+        /// <summary>
+        /// A4 (2026-10-04): the boss's spawn X, the one value the arena's west
+        /// edge derives from (the encounter is built at it).
+        /// </summary>
+        public const float BossSpawnX = 10500f;
+        /// <summary>
+        /// How far west of <see cref="BossSpawnX"/> the arena starts: the old
+        /// 700 px reveal radius (ARENA-WEST-EDGE-AT-OLD-REVEAL-LINE). The
+        /// arena rect is the reveal now, so this is the radius's only remaining use.
+        /// </summary>
+        public const float BossArenaApproachPixels = 700f;
+        /// <summary>The arena's west edge (and the reveal line).</summary>
+        public const float BossArenaWestX = BossSpawnX - BossArenaApproachPixels;
 
         // === Checkpoints ===
 
@@ -212,12 +236,24 @@ namespace FTT.Environment {
         public const string PocketLiftID = "level_12.lift_pocket";
 
         /// <summary>
-        /// The two vertical <see cref="PathMovingPlatform"/> lifts as (bottom, top)
-        /// altitudes, matching the authored Waypoints in Level_12_Lunar.tscn.
+        /// The spire lift's bottom stop: the deck's centre when its top lies flush
+        /// with the regolith (the template deck is 32 px thick), so the stop is a
+        /// walk-on one with no step. G3 (2026-10-04): it used to sit at SurfaceY
+        /// itself, its deck top 16 px proud of the floor and its bottom 16 px inside
+        /// it; a stop is either clear of the level geometry or flush with the top of
+        /// the floor it sinks into (<c>ArenaGeometryContentTests</c>), and the deck
+        /// never presses down on a hero beneath it (<see cref="PathMovingPlatform.IsHeldByBodyBelow"/>).
+        /// </summary>
+        public const float SpireLiftBottomY = SurfaceY + 16f;
+
+        /// <summary>
+        /// The two vertical <see cref="PathMovingPlatform"/> lifts as the deck
+        /// centre's (bottom, top) altitudes, matching the authored Waypoints in
+        /// Level_12_Lunar.tscn (<c>Level12ContentTests</c> pins the match).
         /// </summary>
         public static readonly (string PlatformID, float BottomY, float TopY)[] Lifts = {
             (PocketLiftID, LedgeB, HighDeckY),
-            (SpireLiftID, SurfaceY, HighDeckY)
+            (SpireLiftID, SpireLiftBottomY, HighDeckY)
         };
 
         // === Encounters (locked: 14 standards / 2 elites / 1 boss / 4 extractors) ===
@@ -375,9 +411,15 @@ namespace FTT.Environment {
             BuildPlatform(7350f, HighDeckY, 300f);
 
             // The curtain: an upper and a lower segment with a cargo slot between
-            // them at the highline altitude. There is no top to jump over.
-            BuildWall(CurtainWallX, 0f, CurtainSlotTopY, CurtainColor, 24f);
-            BuildWall(CurtainWallX, CurtainSlotBottomY, SurfaceY - CurtainSlotBottomY, CurtainColor, 24f);
+            // them at the highline altitude. There is no top to jump over - P5
+            // (2026-10-04): the upper segment used to stop at y 0, and a lunar
+            // double jump off the mast head (or its Extractor) cleared that by
+            // ~700 px, so it is a gate column rising past the level top. Margin 0:
+            // the curtain is itself a wall, and both segments keep one x span (the
+            // slot below the column is the cargo route, not a lip).
+            BuildGateColumn(CurtainWallX + CurtainThickness / 2f, CurtainThickness, CurtainSlotTopY,
+                CurtainColor, margin: 0f);
+            BuildWall(CurtainWallX, CurtainSlotBottomY, SurfaceY - CurtainSlotBottomY, CurtainColor, CurtainThickness);
 
             // East of the curtain: the highline landing and the way back up to it.
             BuildPlatform(8860f, HighDeckY, 240f);
@@ -422,8 +464,8 @@ namespace FTT.Environment {
             // The pad floor spans 2,400 px against the Overseer's 9.0-unit ranged
             // band (540 px at BossController's 60 px per unit); the content test
             // asserts the fit against the resource, not against a hardcoded width.
-            BuildBossEncounter(BossResourcePath, new Vector2(10500f, SurfaceY - 50f),
-                "GravityOverseerEncounter", revealDistance: 700f);
+            BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, SurfaceY - 50f),
+                "GravityOverseerEncounter", BossArenaBounds);
         }
 
         /// <summary>
@@ -568,7 +610,8 @@ namespace FTT.Environment {
         private void StartPreBossBeat() {
             if (_preBossShown) return;
             _preBossShown = true;
-            StartDialogue(PreBossDialogueID);
+            // G4: the thesis scene lands before the Overseer, never after it falls.
+            StartPreBossDialogue(PreBossDialogueID);
         }
 
         // === Checkpoint resume ===

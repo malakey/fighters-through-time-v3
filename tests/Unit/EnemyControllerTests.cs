@@ -84,8 +84,10 @@ public class EnemyControllerTests {
             // A string opener carries HitstunFrames[0] = 30 frames (0.5s). At
             // StunResistance 0.5 the unfloored result would be 15 frames —
             // enough for the elite to act inside the chain gap. The combo's
-            // "combo_N" Basic-class hits floor the post-resistance stun at the
-            // shared 24 frames.
+            // "combo_N" Basic-class hits floor the post-resistance stun; since
+            // the 2026-10-04 S5 pass the floor is hit-indexed (Story-only
+            // StoryEnemyCombatRules) — 34 frames after hit 1, which spans the
+            // 28-frame buffered gap to hit 2 that the old shared 24 did not.
             hurtbox.TakeHit(new HitPayload {
                 AttackID = "einstein.basic",
                 HitboxID = "combo_1",
@@ -96,11 +98,18 @@ public class EnemyControllerTests {
                 AttackerFacingRight = true
             });
             AssertThat(elite.CurrentState).IsEqual(EnemyState.Stunned);
+            AssertThat(StoryEnemyCombatRules.BasicStringStunFloorFrames("combo_1")).IsEqual(34);
             for (int frame = 0; frame < 20; frame++) elite._PhysicsProcess(Step);
             AssertThat(elite.CurrentState)
                 .OverrideFailureMessage("The floored stun must outlast the unfloored 15 frames.")
                 .IsEqual(EnemyState.Stunned);
-            for (int frame = 0; frame < 10; frame++) elite._PhysicsProcess(Step);
+            // 3 hitstop frames + 30 stun frames: the old shared 24-frame floor
+            // would already have released the elite inside the chain gap.
+            for (int frame = 0; frame < 13; frame++) elite._PhysicsProcess(Step);
+            AssertThat(elite.CurrentState)
+                .OverrideFailureMessage("The hit-1 floor must span the buffered gap to hit 2.")
+                .IsEqual(EnemyState.Stunned);
+            for (int frame = 0; frame < 8; frame++) elite._PhysicsProcess(Step);
             AssertThat(elite.CurrentState).IsEqual(EnemyState.Patrol);
 
             // V7.4: the naturally-expired stun armed the getup armor window,
@@ -917,9 +926,11 @@ public class EnemyControllerTests {
                 HitOrigin = Vector2.Zero,
                 AttackerFacingRight = true
             });
+            // (2026-10-04 S4: a string hit lands x1.25 on a Standard-tier mob.)
             AssertThat(enemy.CurrentHP)
                 .OverrideFailureMessage("Armor never reduces damage.")
-                .IsEqual(hpBefore - 3);
+                .IsEqual(hpBefore - StoryEnemyCombatRules.ScaleIntakeDamage(
+                    3, StoryEnemyCombatRules.StandardBasicDamageScale));
             AssertThat(enemy.CurrentState)
                 .OverrideFailureMessage("An armored hit must not re-stun the enemy.")
                 .IsNotEqual(EnemyState.Stunned);

@@ -84,6 +84,9 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the singularity's pull and strikes are paced by the cast's
+            // active window, so they hold with the frozen caster.
+            if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Active) {
                 float dt = (float)delta;
                 PullTargetsTowardSingularity(dt);
@@ -146,7 +149,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 

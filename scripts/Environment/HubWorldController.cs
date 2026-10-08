@@ -552,16 +552,15 @@ namespace FTT.Environment {
                     FTT.Combat.GlowPresentationController.NodeName)?.SetHeroAura(false);
             }
 
-            var camera = new Camera2D();
-            camera.Name = "PlayerCamera";
-            camera.Enabled = true;
-            camera.LimitLeft = 0;
-            camera.LimitRight = 3840;
-            camera.LimitTop = 0;
-            camera.LimitBottom = 1080;
-            camera.PositionSmoothingEnabled = true;
-            camera.PositionSmoothingSpeed = 5.0f;
+            // F8 (2026-10-04): the shared Story follow rig (StoryCameraRules) over
+            // the same 3840 x 1080 limits the plain smoothed camera used.
+            var camera = new StoryCameraConfiner {
+                Name = "PlayerCamera",
+                Enabled = true,
+                ActiveBounds = new Rect2(0, 0, 3840, 1080)
+            };
             _player.AddChild(camera);
+            camera.EnableFollow(_player);
         }
 
         private void BuildHUD() {

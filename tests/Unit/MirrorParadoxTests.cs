@@ -425,6 +425,66 @@ public class MirrorParadoxTests {
         }
     }
 
+    [TestCase]
+    public void AShotReleasedToThePoolIsNeverReadAsIncomingFire() {
+        // 2026-10-04 fix pass: a released Story projectile is parked under the
+        // pool manager — still inside the tree, still in story_projectile, still
+        // carrying its last owner slot — so the Mirror used to read every player
+        // shot that had ever despawned as a live one closing on it from wherever
+        // it vanished.
+        var root = ((SceneTree)Engine.GetMainLoop()).Root;
+        // A scoped manager takes the singleton, so nothing reaches the autoload's pool.
+        var pools = new PoolManager { Name = "MirrorParkedShotPools" };
+        root.AddChild(pools);
+        MirrorParadoxController mirror = CreateMirror();
+        PlayerController target = null;
+        try {
+            mirror.Clone.GlobalPosition = new Vector2(600f, 300f);
+            target = CharacterFactory.CreateCharacter(
+                MirroredCharacter, 0, applyStoryProgression: false);
+            root.AddChild(target);
+            target.GlobalPosition = new Vector2(300f, 300f);
+            mirror.Decisions.Bind(mirror.Clone, target);
+
+            const string poolID = "story_projectile";
+            pools.RegisterPool(poolID,
+                ResourceLoader.Load<PackedScene>("res://scenes/templates/StoryProjectileTemplate.tscn"),
+                warmUpCount: 1, maxCapacity: 4, overflowPolicy: PoolOverflowPolicy.Grow);
+            // A warmed, never-fired instance is no shot.
+            AssertThat(mirror.Decisions.Observe().HasHostileProjectile).IsEqual(0);
+
+            var shot = (FTT.Combat.PlaceholderProjectile)pools.Spawn(poolID, new Vector2(480f, 240f), root);
+            shot.Setup(0f, Vector2.Zero, 300f, movingRight: true,
+                ownerIndex: 0, color: Colors.White, lifetime: 999f);
+            AssertThat(shot.IsLive).IsTrue();
+            AssertThat(mirror.Decisions.Observe().HasHostileProjectile)
+                .OverrideFailureMessage("A player shot in flight is incoming fire.")
+                .IsEqual(1);
+
+            pools.Release(shot);
+            // Parked, not freed: the conditions the scan has to see past.
+            AssertThat(shot.IsInsideTree()).IsTrue();
+            AssertThat(shot.IsInGroup("story_projectile")).IsTrue();
+            AssertThat(shot.OwnerPlayerIndex).IsEqual(0);
+            AssertThat(shot.IsLive).IsFalse();
+            AssertThat(mirror.Decisions.Observe().HasHostileProjectile)
+                .OverrideFailureMessage("A shot parked in the pool was read as incoming fire.")
+                .IsEqual(0);
+
+            // Reused from the pool and fired again, it is live again.
+            var reused = (FTT.Combat.PlaceholderProjectile)pools.Spawn(poolID, new Vector2(480f, 240f), root);
+            reused.Setup(0f, Vector2.Zero, 300f, movingRight: true,
+                ownerIndex: 0, color: Colors.White, lifetime: 999f);
+            AssertThat(mirror.Decisions.Observe().HasHostileProjectile).IsEqual(1);
+            pools.Release(reused);
+        } finally {
+            DetachAndFree(target);
+            FreeMirror(mirror);
+            pools.ClearAllPools();
+            DetachAndFree(pools);
+        }
+    }
+
     // === Defeat flow ===
 
     [TestCase]

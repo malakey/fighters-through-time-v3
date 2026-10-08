@@ -215,6 +215,8 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the cast clock (base) holds through a caster freeze; the
+            // deployed vortex is a world object and keeps churning.
             base._PhysicsProcess(delta);
             UpdateVortex((float)delta);
         }
@@ -283,7 +285,7 @@ namespace FTT.Characters.Abilities {
                 // Only the final tick carries the authored launch; the churn ticks never do.
                 tick.Launches = finalTick && (Data?.Launches ?? false);
                 float dealt = hurtbox.TakeHit(tick);
-                Credit(in tick, dealt);
+                Credit(in tick, dealt, hurtbox.GlobalPosition);
                 return dealt;
         }
 
@@ -464,6 +466,8 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the rush is caster-bound — it holds with its frozen caster.
+            if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Active) {
                 float speed = _mirageDistance / _mirageDuration;
                 Owner.Velocity = _mirageDirection * speed;
@@ -573,6 +577,9 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the storm's strikes are paced by the cast's active window, so
+            // they hold with the frozen caster (the phase clock does too).
+            if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Active && _hitsDone < HitCap) {
                 _tickFramesRemaining--;
                 if (_tickFramesRemaining <= 0) {
@@ -611,7 +618,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards its caster
                 // ZERO damage-dealt meter, regardless of HP removed, target count or
                 // when it lands. Direct-hit Rally reclaim is retained (D03g).
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 

@@ -60,6 +60,8 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the cast clock (base) holds through a caster freeze; the
+            // travelling shockwave is a world object and keeps going.
             base._PhysicsProcess(delta);
             if (!_wave.Active || Owner == null || !IsInstanceValid(Owner)) return;
             _wave.Advance((float)delta, Owner.GetWorld2D()?.DirectSpaceState,
@@ -94,9 +96,10 @@ namespace FTT.Characters.Abilities {
                 ScreenShakeDuration = Data?.ScreenShakeDuration ?? 0.15f
             });
             float dealt = hurtbox.TakeHit(hit);
-            Credit(in hit, dealt);
+            // The impact VFX, HitConfirm and caster freeze land inside Credit, at
+            // the wave's front (2026-10-04 feel pass).
+            Credit(in hit, dealt, front);
             if (dealt > 0f) {
-                EmitImpactVfx(front);
                 // Wings Refresh reads "a direct Righteous Smite hit" off the
                 // shared hit-landed hook the Hitbox path raises.
                 Owner.NotifyStoryHitLanded(hit);
@@ -148,6 +151,8 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the lunge and its thrust cadence hold with the frozen caster.
+            if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Active) {
                 Owner.Velocity = new Vector2(
                     _lungeRight ? LungeSpeedPixelsPerSecond : -LungeSpeedPixelsPerSecond,
@@ -219,7 +224,7 @@ namespace FTT.Characters.Abilities {
                 // Only the final thrust launches; the others hold.
                 if (!finalThrust) hit.Launches = false;
                 float dealt = hurtbox.TakeHit(hit);
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
             }
         }
 
@@ -327,6 +332,8 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the rise and the Wing-Dive hold with the frozen caster.
+            if (CastClockSuspended) return;
             if (_isDiving) {
                 _diveFramesRemaining--;
                 Owner.Velocity = WingDiveVelocity(_diveRight);
@@ -389,6 +396,8 @@ namespace FTT.Characters.Abilities {
         }
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the charge and its trample cadence hold with the frozen caster.
+            if (CastClockSuspended) return;
             if (CurrentPhase == AbilityPhase.Active) {
                 float chargeSpeed = Data?.ProjectileSpeed > 0f ? Data.ProjectileSpeed : DefaultChargeSpeed;
                 Owner.Velocity = new Vector2(
@@ -455,7 +464,7 @@ namespace FTT.Characters.Abilities {
                 // V7.6 D03h (Package 11 A1b): Ultimate-origin damage awards
                 // its caster ZERO damage-dealt meter. Direct-hit Rally reclaim
                 // from an Ultimate impact is retained (D03g).
-                Credit(in hit, dealt);
+                Credit(in hit, dealt, hurtbox.GlobalPosition);
             }
         }
     }

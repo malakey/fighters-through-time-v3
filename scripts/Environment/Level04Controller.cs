@@ -48,10 +48,28 @@ namespace FTT.Environment {
         /// <summary>Boss-arena pit floor; 100 px below the approach so adds stay reachable.</summary>
         private const float PitFloorY = 1000f;
 
+        /// <summary>The Bastille tower's top drop-through step (centre), beside the upper walkway's west end.</summary>
+        public const float TowerTopStepX = 4880f;
+        public const float TowerTopStepY = 380f;
+
+        /// <summary>The inner-courtyard gate the prisoner puzzle opens (centre X, size, fill).</summary>
+        public const float CourtyardGateX = 8560f;
+        private const float CourtyardGateWidth = 48f;
+        private const float CourtyardGateHeight = 760f;
+        private static readonly Color CourtyardGateColor = new(0.38f, 0.30f, 0.22f);
+
         private const string PrisonerPuzzleID = "level_04.free_prisoners";
         private const string PrisonerAConditionID = "prisoner_a_freed";
         private const string PrisonerBConditionID = "prisoner_b_freed";
         private const string BossResourcePath = "res://resources/Bosses/revolutionary_tribunal.tres";
+
+        /// <summary>
+        /// P1 (2026-10-04): the inner courtyard. The old 800 px reveal line (9400 -
+        /// 800 = 8600) already sat at the courtyard entry, so the arena is the whole
+        /// courtyard: entry 8640 to the east wall's inner face. Both Tribunal
+        /// members share it.
+        /// </summary>
+        public static readonly Rect2 BossArenaBounds = new(Room4StartX, 0f, 10220f - Room4StartX, LevelHeight);
 
         // === Authored encounter table (asserted by Level04ContentTests) ===
 
@@ -242,7 +260,12 @@ namespace FTT.Environment {
             BuildOneWayPlatform(4900, 760, 220);
             BuildOneWayPlatform(5150, 620, 220);
             BuildOneWayPlatform(4950, 480, 220);
-            BuildOneWayPlatform(5200, 380, 200);
+            // The top step, west of the walkway's end (4780..4980, top 370): a
+            // 100 px hop from the step below, then 78 px onto the walkway — inside
+            // Lincoln's single jump both times. It used to sit at 5200/380, under
+            // the walkway's solid underside (308) with 62 px of headroom, less
+            // than the 64 px hero, so a hero who reached it was wedged.
+            BuildOneWayPlatform(TowerTopStepX, TowerTopStepY, 200);
 
             // Upper walkway, swept end to end by the tower beam.
             BuildPlatform(5540, 300, 1080);
@@ -281,8 +304,14 @@ namespace FTT.Environment {
             BuildCheckpoint(8480, GroundY - 50, $"{LevelID}_checkpoint_2", CheckpointRole.PreBoss);
             BuildRoomDecoration(Room3StartX, "paris_room_cells", new Color(0.7f, 0.45f, 0.5f));
 
-            _courtyardGate = BuildDoor("CourtyardGate", new Vector2(8560, GroundY),
-                "paris_gate_locked", new Vector2(48, 760), new Color(0.38f, 0.30f, 0.22f));
+            _courtyardGate = BuildDoor("CourtyardGate", new Vector2(CourtyardGateX, GroundY),
+                "paris_gate_locked", new Vector2(CourtyardGateWidth, CourtyardGateHeight), CourtyardGateColor);
+            // P5 (2026-10-04): the gate spans y 140..900 and nothing stood above
+            // it, so a double jump off the cell-block platform (8300/700, 136 px
+            // west) plus an upward Relativity Warp cleared it with both prisoners
+            // still locked up. A permanent column seals the sky above it; freeing
+            // the prisoners still opens the gate itself.
+            BuildGateColumn(CourtyardGateX, CourtyardGateWidth, GroundY - CourtyardGateHeight, CourtyardGateColor);
 
             BuildRoomTransition("paris_room_cells", new Vector2(Room3StartX, 600),
                 new Rect2(Room3StartX, 0, 2560, LevelHeight));
@@ -333,7 +362,7 @@ namespace FTT.Environment {
                 new Rect2(Room4StartX, 0, 1600, LevelHeight));
 
             _tribunalEncounter = BuildBossEncounter(BossResourcePath, new Vector2(9400, 950),
-                encounterName: "RevolutionaryTribunalEncounter", revealDistance: 800f);
+                "RevolutionaryTribunalEncounter", BossArenaBounds);
             if (_tribunalEncounter != null) _tribunalEncounter.PhaseEntered += OnTribunalPhaseEntered;
         }
 

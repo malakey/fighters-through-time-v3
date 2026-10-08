@@ -365,10 +365,25 @@ public class FighterBasicStringParityTests {
         // The dead exploit: movement-cancelling recovery let a moving masher
         // restart hit one faster than the authored string. With the clause
         // gone, mash-plus-move deals exactly the stationary chain's damage —
-        // three full buffered strings inside 310 ticks, and not a point more.
+        // three full buffered strings, and not a point more. The budget is
+        // derived from the shared rules (2026-10-04 feel pass: the F6 hitstop
+        // weight lengthened every string) and sits midway between the third
+        // finisher's connect and the fourth string's opener.
         var moving = NewZeroKnockbackSimulation(seed: 97);
         var stationary = NewZeroKnockbackSimulation(seed: 97);
-        const int ticks = 310;
+        int[] stringDamage = { 8, 10, 15 };
+        int SwingTicks(int step) => BasicComboRules.GroundStartupFrames[step]
+            + BasicComboRules.GroundActiveFrames[step]
+            + BasicComboRules.GroundRecoveryFrames[step]
+            + BasicComboRules.HitstopFrames(stringDamage[step],
+                BasicComboRules.StringHitLaunchesFor(BasicComboRules.TemplateStringProfile, step));
+        // The finisher exits to neutral and the next mashed press restarts on
+        // the following tick.
+        int stringCycle = SwingTicks(0) + SwingTicks(1) + SwingTicks(2) + 1;
+        int thirdFinisherConnect = 2 * stringCycle + SwingTicks(0) + SwingTicks(1)
+            + BasicComboRules.GroundStartupFrames[2];
+        int fourthOpenerConnect = 3 * stringCycle + BasicComboRules.GroundStartupFrames[0];
+        int ticks = (thirdFinisherConnect + 1 + fourthOpenerConnect) / 2;
         for (int tick = 0; tick < ticks; tick++) {
             Advance(moving, tick, p1MoveX: 127, p1Buttons: GameplayButtons.BasicAttack);
             Advance(stationary, tick, p1Buttons: GameplayButtons.BasicAttack);
@@ -384,7 +399,7 @@ public class FighterBasicStringParityTests {
             .OverrideFailureMessage("A moving masher must land hits at exactly the stationary pace.")
             .IsEqual(stationaryDamage);
         AssertThat(movingDamage)
-            .OverrideFailureMessage("310 ticks of mash fit exactly three authored strings.")
+            .OverrideFailureMessage($"{ticks} ticks of mash fit exactly three authored strings.")
             .IsEqual(3 * fullChain);
     }
 

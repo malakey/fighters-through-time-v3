@@ -74,6 +74,32 @@ namespace FTT.Environment {
         public const float Room3StartX = 6400f;
         public const float Room4StartX = 8640f;
 
+        private const float RadarGateX = 6360f;
+        private const float RadarGateWidth = 48f;
+        private const float RadarGateHeight = 900f;
+        private static readonly Color RadarGateColor = new(0.30f, 0.33f, 0.38f);
+
+        /// <summary>
+        /// P1 (2026-10-04): the flagship deck. West edge is
+        /// <see cref="BossArenaWestX"/> (spawn 9600 - 800); east edge is the stern
+        /// wall's inner face.
+        /// </summary>
+        public static readonly Rect2 BossArenaBounds = new(BossArenaWestX, 0f, LevelWidth - 20f - BossArenaWestX, LevelHeight);
+
+        /// <summary>
+        /// A4 (2026-10-04): the boss's spawn X, the one value the arena's west
+        /// edge derives from (the encounter is built at it).
+        /// </summary>
+        public const float BossSpawnX = 9600f;
+        /// <summary>
+        /// How far west of <see cref="BossSpawnX"/> the arena starts: the old
+        /// 800 px reveal radius (ARENA-WEST-EDGE-AT-OLD-REVEAL-LINE). The
+        /// arena rect is the reveal now, so this is the radius's only remaining use.
+        /// </summary>
+        public const float BossArenaApproachPixels = 800f;
+        /// <summary>The arena's west edge (and the reveal line).</summary>
+        public const float BossArenaWestX = BossSpawnX - BossArenaApproachPixels;
+
         /// <summary>Depth of the authored searchlight cone, from SearchlightZoneTemplate.tscn.</summary>
         public const float SearchlightConeDepth = 520f;
 
@@ -145,11 +171,24 @@ namespace FTT.Environment {
             (5200f, 260f)    // east of the second beam, under checkpoint 1
         };
 
-        /// <summary>Three extractors, each guarding a climb the critical path can skip.</summary>
+        /// <summary>
+        /// Three extractors, each guarding a climb the critical path can skip.
+        /// <para>G6 (2026-10-04): the watchtower machine used to stand at
+        /// (5620, 480), sunk through the upper walkway's west end (deck 5550..6250,
+        /// top 512) and leaving a 14 px strip where the tower climb arrives, with
+        /// the machine walling off the walk to the tower signal line. It now rests on
+        /// the deck (bottom = deck top) flush with the walkway's east end, past the
+        /// tower line, so the climb lands on open deck and the line is reached first
+        /// (the tower line's node, <c>FeedRelayTower</c> in the scene, moved west from
+        /// x 6150 to 6020 to make room; its ID and condition are unchanged).
+        /// The radar-mast machine had the same fault on its gantry (7040..7460, top
+        /// 612): sunk through the west end where the rigging climb arrives, leaving
+        /// 34 px. It rests flush with the gantry's east end instead.</para>
+        /// </summary>
         public static readonly (string ID, Vector2 Position)[] ExtractorPlacements = {
             ("level_09.extractor_ruins", new Vector2(2300f, 940f)),
-            ("level_09.extractor_watchtower", new Vector2(5620f, 480f)),
-            ("level_09.extractor_radar_mast", new Vector2(7130f, 580f))
+            ("level_09.extractor_watchtower", new Vector2(6194f, 440f)),
+            ("level_09.extractor_radar_mast", new Vector2(7404f, 540f))
         };
 
         public static int StandardEnemyCount => CountOf(SentryEnemyID) + CountOf(CultistEnemyID);
@@ -343,8 +382,14 @@ namespace FTT.Environment {
                 new Rect2(Room2StartX, 0f, 3520f, LevelHeight),
                 triggerSize: new Vector2(80f, LevelHeight));
 
-            _radarGate = BuildDoor("RadarGate", new Vector2(6360f, GroundY),
-                "berlin_gate_locked", new Vector2(48f, 900f), new Color(0.30f, 0.33f, 0.38f));
+            _radarGate = BuildDoor("RadarGate", new Vector2(RadarGateX, GroundY),
+                "berlin_gate_locked", new Vector2(RadarGateWidth, RadarGateHeight), RadarGateColor);
+            // P5 (2026-10-04): the gate top is y 300 and the swept upper gangway
+            // (top 512) ends 86 px short of it, so one double jump carried the hero
+            // over the boarding gate with every signal line still live. The column
+            // seals the sky above it permanently (centred on the gate and wider than
+            // it, so the gate's top is never a ledge); cutting the lines opens the gate.
+            BuildGateColumn(RadarGateX, RadarGateWidth, GroundY - RadarGateHeight, RadarGateColor);
 
             BuildWaveTrigger("Room2WaveTrigger", new Vector2(Room2StartX + 120f, 1100f), () => SpawnWave(2));
         }
@@ -432,8 +477,8 @@ namespace FTT.Environment {
                 new Rect2(Room4StartX, GroundRoomCameraTop, 1920f, 1080f),
                 triggerSize: new Vector2(80f, LevelHeight));
 
-            BuildBossEncounter(BossResourcePath, new Vector2(9600f, 1150f),
-                encounterName: "IronChancellorEncounter", revealDistance: 800f);
+            BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, 1150f),
+                "IronChancellorEncounter", BossArenaBounds);
         }
 
         public string CheckpointID(int index) => $"{LevelID}_checkpoint_{index}";

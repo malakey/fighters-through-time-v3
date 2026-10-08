@@ -792,6 +792,45 @@ public class Level14ContentTests {
         AssertFloat(lift.Position.X).IsGreater(Level14Controller.BulkheadX);
     }
 
+    /// <summary>
+    /// G3 (2026-10-04): the cargo lift is a walk-on elevator at both ends. Its
+    /// bottom stop sinks into the lab deck with the deck top flush with
+    /// <see cref="Level14Controller.DeckY"/> — it sits on the critical path
+    /// between the bulkhead and checkpoint 1, so a stop resting on the deck would
+    /// be a 32 px step the hero must hop and the wave's ground mobs (which never
+    /// jump) cannot cross — and its top stop is flush with the high deck the
+    /// bulkhead crossing lands on. The descent never crushes a hero standing in
+    /// the footprint (<see cref="PathMovingPlatform.IsHeldByBodyBelow"/>).
+    /// </summary>
+    [TestCase]
+    public void TheCargoLiftBoardsWithoutAStepAtBothDecks() {
+        PackedScene scene = ResourceLoader.Load<PackedScene>(ScenePath);
+        Node instance = scene.Instantiate();
+        try {
+            var lift = instance.GetNodeOrNull<PathMovingPlatform>("BulkheadCargoLift");
+            AssertObject(lift).IsNotNull();
+            var shape = (RectangleShape2D)lift.GetNode<CollisionShape2D>("CollisionShape2D").Shape;
+            float lowestTop = float.MinValue;
+            float highestTop = float.MaxValue;
+            // Not in the tree, so _Ready has not run: Position is the authored origin.
+            foreach (Vector2 waypoint in lift.Waypoints) {
+                float deckTop = lift.Position.Y + waypoint.Y - shape.Size.Y / 2f;
+                lowestTop = Mathf.Max(lowestTop, deckTop);
+                highestTop = Mathf.Min(highestTop, deckTop);
+            }
+            AssertFloat(lowestTop)
+                .OverrideFailureMessage($"The cargo lift's bottom stop puts its deck top at {lowestTop}, not flush " +
+                    $"with the lab deck at {Level14Controller.DeckY}.")
+                .IsEqualApprox(Level14Controller.DeckY, 0.5f);
+            AssertFloat(highestTop)
+                .OverrideFailureMessage($"The cargo lift's top stop puts its deck top at {highestTop}, not flush " +
+                    $"with the high deck at {Level14Controller.HighDeckY}.")
+                .IsEqualApprox(Level14Controller.HighDeckY, 0.5f);
+        } finally {
+            instance.Free();
+        }
+    }
+
     // === Helpers ===
 
     private static IEnumerable<LaserGridPattern> AllPatterns() {

@@ -61,11 +61,75 @@ namespace FTT.Combat {
             if (!Validate()) return false;
 
             CurrentPhase = AbilityPhase.Startup;
+            // F5: a fresh execution re-arms the once-per-execution caster freeze.
+            ExecutionSerial++;
             if (armCooldown) StartCooldown();
             OnStartup();
             EmitCastVfx();
             return true;
         }
+
+        // ---- 2026-10-04 feel pass, F5: the caster half of the universal hitstop --
+
+        /// <summary>
+        /// Counts accepted executions of this slot. A pooled projectile a cast
+        /// fired carries that cast's serial (R12, 2026-10-04 fix pass) and
+        /// belongs to it however late it lands; any other hit — direct, a shape
+        /// query, a ground wave — belongs to the execution current when it lands.
+        /// </summary>
+        public int ExecutionSerial { get; private set; }
+
+        private int _casterHitstopSerial = -1;
+
+        /// <summary>
+        /// F5: claims the caster's hitstop for the current execution. True once
+        /// per execution — a multi-hit Special, a screen-clearing Ultimate or a
+        /// piercing projectile freezes its caster on its FIRST landed direct hit
+        /// only, so the cast cannot stutter itself into a slideshow. The victim
+        /// side of every hit still freezes on its own rule.
+        /// </summary>
+        public bool TryClaimCasterHitstop() => TryClaimCasterHitstop(0);
+
+        /// <summary>
+        /// 2026-10-04 fix pass (R12): claims the freeze for the execution that
+        /// FIRED the hit — <paramref name="executionSerial"/>, stamped at spawn on a
+        /// pooled shot (<see cref="HitPayload.SourceExecutionSerial"/>); 0 means
+        /// the execution current now. Claims are monotonic: an execution's freeze
+        /// is claimable only while no later execution has claimed one, so a late
+        /// shot from cast N can neither spend cast N+1's freeze nor re-arm one
+        /// N+1 already spent. (The cost is that a late shot from a cast that never
+        /// froze does not freeze once a newer cast has.)
+        /// </summary>
+        public bool TryClaimCasterHitstop(int executionSerial) {
+            int serial = executionSerial > 0 && executionSerial <= ExecutionSerial
+                ? executionSerial
+                : ExecutionSerial;
+            if (serial <= _casterHitstopSerial) return false;
+            _casterHitstopSerial = serial;
+            return true;
+        }
+
+        /// <summary>
+        /// F5: true while the owner's hitstop has paused THIS CAST — the phase
+        /// clock (<see cref="_PhysicsProcess"/> stops counting the current
+        /// phase down) and the caster-bound work a kit gates on it: a lunge or
+        /// any other owner velocity, a phase-bound multi-hit cadence, a counter
+        /// stance's own timers. It deliberately does NOT pause what the cast has
+        /// already put into the world — a travelling ground wave, a vortex, a
+        /// rift, a spiral, a trap circle, a trail, a windbox's own life — which
+        /// keep running exactly as the hitstop rule's "world objects keep
+        /// running" says, and as the Fighter sim's zone and projectile systems
+        /// do for a frozen caster. Set once per tick by the owner
+        /// (<c>PlayerController</c>) from its own freeze, before this node
+        /// processes.
+        /// </summary>
+        public bool CastClockSuspended { get; private set; }
+
+        /// <summary>The owner's per-tick hand-off of <see cref="CastClockSuspended"/>.</summary>
+        public void SetCastClockSuspended(bool suspended) => CastClockSuspended = suspended;
+
+        /// <summary>Frames left in the current phase (test and presentation read).</summary>
+        public int PhaseFramesRemaining => _phaseFramesRemaining;
 
         /// <summary>
         /// Package 12 W4: a movement ability may authorize a cast while its
@@ -200,16 +264,55 @@ namespace FTT.Combat {
             VfxEmitter.EmitScene(scene, position, Owner.GetParent(), Colors.White);
         }
 
+        // The Hitbox path normally reaches ConfirmAbilityHit first, through
+        // PlayerController.ConfirmAbilityHitboxHit (the Hitbox calls it before
+        // raising HitConfirmed); this handler covers a child hitbox whose
+        // AttackID does not resolve to its slot. The ContactId latch makes the
+        // second call for the same contact a no-op.
         private void OnAbilityHitConfirmed(HitPayload payload, float damageApplied) {
-            if (damageApplied <= 0f) return;
-            EmitImpactVfx(payload.HitOrigin);
+            ConfirmAbilityHit(in payload, damageApplied, payload.HitOrigin);
+        }
+
+        // ---- 2026-10-04 feel pass: one landed-hit feedback point for every kit delivery
+
+        private ulong _lastConfirmedContactId;
+
+        /// <summary>
+        /// The single "a hit this ability authored landed" feedback point (F5 and
+        /// the feel-pass completeness review). Every kit delivery reaches it — the
+        /// Hitbox path (ability hitboxes, factory-built cinematic hitboxes, pooled
+        /// projectiles the cast fired) through
+        /// <see cref="PlayerController.ConfirmAbilityHitboxHit"/>, and the
+        /// shape-query / ground-wave deliveries through <see cref="Credit"/> — so
+        /// none of them lands silently. A landed DIRECT hit:
+        /// <list type="bullet">
+        /// <item>emits the ability's authored impact VFX at
+        /// <paramref name="impactPosition"/> and raises
+        /// <c>EventBus.OnHitConfirm</c> (haptics) — per contact, like a basic;</item>
+        /// <item>freezes the caster for the shared hitstop window, once per
+        /// execution (<see cref="PlayerController.ApplyAbilityCasterHitstop"/>)
+        /// — unless the payload is <c>ExemptFromHitstop</c>, which still
+        /// confirms (VFX and haptics) but freezes nobody. The freeze holds the
+        /// cast (<see cref="CastClockSuspended"/>), never what it deployed.</item>
+        /// </list>
+        /// Zone/DoT ticks, construct hits and hazards are pressure, not impacts:
+        /// they confirm nothing. A contact is confirmed at most once.
+        /// </summary>
+        public void ConfirmAbilityHit(in HitPayload payload, float dealt, Vector2 impactPosition) {
+            if (dealt <= 0f || payload.Delivery != HitDelivery.DirectHit) return;
+            if (payload.ContactId != 0) {
+                if (payload.ContactId == _lastConfirmedContactId) return;
+                _lastConfirmedContactId = payload.ContactId;
+            }
+            EmitImpactVfx(impactPosition);
             FTT.Core.EventBus.Instance?.RaiseHitConfirm(new FTT.Core.HitConfirmPayload {
                 PlayerIndex = Owner?.PlayerIndex ?? -1,
                 AttackID = payload.AttackID ?? "",
-                DamageApplied = damageApplied,
+                DamageApplied = dealt,
                 IsHeavy = true,
-                Position = payload.HitOrigin
+                Position = impactPosition
             });
+            if (Owner != null && IsInstanceValid(Owner)) Owner.ApplyAbilityCasterHitstop(this, in payload, dealt);
         }
 
         protected virtual bool Validate() {
@@ -254,7 +357,9 @@ namespace FTT.Combat {
         }
 
         public override void _PhysicsProcess(double delta) {
-            if (!IsExecuting) return;
+            // F5: a frozen caster's cast holds its phase; its world effects
+            // (ticked by the kit overrides around this call) do not.
+            if (!IsExecuting || CastClockSuspended) return;
             _phaseFramesRemaining--;
             if (_phaseFramesRemaining <= 0) {
                 switch (CurrentPhase) {
@@ -322,8 +427,19 @@ namespace FTT.Combat {
                 ultimateOrigin: HitClassification.IsUltimateOrigin(payload.Origin));
         }
 
-        /// <summary>Instance form of <see cref="CreditDealt(PlayerController, in HitPayload, float)"/>.</summary>
-        protected void Credit(in HitPayload payload, float dealt) => CreditDealt(Owner, in payload, dealt);
+        /// <summary>
+        /// Instance form of <see cref="CreditDealt(PlayerController, in HitPayload, float)"/>.
+        /// Every kit shape-query and ground-wave hit credits through here, so it
+        /// is also where such a hit gets its landed-hit feedback
+        /// (<see cref="ConfirmAbilityHit"/>: impact VFX, HitConfirm, and the F5
+        /// once-per-execution caster freeze). <paramref name="impactPosition"/>
+        /// is where the impact reads — the struck hurtbox, or a wave's front;
+        /// it falls back to the payload's contact position.
+        /// </summary>
+        protected void Credit(in HitPayload payload, float dealt, Vector2? impactPosition = null) {
+            CreditDealt(Owner, in payload, dealt);
+            ConfirmAbilityHit(in payload, dealt, impactPosition ?? payload.HitOrigin);
+        }
 
         protected PlaceholderProjectile SpawnPlaceholderProjectile(Vector2 position, float speed,
             bool movingRight, Color color, Vector2 size = default, float lifetime = 3f,
@@ -340,6 +456,9 @@ namespace FTT.Combat {
             proj.Setup(damage, Data?.KnockbackForce ?? new Vector2(3, -2),
                 speed * (Owner?.StoryProjectileSpeedMultiplier ?? 1f),
                 movingRight, Owner?.PlayerIndex ?? 0, color, size, lifetime, Owner, Data);
+            // R12 (2026-10-04 fix pass): the shot can outlive this cast, so it
+            // carries the execution that fired it (Setup reset it to 0).
+            proj.SourceExecutionSerial = ExecutionSerial;
             return proj;
         }
 

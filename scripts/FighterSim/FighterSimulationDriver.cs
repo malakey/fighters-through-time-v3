@@ -604,6 +604,18 @@ namespace FTT.FighterSim {
         private readonly bool[] _presentedInfluenceFull = { false, false };
         private readonly string[] _presentedAbilityAnimation = { "", "" };
         private readonly int[] _presentedAbilityAnimationFrames = { 0, 0 };
+        /// <summary>
+        /// F1 (2026-10-04 feel pass): the pose the ability presentation chose this
+        /// sync, or -1. Cosmetic cache only — never fed back into the simulation.
+        /// </summary>
+        private readonly int[] _presentedAbilityPose = { -1, -1 };
+        /// <summary>
+        /// F1: the presentation hold that follows a Foresight stance is already
+        /// past its strike, so it shows the follow-through pose for its whole
+        /// length (the activation strike leaves no trailing hold — R11b).
+        /// Cosmetic cache only.
+        /// </summary>
+        private readonly bool[] _presentedAbilityPastStrike = { false, false };
         private readonly int[] _presentedSpecialOneCooldown = { 0, 0 };
         private readonly int[] _presentedSpecialTwoCooldown = { 0, 0 };
         private readonly int[] _presentedMovementCooldown = { 0, 0 };
@@ -826,7 +838,13 @@ namespace FTT.FighterSim {
             player.SpecialOneCooldownTimer = runtime.SpecialOneCooldownFrames / (float)FighterSimulation.TickRate;
             player.SpecialTwoCooldownTimer = runtime.SpecialTwoCooldownFrames / (float)FighterSimulation.TickRate;
             player.MovementAbilityCooldownTimer = runtime.MovementCooldownFrames / (float)FighterSimulation.TickRate;
-            player.PlayPresentationAnimation(ResolvePresentationAnimation(playerID, in state, in runtime));
+            // F1 (2026-10-04 feel pass): an attack sheet is posed from the swing's
+            // phase (wind-up through startup, strike through active,
+            // follow-through through recovery) instead of playing at the sheet's
+            // fps. Read-only over sim state.
+            string animation = ResolvePresentationAnimation(playerID, in state, in runtime, out int pose);
+            if (pose >= 0) player.PlayPresentationPose(animation, pose);
+            else player.PlayPresentationAnimation(animation);
 
             SyncPresentationFeedback(player, playerID, in state, in runtime);
             SyncCoreMechanicCues(playerID, in state);
@@ -963,7 +981,8 @@ namespace FTT.FighterSim {
         /// set, one branch chain in priority order. Read-only over sim state.
         /// </summary>
         private string ResolvePresentationAnimation(int playerID, in FighterStateComponent state,
-            in FighterRuntimeComponent runtime) {
+            in FighterRuntimeComponent runtime, out int pose) {
+            pose = -1;
             if (state.RespawnFramesRemaining > 0) return "respawn";
             TryGetVerb(playerID, out FighterVerbComponent verb);
             // H03 reuse rules (design-godot.md Section 9; Package 12 W10): a held
@@ -991,9 +1010,13 @@ namespace FTT.FighterSim {
             if (FighterLedgeRules.IsHanging(in runtime)) return "ledge_hang";
 
             string abilityAnimation = ResolveAbilityPresentation(playerID, in state, in runtime);
-            if (!string.IsNullOrEmpty(abilityAnimation)) return abilityAnimation;
+            if (!string.IsNullOrEmpty(abilityAnimation)) {
+                pose = _presentedAbilityPose[playerID];
+                return abilityAnimation;
+            }
 
             if (FighterBasicAttackRules.IsSwinging(in runtime)) {
+                pose = BasicSwingPose(runtime.AttackPhase);
                 if ((runtime.AttackFlags & FighterBasicAttackRules.FlagUpAttack) != 0) {
                     return "up_attack";
                 }
@@ -1019,6 +1042,55 @@ namespace FTT.FighterSim {
                 ? "run"
                 : "idle";
         }
+
+        /// <summary>
+        /// F1: the sheet pose for a basic swing's sim phase — wind-up through
+        /// startup, strike through active, follow-through through recovery. The
+        /// chain-hold window is not a swing (it plays run/idle). Pure; read-only.
+        /// </summary>
+        public static int BasicSwingPose(int attackPhase) => attackPhase switch {
+            FighterBasicAttackRules.PhaseStartup => FTT.Combat.AttackPoseRules.WindUpPose,
+            FighterBasicAttackRules.PhaseActive => FTT.Combat.AttackPoseRules.StrikePose,
+            _ => FTT.Combat.AttackPoseRules.FollowThroughPose
+        };
+
+        /// <summary>
+        /// F1: the pose for the activation strike's caster phase — wind-up, then
+        /// the strike; the cinematic (the character's Ultimate landing on the held
+        /// victim) keeps the strike pose, as Story poses the Mirror clone's real
+        /// Ultimate through its active phase; the whiff recovery is the
+        /// follow-through. Pure; read-only.
+        /// </summary>
+        public static int ActivationStrikePose(int activationPhase) => activationPhase switch {
+            FighterUltimateActivationRules.PhaseWindup => FTT.Combat.AttackPoseRules.WindUpPose,
+            FighterUltimateActivationRules.PhaseActive => FTT.Combat.AttackPoseRules.StrikePose,
+            FighterUltimateActivationRules.PhaseCinematic => FTT.Combat.AttackPoseRules.StrikePose,
+            _ => FTT.Combat.AttackPoseRules.FollowThroughPose
+        };
+
+        /// <summary>The movement-ability sheet name (the one ability reel that is never posed).</summary>
+        public const string MovementAbilityAnimation = "movement_ability";
+
+        /// <summary>
+        /// R11a (2026-10-04 fix pass): whether an on-press ability's cosmetic hold
+        /// is posed in thirds (Specials, the Ultimate) or played as a reel (the
+        /// movement ability — F1 scopes posing to basics, directional strikes,
+        /// Specials and the Ultimate, and Story plays the movement sheet as a
+        /// reel). Pure; read-only.
+        /// </summary>
+        public static bool PosesAbilityHold(string animation) =>
+            !string.Equals(animation, MovementAbilityAnimation, System.StringComparison.Ordinal);
+
+        /// <summary>
+        /// F1: the pose for Tubman's Foresight stance — startup, the open
+        /// window, then the whiff recovery or sidestep. Pure; read-only.
+        /// </summary>
+        public static int ForesightPose(int counterPhase) =>
+            counterPhase == FighterForesightRules.PhaseStartup
+                ? FTT.Combat.AttackPoseRules.WindUpPose
+                : counterPhase == FighterForesightRules.PhaseWindow
+                    ? FTT.Combat.AttackPoseRules.StrikePose
+                    : FTT.Combat.AttackPoseRules.FollowThroughPose;
 
         /// <summary>
         /// H04 knockdown thud edge over <c>FighterKnockdownComponent.KnockdownFrames</c>
@@ -1059,12 +1131,20 @@ namespace FTT.FighterSim {
             _presentedSpecialTwoCooldown[playerID] = runtime.SpecialTwoCooldownFrames;
             _presentedMovementCooldown[playerID] = runtime.MovementCooldownFrames;
 
-            // A02 (Package 13 W6): the activation strike's wind-up and active
-            // frames hold the ultimate pose for as long as they last.
+            // A02 (Package 13 W6): the activation strike holds the ultimate sheet
+            // for as long as the caster owns it. 2026-10-04 fix pass (R11b): the
+            // WHOLE activation — wind-up, strike, whiff recovery and the
+            // cinematic — is posed from its phase. Only the armored half used to
+            // be, so the whiff-recovery/cinematic poses were unreachable and a
+            // 45-frame whiff recovery read as 18 frames of follow-through and
+            // then idle while the caster was still locked. No cosmetic hold
+            // trails the activation: the sim hands control back when it ends.
             if (Simulation.TryGetFighterUltimateActivation(playerID, out FighterUltimateActivationComponent activation)
-                && FighterUltimateActivationRules.IsArmored(in activation)) {
+                && FighterUltimateActivationRules.IsCasterBusy(in activation)) {
                 _presentedAbilityAnimation[playerID] = "ultimate";
-                _presentedAbilityAnimationFrames[playerID] = AbilityPresentationFrames;
+                _presentedAbilityAnimationFrames[playerID] = 0;
+                _presentedAbilityPose[playerID] = ActivationStrikePose(activation.Phase);
+                _presentedAbilityPastStrike[playerID] = false;
                 return "ultimate";
             }
             // Package 13 W5: Tubman's Foresight holds its stance pose for the
@@ -1073,6 +1153,8 @@ namespace FTT.FighterSim {
                 && FighterForesightRules.IsBusy(in counter)) {
                 _presentedAbilityAnimation[playerID] = "special_2";
                 _presentedAbilityAnimationFrames[playerID] = AbilityPresentationFrames;
+                _presentedAbilityPose[playerID] = ForesightPose(counter.Phase);
+                _presentedAbilityPastStrike[playerID] = true;
                 return "special_2";
             }
 
@@ -1086,15 +1168,36 @@ namespace FTT.FighterSim {
             } else if (specialTwoStarted) {
                 started = "special_2";
             } else if (movementStarted) {
-                started = "movement_ability";
+                started = MovementAbilityAnimation;
             }
 
             if (!string.IsNullOrEmpty(started)) {
                 _presentedAbilityAnimation[playerID] = started;
                 _presentedAbilityAnimationFrames[playerID] = AbilityPresentationFrames;
+                _presentedAbilityPastStrike[playerID] = false;
             }
-            if (_presentedAbilityAnimationFrames[playerID] <= 0) return "";
+            if (_presentedAbilityAnimationFrames[playerID] <= 0) {
+                _presentedAbilityPose[playerID] = -1;
+                _presentedAbilityPastStrike[playerID] = false;
+                return "";
+            }
             _presentedAbilityAnimationFrames[playerID]--;
+            // 2026-10-04 fix pass (R11a): F1 poses basics, directional strikes,
+            // Specials and the Ultimate. The movement ability is not posed — Story
+            // plays its sheet as an ordinary reel (PlayAnimation) — so its hold
+            // plays the reel here too instead of being split into thirds.
+            if (!PosesAbilityHold(_presentedAbilityAnimation[playerID])) {
+                _presentedAbilityPose[playerID] = -1;
+                return _presentedAbilityAnimation[playerID];
+            }
+            // F1: the sim still resolves Specials on press (DEFER-SIM-SPECIAL-PHASES),
+            // so the cosmetic hold is split into thirds; the hold after a
+            // Foresight stance is all follow-through.
+            _presentedAbilityPose[playerID] = _presentedAbilityPastStrike[playerID]
+                ? FTT.Combat.AttackPoseRules.FollowThroughPose
+                : FTT.Combat.AttackPoseRules.PoseForHold(
+                    AbilityPresentationFrames - 1 - _presentedAbilityAnimationFrames[playerID],
+                    AbilityPresentationFrames);
             return _presentedAbilityAnimation[playerID];
         }
 

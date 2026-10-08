@@ -133,6 +133,10 @@ namespace FTT.Enemies {
         private bool _checkpointCaptured;
 
         public override void _Ready() {
+            // A2 (2026-10-04): tick after every default-priority node, the clone
+            // included, so the arena clamp sees where the clone ended its own
+            // step (MoveAndSlide, an Echo Step, a warp) — see ApplyArenaLeash.
+            ProcessPhysicsPriority = LeashPhysicsPriority;
             _spawnPosition = GlobalPosition + SpawnOffset;
             // The controller joins the mirror group itself so ChronalRewindManager's
             // world-freeze sweep finds this IStoryRewindSimulation: the clone is a
@@ -337,12 +341,54 @@ namespace FTT.Enemies {
             return GetTree().GetFirstNodeInGroup("StoryPlayer") as PlayerController;
         }
 
+        /// <summary>
+        /// The controller's physics priority: above every default (0) node, so
+        /// its tick runs after the clone's. Godot orders physics callbacks by
+        /// priority first and tree order second, and a parent at the same
+        /// priority would tick <i>before</i> its child.
+        /// </summary>
+        public const int LeashPhysicsPriority = 100;
+
+        /// <summary>
+        /// Runs after the clone's own step (<see cref="LeashPhysicsPriority"/>):
+        /// the leash clamps where the clone actually ended the frame, before the
+        /// physics server steps the broadphase and before the frame renders. A
+        /// lost target is re-bound here for the clone's next decision.
+        /// </summary>
         public override void _PhysicsProcess(double delta) {
             if (IsDefeated || IsStoryRewindFrozen || Decisions == null) return;
             if (Decisions.Target == null || !IsInstanceValid(Decisions.Target)) {
                 Decisions.Bind(Clone, FindCampaignPlayer());
             }
+            ApplyArenaLeash();
         }
+
+        /// <summary>
+        /// P1 (2026-10-04): the arena the clone is leashed to, in global
+        /// coordinates; only the horizontal extent is used, and a zero-width rect
+        /// (the default) is unbounded. The clone is a <see cref="PlayerController"/>
+        /// driven by the CPU, so the leash is a positional clamp applied from here
+        /// each tick rather than a steering rule inside the shared decision table.
+        /// A2: the clamp runs <b>after</b> the clone's step — the controller used
+        /// to tick first, so the clone's MoveAndSlide, an Echo Step or a warp
+        /// relocation left it outside the arena for the rest of the frame,
+        /// rendered and hit-tested there.
+        /// </summary>
+        public Rect2 ArenaBounds { get; set; }
+
+        private void ApplyArenaLeash() {
+            if (ArenaBounds.Size.X <= 0f || Clone == null || !IsInstanceValid(Clone)) return;
+            float x = Clone.GlobalPosition.X;
+            float clamped = Mathf.Clamp(x, ArenaBounds.Position.X, ArenaBounds.End.X);
+            Vector2 velocity = Clone.Velocity;
+            bool outward = (clamped <= ArenaBounds.Position.X && velocity.X < 0f)
+                || (clamped >= ArenaBounds.End.X && velocity.X > 0f);
+            if (!Mathf.IsEqualApprox(x, clamped)) Clone.GlobalPosition = new Vector2(clamped, Clone.GlobalPosition.Y);
+            if (outward) Clone.Velocity = new Vector2(0f, velocity.Y);
+        }
+
+        /// <summary>Test seam: applies the arena clamp outside a physics step.</summary>
+        internal void ApplyArenaLeashForTest() => ApplyArenaLeash();
 
         // === Boss events ===
 
@@ -599,7 +645,9 @@ namespace FTT.Enemies {
         /// shots (owner &lt; 0) are not hostile to the mirror, which fights on the
         /// Enemy side. Story projectiles travel horizontally, so the Y velocity is
         /// zero and the X sign carries the closing direction the decision table
-        /// reads.
+        /// reads. "Live" is <see cref="PlaceholderProjectile.IsLive"/>: a released
+        /// shot parked in the pool is still in the group with its old owner slot
+        /// (2026-10-04 fix pass).
         /// </summary>
         private void ProjectNearestHostileProjectile(ref CpuDecisionObservation observation) {
             if (!_self.IsInsideTree()) return;
@@ -610,7 +658,8 @@ namespace FTT.Enemies {
             float best = 0f;
             foreach (Node node in projectiles) {
                 if (node is not PlaceholderProjectile projectile
-                    || !GodotObject.IsInstanceValid(projectile)) continue;
+                    || !GodotObject.IsInstanceValid(projectile)
+                    || !projectile.IsLive) continue;
                 if (projectile.OwnerPlayerIndex < 0
                     || projectile.OwnerPlayerIndex == _self.PlayerIndex) continue;
                 Vector2 delta = projectile.GlobalPosition - _self.GlobalPosition;

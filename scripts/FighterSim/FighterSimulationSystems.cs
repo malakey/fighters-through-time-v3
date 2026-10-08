@@ -328,6 +328,10 @@ namespace FTT.FighterSim {
                 // world (projectiles, constructs, hazards, the match clock) keeps
                 // running. DI resolves on the frame the freeze ends.
                 if (verb.HitstopFrames > 0) {
+                    // F3 (2026-10-04 feel pass): a BasicAttack press made while
+                    // frozen is buffered for the next chain hit instead of being
+                    // dropped — the freeze is the impact moment players mash into.
+                    FighterBasicAttackRules.BufferChainPress(ref runtime);
                     verb.HitstopFrames--;
                     if (verb.HitstopFrames == 0) {
                         FighterVerbRules.ResolvePendingLaunch(ref fighter, in runtime, ref verb);
@@ -1106,9 +1110,10 @@ namespace FTT.FighterSim {
                     }
                     return;
                 }
-                if (phase != FighterBasicAttackRules.PhaseActive) {
-                    runtime.AttackFlags |= FighterBasicAttackRules.FlagBuffered;
-                }
+                // F3 (2026-10-04 feel pass): startup, ACTIVE or recovery — the
+                // old active-frame exclusion is gone (it is not in the design);
+                // a second press while one is buffered queues for the hit after.
+                FighterBasicAttackRules.BufferChainPress(ref runtime);
             }
 
             if (phase is FighterBasicAttackRules.PhaseRecovery or FighterBasicAttackRules.PhaseChainHold) {
@@ -1121,6 +1126,18 @@ namespace FTT.FighterSim {
                     FighterBasicAttackRules.CancelString(ref runtime);
                     return;
                 }
+            }
+
+            // F3 (design-godot.md: "Holding the attack button through the window
+            // also continues the chain") — after the cancel set, so a held
+            // button never swallows a jump, roll or block. Story's
+            // ProcessRecoveryHold applies the same order.
+            if (phase == FighterBasicAttackRules.PhaseChainHold
+                && !variantSwing
+                && (runtime.HeldButtons & BasicButton) != 0
+                && runtime.ComboIndex < FTT.Combat.BasicComboRules.ComboHits - 1) {
+                FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, runtime.ComboIndex + 1);
+                return;
             }
 
             runtime.AttackPhaseFrames--;
@@ -1142,16 +1159,24 @@ namespace FTT.FighterSim {
                     // no buffered continuation, combo index already zero.
                     if (variantSwing) {
                         FighterBasicAttackRules.CancelString(ref runtime);
-                    } else if ((runtime.AttackFlags & FighterBasicAttackRules.FlagBuffered) != 0
-                        && step < FTT.Combat.BasicComboRules.ComboHits - 1) {
+                    } else if (FTT.Combat.BasicComboRules.ChainContinues(
+                        step,
+                        buffered: (runtime.AttackFlags & FighterBasicAttackRules.FlagBuffered) != 0,
+                        attackHeld: (runtime.HeldButtons & BasicButton) != 0)) {
+                        // F3: a buffered press, or BasicAttack still held,
+                        // continues the chain; a queued second press carries
+                        // into the hit that starts here.
+                        bool queued = (runtime.AttackFlags & FighterBasicAttackRules.FlagQueuedBuffered) != 0;
                         FighterBasicAttackRules.StartSwing(ref fighter, ref runtime, step + 1);
+                        if (queued) runtime.AttackFlags |= FighterBasicAttackRules.FlagBuffered;
                     } else if (step >= FTT.Combat.BasicComboRules.ComboHits - 1) {
                         // The finisher exits straight out; the chain resets.
                         FighterBasicAttackRules.CancelString(ref runtime);
                     } else {
                         runtime.AttackPhase = FighterBasicAttackRules.PhaseChainHold;
                         runtime.AttackPhaseFrames = FTT.Combat.BasicComboRules.ChainHoldFrames;
-                        runtime.AttackFlags &= ~FighterBasicAttackRules.FlagBuffered;
+                        runtime.AttackFlags &= ~(FighterBasicAttackRules.FlagBuffered
+                            | FighterBasicAttackRules.FlagQueuedBuffered);
                     }
                     break;
                 default:
@@ -1704,8 +1729,31 @@ namespace FTT.FighterSim {
         public const int VariantMask = FlagUpAttack | FlagDownAir;
         /// <summary>One construct sweep per swing (2026-08-11: basics damage enemy constructs).</summary>
         public const int FlagConstructHitResolved = 32;
+        /// <summary>
+        /// F3 (2026-10-04 feel pass): a second BasicAttack press made while the
+        /// next hit was already buffered — it buffers the hit after that one, so a
+        /// quick double tap during one swing is not eaten. One deep, a spare bit
+        /// of the existing <c>AttackFlags</c> word: no new component state.
+        /// </summary>
+        public const int FlagQueuedBuffered = 64;
 
+        private const int BasicButton = 1 << 2;
         private const int BlockButton = 1 << 6;
+
+        /// <summary>
+        /// F3: buffers this tick's BasicAttack press for the next chain hit — in
+        /// startup, ACTIVE frames, recovery, or the hitstop freeze — or queues it
+        /// for the hit after when one is already buffered. Directional strikes and
+        /// the chain-hold window (where a press starts the next swing outright)
+        /// never buffer. Story's <c>PlayerController.BufferChainPress</c> is the
+        /// same rule.
+        /// </summary>
+        public static void BufferChainPress(ref FighterRuntimeComponent runtime) {
+            if ((runtime.PressedButtons & BasicButton) == 0) return;
+            if (!IsSwinging(in runtime) || IsVariantSwing(in runtime)) return;
+            if ((runtime.AttackFlags & FlagBuffered) != 0) runtime.AttackFlags |= FlagQueuedBuffered;
+            else runtime.AttackFlags |= FlagBuffered;
+        }
 
         public static bool IsSwinging(in FighterRuntimeComponent runtime) =>
             runtime.AttackPhase is PhaseStartup or PhaseActive or PhaseRecovery;

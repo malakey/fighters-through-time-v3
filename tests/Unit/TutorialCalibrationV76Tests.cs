@@ -126,13 +126,14 @@ public class TutorialCalibrationV76Tests {
     [TestCase]
     public void TheTutorialHitstopIsLongerThanAnyHitstopCombatCanProduce() {
         // "The game holds the freeze a beat longer than normal (tutorial-only)."
-        // The shared damage-scaled table tops out at HitstopMaxFrames, so the
+        // The shared damage-scaled table tops out at HitstopCeilingFrames (the
+        // curve's top plus the 2026-10-04 provisional launch bonus), so the
         // tutorial value has to clear it by a visible margin to give the player
         // time to read the prompt and commit a direction.
-        AssertThat(Level00Controller.TutorialLaunchHitstopFrames > BasicComboRules.HitstopMaxFrames)
+        AssertThat(Level00Controller.TutorialLaunchHitstopFrames > BasicComboRules.HitstopCeilingFrames)
             .OverrideFailureMessage(
                 $"{Level00Controller.TutorialLaunchHitstopFrames} must exceed the combat maximum "
-                + $"{BasicComboRules.HitstopMaxFrames}.")
+                + $"{BasicComboRules.HitstopCeilingFrames}.")
             .IsTrue();
         AssertThat(Level00Controller.TutorialLaunchHitstopFrames).IsEqual(36);
         // The first attempt's "slowed approach" is a second, shorter freeze.

@@ -104,6 +104,8 @@ namespace FTT.Characters.Abilities {
         protected override void OnInterrupted() => HideGhost();
 
         public override void _PhysicsProcess(double delta) {
+            // F5: the fold is caster-bound — it holds with its frozen caster.
+            if (CastClockSuspended) return;
             // The startup holds him in place (hittable, no invulnerability).
             if (CurrentPhase == AbilityPhase.Startup && Owner != null) Owner.Velocity = Vector2.Zero;
             base._PhysicsProcess(delta);

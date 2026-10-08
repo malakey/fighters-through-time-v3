@@ -67,6 +67,10 @@ namespace FTT.Enemies {
         private FTT.Combat.Hurtbox _hurtbox;
         private FTT.Combat.Hitbox _attackHitbox;
         private Node2D _abilityOrigin;
+        // P3 (2026-10-04): the authored |x| of the AbilityOrigin marker, mirrored by SetFacing.
+        private float _abilityOriginBaseX;
+        // F9 (2026-10-04): the body's height, for the floating damage number.
+        private float _bodyTopY = -120f;
 
         private EnemyAbilityExecutor _executor;
         private Random _rng;
@@ -140,10 +144,10 @@ namespace FTT.Enemies {
             set {
                 ClearAllStatusEffects();
                 if (value.Damage.IsActive) {
-                    ApplyStatusEffect(value.Damage.Type, value.Damage.RemainingSeconds, value.Damage.Intensity);
+                    ApplyStatusSlot(value.Damage.Type, value.Damage.RemainingSeconds, value.Damage.Intensity);
                 }
                 if (value.Control.IsActive) {
-                    ApplyStatusEffect(value.Control.Type, value.Control.RemainingSeconds, value.Control.Intensity);
+                    ApplyStatusSlot(value.Control.Type, value.Control.RemainingSeconds, value.Control.Intensity);
                 }
             }
         }
@@ -248,6 +252,12 @@ namespace FTT.Enemies {
             _attackHitbox = GetNodeOrNull<FTT.Combat.Hitbox>("Hitbox")
                 ?? GetNodeOrNull<FTT.Combat.Hitbox>("AttackHitbox");
             _abilityOrigin = GetNodeOrNull<Node2D>("AbilityOrigin");
+            // P3: Boss.tscn authors the marker at (64, -88) for a right-facing
+            // body; SetFacing mirrors it with the sprite.
+            if (_abilityOrigin != null) _abilityOriginBaseX = Mathf.Abs(_abilityOrigin.Position.X);
+            if (GetNodeOrNull<CollisionShape2D>("CollisionShape2D") is { Shape: RectangleShape2D bodyRect } bodyShape) {
+                _bodyTopY = bodyShape.Position.Y - bodyRect.Size.Y * 0.5f;
+            }
             Executor.Bind(_sprite, _attackHitbox, _abilityOrigin);
             if (_sprite != null) {
                 _glow = FTT.Combat.GlowPresentationController.AttachTo(
@@ -362,7 +372,13 @@ namespace FTT.Enemies {
             TickAbilityCooldowns(dt);
             if (CurrentState == BossState.Dead) return;
 
-            if (_target == null || !IsInstanceValid(_target)) _target = FindNearestPlayer();
+            // P1 (2026-10-04): a dormant boss acquires nobody — it stands in its
+            // arena until the encounter reveals it.
+            if (!IsEngaged) {
+                _target = null;
+            } else if (_target == null || !IsInstanceValid(_target)) {
+                _target = FindNearestPlayer();
+            }
             Executor.Tick(dt);
             // Package 12 W9: the guarded scene's clock and cast list, the
             // invulnerability presentation, and M18's decorative after-images.
@@ -373,7 +389,11 @@ namespace FTT.Enemies {
             switch (CurrentState) {
                 case BossState.Idle:
                     PlayAnimation("idle");
-                    if (_target != null) CurrentState = BossState.Chase;
+                    if (!IsEngaged) {
+                        Velocity = new Vector2(0f, Velocity.Y);
+                    } else if (_target != null) {
+                        CurrentState = BossState.Chase;
+                    }
                     break;
                 case BossState.Chase: ProcessChase(dt); break;
                 case BossState.Attacking: ProcessAttacking(dt); break;
@@ -382,9 +402,184 @@ namespace FTT.Enemies {
             }
 
             ApplyGravity(dt);
+            Velocity = new Vector2(LeashVelocityX(Velocity.X), Velocity.Y);
             MoveAndSlide();
             _pushbox?.ResolveStoryOverlaps();
+            ApplyArenaLeash();
         }
+
+        // === Playtest pass 2026-10-04 (P1) — arena engagement and leash ===
+        //
+        // design-godot.md §17 "Boss Introduction": "Upon entering the boss arena,
+        // the camera clamps ... and the boss drops/marches into the arena"; §12
+        // "Elite mobs and bosses are bounded to stage platforms". Before this the
+        // boss acquired the player from level load and chased with no radius, so
+        // the Level 2 Duke walked 1,250 px out of his court and parked against the
+        // battlement footing, and the Level 5 Overseer fought in the boat deck.
+
+        private bool _engaged = true;
+
+        /// <summary>
+        /// False holds the boss dormant: no target, no chase, no attack, idle in
+        /// place (gravity still applies). Defaults to <c>true</c> so a boss built
+        /// directly (tests, ad-hoc arenas) behaves exactly as it always has;
+        /// <see cref="BossEncounterController"/> clears it at spawn when it owns an
+        /// arena and sets it again at the reveal.
+        /// </summary>
+        public bool IsEngaged {
+            get => _engaged;
+            set {
+                if (_engaged == value) return;
+                _engaged = value;
+                if (value || CurrentState == BossState.Dead) return;
+                // Going dormant drops whatever the boss was doing.
+                Executor.Cancel();
+                _attackHitbox?.Deactivate();
+                _attackCommitted = false;
+                _reactionFramesRemaining = 0;
+                _restStandOffEngaged = false;
+                _target = null;
+                Velocity = new Vector2(0f, Velocity.Y);
+                if (CurrentState is BossState.Chase or BossState.Attacking or BossState.RestWindow) {
+                    CurrentState = BossState.Idle;
+                }
+            }
+        }
+
+        /// <summary>
+        /// The arena the boss is leashed to, in global coordinates. Only the
+        /// horizontal extent is used: chase, rest tracking and a ChargeDash stop
+        /// at the edge, and the body is clamped back inside after any move,
+        /// knockback or teleport. A zero-width rect (the default) is unbounded.
+        /// </summary>
+        public Rect2 ArenaBounds { get; set; }
+
+        /// <summary>True when <see cref="ArenaBounds"/> leashes this body.</summary>
+        public bool HasArenaLeash => ArenaBounds.Size.X > 0f;
+
+        /// <summary>Whether a global X lies inside the leash (always true when unbounded).</summary>
+        public bool IsInsideArena(float globalX) =>
+            !HasArenaLeash || (globalX >= ArenaBounds.Position.X && globalX <= ArenaBounds.End.X);
+
+        /// <summary>
+        /// Zeroes a horizontal velocity that would carry the body out through a
+        /// leash edge it already stands on (or beyond). Inward motion is untouched.
+        /// </summary>
+        private float LeashVelocityX(float velocityX) {
+            if (!HasArenaLeash) return velocityX;
+            float x = GlobalPosition.X;
+            if (velocityX < 0f && x <= ArenaBounds.Position.X) return 0f;
+            if (velocityX > 0f && x >= ArenaBounds.End.X) return 0f;
+            return velocityX;
+        }
+
+        /// <summary>True while the leash is what stops the boss walking toward its target.</summary>
+        private bool IsPinnedAtLeash(float direction) =>
+            HasArenaLeash && Mathf.IsZeroApprox(LeashVelocityX(direction));
+
+        /// <summary>
+        /// Hard clamp after every move: knockback, a teleport landing on the far
+        /// side of a target standing outside, or a dash overshoot all end inside.
+        /// </summary>
+        private void ApplyArenaLeash() {
+            if (!HasArenaLeash) return;
+            float x = GlobalPosition.X;
+            float clamped = Mathf.Clamp(x, ArenaBounds.Position.X, ArenaBounds.End.X);
+            if (Mathf.IsEqualApprox(x, clamped)) return;
+            GlobalPosition = new Vector2(clamped, GlobalPosition.Y);
+            Velocity = new Vector2(0f, Velocity.Y);
+        }
+
+        /// <summary>Test seam: applies the arena clamp outside a physics step.</summary>
+        internal void ApplyArenaLeashForTest() => ApplyArenaLeash();
+
+        /// <summary>
+        /// Back to the standalone defaults — engaged and unleashed — so no pool
+        /// cycle carries one encounter's dormancy or arena into the next
+        /// (IPoolable: encounter-local state never survives a recycle).
+        /// </summary>
+        private void ResetArenaEngagement() {
+            _engaged = true;
+            ArenaBounds = default;
+            WardedHitsRefused = 0;
+        }
+
+        // === A5 (2026-10-04) — the arena ward (ARENA-LEASH-EDGE-ANSWER) ===
+        //
+        // The leash edge of Levels 2-12, 14 and 15 is the old reveal line on open
+        // floor, and a pinned boss answers an outside target only inside its own
+        // engagement range (it never summons or teleports at one). So a hero who
+        // revealed the fight could step back out past that range and plink the
+        // idle boss with long-range kit forever. The counter-rule covers exactly
+        // that spot and nothing more: while the boss is engaged and its target
+        // stands outside the arena (by more than a small margin) AND beyond the
+        // boss's engagement range — the one place the boss holds the edge idle —
+        // the boss refuses every hit, status and damage-over-time tick. A hero
+        // outside the arena but inside that range is answered from the edge and
+        // hits it normally: melee spacing against a boss pinned at its edge puts
+        // the hero's centre 58-103 px outside, which an edge-relative margin
+        // alone would have warded while the boss kept swinging. Derived state
+        // only — it reads the engagement, the leash, the target and the two
+        // positions, all of which the pool and rewind paths already reset — so
+        // nothing new needs resetting except the diagnostic counter.
+
+        /// <summary>
+        /// How far outside the arena's x-range the target must stand before the
+        /// ward can hold: one world unit, wider than the hero, so a hero
+        /// straddling the edge is never warded by a pixel. <i>Provisional</i>
+        /// (ARENA-PROVISIONAL-CONSTANTS). The ward also needs the target beyond the boss's
+        /// engagement range (<see cref="IsArenaWarded"/>), which is what keeps a
+        /// hero fighting a pinned boss at melee spacing, or from a doorway the
+        /// boss can reach, unwarded.
+        /// </summary>
+        public const float ArenaWardMarginPixels = 60f;
+
+        /// <summary>The ward's flash and its "0" — a cold, refused read, distinct from the red hit flash.</summary>
+        private static readonly Color ArenaWardFlashColor = FTT.UI.UIPalette.UnboundCold;
+        private static readonly Color ArenaWardNumberColor = FTT.UI.UIPalette.Slate;
+        private const float ArenaWardFlashSeconds = 0.12f;
+
+        /// <summary>
+        /// True while an engaged, leashed boss's target stands beyond
+        /// <see cref="ArenaWardMarginPixels"/> outside its arena AND beyond the
+        /// boss's engagement range — where the pinned boss holds its edge and
+        /// cannot answer. Every hit on it is refused, no status takes, and its
+        /// damage-over-time deals nothing. A dormant boss is never warded (the
+        /// hit that wakes it from outside still lands — ARENA-WAKE-REVEAL), an
+        /// unleashed one never is, and neither is one whose outside target is
+        /// within its range (it is answering).
+        /// </summary>
+        public bool IsArenaWarded =>
+            IsEngaged && _target != null && IsInstanceValid(_target)
+            && IsBeyondArenaWard(_target.GlobalPosition.X)
+            && !IsWithinEngagementRange(_target.GlobalPosition);
+
+        /// <summary>Whether a global X lies beyond the ward margin outside the leash (false when unleashed).</summary>
+        public bool IsBeyondArenaWard(float globalX) =>
+            HasArenaLeash
+            && (globalX < ArenaBounds.Position.X - ArenaWardMarginPixels
+                || globalX > ArenaBounds.End.X + ArenaWardMarginPixels);
+
+        /// <summary>Hits the ward has refused since this body last spawned. Test seam.</summary>
+        public int WardedHitsRefused { get; private set; }
+
+        /// <summary>
+        /// The refused hit's read: a cold flash on the boss and, for a
+        /// player-dealt hit, a grey "0" where the damage number would float
+        /// (honouring the damage-number setting). Presentation only.
+        /// </summary>
+        private void PresentWardedHit(in FTT.Combat.HitPayload hit) {
+            WardedHitsRefused++;
+            _glow?.FlashHit(ArenaWardFlashColor, ArenaWardFlashSeconds);
+            if (!IsInsideTree()) return;
+            if (!FTT.Combat.StoryEnemyCombatRules.IsPlayerDealt(hit.AttackerIndex, hit.AttackClass, hit.Delivery)) return;
+            Vector2 numberPosition = GlobalPosition + new Vector2(
+                0f, _bodyTopY - FTT.Combat.StoryEnemyCombatRules.DamageNumberHeadClearancePixels);
+            FTT.UI.FloatingDamageNumber.Show(0, numberPosition, GetParent(), ArenaWardNumberColor);
+        }
+
+        /// <summary>Test seam: the target the ward and the AI read (normally acquired on the next engaged tick).</summary>
+        internal void SetTargetForTest(FTT.Characters.PlayerController target) => _target = target;
 
         private void ApplyGravity(float dt) {
             if (!IsOnFloor()) Velocity = new Vector2(Velocity.X, Velocity.Y + GravityPixelsPerSecond * dt);
@@ -403,6 +598,13 @@ namespace FTT.Enemies {
 
         private float EngagementRangePixels =>
             Mathf.Max(Data?.MeleeRangeThreshold ?? 3f, Data?.RangedRangeThreshold ?? 8f) * PixelsPerUnit;
+
+        /// <summary>
+        /// The one statement of "close enough to answer": chase stops and commits
+        /// an attack inside it, and the arena ward never holds inside it.
+        /// </summary>
+        private bool IsWithinEngagementRange(Vector2 globalPosition) =>
+            GlobalPosition.DistanceTo(globalPosition) <= EngagementRangePixels;
 
         /// <summary>
         /// The authored melee band — the boss's shortest-range attack distance.
@@ -426,7 +628,6 @@ namespace FTT.Enemies {
                 PlayAnimation("idle");
                 return;
             }
-            float dist = GlobalPosition.DistanceTo(_target.GlobalPosition);
             SetFacing(_target.GlobalPosition.X >= GlobalPosition.X);
             // GAP-07 Tragedy King: mid-soliloquy he performs, he does not fight —
             // the actors carry the scene until they bow.
@@ -435,11 +636,25 @@ namespace FTT.Enemies {
                 PlayAnimation("idle");
                 return;
             }
-            if (dist <= EngagementRangePixels) {
+            if (IsWithinEngagementRange(_target.GlobalPosition)) {
                 EnterAttacking();
                 return;
             }
             float sign = _facingRight ? 1f : -1f;
+            // P1: the leash stops the chase at the arena edge. A target outside
+            // the arena but inside the boss's engagement range was already
+            // answered above (from the edge, with no summon or teleport — see
+            // SelectAbilityIndex); one beyond it is not chased and not attacked:
+            // the boss holds the line, facing the target, until it comes back
+            // into range or into the arena. Answering it at any distance let the
+            // RangeClass.Any summon kits raise a wave every cooldown while the
+            // hero stood outside. While it holds there, the arena ward (A5,
+            // IsArenaWarded) refuses that target's hits.
+            if (IsPinnedAtLeash(sign)) {
+                Velocity = new Vector2(0f, Velocity.Y);
+                PlayAnimation("idle");
+                return;
+            }
             Velocity = new Vector2(sign * MoveSpeedPixels, Velocity.Y);
             PlayAnimation("move");
         }
@@ -472,7 +687,8 @@ namespace FTT.Enemies {
 
             if (Executor.Phase == EnemyAbilityPhase.Active &&
                 Executor.ActiveAbility?.Archetype == EnemyAbilityArchetype.ChargeDash) {
-                Velocity = new Vector2(StatusScaledDashVelocityX, Velocity.Y);
+                // P1: a charge stops at the arena edge rather than leaving it.
+                Velocity = new Vector2(LeashVelocityX(StatusScaledDashVelocityX), Velocity.Y);
             }
 
             if (!Executor.IsBusy) {
@@ -538,6 +754,11 @@ namespace FTT.Enemies {
                 return;
             }
 
+            if (IsPinnedAtLeash(sign)) {
+                Velocity = new Vector2(0f, Velocity.Y);
+                PlayAnimation("idle");
+                return;
+            }
             Velocity = new Vector2(sign * MoveSpeedPixels * RestTrackingSpeedFactor, Velocity.Y);
             PlayAnimation("move");
         }
@@ -772,7 +993,20 @@ namespace FTT.Enemies {
         /// selection returns -1 and the boss takes a rest window — a beat of
         /// downtime, never a repeat cast.
         /// </summary>
-        public int SelectAbilityIndex(float distancePixels) {
+        public int SelectAbilityIndex(float distancePixels) =>
+            SelectAbilityIndex(distancePixels, targetOutsideArena: false);
+
+        /// <summary>
+        /// <see cref="SelectAbilityIndex(float)"/> for a target that may stand
+        /// outside the arena leash. P1 (2026-10-04): against such a target the
+        /// arena-bound archetypes — <see cref="EnemyAbilityArchetype.SummonMinions"/>
+        /// and <see cref="EnemyAbilityArchetype.Teleport"/> — are never selected,
+        /// not even by the no-deadlock fallback: a summon kit (all RangeClass.Any)
+        /// would raise a wave every cooldown while the hero stood outside, and a
+        /// teleport lands on the target's far side, outside the arena. With
+        /// nothing else ready the boss takes its rest window.
+        /// </summary>
+        public int SelectAbilityIndex(float distancePixels, bool targetOutsideArena) {
             EnemyAbilityData[] abilities = ActiveAbilityArray;
             if (abilities == null || abilities.Length == 0) return -1;
 
@@ -784,6 +1018,7 @@ namespace FTT.Enemies {
                 if (ability == null) continue;
                 if (CurrentPhase < GetActiveAbilityMinPhase(index)) continue;
                 if (AbilityOnCooldown(index)) continue;
+                if (targetOutsideArena && IsArenaBoundArchetype(ability.Archetype)) continue;
                 unlocked.Add(index);
                 if (Data.AttackPattern != BossAttackPattern.DistanceBased) {
                     _selectionBuffer.Add(index);
@@ -826,9 +1061,20 @@ namespace FTT.Enemies {
         /// <summary>Advances the ability executor one 60 Hz frame (state machine and tests).</summary>
         public void TickAbility(float delta) => Executor.Tick(delta);
 
+        /// <summary>
+        /// The archetypes a boss never uses against a target outside its arena
+        /// (P1): a summon wave or a teleport answers nothing the boss can follow.
+        /// </summary>
+        private static bool IsArenaBoundArchetype(EnemyAbilityArchetype archetype) =>
+            archetype is EnemyAbilityArchetype.SummonMinions or EnemyAbilityArchetype.Teleport;
+
+        /// <summary>True when the current target stands outside this boss's arena leash.</summary>
+        private bool TargetOutsideArena =>
+            _target != null && IsInstanceValid(_target) && !IsInsideArena(_target.GlobalPosition.X);
+
         private void SelectAndExecuteAttack() {
             float distance = _target != null ? GlobalPosition.DistanceTo(_target.GlobalPosition) : 0f;
-            SelectedAbilityIndex = SelectAbilityIndex(distance);
+            SelectedAbilityIndex = SelectAbilityIndex(distance, TargetOutsideArena);
             if (SelectedAbilityIndex < 0) {
                 SelectedAbility = null;
                 _attackCommitted = false;
@@ -1167,8 +1413,11 @@ namespace FTT.Enemies {
             return false;
         }
 
+        // P1: a destination outside the arena leash is never valid — the chain
+        // falls through to the next tier instead of relocating out of the arena.
         private bool IsRecoveryDestinationValid(Vector2 point) =>
-            HistoricalRecoveryDestinationValidator?.Invoke(point) ?? IsRecoveryDestinationClear(point);
+            IsInsideArena(point.X)
+            && (HistoricalRecoveryDestinationValidator?.Invoke(point) ?? IsRecoveryDestinationClear(point));
 
         /// <summary>
         /// Default clearance test: the boss's own collision shape must fit at the
@@ -1478,6 +1727,16 @@ namespace FTT.Enemies {
         /// same-type reapplication does nothing at all.
         /// </summary>
         public void ApplyStatusEffect(StatusType type, float duration, float intensity = 1f) {
+            // A5: the arena ward refuses a status as it refuses a hit — the hit
+            // path never reaches here while warded, and this also covers a kit
+            // that applies a status without a hit (the Relativity Rift's linger).
+            // A slot restore (ActiveStatuses' setter) is not an application and
+            // bypasses it.
+            if (IsArenaWarded) return;
+            ApplyStatusSlot(type, duration, intensity);
+        }
+
+        private void ApplyStatusSlot(StatusType type, float duration, float intensity) {
             if (CurrentState == BossState.Dead || type == StatusType.None || duration <= 0f) return;
             // V7.6: Suppression is a player-side ability lock with no boss
             // meaning; refusing it keeps an inert status from evicting a live
@@ -1570,7 +1829,12 @@ namespace FTT.Enemies {
                     _venomTickTimer -= dt;
                     if (_venomTickTimer <= 0f) {
                         _venomTickTimer += 1f;
-                        ApplyBossDamage(Math.Max(1, (int)MathF.Round(2f * _damageStatusIntensity)));
+                        // A5: a warded boss takes nothing from its hero, a tick
+                        // of poison applied before the hero stepped out included.
+                        // The tick cadence and the status clock keep running.
+                        if (!IsArenaWarded) {
+                            ApplyBossDamage(Math.Max(1, (int)MathF.Round(2f * _damageStatusIntensity)));
+                        }
                     }
                 }
                 if (_damageStatusTimer <= 0f) {
@@ -1581,13 +1845,24 @@ namespace FTT.Enemies {
         }
 
         private float OnHurtboxHit(FTT.Combat.HitPayload hit) {
+            // A5 (2026-10-04): a leashed boss whose hero stands outside the arena
+            // and beyond its engagement range is warded — the hit lands nothing at
+            // all (no damage, knockback, status, mark or hitstop) and reads as
+            // refused.
+            if (CurrentState != BossState.Dead && IsArenaWarded) {
+                PresentWardedHit(in hit);
+                return 0f;
+            }
             int damageApplied = ApplyBossDamage(Mathf.Max(0, (int)Mathf.Round(hit.Damage)));
             if (damageApplied <= 0) return 0f;
             // V7.1 hitstop (victim side): a killing blow skips — the death
-            // presentation owns that moment.
-            if (CurrentState != BossState.Dead) {
-                ApplyHitstop(FTT.Combat.BasicComboRules.HitstopFrames(damageApplied));
+            // presentation owns that moment. F5 (2026-10-04): tick, construct and
+            // hazard deliveries and ExemptFromHitstop payloads never freeze a boss.
+            if (CurrentState != BossState.Dead
+                && !FTT.Combat.StoryEnemyCombatRules.VictimSkipsHitstop(hit.Delivery, hit.ExemptFromHitstop)) {
+                ApplyHitstop(FTT.Combat.StoryEnemyCombatRules.VictimHitstopFrames(damageApplied, hit.Launches));
             }
+            PresentDealtHit(in hit, damageApplied);
             ApplyKnockback(hit.Knockback, hit.AttackerFacingRight);
             // V7.6 F07: the caster-owned combo mark rides the same hit but is
             // not a status — no slot, no action lock, zero stagger budget.
@@ -1605,6 +1880,46 @@ namespace FTT.Enemies {
         private void SetFacing(bool facingRight) {
             _facingRight = facingRight;
             if (_sprite != null) _sprite.FlipH = !facingRight;
+            // P3 (2026-10-04): mirror the AbilityOrigin with the body so a
+            // left-facing boss casts from in front of it, not behind its back.
+            if (_abilityOrigin != null) {
+                _abilityOrigin.Position = new Vector2(
+                    facingRight ? _abilityOriginBaseX : -_abilityOriginBaseX,
+                    _abilityOrigin.Position.Y);
+            }
+        }
+
+        /// <summary>Victim hitstop frames still to run. Test seam.</summary>
+        public int HitstopFramesRemaining => _hitstopFramesRemaining;
+
+        /// <summary>The AbilityOrigin marker's current local position, or null when the scene has none. Test seam.</summary>
+        public Vector2? AbilityOriginLocalPosition => _abilityOrigin?.Position;
+
+        /// <summary>Turns the body (and its AbilityOrigin) without any AI. Test seam.</summary>
+        internal void SetFacingForTest(bool facingRight) => SetFacing(facingRight);
+
+        /// <summary>
+        /// F9 (2026-10-04): a player-dealt hit floats a damage number over the
+        /// boss (honouring the damage-number setting) and, for a direct hit,
+        /// shakes the camera through the CameraShake autoload — the ability's
+        /// authored shake when the payload carries one, else the basics'
+        /// damage-and-launch curve. Presentation only; shares the mob rule in
+        /// <see cref="FTT.Combat.StoryEnemyCombatRules"/>.
+        /// </summary>
+        private void PresentDealtHit(in FTT.Combat.HitPayload hit, int damageApplied) {
+            if (damageApplied <= 0) return;
+            if (!FTT.Combat.StoryEnemyCombatRules.IsPlayerDealt(hit.AttackerIndex, hit.AttackClass, hit.Delivery)) return;
+            if (FTT.Combat.StoryEnemyCombatRules.DealtHitShakes(hit.Delivery, hit.ExemptFromHitstop)) {
+                FTT.Core.CameraShake.Instance?.Shake(
+                    FTT.Combat.StoryEnemyCombatRules.DealtHitShakeIntensity(
+                        hit.AttackClass, hit.ScreenShakeIntensity, damageApplied, hit.Launches),
+                    FTT.Combat.StoryEnemyCombatRules.DealtHitShakeDuration(
+                        hit.AttackClass, hit.ScreenShakeIntensity, hit.ScreenShakeDuration, hit.Launches));
+            }
+            if (!IsInsideTree()) return;
+            Vector2 numberPosition = GlobalPosition + new Vector2(
+                0f, _bodyTopY - FTT.Combat.StoryEnemyCombatRules.DamageNumberHeadClearancePixels);
+            FTT.UI.FloatingDamageNumber.Show(damageApplied, numberPosition, GetParent());
         }
 
         private void PlayAnimation(string animationName) {
@@ -1656,6 +1971,10 @@ namespace FTT.Enemies {
             _guardPresentationShown = false;
             _afterImageFrame = 0;
             LastDecoy = null;
+            // P1 (2026-10-04): engagement and the arena leash are the spawning
+            // encounter's to set after the spawn; a recycled body starts at the
+            // standalone defaults (engaged, unleashed).
+            ResetArenaEngagement();
             ApplyData(Data);
             CurrentState = BossState.Idle;
             _restTimer = 0f;
@@ -1699,6 +2018,7 @@ namespace FTT.Enemies {
             _rewindFrozen = false;
             _restStandOffEngaged = false;
             _spawnAnnounced = false;
+            ResetArenaEngagement();
             Velocity = Vector2.Zero;
             CollisionLayer = 0;
             CollisionMask = 0;

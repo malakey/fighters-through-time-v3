@@ -204,7 +204,10 @@ namespace FTT.Characters {
 			BuildHurtbox(player, playerIndex);
 			BuildPushbox(player, playerIndex);
 			BuildMeleeHitbox(player, playerIndex, data);
-			BuildCombatAnimationPlayer(player);
+			// F2 (2026-10-04 feel pass): no CombatAnimationPlayer any more. Every
+			// basic swing runs on PlayerController's physics frame clock, the one
+			// clock hitstop suspends; the placeholder method-track library that
+			// used to time template-profile hits on the idle clock is deleted.
 			player.AddChild(new FTT.Environment.TemporalPositionHistory { Name = "TemporalPositionHistory" });
 
 			player.AddChild(new UltimateMeter { Name = "UltimateMeter" });
@@ -325,23 +328,16 @@ namespace FTT.Characters {
 				CollisionLayer = CollisionLayers.HitboxLayerForFighterSlot(playerIndex),
 				CollisionMask = CollisionLayers.HitboxMaskForFighterSlot(playerIndex),
 				Monitorable = true,
-				SourcePlayer = player
+				SourcePlayer = player,
+				// 2026-10-04 fix pass (M1): a basic or directional swing lands on
+				// an enemy or boss only with a clear Environment line from the
+				// body centre (Story; Fighter hits never ride this Area2D).
+				RequiresEnvironmentLineOfSight = true
 			};
 			var shape = new CollisionShape2D { Name = "CollisionShape2D", Position = new Vector2(30, -32) };
 			shape.Shape = new RectangleShape2D { Size = new Vector2(50, 45) };
 			hitbox.AddChild(shape);
 			player.AddChild(hitbox);
-		}
-
-		private static void BuildCombatAnimationPlayer(PlayerController player) {
-			var animationPlayer = new AnimationPlayer {
-				Name = "CombatAnimationPlayer",
-				CallbackModeMethod = AnimationMixer.AnimationCallbackModeMethod.Immediate
-			};
-			AnimationLibrary library = GD.Load<AnimationLibrary>(
-				"res://resources/Animations/placeholder_combat_animation_library.tres");
-			if (library != null) animationPlayer.AddAnimationLibrary("", library);
-			player.AddChild(animationPlayer);
 		}
 
 		private static void SetupAbilities(PlayerController player, string characterID) {

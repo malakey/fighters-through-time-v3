@@ -30,8 +30,25 @@ namespace FTT.Enemies {
         [Export] public PackedScene BossScene;
         [Export] public Vector2 SpawnOffset;
         [Export] public bool SpawnOnReady = true;
-        /// <summary>Distance at which the HUD bar and intro fire; 0 reveals immediately.</summary>
+        /// <summary>
+        /// Distance at which the HUD bar and intro fire; 0 reveals immediately.
+        /// Ignored when <see cref="ArenaBounds"/> is set — the arena rect is the
+        /// reveal then.
+        /// </summary>
         [Export] public float RevealDistance = 800f;
+        /// <summary>
+        /// P1 (2026-10-04): the boss arena in global coordinates. When set, every
+        /// body spawns dormant (<see cref="BossController.IsEngaged"/> false) and
+        /// leashed to the rect's horizontal extent, and the encounter reveals —
+        /// and engages the boss — the moment the player stands inside the rect
+        /// (design §17: "upon entering the boss arena ... the boss drops/marches
+        /// into the arena"). A zero-size rect keeps the legacy radius reveal and
+        /// an unleashed boss, though the boss still waits for the reveal.
+        /// </summary>
+        [Export] public Rect2 ArenaBounds;
+
+        /// <summary>True when <see cref="ArenaBounds"/> drives the reveal and the leash.</summary>
+        public bool HasArena => ArenaBounds.Size.X > 0f && ArenaBounds.Size.Y > 0f;
         [Export] public bool AwardDustOnDefeat = true;
         [Export] public StoryRewindPolicy BossRewindPolicy { get; set; } = StoryRewindPolicy.PreserveCurrentState;
 
@@ -131,11 +148,33 @@ namespace FTT.Enemies {
                 }
                 body.PhaseEntered += OnBodyPhaseEntered;
                 body.Died += OnBodyDied;
+                // P1: dormant until the reveal, and (with an arena) leashed to it.
+                // Squad members share the one arena.
+                body.ArenaBounds = HasArena ? ArenaBounds : default;
+                body.IsEngaged = IsRevealed;
                 _members.Add(body);
                 AddChild(body);
             }
             Boss = _members[0];
             return Boss;
+        }
+
+        /// <summary>
+        /// P1: whether the player stands where this encounter reveals — inside the
+        /// arena rect when one is authored, else within <see cref="RevealDistance"/>
+        /// of the boss. Public so level tests can probe the authored geometry.
+        /// </summary>
+        public bool IsRevealPoint(Vector2 globalPosition) {
+            if (HasArena) return ArenaBounds.HasPoint(globalPosition);
+            if (RevealDistance <= 0f) return true;
+            return Boss != null && IsInstanceValid(Boss)
+                && globalPosition.DistanceTo(Boss.GlobalPosition) <= RevealDistance;
+        }
+
+        private void SetMembersEngaged(bool engaged) {
+            foreach (BossController body in _members) {
+                if (body != null && IsInstanceValid(body)) body.IsEngaged = engaged;
+            }
         }
 
         /// <summary>Sum of every body's current HP (a squad's one shared bar).</summary>
@@ -208,7 +247,7 @@ namespace FTT.Enemies {
             AdvanceFreeTelegraph();
             if (AdvanceIntroBeat((float)delta)) return;
             if (IsRevealed || IsDefeated || Boss == null || !IsInstanceValid(Boss)) return;
-            if (RevealDistance <= 0f) {
+            if (!HasArena && RevealDistance <= 0f) {
                 Reveal();
                 return;
             }
@@ -216,7 +255,7 @@ namespace FTT.Enemies {
                 _player = GetTree()?.GetFirstNodeInGroup("StoryPlayer") as FTT.Characters.PlayerController;
             }
             if (_player == null) return;
-            if (_player.GlobalPosition.DistanceTo(Boss.GlobalPosition) <= RevealDistance) Reveal();
+            if (IsRevealPoint(_player.GlobalPosition)) Reveal();
         }
 
         /// <summary>
@@ -224,11 +263,26 @@ namespace FTT.Enemies {
         /// (the boss held in place), the boss's signature telegraph shown once
         /// for free, then the HUD bar sweeps in. Skipped on repeat attempts —
         /// the seen-set lives on StoryManager and survives a Timeline Collapse.
+        /// P1: the reveal is also what engages the boss.
         /// </summary>
-        private void Reveal() {
+        private void Reveal() => Reveal(skipIntroBeat: false);
+
+        /// <summary>
+        /// The reveal. <paramref name="skipIntroBeat"/> (or a body that is
+        /// already engaged) bypasses the name-card freeze and the free telegraph
+        /// — they are an opening ritual, and freezing a boss that is already
+        /// fighting hands the hero a free window — but still shows the bar and
+        /// raises <see cref="BossRevealed"/> (objective, boss-intro dialogue,
+        /// boss music). The intro is not recorded as seen, so a later attempt
+        /// still gets the ritual.
+        /// </summary>
+        private void Reveal(bool skipIntroBeat) {
             if (IsRevealed) return;
             IsRevealed = true;
-            bool skipIntro = FTT.Core.StoryManager.Instance?.HasSeenBossIntro(Data?.BossID) == true;
+            bool alreadyFighting = skipIntroBeat || AnyMemberEngaged();
+            SetMembersEngaged(true);
+            bool skipIntro = alreadyFighting
+                || FTT.Core.StoryManager.Instance?.HasSeenBossIntro(Data?.BossID) == true;
             if (!skipIntro && Data != null && Boss != null && IsInstanceValid(Boss)) {
                 FTT.Core.StoryManager.Instance?.RecordBossIntroSeen(Data.BossID);
                 _introBeatSecondsRemaining = IntroBeatSeconds;
@@ -303,9 +357,39 @@ namespace FTT.Enemies {
         }
 
         private void OnBossHPChanged(BossHPPayload payload) {
-            if (!IsRevealed || IsDefeated) return;
+            if (IsDefeated) return;
             if (!string.IsNullOrEmpty(Data?.BossID) && payload.BossID != Data.BossID) return;
+            if (!IsRevealed) {
+                // P1: a dormant boss hit from outside its arena wakes and fights
+                // back (leashed) instead of soaking free damage, and the fight is
+                // a revealed one — bar, objective, boss-intro dialogue and music —
+                // but with the intro beat skipped, so a later arena entry can
+                // never freeze a boss mid-fight.
+                if (payload.CurrentHP >= payload.MaxHP) return;
+                SetMembersEngaged(true);
+                // The hit usually lands inside a physics flush, and the reveal
+                // can start a gameplay-pausing dialogue; hop off it. Direct
+                // (test) calls stay synchronous.
+                if (FTT.Core.PhysicsCallbackGuard.IsInPhysicsCallback) {
+                    Callable.From(RevealWokenBoss).CallDeferred();
+                } else {
+                    RevealWokenBoss();
+                }
+                return;
+            }
             HUD?.UpdateBossHP(IsSquadEncounter ? CombinedCurrentHP : payload.CurrentHP);
+        }
+
+        private void RevealWokenBoss() {
+            if (!IsInstanceValid(this) || IsDefeated) return;
+            Reveal(skipIntroBeat: true);
+        }
+
+        private bool AnyMemberEngaged() {
+            foreach (BossController body in _members) {
+                if (body != null && IsInstanceValid(body) && body.IsEngaged) return true;
+            }
+            return false;
         }
 
         private void OnBossDefeated(BossDefeatedPayload payload) {

@@ -211,6 +211,24 @@ namespace FTT.Combat {
         /// <summary>Delivery channel; see <see cref="FTT.Combat.HitDelivery"/>.</summary>
         public FTT.Combat.HitDelivery Delivery;
         /// <summary>
+        /// F7 (2026-10-04 feel pass, provisional): the hit came from a
+        /// Standard-tier mob. Such a hit never launches the Story player — it is
+        /// grounded hitstun with a slide, no tumble, no knockdown — unless the
+        /// payload itself authors <see cref="Launches"/>. Elites, bosses and
+        /// hazards leave it false and keep the legacy "knockback launches" rule.
+        /// Story-only: the Fighter simulation never reads it.
+        /// </summary>
+        public bool SourceIsStandardMob;
+        /// <summary>
+        /// 2026-10-04 fix pass (R12): the <see cref="BaseSpecial.ExecutionSerial"/>
+        /// of the cast that fired this hit, stamped at spawn on a pooled shot that
+        /// can outlive its cast; 0 means "the execution current when it lands".
+        /// The once-per-execution caster freeze claims against it, so a late shot
+        /// from cast N never spends cast N+1's freeze. Story-only: the Fighter
+        /// simulation never reads it.
+        /// </summary>
+        public int SourceExecutionSerial;
+        /// <summary>
         /// What authored the hit; see <see cref="FTT.Combat.HitOrigin"/>. The
         /// field is <c>Origin</c> because the older Vector2 <c>HitOrigin</c>
         /// field above is the contact POSITION and keeps its name.

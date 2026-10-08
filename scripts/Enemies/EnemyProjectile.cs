@@ -54,6 +54,9 @@ namespace FTT.Enemies {
         /// </summary>
         public bool IsBreakable { get; set; } = true;
 
+        /// <summary>F7 (FEEL, 2026-10-04): stamped by the firing executor after every Setup; standard-mob shots never launch the Story player.</summary>
+        public bool SourceIsStandardMob { get => _hitbox?.SourceIsStandardMob ?? false; set { EnsureNodes(); _hitbox.SourceIsStandardMob = value; } }
+
         public override void _Ready() {
             AddToGroup(GroupName);
             AddToGroup("projectile");
@@ -113,6 +116,7 @@ namespace FTT.Enemies {
             _hitbox.StatusIntensity = (ability?.StatusIntensity ?? 1f) <= 0f ? 1f : ability.StatusIntensity;
             _hitbox.OwnerPlayerIndex = -1;
             _hitbox.SourcePlayer = null;
+            _hitbox.SourceIsStandardMob = false; // F7 (FEEL): pooled reset; the firing executor stamps it after Setup
             _hitbox.CollisionLayer = CollisionLayers.Projectile;
             // The centralized projectile mask (audit Low: the hand-rolled mask
             // dropped Environment, letting ranged mobs shoot through walls). The

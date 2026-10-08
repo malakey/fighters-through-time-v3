@@ -313,6 +313,27 @@ namespace FTT.Environment {
         public const string WardenEnemyID = "chrono_warden";
         public const string BossResourcePath = "res://resources/Bosses/archive_prime.tres";
 
+        /// <summary>
+        /// P1 (2026-10-04): the security core. West edge is
+        /// <see cref="BossArenaWestX"/> (spawn 10900 - 700), so the wave-4 garrison
+        /// is fought first; east edge is the core wall.
+        /// </summary>
+        public static readonly Rect2 BossArenaBounds = new(BossArenaWestX, 0f, ArenaEndX - BossArenaWestX, LevelHeight);
+
+        /// <summary>
+        /// A4 (2026-10-04): the boss's spawn X, the one value the arena's west
+        /// edge derives from (the encounter is built at it).
+        /// </summary>
+        public const float BossSpawnX = 10900f;
+        /// <summary>
+        /// How far west of <see cref="BossSpawnX"/> the arena starts: the old
+        /// 700 px reveal radius (ARENA-WEST-EDGE-AT-OLD-REVEAL-LINE). The
+        /// arena rect is the reveal now, so this is the radius's only remaining use.
+        /// </summary>
+        public const float BossArenaApproachPixels = 700f;
+        /// <summary>The arena's west edge (and the reveal line).</summary>
+        public const float BossArenaWestX = BossSpawnX - BossArenaApproachPixels;
+
         private const float StandY = DeckY - 50f;
 
         /// <summary>
@@ -501,8 +522,8 @@ namespace FTT.Environment {
             // The core floor spans 2,440 px against Archive Prime's 10.0-unit ranged
             // band (600 px at BossController's 60 px per unit); the content test
             // asserts the fit against the resource, never against a literal.
-            BuildBossEncounter(BossResourcePath, new Vector2(10900f, DeckY - 50f),
-                "ArchivePrimeEncounter", revealDistance: 700f);
+            BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, DeckY - 50f),
+                "ArchivePrimeEncounter", BossArenaBounds);
         }
 
         /// <summary>Authored rungs for one containment shaft.</summary>

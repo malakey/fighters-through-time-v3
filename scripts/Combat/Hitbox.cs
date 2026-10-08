@@ -56,6 +56,40 @@ namespace FTT.Combat {
         [Export] public bool IsActive;
 
         public PlayerController SourcePlayer { get; set; }
+
+        /// <summary>
+        /// F7 (2026-10-04 feel pass, provisional): stamped by the enemy runtime
+        /// on hitboxes a Standard-tier mob owns (its attack hitbox and its
+        /// pooled projectiles), copied into <see cref="HitPayload.SourceIsStandardMob"/>.
+        /// Story-only — the Fighter simulation never reads it.
+        /// </summary>
+        public bool SourceIsStandardMob { get; set; }
+
+        /// <summary>
+        /// 2026-10-04 fix pass (M1), Story-only: when true, a contact with an
+        /// enemy or boss hurtbox lands only if the segment between the hurtbox's
+        /// centre and <see cref="SourcePlayer"/>'s body centre is clear of
+        /// Environment (<see cref="EnvironmentProbe"/>) — one point query and one
+        /// ray per new contact, cast from the target back to the swinger (see
+        /// <see cref="IsBlockedByEnvironment"/> for why). Set on the player's
+        /// <c>MeleeHitbox</c> (basics and the directional strikes) by
+        /// <c>CharacterFactory</c>: an Area2D ignores walls, so a swing used to
+        /// land on a boss standing on the far side of a 20 px wall. Projectiles
+        /// stop on terrain themselves; zones, constructs and kit shape queries
+        /// are not covered. The Fighter simulation never reads it (Fighter hits
+        /// are resolved in fixed point, not by Area2D).
+        /// </summary>
+        public bool RequiresEnvironmentLineOfSight { get; set; }
+
+        /// <summary>
+        /// 2026-10-04 fix pass (R12): the <see cref="BaseSpecial.ExecutionSerial"/>
+        /// of the cast that fired this hitbox, copied into
+        /// <see cref="HitPayload.SourceExecutionSerial"/>, so a pooled shot that
+        /// lands after its caster started the next cast claims its OWN cast's
+        /// once-per-execution caster freeze. 0 = the execution current at landing
+        /// (every hitbox that lives inside its cast). Reset by pooled owners.
+        /// </summary>
+        public int SourceExecutionSerial { get; set; }
         private bool _areaEnteredConnected;
 
         /// <summary>
@@ -138,6 +172,8 @@ namespace FTT.Combat {
                 Launches = Launches,
                 Delivery = Delivery,
                 Origin = Origin,
+                SourceIsStandardMob = SourceIsStandardMob,
+                SourceExecutionSerial = SourceExecutionSerial,
                 // Package 13 W7a (L03): a construct's pooled bolt carries no
                 // hitstop, the V7.3 construct rule every direct construct
                 // payload already stamps.
@@ -201,6 +237,11 @@ namespace FTT.Combat {
             // so the shot is not consumed and flies on.
             if (IsProjectileHitbox && hurtbox.GetParent() is PlayerController target
                 && target.PassesThroughProjectiles) return;
+            // M1 (2026-10-04 fix pass): a player's swing does not reach through a
+            // wall. Read before the callback guard is entered — the probe
+            // answers "clear" inside the guard — and side-effect-free: one point
+            // query and one ray.
+            if (IsBlockedByEnvironment(hurtbox)) return;
 
             // Everything a landed hit cascades into (kills, drop spawns,
             // lethal-hit rewinds, pool releases) runs inside the engine's
@@ -228,7 +269,12 @@ namespace FTT.Combat {
             // Hitbox-delivered hit - melee, special and pooled projectile -
             // which is exactly the design's "a direct Hit 3 or Righteous Smite
             // hit" surface without a second chokepoint.
-            if (damageApplied > 0f) SourcePlayer?.NotifyStoryHitLanded(payload);
+            if (damageApplied > 0f) {
+                SourcePlayer?.NotifyStoryHitLanded(payload);
+                // 2026-10-04 feel pass (F5): an ability-authored hit gets its
+                // impact VFX, HitConfirm and caster freeze at the struck hurtbox.
+                SourcePlayer?.ConfirmAbilityHitboxHit(payload, damageApplied, hurtbox.GlobalPosition);
+            }
             HitConfirmed?.Invoke(payload, damageApplied);
         }
 
@@ -278,6 +324,39 @@ namespace FTT.Combat {
         /// </summary>
         private bool IsDiscardedByWorldHold() =>
             IsInsideTree() && FTT.Environment.ChronalRewindManager.IsWorldHeld(GetTree());
+
+        /// <summary>
+        /// M1: true when <see cref="RequiresEnvironmentLineOfSight"/> is set, the
+        /// target is an enemy or a boss, and Environment geometry lies between the
+        /// hurtbox's centre and the source player's body centre. Checkpoint
+        /// fractures, extractors and other strike surfaces are never gated (a
+        /// breakable wall's own body would otherwise block its own strike).
+        ///
+        /// <para>The ray is cast FROM the target back to the swinger, and that
+        /// direction is load-bearing: a ray ignores a shape it starts inside, so
+        /// a wall-phasing enemy caught mid-wall (the Rift Phantom, whose body
+        /// mask drops Environment while it chases or attacks) is not sheltered
+        /// by the wall it is passing through. That is the same answer its own
+        /// swing gets — the P2 wall clip
+        /// (<c>EnemyAbilityExecutor.NearestBlockingWall</c>) is cast from the
+        /// enemy's centre outward and likewise never sees the wall it starts
+        /// in. Any other wall between the two still blocks, so a phantom whose
+        /// centre is past a wall's far face is behind it, both ways. The ray
+        /// skips the whole BODY the target's centre is inside
+        /// (<c>ignoreBodiesAtOrigin</c>), not only the one convex shape a ray
+        /// ignores by itself, so a multi-shape or concave wall does not shelter
+        /// the phantom either.</para>
+        /// </summary>
+        private bool IsBlockedByEnvironment(Hurtbox hurtbox) {
+            if (!RequiresEnvironmentLineOfSight) return false;
+            PlayerController source = SourcePlayer;
+            if (source == null || !IsInstanceValid(source)) return false;
+            if (hurtbox.GetParent() is not (FTT.Enemies.EnemyController or FTT.Enemies.BossController)) return false;
+            Vector2 target = hurtbox.GetNodeOrNull<CollisionShape2D>("CollisionShape2D")?.GlobalPosition
+                ?? hurtbox.GlobalPosition;
+            return !EnvironmentProbe.IsClear(source, target, source.BodyCentreGlobalPosition,
+                ignoreBodiesAtOrigin: true);
+        }
 
         private PlayerController FindOwningPlayer() {
             Node current = GetParent();

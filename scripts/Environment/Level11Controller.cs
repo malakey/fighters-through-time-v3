@@ -47,6 +47,26 @@ namespace FTT.Environment {
         public const string Checkpoint1 = ID + "_checkpoint_1";
         public const string Checkpoint2 = ID + "_checkpoint_2";
         public const string BossResourcePath = "res://resources/Bosses/siege_cannon.tres";
+
+        /// <summary>
+        /// P1 (2026-10-04): the railcut. West edge is <see cref="BossArenaWestX"/>
+        /// (spawn 10900 - 900); east edge is the railcut wall's inner face.
+        /// </summary>
+        public static readonly Rect2 BossArenaBounds = new(BossArenaWestX, 0f, 11500f - BossArenaWestX, LevelHeight);
+
+        /// <summary>
+        /// A4 (2026-10-04): the boss's spawn X, the one value the arena's west
+        /// edge derives from (the encounter is built at it).
+        /// </summary>
+        public const float BossSpawnX = 10900f;
+        /// <summary>
+        /// How far west of <see cref="BossSpawnX"/> the arena starts: the old
+        /// 900 px reveal radius (ARENA-WEST-EDGE-AT-OLD-REVEAL-LINE). The
+        /// arena rect is the reveal now, so this is the radius's only remaining use.
+        /// </summary>
+        public const float BossArenaApproachPixels = 900f;
+        /// <summary>The arena's west edge (and the reveal line).</summary>
+        public const float BossArenaWestX = BossSpawnX - BossArenaApproachPixels;
         public const string DialogueResourcePath = "res://resources/Dialogue/level_11_dialogue.tres";
 
         public override string LevelID => ID;
@@ -114,6 +134,8 @@ namespace FTT.Environment {
         /// <summary>World-space centre of a pane held by an array standing at <see cref="ArrayY"/>.</summary>
         public const float BarrierCenterY = ArrayY - 48f;
         public const float BarrierHalfHeight = 160f;
+        /// <summary>The template pane's width (its 48x320 shape).</summary>
+        private const float BarrierPaneWidth = 48f;
 
         /// <summary>Top of the pane's seal. The gallery roof mass fills everything above it.</summary>
         public const float LaneRoofBottomY = BarrierCenterY - BarrierHalfHeight;   // 300
@@ -134,7 +156,14 @@ namespace FTT.Environment {
 
         /// <summary>Confederate breastwork sealing the railcut until the Union line moves.</summary>
         public const float BreastworkX = 8900f;
+        private const float BreastworkWidth = 48f;
         private const float BreastworkHeight = 460f;
+
+        /// <summary>
+        /// Width of the earthwork roof mass over each lane's pane (the pane is 48
+        /// wide; the roof overhangs it 46 px each side).
+        /// </summary>
+        private const float LaneRoofWidth = 140f;
 
         public static readonly Rect2 Room1CameraBounds = new(Room1StartX, 0, 3200, LevelHeight);
         public static readonly Rect2 Room2CameraBounds = new(Room2StartX, 0, 3200, LevelHeight);
@@ -311,8 +340,16 @@ namespace FTT.Environment {
             BuildFloor(Room1StartX, GroundY, 3200);
             BuildWall(-20, 0, LevelHeight);
 
-            // Modest verticality: a battery ridge, not a tower.
-            BuildOneWayPlatform(2680, 730, 160);
+            // Modest verticality: a battery ridge, not a tower. G5 (2026-10-04):
+            // the step sat at 730 (top 720), 58 px under the ridge Extractor's
+            // underside (662, it hangs 14 px through the ridge platform) — inside
+            // the one-way's 12 px landing margin below the 64 px hero, so a hero
+            // jumping up through it there was pushed onto it and wedged. At 750
+            // (top 740) it leaves 78 px. The step sits under the ridge's west
+            // end, so the ridge is climbed from the sandbags in front of it
+            // (2600, top 780): the play bot's simulated jumps find that route
+            // for Lincoln, Joan and Cleopatra.
+            BuildOneWayPlatform(2680, 750, 160);
             BuildPlatform(2750, 640, 240);
 
             BuildCheckpoint(200, EnemyGroundY, Checkpoint0, CheckpointRole.Entry);
@@ -391,8 +428,8 @@ namespace FTT.Environment {
             BuildRoomDecoration(Room4StartX, "gettysburg_room_railcut", new Color(0.95f, 0.33f, 0.24f));
             BuildRoomTransition("gettysburg_room_railcut", new Vector2(Room4StartX + 30, 540), Room4CameraBounds);
 
-            BuildBossEncounter(BossResourcePath, new Vector2(10900, EnemyGroundY),
-                "siege_cannon_encounter", revealDistance: 900f);
+            BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, EnemyGroundY),
+                "siege_cannon_encounter", BossArenaBounds);
         }
 
         /// <summary>
@@ -406,18 +443,28 @@ namespace FTT.Environment {
             float width = endX - startX;
             BuildPlatform(startX + width / 2f, CrestTopY + CrestDeckThickness / 2f, width,
                 GalleryColor, CrestDeckThickness);
-            // Roof mass filling everything above the pane's top edge.
-            BuildPlatform(paneX, LaneRoofBottomY / 2f, 140f, EarthworkColor, LaneRoofBottomY);
+            // Roof mass filling everything above the pane's top edge. P5
+            // (2026-10-04): it used to stop at y 0, the top of the level, and a
+            // strong double jump off the array's own top (y 336) cleared it
+            // without breaking the array; it is a gate column now, rising past the
+            // roster's reach. Same 140 px span, centred on the pane.
+            BuildGateColumn(paneX, BarrierPaneWidth, LaneRoofBottomY, EarthworkColor,
+                margin: (LaneRoofWidth - BarrierPaneWidth) / 2f);
             BuildLaneLabel($"Lane{suffix}Label", new Vector2(paneX, LaneRoofBottomY + 40f));
         }
 
         /// <summary>Confederate breastwork: objective-gated, not barrier-gated.</summary>
         private void BuildBreastwork() {
             _breastwork = BuildDoor("BreastworkGate", new Vector2(BreastworkX, GroundY),
-                "gettysburg_gate_sealed", new Vector2(48, BreastworkHeight), BreastworkColor);
-            // Solid earth above the gate, or the whole objective is jumped.
-            BuildPlatform(BreastworkX, (GroundY - BreastworkHeight) / 2f, 60f,
-                EarthworkColor, GroundY - BreastworkHeight);
+                "gettysburg_gate_sealed", new Vector2(BreastworkWidth, BreastworkHeight), BreastworkColor);
+            // Solid earth above the gate, or the whole objective is jumped. P5
+            // (2026-10-04): the earth used to stop at y 0, the top of the level,
+            // and the Story levels have no sky — from the Angle lane's gallery
+            // deck (top 560) or its Extractor a double jump and an upward
+            // Relativity Warp rise past y 0, so the breastwork could be crossed
+            // with both arrays standing. It is a gate column now, rising past
+            // anything the roster can reach.
+            BuildGateColumn(BreastworkX, BreastworkWidth, GroundY - BreastworkHeight, EarthworkColor);
         }
 
         private void BuildCoverLine() {

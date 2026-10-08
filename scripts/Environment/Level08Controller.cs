@@ -47,6 +47,29 @@ namespace FTT.Environment {
         public const string Checkpoint1 = ID + "_checkpoint_1";
         public const string Checkpoint2 = ID + "_checkpoint_2";
         public const string BossResourcePath = "res://resources/Bosses/jackal_priest.tres";
+
+        /// <summary>
+        /// P1 (2026-10-04): the inner chamber, under its ceiling slab (840). West
+        /// edge is <see cref="BossArenaWestX"/> (spawn 9800 - 900), keeping the
+        /// pre-boss anchor (8420) and the absence beat (8500) outside; east edge is
+        /// the chamber wall's inner face. Decoy teleports stay inside it too.
+        /// </summary>
+        public static readonly Rect2 BossArenaBounds =
+            new(BossArenaWestX, 840f, LevelWidth - 20f - BossArenaWestX, LevelHeight - 840f);
+
+        /// <summary>
+        /// A4 (2026-10-04): the boss's spawn X, the one value the arena's west
+        /// edge derives from (the encounter is built at it).
+        /// </summary>
+        public const float BossSpawnX = 9800f;
+        /// <summary>
+        /// How far west of <see cref="BossSpawnX"/> the arena starts: the old
+        /// 900 px reveal radius (ARENA-WEST-EDGE-AT-OLD-REVEAL-LINE). The
+        /// arena rect is the reveal now, so this is the radius's only remaining use.
+        /// </summary>
+        public const float BossArenaApproachPixels = 900f;
+        /// <summary>The arena's west edge (and the reveal line).</summary>
+        public const float BossArenaWestX = BossSpawnX - BossArenaApproachPixels;
         public const string DialogueResourcePath = "res://resources/Dialogue/level_08_dialogue.tres";
 
         /// <summary>Stable, save-persisted puzzle id for the hieroglyph vault seal.</summary>
@@ -112,6 +135,7 @@ namespace FTT.Environment {
 
         /// <summary>The hieroglyph-sealed vault door; the only route into the chambers.</summary>
         public const float VaultGateX = Room4StartX;
+        private const float VaultDoorWidth = 48f;
 
         public static readonly Rect2 Room1CameraBounds = new(Room1StartX, 0, 3200, 1080);
         public static readonly Rect2 Room2CameraBounds = new(Room2StartX, 0, 2560, 1080);
@@ -314,7 +338,13 @@ namespace FTT.Environment {
             // The seal itself. It reaches the corridor ceiling, so the vault cannot be
             // jumped: reading the relief is the only way through.
             _vaultDoor = BuildDoor("VaultDoor", new Vector2(VaultGateX, TombFloorY), "egypt_vault_sealed",
-                new Vector2(48, TombFloorY - TombCeilingY), VaultDoorColor);
+                new Vector2(VaultDoorWidth, TombFloorY - TombCeilingY), VaultDoorColor);
+            // P5 (2026-10-04): every sealed door carries a gate column. The
+            // corridor ceiling already met this one, but its roof is reachable from
+            // the shaft and only the chamber ceiling's dead end kept the vault
+            // shut from above; the column makes the seal the door's own, as on
+            // every other level.
+            BuildGateColumn(VaultGateX, VaultDoorWidth, TombCeilingY, TombFloorColor);
         }
 
         /// <summary>
@@ -341,11 +371,11 @@ namespace FTT.Environment {
                 new Vector2(80, 1080));
 
             // Package 13 W4 (S35): the throne room, held for a queen three nights gone.
-            // Before the boss reveal (9800 - 900), so the two sequences never collide.
+            // Before the boss reveal (BossArenaWestX), so the two sequences never collide.
             BuildAbsenceTrigger(new Vector2(8500, TombFloorY - 200));
 
-            BuildBossEncounter(BossResourcePath, new Vector2(9800, TombEnemyY),
-                "jackal_priest_encounter", revealDistance: 900f);
+            BuildBossEncounter(BossResourcePath, new Vector2(BossSpawnX, TombEnemyY),
+                "jackal_priest_encounter", BossArenaBounds);
         }
 
         /// <summary>

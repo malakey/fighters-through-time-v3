@@ -91,9 +91,9 @@ EndpointWaitSeconds = 1.4
 Mode = 0
 
 [node name="LiftSpire" parent="." instance=ExtResource("4_platform")]
-position = Vector2(7050, 1900)
+position = Vector2(7050, 1916)
 PlatformID = "level_12.lift_spire"
-Waypoints = PackedVector2Array(0, 0, 0, -1500)
+Waypoints = PackedVector2Array(0, 0, 0, -1516)
 Speed = 300.0
 EndpointWaitSeconds = 1.8
 Mode = 0

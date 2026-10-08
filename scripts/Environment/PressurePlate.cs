@@ -6,6 +6,18 @@ using FTT.Core;
 
 namespace FTT.Environment {
 
+    /// <summary>
+    /// A weighted plate: the sum of the loads <see cref="RegisterBody"/> accepts.
+    ///
+    /// <para><b>Detection (G1, 2026-10-04).</b> The template's collision mask has to
+    /// cover the player's body layer AND the layer the <see cref="WeightedObject"/>
+    /// props live on — Environment since Package 12 W8 (M02) made the props solid.
+    /// The mask was left on the props' old PersistentObject layer, so no prop ever
+    /// entered a plate by physics and Pompeii's winch could never balance (only the
+    /// west pan's authored load was registered, by hand). The plate sees every
+    /// Environment body it touches, but only weighs what <see cref="RegisterBody"/>
+    /// accepts: a floor, a wall or a moving platform weighs nothing.</para>
+    /// </summary>
     public partial class PressurePlate : Area2D {
         [Signal] public delegate void WeightChangedEventHandler(float currentWeight, bool thresholdReached);
 

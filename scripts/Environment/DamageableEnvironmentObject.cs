@@ -144,8 +144,53 @@ namespace FTT.Environment {
             if (IsDestroyed) return;
             IsDestroyed = true;
             ApplyStatePresentation();
+            WakeRestingWeightsAfterShapeChange();
             OnDestroyed();
             EmitSignal(SignalName.Destroyed);
+        }
+
+        // === G1 (2026-10-04): a broken support wakes the weights it held ===
+
+        /// <summary>
+        /// How far beyond a broken object's body a resting <see cref="WeightedObject"/>
+        /// is woken. Comfortably more than a prop's radius (28 px), so a prop
+        /// resting on the body's top or leaning on its side is always reached.
+        /// </summary>
+        public const float RestingWeightWakeMarginPixels = 64f;
+
+        /// <summary>
+        /// Godot Physics 2D does not wake a sleeping <see cref="RigidBody2D"/> when
+        /// the static shape it rests on is disabled, so Pompeii's pumice block stayed
+        /// asleep in mid-air after its wedge broke and the winch could never balance.
+        /// A destroyed object wakes every movable weight near its body; one that is
+        /// still supported settles and sleeps again. Runs after the shape is off:
+        /// directly on a direct call, and deferred behind the deferred shape write
+        /// when the destroying hit arrives inside a physics flush.
+        /// </summary>
+        private void WakeRestingWeightsAfterShapeChange() {
+            if (PhysicsCallbackGuard.IsInPhysicsCallback) {
+                Callable.From(() => {
+                    if (IsInstanceValid(this)) WakeRestingWeights();
+                }).CallDeferred();
+                return;
+            }
+            WakeRestingWeights();
+        }
+
+        private void WakeRestingWeights() {
+            if (!IsInsideTree() || GetNodeOrNull<CollisionShape2D>("CollisionShape2D") is not { Shape: not null } shape) return;
+            Rect2 local = shape.Shape.GetRect();
+            Transform2D transform = shape.GlobalTransform;
+            var reach = new Rect2(transform * local.Position, Vector2.Zero);
+            reach = reach.Expand(transform * new Vector2(local.End.X, local.Position.Y));
+            reach = reach.Expand(transform * local.End);
+            reach = reach.Expand(transform * new Vector2(local.Position.X, local.End.Y));
+            reach = reach.Grow(RestingWeightWakeMarginPixels);
+            Godot.Collections.Array<Node> weights = GetTree().GetNodesInGroup(WeightedObject.MovableWeightGroup);
+            using var lifetime = weights.AsDisposable();
+            foreach (Node node in weights) {
+                if (node is RigidBody2D body && reach.HasPoint(body.GlobalPosition)) body.Sleeping = false;
+            }
         }
 
         private void OnRewind(Vector2 targetPosition) => ApplyStoryRewind();

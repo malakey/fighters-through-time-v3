@@ -132,6 +132,13 @@ namespace FTT.Environment {
         public const float ArenaPlatformWidth = 340f;
         public const float MirrorRevealDistance = 700f;
 
+        /// <summary>
+        /// P1 (2026-10-04): the Mirror's leash — the arena from its seam to the east
+        /// wall's inner face. The reveal stays the 700 px radius.
+        /// </summary>
+        public static readonly Rect2 MirrorArenaBounds =
+            new(ArenaStartX, 0f, ArenaEndX - DefaultWallThickness - ArenaStartX, LevelHeight);
+
         // === Checkpoints ===
 
         public const string Checkpoint0 = VoidLevelID + "_checkpoint_0";
@@ -509,6 +516,8 @@ namespace FTT.Environment {
                 Position = new Vector2(MirrorSpawnX, ShelfY - 50f),
                 CharacterIDOverride = Player?.Data?.CharacterID ?? "",
                 RevealDistance = MirrorRevealDistance,
+                // P1 (2026-10-04): the clone never chases out of its arena.
+                ArenaBounds = MirrorArenaBounds,
                 AwardDustOnDefeat = true,
                 SpawnOnReady = true
             };
